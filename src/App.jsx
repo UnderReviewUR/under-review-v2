@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { generateTennisTake } from "./lib/tennisEngine";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -171,16 +172,53 @@ const featuredMatchups = [
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
-function generateTake(input, matchup) {
-  const q = input.toLowerCase();
-  if (q.includes("sinner") && q.includes("ace")) return "Slight lean under. 8 is a sharp number against Medvedev because he gives away very little on return. Sinner averages 8.1 on Miami hard courts — right at the median. His DR 1.49 wins matches through dominance not aces. I'd need better odds to take the over.";
-  if (q.includes("barca") && q.includes("advance")) return "71% confidence Barca advance. Newcastle need 2 goals and their home xG is 1.8/game — not enough without a Barca defensive error. The real risk is a set-piece goal in the first 20 minutes. If Barca go down early this gets uncomfortable fast.";
-  if (q.includes("hamilton") && q.includes("top 3")) return "38% podium probability. Top 5 is the cleaner baseline — top 3 needs either strong qualifying or race chaos. Ferrari pace at Jeddah looks real but tire degradation strategy decides whether that translates to the podium.";
-  if (q.includes("mahomes") && q.includes("2 td")) return "58% confidence on 2+ TDs Week 1. Mahomes averaged 2.1 TDs per game in healthy seasons — this is right at his baseline. The question is game script. If KC needs to stay aggressive for four quarters the number becomes much more likely.";
-  if (q.includes("medvedev") && q.includes("tiebreak")) return "Medvedev wins only 42% of tiebreaks — worst in the ATP top 10. This is his defining weakness and exactly why third sets against Sinner are dangerous. His flat game creates the tiebreak situation but he consistently loses them.";
-  if (q.includes("sabalenka")) return "Sabalenka is at career peak Elo (2247) right now — #1 on hard, clay, AND grass simultaneously. That has never happened before in the modern era. Miami is her best tournament type. 35.4% win probability per Tennis Abstract simulations.";
-  if (q.includes("pegula")) return "Pegula is the most underrated player in this draw. yElo #2 in 2026, currently at career peak Elo, 16-3 record this season. Her hard court Elo (#3) is essentially tied with Swiatek. The market consistently undervalues her.";
-  if (matchup) return `On ${matchup.title}: ${matchup.whatMatters} Ask me something more specific — player prop, result, total, or what matters most — and I can get sharper.`;
+function generateTake(input, matchup, extra = {}) {
+  const q = (input || "").toLowerCase();
+
+  const tennisKeywords = [
+    "tennis",
+    "miami open",
+    "sinner",
+    "alcaraz",
+    "djokovic",
+    "medvedev",
+    "zverev",
+    "fritz",
+    "shelton",
+    "musetti",
+    "sabalenka",
+    "swiatek",
+    "rybakina",
+    "pegula",
+    "gauff",
+    "bencic",
+    "muchova",
+    "aces",
+    "ace",
+    "tiebreak",
+    "wta",
+    "atp",
+  ];
+
+  const isTennisQuestion =
+    q.includes("tennis") ||
+    tennisKeywords.some((word) => q.includes(word)) ||
+    screen === "tennis" ||
+    (matchup && matchup.league === "ATP") ||
+    (matchup && matchup.league === "WTA");
+
+  if (isTennisQuestion) {
+    return generateTennisTake({
+      input,
+      selectedMatchup: matchup,
+      liveMatches,
+      players,
+      context,
+      tour: tennisTab,
+      ...extra,
+    });
+  }
+
   return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English — not stats dumped back at you.";
 }
 
@@ -464,19 +502,19 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
     )}
 
     {liveMatches.map((match, idx) => {
-      const p1 = match.home_team || "Player 1";
-      const p2 = match.away_team || "Player 2";
+     const p1 = match.home_team || "Player 1";
+const p2 = match.away_team || "Player 2";
 
-      const status =
-        match.live === "1"
-          ? "LIVE"
-          : match.status || match.round || "Scheduled";
+const status =
+  match.live === "1"
+    ? "LIVE"
+    : match.status || match.round || "Scheduled";
 
-      const tournament = match.tournament || "Miami";
+const tournament = match.tournament || "Tournament";
 
-      const matchTime = match.commence_time
-        ? new Date(match.commence_time).toLocaleString()
-        : "TBD";
+const matchTime = match.commence_time
+  ? new Date(match.commence_time).toLocaleString()
+  : "TBD";
 
       return (
         <div
