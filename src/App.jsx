@@ -193,23 +193,38 @@ export default function App() {
   const [tennisTab, setTennisTab] = useState("atp");
   const [tennisSection, setTennisSection] = useState("matchups");
   const [players, setPlayers] = useState(null);
-  const [context, setContext] = useState(null);
-  const [tennisLoading, setTennisLoading] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
+const [context, setContext] = useState(null);
+const [tennisLoading, setTennisLoading] = useState(false);
+const [selectedPlayer, setSelectedPlayer] = useState(null);
+const [liveMatches, setLiveMatches] = useState([]);
+const [liveMatchesError, setLiveMatchesError] = useState(null);
 
   useEffect(() => {
-    if (screen === "tennis" && !players) {
-      setTennisLoading(true);
-      Promise.all([
-        fetch("/api/tennis-players").then(r => r.json()),
-        fetch("/api/tennis-context").then(r => r.json()),
-      ]).then(([p, c]) => {
-        setPlayers(p);
-        setContext(c);
-        setTennisLoading(false);
-      }).catch(() => setTennisLoading(false));
-    }
-  }, [screen]);
+  if (screen !== "tennis") return;
+
+  setTennisLoading(true);
+  setLiveMatchesError(null);
+
+  Promise.all([
+    fetch("/api/tennis-players").then(r => r.json()),
+    fetch("/api/tennis-context").then(r => r.json()),
+    fetch(`/api/tennis?tour=${tennisTab}`).then(r => r.json()),
+  ])
+    .then(([p, c, live]) => {
+      setPlayers(p);
+      setContext(c);
+
+      const matches = Array.isArray(live) ? live : [];
+      setLiveMatches(matches);
+      setTennisLoading(false);
+    })
+    .catch((err) => {
+      console.error("Tennis page load error:", err);
+      setLiveMatches([]);
+      setLiveMatchesError("Could not load live tennis matches.");
+      setTennisLoading(false);
+    });
+}, [screen, tennisTab]);
 
   function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
   function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
@@ -413,38 +428,89 @@ export default function App() {
                 </div>
 
                 {/* MATCHUPS SECTION */}
-                {tennisSection === "matchups" && context && (
-                  <div>
-                    <div className="tennis-section-label">KEY MATCHUPS</div>
-                    {Object.entries(context.matchups)
-                      .filter(([k]) => tennisTab === "atp" ? !k.includes("Sabalenka") && !k.includes("Swiatek") && !k.includes("Pegula") && !k.includes("Rybakina") && !k.includes("Gauff") : k.includes("Sabalenka") || k.includes("Swiatek") || k.includes("Pegula") || k.includes("Rybakina") || k.includes("Gauff"))
-                      .map(([key, mc]) => {
-                        const names = key.replace(/_/g," vs ");
-                        return (
-                          <div key={key} className="matchup-context" onClick={() => {
-                            const parts = key.split("_");
-                            const p1 = parts[0], p2 = parts[1];
-                            submitMatchupAsk(`Tell me about ${p1} vs ${p2} at Miami Open`);
-                          }}>
-                            <div className="mc-header">
-                              <div className="mc-title">{names}</div>
-                              <div className="mc-h2h">{mc.h2h}</div>
-                            </div>
-                            <div className="mc-note">{mc.note}</div>
-                            <div className="mc-angle">{mc.angle}</div>
-                            {mc.key_stat && (
-                              <div style={{marginTop:8,fontSize:11,color:"var(--gold)",fontFamily:"'DM Mono',monospace"}}>{mc.key_stat}</div>
-                            )}
-                          </div>
-                        );
-                      })
-                    }
-                    <div style={{marginTop:8,fontSize:12,color:"var(--muted)",textAlign:"center",fontFamily:"'DM Mono',monospace"}}>
-                      Live draw data coming soon
-                    </div>
-                  </div>
-                )}
+               {tennisSection === "matchups" && (
+  <div>
+    <div className="tennis-section-label">LIVE MATCHUPS</div>
 
+    {liveMatchesError && (
+      <div style={{
+        marginBottom: 12,
+        padding: 12,
+        border: "1px solid rgba(255,68,68,.25)",
+        borderRadius: 12,
+        color: "#ffffff",
+        background: "rgba(255,68,68,.06)",
+        fontSize: 13
+      }}>
+        {liveMatchesError}
+      </div>
+    )}
+
+    {!liveMatchesError && liveMatches.length === 0 && (
+      <div style={{
+        padding: 12,
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        color: "#ffffff",
+        background: "var(--surface)",
+        fontSize: 13
+      }}>
+        No live matches found for {tennisTab.toUpperCase()} right now.
+      </div>
+    )}
+
+    {liveMatches.map((match, idx) => {
+      const p1 = match.event_first_player || "Player 1";
+      const p2 = match.event_second_player || "Player 2";
+      const status =
+        match.event_live === "1"
+          ? "LIVE"
+          : match.event_status || match.tournament_round || "Scheduled";
+
+      const tournament =
+        match.tournament_name || "Tournament";
+
+      const matchTime =
+        match.event_time
+          ? `${match.event_date || ""} ${match.event_time}`.trim()
+          : match.event_date || "TBD";
+
+      return (
+        <div
+          key={match.event_key || `${p1}-${p2}-${idx}`}
+          className="matchup-context"
+          onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2}`)}
+        >
+          <div className="mc-header">
+            <div className="mc-title">{p1} vs {p2}</div>
+            <div className="mc-h2h" style={{ color: match.event_live === "1" ? "var(--magenta)" : "var(--gold)" }}>
+              {status}
+            </div>
+          </div>
+
+          <div className="mc-note" style={{ color: "#ffffff" }}>
+            {tournament} · {matchTime}
+          </div>
+
+          <div className="mc-angle">
+            Tap for UR TAKE on this matchup.
+          </div>
+
+          {match.event_final_result && (
+            <div style={{
+              marginTop: 8,
+              fontSize: 11,
+              color: "var(--gold)",
+              fontFamily: "'DM Mono', monospace"
+            }}>
+              Score: {match.event_final_result}
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+)}
                 {/* PLAYERS SECTION */}
                 {tennisSection === "players" && players && (
                   <div>
