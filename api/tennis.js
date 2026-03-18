@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
     const today = new Date();
     const end = new Date();
-    end.setDate(today.getDate() + 7);
+    end.setDate(today.getDate() + 14);
 
     const formatDate = (d) => d.toISOString().split("T")[0];
 
@@ -33,17 +33,35 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-    // Basic ATP/WTA filter
+    // 1) Separate ATP vs WTA
     const filteredByTour = results.filter((match) => {
-      const type = String(match.league_name || match.tournament_name || "").toLowerCase();
+      const tournament = String(
+        match.tournament_name || match.league_name || ""
+      ).toLowerCase();
+
       if (tour === "wta") {
-        return type.includes("wta") || type.includes("women");
+        return tournament.includes("wta") || tournament.includes("women");
       }
-      return !type.includes("wta") && !type.includes("women");
+
+      return !tournament.includes("wta") && !tournament.includes("women");
     });
 
-    // Keep scheduled + live, remove clearly finished matches
-    const activeMatches = filteredByTour.filter((match) => {
+    // 2) Keep MIAMI only
+    const miamiOnly = filteredByTour.filter((match) => {
+      const tournament = String(
+        match.tournament_name || match.league_name || ""
+      ).toLowerCase();
+
+      return (
+        tournament.includes("miami") ||
+        tournament.includes("miami open") ||
+        tournament.includes("atp miami") ||
+        tournament.includes("wta miami")
+      );
+    });
+
+    // 3) Remove clearly finished matches unless still marked live
+    const activeMatches = miamiOnly.filter((match) => {
       const status = String(match.event_status || "").toLowerCase();
       const live = String(match.event_live || "0");
 
@@ -55,11 +73,8 @@ export default async function handler(req, res) {
       return !isFinished || live === "1";
     });
 
-    // IMPORTANT:
-    // Return BOTH the raw field names your frontend is using
-    // AND the normalized field names for future flexibility.
+    // 4) Return fields your frontend expects
     const transformed = activeMatches.map((match) => ({
-      // raw-ish fields for current frontend
       event_key: match.event_key || null,
       event_date: match.event_date || "",
       event_time: match.event_time || "",
