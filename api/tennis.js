@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-   const filtered = results;
+    const filtered = results;
 
     return res.status(200).json(filtered);
   } catch (err) {
