@@ -15,7 +15,7 @@ const css = `
     --gold:#F5C842;
     --text:#E8EAF0;
     --muted:#AAB3C2;
---soft:#D6DCE6;
+    --soft:#D6DCE6;
     --green:#00E676;
     --red:#FF4444;
   }
@@ -103,7 +103,6 @@ const css = `
   .pro-price{font-size:34px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:12px;}
   .pro-btn{width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--black);background:linear-gradient(90deg,var(--cyan),var(--magenta));}
 
-  /* TENNIS PAGE */
   .tennis-tabs{display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:12px;overflow:hidden;}
   .tennis-tab{flex:1;padding:10px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;background:var(--surface-2);color:var(--muted);border:none;transition:all .15s;}
   .tennis-tab.active{background:var(--cyan);color:var(--black);font-weight:700;}
@@ -127,7 +126,6 @@ const css = `
   .pstat{background:var(--surface-2);border-radius:8px;padding:8px;text-align:center;}
   .pstat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
   .pstat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
-  .player-note{padding:0 14px 12px;font-size:12px;color:var(--soft);line-height:1.5;border-top:1px solid var(--border);padding-top:10px;}
 
   .matchup-context{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;}
   .matchup-context:hover{border-color:var(--border-2);}
@@ -172,56 +170,6 @@ const featuredMatchups = [
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
-function generateTake(input, matchup, extra = {}) {
-  const q = (input || "").toLowerCase();
-
-  const tennisKeywords = [
-    "tennis",
-    "miami open",
-    "sinner",
-    "alcaraz",
-    "djokovic",
-    "medvedev",
-    "zverev",
-    "fritz",
-    "shelton",
-    "musetti",
-    "sabalenka",
-    "swiatek",
-    "rybakina",
-    "pegula",
-    "gauff",
-    "bencic",
-    "muchova",
-    "aces",
-    "ace",
-    "tiebreak",
-    "wta",
-    "atp",
-  ];
-
-  const isTennisQuestion =
-    q.includes("tennis") ||
-    tennisKeywords.some((word) => q.includes(word)) ||
-    screen === "tennis" ||
-    (matchup && matchup.league === "ATP") ||
-    (matchup && matchup.league === "WTA");
-
-  if (isTennisQuestion) {
-    return generateTennisTake({
-      input,
-      selectedMatchup: matchup,
-      liveMatches,
-      players,
-      context,
-      tour: tennisTab,
-      ...extra,
-    });
-  }
-
-  return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English — not stats dumped back at you.";
-}
-
 export default function App() {
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home");
@@ -231,52 +179,112 @@ export default function App() {
   const [tennisTab, setTennisTab] = useState("atp");
   const [tennisSection, setTennisSection] = useState("matchups");
   const [players, setPlayers] = useState(null);
-const [context, setContext] = useState(null);
-const [tennisLoading, setTennisLoading] = useState(false);
-const [selectedPlayer, setSelectedPlayer] = useState(null);
-const [liveMatches, setLiveMatches] = useState([]);
-const [liveMatchesError, setLiveMatchesError] = useState(null);
+  const [context, setContext] = useState(null);
+  const [tennisLoading, setTennisLoading] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [liveMatches, setLiveMatches] = useState([]);
+  const [liveMatchesError, setLiveMatchesError] = useState(null);
 
   useEffect(() => {
-  if (screen !== "tennis") return;
+    if (screen !== "tennis") return;
 
-  setTennisLoading(true);
-  setLiveMatchesError(null);
+    setTennisLoading(true);
+    setLiveMatchesError(null);
 
-  Promise.all([
-    fetch("/api/tennis-players").then(r => r.json()),
-    fetch("/api/tennis-context").then(r => r.json()),
-    fetch(`/api/tennis?tour=${tennisTab}`).then(r => r.json()),
-  ])
-    .then(([p, c, live]) => {
-      setPlayers(p);
-      setContext(c);
+    Promise.all([
+      fetch("/api/tennis-players").then((r) => r.json()),
+      fetch("/api/tennis-context").then((r) => r.json()),
+      fetch(`/api/tennis?tour=${tennisTab}`).then((r) => r.json()),
+    ])
+      .then(([p, c, live]) => {
+        setPlayers(p);
+        setContext(c);
+        setLiveMatches(Array.isArray(live) ? live : []);
+        setTennisLoading(false);
+      })
+      .catch((err) => {
+        console.error("Tennis page load error:", err);
+        setLiveMatches([]);
+        setLiveMatchesError("Could not load live tennis matches.");
+        setTennisLoading(false);
+      });
+  }, [screen, tennisTab]);
 
-      const matches = Array.isArray(live) ? live : [];
-      setLiveMatches(matches);
-      setTennisLoading(false);
-    })
-    .catch((err) => {
-      console.error("Tennis page load error:", err);
-      setLiveMatches([]);
-      setLiveMatchesError("Could not load live tennis matches.");
-      setTennisLoading(false);
-    });
-}, [screen, tennisTab]);
+  function generateTake(inputText, matchup, extra = {}) {
+    const q = (inputText || "").toLowerCase();
 
-  function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
-  function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
-  function goPro() { setTab("pro"); setScreen("pro"); setSelectedMatchup(null); }
-  function goTennis() { setScreen("tennis"); setTab("tennis"); setSelectedMatchup(null); setSelectedPlayer(null); }
+    const tennisKeywords = [
+      "tennis","miami open","sinner","alcaraz","djokovic","medvedev","zverev",
+      "fritz","shelton","musetti","sabalenka","swiatek","rybakina","pegula",
+      "gauff","bencic","muchova","aces","ace","tiebreak","wta","atp"
+    ];
 
-  function openMatchup(m) { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
-  function openPlayer(name) { setSelectedPlayer(name); setScreen("player"); }
+    const isTennisQuestion =
+      q.includes("tennis") ||
+      tennisKeywords.some((word) => q.includes(word)) ||
+      screen === "tennis" ||
+      (matchup && matchup.league === "ATP") ||
+      (matchup && matchup.league === "WTA");
+
+    if (isTennisQuestion) {
+      return generateTennisTake({
+        input: inputText,
+        selectedMatchup: matchup,
+        liveMatches,
+        players,
+        context,
+        tour: tennisTab,
+        ...extra,
+      });
+    }
+
+    return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English — not stats dumped back at you.";
+  }
+
+  function goHome() {
+    setTab("home");
+    setScreen("home");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+  }
+
+  function goAsk(prefill = "") {
+    setTab("ask");
+    setScreen("ask");
+    setSelectedMatchup(null);
+    setInput(prefill);
+  }
+
+  function goPro() {
+    setTab("pro");
+    setScreen("pro");
+    setSelectedMatchup(null);
+  }
+
+  function goTennis() {
+    setScreen("tennis");
+    setTab("tennis");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+  }
+
+  function openMatchup(m) {
+    setSelectedMatchup(m);
+    setScreen("matchup");
+    setTab("home");
+    setInput("");
+  }
+
+  function openPlayer(name) {
+    setSelectedPlayer(name);
+    setScreen("player");
+  }
 
   function submitAsk(forced) {
     const text = (forced ?? input).trim();
     if (!text) return;
     const aiText = generateTake(text, selectedMatchup);
-    setMessages(prev => [...prev, {role:"user",text}, {role:"ai",text:aiText}]);
+    setMessages((prev) => [...prev, { role: "user", text }, { role: "ai", text: aiText }]);
     setInput("");
     setTab("ask");
     setScreen("ask");
@@ -286,7 +294,7 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
     const text = (forced ?? input).trim();
     if (!text) return;
     const aiText = generateTake(text, selectedMatchup);
-    setMessages(prev => [...prev, {role:"user",text}, {role:"ai",text:aiText}]);
+    setMessages((prev) => [...prev, { role: "user", text }, { role: "ai", text: aiText }]);
     setInput("");
     setTab("ask");
     setScreen("ask");
@@ -305,14 +313,6 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
     return players.atp?.[name] || players.wta?.[name] || null;
   }
 
-  function getMatchupKey(title) {
-    if (!context) return null;
-    const key = Object.keys(context.matchups || {}).find(k =>
-      k.toLowerCase().replace(/_/g," ").includes(title.split(" ")[0].toLowerCase())
-    );
-    return key ? context.matchups[key] : null;
-  }
-
   const PLAYER_SCREEN = screen === "player" && selectedPlayer;
   const pd = PLAYER_SCREEN ? getPlayerAny(selectedPlayer) : null;
 
@@ -320,7 +320,6 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
     <>
       <style>{css}</style>
       <div className="app">
-
         <header className="hdr">
           <div>
             <span className="logo-under">UNDER</span>
@@ -335,39 +334,47 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
           </div>
         </header>
 
-        {/* HOME */}
         {screen === "home" && (
           <main className="screen">
             <section className="hero">
               <div className="hero-title">What do you want to know?</div>
               <div className="hero-sub">Sports, stats, predictions, context — in plain English.</div>
             </section>
+
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={e => setInput(e.target.value)} placeholder="Ask UR TAKE anything..." onKeyDown={e => e.key==="Enter" && submitAsk()} />
+              <input
+                className="ask-bar"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask UR TAKE anything..."
+                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
+              />
               <button className="send-btn" onClick={() => submitAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
+
             <section className="section">
               <div className="section-label">TRENDING ASKS</div>
               <div className="q-list">
-                {featuredQuestions.map(q => (
+                {featuredQuestions.map((q) => (
                   <button key={q.id} className="q-card" onClick={() => goAsk(q.prompt)}>
                     <div className="q-top">
-                      <div className="q-accent" style={{background:q.color}}/>
+                      <div className="q-accent" style={{ background: q.color }} />
                       <div className="q-text">{q.text}</div>
                     </div>
                   </button>
                 ))}
               </div>
             </section>
+
             <section className="section">
               <div className="section-label">MATCHUPS TO TAP INTO</div>
               <div className="matchup-list">
-                {featuredMatchups.map(m => (
+                {featuredMatchups.map((m) => (
                   <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
                     <div className="matchup-top">
-                      <div className="matchup-league" style={{color:m.leagueColor}}>{m.league}</div>
+                      <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
                       <div className="matchup-time">{m.time}</div>
                     </div>
                     <div className="matchup-body">
@@ -379,6 +386,7 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
                 ))}
               </div>
             </section>
+
             <section className="section">
               <div className="section-label">SPORTS</div>
               <div className="sport-chips">
@@ -392,36 +400,46 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
           </main>
         )}
 
-        {/* MATCHUP DETAIL */}
         {screen === "matchup" && selectedMatchup && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
+
             <div className="detail-card">
               <div className="detail-head">
-                <div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div>
+                <div className="detail-league" style={{ color: selectedMatchup.leagueColor }}>{selectedMatchup.league}</div>
                 <div className="detail-title">{selectedMatchup.title}</div>
                 <div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div>
               </div>
+
               <div className="what-matters">
                 <div className="wm-label">HERE'S WHAT MATTERS</div>
                 <div className="wm-text">{selectedMatchup.whatMatters}</div>
               </div>
+
               <div className="mini-grid">
-                {selectedMatchup.stats.map(s => (
+                {selectedMatchup.stats.map((s) => (
                   <div key={s.label} className="mini-stat">
                     <div className="mini-label">{s.label}</div>
                     <div className="mini-value">{s.value}</div>
                   </div>
                 ))}
               </div>
+
               <div className="quick-hitters">
-                {selectedMatchup.quickHitters.map(q => (
+                {selectedMatchup.quickHitters.map((q) => (
                   <button key={q} className="quick-btn" onClick={() => submitMatchupAsk(q)}>{q}</button>
                 ))}
               </div>
             </div>
+
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={e => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={e => e.key==="Enter" && submitMatchupAsk()} />
+              <input
+                className="ask-bar"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={`Ask about ${selectedMatchup.title}...`}
+                onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()}
+              />
               <button className="send-btn" onClick={() => submitMatchupAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
@@ -429,14 +447,13 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
           </main>
         )}
 
-        {/* TENNIS PAGE */}
         {screen === "tennis" && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
 
             <div className="tennis-tabs">
-              <button className={`tennis-tab${tennisTab==="atp"?" active":""}`} onClick={() => setTennisTab("atp")}>ATP</button>
-              <button className={`tennis-tab${tennisTab==="wta"?" active":""}`} onClick={() => setTennisTab("wta")}>WTA</button>
+              <button className={`tennis-tab${tennisTab === "atp" ? " active" : ""}`} onClick={() => setTennisTab("atp")}>ATP</button>
+              <button className={`tennis-tab${tennisTab === "wta" ? " active" : ""}`} onClick={() => setTennisTab("wta")}>WTA</button>
             </div>
 
             {tennisLoading ? (
@@ -450,126 +467,123 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
                     <div className="tournament-name">Miami Open 2026</div>
                     <div className="tournament-meta">Hard Court · Medium-Fast · Miami, FL</div>
                     <div className="tournament-note">{context.tournaments.miami_open.note}</div>
-                    <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center"}}>
-                      <span style={{fontSize:11,color:"var(--muted)"}}>Favorites:</span>
-                      <span style={{fontSize:12,color:"var(--cyan)",fontFamily:"'DM Mono',monospace"}}>{tennisTab==="atp" ? context.tournaments.miami_open.atp_favorite : context.tournaments.miami_open.wta_favorite}</span>
+                    <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: "var(--muted)" }}>Favorites:</span>
+                      <span style={{ fontSize: 12, color: "var(--cyan)", fontFamily: "'DM Mono',monospace" }}>
+                        {tennisTab === "atp" ? context.tournaments.miami_open.atp_favorite : context.tournaments.miami_open.wta_favorite}
+                      </span>
                     </div>
                   </div>
                 )}
 
-                <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-                  {["matchups","players","aces"].map(s => (
-                    <button key={s} className={`sport-chip${tennisSection===s?" active":""}`} onClick={() => setTennisSection(s)} style={{padding:"6px 14px"}}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                  {["matchups", "players", "aces"].map((s) => (
+                    <button
+                      key={s}
+                      className={`sport-chip${tennisSection === s ? " active" : ""}`}
+                      onClick={() => setTennisSection(s)}
+                      style={{ padding: "6px 14px" }}
+                    >
                       {s.toUpperCase()}
                     </button>
                   ))}
                 </div>
 
-                {/* MATCHUPS SECTION */}
-               {tennisSection === "matchups" && (
-  <div>
-    <div className="tennis-section-label">LIVE MATCHUPS</div>
+                {tennisSection === "matchups" && (
+                  <div>
+                    <div className="tennis-section-label">LIVE MATCHUPS</div>
 
-    {liveMatchesError && (
-      <div
-        style={{
-          marginBottom: 12,
-          padding: 12,
-          border: "1px solid rgba(255,68,68,.25)",
-          borderRadius: 12,
-          color: "#ffffff",
-          background: "rgba(255,68,68,.06)",
-          fontSize: 13,
-        }}
-      >
-        {liveMatchesError}
-      </div>
-    )}
+                    {liveMatchesError && (
+                      <div style={{
+                        marginBottom: 12,
+                        padding: 12,
+                        border: "1px solid rgba(255,68,68,.25)",
+                        borderRadius: 12,
+                        color: "#ffffff",
+                        background: "rgba(255,68,68,.06)",
+                        fontSize: 13,
+                      }}>
+                        {liveMatchesError}
+                      </div>
+                    )}
 
-    {!liveMatchesError && liveMatches.length === 0 && (
-      <div
-        style={{
-          padding: 12,
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          color: "#ffffff",
-          background: "var(--surface)",
-          fontSize: 13,
-        }}
-      >
-        No live matches found for {tennisTab.toUpperCase()} right now.
-      </div>
-    )}
+                    {!liveMatchesError && liveMatches.length === 0 && (
+                      <div style={{
+                        padding: 12,
+                        border: "1px solid var(--border)",
+                        borderRadius: 12,
+                        color: "#ffffff",
+                        background: "var(--surface)",
+                        fontSize: 13,
+                      }}>
+                        No live matches found for {tennisTab.toUpperCase()} right now.
+                      </div>
+                    )}
 
-    {liveMatches.map((match, idx) => {
-     const p1 = match.home_team || "Player 1";
-const p2 = match.away_team || "Player 2";
+                    {liveMatches.map((match, idx) => {
+                      const p1 = match.home_team || "Player 1";
+                      const p2 = match.away_team || "Player 2";
 
-const status =
-  match.live === "1"
-    ? "LIVE"
-    : match.status || match.round || "Scheduled";
+                      const status =
+                        match.live === "1"
+                          ? "LIVE"
+                          : match.status || match.round || "Scheduled";
 
-const tournament = match.tournament || "Tournament";
+                      const tournament = match.tournament || "Tournament";
 
-const matchTime = match.commence_time
-  ? new Date(match.commence_time).toLocaleString()
-  : "TBD";
+                      const matchTime = match.commence_time
+                        ? new Date(match.commence_time).toLocaleString()
+                        : "TBD";
 
-      return (
-        <div
-          key={match.id || `${p1}-${p2}-${idx}`}
-          className="matchup-context"
-          onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2} at the Miami Open`)}
-        >
-          <div className="mc-header">
-            <div className="mc-title">
-              {p1} vs {p2}
-            </div>
-            <div
-              className="mc-h2h"
-              style={{
-                color: match.live === "1" ? "var(--magenta)" : "var(--gold)",
-              }}
-            >
-              {status}
-            </div>
-          </div>
+                      return (
+                        <div
+                          key={match.id || `${p1}-${p2}-${idx}`}
+                          className="matchup-context"
+                          onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2} at the Miami Open`)}
+                        >
+                          <div className="mc-header">
+                            <div className="mc-title">{p1} vs {p2}</div>
+                            <div
+                              className="mc-h2h"
+                              style={{ color: match.live === "1" ? "var(--magenta)" : "var(--gold)" }}
+                            >
+                              {status}
+                            </div>
+                          </div>
 
-          <div className="mc-note" style={{ color: "#ffffff" }}>
-            {tournament} · {matchTime}
-          </div>
+                          <div className="mc-note" style={{ color: "#ffffff" }}>
+                            {tournament} · {matchTime}
+                          </div>
 
-          <div className="mc-angle">Tap for UR TAKE on this matchup.</div>
+                          <div className="mc-angle">Tap for UR TAKE on this matchup.</div>
 
-          {match.score && match.score !== "-" && (
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 11,
-                color: "var(--gold)",
-                fontFamily: "'DM Mono', monospace",
-              }}
-            >
-              Score: {match.score}
-            </div>
-          )}
-        </div>
-      );
-    })}
-  </div>
-)}
-                {/* PLAYERS SECTION */}
+                          {match.score && match.score !== "-" && (
+                            <div style={{
+                              marginTop: 8,
+                              fontSize: 11,
+                              color: "var(--gold)",
+                              fontFamily: "'DM Mono', monospace",
+                            }}>
+                              Score: {match.score}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {tennisSection === "players" && players && (
                   <div>
                     <div className="tennis-section-label">{tennisTab.toUpperCase()} TOP {tourPlayers.length}</div>
                     {tourPlayers.map((name, idx) => {
                       const p = getPlayer(name);
                       if (!p) return null;
+
                       return (
                         <div key={name} className="player-card" onClick={() => openPlayer(name)}>
                           <div className="player-top">
-                            <div className="player-rank">#{idx+1}</div>
+                            <div className="player-rank">#{idx + 1}</div>
                             <div className="player-info">
                               <div className="player-name">{name}</div>
                               <div className="player-style">{p.style}</div>
@@ -582,21 +596,25 @@ const matchTime = match.commence_time
                             <div className="player-elo">
                               <span className="player-elo-num">{p.elo}</span>
                               <span className="player-elo-label">ELO</span>
-                              {p.yEloRank && <div className="form-badge" style={{marginTop:4}}>#{p.yEloRank} 2026</div>}
+                              {p.yEloRank && <div className="form-badge" style={{ marginTop: 4 }}>#{p.yEloRank} 2026</div>}
                             </div>
                           </div>
                           <div className="player-stats">
                             <div className="pstat">
                               <div className="pstat-label">HOLD</div>
-                              <div className="pstat-value">{p.serveStats?.split(",")[0]?.replace("Hold ","")}</div>
+                              <div className="pstat-value">{p.serveStats?.split(",")[0]?.replace("Hold ", "")}</div>
                             </div>
                             <div className="pstat">
                               <div className="pstat-label">DR</div>
-                              <div className="pstat-value" style={{color:"var(--cyan)"}}>{p.overallStats?.match(/DR[\s]*([\d.]+)/)?.[1] || "—"}</div>
+                              <div className="pstat-value" style={{ color: "var(--cyan)" }}>
+                                {p.overallStats?.match(/DR[\s]*([\d.]+)/)?.[1] || "—"}
+                              </div>
                             </div>
                             <div className="pstat">
                               <div className="pstat-label">TB%</div>
-                              <div className="pstat-value">{p.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1] || "—"}%</div>
+                              <div className="pstat-value">
+                                {p.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1] || "—"}%
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -605,14 +623,13 @@ const matchTime = match.commence_time
                   </div>
                 )}
 
-                {/* ACES SECTION */}
                 {tennisSection === "aces" && context?.ace_props && (
                   <div>
                     <div className="tennis-section-label">ACE PROP GUIDE · MIAMI OPEN</div>
                     {Object.entries(context.ace_props)
                       .filter(([name]) => {
-                        const atpNames = ["Sinner","Alcaraz","Medvedev","Fritz"];
-                        const wtaNames = ["Rybakina","Sabalenka"];
+                        const atpNames = ["Sinner", "Alcaraz", "Medvedev", "Fritz"];
+                        const wtaNames = ["Rybakina", "Sabalenka"];
                         return tennisTab === "atp" ? atpNames.includes(name) : wtaNames.includes(name);
                       })
                       .map(([name, data]) => (
@@ -621,19 +638,27 @@ const matchTime = match.commence_time
                             <div className="ace-name">{name}</div>
                             <div className="ace-avg">{data.avg_aces_hard} avg</div>
                           </div>
-                          <div style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-                            <span style={{fontSize:11,color:"var(--muted)",fontFamily:"'DM Mono',monospace"}}>ACE RATE</span>
-                            <span style={{fontSize:12,color:"var(--cyan)",fontFamily:"'DM Mono',monospace"}}>{data.ace_rate}</span>
+                          <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+                            <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "'DM Mono',monospace" }}>ACE RATE</span>
+                            <span style={{ fontSize: 12, color: "var(--cyan)", fontFamily: "'DM Mono',monospace" }}>{data.ace_rate}</span>
                           </div>
                           <div className="ace-note">{data.note}</div>
                         </div>
-                      ))
-                    }
-                    <div style={{marginTop:12,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:12,padding:12}}>
-                      <div style={{fontSize:10,color:"var(--muted)",fontFamily:"'DM Mono',monospace",marginBottom:6}}>ASK ABOUT A SPECIFIC PROP</div>
-                      <div className="ask-shell" style={{margin:0}}>
-                        <input className="ask-bar" value={input} onChange={e => setInput(e.target.value)} placeholder="e.g. Will Fritz get 12 aces?" onKeyDown={e => e.key==="Enter" && submitAsk()} />
-                        <button className="send-btn" style={{width:38,height:38}} onClick={() => submitAsk()}>
+                      ))}
+
+                    <div style={{ marginTop: 12, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>
+                      <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "'DM Mono',monospace", marginBottom: 6 }}>
+                        ASK ABOUT A SPECIFIC PROP
+                      </div>
+                      <div className="ask-shell" style={{ margin: 0 }}>
+                        <input
+                          className="ask-bar"
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          placeholder="e.g. Will Fritz get 12 aces?"
+                          onKeyDown={(e) => e.key === "Enter" && submitAsk()}
+                        />
+                        <button className="send-btn" style={{ width: 38, height: 38 }} onClick={() => submitAsk()}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                         </button>
                       </div>
@@ -645,67 +670,87 @@ const matchTime = match.commence_time
           </main>
         )}
 
-        {/* PLAYER DETAIL */}
         {screen === "player" && pd && (
           <main className="screen">
-            <button className="detail-back" onClick={() => { setScreen("tennis"); setSelectedPlayer(null); }}>← BACK TO TENNIS</button>
+            <button className="detail-back" onClick={() => { setScreen("tennis"); setSelectedPlayer(null); }}>
+              ← BACK TO TENNIS
+            </button>
+
             <div className="detail-card">
               <div className="detail-head">
-                <div className="detail-league" style={{color:"var(--cyan)"}}>{tennisTab.toUpperCase()} · #{tourPlayers.indexOf(selectedPlayer)+1} ELO</div>
+                <div className="detail-league" style={{ color: "var(--cyan)" }}>
+                  {tennisTab.toUpperCase()} · #{tourPlayers.indexOf(selectedPlayer) + 1} ELO
+                </div>
                 <div className="detail-title">{selectedPlayer}</div>
                 <div className="detail-sub">{pd.style} · Elo {pd.elo}</div>
               </div>
+
               <div className="what-matters">
                 <div className="wm-label">SURFACE ELO RANKS</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:8}}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
                   <div className="mini-stat">
                     <div className="mini-label">HARD</div>
-                    <div className="mini-value" style={{color:"var(--cyan)"}}>#{pd.hEloRank}</div>
-                    <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.hElo?.toFixed(0)}</div>
+                    <div className="mini-value" style={{ color: "var(--cyan)" }}>#{pd.hEloRank}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pd.hElo?.toFixed(0)}</div>
                   </div>
                   <div className="mini-stat">
                     <div className="mini-label">CLAY</div>
-                    <div className="mini-value" style={{color:"var(--gold)"}}>#{pd.cEloRank}</div>
-                    <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.cElo?.toFixed(0)}</div>
+                    <div className="mini-value" style={{ color: "var(--gold)" }}>#{pd.cEloRank}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pd.cElo?.toFixed(0)}</div>
                   </div>
                   <div className="mini-stat">
                     <div className="mini-label">GRASS</div>
-                    <div className="mini-value" style={{color:"var(--green)"}}>#{pd.gEloRank}</div>
-                    <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.gElo?.toFixed(0)}</div>
+                    <div className="mini-value" style={{ color: "var(--green)" }}>#{pd.gEloRank}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pd.gElo?.toFixed(0)}</div>
                   </div>
                 </div>
               </div>
-              <div style={{padding:"0 14px 14px"}}>
-                <div className="wm-label" style={{marginBottom:8}}>2026 FORM</div>
-                <div style={{background:"var(--surface-2)",borderRadius:10,padding:10,fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{pd.record2026 || pd.yElo2026}</div>
+
+              <div style={{ padding: "0 14px 14px" }}>
+                <div className="wm-label" style={{ marginBottom: 8 }}>2026 FORM</div>
+                <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 10, fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
+                  {pd.record2026 || pd.yElo2026}
+                </div>
               </div>
-              <div className="what-matters" style={{paddingTop:0}}>
+
+              <div className="what-matters" style={{ paddingTop: 0 }}>
                 <div className="wm-label">SERVE</div>
-                <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{pd.serveStats}</div>
+                <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>{pd.serveStats}</div>
               </div>
-              <div className="what-matters" style={{paddingTop:0}}>
+
+              <div className="what-matters" style={{ paddingTop: 0 }}>
                 <div className="wm-label">RETURN</div>
-                <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{pd.returnStats}</div>
+                <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>{pd.returnStats}</div>
               </div>
-              <div className="what-matters" style={{paddingTop:0}}>
+
+              <div className="what-matters" style={{ paddingTop: 0 }}>
                 <div className="wm-label">OVERALL</div>
-                <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{pd.overallStats}</div>
+                <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>{pd.overallStats}</div>
               </div>
+
               {pd.miamiNote && (
-                <div className="what-matters" style={{paddingTop:0}}>
-                  <div className="wm-label" style={{color:"var(--magenta)"}}>MIAMI NOTE</div>
-                  <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.55}}>{pd.miamiNote}</div>
+                <div className="what-matters" style={{ paddingTop: 0 }}>
+                  <div className="wm-label" style={{ color: "var(--magenta)" }}>MIAMI NOTE</div>
+                  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.55 }}>{pd.miamiNote}</div>
                 </div>
               )}
+
               {pd.fullNote && (
-                <div className="what-matters" style={{paddingTop:0}}>
+                <div className="what-matters" style={{ paddingTop: 0 }}>
                   <div className="wm-label">UR TAKE</div>
-                  <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.55}}>{pd.fullNote}</div>
+                  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.55 }}>{pd.fullNote}</div>
                 </div>
               )}
             </div>
+
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={e => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={e => e.key==="Enter" && submitAsk()} />
+              <input
+                className="ask-bar"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={`Ask about ${selectedPlayer}...`}
+                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
+              />
               <button className="send-btn" onClick={() => submitAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
@@ -713,27 +758,34 @@ const matchTime = match.commence_time
           </main>
         )}
 
-        {/* ASK PAGE */}
         {screen === "ask" && (
           <main className="screen">
-            <section className="hero" style={{paddingTop:4}}>
+            <section className="hero" style={{ paddingTop: 4 }}>
               <div className="hero-title">UR TAKE</div>
               <div className="hero-sub">Ask in plain English. Keep it broad or get weirdly specific.</div>
             </section>
+
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={e => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={e => e.key==="Enter" && submitAsk()} />
+              <input
+                className="ask-bar"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="What do you want to know?"
+                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
+              />
               <button className="send-btn" onClick={() => submitAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
+
             {messages.length === 0 ? (
               <section className="section">
                 <div className="section-label">TRY ONE</div>
                 <div className="q-list">
-                  {featuredQuestions.map(q => (
+                  {featuredQuestions.map((q) => (
                     <button key={q.id} className="q-card" onClick={() => setInput(q.prompt)}>
                       <div className="q-top">
-                        <div className="q-accent" style={{background:q.color}}/>
+                        <div className="q-accent" style={{ background: q.color }} />
                         <div className="q-text">{q.text}</div>
                       </div>
                     </button>
@@ -742,7 +794,7 @@ const matchTime = match.commence_time
               </section>
             ) : (
               <div className="chat-thread">
-                {messages.map((m,i) => (
+                {messages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}`}>{m.text}</div>
                 ))}
               </div>
@@ -750,12 +802,13 @@ const matchTime = match.commence_time
           </main>
         )}
 
-        {/* PRO PAGE */}
         {screen === "pro" && (
           <main className="screen">
             <div className="pro-card">
               <div className="pro-title">UNDER REVIEW PRO</div>
-              <div className="pro-copy">Unlimited UR TAKE queries, deeper matchup cards, saved threads, cleaner data views, and a more premium sports intelligence layer.</div>
+              <div className="pro-copy">
+                Unlimited UR TAKE queries, deeper matchup cards, saved threads, cleaner data views, and a more premium sports intelligence layer.
+              </div>
               <div className="pro-price">$9.99 / month</div>
               <button className="pro-btn">UPGRADE</button>
             </div>
@@ -763,11 +816,10 @@ const matchTime = match.commence_time
         )}
 
         <nav className="bottom-nav">
-          <button className={`nav-btn${(tab==="home"&&screen==="home")?" active":""}`} onClick={goHome}>HOME</button>
-          <button className={`nav-btn${tab==="ask"?" active":""}`} onClick={() => goAsk("")}>ASK</button>
-          <button className={`nav-btn${tab==="pro"?" active":""}`} onClick={goPro}>PRO</button>
+          <button className={`nav-btn${(tab === "home" && screen === "home") ? " active" : ""}`} onClick={goHome}>HOME</button>
+          <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={() => goAsk("")}>ASK</button>
+          <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>PRO</button>
         </nav>
-
       </div>
     </>
   );
