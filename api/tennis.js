@@ -33,9 +33,65 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-    const filtered = results;
+    const filtered = results.filter((match) => {
+      const tournament = (match.tournament_name || "").toLowerCase();
+      const status = (match.event_status || "").toLowerCase();
+      const live = String(match.event_live || "0");
 
-    return res.status(200).json(filtered);
+      const isFinished =
+        status.includes("finished") ||
+        status.includes("final") ||
+        status.includes("ended");
+
+      const isLiveOrUpcoming = !isFinished || live === "1";
+
+      const isWTA =
+        tournament.includes("wta") ||
+        tournament.includes("women") ||
+        tournament.includes("girls");
+
+      const isATP =
+        tournament.includes("atp") ||
+        tournament.includes("men") ||
+        tournament.includes("boys");
+
+      if (tour === "wta") return isLiveOrUpcoming && isWTA;
+      return isLiveOrUpcoming && isATP;
+    });
+
+    const transformed = filtered.map((match) => ({
+      id: match.event_key,
+      commence_time: match.event_date && match.event_time
+        ? `${match.event_date}T${match.event_time}:00`
+        : null,
+      home_team: match.event_first_player,
+      away_team: match.event_second_player,
+      tournament: match.tournament_name,
+      round: match.tournament_round,
+      status: match.event_status,
+      live: match.event_live,
+      bookmakers: [
+        {
+          markets: [
+            {
+              key: "h2h",
+              outcomes: [
+                {
+                  name: match.event_first_player,
+                  price: match.odd_1 || "N/A",
+                },
+                {
+                  name: match.event_second_player,
+                  price: match.odd_2 || "N/A",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }));
+
+    return res.status(200).json(transformed);
   } catch (err) {
     console.error("Tennis fetch error:", err);
     return res.status(500).json({ error: "Failed to fetch tennis fixtures" });
