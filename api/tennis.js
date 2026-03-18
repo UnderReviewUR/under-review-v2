@@ -9,8 +9,20 @@ export default async function handler(req, res) {
 
     const { tour = "atp" } = req.query;
 
-    // Adjust this if your provider uses a different method or parameter names
-    const url = `https://api.api-tennis.com/tennis/?method=get_fixtures&APIkey=${API_KEY}`;
+    const today = new Date();
+    const end = new Date();
+    end.setDate(today.getDate() + 7);
+
+    const formatDate = (d) => d.toISOString().split("T")[0];
+
+    const date_start = formatDate(today);
+    const date_stop = formatDate(end);
+
+    const url =
+      `https://api.api-tennis.com/tennis/?method=get_fixtures` +
+      `&APIkey=${API_KEY}` +
+      `&date_start=${date_start}` +
+      `&date_stop=${date_stop}`;
 
     const tennisRes = await fetch(url);
     const data = await tennisRes.json();
@@ -19,14 +31,32 @@ export default async function handler(req, res) {
       return res.status(tennisRes.status).json(data);
     }
 
-    // Log once so you can inspect the real response shape in Vercel logs
-    console.log("API Tennis response:", JSON.stringify(data, null, 2));
+    const results = Array.isArray(data?.result) ? data.result : [];
 
-    // Start by returning raw results so we can confirm it works
-    return res.status(200).json(data);
+    const filtered = results.filter((match) => {
+      const league = (match.league_name || "").toLowerCase();
+      const eventFirstPlayer = (match.event_first_player || "").toLowerCase();
+      const eventSecondPlayer = (match.event_second_player || "").toLowerCase();
 
+      if (tour === "wta") {
+        return (
+          league.includes("wta") ||
+          league.includes("women") ||
+          eventFirstPlayer.includes("(w)") ||
+          eventSecondPlayer.includes("(w)")
+        );
+      }
+
+      return (
+        league.includes("atp") ||
+        league.includes("challenger") ||
+        league.includes("men")
+      );
+    });
+
+    return res.status(200).json(filtered);
   } catch (err) {
     console.error("Tennis fetch error:", err);
-    return res.status(500).json({ error: "Failed to fetch tennis data" });
+    return res.status(500).json({ error: "Failed to fetch tennis fixtures" });
   }
 }
