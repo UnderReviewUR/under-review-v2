@@ -7,8 +7,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
     }
 
-    const { tour = "atp" } = req.query;
-
     const today = new Date();
     const end = new Date();
     end.setDate(today.getDate() + 7);
@@ -34,7 +32,6 @@ export default async function handler(req, res) {
     const results = Array.isArray(data?.result) ? data.result : [];
 
     const filtered = results.filter((match) => {
-      const tournament = (match.tournament_name || "").toLowerCase();
       const status = (match.event_status || "").toLowerCase();
       const live = String(match.event_live || "0");
 
@@ -43,33 +40,21 @@ export default async function handler(req, res) {
         status.includes("final") ||
         status.includes("ended");
 
-      const isLiveOrUpcoming = !isFinished || live === "1";
-
-      const isWTA =
-        tournament.includes("wta") ||
-        tournament.includes("women") ||
-        tournament.includes("girls");
-
-      const isATP =
-        tournament.includes("atp") ||
-        tournament.includes("men") ||
-        tournament.includes("boys");
-
-      if (tour === "wta") return isLiveOrUpcoming && isWTA;
-      return isLiveOrUpcoming && isATP;
+      return !isFinished || live === "1";
     });
 
     const transformed = filtered.map((match) => ({
       id: match.event_key,
-      commence_time: match.event_date && match.event_time
-        ? `${match.event_date}T${match.event_time}:00`
-        : null,
+      commence_time:
+        match.event_date && match.event_time
+          ? `${match.event_date}T${match.event_time}:00`
+          : null,
       home_team: match.event_first_player,
       away_team: match.event_second_player,
-      tournament: match.tournament_name,
-      round: match.tournament_round,
-      status: match.event_status,
-      live: match.event_live,
+      tournament: match.tournament_name || "",
+      round: match.tournament_round || "",
+      status: match.event_status || "",
+      live: match.event_live || "0",
       bookmakers: [
         {
           markets: [
