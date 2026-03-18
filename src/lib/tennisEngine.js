@@ -7,7 +7,7 @@ export function generateTennisTake({
   tour = "atp",
 }) {
   const raw = input || "";
-  const q = raw.toLowerCase();
+  const q = raw.toLowerCase().trim();
 
   const allPlayers = {
     ...(players?.atp || {}),
@@ -16,30 +16,21 @@ export function generateTennisTake({
 
   const playerNames = Object.keys(allPlayers);
 
-  function findPlayerInQuestion(question) {
-    return playerNames.find((name) =>
-      question.includes(name.toLowerCase())
-    );
+  function clean(str) {
+    return String(str || "")
+      .toLowerCase()
+      .replace(/[.\-']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
-  function findMatchFromQuestion(question) {
-    if (!Array.isArray(liveMatches)) return null;
+  function getNameParts(name) {
+    return clean(name).split(" ").filter(Boolean);
+  }
 
-    return liveMatches.find((match) => {
-      const p1 =
-        match.home_team ||
-        match.event_first_player ||
-        "Player 1";
-      const p2 =
-        match.away_team ||
-        match.event_second_player ||
-        "Player 2";
-
-      return (
-        question.includes(String(p1).toLowerCase()) ||
-        question.includes(String(p2).toLowerCase())
-      );
-    });
+  function getSurname(name) {
+    const parts = getNameParts(name);
+    return parts.length ? parts[parts.length - 1] : "";
   }
 
   function getLiveMatchPlayers(match) {
@@ -50,77 +41,171 @@ export function generateTennisTake({
   }
 
   function getPlayerData(name) {
+    if (!name) return null;
     return allPlayers?.[name] || null;
+  }
+
+  function findPlayerInDatabase(question) {
+    const cq = clean(question);
+
+    return playerNames.find((name) => {
+      const lowerName = clean(name);
+      const surname = getSurname(name);
+
+      return (
+        cq.includes(lowerName) ||
+        (surname && cq.includes(surname))
+      );
+    }) || null;
+  }
+
+  function findLiveMatchFromQuestion(question) {
+    if (!Array.isArray(liveMatches)) return null;
+
+    const cq = clean(question);
+
+    return liveMatches.find((match) => {
+      const { p1, p2 } = getLiveMatchPlayers(match);
+
+      const p1Full = clean(p1);
+      const p2Full = clean(p2);
+      const p1Surname = getSurname(p1);
+      const p2Surname = getSurname(p2);
+
+      const mentionsP1 = cq.includes(p1Full) || (p1Surname && cq.includes(p1Surname));
+      const mentionsP2 = cq.includes(p2Full) || (p2Surname && cq.includes(p2Surname));
+
+      return mentionsP1 || mentionsP2;
+    }) || null;
+  }
+
+  function getQuestionPlayerFromLiveMatch(question, match) {
+    if (!match) return null;
+
+    const cq = clean(question);
+    const { p1, p2 } = getLiveMatchPlayers(match);
+
+    const p1Full = clean(p1);
+    const p2Full = clean(p2);
+    const p1Surname = getSurname(p1);
+    const p2Surname = getSurname(p2);
+
+    if (cq.includes(p1Full) || (p1Surname && cq.includes(p1Surname))) return p1;
+    if (cq.includes(p2Full) || (p2Surname && cq.includes(p2Surname))) return p2;
+
+    return null;
   }
 
   function getContextMatchup(p1, p2) {
     if (!context?.matchups) return null;
 
+    const cp1 = clean(p1);
+    const cp2 = clean(p2);
+
     const keys = Object.keys(context.matchups);
 
     const direct = keys.find((key) => {
-      const lower = key.toLowerCase();
-      return (
-        lower.includes(String(p1).toLowerCase()) &&
-        lower.includes(String(p2).toLowerCase())
-      );
+      const lower = clean(key.replace(/_/g, " "));
+      return lower.includes(cp1) && lower.includes(cp2);
     });
 
-    return direct ? context.matchups[direct] : null;
+    if (direct) return context.matchups[direct];
+
+    const surname1 = getSurname(p1);
+    const surname2 = getSurname(p2);
+
+    const loose = keys.find((key) => {
+      const lower = clean(key.replace(/_/g, " "));
+      return lower.includes(surname1) && lower.includes(surname2);
+    });
+
+    return loose ? context.matchups[loose] : null;
+  }
+
+  function parseAceLine(question) {
+    const overMatch = question.match(/over\s+(\d+(\.\d+)?)/i);
+    const underMatch = question.match(/under\s+(\d+(\.\d+)?)/i);
+
+    if (overMatch) return { value: Number(overMatch[1]), side: "over" };
+    if (underMatch) return { value: Number(underMatch[1]), side: "under" };
+
+    const plainMatch = question.match(/(\d+(\.\d+)?)\s*aces?/i);
+    if (plainMatch) return { value: Number(plainMatch[1]), side: null };
+
+    return null;
   }
 
   function oddsText(match) {
-    const outcomes =
-      match?.bookmakers?.[0]?.markets?.[0]?.outcomes || [];
+    const outcomes = match?.bookmakers?.[0]?.markets?.[0]?.outcomes || [];
 
-    if (!outcomes.length) return "";
+    const usable = outcomes.filter(
+      (o) =>
+        o &&
+        o.name &&
+        o.price !== undefined &&
+        o.price !== null &&
+        String(o.price).trim() !== "" &&
+        String(o.price).toUpperCase() !== "N/A"
+    );
 
-    const formatted = outcomes
-      .map((o) => `${o.name} ${o.price}`)
-      .join(" · ");
+    if (!usable.length) return "";
 
+    const formatted = usable.map((o) => `${o.name} ${o.price}`).join(" · ");
     return formatted ? ` Market is showing ${formatted}.` : "";
+  }
+
+  function tiebreakText(playerData, playerName) {
+    const tb = playerData?.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1];
+    if (!tb) return "";
+    return `${playerName} is winning ${tb}% of tiebreaks in the loaded data.`;
   }
 
   function buildMatchupTake(match) {
     const { p1, p2 } = getLiveMatchPlayers(match);
-    const p1Data = getPlayerData(p1);
-    const p2Data = getPlayerData(p2);
+    const p1Data = getPlayerData(p1) || getPlayerData(findPlayerInDatabase(p1));
+    const p2Data = getPlayerData(p2) || getPlayerData(findPlayerInDatabase(p2));
     const matchupContext = getContextMatchup(p1, p2);
 
-    let answer = `${p1} vs ${p2} is live on the board for Miami.`;
+    let answer = `${p1} vs ${p2} is on the board for Miami.`;
 
     if (matchupContext?.note) {
       answer += ` ${matchupContext.note}`;
     } else {
-      answer += ` This is the kind of matchup where serve quality, return pressure, and surface fit matter more than raw name value.`;
+      answer += ` This is the kind of matchup where serve quality, return pressure, and whether the match stays on serve matter more than raw name value.`;
     }
 
     if (matchupContext?.angle) {
       answer += ` ${matchupContext.angle}`;
-    }
-
-    if (p1Data?.overallStats || p2Data?.overallStats) {
+    } else if (p1Data && p2Data) {
       const p1Tb = p1Data?.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1];
       const p2Tb = p2Data?.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1];
 
       if (p1Tb && p2Tb) {
-        answer += ` In tight sets, ${p1} tiebreak win rate is ${p1Tb}% versus ${p2}'s ${p2Tb}%.`;
+        answer += ` If this gets tight late, ${p1}'s tiebreak rate is ${p1Tb}% versus ${p2}'s ${p2Tb}%.`;
       }
+    } else {
+      answer += ` The first question is whether one player can control the match with serve and shorten points.`;
     }
 
-    answer += oddsText(match);
+    const market = oddsText(match);
+    if (market) {
+      answer += market;
+    } else {
+      answer += ` No clean price is loaded on my side right now, so I would frame this off match style rather than pretend I have a number I do not.`;
+    }
 
     return answer.trim();
   }
 
   function buildPlayerTake(playerName) {
-    const p = getPlayerData(playerName);
+    const dbName = findPlayerInDatabase(playerName) || playerName;
+    const p = getPlayerData(dbName);
+
     if (!p) {
-      return `I know the name ${playerName}, but I do not have a clean player profile loaded for them yet.`;
+      return `${playerName} is in the live feed, but I do not have a full long-form player card loaded for that name yet. I can still break down the matchup angle if you ask it that way.`;
     }
 
-    let answer = `${playerName} profiles as a ${p.style || "top player"} with Elo ${p.elo || "unknown"}.`;
+    let answer = `${dbName} profiles as a ${p.style || "top player"} with Elo ${p.elo || "unknown"}.`;
 
     if (p.record2026) {
       answer += ` ${p.record2026}.`;
@@ -135,75 +220,117 @@ export function generateTennisTake({
     return answer.trim();
   }
 
-  function buildAcesTake(playerName, line) {
-    const aceData = context?.ace_props?.[playerName];
-    const p = getPlayerData(playerName);
+  function buildKnownAceTake(playerName, lineInfo) {
+    const dbName = findPlayerInDatabase(playerName) || playerName;
+    const aceData = context?.ace_props?.[dbName];
+    const p = getPlayerData(dbName);
 
-    if (!aceData && !p) {
-      return `I do not have ace-specific data loaded for ${playerName} yet, so I would not pretend to give you a sharp read.`;
-    }
+    if (!aceData && !p) return null;
 
     const avg = aceData?.avg_aces_hard;
     const rate = aceData?.ace_rate;
     const note = aceData?.note || "";
 
-    if (line && avg) {
-      const numLine = Number(line);
+    if (lineInfo && avg) {
+      const numLine = lineInfo.value;
 
-      if (!Number.isNaN(numLine)) {
-        let lean = "close";
-        if (avg >= numLine + 1) lean = "over";
-        if (avg <= numLine - 1) lean = "under";
+      let lean = "close";
+      if (avg >= numLine + 1) lean = "over";
+      if (avg <= numLine - 1) lean = "under";
 
-        if (lean === "over") {
-          return `${playerName} over ${numLine} aces has a real case. His hard-court average in the data is ${avg}, with an ace rate of ${rate || "N/A"}. ${note}`.trim();
-        }
-
-        if (lean === "under") {
-          return `${playerName} over ${numLine} aces looks a little rich to me. His hard-court average in the data is ${avg}, and that makes ${numLine} more of a ceiling outcome than a median one. ${note}`.trim();
-        }
-
-        return `${playerName} at ${numLine} aces is pretty sharp. His hard-court average is ${avg} and his ace rate is ${rate || "N/A"}, so this feels close rather than obvious. ${note}`.trim();
+      if (lean === "over") {
+        return `${dbName} ${lineInfo.side === "under" ? `under ${numLine}` : `over ${numLine}`} aces has a real case the other way around — the loaded hard-court average is ${avg}, with an ace rate of ${rate || "unknown"}. ${note}`.trim();
       }
+
+      if (lean === "under") {
+        return `${dbName} ${lineInfo.side === "over" ? `over ${numLine}` : `under ${numLine}`} aces looks a little rich to me. The loaded hard-court average is ${avg}, which makes ${numLine} more of a ceiling outcome than a median one. ${note}`.trim();
+      }
+
+      return `${dbName} at ${numLine} aces is pretty sharp. The loaded hard-court average is ${avg} and the ace rate is ${rate || "unknown"}, so this feels close rather than obvious. ${note}`.trim();
     }
 
     if (avg) {
-      return `${playerName} averages ${avg} aces on hard courts in the data I have loaded, with an ace rate of ${rate || "N/A"}. ${note}`.trim();
+      return `${dbName} averages ${avg} aces on hard courts in the loaded data, with an ace rate of ${rate || "unknown"}. ${note}`.trim();
     }
 
     if (p?.serveStats) {
-      return `${playerName}'s serve profile says ${p.serveStats}. I would frame any ace prop off that rather than guessing.`;
+      return `${dbName}'s serve profile says ${p.serveStats}. I would frame any ace prop off that rather than guess.`;
     }
-
-    return `I do not have enough ace-specific context on ${playerName} yet to make that sharp.`;
-  }
-
-  function parseAceLine(question) {
-    const overMatch = question.match(/over\s+(\d+(\.\d+)?)/i);
-    const underMatch = question.match(/under\s+(\d+(\.\d+)?)/i);
-
-    if (overMatch) return overMatch[1];
-    if (underMatch) return underMatch[1];
-
-    const plainMatch = question.match(/(\d+(\.\d+)?)\s*aces?/i);
-    if (plainMatch) return plainMatch[1];
 
     return null;
   }
 
-  const playerInQuestion = findPlayerInQuestion(q);
-  const liveMatch = findMatchFromQuestion(q);
+  function buildLiveUnknownAceTake(playerName, lineInfo, match) {
+    const { p1, p2 } = getLiveMatchPlayers(match || {});
+    const opponent = clean(playerName) === clean(p1) ? p2 : p1;
+    const line = lineInfo?.value;
 
-  if (
-    q.includes("ace") ||
-    q.includes("aces")
-  ) {
-    const acePlayer =
-      playerInQuestion ||
-      (liveMatch ? getLiveMatchPlayers(liveMatch).p1 : null);
+    if (line) {
+      if (line >= 14) {
+        return `${playerName} ${lineInfo.side === "under" ? `under ${line}` : `over ${line}`} aces is a high bar. For that over to cash cleanly, you usually need either total serve control for long stretches or a match that runs long enough to create volume. Against ${opponent}, the over case is obvious if ${playerName} dominates first-serve points and keeps sets tight. The under case is that ${line} is a real number, not a casual one — one loose return game or a shorter match can kill it fast.`.trim();
+      }
+
+      if (line <= 6) {
+        return `${playerName} at ${line} aces is a modest line. If the serve is landing and the match stays on serve for stretches, that number can go quickly. The real question is whether ${opponent} forces enough return pressure to keep the ace count ordinary rather than spiky.`.trim();
+      }
+
+      return `${playerName} at ${line} aces feels live but matchup-dependent. The right read is whether this match projects as quick holds and tight service games or whether ${opponent} can drag return points into play and cut down the free ones.`.trim();
+    }
+
+    return `${playerName} ace questions come down to match shape more than anything else: if the serve is dictating and the sets stay tight, the ace total can climb quickly. If ${opponent} gets enough returns in play, the number cools off just as fast.`.trim();
+  }
+
+  function buildWhoWinsTake(match) {
+    const { p1, p2 } = getLiveMatchPlayers(match);
+    const p1Name = findPlayerInDatabase(p1) || p1;
+    const p2Name = findPlayerInDatabase(p2) || p2;
+    const p1Data = getPlayerData(p1Name);
+    const p2Data = getPlayerData(p2Name);
+    const matchupContext = getContextMatchup(p1, p2);
+
+    let answer = `${p1} vs ${p2} is not a coin flip to me.`;
+
+    if (p1Data?.elo && p2Data?.elo) {
+      if (p1Data.elo > p2Data.elo) {
+        answer += ` I lean ${p1} because the stronger loaded profile sits with that side right now.`;
+      } else if (p2Data.elo > p1Data.elo) {
+        answer += ` I lean ${p2} because the stronger loaded profile sits with that side right now.`;
+      } else {
+        answer += ` On the numbers I have, this is pretty tight.`;
+      }
+    } else {
+      answer += ` I would frame it through serve control, surface fit, and who is more trustworthy late in sets.`;
+    }
+
+    if (matchupContext?.angle) {
+      answer += ` ${matchupContext.angle}`;
+    }
+
+    const market = oddsText(match);
+    if (market) {
+      answer += market;
+    }
+
+    return answer.trim();
+  }
+
+  const liveMatch = findLiveMatchFromQuestion(q);
+  const dbPlayerInQuestion = findPlayerInDatabase(q);
+  const livePlayerInQuestion = liveMatch ? getQuestionPlayerFromLiveMatch(q, liveMatch) : null;
+  const lineInfo = parseAceLine(raw);
+
+  if (q.includes("ace") || q.includes("aces")) {
+    const acePlayer = dbPlayerInQuestion || livePlayerInQuestion;
 
     if (acePlayer) {
-      return buildAcesTake(acePlayer, parseAceLine(raw));
+      const knownAceAnswer = buildKnownAceTake(acePlayer, lineInfo);
+      if (knownAceAnswer) return knownAceAnswer;
+
+      if (liveMatch) {
+        return buildLiveUnknownAceTake(acePlayer, lineInfo, liveMatch);
+      }
+
+      return `${acePlayer} ace props depend on whether the match projects as quick holds or return-heavy games. I do not have a loaded ace card for that name yet, so I would treat any big line cautiously rather than call it obvious.`;
     }
   }
 
@@ -215,26 +342,7 @@ export function generateTennisTake({
     q.includes("beat")
   ) {
     if (liveMatch) {
-      const { p1, p2 } = getLiveMatchPlayers(liveMatch);
-      const p1Data = getPlayerData(p1);
-      const p2Data = getPlayerData(p2);
-
-      let lean = `${p1} vs ${p2} is not a coin flip to me.`;
-      if ((p1Data?.elo || 0) > (p2Data?.elo || 0)) {
-        lean += ` I lean ${p1} because the stronger profile in the data sits with him right now.`;
-      } else if ((p2Data?.elo || 0) > (p1Data?.elo || 0)) {
-        lean += ` I lean ${p2} because the stronger profile in the data sits with him right now.`;
-      } else {
-        lean += ` I see this as pretty tight on paper.`;
-      }
-
-      const matchupContext = getContextMatchup(p1, p2);
-      if (matchupContext?.angle) {
-        lean += ` ${matchupContext.angle}`;
-      }
-
-      lean += oddsText(liveMatch);
-      return lean.trim();
+      return buildWhoWinsTake(liveMatch);
     }
 
     if (selectedMatchup?.title) {
@@ -257,8 +365,12 @@ export function generateTennisTake({
     }
   }
 
-  if (playerInQuestion) {
-    return buildPlayerTake(playerInQuestion);
+  if (dbPlayerInQuestion) {
+    return buildPlayerTake(dbPlayerInQuestion);
+  }
+
+  if (livePlayerInQuestion) {
+    return `${livePlayerInQuestion} is in the live Miami board right now. I do not have a full deep profile loaded for that exact name yet, but I can still break down the matchup angle, the ace line, or who I trust more in the match.`;
   }
 
   if (liveMatch) {
