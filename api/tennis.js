@@ -19,10 +19,10 @@ module.exports = async function handler(req, res) {
     const date_stop = formatDate(end);
 
     const url =
-      `https://api.api-tennis.com/tennis/?method=get_fixtures` +
-      `&APIkey=${API_KEY}` +
-      `&date_start=${date_start}` +
-      `&date_stop=${date_stop}`;
+      "https://api.api-tennis.com/tennis/?method=get_fixtures" +
+      "&APIkey=" + API_KEY +
+      "&date_start=" + date_start +
+      "&date_stop=" + date_stop;
 
     const tennisRes = await fetch(url);
     const data = await tennisRes.json();
@@ -39,19 +39,15 @@ module.exports = async function handler(req, res) {
     });
 
     const tourFiltered = miamiOnly.filter((match) => {
-      const type = String(match.event_type_type || "").toLowerCase();
-      const sex = String(match.tournament_season || "").toLowerCase();
-      const firstPlayer = String(match.event_first_player || "");
-      const secondPlayer = String(match.event_second_player || "");
+      const rawType = String(match.event_type_type || "").toLowerCase();
+      const rawCategory = String(match.league_name || "").toLowerCase();
+      const combined = rawType + " " + rawCategory;
 
       if (tour === "wta") {
-        return (
-          type.includes("women") ||
-          type.includes("wta")
-        );
+        return combined.includes("women") || combined.includes("wta");
       }
 
-      return !type.includes("women") && !type.includes("wta");
+      return !combined.includes("women") && !combined.includes("wta");
     });
 
     const liveAndUpcoming = tourFiltered.filter((match) => {
@@ -70,7 +66,7 @@ module.exports = async function handler(req, res) {
       id: match.event_key,
       commence_time:
         match.event_date && match.event_time
-          ? `${match.event_date}T${match.event_time}:00`
+          ? match.event_date + "T" + match.event_time + ":00"
           : null,
       home_team: match.event_first_player || "Player 1",
       away_team: match.event_second_player || "Player 2",
@@ -80,6 +76,7 @@ module.exports = async function handler(req, res) {
       live: match.event_live || "0",
       score: match.event_final_result || "-",
       event_type_type: match.event_type_type || "",
+      league_name: match.league_name || "",
       bookmakers: [
         {
           markets: [
@@ -88,17 +85,17 @@ module.exports = async function handler(req, res) {
               outcomes: [
                 {
                   name: match.event_first_player || "Player 1",
-                  price: match.odd_1 || "N/A",
+                  price: match.odd_1 || "N/A"
                 },
                 {
                   name: match.event_second_player || "Player 2",
-                  price: match.odd_2 || "N/A",
-                },
-              ],
-            },
-          ],
-        },
-      ],
+                  price: match.odd_2 || "N/A"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }));
 
     return res.status(200).json(transformed);
@@ -106,7 +103,7 @@ module.exports = async function handler(req, res) {
     console.error("Tennis fetch error:", err);
     return res.status(500).json({
       error: "Failed to fetch tennis fixtures",
-      details: err.message,
+      details: err.message
     });
   }
 };
