@@ -33,26 +33,7 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-    const filtered = results.filter((match) => {
-      const league = (match.league_name || "").toLowerCase();
-      const eventFirstPlayer = (match.event_first_player || "").toLowerCase();
-      const eventSecondPlayer = (match.event_second_player || "").toLowerCase();
-
-      if (tour === "wta") {
-        return (
-          league.includes("wta") ||
-          league.includes("women") ||
-          eventFirstPlayer.includes("(w)") ||
-          eventSecondPlayer.includes("(w)")
-        );
-      }
-
-      return (
-        league.includes("atp") ||
-        league.includes("challenger") ||
-        league.includes("men")
-      );
-    });
+   const filtered = results;
 
     return res.status(200).json(filtered);
   } catch (err) {
