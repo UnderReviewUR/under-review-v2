@@ -13,8 +13,8 @@ const css = `
     --magenta:#FF2D6B;
     --gold:#F5C842;
     --text:#E8EAF0;
-    --muted:#5A6070;
-    --soft:#9BA4B0;
+    --muted:#AAB3C2;
+--soft:#D6DCE6;
     --green:#00E676;
     --red:#FF4444;
   }
