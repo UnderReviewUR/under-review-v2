@@ -1,4 +1,4 @@
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   try {
@@ -31,7 +31,7 @@ module.exports = async function handler(req, res) {
       return res.status(tennisRes.status).json(data);
     }
 
-    const results = Array.isArray(data && data.result) ? data.result : [];
+    const results = Array.isArray(data?.result) ? data.result : [];
 
     const miamiOnly = results.filter((match) => {
       const tournamentName = String(match.tournament_name || "").toLowerCase();
@@ -41,7 +41,7 @@ module.exports = async function handler(req, res) {
     const tourFiltered = miamiOnly.filter((match) => {
       const rawType = String(match.event_type_type || "").toLowerCase();
       const rawCategory = String(match.league_name || "").toLowerCase();
-      const combined = rawType + " " + rawCategory;
+      const combined = `${rawType} ${rawCategory}`;
 
       if (tour === "wta") {
         return combined.includes("women") || combined.includes("wta");
@@ -66,7 +66,7 @@ module.exports = async function handler(req, res) {
       id: match.event_key,
       commence_time:
         match.event_date && match.event_time
-          ? match.event_date + "T" + match.event_time + ":00"
+          ? `${match.event_date}T${match.event_time}:00`
           : null,
       home_team: match.event_first_player || "Player 1",
       away_team: match.event_second_player || "Player 2",
@@ -85,17 +85,17 @@ module.exports = async function handler(req, res) {
               outcomes: [
                 {
                   name: match.event_first_player || "Player 1",
-                  price: match.odd_1 || "N/A"
+                  price: match.odd_1 || "N/A",
                 },
                 {
                   name: match.event_second_player || "Player 2",
-                  price: match.odd_2 || "N/A"
-                }
-              ]
-            }
-          ]
-        }
-      ]
+                  price: match.odd_2 || "N/A",
+                },
+              ],
+            },
+          ],
+        },
+      ],
     }));
 
     return res.status(200).json(transformed);
@@ -103,7 +103,7 @@ module.exports = async function handler(req, res) {
     console.error("Tennis fetch error:", err);
     return res.status(500).json({
       error: "Failed to fetch tennis fixtures",
-      details: err.message
+      details: err.message,
     });
   }
-};
+}
