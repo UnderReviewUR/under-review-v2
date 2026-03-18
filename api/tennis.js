@@ -7,6 +7,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
     }
 
+    const { tour = "atp" } = req.query;
+
     const today = new Date();
     const end = new Date();
     end.setDate(today.getDate() + 7);
@@ -31,8 +33,18 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-    const filtered = results.filter((match) => {
-      const status = (match.event_status || "").toLowerCase();
+    // Basic ATP/WTA filter
+    const filteredByTour = results.filter((match) => {
+      const type = String(match.league_name || match.tournament_name || "").toLowerCase();
+      if (tour === "wta") {
+        return type.includes("wta") || type.includes("women");
+      }
+      return !type.includes("wta") && !type.includes("women");
+    });
+
+    // Keep scheduled + live, remove clearly finished matches
+    const activeMatches = filteredByTour.filter((match) => {
+      const status = String(match.event_status || "").toLowerCase();
       const live = String(match.event_live || "0");
 
       const isFinished =
@@ -43,18 +55,42 @@ export default async function handler(req, res) {
       return !isFinished || live === "1";
     });
 
-    const transformed = filtered.map((match) => ({
-      id: match.event_key,
+    // IMPORTANT:
+    // Return BOTH the raw field names your frontend is using
+    // AND the normalized field names for future flexibility.
+    const transformed = activeMatches.map((match) => ({
+      // raw-ish fields for current frontend
+      event_key: match.event_key || null,
+      event_date: match.event_date || "",
+      event_time: match.event_time || "",
+      event_first_player: match.event_first_player || "",
+      event_second_player: match.event_second_player || "",
+      tournament_name: match.tournament_name || match.league_name || "",
+      tournament_round: match.tournament_round || "",
+      event_status: match.event_status || "Scheduled",
+      event_live: match.event_live || "0",
+      event_final_result: match.event_final_result || "",
+      event_game_result: match.event_game_result || "",
+      event_serve: match.event_serve || null,
+      event_winner: match.event_winner || "",
+      event_first_player_logo: match.event_first_player_logo || "",
+      event_second_player_logo: match.event_second_player_logo || "",
+      odd_1: match.odd_1 || "N/A",
+      odd_2: match.odd_2 || "N/A",
+
+      // normalized fields too
+      id: match.event_key || null,
       commence_time:
         match.event_date && match.event_time
           ? `${match.event_date}T${match.event_time}:00`
           : null,
-      home_team: match.event_first_player,
-      away_team: match.event_second_player,
-      tournament: match.tournament_name || "",
+      home_team: match.event_first_player || "",
+      away_team: match.event_second_player || "",
+      tournament: match.tournament_name || match.league_name || "",
       round: match.tournament_round || "",
-      status: match.event_status || "",
+      status: match.event_status || "Scheduled",
       live: match.event_live || "0",
+
       bookmakers: [
         {
           markets: [
@@ -62,11 +98,11 @@ export default async function handler(req, res) {
               key: "h2h",
               outcomes: [
                 {
-                  name: match.event_first_player,
+                  name: match.event_first_player || "",
                   price: match.odd_1 || "N/A",
                 },
                 {
-                  name: match.event_second_player,
+                  name: match.event_second_player || "",
                   price: match.odd_2 || "N/A",
                 },
               ],
