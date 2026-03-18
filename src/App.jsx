@@ -433,57 +433,67 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
     <div className="tennis-section-label">LIVE MATCHUPS</div>
 
     {liveMatchesError && (
-      <div style={{
-        marginBottom: 12,
-        padding: 12,
-        border: "1px solid rgba(255,68,68,.25)",
-        borderRadius: 12,
-        color: "#ffffff",
-        background: "rgba(255,68,68,.06)",
-        fontSize: 13
-      }}>
+      <div
+        style={{
+          marginBottom: 12,
+          padding: 12,
+          border: "1px solid rgba(255,68,68,.25)",
+          borderRadius: 12,
+          color: "#ffffff",
+          background: "rgba(255,68,68,.06)",
+          fontSize: 13,
+        }}
+      >
         {liveMatchesError}
       </div>
     )}
 
     {!liveMatchesError && liveMatches.length === 0 && (
-      <div style={{
-        padding: 12,
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        color: "#ffffff",
-        background: "var(--surface)",
-        fontSize: 13
-      }}>
+      <div
+        style={{
+          padding: 12,
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          color: "#ffffff",
+          background: "var(--surface)",
+          fontSize: 13,
+        }}
+      >
         No live matches found for {tennisTab.toUpperCase()} right now.
       </div>
     )}
 
     {liveMatches.map((match, idx) => {
-      const p1 = match.event_first_player || "Player 1";
-      const p2 = match.event_second_player || "Player 2";
+      const p1 = match.home_team || "Player 1";
+      const p2 = match.away_team || "Player 2";
+
       const status =
-        match.event_live === "1"
+        match.live === "1"
           ? "LIVE"
-          : match.event_status || match.tournament_round || "Scheduled";
+          : match.status || match.round || "Scheduled";
 
-      const tournament =
-        match.tournament_name || "Tournament";
+      const tournament = match.tournament || "Miami";
 
-      const matchTime =
-        match.event_time
-          ? `${match.event_date || ""} ${match.event_time}`.trim()
-          : match.event_date || "TBD";
+      const matchTime = match.commence_time
+        ? new Date(match.commence_time).toLocaleString()
+        : "TBD";
 
       return (
         <div
-          key={match.event_key || `${p1}-${p2}-${idx}`}
+          key={match.id || `${p1}-${p2}-${idx}`}
           className="matchup-context"
-          onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2}`)}
+          onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2} at the Miami Open`)}
         >
           <div className="mc-header">
-            <div className="mc-title">{p1} vs {p2}</div>
-            <div className="mc-h2h" style={{ color: match.event_live === "1" ? "var(--magenta)" : "var(--gold)" }}>
+            <div className="mc-title">
+              {p1} vs {p2}
+            </div>
+            <div
+              className="mc-h2h"
+              style={{
+                color: match.live === "1" ? "var(--magenta)" : "var(--gold)",
+              }}
+            >
               {status}
             </div>
           </div>
@@ -492,18 +502,18 @@ const [liveMatchesError, setLiveMatchesError] = useState(null);
             {tournament} · {matchTime}
           </div>
 
-          <div className="mc-angle">
-            Tap for UR TAKE on this matchup.
-          </div>
+          <div className="mc-angle">Tap for UR TAKE on this matchup.</div>
 
-          {match.event_final_result && (
-            <div style={{
-              marginTop: 8,
-              fontSize: 11,
-              color: "var(--gold)",
-              fontFamily: "'DM Mono', monospace"
-            }}>
-              Score: {match.event_final_result}
+          {match.score && match.score !== "-" && (
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: "var(--gold)",
+                fontFamily: "'DM Mono', monospace",
+              }}
+            >
+              Score: {match.score}
             </div>
           )}
         </div>
