@@ -518,60 +518,64 @@ export function generateTennisTake({
   }
 
   function buildWhoWinsTake(match) {
-    const { p1, p2 } = getLiveMatchPlayers(match);
+  const { p1, p2 } = getLiveMatchPlayers(match);
 
-    const p1Name = findPlayerInDatabase(p1) || p1;
-    const p2Name = findPlayerInDatabase(p2) || p2;
+  const p1Name = findPlayerInDatabase(p1) || p1;
+  const p2Name = findPlayerInDatabase(p2) || p2;
 
-    const p1Data = getPlayerData(p1Name);
-    const p2Data = getPlayerData(p2Name);
+  const p1Data = getPlayerData(p1Name);
+  const p2Data = getPlayerData(p2Name);
 
-    const matchupContext = getContextMatchup(p1, p2);
+  const matchupContext = getContextMatchup(p1, p2);
 
-    let answer = `${p1Name} vs ${p2Name} comes down to match control more than raw talent.`;
+  let answer = `${p1Name} vs ${p2Name} comes down to match control more than raw talent.`;
 
-    if (p1Data?.elo && p2Data?.elo) {
-      if (p1Data.elo > p2Data.elo + 25) {
-        answer += ` The stronger overall profile sits with ${p1Name}.`;
-      } else if (p2Data.elo > p1Data.elo + 25) {
-        answer += ` The stronger overall profile sits with ${p2Name}.`;
+  if (p1Data?.elo && p2Data?.elo) {
+    if (p1Data.elo > p2Data.elo + 25) {
+      answer += ` The stronger overall profile sits with ${p1Name}.`;
+    } else if (p2Data.elo > p1Data.elo + 25) {
+      answer += ` The stronger overall profile sits with ${p2Name}.`;
+    } else {
+      answer += ` On raw profile, it is fairly tight.`;
+    }
+  }
+
+  if (matchupContext?.surface_edge) {
+    answer += ` Surface context points toward ${matchupContext.surface_edge}.`;
+  }
+
+  if (p1Data && p2Data) {
+    const p1Serve = getHoldPct(p1Data);
+    const p2Serve = getHoldPct(p2Data);
+
+    if (p1Serve && p2Serve) {
+      if (p1Serve > p2Serve + 3) {
+        answer += ` ${p1Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve.`;
+      } else if (p2Serve > p1Serve + 3) {
+        answer += ` ${p2Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve.`;
       } else {
-        answer += ` On raw profile, it is fairly tight.`;
+        answer += ` Both players can hold, so this likely comes down to who creates the first real return pressure.`;
       }
     }
-
-    if (matchupContext?.surface_edge) {
-      answer += ` Surface context points toward ${matchupContext.surface_edge}.`;
-    }
-
-    if (matchupContext?.note) {
-      if (p1Data && p2Data) {
-  const p1Serve = getHoldPct(p1Data);
-  const p2Serve = getHoldPct(p2Data);
-
-  if (p1Serve && p2Serve) {
-    if (p1Serve > p2Serve + 3) {
-      answer += ` ${p1Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve.`;
-    } else if (p2Serve > p1Serve + 3) {
-      answer += ` ${p2Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve.`;
-    } else {
-      answer += ` Both players can hold, so this likely comes down to who creates the first real return pressure.`;
-    }
   }
+
+  if (matchupContext?.note) {
+    answer += ` ${matchupContext.note}`;
+  } else {
+    answer += ` This looks more like a match where the player who gets into preferred patterns first takes control.`;
+  }
+
+  if (matchupContext?.angle) {
+    answer += ` ${matchupContext.angle}`;
+  }
+
+  const market = oddsText(match);
+  if (market) {
+    answer += ` ${market}`;
+  }
+
+  return noDash(answer);
 }
-
-    if (matchupContext?.angle) {
-      answer += ` ${matchupContext.angle}`;
-    }
-
-    const market = oddsText(match);
-    if (market) {
-      answer += ` ${market}`;
-    }
-
-    return noDash(answer);
-  }
-
   const liveMatch = findLiveMatchFromQuestion(q);
   const dbPlayerInQuestion = findPlayerInDatabase(q);
   const livePlayerInQuestion = liveMatch ? getQuestionPlayerFromLiveMatch(q, liveMatch) : null;
