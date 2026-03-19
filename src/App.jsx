@@ -631,52 +631,61 @@ export default function App() {
                 )}
 
                 {tennisSection === "players" && players && (
-                  <div>
-                    <div className="tennis-section-label">{tennisTab.toUpperCase()} TOP {tourPlayers.length}</div>
-                    {tourPlayers.map((name, idx) => {
-                      const p = getPlayer(name);
-                      if (!p) return null;
+  <div>
+    <div className="tennis-section-label">{tennisTab.toUpperCase()} TOP {tourPlayers.length}</div>
 
-                      return (
-                        <div key={name} className="player-card" onClick={() => openPlayer(name)}>
-                          <div className="player-top">
-                            <div className="player-rank">#{idx + 1}</div>
-                            <div className="player-info">
-                              <div className="player-name">{name}</div>
-                              <div className="player-style">{p.style}</div>
-                              <div className="surface-pills">
-  {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
-  {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
-  {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
-</div>
-                            </div>
-                            <div className="player-elo">
-                              <span className="player-elo-num">{p.elo}</span>
-                              <span className="player-elo-label">ELO</span>
-                              {p.record2026 && <div className="form-badge" style={{ marginTop: 4 }}>2026 FORM</div>}
-                            </div>
-                          </div>
-                          <div className="player-stats">
-  <div className="pstat">
-    <div className="pstat-label">HOLD</div>
-    <div className="pstat-value">{getHoldValue(p)}</div>
-  </div>
-  <div className="pstat">
-    <div className="pstat-label">DR</div>
-    <div className="pstat-value" style={{ color: "var(--cyan)" }}>
-      {getDrValue(p)}
-    </div>
-  </div>
-  <div className="pstat">
-    <div className="pstat-label">TB%</div>
-    <div className="pstat-value">{getTbValue(p)}</div>
-  </div>
-</div>
-                      );
-                    })}
-                  </div>
-                )}
+    {tourPlayers.map((name, idx) => {
+      const p = getPlayer(name);
+      if (!p) return null;
 
+      return (
+        <div key={name} className="player-card" onClick={() => openPlayer(name)}>
+          <div className="player-top">
+            <div className="player-rank">#{idx + 1}</div>
+
+            <div className="player-info">
+              <div className="player-name">{name}</div>
+              <div className="player-style">
+                {Array.isArray(p.style) ? p.style.join(", ").replaceAll("_", " ") : p.style}
+              </div>
+
+              <div className="surface-pills">
+                {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
+                {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
+                {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
+              </div>
+            </div>
+
+            <div className="player-elo">
+              <span className="player-elo-num">{p.elo}</span>
+              <span className="player-elo-label">ELO</span>
+              {p.record2026 && <div className="form-badge" style={{ marginTop: 4 }}>2026 FORM</div>}
+            </div>
+          </div>
+
+          <div className="player-stats">
+            <div className="pstat">
+              <div className="pstat-label">HOLD</div>
+              <div className="pstat-value">{getHoldValue(p)}</div>
+            </div>
+
+            <div className="pstat">
+              <div className="pstat-label">DR</div>
+              <div className="pstat-value" style={{ color: "var(--cyan)" }}>
+                {getDrValue(p)}
+              </div>
+            </div>
+
+            <div className="pstat">
+              <div className="pstat-label">TB%</div>
+              <div className="pstat-value">{getTbValue(p)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
                 {tennisSection === "aces" && context?.ace_props && (
                   <div>
                     <div className="tennis-section-label">ACE PROP GUIDE · MIAMI OPEN</div>
