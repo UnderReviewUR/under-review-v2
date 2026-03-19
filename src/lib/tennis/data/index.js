@@ -1,6 +1,6 @@
-import atp from "./atp";
-import wta from "./wta";
-import surfaces from "./surfaces";
-import buildQueue from "./buildQueue";
+import atp from "./atp.js";
+import wta from "./wta.js";
+import surfaces from "./surfaces.js";
+import buildQueue from "./buildQueue.js";
 
 export { atp, wta, surfaces, buildQueue };
