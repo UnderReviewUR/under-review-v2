@@ -246,16 +246,9 @@ export function generateTennisTake({
 
     // HIGH LINE
     if (numLine >= 14) {
-      if (isBigServer || (rate && rate >= 16)) {
-        return `${dbName} at ${numLine} is a real serve-volume bet. If he’s landing first serves and holding cleanly, the path is obvious because ace production is the whole match lever for him. The caution is that ${numLine} is still a big number — in Miami that usually plays more like a ceiling script than a normal median unless the sets stay tight.`;
-      }
-
-      if (avg && avg < numLine) {
-        return `${dbName} over ${numLine} looks rich to me. His loaded hard-court average is ${avg}, so you are asking for something above baseline rather than something routine.`;
-      }
-
-      return `${dbName} at ${numLine} is a high bar. The over needs either very clean holds or enough match length to let serve volume pile up.`;
-    }
+  if (isBigServer || (rate && rate >= 16)) {
+    return `That number is big, but with ${dbName} it always comes down to serve volume. If he’s landing first serves and holding cleanly, the path is obvious because ace production is the whole match lever for him. The caution is that ${numLine} is still a big number — in Miami that usually plays more like a ceiling script than a normal median unless the sets stay tight.`;
+  }
 
     // LOW LINE
     if (numLine <= 6) {
