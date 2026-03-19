@@ -169,6 +169,63 @@ const featuredMatchups = [
 
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
+function formatPct(value) {
+  if (value === undefined || value === null || value === "") return "—";
+  return `${value}%`;
+}
+
+function formatServeStats(serveStats) {
+  if (!serveStats) return "—";
+
+  const parts = [];
+
+  if (serveStats.holdPct !== undefined) parts.push(`Hold ${serveStats.holdPct}%`);
+  if (serveStats.acePct !== undefined) parts.push(`Ace ${serveStats.acePct}%`);
+  if (serveStats.dfPct !== undefined) parts.push(`DF ${serveStats.dfPct}%`);
+
+  return parts.length ? parts.join(", ") : "—";
+}
+
+function formatReturnStats(returnStats) {
+  if (!returnStats) return "—";
+
+  const parts = [];
+
+  if (returnStats.rpwPct !== undefined) parts.push(`RPW ${returnStats.rpwPct}%`);
+  if (returnStats.breakPct !== undefined) parts.push(`Break ${returnStats.breakPct}%`);
+
+  return parts.length ? parts.join(", ") : "—";
+}
+
+function formatOverallStats(overallStats) {
+  if (!overallStats) return "—";
+
+  const parts = [];
+
+  if (overallStats.dominanceRatio !== undefined) parts.push(`DR ${overallStats.dominanceRatio}`);
+  if (overallStats.totalPointsWonPct !== undefined) parts.push(`TPW ${overallStats.totalPointsWonPct}%`);
+  if (overallStats.tiebreakPct !== undefined) parts.push(`Tiebreak ${overallStats.tiebreakPct}%`);
+
+  return parts.length ? parts.join(", ") : "—";
+}
+
+function getHoldValue(player) {
+  return player?.serveStats?.holdPct !== undefined
+    ? `${player.serveStats.holdPct}%`
+    : "—";
+}
+
+function getDrValue(player) {
+  return player?.overallStats?.dominanceRatio !== undefined
+    ? `${player.overallStats.dominanceRatio}`
+    : "—";
+}
+
+function getTbValue(player) {
+  return player?.overallStats?.tiebreakPct !== undefined
+    ? `${player.overallStats.tiebreakPct}%`
+    : "—";
+}
 
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -588,36 +645,33 @@ export default function App() {
                               <div className="player-name">{name}</div>
                               <div className="player-style">{p.style}</div>
                               <div className="surface-pills">
-                                <span className="surface-pill surface-hard">H:{p.hEloRank}</span>
-                                <span className="surface-pill surface-clay">C:{p.cEloRank}</span>
-                                <span className="surface-pill surface-grass">G:{p.gEloRank}</span>
-                              </div>
+  {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
+  {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
+  {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
+</div>
                             </div>
                             <div className="player-elo">
                               <span className="player-elo-num">{p.elo}</span>
                               <span className="player-elo-label">ELO</span>
-                              {p.yEloRank && <div className="form-badge" style={{ marginTop: 4 }}>#{p.yEloRank} 2026</div>}
+                              {p.record2026 && <div className="form-badge" style={{ marginTop: 4 }}>2026 FORM</div>}
                             </div>
                           </div>
                           <div className="player-stats">
-                            <div className="pstat">
-                              <div className="pstat-label">HOLD</div>
-                              <div className="pstat-value">{p.serveStats?.split(",")[0]?.replace("Hold ", "")}</div>
-                            </div>
-                            <div className="pstat">
-                              <div className="pstat-label">DR</div>
-                              <div className="pstat-value" style={{ color: "var(--cyan)" }}>
-                                {p.overallStats?.match(/DR[\s]*([\d.]+)/)?.[1] || "—"}
-                              </div>
-                            </div>
-                            <div className="pstat">
-                              <div className="pstat-label">TB%</div>
-                              <div className="pstat-value">
-                                {p.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1] || "—"}%
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+  <div className="pstat">
+    <div className="pstat-label">HOLD</div>
+    <div className="pstat-value">{getHoldValue(p)}</div>
+  </div>
+  <div className="pstat">
+    <div className="pstat-label">DR</div>
+    <div className="pstat-value" style={{ color: "var(--cyan)" }}>
+      {getDrValue(p)}
+    </div>
+  </div>
+  <div className="pstat">
+    <div className="pstat-label">TB%</div>
+    <div className="pstat-value">{getTbValue(p)}</div>
+  </div>
+</div>
                       );
                     })}
                   </div>
@@ -682,29 +736,35 @@ export default function App() {
                   {tennisTab.toUpperCase()} · #{tourPlayers.indexOf(selectedPlayer) + 1} ELO
                 </div>
                 <div className="detail-title">{selectedPlayer}</div>
-                <div className="detail-sub">{pd.style} · Elo {pd.elo}</div>
+                <div className="detail-sub">   {Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_", " ") : pd.style} · Elo {pd.elo} </div>
               </div>
 
-              <div className="what-matters">
-                <div className="wm-label">SURFACE ELO RANKS</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
-                  <div className="mini-stat">
-                    <div className="mini-label">HARD</div>
-                    <div className="mini-value" style={{ color: "var(--cyan)" }}>#{pd.hEloRank}</div>
-                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pd.hElo?.toFixed(0)}</div>
-                  </div>
-                  <div className="mini-stat">
-                    <div className="mini-label">CLAY</div>
-                    <div className="mini-value" style={{ color: "var(--gold)" }}>#{pd.cEloRank}</div>
-                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pd.cElo?.toFixed(0)}</div>
-                  </div>
-                  <div className="mini-stat">
-                    <div className="mini-label">GRASS</div>
-                    <div className="mini-value" style={{ color: "var(--green)" }}>#{pd.gEloRank}</div>
-                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{pd.gElo?.toFixed(0)}</div>
-                  </div>
-                </div>
-              </div>
+             <div className="what-matters">
+  <div className="wm-label">SURFACE NOTES</div>
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
+    <div className="mini-stat">
+      <div className="mini-label">HARD</div>
+      <div className="mini-value" style={{ color: "var(--cyan)" }}>•</div>
+      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+        {pd.surfaceNote?.hard || "—"}
+      </div>
+    </div>
+    <div className="mini-stat">
+      <div className="mini-label">CLAY</div>
+      <div className="mini-value" style={{ color: "var(--gold)" }}>•</div>
+      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+        {pd.surfaceNote?.clay || "—"}
+      </div>
+    </div>
+    <div className="mini-stat">
+      <div className="mini-label">GRASS</div>
+      <div className="mini-value" style={{ color: "var(--green)" }}>•</div>
+      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+        {pd.surfaceNote?.grass || "—"}
+      </div>
+    </div>
+  </div>
+</div>
 
               <div style={{ padding: "0 14px 14px" }}>
                 <div className="wm-label" style={{ marginBottom: 8 }}>2026 FORM</div>
@@ -714,19 +774,25 @@ export default function App() {
               </div>
 
               <div className="what-matters" style={{ paddingTop: 0 }}>
-                <div className="wm-label">SERVE</div>
-                <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>{pd.serveStats}</div>
-              </div>
+  <div className="wm-label">SERVE</div>
+  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
+    {formatServeStats(pd.serveStats)}
+  </div>
+</div>
 
               <div className="what-matters" style={{ paddingTop: 0 }}>
-                <div className="wm-label">RETURN</div>
-                <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>{pd.returnStats}</div>
-              </div>
+  <div className="wm-label">RETURN</div>
+  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
+    {formatReturnStats(pd.returnStats)}
+  </div>
+</div>
 
               <div className="what-matters" style={{ paddingTop: 0 }}>
-                <div className="wm-label">OVERALL</div>
-                <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>{pd.overallStats}</div>
-              </div>
+  <div className="wm-label">OVERALL</div>
+  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
+    {formatOverallStats(pd.overallStats)}
+  </div>
+</div>
 
               {pd.miamiNote && (
                 <div className="what-matters" style={{ paddingTop: 0 }}>
