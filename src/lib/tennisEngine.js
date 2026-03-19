@@ -223,7 +223,7 @@ export function generateTennisTake({
 
   const aceLevers = [
     (name) => `${name} wins or loses this on service-game comfort.`,
-    (name) => `The whole path runs through how clean ${name}'s holds look.`,
+    (name) => `This comes down to how comfortable ${name}'s service games are.`,
     (name) => `If ${name} is landing first serves, the count can build quickly.`,
   ];
 
@@ -300,7 +300,7 @@ export function generateTennisTake({
       if (numLine >= 14) {
         if (isBigServer || (rate && rate >= 16)) {
           return noDash(
-            `${pick(aceOpeners)(dbName)} ${pick(aceLevers)(dbName)} If he is landing first serves and holding cleanly, the ace count builds fast. ${pick(aceFriction)()} That turns ${numLine} into something you reach when the match stays tight, not something you expect automatically. ${pick(aceClosers)()}`
+            `${pick(aceOpeners)(dbName)} ${pick(aceLevers)(dbName)} If his service games stay clean, the count builds quickly without needing long rallies. ${pick(aceFriction)()} That turns ${numLine} into something you reach when the match stays tight, not something you expect automatically. ${pick(aceClosers)()}`
           );
         }
 
@@ -528,7 +528,7 @@ export function generateTennisTake({
 
     const matchupContext = getContextMatchup(p1, p2);
 
-    let answer = `${p1Name} vs ${p2Name} is not a pure coin flip.`;
+    let answer = `${p1Name} vs ${p2Name} comes down to match control more than raw talent.`;
 
     if (p1Data?.elo && p2Data?.elo) {
       if (p1Data.elo > p2Data.elo + 25) {
@@ -545,10 +545,20 @@ export function generateTennisTake({
     }
 
     if (matchupContext?.note) {
-      answer += ` ${matchupContext.note}`;
+      if (p1Data && p2Data) {
+  const p1Serve = getHoldPct(p1Data);
+  const p2Serve = getHoldPct(p2Data);
+
+  if (p1Serve && p2Serve) {
+    if (p1Serve > p2Serve + 3) {
+      answer += ` ${p1Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve.`;
+    } else if (p2Serve > p1Serve + 3) {
+      answer += ` ${p2Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve.`;
     } else {
-      answer += ` The real question is who gets to play their preferred script more often.`;
+      answer += ` Both players can hold, so this likely comes down to who creates the first real return pressure.`;
     }
+  }
+}
 
     if (matchupContext?.angle) {
       answer += ` ${matchupContext.angle}`;
