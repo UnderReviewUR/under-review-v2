@@ -1,4 +1,4 @@
-import { atp, wta, surfaces } from "../src/lib/tennis/data";
+import { atp, wta, surfaces } from "../src/lib/tennis/data/index.js";
 
 export default function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
