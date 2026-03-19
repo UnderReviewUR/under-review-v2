@@ -268,35 +268,72 @@ export default function App() {
   }, [screen, tennisTab]);
 
   function generateTake(inputText, matchup, extra = {}) {
-    const q = (inputText || "").toLowerCase();
+  const q = (inputText || "").toLowerCase();
 
-    const tennisKeywords = [
-      "tennis","miami open","sinner","alcaraz","djokovic","medvedev","zverev",
-      "fritz","shelton","musetti","sabalenka","swiatek","rybakina","pegula",
-      "gauff","bencic","muchova","aces","ace","tiebreak","wta","atp"
-    ];
+  const tennisKeywords = [
+    "tennis",
+    "miami open",
+    "miami",
+    "sinner",
+    "alcaraz",
+    "djokovic",
+    "medvedev",
+    "zverev",
+    "fritz",
+    "shelton",
+    "musetti",
+    "sabalenka",
+    "swiatek",
+    "rybakina",
+    "pegula",
+    "gauff",
+    "bencic",
+    "muchova",
+    "perricard",
+    "carabelli",
+    "marozsan",
+    "aces",
+    "ace",
+    "tiebreak",
+    "wta",
+    "atp",
+  ];
 
-    const isTennisQuestion =
-      q.includes("tennis") ||
-      tennisKeywords.some((word) => q.includes(word)) ||
-      screen === "tennis" ||
-      (matchup && matchup.league === "ATP") ||
-      (matchup && matchup.league === "WTA");
+  const liveMatchNames = (liveMatches || []).flatMap((match) => {
+    const p1 = String(match?.home_team || "").toLowerCase();
+    const p2 = String(match?.away_team || "").toLowerCase();
+    return [p1, p2];
+  });
 
-    if (isTennisQuestion) {
-      return generateTennisTake({
-        input: inputText,
-        selectedMatchup: matchup,
-        liveMatches,
-        players,
-        context,
-        tour: tennisTab,
-        ...extra,
-      });
-    }
+  const isLiveTennisQuestion = liveMatchNames.some((name) => {
+    if (!name) return false;
+    const surname = name.split(" ").filter(Boolean).slice(-1)[0];
+    return q.includes(name) || (surname && q.includes(surname));
+  });
 
-    return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English — not stats dumped back at you.";
+  const isTennisQuestion =
+    q.includes("tennis") ||
+    tennisKeywords.some((word) => q.includes(word)) ||
+    isLiveTennisQuestion ||
+    screen === "tennis" ||
+    screen === "player" ||
+    (matchup && matchup.league === "ATP") ||
+    (matchup && matchup.league === "WTA");
+
+  if (isTennisQuestion) {
+    return generateTennisTake({
+      input: inputText,
+      selectedMatchup: matchup,
+      liveMatches,
+      players,
+      context,
+      tour: tennisTab,
+      ...extra,
+    });
   }
+
+  return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English, not stats dumped back at you.";
+}
 
   function goHome() {
     setTab("home");
