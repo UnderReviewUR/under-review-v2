@@ -16,8 +16,6 @@ export function generateTennisTake({
 
   const playerNames = Object.keys(allPlayers);
 
-  // ---------------- CORE HELPERS ----------------
-
   function noDash(text) {
     return String(text || "")
       .replace(/—/g, "")
@@ -175,8 +173,6 @@ export function generateTennisTake({
     return String(style).replaceAll("_", " ");
   }
 
-  // ---------------- STATS HELPERS ----------------
-
   function getAcePct(player) {
     if (player?.serveStats?.acePct !== undefined) return Number(player.serveStats.acePct);
     return null;
@@ -219,30 +215,65 @@ export function generateTennisTake({
     );
   }
 
-  // ---------------- PHRASE BANKS ----------------
+  function extractMentionedPlayers(question) {
+    const cq = clean(question);
+    const found = [];
+
+    for (const name of playerNames) {
+      const lowerName = clean(name);
+      const surname = getSurname(name);
+
+      if (cq.includes(lowerName) || (surname && cq.includes(surname))) {
+        if (!found.includes(name)) {
+          found.push(name);
+        }
+      }
+    }
+
+    if (found.length >= 2) return found.slice(0, 2);
+
+    if (Array.isArray(liveMatches)) {
+      for (const match of liveMatches) {
+        const { p1, p2 } = getLiveMatchPlayers(match);
+        const p1Surname = getSurname(p1);
+        const p2Surname = getSurname(p2);
+
+        const hasP1 = cq.includes(clean(p1)) || (p1Surname && cq.includes(p1Surname));
+        const hasP2 = cq.includes(clean(p2)) || (p2Surname && cq.includes(p2Surname));
+
+        if (hasP1 && hasP2) {
+          const a = findPlayerInDatabase(p1) || p1;
+          const b = findPlayerInDatabase(p2) || p2;
+          return [a, b];
+        }
+      }
+    }
+
+    return found.slice(0, 2);
+  }
 
   const aceHighOpeners = [
     (name, line) => `${line} is not a neutral number.`,
-    (name, line) => `That is a big line for any player, even one like ${name}.`,
+    (name, line) => `That is a big line for a serve-driven profile.`,
     (name, line) => `${line} asks for more than just upside.`,
   ];
 
   const aceHighMiddle = [
     (name) =>
-      `With ${name}, the match runs through service games, so the path is obvious when the holds are clean.`,
+      `With ${name}, this is really a question about sustained control on serve.`,
     (name) =>
-      `With ${name}, this bet is really a question about sustained control on serve.`,
+      `With ${name}, the path exists because the match runs through service games.`,
     (name) =>
-      `${name} can get there, but only if the serve is dictating the shape of the match.`,
+      `${name} can get there, but only if the serve dictates the shape of the match.`,
   ];
 
   const aceHighFriction = [
     (line) =>
       `Miami adds just enough resistance that you need that control for longer than usual.`,
     (line) =>
-      `Miami takes a little off the free-point edge, which makes a number like this less forgiving.`,
-    (line) =>
       `The court gives returners a little more life, so ${line} becomes something you reach, not something you assume.`,
+    (line) =>
+      `Miami takes a little off the free-point edge, which makes a line like this less forgiving.`,
   ];
 
   const aceHighClosers = [
@@ -258,16 +289,16 @@ export function generateTennisTake({
   ];
 
   const aceLeanUnders = [
-    () => `I lean under because the number is asking for too much control.`,
     () => `I lean under because the line is pricing a cleaner script than I want to assume.`,
-    () => `I lean under because the path is there, but it is thinner than the number suggests.`,
+    () => `I lean under because the number asks for too much control.`,
+    () => `I lean under because the path exists, but it is thinner than the line suggests.`,
   ];
 
   const matchupServeVsResistance = [
     (server, grinder) =>
-      `This matchup pulls in opposite directions. ${server} is trying to keep points short and hold cleanly, while ${grinder} needs rallies to show up.`,
-    (server, grinder) =>
       `This is a style clash. ${server} wants the match compressed around service games, while ${grinder} wants time in points and return pressure.`,
+    (server, grinder) =>
+      `This matchup pulls in opposite directions. ${server} is trying to keep points short and hold cleanly, while ${grinder} needs rallies to show up.`,
     (server, grinder) =>
       `${server} is trying to turn this into a short-point match. ${grinder} needs to drag it the other way.`,
   ];
@@ -282,9 +313,9 @@ export function generateTennisTake({
   ];
 
   const matchupFollow = [
+    () => `Once that balance shifts, the match usually goes with it.`,
     () => `If one player settles into a preferred pattern, the match usually follows it.`,
     () => `Once one side gets the tempo it wants, the rest of the match tends to lean with it.`,
-    () => `Once that balance shifts, the match usually goes with it.`,
   ];
 
   const winnerOpeners = [
@@ -300,22 +331,22 @@ export function generateTennisTake({
   ];
 
   const genericClosers = [
-    () => `That is the part worth paying attention to.`,
-    () => `That is where the match turns.`,
     () => `That is the real hinge in the spot.`,
+    () => `That is where the match turns.`,
+    () => `That is the part worth paying attention to.`,
   ];
-
-  // ---------------- INTENT FLAGS ----------------
 
   const liveMatch = findLiveMatchFromQuestion(q);
   const dbPlayerInQuestion = findPlayerInDatabase(q);
   const livePlayerInQuestion = liveMatch ? getQuestionPlayerFromLiveMatch(q, liveMatch) : null;
+  const mentionedPlayers = extractMentionedPlayers(q);
 
   const aceLineInfo = parseLine(raw, /ace|aces/i);
-  const dfLineInfo = parseLine(raw, /double fault|double faults|df\b/i);
+  const dfLineInfo = parseLine(raw, /double fault|double faults|\bdf\b/i);
 
   const isAceQuestion = /ace|aces/i.test(q);
   const isDoubleFaultQuestion = /double fault|double faults|\bdf\b/i.test(q);
+
   const isLeanQuestion =
     q.includes("lean") ||
     q.includes("yes or no") ||
@@ -324,9 +355,19 @@ export function generateTennisTake({
     q.includes("play it") ||
     q.includes("worth it");
 
-  const activePlayer = dbPlayerInQuestion || livePlayerInQuestion;
+  const isWinnerQuestion =
+    q.includes("who wins") ||
+    q.includes("winner") ||
+    q.includes("wins") ||
+    q.includes("winning") ||
+    q.includes("advance") ||
+    q.includes("beat") ||
+    q.includes("who is") ||
+    q === "who wins?" ||
+    q === "who wins" ||
+    (isLeanQuestion && (q.includes("winning") || q.includes("winner")));
 
-  // ---------------- BUILDERS ----------------
+  const activePlayer = dbPlayerInQuestion || livePlayerInQuestion;
 
   function buildPlayerTake(playerName) {
     const dbName = findPlayerInDatabase(playerName) || playerName;
@@ -383,7 +424,7 @@ export function generateTennisTake({
         if (isLeanQuestion) {
           if ((holdPct && holdPct >= 86) || (rate && rate >= 16)) {
             return noDash(
-              `${pick(aceLeanOvers)()} The number still needs clean holds for most of the match. Miami makes that just a little harder to maintain.`
+              `${pick(aceLeanOvers)()} The number still needs clean holds for most of the match. Miami makes that a little harder to maintain.`
             );
           }
 
@@ -598,12 +639,6 @@ export function generateTennisTake({
     const p = getPlayerData(dbName);
     const dfPct = getDfPct(p);
 
-    if (!p && !dfPct) {
-      return noDash(
-        `${dbName} is live right now, but I do not have enough double-fault profile built out to make this more than a style read.`
-      );
-    }
-
     if (lineInfo?.value !== undefined && lineInfo?.value !== null) {
       const numLine = lineInfo.value;
 
@@ -615,7 +650,7 @@ export function generateTennisTake({
         }
 
         return noDash(
-          `I would be more careful on the over. You usually need visible scoreboard pressure for this to build.`
+          `I would be more careful on the over. Double-fault numbers usually need visible scoreboard pressure before they build.`
         );
       }
 
@@ -641,16 +676,11 @@ export function generateTennisTake({
     );
   }
 
-  function buildMatchupTake(match) {
-    const { p1, p2 } = getLiveMatchPlayers(match);
-
-    const p1Name = findPlayerInDatabase(p1) || p1;
-    const p2Name = findPlayerInDatabase(p2) || p2;
-
+  function buildMatchupTakeFromNames(p1Name, p2Name, match = null) {
     const p1Data = getPlayerData(p1Name);
     const p2Data = getPlayerData(p2Name);
 
-    const matchupContext = getContextMatchup(p1, p2);
+    const matchupContext = getContextMatchup(p1Name, p2Name);
 
     const p1BigServe = isBigServerProfile(p1Data);
     const p2BigServe = isBigServerProfile(p2Data);
@@ -669,9 +699,9 @@ export function generateTennisTake({
     }
 
     if (p1Return && !p2Return) {
-      answer += ` ${p1Name}'s return profile gives him the cleaner way to disrupt service rhythm.`;
+      answer += ` ${p1Name}'s return profile gives ${p1Name} the cleaner way to disrupt service rhythm.`;
     } else if (!p1Return && p2Return) {
-      answer += ` ${p2Name}'s return profile gives him the cleaner way to disrupt service rhythm.`;
+      answer += ` ${p2Name}'s return profile gives ${p2Name} the cleaner way to disrupt service rhythm.`;
     }
 
     if (matchupContext?.note) {
@@ -684,7 +714,7 @@ export function generateTennisTake({
 
     answer += ` ${pick(matchupFollow)()} ${pick(genericClosers)()}`;
 
-    const market = oddsText(match);
+    const market = match ? oddsText(match) : "";
     if (market) {
       answer += ` ${market}`;
     }
@@ -692,16 +722,11 @@ export function generateTennisTake({
     return noDash(answer);
   }
 
-  function buildWhoWinsTake(match) {
-    const { p1, p2 } = getLiveMatchPlayers(match);
-
-    const p1Name = findPlayerInDatabase(p1) || p1;
-    const p2Name = findPlayerInDatabase(p2) || p2;
-
+  function buildWhoWinsTakeFromNames(p1Name, p2Name, match = null) {
     const p1Data = getPlayerData(p1Name);
     const p2Data = getPlayerData(p2Name);
 
-    const matchupContext = getContextMatchup(p1, p2);
+    const matchupContext = getContextMatchup(p1Name, p2Name);
 
     let answer = `${pick(winnerOpeners)(p1Name, p2Name)}`;
 
@@ -725,9 +750,9 @@ export function generateTennisTake({
 
       if (p1Serve && p2Serve) {
         if (p1Serve > p2Serve + 3) {
-          answer += ` ${p1Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve. ${pick(winnerClosers)()}`;
+          answer += ` ${p1Name} has the cleaner hold profile, which gives ${p1Name} the more stable path if the match stays on serve. ${pick(winnerClosers)()}`;
         } else if (p2Serve > p1Serve + 3) {
-          answer += ` ${p2Name} has the cleaner hold profile, which gives him the more stable path if the match stays on serve. ${pick(winnerClosers)()}`;
+          answer += ` ${p2Name} has the cleaner hold profile, which gives ${p2Name} the more stable path if the match stays on serve. ${pick(winnerClosers)()}`;
         } else {
           answer += ` Both players can hold, so this likely comes down to who creates the first real return pressure.`;
         }
@@ -744,15 +769,13 @@ export function generateTennisTake({
       answer += ` ${matchupContext.angle}`;
     }
 
-    const market = oddsText(match);
+    const market = match ? oddsText(match) : "";
     if (market) {
       answer += ` ${market}`;
     }
 
     return noDash(answer);
   }
-
-  // ---------------- ROUTING ----------------
 
   if (isAceQuestion) {
     const acePlayer = activePlayer;
@@ -778,15 +801,14 @@ export function generateTennisTake({
     }
   }
 
-  if (
-    q.includes("who wins") ||
-    q.includes("winner") ||
-    q.includes("wins") ||
-    q.includes("advance") ||
-    q.includes("beat")
-  ) {
+  if (isWinnerQuestion) {
     if (liveMatch) {
-      return buildWhoWinsTake(liveMatch);
+      const { p1, p2 } = getLiveMatchPlayers(liveMatch);
+      return buildWhoWinsTakeFromNames(findPlayerInDatabase(p1) || p1, findPlayerInDatabase(p2) || p2, liveMatch);
+    }
+
+    if (mentionedPlayers.length >= 2) {
+      return buildWhoWinsTakeFromNames(mentionedPlayers[0], mentionedPlayers[1]);
     }
 
     if (selectedMatchup?.title) {
@@ -804,7 +826,12 @@ export function generateTennisTake({
     q.includes("vs")
   ) {
     if (liveMatch) {
-      return buildMatchupTake(liveMatch);
+      const { p1, p2 } = getLiveMatchPlayers(liveMatch);
+      return buildMatchupTakeFromNames(findPlayerInDatabase(p1) || p1, findPlayerInDatabase(p2) || p2, liveMatch);
+    }
+
+    if (mentionedPlayers.length >= 2) {
+      return buildMatchupTakeFromNames(mentionedPlayers[0], mentionedPlayers[1]);
     }
 
     if (selectedMatchup?.title) {
@@ -823,7 +850,8 @@ export function generateTennisTake({
   }
 
   if (liveMatch) {
-    return buildMatchupTake(liveMatch);
+    const { p1, p2 } = getLiveMatchPlayers(liveMatch);
+    return buildMatchupTakeFromNames(findPlayerInDatabase(p1) || p1, findPlayerInDatabase(p2) || p2, liveMatch);
   }
 
   if (tour === "wta") {
