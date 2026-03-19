@@ -221,44 +221,98 @@ export function generateTennisTake({
   }
 
   function buildKnownAceTake(playerName, lineInfo) {
-    const dbName = findPlayerInDatabase(playerName) || playerName;
-    const aceData = context?.ace_props?.[dbName];
-    const p = getPlayerData(dbName);
+  const dbName = findPlayerInDatabase(playerName) || playerName;
+  const aceData = context?.ace_props?.[dbName];
+  const p = getPlayerData(dbName);
 
-    if (!aceData && !p) return null;
+  if (!aceData && !p) return null;
 
-    const avg = aceData?.avg_aces_hard;
-    const rate = aceData?.ace_rate;
-    const note = aceData?.note || "";
+  const avg = aceData?.avg_aces_hard;
+  const rate =
+    aceData?.ace_rate
+      ? parseFloat(String(aceData.ace_rate).replace("%", ""))
+      : p?.serveStats?.acePct;
 
-    if (lineInfo && avg) {
-      const numLine = lineInfo.value;
+  const holdPct = p?.serveStats?.holdPct;
+  const note = aceData?.note || p?.miamiNote || p?.fullNote || "";
 
-      let lean = "close";
-      if (avg >= numLine + 1) lean = "over";
-      if (avg <= numLine - 1) lean = "under";
+  const isBigServer =
+    p?.strengths?.includes("ace_volume") ||
+    p?.strengths?.includes("easy_holds") ||
+    p?.style?.includes("big_server");
 
-      if (lean === "over") {
-        return `${dbName} ${lineInfo.side === "under" ? `under ${numLine}` : `over ${numLine}`} aces has a real case the other way around — the loaded hard-court average is ${avg}, with an ace rate of ${rate || "unknown"}. ${note}`.trim();
+  if (lineInfo) {
+    const numLine = lineInfo.value;
+
+    // HIGH LINE
+    if (numLine >= 14) {
+      if (isBigServer || (rate && rate >= 16)) {
+        return `${dbName} at ${numLine} is a real serve-volume bet. If he’s landing first serves and holding cleanly, the path is obvious because ace production is the whole match lever for him. The caution is that ${numLine} is still a big number — in Miami that usually plays more like a ceiling script than a normal median unless the sets stay tight.`;
       }
 
-      if (lean === "under") {
-        return `${dbName} ${lineInfo.side === "over" ? `over ${numLine}` : `under ${numLine}`} aces looks a little rich to me. The loaded hard-court average is ${avg}, which makes ${numLine} more of a ceiling outcome than a median one. ${note}`.trim();
+      if (avg && avg < numLine) {
+        return `${dbName} over ${numLine} looks rich to me. His loaded hard-court average is ${avg}, so you are asking for something above baseline rather than something routine.`;
       }
 
-      return `${dbName} at ${numLine} aces is pretty sharp. The loaded hard-court average is ${avg} and the ace rate is ${rate || "unknown"}, so this feels close rather than obvious. ${note}`.trim();
+      return `${dbName} at ${numLine} is a high bar. The over needs either very clean holds or enough match length to let serve volume pile up.`;
+    }
+
+    // LOW LINE
+    if (numLine <= 6) {
+      if (isBigServer || (rate && rate >= 10)) {
+        return `${dbName} at ${numLine} is a number that can disappear quickly if the serve is on. For this type of profile, you do not need a marathon — just clean service games and enough first-serve volume.`;
+      }
+
+      if (avg && avg > numLine) {
+        return `${dbName} clearing ${numLine} has a fair case if the match stays on serve. The loaded average is ${avg}, which puts that line in a reachable range rather than an extreme one.`;
+      }
+
+      return `${dbName} at ${numLine} feels reasonable, but it still depends on whether the match stays serve-led or turns into more return pressure than expected.`;
+    }
+
+    // MID RANGE
+    if (isBigServer || (rate && rate >= 14)) {
+      return `${dbName} around ${numLine} comes down to serve quality and hold comfort. If he is getting a lot of first serves in and protecting games cleanly, the over can build naturally. If the returner gets enough neutral balls, that same number starts to look heavy.`;
     }
 
     if (avg) {
-      return `${dbName} averages ${avg} aces on hard courts in the loaded data, with an ace rate of ${rate || "unknown"}. ${note}`.trim();
+      if (avg > numLine) {
+        return `${dbName} has a live path over ${numLine}. His loaded hard-court average is ${avg}, so the number is asking for something close to his normal range, not an outlier.`;
+      }
+
+      if (avg < numLine) {
+        return `${dbName} over ${numLine} is asking for more than his loaded hard-court baseline of ${avg}. That makes it more of an upside script than a standard expectation.`;
+      }
+
+      return `${dbName} at ${numLine} looks pretty fair. The line is sitting close to his loaded hard-court baseline, so match shape becomes the separator.`;
     }
 
-    if (p?.serveStats) {
-      return `${dbName}'s serve profile says ${p.serveStats}. I would frame any ace prop off that rather than guess.`;
-    }
-
-    return null;
+    return `${dbName} at ${numLine} is mostly a serve-volume read. If he is holding comfortably and the sets stay competitive, the over stays live.`;
   }
+
+  // NO LINE PROVIDED
+  if (isBigServer || (rate && rate >= 14)) {
+    if (rate && holdPct) {
+      return `${dbName} is an ace-driven profile. The serve is the whole lever: ${rate}% ace rate with ${holdPct}% hold rate is exactly the kind of combination that creates big-volume ace matches when service games stay clean.`;
+    }
+
+    if (rate) {
+      return `${dbName} is an ace-driven profile. A ${rate}% ace rate gives him real upside whenever the match stays on serve long enough for volume to build.`;
+    }
+
+    return `${dbName} is a serve-first player. When the first serve is landing, ace volume becomes the main story of the match.`;
+  }
+
+  if (avg) {
+    return `${dbName} averages ${avg} aces on hard courts in the loaded data. That gives you a solid baseline, and then the real question becomes whether the matchup lets him hold cleanly enough to beat that number.`;
+  }
+
+  if (rate) {
+    return `${dbName} has enough serve pop to matter in ace markets. The key question is whether the match gives him enough clean service volume to turn that into a big number.`;
+  }
+
+  return note || `${dbName} can generate aces when the serve is dictating, but the match script matters more than raw talent alone.`;
+}
 
   function buildLiveUnknownAceTake(playerName, lineInfo, match) {
   const { p1, p2 } = getLiveMatchPlayers(match || {});
