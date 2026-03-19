@@ -261,24 +261,55 @@ export function generateTennisTake({
   }
 
   function buildLiveUnknownAceTake(playerName, lineInfo, match) {
-    const { p1, p2 } = getLiveMatchPlayers(match || {});
-    const opponent = clean(playerName) === clean(p1) ? p2 : p1;
-    const line = lineInfo?.value;
+  const { p1, p2 } = getLiveMatchPlayers(match || {});
+  const opponent = clean(playerName) === clean(p1) ? p2 : p1;
+  const line = lineInfo?.value;
 
-    if (line) {
-      if (line >= 14) {
-        return `${playerName} ${lineInfo.side === "under" ? `under ${line}` : `over ${line}`} aces is a high bar. For that over to cash cleanly, you usually need either total serve control for long stretches or a match that runs long enough to create volume. Against ${opponent}, the over case is obvious if ${playerName} dominates first-serve points and keeps sets tight. The under case is that ${line} is a real number, not a casual one — one loose return game or a shorter match can kill it fast.`.trim();
-      }
+  const playerData =
+    getPlayerData(playerName) ||
+    getPlayerData(findPlayerInDatabase(playerName));
 
-      if (line <= 6) {
-        return `${playerName} at ${line} aces is a modest line. If the serve is landing and the match stays on serve for stretches, that number can go quickly. The real question is whether ${opponent} forces enough return pressure to keep the ace count ordinary rather than spiky.`.trim();
-      }
+  const isBigServer =
+    playerData?.strengths?.includes("ace_volume") ||
+    playerData?.strengths?.includes("easy_holds") ||
+    playerData?.style?.includes("big_server");
 
-      return `${playerName} at ${line} aces feels live but matchup-dependent. The right read is whether this match projects as quick holds and tight service games or whether ${opponent} can drag return points into play and cut down the free ones.`.trim();
+  const serveProfile = playerData?.serveStats;
+
+  // --- HIGH LINE (14+) ---
+  if (line && line >= 14) {
+    if (isBigServer) {
+      return `${playerName} at ${line} is always a serve-volume question, not a normal projection. If his first serve is landing and he’s holding cleanly, the ace count can stack quickly because that’s his entire match identity. The risk is Miami — it’s not the fastest hard court, so you get more neutral rallies than you would somewhere like the US Open. That turns ${line} into more of a ceiling outcome than a median one unless the match stays tight.`.trim();
     }
 
-    return `${playerName} ace questions come down to match shape more than anything else: if the serve is dictating and the sets stay tight, the ace total can climb quickly. If ${opponent} gets enough returns in play, the number cools off just as fast.`.trim();
+    return `${playerName} at ${line} is a high bar. For an over to get there cleanly, you usually need either a long match or extremely comfortable service games. Against ${opponent}, I would treat that number as more of a ceiling than a baseline unless the match script really stretches out.`.trim();
   }
+
+  // --- LOW LINE (≤6) ---
+  if (line && line <= 6) {
+    if (isBigServer) {
+      return `${playerName} at ${line} is a number that can go quickly if the serve is on. For this type of profile, you don’t need long rallies — just clean holds and first-strike points. The only real risk is if ${opponent} gets enough returns in play to flatten the ace curve.`.trim();
+    }
+
+    return `${playerName} at ${line} is a modest number. If the match stays on serve for stretches, that can clear naturally. The question is whether ${opponent} can apply enough return pressure to keep the ace count from building.`.trim();
+  }
+
+  // --- MID RANGE ---
+  if (line) {
+    if (isBigServer) {
+      return `${playerName} around ${line} aces comes down to how clean his service games are. If he’s landing first serves and avoiding extended rallies, the path is there. If ${opponent} forces more second-ball exchanges, that number starts to look like a stretch instead of a baseline.`.trim();
+    }
+
+    return `${playerName} at ${line} is very matchup-dependent. This is more about match shape than raw serve ability — quick holds push it over, return pressure pulls it under.`.trim();
+  }
+
+  // --- NO LINE ---
+  if (serveProfile?.acePct) {
+    return `${playerName}'s serve profile suggests an ace-driven path when he’s holding comfortably. The question is less about raw ability and more about whether the match stays on serve long enough for that to show up.`.trim();
+  }
+
+  return `${playerName} ace outcomes here are driven by match flow — if the serve is dictating and games stay short, the number can climb quickly. If ${opponent} gets returns into play, it cools off fast.`.trim();
+}
 
   function buildWhoWinsTake(match) {
     const { p1, p2 } = getLiveMatchPlayers(match);
