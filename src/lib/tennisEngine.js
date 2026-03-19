@@ -16,12 +16,24 @@ export function generateTennisTake({
 
   const playerNames = Object.keys(allPlayers);
 
+  function noDash(text) {
+    return String(text || "")
+      .replace(/—/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function clean(str) {
     return String(str || "")
       .toLowerCase()
       .replace(/[.\-']/g, " ")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  function pick(arr) {
+    if (!Array.isArray(arr) || !arr.length) return "";
+    return arr[Math.floor(Math.random() * arr.length)];
   }
 
   function getNameParts(name) {
@@ -31,6 +43,18 @@ export function generateTennisTake({
   function getSurname(name) {
     const parts = getNameParts(name);
     return parts.length ? parts[parts.length - 1] : "";
+  }
+
+  function displayName(name) {
+    return name || "Player";
+  }
+
+  function formatStyle(style) {
+    if (!style) return "";
+    if (Array.isArray(style)) {
+      return style.join(", ").replaceAll("_", " ");
+    }
+    return String(style).replaceAll("_", " ");
   }
 
   function getLiveMatchPlayers(match) {
@@ -48,15 +72,14 @@ export function generateTennisTake({
   function findPlayerInDatabase(question) {
     const cq = clean(question);
 
-    return playerNames.find((name) => {
-      const lowerName = clean(name);
-      const surname = getSurname(name);
+    return (
+      playerNames.find((name) => {
+        const lowerName = clean(name);
+        const surname = getSurname(name);
 
-      return (
-        cq.includes(lowerName) ||
-        (surname && cq.includes(surname))
-      );
-    }) || null;
+        return cq.includes(lowerName) || (surname && cq.includes(surname));
+      }) || null
+    );
   }
 
   function findLiveMatchFromQuestion(question) {
@@ -64,19 +87,21 @@ export function generateTennisTake({
 
     const cq = clean(question);
 
-    return liveMatches.find((match) => {
-      const { p1, p2 } = getLiveMatchPlayers(match);
+    return (
+      liveMatches.find((match) => {
+        const { p1, p2 } = getLiveMatchPlayers(match);
 
-      const p1Full = clean(p1);
-      const p2Full = clean(p2);
-      const p1Surname = getSurname(p1);
-      const p2Surname = getSurname(p2);
+        const p1Full = clean(p1);
+        const p2Full = clean(p2);
+        const p1Surname = getSurname(p1);
+        const p2Surname = getSurname(p2);
 
-      const mentionsP1 = cq.includes(p1Full) || (p1Surname && cq.includes(p1Surname));
-      const mentionsP2 = cq.includes(p2Full) || (p2Surname && cq.includes(p2Surname));
+        const mentionsP1 = cq.includes(p1Full) || (p1Surname && cq.includes(p1Surname));
+        const mentionsP2 = cq.includes(p2Full) || (p2Surname && cq.includes(p2Surname));
 
-      return mentionsP1 || mentionsP2;
-    }) || null;
+        return mentionsP1 || mentionsP2;
+      }) || null
+    );
   }
 
   function getQuestionPlayerFromLiveMatch(question, match) {
@@ -101,7 +126,6 @@ export function generateTennisTake({
 
     const cp1 = clean(p1);
     const cp2 = clean(p2);
-
     const keys = Object.keys(context.matchups);
 
     const direct = keys.find((key) => {
@@ -150,65 +174,100 @@ export function generateTennisTake({
 
     if (!usable.length) return "";
 
-    const formatted = usable.map((o) => `${o.name} ${o.price}`).join(" · ");
-    return formatted ? ` Market is showing ${formatted}.` : "";
+    const formatted = usable.map((o) => `${o.name} ${o.price}`).join(" | ");
+    return formatted ? `Market is showing ${formatted}.` : "";
   }
 
-  function tiebreakText(playerData, playerName) {
-    const tb = playerData?.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1];
-    if (!tb) return "";
-    return `${playerName} is winning ${tb}% of tiebreaks in the loaded data.`;
+  function getAcePct(player) {
+    if (player?.serveStats?.acePct !== undefined) return Number(player.serveStats.acePct);
+    return null;
   }
 
-  function buildMatchupTake(match) {
-    const { p1, p2 } = getLiveMatchPlayers(match);
-    const p1Data = getPlayerData(p1) || getPlayerData(findPlayerInDatabase(p1));
-    const p2Data = getPlayerData(p2) || getPlayerData(findPlayerInDatabase(p2));
-    const matchupContext = getContextMatchup(p1, p2);
-
-    let answer = `${p1} vs ${p2} is on the board for Miami.`;
-
-    if (matchupContext?.note) {
-      answer += ` ${matchupContext.note}`;
-    } else {
-      answer += ` This is the kind of matchup where serve quality, return pressure, and whether the match stays on serve matter more than raw name value.`;
-    }
-
-    if (matchupContext?.angle) {
-      answer += ` ${matchupContext.angle}`;
-    } else if (p1Data && p2Data) {
-      const p1Tb = p1Data?.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1];
-      const p2Tb = p2Data?.overallStats?.match(/Tiebreak\s*([\d.]+)/)?.[1];
-
-      if (p1Tb && p2Tb) {
-        answer += ` If this gets tight late, ${p1}'s tiebreak rate is ${p1Tb}% versus ${p2}'s ${p2Tb}%.`;
-      }
-    } else {
-      answer += ` The first question is whether one player can control the match with serve and shorten points.`;
-    }
-
-    const market = oddsText(match);
-    if (market) {
-      answer += market;
-    } else {
-      answer += ` No clean price is loaded on my side right now, so I would frame this off match style rather than pretend I have a number I do not.`;
-    }
-
-    return answer.trim();
+  function getHoldPct(player) {
+    if (player?.serveStats?.holdPct !== undefined) return Number(player.serveStats.holdPct);
+    return null;
   }
+
+  function getBreakPct(player) {
+    if (player?.returnStats?.breakPct !== undefined) return Number(player.returnStats.breakPct);
+    return null;
+  }
+
+  function getTbPct(player) {
+    if (player?.overallStats?.tiebreakPct !== undefined) return Number(player.overallStats.tiebreakPct);
+    return null;
+  }
+
+  function isBigServerProfile(player) {
+    return Boolean(
+      player?.strengths?.includes("ace_volume") ||
+        player?.strengths?.includes("easy_holds") ||
+        player?.style?.includes("big_server")
+    );
+  }
+
+  function isReturnPressureProfile(player) {
+    const breakPct = getBreakPct(player);
+    return Boolean(
+      (breakPct && breakPct >= 27) ||
+        player?.strengths?.includes("return_game") ||
+        player?.strengths?.includes("consistency")
+    );
+  }
+
+  const aceOpeners = [
+    (name) => `That number is high, but with ${name} this is not a normal profile.`,
+    (name) => `With ${name}, this always starts with the serve.`,
+    (name) => `This is a very specific kind of ace bet with ${name}.`,
+  ];
+
+  const aceLevers = [
+    (name) => `${name} wins or loses this on service-game comfort.`,
+    (name) => `The whole path runs through how clean ${name}'s holds look.`,
+    (name) => `If ${name} is landing first serves, the count can build quickly.`,
+  ];
+
+  const aceFriction = [
+    () => `Miami makes that a little less automatic than the fastest hard courts.`,
+    () => `The court gives returners a few more looks than a pure serve track would.`,
+    () => `You do not get quite as many free points here as you would on a faster hard court.`,
+  ];
+
+  const aceClosers = [
+    () => `That is the real hinge on this number.`,
+    () => `That is where this either gets there or comes up short.`,
+    () => `That is the read that matters more than the headline line itself.`,
+  ];
+
+  const matchupClosers = [
+    () => `That is the part of the match worth paying attention to.`,
+    () => `That is where the match turns.`,
+    () => `That is the real pressure point in this matchup.`,
+  ];
 
   function buildPlayerTake(playerName) {
     const dbName = findPlayerInDatabase(playerName) || playerName;
     const p = getPlayerData(dbName);
 
     if (!p) {
-      return `${playerName} is in the live feed, but I do not have a full long-form player card loaded for that name yet. I can still break down the matchup angle if you ask it that way.`;
+      return noDash(
+        `${dbName} is on the board, but I do not have a finished player card for him yet. If you ask through the matchup or the ace angle, I can still give you something useful.`
+      );
     }
 
-    let answer = `${dbName} profiles as a ${p.style || "top player"} with Elo ${p.elo || "unknown"}.`;
+    const style = formatStyle(p.style);
+    const strengths = Array.isArray(p.strengths)
+      ? p.strengths.slice(0, 3).join(", ").replaceAll("_", " ")
+      : "";
+
+    let answer = `${dbName} profiles as ${style || "a dangerous player"} with Elo ${p.elo || "unknown"}.`;
 
     if (p.record2026) {
       answer += ` ${p.record2026}.`;
+    }
+
+    if (strengths) {
+      answer += ` The core strengths are ${strengths}.`;
     }
 
     if (p.miamiNote) {
@@ -217,167 +276,278 @@ export function generateTennisTake({
       answer += ` ${p.fullNote}`;
     }
 
-    return answer.trim();
+    return noDash(answer);
   }
 
   function buildKnownAceTake(playerName, lineInfo) {
-  const dbName = findPlayerInDatabase(playerName) || playerName;
-  const aceData = context?.ace_props?.[dbName];
-  const p = getPlayerData(dbName);
+    const dbName = findPlayerInDatabase(playerName) || playerName;
+    const aceData = context?.ace_props?.[dbName];
+    const p = getPlayerData(dbName);
 
-  if (!aceData && !p) return null;
+    if (!aceData && !p) return null;
 
-  const avg = aceData?.avg_aces_hard;
-  const rate =
-    aceData?.ace_rate
+    const avg = aceData?.avg_aces_hard;
+    const rate = aceData?.ace_rate
       ? parseFloat(String(aceData.ace_rate).replace("%", ""))
-      : p?.serveStats?.acePct;
+      : getAcePct(p);
+    const holdPct = getHoldPct(p);
+    const isBigServer = isBigServerProfile(p);
+    const note = aceData?.note || p?.miamiNote || p?.fullNote || "";
 
-  const holdPct = p?.serveStats?.holdPct;
-  const note = aceData?.note || p?.miamiNote || p?.fullNote || "";
+    if (lineInfo) {
+      const numLine = lineInfo.value;
 
-  const isBigServer =
-    p?.strengths?.includes("ace_volume") ||
-    p?.strengths?.includes("easy_holds") ||
-    p?.style?.includes("big_server");
+      if (numLine >= 14) {
+        if (isBigServer || (rate && rate >= 16)) {
+          return noDash(
+            `${pick(aceOpeners)(dbName)} ${pick(aceLevers)(dbName)} If he is landing first serves and holding cleanly, the ace count builds fast. ${pick(aceFriction)()} That turns ${numLine} into something you reach when the match stays tight, not something you expect automatically. ${pick(aceClosers)()}`
+          );
+        }
 
-  if (lineInfo) {
-    const numLine = lineInfo.value;
+        if (avg && avg < numLine) {
+          return noDash(
+            `${dbName} over ${numLine} looks rich. The loaded hard-court average is ${avg}, so you are asking for an upside script, not a routine one. A number like this needs either extra match length or unusually clean service games.`
+          );
+        }
 
-    // HIGH LINE
-    if (numLine >= 14) {
-  if (isBigServer || (rate && rate >= 16)) {
-    return `That number is big, but with ${dbName} it always comes down to serve volume. If he’s landing first serves and holding cleanly, the path is obvious because ace production is the whole match lever for him. The caution is that ${numLine} is still a big number — in Miami that usually plays more like a ceiling script than a normal median unless the sets stay tight.`;
-  }
-
-    // LOW LINE
-    if (numLine <= 6) {
-      if (isBigServer || (rate && rate >= 10)) {
-        return `${dbName} at ${numLine} is a number that can disappear quickly if the serve is on. For this type of profile, you do not need a marathon — just clean service games and enough first-serve volume.`;
+        return noDash(
+          `${dbName} at ${numLine} is a high bar. The over needs either very comfortable holds or enough match length for the volume to pile up.`
+        );
       }
 
-      if (avg && avg > numLine) {
-        return `${dbName} clearing ${numLine} has a fair case if the match stays on serve. The loaded average is ${avg}, which puts that line in a reachable range rather than an extreme one.`;
+      if (numLine <= 6) {
+        if (isBigServer || (rate && rate >= 10)) {
+          return noDash(
+            `${dbName} at ${numLine} can go quickly if the serve is on. You do not need a marathon. You need clean service games and enough first serves to keep the board moving.`
+          );
+        }
+
+        if (avg && avg > numLine) {
+          return noDash(
+            `${dbName} clearing ${numLine} has a fair path if the match stays on serve. The loaded average is ${avg}, so the number is reachable without asking for something extreme.`
+          );
+        }
+
+        return noDash(
+          `${dbName} at ${numLine} feels reasonable, but it still depends on whether the match stays serve-led or turns into more return pressure than expected.`
+        );
       }
 
-      return `${dbName} at ${numLine} feels reasonable, but it still depends on whether the match stays serve-led or turns into more return pressure than expected.`;
+      if (isBigServer || (rate && rate >= 14)) {
+        return noDash(
+          `${dbName} around ${numLine} comes down to serve quality and hold comfort. If he is getting plenty of first serves in and protecting games cleanly, the path is there. If the returner gets enough neutral balls, the number starts to feel heavier than it looks.`
+        );
+      }
+
+      if (avg) {
+        if (avg > numLine) {
+          return noDash(
+            `${dbName} has a live path over ${numLine}. The loaded hard-court average is ${avg}, so the line is asking for something close to normal range, not a true outlier.`
+          );
+        }
+
+        if (avg < numLine) {
+          return noDash(
+            `${dbName} over ${numLine} is asking for more than the loaded hard-court baseline of ${avg}. That makes it more of an upside script than a standard expectation.`
+          );
+        }
+
+        return noDash(
+          `${dbName} at ${numLine} looks pretty fair. The line sits close to baseline, so match shape decides the rest.`
+        );
+      }
+
+      return noDash(
+        `${dbName} at ${numLine} is mostly a serve-volume read. If he is holding comfortably and the sets stay competitive, the over stays live.`
+      );
     }
 
-    // MID RANGE
     if (isBigServer || (rate && rate >= 14)) {
-      return `${dbName} around ${numLine} comes down to serve quality and hold comfort. If he is getting a lot of first serves in and protecting games cleanly, the over can build naturally. If the returner gets enough neutral balls, that same number starts to look heavy.`;
+      if (rate && holdPct) {
+        return noDash(
+          `${dbName} is an ace-driven profile. A ${rate}% ace rate with a ${holdPct}% hold rate is exactly the kind of combination that creates big-volume ace matches when service games stay clean.`
+        );
+      }
+
+      if (rate) {
+        return noDash(
+          `${dbName} is an ace-driven profile. A ${rate}% ace rate gives him real upside any time the match stays on serve long enough for volume to build.`
+        );
+      }
+
+      return noDash(
+        `${dbName} is a serve-first player. When the first serve is landing, ace volume becomes the main story.`
+      );
     }
 
     if (avg) {
-      if (avg > numLine) {
-        return `${dbName} has a live path over ${numLine}. His loaded hard-court average is ${avg}, so the number is asking for something close to his normal range, not an outlier.`;
-      }
-
-      if (avg < numLine) {
-        return `${dbName} over ${numLine} is asking for more than his loaded hard-court baseline of ${avg}. That makes it more of an upside script than a standard expectation.`;
-      }
-
-      return `${dbName} at ${numLine} looks pretty fair. The line is sitting close to his loaded hard-court baseline, so match shape becomes the separator.`;
-    }
-
-    return `${dbName} at ${numLine} is mostly a serve-volume read. If he is holding comfortably and the sets stay competitive, the over stays live.`;
-  }
-
-  // NO LINE PROVIDED
-  if (isBigServer || (rate && rate >= 14)) {
-    if (rate && holdPct) {
-      return `${dbName} is an ace-driven profile. The serve is the whole lever: ${rate}% ace rate with ${holdPct}% hold rate is exactly the kind of combination that creates big-volume ace matches when service games stay clean.`;
+      return noDash(
+        `${dbName} averages ${avg} aces on hard courts in the loaded data. That gives you a solid baseline, and then the real question is whether the matchup lets him hold cleanly enough to beat it.`
+      );
     }
 
     if (rate) {
-      return `${dbName} is an ace-driven profile. A ${rate}% ace rate gives him real upside whenever the match stays on serve long enough for volume to build.`;
+      return noDash(
+        `${dbName} has enough serve pop to matter in ace markets. The key question is whether the match gives him enough clean service volume to turn that into a bigger number.`
+      );
     }
 
-    return `${dbName} is a serve-first player. When the first serve is landing, ace volume becomes the main story of the match.`;
+    return noDash(note || `${dbName} can generate aces when the serve is dictating, but the match script matters more than raw talent alone.`);
   }
-
-  if (avg) {
-    return `${dbName} averages ${avg} aces on hard courts in the loaded data. That gives you a solid baseline, and then the real question becomes whether the matchup lets him hold cleanly enough to beat that number.`;
-  }
-
-  if (rate) {
-    return `${dbName} has enough serve pop to matter in ace markets. The key question is whether the match gives him enough clean service volume to turn that into a big number.`;
-  }
-
-  return note || `${dbName} can generate aces when the serve is dictating, but the match script matters more than raw talent alone.`;
-}
 
   function buildLiveUnknownAceTake(playerName, lineInfo, match) {
-  const { p1, p2 } = getLiveMatchPlayers(match || {});
-  const opponent = clean(playerName) === clean(p1) ? p2 : p1;
-  const line = lineInfo?.value;
+    const { p1, p2 } = getLiveMatchPlayers(match || {});
+    const opponent = clean(playerName) === clean(p1) ? p2 : p1;
+    const line = lineInfo?.value;
 
-  const playerData =
-    getPlayerData(playerName) ||
-    getPlayerData(findPlayerInDatabase(playerName));
+    const playerData = getPlayerData(playerName) || getPlayerData(findPlayerInDatabase(playerName));
+    const isBigServer = isBigServerProfile(playerData);
+    const serveProfile = playerData?.serveStats;
 
-  const isBigServer =
-    playerData?.strengths?.includes("ace_volume") ||
-    playerData?.strengths?.includes("easy_holds") ||
-    playerData?.style?.includes("big_server");
+    if (line && line >= 14) {
+      if (isBigServer) {
+        return noDash(
+          `That number is high, but with ${playerName} it always comes down to serve volume. If the first serve is landing and the holds are clean, the count can stack quickly because that is the whole match lever for him. Miami gives returners a little more traction, so ${line} plays more like a ceiling script than something you expect by default.`
+        );
+      }
 
-  const serveProfile = playerData?.serveStats;
-
-  // --- HIGH LINE (14+) ---
-  if (line && line >= 14) {
-    if (isBigServer) {
-      return `${playerName} at ${line} is always a serve-volume question, not a normal projection. If his first serve is landing and he’s holding cleanly, the ace count can stack quickly because that’s his entire match identity. The risk is Miami — it’s not the fastest hard court, so you get more neutral rallies than you would somewhere like the US Open. That turns ${line} into more of a ceiling outcome than a median one unless the match stays tight.`.trim();
+      return noDash(
+        `${playerName} at ${line} is a high bar. For the over to get there cleanly, you usually need either a long match or extremely comfortable service games. Against ${opponent}, I would treat that more as a ceiling than a baseline unless the match really stretches.`
+      );
     }
 
-    return `${playerName} at ${line} is a high bar. For an over to get there cleanly, you usually need either a long match or extremely comfortable service games. Against ${opponent}, I would treat that number as more of a ceiling than a baseline unless the match script really stretches out.`.trim();
-  }
+    if (line && line <= 6) {
+      if (isBigServer) {
+        return noDash(
+          `${playerName} at ${line} is a number that can go quickly if the serve is on. For this kind of profile, you do not need long rallies. You need clean holds and enough first-strike points.`
+        );
+      }
 
-  // --- LOW LINE (≤6) ---
-  if (line && line <= 6) {
-    if (isBigServer) {
-      return `${playerName} at ${line} is a number that can go quickly if the serve is on. For this type of profile, you don’t need long rallies — just clean holds and first-strike points. The only real risk is if ${opponent} gets enough returns in play to flatten the ace curve.`.trim();
+      return noDash(
+        `${playerName} at ${line} is modest. If the match stays on serve for stretches, that can clear naturally. The real question is whether ${opponent} applies enough return pressure to keep the ace count from building.`
+      );
     }
 
-    return `${playerName} at ${line} is a modest number. If the match stays on serve for stretches, that can clear naturally. The question is whether ${opponent} can apply enough return pressure to keep the ace count from building.`.trim();
-  }
+    if (line) {
+      if (isBigServer) {
+        return noDash(
+          `${playerName} around ${line} aces comes down to how clean the service games are. If the first serve is landing and the points stay short, the path is there. If ${opponent} forces more second-ball exchanges, the number starts to feel heavy.`
+        );
+      }
 
-  // --- MID RANGE ---
-  if (line) {
-    if (isBigServer) {
-      return `${playerName} around ${line} aces comes down to how clean his service games are. If he’s landing first serves and avoiding extended rallies, the path is there. If ${opponent} forces more second-ball exchanges, that number starts to look like a stretch instead of a baseline.`.trim();
+      return noDash(
+        `${playerName} at ${line} is very matchup-dependent. This is more about match flow than raw serve talent. Quick holds push it over. Return pressure pulls it back.`
+      );
     }
 
-    return `${playerName} at ${line} is very matchup-dependent. This is more about match shape than raw serve ability — quick holds push it over, return pressure pulls it under.`.trim();
+    if (serveProfile?.acePct) {
+      return noDash(
+        `${playerName}'s profile still points to an ace-driven path when the holds are comfortable. The real question is whether the match stays on serve long enough for that to show up.`
+      );
+    }
+
+    return noDash(
+      `${playerName} ace outcomes here are driven by match flow. If the serve is dictating and the games stay short, the number can climb quickly. If ${opponent} gets returns into play, it cools off fast.`
+    );
   }
 
-  // --- NO LINE ---
-  if (serveProfile?.acePct) {
-    return `${playerName}'s serve profile suggests an ace-driven path when he’s holding comfortably. The question is less about raw ability and more about whether the match stays on serve long enough for that to show up.`.trim();
-  }
+  function buildMatchupTake(match) {
+    const { p1, p2 } = getLiveMatchPlayers(match);
 
-  return `${playerName} ace outcomes here are driven by match flow — if the serve is dictating and games stay short, the number can climb quickly. If ${opponent} gets returns into play, it cools off fast.`.trim();
-}
+    const p1Name = findPlayerInDatabase(p1) || p1;
+    const p2Name = findPlayerInDatabase(p2) || p2;
+
+    const p1Data = getPlayerData(p1Name);
+    const p2Data = getPlayerData(p2Name);
+
+    const matchupContext = getContextMatchup(p1, p2);
+
+    const p1BigServe = isBigServerProfile(p1Data);
+    const p2BigServe = isBigServerProfile(p2Data);
+
+    const p1ReturnEdge = getBreakPct(p1Data);
+    const p2ReturnEdge = getBreakPct(p2Data);
+
+    const p1Tb = getTbPct(p1Data);
+    const p2Tb = getTbPct(p2Data);
+
+    let answer = "";
+
+    if (p1BigServe && !p2BigServe) {
+      answer += `This is a serve vs resistance matchup. ${p1Name} wants short points and clean holds. ${p2Name} wants returns in play and longer exchanges.`;
+    } else if (!p1BigServe && p2BigServe) {
+      answer += `This is a serve vs resistance matchup. ${p2Name} wants short points and clean holds. ${p1Name} wants returns in play and longer exchanges.`;
+    } else if (p1BigServe && p2BigServe) {
+      answer += `This could turn into a serve-led match. If both players are holding comfortably, sets can move quickly and small margins take over.`;
+    } else {
+      answer += `This is more of a baseline matchup. The edge comes from who controls rallies and creates the cleaner break chances.`;
+    }
+
+    if (p1ReturnEdge && p2ReturnEdge) {
+      if (p1ReturnEdge > p2ReturnEdge + 3) {
+        answer += ` ${p1Name}'s return profile is the cleaner weapon here. If he is getting looks on second serves, the match can tilt quickly.`;
+      } else if (p2ReturnEdge > p1ReturnEdge + 3) {
+        answer += ` ${p2Name}'s return profile is the cleaner weapon here. If he is getting looks on second serves, the match can tilt quickly.`;
+      }
+    }
+
+    if (!matchupContext?.note && p1Tb && p2Tb) {
+      if (p1Tb > p2Tb + 8) {
+        answer += ` If this gets tight late, ${p1Name} is the calmer tie-break profile.`;
+      } else if (p2Tb > p1Tb + 8) {
+        answer += ` If this gets tight late, ${p2Name} is the calmer tie-break profile.`;
+      }
+    }
+
+    if (matchupContext?.note) {
+      answer += ` ${matchupContext.note}`;
+    }
+
+    if (matchupContext?.angle) {
+      answer += ` ${matchupContext.angle}`;
+    }
+
+    answer += ` In Miami, pure serve dominance is a little less automatic than on the fastest hard courts. ${pick(matchupClosers)()}`;
+
+    const market = oddsText(match);
+    if (market) {
+      answer += ` ${market}`;
+    }
+
+    return noDash(answer);
+  }
 
   function buildWhoWinsTake(match) {
     const { p1, p2 } = getLiveMatchPlayers(match);
+
     const p1Name = findPlayerInDatabase(p1) || p1;
     const p2Name = findPlayerInDatabase(p2) || p2;
+
     const p1Data = getPlayerData(p1Name);
     const p2Data = getPlayerData(p2Name);
+
     const matchupContext = getContextMatchup(p1, p2);
 
-    let answer = `${p1} vs ${p2} is not a coin flip to me.`;
+    let answer = `${p1Name} vs ${p2Name} is not a pure coin flip.`;
 
     if (p1Data?.elo && p2Data?.elo) {
-      if (p1Data.elo > p2Data.elo) {
-        answer += ` I lean ${p1} because the stronger loaded profile sits with that side right now.`;
-      } else if (p2Data.elo > p1Data.elo) {
-        answer += ` I lean ${p2} because the stronger loaded profile sits with that side right now.`;
+      if (p1Data.elo > p2Data.elo + 25) {
+        answer += ` The stronger overall profile sits with ${p1Name}.`;
+      } else if (p2Data.elo > p1Data.elo + 25) {
+        answer += ` The stronger overall profile sits with ${p2Name}.`;
       } else {
-        answer += ` On the numbers I have, this is pretty tight.`;
+        answer += ` On raw profile, it is fairly tight.`;
       }
+    }
+
+    if (matchupContext?.surface_edge) {
+      answer += ` Surface context points toward ${matchupContext.surface_edge}.`;
+    }
+
+    if (matchupContext?.note) {
+      answer += ` ${matchupContext.note}`;
     } else {
-      answer += ` I would frame it through serve control, surface fit, and who is more trustworthy late in sets.`;
+      answer += ` The real question is who gets to play their preferred script more often.`;
     }
 
     if (matchupContext?.angle) {
@@ -386,10 +556,10 @@ export function generateTennisTake({
 
     const market = oddsText(match);
     if (market) {
-      answer += market;
+      answer += ` ${market}`;
     }
 
-    return answer.trim();
+    return noDash(answer);
   }
 
   const liveMatch = findLiveMatchFromQuestion(q);
@@ -408,7 +578,9 @@ export function generateTennisTake({
         return buildLiveUnknownAceTake(acePlayer, lineInfo, liveMatch);
       }
 
-      return `${acePlayer} ace props depend on whether the match projects as quick holds or return-heavy games. I do not have a loaded ace card for that name yet, so I would treat any big line cautiously rather than call it obvious.`;
+      return noDash(
+        `${acePlayer} ace props come down to whether the match projects as quick holds or return-heavy games. If the serve is the main lever, the number stays live. If not, it gets harder fast.`
+      );
     }
   }
 
@@ -424,7 +596,9 @@ export function generateTennisTake({
     }
 
     if (selectedMatchup?.title) {
-      return `On ${selectedMatchup.title}, the right answer depends on serve control, surface fit, and who is more trustworthy late. Ask me the specific matchup and I can get sharper.`;
+      return noDash(
+        `On ${selectedMatchup.title}, the answer comes down to serve control, surface fit, and who is more comfortable late in sets.`
+      );
     }
   }
 
@@ -439,7 +613,7 @@ export function generateTennisTake({
     }
 
     if (selectedMatchup?.title) {
-      return `On ${selectedMatchup.title}: ${selectedMatchup.whatMatters}`;
+      return noDash(`On ${selectedMatchup.title}: ${selectedMatchup.whatMatters}`);
     }
   }
 
@@ -448,7 +622,9 @@ export function generateTennisTake({
   }
 
   if (livePlayerInQuestion) {
-    return `${livePlayerInQuestion} is in the live Miami board right now. I do not have a full deep profile loaded for that exact name yet, but I can still break down the matchup angle, the ace line, or who I trust more in the match.`;
+    return noDash(
+      `${livePlayerInQuestion} is on the live Miami board right now. I do not have a finished deep profile for that exact name yet, but I can still break down the matchup angle, the ace angle, or who I trust more in the match.`
+    );
   }
 
   if (liveMatch) {
@@ -456,8 +632,12 @@ export function generateTennisTake({
   }
 
   if (tour === "wta") {
-    return `Ask me about a WTA Miami matchup, a player like Sabalenka or Swiatek, or an ace question and I will answer from the tennis layer.`;
+    return noDash(
+      `Ask me about a WTA Miami matchup, a player like Sabalenka or Swiatek, or an ace question and I will answer from the tennis layer.`
+    );
   }
 
-  return `Ask me about an ATP Miami matchup, a player like Sinner or Alcaraz, or an ace line and I will answer from the tennis layer.`;
+  return noDash(
+    `Ask me about an ATP Miami matchup, a player like Sinner or Alcaraz, or an ace line and I will answer from the tennis layer.`
+  );
 }
