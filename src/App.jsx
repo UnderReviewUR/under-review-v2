@@ -275,6 +275,9 @@ export default function App() {
 
   function generateTake(inputText, matchup) {
     if (isTennisQ(inputText, matchup)) {
+      if (!players) {
+        return "Still loading player data — ask again in a second.";
+      }
       return generateTennisTake({
         input: inputText,
         selectedMatchup: matchup,
