@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { generateTennisTake } from "./lib/tennis/tennisEngine";
+import { generateTennisTake } from "./lib/tennisEngine";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
