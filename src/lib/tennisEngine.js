@@ -93,6 +93,16 @@ export function generateTennisTake({
     return null;
   }
 
+  function parseDFLine(question) {
+    const overMatch = question.match(/over\s+(\d+(?:\.\d+)?)/i);
+    const underMatch = question.match(/under\s+(\d+(?:\.\d+)?)/i);
+    if (overMatch) return { value: Number(overMatch[1]), side: "over" };
+    if (underMatch) return { value: Number(underMatch[1]), side: "under" };
+    const plain = question.match(/(\d+(?:\.\d+)?)\s*double/i);
+    if (plain) return { value: Number(plain[1]), side: null };
+    return null;
+  }
+
   function extractNum(statString, key) {
     if (!statString) return null;
     const patterns = [
@@ -116,6 +126,12 @@ export function generateTennisTake({
     if (!p) return null;
     if (p.serveStats?.acePct !== undefined) return Number(p.serveStats.acePct);
     return extractNum(p.serveStats, "Ace");
+  }
+
+  function getDF(p) {
+    if (!p) return null;
+    if (p.serveStats?.dfPct !== undefined) return Number(p.serveStats.dfPct);
+    return extractNum(p.serveStats, "DF");
   }
 
   function getBreak(p) {
@@ -143,7 +159,7 @@ export function generateTennisTake({
     return { w: parseInt(m[1]), l: parseInt(m[2]) };
   }
 
-  // SHARP ACE TAKE — directional with real numbers
+  // SHARP ACE TAKE
   function buildAceTake(playerName, lineInfo) {
     const dbName = findPlayerInDatabase(playerName) || playerName;
     const p = getPlayerData(dbName);
@@ -153,62 +169,91 @@ export function generateTennisTake({
     const holdPct = getHold(p);
     const avgAces = aceData?.avg_aces_hard;
     const line = lineInfo?.value;
-    const side = lineInfo?.side;
 
-    // No line — just profile
     if (!line) {
       if (acePct && holdPct) {
-        const bigServer = acePct >= 12;
-        if (bigServer) {
+        if (acePct >= 12) {
           return `${dbName} is a volume server — ${acePct}% ace rate with ${holdPct}% hold. On Miami hard courts his ace count can stack quickly when the first serve is landing. Lines around his median are live overs.`;
         }
-        return `${dbName} runs a ${acePct}% ace rate with ${holdPct}% hold. He generates aces but isn't a pure volume server. Line value depends on where the number sits relative to his ${avgAces ? avgAces + ' hard court average' : 'baseline'}.`;
+        return `${dbName} runs a ${acePct}% ace rate with ${holdPct}% hold. He generates aces but isn't a pure volume server. Line value depends on where the number sits relative to his ${avgAces ? avgAces + " hard court average" : "baseline"}.`;
       }
       return `${dbName} ace props are a serve-control read. If the holds are clean the count builds — if the returner gets looks early it stalls.`;
     }
 
-    // Has a line — give a directional lean
     const avg = avgAces;
-    const isOver = side === "over" || (!side);
 
     if (avg) {
       if (line > avg + 2) {
-        return `Lean under ${line} for ${dbName}. His hard court average is ${avg} and you're being asked to price in a clearly above-average output. Miami's slightly slower surface trims free points at the margin. I'd need better odds to take the over here.`;
+        return `Lean under ${line} for ${dbName}. His hard court average is ${avg} and you're being asked to price in a clearly above-average output. Miami's slightly slower surface trims free points at the margin.`;
       }
       if (line < avg - 1.5) {
         return `Lean over ${line} for ${dbName}. His hard court average is ${avg} — the line is pricing him below his baseline. Unless the opponent is an elite returner controlling the match, this should clear without needing a hot serve day.`;
       }
       if (Math.abs(line - avg) <= 1.5) {
-        // Right at his average — use hold pct and ace rate to break the tie
         if (acePct && acePct >= 13) {
           return `${line} is right at ${dbName}'s average of ${avg}. With a ${acePct}% ace rate he leans over in fast conditions. Miami takes a little off the top, but the serve volume is real. Slight lean over, not strong.`;
         }
         if (holdPct && holdPct < 80) {
-          return `${line} is near ${dbName}'s average of ${avg} but his hold rate is only ${holdPct}% — he doesn't protect service games cleanly enough to assume the over. I'd lean under or pass this one.`;
+          return `${line} is near ${dbName}'s average of ${avg} but his hold rate is only ${holdPct}% — he doesn't protect service games cleanly enough to assume the over. Lean under or pass.`;
         }
-        return `${line} is right at ${dbName}'s hard court average of ${avg}. This is a fair number — match shape decides it. If he holds comfortably in the first set the over stays live. If the returner is aggressive early it fades.`;
+        return `${line} is right at ${dbName}'s hard court average of ${avg}. Fair number — match shape decides it. Clean holds push it over, early return pressure kills it.`;
       }
     }
 
-    // No average data but has ace rate
     if (acePct) {
       if (acePct >= 14 && line <= 10) {
-        return `Lean over ${line}. ${dbName} runs a ${acePct}% ace rate — he's a volume server and ${line} is a low bar for that profile. Needs clean holds but that's his baseline expectation.`;
+        return `Lean over ${line}. ${dbName} runs a ${acePct}% ace rate — he's a volume server and ${line} is a low bar for that profile.`;
       }
       if (acePct >= 14 && line >= 14) {
-        return `${line} is a high bar even for a big server like ${dbName} (${acePct}% ace rate). Miami gives returners extra traction. I'd want better than even odds on the over — lean under at standard juice.`;
+        return `${line} is a high bar even for a big server like ${dbName} (${acePct}% ace rate). Miami gives returners extra traction. Lean under at standard juice.`;
       }
       if (acePct < 8 && line >= 7) {
-        return `Lean under ${line}. ${dbName}'s ace rate is ${acePct}% — he doesn't generate volume on serve. The number is asking for more than his profile typically delivers.`;
+        return `Lean under ${line}. ${dbName}'s ace rate is ${acePct}% — he doesn't generate volume on serve. The number asks for more than his profile delivers.`;
       }
-      return `${dbName} at ${line} aces — his ${acePct}% ace rate gives him a path but it's match-shape dependent. If holds are clean it stays live. If the returner is in control early it won't get there.`;
+      return `${dbName} at ${line} aces — his ${acePct}% ace rate gives him a path but it's match-shape dependent. Clean holds keep it live. Return pressure kills it.`;
     }
 
-    return `${dbName} over ${line} aces — I don't have his Miami-specific average but the prop lives and dies on hold quality. Clean service games push it over. Return pressure kills it.`;
+    return `${dbName} over ${line} aces — the prop lives and dies on hold quality. Clean service games push it over. Return pressure kills it.`;
   }
 
-  // SHARP MATCHUP TAKE — pulls real stats from both players
-  function buildMatchupTake(p1Name, p2Name, match = null) {
+  // SHARP DOUBLE FAULT TAKE
+  function buildDFTake(playerName, lineInfo) {
+    const dbName = findPlayerInDatabase(playerName) || playerName;
+    const p = getPlayerData(dbName);
+    const dfPct = getDF(p);
+    const holdPct = getHold(p);
+    const line = lineInfo?.value;
+
+    if (dfPct !== null && dfPct !== undefined) {
+      if (line !== null && line !== undefined) {
+        // Has a specific line
+        if (dfPct <= 2.5) {
+          return `Lean under ${line} for ${dbName}. His DF rate is ${dfPct}% — one of the lowest on tour. He almost never double faults and his ${holdPct}% hold rate means service games rarely get tight enough to force them. This is not a pressure prop for him.`;
+        }
+        if (dfPct >= 5) {
+          return `Lean over ${line} for ${dbName}. His ${dfPct}% DF rate is high — he loses serve unexpectedly and double faults cluster when pressure mounts. This is a real market. The over has a genuine path.`;
+        }
+        return `${dbName} at ${line} double faults — his ${dfPct}% DF rate is near average. Match-shape dependent. If his serve is under pressure early they build. If he holds cleanly they don't get there.`;
+      }
+
+      // No line — just profile read
+      if (dfPct <= 2.0) {
+        return `${dbName} almost never double faults — ${dfPct}% DF rate is among the lowest on tour. His serve is controlled not just powerful. Double fault props for him are almost always lean under regardless of the line.`;
+      }
+      if (dfPct <= 3.0) {
+        return `${dbName} has a ${dfPct}% DF rate — low and controlled. He doesn't tend to give games away on serve. Double fault props are typically lean under unless the line is very low.`;
+      }
+      if (dfPct >= 5.5) {
+        return `${dbName} has a ${dfPct}% DF rate — that's high and it shows up in matches. He can double fault in clusters especially under return pressure. Double fault overs are live for him at reasonable lines.`;
+      }
+      return `${dbName} has a ${dfPct}% DF rate — average range. His double fault props are pressure dependent. They build when service games tighten and stay low when he's holding comfortably.`;
+    }
+
+    return `${dbName} double fault props are pressure dependent. They build when service games stop feeling comfortable — check his hold rate for context.`;
+  }
+
+  // SHARP MATCHUP TAKE
+  function buildMatchupTake(p1Name, p2Name) {
     const p1 = getPlayerData(p1Name);
     const p2 = getPlayerData(p2Name);
 
@@ -224,22 +269,22 @@ export function generateTennisTake({
     const p2Elo = p2?.elo;
     const p1Record = getRecord2026(p1);
     const p2Record = getRecord2026(p2);
-
     const ctx = getContextMatchup(p1Name, p2Name);
 
     let answer = "";
 
-    // Elo gap
     if (p1Elo && p2Elo) {
       const gap = Math.abs(p1Elo - p2Elo);
       const favorite = p1Elo > p2Elo ? p1Name : p2Name;
       const underdog = p1Elo > p2Elo ? p2Name : p1Name;
+      const maxElo = Math.max(p1Elo, p2Elo);
+      const minElo = Math.min(p1Elo, p2Elo);
       if (gap > 100) {
-        answer += `${favorite} is the clear statistical favorite — ${Math.max(p1Elo, p2Elo)} vs ${Math.min(p1Elo, p2Elo)} Elo, a ${gap}-point gap that's significant on hard courts. `;
+        answer += `${favorite} is the clear statistical favorite — ${maxElo} vs ${minElo} Elo, a ${gap}-point gap that's significant on hard courts. `;
       } else if (gap > 40) {
-        answer += `${favorite} holds an Elo edge (${Math.max(p1Elo, p2Elo)} vs ${Math.min(p1Elo, p2Elo)) but this is competitive — ${gap} points is beatable on any given day. `;
+        answer += `${favorite} holds an Elo edge (${maxElo} vs ${minElo}) but this is competitive — ${gap} points is beatable on any given day. `;
       } else {
-        answer += `This is statistically tight — ${p1Name} at ${p1Elo} Elo vs ${p2Name} at ${p2Elo}. Pure coin flip by the numbers. `;
+        answer += `Statistically tight — ${p1Name} at ${p1Elo} Elo vs ${p2Name} at ${p2Elo}. Pure coin flip by the numbers. `;
       }
     } else if (p1 && !p2) {
       answer += `I have a full profile on ${p1Name} but not ${p2Name}. Going off what I know: `;
@@ -249,10 +294,8 @@ export function generateTennisTake({
       answer += `${p1Name} vs ${p2Name} — `;
     }
 
-    // Serve edge
     if (p1Hold && p2Hold) {
       const betterServer = p1Hold > p2Hold ? p1Name : p2Name;
-      const worseServer = p1Hold > p2Hold ? p2Name : p1Name;
       const holdGap = Math.abs(p1Hold - p2Hold);
       const maxHold = Math.max(p1Hold, p2Hold);
       const minHold = Math.min(p1Hold, p2Hold);
@@ -261,7 +304,6 @@ export function generateTennisTake({
       }
     }
 
-    // Return edge
     if (p1Break && p2Break) {
       const betterReturner = p1Break > p2Break ? p1Name : p2Name;
       if (Math.max(p1Break, p2Break) >= 25) {
@@ -269,7 +311,6 @@ export function generateTennisTake({
       }
     }
 
-    // DR comparison
     if (p1DR && p2DR) {
       const betterDR = p1DR > p2DR ? p1Name : p2Name;
       const worseDR = p1DR > p2DR ? p2Name : p1Name;
@@ -277,11 +318,10 @@ export function generateTennisTake({
       const maxDR = Math.max(p1DR, p2DR);
       const minDR = Math.min(p1DR, p2DR);
       if (drGap >= 0.1) {
-        answer += `${betterDR} wins more points than ${worseDR} in aggregate — dominance ratio of ${maxDR} vs ${minDR}. `;
+        answer += `${betterDR} wins more points than ${worseDR} in aggregate — DR ${maxDR} vs ${minDR}. `;
       }
     }
 
-    // Tiebreak edge
     if (p1TB && p2TB) {
       const tbGap = Math.abs(p1TB - p2TB);
       if (tbGap >= 15) {
@@ -293,41 +333,37 @@ export function generateTennisTake({
       }
     }
 
-    // Context layer
     if (ctx?.note) answer += ctx.note + " ";
     if (ctx?.angle) answer += ctx.angle + " ";
     if (ctx?.h2h) answer += `H2H: ${ctx.h2h}. `;
     if (ctx?.key_stat) answer += ctx.key_stat + ".";
 
-    // Miaimi notes if no context
     if (!ctx) {
       if (p1?.miamiNote) answer += `On ${p1Name}: ${p1.miamiNote} `;
       if (p2?.miamiNote) answer += `On ${p2Name}: ${p2.miamiNote}`;
     }
 
-    // 2026 form
     if (p1Record && p2Record) {
       const p1WinPct = Math.round((p1Record.w / (p1Record.w + p1Record.l)) * 100);
       const p2WinPct = Math.round((p2Record.w / (p2Record.w + p2Record.l)) * 100);
       if (Math.abs(p1WinPct - p2WinPct) >= 15) {
         const betterForm = p1WinPct > p2WinPct ? p1Name : p2Name;
-        answer += ` Current form backs ${betterForm} — ${p1WinPct > p2WinPct ? p1Record.w + '-' + p1Record.l : p2Record.w + '-' + p2Record.l} in 2026.`;
+        const formRecord = p1WinPct > p2WinPct ? `${p1Record.w}-${p1Record.l}` : `${p2Record.w}-${p2Record.l}`;
+        answer += ` Current form backs ${betterForm} — ${formRecord} in 2026.`;
       }
     }
 
     return answer.trim() || `${p1Name} vs ${p2Name} — ask me a specific angle and I'll give you a sharper read.`;
   }
 
-  // WHO WINS — directional verdict
-  function buildWhoWinsTake(p1Name, p2Name, match = null) {
+  // WHO WINS
+  function buildWhoWinsTake(p1Name, p2Name) {
     const p1 = getPlayerData(p1Name);
     const p2 = getPlayerData(p2Name);
     const ctx = getContextMatchup(p1Name, p2Name);
 
     const p1Elo = p1?.elo || 0;
     const p2Elo = p2?.elo || 0;
-    const p1Hold = getHold(p1);
-    const p2Hold = getHold(p2);
     const p1DR = getDR(p1);
     const p2DR = getDR(p2);
 
@@ -346,19 +382,14 @@ export function generateTennisTake({
       answer = `Genuinely tight. Slight lean to ${favorite} on raw numbers but the edge is thin. `;
     }
 
-    if (ctx?.surface_edge) {
-      answer += `Surface edge goes to ${ctx.surface_edge}. `;
-    }
-
-    if (ctx?.h2h) {
-      answer += `${ctx.h2h}. `;
-    }
+    if (ctx?.surface_edge) answer += `Surface edge goes to ${ctx.surface_edge}. `;
+    if (ctx?.h2h) answer += `${ctx.h2h}. `;
 
     if (p1DR && p2DR) {
       const betterDRName = p1DR > p2DR ? p1Name : p2Name;
-      const maxDR2 = Math.max(p1DR, p2DR);
-      const minDR2 = Math.min(p1DR, p2DR);
-      answer += `${betterDRName} has the better dominance ratio (${maxDR2} vs ${minDR2}) — wins more points per match in aggregate. `;
+      const maxDR = Math.max(p1DR, p2DR);
+      const minDR = Math.min(p1DR, p2DR);
+      answer += `${betterDRName} has the better dominance ratio (${maxDR} vs ${minDR}) — wins more points per match in aggregate. `;
     }
 
     if (ctx?.angle) {
@@ -370,15 +401,16 @@ export function generateTennisTake({
     return answer.trim();
   }
 
-  // PLAYER PROFILE — sharp and stat-forward
+  // PLAYER PROFILE
   function buildPlayerTake(playerName) {
     const p = getPlayerData(playerName);
     if (!p) {
-      return `${playerName} is in the draw but I don't have a full profile on him yet. Ask about the matchup angle or a specific prop and I can still give you a read.`;
+      return `${playerName} is in the draw but I don't have a full profile yet. Ask about the matchup angle or a specific prop and I can still give you a read.`;
     }
 
     const hold = getHold(p);
     const ace = getAce(p);
+    const df = getDF(p);
     const brk = getBreak(p);
     const dr = getDR(p);
     const tb = getTB(p);
@@ -391,6 +423,7 @@ export function generateTennisTake({
     const stats = [];
     if (hold) stats.push(`${hold}% hold`);
     if (ace) stats.push(`${ace}% ace rate`);
+    if (df) stats.push(`${df}% DF rate`);
     if (brk) stats.push(`${brk}% break rate`);
     if (dr) stats.push(`DR ${dr}`);
     if (tb) stats.push(`${tb}% tiebreaks`);
@@ -407,61 +440,64 @@ export function generateTennisTake({
 
   // ROUTING
   const isAceQ = /aces?|ace prop|aces over|aces under/i.test(q);
+  const isDFQ = /double fault|double faults|\bdf\b/i.test(q);
   const isWinnerQ = /who wins|winner|advance|beat|who is better|who should i/i.test(q);
-  const isMatchupQ = /vs|versus|matchup|tell me about|what matters|break down|compare/i.test(q);
-  const isDFQ = /double fault|df\b/i.test(q);
+  const isMatchupQ = /\bvs\b|versus|matchup|tell me about|what matters|break down|compare/i.test(q);
 
   const liveMatch = findLiveMatchFromQuestion(q);
   const mentionedPlayers = findAllPlayersInQuestion(q);
   const singlePlayer = mentionedPlayers.length === 1 ? mentionedPlayers[0] : null;
   const aceLineInfo = isAceQ ? parseAceLine(raw) : null;
+  const dfLineInfo = isDFQ ? parseDFLine(raw) : null;
 
   // ACE QUESTIONS
-  if (isAceQ) {
+  if (isAceQ && !isDFQ) {
     const acePlayer = singlePlayer || (liveMatch ? getLiveMatchPlayers(liveMatch).p1 : null);
     if (acePlayer) {
       return buildAceTake(acePlayer, aceLineInfo);
     }
-    // "predict aces for both" — handle both players
     if (mentionedPlayers.length >= 2 || liveMatch) {
       const p1Name = mentionedPlayers[0] || getLiveMatchPlayers(liveMatch).p1;
       const p2Name = mentionedPlayers[1] || getLiveMatchPlayers(liveMatch).p2;
-      const take1 = buildAceTake(p1Name, null);
-      const take2 = buildAceTake(p2Name, null);
-      return `${p1Name}: ${take1}\n\n${p2Name}: ${take2}`;
+      return `${p1Name}: ${buildAceTake(p1Name, null)}\n\n${p2Name}: ${buildAceTake(p2Name, null)}`;
     }
+  }
+
+  // DOUBLE FAULT QUESTIONS
+  if (isDFQ) {
+    const dfPlayer = singlePlayer || (mentionedPlayers.length >= 1 ? mentionedPlayers[0] : null) || (liveMatch ? getLiveMatchPlayers(liveMatch).p1 : null);
+    if (dfPlayer) {
+      return buildDFTake(dfPlayer, dfLineInfo);
+    }
+    return "Ask me about a specific player's double fault prop and I'll give you a directional lean based on his DF rate and hold profile.";
   }
 
   // WHO WINS
   if (isWinnerQ) {
     if (mentionedPlayers.length >= 2) {
-      return buildWhoWinsTake(mentionedPlayers[0], mentionedPlayers[1], liveMatch);
+      return buildWhoWinsTake(mentionedPlayers[0], mentionedPlayers[1]);
     }
     if (liveMatch) {
       const { p1, p2 } = getLiveMatchPlayers(liveMatch);
-      const db1 = findPlayerInDatabase(p1) || p1;
-      const db2 = findPlayerInDatabase(p2) || p2;
-      return buildWhoWinsTake(db1, db2, liveMatch);
+      return buildWhoWinsTake(findPlayerInDatabase(p1) || p1, findPlayerInDatabase(p2) || p2);
     }
   }
 
   // MATCHUP / VS QUESTIONS
   if (isMatchupQ) {
     if (mentionedPlayers.length >= 2) {
-      return buildMatchupTake(mentionedPlayers[0], mentionedPlayers[1], liveMatch);
+      return buildMatchupTake(mentionedPlayers[0], mentionedPlayers[1]);
     }
     if (liveMatch) {
       const { p1, p2 } = getLiveMatchPlayers(liveMatch);
-      const db1 = findPlayerInDatabase(p1) || p1;
-      const db2 = findPlayerInDatabase(p2) || p2;
-      return buildMatchupTake(db1, db2, liveMatch);
+      return buildMatchupTake(findPlayerInDatabase(p1) || p1, findPlayerInDatabase(p2) || p2);
     }
     if (selectedMatchup?.title) {
       return selectedMatchup.whatMatters || `On ${selectedMatchup.title}: ask me something specific.`;
     }
   }
 
-  // SINGLE PLAYER QUESTION
+  // SINGLE PLAYER
   if (singlePlayer) {
     return buildPlayerTake(singlePlayer);
   }
@@ -469,15 +505,13 @@ export function generateTennisTake({
   // LIVE MATCH FALLBACK
   if (liveMatch) {
     const { p1, p2 } = getLiveMatchPlayers(liveMatch);
-    const db1 = findPlayerInDatabase(p1) || p1;
-    const db2 = findPlayerInDatabase(p2) || p2;
-    return buildMatchupTake(db1, db2, liveMatch);
+    return buildMatchupTake(findPlayerInDatabase(p1) || p1, findPlayerInDatabase(p2) || p2);
   }
 
-  // TOUR DEFAULT
+  // DEFAULTS
   if (tour === "wta") {
-    return "Ask me about a WTA Miami matchup — Sabalenka, Rybakina, Swiatek, Pegula, or a specific ace prop or winner question.";
+    return "Ask me about a WTA Miami matchup — Sabalenka, Rybakina, Swiatek, Pegula, or a specific ace or double fault prop.";
   }
 
-  return "Ask me about an ATP Miami matchup, a player like Sinner or Alcaraz, or a prop like 'Atmane over 7.5 aces' and I'll give you a sharp answer.";
+  return "Ask me about an ATP Miami matchup, a player like Sinner or Alcaraz, or a prop like 'Sinner double faults' or 'Fritz over 10 aces' and I'll give you a sharp answer.";
 }
