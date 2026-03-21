@@ -22,20 +22,14 @@ const css = `
 
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--black);color:var(--text);font-family:'DM Sans',sans-serif;}
-
   .app{min-height:100vh;background:var(--black);color:var(--text);display:flex;flex-direction:column;}
 
-  .hdr{
-    padding:14px 16px;border-bottom:1px solid var(--border);
-    background:rgba(8,10,12,.97);display:flex;align-items:center;
-    justify-content:space-between;position:sticky;top:0;z-index:20;
-  }
+  .hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(8,10,12,.97);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
   .logo-under{display:block;font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;}
   .logo-review{display:block;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .pill-tag{font-family:'DM Mono',monospace;font-size:10px;color:var(--magenta);border:1px solid rgba(255,45,107,.25);padding:4px 9px;border-radius:999px;background:rgba(255,45,107,.06);}
 
   .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:88px;}
-
   .hero{padding:12px 2px 16px;text-align:center;}
   .hero-title{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:1px;line-height:1;margin-bottom:8px;}
   .hero-sub{color:var(--soft);font-size:14px;line-height:1.55;max-width:360px;margin:0 auto;}
@@ -151,7 +145,6 @@ const css = `
   .surface-grass{color:var(--green);border-color:rgba(0,230,118,.3);}
 
   .tennis-section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);margin:16px 0 10px;}
-
   .form-badge{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(0,245,233,.1);color:var(--cyan);border:1px solid rgba(0,245,233,.2);}
 `;
 
@@ -169,62 +162,63 @@ const featuredMatchups = [
 
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
-function formatPct(value) {
-  if (value === undefined || value === null || value === "") return "—";
-  return `${value}%`;
-}
+
+// Tennis-related keywords — universal, covers any player name style
+const TENNIS_KEYWORDS = [
+  "tennis","miami open","miami","atp","wta","open","ace","aces","ace prop",
+  "double fault","double faults","df","tiebreak","tiebreaks","break point",
+  "serve","return","hold","deuce","set","match point","bagel","breadstick",
+  "hard court","clay","grass","wimbledon","french open","us open","australian open",
+  "sinner","alcaraz","djokovic","zverev","medvedev","fritz","shelton","draper",
+  "musetti","de minaur","auger-aliassime","bublik","mensik","ruud","korda",
+  "fonseca","paul","fokina","rublev","lehecka","cerundolo","norrie","khachanov",
+  "tien","fils","sabalenka","swiatek","rybakina","pegula","gauff","mboko",
+  "anisimova","svitolina","muchova","bencic","andreeva","paolini","keys","osaka",
+  "noskova","kostyuk","vondrousova","kalinskaya","mertens","cirstea","jovic",
+  "alexandrova","zheng","kartal","dzumhur","atmane","altmaier","giron","opelka",
+  "berrettini","tsitsipas","shapovalov","humbert","nakashima","brooksby","tabilo",
+  "baez","cobolli","tiafoe","machac","etcheverry","blockx","collignon","hanfmann",
+  "svajda","hurkacz","rinderknech","halys","cazaux","perricard","carabelli",
+  "marozsan","navone","vacherot","borges","nava","fearnley","kecmanovic","cilic",
+  "popyrin","mcdonald","walton","fucsovics","van de zandschulp","diallo","wu",
+  "duckworth","zhang","basilashvili","draxl","majchrzak","hijikata","buse",
+  "moutet","bellucci","mannarino","norrie","arnaldi","jodar","quinn","kouame",
+];
 
 function formatServeStats(serveStats) {
   if (!serveStats) return "—";
-
   const parts = [];
-
   if (serveStats.holdPct !== undefined) parts.push(`Hold ${serveStats.holdPct}%`);
   if (serveStats.acePct !== undefined) parts.push(`Ace ${serveStats.acePct}%`);
   if (serveStats.dfPct !== undefined) parts.push(`DF ${serveStats.dfPct}%`);
-
   return parts.length ? parts.join(", ") : "—";
 }
 
 function formatReturnStats(returnStats) {
   if (!returnStats) return "—";
-
   const parts = [];
-
   if (returnStats.rpwPct !== undefined) parts.push(`RPW ${returnStats.rpwPct}%`);
   if (returnStats.breakPct !== undefined) parts.push(`Break ${returnStats.breakPct}%`);
-
   return parts.length ? parts.join(", ") : "—";
 }
 
 function formatOverallStats(overallStats) {
   if (!overallStats) return "—";
-
   const parts = [];
-
   if (overallStats.dominanceRatio !== undefined) parts.push(`DR ${overallStats.dominanceRatio}`);
   if (overallStats.totalPointsWonPct !== undefined) parts.push(`TPW ${overallStats.totalPointsWonPct}%`);
   if (overallStats.tiebreakPct !== undefined) parts.push(`Tiebreak ${overallStats.tiebreakPct}%`);
-
   return parts.length ? parts.join(", ") : "—";
 }
 
-function getHoldValue(player) {
-  return player?.serveStats?.holdPct !== undefined
-    ? `${player.serveStats.holdPct}%`
-    : "—";
+function getHoldValue(p) {
+  return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—";
 }
-
-function getDrValue(player) {
-  return player?.overallStats?.dominanceRatio !== undefined
-    ? `${player.overallStats.dominanceRatio}`
-    : "—";
+function getDrValue(p) {
+  return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—";
 }
-
-function getTbValue(player) {
-  return player?.overallStats?.tiebreakPct !== undefined
-    ? `${player.overallStats.tiebreakPct}%`
-    : "—";
+function getTbValue(p) {
+  return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—";
 }
 
 export default function App() {
@@ -240,14 +234,10 @@ export default function App() {
   const [tennisLoading, setTennisLoading] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
-  const [liveMatchesError, setLiveMatchesError] = useState(null);
 
+  // Load tennis data on mount and whenever tour tab changes — not gated behind tennis screen
   useEffect(() => {
-    if (screen !== "tennis") return;
-
     setTennisLoading(true);
-    setLiveMatchesError(null);
-
     Promise.all([
       fetch("/api/tennis-players").then((r) => r.json()),
       fetch("/api/tennis-context").then((r) => r.json()),
@@ -260,125 +250,55 @@ export default function App() {
         setTennisLoading(false);
       })
       .catch((err) => {
-        console.error("Tennis page load error:", err);
+        console.error("Tennis load error:", err);
         setLiveMatches([]);
-        setLiveMatchesError("Could not load live tennis matches.");
         setTennisLoading(false);
       });
-  }, [screen, tennisTab]);
+  }, [tennisTab]);
 
-  function generateTake(inputText, matchup, extra = {}) {
-  const q = (inputText || "").toLowerCase();
-
-  const tennisKeywords = [
-    "tennis",
-    "miami open",
-    "miami",
-    "sinner",
-    "alcaraz",
-    "djokovic",
-    "medvedev",
-    "zverev",
-    "fritz",
-    "shelton",
-    "musetti",
-    "sabalenka",
-    "swiatek",
-    "rybakina",
-    "pegula",
-    "gauff",
-    "bencic",
-    "muchova",
-    "perricard",
-    "carabelli",
-    "marozsan",
-    "aces",
-    "ace",
-    "tiebreak",
-    "wta",
-    "atp",
-  ];
-
-  const liveMatchNames = (liveMatches || []).flatMap((match) => {
-    const p1 = String(match?.home_team || "").toLowerCase();
-    const p2 = String(match?.away_team || "").toLowerCase();
-    return [p1, p2];
-  });
-
-  const isLiveTennisQuestion = liveMatchNames.some((name) => {
-    if (!name) return false;
-    const surname = name.split(" ").filter(Boolean).slice(-1)[0];
-    return q.includes(name) || (surname && q.includes(surname));
-  });
-
-  const isTennisQuestion =
-    q.includes("tennis") ||
-    tennisKeywords.some((word) => q.includes(word)) ||
-    isLiveTennisQuestion ||
-    screen === "tennis" ||
-    screen === "player" ||
-    (matchup && matchup.league === "ATP") ||
-    (matchup && matchup.league === "WTA");
-
-  if (isTennisQuestion) {
-    return generateTennisTake({
-      input: inputText,
-      selectedMatchup: matchup,
-      liveMatches,
-      players,
-      context,
-      tour: tennisTab,
-      ...extra,
+  function isTennisQ(inputText, matchup) {
+    const q = (inputText || "").toLowerCase();
+    if (screen === "tennis" || screen === "player") return true;
+    if (matchup?.league === "ATP" || matchup?.league === "WTA") return true;
+    if (TENNIS_KEYWORDS.some((w) => q.includes(w))) return true;
+    // Check against live match player names
+    const liveNames = liveMatches.flatMap((m) => [
+      String(m?.home_team || "").toLowerCase(),
+      String(m?.away_team || "").toLowerCase(),
+    ]);
+    return liveNames.some((name) => {
+      if (!name) return false;
+      const surname = name.split(" ").filter(Boolean).slice(-1)[0];
+      return q.includes(name) || (surname && q.includes(surname));
     });
   }
 
-  return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English, not stats dumped back at you.";
-}
-
-  function goHome() {
-    setTab("home");
-    setScreen("home");
-    setSelectedMatchup(null);
-    setSelectedPlayer(null);
+  function generateTake(inputText, matchup) {
+    if (isTennisQ(inputText, matchup)) {
+      return generateTennisTake({
+        input: inputText,
+        selectedMatchup: matchup,
+        liveMatches,
+        players,
+        context,
+        tour: tennisTab,
+      });
+    }
+    return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English, not stats dumped back at you.";
   }
 
-  function goAsk(prefill = "") {
-    setTab("ask");
-    setScreen("ask");
-    setSelectedMatchup(null);
-    setInput(prefill);
-  }
-
-  function goPro() {
-    setTab("pro");
-    setScreen("pro");
-    setSelectedMatchup(null);
-  }
-
-  function goTennis() {
-    setScreen("tennis");
-    setTab("tennis");
-    setSelectedMatchup(null);
-    setSelectedPlayer(null);
-  }
-
-  function openMatchup(m) {
-    setSelectedMatchup(m);
-    setScreen("matchup");
-    setTab("home");
-    setInput("");
-  }
-
-  function openPlayer(name) {
-    setSelectedPlayer(name);
-    setScreen("player");
-  }
+  function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
+  function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
+  function goPro() { setTab("pro"); setScreen("pro"); setSelectedMatchup(null); }
+  function goTennis() { setScreen("tennis"); setTab("tennis"); setSelectedMatchup(null); setSelectedPlayer(null); }
+  function openMatchup(m) { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
+  function openPlayer(name) { setSelectedPlayer(name); setScreen("player"); }
 
   function submitAsk(forced) {
     const text = (forced ?? input).trim();
     if (!text) return;
     const aiText = generateTake(text, selectedMatchup);
-    setMessages((prev) => [...prev, { role: "user", text }, { role: "ai", text: aiText }]);
+    setMessages((prev) => [...prev, { role:"user", text }, { role:"ai", text:aiText }]);
     setInput("");
     setTab("ask");
     setScreen("ask");
@@ -388,7 +308,7 @@ export default function App() {
     const text = (forced ?? input).trim();
     if (!text) return;
     const aiText = generateTake(text, selectedMatchup);
-    setMessages((prev) => [...prev, { role: "user", text }, { role: "ai", text: aiText }]);
+    setMessages((prev) => [...prev, { role:"user", text }, { role:"ai", text:aiText }]);
     setInput("");
     setTab("ask");
     setScreen("ask");
@@ -398,8 +318,7 @@ export default function App() {
 
   function getPlayer(name) {
     if (!players) return null;
-    const tour = tennisTab === "atp" ? players.atp : players.wta;
-    return tour?.[name] || null;
+    return (tennisTab === "atp" ? players.atp : players.wta)?.[name] || null;
   }
 
   function getPlayerAny(name) {
@@ -407,13 +326,13 @@ export default function App() {
     return players.atp?.[name] || players.wta?.[name] || null;
   }
 
-  const PLAYER_SCREEN = screen === "player" && selectedPlayer;
-  const pd = PLAYER_SCREEN ? getPlayerAny(selectedPlayer) : null;
+  const pd = (screen === "player" && selectedPlayer) ? getPlayerAny(selectedPlayer) : null;
 
   return (
     <>
       <style>{css}</style>
       <div className="app">
+
         <header className="hdr">
           <div>
             <span className="logo-under">UNDER</span>
@@ -428,26 +347,19 @@ export default function App() {
           </div>
         </header>
 
+        {/* HOME */}
         {screen === "home" && (
           <main className="screen">
             <section className="hero">
               <div className="hero-title">What do you want to know?</div>
               <div className="hero-sub">Sports, stats, predictions, context — in plain English.</div>
             </section>
-
             <div className="ask-shell">
-              <input
-                className="ask-bar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask UR TAKE anything..."
-                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
-              />
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask UR TAKE anything..." onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
               <button className="send-btn" onClick={() => submitAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
-
             <section className="section">
               <div className="section-label">TRENDING ASKS</div>
               <div className="q-list">
@@ -461,7 +373,6 @@ export default function App() {
                 ))}
               </div>
             </section>
-
             <section className="section">
               <div className="section-label">MATCHUPS TO TAP INTO</div>
               <div className="matchup-list">
@@ -480,7 +391,6 @@ export default function App() {
                 ))}
               </div>
             </section>
-
             <section className="section">
               <div className="section-label">SPORTS</div>
               <div className="sport-chips">
@@ -494,22 +404,20 @@ export default function App() {
           </main>
         )}
 
+        {/* MATCHUP DETAIL */}
         {screen === "matchup" && selectedMatchup && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
-
             <div className="detail-card">
               <div className="detail-head">
                 <div className="detail-league" style={{ color: selectedMatchup.leagueColor }}>{selectedMatchup.league}</div>
                 <div className="detail-title">{selectedMatchup.title}</div>
                 <div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div>
               </div>
-
               <div className="what-matters">
                 <div className="wm-label">HERE'S WHAT MATTERS</div>
                 <div className="wm-text">{selectedMatchup.whatMatters}</div>
               </div>
-
               <div className="mini-grid">
                 {selectedMatchup.stats.map((s) => (
                   <div key={s.label} className="mini-stat">
@@ -518,22 +426,14 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
               <div className="quick-hitters">
                 {selectedMatchup.quickHitters.map((q) => (
                   <button key={q} className="quick-btn" onClick={() => submitMatchupAsk(q)}>{q}</button>
                 ))}
               </div>
             </div>
-
             <div className="ask-shell">
-              <input
-                className="ask-bar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={`Ask about ${selectedMatchup.title}...`}
-                onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()}
-              />
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()} />
               <button className="send-btn" onClick={() => submitMatchupAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
@@ -541,19 +441,16 @@ export default function App() {
           </main>
         )}
 
+        {/* TENNIS PAGE */}
         {screen === "tennis" && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
-
             <div className="tennis-tabs">
               <button className={`tennis-tab${tennisTab === "atp" ? " active" : ""}`} onClick={() => setTennisTab("atp")}>ATP</button>
               <button className={`tennis-tab${tennisTab === "wta" ? " active" : ""}`} onClick={() => setTennisTab("wta")}>WTA</button>
             </div>
-
             {tennisLoading ? (
-              <div className="loading-state">
-                <div className="loading-text">LOADING MIAMI OPEN DATA...</div>
-              </div>
+              <div className="loading-state"><div className="loading-text">LOADING MIAMI OPEN DATA...</div></div>
             ) : (
               <>
                 {context?.tournaments?.miami_open && (
@@ -561,23 +458,17 @@ export default function App() {
                     <div className="tournament-name">Miami Open 2026</div>
                     <div className="tournament-meta">Hard Court · Medium-Fast · Miami, FL</div>
                     <div className="tournament-note">{context.tournaments.miami_open.note}</div>
-                    <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 11, color: "var(--muted)" }}>Favorites:</span>
-                      <span style={{ fontSize: 12, color: "var(--cyan)", fontFamily: "'DM Mono',monospace" }}>
+                    <div style={{ marginTop:8, display:"flex", gap:8, alignItems:"center" }}>
+                      <span style={{ fontSize:11, color:"var(--muted)" }}>Favorites:</span>
+                      <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace" }}>
                         {tennisTab === "atp" ? context.tournaments.miami_open.atp_favorite : context.tournaments.miami_open.wta_favorite}
                       </span>
                     </div>
                   </div>
                 )}
-
-                <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                  {["matchups", "players", "aces"].map((s) => (
-                    <button
-                      key={s}
-                      className={`sport-chip${tennisSection === s ? " active" : ""}`}
-                      onClick={() => setTennisSection(s)}
-                      style={{ padding: "6px 14px" }}
-                    >
+                <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+                  {["matchups","players","aces"].map((s) => (
+                    <button key={s} className={`sport-chip${tennisSection === s ? " active" : ""}`} onClick={() => setTennisSection(s)} style={{ padding:"6px 14px" }}>
                       {s.toUpperCase()}
                     </button>
                   ))}
@@ -586,80 +477,26 @@ export default function App() {
                 {tennisSection === "matchups" && (
                   <div>
                     <div className="tennis-section-label">LIVE MATCHUPS</div>
-
-                    {liveMatchesError && (
-                      <div style={{
-                        marginBottom: 12,
-                        padding: 12,
-                        border: "1px solid rgba(255,68,68,.25)",
-                        borderRadius: 12,
-                        color: "#ffffff",
-                        background: "rgba(255,68,68,.06)",
-                        fontSize: 13,
-                      }}>
-                        {liveMatchesError}
+                    {liveMatches.length === 0 && (
+                      <div style={{ padding:12, border:"1px solid var(--border)", borderRadius:12, color:"var(--soft)", background:"var(--surface)", fontSize:13 }}>
+                        No live matches right now — check back during match hours.
                       </div>
                     )}
-
-                    {!liveMatchesError && liveMatches.length === 0 && (
-                      <div style={{
-                        padding: 12,
-                        border: "1px solid var(--border)",
-                        borderRadius: 12,
-                        color: "#ffffff",
-                        background: "var(--surface)",
-                        fontSize: 13,
-                      }}>
-                        No live matches found for {tennisTab.toUpperCase()} right now.
-                      </div>
-                    )}
-
                     {liveMatches.map((match, idx) => {
                       const p1 = match.home_team || "Player 1";
                       const p2 = match.away_team || "Player 2";
-
-                      const status =
-                        match.live === "1"
-                          ? "LIVE"
-                          : match.status || match.round || "Scheduled";
-
-                      const tournament = match.tournament || "Tournament";
-
-                      const matchTime = match.commence_time
-                        ? new Date(match.commence_time).toLocaleString()
-                        : "TBD";
-
+                      const status = match.live === "1" ? "LIVE" : match.status || match.round || "Scheduled";
+                      const matchTime = match.commence_time ? new Date(match.commence_time).toLocaleString() : "TBD";
                       return (
-                        <div
-                          key={match.id || `${p1}-${p2}-${idx}`}
-                          className="matchup-context"
-                          onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2} at the Miami Open`)}
-                        >
+                        <div key={match.id || idx} className="matchup-context" onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2} at the Miami Open`)}>
                           <div className="mc-header">
                             <div className="mc-title">{p1} vs {p2}</div>
-                            <div
-                              className="mc-h2h"
-                              style={{ color: match.live === "1" ? "var(--magenta)" : "var(--gold)" }}
-                            >
-                              {status}
-                            </div>
+                            <div className="mc-h2h" style={{ color: match.live === "1" ? "var(--magenta)" : "var(--gold)" }}>{status}</div>
                           </div>
-
-                          <div className="mc-note" style={{ color: "#ffffff" }}>
-                            {tournament} · {matchTime}
-                          </div>
-
+                          <div className="mc-note" style={{ color:"var(--soft)" }}>{match.tournament || "Miami"} · {matchTime}</div>
                           <div className="mc-angle">Tap for UR TAKE on this matchup.</div>
-
                           {match.score && match.score !== "-" && (
-                            <div style={{
-                              marginTop: 8,
-                              fontSize: 11,
-                              color: "var(--gold)",
-                              fontFamily: "'DM Mono', monospace",
-                            }}>
-                              Score: {match.score}
-                            </div>
+                            <div style={{ marginTop:8, fontSize:11, color:"var(--gold)", fontFamily:"'DM Mono',monospace" }}>Score: {match.score}</div>
                           )}
                         </div>
                       );
@@ -668,97 +505,64 @@ export default function App() {
                 )}
 
                 {tennisSection === "players" && players && (
-  <div>
-    <div className="tennis-section-label">{tennisTab.toUpperCase()} TOP {tourPlayers.length}</div>
+                  <div>
+                    <div className="tennis-section-label">{tennisTab.toUpperCase()} TOP {tourPlayers.length}</div>
+                    {tourPlayers.map((name, idx) => {
+                      const p = getPlayer(name);
+                      if (!p) return null;
+                      return (
+                        <div key={name} className="player-card" onClick={() => openPlayer(name)}>
+                          <div className="player-top">
+                            <div className="player-rank">#{idx + 1}</div>
+                            <div className="player-info">
+                              <div className="player-name">{name}</div>
+                              <div className="player-style">{Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}</div>
+                              <div className="surface-pills">
+                                {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
+                                {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
+                                {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
+                              </div>
+                            </div>
+                            <div className="player-elo">
+                              <span className="player-elo-num">{p.elo}</span>
+                              <span className="player-elo-label">ELO</span>
+                              {p.record2026 && <div className="form-badge" style={{ marginTop:4 }}>2026 FORM</div>}
+                            </div>
+                          </div>
+                          <div className="player-stats">
+                            <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
+                            <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{ color:"var(--cyan)" }}>{getDrValue(p)}</div></div>
+                            <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-    {tourPlayers.map((name, idx) => {
-      const p = getPlayer(name);
-      if (!p) return null;
-
-      return (
-        <div key={name} className="player-card" onClick={() => openPlayer(name)}>
-          <div className="player-top">
-            <div className="player-rank">#{idx + 1}</div>
-
-            <div className="player-info">
-              <div className="player-name">{name}</div>
-              <div className="player-style">
-                {Array.isArray(p.style) ? p.style.join(", ").replaceAll("_", " ") : p.style}
-              </div>
-
-              <div className="surface-pills">
-                {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
-                {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
-                {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
-              </div>
-            </div>
-
-            <div className="player-elo">
-              <span className="player-elo-num">{p.elo}</span>
-              <span className="player-elo-label">ELO</span>
-              {p.record2026 && <div className="form-badge" style={{ marginTop: 4 }}>2026 FORM</div>}
-            </div>
-          </div>
-
-          <div className="player-stats">
-            <div className="pstat">
-              <div className="pstat-label">HOLD</div>
-              <div className="pstat-value">{getHoldValue(p)}</div>
-            </div>
-
-            <div className="pstat">
-              <div className="pstat-label">DR</div>
-              <div className="pstat-value" style={{ color: "var(--cyan)" }}>
-                {getDrValue(p)}
-              </div>
-            </div>
-
-            <div className="pstat">
-              <div className="pstat-label">TB%</div>
-              <div className="pstat-value">{getTbValue(p)}</div>
-            </div>
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)}
                 {tennisSection === "aces" && context?.ace_props && (
                   <div>
                     <div className="tennis-section-label">ACE PROP GUIDE · MIAMI OPEN</div>
                     {Object.entries(context.ace_props)
-                      .filter(([name]) => {
-                        const atpNames = ["Sinner", "Alcaraz", "Medvedev", "Fritz"];
-                        const wtaNames = ["Rybakina", "Sabalenka"];
-                        return tennisTab === "atp" ? atpNames.includes(name) : wtaNames.includes(name);
-                      })
+                      .filter(([name]) => tennisTab === "atp" ? ["Sinner","Alcaraz","Medvedev","Fritz"].includes(name) : ["Rybakina","Sabalenka"].includes(name))
                       .map(([name, data]) => (
                         <div key={name} className="ace-card">
                           <div className="ace-top">
                             <div className="ace-name">{name}</div>
                             <div className="ace-avg">{data.avg_aces_hard} avg</div>
                           </div>
-                          <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
-                            <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "'DM Mono',monospace" }}>ACE RATE</span>
-                            <span style={{ fontSize: 12, color: "var(--cyan)", fontFamily: "'DM Mono',monospace" }}>{data.ace_rate}</span>
+                          <div style={{ display:"flex", gap:8, marginBottom:6, alignItems:"center" }}>
+                            <span style={{ fontSize:11, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>ACE RATE</span>
+                            <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace" }}>{data.ace_rate}</span>
                           </div>
                           <div className="ace-note">{data.note}</div>
                         </div>
                       ))}
-
-                    <div style={{ marginTop: 12, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>
-                      <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "'DM Mono',monospace", marginBottom: 6 }}>
-                        ASK ABOUT A SPECIFIC PROP
-                      </div>
-                      <div className="ask-shell" style={{ margin: 0 }}>
-                        <input
-                          className="ask-bar"
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          placeholder="e.g. Will Fritz get 12 aces?"
-                          onKeyDown={(e) => e.key === "Enter" && submitAsk()}
-                        />
-                        <button className="send-btn" style={{ width: 38, height: 38 }} onClick={() => submitAsk()}>
+                    <div style={{ marginTop:12, background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:12 }}>
+                      <div style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>ASK ABOUT A SPECIFIC PROP</div>
+                      <div className="ask-shell" style={{ margin:0 }}>
+                        <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="e.g. Will Fritz get 12 aces?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
+                        <button className="send-btn" style={{ width:38, height:38 }} onClick={() => submitAsk()}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                         </button>
                       </div>
@@ -770,99 +574,55 @@ export default function App() {
           </main>
         )}
 
+        {/* PLAYER DETAIL */}
         {screen === "player" && pd && (
           <main className="screen">
-            <button className="detail-back" onClick={() => { setScreen("tennis"); setSelectedPlayer(null); }}>
-              ← BACK TO TENNIS
-            </button>
-
+            <button className="detail-back" onClick={() => { setScreen("tennis"); setSelectedPlayer(null); }}>← BACK TO TENNIS</button>
             <div className="detail-card">
               <div className="detail-head">
-                <div className="detail-league" style={{ color: "var(--cyan)" }}>
-                  {tennisTab.toUpperCase()} · #{tourPlayers.indexOf(selectedPlayer) + 1} ELO
-                </div>
+                <div className="detail-league" style={{ color:"var(--cyan)" }}>{tennisTab.toUpperCase()} · #{tourPlayers.indexOf(selectedPlayer)+1} ELO</div>
                 <div className="detail-title">{selectedPlayer}</div>
-                <div className="detail-sub">   {Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_", " ") : pd.style} · Elo {pd.elo} </div>
+                <div className="detail-sub">{Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_"," ") : pd.style} · Elo {pd.elo}</div>
               </div>
-
-             <div className="what-matters">
-  <div className="wm-label">SURFACE NOTES</div>
-  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
-    <div className="mini-stat">
-      <div className="mini-label">HARD</div>
-      <div className="mini-value" style={{ color: "var(--cyan)" }}>•</div>
-      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-        {pd.surfaceNote?.hard || "—"}
-      </div>
-    </div>
-    <div className="mini-stat">
-      <div className="mini-label">CLAY</div>
-      <div className="mini-value" style={{ color: "var(--gold)" }}>•</div>
-      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-        {pd.surfaceNote?.clay || "—"}
-      </div>
-    </div>
-    <div className="mini-stat">
-      <div className="mini-label">GRASS</div>
-      <div className="mini-value" style={{ color: "var(--green)" }}>•</div>
-      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-        {pd.surfaceNote?.grass || "—"}
-      </div>
-    </div>
-  </div>
-</div>
-
-              <div style={{ padding: "0 14px 14px" }}>
-                <div className="wm-label" style={{ marginBottom: 8 }}>2026 FORM</div>
-                <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: 10, fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
-                  {pd.record2026 || pd.yElo2026}
+              <div className="what-matters">
+                <div className="wm-label">SURFACE NOTES</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:8 }}>
+                  <div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{ color:"var(--cyan)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.hard || "—"}</div></div>
+                  <div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{ color:"var(--gold)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.clay || "—"}</div></div>
+                  <div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{ color:"var(--green)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.grass || "—"}</div></div>
                 </div>
               </div>
-
-              <div className="what-matters" style={{ paddingTop: 0 }}>
-  <div className="wm-label">SERVE</div>
-  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
-    {formatServeStats(pd.serveStats)}
-  </div>
-</div>
-
-              <div className="what-matters" style={{ paddingTop: 0 }}>
-  <div className="wm-label">RETURN</div>
-  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
-    {formatReturnStats(pd.returnStats)}
-  </div>
-</div>
-
-              <div className="what-matters" style={{ paddingTop: 0 }}>
-  <div className="wm-label">OVERALL</div>
-  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.5 }}>
-    {formatOverallStats(pd.overallStats)}
-  </div>
-</div>
-
+              <div style={{ padding:"0 14px 14px" }}>
+                <div className="wm-label" style={{ marginBottom:8 }}>2026 FORM</div>
+                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{pd.record2026 || pd.yElo2026 || "—"}</div>
+              </div>
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">SERVE</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div>
+              </div>
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">RETURN</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div>
+              </div>
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">OVERALL</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div>
+              </div>
               {pd.miamiNote && (
-                <div className="what-matters" style={{ paddingTop: 0 }}>
-                  <div className="wm-label" style={{ color: "var(--magenta)" }}>MIAMI NOTE</div>
-                  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.55 }}>{pd.miamiNote}</div>
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label" style={{ color:"var(--magenta)" }}>MIAMI NOTE</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.miamiNote}</div>
                 </div>
               )}
-
               {pd.fullNote && (
-                <div className="what-matters" style={{ paddingTop: 0 }}>
+                <div className="what-matters" style={{ paddingTop:0 }}>
                   <div className="wm-label">UR TAKE</div>
-                  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.55 }}>{pd.fullNote}</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.fullNote}</div>
                 </div>
               )}
             </div>
-
             <div className="ask-shell">
-              <input
-                className="ask-bar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={`Ask about ${selectedPlayer}...`}
-                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
-              />
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
               <button className="send-btn" onClick={() => submitAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
@@ -870,26 +630,19 @@ export default function App() {
           </main>
         )}
 
+        {/* ASK PAGE */}
         {screen === "ask" && (
           <main className="screen">
-            <section className="hero" style={{ paddingTop: 4 }}>
+            <section className="hero" style={{ paddingTop:4 }}>
               <div className="hero-title">UR TAKE</div>
               <div className="hero-sub">Ask in plain English. Keep it broad or get weirdly specific.</div>
             </section>
-
             <div className="ask-shell">
-              <input
-                className="ask-bar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="What do you want to know?"
-                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
-              />
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
               <button className="send-btn" onClick={() => submitAsk()}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
-
             {messages.length === 0 ? (
               <section className="section">
                 <div className="section-label">TRY ONE</div>
@@ -914,13 +667,12 @@ export default function App() {
           </main>
         )}
 
+        {/* PRO PAGE */}
         {screen === "pro" && (
           <main className="screen">
             <div className="pro-card">
               <div className="pro-title">UNDER REVIEW PRO</div>
-              <div className="pro-copy">
-                Unlimited UR TAKE queries, deeper matchup cards, saved threads, cleaner data views, and a more premium sports intelligence layer.
-              </div>
+              <div className="pro-copy">Unlimited UR TAKE queries, deeper matchup cards, saved threads, cleaner data views, and a more premium sports intelligence layer.</div>
               <div className="pro-price">$9.99 / month</div>
               <button className="pro-btn">UPGRADE</button>
             </div>
@@ -932,6 +684,7 @@ export default function App() {
           <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={() => goAsk("")}>ASK</button>
           <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>PRO</button>
         </nav>
+
       </div>
     </>
   );
