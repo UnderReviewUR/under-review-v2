@@ -481,4 +481,3 @@ export function generateTennisTake({
 
   return "Ask me about an ATP Miami matchup, a player like Sinner or Alcaraz, or a prop like 'Atmane over 7.5 aces' and I'll give you a sharp answer.";
 }
-}
