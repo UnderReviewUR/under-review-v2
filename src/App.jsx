@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { generateTennisTake } from "./lib/tennisEngine";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -39,6 +38,7 @@ const css = `
   .ask-bar::placeholder{color:var(--muted);}
   .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan);color:var(--black);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
   .send-btn:hover{background:var(--magenta);}
+  .send-btn:disabled{background:var(--border);cursor:not-allowed;}
 
   .section{margin-top:18px;}
   .section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;}
@@ -86,6 +86,7 @@ const css = `
   .bubble{max-width:88%;border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;}
   .bubble.user{margin-left:auto;background:#1E2B38;border:1px solid #2A3A4A;color:var(--text);border-bottom-right-radius:6px;}
   .bubble.ai{margin-right:auto;background:var(--surface);border:1px solid var(--border);color:#D0D7E2;border-bottom-left-radius:6px;}
+  .bubble.loading{opacity:0.5;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);}
 
   .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,12,.98);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);padding:10px 10px 12px;z-index:30;}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;padding:6px 0;}
@@ -163,63 +164,32 @@ const featuredMatchups = [
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
-// Tennis-related keywords — universal, covers any player name style
-const TENNIS_KEYWORDS = [
-  "tennis","miami open","miami","atp","wta","open","ace","aces","ace prop",
-  "double fault","double faults","df","tiebreak","tiebreaks","break point",
-  "serve","return","hold","deuce","set","match point","bagel","breadstick",
-  "hard court","clay","grass","wimbledon","french open","us open","australian open",
-  "sinner","alcaraz","djokovic","zverev","medvedev","fritz","shelton","draper",
-  "musetti","de minaur","auger-aliassime","bublik","mensik","ruud","korda",
-  "fonseca","paul","fokina","rublev","lehecka","cerundolo","norrie","khachanov",
-  "tien","fils","sabalenka","swiatek","rybakina","pegula","gauff","mboko",
-  "anisimova","svitolina","muchova","bencic","andreeva","paolini","keys","osaka",
-  "noskova","kostyuk","vondrousova","kalinskaya","mertens","cirstea","jovic",
-  "alexandrova","zheng","kartal","dzumhur","atmane","altmaier","giron","opelka",
-  "berrettini","tsitsipas","shapovalov","humbert","nakashima","brooksby","tabilo",
-  "baez","cobolli","tiafoe","machac","etcheverry","blockx","collignon","hanfmann",
-  "svajda","hurkacz","rinderknech","halys","cazaux","perricard","carabelli",
-  "marozsan","navone","vacherot","borges","nava","fearnley","kecmanovic","cilic",
-  "popyrin","mcdonald","walton","fucsovics","van de zandschulp","diallo","wu",
-  "duckworth","zhang","basilashvili","draxl","majchrzak","hijikata","buse",
-  "moutet","bellucci","mannarino","norrie","arnaldi","jodar","quinn","kouame",
-];
-
-function formatServeStats(serveStats) {
-  if (!serveStats) return "—";
-  const parts = [];
-  if (serveStats.holdPct !== undefined) parts.push(`Hold ${serveStats.holdPct}%`);
-  if (serveStats.acePct !== undefined) parts.push(`Ace ${serveStats.acePct}%`);
-  if (serveStats.dfPct !== undefined) parts.push(`DF ${serveStats.dfPct}%`);
-  return parts.length ? parts.join(", ") : "—";
+function formatServeStats(s) {
+  if (!s) return "—";
+  const p = [];
+  if (s.holdPct !== undefined) p.push(`Hold ${s.holdPct}%`);
+  if (s.acePct !== undefined) p.push(`Ace ${s.acePct}%`);
+  if (s.dfPct !== undefined) p.push(`DF ${s.dfPct}%`);
+  return p.length ? p.join(", ") : "—";
 }
-
-function formatReturnStats(returnStats) {
-  if (!returnStats) return "—";
-  const parts = [];
-  if (returnStats.rpwPct !== undefined) parts.push(`RPW ${returnStats.rpwPct}%`);
-  if (returnStats.breakPct !== undefined) parts.push(`Break ${returnStats.breakPct}%`);
-  return parts.length ? parts.join(", ") : "—";
+function formatReturnStats(s) {
+  if (!s) return "—";
+  const p = [];
+  if (s.rpwPct !== undefined) p.push(`RPW ${s.rpwPct}%`);
+  if (s.breakPct !== undefined) p.push(`Break ${s.breakPct}%`);
+  return p.length ? p.join(", ") : "—";
 }
-
-function formatOverallStats(overallStats) {
-  if (!overallStats) return "—";
-  const parts = [];
-  if (overallStats.dominanceRatio !== undefined) parts.push(`DR ${overallStats.dominanceRatio}`);
-  if (overallStats.totalPointsWonPct !== undefined) parts.push(`TPW ${overallStats.totalPointsWonPct}%`);
-  if (overallStats.tiebreakPct !== undefined) parts.push(`Tiebreak ${overallStats.tiebreakPct}%`);
-  return parts.length ? parts.join(", ") : "—";
+function formatOverallStats(s) {
+  if (!s) return "—";
+  const p = [];
+  if (s.dominanceRatio !== undefined) p.push(`DR ${s.dominanceRatio}`);
+  if (s.totalPointsWonPct !== undefined) p.push(`TPW ${s.totalPointsWonPct}%`);
+  if (s.tiebreakPct !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
+  return p.length ? p.join(", ") : "—";
 }
-
-function getHoldValue(p) {
-  return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—";
-}
-function getDrValue(p) {
-  return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—";
-}
-function getTbValue(p) {
-  return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—";
-}
+function getHoldValue(p) { return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—"; }
+function getDrValue(p) { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—"; }
+function getTbValue(p) { return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—"; }
 
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -227,6 +197,7 @@ export default function App() {
   const [selectedMatchup, setSelectedMatchup] = useState(null);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
+  const [isAsking, setIsAsking] = useState(false);
   const [tennisTab, setTennisTab] = useState("atp");
   const [tennisSection, setTennisSection] = useState("matchups");
   const [players, setPlayers] = useState(null);
@@ -235,7 +206,6 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
 
-  // Load tennis data on mount and whenever tour tab changes — not gated behind tennis screen
   useEffect(() => {
     setTennisLoading(true);
     Promise.all([
@@ -256,38 +226,47 @@ export default function App() {
       });
   }, [tennisTab]);
 
-  function isTennisQ(inputText, matchup) {
-    const q = (inputText || "").toLowerCase();
-    if (screen === "tennis" || screen === "player") return true;
-    if (matchup?.league === "ATP" || matchup?.league === "WTA") return true;
-    if (TENNIS_KEYWORDS.some((w) => q.includes(w))) return true;
-    // Check against live match player names
-    const liveNames = liveMatches.flatMap((m) => [
-      String(m?.home_team || "").toLowerCase(),
-      String(m?.away_team || "").toLowerCase(),
-    ]);
-    return liveNames.some((name) => {
-      if (!name) return false;
-      const surname = name.split(" ").filter(Boolean).slice(-1)[0];
-      return q.includes(name) || (surname && q.includes(surname));
-    });
-  }
+  async function askUrTake(text, matchup) {
+    if (!text || isAsking) return;
+    setIsAsking(true);
 
-  function generateTake(inputText, matchup) {
-    if (isTennisQ(inputText, matchup)) {
-      if (!players) {
-        return "Still loading player data — ask again in a second.";
-      }
-      return generateTennisTake({
-        input: inputText,
-        selectedMatchup: matchup,
-        liveMatches,
-        players,
-        context,
-        tour: tennisTab,
+    const userMsg = { role: "user", text };
+    setMessages((prev) => [...prev, userMsg, { role: "ai", text: "THINKING...", loading: true }]);
+    setInput("");
+    setTab("ask");
+    setScreen("ask");
+
+    try {
+      const response = await fetch("/api/ur-take", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          players,
+          context,
+          liveMatches,
+          tour: tennisTab,
+          history: messages.slice(-6),
+          matchupContext: matchup || null,
+        }),
       });
+
+      const data = await response.json();
+      const aiText = data.response || "Couldn't get a response — try again.";
+
+      setMessages((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: aiText },
+      ]);
+    } catch (err) {
+      console.error("UR TAKE error:", err);
+      setMessages((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: "Something went wrong — try again." },
+      ]);
+    } finally {
+      setIsAsking(false);
     }
-    return "Ask me about a matchup, player prop, or whether something feels realistic. The goal is a direct answer in plain English, not stats dumped back at you.";
   }
 
   function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
@@ -299,22 +278,14 @@ export default function App() {
 
   function submitAsk(forced) {
     const text = (forced ?? input).trim();
-    if (!text) return;
-    const aiText = generateTake(text, selectedMatchup);
-    setMessages((prev) => [...prev, { role:"user", text }, { role:"ai", text:aiText }]);
-    setInput("");
-    setTab("ask");
-    setScreen("ask");
+    if (!text || isAsking) return;
+    askUrTake(text, selectedMatchup);
   }
 
   function submitMatchupAsk(forced) {
     const text = (forced ?? input).trim();
-    if (!text) return;
-    const aiText = generateTake(text, selectedMatchup);
-    setMessages((prev) => [...prev, { role:"user", text }, { role:"ai", text:aiText }]);
-    setInput("");
-    setTab("ask");
-    setScreen("ask");
+    if (!text || isAsking) return;
+    askUrTake(text, selectedMatchup);
   }
 
   const tourPlayers = tennisTab === "atp" ? ATP_PLAYERS : WTA_PLAYERS;
@@ -323,7 +294,6 @@ export default function App() {
     if (!players) return null;
     return (tennisTab === "atp" ? players.atp : players.wta)?.[name] || null;
   }
-
   function getPlayerAny(name) {
     if (!players) return null;
     return players.atp?.[name] || players.wta?.[name] || null;
@@ -358,8 +328,8 @@ export default function App() {
               <div className="hero-sub">Sports, stats, predictions, context — in plain English.</div>
             </section>
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask UR TAKE anything..." onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
-              <button className="send-btn" onClick={() => submitAsk()}>
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask UR TAKE anything..." onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
@@ -436,8 +406,8 @@ export default function App() {
               </div>
             </div>
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()} />
-              <button className="send-btn" onClick={() => submitMatchupAsk()}>
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitMatchupAsk()} disabled={isAsking}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
@@ -564,8 +534,8 @@ export default function App() {
                     <div style={{ marginTop:12, background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:12 }}>
                       <div style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>ASK ABOUT A SPECIFIC PROP</div>
                       <div className="ask-shell" style={{ margin:0 }}>
-                        <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="e.g. Will Fritz get 12 aces?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
-                        <button className="send-btn" style={{ width:38, height:38 }} onClick={() => submitAsk()}>
+                        <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="e.g. Will Fritz get 12 aces?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+                        <button className="send-btn" style={{ width:38, height:38 }} onClick={() => submitAsk()} disabled={isAsking}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                         </button>
                       </div>
@@ -625,8 +595,8 @@ export default function App() {
               )}
             </div>
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
-              <button className="send-btn" onClick={() => submitAsk()}>
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
@@ -641,8 +611,8 @@ export default function App() {
               <div className="hero-sub">Ask in plain English. Keep it broad or get weirdly specific.</div>
             </section>
             <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} />
-              <button className="send-btn" onClick={() => submitAsk()}>
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
             </div>
@@ -651,7 +621,7 @@ export default function App() {
                 <div className="section-label">TRY ONE</div>
                 <div className="q-list">
                   {featuredQuestions.map((q) => (
-                    <button key={q.id} className="q-card" onClick={() => setInput(q.prompt)}>
+                    <button key={q.id} className="q-card" onClick={() => askUrTake(q.prompt, null)}>
                       <div className="q-top">
                         <div className="q-accent" style={{ background: q.color }} />
                         <div className="q-text">{q.text}</div>
@@ -663,7 +633,7 @@ export default function App() {
             ) : (
               <div className="chat-thread">
                 {messages.map((m, i) => (
-                  <div key={i} className={`bubble ${m.role}`}>{m.text}</div>
+                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>{m.text}</div>
                 ))}
               </div>
             )}
