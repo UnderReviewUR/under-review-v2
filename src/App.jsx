@@ -4,21 +4,12 @@ const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   :root{
-    --black:#080A0C;
-    --surface:#0F1215;
-    --surface-2:#0C1014;
-    --border:#1E2328;
-    --border-2:#2A3040;
-    --cyan:#00F5E9;
-    --magenta:#FF2D6B;
-    --gold:#F5C842;
-    --text:#E8EAF0;
-    --muted:#AAB3C2;
-    --soft:#D6DCE6;
-    --green:#00E676;
-    --red:#FF4444;
+    --black:#080A0C;--surface:#0F1215;--surface-2:#0C1014;
+    --border:#1E2328;--border-2:#2A3040;
+    --cyan:#00F5E9;--magenta:#FF2D6B;--gold:#F5C842;
+    --text:#E8EAF0;--muted:#AAB3C2;--soft:#D6DCE6;
+    --green:#00E676;--red:#FF4444;
   }
-
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--black);color:var(--text);font-family:'DM Sans',sans-serif;}
   .app{min-height:100vh;background:var(--black);color:var(--text);display:flex;flex-direction:column;}
@@ -27,8 +18,9 @@ const css = `
   .logo-under{display:block;font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;}
   .logo-review{display:block;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .pill-tag{font-family:'DM Mono',monospace;font-size:10px;color:var(--magenta);border:1px solid rgba(255,45,107,.25);padding:4px 9px;border-radius:999px;background:rgba(255,45,107,.06);}
+  .pill-live{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);border:1px solid rgba(0,245,233,.25);padding:4px 9px;border-radius:999px;background:rgba(0,245,233,.06);}
 
-  .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:88px;}
+  .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:96px;}
   .hero{padding:12px 2px 16px;text-align:center;}
   .hero-title{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:1px;line-height:1;margin-bottom:8px;}
   .hero-sub{color:var(--soft);font-size:14px;line-height:1.55;max-width:360px;margin:0 auto;}
@@ -85,27 +77,19 @@ const css = `
   .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:16px;}
   .bubble{max-width:88%;border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;}
   .bubble.user{margin-left:auto;background:#1E2B38;border:1px solid #2A3A4A;color:var(--text);border-bottom-right-radius:6px;}
-  .bubble.ai{margin-right:auto;background:var(--surface);border:1px solid var(--border);color:#D0D7E2;border-bottom-left-radius:6px;}
+  .bubble.ai{margin-right:auto;background:var(--surface);border:1px solid var(--border);color:#D0D7E2;border-bottom-left-radius:6px;max-width:96%;}
   .bubble.loading{opacity:0.5;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,12,.98);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);padding:10px 10px 12px;z-index:30;}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;cursor:pointer;padding:6px 0;}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,12,.98);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);padding:10px 6px 12px;z-index:30;}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;padding:6px 0;}
   .nav-btn.active{color:var(--cyan);}
+  .nav-btn.miami-active{color:var(--gold);}
 
   .pro-card{background:var(--surface);border:1px solid rgba(255,45,107,.25);border-radius:18px;padding:18px;}
   .pro-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;}
   .pro-copy{color:var(--soft);font-size:14px;line-height:1.7;margin-bottom:14px;}
   .pro-price{font-size:34px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:12px;}
   .pro-btn{width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--black);background:linear-gradient(90deg,var(--cyan),var(--magenta));}
-
-  .tennis-tabs{display:flex;gap:0;margin-bottom:16px;border:1px solid var(--border);border-radius:12px;overflow:hidden;}
-  .tennis-tab{flex:1;padding:10px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;cursor:pointer;background:var(--surface-2);color:var(--muted);border:none;transition:all .15s;}
-  .tennis-tab.active{background:var(--cyan);color:var(--black);font-weight:700;}
-
-  .tournament-banner{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px;}
-  .tournament-name{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:var(--cyan);margin-bottom:4px;}
-  .tournament-meta{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;}
-  .tournament-note{font-size:13px;color:var(--soft);line-height:1.55;}
 
   .player-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;margin-bottom:10px;}
   .player-card:hover{border-color:var(--border-2);}
@@ -122,14 +106,6 @@ const css = `
   .pstat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
   .pstat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
 
-  .matchup-context{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;}
-  .matchup-context:hover{border-color:var(--border-2);}
-  .mc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-  .mc-title{font-size:15px;font-weight:600;color:var(--text);}
-  .mc-h2h{font-family:'DM Mono',monospace;font-size:10px;color:var(--gold);}
-  .mc-note{font-size:12px;color:var(--soft);line-height:1.5;margin-bottom:8px;}
-  .mc-angle{font-size:12px;color:var(--cyan);line-height:1.4;}
-
   .ace-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
   .ace-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
   .ace-name{font-size:14px;font-weight:500;color:var(--text);}
@@ -145,9 +121,35 @@ const css = `
   .surface-clay{color:var(--gold);border-color:rgba(245,200,66,.3);}
   .surface-grass{color:var(--green);border-color:rgba(0,230,118,.3);}
 
-  .tennis-section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);margin:16px 0 10px;}
   .form-badge{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(0,245,233,.1);color:var(--cyan);border:1px solid rgba(0,245,233,.2);}
+
+  .miami-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(245,200,66,.06));border:1px solid rgba(0,245,233,.2);border-radius:16px;padding:16px;margin-bottom:16px;}
+  .miami-banner-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--cyan);margin-bottom:2px;}
+  .miami-banner-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;}
+  .miami-banner-note{font-size:13px;color:var(--soft);line-height:1.5;}
+
+  .miami-section-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--gold);margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
+  .miami-section-title::after{content:'';flex:1;height:1px;background:rgba(245,200,66,.2);}
+
+  .prop-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
+  .prop-card:hover{border-color:var(--border-2);}
+  .prop-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .prop-player{font-size:14px;font-weight:600;color:var(--text);}
+  .prop-type{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);background:rgba(0,245,233,.1);padding:2px 8px;border-radius:4px;}
+  .prop-stat{font-size:12px;color:var(--gold);font-family:'DM Mono',monospace;}
+  .prop-note{font-size:12px;color:var(--soft);line-height:1.4;margin-top:4px;}
+
+  .matchup-context{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;}
+  .matchup-context:hover{border-color:var(--border-2);}
+  .mc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .mc-title{font-size:15px;font-weight:600;color:var(--text);}
+  .mc-h2h{font-family:'DM Mono',monospace;font-size:10px;color:var(--gold);}
+  .mc-note{font-size:12px;color:var(--soft);line-height:1.5;margin-bottom:8px;}
+  .mc-angle{font-size:12px;color:var(--cyan);line-height:1.4;}
 `;
+
+const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
+const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
 const featuredQuestions = [
   { id:"q1", color:"#00F5E9", text:"Will Sinner get 8 aces vs Medvedev?", prompt:"Will Sinner get 8 aces vs Medvedev?" },
@@ -160,9 +162,6 @@ const featuredMatchups = [
   { id:"m2", league:"UCL", leagueColor:"#FF2D6B", title:"Barca vs Newcastle", time:"3:00 PM ET", network:"Paramount+", blurb:"This is less about overall quality and more about whether Newcastle can turn the match chaotic early. First goal changes everything.", whatMatters:"Barca are the better side on paper but Newcastle's crowd and early pressure can make the first 25 minutes feel bigger than the talent gap. If Newcastle score first the tie becomes live immediately.", quickHitters:["Will Barca advance?","Do both teams score?","Is over 2.5 live?"], stats:[{label:"UR CONF",value:"71%"},{label:"TIE STATE",value:"Live"},{label:"ANGLE",value:"BTTS"}] },
   { id:"m3", league:"F1", leagueColor:"#F5C842", title:"Hamilton podium chances", time:"This weekend", network:"ESPN", blurb:"Top 3 is possible but depends more on qualifying and race pace than brand name. Top 5 feels cleaner than podium right now.", whatMatters:"Hamilton podium bets come down to two things: where he starts and whether the car has genuine long-run pace. If qualifying leaves him buried the podium path gets much thinner.", quickHitters:["Is top 3 realistic?","Safer: top 5?","What matters most?"], stats:[{label:"UR CONF",value:"38%"},{label:"LEAN",value:"Top 5"},{label:"KEY",value:"Quali"}] },
 ];
-
-const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
-const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
 function formatServeStats(s) {
   if (!s) return "—";
@@ -196,10 +195,9 @@ export default function App() {
   const [screen, setScreen] = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
   const [input, setInput] = useState("");
+  const [miamiInput, setMiamiInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [isAsking, setIsAsking] = useState(false);
-  const [tennisTab, setTennisTab] = useState("atp");
-  const [tennisSection, setTennisSection] = useState("matchups");
   const [players, setPlayers] = useState(null);
   const [context, setContext] = useState(null);
   const [tennisLoading, setTennisLoading] = useState(false);
@@ -211,7 +209,7 @@ export default function App() {
     Promise.all([
       fetch("/api/tennis-players").then((r) => r.json()),
       fetch("/api/tennis-context").then((r) => r.json()),
-      fetch(`/api/tennis?tour=${tennisTab}`).then((r) => r.json()),
+      fetch("/api/tennis?tour=atp").then((r) => r.json()),
     ])
       .then(([p, c, live]) => {
         setPlayers(p);
@@ -219,114 +217,110 @@ export default function App() {
         setLiveMatches(Array.isArray(live) ? live : []);
         setTennisLoading(false);
       })
-      .catch((err) => {
-        console.error("Tennis load error:", err);
-        setLiveMatches([]);
-        setTennisLoading(false);
-      });
-  }, [tennisTab]);
+      .catch(() => { setTennisLoading(false); });
+  }, []);
 
-  async function askUrTake(text, matchup) {
+  function renderMessage(text) {
+    if (!text) return null;
+
+    // Strip markdown bold/italic
+    const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
+
+    // Split inline bullets that appear mid-paragraph into separate lines
+    const normalized = clean.replace(/ • /g, "\n• ");
+
+    const lines = normalized.split("\n");
+    return lines.map((line, i) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("•")) {
+        const parts = trimmed.slice(1).trim().split("—");
+        const player = parts[0]?.trim();
+        const prop = parts[1]?.trim();
+        const reason = parts.slice(2).join("—").trim();
+        return (
+          <div key={i} style={{ display:"flex", flexDirection:"column", background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px", marginTop:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: reason ? 4 : 0 }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:"var(--cyan)", flexShrink:0 }} />
+              <span style={{ fontWeight:600, color:"var(--text)", fontSize:13 }}>{player}</span>
+              {prop && <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"var(--cyan)", background:"rgba(0,245,233,.1)", padding:"2px 7px", borderRadius:4 }}>{prop}</span>}
+            </div>
+            {reason && <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5, paddingLeft:14 }}>{reason}</div>}
+          </div>
+        );
+      }
+      if (trimmed === "") return <div key={i} style={{ height:6 }} />;
+      return <div key={i} style={{ lineHeight:1.65, marginBottom:2 }}>{trimmed}</div>;
+    });
+  }
+
+  async function askUrTake(text, matchup, inputSetter) {
     if (!text || isAsking) return;
     setIsAsking(true);
+    if (inputSetter) inputSetter("");
 
-    const userMsg = { role: "user", text };
-    setMessages((prev) => [...prev, userMsg, { role: "ai", text: "THINKING...", loading: true }]);
-    setInput("");
-    setTab("ask");
-    setScreen("ask");
+    const userMsg = { role:"user", text };
+    if (screen !== "miami") {
+      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
+      setTab("ask");
+      setScreen("ask");
+    } else {
+      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
+    }
 
     try {
       const response = await fetch("/api/ur-take", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({
           question: text,
           players,
           context,
           liveMatches,
-          tour: tennisTab,
+          tour: "atp",
           history: messages.slice(-6),
           matchupContext: matchup || null,
         }),
       });
-
       const data = await response.json();
       const aiText = data.response || "Couldn't get a response — try again.";
-
-      setMessages((prev) => [
-        ...prev.filter((m) => !m.loading),
-        { role: "ai", text: aiText },
-      ]);
-    } catch (err) {
-      console.error("UR TAKE error:", err);
-      setMessages((prev) => [
-        ...prev.filter((m) => !m.loading),
-        { role: "ai", text: "Something went wrong — try again." },
-      ]);
+      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:aiText }]);
+    } catch {
+      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:"Something went wrong — try again." }]);
     } finally {
       setIsAsking(false);
     }
   }
 
-  function renderMessage(text) {
-    if (!text) return null;
-    const lines = text.split("\n");
-    return lines.map((line, i) => {
-      if (line.startsWith("•")) {
-        const parts = line.slice(1).trim().split("—");
-        const player = parts[0]?.trim();
-        const prop = parts[1]?.trim();
-        const reason = parts.slice(2).join("—").trim();
-        return (
-          <div key={i} style={{
-            display: "flex",
-            flexDirection: "column",
-            background: "rgba(0,245,233,.05)",
-            border: "1px solid rgba(0,245,233,.15)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            marginTop: 8,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cyan)", flexShrink: 0 }} />
-              <span style={{ fontWeight: 600, color: "var(--text)", fontSize: 13 }}>{player}</span>
-              {prop && <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: "var(--cyan)", background: "rgba(0,245,233,.1)", padding: "2px 7px", borderRadius: 4 }}>{prop}</span>}
-            </div>
-            {reason && <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.5, paddingLeft: 14 }}>{reason}</div>}
-          </div>
-        );
-      }
-      if (line.trim() === "") return <div key={i} style={{ height: 6 }} />;
-      return <div key={i} style={{ lineHeight: 1.65, marginBottom: 2 }}>{line}</div>;
-    });
-  }
-
-
   function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
+  function goMiami() { setTab("miami"); setScreen("miami"); setSelectedMatchup(null); setSelectedPlayer(null); }
   function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
   function goPro() { setTab("pro"); setScreen("pro"); setSelectedMatchup(null); }
-  function goTennis() { setScreen("tennis"); setTab("tennis"); setSelectedMatchup(null); setSelectedPlayer(null); }
   function openMatchup(m) { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
   function openPlayer(name) { setSelectedPlayer(name); setScreen("player"); }
 
   function submitAsk(forced) {
     const text = (forced ?? input).trim();
     if (!text || isAsking) return;
-    askUrTake(text, selectedMatchup);
+    setInput("");
+    askUrTake(text, selectedMatchup, null);
   }
 
   function submitMatchupAsk(forced) {
     const text = (forced ?? input).trim();
     if (!text || isAsking) return;
-    askUrTake(text, selectedMatchup);
+    setInput("");
+    askUrTake(text, selectedMatchup, null);
   }
 
-  const tourPlayers = tennisTab === "atp" ? ATP_PLAYERS : WTA_PLAYERS;
+  function submitMiamiAsk(forced) {
+    const text = (forced ?? miamiInput).trim();
+    if (!text || isAsking) return;
+    askUrTake(text, null, setMiamiInput);
+  }
 
-  function getPlayer(name) {
+  function getPlayer(name, tour = "atp") {
     if (!players) return null;
-    return (tennisTab === "atp" ? players.atp : players.wta)?.[name] || null;
+    return (tour === "atp" ? players.atp : players.wta)?.[name] || null;
   }
   function getPlayerAny(name) {
     if (!players) return null;
@@ -334,6 +328,38 @@ export default function App() {
   }
 
   const pd = (screen === "player" && selectedPlayer) ? getPlayerAny(selectedPlayer) : null;
+
+  // Shared player card component
+  function PlayerCard({ name, idx, tour }) {
+    const p = getPlayer(name, tour);
+    if (!p) return null;
+    return (
+      <div className="player-card" onClick={() => openPlayer(name)}>
+        <div className="player-top">
+          <div className="player-rank">#{idx + 1}</div>
+          <div className="player-info">
+            <div className="player-name">{name}</div>
+            <div className="player-style">{Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}</div>
+            <div className="surface-pills">
+              {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
+              {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
+              {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
+            </div>
+          </div>
+          <div className="player-elo">
+            <span className="player-elo-num">{p.elo}</span>
+            <span className="player-elo-label">ELO</span>
+            {p.record2026 && <div className="form-badge" style={{ marginTop:4 }}>2026</div>}
+          </div>
+        </div>
+        <div className="player-stats">
+          <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
+          <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{ color:"var(--cyan)" }}>{getDrValue(p)}</div></div>
+          <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -346,7 +372,7 @@ export default function App() {
             <span className="logo-review">REVIEW</span>
           </div>
           <div>
-            {screen === "tennis" && <span className="pill-tag">MIAMI OPEN</span>}
+            {screen === "miami" && <span className="pill-live">MIAMI OPEN</span>}
             {screen === "player" && <span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
             {screen === "matchup" && selectedMatchup && <span className="pill-tag">{selectedMatchup.league}</span>}
             {screen === "ask" && <span className="pill-tag">UR TAKE</span>}
@@ -403,11 +429,108 @@ export default function App() {
               <div className="sport-chips">
                 <button className="sport-chip">NFL</button>
                 <button className="sport-chip">NBA</button>
-                <button className="sport-chip active" onClick={goTennis}>Tennis</button>
+                <button className="sport-chip active" onClick={goMiami}>Tennis</button>
                 <button className="sport-chip">Soccer</button>
                 <button className="sport-chip">F1</button>
               </div>
             </section>
+          </main>
+        )}
+
+        {/* MIAMI OPEN TAB */}
+        {screen === "miami" && (
+          <main className="screen">
+
+            <div className="miami-banner">
+              <div className="miami-banner-title">Miami Open 2026</div>
+              <div className="miami-banner-sub">Hard Court · Medium-Fast · Miami, FL</div>
+              <div className="miami-banner-note">
+                {context?.tournaments?.miami_open?.note || "Hard courts play slightly slower than US Open. Big servers still have an edge but rallies run longer."}
+              </div>
+              {context?.tournaments?.miami_open && (
+                <div style={{ marginTop:10, display:"flex", gap:16 }}>
+                  <div>
+                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>ATP FAV </span>
+                    <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.atp_favorite}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>WTA FAV </span>
+                    <span style={{ fontSize:12, color:"var(--magenta)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.wta_favorite}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Miami Ask Bar */}
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8 }}>ASK ANYTHING — MIAMI OPEN</div>
+              <div className="ask-shell" style={{ margin:0 }}>
+                <input
+                  className="ask-bar"
+                  value={miamiInput}
+                  onChange={(e) => setMiamiInput(e.target.value)}
+                  placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?"
+                  onKeyDown={(e) => e.key === "Enter" && submitMiamiAsk()}
+                  disabled={isAsking}
+                />
+                <button className="send-btn" onClick={() => submitMiamiAsk()} disabled={isAsking}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays on the board?"].map((q) => (
+                  <button key={q} className="quick-btn" onClick={() => submitMiamiAsk(q)} style={{ fontSize:11 }}>{q}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Miami conversation thread */}
+            {messages.length > 0 && (
+              <div className="chat-thread" style={{ marginBottom:20 }}>
+                {messages.map((m, i) => (
+                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.loading ? m.text : renderMessage(m.text)}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Prop Guide */}
+            {context?.ace_props && (
+              <>
+                <div className="miami-section-title">PROP GUIDE</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                  {Object.entries(context.ace_props).map(([name, data]) => (
+                    <div key={name} className="prop-card" onClick={() => submitMiamiAsk(`Tell me about ${name} ace props at Miami`)}>
+                      <div className="prop-top">
+                        <div className="prop-player">{name}</div>
+                        <div className="prop-type">ACES</div>
+                      </div>
+                      <div className="prop-stat">{data.avg_aces_hard} avg · {data.ace_rate}</div>
+                      <div className="prop-note">{data.note}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ATP Players */}
+            {tennisLoading ? (
+              <div className="loading-state"><div className="loading-text">LOADING PLAYER DATA...</div></div>
+            ) : players && (
+              <>
+                <div className="miami-section-title">ATP TOP 25</div>
+                {ATP_PLAYERS.map((name, idx) => (
+                  <PlayerCard key={name} name={name} idx={idx} tour="atp" />
+                ))}
+
+                <div className="miami-section-title">WTA TOP 24</div>
+                {WTA_PLAYERS.map((name, idx) => (
+                  <PlayerCard key={name} name={name} idx={idx} tour="wta" />
+                ))}
+              </>
+            )}
+
           </main>
         )}
 
@@ -448,146 +571,13 @@ export default function App() {
           </main>
         )}
 
-        {/* TENNIS PAGE */}
-        {screen === "tennis" && (
-          <main className="screen">
-            <button className="detail-back" onClick={goHome}>← BACK</button>
-            <div className="tennis-tabs">
-              <button className={`tennis-tab${tennisTab === "atp" ? " active" : ""}`} onClick={() => setTennisTab("atp")}>ATP</button>
-              <button className={`tennis-tab${tennisTab === "wta" ? " active" : ""}`} onClick={() => setTennisTab("wta")}>WTA</button>
-            </div>
-            {tennisLoading ? (
-              <div className="loading-state"><div className="loading-text">LOADING MIAMI OPEN DATA...</div></div>
-            ) : (
-              <>
-                {context?.tournaments?.miami_open && (
-                  <div className="tournament-banner">
-                    <div className="tournament-name">Miami Open 2026</div>
-                    <div className="tournament-meta">Hard Court · Medium-Fast · Miami, FL</div>
-                    <div className="tournament-note">{context.tournaments.miami_open.note}</div>
-                    <div style={{ marginTop:8, display:"flex", gap:8, alignItems:"center" }}>
-                      <span style={{ fontSize:11, color:"var(--muted)" }}>Favorites:</span>
-                      <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace" }}>
-                        {tennisTab === "atp" ? context.tournaments.miami_open.atp_favorite : context.tournaments.miami_open.wta_favorite}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-                  {["matchups","players","aces"].map((s) => (
-                    <button key={s} className={`sport-chip${tennisSection === s ? " active" : ""}`} onClick={() => setTennisSection(s)} style={{ padding:"6px 14px" }}>
-                      {s.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-
-                {tennisSection === "matchups" && (
-                  <div>
-                    <div className="tennis-section-label">LIVE MATCHUPS</div>
-                    {liveMatches.length === 0 && (
-                      <div style={{ padding:12, border:"1px solid var(--border)", borderRadius:12, color:"var(--soft)", background:"var(--surface)", fontSize:13 }}>
-                        No live matches right now — check back during match hours.
-                      </div>
-                    )}
-                    {liveMatches.map((match, idx) => {
-                      const p1 = match.home_team || "Player 1";
-                      const p2 = match.away_team || "Player 2";
-                      const status = match.live === "1" ? "LIVE" : match.status || match.round || "Scheduled";
-                      const matchTime = match.commence_time ? new Date(match.commence_time).toLocaleString() : "TBD";
-                      return (
-                        <div key={match.id || idx} className="matchup-context" onClick={() => submitMatchupAsk(`Tell me about ${p1} vs ${p2} at the Miami Open`)}>
-                          <div className="mc-header">
-                            <div className="mc-title">{p1} vs {p2}</div>
-                            <div className="mc-h2h" style={{ color: match.live === "1" ? "var(--magenta)" : "var(--gold)" }}>{status}</div>
-                          </div>
-                          <div className="mc-note" style={{ color:"var(--soft)" }}>{match.tournament || "Miami"} · {matchTime}</div>
-                          <div className="mc-angle">Tap for UR TAKE on this matchup.</div>
-                          {match.score && match.score !== "-" && (
-                            <div style={{ marginTop:8, fontSize:11, color:"var(--gold)", fontFamily:"'DM Mono',monospace" }}>Score: {match.score}</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {tennisSection === "players" && players && (
-                  <div>
-                    <div className="tennis-section-label">{tennisTab.toUpperCase()} TOP {tourPlayers.length}</div>
-                    {tourPlayers.map((name, idx) => {
-                      const p = getPlayer(name);
-                      if (!p) return null;
-                      return (
-                        <div key={name} className="player-card" onClick={() => openPlayer(name)}>
-                          <div className="player-top">
-                            <div className="player-rank">#{idx + 1}</div>
-                            <div className="player-info">
-                              <div className="player-name">{name}</div>
-                              <div className="player-style">{Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}</div>
-                              <div className="surface-pills">
-                                {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
-                                {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
-                                {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
-                              </div>
-                            </div>
-                            <div className="player-elo">
-                              <span className="player-elo-num">{p.elo}</span>
-                              <span className="player-elo-label">ELO</span>
-                              {p.record2026 && <div className="form-badge" style={{ marginTop:4 }}>2026 FORM</div>}
-                            </div>
-                          </div>
-                          <div className="player-stats">
-                            <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
-                            <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{ color:"var(--cyan)" }}>{getDrValue(p)}</div></div>
-                            <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {tennisSection === "aces" && context?.ace_props && (
-                  <div>
-                    <div className="tennis-section-label">ACE PROP GUIDE · MIAMI OPEN</div>
-                    {Object.entries(context.ace_props)
-                      .filter(([name]) => tennisTab === "atp" ? ["Sinner","Alcaraz","Medvedev","Fritz"].includes(name) : ["Rybakina","Sabalenka"].includes(name))
-                      .map(([name, data]) => (
-                        <div key={name} className="ace-card">
-                          <div className="ace-top">
-                            <div className="ace-name">{name}</div>
-                            <div className="ace-avg">{data.avg_aces_hard} avg</div>
-                          </div>
-                          <div style={{ display:"flex", gap:8, marginBottom:6, alignItems:"center" }}>
-                            <span style={{ fontSize:11, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>ACE RATE</span>
-                            <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace" }}>{data.ace_rate}</span>
-                          </div>
-                          <div className="ace-note">{data.note}</div>
-                        </div>
-                      ))}
-                    <div style={{ marginTop:12, background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:12 }}>
-                      <div style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>ASK ABOUT A SPECIFIC PROP</div>
-                      <div className="ask-shell" style={{ margin:0 }}>
-                        <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="e.g. Will Fritz get 12 aces?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-                        <button className="send-btn" style={{ width:38, height:38 }} onClick={() => submitAsk()} disabled={isAsking}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </main>
-        )}
-
         {/* PLAYER DETAIL */}
         {screen === "player" && pd && (
           <main className="screen">
-            <button className="detail-back" onClick={() => { setScreen("tennis"); setSelectedPlayer(null); }}>← BACK TO TENNIS</button>
+            <button className="detail-back" onClick={() => setScreen("miami")}>← BACK</button>
             <div className="detail-card">
               <div className="detail-head">
-                <div className="detail-league" style={{ color:"var(--cyan)" }}>{tennisTab.toUpperCase()} · #{tourPlayers.indexOf(selectedPlayer)+1} ELO</div>
+                <div className="detail-league" style={{ color:"var(--cyan)" }}>MIAMI OPEN 2026</div>
                 <div className="detail-title">{selectedPlayer}</div>
                 <div className="detail-sub">{Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_"," ") : pd.style} · Elo {pd.elo}</div>
               </div>
@@ -601,20 +591,11 @@ export default function App() {
               </div>
               <div style={{ padding:"0 14px 14px" }}>
                 <div className="wm-label" style={{ marginBottom:8 }}>2026 FORM</div>
-                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{pd.record2026 || pd.yElo2026 || "—"}</div>
+                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{pd.record2026 || "—"}</div>
               </div>
-              <div className="what-matters" style={{ paddingTop:0 }}>
-                <div className="wm-label">SERVE</div>
-                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div>
-              </div>
-              <div className="what-matters" style={{ paddingTop:0 }}>
-                <div className="wm-label">RETURN</div>
-                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div>
-              </div>
-              <div className="what-matters" style={{ paddingTop:0 }}>
-                <div className="wm-label">OVERALL</div>
-                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div>
-              </div>
+              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">SERVE</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div></div>
+              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">RETURN</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div></div>
+              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">OVERALL</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div></div>
               {pd.miamiNote && (
                 <div className="what-matters" style={{ paddingTop:0 }}>
                   <div className="wm-label" style={{ color:"var(--magenta)" }}>MIAMI NOTE</div>
@@ -655,7 +636,7 @@ export default function App() {
                 <div className="section-label">TRY ONE</div>
                 <div className="q-list">
                   {featuredQuestions.map((q) => (
-                    <button key={q.id} className="q-card" onClick={() => askUrTake(q.prompt, null)}>
+                    <button key={q.id} className="q-card" onClick={() => askUrTake(q.prompt, null, null)}>
                       <div className="q-top">
                         <div className="q-accent" style={{ background: q.color }} />
                         <div className="q-text">{q.text}</div>
@@ -689,7 +670,8 @@ export default function App() {
         )}
 
         <nav className="bottom-nav">
-          <button className={`nav-btn${(tab === "home" && screen === "home") ? " active" : ""}`} onClick={goHome}>HOME</button>
+          <button className={`nav-btn${tab === "home" && screen === "home" ? " active" : ""}`} onClick={goHome}>HOME</button>
+          <button className={`nav-btn${tab === "miami" ? " miami-active" : ""}`} onClick={goMiami}>MIAMI</button>
           <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={() => goAsk("")}>ASK</button>
           <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>PRO</button>
         </nav>
