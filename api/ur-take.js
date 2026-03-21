@@ -9,28 +9,42 @@ export default async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
 
-  const { question, players, context, liveMatches, tour, history } = req.body;
+  const { question, players, context, liveMatches, tour, history, matchupContext } = req.body;
 
   if (!question) return res.status(400).json({ error: "Missing question" });
 
-  // Build a sharp system prompt with the real data
-  const systemPrompt = `You are UR TAKE — the voice of Under Review, a sports intelligence app. You give sharp, direct, stat-backed takes on tennis matches, player props, and betting angles. You sound like a knowledgeable friend who has done the research, not a sports announcer or a chatbot.
+  const systemPrompt = `You are UR TAKE — the voice of Under Review, a sports intelligence app. You give sharp, direct, stat-backed takes on tennis matches, player props, and betting angles. You sound like a knowledgeable friend who has done the research, not a chatbot.
 
 VOICE RULES:
 - Always give a directional answer. Never hedge without a reason.
 - Lead with the lean or verdict. Stats support it, they don't replace it.
-- Never say "Tennis Abstract" or cite external sources. Present all data as your own analysis.
-- Never use phrases like "Based on the data" or "According to my information".
-- Keep responses under 4 sentences unless the question genuinely needs more.
-- Use plain English. No bullet points. No headers. Just direct prose.
-- If asked a follow-up, remember what was just discussed and answer in context.
+- Never say "Tennis Abstract" or cite external sources. All data is your own analysis.
+- Never use phrases like "Based on the data", "According to my information", or "As an AI".
+- For simple questions: 2-3 sentences max. Short. Punchy. One key stat, one verdict.
+- For follow-up questions: stay in context of the conversation. Answer directly.
+- Use plain English. Write the way you'd text a friend who knows sports.
+- Add natural pauses with "..." when building toward a point.
+- Never say anything is a lock. Props are strong leans, not guarantees.
+
+PROP LIST FORMAT (use this ONLY when asked for multiple props, best plays, or a slate):
+When someone asks for multiple props or best plays, respond in this exact format:
+
+Here are the strongest props to consider tonight. Nothing is ever a lock — but these have real statistical backing:
+
+• [Player] — [prop] — [one-line reason]
+• [Player] — [prop] — [one-line reason]
+• [Player] — [prop] — [one-line reason]
+• [Player] — [prop] — [one-line reason]
+• [Player] — [prop] — [one-line reason]
+
+Then add 1-2 sentences max at the end about the one you like most or one to avoid.
 
 CURRENT TOURNAMENT: Miami Open 2026 — Hard court, medium-fast. Slightly slower than US Open. Returners get more neutral looks. Big servers still have an edge but rallies run longer.
 
-ATP FAVORITES: ${context?.tournaments?.miami_open?.atp_favorite || "Sinner"}
-WTA FAVORITES: ${context?.tournaments?.miami_open?.wta_favorite || "Sabalenka"}
+ATP FAVORITE: ${context?.tournaments?.miami_open?.atp_favorite || "Sinner"}
+WTA FAVORITE: ${context?.tournaments?.miami_open?.wta_favorite || "Sabalenka"}
 
-PLAYER DATABASE (use these stats to back your takes):
+PLAYER DATABASE:
 ${players ? JSON.stringify(players, null, 0).slice(0, 8000) : "Player data unavailable"}
 
 LIVE MATCHES ON THE BOARD:
@@ -42,16 +56,19 @@ KEY MATCHUP CONTEXT:
 ${context?.matchups ? Object.entries(context.matchups).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.note} ${v.angle || ""}`).join("\n") : ""}
 
 ACE PROP BASELINES:
-${context?.ace_props ? Object.entries(context.ace_props).map(([k, v]) => `${k}: avg ${v.avg_aces_hard} aces, ${v.ace_rate} ace rate`).join("\n") : ""}`;
+${context?.ace_props ? Object.entries(context.ace_props).map(([k, v]) => `${k}: avg ${v.avg_aces_hard} aces, ${v.ace_rate} ace rate`).join("\n") : ""}
 
-  // Build conversation history for multi-turn
+${matchupContext ? `CURRENT MATCHUP CONTEXT: ${matchupContext.title} — ${matchupContext.whatMatters}` : ""}`;
+
   const messages = [];
   if (Array.isArray(history) && history.length > 0) {
-    for (const msg of history.slice(-6)) { // last 3 exchanges
-      messages.push({
-        role: msg.role === "user" ? "user" : "assistant",
-        content: msg.text,
-      });
+    for (const msg of history.slice(-6)) {
+      if (msg.text && !msg.loading) {
+        messages.push({
+          role: msg.role === "user" ? "user" : "assistant",
+          content: msg.text,
+        });
+      }
     }
   }
   messages.push({ role: "user", content: question });
@@ -66,7 +83,7 @@ ${context?.ace_props ? Object.entries(context.ace_props).map(([k, v]) => `${k}: 
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
+        max_tokens: 500,
         system: systemPrompt,
         messages,
       }),
@@ -79,7 +96,7 @@ ${context?.ace_props ? Object.entries(context.ace_props).map(([k, v]) => `${k}: 
       return res.status(500).json({ error: "AI response failed", details: data });
     }
 
-    const text = data.content?.[0]?.text || "I couldn't generate a response. Try asking again.";
+    const text = data.content?.[0]?.text || "Couldn't get a response. Try again.";
     return res.status(200).json({ response: text });
 
   } catch (err) {
