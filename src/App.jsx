@@ -269,6 +269,40 @@ export default function App() {
     }
   }
 
+  function renderMessage(text) {
+    if (!text) return null;
+    const lines = text.split("\n");
+    return lines.map((line, i) => {
+      if (line.startsWith("•")) {
+        const parts = line.slice(1).trim().split("—");
+        const player = parts[0]?.trim();
+        const prop = parts[1]?.trim();
+        const reason = parts.slice(2).join("—").trim();
+        return (
+          <div key={i} style={{
+            display: "flex",
+            flexDirection: "column",
+            background: "rgba(0,245,233,.05)",
+            border: "1px solid rgba(0,245,233,.15)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            marginTop: 8,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cyan)", flexShrink: 0 }} />
+              <span style={{ fontWeight: 600, color: "var(--text)", fontSize: 13 }}>{player}</span>
+              {prop && <span style={{ fontFamily: "'DM Mono',monospace", fontSize: 11, color: "var(--cyan)", background: "rgba(0,245,233,.1)", padding: "2px 7px", borderRadius: 4 }}>{prop}</span>}
+            </div>
+            {reason && <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.5, paddingLeft: 14 }}>{reason}</div>}
+          </div>
+        );
+      }
+      if (line.trim() === "") return <div key={i} style={{ height: 6 }} />;
+      return <div key={i} style={{ lineHeight: 1.65, marginBottom: 2 }}>{line}</div>;
+    });
+  }
+
+
   function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
   function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
   function goPro() { setTab("pro"); setScreen("pro"); setSelectedMatchup(null); }
@@ -633,7 +667,9 @@ export default function App() {
             ) : (
               <div className="chat-thread">
                 {messages.map((m, i) => (
-                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>{m.text}</div>
+                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.loading ? m.text : renderMessage(m.text)}
+                  </div>
                 ))}
               </div>
             )}
