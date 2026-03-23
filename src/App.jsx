@@ -1,682 +1,553 @@
-import { useState, useEffect } from "react";
+const homePositioningSection = (
+  <div style={{ padding: '20px 16px 8px' }}>
+    {/* HERO */}
+    <section
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: 24,
+        padding: '24px 20px',
+        background:
+          'linear-gradient(180deg, rgba(0,245,233,0.08) 0%, rgba(255,45,107,0.06) 100%), rgba(255,255,255,0.03)',
+        border: '1px solid rgba(0,245,233,0.18)',
+        boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset',
+        marginBottom: 18,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 11,
+          letterSpacing: '0.18em',
+          color: '#00F5E9',
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}
+      >
+        Betting intelligence, without the extra work
+      </div>
 
-const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+      <h1
+        style={{
+          margin: 0,
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: 44,
+          lineHeight: 0.95,
+          letterSpacing: '0.02em',
+          color: '#F7F8FA',
+        }}
+      >
+        Stop researching.
+        <br />
+        Start betting smarter.
+      </h1>
 
-  :root{
-    --black:#080A0C;--surface:#0F1215;--surface-2:#0C1014;
-    --border:#1E2328;--border-2:#2A3040;
-    --cyan:#00F5E9;--magenta:#FF2D6B;--gold:#F5C842;
-    --text:#E8EAF0;--muted:#AAB3C2;--soft:#D6DCE6;
-    --green:#00E676;--red:#FF4444;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--black);color:var(--text);font-family:'DM Sans',sans-serif;}
-  .app{min-height:100vh;background:var(--black);color:var(--text);display:flex;flex-direction:column;}
+      <p
+        style={{
+          marginTop: 14,
+          marginBottom: 18,
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: 16,
+          lineHeight: 1.5,
+          color: 'rgba(247,248,250,0.82)',
+          maxWidth: 560,
+        }}
+      >
+        Under Review gives you sharp, stat-backed takes instantly—no models to
+        build, no dashboards to decode.
+      </p>
 
-  .hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(8,10,12,.97);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
-  .logo-under{display:block;font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;}
-  .logo-review{display:block;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-  .pill-tag{font-family:'DM Mono',monospace;font-size:10px;color:var(--magenta);border:1px solid rgba(255,45,107,.25);padding:4px 9px;border-radius:999px;background:rgba(255,45,107,.06);}
-  .pill-live{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);border:1px solid rgba(0,245,233,.25);padding:4px 9px;border-radius:999px;background:rgba(0,245,233,.06);}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        <button
+          style={{
+            border: 'none',
+            borderRadius: 999,
+            padding: '12px 18px',
+            fontFamily: 'DM Sans, sans-serif',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            color: '#080A0C',
+            background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
+          }}
+          onClick={() => {
+            setActiveTab('ASK');
+          }}
+        >
+          Ask a question
+        </button>
 
-  .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:96px;}
-  .hero{padding:12px 2px 16px;text-align:center;}
-  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:1px;line-height:1;margin-bottom:8px;}
-  .hero-sub{color:var(--soft);font-size:14px;line-height:1.55;max-width:360px;margin:0 auto;}
+        <button
+          style={{
+            borderRadius: 999,
+            padding: '12px 18px',
+            fontFamily: 'DM Sans, sans-serif',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            color: '#F7F8FA',
+            background: 'transparent',
+            border: '1px solid rgba(247,248,250,0.16)',
+          }}
+          onClick={() => {
+            const prompt = "What are today’s best angles?";
+            setMessages((prev) => [...prev, { role: 'user', content: prompt }]);
+            handleAsk(prompt);
+            setActiveTab('ASK');
+          }}
+        >
+          See today&apos;s best angles
+        </button>
+      </div>
 
-  .ask-shell{margin:12px 0 18px;display:flex;gap:8px;align-items:center;}
-  .ask-bar{width:100%;border:1px solid var(--border-2);background:var(--surface-2);border-radius:18px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;}
-  .ask-bar::placeholder{color:var(--muted);}
-  .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan);color:var(--black);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
-  .send-btn:hover{background:var(--magenta);}
-  .send-btn:disabled{background:var(--border);cursor:not-allowed;}
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 12,
+          color: '#F5C842',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
+        The fastest way from question → answer → bet.
+      </div>
+    </section>
 
-  .section{margin-top:18px;}
-  .section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;}
+    {/* WHAT THIS IS */}
+    <section
+      style={{
+        borderRadius: 22,
+        padding: '18px 16px',
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: '#00F5E9',
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}
+      >
+        What this is
+      </div>
 
-  .q-list{display:flex;flex-direction:column;gap:8px;}
-  .q-card{width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;color:var(--text);}
-  .q-card:hover{border-color:var(--cyan);}
-  .q-top{display:flex;align-items:center;gap:10px;}
-  .q-accent{width:4px;height:30px;border-radius:2px;flex-shrink:0;}
-  .q-text{font-size:14px;line-height:1.45;color:#D6DCE6;}
+      <h2
+        style={{
+          margin: '0 0 10px',
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: 28,
+          lineHeight: 1,
+          color: '#F7F8FA',
+          letterSpacing: '0.03em',
+        }}
+      >
+        This isn&apos;t a tool. It&apos;s your edge.
+      </h2>
 
-  .matchup-list{display:flex;flex-direction:column;gap:10px;}
-  .matchup-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;}
-  .matchup-card:hover{border-color:var(--cyan);}
-  .matchup-top{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.01);}
-  .matchup-league{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;}
-  .matchup-time{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
-  .matchup-body{padding:12px;}
-  .matchup-title{font-size:16px;font-weight:600;margin-bottom:4px;}
-  .matchup-meta{font-size:12px;color:var(--muted);margin-bottom:8px;}
-  .matchup-blurb{font-size:13px;color:var(--soft);line-height:1.55;}
+      <p
+        style={{
+          margin: 0,
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: 15,
+          lineHeight: 1.65,
+          color: 'rgba(247,248,250,0.8)',
+        }}
+      >
+        Most platforms give you data and expect you to figure it out. Under
+        Review does the opposite. You ask a question. You get a clear,
+        confident answer—backed by real stats and matchup context. No
+        spreadsheets. No model tuning. No guesswork.
+      </p>
+    </section>
 
-  .sport-chips{display:flex;gap:8px;flex-wrap:wrap;}
-  .sport-chip{border:1px solid var(--border);background:var(--surface);color:var(--soft);border-radius:999px;padding:8px 14px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s;}
-  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan);color:var(--cyan);}
+    {/* HOW IT WORKS */}
+    <section
+      style={{
+        borderRadius: 22,
+        padding: '18px 16px',
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: '#00F5E9',
+          textTransform: 'uppercase',
+          marginBottom: 12,
+        }}
+      >
+        How it works
+      </div>
 
-  .detail-back{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:6px;}
-  .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px;}
-  .detail-head{padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);}
-  .detail-league{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;margin-bottom:6px;}
-  .detail-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
-  .detail-sub{font-size:12px;color:var(--muted);}
-  .what-matters{padding:14px;}
-  .wm-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:8px;}
-  .wm-text{font-size:14px;line-height:1.7;color:#D6DCE6;}
-  .quick-hitters{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 14px;}
-  .quick-btn{border:1px solid var(--border-2);background:#101722;color:var(--soft);border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;}
-  .quick-btn:hover{border-color:var(--cyan);color:var(--cyan);}
-  .mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px 14px;}
-  .mini-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center;}
-  .mini-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;}
-  .mini-value{font-size:15px;font-weight:700;}
-
-  .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:16px;}
-  .bubble{max-width:88%;border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;}
-  .bubble.user{margin-left:auto;background:#1E2B38;border:1px solid #2A3A4A;color:var(--text);border-bottom-right-radius:6px;}
-  .bubble.ai{margin-right:auto;background:var(--surface);border:1px solid var(--border);color:#D0D7E2;border-bottom-left-radius:6px;max-width:96%;}
-  .bubble.loading{opacity:0.5;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);}
-
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,12,.98);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);padding:10px 6px 12px;z-index:30;}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;padding:6px 0;}
-  .nav-btn.active{color:var(--cyan);}
-  .nav-btn.miami-active{color:var(--gold);}
-
-  .pro-card{background:var(--surface);border:1px solid rgba(255,45,107,.25);border-radius:18px;padding:18px;}
-  .pro-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;}
-  .pro-copy{color:var(--soft);font-size:14px;line-height:1.7;margin-bottom:14px;}
-  .pro-price{font-size:34px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:12px;}
-  .pro-btn{width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--black);background:linear-gradient(90deg,var(--cyan),var(--magenta));}
-
-  .player-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;margin-bottom:10px;}
-  .player-card:hover{border-color:var(--border-2);}
-  .player-top{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}
-  .player-rank{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--muted);line-height:1;margin-right:12px;min-width:36px;}
-  .player-info{flex:1;}
-  .player-name{font-size:16px;font-weight:600;color:var(--text);margin-bottom:2px;}
-  .player-style{font-size:12px;color:var(--muted);}
-  .player-elo{text-align:right;}
-  .player-elo-num{font-family:'DM Mono',monospace;font-size:16px;color:var(--cyan);display:block;}
-  .player-elo-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
-  .player-stats{padding:0 14px 12px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
-  .pstat{background:var(--surface-2);border-radius:8px;padding:8px;text-align:center;}
-  .pstat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
-  .pstat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
-
-  .ace-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
-  .ace-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-  .ace-name{font-size:14px;font-weight:500;color:var(--text);}
-  .ace-avg{font-family:'DM Mono',monospace;font-size:16px;color:var(--gold);}
-  .ace-note{font-size:12px;color:var(--soft);line-height:1.4;}
-
-  .loading-state{text-align:center;padding:40px 20px;}
-  .loading-text{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;}
-
-  .surface-pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
-  .surface-pill{font-family:'DM Mono',monospace;font-size:9px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);}
-  .surface-hard{color:var(--cyan);border-color:rgba(0,245,233,.3);}
-  .surface-clay{color:var(--gold);border-color:rgba(245,200,66,.3);}
-  .surface-grass{color:var(--green);border-color:rgba(0,230,118,.3);}
-
-  .form-badge{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(0,245,233,.1);color:var(--cyan);border:1px solid rgba(0,245,233,.2);}
-
-  .miami-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(245,200,66,.06));border:1px solid rgba(0,245,233,.2);border-radius:16px;padding:16px;margin-bottom:16px;}
-  .miami-banner-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--cyan);margin-bottom:2px;}
-  .miami-banner-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;}
-  .miami-banner-note{font-size:13px;color:var(--soft);line-height:1.5;}
-
-  .miami-section-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--gold);margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
-  .miami-section-title::after{content:'';flex:1;height:1px;background:rgba(245,200,66,.2);}
-
-  .prop-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
-  .prop-card:hover{border-color:var(--border-2);}
-  .prop-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
-  .prop-player{font-size:14px;font-weight:600;color:var(--text);}
-  .prop-type{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);background:rgba(0,245,233,.1);padding:2px 8px;border-radius:4px;}
-  .prop-stat{font-size:12px;color:var(--gold);font-family:'DM Mono',monospace;}
-  .prop-note{font-size:12px;color:var(--soft);line-height:1.4;margin-top:4px;}
-
-  .matchup-context{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;}
-  .matchup-context:hover{border-color:var(--border-2);}
-  .mc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-  .mc-title{font-size:15px;font-weight:600;color:var(--text);}
-  .mc-h2h{font-family:'DM Mono',monospace;font-size:10px;color:var(--gold);}
-  .mc-note{font-size:12px;color:var(--soft);line-height:1.5;margin-bottom:8px;}
-  .mc-angle{font-size:12px;color:var(--cyan);line-height:1.4;}
-`;
-
-const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
-const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
-
-const featuredQuestions = [
-  { id:"q1", color:"#00F5E9", text:"Will Sinner get 8 aces vs Medvedev?", prompt:"Will Sinner get 8 aces vs Medvedev?" },
-  { id:"q2", color:"#FF2D6B", text:"Can Barca advance past Newcastle?", prompt:"Can Barca advance past Newcastle in the second leg?" },
-  { id:"q3", color:"#F5C842", text:"How realistic is a Hamilton podium this weekend?", prompt:"How realistic is it that Lewis Hamilton finishes top 3 this weekend?" },
-];
-
-const featuredMatchups = [
-  { id:"m1", league:"ATP", leagueColor:"#00F5E9", title:"Sinner vs Medvedev", time:"2:30 PM ET", network:"Tennis Channel", blurb:"Medvedev's return profile keeps this from feeling automatic. Sinner's serve and current form give him the edge if it stays on serve.", whatMatters:"Sinner has the cleaner serve profile and better recent form, but Medvedev can drag him into uncomfortable return-heavy stretches. If this stays on serve, Sinner is more trustworthy late.", quickHitters:["Will Sinner get 8 aces?","Is Medvedev a live dog?","Does this go 3 sets?"], stats:[{label:"UR CONF",value:"67%"},{label:"ACES LINE",value:"8.0"},{label:"SURFACE",value:"Hard"}] },
-  { id:"m2", league:"UCL", leagueColor:"#FF2D6B", title:"Barca vs Newcastle", time:"3:00 PM ET", network:"Paramount+", blurb:"This is less about overall quality and more about whether Newcastle can turn the match chaotic early. First goal changes everything.", whatMatters:"Barca are the better side on paper but Newcastle's crowd and early pressure can make the first 25 minutes feel bigger than the talent gap. If Newcastle score first the tie becomes live immediately.", quickHitters:["Will Barca advance?","Do both teams score?","Is over 2.5 live?"], stats:[{label:"UR CONF",value:"71%"},{label:"TIE STATE",value:"Live"},{label:"ANGLE",value:"BTTS"}] },
-  { id:"m3", league:"F1", leagueColor:"#F5C842", title:"Hamilton podium chances", time:"This weekend", network:"ESPN", blurb:"Top 3 is possible but depends more on qualifying and race pace than brand name. Top 5 feels cleaner than podium right now.", whatMatters:"Hamilton podium bets come down to two things: where he starts and whether the car has genuine long-run pace. If qualifying leaves him buried the podium path gets much thinner.", quickHitters:["Is top 3 realistic?","Safer: top 5?","What matters most?"], stats:[{label:"UR CONF",value:"38%"},{label:"LEAN",value:"Top 5"},{label:"KEY",value:"Quali"}] },
-];
-
-function formatServeStats(s) {
-  if (!s) return "—";
-  const p = [];
-  if (s.holdPct !== undefined) p.push(`Hold ${s.holdPct}%`);
-  if (s.acePct !== undefined) p.push(`Ace ${s.acePct}%`);
-  if (s.dfPct !== undefined) p.push(`DF ${s.dfPct}%`);
-  return p.length ? p.join(", ") : "—";
-}
-function formatReturnStats(s) {
-  if (!s) return "—";
-  const p = [];
-  if (s.rpwPct !== undefined) p.push(`RPW ${s.rpwPct}%`);
-  if (s.breakPct !== undefined) p.push(`Break ${s.breakPct}%`);
-  return p.length ? p.join(", ") : "—";
-}
-function formatOverallStats(s) {
-  if (!s) return "—";
-  const p = [];
-  if (s.dominanceRatio !== undefined) p.push(`DR ${s.dominanceRatio}`);
-  if (s.totalPointsWonPct !== undefined) p.push(`TPW ${s.totalPointsWonPct}%`);
-  if (s.tiebreakPct !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
-  return p.length ? p.join(", ") : "—";
-}
-function getHoldValue(p) { return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—"; }
-function getDrValue(p) { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—"; }
-function getTbValue(p) { return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—"; }
-
-export default function App() {
-  const [tab, setTab] = useState("home");
-  const [screen, setScreen] = useState("home");
-  const [selectedMatchup, setSelectedMatchup] = useState(null);
-  const [input, setInput] = useState("");
-  const [miamiInput, setMiamiInput] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [isAsking, setIsAsking] = useState(false);
-  const [players, setPlayers] = useState(null);
-  const [context, setContext] = useState(null);
-  const [tennisLoading, setTennisLoading] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [liveMatches, setLiveMatches] = useState([]);
-
-  useEffect(() => {
-    setTennisLoading(true);
-    Promise.all([
-      fetch("/api/tennis-players").then((r) => r.json()),
-      fetch("/api/tennis-context").then((r) => r.json()),
-      fetch("/api/tennis?tour=atp").then((r) => r.json()),
-    ])
-      .then(([p, c, live]) => {
-        setPlayers(p);
-        setContext(c);
-        setLiveMatches(Array.isArray(live) ? live : []);
-        setTennisLoading(false);
-      })
-      .catch(() => { setTennisLoading(false); });
-  }, []);
-
-  function renderMessage(text) {
-    if (!text) return null;
-
-    // Strip markdown bold/italic
-    const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
-
-    // Split inline bullets that appear mid-paragraph into separate lines
-    const normalized = clean.replace(/ • /g, "\n• ");
-
-    const lines = normalized.split("\n");
-    return lines.map((line, i) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("•")) {
-        const parts = trimmed.slice(1).trim().split("—");
-        const player = parts[0]?.trim();
-        const prop = parts[1]?.trim();
-        const reason = parts.slice(2).join("—").trim();
-        return (
-          <div key={i} style={{ display:"flex", flexDirection:"column", background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px", marginTop:8 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: reason ? 4 : 0 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:"var(--cyan)", flexShrink:0 }} />
-              <span style={{ fontWeight:600, color:"var(--text)", fontSize:13 }}>{player}</span>
-              {prop && <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"var(--cyan)", background:"rgba(0,245,233,.1)", padding:"2px 7px", borderRadius:4 }}>{prop}</span>}
+      <div style={{ display: 'grid', gap: 12 }}>
+        {[
+          {
+            num: '01',
+            title: 'Ask anything',
+            body: 'Props, matchups, slates—whatever you’re looking at.',
+          },
+          {
+            num: '02',
+            title: 'Get UR TAKE',
+            body: 'A sharp lean, key stats, and real reasoning—instantly.',
+          },
+          {
+            num: '03',
+            title: 'Make the play',
+            body: 'No second-guessing. No digging through data.',
+          },
+        ].map((item) => (
+          <div
+            key={item.num}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '44px 1fr',
+              gap: 12,
+              alignItems: 'start',
+              padding: '12px 0',
+              borderTop:
+                item.num === '01'
+                  ? '1px solid rgba(255,255,255,0.06)'
+                  : '1px solid rgba(255,255,255,0.04)',
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: 'DM Mono, monospace',
+                fontSize: 12,
+                color: '#080A0C',
+                background: '#F5C842',
+              }}
+            >
+              {item.num}
             </div>
-            {reason && <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5, paddingLeft:14 }}>{reason}</div>}
-          </div>
-        );
-      }
-      if (trimmed === "") return <div key={i} style={{ height:6 }} />;
-      return <div key={i} style={{ lineHeight:1.65, marginBottom:2 }}>{trimmed}</div>;
-    });
-  }
 
-  async function askUrTake(text, matchup, inputSetter) {
-    if (!text || isAsking) return;
-    setIsAsking(true);
-    if (inputSetter) inputSetter("");
-
-    const userMsg = { role:"user", text };
-    if (screen !== "miami") {
-      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
-      setTab("ask");
-      setScreen("ask");
-    } else {
-      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
-    }
-
-    try {
-      const response = await fetch("/api/ur-take", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          question: text,
-          players,
-          context,
-          liveMatches,
-          tour: "atp",
-          history: messages.slice(-6),
-          matchupContext: matchup || null,
-        }),
-      });
-      const data = await response.json();
-      const aiText = data.response || "Couldn't get a response — try again.";
-      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:aiText }]);
-    } catch {
-      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:"Something went wrong — try again." }]);
-    } finally {
-      setIsAsking(false);
-    }
-  }
-
-  function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); }
-  function goMiami() { setTab("miami"); setScreen("miami"); setSelectedMatchup(null); setSelectedPlayer(null); }
-  function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
-  function goPro() { setTab("pro"); setScreen("pro"); setSelectedMatchup(null); }
-  function openMatchup(m) { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
-  function openPlayer(name) { setSelectedPlayer(name); setScreen("player"); }
-
-  function submitAsk(forced) {
-    const text = (forced ?? input).trim();
-    if (!text || isAsking) return;
-    setInput("");
-    askUrTake(text, selectedMatchup, null);
-  }
-
-  function submitMatchupAsk(forced) {
-    const text = (forced ?? input).trim();
-    if (!text || isAsking) return;
-    setInput("");
-    askUrTake(text, selectedMatchup, null);
-  }
-
-  function submitMiamiAsk(forced) {
-    const text = (forced ?? miamiInput).trim();
-    if (!text || isAsking) return;
-    askUrTake(text, null, setMiamiInput);
-  }
-
-  function getPlayer(name, tour = "atp") {
-    if (!players) return null;
-    return (tour === "atp" ? players.atp : players.wta)?.[name] || null;
-  }
-  function getPlayerAny(name) {
-    if (!players) return null;
-    return players.atp?.[name] || players.wta?.[name] || null;
-  }
-
-  const pd = (screen === "player" && selectedPlayer) ? getPlayerAny(selectedPlayer) : null;
-
-  // Shared player card component
-  function PlayerCard({ name, idx, tour }) {
-    const p = getPlayer(name, tour);
-    if (!p) return null;
-    return (
-      <div className="player-card" onClick={() => openPlayer(name)}>
-        <div className="player-top">
-          <div className="player-rank">#{idx + 1}</div>
-          <div className="player-info">
-            <div className="player-name">{name}</div>
-            <div className="player-style">{Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}</div>
-            <div className="surface-pills">
-              {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
-              {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
-              {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
+            <div>
+              <div
+                style={{
+                  fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#F7F8FA',
+                  marginBottom: 4,
+                }}
+              >
+                {item.title}
+              </div>
+              <div
+                style={{
+                  fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 14,
+                  lineHeight: 1.55,
+                  color: 'rgba(247,248,250,0.75)',
+                }}
+              >
+                {item.body}
+              </div>
             </div>
           </div>
-          <div className="player-elo">
-            <span className="player-elo-num">{p.elo}</span>
-            <span className="player-elo-label">ELO</span>
-            {p.record2026 && <div className="form-badge" style={{ marginTop:4 }}>2026</div>}
+        ))}
+      </div>
+    </section>
+
+    {/* DIFFERENTIATION */}
+    <section
+      style={{
+        borderRadius: 22,
+        padding: '18px 16px',
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: '#00F5E9',
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}
+      >
+        Why Under Review
+      </div>
+
+      <h2
+        style={{
+          margin: '0 0 14px',
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: 28,
+          lineHeight: 1,
+          color: '#F7F8FA',
+          letterSpacing: '0.03em',
+        }}
+      >
+        Built for decisions, not dashboards
+      </h2>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            borderRadius: 18,
+            padding: 14,
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'DM Mono, monospace',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+              color: 'rgba(247,248,250,0.55)',
+              textTransform: 'uppercase',
+              marginBottom: 10,
+            }}
+          >
+            Other platforms
+          </div>
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {[
+              'Build your own models',
+              'Show probabilities and raw data',
+              'Leave the final call to you',
+            ].map((text) => (
+              <div
+                key={text}
+                style={{
+                  fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 14,
+                  lineHeight: 1.45,
+                  color: 'rgba(247,248,250,0.65)',
+                }}
+              >
+                {text}
+              </div>
+            ))}
           </div>
         </div>
-        <div className="player-stats">
-          <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
-          <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{ color:"var(--cyan)" }}>{getDrValue(p)}</div></div>
-          <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
+
+        <div
+          style={{
+            borderRadius: 18,
+            padding: 14,
+            background:
+              'linear-gradient(180deg, rgba(0,245,233,0.10) 0%, rgba(255,45,107,0.08) 100%)',
+            border: '1px solid rgba(0,245,233,0.22)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'DM Mono, monospace',
+              fontSize: 11,
+              letterSpacing: '0.12em',
+              color: '#00F5E9',
+              textTransform: 'uppercase',
+              marginBottom: 10,
+            }}
+          >
+            Under Review
+          </div>
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {[
+              'Gives you the lean immediately',
+              'Explains it with the right stats',
+              'Tells you exactly where the value is',
+            ].map((text) => (
+              <div
+                key={text}
+                style={{
+                  fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 14,
+                  lineHeight: 1.45,
+                  color: '#F7F8FA',
+                  fontWeight: 700,
+                }}
+              >
+                {text}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    );
-  }
+    </section>
 
-  return (
-    <>
-      <style>{css}</style>
-      <div className="app">
-
-        <header className="hdr">
-          <div>
-            <span className="logo-under">UNDER</span>
-            <span className="logo-review">REVIEW</span>
-          </div>
-          <div>
-            {screen === "miami" && <span className="pill-live">MIAMI OPEN</span>}
-            {screen === "player" && <span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
-            {screen === "matchup" && selectedMatchup && <span className="pill-tag">{selectedMatchup.league}</span>}
-            {screen === "ask" && <span className="pill-tag">UR TAKE</span>}
-            {(screen === "home" || screen === "pro") && <span className="pill-tag">LIVE</span>}
-          </div>
-        </header>
-
-        {/* HOME */}
-        {screen === "home" && (
-          <main className="screen">
-            <section className="hero">
-              <div className="hero-title">What do you want to know?</div>
-              <div className="hero-sub">Sports, stats, predictions, context — in plain English.</div>
-            </section>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask UR TAKE anything..." onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-              </button>
-            </div>
-            <section className="section">
-              <div className="section-label">TRENDING ASKS</div>
-              <div className="q-list">
-                {featuredQuestions.map((q) => (
-                  <button key={q.id} className="q-card" onClick={() => goAsk(q.prompt)}>
-                    <div className="q-top">
-                      <div className="q-accent" style={{ background: q.color }} />
-                      <div className="q-text">{q.text}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-            <section className="section">
-              <div className="section-label">MATCHUPS TO TAP INTO</div>
-              <div className="matchup-list">
-                {featuredMatchups.map((m) => (
-                  <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
-                    <div className="matchup-top">
-                      <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
-                      <div className="matchup-time">{m.time}</div>
-                    </div>
-                    <div className="matchup-body">
-                      <div className="matchup-title">{m.title}</div>
-                      <div className="matchup-meta">{m.network}</div>
-                      <div className="matchup-blurb">{m.blurb}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-            <section className="section">
-              <div className="section-label">SPORTS</div>
-              <div className="sport-chips">
-                <button className="sport-chip">NFL</button>
-                <button className="sport-chip">NBA</button>
-                <button className="sport-chip active" onClick={goMiami}>Tennis</button>
-                <button className="sport-chip">Soccer</button>
-                <button className="sport-chip">F1</button>
-              </div>
-            </section>
-          </main>
-        )}
-
-        {/* MIAMI OPEN TAB */}
-        {screen === "miami" && (
-          <main className="screen">
-
-            <div className="miami-banner">
-              <div className="miami-banner-title">Miami Open 2026</div>
-              <div className="miami-banner-sub">Hard Court · Medium-Fast · Miami, FL</div>
-              <div className="miami-banner-note">
-                {context?.tournaments?.miami_open?.note || "Hard courts play slightly slower than US Open. Big servers still have an edge but rallies run longer."}
-              </div>
-              {context?.tournaments?.miami_open && (
-                <div style={{ marginTop:10, display:"flex", gap:16 }}>
-                  <div>
-                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>ATP FAV </span>
-                    <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.atp_favorite}</span>
-                  </div>
-                  <div>
-                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>WTA FAV </span>
-                    <span style={{ fontSize:12, color:"var(--magenta)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.wta_favorite}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Miami Ask Bar */}
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8 }}>ASK ANYTHING — MIAMI OPEN</div>
-              <div className="ask-shell" style={{ margin:0 }}>
-                <input
-                  className="ask-bar"
-                  value={miamiInput}
-                  onChange={(e) => setMiamiInput(e.target.value)}
-                  placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?"
-                  onKeyDown={(e) => e.key === "Enter" && submitMiamiAsk()}
-                  disabled={isAsking}
-                />
-                <button className="send-btn" onClick={() => submitMiamiAsk()} disabled={isAsking}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-                </button>
-              </div>
-              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
-                {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays on the board?"].map((q) => (
-                  <button key={q} className="quick-btn" onClick={() => submitMiamiAsk(q)} style={{ fontSize:11 }}>{q}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Miami conversation thread */}
-            {messages.length > 0 && (
-              <div className="chat-thread" style={{ marginBottom:20 }}>
-                {messages.map((m, i) => (
-                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
-                    {m.loading ? m.text : renderMessage(m.text)}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Prop Guide */}
-            {context?.ace_props && (
-              <>
-                <div className="miami-section-title">PROP GUIDE</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-                  {Object.entries(context.ace_props).map(([name, data]) => (
-                    <div key={name} className="prop-card" onClick={() => submitMiamiAsk(`Tell me about ${name} ace props at Miami`)}>
-                      <div className="prop-top">
-                        <div className="prop-player">{name}</div>
-                        <div className="prop-type">ACES</div>
-                      </div>
-                      <div className="prop-stat">{data.avg_aces_hard} avg · {data.ace_rate}</div>
-                      <div className="prop-note">{data.note}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* ATP Players */}
-            {tennisLoading ? (
-              <div className="loading-state"><div className="loading-text">LOADING PLAYER DATA...</div></div>
-            ) : players && (
-              <>
-                <div className="miami-section-title">ATP TOP 25</div>
-                {ATP_PLAYERS.map((name, idx) => (
-                  <PlayerCard key={name} name={name} idx={idx} tour="atp" />
-                ))}
-
-                <div className="miami-section-title">WTA TOP 24</div>
-                {WTA_PLAYERS.map((name, idx) => (
-                  <PlayerCard key={name} name={name} idx={idx} tour="wta" />
-                ))}
-              </>
-            )}
-
-          </main>
-        )}
-
-        {/* MATCHUP DETAIL */}
-        {screen === "matchup" && selectedMatchup && (
-          <main className="screen">
-            <button className="detail-back" onClick={goHome}>← BACK</button>
-            <div className="detail-card">
-              <div className="detail-head">
-                <div className="detail-league" style={{ color: selectedMatchup.leagueColor }}>{selectedMatchup.league}</div>
-                <div className="detail-title">{selectedMatchup.title}</div>
-                <div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div>
-              </div>
-              <div className="what-matters">
-                <div className="wm-label">HERE'S WHAT MATTERS</div>
-                <div className="wm-text">{selectedMatchup.whatMatters}</div>
-              </div>
-              <div className="mini-grid">
-                {selectedMatchup.stats.map((s) => (
-                  <div key={s.label} className="mini-stat">
-                    <div className="mini-label">{s.label}</div>
-                    <div className="mini-value">{s.value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="quick-hitters">
-                {selectedMatchup.quickHitters.map((q) => (
-                  <button key={q} className="quick-btn" onClick={() => submitMatchupAsk(q)}>{q}</button>
-                ))}
-              </div>
-            </div>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitMatchupAsk()} disabled={isAsking}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-              </button>
-            </div>
-          </main>
-        )}
-
-        {/* PLAYER DETAIL */}
-        {screen === "player" && pd && (
-          <main className="screen">
-            <button className="detail-back" onClick={() => setScreen("miami")}>← BACK</button>
-            <div className="detail-card">
-              <div className="detail-head">
-                <div className="detail-league" style={{ color:"var(--cyan)" }}>MIAMI OPEN 2026</div>
-                <div className="detail-title">{selectedPlayer}</div>
-                <div className="detail-sub">{Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_"," ") : pd.style} · Elo {pd.elo}</div>
-              </div>
-              <div className="what-matters">
-                <div className="wm-label">SURFACE NOTES</div>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:8 }}>
-                  <div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{ color:"var(--cyan)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.hard || "—"}</div></div>
-                  <div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{ color:"var(--gold)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.clay || "—"}</div></div>
-                  <div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{ color:"var(--green)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.grass || "—"}</div></div>
-                </div>
-              </div>
-              <div style={{ padding:"0 14px 14px" }}>
-                <div className="wm-label" style={{ marginBottom:8 }}>2026 FORM</div>
-                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{pd.record2026 || "—"}</div>
-              </div>
-              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">SERVE</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div></div>
-              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">RETURN</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div></div>
-              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">OVERALL</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div></div>
-              {pd.miamiNote && (
-                <div className="what-matters" style={{ paddingTop:0 }}>
-                  <div className="wm-label" style={{ color:"var(--magenta)" }}>MIAMI NOTE</div>
-                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.miamiNote}</div>
-                </div>
-              )}
-              {pd.fullNote && (
-                <div className="what-matters" style={{ paddingTop:0 }}>
-                  <div className="wm-label">UR TAKE</div>
-                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.fullNote}</div>
-                </div>
-              )}
-            </div>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-              </button>
-            </div>
-          </main>
-        )}
-
-        {/* ASK PAGE */}
-        {screen === "ask" && (
-          <main className="screen">
-            <section className="hero" style={{ paddingTop:4 }}>
-              <div className="hero-title">UR TAKE</div>
-              <div className="hero-sub">Ask in plain English. Keep it broad or get weirdly specific.</div>
-            </section>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-              </button>
-            </div>
-            {messages.length === 0 ? (
-              <section className="section">
-                <div className="section-label">TRY ONE</div>
-                <div className="q-list">
-                  {featuredQuestions.map((q) => (
-                    <button key={q.id} className="q-card" onClick={() => askUrTake(q.prompt, null, null)}>
-                      <div className="q-top">
-                        <div className="q-accent" style={{ background: q.color }} />
-                        <div className="q-text">{q.text}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : (
-              <div className="chat-thread">
-                {messages.map((m, i) => (
-                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
-                    {m.loading ? m.text : renderMessage(m.text)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </main>
-        )}
-
-        {/* PRO PAGE */}
-        {screen === "pro" && (
-          <main className="screen">
-            <div className="pro-card">
-              <div className="pro-title">UNDER REVIEW PRO</div>
-              <div className="pro-copy">Unlimited UR TAKE queries, deeper matchup cards, saved threads, cleaner data views, and a more premium sports intelligence layer.</div>
-              <div className="pro-price">$9.99 / month</div>
-              <button className="pro-btn">UPGRADE</button>
-            </div>
-          </main>
-        )}
-
-        <nav className="bottom-nav">
-          <button className={`nav-btn${tab === "home" && screen === "home" ? " active" : ""}`} onClick={goHome}>HOME</button>
-          <button className={`nav-btn${tab === "miami" ? " miami-active" : ""}`} onClick={goMiami}>MIAMI</button>
-          <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={() => goAsk("")}>ASK</button>
-          <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>PRO</button>
-        </nav>
-
+    {/* EXAMPLE */}
+    <section
+      style={{
+        borderRadius: 22,
+        padding: '18px 16px',
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: '#00F5E9',
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}
+      >
+        UR TAKE example
       </div>
-    </>
-  );
-}
+
+      <h2
+        style={{
+          margin: '0 0 12px',
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: 28,
+          lineHeight: 1,
+          color: '#F7F8FA',
+          letterSpacing: '0.03em',
+        }}
+      >
+        What a real answer looks like
+      </h2>
+
+      <div
+        style={{
+          borderRadius: 18,
+          padding: 14,
+          background: '#0D1116',
+          border: '1px solid rgba(0,245,233,0.18)',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'DM Sans, sans-serif',
+            fontSize: 18,
+            fontWeight: 800,
+            color: '#F7F8FA',
+            marginBottom: 12,
+          }}
+        >
+          Sinner in 2 sets
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gap: 10,
+          }}
+        >
+          {[
+            '• Sinner — UNDER 22.5 games — Zverev’s return numbers drop off vs elite servers',
+            '• Sinner — 1st set winner — wins 68% of first sets on hard courts in 2026',
+          ].map((line) => (
+            <div
+              key={line}
+              style={{
+                borderLeft: '2px solid #00F5E9',
+                paddingLeft: 12,
+                fontFamily: 'DM Sans, sans-serif',
+                fontSize: 14,
+                lineHeight: 1.55,
+                color: 'rgba(247,248,250,0.82)',
+              }}
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p
+        style={{
+          marginTop: 12,
+          marginBottom: 0,
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: 14,
+          lineHeight: 1.55,
+          color: 'rgba(247,248,250,0.72)',
+        }}
+      >
+        No fluff. Just the angle and the reason.
+      </p>
+    </section>
+
+    {/* TRUST */}
+    <section
+      style={{
+        borderRadius: 22,
+        padding: '18px 16px',
+        background: 'rgba(255,255,255,0.025)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: '#00F5E9',
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}
+      >
+        Trust layer
+      </div>
+
+      <h2
+        style={{
+          margin: '0 0 10px',
+          fontFamily: 'Bebas Neue, sans-serif',
+          fontSize: 28,
+          lineHeight: 1,
+          color: '#F7F8FA',
+          letterSpacing: '0.03em',
+        }}
+      >
+        Not guesses. Data-backed takes.
+      </h2>
+
+      <p
+        style={{
+          margin: 0,
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: 15,
+          lineHeight: 1.65,
+          color: 'rgba(247,248,250,0.8)',
+        }}
+      >
+        Every UR TAKE is built on player performance data, surface context, and
+        matchup history—so you’re not betting blind.
+      </p>
+    </section>
+  </div>
+);
