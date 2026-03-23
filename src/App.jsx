@@ -315,39 +315,6 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
 
         {logoRule}
       </div>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 8,
-        }}
-      >
-        {['NFL', 'NBA', 'Tennis', 'Soccer', 'F1'].map((sport) => (
-          <div
-            key={sport}
-            style={{
-              fontFamily: 'DM Mono, monospace',
-              fontSize: 11,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              color: sport === 'Tennis' ? '#080A0C' : 'rgba(247,248,250,0.72)',
-              background: sport === 'Tennis' ? '#F5C842' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${
-                sport === 'Tennis'
-                  ? 'rgba(245,200,66,0.8)'
-                  : 'rgba(255,255,255,0.08)'
-              }`,
-              borderRadius: 999,
-              padding: '7px 10px',
-            }}
-          >
-            {sport}
-          </div>
-        ))}
-      </div>
     </div>
   );
 
@@ -355,7 +322,7 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 48px',
+        gridTemplateColumns: '1fr 52px',
         gap: 10,
         padding: '0 16px',
         marginBottom: 16,
@@ -369,7 +336,7 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
         }}
         placeholder={placeholder}
         style={{
-          height: 48,
+          height: 50,
           borderRadius: 999,
           border: '1px solid rgba(0,245,233,0.24)',
           background: 'rgba(255,255,255,0.03)',
@@ -384,17 +351,20 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
       <button
         onClick={() => handleAsk()}
         style={{
-          height: 48,
+          height: 50,
           border: 'none',
           borderRadius: 999,
           cursor: 'pointer',
           fontFamily: 'DM Sans, sans-serif',
           fontWeight: 800,
+          fontSize: 18,
           color: '#080A0C',
           background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
+          boxShadow: '0 8px 24px rgba(0,245,233,0.14)',
         }}
+        aria-label="Send"
       >
-        →
+        ➜
       </button>
     </div>
   );
@@ -429,396 +399,71 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
         <section
           style={{
             ...cardBase,
-            position: 'relative',
-            overflow: 'hidden',
             background:
               'linear-gradient(180deg, rgba(0,245,233,0.08) 0%, rgba(255,45,107,0.06) 100%), rgba(255,255,255,0.03)',
             border: '1px solid rgba(0,245,233,0.18)',
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.02) inset',
             marginBottom: 14,
           }}
         >
-          {sectionEyebrow('Betting intelligence, without the extra work')}
-
-          <h1
-            style={{
-              margin: 0,
-              fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: 44,
-              lineHeight: 0.95,
-              letterSpacing: '0.02em',
-              color: '#F7F8FA',
-            }}
-          >
-            Stop researching.
-            <br />
-            Start betting smarter.
-          </h1>
-
-          <p
-            style={{
-              marginTop: 14,
-              marginBottom: 18,
-              fontFamily: 'DM Sans, sans-serif',
-              fontSize: 16,
-              lineHeight: 1.55,
-              color: 'rgba(247,248,250,0.82)',
-              maxWidth: 560,
-            }}
-          >
-            Under Review gives you sharp, stat-backed takes instantly—no models to
-            build, no dashboards to decode.
-          </p>
+          {sectionEyebrow('Sharp, stat-backed betting takes')}
 
           <div
             style={{
               display: 'flex',
+              justifyContent: 'space-between',
+              gap: 14,
+              alignItems: 'flex-end',
               flexWrap: 'wrap',
-              gap: 10,
-              marginBottom: 16,
             }}
           >
-            <button
-              onClick={() => setActiveTab('ASK')}
-              style={{
-                border: 'none',
-                borderRadius: 999,
-                padding: '12px 18px',
-                fontFamily: 'DM Sans, sans-serif',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                color: '#080A0C',
-                background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
-              }}
-            >
-              Ask a question
-            </button>
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontFamily: 'Bebas Neue, sans-serif',
+                  fontSize: 34,
+                  lineHeight: 0.98,
+                  letterSpacing: '0.02em',
+                  color: '#F7F8FA',
+                }}
+              >
+                Ask better.
+                <br />
+                Bet sharper.
+              </h1>
+
+              <p
+                style={{
+                  marginTop: 10,
+                  marginBottom: 0,
+                  fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 14,
+                  lineHeight: 1.55,
+                  color: 'rgba(247,248,250,0.78)',
+                  maxWidth: 420,
+                }}
+              >
+                Matchups, props, and slate angles — built for decisions, not dashboards.
+              </p>
+            </div>
 
             <button
               onClick={() => handleAsk("What are today's best angles?")}
               style={{
                 borderRadius: 999,
-                padding: '12px 18px',
+                padding: '12px 16px',
                 fontFamily: 'DM Sans, sans-serif',
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
                 color: '#F7F8FA',
                 background: 'transparent',
-                border: '1px solid rgba(247,248,250,0.16)',
+                border: '1px solid rgba(247,248,250,0.14)',
               }}
             >
-              See today&apos;s best angles
+              Today&apos;s best angles
             </button>
           </div>
-
-          <div
-            style={{
-              fontFamily: 'DM Mono, monospace',
-              fontSize: 12,
-              color: '#F5C842',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-            }}
-          >
-            The fastest way from question → answer → bet.
-          </div>
-        </section>
-
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('What this is')}
-
-          <h2
-            style={{
-              margin: '0 0 10px',
-              fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: 28,
-              lineHeight: 1,
-              color: '#F7F8FA',
-              letterSpacing: '0.03em',
-            }}
-          >
-            This isn&apos;t a tool. It&apos;s your edge.
-          </h2>
-
-          <p
-            style={{
-              margin: 0,
-              fontFamily: 'DM Sans, sans-serif',
-              fontSize: 15,
-              lineHeight: 1.65,
-              color: 'rgba(247,248,250,0.8)',
-            }}
-          >
-            Most platforms give you data and expect you to figure it out. Under
-            Review does the opposite. You ask a question. You get a clear,
-            confident answer—backed by real stats and matchup context. No
-            spreadsheets. No model tuning. No guesswork.
-          </p>
-        </section>
-
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('How it works')}
-
-          <div style={{ display: 'grid', gap: 12 }}>
-            {[
-              {
-                num: '01',
-                title: 'Ask anything',
-                body: 'Props, matchups, slates—whatever you are looking at.',
-              },
-              {
-                num: '02',
-                title: 'Get UR TAKE',
-                body: 'A sharp lean, key stats, and real reasoning—instantly.',
-              },
-              {
-                num: '03',
-                title: 'Make the play',
-                body: 'No second-guessing. No digging through data.',
-              },
-            ].map((item) => (
-              <div
-                key={item.num}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '44px 1fr',
-                  gap: 12,
-                  alignItems: 'start',
-                  padding: '12px 0',
-                  borderTop:
-                    item.num === '01'
-                      ? '1px solid rgba(255,255,255,0.06)'
-                      : '1px solid rgba(255,255,255,0.04)',
-                }}
-              >
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: 'DM Mono, monospace',
-                    fontSize: 12,
-                    color: '#080A0C',
-                    background: '#F5C842',
-                  }}
-                >
-                  {item.num}
-                </div>
-
-                <div>
-                  <div
-                    style={{
-                      fontFamily: 'DM Sans, sans-serif',
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: '#F7F8FA',
-                      marginBottom: 4,
-                    }}
-                  >
-                    {item.title}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'DM Sans, sans-serif',
-                      fontSize: 14,
-                      lineHeight: 1.55,
-                      color: 'rgba(247,248,250,0.75)',
-                    }}
-                  >
-                    {item.body}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('Why Under Review')}
-
-          <h2
-            style={{
-              margin: '0 0 14px',
-              fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: 28,
-              lineHeight: 1,
-              color: '#F7F8FA',
-              letterSpacing: '0.03em',
-            }}
-          >
-            Built for decisions, not dashboards
-          </h2>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12,
-            }}
-          >
-            <div
-              style={{
-                borderRadius: 18,
-                padding: 14,
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.06)',
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'DM Mono, monospace',
-                  fontSize: 11,
-                  letterSpacing: '0.12em',
-                  color: 'rgba(247,248,250,0.55)',
-                  textTransform: 'uppercase',
-                  marginBottom: 10,
-                }}
-              >
-                Other platforms
-              </div>
-
-              <div style={{ display: 'grid', gap: 10 }}>
-                {[
-                  'Build your own models',
-                  'Show probabilities and raw data',
-                  'Leave the final call to you',
-                ].map((text) => (
-                  <div
-                    key={text}
-                    style={{
-                      fontFamily: 'DM Sans, sans-serif',
-                      fontSize: 14,
-                      lineHeight: 1.45,
-                      color: 'rgba(247,248,250,0.65)',
-                    }}
-                  >
-                    {text}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderRadius: 18,
-                padding: 14,
-                background:
-                  'linear-gradient(180deg, rgba(0,245,233,0.10) 0%, rgba(255,45,107,0.08) 100%)',
-                border: '1px solid rgba(0,245,233,0.22)',
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'DM Mono, monospace',
-                  fontSize: 11,
-                  letterSpacing: '0.12em',
-                  color: '#00F5E9',
-                  textTransform: 'uppercase',
-                  marginBottom: 10,
-                }}
-              >
-                Under Review
-              </div>
-
-              <div style={{ display: 'grid', gap: 10 }}>
-                {[
-                  'Gives you the lean immediately',
-                  'Explains it with the right stats',
-                  'Tells you exactly where the value is',
-                ].map((text) => (
-                  <div
-                    key={text}
-                    style={{
-                      fontFamily: 'DM Sans, sans-serif',
-                      fontSize: 14,
-                      lineHeight: 1.45,
-                      color: '#F7F8FA',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {text}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('UR TAKE example')}
-
-          <h2
-            style={{
-              margin: '0 0 12px',
-              fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: 28,
-              lineHeight: 1,
-              color: '#F7F8FA',
-              letterSpacing: '0.03em',
-            }}
-          >
-            What a real answer looks like
-          </h2>
-
-          <div
-            style={{
-              borderRadius: 18,
-              padding: 14,
-              background: '#0D1116',
-              border: '1px solid rgba(0,245,233,0.18)',
-            }}
-          >
-            <div
-              style={{
-                fontFamily: 'DM Sans, sans-serif',
-                fontSize: 18,
-                fontWeight: 800,
-                color: '#F7F8FA',
-                marginBottom: 12,
-              }}
-            >
-              Sinner in 2 sets
-            </div>
-
-            <div style={{ display: 'grid', gap: 10 }}>
-              {[
-                '• Sinner — UNDER 22.5 games — Zverev return numbers drop off vs elite servers',
-                '• Sinner — 1st set winner — wins first sets at a higher clip on hard courts',
-              ].map((line) => (
-                <div
-                  key={line}
-                  style={{
-                    borderLeft: '2px solid #00F5E9',
-                    paddingLeft: 12,
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 14,
-                    lineHeight: 1.55,
-                    color: 'rgba(247,248,250,0.82)',
-                  }}
-                >
-                  {line}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p
-            style={{
-              marginTop: 12,
-              marginBottom: 0,
-              fontFamily: 'DM Sans, sans-serif',
-              fontSize: 14,
-              lineHeight: 1.55,
-              color: 'rgba(247,248,250,0.72)',
-            }}
-          >
-            No fluff. Just the angle and the reason.
-          </p>
         </section>
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
@@ -867,71 +512,52 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
               >
                 <div
                   style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 16,
-                    fontWeight: 800,
-                    color: '#F7F8FA',
-                    marginBottom: 4,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {matchup.title}
-                </div>
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: 'DM Sans, sans-serif',
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: '#F7F8FA',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {matchup.title}
+                    </div>
 
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 13,
-                    color: 'rgba(247,248,250,0.66)',
-                    marginBottom: 8,
-                  }}
-                >
-                  {matchup.subtitle}
-                </div>
+                    <div
+                      style={{
+                        fontFamily: 'DM Sans, sans-serif',
+                        fontSize: 13,
+                        color: 'rgba(247,248,250,0.66)',
+                      }}
+                    >
+                      {matchup.subtitle}
+                    </div>
+                  </div>
 
-                <div
-                  style={{
-                    fontFamily: 'DM Mono, monospace',
-                    fontSize: 11,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: '#00F5E9',
-                  }}
-                >
-                  {matchup.angle}
+                  <div
+                    style={{
+                      fontFamily: 'DM Mono, monospace',
+                      fontSize: 11,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: '#00F5E9',
+                    }}
+                  >
+                    {matchup.angle}
+                  </div>
                 </div>
               </button>
             ))}
           </div>
-        </section>
-
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('Trust layer')}
-
-          <h2
-            style={{
-              margin: '0 0 10px',
-              fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: 28,
-              lineHeight: 1,
-              color: '#F7F8FA',
-              letterSpacing: '0.03em',
-            }}
-          >
-            Not guesses. Data-backed takes.
-          </h2>
-
-          <p
-            style={{
-              margin: 0,
-              fontFamily: 'DM Sans, sans-serif',
-              fontSize: 15,
-              lineHeight: 1.65,
-              color: 'rgba(247,248,250,0.8)',
-            }}
-          >
-            Every UR TAKE is built on player performance data, surface context, and
-            matchup history—so you are not betting blind.
-          </p>
         </section>
       </div>
     </>
