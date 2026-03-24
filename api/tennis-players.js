@@ -1,66 +1,56 @@
 export default function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  return res.status(200).json({
+  res.status(200).json({
     surfaces: {
       tennis_atp_miami_open: {
         name: "Miami Open",
         surface: "Hard",
         speed: "Medium-Fast",
-        note: "Miami's hard courts play slightly slower than most hard court events. Heavy topspin and baseline consistency are rewarded. Big servers still have an edge but rallies run longer than at the US Open."
+        note: "Miami's hard courts play slightly slower than most hard court events. Heavy topspin and baseline consistency are rewarded. Big servers still have an edge but rallies run longer than at the US Open.",
       },
       tennis_wta_miami_open: {
         name: "Miami Open",
         surface: "Hard",
         speed: "Medium-Fast",
-        note: "Miami hard courts favor aggressive baseliners. Sabalenka just won Indian Wells and arrives as the clear favorite at 35.4% per Tennis Abstract simulations. Slightly slower conditions than the US Open benefit topspin baseliners."
+        note: "Miami hard courts favor aggressive baseliners. Sabalenka just won Indian Wells and arrives as the clear favorite at 35.4% per Tennis Abstract simulations. Slightly slower conditions than the US Open benefit topspin baseliners.",
       },
       tennis_atp_french_open: {
         name: "French Open",
         surface: "Clay",
         speed: "Slow",
-        note: "Roland Garros clay neutralizes big servers and rewards endurance and topspin. The two-week grind tests fitness more than any other Slam. Alcaraz has won here twice and Sinner is improving rapidly on clay."
+        note: "Roland Garros clay neutralizes big servers and rewards endurance and topspin. The two-week grind tests fitness more than any other Slam. Alcaraz has won here twice and Sinner is improving rapidly on clay.",
       },
       tennis_wta_french_open: {
         name: "French Open",
         surface: "Clay",
         speed: "Slow",
-        note: "Clay at Roland Garros rewards heavy topspin, patience, and elite fitness. Swiatek has dominated this event. Points are longer, serve advantages shrink, and fitness is the deciding factor deep in draws."
+        note: "Clay at Roland Garros rewards heavy topspin, patience, and elite fitness. Swiatek has dominated this event. Points are longer, serve advantages shrink, and fitness is the deciding factor deep in draws.",
       },
       tennis_atp_wimbledon: {
         name: "Wimbledon",
         surface: "Grass",
         speed: "Fast",
-        note: "Wimbledon grass is the fastest major surface. Big servers dominate early rounds, points are short, and net rushers have a natural advantage. Alcaraz won here in 2023 and 2024 before losing to Sinner in the 2025 final."
+        note: "Wimbledon grass is the fastest major surface. Big servers dominate early rounds, points are short, and net rushers have a natural advantage. Alcaraz won here in 2023 and 2024 before losing to Sinner in the 2025 final.",
       },
       tennis_wta_wimbledon: {
         name: "Wimbledon",
         surface: "Grass",
         speed: "Fast",
-        note: "Grass at Wimbledon rewards flat hitting, serve power, and net aggression. Rybakina won here in 2022 and is the standout performer on this surface. Clay court specialists frequently exit early."
+        note: "Grass at Wimbledon rewards flat hitting, serve power, and net aggression. Rybakina won here in 2022 and is the standout performer on this surface. Clay court specialists frequently exit early.",
       },
       tennis_atp_us_open: {
         name: "US Open",
         surface: "Hard",
         speed: "Medium",
-        note: "US Open DecoTurf plays faster than Miami. Night conditions with cool air amplify serve speed. Alcaraz won the 2025 US Open, beating Sinner in the final."
+        note: "US Open DecoTurf plays faster than Miami. Night conditions with cool air amplify serve speed. Alcaraz won the 2025 US Open, beating Sinner in the final.",
       },
       tennis_wta_us_open: {
         name: "US Open",
         surface: "Hard",
         speed: "Medium",
-        note: "Flushing Meadows rewards aggression and power. Gauff won the 2023 US Open on this surface. The fast DecoTurf suits players with big serves and flat groundstrokes."
-      }
+        note: "Flushing Meadows rewards aggression and power. Gauff won the 2023 US Open on this surface. The fast DecoTurf suits players with big serves and flat groundstrokes.",
+      },
     },
 
     atp: {
@@ -86,15 +76,15 @@ export default function handler(req, res) {
         returnStats: "RPW 41.6%, Break rate 30.7% — 45% above tour average of 21.3%",
         bpStats: "Break point conversion 43.5%, Save rate 66.9%",
         overallStats: "Dominance Ratio 1.31, TPW 54.5%, Tiebreak 61.8%",
-        h2h: "vs Sinner 11-6 · vs Djokovic 4-5 · vs Zverev 6-6 · vs Medvedev 6-2 · vs Fritz 5-1 · vs De Minaur 5-0 · vs Shelton 3-0",
+        h2h: "vs Sinner 11-6 · vs Djokovic 4-5 · vs Zverev 6-6 · vs Medvedev 6-2 · vs Fritz 5-1 · vs De Minaur 5-0 · vs Shelton 3-0 (source: Tennis Abstract)",
         fullNote: "The most complete statistical profile on tour. 91.1% win rate, DR 1.31 means he wins 31% more points than he loses. Elite on both serve and return. Converts 43.5% of break chances and saves 66.9% of break points faced.",
         hardRecord: "158-42 career hard court record (79%). Currently on a 34-match outdoor hard court winning streak — third best in history behind Federer and Connors.",
         miamiNote: "Won Miami in 2022 and 2023. Arrives unbeaten in 2026 (16-0) after winning the Australian Open. His combination of movement, variety, and shot-making makes him the most complete hard court player on tour right now alongside Sinner.",
         surfaceNote: {
           hard: "Won Australian Open 2026, US Open 2025, Miami Open 2022 and 2023. 79% career hard court win rate.",
           clay: "Won Roland Garros 2024 and 2025. Clay is his strongest surface historically.",
-          grass: "Won Wimbledon 2023 and 2024. Lost 2025 Wimbledon final to Sinner."
-        }
+          grass: "Won Wimbledon 2023 and 2024. Lost 2025 Wimbledon final to Sinner.",
+        },
       },
 
       Sinner: {
@@ -118,15 +108,15 @@ export default function handler(req, res) {
         returnStats: "RPW 42.2%, Break rate 32.1% — #1 on tour, 50% above tour average",
         bpStats: "Break point conversion 43.6%, Save rate 72.4% — best on tour",
         overallStats: "Dominance Ratio 1.49 — best on tour, TPW 56.2%, Tiebreak 81.0% — best on tour",
-        h2h: "vs Alcaraz 6-11 · vs Djokovic 4-6 · vs Zverev 6-4 · vs Medvedev 8-7 · vs De Minaur 13-0 · vs Fritz 4-1 · vs Shelton 8-1",
+        h2h: "vs Alcaraz 6-11 · vs Djokovic 4-6 · vs Zverev 6-4 · vs Medvedev 8-7 · vs De Minaur 13-0 · vs Fritz 4-1 · vs Shelton 8-1 (source: Tennis Abstract)",
         fullNote: "DR 1.49 is the best on tour — wins 49% more points than he loses. Tour-leading hold (91.8%), break rate (32.1%), BP save rate (72.4%), and 81% tiebreak win rate. His DF rate (1.9%) is the lowest in the top 50. Statistically the most dominant player right now.",
         hardRecord: "234-54 career hard court record (81.3%) — second among all active players. Just completed the full hard court Masters set by winning Indian Wells.",
-        miamiNote: "Arrives as Miami favorite at 41.2% after winning Indian Wells. Now targeting the Sunshine Double.",
+        miamiNote: "Arrives as Miami favorite at 41.2% per Tennis Abstract after winning Indian Wells. Now targeting the Sunshine Double — Indian Wells and Miami back to back. Hard courts are where he is most dominant.",
         surfaceNote: {
-          hard: "81.3% career hard court win rate. Won Australian Open 2024 and 2025, Indian Wells 2026, ATP Finals 2024 and 2025.",
+          hard: "81.3% career hard court win rate. Won Australian Open 2024 and 2025, Indian Wells 2026, ATP Finals 2024 and 2025. Has now won every major hard court event.",
           clay: "Strong but not dominant on clay — lost French Open final to Alcaraz in 2025.",
-          grass: "Won Wimbledon 2025. Still developing his grass game but improving rapidly."
-        }
+          grass: "Won Wimbledon 2025. Still developing his grass game but improving rapidly.",
+        },
       },
 
       Djokovic: {
@@ -150,15 +140,15 @@ export default function handler(req, res) {
         returnStats: "RPW 39.6%, Break rate 26.4% — well above tour average",
         bpStats: "Break point conversion 41.8%, Save rate 64.9%",
         overallStats: "Dominance Ratio 1.30, TPW 54.1%, Tiebreak 52.4% — near coin-flip, notable decline",
-        h2h: "vs Alcaraz 5-4 · vs Sinner 6-4 · vs Zverev 9-5 · vs Medvedev 10-5 · vs Fritz 8-2",
-        fullNote: "Still elite at 38. DR 1.30, solid hold and break rates. Only weakness: tiebreaks at 52.4% — almost exactly coin-flip.",
+        h2h: "vs Alcaraz 5-4 · vs Sinner 6-4 · vs Zverev 9-5 · vs Medvedev 10-5 · vs Fritz 8-2 (source: Tennis Abstract)",
+        fullNote: "Still elite at 38. DR 1.30, solid hold and break rates. Only weakness: tiebreaks at 52.4% — almost exactly coin-flip, a notable departure from his historically dominant tiebreak record.",
         hardRecord: "Career 81%+ hard court win rate. The all-time record holder at most major hard court events.",
-        miamiNote: "All-time Miami record is exceptional but at 38 he now selects his schedule carefully.",
+        miamiNote: "All-time Miami record is exceptional but at 38 he now selects his schedule carefully. When motivated he remains the best defensive player on tour and a threat to go deep in any draw.",
         surfaceNote: {
           hard: "Greatest hard court player in history — 10 Australian Opens, 4 US Opens.",
           clay: "Exceptional on clay — Roland Garros champion multiple times.",
-          grass: "Greatest Wimbledon champion — 7 titles."
-        }
+          grass: "Greatest Wimbledon champion — 7 titles.",
+        },
       },
 
       Zverev: {
@@ -182,15 +172,15 @@ export default function handler(req, res) {
         returnStats: "RPW 36.8%, Break rate 21.3% — exactly tour average, no return edge",
         bpStats: "Break point conversion 41.8%, Save rate 63.1%",
         overallStats: "Dominance Ratio 1.18, TPW 52.3%, Tiebreak 62.2%",
-        h2h: "vs Alcaraz 6-6 · vs Sinner 4-6 · vs Djokovic 5-9 · vs Medvedev 8-6 · vs De Minaur 3-8",
-        fullNote: "Good serve but return game is exactly tour average. His 70% win rate reflects the gap.",
+        h2h: "vs Alcaraz 6-6 · vs Sinner 4-6 · vs Djokovic 5-9 · vs Medvedev 8-6 · vs De Minaur 3-8 (source: Tennis Abstract)",
+        fullNote: "Good serve (87.9% hold) but return game is exactly tour average (21.3% break rate). His 70% win rate reflects the gap. When his serve is broken he has no return weapon to compensate.",
         hardRecord: "Solid hard court record but inconsistent at the top level.",
-        miamiNote: "Has not won Miami despite his ranking.",
+        miamiNote: "Has not won Miami despite his ranking. His game is better suited to clay and he tends to lose to elite opponents on hard courts in close matches.",
         surfaceNote: {
           hard: "Capable on hard but not dominant — better on clay.",
           clay: "Roland Garros finalist multiple times — clay is his best surface.",
-          grass: "Below his ranking at Wimbledon."
-        }
+          grass: "Below his ranking at Wimbledon.",
+        },
       },
 
       Medvedev: {
@@ -214,18 +204,18 @@ export default function handler(req, res) {
         returnStats: "RPW 40.1%, Break rate 27.5% — 4th on tour, well above average",
         bpStats: "Break point conversion 40.3%, Save rate 62.4% — below top 10 average",
         overallStats: "Dominance Ratio 1.17, TPW 52.5%, Tiebreak 41.9% — worst in top 10",
-        h2h: "vs Alcaraz 2-6 · vs Sinner 7-8 · vs Djokovic 5-10 · vs Zverev 6-8 · vs Fritz 8-4",
-        fullNote: "Elite return game but serve is a liability. His 41.9% tiebreak win rate is worst in the top 10.",
-        hardRecord: "US Open champion 2021. Multiple Australian Open finalist.",
-        miamiNote: "Hard courts suit his flat game well and he arrives in good form.",
+        h2h: "vs Alcaraz 2-6 · vs Sinner 7-8 · vs Djokovic 5-10 · vs Zverev 6-8 · vs Fritz 8-4 (source: Tennis Abstract)",
+        fullNote: "Elite return game (4th on tour) but serve is a liability — 5.7% DF rate highest in top 10, 84.2% hold weakest. His 41.9% tiebreak win rate is worst in the top 10 — he consistently loses close sets, explaining why he cannot convert form into titles.",
+        hardRecord: "US Open champion 2021. Multiple Australian Open finalist. Hard courts are clearly his best surface by a wide margin.",
+        miamiNote: "Just lost the Indian Wells final to Sinner in two tiebreaks. Hard courts suit his flat game well and he arrives in good form. His return stats rank among the best on tour.",
         surfaceNote: {
           hard: "Elite on hard — US Open champion, two-time Australian Open finalist.",
-          clay: "Noticeably weaker on clay.",
-          grass: "Below par on grass."
-        }
+          clay: "Noticeably weaker on clay — tends to lose to lower-ranked players at Roland Garros.",
+          grass: "Below par on grass, tends to exit early at Wimbledon.",
+        },
       },
 
-      De_Minaur: {
+      "De Minaur": {
         eloRank: 6,
         elo: 2024,
         hElo: 1974.8,
@@ -242,22 +232,22 @@ export default function handler(req, res) {
         record: "53-23 (69.7%) last 52 weeks",
         style: "Counter-punching speedster",
         strengths: "Elite footwork, defensive retrieval, slice backhand, elite fitness",
-        serveStats: "Hold 84.9%, Ace 5.8%, DF 3.2%",
+        serveStats: "Hold 84.9%, Ace 5.8% — lowest ace rate in top 10 (placement over power), DF 3.2%",
         returnStats: "RPW 40.4%, Break rate 27.4% — 3rd on tour, ahead of Medvedev",
         bpStats: "Break point conversion 43.0%, Save rate 65.1%",
         overallStats: "Dominance Ratio 1.20, TPW 53.0%, Tiebreak 60.0%",
-        h2h: "vs Sinner 0-13 · vs Alcaraz 0-5 · vs Zverev 8-3 · vs Medvedev 3-5 · vs Fritz 6-3",
-        fullNote: "Return ranks 3rd on tour. Well-rounded game with no obvious single weakness.",
-        hardRecord: "Consistently performs above his seed at hard court events.",
-        miamiNote: "A legitimate dangerous floater in this draw.",
+        h2h: "vs Sinner 0-13 · vs Alcaraz 0-5 · vs Zverev 8-3 · vs Medvedev 3-5 · vs Fritz 6-3 (source: Tennis Abstract)",
+        fullNote: "Return ranks 3rd on tour (ahead of Medvedev). Lowest ace rate in top 10 — wins serve points through placement not power. Well-rounded game with no obvious single weakness. His elite speed allows him to get into rallies no one else can.",
+        hardRecord: "Consistently performs above his seed at hard court events due to his speed and counter-punching.",
+        miamiNote: "A legitimate dangerous floater in this draw. His elite speed neutralizes power players and he has the fitness to outlast anyone in a grinding match on hard courts.",
         surfaceNote: {
           hard: "His best surface — elite speed is maximized on hard.",
           clay: "Competitive but not elite on clay.",
-          grass: "Good on grass — his speed translates well."
-        }
+          grass: "Good on grass — his speed translates well.",
+        },
       },
 
-      Auger_Aliassime: {
+      "Auger-Aliassime": {
         eloRank: 7,
         elo: 1999,
         hElo: 1960.0,
@@ -274,19 +264,19 @@ export default function handler(req, res) {
         record: "48-23 (67.6%) last 52 weeks",
         style: "Serve-and-volley attacker",
         strengths: "Serve, net play, indoor and outdoor hard court game",
-        serveStats: "Hold 87.4%, Ace 13.8%, DF 4.0%",
-        returnStats: "RPW 36.0%, Break rate 18.5% — below tour average",
-        bpStats: "Break point conversion 35.0%, Save rate 67.6%",
+        serveStats: "Hold 87.4%, Ace 13.8% — 3rd highest on tour, DF 4.0%",
+        returnStats: "RPW 36.0%, Break rate 18.5% — below tour average of 21.3%",
+        bpStats: "Break point conversion 35.0% — below average, Save rate 67.6%",
         overallStats: "Dominance Ratio 1.18, TPW 52.0%, Tiebreak 64.3%",
-        h2h: "vs Alcaraz 3-5 · vs Sinner 2-4 · vs Medvedev 4-6 · vs Zverev 3-6",
-        fullNote: "Serve-dominant. Return is the clear gap.",
-        hardRecord: "Strong hard court results, particularly indoor.",
-        miamiNote: "A dangerous floater who can upset higher-ranked opponents if his serve is firing.",
+        h2h: "vs Alcaraz 3-5 · vs Sinner 2-4 · vs Medvedev 4-6 · vs Zverev 3-6 (source: Tennis Abstract)",
+        fullNote: "Serve-dominant — 3rd highest ace rate on tour (13.8%), strong hold rate (87.4%). Return is the clear gap: 18.5% break rate is below tour average. His path to winning depends entirely on his serve. Strong in tiebreaks (64.3%) which helps compensate.",
+        hardRecord: "Strong hard court results, particularly indoor. Tennis Abstract notes his exceptional hard court form.",
+        miamiNote: "His serve-and-volley style works well on Miami's hard courts. A dangerous floater who can upset higher-ranked opponents if his serve is firing.",
         surfaceNote: {
-          hard: "Strong on hard courts.",
+          hard: "Strong on hard courts — his serve and net game are most effective here.",
           clay: "Below his ranking on clay.",
-          grass: "Natural grass court player."
-        }
+          grass: "Natural grass court player.",
+        },
       },
 
       Shelton: {
@@ -302,7 +292,7 @@ export default function handler(req, res) {
         peakMonth: "2025-08",
         yEloRank: 5,
         yElo2026: 1966.4,
-        record2026: "11-3 — Best season form of his career.",
+        record2026: "11-3 — Best season form of his career. #5 yElo is a genuine breakthrough.",
         record: "41-22 (65.1%) last 52 weeks",
         style: "Power server, aggressive attacker",
         strengths: "Left-handed serve, aggressive baseline game, net presence",
@@ -310,15 +300,15 @@ export default function handler(req, res) {
         returnStats: "RPW 33.3%, Break rate 16.3% — second weakest in top 10",
         bpStats: "Break point conversion 40.1%, Save rate 68.3%",
         overallStats: "Dominance Ratio 1.07 — lowest in top 10, TPW 51.1%, Tiebreak 58.1%",
-        h2h: "vs Sinner 1-8 · vs Alcaraz 0-3 · vs Medvedev 3-4 · vs Fritz 5-3",
-        fullNote: "Elite serve, weak return. Against Sinner or Alcaraz, that gap gets exposed.",
-        hardRecord: "Most of his best results have come on hard courts.",
-        miamiNote: "Dangerous on US hard courts.",
+        h2h: "vs Sinner 1-8 · vs Alcaraz 0-3 · vs Medvedev 3-4 · vs Fritz 5-3 (source: Tennis Abstract)",
+        fullNote: "DR 1.07 is the lowest in the top 10 — barely wins more points than he loses overall. His serve is elite but his return (16.3% break rate) is the second weakest in the top 10. Against Sinner or Alcaraz's return games his serve will face maximum pressure.",
+        hardRecord: "Most of his best results have come on hard courts. The left-handed serve creates unusual angles.",
+        miamiNote: "Dangerous on US hard courts. His left-handed serve creates havoc and his aggressive style suits Miami's medium-fast surface. Always a threat to go deep at home events.",
         surfaceNote: {
-          hard: "Most effective on hard courts.",
+          hard: "Most effective on hard courts — his serve dominates.",
           clay: "Less effective on clay.",
-          grass: "Solid on grass."
-        }
+          grass: "Solid on grass — his serve is even more effective.",
+        },
       },
 
       Fritz: {
@@ -334,23 +324,23 @@ export default function handler(req, res) {
         peakMonth: "2025-09",
         yEloRank: 22,
         yElo2026: 1838.8,
-        record2026: "10-7 — Underperforming in 2026.",
+        record2026: "10-7 — Underperforming in 2026. yElo rank 22 is well below his career Elo ranking.",
         record: "53-25 (67.9%) last 52 weeks",
         style: "Big server, aggressive baseliner",
         strengths: "Serve power, forehand, US hard court comfort",
-        serveStats: "Hold 89.2%, Ace 15.8%, DF 2.4%",
+        serveStats: "Hold 89.2% — best in top 10, Ace 15.8% — highest on tour, DF 2.4%",
         returnStats: "RPW 34.4%, Break rate 15.6% — weakest returner in top 10",
-        bpStats: "Break point conversion 34.1%, Save rate 68.1%",
+        bpStats: "Break point conversion 34.1% — lowest in top 10, Save rate 68.1%",
         overallStats: "Dominance Ratio 1.16, TPW 52.0%, Tiebreak 59.6%",
-        h2h: "vs Sinner 1-4 · vs Alcaraz 1-5 · vs Medvedev 4-8 · vs Zverev 3-6 · vs De Minaur 3-6",
-        fullNote: "One-sided profile: dominant server, weak returner.",
-        hardRecord: "Strong US hard court performer.",
-        miamiNote: "A legitimate title threat on US hard courts.",
+        h2h: "vs Sinner 1-4 · vs Alcaraz 1-5 · vs Medvedev 4-8 · vs Zverev 3-6 · vs De Minaur 3-6 (source: Tennis Abstract)",
+        fullNote: "Highest ace rate on tour (15.8%), best hold rate in top 10 (89.2%) — but worst break rate (15.6%) and lowest BP conversion (34.1%). Entirely one-sided: dominant server, weak returner. Against Sinner's 91.8% hold rate he will generate almost no break chances.",
+        hardRecord: "Strong US hard court performer. Has won ATP titles on hard and is comfortable in these conditions.",
+        miamiNote: "A legitimate title threat on US hard courts. His powerful serve and forehand can overpower opponents. Comfortable playing in front of home crowds.",
         surfaceNote: {
-          hard: "Strong on US hard courts.",
+          hard: "Strong on US hard courts — this is where he wins titles.",
           clay: "Below his ranking on clay.",
-          grass: "Solid on grass."
-        }
+          grass: "Solid on grass.",
+        },
       },
 
       Musetti: {
@@ -370,19 +360,19 @@ export default function handler(req, res) {
         record: "47-22 (68.1%) last 52 weeks",
         style: "One-handed backhand all-court player",
         strengths: "One-handed backhand, clay court movement, variety and drop shots",
-        serveStats: "Hold 83.4%, Ace 6.1%, DF 2.4%",
-        returnStats: "RPW 38.8%, Break rate 25.0%",
-        bpStats: "Break point conversion 39.2%, Save rate 62.1%",
-        overallStats: "Dominance Ratio 1.14, TPW 52.1%, Tiebreak 45.5%",
-        h2h: "vs Alcaraz 1-8 · vs Sinner 0-3 · vs Zverev 3-2 · vs De Minaur 2-3",
-        fullNote: "Strong return, weak serve, poor tiebreaks. Hard courts expose him.",
-        hardRecord: "Below his ranking on hard courts.",
-        miamiNote: "Clay specialist who tends to underperform his ranking on fast hard courts.",
+        serveStats: "Hold 83.4% — lowest in top 10, Ace 6.1%, DF 2.4%",
+        returnStats: "RPW 38.8%, Break rate 25.0% — above tour average for a clay specialist",
+        bpStats: "Break point conversion 39.2%, Save rate 62.1% — lowest in top 10",
+        overallStats: "Dominance Ratio 1.14, TPW 52.1%, Tiebreak 45.5% — second worst in top 10",
+        h2h: "vs Alcaraz 1-8 · vs Sinner 0-3 · vs Zverev 3-2 · vs De Minaur 2-3 (source: Tennis Abstract)",
+        fullNote: "Strong return for a clay specialist (25% break rate, above tour avg) but his serve is weak — 83.4% hold lowest in top 10, 62.1% BP save rate also the lowest. Gets broken often. 45.5% tiebreak rate is poor — hard courts expose him in tight sets.",
+        hardRecord: "Below his ranking on hard courts — clay is strongly preferred.",
+        miamiNote: "Clay specialist who tends to underperform his ranking on fast hard courts. His elegant one-handed backhand is harder to control on faster surfaces.",
         surfaceNote: {
           hard: "Below his ranking on hard courts.",
-          clay: "Excellent on clay.",
-          grass: "Decent on grass."
-        }
+          clay: "Excellent on clay — his best surface by far.",
+          grass: "Decent on grass.",
+        },
       },
 
       // ATP 11–25
@@ -399,21 +389,21 @@ export default function handler(req, res) {
         peakMonth: "2026-03",
         yEloRank: 11,
         yElo2026: 1931.3,
-        record2026: "10-5 — Strong season for a 20-year-old.",
+        record2026: "10-5 — Strong season for a 20-year-old. #11 in-season form is impressive.",
         record: "40-24 (62.5%) last 52 weeks",
         style: "Aggressive hard court baseliner",
         strengths: "Power groundstrokes, explosive movement, strong hard court game",
-        serveStats: "Hold 80.2%, Ace 6.8%, DF 5.0%",
-        returnStats: "RPW 36.9%, Break rate 22.3%",
+        serveStats: "Hold 80.2%, Ace 6.8%, DF 5.0% — above average DF rate",
+        returnStats: "RPW 36.9%, Break rate 22.3% — slightly above tour average of 21.3%",
         bpStats: "Break point conversion 41.3%, Save rate 62.3%",
         overallStats: "DR 1.03, TPW 50.7%, Tiebreak 67.5%",
-        h2h: "vs Zverev 0-1",
-        fullNote: "Hard-court specialist at this stage. Clay is a major gap.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-1 · vs Medvedev 0-0 · vs Bublik 0-0 (source: Tennis Abstract H2H matrix — limited top-15 record)",
+        fullNote: "At 20 years old, Tien is one of the most exciting young Americans on tour. His hElo of 1933 ranks #9 — elite on hard. His clay Elo (#106) reveals a massive surface gap — he is essentially a hard court specialist at this stage. DR 1.03 is modest but expected at his age. 67.5% tiebreak rate is a genuine strength.",
         surfaceNote: {
-          hard: "Elite for his age on hard courts.",
-          clay: "Major weakness.",
-          grass: "Developing."
-        }
+          hard: "Elo rank #9 on hard courts — elite for his age. His best surface by a wide margin.",
+          clay: "Clay Elo rank #106 — massive weakness. Fade him heavily at Roland Garros.",
+          grass: "Grass Elo rank #28 — developing but not yet proven.",
+        },
       },
 
       Draper: {
@@ -434,16 +424,16 @@ export default function handler(req, res) {
         style: "Aggressive left-handed baseliner",
         strengths: "Heavy topspin forehand, serve, physicality",
         serveStats: "Hold 86.8%, Ace 10.5%, DF 3.6%",
-        returnStats: "RPW 38.4%, Break rate 24.2%",
+        returnStats: "RPW 38.4%, Break rate 24.2% — above tour average",
         bpStats: "Break point conversion 37.1%, Save rate 66.0%",
         overallStats: "DR 1.23, TPW 52.8%, Tiebreak 70.0%",
-        h2h: "",
-        fullNote: "When healthy he looks like a genuine top-5 caliber player.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "DR 1.23 is elite — ranks among the top 5 on tour. His 70% tiebreak rate is exceptional. The gap between his peak Elo (2103 in April 2025) and current yElo rank (#34) reflects injury disruption in 2026. When healthy he is a genuine top-5 caliber player. Left-handed serve creates unique problems for opponents.",
         surfaceNote: {
-          hard: "Elite.",
-          clay: "Solid and improving.",
-          grass: "Very strong fit."
-        }
+          hard: "Hard court Elo #11 — elite. Best results on hard.",
+          clay: "Clay Elo #20 — solid, improving.",
+          grass: "Grass Elo #17 — strong, benefits from left-handed serve at Wimbledon.",
+        },
       },
 
       Fils: {
@@ -459,21 +449,21 @@ export default function handler(req, res) {
         peakMonth: "2025-04",
         yEloRank: 8,
         yElo2026: 1948.6,
-        record2026: "9-4 — Strong 2026 start.",
+        record2026: "9-4 — #8 in-season form. Strong 2026 start.",
         record: "23-10 (69.7%) last 52 weeks",
         style: "Aggressive baseliner",
         strengths: "Explosive groundstrokes, athleticism, competitive fire",
         serveStats: "Hold 82.3%, Ace 6.2%, DF 3.3%",
-        returnStats: "RPW 37.5%, Break rate 22.3%",
-        bpStats: "Break point conversion 38.8%, Save rate 59.8%",
+        returnStats: "RPW 37.5%, Break rate 22.3% — slightly above tour average",
+        bpStats: "Break point conversion 38.8%, Save rate 59.8% — below average",
         overallStats: "DR 1.08, TPW 51.2%, Tiebreak 52.9%",
-        h2h: "",
-        fullNote: "Legitimate top-10 upside, with real clay value.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "Young Frenchman with legitimate top-10 upside. Clay Elo #11 is notable — he is not just a hard court player. BP save rate (59.8%) is below average which is his primary vulnerability. 52.9% tiebreak rate is essentially coin-flip — he struggles to close tight sets.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Genuine threat.",
-          grass: "Still developing."
-        }
+          hard: "Hard Elo #15 — solid.",
+          clay: "Clay Elo #11 — genuine clay threat. Watch at Roland Garros.",
+          grass: "Grass Elo #18 — still developing.",
+        },
       },
 
       Bublik: {
@@ -493,17 +483,17 @@ export default function handler(req, res) {
         record: "48-19 (71.6%) last 52 weeks",
         style: "Unorthodox serve-and-volley big server",
         strengths: "Enormous serve, net presence, unpredictability",
-        serveStats: "Hold 88.2%, Ace 14.7%, DF 5.7%",
-        returnStats: "RPW 34.7%, Break rate 18.2%",
-        bpStats: "Break point conversion 39.3%, Save rate 70.9%",
+        serveStats: "Hold 88.2%, Ace 14.7%, DF 5.7% — very high DF rate",
+        returnStats: "RPW 34.7%, Break rate 18.2% — below tour average",
+        bpStats: "Break point conversion 39.3%, Save rate 70.9% — elite",
         overallStats: "DR 1.09, TPW 51.6%, Tiebreak 60.0%",
-        h2h: "vs Medvedev 1-7",
-        fullNote: "Extreme volatility, elite serve, weak return.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-1 · vs Djokovic 0-1 · vs Zverev 1-3 · vs Medvedev 1-7 · vs Musetti 0-0 · vs De Minaur 1-2 · vs FAA 3-4 · vs Shelton 1-2 · vs Fritz 0-0 · vs Ruud 0-0 · vs Mensik 2-1 · vs Cobolli 0-1 · vs Khachanov 1-1 (source: Tennis Abstract H2H matrix)",
+        fullNote: "The most unpredictable player in the top 15. 14.7% ace rate is elite but 5.7% DF rate is a volatility risk. BP save rate of 70.9% is his superpower — he rarely gets broken when he holds his nerve. Return game (18.2% break rate) is the weakness — below tour average. His clay Elo (#9) is surprisingly strong for a serve-based player.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Surprisingly strong.",
-          grass: "Excellent."
-        }
+          hard: "Hard Elo #16 — solid but not elite.",
+          clay: "Clay Elo #9 — surprisingly strong. His serve works on clay too.",
+          grass: "Grass Elo #9 — thrives on fast surfaces where his serve dominates.",
+        },
       },
 
       Mensik: {
@@ -519,21 +509,21 @@ export default function handler(req, res) {
         peakMonth: "2026-02",
         yEloRank: 9,
         yElo2026: 1938.0,
-        record2026: "14-5 — Excellent 2026.",
+        record2026: "14-5 — #9 in-season form. Excellent 2026.",
         record: "38-19 (66.7%) last 52 weeks",
         style: "Big serving aggressive baseliner",
         strengths: "Serve, forehand power, mental composure for his age",
-        serveStats: "Hold 85.0%, Ace 15.9%, DF 4.7%",
-        returnStats: "RPW 36.3%, Break rate 20.1%",
+        serveStats: "Hold 85.0%, Ace 15.9% — one of the highest on tour, DF 4.7%",
+        returnStats: "RPW 36.3%, Break rate 20.1% — just below tour average",
         bpStats: "Break point conversion 40.2%, Save rate 65.1%",
         overallStats: "DR 1.08, TPW 51.3%, Tiebreak 66.7%",
-        h2h: "",
-        fullNote: "Serve is already elite. Return still needs growth.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 · vs Bublik 1-2 · vs Ruud 0-2 · vs Cobolli 1-1 · vs Khachanov 0-2 (source: Tennis Abstract H2H matrix)",
+        fullNote: "At 20, Mensik has the highest ace rate in the top 15 (15.9%). His serve is already a tour-level weapon. Return game (20.1% break rate) is just below average — the area to improve. 66.7% tiebreak rate is strong. His clay Elo (#24) shows he is not a pure hard court specialist.",
         surfaceNote: {
-          hard: "Strong.",
-          clay: "Solid.",
-          grass: "Should improve."
-        }
+          hard: "Hard Elo #13 — strong. His serve plays well on hard.",
+          clay: "Clay Elo #24 — solid for a young big server.",
+          grass: "Grass Elo #25 — expected to improve as his serve matures.",
+        },
       },
 
       Ruud: {
@@ -549,21 +539,21 @@ export default function handler(req, res) {
         peakMonth: "2022-05",
         yEloRank: 35,
         yElo2026: 1812.6,
-        record2026: "7-6 — Below his best.",
+        record2026: "7-6 — Below his best. yElo #35 reflects a difficult start.",
         record: "36-19 (65.5%) last 52 weeks",
         style: "Clay court baseliner",
         strengths: "Heavy topspin, consistency on clay, high ball trajectory",
-        serveStats: "Hold 85.4%, Ace 8.8%, DF 2.6%",
-        returnStats: "RPW 36.1%, Break rate 20.9%",
+        serveStats: "Hold 85.4%, Ace 8.8%, DF 2.6% — low DF rate",
+        returnStats: "RPW 36.1%, Break rate 20.9% — just below tour average",
         bpStats: "Break point conversion 39.1%, Save rate 68.0%",
         overallStats: "DR 1.08, TPW 51.4%, Tiebreak 64.7%",
-        h2h: "vs Alcaraz 1-6 · vs Sinner 0-4",
-        fullNote: "Clay value remains elite. Grass is the obvious weakness.",
+        h2h: "vs Alcaraz 1-6 · vs Sinner 0-4 · vs Djokovic 1-5 · vs Zverev 4-2 · vs Musetti 2-2 · vs De Minaur 2-2 · vs FAA 5-4 · vs Shelton 2-2 · vs Medvedev 3-1 · vs Bublik 0-0 · vs Khachanov 1-2 (source: Tennis Abstract H2H matrix)",
+        fullNote: "Clay Elo #6 on tour — legitimate Roland Garros threat every year. Grass Elo #45 reveals the surface weakness clearly. His hard court Elo (#18) is solid but not elite. Low DF rate (2.6%) shows controlled serving. His yElo rank (#35) in 2026 suggests below-par form — worth monitoring at Miami where hard courts are not his best surface.",
         surfaceNote: {
-          hard: "Solid but not elite.",
-          clay: "Roland Garros contender.",
-          grass: "Major weakness."
-        }
+          hard: "Hard Elo #18 — solid but not elite. Miami is not his best event.",
+          clay: "Clay Elo #6 — genuine Roland Garros contender every year.",
+          grass: "Grass Elo #45 — significant weakness. Exits early at Wimbledon typically.",
+        },
       },
 
       Korda: {
@@ -579,21 +569,21 @@ export default function handler(req, res) {
         peakMonth: "2023-01",
         yEloRank: 10,
         yElo2026: 1936.6,
-        record2026: "14-6 — Strong 2026 start.",
+        record2026: "14-6 — #10 in-season form. Strong 2026 start.",
         record: "29-19 (60.4%) last 52 weeks",
         style: "All-court attacker",
         strengths: "Serve, forehand, athleticism",
         serveStats: "Hold 84.9%, Ace 12.1%, DF 3.0%",
-        returnStats: "RPW 36.7%, Break rate 20.1%",
+        returnStats: "RPW 36.7%, Break rate 20.1% — just below tour average",
         bpStats: "Break point conversion 38.7%, Save rate 63.5%",
-        overallStats: "DR 1.12, TPW 51.7%, Tiebreak 52.6%",
-        h2h: "",
-        fullNote: "Strong form, real serve upside, underrated on grass.",
+        overallStats: "DR 1.12, TPW 51.7%, Tiebreak 52.6% — below average tiebreaks",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "DR 1.12 is solid. His 12.1% ace rate is a genuine weapon. The concern is tiebreaks — 52.6% is essentially coin-flip, meaning he struggles to convert close sets. Grass Elo #13 is a hidden strength — he may be underrated at Wimbledon. His yElo #10 confirms genuine 2026 form.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Below average.",
-          grass: "Underrated."
-        }
+          hard: "Hard Elo #17 — solid.",
+          clay: "Clay Elo #30 — below average on clay.",
+          grass: "Grass Elo #13 — underrated on grass. Worth watching at Wimbledon.",
+        },
       },
 
       Fonseca: {
@@ -609,21 +599,21 @@ export default function handler(req, res) {
         peakMonth: "2025-03",
         yEloRank: 55,
         yElo2026: 1745.6,
-        record2026: "4-4 — Mixed results.",
+        record2026: "4-4 — Small sample, mixed results.",
         record: "23-16 (59.0%) last 52 weeks",
         style: "Aggressive baseliner",
         strengths: "Explosive groundstrokes, raw talent, hard court game",
         serveStats: "Hold 85.1%, Ace 8.1%, DF 2.6%",
-        returnStats: "RPW 35.8%, Break rate 19.4%",
+        returnStats: "RPW 35.8%, Break rate 19.4% — below tour average",
         bpStats: "Break point conversion 35.2%, Save rate 61.8%",
-        overallStats: "DR 1.08, TPW 51.0%, Tiebreak 44.0%",
-        h2h: "",
-        fullNote: "Huge upside, but still raw and weak in tiebreaks.",
+        overallStats: "DR 1.08, TPW 51.0%, Tiebreak 44.0% — significant weakness",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 (source: Tennis Abstract — very limited top-15 record)",
+        fullNote: "At 19, Fonseca is the youngest player in the top 20. His hElo of 1904 ranks #14 — elite for his age on hard. The glaring weakness is tiebreaks at 44% — well below average. He loses more tiebreaks than he wins, which caps his ceiling in tight matches. BP conversion (35.2%) is the lowest in the top 20. Enormous upside but raw.",
         surfaceNote: {
-          hard: "Exceptional for his age.",
-          clay: "Developing.",
-          grass: "Limited sample."
-        }
+          hard: "Hard Elo #14 — exceptional for a 19-year-old.",
+          clay: "Clay Elo #29 — developing.",
+          grass: "Grass Elo #43 — very limited grass experience.",
+        },
       },
 
       Paul: {
@@ -639,21 +629,21 @@ export default function handler(req, res) {
         peakMonth: "2025-05",
         yEloRank: 12,
         yElo2026: 1897.1,
-        record2026: "12-6 — Solid 2026.",
+        record2026: "12-6 — #12 in-season form. Solid 2026.",
         record: "29-15 (65.9%) last 52 weeks",
         style: "All-court baseliner",
         strengths: "Consistency, return game, two-handed backhand",
-        serveStats: "Hold 83.5%, Ace 7.5%, DF 2.4%",
-        returnStats: "RPW 37.9%, Break rate 23.6%",
+        serveStats: "Hold 83.5%, Ace 7.5%, DF 2.4% — low DF rate",
+        returnStats: "RPW 37.9%, Break rate 23.6% — above tour average",
         bpStats: "Break point conversion 42.0%, Save rate 64.6%",
         overallStats: "DR 1.12, TPW 51.8%, Tiebreak 57.1%",
-        h2h: "",
-        fullNote: "Very balanced profile. Few obvious weaknesses.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "One of the most balanced profiles in the top 20. Low DF rate (2.4%), solid break rate (23.6% — above average), BP conversion 42%. Clay Elo #17 is surprisingly strong — he is not a pure hard court specialist. DR 1.12 is solid. A reliable, consistent player without glaring weaknesses.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Better than reputation.",
-          grass: "Capable."
-        }
+          hard: "Hard Elo #21 — solid.",
+          clay: "Clay Elo #17 — stronger on clay than his reputation suggests.",
+          grass: "Grass Elo #21 — capable on all surfaces.",
+        },
       },
 
       Fokina: {
@@ -673,17 +663,17 @@ export default function handler(req, res) {
         record: "40-25 (61.5%) last 52 weeks",
         style: "Aggressive clay court baseliner",
         strengths: "Heavy topspin, clay court movement, forehand",
-        serveStats: "Hold 81.8%, Ace 4.9%, DF 2.6%",
-        returnStats: "RPW 38.2%, Break rate 24.9%",
+        serveStats: "Hold 81.8%, Ace 4.9% — low ace rate, DF 2.6%",
+        returnStats: "RPW 38.2%, Break rate 24.9% — above tour average",
         bpStats: "Break point conversion 43.2%, Save rate 68.2%",
-        overallStats: "DR 1.07, TPW 51.4%, Tiebreak 48.5%",
-        h2h: "vs De Minaur 1-4",
-        fullNote: "Strong return profile, weak tiebreak profile.",
+        overallStats: "DR 1.07, TPW 51.4%, Tiebreak 48.5% — below average",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs De Minaur 1-4 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "Strong return game — 38.2% RPW and 43.2% BP conversion are both solid. But tiebreaks at 48.5% is a liability — he loses more tiebreaks than he wins. Low ace rate (4.9%) means he can't bail himself out with free points. Best on clay where his topspin and movement neutralize big servers.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Strong.",
-          grass: "Limited upside."
-        }
+          hard: "Hard Elo #19 — solid but not elite. Miami suits him reasonably.",
+          clay: "Clay Elo #22 — genuine clay threat.",
+          grass: "Grass Elo #27 — limited grass upside.",
+        },
       },
 
       Rublev: {
@@ -699,21 +689,21 @@ export default function handler(req, res) {
         peakMonth: "2021-04",
         yEloRank: 21,
         yElo2026: 1854.0,
-        record2026: "10-5 — Solid but below peak.",
+        record2026: "10-5 — Solid but well below his 2021 peak.",
         record: "35-24 (59.3%) last 52 weeks",
         style: "Aggressive baseliner",
         strengths: "Forehand, work rate, consistency",
         serveStats: "Hold 84.3%, Ace 10.1%, DF 3.7%",
-        returnStats: "RPW 37.2%, Break rate 21.9%",
+        returnStats: "RPW 37.2%, Break rate 21.9% — slightly above tour average",
         bpStats: "Break point conversion 38.7%, Save rate 64.3%",
         overallStats: "DR 1.12, TPW 51.7%, Tiebreak 53.3%",
-        h2h: "",
-        fullNote: "Strong forehand, but big-moment concerns remain.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 · vs De Minaur 0-0 · vs FAA 0-0 · vs Shelton 0-0 · vs Fritz 0-0 · vs Ruud 0-0 (source: Tennis Abstract — H2H not in top-15 matrix)",
+        fullNote: "Career peak of 2122 in April 2021 — he is now 226 points below that. DR 1.12 is solid but tiebreaks at 53.3% reveal a player who struggles in the clutch — consistent with his reputation. Grass Elo #12 is a hidden strength. His forehand is elite but his mental game in big moments has been a recurring issue.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Strong.",
-          grass: "Underrated."
-        }
+          hard: "Hard Elo #20 — solid.",
+          clay: "Clay Elo #16 — strong on clay, consistent results at Roland Garros.",
+          grass: "Grass Elo #12 — underrated on grass.",
+        },
       },
 
       Lehecka: {
@@ -734,16 +724,16 @@ export default function handler(req, res) {
         style: "Big serving baseliner",
         strengths: "Serve, forehand, power",
         serveStats: "Hold 83.5%, Ace 10.6%, DF 3.0%",
-        returnStats: "RPW 35.3%, Break rate 20.0%",
-        bpStats: "Break point conversion 41.3%, Save rate 60.6%",
-        overallStats: "DR 1.05, TPW 50.8%, Tiebreak 51.9%",
-        h2h: "",
-        fullNote: "Best fit may be grass, but 2026 form looks soft.",
+        returnStats: "RPW 35.3%, Break rate 20.0% — just below tour average",
+        bpStats: "Break point conversion 41.3%, Save rate 60.6% — below average",
+        overallStats: "DR 1.05, TPW 50.8%, Tiebreak 51.9% — near coin-flip",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "Grass Elo #15 is his best surface ranking — big servers thrive at Wimbledon. His BP save rate (60.6%) is below average which is a vulnerability when opponents get opportunities. Tiebreaks at 51.9% is essentially coin-flip. yElo rank #69 in 2026 signals he is below his best form right now.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Below average.",
-          grass: "Best surface."
-        }
+          hard: "Hard Elo #24 — solid.",
+          clay: "Clay Elo #31 — below average on clay.",
+          grass: "Grass Elo #15 — his best surface. Watch at Wimbledon.",
+        },
       },
 
       Cerundolo: {
@@ -763,17 +753,17 @@ export default function handler(req, res) {
         record: "36-24 (60.0%) last 52 weeks",
         style: "Clay court baseliner",
         strengths: "Topspin, clay court footwork, competitive mentality",
-        serveStats: "Hold 76.9%, Ace 4.9%, DF 3.6%",
-        returnStats: "RPW 40.3%, Break rate 28.8%",
+        serveStats: "Hold 76.9%, Ace 4.9% — very low, DF 3.6%",
+        returnStats: "RPW 40.3%, Break rate 28.8% — well above tour average",
         bpStats: "Break point conversion 43.0%, Save rate 62.7%",
         overallStats: "DR 1.08, TPW 51.5%, Tiebreak 68.2%",
-        h2h: "",
-        fullNote: "Elite return game. Grass is a major problem.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Musetti 0-0 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "Return game is elite — 40.3% RPW and 28.8% break rate are both well above average. 68.2% tiebreak rate is strong. His grass Elo (#52) reveals a player who is essentially a clay and hard court specialist. Low ace rate (4.9%) means his serve is a liability on fast surfaces. A genuine clay court threat.",
         surfaceNote: {
-          hard: "Solid.",
-          clay: "Real threat.",
-          grass: "Major weakness."
-        }
+          hard: "Hard Elo #23 — solid.",
+          clay: "Clay Elo #15 — genuine threat at Roland Garros.",
+          grass: "Grass Elo #52 — significant weakness on grass.",
+        },
       },
 
       Norrie: {
@@ -793,17 +783,17 @@ export default function handler(req, res) {
         record: "36-25 (59.0%) last 52 weeks",
         style: "Left-handed defensive baseliner",
         strengths: "Consistency, retrieval, left-handed slice",
-        serveStats: "Hold 81.8%, Ace 5.9%, DF 2.8%",
-        returnStats: "RPW 36.1%, Break rate 19.6%",
+        serveStats: "Hold 81.8%, Ace 5.9% — low, DF 2.8%",
+        returnStats: "RPW 36.1%, Break rate 19.6% — below tour average",
         bpStats: "Break point conversion 38.2%, Save rate 67.0%",
         overallStats: "DR 1.02, TPW 50.4%, Tiebreak 58.1%",
-        h2h: "vs Ruud 0-2 · vs Khachanov 2-1",
-        fullNote: "Useful across surfaces, but limited ceiling against elites.",
+        h2h: "vs Alcaraz 0-0 · vs Sinner 0-0 · vs Djokovic 0-0 · vs Zverev 0-0 · vs Medvedev 0-0 · vs Ruud 0-2 · vs Khachanov 2-1 (source: Tennis Abstract — limited top-15 record)",
+        fullNote: "DR 1.02 is the lowest in the top 25 — he barely wins more points than he loses, which explains why he beats lower-ranked players comfortably but struggles against the elite. Clay Elo #19 and grass Elo #20 show he is genuinely multi-surface. Low ace rate (5.9%) and below-average break rate (19.6%) are his main limitations.",
         surfaceNote: {
-          hard: "Below average among top 25.",
-          clay: "Solid.",
-          grass: "Useful fit."
-        }
+          hard: "Hard Elo #29 — below average in top 25.",
+          clay: "Clay Elo #19 — strong on clay.",
+          grass: "Grass Elo #20 — benefits from left-handed serve at Wimbledon.",
+        },
       },
 
       Khachanov: {
@@ -819,22 +809,22 @@ export default function handler(req, res) {
         peakMonth: "2018-10",
         yEloRank: 78,
         yElo2026: 1700.8,
-        record2026: "6-6 — Below his best.",
+        record2026: "6-6 — Below his best. yElo #78 is a significant concern.",
         record: "34-24 (58.6%) last 52 weeks",
         style: "Power baseliner",
         strengths: "Forehand, physicality, big points",
         serveStats: "Hold 84.0%, Ace 8.6%, DF 2.6%",
-        returnStats: "RPW 36.6%, Break rate 21.5%",
+        returnStats: "RPW 36.6%, Break rate 21.5% — slightly above tour average",
         bpStats: "Break point conversion 39.7%, Save rate 64.0%",
-        overallStats: "DR 1.10, TPW 51.4%, Tiebreak 42.4%",
-        h2h: "vs Alcaraz 0-6 · vs Sinner 1-4 · vs Djokovic 1-9",
-        fullNote: "Worst tiebreak profile in this top-25 group.",
+        overallStats: "DR 1.10, TPW 51.4%, Tiebreak 42.4% — worst in top 25",
+        h2h: "vs Alcaraz 0-6 · vs Sinner 1-4 · vs Djokovic 1-9 · vs Zverev 3-6 · vs Musetti 0-1 · vs De Minaur 2-2 · vs FAA 2-2 · vs Shelton 0-2 · vs Fritz 0-2 · vs Medvedev 2-7 · vs Ruud 2-1 · vs Mensik 2-0 · vs Cobolli 1-0 (source: Tennis Abstract H2H matrix)",
+        fullNote: "Tiebreak rate of 42.4% is the worst in the top 25 — he loses significantly more tiebreaks than he wins. This is his career-defining weakness. yElo #78 in 2026 suggests real form concerns. DR 1.10 is solid when he is on but his peak was back in 2018. Grass Elo #19 is a hidden strength for Wimbledon.",
         surfaceNote: {
-          hard: "Below average among top 25.",
-          clay: "Solid.",
-          grass: "Underrated."
-        }
-      }
+          hard: "Hard Elo #31 — below average in top 25.",
+          clay: "Clay Elo #21 — solid on clay.",
+          grass: "Grass Elo #19 — underrated on grass.",
+        },
+      },
     },
 
     wta: {
@@ -851,25 +841,131 @@ export default function handler(req, res) {
         peakMonth: "2026-03",
         yEloRank: 1,
         yElo2026: 2199.2,
-        record2026: "17-1 — Dominant.",
+        record2026: "17-1 — Dominant. Won Indian Wells. #1 in-season form by a wide margin.",
         record: "63-9 (87.5%) last 52 weeks",
         style: "Power baseliner",
         strengths: "Serve power, forehand aggression, hard court dominance",
-        serveStats: "Hold 79.9%, Ace 6.6%, DF 3.3%",
-        returnStats: "RPW 45.3%, Break rate 38.0%",
-        bpStats: "Break point conversion 44.5%, Save rate 66.0%",
-        overallStats: "DR 1.22, TPW 54.0%, Tiebreak 92.3%",
-        h2h: "vs Swiatek 5-8 · vs Rybakina 8-7 · vs Gauff 6-6 · vs Pegula 9-3",
-        fullNote: "The most complete player on the WTA tour statistically.",
-        miamiNote: "Arrives as Miami favorite.",
+        serveStats: "Hold 79.9%, Ace 6.6%, DF 3.3% — lowest DF rate among top 5",
+        returnStats: "RPW 45.3%, Break rate 38.0% — above tour avg of 35.8%",
+        bpStats: "Break point conversion 44.5%, Save rate 66.0% — best save rate in top 5",
+        overallStats: "DR 1.22, TPW 54.0%, Tiebreak 92.3% — 24-2 record, historically extraordinary",
+        h2h: "vs Swiatek 5-8 · vs Rybakina 8-7 · vs Gauff 6-6 · vs Pegula 9-3 · vs Svitolina 6-1 · vs Anisimova 6-5 (source: Tennis Abstract)",
+        fullNote: "The most complete player on the WTA tour statistically. 87.5% win rate, elite on both serve (lowest DF in top 5) and return. Her 38% break rate and 45.3% RPW are elite numbers. Just won Indian Wells and arrives as Miami favorite at 35.4%.",
+        miamiNote: "Just won Indian Wells, arrives as Miami favorite at 35.4%. Her stats are elite — more winners than errors, rare for a top player. Hard courts are her domain.",
         surfaceNote: {
-          hard: "Premier hard court force.",
-          clay: "Solid but not peak.",
-          grass: "Very good."
-        }
-      }
+          hard: "Premier hard court force in women's tennis. Won Miami 2023, Indian Wells 2026, Australian Open 2024 and 2025.",
+          clay: "Solid on clay but Swiatek and topspin players can neutralize her power.",
+          grass: "Good on grass — her flat serve is devastating on fast surfaces.",
+        },
+      },
 
-      // keep the rest of your WTA entries here exactly as you have them
-    }
-  });
-}
+      Rybakina: {
+        eloRank: 2,
+        elo: 2163,
+        hElo: 2124.3,
+        hEloRank: 2,
+        cElo: 2006.4,
+        cEloRank: 4,
+        gElo: 1915.4,
+        gEloRank: 3,
+        peakElo: 2176.7,
+        peakMonth: "2026-02",
+        yEloRank: 3,
+        yElo2026: 2124.2,
+        record2026: "17-4 — Strong volume and quality. #3 in-season form.",
+        record: "61-17 (78.2%) last 52 weeks",
+        style: "Power server, flat hitter",
+        strengths: "Biggest serve in women's tennis — 10.3% ace rate tops the tour, flat groundstrokes, composure",
+        serveStats: "Hold 83.6% — best on tour, Ace 10.3% — highest on tour by far, DF 3.7%",
+        returnStats: "RPW 42.7%, Break rate 33.0% — below tour average of 35.8%",
+        bpStats: "Break point conversion 45.3%, Save rate 66.7%",
+        overallStats: "DR 1.23, TPW 53.7%, Tiebreak 56.0% — near average",
+        h2h: "vs Sabalenka 7-8 · vs Swiatek 6-6 · vs Gauff 1-0 · vs Pegula 4-3 (source: Tennis Abstract)",
+        fullNote: "Best hold rate on tour (83.6%) and highest ace rate (10.3%) by a wide margin. Her serve is her dominant weapon. Return is slightly below tour average — her only relative weakness. Hard courts amplify her flat serve.",
+        miamiNote: "Hard courts suit her flat hitting. Her serve is the most dominant weapon in women's tennis. Always a threat to win big hard court events.",
+        surfaceNote: {
+          hard: "Strong on hard — flat serve is devastating.",
+          clay: "Less dominant on clay — topspin players slow her down.",
+          grass: "Her best surface — Wimbledon champion 2022.",
+        },
+      },
+
+      Swiatek: {
+        eloRank: 3,
+        elo: 2110,
+        hElo: 2055.5,
+        hEloRank: 4,
+        cElo: 2054.3,
+        cEloRank: 2,
+        gElo: 1950.7,
+        gEloRank: 2,
+        peakElo: 2291.0,
+        peakMonth: "2024-07",
+        yEloRank: 7,
+        yElo2026: 1957.7,
+        record2026: "12-5 — Significantly underperforming vs career level. #7 yElo is her weakest season start in years.",
+        record: "56-17 (76.7%) last 52 weeks",
+        style: "Heavy topspin baseliner",
+        strengths: "Forehand topspin, consistency, mental strength, elite return game",
+        serveStats: "Hold 75.1% — below tour average of 70.9% adjusted, Ace 5.6%, DF 5.1% — high",
+        returnStats: "RPW 47.3%, Break rate 43.8% — #1 on tour, 22% above tour average",
+        bpStats: "Break point conversion 51.2% — best on tour, Save rate 58.5% — below tour average",
+        overallStats: "DR 1.23, TPW 54.3%, Tiebreak 75.0%",
+        h2h: "vs Sabalenka 8-5 · vs Rybakina 6-6 · vs Gauff 11-5 · vs Pegula 6-5 · vs Anisimova 2-1 (source: Tennis Abstract)",
+        fullNote: "The best returner in women's tennis — 47.3% RPW and 43.8% break rate are both #1 on tour. Her serve is actually a relative weakness (75.1% hold, high DF) which is why aggressive servers like Sabalenka and Rybakina can exploit her. She wins matches by dominating return games.",
+        miamiNote: "Won Miami 2022. The slower Miami hard courts play closer to her preferred clay conditions. Dangerous but can be exposed by Sabalenka-level aggression.",
+        surfaceNote: {
+          hard: "Very strong but not untouchable — Sabalenka has her number on hard.",
+          clay: "Greatest clay player active — Roland Garros champion 4 times.",
+          grass: "Weaker on grass — tends to exit earlier at Wimbledon.",
+        },
+      },
+
+      Pegula: {
+        eloRank: 4,
+        elo: 2094,
+        hElo: 2056.0,
+        hEloRank: 3,
+        cElo: 1909.1,
+        cEloRank: 8,
+        gElo: 1876.9,
+        gEloRank: 5,
+        peakElo: 2101.6,
+        peakMonth: "2026-03",
+        yEloRank: 2,
+        yElo2026: 2131.5,
+        record2026: "16-3 — BEST SEASON OF HER CAREER. #2 in-season form, ahead of Rybakina and Swiatek. Massively underrated coming into Miami.",
+        record: "54-21 (72.0%) last 52 weeks",
+        style: "Aggressive baseliner",
+        strengths: "Forehand power, hard court consistency, low error rate",
+        serveStats: "Hold 75.0%, Ace 4.6%, DF 3.0% — second lowest in top 5",
+        returnStats: "RPW 45.1%, Break rate 38.1% — above tour average",
+        bpStats: "Break point conversion 45.1%, Save rate 59.8%",
+        overallStats: "DR 1.17, TPW 53.0%, Tiebreak 47.6% — below average, notable weakness",
+        h2h: "vs Sabalenka 3-9 · vs Swiatek 5-6 · vs Rybakina 3-4 · vs Gauff 8-5 (source: Tennis Abstract)",
+        fullNote: "Consistent and disciplined on both sides. 38.1% break rate and 45.1% RPW are both elite. Very low DF rate (3.0%) means she rarely self-destructs. Her game is not spectacular but it is extremely reliable — she beats herself very rarely.",
+        miamiNote: "Hard courts are her best surface. Disciplined and consistent — she stays in rallies and relies on opponents making mistakes, which works well on slower Miami hard courts.",
+        surfaceNote: {
+          hard: "Strong on hard courts — consistently reaches deep at major hard court events.",
+          clay: "Competitive but clay is not her peak surface.",
+          grass: "Below her ranking on grass.",
+        },
+      },
+
+      Gauff: {
+        eloRank: 5,
+        elo: 2074,
+        hElo: 2017.0,
+        hEloRank: 6,
+        cElo: 2044.5,
+        cEloRank: 3,
+        gElo: 1842.7,
+        gEloRank: 6,
+        peakElo: 2155.7,
+        peakMonth: "2024-01",
+        yEloRank: 14,
+        yElo2026: 1909.8,
+        record2026: "11-5 — Underperforming relative to career level. #14 yElo is well below expectations.",
+        record: "48-17 (73.8%) last 52 weeks",
+        style: "Athletic all-court player",
+        strengths: "Return
