@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('HOME');
@@ -10,6 +10,11 @@ export default function App() {
         'Ask a matchup, prop, or slate question and UR TAKE will give you the lean, the reason, and the angle.',
     },
   ]);
+
+  const [playerData, setPlayerData] = useState(null);
+  const [contextData, setContextData] = useState(null);
+  const [liveMatches, setLiveMatches] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
 
   const featuredPrompts = [
     'Best props tonight?',
@@ -50,6 +55,37 @@ export default function App() {
     'Who is overpriced today?',
   ];
 
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [playersRes, contextRes, liveAtpRes, liveWtaRes] = await Promise.all([
+          fetch('/api/tennis-players'),
+          fetch('/api/tennis-context'),
+          fetch('/api/tennis?tour=atp'),
+          fetch('/api/tennis?tour=wta'),
+        ]);
+
+        const playersJson = await playersRes.json();
+        const contextJson = await contextRes.json();
+        const liveAtpJson = await liveAtpRes.json();
+        const liveWtaJson = await liveWtaRes.json();
+
+        setPlayerData(playersJson);
+        setContextData(contextJson);
+        setLiveMatches([
+          ...(Array.isArray(liveAtpJson) ? liveAtpJson : []),
+          ...(Array.isArray(liveWtaJson) ? liveWtaJson : []),
+        ]);
+      } catch (err) {
+        console.error('Failed to load tennis data:', err);
+      } finally {
+        setDataLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
   const atpPlayers = [
     { name: 'Jannik Sinner', elo: 2168, hold: '89.4%', dr: '1.19', tb: '63%' },
     { name: 'Carlos Alcaraz', elo: 2142, hold: '86.1%', dr: '1.16', tb: '58%' },
@@ -66,23 +102,24 @@ export default function App() {
     { name: 'Jessica Pegula', elo: 1940, hold: '66.8%', dr: '1.08', tb: '49%' },
   ];
 
-  const players = {
-    atp: atpPlayers,
-    wta: wtaPlayers,
-  };
-
-  const context = {
-    tournaments: {
-      miami_open: {
-        atp_favorite: 'Sinner',
-        wta_favorite: 'Sabalenka',
-      },
-    },
-  };
-
   async function handleAsk(promptOverride) {
     const prompt = (promptOverride || inputValue).trim();
     if (!prompt) return;
+
+    if (!playerData || !contextData) {
+      const userMessage = { role: 'user', content: prompt };
+      const assistantMessage = {
+        role: 'assistant',
+        content: dataLoading
+          ? 'Still loading the tennis database. Try again in a second.'
+          : 'Tennis data did not load correctly. Check /api/tennis-players and /api/tennis-context.',
+      };
+
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setInputValue('');
+      setActiveTab('ASK');
+      return;
+    }
 
     const historyForApi = messages.map((msg) => ({
       role: msg.role,
@@ -107,9 +144,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: prompt,
-          players,
-          context,
-          liveMatches: [],
+          players: playerData,
+          context: contextData,
+          liveMatches,
           tour: 'tennis',
           history: historyForApi,
           matchupContext: null,
@@ -169,6 +206,32 @@ export default function App() {
             {propLines.map((line, idx) => {
               const clean = line.replace(/^•\s*/, '');
               const parts = clean.split(' — ');
+
+              const looksLikePropCard =
+                parts.length >= 3 &&
+                parts[0] &&
+                parts[1] &&
+                parts[1].length < 40 &&
+                !parts[0].toLowerCase().includes('wimbledon') &&
+                !parts[0].toLowerCase().includes('french open') &&
+                !parts[0].toLowerCase().includes('us open');
+
+              if (!looksLikePropCard) {
+                return (
+                  <div
+                    key={`${clean}-${idx}`}
+                    style={{
+                      fontFamily: 'DM Sans, sans-serif',
+                      fontSize: 14,
+                      lineHeight: 1.55,
+                      color: 'rgba(247,248,250,0.82)',
+                    }}
+                  >
+                    {line}
+                  </div>
+                );
+              }
+
               const player = parts[0] || '';
               const prop = parts[1] || '';
               const reason = parts.slice(2).join(' — ') || '';
@@ -428,12 +491,12 @@ export default function App() {
 
           <div
             style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 14,
-            alignItems: 'flex-end',
-            flexWrap: 'wrap',
-          }}
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 14,
+              alignItems: 'flex-end',
+              flexWrap: 'wrap',
+            }}
           >
             <div>
               <h1
