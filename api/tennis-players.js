@@ -185,7 +185,7 @@ export default function handler(req, res) {
         surfaceNote: { hard: "Below his ranking on hard courts.", clay: "Excellent on clay — his best surface by far.", grass: "Decent on grass." }
       },
     },
-    wta: wta: {
+    wta: {
       // Top 10: hand-built with full Elo data (Tennis Abstract, March 2026)
       // Ranks 11-100: auto-generated from Sackmann CSV data (2024-2025 matches)
       "Sabalenka": {
