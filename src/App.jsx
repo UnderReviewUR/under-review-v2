@@ -66,61 +66,80 @@ export default function App() {
     { name: 'Jessica Pegula', elo: 1940, hold: '66.8%', dr: '1.08', tb: '49%' },
   ];
 
-  function generateMockResponse(prompt) {
-    const lower = prompt.toLowerCase();
+  const players = {
+    atp: atpPlayers,
+    wta: wtaPlayers,
+  };
 
-    if (lower.includes('sinner') && lower.includes('zverev')) {
-      return `Sinner in 2
+  const context = {
+    tournaments: {
+      miami_open: {
+        atp_favorite: 'Sinner',
+        wta_favorite: 'Sabalenka',
+      },
+    },
+  };
 
-• Sinner — UNDER 22.5 games — Zverev’s return numbers flatten out against elite first-strike hard-court servers
-• Sinner — 1st set winner — he controls early tempo better and wins first sets at a higher clip on hard courts
-• Sinner — OVER 10.5 aces — clean hold profile and likely scoreboard pressure points to volume
-
-UR TAKE: Sinner is the cleaner hard-court problem right now. Better baseline control, better scoreboard pressure, fewer loose service games.`;
-    }
-
-    if (lower.includes('best props') || lower.includes('best angles')) {
-      return `Tonight’s sharpest angles
-
-• Sinner — UNDER 22.5 games — edge comes from serve protection and cleaner baseline starts
-• Sabalenka — OVER 7.5 aces — live hold profile and aggressive first-ball patterns
-• Alcaraz — OVER 22.5 games — opponent style creates longer neutral exchanges
-
-UR TAKE: Start with the spots where serve profile and matchup pace line up. That is where the cleanest value usually sits.`;
-    }
-
-    if (lower.includes('ace')) {
-      return `Best ace angles
-
-• Sinner — OVER 10.5 aces — hard-court hold profile supports volume
-• Fritz — OVER 9.5 aces — free-point upside stays live all match
-• Sabalenka — OVER 7.5 aces — first-strike patterns create ceiling
-
-UR TAKE: Ace props are strongest when hold stability and short rally profile are both in play.`;
-    }
-
-    return `UR TAKE
-
-• Best angle — Wait for the cleanest mismatch in hold rate, return pressure, and surface comfort
-• Prop angle — Look for first-set and total-games spots where the matchup shape is obvious
-• Value note — The best plays are the ones you can explain in one sentence with one stat
-
-UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matchup, prop, or slate spot you want attacked.`;
-  }
-
-  function handleAsk(promptOverride) {
+  async function handleAsk(promptOverride) {
     const prompt = (promptOverride || inputValue).trim();
     if (!prompt) return;
 
+    const historyForApi = messages.map((msg) => ({
+      role: msg.role,
+      text: msg.content,
+      loading: msg.loading || false,
+    }));
+
     const userMessage = { role: 'user', content: prompt };
-    const assistantMessage = {
+    const loadingMessage = {
       role: 'assistant',
-      content: generateMockResponse(prompt),
+      content: 'Thinking...',
+      loading: true,
     };
 
-    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setInputValue('');
     setActiveTab('ASK');
+
+    try {
+      const response = await fetch('/api/ur-take', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: prompt,
+          players,
+          context,
+          liveMatches: [],
+          tour: 'tennis',
+          history: historyForApi,
+          matchupContext: null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Request failed');
+      }
+
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = {
+          role: 'assistant',
+          content: data.response || 'No response returned.',
+        };
+        return next;
+      });
+    } catch (err) {
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = {
+          role: 'assistant',
+          content: `Couldn’t get a response right now. ${err.message}`,
+        };
+        return next;
+      });
+    }
   }
 
   function renderMessage(content) {
@@ -409,12 +428,12 @@ UR TAKE: Under Review is built for decisions, not dashboards. Ask the exact matc
 
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 14,
-              alignItems: 'flex-end',
-              flexWrap: 'wrap',
-            }}
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 14,
+            alignItems: 'flex-end',
+            flexWrap: 'wrap',
+          }}
           >
             <div>
               <h1
