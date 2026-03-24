@@ -3,31 +3,118 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+
   if (!ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
   }
 
   const {
     question,
-    players,
-    context,
-    liveMatches,
-    tour,
-    history,
-    matchupContext,
-  } = req.body;
+    players = {},
+    context = {},
+    liveMatches = [],
+    tour = "general tennis",
+    history = [],
+    matchupContext = null
+  } = req.body || {};
 
-  if (!question) {
+  if (!question || typeof question !== "string") {
     return res.status(400).json({ error: "Missing question" });
   }
 
-  const systemPrompt = `
+  const safePlayers = prunePlayersForPrompt(players, question, 18);
+  const safeContext = pruneContextForPrompt(context, question);
+  const safeHistory = Array.isArray(history) ? history.slice(-8) : [];
+  const safeLiveMatches = Array.isArray(liveMatches) ? liveMatches.slice(0, 12) : [];
+
+  const systemPrompt = buildSystemPrompt({
+    question,
+    players: safePlayers,
+    context: safeContext,
+    liveMatches: safeLiveMatches,
+    tour,
+    matchupContext
+  });
+
+  const messages = [];
+
+  for (const msg of safeHistory) {
+    if (!msg || msg.loading) continue;
+
+    const text = msg.text || msg.content;
+    if (!text || typeof text !== "string") continue;
+
+    messages.push({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: text
+    });
+  }
+
+  messages.push({
+    role: "user",
+    content: question
+  });
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 700,
+        temperature: 0.7,
+        system: systemPrompt,
+        messages
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Anthropic API error:", data);
+      return res.status(500).json({
+        error: "AI response failed",
+        details: data
+      });
+    }
+
+    const text =
+      data?.content
+        ?.filter((item) => item.type === "text")
+        ?.map((item) => item.text)
+        ?.join("\n")
+        ?.trim() || "Couldn't get a response. Try again.";
+
+    return res.status(200).json({ response: text });
+  } catch (err) {
+    console.error("UR TAKE error:", err);
+    return res.status(500).json({
+      error: "Request failed",
+      details: err.message
+    });
+  }
+}
+
+function buildSystemPrompt({ question, players, context, liveMatches, tour, matchupContext }) {
+  const tournament = context?.tournaments?.miami_open || {};
+  const matchupLines = formatMatchups(context?.matchups || {});
+  const aceLines = formatAceProps(context?.ace_props || {});
+  const playerBlob = JSON.stringify(players || {}, null, 0);
+
+  return `
 You are UR TAKE — the voice of Under Review, a sports intelligence app focused on sharp, stat-backed tennis takes.
 
 CORE JOB
@@ -46,8 +133,7 @@ PRIMARY BEHAVIOR
 - Do not sound like a chatbot.
 - Do not overuse branded phrases.
 - Do not force every answer into the same template.
-- Never say "As an AI", "Based on the data", "According to my information", or "Tennis Abstract".
-- Never mention sources, databases, prompts, training data, or knowledge base mechanics.
+- Never say "As an AI", "Based on the data", "According to my information", or mention internal data mechanics.
 - Never say something is a lock.
 - Strong lean, not fake certainty.
 
@@ -115,7 +201,6 @@ In ANALYST MODE:
 - Be conversational.
 - Give clear opinions tournament by tournament or player by player.
 - Short bullets at the end are optional, but do not force prop formatting.
-- This mode should feel like a real person explaining the landscape.
 
 4. QUICK-HIT MODE
 Use for:
@@ -137,13 +222,10 @@ If the question is broad, slightly vague, or outside ideal prop format:
 - explain the logic plainly
 - do not become generic
 - do not revert into branding copy
-- do not repeat "UR TAKE" over and over
 
 STYLE
 - Plain English.
 - Write like you'd text a smart friend who follows sports.
-- Natural rhythm is good.
-- Occasional "..." is fine when it sounds human, but do not overdo it.
 - Stats support the take; they do not replace the take.
 - If you use a stat, make it relevant and specific.
 - For broad questions, clarity matters more than volume.
@@ -151,7 +233,6 @@ STYLE
 FORMAT RULES
 - No markdown bold.
 - No headers unless they genuinely help readability.
-- No forced labels before every paragraph.
 - Do not start every answer with "UR TAKE:".
 - Only use prop bullets when the question is explicitly about props, bets, or multiple betting angles.
 - For broader questions, normal prose is preferred.
@@ -160,132 +241,158 @@ ANTI-FAILURE RULES
 - Never answer a concrete tennis question with generic betting philosophy.
 - Never ignore the actual ask.
 - If the user asks "walk me through the most likely winners of Wimbledon, French Open, and US Open", you must answer each tournament directly.
-- If the user asks for outlooks, contenders, or winners, do not output placeholder advice.
 - If you lack enough information for one part, still answer the parts you can and be specific about what is less certain.
+- If player info is incomplete, answer with the available player and matchup context instead of asking for information you already have.
 
 CURRENT TOURNAMENT
-Miami Open 2026 — Hard court, medium-fast. Slightly slower than US Open. Returners get more neutral looks. Big servers still have an edge but rallies run longer.
+Miami Open 2026
+Surface: ${tournament.surface || "Hard"}
+Speed: ${tournament.speed || "Medium-Fast"}
+ATP favorite: ${tournament.atp_favorite || "Sinner"}
+WTA favorite: ${tournament.wta_favorite || "Sabalenka"}
+Tournament note: ${tournament.note || "Miami conditions slightly favor baseline consistency over pure speed."}
 
-ATP FAVORITE: ${context?.tournaments?.miami_open?.atp_favorite || "Sinner"}
-WTA FAVORITE: ${context?.tournaments?.miami_open?.wta_favorite || "Sabalenka"}
+REQUESTED TOUR
+${tour}
 
-TOUR / SCOPE
-Requested tour: ${tour || "general tennis"}
+QUESTION
+${question}
 
 PLAYER DATABASE
-${players ? JSON.stringify(players, null, 0).slice(0, 16000) : "Player data unavailable"}
+${playerBlob || "Player data unavailable"}
 
-LIVE MATCHES ON THE BOARD
+LIVE MATCHES
 ${
-  Array.isArray(liveMatches) && liveMatches.length > 0
+  liveMatches.length
     ? liveMatches
-        .slice(0, 12)
-        .map(
-          (m) =>
-            `${m.home_team} vs ${m.away_team} — ${m.round || "Miami Open"} — ${
-              m.live === "1" ? "LIVE" : m.status || "Scheduled"
-            }`
-        )
+        .map((m) => {
+          const home = m.home_team || m.homeTeam || "Unknown";
+          const away = m.away_team || m.awayTeam || "Unknown";
+          const round = m.round || "Miami Open";
+          const status = m.live === "1" ? "LIVE" : m.status || "Scheduled";
+          return `${home} vs ${away} — ${round} — ${status}`;
+        })
         .join("\n")
     : "No live matches currently"
 }
 
-KEY MATCHUP CONTEXT
-${
-  context?.matchups
-    ? Object.entries(context.matchups)
-        .map(
-          ([k, v]) =>
-            `${k.replace(/_/g, " ")}: ${v.note || ""} ${v.angle || ""}`.trim()
-        )
-        .join("\n")
-    : "No extra matchup notes"
-}
+MATCHUP NOTES
+${matchupLines || "No matchup notes available"}
 
 ACE PROP BASELINES
-${
-  context?.ace_props
-    ? Object.entries(context.ace_props)
-        .map(
-          ([k, v]) =>
-            `${k}: avg ${v.avg_aces_hard} aces, ${v.ace_rate} ace rate`
-        )
-        .join("\n")
-    : "No ace baselines available"
-}
+${aceLines || "No ace baselines available"}
 
 ${
   matchupContext
     ? `CURRENT MATCHUP CONTEXT
-${matchupContext.title} — ${matchupContext.whatMatters}`
+${matchupContext.title || ""}
+${matchupContext.whatMatters || ""}`
     : ""
 }
 
 FINAL INSTRUCTION
 Answer the actual question first. Pick the right mode. Sound human. Be useful.
 `.trim();
+}
 
-  const messages = [];
+function formatMatchups(matchups) {
+  const entries = Object.entries(matchups || {});
+  if (!entries.length) return "";
 
-  if (Array.isArray(history) && history.length > 0) {
-    for (const msg of history.slice(-8)) {
-      if (!msg || msg.loading) continue;
+  return entries
+    .map(([key, value]) => {
+      const cleanKey = key.replace(/_/g, " ");
+      const note = value?.note || "";
+      const angle = value?.angle || "";
+      const stat = value?.key_stat || "";
+      return `${cleanKey}: ${note} ${angle} ${stat}`.trim();
+    })
+    .join("\n");
+}
 
-      const text = msg.text || msg.content;
-      if (!text) continue;
+function formatAceProps(aceProps) {
+  const entries = Object.entries(aceProps || {});
+  if (!entries.length) return "";
 
-      messages.push({
-        role: msg.role === "user" ? "user" : "assistant",
-        content: text,
-      });
-    }
-  }
+  return entries
+    .map(([player, value]) => {
+      return `${player}: avg ${value?.avg_aces_hard ?? "N/A"} aces, ${value?.ace_rate || "N/A"} ace rate`;
+    })
+    .join("\n");
+}
 
-  messages.push({
-    role: "user",
-    content: question,
+function prunePlayersForPrompt(players, question, maxPlayers = 18) {
+  if (!players || typeof players !== "object") return {};
+
+  const atp = players.atp && typeof players.atp === "object" ? players.atp : {};
+  const wta = players.wta && typeof players.wta === "object" ? players.wta : {};
+
+  const questionText = (question || "").toLowerCase();
+  const namedPlayers = extractMentionedPlayers(questionText, {
+    ...atp,
+    ...wta
   });
 
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 700,
-        temperature: 0.7,
-        system: systemPrompt,
-        messages,
-      }),
-    });
+  const pickedATP = pickRelevantPlayers(atp, namedPlayers, maxPlayers);
+  const pickedWTA = pickRelevantPlayers(wta, namedPlayers, maxPlayers);
 
-    const data = await response.json();
+  return {
+    atp: pickedATP,
+    wta: pickedWTA
+  };
+}
 
-    if (!response.ok) {
-      console.error("Anthropic API error:", data);
-      return res.status(500).json({
-        error: "AI response failed",
-        details: data,
-      });
+function pruneContextForPrompt(context, question) {
+  if (!context || typeof context !== "object") return {};
+
+  const questionText = (question || "").toLowerCase();
+  const out = {
+    tournaments: context.tournaments || {},
+    matchups: {},
+    ace_props: context.ace_props || {}
+  };
+
+  const matchups = context.matchups || {};
+  const keys = Object.keys(matchups);
+
+  for (const key of keys) {
+    const normalized = key.replace(/_/g, " ").toLowerCase();
+    if (
+      questionText.includes(normalized) ||
+      normalized.split(" ").every((part) => questionText.includes(part)) ||
+      Object.keys(out.matchups).length < 8
+    ) {
+      out.matchups[key] = matchups[key];
     }
-
-    const text =
-      data?.content
-        ?.filter((item) => item.type === "text")
-        ?.map((item) => item.text)
-        ?.join("\n")
-        ?.trim() || "Couldn't get a response. Try again.";
-
-    return res.status(200).json({ response: text });
-  } catch (err) {
-    console.error("UR TAKE error:", err);
-    return res.status(500).json({
-      error: "Request failed",
-      details: err.message,
-    });
   }
+
+  return out;
+}
+
+function extractMentionedPlayers(questionText, playerMap) {
+  const found = new Set();
+
+  for (const name of Object.keys(playerMap || {})) {
+    if (questionText.includes(name.toLowerCase())) {
+      found.add(name);
+    }
+  }
+
+  return found;
+}
+
+function pickRelevantPlayers(group, namedPlayers, maxPlayers) {
+  const entries = Object.entries(group || {});
+
+  entries.sort((a, b) => {
+    const aNamed = namedPlayers.has(a[0]) ? 1 : 0;
+    const bNamed = namedPlayers.has(b[0]) ? 1 : 0;
+    if (aNamed !== bNamed) return bNamed - aNamed;
+
+    const aRank = Number.isFinite(a[1]?.eloRank) ? a[1].eloRank : 999;
+    const bRank = Number.isFinite(b[1]?.eloRank) ? b[1].eloRank : 999;
+    return aRank - bRank;
+  });
+
+  return Object.fromEntries(entries.slice(0, maxPlayers));
 }
