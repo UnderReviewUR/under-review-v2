@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react'; import PropCard from './components/PropCard';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('HOME');
@@ -14,7 +14,7 @@ export default function App() {
   const [playerData, setPlayerData] = useState(null);
   const [contextData, setContextData] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true); const [propCards, setPropCards] = useState([]);
 
   const featuredPrompts = [
     'Best props tonight?',
@@ -167,6 +167,13 @@ export default function App() {
         };
         return next;
       });
+
+      // If the API returned structured prop cards, store them
+      if (data.propCards && data.propCards.length > 0) {
+        setPropCards(data.propCards);
+      } else {
+        setPropCards([]);
+      }
     } catch (err) {
       setMessages((prev) => {
         const next = [...prev];
@@ -577,7 +584,31 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Featured matchups')}
-
+{/* Prop cards render here when UR TAKE returns betting picks */}
+        {propCards.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontFamily: "DM Mono, monospace",
+                fontSize: 11,
+                color: "#FF2D6B",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              UR PICKS
+            </div>
+            {propCards.map((card, i) => (
+              <PropCard
+                key={i}
+                player={card.player}
+                prop={card.prop}
+                reason={card.reason}
+              />
+            ))}
+          </div>
+        )}
           <div style={{ display: 'grid', gap: 12 }}>
             {featuredMatchups.map((matchup) => (
               <button
