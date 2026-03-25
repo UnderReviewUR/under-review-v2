@@ -139,7 +139,10 @@ function extractPropCards(text) {
 // ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt({ question, players, context, liveMatches, tour, matchupContext, isPropQuestion }) {
-  const tournament = context?.tournaments?.miami_open || {};
+  const activeTournamentId = context?.activeTournament || "miami_open";
+const tournament = context?.tournaments?.[activeTournamentId] 
+  || context?.tournaments?.miami_open 
+  || {};
   const playerBlob = formatPlayersForPrompt(players);
   const matchupLines = formatMatchups(context?.matchups || {});
   const aceLines = formatAceProps(context?.ace_props || {});
