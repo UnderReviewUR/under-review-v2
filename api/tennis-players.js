@@ -1600,5 +1600,5 @@ Mboko: {
         rallyProfile: { short: { pct: 26, winPct: 48 }, medium: { pct: 36, winPct: 51 }, long: { pct: 38, winPct: 52 }, profile: "Defensive grinder with a DR of 0.57 — loses more points than she wins overall.", bettingAngle: "Fade in almost all circumstances. DR of 0.57 is one of the worst on the WTA tour." }
       }
     }
-  };
+  });
 }
