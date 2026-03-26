@@ -968,7 +968,8 @@ export default function handler(req, res) {
         record2026: "11-5 — Underperforming relative to career level. #14 yElo is well below expectations.",
         record: "48-17 (73.8%) last 52 weeks",
         style: "Athletic all-court player",
-        strengths: "Return
+        strengths: "Return game is her primary weapon. Elite break point conversion and first-strike return patterns.", }
+      },
 Mboko: {
         eloRank: 6, elo: 2072,
         hElo: 2037.4, hEloRank: 5, cElo: 1862.4, cEloRank: 10, gElo: 1749.6, gEloRank: 21,
