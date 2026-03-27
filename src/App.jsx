@@ -114,6 +114,7 @@ export default function App() {
           ? 'Still loading the tennis database. Try again in a second.'
           : 'Tennis data did not load correctly. Check /api/tennis-players and /api/tennis-context.',
       };
+
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setInputValue('');
       setActiveTab('ASK');
@@ -127,7 +128,11 @@ export default function App() {
     }));
 
     const userMessage = { role: 'user', content: prompt };
-    const loadingMessage = { role: 'assistant', content: 'Thinking...', loading: true };
+    const loadingMessage = {
+      role: 'assistant',
+      content: 'Thinking...',
+      loading: true,
+    };
 
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setInputValue('');
@@ -174,6 +179,25 @@ export default function App() {
     }
   }
 
+  // ─── Inline markdown renderer ───────────────────────────────────────────────
+  // Converts **text** to cyan bold spans. Strips any remaining ** as fallback.
+  function renderInlineMarkdown(text) {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <span
+            key={i}
+            style={{ color: '#00F5E9', fontWeight: 700 }}
+          >
+            {part.slice(2, -2)}
+          </span>
+        );
+      }
+      return part;
+    });
+  }
+
   function renderMessage(content) {
     const lines = content.split('\n').filter(Boolean);
     const propLines = lines.filter((line) => line.trim().startsWith('•'));
@@ -192,21 +216,22 @@ export default function App() {
               whiteSpace: 'pre-wrap',
             }}
           >
-            {line}
+            {renderInlineMarkdown(line)}
           </div>
         ))}
 
         {propLines.length > 0 && (
           <div style={{ display: 'grid', gap: 10 }}>
             {propLines.map((line, idx) => {
-              const clean = line.replace(/^•\s*/, '');
+              // Strip all ** before splitting so they don't bleed into card fields
+              const clean = line.replace(/^•\s*/, '').replace(/\*\*/g, '');
               const parts = clean.split(' — ');
 
               const looksLikePropCard =
                 parts.length >= 3 &&
                 parts[0] &&
                 parts[1] &&
-                parts[1].length < 40 &&
+                parts[1].length < 60 &&
                 !parts[0].toLowerCase().includes('wimbledon') &&
                 !parts[0].toLowerCase().includes('french open') &&
                 !parts[0].toLowerCase().includes('us open');
@@ -222,7 +247,7 @@ export default function App() {
                       color: 'rgba(247,248,250,0.82)',
                     }}
                   >
-                    {line}
+                    {renderInlineMarkdown(line)}
                   </div>
                 );
               }
@@ -261,6 +286,7 @@ export default function App() {
                     >
                       {player}
                     </span>
+
                     {prop ? (
                       <span
                         style={{
@@ -278,6 +304,7 @@ export default function App() {
                       </span>
                     ) : null}
                   </div>
+
                   {reason ? (
                     <div
                       style={{
@@ -287,7 +314,7 @@ export default function App() {
                         color: 'rgba(247,248,250,0.76)',
                       }}
                     >
-                      {reason}
+                      {renderInlineMarkdown(reason)}
                     </div>
                   ) : null}
                 </div>
@@ -298,6 +325,8 @@ export default function App() {
       </div>
     );
   }
+
+  // ─── Shared styles ──────────────────────────────────────────────────────────
 
   const shellStyle = {
     minHeight: '100vh',
@@ -310,8 +339,32 @@ export default function App() {
     width: '100%',
     maxWidth: 760,
     margin: '0 auto',
-    paddingBottom: activeTab === 'ASK' ? 170 : 110,
+    paddingBottom: 110,
   };
+
+  const cardBase = {
+    borderRadius: 20,
+    padding: 16,
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+  };
+
+  function sectionEyebrow(label, color = '#00F5E9') {
+    return (
+      <div
+        style={{
+          fontFamily: 'DM Mono, monospace',
+          fontSize: 10,
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase',
+          color,
+          marginBottom: 12,
+        }}
+      >
+        {label}
+      </div>
+    );
+  }
 
   const logoRule = (
     <div style={{ marginTop: 10 }}>
@@ -338,6 +391,7 @@ export default function App() {
         >
           UNDER
         </div>
+
         <div
           style={{
             fontFamily: 'Bebas Neue, sans-serif',
@@ -351,6 +405,7 @@ export default function App() {
         >
           REVIEW
         </div>
+
         {logoRule}
       </div>
     </div>
@@ -383,6 +438,7 @@ export default function App() {
           fontSize: 14,
         }}
       />
+
       <button
         onClick={() => handleAsk()}
         style={{
@@ -392,105 +448,26 @@ export default function App() {
           cursor: 'pointer',
           fontFamily: 'DM Sans, sans-serif',
           fontWeight: 800,
-          fontSize: 18,
+          fontSize: 22,
           color: '#080A0C',
           background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
-          boxShadow: '0 8px 24px rgba(0,245,233,0.14)',
         }}
-        aria-label="Send"
       >
-        ➜
+        ↑
       </button>
     </div>
   );
 
-  const sectionEyebrow = (label, color = '#00F5E9') => (
-    <div
-      style={{
-        fontFamily: 'DM Mono, monospace',
-        fontSize: 11,
-        letterSpacing: '0.16em',
-        color,
-        textTransform: 'uppercase',
-        marginBottom: 10,
-      }}
-    >
-      {label}
-    </div>
-  );
-
-  const cardBase = {
-    borderRadius: 22,
-    padding: '18px 16px',
-    background: 'rgba(255,255,255,0.025)',
-    border: '1px solid rgba(255,255,255,0.06)',
-  };
+  // ─── HOME ───────────────────────────────────────────────────────────────────
 
   const homeScreen = (
     <>
-      {askBar('Ask props, matchups, or slates...')}
-      <div style={{ padding: '0 16px' }}>
-        <section
-          style={{
-            ...cardBase,
-            background:
-              'linear-gradient(180deg, rgba(0,245,233,0.08) 0%, rgba(255,45,107,0.06) 100%), rgba(255,255,255,0.03)',
-            border: '1px solid rgba(0,245,233,0.18)',
-            marginBottom: 14,
-          }}
-        >
-          {sectionEyebrow('Sharp, stat-backed betting takes')}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontFamily: 'Bebas Neue, sans-serif',
-                  fontSize: 34,
-                  lineHeight: 0.98,
-                  letterSpacing: '0.02em',
-                  color: '#F7F8FA',
-                }}
-              >
-                Ask better.
-                <br />
-                Bet sharper.
-              </h1>
-              <p
-                style={{
-                  marginTop: 10,
-                  marginBottom: 0,
-                  fontFamily: 'DM Sans, sans-serif',
-                  fontSize: 14,
-                  lineHeight: 1.55,
-                  color: 'rgba(247,248,250,0.78)',
-                  maxWidth: 420,
-                }}
-              >
-                Matchups, props, and slate angles — built for decisions, not dashboards.
-              </p>
-            </div>
-            <button
-              onClick={() => handleAsk("What are today's best angles?")}
-              style={{
-                borderRadius: 999,
-                padding: '12px 16px',
-                fontFamily: 'DM Sans, sans-serif',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                color: '#F7F8FA',
-                background: 'transparent',
-                border: '1px solid rgba(247,248,250,0.14)',
-              }}
-            >
-              Today&apos;s best angles
-            </button>
-          </div>
-        </section>
+      {askBar('Ask UR TAKE anything...')}
 
+      <div style={{ padding: '0 16px' }}>
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Trending asks')}
+
           <div style={{ display: 'grid', gap: 10 }}>
             {trendingAsks.map((ask) => (
               <button
@@ -517,6 +494,7 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Featured matchups')}
+
           <div style={{ display: 'grid', gap: 12 }}>
             {featuredMatchups.map((matchup) => (
               <button
@@ -531,16 +509,48 @@ export default function App() {
                   cursor: 'pointer',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                    flexWrap: 'wrap',
+                  }}
+                >
                   <div>
-                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 16, fontWeight: 800, color: '#F7F8FA', marginBottom: 4 }}>
+                    <div
+                      style={{
+                        fontFamily: 'DM Sans, sans-serif',
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: '#F7F8FA',
+                        marginBottom: 4,
+                      }}
+                    >
                       {matchup.title}
                     </div>
-                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: 'rgba(247,248,250,0.66)' }}>
+
+                    <div
+                      style={{
+                        fontFamily: 'DM Sans, sans-serif',
+                        fontSize: 13,
+                        color: 'rgba(247,248,250,0.66)',
+                      }}
+                    >
                       {matchup.subtitle}
                     </div>
                   </div>
-                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#00F5E9' }}>
+
+                  <div
+                    style={{
+                      fontFamily: 'DM Mono, monospace',
+                      fontSize: 11,
+                      letterSpacing: '0.06em',
+                      color: '#00F5E9',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {matchup.angle}
                   </div>
                 </div>
@@ -552,22 +562,25 @@ export default function App() {
     </>
   );
 
+  // ─── MIAMI ──────────────────────────────────────────────────────────────────
+
   const miamiScreen = (
     <>
-      <div style={{ padding: '0 16px', marginBottom: 14 }}>
-        <section
-          style={{
-            ...cardBase,
-            background: 'linear-gradient(180deg, rgba(245,200,66,0.12) 0%, rgba(255,255,255,0.025) 100%)',
-            border: '1px solid rgba(245,200,66,0.28)',
-          }}
-        >
-          {sectionEyebrow('Miami Open 2026', '#F5C842')}
-          <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: 34, lineHeight: 1, letterSpacing: '0.03em', color: '#F7F8FA' }}>
-            MIAMI
-          </h2>
-          <p style={{ marginTop: 10, marginBottom: 0, fontFamily: 'DM Sans, sans-serif', fontSize: 15, lineHeight: 1.6, color: 'rgba(247,248,250,0.8)' }}>
-            Hard-court event. Premium hold-rate and first-strike edges. Best angles usually show up in ace props, first-set winners, and total-games spots.
+      <div style={{ padding: '0 16px', marginBottom: 16 }}>
+        <section style={{ ...cardBase }}>
+          {sectionEyebrow('Miami Open 2026', '#FF2D6B')}
+
+          <p
+            style={{
+              margin: 0,
+              fontFamily: 'DM Sans, sans-serif',
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: 'rgba(247,248,250,0.78)',
+            }}
+          >
+            Hard court, medium-fast. Premium hold-rate and first-strike edges. Best angles
+            usually show up in ace props, first-set winners, and total-games spots.
           </p>
         </section>
       </div>
@@ -577,6 +590,7 @@ export default function App() {
       <div style={{ padding: '0 16px' }}>
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Quick asks', '#F5C842')}
+
           <div style={{ display: 'grid', gap: 10 }}>
             {miamiPrompts.map((prompt) => (
               <button
@@ -603,11 +617,21 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Prop guide', '#F5C842')}
+
           <div style={{ display: 'grid', gap: 12 }}>
             {[
-              { title: 'Ace props', body: 'Most playable when hold stability and short-rally profile line up.' },
-              { title: 'First set winners', body: 'Best in lopsided serve quality matchups where early pressure is predictable.' },
-              { title: 'Total games', body: 'Strongest when both players hold clean or one player controls pace but not breaks.' },
+              {
+                title: 'Ace props',
+                body: 'Most playable when hold stability and short-rally profile line up.',
+              },
+              {
+                title: 'First set winners',
+                body: 'Best in lopsided serve quality matchups where early pressure is predictable.',
+              },
+              {
+                title: 'Total games',
+                body: 'Strongest when both players hold clean or one player controls pace but not breaks.',
+              },
             ].map((item) => (
               <div
                 key={item.title}
@@ -618,10 +642,25 @@ export default function App() {
                   background: 'rgba(255,255,255,0.025)',
                 }}
               >
-                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#F7F8FA', marginBottom: 6 }}>
+                <div
+                  style={{
+                    fontFamily: 'DM Sans, sans-serif',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: '#F7F8FA',
+                    marginBottom: 6,
+                  }}
+                >
                   {item.title}
                 </div>
-                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, lineHeight: 1.55, color: 'rgba(247,248,250,0.72)' }}>
+                <div
+                  style={{
+                    fontFamily: 'DM Sans, sans-serif',
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                    color: 'rgba(247,248,250,0.72)',
+                  }}
+                >
                   {item.body}
                 </div>
               </div>
@@ -631,19 +670,66 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('ATP top players', '#F5C842')}
+
           <div style={{ display: 'grid', gap: 10 }}>
             {atpPlayers.map((player) => (
-              <div key={player.name} style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.025)', padding: 14 }}>
-                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#F7F8FA', marginBottom: 10 }}>
+              <div
+                key={player.name}
+                style={{
+                  borderRadius: 16,
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(255,255,255,0.025)',
+                  padding: 14,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: 'DM Sans, sans-serif',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: '#F7F8FA',
+                    marginBottom: 10,
+                  }}
+                >
                   {player.name}
                 </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {[['Elo', player.elo], ['Hold%', player.hold], ['DR', player.dr], ['TB%', player.tb]].map(([label, value]) => (
-                    <div key={label} style={{ borderRadius: 12, padding: '10px 8px', background: '#0D1116', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.52)', marginBottom: 4 }}>
+                  {[
+                    ['Elo', player.elo],
+                    ['Hold%', player.hold],
+                    ['DR', player.dr],
+                    ['TB%', player.tb],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      style={{
+                        borderRadius: 12,
+                        padding: '10px 8px',
+                        background: '#0D1116',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: 'DM Mono, monospace',
+                          fontSize: 10,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'rgba(247,248,250,0.52)',
+                          marginBottom: 4,
+                        }}
+                      >
                         {label}
                       </div>
-                      <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, fontWeight: 800, color: '#F7F8FA' }}>
+                      <div
+                        style={{
+                          fontFamily: 'DM Sans, sans-serif',
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: '#F7F8FA',
+                        }}
+                      >
                         {value}
                       </div>
                     </div>
@@ -656,19 +742,66 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('WTA top players', '#F5C842')}
+
           <div style={{ display: 'grid', gap: 10 }}>
             {wtaPlayers.map((player) => (
-              <div key={player.name} style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.025)', padding: 14 }}>
-                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#F7F8FA', marginBottom: 10 }}>
+              <div
+                key={player.name}
+                style={{
+                  borderRadius: 16,
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  background: 'rgba(255,255,255,0.025)',
+                  padding: 14,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: 'DM Sans, sans-serif',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: '#F7F8FA',
+                    marginBottom: 10,
+                  }}
+                >
                   {player.name}
                 </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {[['Elo', player.elo], ['Hold%', player.hold], ['DR', player.dr], ['TB%', player.tb]].map(([label, value]) => (
-                    <div key={label} style={{ borderRadius: 12, padding: '10px 8px', background: '#0D1116', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.52)', marginBottom: 4 }}>
+                  {[
+                    ['Elo', player.elo],
+                    ['Hold%', player.hold],
+                    ['DR', player.dr],
+                    ['TB%', player.tb],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      style={{
+                        borderRadius: 12,
+                        padding: '10px 8px',
+                        background: '#0D1116',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: 'DM Mono, monospace',
+                          fontSize: 10,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: 'rgba(247,248,250,0.52)',
+                          marginBottom: 4,
+                        }}
+                      >
                         {label}
                       </div>
-                      <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, fontWeight: 800, color: '#F7F8FA' }}>
+                      <div
+                        style={{
+                          fontFamily: 'DM Sans, sans-serif',
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: '#F7F8FA',
+                        }}
+                      >
                         {value}
                       </div>
                     </div>
@@ -682,12 +815,17 @@ export default function App() {
     </>
   );
 
+  // ─── ASK ────────────────────────────────────────────────────────────────────
+
   const askScreen = (
     <>
+      {askBar('Ask props, matchups, or slate questions...')}
+
       <div style={{ padding: '0 16px' }}>
         {messages.length <= 1 && (
           <section style={{ ...cardBase, marginBottom: 14 }}>
             {sectionEyebrow('Featured prompts')}
+
             <div style={{ display: 'grid', gap: 10 }}>
               {featuredPrompts.map((prompt) => (
                 <button
@@ -750,6 +888,7 @@ export default function App() {
                 >
                   {message.role === 'user' ? 'You' : 'UR TAKE'}
                 </div>
+
                 {renderMessage(message.content)}
               </div>
             </div>
@@ -759,22 +898,47 @@ export default function App() {
     </>
   );
 
+  // ─── PRO ────────────────────────────────────────────────────────────────────
+
   const proScreen = (
     <div style={{ padding: '0 16px' }}>
       <section
         style={{
           ...cardBase,
-          background: 'linear-gradient(180deg, rgba(0,245,233,0.08) 0%, rgba(255,45,107,0.08) 100%), rgba(255,255,255,0.03)',
+          background:
+            'linear-gradient(180deg, rgba(0,245,233,0.08) 0%, rgba(255,45,107,0.08) 100%), rgba(255,255,255,0.03)',
           border: '1px solid rgba(255,45,107,0.22)',
         }}
       >
         {sectionEyebrow('Pro', '#FF2D6B')}
-        <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: 38, lineHeight: 1, color: '#F7F8FA', letterSpacing: '0.03em' }}>
+
+        <h2
+          style={{
+            margin: 0,
+            fontFamily: 'Bebas Neue, sans-serif',
+            fontSize: 38,
+            lineHeight: 1,
+            color: '#F7F8FA',
+            letterSpacing: '0.03em',
+          }}
+        >
           $9.99 / month
         </h2>
-        <p style={{ marginTop: 12, marginBottom: 18, fontFamily: 'DM Sans, sans-serif', fontSize: 15, lineHeight: 1.6, color: 'rgba(247,248,250,0.82)' }}>
-          Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more premium betting intelligence.
+
+        <p
+          style={{
+            marginTop: 12,
+            marginBottom: 18,
+            fontFamily: 'DM Sans, sans-serif',
+            fontSize: 15,
+            lineHeight: 1.6,
+            color: 'rgba(247,248,250,0.82)',
+          }}
+        >
+          Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more
+          premium betting intelligence.
         </p>
+
         <div style={{ display: 'grid', gap: 10, marginBottom: 18 }}>
           {[
             'Unlimited UR TAKE queries',
@@ -799,6 +963,7 @@ export default function App() {
             </div>
           ))}
         </div>
+
         <button
           style={{
             width: '100%',
@@ -819,6 +984,8 @@ export default function App() {
     </div>
   );
 
+  // ─── NAV + SHELL ─────────────────────────────────────────────────────────────
+
   const bottomNavItems = [
     { key: 'HOME', label: 'HOME' },
     { key: 'MIAMI', label: 'MIAMI' },
@@ -830,72 +997,12 @@ export default function App() {
     <div style={shellStyle}>
       <div style={containerStyle}>
         {topHeader}
+
         {activeTab === 'HOME' && homeScreen}
         {activeTab === 'MIAMI' && miamiScreen}
         {activeTab === 'ASK' && askScreen}
         {activeTab === 'PRO' && proScreen}
       </div>
-
-      {activeTab === 'ASK' && (
-        <div
-          style={{
-            position: 'fixed',
-            left: 0,
-            right: 0,
-            bottom: 80,
-            zIndex: 10,
-            display: 'flex',
-            justifyContent: 'center',
-            padding: '12px 16px 4px',
-            background: 'linear-gradient(180deg, rgba(8,10,12,0) 0%, rgba(8,10,12,0.96) 35%)',
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 760,
-              display: 'grid',
-              gridTemplateColumns: '1fr 52px',
-              gap: 10,
-            }}
-          >
-            <input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAsk(); }}
-              placeholder="Ask a follow-up..."
-              style={{
-                height: 50,
-                borderRadius: 999,
-                border: '1px solid rgba(0,245,233,0.24)',
-                background: 'rgba(10,12,14,0.98)',
-                color: '#F7F8FA',
-                padding: '0 16px',
-                outline: 'none',
-                fontFamily: 'DM Sans, sans-serif',
-                fontSize: 14,
-              }}
-            />
-            <button
-              onClick={() => handleAsk()}
-              style={{
-                height: 50,
-                border: 'none',
-                borderRadius: 999,
-                cursor: 'pointer',
-                fontFamily: 'DM Sans, sans-serif',
-                fontWeight: 800,
-                fontSize: 18,
-                color: '#080A0C',
-                background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
-              }}
-              aria-label="Send"
-            >
-              ➜
-            </button>
-          </div>
-        </div>
-      )}
 
       <nav
         style={{
@@ -903,12 +1010,11 @@ export default function App() {
           left: 0,
           right: 0,
           bottom: 0,
-          zIndex: 20,
           display: 'flex',
           justifyContent: 'center',
-          padding: '10px 16px',
-          paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
-          background: 'linear-gradient(180deg, rgba(8,10,12,0) 0%, rgba(8,10,12,0.88) 28%, rgba(8,10,12,0.98) 100%)',
+          padding: '12px 16px 18px',
+          background:
+            'linear-gradient(180deg, rgba(8,10,12,0) 0%, rgba(8,10,12,0.86) 28%, rgba(8,10,12,0.98) 100%)',
           backdropFilter: 'blur(10px)',
         }}
       >
@@ -928,6 +1034,7 @@ export default function App() {
           {bottomNavItems.map((item) => {
             const isActive = activeTab === item.key;
             const isMiami = item.key === 'MIAMI';
+
             return (
               <button
                 key={item.key}
