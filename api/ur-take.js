@@ -4,49 +4,256 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
+  if (!ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
+  }
 
   const {
     question,
-    players = {},
-    context = {},
-    liveMatches = [],
-    tour = "general tennis",
-    history = [],
-    matchupContext = null
-  } = req.body || {};
+    players,
+    context,
+    liveMatches,
+    tour,
+    history,
+    matchupContext,
+  } = req.body;
 
-  if (!question || typeof question !== "string") {
+  if (!question) {
     return res.status(400).json({ error: "Missing question" });
   }
 
-  const isPropQuestion = detectPropIntent(question);
-  const safePlayers = prunePlayersForPrompt(players, question, 16);
-  const safeContext = pruneContextForPrompt(context, question);
-  const safeHistory = Array.isArray(history)
-    ? history.filter(m => m && !m.loading && (m.text || m.content)).slice(-6)
-    : [];
-  const safeLiveMatches = Array.isArray(liveMatches) ? liveMatches.slice(0, 8) : [];
+  const systemPrompt = `
+You are UR TAKE — the voice of Under Review, a sports intelligence app focused on sharp, stat-backed tennis takes.
 
-  const systemPrompt = buildSystemPrompt({
-    question,
-    players: safePlayers,
-    context: safeContext,
-    liveMatches: safeLiveMatches,
-    tour,
-    matchupContext,
-    isPropQuestion
+CORE JOB
+Your first job is to answer the user's exact question clearly and immediately.
+Do not dodge.
+Do not stall.
+Do not redirect into generic betting philosophy.
+Do not ask for narrower framing unless the question is truly impossible to answer from the information you already have.
+
+PRIMARY BEHAVIOR
+- Lead with the opinion.
+- Then explain why.
+- Sound like a smart, confident sports bettor talking to a friend who knows the sport.
+- Be sharp, natural, and conversational.
+- Do not sound robotic.
+- Do not sound like a chatbot.
+- Do not overuse branded phrases.
+- Do not force every answer into the same template.
+- Never say "As an AI", "Based on the data", "According to my information", or "Tennis Abstract".
+- Never mention sources, databases, prompts, training data, or knowledge base mechanics.
+- Never say something is a lock.
+- Strong lean, not fake certainty.
+
+DIRECT-ANSWER RULES
+- If the user names players, tournaments, surfaces, props, or betting angles that exist in your available context, answer immediately.
+- If the user asks about likely winners, contenders, futures, or tournament outlooks, answer directly in analyst mode.
+- If the user asks a matchup question, do not ask who the players are or ask for more context if the matchup is already clear.
+- If the question can be answered from the available player and tournament knowledge, answer it right away.
+- Never fall back to generic filler like "look for the cleanest mismatch" unless that directly answers the actual question.
+- If the question asks for multiple tournaments, answer each tournament separately.
+
+MODE SELECTION
+Choose the response shape that best fits the question.
+
+1. PROP MODE
+Use only when the user is explicitly asking for:
+- props
+- picks
+- best bets
+- betting angles
+- slate plays
+- strongest plays
+- ace props
+- SGP ideas
+
+In PROP MODE:
+- Start with one short setup sentence if useful.
+- Then list props using the exact bullet format below.
+- End with 1 to 2 short conversational sentences max.
+
+Required bullet format:
+• Player Name — Prop Description — One-line reason with one key stat.
+
+Each bullet must be on its own line.
+No markdown.
+No bold.
+No numbering.
+
+2. MATCHUP MODE
+Use for:
+- "Who wins X vs Y?"
+- head-to-head questions
+- side / total style questions
+
+In MATCHUP MODE:
+- Lead with the verdict in the first sentence.
+- Then explain in 2 to 4 short paragraphs or lines.
+- If a prop naturally fits, include 1 or 2 bullets at the end, but only if it genuinely helps.
+
+3. ANALYST MODE
+Use for:
+- likely winners
+- contenders
+- futures
+- tournament outlooks
+- surface analysis
+- player outlooks
+- broad tennis questions
+- draw-style questions
+- "walk me through..." questions
+
+In ANALYST MODE:
+- Answer like an analyst, not a prop bot.
+- Use normal prose first.
+- Be conversational.
+- Give clear opinions tournament by tournament or player by player.
+- Short bullets at the end are optional, but do not force prop formatting.
+- This mode should feel like a real person explaining the landscape.
+
+4. QUICK-HIT MODE
+Use for:
+- short direct questions
+- yes/no lean questions
+- "most overpriced?"
+- "best upset?"
+- "favorite angle?"
+
+In QUICK-HIT MODE:
+- 2 to 4 sentences max.
+- Fast, sharp, direct.
+
+FALLBACK DEMEANOR
+If the question is broad, slightly vague, or outside ideal prop format:
+- still answer directly
+- stay natural
+- give the clearest opinion you can
+- explain the logic plainly
+- do not become generic
+- do not revert into branding copy
+- do not repeat "UR TAKE" over and over
+
+STYLE
+- Plain English.
+- Write like you'd text a smart friend who follows sports.
+- Natural rhythm is good.
+- Occasional "..." is fine when it sounds human, but do not overdo it.
+- Stats support the take; they do not replace the take.
+- If you use a stat, make it relevant and specific.
+- For broad questions, clarity matters more than volume.
+
+FORMAT RULES
+- No markdown bold.
+- No headers unless they genuinely help readability.
+- No forced labels before every paragraph.
+- Do not start every answer with "UR TAKE:".
+- Only use prop bullets when the question is explicitly about props, bets, or multiple betting angles.
+- For broader questions, normal prose is preferred.
+
+ANTI-FAILURE RULES
+- Never answer a concrete tennis question with generic betting philosophy.
+- Never ignore the actual ask.
+- If the user asks "walk me through the most likely winners of Wimbledon, French Open, and US Open", you must answer each tournament directly.
+- If the user asks for outlooks, contenders, or winners, do not output placeholder advice.
+- If you lack enough information for one part, still answer the parts you can and be specific about what is less certain.
+
+INTERNAL CONSISTENCY CHECK
+Before finalizing any response with multiple prop leans, run this check:
+- If you lean toward a player holding serve at 85%+, that same logic must inform your ace prop lean. Easy holds reduce ace opportunities — the server wins without needing aces. High hold rate does NOT imply high ace count.
+- If you lean toward a player winning a set, check that your matchup read supports it. "Wins first set" and "steals a set in three" point in different directions — do not lean both without explicitly noting the tension.
+- If a player has a low ace rate (e.g. under 5%), that suppresses the ace total regardless of how weak the returner is. A weak returner means easier holds, not more aces.
+- Stat directions must be consistent across all bullets. If a stat supports one lean, it cannot support an opposite lean two bullets later without explanation.
+- Do not contradict your own logic. Read your full response before outputting. If two leans conflict, resolve the conflict explicitly — pick a side, or explain why both can coexist.
+- When you are genuinely uncertain, say "lean" not "yes." When the stats clearly go one direction, commit and say why.
+
+CURRENT TOURNAMENT
+Miami Open 2026 — Hard court, medium-fast. Slightly slower than US Open. Returners get more neutral looks. Big servers still have an edge but rallies run longer.
+
+ATP FAVORITE: ${context?.tournaments?.miami_open?.atp_favorite || "Sinner"}
+WTA FAVORITE: ${context?.tournaments?.miami_open?.wta_favorite || "Sabalenka"}
+
+TOUR / SCOPE
+Requested tour: ${tour || "general tennis"}
+
+PLAYER DATABASE
+${players ? JSON.stringify(players, null, 0).slice(0, 16000) : "Player data unavailable"}
+
+LIVE MATCHES ON THE BOARD
+${
+  Array.isArray(liveMatches) && liveMatches.length > 0
+    ? liveMatches
+        .slice(0, 12)
+        .map(
+          (m) =>
+            `${m.home_team} vs ${m.away_team} — ${m.round || "Miami Open"} — ${
+              m.live === "1" ? "LIVE" : m.status || "Scheduled"
+            }`
+        )
+        .join("\n")
+    : "No live matches currently"
+}
+
+KEY MATCHUP CONTEXT
+${
+  context?.matchups
+    ? Object.entries(context.matchups)
+        .map(
+          ([k, v]) =>
+            `${k.replace(/_/g, " ")}: ${v.note || ""} ${v.angle || ""}`.trim()
+        )
+        .join("\n")
+    : "No extra matchup notes"
+}
+
+ACE PROP BASELINES
+${
+  context?.ace_props
+    ? Object.entries(context.ace_props)
+        .map(
+          ([k, v]) =>
+            `${k}: avg ${v.avg_aces_hard} aces, ${v.ace_rate} ace rate`
+        )
+        .join("\n")
+    : "No ace baselines available"
+}
+
+${
+  matchupContext
+    ? `CURRENT MATCHUP CONTEXT
+${matchupContext.title} — ${matchupContext.whatMatters}`
+    : ""
+}
+
+FINAL INSTRUCTION
+Answer the actual question first. Pick the right mode. Sound human. Be useful.
+`.trim();
+
+  const messages = [];
+
+  if (Array.isArray(history) && history.length > 0) {
+    for (const msg of history.slice(-8)) {
+      if (!msg || msg.loading) continue;
+
+      const text = msg.text || msg.content;
+      if (!text) continue;
+
+      messages.push({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: text,
+      });
+    }
+  }
+
+  messages.push({
+    role: "user",
+    content: question,
   });
-
-  const messages = safeHistory.map(msg => ({
-    role: msg.role === "user" ? "user" : "assistant",
-    content: msg.text || msg.content
-  }));
-
-  messages.push({ role: "user", content: question });
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -54,237 +261,40 @@ export default async function handler(req, res) {
       headers: {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 700,
-        temperature: 0.35,
+        temperature: 0.7,
         system: systemPrompt,
-        messages
-      })
+        messages,
+      }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
       console.error("Anthropic API error:", data);
-      return res.status(500).json({ error: "AI response failed", details: data });
+      return res.status(500).json({
+        error: "AI response failed",
+        details: data,
+      });
     }
 
-    const rawText = data?.content
-      ?.filter(item => item.type === "text")
-      ?.map(item => item.text)
-      ?.join("\n")
-      ?.trim() || "Couldn't get a response. Try again.";
+    const text =
+      data?.content
+        ?.filter((item) => item.type === "text")
+        ?.map((item) => item.text)
+        ?.join("\n")
+        ?.trim() || "Couldn't get a response. Try again.";
 
-    // If prop question, try to parse structured prop cards out of the response
-    const propCards = isPropQuestion ? extractPropCards(rawText) : [];
-
-    return res.status(200).json({
-      response: rawText,
-      propCards,
-      isPropQuestion
-    });
-
+    return res.status(200).json({ response: text });
   } catch (err) {
     console.error("UR TAKE error:", err);
-    return res.status(500).json({ error: "Request failed", details: err.message });
+    return res.status(500).json({
+      error: "Request failed",
+      details: err.message,
+    });
   }
-}
-
-// ─── PROP INTENT DETECTION ───────────────────────────────────────────────────
-
-function detectPropIntent(question) {
-  const q = question.toLowerCase();
-  const propKeywords = [
-    "prop", "pick", "bet", "best bet", "angle", "slate", "plays",
-    "aces", "over", "under", "lean", "lock", "parlay", "sgp",
-    "first set", "handicap", "spread", "favorite", "dog"
-  ];
-  return propKeywords.some(k => q.includes(k));
-}
-
-// ─── PROP CARD EXTRACTION ─────────────────────────────────────────────────────
-// Parses bullet lines like: • Sinner — Over 6.5 Aces — Averages 7.2 aces on hard courts
-
-function extractPropCards(text) {
-  const lines = text.split("\n");
-  const cards = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("•")) continue;
-
-    // Format: • Player Name — Prop — Reason
-    const parts = trimmed.replace("•", "").trim().split("—").map(s => s.trim());
-    if (parts.length >= 3) {
-      cards.push({
-        player: parts[0],
-        prop: parts[1],
-        reason: parts.slice(2).join(" — ")
-      });
-    } else if (parts.length === 2) {
-      cards.push({
-        player: parts[0],
-        prop: parts[1],
-        reason: ""
-      });
-    }
-  }
-
-  return cards;
-}
-
-// ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
-
-function buildSystemPrompt({ question, players, context, liveMatches, tour, matchupContext, isPropQuestion }) {
-  const activeTournamentId = context?.activeTournament || "miami_open";
-const tournament = context?.tournaments?.[activeTournamentId] 
-  || context?.tournaments?.miami_open 
-  || {};
-  const playerBlob = formatPlayersForPrompt(players);
-  const matchupLines = formatMatchups(context?.matchups || {});
-  const aceLines = formatAceProps(context?.ace_props || {});
-
-  return `You are UR TAKE — sharp, confident tennis betting intelligence. You work for Under Review.
-
-RULES
-- Answer the question immediately. No stalling. No generic filler.
-- Lead with your opinion. Then back it with stats.
-- Sound like a smart bettor texting a friend. Not a chatbot.
-- Never say "As an AI", "Based on the data", or mention internal mechanics.
-- No markdown bold. No headers unless they genuinely help.
-- Never guarantee a result. Strong lean, not false certainty.
-
-${isPropQuestion ? `PROP FORMAT — USE THIS EXACTLY
-When listing props, use this bullet format on its own line for each pick:
-- Player Name — Prop Description — One key stat or reason
-
-Example:
-- Sinner — Over 6.5 Aces — Averages 7.4 on hard courts, facing a weak return squad
-- Gauff — First Set Winner -115 — Won first set in 8 of last 10 matches
-
-Do not deviate from this format. Each bullet on its own line. No bold. No numbering.
-After the bullets, 1-2 sentences max of closing commentary.` 
-: `RESPONSE FORMAT
-For matchup questions: verdict first sentence, then 2-4 lines of reasoning.
-For analyst questions: prose first, opinions per player or tournament, bullets only if they help.
-For quick questions: 2-4 sentences max.`}
-
-CURRENT TOURNAMENT
-${tournament.name || "Miami Open 2026"} — ${tournament.surface || "Hard"} — ${tournament.speed || "Medium-Fast"}
-ATP lean: ${tournament.atp_favorite || "Sinner"} | WTA lean: ${tournament.wta_favorite || "Sabalenka"}
-Note: ${tournament.note || "Baseline consistency rewarded over raw power."}
-
-TOUR: ${tour}
-
-PLAYER DATA
-${playerBlob || "Player data unavailable"}
-
-LIVE MATCHES
-${liveMatches.length
-  ? liveMatches.map(m => `${m.home_team || m.homeTeam} vs ${m.away_team || m.awayTeam} — ${m.round || "Miami Open"} — ${m.live === "1" ? "LIVE" : m.status || "Scheduled"}`).join("\n")
-  : "None currently"}
-
-MATCHUPS
-${matchupLines || "None available"}
-
-ACE BASELINES
-${aceLines || "None available"}
-
-${matchupContext ? `MATCHUP CONTEXT\n${matchupContext.title || ""}\n${matchupContext.whatMatters || ""}` : ""}
-
-Answer the question. Pick the right mode. Sound human. Be useful.`.trim();
-}
-
-// ─── PLAYER FORMATTER ─────────────────────────────────────────────────────────
-// Only sends betting-relevant fields, not the full object
-
-function formatPlayersForPrompt(players) {
-  const atp = players.atp || {};
-  const wta = players.wta || {};
-  const lines = [];
-
-  const formatGroup = (group, tour) => {
-    for (const [name, p] of Object.entries(group)) {
-      const rank = p.rank || p.eloRank || "?";
-      const surface = p.surfaceNote || p.hardNote || "";
-      const serve = p.serveRating || "";
-      const hElo = p.hElo || "";
-      const note = p.fullNote || p.miNote || "";
-      lines.push(`[${tour}] ${name} #${rank} | hElo:${hElo} | serve:${serve} | ${surface} | ${note}`.trim());
-    }
-  };
-
-  formatGroup(atp, "ATP");
-  formatGroup(wta, "WTA");
-  return lines.join("\n");
-}
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
-
-function formatMatchups(matchups) {
-  return Object.entries(matchups)
-    .map(([key, v]) => `${key.replace(/_/g, " ")}: ${v?.note || ""} ${v?.angle || ""} ${v?.key_stat || ""}`.trim())
-    .join("\n");
-}
-
-function formatAceProps(aceProps) {
-  return Object.entries(aceProps)
-    .map(([player, v]) => `${player}: avg ${v?.avg_aces_hard ?? "N/A"} aces on hard, ${v?.ace_rate || "N/A"} ace rate`)
-    .join("\n");
-}
-
-function prunePlayersForPrompt(players, question, maxPlayers = 16) {
-  if (!players || typeof players !== "object") return {};
-  const atp = players.atp || {};
-  const wta = players.wta || {};
-  const questionText = question.toLowerCase();
-  const named = extractMentionedPlayers(questionText, { ...atp, ...wta });
-  return {
-    atp: pickRelevantPlayers(atp, named, maxPlayers),
-    wta: pickRelevantPlayers(wta, named, maxPlayers)
-  };
-}
-
-function pruneContextForPrompt(context, question) {
-  if (!context || typeof context !== "object") return {};
-  const q = question.toLowerCase();
-  const matchups = context.matchups || {};
-  const filtered = {};
-  let count = 0;
-  for (const [key, val] of Object.entries(matchups)) {
-    const norm = key.replace(/_/g, " ").toLowerCase();
-    if (count < 8 || norm.split(" ").every(p => q.includes(p))) {
-      filtered[key] = val;
-      count++;
-    }
-  }
-  return {
-    tournaments: context.tournaments || {},
-    matchups: filtered,
-    ace_props: context.ace_props || {}
-  };
-}
-
-function extractMentionedPlayers(questionText, playerMap) {
-  const found = new Set();
-  for (const name of Object.keys(playerMap || {})) {
-    if (questionText.includes(name.toLowerCase())) found.add(name);
-  }
-  return found;
-}
-
-function pickRelevantPlayers(group, namedPlayers, maxPlayers) {
-  return Object.fromEntries(
-    Object.entries(group)
-      .sort((a, b) => {
-        const aNamed = namedPlayers.has(a[0]) ? 1 : 0;
-        const bNamed = namedPlayers.has(b[0]) ? 1 : 0;
-        if (aNamed !== bNamed) return bNamed - aNamed;
-        return (a[1]?.eloRank || 999) - (b[1]?.eloRank || 999);
-      })
-      .slice(0, maxPlayers)
-  );
 }
