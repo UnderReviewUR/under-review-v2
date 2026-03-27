@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('HOME');
@@ -15,6 +15,7 @@ export default function App() {
   const [contextData, setContextData] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const messagesEndRef = useRef(null);
 
   const featuredPrompts = [
     'Best props tonight?',
@@ -82,9 +83,15 @@ export default function App() {
         setDataLoading(false);
       }
     }
-
     loadData();
   }, []);
+
+  // Auto-scroll to bottom of message list on new message
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   const atpPlayers = [
     { name: 'Jannik Sinner', elo: 2168, hold: '89.4%', dr: '1.19', tb: '63%' },
@@ -114,7 +121,6 @@ export default function App() {
           ? 'Still loading the tennis database. Try again in a second.'
           : 'Tennis data did not load correctly. Check /api/tennis-players and /api/tennis-context.',
       };
-
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setInputValue('');
       setActiveTab('ASK');
@@ -128,11 +134,7 @@ export default function App() {
     }));
 
     const userMessage = { role: 'user', content: prompt };
-    const loadingMessage = {
-      role: 'assistant',
-      content: 'Thinking...',
-      loading: true,
-    };
+    const loadingMessage = { role: 'assistant', content: '...', loading: true };
 
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setInputValue('');
@@ -154,10 +156,7 @@ export default function App() {
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || 'Request failed');
-      }
+      if (!response.ok) throw new Error(data?.error || 'Request failed');
 
       setMessages((prev) => {
         const next = [...prev];
@@ -179,17 +178,178 @@ export default function App() {
     }
   }
 
-  // ─── Inline markdown renderer ───────────────────────────────────────────────
-  // Converts **text** to cyan bold spans. Strips any remaining ** as fallback.
+  // ─── Share card generator ─────────────────────────────────────────────────────
+  // Draws a 1080x1080 branded prop card on Canvas, then triggers native share or download
+  function roundRect(ctx, x, y, w, h, r) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + w - radius, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+    ctx.lineTo(x + w, y + h - radius);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+    ctx.lineTo(x + radius, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+    for (const word of words) {
+      const test = line + word + ' ';
+      if (ctx.measureText(test).width > maxWidth && line !== '') {
+        ctx.fillText(line.trim(), x, currentY);
+        line = word + ' ';
+        currentY += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    ctx.fillText(line.trim(), x, currentY);
+  }
+
+  async function shareCard(player, prop, reason) {
+    const W = 1080;
+    const H = 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // True black background
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
+
+    // Faint teal top glow
+    const glow = ctx.createRadialGradient(W / 2, -80, 0, W / 2, -80, 700);
+    glow.addColorStop(0, 'rgba(0,245,233,0.18)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // Card background
+    ctx.fillStyle = 'rgba(255,255,255,0.045)';
+    roundRect(ctx, 72, 160, W - 144, 760, 32);
+    ctx.fill();
+
+    // Card border
+    ctx.strokeStyle = 'rgba(0,245,233,0.28)';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 72, 160, W - 144, 760, 32);
+    ctx.stroke();
+
+    // Cyan left accent
+    ctx.fillStyle = '#00F5E9';
+    roundRect(ctx, 72, 160, 7, 760, 4);
+    ctx.fill();
+
+    // UR TAKE eyebrow
+    ctx.font = '500 30px monospace';
+    ctx.fillStyle = '#00F5E9';
+    ctx.fillText('UR TAKE', 126, 258);
+
+    // Gradient divider under UR TAKE
+    const divGrad = ctx.createLinearGradient(126, 0, 540, 0);
+    divGrad.addColorStop(0, '#00F5E9');
+    divGrad.addColorStop(1, '#FF2D6B');
+    ctx.fillStyle = divGrad;
+    ctx.fillRect(126, 275, 414, 3);
+
+    // Player name — large
+    ctx.font = 'bold 86px sans-serif';
+    ctx.fillStyle = '#F7F8FA';
+    ctx.fillText(player, 126, 398);
+
+    // Prop badge pill
+    const badgeLabel = prop.toUpperCase();
+    ctx.font = 'bold 34px monospace';
+    const textW = ctx.measureText(badgeLabel).width;
+    const pillW = textW + 64;
+    const pillX = 126;
+    const pillY = 428;
+    const pillH = 60;
+
+    ctx.fillStyle = '#00F5E9';
+    roundRect(ctx, pillX, pillY, pillW, pillH, 999);
+    ctx.fill();
+
+    ctx.fillStyle = '#000000';
+    ctx.fillText(badgeLabel, pillX + 32, pillY + 40);
+
+    // Reason — word-wrapped
+    ctx.font = '400 40px sans-serif';
+    ctx.fillStyle = 'rgba(247,248,250,0.80)';
+    wrapText(ctx, reason, 126, 568, W - 300, 58);
+
+    // Bottom logo block
+    ctx.font = '500 30px monospace';
+    ctx.fillStyle = 'rgba(247,248,250,0.42)';
+    ctx.fillText('UNDER', 126, 848);
+
+    ctx.font = 'bold 78px sans-serif';
+    const logoGrad = ctx.createLinearGradient(126, 0, 560, 0);
+    logoGrad.addColorStop(0, '#00F5E9');
+    logoGrad.addColorStop(1, '#FF2D6B');
+    ctx.fillStyle = logoGrad;
+    ctx.fillText('REVIEW', 126, 928);
+
+    // Logo rule
+    const footGrad = ctx.createLinearGradient(120, 0, 700, 0);
+    footGrad.addColorStop(0, '#00F5E9');
+    footGrad.addColorStop(1, '#FF2D6B');
+    ctx.fillStyle = footGrad;
+    ctx.fillRect(120, 942, 580, 3);
+
+    ctx.beginPath(); ctx.arc(114, 943, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#00F5E9'; ctx.fill();
+
+    ctx.beginPath(); ctx.arc(706, 943, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF2D6B'; ctx.fill();
+
+    // URL watermark
+    ctx.font = '400 26px monospace';
+    ctx.fillStyle = 'rgba(247,248,250,0.25)';
+    ctx.fillText('under-review-v2.vercel.app', 126, 986);
+
+    // Share or download
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], 'ur-take.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `${player} — ${prop}`,
+            text: `${reason}\n\nvia Under Review`,
+          });
+        } catch {
+          downloadBlob(blob);
+        }
+      } else {
+        downloadBlob(blob);
+      }
+    }, 'image/png');
+  }
+
+  function downloadBlob(blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ur-take.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ─── Inline markdown renderer ──────────────────────────────────────────────
   function renderInlineMarkdown(text) {
     const parts = text.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
-          <span
-            key={i}
-            style={{ color: '#00F5E9', fontWeight: 700 }}
-          >
+          <span key={i} style={{ color: '#00F5E9', fontWeight: 700 }}>
             {part.slice(2, -2)}
           </span>
         );
@@ -198,7 +358,33 @@ export default function App() {
     });
   }
 
-  function renderMessage(content) {
+  // ─── Message renderer ──────────────────────────────────────────────────────
+  function renderMessage(content, isLoading) {
+    if (isLoading) {
+      return (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '4px 0' }}>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: '#00F5E9',
+                animation: `urPulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+              }}
+            />
+          ))}
+          <style>{`
+            @keyframes urPulse {
+              0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); }
+              40% { opacity: 1; transform: scale(1); }
+            }
+          `}</style>
+        </div>
+      );
+    }
+
     const lines = content.split('\n').filter(Boolean);
     const propLines = lines.filter((line) => line.trim().startsWith('•'));
     const normalLines = lines.filter((line) => !line.trim().startsWith('•'));
@@ -223,7 +409,6 @@ export default function App() {
         {propLines.length > 0 && (
           <div style={{ display: 'grid', gap: 10 }}>
             {propLines.map((line, idx) => {
-              // Strip all ** before splitting so they don't bleed into card fields
               const clean = line.replace(/^•\s*/, '').replace(/\*\*/g, '');
               const parts = clean.split(' — ');
 
@@ -264,9 +449,11 @@ export default function App() {
                     borderLeft: '3px solid #00F5E9',
                     borderRadius: 16,
                     padding: 12,
-                    background: 'rgba(255,255,255,0.025)',
+                    background: 'rgba(255,255,255,0.04)',
+                    position: 'relative',
                   }}
                 >
+                  {/* Player + badge row — padded right to avoid overlap with share btn */}
                   <div
                     style={{
                       display: 'flex',
@@ -274,6 +461,7 @@ export default function App() {
                       gap: 8,
                       alignItems: 'center',
                       marginBottom: reason ? 8 : 0,
+                      paddingRight: 40,
                     }}
                   >
                     <span
@@ -286,7 +474,6 @@ export default function App() {
                     >
                       {player}
                     </span>
-
                     {prop ? (
                       <span
                         style={{
@@ -294,7 +481,7 @@ export default function App() {
                           fontSize: 11,
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
-                          color: '#080A0C',
+                          color: '#000000',
                           background: '#00F5E9',
                           borderRadius: 999,
                           padding: '4px 8px',
@@ -312,11 +499,39 @@ export default function App() {
                         fontSize: 13,
                         lineHeight: 1.55,
                         color: 'rgba(247,248,250,0.76)',
+                        paddingRight: 40,
                       }}
                     >
                       {renderInlineMarkdown(reason)}
                     </div>
                   ) : null}
+
+                  {/* Share button */}
+                  <button
+                    onClick={() => shareCard(player, prop, reason)}
+                    title="Share this take"
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      width: 30,
+                      height: 30,
+                      borderRadius: '50%',
+                      border: '1px solid rgba(0,245,233,0.3)',
+                      background: 'rgba(0,245,233,0.08)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                  >
+                    <svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.5 1.5V9.5M6.5 1.5L4 4M6.5 1.5L9 4" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M1.5 9.5V12.5H11.5V9.5" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
               );
             })}
@@ -326,12 +541,11 @@ export default function App() {
     );
   }
 
-  // ─── Shared styles ──────────────────────────────────────────────────────────
+  // ─── Shared styles ─────────────────────────────────────────────────────────
 
   const shellStyle = {
     minHeight: '100vh',
-    background:
-      'radial-gradient(circle at top, rgba(10,20,34,1) 0%, #080A0C 38%, #080A0C 100%)',
+    background: '#000000',
     color: '#F7F8FA',
   };
 
@@ -345,8 +559,8 @@ export default function App() {
   const cardBase = {
     borderRadius: 20,
     padding: 16,
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
   };
 
   function sectionEyebrow(label, color = '#00F5E9') {
@@ -370,7 +584,7 @@ export default function App() {
     <div style={{ marginTop: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
         <div style={{ width: 8, height: 8, borderRadius: 999, background: '#00F5E9', flexShrink: 0 }} />
-        <div style={{ height: 2, flex: 1, borderRadius: 999, background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)' }} />
+        <div style={{ height: 2, flex: 1, borderRadius: 999, background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)' }} />
         <div style={{ width: 8, height: 8, borderRadius: 999, background: '#FF2D6B', flexShrink: 0 }} />
       </div>
     </div>
@@ -379,48 +593,19 @@ export default function App() {
   const topHeader = (
     <div style={{ padding: '22px 16px 8px' }}>
       <div style={{ textAlign: 'center', marginBottom: 14 }}>
-        <div
-          style={{
-            fontFamily: 'DM Mono, monospace',
-            fontSize: 11,
-            letterSpacing: '0.32em',
-            color: 'rgba(247,248,250,0.7)',
-            textTransform: 'uppercase',
-            marginBottom: 2,
-          }}
-        >
+        <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, letterSpacing: '0.32em', color: 'rgba(247,248,250,0.45)', textTransform: 'uppercase', marginBottom: 2 }}>
           UNDER
         </div>
-
-        <div
-          style={{
-            fontFamily: 'Bebas Neue, sans-serif',
-            fontSize: 48,
-            lineHeight: 0.95,
-            letterSpacing: '0.03em',
-            background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}
-        >
+        <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 48, lineHeight: 0.95, letterSpacing: '0.03em', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           REVIEW
         </div>
-
         {logoRule}
       </div>
     </div>
   );
 
   const askBar = (placeholder = 'Ask UR TAKE anything...') => (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 52px',
-        gap: 10,
-        padding: '0 16px',
-        marginBottom: 16,
-      }}
-    >
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px', gap: 10, padding: '0 16px', marginBottom: 16 }}>
       <input
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
@@ -430,15 +615,14 @@ export default function App() {
           height: 50,
           borderRadius: 999,
           border: '1px solid rgba(0,245,233,0.24)',
-          background: 'rgba(255,255,255,0.03)',
+          background: 'rgba(255,255,255,0.05)',
           color: '#F7F8FA',
           padding: '0 16px',
           outline: 'none',
           fontFamily: 'DM Sans, sans-serif',
-          fontSize: 14,
+          fontSize: 16, // prevents iOS auto-zoom
         }}
       />
-
       <button
         onClick={() => handleAsk()}
         style={{
@@ -446,11 +630,10 @@ export default function App() {
           border: 'none',
           borderRadius: 999,
           cursor: 'pointer',
-          fontFamily: 'DM Sans, sans-serif',
           fontWeight: 800,
           fontSize: 22,
-          color: '#080A0C',
-          background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
+          color: '#000000',
+          background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)',
         }}
       >
         ↑
@@ -458,32 +641,26 @@ export default function App() {
     </div>
   );
 
-  // ─── HOME ───────────────────────────────────────────────────────────────────
+  // ─── HOME ──────────────────────────────────────────────────────────────────
 
   const homeScreen = (
     <>
       {askBar('Ask UR TAKE anything...')}
-
       <div style={{ padding: '0 16px' }}>
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Trending asks')}
-
           <div style={{ display: 'grid', gap: 10 }}>
             {trendingAsks.map((ask) => (
               <button
                 key={ask}
                 onClick={() => handleAsk(ask)}
                 style={{
-                  textAlign: 'left',
-                  borderRadius: 16,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  background: 'rgba(255,255,255,0.025)',
-                  color: '#F7F8FA',
-                  padding: '14px 14px',
-                  cursor: 'pointer',
-                  fontFamily: 'DM Sans, sans-serif',
-                  fontSize: 14,
-                  fontWeight: 700,
+                  textAlign: 'left', borderRadius: 16,
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: '#F7F8FA', padding: '14px', cursor: 'pointer',
+                  fontFamily: 'DM Sans, sans-serif', fontSize: 14, fontWeight: 700,
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
                 {ask}
@@ -494,63 +671,29 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Featured matchups')}
-
           <div style={{ display: 'grid', gap: 12 }}>
             {featuredMatchups.map((matchup) => (
               <button
                 key={matchup.title}
                 onClick={() => handleAsk(`Who wins ${matchup.title}?`)}
                 style={{
-                  textAlign: 'left',
-                  borderRadius: 18,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  background: 'rgba(255,255,255,0.025)',
-                  padding: 14,
-                  cursor: 'pointer',
+                  textAlign: 'left', borderRadius: 18,
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  background: 'rgba(255,255,255,0.03)',
+                  padding: 14, cursor: 'pointer',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                    flexWrap: 'wrap',
-                  }}
-                >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <div>
-                    <div
-                      style={{
-                        fontFamily: 'DM Sans, sans-serif',
-                        fontSize: 16,
-                        fontWeight: 800,
-                        color: '#F7F8FA',
-                        marginBottom: 4,
-                      }}
-                    >
+                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 16, fontWeight: 800, color: '#F7F8FA', marginBottom: 4 }}>
                       {matchup.title}
                     </div>
-
-                    <div
-                      style={{
-                        fontFamily: 'DM Sans, sans-serif',
-                        fontSize: 13,
-                        color: 'rgba(247,248,250,0.66)',
-                      }}
-                    >
+                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, color: 'rgba(247,248,250,0.5)' }}>
                       {matchup.subtitle}
                     </div>
                   </div>
-
-                  <div
-                    style={{
-                      fontFamily: 'DM Mono, monospace',
-                      fontSize: 11,
-                      letterSpacing: '0.06em',
-                      color: '#00F5E9',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 11, letterSpacing: '0.06em', color: '#00F5E9', whiteSpace: 'nowrap' }}>
                     {matchup.angle}
                   </div>
                 </div>
@@ -562,25 +705,15 @@ export default function App() {
     </>
   );
 
-  // ─── MIAMI ──────────────────────────────────────────────────────────────────
+  // ─── MIAMI ─────────────────────────────────────────────────────────────────
 
   const miamiScreen = (
     <>
       <div style={{ padding: '0 16px', marginBottom: 16 }}>
         <section style={{ ...cardBase }}>
           {sectionEyebrow('Miami Open 2026', '#FF2D6B')}
-
-          <p
-            style={{
-              margin: 0,
-              fontFamily: 'DM Sans, sans-serif',
-              fontSize: 14,
-              lineHeight: 1.6,
-              color: 'rgba(247,248,250,0.78)',
-            }}
-          >
-            Hard court, medium-fast. Premium hold-rate and first-strike edges. Best angles
-            usually show up in ace props, first-set winners, and total-games spots.
+          <p style={{ margin: 0, fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.6, color: 'rgba(247,248,250,0.78)' }}>
+            Hard court, medium-fast. Premium hold-rate and first-strike edges. Best angles usually show up in ace props, first-set winners, and total-games spots.
           </p>
         </section>
       </div>
@@ -590,23 +723,19 @@ export default function App() {
       <div style={{ padding: '0 16px' }}>
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Quick asks', '#F5C842')}
-
           <div style={{ display: 'grid', gap: 10 }}>
             {miamiPrompts.map((prompt) => (
               <button
                 key={prompt}
                 onClick={() => handleAsk(prompt)}
                 style={{
-                  textAlign: 'left',
-                  borderRadius: 16,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  background: 'rgba(255,255,255,0.025)',
-                  color: '#F7F8FA',
-                  padding: '14px 14px',
-                  cursor: 'pointer',
-                  fontFamily: 'DM Sans, sans-serif',
-                  fontSize: 14,
-                  fontWeight: 700,
+                  textAlign: 'left', borderRadius: 16,
+                  border: '1px solid rgba(255,255,255,0.07)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: '#F7F8FA', padding: '14px',
+                  cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 14, fontWeight: 700,
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
                 {prompt}
@@ -617,231 +746,68 @@ export default function App() {
 
         <section style={{ ...cardBase, marginBottom: 14 }}>
           {sectionEyebrow('Prop guide', '#F5C842')}
-
           <div style={{ display: 'grid', gap: 12 }}>
             {[
-              {
-                title: 'Ace props',
-                body: 'Most playable when hold stability and short-rally profile line up.',
-              },
-              {
-                title: 'First set winners',
-                body: 'Best in lopsided serve quality matchups where early pressure is predictable.',
-              },
-              {
-                title: 'Total games',
-                body: 'Strongest when both players hold clean or one player controls pace but not breaks.',
-              },
+              { title: 'Ace props', body: 'Most playable when hold stability and short-rally profile line up.' },
+              { title: 'First set winners', body: 'Best in lopsided serve quality matchups where early pressure is predictable.' },
+              { title: 'Total games', body: 'Strongest when both players hold clean or one player controls pace but not breaks.' },
             ].map((item) => (
-              <div
-                key={item.title}
-                style={{
-                  borderRadius: 18,
-                  padding: 14,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  background: 'rgba(255,255,255,0.025)',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: '#F7F8FA',
-                    marginBottom: 6,
-                  }}
-                >
-                  {item.title}
-                </div>
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 13,
-                    lineHeight: 1.55,
-                    color: 'rgba(247,248,250,0.72)',
-                  }}
-                >
-                  {item.body}
-                </div>
+              <div key={item.title} style={{ borderRadius: 18, padding: 14, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)' }}>
+                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#F7F8FA', marginBottom: 6 }}>{item.title}</div>
+                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, lineHeight: 1.55, color: 'rgba(247,248,250,0.6)' }}>{item.body}</div>
               </div>
             ))}
           </div>
         </section>
 
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('ATP top players', '#F5C842')}
-
-          <div style={{ display: 'grid', gap: 10 }}>
-            {atpPlayers.map((player) => (
-              <div
-                key={player.name}
-                style={{
-                  borderRadius: 16,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  background: 'rgba(255,255,255,0.025)',
-                  padding: 14,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: '#F7F8FA',
-                    marginBottom: 10,
-                  }}
-                >
-                  {player.name}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {[
-                    ['Elo', player.elo],
-                    ['Hold%', player.hold],
-                    ['DR', player.dr],
-                    ['TB%', player.tb],
-                  ].map(([label, value]) => (
-                    <div
-                      key={label}
-                      style={{
-                        borderRadius: 12,
-                        padding: '10px 8px',
-                        background: '#0D1116',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontFamily: 'DM Mono, monospace',
-                          fontSize: 10,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'rgba(247,248,250,0.52)',
-                          marginBottom: 4,
-                        }}
-                      >
-                        {label}
+        {[{ label: 'ATP top players', players: atpPlayers }, { label: 'WTA top players', players: wtaPlayers }].map(({ label, players }) => (
+          <section key={label} style={{ ...cardBase, marginBottom: 14 }}>
+            {sectionEyebrow(label, '#F5C842')}
+            <div style={{ display: 'grid', gap: 10 }}>
+              {players.map((player) => (
+                <div key={player.name} style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', padding: 14 }}>
+                  <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#F7F8FA', marginBottom: 10 }}>
+                    {player.name}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {[['Elo', player.elo], ['Hold%', player.hold], ['DR', player.dr], ['TB%', player.tb]].map(([lbl, val]) => (
+                      <div key={lbl} style={{ borderRadius: 12, padding: '10px 8px', background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.4)', marginBottom: 4 }}>{lbl}</div>
+                        <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, fontWeight: 800, color: '#F7F8FA' }}>{val}</div>
                       </div>
-                      <div
-                        style={{
-                          fontFamily: 'DM Sans, sans-serif',
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: '#F7F8FA',
-                        }}
-                      >
-                        {value}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ ...cardBase, marginBottom: 14 }}>
-          {sectionEyebrow('WTA top players', '#F5C842')}
-
-          <div style={{ display: 'grid', gap: 10 }}>
-            {wtaPlayers.map((player) => (
-              <div
-                key={player.name}
-                style={{
-                  borderRadius: 16,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  background: 'rgba(255,255,255,0.025)',
-                  padding: 14,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: '#F7F8FA',
-                    marginBottom: 10,
-                  }}
-                >
-                  {player.name}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {[
-                    ['Elo', player.elo],
-                    ['Hold%', player.hold],
-                    ['DR', player.dr],
-                    ['TB%', player.tb],
-                  ].map(([label, value]) => (
-                    <div
-                      key={label}
-                      style={{
-                        borderRadius: 12,
-                        padding: '10px 8px',
-                        background: '#0D1116',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontFamily: 'DM Mono, monospace',
-                          fontSize: 10,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'rgba(247,248,250,0.52)',
-                          marginBottom: 4,
-                        }}
-                      >
-                        {label}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: 'DM Sans, sans-serif',
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: '#F7F8FA',
-                        }}
-                      >
-                        {value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </>
   );
 
-  // ─── ASK ────────────────────────────────────────────────────────────────────
+  // ─── ASK ───────────────────────────────────────────────────────────────────
 
   const askScreen = (
     <>
       {askBar('Ask props, matchups, or slate questions...')}
-
       <div style={{ padding: '0 16px' }}>
         {messages.length <= 1 && (
           <section style={{ ...cardBase, marginBottom: 14 }}>
             {sectionEyebrow('Featured prompts')}
-
             <div style={{ display: 'grid', gap: 10 }}>
               {featuredPrompts.map((prompt) => (
                 <button
                   key={prompt}
                   onClick={() => handleAsk(prompt)}
                   style={{
-                    textAlign: 'left',
-                    borderRadius: 16,
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    background: 'rgba(255,255,255,0.025)',
-                    color: '#F7F8FA',
-                    padding: '14px 14px',
-                    cursor: 'pointer',
-                    fontFamily: 'DM Sans, sans-serif',
-                    fontSize: 14,
-                    fontWeight: 700,
+                    textAlign: 'left', borderRadius: 16,
+                    border: '1px solid rgba(255,255,255,0.07)',
+                    background: 'rgba(255,255,255,0.03)',
+                    color: '#F7F8FA', padding: '14px',
+                    cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                    fontSize: 14, fontWeight: 700,
+                    WebkitTapHighlightColor: 'transparent',
                   }}
                 >
                   {prompt}
@@ -855,136 +821,62 @@ export default function App() {
           {messages.map((message, index) => (
             <div
               key={`${message.role}-${index}`}
-              style={{
-                display: 'flex',
-                justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-              }}
+              style={{ display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}
             >
               <div
                 style={{
                   width: '100%',
                   maxWidth: message.role === 'user' ? 520 : '100%',
                   borderRadius: 20,
-                  padding: '14px 14px',
-                  background:
-                    message.role === 'user'
-                      ? 'linear-gradient(90deg, rgba(0,245,233,0.16) 0%, rgba(255,45,107,0.14) 100%)'
-                      : 'rgba(255,255,255,0.025)',
-                  border:
-                    message.role === 'user'
-                      ? '1px solid rgba(0,245,233,0.2)'
-                      : '1px solid rgba(255,255,255,0.06)',
+                  padding: '14px',
+                  background: message.role === 'user'
+                    ? 'linear-gradient(90deg, rgba(0,245,233,0.14), rgba(255,45,107,0.12))'
+                    : 'rgba(255,255,255,0.04)',
+                  border: message.role === 'user'
+                    ? '1px solid rgba(0,245,233,0.2)'
+                    : '1px solid rgba(255,255,255,0.07)',
                 }}
               >
-                <div
-                  style={{
-                    fontFamily: 'DM Mono, monospace',
-                    fontSize: 10,
-                    letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
-                    color: message.role === 'user' ? '#F5C842' : '#00F5E9',
-                    marginBottom: 8,
-                  }}
-                >
+                <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: message.role === 'user' ? '#F5C842' : '#00F5E9', marginBottom: 8 }}>
                   {message.role === 'user' ? 'You' : 'UR TAKE'}
                 </div>
-
-                {renderMessage(message.content)}
+                {renderMessage(message.content, message.loading)}
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
       </div>
     </>
   );
 
-  // ─── PRO ────────────────────────────────────────────────────────────────────
+  // ─── PRO ───────────────────────────────────────────────────────────────────
 
   const proScreen = (
     <div style={{ padding: '0 16px' }}>
-      <section
-        style={{
-          ...cardBase,
-          background:
-            'linear-gradient(180deg, rgba(0,245,233,0.08) 0%, rgba(255,45,107,0.08) 100%), rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,45,107,0.22)',
-        }}
-      >
+      <section style={{ ...cardBase, background: 'linear-gradient(180deg, rgba(0,245,233,0.07), rgba(255,45,107,0.07)), rgba(255,255,255,0.03)', border: '1px solid rgba(255,45,107,0.22)' }}>
         {sectionEyebrow('Pro', '#FF2D6B')}
-
-        <h2
-          style={{
-            margin: 0,
-            fontFamily: 'Bebas Neue, sans-serif',
-            fontSize: 38,
-            lineHeight: 1,
-            color: '#F7F8FA',
-            letterSpacing: '0.03em',
-          }}
-        >
+        <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: 38, lineHeight: 1, color: '#F7F8FA', letterSpacing: '0.03em' }}>
           $9.99 / month
         </h2>
-
-        <p
-          style={{
-            marginTop: 12,
-            marginBottom: 18,
-            fontFamily: 'DM Sans, sans-serif',
-            fontSize: 15,
-            lineHeight: 1.6,
-            color: 'rgba(247,248,250,0.82)',
-          }}
-        >
-          Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more
-          premium betting intelligence.
+        <p style={{ marginTop: 12, marginBottom: 18, fontFamily: 'DM Sans, sans-serif', fontSize: 15, lineHeight: 1.6, color: 'rgba(247,248,250,0.78)' }}>
+          Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more premium betting intelligence.
         </p>
-
         <div style={{ display: 'grid', gap: 10, marginBottom: 18 }}>
-          {[
-            'Unlimited UR TAKE queries',
-            'Deeper matchup cards',
-            'Saved threads',
-            'Expanded player and surface data',
-          ].map((feature) => (
-            <div
-              key={feature}
-              style={{
-                borderRadius: 14,
-                padding: '12px 12px',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                fontFamily: 'DM Sans, sans-serif',
-                fontSize: 14,
-                fontWeight: 700,
-                color: '#F7F8FA',
-              }}
-            >
+          {['Unlimited UR TAKE queries', 'Deeper matchup cards', 'Saved threads', 'Expanded player and surface data'].map((feature) => (
+            <div key={feature} style={{ borderRadius: 14, padding: '12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', fontFamily: 'DM Sans, sans-serif', fontSize: 14, fontWeight: 700, color: '#F7F8FA' }}>
               {feature}
             </div>
           ))}
         </div>
-
-        <button
-          style={{
-            width: '100%',
-            height: 50,
-            border: 'none',
-            borderRadius: 999,
-            cursor: 'pointer',
-            fontFamily: 'DM Sans, sans-serif',
-            fontSize: 15,
-            fontWeight: 800,
-            color: '#080A0C',
-            background: 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)',
-          }}
-        >
+        <button style={{ width: '100%', height: 50, border: 'none', borderRadius: 999, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#000000', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)' }}>
           Unlock Pro
         </button>
       </section>
     </div>
   );
 
-  // ─── NAV + SHELL ─────────────────────────────────────────────────────────────
+  // ─── NAV + SHELL ───────────────────────────────────────────────────────────
 
   const bottomNavItems = [
     { key: 'HOME', label: 'HOME' },
@@ -997,64 +889,48 @@ export default function App() {
     <div style={shellStyle}>
       <div style={containerStyle}>
         {topHeader}
-
         {activeTab === 'HOME' && homeScreen}
         {activeTab === 'MIAMI' && miamiScreen}
         {activeTab === 'ASK' && askScreen}
         {activeTab === 'PRO' && proScreen}
       </div>
 
-      <nav
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '12px 16px 18px',
-          background:
-            'linear-gradient(180deg, rgba(8,10,12,0) 0%, rgba(8,10,12,0.86) 28%, rgba(8,10,12,0.98) 100%)',
-          backdropFilter: 'blur(10px)',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: 760,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 10,
-            borderRadius: 22,
-            padding: 10,
-            background: 'rgba(255,255,255,0.035)',
-            border: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
+      <nav style={{
+        position: 'fixed', left: 0, right: 0, bottom: 0,
+        display: 'flex', justifyContent: 'center',
+        padding: '12px 16px calc(18px + env(safe-area-inset-bottom))',
+        background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 30%, #000 100%)',
+        backdropFilter: 'blur(10px)',
+      }}>
+        <div style={{
+          width: '100%', maxWidth: 760,
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 10, borderRadius: 22, padding: 10,
+          background: 'rgba(255,255,255,0.055)',
+          border: '1px solid rgba(255,255,255,0.09)',
+        }}>
           {bottomNavItems.map((item) => {
             const isActive = activeTab === item.key;
             const isMiami = item.key === 'MIAMI';
-
             return (
               <button
                 key={item.key}
                 onClick={() => setActiveTab(item.key)}
+                onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+                onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                onTouchStart={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+                onTouchEnd={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                 style={{
-                  height: 48,
-                  borderRadius: 16,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'DM Mono, monospace',
-                  fontSize: 12,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: isActive ? '#080A0C' : isMiami ? '#F5C842' : '#F7F8FA',
+                  height: 48, borderRadius: 16, border: 'none', cursor: 'pointer',
+                  fontFamily: 'DM Mono, monospace', fontSize: 12,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  color: isActive ? '#000000' : isMiami ? '#F5C842' : '#F7F8FA',
                   background: isActive
-                    ? isMiami
-                      ? '#F5C842'
-                      : 'linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)'
-                    : 'rgba(255,255,255,0.03)',
+                    ? isMiami ? '#F5C842' : 'linear-gradient(90deg, #00F5E9, #FF2D6B)'
+                    : 'rgba(255,255,255,0.04)',
                   fontWeight: 700,
+                  transition: 'transform 0.1s ease',
+                  WebkitTapHighlightColor: 'transparent',
                 }}
               >
                 {item.label}
