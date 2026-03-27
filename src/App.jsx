@@ -14,6 +14,7 @@ export default function App() {
   const [playerData, setPlayerData] = useState(null);
   const [contextData, setContextData] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
+  const [tournamentResults, setTournamentResults] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const messagesEndRef = useRef(null);
 
@@ -59,17 +60,28 @@ export default function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [playersRes, contextRes, liveAtpRes, liveWtaRes] = await Promise.all([
+        const [
+          playersRes,
+          contextRes,
+          liveAtpRes,
+          liveWtaRes,
+          resultsAtpRes,
+          resultsWtaRes,
+        ] = await Promise.all([
           fetch('/api/tennis-players'),
           fetch('/api/tennis-context'),
           fetch('/api/tennis?tour=atp'),
           fetch('/api/tennis?tour=wta'),
+          fetch('/api/tennis-results?tour=atp'),
+          fetch('/api/tennis-results?tour=wta'),
         ]);
 
         const playersJson = await playersRes.json();
         const contextJson = await contextRes.json();
         const liveAtpJson = await liveAtpRes.json();
         const liveWtaJson = await liveWtaRes.json();
+        const resultsAtpJson = await resultsAtpRes.json();
+        const resultsWtaJson = await resultsWtaRes.json();
 
         setPlayerData(playersJson);
         setContextData(contextJson);
@@ -77,12 +89,17 @@ export default function App() {
           ...(Array.isArray(liveAtpJson) ? liveAtpJson : []),
           ...(Array.isArray(liveWtaJson) ? liveWtaJson : []),
         ]);
+        setTournamentResults([
+          ...(Array.isArray(resultsAtpJson) ? resultsAtpJson : []),
+          ...(Array.isArray(resultsWtaJson) ? resultsWtaJson : []),
+        ]);
       } catch (err) {
         console.error('Failed to load tennis data:', err);
       } finally {
         setDataLoading(false);
       }
     }
+
     loadData();
   }, []);
 
@@ -149,6 +166,7 @@ export default function App() {
           players: playerData,
           context: contextData,
           liveMatches,
+          tournamentResults,
           tour: 'tennis',
           history: historyForApi,
           matchupContext: null,
@@ -179,7 +197,6 @@ export default function App() {
   }
 
   // ─── Share card generator ─────────────────────────────────────────────────────
-  // Draws a 1080x1080 branded prop card on Canvas, then triggers native share or download
   function roundRect(ctx, x, y, w, h, r) {
     const radius = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
@@ -220,72 +237,56 @@ export default function App() {
     canvas.height = H;
     const ctx = canvas.getContext('2d');
 
-    // True black background
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, W, H);
 
-    // Faint teal top glow
     const glow = ctx.createRadialGradient(W / 2, -80, 0, W / 2, -80, 700);
     glow.addColorStop(0, 'rgba(0,245,233,0.18)');
     glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, W, H);
 
-    // Card background
     ctx.fillStyle = 'rgba(255,255,255,0.045)';
     roundRect(ctx, 72, 160, W - 144, 760, 32);
     ctx.fill();
 
-    // Card border
     ctx.strokeStyle = 'rgba(0,245,233,0.28)';
     ctx.lineWidth = 2;
     roundRect(ctx, 72, 160, W - 144, 760, 32);
     ctx.stroke();
 
-    // Cyan left accent
     ctx.fillStyle = '#00F5E9';
     roundRect(ctx, 72, 160, 7, 760, 4);
     ctx.fill();
 
-    // UR TAKE eyebrow
     ctx.font = '500 30px monospace';
     ctx.fillStyle = '#00F5E9';
     ctx.fillText('UR TAKE', 126, 258);
 
-    // Gradient divider under UR TAKE
     const divGrad = ctx.createLinearGradient(126, 0, 540, 0);
     divGrad.addColorStop(0, '#00F5E9');
     divGrad.addColorStop(1, '#FF2D6B');
     ctx.fillStyle = divGrad;
     ctx.fillRect(126, 275, 414, 3);
 
-    // Player name — large
     ctx.font = 'bold 86px sans-serif';
     ctx.fillStyle = '#F7F8FA';
     ctx.fillText(player, 126, 398);
 
-    // Prop badge pill
     const badgeLabel = prop.toUpperCase();
     ctx.font = 'bold 34px monospace';
     const textW = ctx.measureText(badgeLabel).width;
     const pillW = textW + 64;
-    const pillX = 126;
-    const pillY = 428;
-    const pillH = 60;
-
     ctx.fillStyle = '#00F5E9';
-    roundRect(ctx, pillX, pillY, pillW, pillH, 999);
+    roundRect(ctx, 126, 428, pillW, 60, 999);
     ctx.fill();
-
     ctx.fillStyle = '#000000';
-    ctx.fillText(badgeLabel, pillX + 32, pillY + 40);
+    ctx.fillText(badgeLabel, 158, 468);
 
-    // Reason — word-wrapped
     ctx.font = '400 40px sans-serif';
     ctx.fillStyle = 'rgba(247,248,250,0.80)';
     wrapText(ctx, reason, 126, 568, W - 300, 58);
 
-    // Bottom logo block
     ctx.font = '500 30px monospace';
     ctx.fillStyle = 'rgba(247,248,250,0.42)';
     ctx.fillText('UNDER', 126, 848);
@@ -297,7 +298,6 @@ export default function App() {
     ctx.fillStyle = logoGrad;
     ctx.fillText('REVIEW', 126, 928);
 
-    // Logo rule
     const footGrad = ctx.createLinearGradient(120, 0, 700, 0);
     footGrad.addColorStop(0, '#00F5E9');
     footGrad.addColorStop(1, '#FF2D6B');
@@ -306,16 +306,13 @@ export default function App() {
 
     ctx.beginPath(); ctx.arc(114, 943, 7, 0, Math.PI * 2);
     ctx.fillStyle = '#00F5E9'; ctx.fill();
-
     ctx.beginPath(); ctx.arc(706, 943, 7, 0, Math.PI * 2);
     ctx.fillStyle = '#FF2D6B'; ctx.fill();
 
-    // URL watermark
     ctx.font = '400 26px monospace';
     ctx.fillStyle = 'rgba(247,248,250,0.25)';
     ctx.fillText('under-review-v2.vercel.app', 126, 986);
 
-    // Share or download
     canvas.toBlob(async (blob) => {
       const file = new File([blob], 'ur-take.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -343,7 +340,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  // ─── Inline markdown renderer ──────────────────────────────────────────────
+  // ─── Inline markdown renderer ─────────────────────────────────────────────────
   function renderInlineMarkdown(text) {
     const parts = text.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, i) => {
@@ -358,7 +355,7 @@ export default function App() {
     });
   }
 
-  // ─── Message renderer ──────────────────────────────────────────────────────
+  // ─── Message renderer ─────────────────────────────────────────────────────────
   function renderMessage(content, isLoading) {
     if (isLoading) {
       return (
@@ -453,7 +450,6 @@ export default function App() {
                     position: 'relative',
                   }}
                 >
-                  {/* Player + badge row — padded right to avoid overlap with share btn */}
                   <div
                     style={{
                       display: 'flex',
@@ -541,7 +537,7 @@ export default function App() {
     );
   }
 
-  // ─── Shared styles ─────────────────────────────────────────────────────────
+  // ─── Shared styles ────────────────────────────────────────────────────────────
 
   const shellStyle = {
     minHeight: '100vh',
@@ -620,7 +616,7 @@ export default function App() {
           padding: '0 16px',
           outline: 'none',
           fontFamily: 'DM Sans, sans-serif',
-          fontSize: 16, // prevents iOS auto-zoom
+          fontSize: 16,
         }}
       />
       <button
@@ -641,7 +637,7 @@ export default function App() {
     </div>
   );
 
-  // ─── HOME ──────────────────────────────────────────────────────────────────
+  // ─── HOME ─────────────────────────────────────────────────────────────────────
 
   const homeScreen = (
     <>
@@ -705,7 +701,7 @@ export default function App() {
     </>
   );
 
-  // ─── MIAMI ─────────────────────────────────────────────────────────────────
+  // ─── MIAMI ────────────────────────────────────────────────────────────────────
 
   const miamiScreen = (
     <>
@@ -786,7 +782,7 @@ export default function App() {
     </>
   );
 
-  // ─── ASK ───────────────────────────────────────────────────────────────────
+  // ─── ASK ──────────────────────────────────────────────────────────────────────
 
   const askScreen = (
     <>
@@ -850,7 +846,7 @@ export default function App() {
     </>
   );
 
-  // ─── PRO ───────────────────────────────────────────────────────────────────
+  // ─── PRO ──────────────────────────────────────────────────────────────────────
 
   const proScreen = (
     <div style={{ padding: '0 16px' }}>
@@ -876,7 +872,7 @@ export default function App() {
     </div>
   );
 
-  // ─── NAV + SHELL ───────────────────────────────────────────────────────────
+  // ─── NAV + SHELL ──────────────────────────────────────────────────────────────
 
   const bottomNavItems = [
     { key: 'HOME', label: 'HOME' },
