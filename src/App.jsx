@@ -111,7 +111,7 @@ const isDoubles = combined.includes(‘double’);
 let label = isWTA ? ‘WTA’ : ‘ATP’;
 if (isDoubles) label += ’ Doubles’;
 const round = abbreviateRound(match.round || ‘’);
-return round ? `${label} · ${round}` : label;
+return round ? `${label} - ${round}` : label;
 }
 
 // — Derive dynamic home content ———————————————
@@ -350,8 +350,8 @@ return (
 
 ```
 const lines = content.split('\n').filter(Boolean);
-const propLines = lines.filter((l) => l.trim().startsWith('•'));
-const normalLines = lines.filter((l) => !l.trim().startsWith('•'));
+const propLines = lines.filter((l) => l.trim().startsWith('\u2022'));
+const normalLines = lines.filter((l) => !l.trim().startsWith('\u2022'));
 
 return (
   <div style={{ display: 'grid', gap: 10 }}>
@@ -363,7 +363,7 @@ return (
     {propLines.length > 0 && (
       <div style={{ display: 'grid', gap: 8 }}>
         {propLines.map((line, idx) => {
-          const clean = line.replace(/^•\s*/, '').replace(/\*\*/g, '');
+          const clean = line.replace(/^\u2022\s*/, '').replace(/\*\*/g, '');
           const parts = clean.split(' - ');
           const looksLikePropCard = parts.length >= 3 && parts[0] && parts[1] && parts[1].length < 60
             && !parts[0].toLowerCase().includes('wimbledon')
