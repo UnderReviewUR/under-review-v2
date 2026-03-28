@@ -23,6 +23,7 @@ oddsData,
 tour,
 history,
 matchupContext,
+image,
 } = req.body;
 
 if (!question) {
@@ -471,7 +472,28 @@ content: text,
 }
 }
 
+// Build the user message – include image if provided
+if (image && image.base64 && image.mediaType) {
+messages.push({
+role: “user”,
+content: [
+{
+type: “image”,
+source: {
+type: “base64”,
+media_type: image.mediaType,
+data: image.base64,
+},
+},
+{
+type: “text”,
+text: question,
+},
+],
+});
+} else {
 messages.push({ role: “user”, content: question });
+}
 
 try {
 const response = await fetch(“https://api.anthropic.com/v1/messages”, {
@@ -482,7 +504,7 @@ headers: {
 “anthropic-version”: “2023-06-01”,
 },
 body: JSON.stringify({
-model: “claude-haiku-4-5-20251001”,
+model: image ? “claude-sonnet-4-5” : “claude-haiku-4-5-20251001”,
 max_tokens: 700,
 temperature: 0.7,
 system: systemPrompt,
