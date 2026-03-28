@@ -16,7 +16,10 @@ const [contextData, setContextData] = useState(null);
 const [liveMatches, setLiveMatches] = useState([]);
 const [tournamentResults, setTournamentResults] = useState([]);
 const [dataLoading, setDataLoading] = useState(true);
+const [oddsData, setOddsData] = useState(null);
 const messagesEndRef = useRef(null);
+const imageInputRef = useRef(null);
+const [pendingImage, setPendingImage] = useState(null); // { base64, mediaType, previewUrl }
 
 // — Load all data on mount —————————————————
 useEffect(() => {
@@ -26,6 +29,7 @@ const [
 playersRes, contextRes,
 liveAtpRes, liveWtaRes,
 resultsAtpRes, resultsWtaRes,
+oddsAtpRes, oddsWtaRes,
 ] = await Promise.all([
 fetch(’/api/tennis-players’),
 fetch(’/api/tennis-context’),
@@ -33,6 +37,8 @@ fetch(’/api/tennis?tour=atp’),
 fetch(’/api/tennis?tour=wta’),
 fetch(’/api/tennis-results?tour=atp’),
 fetch(’/api/tennis-results?tour=wta’),
+fetch(’/api/odds?tour=atp’),
+fetch(’/api/odds?tour=wta’),
 ]);
 
 ```
@@ -40,10 +46,13 @@ fetch(’/api/tennis-results?tour=wta’),
       playersJson, contextJson,
       liveAtpJson, liveWtaJson,
       resultsAtpJson, resultsWtaJson,
+      oddsAtpJson, oddsWtaJson,
     ] = await Promise.all([
       playersRes.json(), contextRes.json(),
       liveAtpRes.json(), liveWtaRes.json(),
       resultsAtpRes.json(), resultsWtaRes.json(),
+      oddsAtpRes.json().catch(() => null),
+      oddsWtaRes.json().catch(() => null),
     ]);
 
     setPlayerData(playersJson);
@@ -56,6 +65,20 @@ fetch(’/api/tennis-results?tour=wta’),
       ...(Array.isArray(resultsAtpJson) ? resultsAtpJson : []),
       ...(Array.isArray(resultsWtaJson) ? resultsWtaJson : []),
     ]);
+
+    // Merge ATP and WTA odds -- combine matches and props arrays
+    const mergedOdds = {
+      matches: [
+        ...((oddsAtpJson?.matches) || []),
+        ...((oddsWtaJson?.matches) || []),
+      ],
+      props: [
+        ...((oddsAtpJson?.props) || []),
+        ...((oddsWtaJson?.props) || []),
+      ],
+      fetchedAt: oddsAtpJson?.fetchedAt || null,
+    };
+    setOddsData(mergedOdds);
   } catch (err) {
     console.error('Failed to load tennis data:', err);
   } finally {
@@ -180,31 +203,60 @@ const wtaPlayers = [
 { name: ‘Jessica Pegula’, elo: 1940, hold: ‘66.8%’, dr: ‘1.08’, tb: ‘49%’ },
 ];
 
+// — handleImageSelect ––––––––––––––––––––––––––––
+function handleImageSelect(e) {
+const file = e.target.files?.[0];
+if (!file) return;
+const reader = new FileReader();
+reader.onload = (ev) => {
+const dataUrl = ev.target.result;
+// dataUrl = “data:image/jpeg;base64,XXXX…”
+const parts = dataUrl.split(’,’);
+const meta = parts[0]; // “data:image/jpeg;base64”
+const base64 = parts[1];
+const mediaType = meta.split(’:’)[1].split(’;’)[0]; // “image/jpeg”
+setPendingImage({ base64, mediaType, previewUrl: dataUrl });
+};
+reader.readAsDataURL(file);
+// Reset input so same file can be selected again
+e.target.value = ‘’;
+}
+
+function clearPendingImage() {
+setPendingImage(null);
+}
+
 // — handleAsk ––––––––––––––––––––––––––––––––
 async function handleAsk(promptOverride) {
 const prompt = (promptOverride || inputValue).trim();
-if (!prompt) return;
+const image = pendingImage;
 
 ```
+// Allow image-only sends with a default prompt
+if (!prompt && !image) return;
+const finalPrompt = prompt || 'Please review these lines and tell me the best props to target.';
+
 if (!playerData || !contextData) {
   const msg = dataLoading
     ? 'Still loading the tennis database. Try again in a second.'
     : 'Tennis data did not load correctly.';
   setMessages((prev) => [...prev,
-    { role: 'user', content: prompt },
+    { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
     { role: 'assistant', content: msg },
   ]);
   setInputValue('');
+  setPendingImage(null);
   setActiveTab('ASK');
   return;
 }
 
 const historyForApi = messages.map((m) => ({ role: m.role, text: m.content, loading: m.loading || false }));
 setMessages((prev) => [...prev,
-  { role: 'user', content: prompt },
+  { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
   { role: 'assistant', content: '...', loading: true },
 ]);
 setInputValue('');
+setPendingImage(null);
 setActiveTab('ASK');
 
 try {
@@ -212,14 +264,16 @@ try {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      question: prompt,
+      question: finalPrompt,
       players: playerData,
       context: contextData,
       liveMatches,
       tournamentResults,
+      oddsData,
       tour: 'tennis',
       history: historyForApi,
       matchupContext: null,
+      image: image ? { base64: image.base64, mediaType: image.mediaType } : null,
     }),
   });
 
@@ -383,7 +437,7 @@ return (
           const reason = parts.slice(2).join(' - ') || '';
 
           return (
-            <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'none', position: 'relative' }}>
+            <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', position: 'relative' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', marginBottom: reason ? 7 : 0, paddingRight: 34 }}>
                 <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{player}</span>
                 {prop && (
@@ -396,7 +450,7 @@ return (
                 </div>
               )}
               <button onClick={() => shareCard(player, prop, reason)} title="Share"
-                style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
+                style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,245,233,0.22)', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
                 <svg width="11" height="12" viewBox="0 0 13 14" fill="none"><path d="M6.5 1.5V9.5M6.5 1.5L4 4M6.5 1.5L9 4" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1.5 9.5V12.5H11.5V9.5" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             </div>
@@ -464,12 +518,57 @@ const LogoSlim = () => (
 // — Get UR Take bar –––––––––––––––––––––––––––––
 const GetUrTakeBar = ({ placeholder = ‘ask anything’ }) => (
 <div style={{ padding: ‘0 16px 14px’ }}>
-<div style={{ display: ‘flex’, alignItems: ‘center’, height: 46, borderRadius: 999, background: ‘rgba(255,255,255,0.04)’, border: ‘1px solid rgba(0,245,233,0.2)’, padding: ‘0 5px 0 14px’, gap: 8 }}>
+{/* Image preview strip */}
+{pendingImage && (
+<div style={{ display: ‘flex’, alignItems: ‘center’, gap: 8, marginBottom: 8, padding: ‘6px 10px’, background: ‘rgba(0,245,233,0.08)’, borderLeft: ‘2px solid rgba(0,245,233,0.5)’, borderRadius: ‘0 8px 8px 0’ }}>
+<img src={pendingImage.previewUrl} alt=“screenshot” style={{ width: 36, height: 36, objectFit: ‘cover’, borderRadius: 4 }} />
+<span style={{ flex: 1, fontFamily: ‘DM Mono, monospace’, fontSize: 9, letterSpacing: ‘0.1em’, textTransform: ‘uppercase’, color: ‘rgba(0,245,233,0.8)’ }}>Screenshot attached</span>
+<button onClick={clearPendingImage} style={{ background: ‘none’, border: ‘none’, color: ‘rgba(247,248,250,0.4)’, fontSize: 16, cursor: ‘pointer’, padding: ‘0 4px’, lineHeight: 1 }}>x</button>
+</div>
+)}
+<div style={{ display: ‘flex’, alignItems: ‘center’, height: 46, borderRadius: 999, background: ‘rgba(255,255,255,0.04)’, border: pendingImage ? ‘1px solid rgba(0,245,233,0.4)’ : ‘1px solid rgba(0,245,233,0.2)’, padding: ‘0 5px 0 6px’, gap: 6 }}>
+{/* Hidden file input */}
+<input
+ref={imageInputRef}
+type=“file”
+accept=“image/*”
+onChange={handleImageSelect}
+style={{ display: ‘none’ }}
+/>
+{/* Camera button */}
+<button
+onClick={() => imageInputRef.current?.click()}
+title=“Attach screenshot”
+style={{ width: 32, height: 32, borderRadius: ‘50%’, border: ‘none’, cursor: ‘pointer’, background: pendingImage ? ‘rgba(0,245,233,0.15)’ : ‘rgba(255,255,255,0.06)’, color: pendingImage ? ‘#00F5E9’ : ‘rgba(247,248,250,0.4)’, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, flexShrink: 0, WebkitTapHighlightColor: ‘transparent’, fontSize: 15 }}
+>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+</button>
 <input
 value={inputValue}
 onChange={(e) => setInputValue(e.target.value)}
 onKeyDown={(e) => { if (e.key === ‘Enter’) handleAsk(); }}
-placeholder={placeholder}
+placeholder={pendingImage ? ‘Ask about these lines…’ : placeholder}
+onPaste={(e) => {
+const items = e.clipboardData?.items;
+if (!items) return;
+for (const item of items) {
+if (item.type.startsWith(‘image/’)) {
+e.preventDefault();
+const file = item.getAsFile();
+if (!file) return;
+const reader = new FileReader();
+reader.onload = (ev) => {
+const dataUrl = ev.target.result;
+const parts = dataUrl.split(’,’);
+const base64 = parts[1];
+const mediaType = parts[0].split(’:’)[1].split(’;’)[0];
+setPendingImage({ base64, mediaType, previewUrl: dataUrl });
+};
+reader.readAsDataURL(file);
+return;
+}
+}
+}}
 style={{ flex: 1, background: ‘transparent’, border: ‘none’, outline: ‘none’, fontFamily: ‘DM Sans, sans-serif’, fontSize: 16, color: ‘#F7F8FA’ }}
 />
 <button onClick={() => handleAsk()} style={{ width: 34, height: 34, borderRadius: ‘50%’, border: ‘none’, cursor: ‘pointer’, background: ‘linear-gradient(90deg, #00F5E9, #FF2D6B)’, color: ‘#000’, fontWeight: 800, fontSize: 16, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, flexShrink: 0, WebkitTapHighlightColor: ‘transparent’ }}>↑</button>
@@ -647,6 +746,9 @@ const askScreen = (
             <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: message.role === 'user' ? '#F5C842' : '#00F5E9', marginBottom: 7 }}>
               {message.role === 'user' ? 'You' : 'UR Take'}
             </div>
+            {message.image && (
+              <img src={message.image} alt="attached" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginBottom: 8, display: 'block' }} />
+            )}
             {renderMessage(message.content, message.loading)}
           </div>
         </div>
