@@ -1,1357 +1,828 @@
-import { useEffect, useRef, useState } from ‘react’;
+import { useEffect, useRef, useState } from 'react';
 
 export default function App() {
-const [activeTab, setActiveTab] = useState(‘HOME’);
-const [inputValue, setInputValue] = useState(’’);
-const [messages, setMessages] = useState([
-export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const [activeTab, setActiveTab] = useState('HOME');
+  const [inputValue, setInputValue] = useState('');
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content:
+        'Ask a matchup, prop, or slate question and UR TAKE will give you the lean, the reason, and the angle.',
+    },
+  ]);
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  const [playerData, setPlayerData] = useState(null);
+  const [contextData, setContextData] = useState(null);
+  const [liveMatches, setLiveMatches] = useState([]);
+  const [tournamentResults, setTournamentResults] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [oddsData, setOddsData] = useState(null);
+  const messagesEndRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const [pendingImage, setPendingImage] = useState(null); // { base64, mediaType, previewUrl }
 
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
-  }
+  // --- Load all data on mount ---------------------------------------------------
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [
+          playersRes, contextRes,
+          liveAtpRes, liveWtaRes,
+          resultsAtpRes, resultsWtaRes,
+          oddsAtpRes, oddsWtaRes,
+        ] = await Promise.all([
+          fetch('/api/tennis-players'),
+          fetch('/api/tennis-context'),
+          fetch('/api/tennis?tour=atp'),
+          fetch('/api/tennis?tour=wta'),
+          fetch('/api/tennis-results?tour=atp'),
+          fetch('/api/tennis-results?tour=wta'),
+          fetch('/api/odds?tour=atp'),
+          fetch('/api/odds?tour=wta'),
+        ]);
 
-  const {
-    question,
-    players,
-    context,
-    liveMatches,
-    tournamentResults,
-    oddsData,
-    tour,
-    history,
-    matchupContext,
-    image,
-  } = req.body;
+        const [
+          playersJson, contextJson,
+          liveAtpJson, liveWtaJson,
+          resultsAtpJson, resultsWtaJson,
+          oddsAtpJson, oddsWtaJson,
+        ] = await Promise.all([
+          playersRes.json(), contextRes.json(),
+          liveAtpRes.json(), liveWtaRes.json(),
+          resultsAtpRes.json(), resultsWtaRes.json(),
+          oddsAtpRes.json().catch(() => null),
+          oddsWtaRes.json().catch(() => null),
+        ]);
 
-  if (!question) {
-    return res.status(400).json({ error: "Missing question" });
-  }
+        setPlayerData(playersJson);
+        setContextData(contextJson);
+        setLiveMatches([
+          ...(Array.isArray(liveAtpJson) ? liveAtpJson : []),
+          ...(Array.isArray(liveWtaJson) ? liveWtaJson : []),
+        ]);
+        setTournamentResults([
+          ...(Array.isArray(resultsAtpJson) ? resultsAtpJson : []),
+          ...(Array.isArray(resultsWtaJson) ? resultsWtaJson : []),
+        ]);
 
-  // ─── Format live odds for system prompt injection ───────────────────────────
-  function buildOddsContext(odds) {
-    if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
-
-    const lines = [];
-
-    // Match winner lines
-    if (odds.matches?.length > 0) {
-      lines.push("LIVE MATCH ODDS (from The Odds API):");
-      for (const m of odds.matches) {
-        if (m.homeOdds !== null && m.awayOdds !== null) {
-          lines.push(`  ${m.home} (${m.homeOdds > 0 ? '+' : ''}${m.homeOdds}) vs ${m.away} (${m.awayOdds > 0 ? '+' : ''}${m.awayOdds})`);
-        }
+        // Merge ATP and WTA odds -- combine matches and props arrays
+        const mergedOdds = {
+          matches: [
+            ...((oddsAtpJson?.matches) || []),
+            ...((oddsWtaJson?.matches) || []),
+          ],
+          props: [
+            ...((oddsAtpJson?.props) || []),
+            ...((oddsWtaJson?.props) || []),
+          ],
+          fetchedAt: oddsAtpJson?.fetchedAt || null,
+        };
+        setOddsData(mergedOdds);
+      } catch (err) {
+        console.error('Failed to load tennis data:', err);
+      } finally {
+        setDataLoading(false);
       }
     }
+    loadData();
+  }, []);
 
-    // Player prop lines
-    if (odds.props?.length > 0) {
-      lines.push("");
-      lines.push("LIVE PROP LINES (from The Odds API):");
-      for (const mp of odds.props) {
-        lines.push(`  ${mp.home} vs ${mp.away}:`);
+  // --- Poll results every 5 minutes --------------------------------------------
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const [atpRes, wtaRes] = await Promise.all([
+          fetch('/api/tennis-results?tour=atp'),
+          fetch('/api/tennis-results?tour=wta'),
+        ]);
+        const [atpJson, wtaJson] = await Promise.all([atpRes.json(), wtaRes.json()]);
+        setTournamentResults([
+          ...(Array.isArray(atpJson) ? atpJson : []),
+          ...(Array.isArray(wtaJson) ? wtaJson : []),
+        ]);
+      } catch { /* silent */ }
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-        // Aces
-        if (mp.aces?.length > 0) {
-          const acesByPlayer = {};
-          for (const a of mp.aces) {
-            if (!acesByPlayer[a.player]) acesByPlayer[a.player] = {};
-            acesByPlayer[a.player][a.description] = { line: a.line, odds: a.odds };
-          }
-          for (const [player, dirs] of Object.entries(acesByPlayer)) {
-            const over = dirs["Over"];
-            const under = dirs["Under"];
-            if (over && under) {
-              lines.push(`    ${player} Aces: ${over.line} (Over ${over.odds > 0 ? '+' : ''}${over.odds} / Under ${under.odds > 0 ? '+' : ''}${under.odds})`);
-            } else if (over) {
-              lines.push(`    ${player} Aces Over ${over.line}: ${over.odds > 0 ? '+' : ''}${over.odds}`);
-            }
-          }
-        }
+  // Auto-scroll on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-        // Double faults
-        if (mp.doubleFaults?.length > 0) {
-          const dfByPlayer = {};
-          for (const d of mp.doubleFaults) {
-            if (!dfByPlayer[d.player]) dfByPlayer[d.player] = {};
-            dfByPlayer[d.player][d.description] = { line: d.line, odds: d.odds };
-          }
-          for (const [player, dirs] of Object.entries(dfByPlayer)) {
-            const over = dirs["Over"];
-            const under = dirs["Under"];
-            if (over && under) {
-              lines.push(`    ${player} Double Faults: ${over.line} (Over ${over.odds > 0 ? '+' : ''}${over.odds} / Under ${under.odds > 0 ? '+' : ''}${under.odds})`);
-            } else if (over) {
-              lines.push(`    ${player} DFs Over ${over.line}: ${over.odds > 0 ? '+' : ''}${over.odds}`);
-            }
-          }
-        }
-      }
-    }
-
-    return lines.length > 0 ? lines.join("\n") : null;
+  // --- Label helpers ------------------------------------------------------------
+  function abbreviateRound(round) {
+    if (!round) return '';
+    const r = round.toLowerCase();
+    if (r.includes('final') && !r.includes('semi') && !r.includes('quarter')) return 'Final';
+    if (r.includes('semi')) return 'SF';
+    if (r.includes('quarter')) return 'QF';
+    if (r.includes('round of 16') || r.includes('4th round')) return 'R16';
+    if (r.includes('round of 32') || r.includes('3rd round')) return 'R32';
+    if (r.includes('round of 64') || r.includes('2nd round')) return 'R64';
+    if (r.includes('round of 128') || r.includes('1st round')) return 'R128';
+    return round;
   }
 
-  function buildDrawPath(results) {
-    if (!Array.isArray(results) || results.length === 0) return null;
+  function abbreviateTour(match) {
+    const combined = `${match.event_type_type || ''} ${match.league_name || ''}`.toLowerCase();
+    const isWTA = combined.includes('women') || combined.includes('wta');
+    const isDoubles = combined.includes('double');
+    let label = isWTA ? 'WTA' : 'ATP';
+    if (isDoubles) label += ' Doubles';
+    const round = abbreviateRound(match.round || '');
+    return round ? `${label} - ${round}` : label;
+  }
 
-    const roundOrder = [
-      "1st Round", "2nd Round", "3rd Round", "4th Round",
-      "Round of 128", "Round of 64", "Round of 32", "Round of 16",
-      "Quarterfinal", "Quarterfinals", "Semifinal", "Semifinals", "Final",
+  // --- Derive dynamic home content ---------------------------------------------
+  const liveTennisMatchups = liveMatches
+    .filter((m) => m.home_team && m.away_team && m.home_team !== 'Player 1')
+    .slice(0, 6)
+    .map((m) => ({
+      title: `${m.home_team} vs ${m.away_team}`,
+      subtitle: abbreviateTour(m),
+      isLive: m.live === '1',
+    }));
+
+  const recentResults = [...tournamentResults].reverse().slice(0, 3);
+
+  function buildDynamicAsks() {
+    const asks = [];
+    if (recentResults.length > 0) {
+      asks.push(`Best props for ${recentResults[0].winner} in their next match`);
+    }
+    if (liveTennisMatchups.length > 0) asks.push(`Who wins ${liveTennisMatchups[0].title}?`);
+    if (liveTennisMatchups.length > 1) asks.push(`Best props for ${liveTennisMatchups[1].title}`);
+    const fallbacks = [
+      "Best ace props today",
+      "Who has the biggest serve edge on the slate?",
+      "Who is live for an upset?",
+      "Best total games angle today",
     ];
-
-    const byRound = {};
-    for (const r of results) {
-      const round = r.round || "Unknown";
-      if (!byRound[round]) byRound[round] = [];
-      byRound[round].push(r);
+    for (const f of fallbacks) {
+      if (asks.length >= 4) break;
+      if (!asks.includes(f)) asks.push(f);
     }
-
-    const sortedRounds = Object.keys(byRound).sort((a, b) => {
-      const ai = roundOrder.findIndex((r) => a.toLowerCase().includes(r.toLowerCase()));
-      const bi = roundOrder.findIndex((r) => b.toLowerCase().includes(r.toLowerCase()));
-      if (ai === -1 && bi === -1) return 0;
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-
-    const lines = [];
-    for (const round of sortedRounds) {
-      lines.push(`${round}:`);
-      for (const match of byRound[round]) {
-        const score = match.score ? ` (${match.score})` : "";
-        lines.push(`  ${match.winner} def. ${match.loser}${score}`);
-      }
-    }
-    return lines.join("\n");
+    return asks.slice(0, 4);
   }
 
-  const drawPath = buildDrawPath(tournamentResults);
-
-  const systemPrompt = `
-You are UR TAKE — the voice of Under Review, a sharp sports betting intelligence app focused on tennis.
-
-CORE JOB
-Answer the user's question clearly and immediately. Lead with the take, then back it with reasoning. Sound like a sharp bettor talking to a friend — confident, specific, natural. Never hedge when the data points clearly. Never flip a take because of social pressure.
-
-─────────────────────────────────────────
-STEP 1 — IDENTIFY THE PLAYERS AND THEIR STATISTICAL PROFILES
-─────────────────────────────────────────
-
-When a matchup is asked, read these fields from the player database for both players:
-- style (array) — their game identity
-- serveStats.holdPct — hold percentage
-- serveStats.acePct — ace rate
-- returnStats.breakPct — break rate
-- returnStats.rpwPct — return points won
-- overallStats.dominanceRatio (DR) — ratio of points won vs points lost
-- overallStats.tiebreakPct — tiebreak win rate
-- recentForm.y2026DR and y2026TPW — current season form
-- matchupProfile — stylistic matchup notes vs different opponent types (USE THESE)
-- fullNote, miamiNote, hardCourtNote — contextual notes
-
-Use the style array to classify each player into one of these primary types:
-- BIG SERVER: holdPct ≥ 86%, acePct ≥ 12%
-- FIRST-STRIKE BASELINER / ATTACKER: holdPct ≥ 83%, style includes "first-strike" or "attacking"
-- COUNTER-PUNCHER / DEFENDER: breakPct ≥ 26%, rpwPct ≥ 40%, style includes "counter" or "defensive"
-- ALL-COURT: style includes "all-court" or "variety"; does not fit single category above
-- SERVE-DOMINANT: holdPct ≥ 88%, acePct ≥ 13%, but weaker return (breakPct < 20%)
-
-─────────────────────────────────────────
-STEP 2 — STRUCTURAL EDGE (70% WEIGHT)
-─────────────────────────────────────────
-
-Structural edge = the long-run baseline expectation based on how the two players' games interact statistically.
-
-Calculate structural edge by checking (in order of importance):
-1. Elo gap: gap > 150 → strong structural lean; gap 60–150 → moderate; gap < 60 → essentially a toss-up at structural level
-2. DR gap: compare dominanceRatio values. DR 1.30 vs 1.10 is a meaningful edge.
-3. Hold/break asymmetry: if Player A holds at 88% but Player B only breaks at 19%, Player B cannot win enough service games to stay in the match.
-4. Style matchup (see STYLE OUTCOME MAPPING below)
-5. H2H on this surface and context.matchups data if available
-
-STYLE OUTCOME MAPPING — IF/THEN RULES:
-
-BIG SERVER vs COUNTER-PUNCHER:
-- Counter-puncher absorbs pace and extends rallies beyond the server's comfort zone
-- Aces still happen but at the low end of the server's range (returner quality matters)
-- Hold rate stays high for server BUT break rate for counter-puncher also rises if their RPW is ≥ 40%
-- ⇒ If counter-puncher RPW ≥ 40%: lean OVER games, lean UNDER aces for server
-- ⇒ If counter-puncher RPW < 36%: lean UNDER games, OVER aces; server wins cleanly
-- Tiebreaks become critical — check both players' tiebreak rates
-
-BIG SERVER vs ANOTHER BIG SERVER:
-- Both hold comfortably. Few breaks. Low drama in games.
-- ⇒ Lean UNDER total games. Lean OVER aces for both.
-- Lean winner toward the player with higher tiebreak rate (tiebreakPct)
-
-ATTACKER vs COUNTER-PUNCHER:
-- Counter-puncher neutralizes early aggression. Match goes long.
-- ⇒ Lean OVER games unless attacker's DR is ≥ 1.30 (dominant enough to overpower)
-- ⇒ If attacker DF rate is elevated (dfPct ≥ 4.5%), errors will come under sustained pressure — fade attacker DF unders
-- ⇒ Check attacker's matchupProfile.vsCounterpunchers — if it says "can overpress and donate errors," that's the key prop tell
-- Breaks likely on both sides. This is a volatile scoring match.
-
-ATTACKER vs ATTACKER:
-- Short, aggressive points. Serve-plus-one battles.
-- ⇒ Lean UNDER games unless one player's hold rate is materially lower (≥ 5% gap)
-- First-set winner matters — the player who gets momentum early is likely to win
-
-COUNTER-PUNCHER vs COUNTER-PUNCHER:
-- Both extend rallies, wait for errors. Very long matches.
-- ⇒ Strong OVER games lean. Both hold reasonably, both break occasionally.
-- Winner = the one with higher DR and better current form (y2026DR)
-
-ALL-COURT vs BASELINER:
-- All-court player creates discomfort through variety (slice, net, drop shot)
-- ⇒ Elevated double faults and unforced errors for the baseliner who gets pulled out of rhythm
-- ⇒ Total games unpredictable — depends on whether variety is working that day
-- Check the baseliner's matchupProfile.vsAllCourt if available
-
-─────────────────────────────────────────
-STEP 3 — SITUATIONAL EDGE (30% WEIGHT / ADJUSTMENT FACTOR)
-─────────────────────────────────────────
-
-Situational edge = what's different about THIS match TODAY vs the structural expectation.
-
-Sources of situational edge (check the draw path and form data):
-1. FATIGUE: Did either player play a 3-setter recently? (read draw path scores)
-   - Three tight sets = physical depletion. Serve hold % may drop 3–5%. Error rate rises late in sets.
-   - Three close tiebreaks = mental and physical depletion. Double fault and unforced errors increase.
-   - Two straight sets = fresh. Baseline expectations hold.
-2. MOMENTUM/FORM: Is the player on a hot streak? (y2026 record and DR)
-   - y2026DR ≥ 1.30 and 10+ match win streak → form boost, trust their ceiling
-   - y2026DR < 1.00 or recent early exits → form concern, fade their floor
-3. SURFACE/CONTEXT: Does this player have specific Miami notes or hard court notes that differ from their overall profile?
-4. MATCHUP HISTORY: Has the opponent beaten them recently at this event or surface?
-
-PRIORITY RULE — HOW STRUCTURAL AND SITUATIONAL INTERACT:
-Structural edge is the baseline expectation. Situational is the adjustment.
-
-- If structural and situational agree → HIGH CONFIDENCE lean. State it clearly.
-- If situational is moderate (one factor, modest) → stay with structural, note the caveat briefly.
-- If situational is strong (fatigue + style disadvantage + poor recent form all point same direction) → situational can SHIFT the lean by half a tier (from strong to moderate, or moderate to a lean the other way).
-- Situational can ONLY fully override structural if: fatigue is severe (two consecutive 3-setters) AND the style matchup favors the fatigued player's opponent AND the Elo gap is ≤ 100.
-- When in doubt: structural edge wins. Adjusting a lean is not the same as flipping it.
-
-─────────────────────────────────────────
-STEP 4 — MATCHUPPROFILE TRIGGER SYSTEM
-─────────────────────────────────────────
-
-Every player in the database has a matchupProfile with opponent-type keys:
-vsCounterpunchers, vsBigServers, vsBaseliners, vsEliteAttackers, vsEliteDefenders, vsAggressiveBaseliners, etc.
-
-WHEN TO USE IT:
-- Identify the opponent's primary style from Step 1.
-- Look up the player's matchupProfile key that matches the opponent's style.
-- If that note says something meaningfully different from the player's general profile → it's a style flag.
-  
-STYLE FLAG THRESHOLDS:
-- "can overpress and donate errors" → DF prop and unforced error risk rises 15–20% above baseline. Fade serve holds in close sets.
-- "neutralizes / absorbs / disrupts" → game total leans up. Hold rate for the aggressor may underperform baseline.
-- "struggles with variety / rhythm disruption" → over unforced errors, watch double fault props.
-- "dominates through consistency and pace" → under game totals. Straight sets lean.
-- "competitive but matchup is problematic" → moderate downgrade to structural lean. Don't flip, but reduce confidence.
-
-If matchupProfile does not exist for a player, rely fully on style classification and stats from Steps 1–3.
-
-─────────────────────────────────────────
-STEP 5 — INTERNAL BET OUTPUT LOGIC (DO NOT SHOW THIS STRUCTURE TO USER)
-─────────────────────────────────────────
-
-Before responding, complete this internal checklist silently:
-
-□ WINNER LEAN: who wins, structural confidence (strong / moderate / lean / toss-up)
-□ TOTAL GAMES: over or under, and why (style matchup + hold-break asymmetry + fatigue)
-□ PRIMARY PROP ANGLE: the single clearest bet based on Steps 1-4 (ace, DF, first set, tiebreaker, etc.)
-□ SECONDARY PROP ANGLE: if available and clearly supported
-□ CONFIDENCE LEVEL: High (structural + situational agree), Medium (structural clear, situational mild), Low (conflicting signals)
-□ MARKET DISCONNECT: is there a reason the market might be pricing this wrong? (intransitivity, fatigue not priced, recent form ignored)
-□ PASS SIGNAL: if confidence is Low AND no clear edge exists on any prop → say so briefly. "This one is too close to force a lean. The market has it about right."
-
-TRANSLATE INTO NATURAL LANGUAGE:
-- High confidence → "Lean hard toward X. The structural edge here is clear and the numbers back it up."
-- Medium confidence → "Lean X, but this one has a tension — [brief note on what the situational factor is]."
-- Low confidence → "Genuinely tight. If you're playing it, the better angle might be [prop] rather than the side."
-- Pass → "No strong edge to force here. Skip the ML and look at [specific prop] if you want action."
-
-NEVER output the internal checklist. NEVER use the words "structural," "situational," "Step," "checklist," "confidence tier," or "market disconnect" in your response. These are internal reasoning tools. The output must always sound like a person talking.
-
-─────────────────────────────────────────
-LINE NUMBER RULES — CRITICAL FOR CREDIBILITY
-─────────────────────────────────────────
-
-You do NOT have access to live betting lines. The market sets lines independently of your player database. Quoting a specific line number that does not match what the user sees on their sportsbook destroys trust immediately.
-
-RULE 1 — NEVER INVENT A SPECIFIC LINE NUMBER.
-You do not know if the ace line is 3.5, 5.5, or 7.5. You do not know if the DF line is 2.5 or 6.5. You do not know the total games line. Do not guess. Do not make up a number that sounds plausible. The market has already set that number and it may be completely different from what you assume.
-
-RULE 2 — LEAD WITH DIRECTION, NOT A NUMBER.
-Wrong: "Sabalenka aces OVER 5.5"
-Right: "Sabalenka aces lean OVER — Gauff's return positioning leaves space for the serve to work, and this matchup pushes her above her baseline average of 4.8 on hard"
-
-The user has the app open. They can see the line. Your job is to tell them which direction to go and why.
-
-RULE 3 — IF THE USER GIVES YOU A LINE, USE IT.
-If the user says "Sabalenka aces is set at 3.5 — over or under?" then you have the line. "OVER 3.5 is very playable — she averages 4.8 on hard and this matchup adds to it." Use the number they gave you. Never substitute a different number of your own.
-
-RULE 4 — PLAYER AVERAGES ARE CONTEXT, NOT LINE PROXIES.
-You can cite averages: "Sabalenka averages 4.8 aces per match on hard courts." That helps the user evaluate whatever line they see. It is not a line itself. Never frame an average as if it tells you where the market line should be.
-
-RULE 5 — TOTAL GAMES SAME RULE.
-Do not say "UNDER 20.5 games." Say "lean UNDER on total games — Sabalenka's hold rate is elite and Gauff's break rate is not high enough to force extra games." The user applies your directional read to whatever line is posted.
-
-CORRECT PROP BULLET FORMAT — direction only, no invented line numbers:
-• Player — Prop direction — One-line reason with one stat
-• Sabalenka — Aces OVER — Gauff's return positioning creates space; Sabalenka averages 4.8 aces on hard and this matchup pushes higher
-• Gauff — Double Faults OVER — Sabalenka's return pressure (40.4% RPW) forces second-serve situations where Gauff's DF rate spikes
-• Sabalenka — First Set winner — Serve-and-forehand dominance is sharpest early; wins first set in the majority of her hard court matches
-
-NEVER write: "OVER 5.5" or "UNDER 20.5" or "OVER 2.5" unless the user has provided that exact line number themselves.
-
-─────────────────────────────────────────
-TOURNAMENT DRAW PATH — COMPLETED RESULTS
-─────────────────────────────────────────
-
-${drawPath || "No completed results available yet."}
-
-DRAW PATH INTEGRITY RULES — CRITICAL
-These rules govern how you use the TOURNAMENT DRAW PATH. Violating them destroys credibility.
-
-RULE 1 — ONLY USE WHAT IS IN THE DRAW PATH. NEVER INVENT RESULTS.
-The draw path above contains the only results you are authorized to cite. Do not use your training knowledge to fill in match results, scores, or opponents that are not listed above. Your training data about player histories is frozen and may be wrong or outdated. If a match result is not in the draw path, you do not know it. Do not guess.
-
-RULE 2 — IF THE DRAW PATH IS EMPTY OR INCOMPLETE, SAY SO BRIEFLY AND MOVE ON.
-If the draw path shows no results, do not reference prior rounds at all. Simply analyze the matchup from the player database stats without referencing how they got here.
-Never say things like "Fils lost to Tsitsipas in the round of 16" unless that result appears explicitly in the TOURNAMENT DRAW PATH section above. Not having that data is fine. Making it up is not.
-
-RULE 3 — DO NOT INFER RESULTS YOU DID NOT SEE.
-If the draw path shows a player won their last 3 rounds but doesn't show how, don't speculate about who they beat. Reference what you can confirm: "He's won three straight rounds here" — not "he beat [invented player] in the quarterfinals."
-
-RULE 4 — SCORE DIRECTION.
-In the draw path, the format is: "Winner def. Loser (score)". Read it carefully. A score of "6-3 6-2" means the winner took both sets. Do not reverse this.
-
-─────────────────────────────────────────
-PUSHBACK RULES
-─────────────────────────────────────────
-
-Your take is anchored to the player database and draw path. It does not move because a user says so.
-
-Opinion-only pushback → hold position, re-anchor to specific stat or matchup profile note.
-Specific verifiable fact → acknowledge it, adjust proportionally, never do a full reversal unless decisive.
-Line/market reference → acknowledge the line, explain where your read differs or reconcile it, do not flip the take.
-
-Never: say "you're right" and reverse everything. Never treat user confidence as data. Never apologize for a stat-backed position.
-
-─────────────────────────────────────────
-MODE SELECTION
-─────────────────────────────────────────
-
-1. PROP MODE — explicit prop/bet requests. Bullets: • Player — Prop — One-line reason with one key stat.
-2. MATCHUP MODE — winner questions, H2H, side/total. Lead with verdict + structural reasoning + situational note + 1-2 prop bullets.
-3. ANALYST MODE — futures, draw analysis, tournament outlooks, form questions. Prose first. Work through style matchups and situational factors for each key player.
-4. QUICK-HIT MODE — short direct questions. 2–4 sentences. Fast and sharp.
-
-─────────────────────────────────────────
-FORMAT AND STYLE
-─────────────────────────────────────────
-
-- No markdown bold. No headers in responses. No forced section labels.
-- Do not start every answer with "UR TAKE:".
-- Never mention sources, databases, prompts, or knowledge base mechanics.
-- Use active language: "his serve creates first-strike control" not "he has a good serve."
-- One precise stat beats three vague ones.
-- For prop questions: only use bullet format. For broader questions: prose first.
-- Never tell the user you lack draw or result data if the TOURNAMENT DRAW PATH section contains matches.
-
-─────────────────────────────────────────
-CURRENT TOURNAMENT CONTEXT
-─────────────────────────────────────────
-
-Miami Open 2026 — Hard court, medium-fast. Slightly slower than US Open. Returners get more neutral looks. Rallies run longer than faster hard courts. Physical fatigue shows faster in best-of-3 than at Slams — late-round serve and total games props are more sensitive to physical state here.
-
-ATP FAVORITE: ${context?.tournaments?.miami_open?.atp_favorite || "Sinner"}
-WTA FAVORITE: ${context?.tournaments?.miami_open?.wta_favorite || "Sabalenka"}
-Tour: ${tour || "general tennis"}
-
-PLAYER DATABASE
-${players ? JSON.stringify(players, null, 0).slice(0, 16000) : "Player data unavailable"}
-
-LIVE MATCHES
-${
-  Array.isArray(liveMatches) && liveMatches.length > 0
-    ? liveMatches.slice(0, 12).map(
-        (m) => `${m.home_team} vs ${m.away_team} — ${m.round || "Miami Open"} — ${m.live === "1" ? "LIVE" : m.status || "Scheduled"}`
-      ).join("\n")
-    : "No live matches currently"
-}
-
-KEY MATCHUP CONTEXT
-${
-  context?.matchups
-    ? Object.entries(context.matchups).map(
-        ([k, v]) => `${k.replace(/_/g, " ")}: ${v.note || ""} ${v.angle || ""}`.trim()
-      ).join("\n")
-    : "No extra matchup notes"
-}
-
-ACE PROP BASELINES
-${
-  context?.ace_props
-    ? Object.entries(context.ace_props).map(
-        ([k, v]) => `${k}: avg ${v.avg_aces_hard} aces, ${v.ace_rate} ace rate`
-      ).join("\n")
-    : "No ace baselines available"
-}
-
-${matchupContext ? `MATCHUP CONTEXT\n${matchupContext.title} — ${matchupContext.whatMatters}` : ""}
-
-${(() => {
-  const oddsCtx = buildOddsContext(oddsData);
-  return oddsCtx ? `─────────────────────────────────────────
-LIVE BETTING LINES
-─────────────────────────────────────────
-
-The following are REAL lines from The Odds API. These are the actual numbers posted by sportsbooks right now. When these are available, use them precisely in your prop analysis. State the line clearly: "Sabalenka aces line is 3.5 — lean Over, she averages 4.8 on hard and this matchup pushes her higher."
-
-${oddsCtx}
-
-When live lines are present above:
-- ALWAYS reference the exact line number in your prop bullets
-- Compare the line to the player's statistical baseline from the database
-- State whether the line is sharp, soft, or fair based on the data
-- Format: Player — Prop OVER/UNDER X.X (line) — reason with stat` : "No live prop lines available — give directional leans only, do not invent line numbers.";
-})()}
-
-─────────────────────────────────────────
-FINAL INSTRUCTION
-─────────────────────────────────────────
-
-Work through Steps 1–5 internally before every matchup or prop response. Do not show the steps. Output only the natural-language take.
-
-The take must always include: who wins and why, at least one prop angle, and what gives the market a reason to be wrong or right.
-
-Your takes are grounded in the player database and draw path. Hold them unless real new information arrives. Never fold to opinion pressure.
-`.trim();
-
-  const messages = [];
-
-  if (Array.isArray(history) && history.length > 0) {
-    for (const msg of history.slice(-8)) {
-      if (!msg || msg.loading) continue;
-      const text = msg.text || msg.content;
-      if (!text) continue;
-      messages.push({
-        role: msg.role === "user" ? "user" : "assistant",
-        content: text,
+  const dynamicAsks = buildDynamicAsks();
+
+  const miamiPrompts = liveTennisMatchups.length > 0
+    ? [
+        liveTennisMatchups[0] ? `Who wins ${liveTennisMatchups[0].title}?` : null,
+        liveTennisMatchups[1] ? `Best props for ${liveTennisMatchups[1].title}` : null,
+        'Best ace props today',
+        'Who is overpriced today?',
+      ].filter(Boolean)
+    : ['Best props today', 'Who is live for an upset?', 'Best ace props', 'Who is overpriced?'];
+
+  const featuredPrompts = [
+    "Best props on today's slate",
+    "Who has the biggest serve edge today?",
+    "Best value bet on the board right now",
+    "Walk me through today's key matchup",
+  ];
+
+  const atpPlayers = [
+    { name: 'Jannik Sinner', elo: 2168, hold: '89.4%', dr: '1.19', tb: '63%' },
+    { name: 'Carlos Alcaraz', elo: 2142, hold: '86.1%', dr: '1.16', tb: '58%' },
+    { name: 'Alexander Zverev', elo: 2061, hold: '87.7%', dr: '1.09', tb: '61%' },
+    { name: 'Daniil Medvedev', elo: 2038, hold: '84.8%', dr: '1.07', tb: '56%' },
+    { name: 'Taylor Fritz', elo: 1986, hold: '88.2%', dr: '1.05', tb: '59%' },
+  ];
+
+  const wtaPlayers = [
+    { name: 'Aryna Sabalenka', elo: 2108, hold: '74.8%', dr: '1.20', tb: '57%' },
+    { name: 'Elena Rybakina', elo: 2054, hold: '76.2%', dr: '1.14', tb: '54%' },
+    { name: 'Iga Swiatek', elo: 2036, hold: '71.1%', dr: '1.25', tb: '52%' },
+    { name: 'Coco Gauff', elo: 1968, hold: '68.4%', dr: '1.10', tb: '51%' },
+    { name: 'Jessica Pegula', elo: 1940, hold: '66.8%', dr: '1.08', tb: '49%' },
+  ];
+
+  // --- handleImageSelect --------------------------------------------------------
+  function handleImageSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      // dataUrl = "data:image/jpeg;base64,XXXX..."
+      const parts = dataUrl.split(',');
+      const meta = parts[0]; // "data:image/jpeg;base64"
+      const base64 = parts[1];
+      const mediaType = meta.split(':')[1].split(';')[0]; // "image/jpeg"
+      setPendingImage({ base64, mediaType, previewUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  }
+
+  function clearPendingImage() {
+    setPendingImage(null);
+  }
+
+  // --- handleAsk ----------------------------------------------------------------
+  async function handleAsk(promptOverride) {
+    const prompt = (promptOverride || inputValue).trim();
+    const image = pendingImage;
+
+    // Allow image-only sends with a default prompt
+    if (!prompt && !image) return;
+    const finalPrompt = prompt || 'Please review these lines and tell me the best props to target.';
+
+    if (!playerData || !contextData) {
+      const msg = dataLoading
+        ? 'Still loading the tennis database. Try again in a second.'
+        : 'Tennis data did not load correctly.';
+      setMessages((prev) => [...prev,
+        { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
+        { role: 'assistant', content: msg },
+      ]);
+      setInputValue('');
+      setPendingImage(null);
+      setActiveTab('ASK');
+      return;
+    }
+
+    const historyForApi = messages.map((m) => ({ role: m.role, text: m.content, loading: m.loading || false }));
+    setMessages((prev) => [...prev,
+      { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
+      { role: 'assistant', content: '...', loading: true },
+    ]);
+    setInputValue('');
+    setPendingImage(null);
+    setActiveTab('ASK');
+
+    try {
+      const response = await fetch('/api/ur-take', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: finalPrompt,
+          players: playerData,
+          context: contextData,
+          liveMatches,
+          tournamentResults,
+          oddsData,
+          tour: 'tennis',
+          history: historyForApi,
+          matchupContext: null,
+          image: image ? { base64: image.base64, mediaType: image.mediaType } : null,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Request failed');
+
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { role: 'assistant', content: data.response || 'No response returned.' };
+        return next;
+      });
+    } catch (err) {
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = { role: 'assistant', content: `Couldn't get a response right now. ${err.message}` };
+        return next;
       });
     }
   }
 
-  // Build the user message -- include image if provided
-  if (image && image.base64 && image.mediaType) {
-    messages.push({
-      role: "user",
-      content: [
-        {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: image.mediaType,
-            data: image.base64,
-          },
-        },
-        {
-          type: "text",
-          text: question,
-        },
-      ],
-    });
-  } else {
-    messages.push({ role: "user", content: question });
+  // --- Share card ---------------------------------------------------------------
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + w - radius, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+    ctx.lineTo(x + w, y + h - radius);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+    ctx.lineTo(x + radius, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
   }
 
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: image ? "claude-sonnet-4-5" : "claude-haiku-4-5-20251001",
-        max_tokens: 700,
-        temperature: 0.7,
-        system: systemPrompt,
-        messages,
-      }),
-    });
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+    for (const word of words) {
+      const test = line + word + ' ';
+      if (ctx.measureText(test).width > maxWidth && line !== '') {
+        ctx.fillText(line.trim(), x, currentY);
+        line = word + ' ';
+        currentY += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    ctx.fillText(line.trim(), x, currentY);
+  }
 
-    const data = await response.json();
+  async function shareCard(player, prop, reason) {
+    const W = 1080; const H = 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W / 2, -80, 0, W / 2, -80, 700);
+    glow.addColorStop(0, 'rgba(0,245,233,0.18)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.045)'; roundRectPath(ctx, 72, 160, W - 144, 760, 32); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,245,233,0.28)'; ctx.lineWidth = 2; roundRectPath(ctx, 72, 160, W - 144, 760, 32); ctx.stroke();
+    ctx.fillStyle = '#00F5E9'; roundRectPath(ctx, 72, 160, 7, 760, 4); ctx.fill();
+    ctx.font = '500 30px monospace'; ctx.fillStyle = '#00F5E9'; ctx.fillText('UR TAKE', 126, 258);
+    const dg = ctx.createLinearGradient(126, 0, 540, 0);
+    dg.addColorStop(0, '#00F5E9'); dg.addColorStop(1, '#FF2D6B');
+    ctx.fillStyle = dg; ctx.fillRect(126, 275, 414, 3);
+    ctx.font = 'bold 86px sans-serif'; ctx.fillStyle = '#F7F8FA'; ctx.fillText(player, 126, 398);
+    const bl = prop.toUpperCase();
+    ctx.font = 'bold 34px monospace';
+    const pw = ctx.measureText(bl).width + 64;
+    ctx.fillStyle = '#00F5E9'; roundRectPath(ctx, 126, 428, pw, 60, 999); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.fillText(bl, 158, 468);
+    ctx.font = '400 40px sans-serif'; ctx.fillStyle = 'rgba(247,248,250,0.80)';
+    wrapText(ctx, reason, 126, 568, W - 300, 58);
+    ctx.font = '500 30px monospace'; ctx.fillStyle = 'rgba(247,248,250,0.42)'; ctx.fillText('UNDER', 126, 848);
+    ctx.font = 'bold 78px sans-serif';
+    const lg = ctx.createLinearGradient(126, 0, 560, 0);
+    lg.addColorStop(0, '#00F5E9'); lg.addColorStop(1, '#FF2D6B');
+    ctx.fillStyle = lg; ctx.fillText('REVIEW', 126, 928);
+    const fg = ctx.createLinearGradient(120, 0, 700, 0);
+    fg.addColorStop(0, '#00F5E9'); fg.addColorStop(1, '#FF2D6B');
+    ctx.fillStyle = fg; ctx.fillRect(120, 942, 580, 3);
+    ctx.beginPath(); ctx.arc(114, 943, 7, 0, Math.PI * 2); ctx.fillStyle = '#00F5E9'; ctx.fill();
+    ctx.beginPath(); ctx.arc(706, 943, 7, 0, Math.PI * 2); ctx.fillStyle = '#FF2D6B'; ctx.fill();
+    ctx.font = '400 26px monospace'; ctx.fillStyle = 'rgba(247,248,250,0.25)';
+    ctx.fillText('under-review-v2.vercel.app', 126, 986);
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], 'ur-take.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: `${player} - ${prop}`, text: `${reason}\n\nvia Under Review` }); }
+        catch { downloadBlob(blob); }
+      } else downloadBlob(blob);
+    }, 'image/png');
+  }
 
-    if (!response.ok) {
-      console.error("Anthropic API error:", data);
-      return res.status(500).json({ error: "AI response failed", details: data });
+  function downloadBlob(blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'ur-take.png'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // --- Inline markdown ----------------------------------------------------------
+  function renderInlineMarkdown(text) {
+    return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      part.startsWith('**') && part.endsWith('**')
+        ? <span key={i} style={{ color: '#00F5E9', fontWeight: 700 }}>{part.slice(2, -2)}</span>
+        : part
+    );
+  }
+
+  // --- Message renderer ---------------------------------------------------------
+  function renderMessage(content, isLoading) {
+    if (isLoading) {
+      return (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '4px 0' }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#00F5E9', animation: `urPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+          ))}
+          <style>{`@keyframes urPulse{0%,80%,100%{opacity:.2;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}`}</style>
+        </div>
+      );
     }
 
-    const text =
-      data?.content
-        ?.filter((item) => item.type === "text")
-        ?.map((item) => item.text)
-        ?.join("\n")
-        ?.trim() || "Couldn't get a response. Try again.";
+    const lines = content.split('\n').filter(Boolean);
+    const propLines = lines.filter((l) => l.trim().startsWith('\u2022'));
+    const normalLines = lines.filter((l) => !l.trim().startsWith('\u2022'));
 
-    return res.status(200).json({ response: text });
-  } catch (err) {
-    console.error("UR TAKE error:", err);
-    return res.status(500).json({ error: "Request failed", details: err.message });
+    return (
+      <div style={{ display: 'grid', gap: 10 }}>
+        {normalLines.map((line, idx) => (
+          <div key={`${line}-${idx}`} style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.6, color: 'rgba(247,248,250,0.88)', whiteSpace: 'pre-wrap' }}>
+            {renderInlineMarkdown(line)}
+          </div>
+        ))}
+        {propLines.length > 0 && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {propLines.map((line, idx) => {
+              const clean = line.replace(/^\u2022\s*/, '').replace(/\*\*/g, '');
+              const parts = clean.split(' - ');
+              const looksLikePropCard = parts.length >= 3 && parts[0] && parts[1] && parts[1].length < 60
+                && !parts[0].toLowerCase().includes('wimbledon')
+                && !parts[0].toLowerCase().includes('french open')
+                && !parts[0].toLowerCase().includes('us open');
+
+              if (!looksLikePropCard) {
+                return (
+                  <div key={`${clean}-${idx}`} style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.55, color: 'rgba(247,248,250,0.82)' }}>
+                    {renderInlineMarkdown(line)}
+                  </div>
+                );
+              }
+
+              const player = parts[0] || '';
+              const prop = parts[1] || '';
+              const reason = parts.slice(2).join(' - ') || '';
+
+              return (
+                <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', position: 'relative' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', marginBottom: reason ? 7 : 0, paddingRight: 34 }}>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{player}</span>
+                    {prop && (
+                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#000', background: '#00F5E9', borderRadius: 999, padding: '3px 8px' }}>{prop}</span>
+                    )}
+                  </div>
+                  {reason && (
+                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.55, color: 'rgba(247,248,250,0.62)', paddingRight: 34 }}>
+                      {renderInlineMarkdown(reason)}
+                    </div>
+                  )}
+                  <button onClick={() => shareCard(player, prop, reason)} title="Share"
+                    style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,245,233,0.22)', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
+                    <svg width="11" height="12" viewBox="0 0 13 14" fill="none"><path d="M6.5 1.5V9.5M6.5 1.5L4 4M6.5 1.5L9 4" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1.5 9.5V12.5H11.5V9.5" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   }
-}
-role: ‘assistant’,
-content:
-‘Ask a matchup, prop, or slate question and UR TAKE will give you the lean, the reason, and the angle.’,
-},
-]);
 
-const [playerData, setPlayerData] = useState(null);
-const [contextData, setContextData] = useState(null);
-const [liveMatches, setLiveMatches] = useState([]);
-const [tournamentResults, setTournamentResults] = useState([]);
-const [dataLoading, setDataLoading] = useState(true);
-const [oddsData, setOddsData] = useState(null);
-const messagesEndRef = useRef(null);
-const imageInputRef = useRef(null);
-const [pendingImage, setPendingImage] = useState(null); // { base64, mediaType, previewUrl }
-
-// — Load all data on mount —————————————————
-useEffect(() => {
-async function loadData() {
-try {
-const [
-playersRes, contextRes,
-liveAtpRes, liveWtaRes,
-resultsAtpRes, resultsWtaRes,
-oddsAtpRes, oddsWtaRes,
-] = await Promise.all([
-fetch(’/api/tennis-players’),
-fetch(’/api/tennis-context’),
-fetch(’/api/tennis?tour=atp’),
-fetch(’/api/tennis?tour=wta’),
-fetch(’/api/tennis-results?tour=atp’),
-fetch(’/api/tennis-results?tour=wta’),
-fetch(’/api/odds?tour=atp’),
-fetch(’/api/odds?tour=wta’),
-]);
-
-```
-    const [
-      playersJson, contextJson,
-      liveAtpJson, liveWtaJson,
-      resultsAtpJson, resultsWtaJson,
-      oddsAtpJson, oddsWtaJson,
-    ] = await Promise.all([
-      playersRes.json(), contextRes.json(),
-      liveAtpRes.json(), liveWtaRes.json(),
-      resultsAtpRes.json(), resultsWtaRes.json(),
-      oddsAtpRes.json().catch(() => null),
-      oddsWtaRes.json().catch(() => null),
-    ]);
-
-    setPlayerData(playersJson);
-    setContextData(contextJson);
-    setLiveMatches([
-      ...(Array.isArray(liveAtpJson) ? liveAtpJson : []),
-      ...(Array.isArray(liveWtaJson) ? liveWtaJson : []),
-    ]);
-    setTournamentResults([
-      ...(Array.isArray(resultsAtpJson) ? resultsAtpJson : []),
-      ...(Array.isArray(resultsWtaJson) ? resultsWtaJson : []),
-    ]);
-
-    // Merge ATP and WTA odds -- combine matches and props arrays
-    const mergedOdds = {
-      matches: [
-        ...((oddsAtpJson?.matches) || []),
-        ...((oddsWtaJson?.matches) || []),
-      ],
-      props: [
-        ...((oddsAtpJson?.props) || []),
-        ...((oddsWtaJson?.props) || []),
-      ],
-      fetchedAt: oddsAtpJson?.fetchedAt || null,
-    };
-    setOddsData(mergedOdds);
-  } catch (err) {
-    console.error('Failed to load tennis data:', err);
-  } finally {
-    setDataLoading(false);
-  }
-}
-loadData();
-```
-
-}, []);
-
-// — Poll results every 5 minutes ––––––––––––––––––––––
-useEffect(() => {
-const interval = setInterval(async () => {
-try {
-const [atpRes, wtaRes] = await Promise.all([
-fetch(’/api/tennis-results?tour=atp’),
-fetch(’/api/tennis-results?tour=wta’),
-]);
-const [atpJson, wtaJson] = await Promise.all([atpRes.json(), wtaRes.json()]);
-setTournamentResults([
-…(Array.isArray(atpJson) ? atpJson : []),
-…(Array.isArray(wtaJson) ? wtaJson : []),
-]);
-} catch { /* silent */ }
-}, 5 * 60 * 1000);
-return () => clearInterval(interval);
-}, []);
-
-// Auto-scroll on new message
-useEffect(() => {
-messagesEndRef.current?.scrollIntoView({ behavior: ‘smooth’ });
-}, [messages]);
-
-// — Label helpers ————————————————————
-function abbreviateRound(round) {
-if (!round) return ‘’;
-const r = round.toLowerCase();
-if (r.includes(‘final’) && !r.includes(‘semi’) && !r.includes(‘quarter’)) return ‘Final’;
-if (r.includes(‘semi’)) return ‘SF’;
-if (r.includes(‘quarter’)) return ‘QF’;
-if (r.includes(‘round of 16’) || r.includes(‘4th round’)) return ‘R16’;
-if (r.includes(‘round of 32’) || r.includes(‘3rd round’)) return ‘R32’;
-if (r.includes(‘round of 64’) || r.includes(‘2nd round’)) return ‘R64’;
-if (r.includes(‘round of 128’) || r.includes(‘1st round’)) return ‘R128’;
-return round;
-}
-
-function abbreviateTour(match) {
-const combined = `${match.event_type_type || ''} ${match.league_name || ''}`.toLowerCase();
-const isWTA = combined.includes(‘women’) || combined.includes(‘wta’);
-const isDoubles = combined.includes(‘double’);
-let label = isWTA ? ‘WTA’ : ‘ATP’;
-if (isDoubles) label += ’ Doubles’;
-const round = abbreviateRound(match.round || ‘’);
-return round ? `${label} - ${round}` : label;
-}
-
-// — Derive dynamic home content ———————————————
-const liveTennisMatchups = liveMatches
-.filter((m) => m.home_team && m.away_team && m.home_team !== ‘Player 1’)
-.slice(0, 6)
-.map((m) => ({
-title: `${m.home_team} vs ${m.away_team}`,
-subtitle: abbreviateTour(m),
-isLive: m.live === ‘1’,
-}));
-
-const recentResults = […tournamentResults].reverse().slice(0, 3);
-
-function buildDynamicAsks() {
-const asks = [];
-if (recentResults.length > 0) {
-asks.push(`Best props for ${recentResults[0].winner} in their next match`);
-}
-if (liveTennisMatchups.length > 0) asks.push(`Who wins ${liveTennisMatchups[0].title}?`);
-if (liveTennisMatchups.length > 1) asks.push(`Best props for ${liveTennisMatchups[1].title}`);
-const fallbacks = [
-“Best ace props today”,
-“Who has the biggest serve edge on the slate?”,
-“Who is live for an upset?”,
-“Best total games angle today”,
-];
-for (const f of fallbacks) {
-if (asks.length >= 4) break;
-if (!asks.includes(f)) asks.push(f);
-}
-return asks.slice(0, 4);
-}
-
-const dynamicAsks = buildDynamicAsks();
-
-const miamiPrompts = liveTennisMatchups.length > 0
-? [
-liveTennisMatchups[0] ? `Who wins ${liveTennisMatchups[0].title}?` : null,
-liveTennisMatchups[1] ? `Best props for ${liveTennisMatchups[1].title}` : null,
-‘Best ace props today’,
-‘Who is overpriced today?’,
-].filter(Boolean)
-: [‘Best props today’, ‘Who is live for an upset?’, ‘Best ace props’, ‘Who is overpriced?’];
-
-const featuredPrompts = [
-“Best props on today’s slate”,
-“Who has the biggest serve edge today?”,
-“Best value bet on the board right now”,
-“Walk me through today’s key matchup”,
-];
-
-const atpPlayers = [
-{ name: ‘Jannik Sinner’, elo: 2168, hold: ‘89.4%’, dr: ‘1.19’, tb: ‘63%’ },
-{ name: ‘Carlos Alcaraz’, elo: 2142, hold: ‘86.1%’, dr: ‘1.16’, tb: ‘58%’ },
-{ name: ‘Alexander Zverev’, elo: 2061, hold: ‘87.7%’, dr: ‘1.09’, tb: ‘61%’ },
-{ name: ‘Daniil Medvedev’, elo: 2038, hold: ‘84.8%’, dr: ‘1.07’, tb: ‘56%’ },
-{ name: ‘Taylor Fritz’, elo: 1986, hold: ‘88.2%’, dr: ‘1.05’, tb: ‘59%’ },
-];
-
-const wtaPlayers = [
-{ name: ‘Aryna Sabalenka’, elo: 2108, hold: ‘74.8%’, dr: ‘1.20’, tb: ‘57%’ },
-{ name: ‘Elena Rybakina’, elo: 2054, hold: ‘76.2%’, dr: ‘1.14’, tb: ‘54%’ },
-{ name: ‘Iga Swiatek’, elo: 2036, hold: ‘71.1%’, dr: ‘1.25’, tb: ‘52%’ },
-{ name: ‘Coco Gauff’, elo: 1968, hold: ‘68.4%’, dr: ‘1.10’, tb: ‘51%’ },
-{ name: ‘Jessica Pegula’, elo: 1940, hold: ‘66.8%’, dr: ‘1.08’, tb: ‘49%’ },
-];
-
-// — handleImageSelect ––––––––––––––––––––––––––––
-function handleImageSelect(e) {
-const file = e.target.files?.[0];
-if (!file) return;
-const reader = new FileReader();
-reader.onload = (ev) => {
-const dataUrl = ev.target.result;
-// dataUrl = “data:image/jpeg;base64,XXXX…”
-const parts = dataUrl.split(’,’);
-const meta = parts[0]; // “data:image/jpeg;base64”
-const base64 = parts[1];
-const mediaType = meta.split(’:’)[1].split(’;’)[0]; // “image/jpeg”
-setPendingImage({ base64, mediaType, previewUrl: dataUrl });
-};
-reader.readAsDataURL(file);
-// Reset input so same file can be selected again
-e.target.value = ‘’;
-}
-
-function clearPendingImage() {
-setPendingImage(null);
-}
-
-// — handleAsk ––––––––––––––––––––––––––––––––
-async function handleAsk(promptOverride) {
-const prompt = (promptOverride || inputValue).trim();
-const image = pendingImage;
-
-```
-// Allow image-only sends with a default prompt
-if (!prompt && !image) return;
-const finalPrompt = prompt || 'Please review these lines and tell me the best props to target.';
-
-if (!playerData || !contextData) {
-  const msg = dataLoading
-    ? 'Still loading the tennis database. Try again in a second.'
-    : 'Tennis data did not load correctly.';
-  setMessages((prev) => [...prev,
-    { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
-    { role: 'assistant', content: msg },
-  ]);
-  setInputValue('');
-  setPendingImage(null);
-  setActiveTab('ASK');
-  return;
-}
-
-const historyForApi = messages.map((m) => ({ role: m.role, text: m.content, loading: m.loading || false }));
-setMessages((prev) => [...prev,
-  { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
-  { role: 'assistant', content: '...', loading: true },
-]);
-setInputValue('');
-setPendingImage(null);
-setActiveTab('ASK');
-
-try {
-  const response = await fetch('/api/ur-take', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      question: finalPrompt,
-      players: playerData,
-      context: contextData,
-      liveMatches,
-      tournamentResults,
-      oddsData,
-      tour: 'tennis',
-      history: historyForApi,
-      matchupContext: null,
-      image: image ? { base64: image.base64, mediaType: image.mediaType } : null,
+  // --- Style B primitives -------------------------------------------------------
+  const S = {
+    shell: { minHeight: '100vh', background: '#040404', color: '#F7F8FA' },
+    container: { width: '100%', maxWidth: 760, margin: '0 auto', paddingBottom: 110 },
+    // Left-accent card: left border only - all other sides explicitly none
+    card: (live, ask) => ({
+      borderTop: 'none',
+      borderRight: 'none',
+      borderBottom: 'none',
+      borderLeft: `2px solid ${live ? '#FF2D6B' : ask ? 'rgba(245,200,66,0.38)' : 'rgba(0,245,233,0.42)'}`,
+      background: live ? 'rgba(255,45,107,0.05)' : ask ? 'rgba(245,200,66,0.025)' : 'rgba(255,255,255,0.03)',
+      borderRadius: '0 10px 10px 0',
+      padding: '10px 12px',
+      marginBottom: 5,
+      cursor: 'pointer',
+      WebkitTapHighlightColor: 'transparent',
+      outline: 'none',
     }),
-  });
+    title: { fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 700, color: '#F7F8FA', marginBottom: 2 },
+    sub: { fontFamily: 'DM Mono, monospace', fontSize: 9, color: 'rgba(247,248,250,0.3)', letterSpacing: '0.04em' },
+  };
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || 'Request failed');
-
-  setMessages((prev) => {
-    const next = [...prev];
-    next[next.length - 1] = { role: 'assistant', content: data.response || 'No response returned.' };
-    return next;
-  });
-} catch (err) {
-  setMessages((prev) => {
-    const next = [...prev];
-    next[next.length - 1] = { role: 'assistant', content: `Couldn't get a response right now. ${err.message}` };
-    return next;
-  });
-}
-```
-
-}
-
-// — Share card —————————————————————
-function roundRectPath(ctx, x, y, w, h, r) {
-const radius = Math.min(r, w / 2, h / 2);
-ctx.beginPath();
-ctx.moveTo(x + radius, y);
-ctx.lineTo(x + w - radius, y);
-ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-ctx.lineTo(x + w, y + h - radius);
-ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-ctx.lineTo(x + radius, y + h);
-ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-ctx.lineTo(x, y + radius);
-ctx.quadraticCurveTo(x, y, x + radius, y);
-ctx.closePath();
-}
-
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-const words = text.split(’ ’);
-let line = ‘’;
-let currentY = y;
-for (const word of words) {
-const test = line + word + ’ ’;
-if (ctx.measureText(test).width > maxWidth && line !== ‘’) {
-ctx.fillText(line.trim(), x, currentY);
-line = word + ’ ’;
-currentY += lineHeight;
-} else {
-line = test;
-}
-}
-ctx.fillText(line.trim(), x, currentY);
-}
-
-async function shareCard(player, prop, reason) {
-const W = 1080; const H = 1080;
-const canvas = document.createElement(‘canvas’);
-canvas.width = W; canvas.height = H;
-const ctx = canvas.getContext(‘2d’);
-ctx.fillStyle = ‘#000’; ctx.fillRect(0, 0, W, H);
-const glow = ctx.createRadialGradient(W / 2, -80, 0, W / 2, -80, 700);
-glow.addColorStop(0, ‘rgba(0,245,233,0.18)’); glow.addColorStop(1, ‘rgba(0,0,0,0)’);
-ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
-ctx.fillStyle = ‘rgba(255,255,255,0.045)’; roundRectPath(ctx, 72, 160, W - 144, 760, 32); ctx.fill();
-ctx.strokeStyle = ‘rgba(0,245,233,0.28)’; ctx.lineWidth = 2; roundRectPath(ctx, 72, 160, W - 144, 760, 32); ctx.stroke();
-ctx.fillStyle = ‘#00F5E9’; roundRectPath(ctx, 72, 160, 7, 760, 4); ctx.fill();
-ctx.font = ‘500 30px monospace’; ctx.fillStyle = ‘#00F5E9’; ctx.fillText(‘UR TAKE’, 126, 258);
-const dg = ctx.createLinearGradient(126, 0, 540, 0);
-dg.addColorStop(0, ‘#00F5E9’); dg.addColorStop(1, ‘#FF2D6B’);
-ctx.fillStyle = dg; ctx.fillRect(126, 275, 414, 3);
-ctx.font = ‘bold 86px sans-serif’; ctx.fillStyle = ‘#F7F8FA’; ctx.fillText(player, 126, 398);
-const bl = prop.toUpperCase();
-ctx.font = ‘bold 34px monospace’;
-const pw = ctx.measureText(bl).width + 64;
-ctx.fillStyle = ‘#00F5E9’; roundRectPath(ctx, 126, 428, pw, 60, 999); ctx.fill();
-ctx.fillStyle = ‘#000’; ctx.fillText(bl, 158, 468);
-ctx.font = ‘400 40px sans-serif’; ctx.fillStyle = ‘rgba(247,248,250,0.80)’;
-wrapText(ctx, reason, 126, 568, W - 300, 58);
-ctx.font = ‘500 30px monospace’; ctx.fillStyle = ‘rgba(247,248,250,0.42)’; ctx.fillText(‘UNDER’, 126, 848);
-ctx.font = ‘bold 78px sans-serif’;
-const lg = ctx.createLinearGradient(126, 0, 560, 0);
-lg.addColorStop(0, ‘#00F5E9’); lg.addColorStop(1, ‘#FF2D6B’);
-ctx.fillStyle = lg; ctx.fillText(‘REVIEW’, 126, 928);
-const fg = ctx.createLinearGradient(120, 0, 700, 0);
-fg.addColorStop(0, ‘#00F5E9’); fg.addColorStop(1, ‘#FF2D6B’);
-ctx.fillStyle = fg; ctx.fillRect(120, 942, 580, 3);
-ctx.beginPath(); ctx.arc(114, 943, 7, 0, Math.PI * 2); ctx.fillStyle = ‘#00F5E9’; ctx.fill();
-ctx.beginPath(); ctx.arc(706, 943, 7, 0, Math.PI * 2); ctx.fillStyle = ‘#FF2D6B’; ctx.fill();
-ctx.font = ‘400 26px monospace’; ctx.fillStyle = ‘rgba(247,248,250,0.25)’;
-ctx.fillText(‘under-review-v2.vercel.app’, 126, 986);
-canvas.toBlob(async (blob) => {
-const file = new File([blob], ‘ur-take.png’, { type: ‘image/png’ });
-if (navigator.share && navigator.canShare?.({ files: [file] })) {
-try { await navigator.share({ files: [file], title: `${player} - ${prop}`, text: `${reason}\n\nvia Under Review` }); }
-catch { downloadBlob(blob); }
-} else downloadBlob(blob);
-}, ‘image/png’);
-}
-
-function downloadBlob(blob) {
-const url = URL.createObjectURL(blob);
-const a = document.createElement(‘a’); a.href = url; a.download = ‘ur-take.png’; a.click();
-URL.revokeObjectURL(url);
-}
-
-// — Inline markdown –––––––––––––––––––––––––––––
-function renderInlineMarkdown(text) {
-return text.split(/(**[^*]+**)/g).map((part, i) =>
-part.startsWith(’**’) && part.endsWith(’**’)
-? <span key={i} style={{ color: ‘#00F5E9’, fontWeight: 700 }}>{part.slice(2, -2)}</span>
-: part
-);
-}
-
-// — Message renderer ———————————————————
-function renderMessage(content, isLoading) {
-if (isLoading) {
-return (
-<div style={{ display: ‘flex’, gap: 6, alignItems: ‘center’, padding: ‘4px 0’ }}>
-{[0, 1, 2].map((i) => (
-<div key={i} style={{ width: 7, height: 7, borderRadius: ‘50%’, background: ‘#00F5E9’, animation: `urPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-))}
-<style>{`@keyframes urPulse{0%,80%,100%{opacity:.2;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}`}</style>
-</div>
-);
-}
-
-```
-const lines = content.split('\n').filter(Boolean);
-const propLines = lines.filter((l) => l.trim().startsWith('\u2022'));
-const normalLines = lines.filter((l) => !l.trim().startsWith('\u2022'));
-
-return (
-  <div style={{ display: 'grid', gap: 10 }}>
-    {normalLines.map((line, idx) => (
-      <div key={`${line}-${idx}`} style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.6, color: 'rgba(247,248,250,0.88)', whiteSpace: 'pre-wrap' }}>
-        {renderInlineMarkdown(line)}
+  function Eyebrow({ label, color = 'rgba(0,245,233,0.6)' }) {
+    return (
+      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color, marginBottom: 9 }}>
+        {label}
       </div>
-    ))}
-    {propLines.length > 0 && (
-      <div style={{ display: 'grid', gap: 8 }}>
-        {propLines.map((line, idx) => {
-          const clean = line.replace(/^\u2022\s*/, '').replace(/\*\*/g, '');
-          const parts = clean.split(' - ');
-          const looksLikePropCard = parts.length >= 3 && parts[0] && parts[1] && parts[1].length < 60
-            && !parts[0].toLowerCase().includes('wimbledon')
-            && !parts[0].toLowerCase().includes('french open')
-            && !parts[0].toLowerCase().includes('us open');
+    );
+  }
 
-          if (!looksLikePropCard) {
-            return (
-              <div key={`${clean}-${idx}`} style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.55, color: 'rgba(247,248,250,0.82)' }}>
-                {renderInlineMarkdown(line)}
+  // --- Logo (full version for HOME/MIAMI) --------------------------------------
+  const LogoFull = () => (
+    <div style={{ textAlign: 'center', padding: '22px 0 14px' }}>
+      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.36)', marginBottom: 2 }}>Under</div>
+      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 46, lineHeight: 0.95, letterSpacing: '0.03em', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>REVIEW</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, width: 88, margin: '6px auto 0' }}>
+        <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#00F5E9', flexShrink: 0 }} />
+        <div style={{ flex: 1, height: 1.5, background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)' }} />
+        <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF2D6B', flexShrink: 0 }} />
+      </div>
+    </div>
+  );
+
+  // --- Logo (slim inline for ASK/PRO header) -----------------------------------
+  const LogoSlim = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px 6px' }}>
+      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 8, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.32)' }}>Under</div>
+      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 20, lineHeight: 1, background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>REVIEW</div>
+    </div>
+  );
+
+  // --- Get UR Take bar ----------------------------------------------------------
+  const GetUrTakeBar = ({ placeholder = 'ask anything' }) => (
+    <div style={{ padding: '0 16px 14px' }}>
+      {/* Image preview strip */}
+      {pendingImage && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '6px 10px', background: 'rgba(0,245,233,0.08)', borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 8px 8px 0' }}>
+          <img src={pendingImage.previewUrl} alt="screenshot" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
+          <span style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(0,245,233,0.8)' }}>Screenshot attached</span>
+          <button onClick={clearPendingImage} style={{ background: 'none', border: 'none', color: 'rgba(247,248,250,0.4)', fontSize: 16, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>x</button>
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', height: 46, borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: pendingImage ? '1px solid rgba(0,245,233,0.4)' : '1px solid rgba(0,245,233,0.2)', padding: '0 5px 0 6px', gap: 6 }}>
+        {/* Hidden file input */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageSelect}
+          style={{ display: 'none' }}
+        />
+        {/* Camera button */}
+        <button
+          onClick={() => imageInputRef.current?.click()}
+          title="Attach screenshot"
+          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', background: pendingImage ? 'rgba(0,245,233,0.15)' : 'rgba(255,255,255,0.06)', color: pendingImage ? '#00F5E9' : 'rgba(247,248,250,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent', fontSize: 15 }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <input
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleAsk(); }}
+          placeholder={pendingImage ? 'Ask about these lines...' : placeholder}
+          onPaste={(e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+              if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const dataUrl = ev.target.result;
+                  const parts = dataUrl.split(',');
+                  const base64 = parts[1];
+                  const mediaType = parts[0].split(':')[1].split(';')[0];
+                  setPendingImage({ base64, mediaType, previewUrl: dataUrl });
+                };
+                reader.readAsDataURL(file);
+                return;
+              }
+            }
+          }}
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: 'DM Sans, sans-serif', fontSize: 16, color: '#F7F8FA' }}
+        />
+        <button onClick={() => handleAsk()} style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', color: '#000', fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}>&#x2191;</button>
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 6 }}>
+        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.24)' }}>
+          Get <span style={{ color: '#00F5E9' }}>UR</span> Take
+        </span>
+      </div>
+    </div>
+  );
+
+  // --- HOME ---------------------------------------------------------------------
+  const homeScreen = (
+    <>
+      <LogoFull />
+      <GetUrTakeBar placeholder="Ask a prop, matchup, or slate question..." />
+
+      <div style={{ padding: '0 16px' }}>
+
+        {liveTennisMatchups.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <Eyebrow label="On the board" />
+            {liveTennisMatchups.map((m) => (
+              <div key={m.title} onClick={() => handleAsk(`Who wins ${m.title}?`)} style={S.card(m.isLive, false)}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div>
+                    <div style={S.title}>{m.title}</div>
+                    <div style={S.sub}>{m.subtitle}</div>
+                  </div>
+                  {m.isLive && (
+                    <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#FF2D6B', color: '#000', borderRadius: 3, padding: '2px 6px', fontWeight: 700, flexShrink: 0 }}>Live</span>
+                  )}
+                </div>
               </div>
-            );
-          }
+            ))}
+          </div>
+        )}
 
-          const player = parts[0] || '';
-          const prop = parts[1] || '';
-          const reason = parts.slice(2).join(' - ') || '';
+        {recentResults.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <Eyebrow label="Results" />
+            {recentResults.map((r, i) => (
+              <div key={i} onClick={() => handleAsk(`Best props for ${r.winner} after beating ${r.loser}`)} style={S.card(false, false)}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, overflow: 'hidden' }}>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, fontWeight: 700, color: '#F7F8FA', whiteSpace: 'nowrap' }}>{r.winner}</span>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: 'rgba(247,248,250,0.38)', whiteSpace: 'nowrap' }}>def. {r.loser}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
+                    {r.score && <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 9.5, color: 'rgba(247,248,250,0.26)' }}>{r.score}</span>}
+                    {r.round && <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.06em', color: 'rgba(247,248,250,0.18)', textTransform: 'uppercase' }}>{abbreviateRound(r.round)}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-          return (
-            <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', position: 'relative' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', marginBottom: reason ? 7 : 0, paddingRight: 34 }}>
-                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{player}</span>
-                {prop && (
-                  <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#000', background: '#00F5E9', borderRadius: 999, padding: '3px 8px' }}>{prop}</span>
+        <div style={{ marginBottom: 18 }}>
+          <Eyebrow label="Ask" color="rgba(245,200,66,0.55)" />
+          {dynamicAsks.map((ask) => (
+            <div key={ask} onClick={() => handleAsk(ask)} style={S.card(false, true)}>
+              <div style={S.title}>{ask}</div>
+            </div>
+          ))}
+        </div>
+
+        {dataLoading && liveTennisMatchups.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.25)' }}>Loading slate...</div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  // --- MIAMI --------------------------------------------------------------------
+  const miamiScreen = (
+    <>
+      <LogoFull />
+      <div style={{ padding: '0 16px 4px' }}>
+        <Eyebrow label="Miami Open 2026" color="rgba(255,45,107,0.65)" />
+        <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, lineHeight: 1.6, color: 'rgba(247,248,250,0.55)', marginBottom: 14 }}>
+          Hard court, medium-fast. Best angles in ace props, first-set winners, and total-games spots.
+        </div>
+      </div>
+
+      <GetUrTakeBar placeholder="Ask Miami props, players, or matchups..." />
+
+      <div style={{ padding: '0 16px' }}>
+        <div style={{ marginBottom: 18 }}>
+          <Eyebrow label="Quick asks" color="rgba(245,200,66,0.55)" />
+          {miamiPrompts.map((p) => (
+            <div key={p} onClick={() => handleAsk(p)} style={S.card(false, true)}>
+              <div style={S.title}>{p}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <Eyebrow label="Prop guide" color="rgba(245,200,66,0.55)" />
+          {[
+            { title: 'Ace props', body: 'Most playable when hold stability and short-rally profile line up.' },
+            { title: 'First set winners', body: 'Best in lopsided serve quality matchups where early pressure is predictable.' },
+            { title: 'Total games', body: 'Strongest when both players hold clean or one player controls pace but not breaks.' },
+          ].map((item) => (
+            <div key={item.title} style={{ ...S.card(false, false), cursor: 'default' }}>
+              <div style={{ ...S.title, marginBottom: 4 }}>{item.title}</div>
+              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.5, color: 'rgba(247,248,250,0.48)' }}>{item.body}</div>
+            </div>
+          ))}
+        </div>
+
+        {[{ label: 'ATP - top players', players: atpPlayers }, { label: 'WTA - top players', players: wtaPlayers }].map(({ label, players }) => (
+          <div key={label} style={{ marginBottom: 18 }}>
+            <Eyebrow label={label} color="rgba(245,200,66,0.55)" />
+            {players.map((player) => (
+              <div key={player.name} style={{ ...S.card(false, false), cursor: 'default' }}>
+                <div style={{ ...S.title, marginBottom: 8 }}>{player.name}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
+                  {[['Elo', player.elo], ['Hold%', player.hold], ['DR', player.dr], ['TB%', player.tb]].map(([lbl, val]) => (
+                    <div key={lbl} style={{ background: '#080808', borderRadius: 7, padding: '6px 6px' }}>
+                      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.32)', marginBottom: 3 }}>{lbl}</div>
+                      <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+
+  // --- ASK ----------------------------------------------------------------------
+  const askScreen = (
+    <>
+      <LogoSlim />
+      <GetUrTakeBar placeholder="Ask props, matchups, or slate questions..." />
+      <div style={{ padding: '0 16px' }}>
+        {messages.length <= 1 && (
+          <div style={{ marginBottom: 18 }}>
+            <Eyebrow label="Featured prompts" />
+            {featuredPrompts.map((p) => (
+              <div key={p} onClick={() => handleAsk(p)} style={S.card(false, true)}>
+                <div style={S.title}>{p}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          {messages.map((message, index) => (
+            <div key={`${message.role}-${index}`} style={{ display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{
+                width: '100%',
+                maxWidth: message.role === 'user' ? 520 : '100%',
+                borderRadius: message.role === 'user' ? 16 : '0 14px 14px 0',
+                padding: '12px 14px',
+                background: message.role === 'user'
+                  ? 'linear-gradient(90deg, rgba(0,245,233,0.12), rgba(255,45,107,0.1))'
+                  : 'rgba(255,255,255,0.03)',
+                border: message.role === 'user' ? '1px solid rgba(0,245,233,0.18)' : 'none',
+                borderLeft: message.role === 'assistant' ? '2px solid rgba(0,245,233,0.35)' : undefined,
+              }}>
+                <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: message.role === 'user' ? '#F5C842' : '#00F5E9', marginBottom: 7 }}>
+                  {message.role === 'user' ? 'You' : 'UR Take'}
+                </div>
+                {message.image && (
+                  <img src={message.image} alt="attached" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginBottom: 8, display: 'block' }} />
                 )}
-              </div>
-              {reason && (
-                <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.55, color: 'rgba(247,248,250,0.62)', paddingRight: 34 }}>
-                  {renderInlineMarkdown(reason)}
-                </div>
-              )}
-              <button onClick={() => shareCard(player, prop, reason)} title="Share"
-                style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,245,233,0.22)', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
-                <svg width="11" height="12" viewBox="0 0 13 14" fill="none"><path d="M6.5 1.5V9.5M6.5 1.5L4 4M6.5 1.5L9 4" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1.5 9.5V12.5H11.5V9.5" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    )}
-  </div>
-);
-```
-
-}
-
-// — Style B primitives —————————————————––
-const S = {
-shell: { minHeight: ‘100vh’, background: ‘#040404’, color: ‘#F7F8FA’ },
-container: { width: ‘100%’, maxWidth: 760, margin: ‘0 auto’, paddingBottom: 110 },
-// Left-accent card: left border only - all other sides explicitly none
-card: (live, ask) => ({
-borderTop: ‘none’,
-borderRight: ‘none’,
-borderBottom: ‘none’,
-borderLeft: `2px solid ${live ? '#FF2D6B' : ask ? 'rgba(245,200,66,0.38)' : 'rgba(0,245,233,0.42)'}`,
-background: live ? ‘rgba(255,45,107,0.05)’ : ask ? ‘rgba(245,200,66,0.025)’ : ‘rgba(255,255,255,0.03)’,
-borderRadius: ‘0 10px 10px 0’,
-padding: ‘10px 12px’,
-marginBottom: 5,
-cursor: ‘pointer’,
-WebkitTapHighlightColor: ‘transparent’,
-outline: ‘none’,
-}),
-title: { fontFamily: ‘DM Sans, sans-serif’, fontSize: 13, fontWeight: 700, color: ‘#F7F8FA’, marginBottom: 2 },
-sub: { fontFamily: ‘DM Mono, monospace’, fontSize: 9, color: ‘rgba(247,248,250,0.3)’, letterSpacing: ‘0.04em’ },
-};
-
-function Eyebrow({ label, color = ‘rgba(0,245,233,0.6)’ }) {
-return (
-<div style={{ fontFamily: ‘DM Mono, monospace’, fontSize: 9, letterSpacing: ‘0.18em’, textTransform: ‘uppercase’, color, marginBottom: 9 }}>
-{label}
-</div>
-);
-}
-
-// — Logo (full version for HOME/MIAMI) –––––––––––––––––––
-const LogoFull = () => (
-<div style={{ textAlign: ‘center’, padding: ‘22px 0 14px’ }}>
-<div style={{ fontFamily: ‘DM Mono, monospace’, fontSize: 10, letterSpacing: ‘0.3em’, textTransform: ‘uppercase’, color: ‘rgba(247,248,250,0.36)’, marginBottom: 2 }}>Under</div>
-<div style={{ fontFamily: ‘Bebas Neue, sans-serif’, fontSize: 46, lineHeight: 0.95, letterSpacing: ‘0.03em’, background: ‘linear-gradient(90deg, #00F5E9, #FF2D6B)’, WebkitBackgroundClip: ‘text’, WebkitTextFillColor: ‘transparent’ }}>REVIEW</div>
-<div style={{ display: ‘flex’, alignItems: ‘center’, gap: 7, width: 88, margin: ‘6px auto 0’ }}>
-<div style={{ width: 5, height: 5, borderRadius: ‘50%’, background: ‘#00F5E9’, flexShrink: 0 }} />
-<div style={{ flex: 1, height: 1.5, background: ‘linear-gradient(90deg, #00F5E9, #FF2D6B)’ }} />
-<div style={{ width: 5, height: 5, borderRadius: ‘50%’, background: ‘#FF2D6B’, flexShrink: 0 }} />
-</div>
-</div>
-);
-
-// — Logo (slim inline for ASK/PRO header) ———————————–
-const LogoSlim = () => (
-<div style={{ display: ‘flex’, alignItems: ‘center’, gap: 8, padding: ‘14px 16px 6px’ }}>
-<div style={{ fontFamily: ‘DM Mono, monospace’, fontSize: 8, letterSpacing: ‘0.24em’, textTransform: ‘uppercase’, color: ‘rgba(247,248,250,0.32)’ }}>Under</div>
-<div style={{ fontFamily: ‘Bebas Neue, sans-serif’, fontSize: 20, lineHeight: 1, background: ‘linear-gradient(90deg, #00F5E9, #FF2D6B)’, WebkitBackgroundClip: ‘text’, WebkitTextFillColor: ‘transparent’ }}>REVIEW</div>
-</div>
-);
-
-// — Get UR Take bar –––––––––––––––––––––––––––––
-const GetUrTakeBar = ({ placeholder = ‘ask anything’ }) => (
-<div style={{ padding: ‘0 16px 14px’ }}>
-{/* Image preview strip */}
-{pendingImage && (
-<div style={{ display: ‘flex’, alignItems: ‘center’, gap: 8, marginBottom: 8, padding: ‘6px 10px’, background: ‘rgba(0,245,233,0.08)’, borderLeft: ‘2px solid rgba(0,245,233,0.5)’, borderRadius: ‘0 8px 8px 0’ }}>
-<img src={pendingImage.previewUrl} alt=“screenshot” style={{ width: 36, height: 36, objectFit: ‘cover’, borderRadius: 4 }} />
-<span style={{ flex: 1, fontFamily: ‘DM Mono, monospace’, fontSize: 9, letterSpacing: ‘0.1em’, textTransform: ‘uppercase’, color: ‘rgba(0,245,233,0.8)’ }}>Screenshot attached</span>
-<button onClick={clearPendingImage} style={{ background: ‘none’, border: ‘none’, color: ‘rgba(247,248,250,0.4)’, fontSize: 16, cursor: ‘pointer’, padding: ‘0 4px’, lineHeight: 1 }}>x</button>
-</div>
-)}
-<div style={{ display: ‘flex’, alignItems: ‘center’, height: 46, borderRadius: 999, background: ‘rgba(255,255,255,0.04)’, border: pendingImage ? ‘1px solid rgba(0,245,233,0.4)’ : ‘1px solid rgba(0,245,233,0.2)’, padding: ‘0 5px 0 6px’, gap: 6 }}>
-{/* Hidden file input */}
-<input
-ref={imageInputRef}
-type=“file”
-accept=“image/*”
-onChange={handleImageSelect}
-style={{ display: ‘none’ }}
-/>
-{/* Camera button */}
-<button
-onClick={() => imageInputRef.current?.click()}
-title=“Attach screenshot”
-style={{ width: 32, height: 32, borderRadius: ‘50%’, border: ‘none’, cursor: ‘pointer’, background: pendingImage ? ‘rgba(0,245,233,0.15)’ : ‘rgba(255,255,255,0.06)’, color: pendingImage ? ‘#00F5E9’ : ‘rgba(247,248,250,0.4)’, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, flexShrink: 0, WebkitTapHighlightColor: ‘transparent’, fontSize: 15 }}
->
-<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-</button>
-<input
-value={inputValue}
-onChange={(e) => setInputValue(e.target.value)}
-onKeyDown={(e) => { if (e.key === ‘Enter’) handleAsk(); }}
-placeholder={pendingImage ? ‘Ask about these lines…’ : placeholder}
-onPaste={(e) => {
-const items = e.clipboardData?.items;
-if (!items) return;
-for (const item of items) {
-if (item.type.startsWith(‘image/’)) {
-e.preventDefault();
-const file = item.getAsFile();
-if (!file) return;
-const reader = new FileReader();
-reader.onload = (ev) => {
-const dataUrl = ev.target.result;
-const parts = dataUrl.split(’,’);
-const base64 = parts[1];
-const mediaType = parts[0].split(’:’)[1].split(’;’)[0];
-setPendingImage({ base64, mediaType, previewUrl: dataUrl });
-};
-reader.readAsDataURL(file);
-return;
-}
-}
-}}
-style={{ flex: 1, background: ‘transparent’, border: ‘none’, outline: ‘none’, fontFamily: ‘DM Sans, sans-serif’, fontSize: 16, color: ‘#F7F8FA’ }}
-/>
-<button onClick={() => handleAsk()} style={{ width: 34, height: 34, borderRadius: ‘50%’, border: ‘none’, cursor: ‘pointer’, background: ‘linear-gradient(90deg, #00F5E9, #FF2D6B)’, color: ‘#000’, fontWeight: 800, fontSize: 16, display: ‘flex’, alignItems: ‘center’, justifyContent: ‘center’, flexShrink: 0, WebkitTapHighlightColor: ‘transparent’ }}>↑</button>
-</div>
-<div style={{ textAlign: ‘center’, marginTop: 6 }}>
-<span style={{ fontFamily: ‘DM Mono, monospace’, fontSize: 8.5, letterSpacing: ‘0.14em’, textTransform: ‘uppercase’, color: ‘rgba(247,248,250,0.24)’ }}>
-Get <span style={{ color: ‘#00F5E9’ }}>UR</span> Take
-</span>
-</div>
-</div>
-);
-
-// — HOME ———————————————————————
-const homeScreen = (
-<>
-<LogoFull />
-<GetUrTakeBar placeholder="Ask a prop, matchup, or slate question..." />
-
-```
-  <div style={{ padding: '0 16px' }}>
-
-    {liveTennisMatchups.length > 0 && (
-      <div style={{ marginBottom: 18 }}>
-        <Eyebrow label="On the board" />
-        {liveTennisMatchups.map((m) => (
-          <div key={m.title} onClick={() => handleAsk(`Who wins ${m.title}?`)} style={S.card(m.isLive, false)}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <div>
-                <div style={S.title}>{m.title}</div>
-                <div style={S.sub}>{m.subtitle}</div>
-              </div>
-              {m.isLive && (
-                <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#FF2D6B', color: '#000', borderRadius: 3, padding: '2px 6px', fontWeight: 700, flexShrink: 0 }}>Live</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-
-    {recentResults.length > 0 && (
-      <div style={{ marginBottom: 18 }}>
-        <Eyebrow label="Results" />
-        {recentResults.map((r, i) => (
-          <div key={i} onClick={() => handleAsk(`Best props for ${r.winner} after beating ${r.loser}`)} style={S.card(false, false)}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, overflow: 'hidden' }}>
-                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, fontWeight: 700, color: '#F7F8FA', whiteSpace: 'nowrap' }}>{r.winner}</span>
-                <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: 'rgba(247,248,250,0.38)', whiteSpace: 'nowrap' }}>def. {r.loser}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
-                {r.score && <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 9.5, color: 'rgba(247,248,250,0.26)' }}>{r.score}</span>}
-                {r.round && <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.06em', color: 'rgba(247,248,250,0.18)', textTransform: 'uppercase' }}>{abbreviateRound(r.round)}</span>}
+                {renderMessage(message.content, message.loading)}
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
-    )}
+    </>
+  );
 
-    <div style={{ marginBottom: 18 }}>
-      <Eyebrow label="Ask" color="rgba(245,200,66,0.55)" />
-      {dynamicAsks.map((ask) => (
-        <div key={ask} onClick={() => handleAsk(ask)} style={S.card(false, true)}>
-          <div style={S.title}>{ask}</div>
-        </div>
-      ))}
-    </div>
-
-    {dataLoading && liveTennisMatchups.length === 0 && (
-      <div style={{ textAlign: 'center', padding: '24px 0' }}>
-        <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.25)' }}>Loading slate...</div>
-      </div>
-    )}
-  </div>
-</>
-```
-
-);
-
-// — MIAMI ––––––––––––––––––––––––––––––––––
-const miamiScreen = (
-<>
-<LogoFull />
-<div style={{ padding: ‘0 16px 4px’ }}>
-<Eyebrow label="Miami Open 2026" color="rgba(255,45,107,0.65)" />
-<div style={{ fontFamily: ‘DM Sans, sans-serif’, fontSize: 13, lineHeight: 1.6, color: ‘rgba(247,248,250,0.55)’, marginBottom: 14 }}>
-Hard court, medium-fast. Best angles in ace props, first-set winners, and total-games spots.
-</div>
-</div>
-
-```
-  <GetUrTakeBar placeholder="Ask Miami props, players, or matchups..." />
-
-  <div style={{ padding: '0 16px' }}>
-    <div style={{ marginBottom: 18 }}>
-      <Eyebrow label="Quick asks" color="rgba(245,200,66,0.55)" />
-      {miamiPrompts.map((p) => (
-        <div key={p} onClick={() => handleAsk(p)} style={S.card(false, true)}>
-          <div style={S.title}>{p}</div>
-        </div>
-      ))}
-    </div>
-
-    <div style={{ marginBottom: 18 }}>
-      <Eyebrow label="Prop guide" color="rgba(245,200,66,0.55)" />
-      {[
-        { title: 'Ace props', body: 'Most playable when hold stability and short-rally profile line up.' },
-        { title: 'First set winners', body: 'Best in lopsided serve quality matchups where early pressure is predictable.' },
-        { title: 'Total games', body: 'Strongest when both players hold clean or one player controls pace but not breaks.' },
-      ].map((item) => (
-        <div key={item.title} style={{ ...S.card(false, false), cursor: 'default' }}>
-          <div style={{ ...S.title, marginBottom: 4 }}>{item.title}</div>
-          <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.5, color: 'rgba(247,248,250,0.48)' }}>{item.body}</div>
-        </div>
-      ))}
-    </div>
-
-    {[{ label: 'ATP - top players', players: atpPlayers }, { label: 'WTA - top players', players: wtaPlayers }].map(({ label, players }) => (
-      <div key={label} style={{ marginBottom: 18 }}>
-        <Eyebrow label={label} color="rgba(245,200,66,0.55)" />
-        {players.map((player) => (
-          <div key={player.name} style={{ ...S.card(false, false), cursor: 'default' }}>
-            <div style={{ ...S.title, marginBottom: 8 }}>{player.name}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
-              {[['Elo', player.elo], ['Hold%', player.hold], ['DR', player.dr], ['TB%', player.tb]].map(([lbl, val]) => (
-                <div key={lbl} style={{ background: '#080808', borderRadius: 7, padding: '6px 6px' }}>
-                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.32)', marginBottom: 3 }}>{lbl}</div>
-                  <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{val}</div>
-                </div>
-              ))}
-            </div>
+  // --- PRO ----------------------------------------------------------------------
+  const proScreen = (
+    <>
+      <LogoSlim />
+      <div style={{ padding: '8px 16px' }}>
+        <div style={{ borderLeft: '2px solid rgba(255,45,107,0.5)', borderRadius: '0 14px 14px 0', background: 'linear-gradient(180deg, rgba(0,245,233,0.04), rgba(255,45,107,0.04)), rgba(255,255,255,0.025)', padding: 18 }}>
+          <Eyebrow label="Pro" color="rgba(255,45,107,0.7)" />
+          <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: 38, lineHeight: 1, color: '#F7F8FA', letterSpacing: '0.03em' }}>$9.99 / month</h2>
+          <p style={{ marginTop: 10, marginBottom: 16, fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.6, color: 'rgba(247,248,250,0.62)' }}>
+            Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more premium betting intelligence.
+          </p>
+          <div style={{ display: 'grid', gap: 5, marginBottom: 16 }}>
+            {['Unlimited UR TAKE queries', 'Deeper matchup cards', 'Saved threads', 'Expanded player and surface data'].map((f) => (
+              <div key={f} style={{ borderLeft: '2px solid rgba(0,245,233,0.28)', borderRadius: '0 8px 8px 0', padding: '9px 12px', background: 'rgba(255,255,255,0.03)', fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 700, color: '#F7F8FA' }}>{f}</div>
+            ))}
           </div>
-        ))}
-      </div>
-    ))}
-  </div>
-</>
-```
-
-);
-
-// — ASK –––––––––––––––––––––––––––––––––––
-const askScreen = (
-<>
-<LogoSlim />
-<GetUrTakeBar placeholder="Ask props, matchups, or slate questions..." />
-<div style={{ padding: ‘0 16px’ }}>
-{messages.length <= 1 && (
-<div style={{ marginBottom: 18 }}>
-<Eyebrow label="Featured prompts" />
-{featuredPrompts.map((p) => (
-<div key={p} onClick={() => handleAsk(p)} style={S.card(false, true)}>
-<div style={S.title}>{p}</div>
-</div>
-))}
-</div>
-)}
-
-```
-    <div style={{ display: 'grid', gap: 10 }}>
-      {messages.map((message, index) => (
-        <div key={`${message.role}-${index}`} style={{ display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}>
-          <div style={{
-            width: '100%',
-            maxWidth: message.role === 'user' ? 520 : '100%',
-            borderRadius: message.role === 'user' ? 16 : '0 14px 14px 0',
-            padding: '12px 14px',
-            background: message.role === 'user'
-              ? 'linear-gradient(90deg, rgba(0,245,233,0.12), rgba(255,45,107,0.1))'
-              : 'rgba(255,255,255,0.03)',
-            border: message.role === 'user' ? '1px solid rgba(0,245,233,0.18)' : 'none',
-            borderLeft: message.role === 'assistant' ? '2px solid rgba(0,245,233,0.35)' : undefined,
-          }}>
-            <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: message.role === 'user' ? '#F5C842' : '#00F5E9', marginBottom: 7 }}>
-              {message.role === 'user' ? 'You' : 'UR Take'}
-            </div>
-            {message.image && (
-              <img src={message.image} alt="attached" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginBottom: 8, display: 'block' }} />
-            )}
-            {renderMessage(message.content, message.loading)}
-          </div>
-        </div>
-      ))}
-      <div ref={messagesEndRef} />
-    </div>
-  </div>
-</>
-```
-
-);
-
-// — PRO –––––––––––––––––––––––––––––––––––
-const proScreen = (
-<>
-<LogoSlim />
-<div style={{ padding: ‘8px 16px’ }}>
-<div style={{ borderLeft: ‘2px solid rgba(255,45,107,0.5)’, borderRadius: ‘0 14px 14px 0’, background: ‘linear-gradient(180deg, rgba(0,245,233,0.04), rgba(255,45,107,0.04)), rgba(255,255,255,0.025)’, padding: 18 }}>
-<Eyebrow label="Pro" color="rgba(255,45,107,0.7)" />
-<h2 style={{ margin: 0, fontFamily: ‘Bebas Neue, sans-serif’, fontSize: 38, lineHeight: 1, color: ‘#F7F8FA’, letterSpacing: ‘0.03em’ }}>$9.99 / month</h2>
-<p style={{ marginTop: 10, marginBottom: 16, fontFamily: ‘DM Sans, sans-serif’, fontSize: 14, lineHeight: 1.6, color: ‘rgba(247,248,250,0.62)’ }}>
-Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more premium betting intelligence.
-</p>
-<div style={{ display: ‘grid’, gap: 5, marginBottom: 16 }}>
-{[‘Unlimited UR TAKE queries’, ‘Deeper matchup cards’, ‘Saved threads’, ‘Expanded player and surface data’].map((f) => (
-<div key={f} style={{ borderLeft: ‘2px solid rgba(0,245,233,0.28)’, borderRadius: ‘0 8px 8px 0’, padding: ‘9px 12px’, background: ‘rgba(255,255,255,0.03)’, fontFamily: ‘DM Sans, sans-serif’, fontSize: 13, fontWeight: 700, color: ‘#F7F8FA’ }}>{f}</div>
-))}
-</div>
-<button style={{ width: ‘100%’, height: 48, border: ‘none’, borderRadius: 999, cursor: ‘pointer’, fontFamily: ‘DM Sans, sans-serif’, fontSize: 15, fontWeight: 800, color: ‘#000’, background: ‘linear-gradient(90deg, #00F5E9, #FF2D6B)’ }}>
-Unlock Pro
-</button>
-</div>
-</div>
-</>
-);
-
-// — SHELL + NAV –––––––––––––––––––––––––––––––
-return (
-<div style={S.shell}>
-<style>{`*,*::before,*::after{box-sizing:border-box} button{border:none;background:none;padding:0;margin:0;outline:none;-webkit-tap-highlight-color:transparent} input{border:none;outline:none;background:none} div[role=button],div[onClick]{outline:none}`}</style>
-<div style={S.container}>
-{activeTab === ‘HOME’ && homeScreen}
-{activeTab === ‘MIAMI’ && miamiScreen}
-{activeTab === ‘ASK’ && askScreen}
-{activeTab === ‘PRO’ && proScreen}
-</div>
-
-```
-  {/* Style B nav: solid background, single hairline top, no pill, no gradient */}
-  <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 16px calc(10px + env(safe-area-inset-bottom))', background: '#040404', borderTop: '0.5px solid rgba(255,255,255,0.1)' }}>
-    <div style={{ width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-      {[
-        { key: 'HOME', label: 'Home' },
-        { key: 'MIAMI', label: 'Miami' },
-        { key: 'ASK', label: 'Ask' },
-        { key: 'PRO', label: 'Pro' },
-      ].map((item) => {
-        const isActive = activeTab === item.key;
-        const isMiami = item.key === 'MIAMI';
-        return (
-          <button
-            key={item.key}
-            onClick={() => setActiveTab(item.key)}
-            onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            onTouchStart={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
-            onTouchEnd={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            style={{
-              background: 'none',
-              border: 'none',
-              borderTop: isActive ? '1.5px solid #00F5E9' : '1.5px solid transparent',
-              cursor: 'pointer',
-              fontFamily: 'DM Mono, monospace',
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: isActive ? '#F7F8FA' : isMiami ? '#F5C842' : 'rgba(247,248,250,0.28)',
-              padding: '9px 0 5px',
-              transition: 'transform 0.1s ease',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            {item.label}
+          <button style={{ width: '100%', height: 48, border: 'none', borderRadius: 999, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#000', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)' }}>
+            Unlock Pro
           </button>
-        );
-      })}
-    </div>
-  </nav>
-</div>
-```
+        </div>
+      </div>
+    </>
+  );
 
-);
+  // --- SHELL + NAV --------------------------------------------------------------
+  return (
+    <div style={S.shell}>
+      <style>{`
+        *,*::before,*::after{box-sizing:border-box}
+        button{border:none;background:none;padding:0;margin:0;outline:none;-webkit-tap-highlight-color:transparent}
+        input{border:none;outline:none;background:none}
+        div[role=button],div[onClick]{outline:none}
+      `}</style>
+      <div style={S.container}>
+        {activeTab === 'HOME' && homeScreen}
+        {activeTab === 'MIAMI' && miamiScreen}
+        {activeTab === 'ASK' && askScreen}
+        {activeTab === 'PRO' && proScreen}
+      </div>
+
+      {/* Style B nav: solid background, single hairline top, no pill, no gradient */}
+      <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 16px calc(10px + env(safe-area-inset-bottom))', background: '#040404', borderTop: '0.5px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+          {[
+            { key: 'HOME', label: 'Home' },
+            { key: 'MIAMI', label: 'Miami' },
+            { key: 'ASK', label: 'Ask' },
+            { key: 'PRO', label: 'Pro' },
+          ].map((item) => {
+            const isActive = activeTab === item.key;
+            const isMiami = item.key === 'MIAMI';
+            return (
+              <button
+                key={item.key}
+                onClick={() => setActiveTab(item.key)}
+                onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+                onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                onTouchStart={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+                onTouchEnd={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderTop: isActive ? '1.5px solid #00F5E9' : '1.5px solid transparent',
+                  cursor: 'pointer',
+                  fontFamily: 'DM Mono, monospace',
+                  fontSize: 10,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: isActive ? '#F7F8FA' : isMiami ? '#F5C842' : 'rgba(247,248,250,0.28)',
+                  padding: '9px 0 5px',
+                  transition: 'transform 0.1s ease',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
 }
