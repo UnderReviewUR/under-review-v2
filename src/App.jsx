@@ -18,7 +18,7 @@ const [tournamentResults, setTournamentResults] = useState([]);
 const [dataLoading, setDataLoading] = useState(true);
 const messagesEndRef = useRef(null);
 
-// ─── Load all data on mount ───────────────────────────────────────────────────
+// — Load all data on mount —————————————————
 useEffect(() => {
 async function loadData() {
 try {
@@ -67,7 +67,7 @@ loadData();
 
 }, []);
 
-// ─── Poll results every 5 minutes ────────────────────────────────────────────
+// — Poll results every 5 minutes ––––––––––––––––––––––
 useEffect(() => {
 const interval = setInterval(async () => {
 try {
@@ -90,7 +90,7 @@ useEffect(() => {
 messagesEndRef.current?.scrollIntoView({ behavior: ‘smooth’ });
 }, [messages]);
 
-// ─── Label helpers ────────────────────────────────────────────────────────────
+// — Label helpers ————————————————————
 function abbreviateRound(round) {
 if (!round) return ‘’;
 const r = round.toLowerCase();
@@ -114,7 +114,7 @@ const round = abbreviateRound(match.round || ‘’);
 return round ? `${label} · ${round}` : label;
 }
 
-// ─── Derive dynamic home content ─────────────────────────────────────────────
+// — Derive dynamic home content ———————————————
 const liveTennisMatchups = liveMatches
 .filter((m) => m.home_team && m.away_team && m.home_team !== ‘Player 1’)
 .slice(0, 6)
@@ -180,7 +180,7 @@ const wtaPlayers = [
 { name: ‘Jessica Pegula’, elo: 1940, hold: ‘66.8%’, dr: ‘1.08’, tb: ‘49%’ },
 ];
 
-// ─── handleAsk ────────────────────────────────────────────────────────────────
+// — handleAsk ––––––––––––––––––––––––––––––––
 async function handleAsk(promptOverride) {
 const prompt = (promptOverride || inputValue).trim();
 if (!prompt) return;
@@ -242,7 +242,7 @@ try {
 
 }
 
-// ─── Share card ───────────────────────────────────────────────────────────────
+// — Share card —————————————————————
 function roundRectPath(ctx, x, y, w, h, r) {
 const radius = Math.min(r, w / 2, h / 2);
 ctx.beginPath();
@@ -314,7 +314,7 @@ ctx.fillText(‘under-review-v2.vercel.app’, 126, 986);
 canvas.toBlob(async (blob) => {
 const file = new File([blob], ‘ur-take.png’, { type: ‘image/png’ });
 if (navigator.share && navigator.canShare?.({ files: [file] })) {
-try { await navigator.share({ files: [file], title: `${player} — ${prop}`, text: `${reason}\n\nvia Under Review` }); }
+try { await navigator.share({ files: [file], title: `${player} - ${prop}`, text: `${reason}\n\nvia Under Review` }); }
 catch { downloadBlob(blob); }
 } else downloadBlob(blob);
 }, ‘image/png’);
@@ -326,7 +326,7 @@ const a = document.createElement(‘a’); a.href = url; a.download = ‘ur-take
 URL.revokeObjectURL(url);
 }
 
-// ─── Inline markdown ──────────────────────────────────────────────────────────
+// — Inline markdown –––––––––––––––––––––––––––––
 function renderInlineMarkdown(text) {
 return text.split(/(**[^*]+**)/g).map((part, i) =>
 part.startsWith(’**’) && part.endsWith(’**’)
@@ -335,7 +335,7 @@ part.startsWith(’**’) && part.endsWith(’**’)
 );
 }
 
-// ─── Message renderer ─────────────────────────────────────────────────────────
+// — Message renderer ———————————————————
 function renderMessage(content, isLoading) {
 if (isLoading) {
 return (
@@ -364,7 +364,7 @@ return (
       <div style={{ display: 'grid', gap: 8 }}>
         {propLines.map((line, idx) => {
           const clean = line.replace(/^•\s*/, '').replace(/\*\*/g, '');
-          const parts = clean.split(' — ');
+          const parts = clean.split(' - ');
           const looksLikePropCard = parts.length >= 3 && parts[0] && parts[1] && parts[1].length < 60
             && !parts[0].toLowerCase().includes('wimbledon')
             && !parts[0].toLowerCase().includes('french open')
@@ -380,7 +380,7 @@ return (
 
           const player = parts[0] || '';
           const prop = parts[1] || '';
-          const reason = parts.slice(2).join(' — ') || '';
+          const reason = parts.slice(2).join(' - ') || '';
 
           return (
             <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', position: 'relative' }}>
@@ -410,11 +410,11 @@ return (
 
 }
 
-// ─── Style B primitives ───────────────────────────────────────────────────────
+// — Style B primitives —————————————————––
 const S = {
 shell: { minHeight: ‘100vh’, background: ‘#040404’, color: ‘#F7F8FA’ },
 container: { width: ‘100%’, maxWidth: 760, margin: ‘0 auto’, paddingBottom: 110 },
-// Left-accent card: left border only — all other sides explicitly none
+// Left-accent card: left border only - all other sides explicitly none
 card: (live, ask) => ({
 borderTop: ‘none’,
 borderRight: ‘none’,
@@ -440,7 +440,7 @@ return (
 );
 }
 
-// ─── Logo (full version for HOME/MIAMI) ──────────────────────────────────────
+// — Logo (full version for HOME/MIAMI) –––––––––––––––––––
 const LogoFull = () => (
 <div style={{ textAlign: ‘center’, padding: ‘22px 0 14px’ }}>
 <div style={{ fontFamily: ‘DM Mono, monospace’, fontSize: 10, letterSpacing: ‘0.3em’, textTransform: ‘uppercase’, color: ‘rgba(247,248,250,0.36)’, marginBottom: 2 }}>Under</div>
@@ -453,7 +453,7 @@ const LogoFull = () => (
 </div>
 );
 
-// ─── Logo (slim inline for ASK/PRO header) ───────────────────────────────────
+// — Logo (slim inline for ASK/PRO header) ———————————–
 const LogoSlim = () => (
 <div style={{ display: ‘flex’, alignItems: ‘center’, gap: 8, padding: ‘14px 16px 6px’ }}>
 <div style={{ fontFamily: ‘DM Mono, monospace’, fontSize: 8, letterSpacing: ‘0.24em’, textTransform: ‘uppercase’, color: ‘rgba(247,248,250,0.32)’ }}>Under</div>
@@ -461,7 +461,7 @@ const LogoSlim = () => (
 </div>
 );
 
-// ─── Get UR Take bar ──────────────────────────────────────────────────────────
+// — Get UR Take bar –––––––––––––––––––––––––––––
 const GetUrTakeBar = ({ placeholder = ‘ask anything’ }) => (
 <div style={{ padding: ‘0 16px 14px’ }}>
 <div style={{ display: ‘flex’, alignItems: ‘center’, height: 46, borderRadius: 999, background: ‘rgba(255,255,255,0.04)’, border: ‘1px solid rgba(0,245,233,0.2)’, padding: ‘0 5px 0 14px’, gap: 8 }}>
@@ -482,7 +482,7 @@ Get <span style={{ color: ‘#00F5E9’ }}>UR</span> Take
 </div>
 );
 
-// ─── HOME ─────────────────────────────────────────────────────────────────────
+// — HOME ———————————————————————
 const homeScreen = (
 <>
 <LogoFull />
@@ -550,7 +550,7 @@ const homeScreen = (
 
 );
 
-// ─── MIAMI ────────────────────────────────────────────────────────────────────
+// — MIAMI ––––––––––––––––––––––––––––––––––
 const miamiScreen = (
 <>
 <LogoFull />
@@ -588,7 +588,7 @@ Hard court, medium-fast. Best angles in ace props, first-set winners, and total-
       ))}
     </div>
 
-    {[{ label: 'ATP — top players', players: atpPlayers }, { label: 'WTA — top players', players: wtaPlayers }].map(({ label, players }) => (
+    {[{ label: 'ATP - top players', players: atpPlayers }, { label: 'WTA - top players', players: wtaPlayers }].map(({ label, players }) => (
       <div key={label} style={{ marginBottom: 18 }}>
         <Eyebrow label={label} color="rgba(245,200,66,0.55)" />
         {players.map((player) => (
@@ -612,7 +612,7 @@ Hard court, medium-fast. Best angles in ace props, first-set winners, and total-
 
 );
 
-// ─── ASK ──────────────────────────────────────────────────────────────────────
+// — ASK –––––––––––––––––––––––––––––––––––
 const askScreen = (
 <>
 <LogoSlim />
@@ -659,7 +659,7 @@ const askScreen = (
 
 );
 
-// ─── PRO ──────────────────────────────────────────────────────────────────────
+// — PRO –––––––––––––––––––––––––––––––––––
 const proScreen = (
 <>
 <LogoSlim />
@@ -683,7 +683,7 @@ Unlock Pro
 </>
 );
 
-// ─── SHELL + NAV ──────────────────────────────────────────────────────────────
+// — SHELL + NAV –––––––––––––––––––––––––––––––
 return (
 <div style={S.shell}>
 <style>{`*,*::before,*::after{box-sizing:border-box} button{border:none;background:none;padding:0;margin:0;outline:none;-webkit-tap-highlight-color:transparent} input{border:none;outline:none;background:none} div[role=button],div[onClick]{outline:none}`}</style>
