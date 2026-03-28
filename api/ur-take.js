@@ -19,6 +19,7 @@ players,
 context,
 liveMatches,
 tournamentResults,
+oddsData,
 tour,
 history,
 matchupContext,
@@ -26,6 +27,73 @@ matchupContext,
 
 if (!question) {
 return res.status(400).json({ error: “Missing question” });
+}
+
+// ─── Format live odds for system prompt injection ───────────────────────────
+function buildOddsContext(odds) {
+if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
+
+```
+const lines = [];
+
+// Match winner lines
+if (odds.matches?.length > 0) {
+  lines.push("LIVE MATCH ODDS (from The Odds API):");
+  for (const m of odds.matches) {
+    if (m.homeOdds !== null && m.awayOdds !== null) {
+      lines.push(`  ${m.home} (${m.homeOdds > 0 ? '+' : ''}${m.homeOdds}) vs ${m.away} (${m.awayOdds > 0 ? '+' : ''}${m.awayOdds})`);
+    }
+  }
+}
+
+// Player prop lines
+if (odds.props?.length > 0) {
+  lines.push("");
+  lines.push("LIVE PROP LINES (from The Odds API):");
+  for (const mp of odds.props) {
+    lines.push(`  ${mp.home} vs ${mp.away}:`);
+
+    // Aces
+    if (mp.aces?.length > 0) {
+      const acesByPlayer = {};
+      for (const a of mp.aces) {
+        if (!acesByPlayer[a.player]) acesByPlayer[a.player] = {};
+        acesByPlayer[a.player][a.description] = { line: a.line, odds: a.odds };
+      }
+      for (const [player, dirs] of Object.entries(acesByPlayer)) {
+        const over = dirs["Over"];
+        const under = dirs["Under"];
+        if (over && under) {
+          lines.push(`    ${player} Aces: ${over.line} (Over ${over.odds > 0 ? '+' : ''}${over.odds} / Under ${under.odds > 0 ? '+' : ''}${under.odds})`);
+        } else if (over) {
+          lines.push(`    ${player} Aces Over ${over.line}: ${over.odds > 0 ? '+' : ''}${over.odds}`);
+        }
+      }
+    }
+
+    // Double faults
+    if (mp.doubleFaults?.length > 0) {
+      const dfByPlayer = {};
+      for (const d of mp.doubleFaults) {
+        if (!dfByPlayer[d.player]) dfByPlayer[d.player] = {};
+        dfByPlayer[d.player][d.description] = { line: d.line, odds: d.odds };
+      }
+      for (const [player, dirs] of Object.entries(dfByPlayer)) {
+        const over = dirs["Over"];
+        const under = dirs["Under"];
+        if (over && under) {
+          lines.push(`    ${player} Double Faults: ${over.line} (Over ${over.odds > 0 ? '+' : ''}${over.odds} / Under ${under.odds > 0 ? '+' : ''}${under.odds})`);
+        } else if (over) {
+          lines.push(`    ${player} DFs Over ${over.line}: ${over.odds > 0 ? '+' : ''}${over.odds}`);
+        }
+      }
+    }
+  }
+}
+
+return lines.length > 0 ? lines.join("\n") : null;
+```
+
 }
 
 function buildDrawPath(results) {
@@ -359,6 +427,24 @@ context?.ace_props
 }
 
 ${matchupContext ? `MATCHUP CONTEXT\n${matchupContext.title} — ${matchupContext.whatMatters}` : “”}
+
+${(() => {
+const oddsCtx = buildOddsContext(oddsData);
+return oddsCtx ? `─────────────────────────────────────────
+LIVE BETTING LINES
+─────────────────────────────────────────
+
+The following are REAL lines from The Odds API. These are the actual numbers posted by sportsbooks right now. When these are available, use them precisely in your prop analysis. State the line clearly: “Sabalenka aces line is 3.5 — lean Over, she averages 4.8 on hard and this matchup pushes her higher.”
+
+${oddsCtx}
+
+When live lines are present above:
+
+- ALWAYS reference the exact line number in your prop bullets
+- Compare the line to the player’s statistical baseline from the database
+- State whether the line is sharp, soft, or fair based on the data
+- Format: Player — Prop OVER/UNDER X.X (line) — reason with stat` : “No live prop lines available — give directional leans only, do not invent line numbers.”;
+  })()}
 
 ─────────────────────────────────────────
 FINAL INSTRUCTION
