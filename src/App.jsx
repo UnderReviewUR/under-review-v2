@@ -414,8 +414,11 @@ return (
 const S = {
 shell: { minHeight: ‘100vh’, background: ‘#040404’, color: ‘#F7F8FA’ },
 container: { width: ‘100%’, maxWidth: 760, margin: ‘0 auto’, paddingBottom: 110 },
-// Left-accent card: borderLeft only, filled bg, rounded right corners
+// Left-accent card: left border only — all other sides explicitly none
 card: (live, ask) => ({
+borderTop: ‘none’,
+borderRight: ‘none’,
+borderBottom: ‘none’,
 borderLeft: `2px solid ${live ? '#FF2D6B' : ask ? 'rgba(245,200,66,0.38)' : 'rgba(0,245,233,0.42)'}`,
 background: live ? ‘rgba(255,45,107,0.05)’ : ask ? ‘rgba(245,200,66,0.025)’ : ‘rgba(255,255,255,0.03)’,
 borderRadius: ‘0 10px 10px 0’,
@@ -423,6 +426,7 @@ padding: ‘10px 12px’,
 marginBottom: 5,
 cursor: ‘pointer’,
 WebkitTapHighlightColor: ‘transparent’,
+outline: ‘none’,
 }),
 title: { fontFamily: ‘DM Sans, sans-serif’, fontSize: 13, fontWeight: 700, color: ‘#F7F8FA’, marginBottom: 2 },
 sub: { fontFamily: ‘DM Mono, monospace’, fontSize: 9, color: ‘rgba(247,248,250,0.3)’, letterSpacing: ‘0.04em’ },
@@ -682,6 +686,7 @@ Unlock Pro
 // ─── SHELL + NAV ──────────────────────────────────────────────────────────────
 return (
 <div style={S.shell}>
+<style>{`*,*::before,*::after{box-sizing:border-box} button{border:none;background:none;padding:0;margin:0;outline:none;-webkit-tap-highlight-color:transparent} input{border:none;outline:none;background:none} div[role=button],div[onClick]{outline:none}`}</style>
 <div style={S.container}>
 {activeTab === ‘HOME’ && homeScreen}
 {activeTab === ‘MIAMI’ && miamiScreen}
@@ -690,9 +695,9 @@ return (
 </div>
 
 ```
-  {/* Style B nav: hairline top, active = cyan top bar + white text, no pill */}
-  <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 16px calc(10px + env(safe-area-inset-bottom))', background: 'linear-gradient(180deg, rgba(4,4,4,0) 0%, rgba(4,4,4,0.96) 32%, rgba(4,4,4,1) 100%)', backdropFilter: 'blur(12px)' }}>
-    <div style={{ width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
+  {/* Style B nav: solid background, single hairline top, no pill, no gradient */}
+  <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 16px calc(10px + env(safe-area-inset-bottom))', background: '#040404', borderTop: '0.5px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
       {[
         { key: 'HOME', label: 'Home' },
         { key: 'MIAMI', label: 'Miami' },
