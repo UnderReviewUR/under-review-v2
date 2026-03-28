@@ -523,69 +523,62 @@ export default function App() {
     </div>
   );
 
-  // --- Get UR Take bar ----------------------------------------------------------
-  const GetUrTakeBar = ({ placeholder = 'ask anything' }) => (
-    <div style={{ padding: '0 16px 14px' }}>
-      {/* Image preview strip */}
-      {pendingImage && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '6px 10px', background: 'rgba(0,245,233,0.08)', borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 8px 8px 0' }}>
-          <img src={pendingImage.previewUrl} alt="screenshot" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
-          <span style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(0,245,233,0.8)' }}>Screenshot attached</span>
-          <button onClick={clearPendingImage} style={{ background: 'none', border: 'none', color: 'rgba(247,248,250,0.4)', fontSize: 16, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>x</button>
-        </div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', height: 46, borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: pendingImage ? '1px solid rgba(0,245,233,0.4)' : '1px solid rgba(0,245,233,0.2)', padding: '0 5px 0 6px', gap: 6 }}>
-        {/* Hidden file input */}
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageSelect}
-          style={{ display: 'none' }}
-        />
-        {/* Camera button */}
-        <button
-          onClick={() => imageInputRef.current?.click()}
-          title="Attach screenshot"
-          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', background: pendingImage ? 'rgba(0,245,233,0.15)' : 'rgba(255,255,255,0.06)', color: pendingImage ? '#00F5E9' : 'rgba(247,248,250,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent', fontSize: 15 }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        </button>
-        <input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleAsk(); }}
-          placeholder={pendingImage ? 'Ask about these lines...' : placeholder}
-          onPaste={(e) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-            for (const item of items) {
-              if (item.type.startsWith('image/')) {
-                e.preventDefault();
-                const file = item.getAsFile();
-                if (!file) return;
-                compressAndSetImage(file);
-                return;
+  // --- Ask bar (rendered inline -- not a const component to avoid remount bug) ---
+  function renderAskBar(placeholder) {
+    return (
+      <div style={{ padding: '0 16px 14px' }}>
+        {pendingImage && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '6px 10px', background: 'rgba(0,245,233,0.08)', borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 8px 8px 0' }}>
+            <img src={pendingImage.previewUrl} alt="screenshot" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
+            <span style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(0,245,233,0.8)' }}>Screenshot attached</span>
+            <button onClick={clearPendingImage} style={{ background: 'none', border: 'none', color: 'rgba(247,248,250,0.4)', fontSize: 16, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>x</button>
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', height: 46, borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: pendingImage ? '1px solid rgba(0,245,233,0.4)' : '1px solid rgba(0,245,233,0.2)', padding: '0 5px 0 6px', gap: 6 }}>
+          <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: 'none' }} />
+          <button
+            onClick={() => imageInputRef.current?.click()}
+            title="Attach screenshot"
+            style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', background: pendingImage ? 'rgba(0,245,233,0.15)' : 'rgba(255,255,255,0.06)', color: pendingImage ? '#00F5E9' : 'rgba(247,248,250,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent', fontSize: 15 }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </button>
+          <input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent?.isComposing) handleAsk(); }}
+            placeholder={pendingImage ? 'Ask about these lines...' : (placeholder || 'ask anything')}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = item.getAsFile();
+                  if (file) compressAndSetImage(file);
+                  return;
+                }
               }
-            }
-          }}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: 'DM Sans, sans-serif', fontSize: 16, color: '#F7F8FA' }}
-        />
-        <button onClick={() => handleAsk()} style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', color: '#000', fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}>&#x2191;</button>
+            }}
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: 'DM Sans, sans-serif', fontSize: 16, color: '#F7F8FA' }}
+          />
+          <button onClick={() => handleAsk()} style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', color: '#000', fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}>&#x2191;</button>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 6 }}>
+          <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.24)' }}>
+            Get <span style={{ color: '#00F5E9' }}>UR</span> Take
+          </span>
+        </div>
       </div>
-      <div style={{ textAlign: 'center', marginTop: 6 }}>
-        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.24)' }}>
-          Get <span style={{ color: '#00F5E9' }}>UR</span> Take
-        </span>
-      </div>
-    </div>
-  );
+    );
+  }
 
   // --- HOME ---------------------------------------------------------------------
   const homeScreen = (
     <>
       <LogoFull />
-      <GetUrTakeBar placeholder="Ask a prop, matchup, or slate question..." />
+      {renderAskBar("Ask a prop, matchup, or slate question...")}
 
       <div style={{ padding: '0 16px' }}>
 
@@ -657,7 +650,7 @@ export default function App() {
         </div>
       </div>
 
-      <GetUrTakeBar placeholder="Ask Miami props, players, or matchups..." />
+      {renderAskBar("Ask Miami props, players, or matchups...")}
 
       <div style={{ padding: '0 16px' }}>
         <div style={{ marginBottom: 18 }}>
@@ -709,7 +702,7 @@ export default function App() {
   const askScreen = (
     <>
       <LogoSlim />
-      <GetUrTakeBar placeholder="Ask props, matchups, or slate questions..." />
+      {renderAskBar("Ask props, matchups, or slate questions...")}
       <div style={{ padding: '0 16px' }}>
         {messages.length <= 1 && (
           <div style={{ marginBottom: 18 }}>
