@@ -201,21 +201,38 @@ export default function App() {
   ];
 
   // --- handleImageSelect --------------------------------------------------------
+  function compressAndSetImage(file) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        // Resize to max 1200px on longest side, compress to JPEG 0.7
+        const MAX = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressed = canvas.toDataURL('image/jpeg', 0.7);
+        const parts = compressed.split(',');
+        const base64 = parts[1];
+        setPendingImage({ base64, mediaType: 'image/jpeg', previewUrl: compressed });
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
   function handleImageSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target.result;
-      // dataUrl = "data:image/jpeg;base64,XXXX..."
-      const parts = dataUrl.split(',');
-      const meta = parts[0]; // "data:image/jpeg;base64"
-      const base64 = parts[1];
-      const mediaType = meta.split(':')[1].split(';')[0]; // "image/jpeg"
-      setPendingImage({ base64, mediaType, previewUrl: dataUrl });
-    };
-    reader.readAsDataURL(file);
-    // Reset input so same file can be selected again
+    compressAndSetImage(file);
     e.target.value = '';
   }
 
@@ -547,15 +564,7 @@ export default function App() {
                 e.preventDefault();
                 const file = item.getAsFile();
                 if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                  const dataUrl = ev.target.result;
-                  const parts = dataUrl.split(',');
-                  const base64 = parts[1];
-                  const mediaType = parts[0].split(':')[1].split(';')[0];
-                  setPendingImage({ base64, mediaType, previewUrl: dataUrl });
-                };
-                reader.readAsDataURL(file);
+                compressAndSetImage(file);
                 return;
               }
             }
