@@ -1,6 +1,12 @@
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "crons": [
+    {
+      "path": "/api/nfl-depth-update",
+      "schedule": "0 13 * * 0"
+    },
+    {
+      "path": "/api/nfl-depth-update",
+      "schedule": "0 14 * * 2"
+    }
   ]
 }
