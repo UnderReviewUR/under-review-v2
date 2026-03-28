@@ -383,7 +383,7 @@ return (
           const reason = parts.slice(2).join(' - ') || '';
 
           return (
-            <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', position: 'relative' }}>
+            <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'none', position: 'relative' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', marginBottom: reason ? 7 : 0, paddingRight: 34 }}>
                 <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{player}</span>
                 {prop && (
@@ -396,7 +396,7 @@ return (
                 </div>
               )}
               <button onClick={() => shareCard(player, prop, reason)} title="Share"
-                style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,245,233,0.22)', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
+                style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
                 <svg width="11" height="12" viewBox="0 0 13 14" fill="none"><path d="M6.5 1.5V9.5M6.5 1.5L4 4M6.5 1.5L9 4" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1.5 9.5V12.5H11.5V9.5" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             </div>
