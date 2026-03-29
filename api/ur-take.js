@@ -426,7 +426,7 @@ Pick the right mode for the question. Use surface Elo as the primary signal for 
   const messages = [];
 
   if (Array.isArray(history) && history.length > 0) {
-    for (const msg of history.slice(-8)) {
+    for (const msg of history.slice(-4)) {
       if (!msg || msg.loading) continue;
       const text = msg.text || msg.content;
       if (!text) continue;
