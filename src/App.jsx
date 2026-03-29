@@ -644,7 +644,7 @@ export default function App() {
     <>
       <LogoFull />
       <div style={{ padding: '0 16px 4px' }}>
-        <Eyebrow label="Miami Open 2026" color="rgba(255,45,107,0.65)" />
+        <Eyebrow label={contextData?.currentTournament?.name || "Miami Open 2026"} color="rgba(255,45,107,0.65)" />
         <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, lineHeight: 1.6, color: 'rgba(247,248,250,0.55)', marginBottom: 14 }}>
           Hard court, medium-fast. Best angles in ace props, first-set winners, and total-games spots.
         </div>
@@ -790,7 +790,7 @@ export default function App() {
         <div style={{ width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
           {[
             { key: 'HOME', label: 'Home' },
-            { key: 'MIAMI', label: 'Miami' },
+            { key: 'MIAMI', label: contextData?.currentTournament?.name?.split(' ')[0] || 'Miami' },
             { key: 'ASK', label: 'Ask' },
             { key: 'PRO', label: 'Pro' },
           ].map((item) => {
