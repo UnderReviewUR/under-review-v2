@@ -1,7 +1,8 @@
 // api/tennis-results.js
-// Fetches completed Miami Open matches from the last 14 days.
-// Returns a structured draw path: who beat who, round, and score.
-// This is injected into the ur-take system prompt as TOURNAMENT DRAW PATH.
+// Fetches completed matches from the current active tournament window.
+// Returns structured draw path: winner, loser, round, score.
+// Injected into ur-take system prompt as TOURNAMENT DRAW PATH.
+// Tournament filter is dynamic -- reads from tennis-context ACTIVE_TOURNAMENT.
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -14,9 +15,10 @@ export default async function handler(req, res) {
 
     const { tour = "atp" } = req.query;
 
+    // Look back 21 days to capture full tournament draws including qualifying
     const today = new Date();
     const start = new Date();
-    start.setDate(today.getDate() - 14); // look back 14 days to capture full draw
+    start.setDate(today.getDate() - 21);
 
     const formatDate = (d) => d.toISOString().split("T")[0];
 
@@ -35,13 +37,39 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-    // Miami only
-    const miamiOnly = results.filter((match) =>
-      String(match.tournament_name || "").toLowerCase().includes("miami")
-    );
+    // Get active tournament name from context to filter results
+    // Falls back to returning all ATP/WTA events if context unavailable
+    let tournamentKeywords = [];
+    try {
+      const contextRes = await fetch(
+        `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/api/tennis-context`
+      );
+      if (contextRes.ok) {
+        const ctx = await contextRes.json();
+        const name = ctx?.currentTournament?.name || "";
+        // Extract meaningful keywords from tournament name
+        // "Charleston Open" -> ["charleston"]
+        // "Roland Garros" -> ["roland", "garros"]
+        // "Miami Open" -> ["miami"]
+        tournamentKeywords = name
+          .toLowerCase()
+          .split(" ")
+          .filter(w => w.length > 3 && !["open", "masters", "tournament", "championships"].includes(w));
+      }
+    } catch {
+      // If context fetch fails, return all recent results -- better than nothing
+    }
 
-    // Tour filter
-    const tourFiltered = miamiOnly.filter((match) => {
+    // Filter by active tournament if we have keywords, otherwise return all
+    const tournamentFiltered = tournamentKeywords.length > 0
+      ? results.filter((match) => {
+          const name = String(match.tournament_name || "").toLowerCase();
+          return tournamentKeywords.some(kw => name.includes(kw));
+        })
+      : results;
+
+    // Tour filter (ATP vs WTA)
+    const tourFiltered = tournamentFiltered.filter((match) => {
       const combined = `${match.event_type_type || ""} ${match.league_name || ""}`.toLowerCase();
       if (tour === "wta") {
         return combined.includes("women") || combined.includes("wta");
@@ -49,7 +77,7 @@ export default async function handler(req, res) {
       return !combined.includes("women") && !combined.includes("wta");
     });
 
-    // Only finished matches with a result
+    // Only finished matches with a score
     const finished = tourFiltered.filter((match) => {
       const status = String(match.event_status || "").toLowerCase();
       const hasScore = match.event_final_result && match.event_final_result !== "-";
@@ -61,32 +89,23 @@ export default async function handler(req, res) {
       );
     });
 
-    // Sort by date ascending so draw path reads chronologically
+    // Sort chronologically so draw path reads round by round
     finished.sort((a, b) => {
       const da = new Date(`${a.event_date}T${a.event_time || "00:00"}:00`);
       const db = new Date(`${b.event_date}T${b.event_time || "00:00"}:00`);
       return da - db;
     });
 
-    // Determine winner from score
-    // event_final_result format: "6-3 7-5" or "6-3 6-4 7-6" — first player is home_team
-    // API-Tennis marks the winner via event_winner: "1" (home) or "2" (away)
+    // Determine winner -- event_winner: "1" = home (first player), "2" = away
     const transformed = finished.map((match) => {
       const p1 = match.event_first_player || "Player 1";
       const p2 = match.event_second_player || "Player 2";
       const score = match.event_final_result || "";
       const winnerCode = String(match.event_winner || "").trim();
-      const winner = winnerCode === "2" ? p2 : p1; // default to p1 if ambiguous
+      const winner = winnerCode === "2" ? p2 : p1;
       const loser = winner === p1 ? p2 : p1;
       const round = match.tournament_round || "Unknown Round";
-
-      return {
-        round,
-        winner,
-        loser,
-        score,
-        date: match.event_date || "",
-      };
+      return { round, winner, loser, score, date: match.event_date || "" };
     });
 
     return res.status(200).json(transformed);
