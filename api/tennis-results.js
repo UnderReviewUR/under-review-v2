@@ -37,9 +37,13 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
+    // Active tournament keyword -- change this when rotating tournaments
+    // Must match what API-Tennis uses in tournament_name field
+    const ACTIVE_TOURNAMENT_KEYWORD = "charleston";
+
     // Get active tournament name from context to filter results
-    // Falls back to returning all ATP/WTA events if context unavailable
-    let tournamentKeywords = [];
+    // Falls back to hardcoded keyword if context fetch fails
+    let tournamentKeywords = [ACTIVE_TOURNAMENT_KEYWORD];
     try {
       const contextRes = await fetch(
         `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/api/tennis-context`
@@ -47,17 +51,14 @@ export default async function handler(req, res) {
       if (contextRes.ok) {
         const ctx = await contextRes.json();
         const name = ctx?.currentTournament?.name || "";
-        // Extract meaningful keywords from tournament name
-        // "Charleston Open" -> ["charleston"]
-        // "Roland Garros" -> ["roland", "garros"]
-        // "Miami Open" -> ["miami"]
-        tournamentKeywords = name
+        const extracted = name
           .toLowerCase()
           .split(" ")
           .filter(w => w.length > 3 && !["open", "masters", "tournament", "championships"].includes(w));
+        if (extracted.length > 0) tournamentKeywords = extracted;
       }
     } catch {
-      // If context fetch fails, return all recent results -- better than nothing
+      // Context fetch failed -- use hardcoded keyword above
     }
 
     // Filter by active tournament if we have keywords, otherwise return all
