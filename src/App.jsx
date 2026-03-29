@@ -646,7 +646,7 @@ export default function App() {
       <div style={{ padding: '0 16px 4px' }}>
         <Eyebrow label={contextData?.currentTournament?.name || "Miami Open 2026"} color="rgba(255,45,107,0.65)" />
         <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, lineHeight: 1.6, color: 'rgba(247,248,250,0.55)', marginBottom: 14 }}>
-          Hard court, medium-fast. Best angles in ace props, first-set winners, and total-games spots.
+          {contextData?.currentTournament?.context?.split('.').slice(0,2).join('.') + '.' || 'Best angles in ace props, first-set winners, and total-games spots.'}
         </div>
       </div>
 
