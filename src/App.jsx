@@ -1,830 +1,1017 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState, useEffect } from "react";
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --black:#080A0C;--surface:#0F1215;--surface-2:#0C1014;
+    --border:#1E2328;--border-2:#2A3040;
+    --cyan:#00F5E9;--magenta:#FF2D6B;--gold:#F5C842;--nfl:#FF6B35;
+    --text:#E8EAF0;--muted:#AAB3C2;--soft:#D6DCE6;
+    --green:#00E676;--red:#FF4444;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--black);color:var(--text);font-family:'DM Sans',sans-serif;}
+  .app{min-height:100vh;background:var(--black);color:var(--text);display:flex;flex-direction:column;}
+
+  .hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(8,10,12,.97);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .logo-under{display:block;font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;}
+  .logo-review{display:block;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .pill-tag{font-family:'DM Mono',monospace;font-size:10px;color:var(--magenta);border:1px solid rgba(255,45,107,.25);padding:4px 9px;border-radius:999px;background:rgba(255,45,107,.06);}
+  .pill-live{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);border:1px solid rgba(0,245,233,.25);padding:4px 9px;border-radius:999px;background:rgba(0,245,233,.06);}
+  .pill-nfl{font-family:'DM Mono',monospace;font-size:10px;color:var(--nfl);border:1px solid rgba(255,107,53,.25);padding:4px 9px;border-radius:999px;background:rgba(255,107,53,.06);}
+
+  .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:96px;}
+  .hero{padding:12px 2px 16px;text-align:center;}
+  .hero-title{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:1px;line-height:1;margin-bottom:8px;}
+  .hero-sub{color:var(--soft);font-size:14px;line-height:1.55;max-width:360px;margin:0 auto;}
+
+  .ask-shell{margin:12px 0 18px;display:flex;gap:8px;align-items:center;}
+  .ask-bar{width:100%;border:1px solid var(--border-2);background:var(--surface-2);border-radius:18px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;}
+  .ask-bar::placeholder{color:var(--muted);}
+  .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan);color:var(--black);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+  .send-btn:hover{background:var(--magenta);}
+  .send-btn:disabled{background:var(--border);cursor:not-allowed;}
+
+  .section{margin-top:18px;}
+  .section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;}
+
+  .q-list{display:flex;flex-direction:column;gap:8px;}
+  .q-card{width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;color:var(--text);}
+  .q-card:hover{border-color:var(--cyan);}
+  .q-top{display:flex;align-items:center;gap:10px;}
+  .q-accent{width:4px;height:30px;border-radius:2px;flex-shrink:0;}
+  .q-text{font-size:14px;line-height:1.45;color:#D6DCE6;}
+
+  .matchup-list{display:flex;flex-direction:column;gap:10px;}
+  .matchup-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;}
+  .matchup-card:hover{border-color:var(--cyan);}
+  .matchup-top{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.01);}
+  .matchup-league{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;}
+  .matchup-time{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+  .matchup-body{padding:12px;}
+  .matchup-title{font-size:16px;font-weight:600;margin-bottom:4px;}
+  .matchup-meta{font-size:12px;color:var(--muted);margin-bottom:8px;}
+  .matchup-blurb{font-size:13px;color:var(--soft);line-height:1.55;}
+
+  .sport-chips{display:flex;gap:8px;flex-wrap:wrap;}
+  .sport-chip{border:1px solid var(--border);background:var(--surface);color:var(--soft);border-radius:999px;padding:8px 14px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s;}
+  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan);color:var(--cyan);}
+  .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);}
+
+  .detail-back{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px;}
+  .detail-head{padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);}
+  .detail-league{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;margin-bottom:6px;}
+  .detail-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
+  .detail-sub{font-size:12px;color:var(--muted);}
+  .what-matters{padding:14px;}
+  .wm-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:8px;}
+  .wm-text{font-size:14px;line-height:1.7;color:#D6DCE6;}
+  .quick-hitters{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 14px;}
+  .quick-btn{border:1px solid var(--border-2);background:#101722;color:var(--soft);border-radius:999px;padding:8px 12px;font-size:12px;cursor:pointer;}
+  .quick-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px 14px;}
+  .mini-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center;}
+  .mini-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;}
+  .mini-value{font-size:15px;font-weight:700;}
+
+  .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:16px;}
+  .bubble{max-width:88%;border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;}
+  .bubble.user{margin-left:auto;background:#1E2B38;border:1px solid #2A3A4A;color:var(--text);border-bottom-right-radius:6px;}
+  .bubble.ai{margin-right:auto;background:var(--surface);border:1px solid var(--border);color:#D0D7E2;border-bottom-left-radius:6px;max-width:96%;}
+  .bubble.loading{opacity:0.5;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);}
+
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,12,.98);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:10px 6px 12px;z-index:30;}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;padding:6px 0;}
+  .nav-btn.active{color:var(--cyan);}
+  .nav-btn.miami-active{color:var(--gold);}
+  .nav-btn.nfl-active{color:var(--nfl);}
+
+  .pro-card{background:var(--surface);border:1px solid rgba(255,45,107,.25);border-radius:18px;padding:18px;}
+  .pro-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;}
+  .pro-copy{color:var(--soft);font-size:14px;line-height:1.7;margin-bottom:14px;}
+  .pro-price{font-size:34px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:12px;}
+  .pro-btn{width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--black);background:linear-gradient(90deg,var(--cyan),var(--magenta));}
+
+  /* TENNIS PLAYER CARDS */
+  .player-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;margin-bottom:10px;}
+  .player-card:hover{border-color:var(--border-2);}
+  .player-top{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}
+  .player-rank{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--muted);line-height:1;margin-right:12px;min-width:36px;}
+  .player-info{flex:1;}
+  .player-name{font-size:16px;font-weight:600;color:var(--text);margin-bottom:2px;}
+  .player-style{font-size:12px;color:var(--muted);}
+  .player-elo{text-align:right;}
+  .player-elo-num{font-family:'DM Mono',monospace;font-size:16px;color:var(--cyan);display:block;}
+  .player-elo-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+  .player-stats{padding:0 14px 12px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .pstat{background:var(--surface-2);border-radius:8px;padding:8px;text-align:center;}
+  .pstat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
+  .pstat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
+
+  /* MIAMI/TENNIS SPECIFIC */
+  .miami-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(245,200,66,.06));border:1px solid rgba(0,245,233,.2);border-radius:16px;padding:16px;margin-bottom:16px;}
+  .miami-banner-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--cyan);margin-bottom:2px;}
+  .miami-banner-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;}
+  .miami-banner-note{font-size:13px;color:var(--soft);line-height:1.5;}
+  .miami-section-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--gold);margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
+  .miami-section-title::after{content:'';flex:1;height:1px;background:rgba(245,200,66,.2);}
+
+  .prop-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
+  .prop-card:hover{border-color:var(--border-2);}
+  .prop-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .prop-player{font-size:14px;font-weight:600;color:var(--text);}
+  .prop-type{font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);background:rgba(0,245,233,.1);padding:2px 8px;border-radius:4px;}
+  .prop-stat{font-size:12px;color:var(--gold);font-family:'DM Mono',monospace;}
+  .prop-note{font-size:12px;color:var(--soft);line-height:1.4;margin-top:4px;}
+
+  .surface-pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .surface-pill{font-family:'DM Mono',monospace;font-size:9px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);}
+  .surface-hard{color:var(--cyan);border-color:rgba(0,245,233,.3);}
+  .surface-clay{color:var(--gold);border-color:rgba(245,200,66,.3);}
+  .surface-grass{color:var(--green);border-color:rgba(0,230,118,.3);}
+  .form-badge{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(0,245,233,.1);color:var(--cyan);border:1px solid rgba(0,245,233,.2);}
+
+  .loading-state{text-align:center;padding:40px 20px;}
+  .loading-text{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;}
+
+  /* =========================================================
+     NFL-SPECIFIC STYLES
+     ========================================================= */
+  .nfl-banner{
+    background:linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,45,107,.05));
+    border:1px solid rgba(255,107,53,.25);
+    border-radius:16px;padding:16px;margin-bottom:16px;
+  }
+  .nfl-banner-title{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--nfl);margin-bottom:2px;}
+  .nfl-banner-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;}
+  .nfl-banner-note{font-size:13px;color:var(--soft);line-height:1.5;}
+  .nfl-section-title{
+    font-family:'DM Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--nfl);
+    margin:20px 0 10px;display:flex;align-items:center;gap:8px;
+  }
+  .nfl-section-title::after{content:'';flex:1;height:1px;background:rgba(255,107,53,.2);}
+
+  /* NFL Position Filter Tabs */
+  .pos-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;}
+  .pos-tabs::-webkit-scrollbar{display:none;}
+  .pos-tab{
+    font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;
+    border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap;flex-shrink:0;
+    transition:all .15s;
+  }
+  .pos-tab.active{border-color:var(--nfl);color:var(--nfl);background:rgba(255,107,53,.08);}
+  .pos-tab:hover{border-color:var(--nfl);color:var(--nfl);}
+
+  /* NFL Player Card */
+  .nfl-player-card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;overflow:hidden;margin-bottom:10px;cursor:pointer;
+    transition:border-color .15s;
+  }
+  .nfl-player-card:hover{border-color:rgba(255,107,53,.4);}
+  .nfl-player-top{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}
+  .nfl-player-left{display:flex;align-items:center;gap:12px;flex:1;}
+  .nfl-rank{
+    font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--muted);
+    line-height:1;min-width:32px;text-align:right;
+  }
+  .nfl-player-info{flex:1;}
+  .nfl-player-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:1px;}
+  .nfl-player-meta{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+  .nfl-tier-badge{
+    font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1px;
+    padding:3px 8px;border-radius:4px;flex-shrink:0;align-self:flex-start;
+  }
+  .tier-elite{color:var(--nfl);background:rgba(255,107,53,.1);border:1px solid rgba(255,107,53,.25);}
+  .tier-strong{color:var(--gold);background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.25);}
+  .tier-starter{color:var(--muted);background:rgba(170,179,194,.06);border:1px solid rgba(170,179,194,.15);}
+  .nfl-player-right{text-align:right;}
+  .nfl-yds-pg{font-family:'DM Mono',monospace;font-size:16px;color:var(--nfl);display:block;}
+  .nfl-yds-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+
+  .nfl-player-stats{padding:0 14px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .nfl-stat{background:var(--surface-2);border-radius:8px;padding:7px;text-align:center;}
+  .nfl-stat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
+  .nfl-stat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;}
+
+  /* NFL Prop Card */
+  .nfl-prop-card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;
+    transition:border-color .15s;
+  }
+  .nfl-prop-card:hover{border-color:rgba(255,107,53,.35);}
+  .nfl-prop-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .nfl-prop-player{font-size:14px;font-weight:600;color:var(--text);}
+  .nfl-prop-type{
+    font-family:'DM Mono',monospace;font-size:10px;color:var(--nfl);
+    background:rgba(255,107,53,.1);padding:2px 8px;border-radius:4px;
+  }
+  .nfl-prop-line{font-family:'DM Mono',monospace;font-size:11px;color:var(--gold);margin-bottom:3px;}
+  .nfl-prop-lean{font-size:12px;color:var(--soft);line-height:1.4;}
+
+  /* NFL Player Detail */
+  .nfl-detail-head{padding:14px;border-bottom:1px solid var(--border);background:var(--surface-2);}
+  .nfl-detail-pos{
+    font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;
+    color:var(--nfl);margin-bottom:6px;
+  }
+  .nfl-detail-name{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
+  .nfl-detail-sub{font-size:12px;color:var(--muted);}
+  .nfl-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px;}
+  .nfl-detail-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center;}
+  .nfl-detail-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;}
+  .nfl-detail-value{font-size:15px;font-weight:700;}
+  .nfl-detail-section{padding:0 14px 14px;}
+  .nfl-detail-section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--nfl);margin-bottom:8px;}
+  .nfl-prop-block{background:rgba(255,107,53,.05);border:1px solid rgba(255,107,53,.15);border-radius:10px;padding:12px;}
+  .nfl-prop-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .nfl-prop-row:last-child{margin-bottom:0;}
+  .nfl-prop-name{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+  .nfl-prop-val{font-family:'DM Mono',monospace;font-size:11px;}
+  .lean-over{color:var(--green);}
+  .lean-fade{color:var(--red);}
+  .lean-neutral{color:var(--gold);}
+  .nfl-situation{background:var(--surface-2);border-radius:10px;padding:12px;font-size:13px;color:var(--soft);line-height:1.6;}
+  .nfl-betting-angles{display:flex;flex-direction:column;gap:6px;}
+  .nfl-angle-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--soft);line-height:1.5;}
+  .nfl-angle-dot{width:5px;height:5px;border-radius:50%;background:var(--nfl);flex-shrink:0;margin-top:5px;}
+
+  .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .nfl-ask-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;}
+`;
+
+const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
+const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
+
+// NFL player data (inline — mirrors nfl-rb.js and nfl-wr-te.js structure)
+const NFL_PLAYERS = {
+  // RBs
+  "James Cook": { pos:"RB", team:"BUF", tier:"ELITE", ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6}, props:{recYds:{floor:80,ceil:150,lean:"OVER"}, td:{pg:0.88,lean:"OVER — 14 TDs, elite scorer"}}, situation:"Bills RB1 with Josh Allen. Allen's rushing is the only ceiling check but Cook is the every-down back.", bettingAngles:["RuYds OVER every week","TD scorer OVER is the primary play","Volume is guaranteed — 16g starter"] },
+  "Jonathan Taylor": { pos:"RB", team:"IND", tier:"ELITE", ydsPg:105.1, rec2025:{g:17,yds:1786,td:14,recPg:3.2,ydsPg:105.1,ypr:4.6}, props:{recYds:{floor:75,ceil:145,lean:"OVER — 105 yds/g base"}, td:{pg:0.82,lean:"OVER 0.5 — elite red zone back"}}, situation:"Colts RB1. Warren and Pierce get air targets but Taylor owns the ground. Richardson health is the only risk.", bettingAngles:["Rush yards OVER weekly","TD scorer OVER — 82% rate is elite","Monitor Richardson health"] },
+  "Derrick Henry": { pos:"RB", team:"BAL", tier:"ELITE", ydsPg:103.3, rec2025:{g:16,yds:1653,td:15,recPg:1.1,ydsPg:103.3,ypr:5.1}, props:{recYds:{floor:75,ceil:145,lean:"OVER"}, td:{pg:0.94,lean:"OVER — 15 TDs, most on team"}}, situation:"Ravens RB1 and primary red zone weapon. Lamar Jackson's legs open massive running lanes. Elite workload.", bettingAngles:["Rush yards OVER is the clearest play","TD scorer every week","Will not catch passes — fade receiving yards"] },
+  "Bijan Robinson": { pos:"RB", team:"ATL", tier:"ELITE", ydsPg:100.8, rec2025:{g:17,yds:1713,td:11,recPg:3.8,ydsPg:100.8,ypr:5.3}, props:{recYds:{floor:70,ceil:140,lean:"OVER"}, td:{pg:0.65,lean:"OVER in favorable matchups"}}, situation:"Falcons RB1 with Penix. Every-down back with elite receiving role. One of the best RB situations in football.", bettingAngles:["Rush yards OVER — elite volume","Receiving yards OVER on pass-heavy weeks","TD scorer is reliable but not elite rate"] },
+  "De'Von Achane": { pos:"RB", team:"MIA", tier:"ELITE", ydsPg:93.7, rec2025:{g:14,yds:1312,td:12,recPg:5.4,ydsPg:93.7,ypr:6.3}, props:{recYds:{floor:65,ceil:135,lean:"OVER"}, td:{pg:0.86,lean:"OVER — 12 TDs in 14 games"}}, situation:"Dolphins dual-threat RB with elite speed. Receives 5+ per game regularly. Missed 3 games — health is the only risk.", bettingAngles:["Rush yards OVER when healthy","Receiving yards OVER — 5+ rec/g","Hard fade when injury report shows anything"] },
+  // WRs
+  "Puka Nacua": { pos:"WR", team:"LAR", tier:"ELITE", ydsPg:107.2, rec2025:{g:16,tgt:166,rec:129,yds:1715,td:0,recPg:8.1,ydsPg:107.2,ypr:13.3}, props:{recYds:{floor:75,ceil:140,lean:"OVER — 107.2 base leads WRs"}, rec:{floor:6,ceil:11,lean:"OVER — 8.1 rec/g"}, td:{pg:0,lean:"FADE TD scorer — zero TDs in 16g"}}, situation:"Rams WR1 with Stafford. Most receptions in NFL 2025. TD regression coming but timing is unknown.", bettingAngles:["Receiving yards OVER every week","Catches OVER is elite volume play","FADE TD scorer until proven otherwise"] },
+  "Ja'Marr Chase": { pos:"WR", team:"CIN", tier:"ELITE", ydsPg:88.3, rec2025:{g:16,tgt:185,rec:125,yds:1412,td:10,recPg:7.8,ydsPg:88.3,ypr:11.3}, props:{recYds:{floor:65,ceil:125,lean:"OVER when Burrow healthy"}, td:{pg:0.63,lean:"OVER 0.5 in favorable matchups"}}, situation:"Bengals WR1. Most talented WR in football. Burrow health is the only variable — monitor weekly.", bettingAngles:["Receiving yards OVER when Burrow active","TD scorer OVER in red zone games","Hard fade when Burrow out"] },
+  "Jaxon Smith-Njigba": { pos:"WR", team:"SEA", tier:"ELITE", ydsPg:105.5, rec2025:{g:17,tgt:163,rec:119,yds:1793,td:6,recPg:7.0,ydsPg:105.5,ypr:15.1}, props:{recYds:{floor:75,ceil:145,lean:"OVER — led NFL in receiving yards"}, td:{pg:0.35,lean:"Moderate"}}, situation:"Seahawks WR1. Led the NFL in receiving yards in 2025. Full WR1 ascension confirmed.", bettingAngles:["Receiving yards OVER is the primary lean","Volume is locked in regardless of QB","Market may underrate him — exploit"] },
+  "George Pickens": { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:84.1, rec2025:{g:17,tgt:137,rec:93,yds:1429,td:8,recPg:5.5,ydsPg:84.1,ypr:15.4}, props:{recYds:{floor:65,ceil:125,lean:"OVER"}, td:{pg:0.47,lean:"OVER 0.5 in red zone games"}}, situation:"Cowboys WR2/1 depending on Lamb health. Prescott targets him downfield consistently.", bettingAngles:["Receiving yards OVER","TD scorer when Lamb out or Cowboys in red zone","Deep threat — big play in every game"] },
+  "CeeDee Lamb": { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:76.9, rec2025:{g:14,tgt:117,rec:75,yds:1077,td:6,recPg:5.4,ydsPg:76.9,ypr:14.4}, props:{recYds:{floor:60,ceil:115,lean:"OVER when healthy"}, td:{pg:0.43,lean:"OVER in favorable matchups"}}, situation:"Cowboys WR1 when healthy. Missed 3 games in 2025. Health is the key variable every week.", bettingAngles:["OVER when active — elite talent","Hard fade when any injury report","Monitor weekly — game-time decision risk"] },
+  // TEs
+  "Trey McBride": { pos:"TE", team:"ARI", tier:"ELITE", ydsPg:72.9, rec2025:{g:17,tgt:169,rec:126,yds:1239,td:5,recPg:7.4,ydsPg:72.9,ypr:9.8}, props:{rec:{floor:5,ceil:10,lean:"OVER — 7.4 rec/g leads all TEs"}, recYds:{floor:55,ceil:100,lean:"OVER"}, td:{pg:0.29,lean:"Moderate — 5 TDs only"}}, situation:"Best TE situation in football. Murray-McBride is the most reliable QB-TE connection in the NFL.", bettingAngles:["Catches OVER every week — 7.4/g is the floor","Receiving yards OVER is reliable","FADE TD scorer — he barely scores despite elite volume"] },
+  "Brock Bowers": { pos:"TE", team:"LVR", tier:"ELITE", ydsPg:56.7, rec2025:{g:12,tgt:86,rec:64,yds:680,td:3,recPg:5.3,ydsPg:56.7,ypr:10.6}, props:{rec:{floor:4,ceil:8,lean:"OVER when healthy"}, recYds:{lean:"OVER when healthy"}}, situation:"Raiders TE1. Historic rookie 2024. Health is the major variable — missed 5 games in 2025.", bettingAngles:["Health monitor every week","OVER immediately when active","Fade anything when injury report shows anything"] },
+  "Travis Kelce": { pos:"TE", team:"KAN", tier:"ELITE", ydsPg:50.1, rec2025:{g:17,tgt:108,rec:76,yds:851,td:4,recPg:4.5,ydsPg:50.1,ypr:11.2}, props:{rec:{floor:3,ceil:7,lean:"OVER — Mahomes always finds him"}, td:{pg:0.24,lean:"Moderate"}}, situation:"Chiefs TE1 but age 37 in 2026. Declining production is real. Mahomes connection keeps him relevant.", bettingAngles:["Catches OVER when Mahomes healthy","FADE receiving yards — 50 is the real base","Monitor usage as season progresses"] },
+  "Tyler Warren": { pos:"TE", team:"IND", tier:"ELITE", ydsPg:48.1, rec2025:{g:17,tgt:112,rec:76,yds:817,td:5,recPg:4.5,ydsPg:48.1,ypr:10.7}, props:{rec:{floor:3,ceil:7,lean:"OVER — 4.5/g is elite TE volume"}, td:{lean:"OVER 0.5 in favorable matchups"}}, situation:"Colts TE1. Elite rookie season. Richardson health is the key variable — when healthy, Warren is TE1-2.", bettingAngles:["Catches OVER every week","Receiving yards OVER as Richardson improves","Year 2 with Richardson should be elite"] },
+};
+
+const NFL_POSITIONS = ["ALL", "RB", "WR", "TE"];
+
+const NFL_PROP_GUIDE = [
+  { player:"James Cook", pos:"RB", team:"BUF", propType:"RUSH YDS", line:"115.5", floor:80, ceil:150, lean:"OVER — 112.3 avg, elite workload", leanClass:"lean-over" },
+  { player:"Puka Nacua", pos:"WR", team:"LAR", propType:"REC YDS", line:"85.5", floor:75, ceil:140, lean:"OVER — 107.2 yds/g leads NFL", leanClass:"lean-over" },
+  { player:"Trey McBride", pos:"TE", team:"ARI", propType:"CATCHES", line:"6.5", floor:5, ceil:10, lean:"OVER — 7.4/g is historic TE production", leanClass:"lean-over" },
+  { player:"Ja'Marr Chase", pos:"WR", team:"CIN", propType:"REC YDS", line:"75.5", floor:65, ceil:125, lean:"OVER when Burrow healthy", leanClass:"lean-over" },
+  { player:"Derrick Henry", pos:"RB", team:"BAL", propType:"RUSH TDs", line:"0.5", floor:0, ceil:2, lean:"OVER — 0.94 TDs/g is elite", leanClass:"lean-over" },
+  { player:"Travis Kelce", pos:"TE", team:"KAN", propType:"REC YDS", line:"52.5", floor:35, ceil:80, lean:"FADE — real floor is ~50, market overprices him", leanClass:"lean-fade" },
+];
+
+const featuredQuestions = [
+  { id:"q1", color:"#00F5E9", text:"Will Sinner get 8 aces vs Medvedev?", prompt:"Will Sinner get 8 aces vs Medvedev?" },
+  { id:"q2", color:"#FF2D6B", text:"Can Barca advance past Newcastle?", prompt:"Can Barca advance past Newcastle in the second leg?" },
+  { id:"q3", color:"#F5C842", text:"How realistic is a Hamilton podium this weekend?", prompt:"How realistic is it that Lewis Hamilton finishes top 3 this weekend?" },
+  { id:"q4", color:"#FF6B35", text:"Best NFL receiving prop this week?", prompt:"What are the best NFL receiving props this week based on the knowledge base?" },
+];
+
+const featuredMatchups = [
+  { id:"m1", league:"ATP", leagueColor:"#00F5E9", title:"Sinner vs Medvedev", time:"2:30 PM ET", network:"Tennis Channel", blurb:"Medvedev's return profile keeps this from feeling automatic. Sinner's serve and current form give him the edge if it stays on serve.", whatMatters:"Sinner has the cleaner serve profile and better recent form, but Medvedev can drag him into uncomfortable return-heavy stretches. If this stays on serve, Sinner is more trustworthy late.", quickHitters:["Will Sinner get 8 aces?","Is Medvedev a live dog?","Does this go 3 sets?"], stats:[{label:"UR CONF",value:"67%"},{label:"ACES LINE",value:"8.0"},{label:"SURFACE",value:"Hard"}] },
+  { id:"m2", league:"UCL", leagueColor:"#FF2D6B", title:"Barca vs Newcastle", time:"3:00 PM ET", network:"Paramount+", blurb:"This is less about overall quality and more about whether Newcastle can turn the match chaotic early. First goal changes everything.", whatMatters:"Barca are the better side on paper but Newcastle's crowd and early pressure can make the first 25 minutes feel bigger than the talent gap. If Newcastle score first the tie becomes live immediately.", quickHitters:["Will Barca advance?","Do both teams score?","Is over 2.5 live?"], stats:[{label:"UR CONF",value:"71%"},{label:"TIE STATE",value:"Live"},{label:"ANGLE",value:"BTTS"}] },
+  { id:"m3", league:"NFL", leagueColor:"#FF6B35", title:"Nacua vs McBride — prop breakdown", time:"2026 Season", network:"Underdog/DK", blurb:"Two elite volume players in very different offenses. McBride catches more but Nacua gains more yards per catch. Market sets these lines differently — there's value in both.", whatMatters:"Nacua's 107 yds/g base makes his OVER one of the most reliable weekly plays in the NFL. McBride's 7.4 rec/g is historically elite for a TE but his TD rate is brutally low. Different plays, both correct.", quickHitters:["Nacua receiving yards OVER?","McBride catches OVER?","Which is the safer bet?"], stats:[{label:"NACUA",value:"107"},{label:"MCBRIDE REC",value:"7.4"},{label:"LEAN",value:"BOTH OVER"}] },
+];
+
+function formatServeStats(s) {
+  if (!s) return "—";
+  const p = [];
+  if (s.holdPct !== undefined) p.push(`Hold ${s.holdPct}%`);
+  if (s.acePct !== undefined) p.push(`Ace ${s.acePct}%`);
+  if (s.dfPct !== undefined) p.push(`DF ${s.dfPct}%`);
+  return p.length ? p.join(", ") : "—";
+}
+function formatReturnStats(s) {
+  if (!s) return "—";
+  const p = [];
+  if (s.rpwPct !== undefined) p.push(`RPW ${s.rpwPct}%`);
+  if (s.breakPct !== undefined) p.push(`Break ${s.breakPct}%`);
+  return p.length ? p.join(", ") : "—";
+}
+function formatOverallStats(s) {
+  if (!s) return "—";
+  const p = [];
+  if (s.dominanceRatio !== undefined) p.push(`DR ${s.dominanceRatio}`);
+  if (s.totalPointsWonPct !== undefined) p.push(`TPW ${s.totalPointsWonPct}%`);
+  if (s.tiebreakPct !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
+  return p.length ? p.join(", ") : "—";
+}
+function getHoldValue(p) { return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—"; }
+function getDrValue(p) { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—"; }
+function getTbValue(p) { return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—"; }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('HOME');
-  const [inputValue, setInputValue] = useState('');
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content:
-        'Ask a matchup, prop, or slate question and UR TAKE will give you the lean, the reason, and the angle.',
-    },
-  ]);
-
-  const [playerData, setPlayerData] = useState(null);
-  const [contextData, setContextData] = useState(null);
+  const [tab, setTab] = useState("home");
+  const [screen, setScreen] = useState("home");
+  const [selectedMatchup, setSelectedMatchup] = useState(null);
+  const [input, setInput] = useState("");
+  const [nflInput, setNflInput] = useState("");
+  const [miamiInput, setMiamiInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [isAsking, setIsAsking] = useState(false);
+  const [players, setPlayers] = useState(null);
+  const [context, setContext] = useState(null);
+  const [tennisLoading, setTennisLoading] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
-  const [tournamentResults, setTournamentResults] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [oddsData, setOddsData] = useState(null);
-  const messagesEndRef = useRef(null);
-  const imageInputRef = useRef(null);
-  const [pendingImage, setPendingImage] = useState(null); // { base64, mediaType, previewUrl }
+  const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
+  const [nflPosFilter, setNflPosFilter] = useState("ALL");
 
-  // --- Load all data on mount ---------------------------------------------------
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [
-          playersRes, contextRes,
-          liveAtpRes, liveWtaRes,
-          resultsAtpRes, resultsWtaRes,
-          oddsAtpRes, oddsWtaRes,
-        ] = await Promise.all([
-          fetch('/api/tennis-players'),
-          fetch('/api/tennis-context'),
-          fetch('/api/tennis?tour=atp'),
-          fetch('/api/tennis?tour=wta'),
-          fetch('/api/tennis-results?tour=atp'),
-          fetch('/api/tennis-results?tour=wta'),
-          fetch('/api/odds?tour=atp'),
-          fetch('/api/odds?tour=wta'),
-        ]);
+    setTennisLoading(true);
+    Promise.all([
+      fetch("/api/tennis-players").then((r) => r.json()),
+      fetch("/api/tennis-context").then((r) => r.json()),
+      fetch("/api/tennis?tour=atp").then((r) => r.json()),
+    ])
+      .then(([p, c, live]) => {
+        setPlayers(p);
+        setContext(c);
+        setLiveMatches(Array.isArray(live) ? live : []);
+        setTennisLoading(false);
+      })
+      .catch(() => { setTennisLoading(false); });
+  }, []);
 
-        const [
-          playersJson, contextJson,
-          liveAtpJson, liveWtaJson,
-          resultsAtpJson, resultsWtaJson,
-          oddsAtpJson, oddsWtaJson,
-        ] = await Promise.all([
-          playersRes.json(), contextRes.json(),
-          liveAtpRes.json(), liveWtaRes.json(),
-          resultsAtpRes.json(), resultsWtaRes.json(),
-          oddsAtpRes.json().catch(() => null),
-          oddsWtaRes.json().catch(() => null),
-        ]);
-
-        setPlayerData(playersJson);
-        setContextData(contextJson);
-        setLiveMatches([
-          ...(Array.isArray(liveAtpJson) ? liveAtpJson : []),
-          ...(Array.isArray(liveWtaJson) ? liveWtaJson : []),
-        ]);
-        setTournamentResults([
-          ...(Array.isArray(resultsAtpJson) ? resultsAtpJson : []),
-          ...(Array.isArray(resultsWtaJson) ? resultsWtaJson : []),
-        ]);
-
-        // Merge ATP and WTA odds -- combine matches and props arrays
-        const mergedOdds = {
-          matches: [
-            ...((oddsAtpJson?.matches) || []),
-            ...((oddsWtaJson?.matches) || []),
-          ],
-          props: [
-            ...((oddsAtpJson?.props) || []),
-            ...((oddsWtaJson?.props) || []),
-          ],
-          fetchedAt: oddsAtpJson?.fetchedAt || null,
-        };
-        setOddsData(mergedOdds);
-      } catch (err) {
-        console.error('Failed to load tennis data:', err);
-      } finally {
-        setDataLoading(false);
+  function renderMessage(text) {
+    if (!text) return null;
+    const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
+    const normalized = clean.replace(/ • /g, "\n• ");
+    const lines = normalized.split("\n");
+    return lines.map((line, i) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("•")) {
+        const parts = trimmed.slice(1).trim().split("—");
+        const player = parts[0]?.trim();
+        const prop = parts[1]?.trim();
+        const reason = parts.slice(2).join("—").trim();
+        return (
+          <div key={i} style={{ display:"flex", flexDirection:"column", background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px", marginTop:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: reason ? 4 : 0 }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:"var(--cyan)", flexShrink:0 }} />
+              <span style={{ fontWeight:600, color:"var(--text)", fontSize:13 }}>{player}</span>
+              {prop && <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"var(--cyan)", background:"rgba(0,245,233,.1)", padding:"2px 7px", borderRadius:4 }}>{prop}</span>}
+            </div>
+            {reason && <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5, paddingLeft:14 }}>{reason}</div>}
+          </div>
+        );
       }
+      if (trimmed === "") return <div key={i} style={{ height:6 }} />;
+      return <div key={i} style={{ lineHeight:1.65, marginBottom:2 }}>{trimmed}</div>;
+    });
+  }
+
+  async function askUrTake(text, matchup, inputSetter) {
+    if (!text || isAsking) return;
+    setIsAsking(true);
+    if (inputSetter) inputSetter("");
+
+    const userMsg = { role:"user", text };
+    if (screen !== "miami" && screen !== "nfl") {
+      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
+      setTab("ask"); setScreen("ask");
+    } else {
+      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
     }
-    loadData();
-  }, []);
-
-  // --- Poll results every 5 minutes --------------------------------------------
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const [atpRes, wtaRes] = await Promise.all([
-          fetch('/api/tennis-results?tour=atp'),
-          fetch('/api/tennis-results?tour=wta'),
-        ]);
-        const [atpJson, wtaJson] = await Promise.all([atpRes.json(), wtaRes.json()]);
-        setTournamentResults([
-          ...(Array.isArray(atpJson) ? atpJson : []),
-          ...(Array.isArray(wtaJson) ? wtaJson : []),
-        ]);
-      } catch { /* silent */ }
-    }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Auto-scroll on new message
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // --- Label helpers ------------------------------------------------------------
-  function abbreviateRound(round) {
-    if (!round) return '';
-    const r = round.toLowerCase();
-    if (r.includes('final') && !r.includes('semi') && !r.includes('quarter')) return 'Final';
-    if (r.includes('semi')) return 'SF';
-    if (r.includes('quarter')) return 'QF';
-    if (r.includes('round of 16') || r.includes('4th round')) return 'R16';
-    if (r.includes('round of 32') || r.includes('3rd round')) return 'R32';
-    if (r.includes('round of 64') || r.includes('2nd round')) return 'R64';
-    if (r.includes('round of 128') || r.includes('1st round')) return 'R128';
-    return round;
-  }
-
-  function abbreviateTour(match) {
-    const combined = `${match.event_type_type || ''} ${match.league_name || ''}`.toLowerCase();
-    const isWTA = combined.includes('women') || combined.includes('wta');
-    const isDoubles = combined.includes('double');
-    let label = isWTA ? 'WTA' : 'ATP';
-    if (isDoubles) label += ' Doubles';
-    const round = abbreviateRound(match.round || '');
-    return round ? `${label} - ${round}` : label;
-  }
-
-  // --- Derive dynamic home content ---------------------------------------------
-  const liveTennisMatchups = liveMatches
-    .filter((m) => m.home_team && m.away_team && m.home_team !== 'Player 1')
-    .slice(0, 6)
-    .map((m) => ({
-      title: `${m.home_team} vs ${m.away_team}`,
-      subtitle: abbreviateTour(m),
-      isLive: m.live === '1',
-    }));
-
-  const recentResults = [...tournamentResults].reverse().slice(0, 3);
-
-  function buildDynamicAsks() {
-    const asks = [];
-    if (recentResults.length > 0) {
-      asks.push(`Best props for ${recentResults[0].winner} in their next match`);
-    }
-    if (liveTennisMatchups.length > 0) asks.push(`Who wins ${liveTennisMatchups[0].title}?`);
-    if (liveTennisMatchups.length > 1) asks.push(`Best props for ${liveTennisMatchups[1].title}`);
-    const fallbacks = [
-      "Best ace props today",
-      "Who has the biggest serve edge on the slate?",
-      "Who is live for an upset?",
-      "Best total games angle today",
-    ];
-    for (const f of fallbacks) {
-      if (asks.length >= 4) break;
-      if (!asks.includes(f)) asks.push(f);
-    }
-    return asks.slice(0, 4);
-  }
-
-  const dynamicAsks = buildDynamicAsks();
-
-  const miamiPrompts = liveTennisMatchups.length > 0
-    ? [
-        liveTennisMatchups[0] ? `Who wins ${liveTennisMatchups[0].title}?` : null,
-        liveTennisMatchups[1] ? `Best props for ${liveTennisMatchups[1].title}` : null,
-        'Best ace props today',
-        'Who is overpriced today?',
-      ].filter(Boolean)
-    : ['Best props today', 'Who is live for an upset?', 'Best ace props', 'Who is overpriced?'];
-
-  const featuredPrompts = [
-    "Best props on today's slate",
-    "Who has the biggest serve edge today?",
-    "Best value bet on the board right now",
-    "Walk me through today's key matchup",
-  ];
-
-  const atpPlayers = [
-    { name: 'Jannik Sinner', elo: 2168, hold: '89.4%', dr: '1.19', tb: '63%' },
-    { name: 'Carlos Alcaraz', elo: 2142, hold: '86.1%', dr: '1.16', tb: '58%' },
-    { name: 'Alexander Zverev', elo: 2061, hold: '87.7%', dr: '1.09', tb: '61%' },
-    { name: 'Daniil Medvedev', elo: 2038, hold: '84.8%', dr: '1.07', tb: '56%' },
-    { name: 'Taylor Fritz', elo: 1986, hold: '88.2%', dr: '1.05', tb: '59%' },
-  ];
-
-  const wtaPlayers = [
-    { name: 'Aryna Sabalenka', elo: 2108, hold: '74.8%', dr: '1.20', tb: '57%' },
-    { name: 'Elena Rybakina', elo: 2054, hold: '76.2%', dr: '1.14', tb: '54%' },
-    { name: 'Iga Swiatek', elo: 2036, hold: '71.1%', dr: '1.25', tb: '52%' },
-    { name: 'Coco Gauff', elo: 1968, hold: '68.4%', dr: '1.10', tb: '51%' },
-    { name: 'Jessica Pegula', elo: 1940, hold: '66.8%', dr: '1.08', tb: '49%' },
-  ];
-
-  // --- handleImageSelect --------------------------------------------------------
-  function compressAndSetImage(file) {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        // Resize to max 1200px on longest side, compress to JPEG 0.7
-        const MAX = 1200;
-        let w = img.width;
-        let h = img.height;
-        if (w > MAX || h > MAX) {
-          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-          else { w = Math.round(w * MAX / h); h = MAX; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const compressed = canvas.toDataURL('image/jpeg', 0.7);
-        const parts = compressed.split(',');
-        const base64 = parts[1];
-        setPendingImage({ base64, mediaType: 'image/jpeg', previewUrl: compressed });
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function handleImageSelect(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    compressAndSetImage(file);
-    e.target.value = '';
-  }
-
-  function clearPendingImage() {
-    setPendingImage(null);
-  }
-
-  // --- handleAsk ----------------------------------------------------------------
-  async function handleAsk(promptOverride) {
-    const prompt = (promptOverride || inputValue).trim();
-    const image = pendingImage;
-
-    // Allow image-only sends with a default prompt
-    if (!prompt && !image) return;
-    const finalPrompt = prompt || 'Please review these lines and tell me the best props to target.';
-
-    if (!playerData || !contextData) {
-      const msg = dataLoading
-        ? 'Still loading the tennis database. Try again in a second.'
-        : 'Tennis data did not load correctly.';
-      setMessages((prev) => [...prev,
-        { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
-        { role: 'assistant', content: msg },
-      ]);
-      setInputValue('');
-      setPendingImage(null);
-      setActiveTab('ASK');
-      return;
-    }
-
-    const historyForApi = messages.map((m) => ({ role: m.role, text: m.content, loading: m.loading || false }));
-    setMessages((prev) => [...prev,
-      { role: 'user', content: finalPrompt, image: image ? image.previewUrl : null },
-      { role: 'assistant', content: '...', loading: true },
-    ]);
-    setInputValue('');
-    setPendingImage(null);
-    setActiveTab('ASK');
 
     try {
-      const response = await fetch('/api/ur-take', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const nflContext = Object.entries(NFL_PLAYERS).map(([name, p]) =>
+        `${name} (${p.pos}, ${p.team}, ${p.tier}): ${p.ydsPg} yds/g. ${p.situation} Best prop: ${p.props.recYds?.lean || p.props.rec?.lean || "See data"}`
+      ).join("\n");
+
+      const response = await fetch("/api/ur-take", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({
-          question: finalPrompt,
-          players: playerData,
-          context: contextData,
+          question: text,
+          players,
+          context,
           liveMatches,
-          tournamentResults,
-          oddsData,
-          tour: 'tennis',
-          history: historyForApi,
-          matchupContext: null,
-          image: image ? { base64: image.base64, mediaType: image.mediaType } : null,
+          tour: "atp",
+          history: messages.slice(-6),
+          matchupContext: matchup || null,
+          nflContext,
         }),
       });
-
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || 'Request failed');
-
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: data.response || 'No response returned.' };
-        return next;
-      });
-    } catch (err) {
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: `Couldn't get a response right now. ${err.message}` };
-        return next;
-      });
+      const aiText = data.response || "Couldn't get a response — try again.";
+      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:aiText }]);
+    } catch {
+      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:"Something went wrong — try again." }]);
+    } finally {
+      setIsAsking(false);
     }
   }
 
-  // --- Share card ---------------------------------------------------------------
-  function roundRectPath(ctx, x, y, w, h, r) {
-    const radius = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + w - radius, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-    ctx.lineTo(x + w, y + h - radius);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-    ctx.lineTo(x + radius, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
+  function goHome() { setTab("home"); setScreen("home"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
+  function goMiami() { setTab("miami"); setScreen("miami"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
+  function goNfl() { setTab("nfl"); setScreen("nfl"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
+  function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
+  function goPro() { setTab("pro"); setScreen("pro"); setSelectedMatchup(null); }
+  function openMatchup(m) { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
+  function openPlayer(name) { setSelectedPlayer(name); setScreen("player"); }
+  function openNflPlayer(name) { setSelectedNflPlayer(name); setScreen("nflplayer"); }
+
+  function submitAsk(forced) {
+    const text = (forced ?? input).trim();
+    if (!text || isAsking) return;
+    setInput(""); askUrTake(text, selectedMatchup, null);
+  }
+  function submitMatchupAsk(forced) {
+    const text = (forced ?? input).trim();
+    if (!text || isAsking) return;
+    setInput(""); askUrTake(text, selectedMatchup, null);
+  }
+  function submitMiamiAsk(forced) {
+    const text = (forced ?? miamiInput).trim();
+    if (!text || isAsking) return;
+    askUrTake(text, null, setMiamiInput);
+  }
+  function submitNflAsk(forced) {
+    const text = (forced ?? nflInput).trim();
+    if (!text || isAsking) return;
+    askUrTake(text, null, setNflInput);
   }
 
-  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' ');
-    let line = '';
-    let currentY = y;
-    for (const word of words) {
-      const test = line + word + ' ';
-      if (ctx.measureText(test).width > maxWidth && line !== '') {
-        ctx.fillText(line.trim(), x, currentY);
-        line = word + ' ';
-        currentY += lineHeight;
-      } else {
-        line = test;
-      }
-    }
-    ctx.fillText(line.trim(), x, currentY);
+  function getPlayer(name, tour = "atp") {
+    if (!players) return null;
+    return (tour === "atp" ? players.atp : players.wta)?.[name] || null;
+  }
+  function getPlayerAny(name) {
+    if (!players) return null;
+    return players.atp?.[name] || players.wta?.[name] || null;
   }
 
-  async function shareCard(player, prop, reason) {
-    const W = 1080; const H = 1080;
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    const glow = ctx.createRadialGradient(W / 2, -80, 0, W / 2, -80, 700);
-    glow.addColorStop(0, 'rgba(0,245,233,0.18)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(255,255,255,0.045)'; roundRectPath(ctx, 72, 160, W - 144, 760, 32); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,245,233,0.28)'; ctx.lineWidth = 2; roundRectPath(ctx, 72, 160, W - 144, 760, 32); ctx.stroke();
-    ctx.fillStyle = '#00F5E9'; roundRectPath(ctx, 72, 160, 7, 760, 4); ctx.fill();
-    ctx.font = '500 30px monospace'; ctx.fillStyle = '#00F5E9'; ctx.fillText('UR TAKE', 126, 258);
-    const dg = ctx.createLinearGradient(126, 0, 540, 0);
-    dg.addColorStop(0, '#00F5E9'); dg.addColorStop(1, '#FF2D6B');
-    ctx.fillStyle = dg; ctx.fillRect(126, 275, 414, 3);
-    ctx.font = 'bold 86px sans-serif'; ctx.fillStyle = '#F7F8FA'; ctx.fillText(player, 126, 398);
-    const bl = prop.toUpperCase();
-    ctx.font = 'bold 34px monospace';
-    const pw = ctx.measureText(bl).width + 64;
-    ctx.fillStyle = '#00F5E9'; roundRectPath(ctx, 126, 428, pw, 60, 999); ctx.fill();
-    ctx.fillStyle = '#000'; ctx.fillText(bl, 158, 468);
-    ctx.font = '400 40px sans-serif'; ctx.fillStyle = 'rgba(247,248,250,0.80)';
-    wrapText(ctx, reason, 126, 568, W - 300, 58);
-    ctx.font = '500 30px monospace'; ctx.fillStyle = 'rgba(247,248,250,0.42)'; ctx.fillText('UNDER', 126, 848);
-    ctx.font = 'bold 78px sans-serif';
-    const lg = ctx.createLinearGradient(126, 0, 560, 0);
-    lg.addColorStop(0, '#00F5E9'); lg.addColorStop(1, '#FF2D6B');
-    ctx.fillStyle = lg; ctx.fillText('REVIEW', 126, 928);
-    const fg = ctx.createLinearGradient(120, 0, 700, 0);
-    fg.addColorStop(0, '#00F5E9'); fg.addColorStop(1, '#FF2D6B');
-    ctx.fillStyle = fg; ctx.fillRect(120, 942, 580, 3);
-    ctx.beginPath(); ctx.arc(114, 943, 7, 0, Math.PI * 2); ctx.fillStyle = '#00F5E9'; ctx.fill();
-    ctx.beginPath(); ctx.arc(706, 943, 7, 0, Math.PI * 2); ctx.fillStyle = '#FF2D6B'; ctx.fill();
-    ctx.font = '400 26px monospace'; ctx.fillStyle = 'rgba(247,248,250,0.25)';
-    ctx.fillText('under-review-v2.vercel.app', 126, 986);
-    canvas.toBlob(async (blob) => {
-      const file = new File([blob], 'ur-take.png', { type: 'image/png' });
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: `${player} - ${prop}`, text: `${reason}\n\nvia Under Review` }); }
-        catch { downloadBlob(blob); }
-      } else downloadBlob(blob);
-    }, 'image/png');
-  }
+  const pd = (screen === "player" && selectedPlayer) ? getPlayerAny(selectedPlayer) : null;
+  const nflPd = (screen === "nflplayer" && selectedNflPlayer) ? NFL_PLAYERS[selectedNflPlayer] : null;
 
-  function downloadBlob(blob) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'ur-take.png'; a.click();
-    URL.revokeObjectURL(url);
-  }
+  const filteredNflPlayers = Object.entries(NFL_PLAYERS).filter(([, p]) =>
+    nflPosFilter === "ALL" || p.pos === nflPosFilter
+  ).sort((a, b) => b[1].ydsPg - a[1].ydsPg);
 
-  // --- Inline markdown ----------------------------------------------------------
-  function renderInlineMarkdown(text) {
-    return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-      part.startsWith('**') && part.endsWith('**')
-        ? <span key={i} style={{ color: '#00F5E9', fontWeight: 700 }}>{part.slice(2, -2)}</span>
-        : part
+  function TennisPlayerCard({ name, idx, tour }) {
+    const p = getPlayer(name, tour);
+    if (!p) return null;
+    return (
+      <div className="player-card" onClick={() => openPlayer(name)}>
+        <div className="player-top">
+          <div className="player-rank">#{idx + 1}</div>
+          <div className="player-info">
+            <div className="player-name">{name}</div>
+            <div className="player-style">{Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}</div>
+            <div className="surface-pills">
+              {p.surfaceNote?.hard && <span className="surface-pill surface-hard">HARD</span>}
+              {p.surfaceNote?.clay && <span className="surface-pill surface-clay">CLAY</span>}
+              {p.surfaceNote?.grass && <span className="surface-pill surface-grass">GRASS</span>}
+            </div>
+          </div>
+          <div className="player-elo">
+            <span className="player-elo-num">{p.elo}</span>
+            <span className="player-elo-label">ELO</span>
+            {p.record2026 && <div className="form-badge" style={{ marginTop:4 }}>2026</div>}
+          </div>
+        </div>
+        <div className="player-stats">
+          <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
+          <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{ color:"var(--cyan)" }}>{getDrValue(p)}</div></div>
+          <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
+        </div>
+      </div>
     );
   }
 
-  // --- Message renderer ---------------------------------------------------------
-  function renderMessage(content, isLoading) {
-    if (isLoading) {
-      return (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '4px 0' }}>
-          {[0, 1, 2].map((i) => (
-            <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#00F5E9', animation: `urPulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-          ))}
-          <style>{`@keyframes urPulse{0%,80%,100%{opacity:.2;transform:scale(.85)}40%{opacity:1;transform:scale(1)}}`}</style>
-        </div>
-      );
-    }
-
-    const lines = content.split('\n').filter(Boolean);
-    const propLines = lines.filter((l) => l.trim().startsWith('\u2022'));
-    const normalLines = lines.filter((l) => !l.trim().startsWith('\u2022'));
-
+  function NflPlayerCard({ name, player }) {
+    const tierClass = player.tier === "ELITE" ? "tier-elite" : player.tier === "STRONG" ? "tier-strong" : "tier-starter";
     return (
-      <div style={{ display: 'grid', gap: 10 }}>
-        {normalLines.map((line, idx) => (
-          <div key={`${line}-${idx}`} style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.6, color: 'rgba(247,248,250,0.88)', whiteSpace: 'pre-wrap' }}>
-            {renderInlineMarkdown(line)}
+      <div className="nfl-player-card" onClick={() => openNflPlayer(name)}>
+        <div className="nfl-player-top">
+          <div className="nfl-player-left">
+            <div className="nfl-rank">{player.pos}</div>
+            <div className="nfl-player-info">
+              <div className="nfl-player-name">{name}</div>
+              <div className="nfl-player-meta">{player.team} · {player.tier}</div>
+            </div>
           </div>
-        ))}
-        {propLines.length > 0 && (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {propLines.map((line, idx) => {
-              const clean = line.replace(/^\u2022\s*/, '').replace(/\*\*/g, '');
-              const parts = clean.split(' - ');
-              const looksLikePropCard = parts.length >= 3 && parts[0] && parts[1] && parts[1].length < 60
-                && !parts[0].toLowerCase().includes('wimbledon')
-                && !parts[0].toLowerCase().includes('french open')
-                && !parts[0].toLowerCase().includes('us open');
+          <div className="nfl-player-right">
+            <span className="nfl-yds-pg">{player.ydsPg}</span>
+            <span className="nfl-yds-label">YDS/G</span>
+          </div>
+        </div>
+        <div className="nfl-player-stats">
+          <div className="nfl-stat">
+            <div className="nfl-stat-label">GAMES</div>
+            <div className="nfl-stat-value">{player.rec2025.g}</div>
+          </div>
+          <div className="nfl-stat">
+            <div className="nfl-stat-label">TDs</div>
+            <div className="nfl-stat-value" style={{ color:"var(--nfl)" }}>{player.rec2025.td}</div>
+          </div>
+          {player.rec2025.tgt && (
+            <div className="nfl-stat">
+              <div className="nfl-stat-label">TGT</div>
+              <div className="nfl-stat-value">{player.rec2025.tgt}</div>
+            </div>
+          )}
+          <div className="nfl-stat">
+            <div className="nfl-stat-label">YPR</div>
+            <div className="nfl-stat-value">{player.rec2025.ypr}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-              if (!looksLikePropCard) {
-                return (
-                  <div key={`${clean}-${idx}`} style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.55, color: 'rgba(247,248,250,0.82)' }}>
-                    {renderInlineMarkdown(line)}
+  return (
+    <>
+      <style>{css}</style>
+      <div className="app">
+
+        <header className="hdr">
+          <div>
+            <span className="logo-under">UNDER</span>
+            <span className="logo-review">REVIEW</span>
+          </div>
+          <div>
+            {screen === "miami" && <span className="pill-live">MIAMI OPEN</span>}
+            {screen === "nfl" && <span className="pill-nfl">NFL 2026</span>}
+            {screen === "nflplayer" && nflPd && <span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
+            {screen === "player" && <span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
+            {screen === "matchup" && selectedMatchup && <span className="pill-tag">{selectedMatchup.league}</span>}
+            {screen === "ask" && <span className="pill-tag">UR TAKE</span>}
+            {(screen === "home" || screen === "pro") && <span className="pill-tag">LIVE</span>}
+          </div>
+        </header>
+
+        {/* ==================== HOME ==================== */}
+        {screen === "home" && (
+          <main className="screen">
+            <section className="hero">
+              <div className="hero-title">What do you want to know?</div>
+              <div className="hero-sub">Sports, stats, predictions, context — in plain English.</div>
+            </section>
+            <div className="ask-shell">
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask UR TAKE anything..." onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+              </button>
+            </div>
+            <section className="section">
+              <div className="section-label">TRENDING ASKS</div>
+              <div className="q-list">
+                {featuredQuestions.map((q) => (
+                  <button key={q.id} className="q-card" onClick={() => goAsk(q.prompt)}>
+                    <div className="q-top">
+                      <div className="q-accent" style={{ background: q.color }} />
+                      <div className="q-text">{q.text}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section className="section">
+              <div className="section-label">MATCHUPS TO TAP INTO</div>
+              <div className="matchup-list">
+                {featuredMatchups.map((m) => (
+                  <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
+                    <div className="matchup-top">
+                      <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
+                      <div className="matchup-time">{m.time}</div>
+                    </div>
+                    <div className="matchup-body">
+                      <div className="matchup-title">{m.title}</div>
+                      <div className="matchup-meta">{m.network}</div>
+                      <div className="matchup-blurb">{m.blurb}</div>
+                    </div>
                   </div>
-                );
-              }
+                ))}
+              </div>
+            </section>
+            <section className="section">
+              <div className="section-label">SPORTS</div>
+              <div className="sport-chips">
+                <button className="sport-chip nfl-chip" onClick={goNfl}>NFL</button>
+                <button className="sport-chip">NBA</button>
+                <button className="sport-chip active" onClick={goMiami}>Tennis</button>
+                <button className="sport-chip">Soccer</button>
+                <button className="sport-chip">F1</button>
+              </div>
+            </section>
+          </main>
+        )}
 
-              const player = parts[0] || '';
-              const prop = parts[1] || '';
-              const reason = parts.slice(2).join(' - ') || '';
-
-              return (
-                <div key={`${clean}-${idx}`} style={{ borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 12px 12px 0', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', position: 'relative' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center', marginBottom: reason ? 7 : 0, paddingRight: 34 }}>
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{player}</span>
-                    {prop && (
-                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#000', background: '#00F5E9', borderRadius: 999, padding: '3px 8px' }}>{prop}</span>
-                    )}
+        {/* ==================== MIAMI / TENNIS TAB ==================== */}
+        {screen === "miami" && (
+          <main className="screen">
+            <div className="miami-banner">
+              <div className="miami-banner-title">Miami Open 2026</div>
+              <div className="miami-banner-sub">Hard Court · Medium-Fast · Miami, FL</div>
+              <div className="miami-banner-note">
+                {context?.tournaments?.miami_open?.note || "Hard courts play slightly slower than US Open. Big servers still have an edge but rallies run longer."}
+              </div>
+              {context?.tournaments?.miami_open && (
+                <div style={{ marginTop:10, display:"flex", gap:16 }}>
+                  <div>
+                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>ATP FAV </span>
+                    <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.atp_favorite}</span>
                   </div>
-                  {reason && (
-                    <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.55, color: 'rgba(247,248,250,0.62)', paddingRight: 34 }}>
-                      {renderInlineMarkdown(reason)}
+                  <div>
+                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>WTA FAV </span>
+                    <span style={{ fontSize:12, color:"var(--magenta)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.wta_favorite}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16 }}>
+              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8 }}>ASK ANYTHING — MIAMI OPEN</div>
+              <div className="ask-shell" style={{ margin:0 }}>
+                <input className="ask-bar" value={miamiInput} onChange={(e) => setMiamiInput(e.target.value)} placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?" onKeyDown={(e) => e.key === "Enter" && submitMiamiAsk()} disabled={isAsking} />
+                <button className="send-btn" onClick={() => submitMiamiAsk()} disabled={isAsking}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays on the board?"].map((q) => (
+                  <button key={q} className="quick-btn" onClick={() => submitMiamiAsk(q)} style={{ fontSize:11 }}>{q}</button>
+                ))}
+              </div>
+            </div>
+
+            {messages.length > 0 && (
+              <div className="chat-thread" style={{ marginBottom:20 }}>
+                {messages.map((m, i) => (
+                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.loading ? m.text : renderMessage(m.text)}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {context?.ace_props && (
+              <>
+                <div className="miami-section-title">PROP GUIDE</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                  {Object.entries(context.ace_props).map(([name, data]) => (
+                    <div key={name} className="prop-card" onClick={() => submitMiamiAsk(`Tell me about ${name} ace props at Miami`)}>
+                      <div className="prop-top">
+                        <div className="prop-player">{name}</div>
+                        <div className="prop-type">ACES</div>
+                      </div>
+                      <div className="prop-stat">{data.avg_aces_hard} avg · {data.ace_rate}</div>
+                      <div className="prop-note">{data.note}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {tennisLoading ? (
+              <div className="loading-state"><div className="loading-text">LOADING PLAYER DATA...</div></div>
+            ) : players && (
+              <>
+                <div className="miami-section-title">ATP TOP 25</div>
+                {ATP_PLAYERS.map((name, idx) => (
+                  <TennisPlayerCard key={name} name={name} idx={idx} tour="atp" />
+                ))}
+                <div className="miami-section-title">WTA TOP 24</div>
+                {WTA_PLAYERS.map((name, idx) => (
+                  <TennisPlayerCard key={name} name={name} idx={idx} tour="wta" />
+                ))}
+              </>
+            )}
+          </main>
+        )}
+
+        {/* ==================== NFL TAB ==================== */}
+        {screen === "nfl" && (
+          <main className="screen">
+
+            <div className="nfl-banner">
+              <div className="nfl-banner-title">NFL 2026 Season</div>
+              <div className="nfl-banner-sub">Props · Player Stats · Betting Angles</div>
+              <div className="nfl-banner-note">
+                Skill positions database: WR, RB, TE tiers with per-game stats, prop floors/ceilings, and lean rationale. Ask UR TAKE about any player or matchup.
+              </div>
+            </div>
+
+            {/* NFL Ask Bar */}
+            <div className="nfl-ask-shell">
+              <div className="nfl-ask-label">ASK ANYTHING — NFL</div>
+              <div className="ask-shell" style={{ margin:0 }}>
+                <input className="ask-bar" value={nflInput} onChange={(e) => setNflInput(e.target.value)} placeholder="e.g. Should I take Nacua over 85.5 rec yards? Best TE prop?" onKeyDown={(e) => e.key === "Enter" && submitNflAsk()} disabled={isAsking} />
+                <button className="send-btn" onClick={() => submitNflAsk()} disabled={isAsking} style={{ background:"var(--nfl)" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                {["Best WR props this week?","Top TE by volume?","Fade or take Kelce?","Best RB rushing prop?"].map((q) => (
+                  <button key={q} className="quick-btn" onClick={() => submitNflAsk(q)} style={{ fontSize:11 }}>{q}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* NFL conversation thread */}
+            {messages.length > 0 && (
+              <div className="chat-thread" style={{ marginBottom:20 }}>
+                {messages.map((m, i) => (
+                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.loading ? m.text : renderMessage(m.text)}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* NFL Prop Guide */}
+            <div className="nfl-section-title">TOP PROP LEANS</div>
+            {NFL_PROP_GUIDE.map((prop) => (
+              <div key={`${prop.player}-${prop.propType}`} className="nfl-prop-card" onClick={() => submitNflAsk(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)}>
+                <div className="nfl-prop-top">
+                  <div className="nfl-prop-player">{prop.player}</div>
+                  <div className="nfl-prop-type">{prop.propType}</div>
+                </div>
+                <div className="nfl-prop-line">Line: {prop.line} · Floor {prop.floor} / Ceil {prop.ceil}</div>
+                <div className={`nfl-prop-lean ${prop.leanClass}`}>{prop.lean}</div>
+              </div>
+            ))}
+
+            {/* NFL Player List */}
+            <div className="nfl-section-title">PLAYER DATABASE</div>
+            <div className="pos-tabs">
+              {NFL_POSITIONS.map((pos) => (
+                <button key={pos} className={`pos-tab${nflPosFilter === pos ? " active" : ""}`} onClick={() => setNflPosFilter(pos)}>{pos}</button>
+              ))}
+            </div>
+            {filteredNflPlayers.map(([name, player]) => (
+              <NflPlayerCard key={name} name={name} player={player} />
+            ))}
+          </main>
+        )}
+
+        {/* ==================== NFL PLAYER DETAIL ==================== */}
+        {screen === "nflplayer" && nflPd && (
+          <main className="screen">
+            <button className="detail-back" onClick={() => { setScreen("nfl"); setSelectedNflPlayer(null); }}>← BACK</button>
+            <div className="detail-card">
+              <div className="nfl-detail-head">
+                <div className="nfl-detail-pos">{nflPd.pos} · {nflPd.team} · {nflPd.tier}</div>
+                <div className="nfl-detail-name">{selectedNflPlayer}</div>
+                <div className="nfl-detail-sub">{nflPd.ydsPg} yds/g · {nflPd.rec2025.g} games played</div>
+              </div>
+
+              <div className="nfl-detail-grid">
+                <div className="nfl-detail-stat">
+                  <div className="nfl-detail-label">YDS/G</div>
+                  <div className="nfl-detail-value" style={{ color:"var(--nfl)" }}>{nflPd.ydsPg}</div>
+                </div>
+                <div className="nfl-detail-stat">
+                  <div className="nfl-detail-label">TDs</div>
+                  <div className="nfl-detail-value" style={{ color:"var(--gold)" }}>{nflPd.rec2025.td}</div>
+                </div>
+                <div className="nfl-detail-stat">
+                  <div className="nfl-detail-label">YPR</div>
+                  <div className="nfl-detail-value">{nflPd.rec2025.ypr}</div>
+                </div>
+                {nflPd.rec2025.tgt && (
+                  <div className="nfl-detail-stat">
+                    <div className="nfl-detail-label">TARGETS</div>
+                    <div className="nfl-detail-value">{nflPd.rec2025.tgt}</div>
+                  </div>
+                )}
+                {nflPd.rec2025.recPg && (
+                  <div className="nfl-detail-stat">
+                    <div className="nfl-detail-label">REC/G</div>
+                    <div className="nfl-detail-value">{nflPd.rec2025.recPg}</div>
+                  </div>
+                )}
+                <div className="nfl-detail-stat">
+                  <div className="nfl-detail-label">GAMES</div>
+                  <div className="nfl-detail-value">{nflPd.rec2025.g}</div>
+                </div>
+              </div>
+
+              {/* Prop breakdown */}
+              <div className="nfl-detail-section">
+                <div className="nfl-detail-section-label">PROP BREAKDOWN</div>
+                <div className="nfl-prop-block">
+                  {nflPd.props.recYds && (
+                    <div className="nfl-prop-row">
+                      <span className="nfl-prop-name">REC YDS</span>
+                      <span className="nfl-prop-val" style={{ color:"var(--muted)" }}>Floor {nflPd.props.recYds.floor} / Ceil {nflPd.props.recYds.ceil}</span>
                     </div>
                   )}
-                  <button onClick={() => shareCard(player, prop, reason)} title="Share"
-                    style={{ position: 'absolute', top: 9, right: 9, width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,245,233,0.22)', background: 'rgba(0,245,233,0.07)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, WebkitTapHighlightColor: 'transparent' }}>
-                    <svg width="11" height="12" viewBox="0 0 13 14" fill="none"><path d="M6.5 1.5V9.5M6.5 1.5L4 4M6.5 1.5L9 4" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M1.5 9.5V12.5H11.5V9.5" stroke="#00F5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // --- Style B primitives -------------------------------------------------------
-  const S = {
-    shell: { minHeight: '100vh', background: '#040404', color: '#F7F8FA' },
-    container: { width: '100%', maxWidth: 760, margin: '0 auto', paddingBottom: 110 },
-    // Left-accent card: left border only - all other sides explicitly none
-    card: (live, ask) => ({
-      borderTop: 'none',
-      borderRight: 'none',
-      borderBottom: 'none',
-      borderLeft: `2px solid ${live ? '#FF2D6B' : ask ? 'rgba(245,200,66,0.38)' : 'rgba(0,245,233,0.42)'}`,
-      background: live ? 'rgba(255,45,107,0.05)' : ask ? 'rgba(245,200,66,0.025)' : 'rgba(255,255,255,0.03)',
-      borderRadius: '0 10px 10px 0',
-      padding: '10px 12px',
-      marginBottom: 5,
-      cursor: 'pointer',
-      WebkitTapHighlightColor: 'transparent',
-      outline: 'none',
-    }),
-    title: { fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 700, color: '#F7F8FA', marginBottom: 2 },
-    sub: { fontFamily: 'DM Mono, monospace', fontSize: 9, color: 'rgba(247,248,250,0.3)', letterSpacing: '0.04em' },
-  };
-
-  function Eyebrow({ label, color = 'rgba(0,245,233,0.6)' }) {
-    return (
-      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color, marginBottom: 9 }}>
-        {label}
-      </div>
-    );
-  }
-
-  // --- Logo (full version for HOME/MIAMI) --------------------------------------
-  const LogoFull = () => (
-    <div style={{ textAlign: 'center', padding: '22px 0 14px' }}>
-      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.36)', marginBottom: 2 }}>Under</div>
-      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 46, lineHeight: 0.95, letterSpacing: '0.03em', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>REVIEW</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, width: 88, margin: '6px auto 0' }}>
-        <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#00F5E9', flexShrink: 0 }} />
-        <div style={{ flex: 1, height: 1.5, background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)' }} />
-        <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF2D6B', flexShrink: 0 }} />
-      </div>
-    </div>
-  );
-
-  // --- Logo (slim inline for ASK/PRO header) -----------------------------------
-  const LogoSlim = () => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px 6px' }}>
-      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 8, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.32)' }}>Under</div>
-      <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 20, lineHeight: 1, background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>REVIEW</div>
-    </div>
-  );
-
-  // --- Ask bar (rendered inline -- not a const component to avoid remount bug) ---
-  function renderAskBar(placeholder) {
-    return (
-      <div style={{ padding: '0 16px 14px' }}>
-        {pendingImage && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '6px 10px', background: 'rgba(0,245,233,0.08)', borderLeft: '2px solid rgba(0,245,233,0.5)', borderRadius: '0 8px 8px 0' }}>
-            <img src={pendingImage.previewUrl} alt="screenshot" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
-            <span style={{ flex: 1, fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(0,245,233,0.8)' }}>Screenshot attached</span>
-            <button onClick={clearPendingImage} style={{ background: 'none', border: 'none', color: 'rgba(247,248,250,0.4)', fontSize: 16, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>x</button>
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', height: 46, borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: pendingImage ? '1px solid rgba(0,245,233,0.4)' : '1px solid rgba(0,245,233,0.2)', padding: '0 5px 0 6px', gap: 6 }}>
-          <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: 'none' }} />
-          <button
-            onClick={() => imageInputRef.current?.click()}
-            title="Attach screenshot"
-            style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', background: pendingImage ? 'rgba(0,245,233,0.15)' : 'rgba(255,255,255,0.06)', color: pendingImage ? '#00F5E9' : 'rgba(247,248,250,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent', fontSize: 15 }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          </button>
-          <input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent?.isComposing) handleAsk(); }}
-            placeholder={pendingImage ? 'Ask about these lines...' : (placeholder || 'ask anything')}
-            onPaste={(e) => {
-              const items = e.clipboardData?.items;
-              if (!items) return;
-              for (const item of items) {
-                if (item.type.startsWith('image/')) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const file = item.getAsFile();
-                  if (file) compressAndSetImage(file);
-                  return;
-                }
-              }
-            }}
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: 'DM Sans, sans-serif', fontSize: 16, color: '#F7F8FA' }}
-          />
-          <button onClick={() => handleAsk()} style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)', color: '#000', fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}>&#x2191;</button>
-        </div>
-        <div style={{ textAlign: 'center', marginTop: 6 }}>
-          <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.24)' }}>
-            Get <span style={{ color: '#00F5E9' }}>UR</span> Take
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  // --- HOME ---------------------------------------------------------------------
-  const homeScreen = (
-    <>
-      <LogoFull />
-      {renderAskBar("Ask a prop, matchup, or slate question...")}
-
-      <div style={{ padding: '0 16px' }}>
-
-        {liveTennisMatchups.length > 0 && (
-          <div style={{ marginBottom: 18 }}>
-            <Eyebrow label="On the board" />
-            {liveTennisMatchups.map((m) => (
-              <div key={m.title} onClick={() => handleAsk(`Who wins ${m.title}?`)} style={S.card(m.isLive, false)}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div>
-                    <div style={S.title}>{m.title}</div>
-                    <div style={S.sub}>{m.subtitle}</div>
-                  </div>
-                  {m.isLive && (
-                    <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', background: '#FF2D6B', color: '#000', borderRadius: 3, padding: '2px 6px', fontWeight: 700, flexShrink: 0 }}>Live</span>
+                  {nflPd.props.recYds && (
+                    <div className="nfl-prop-row">
+                      <span className="nfl-prop-name">LEAN</span>
+                      <span className={`nfl-prop-val ${nflPd.props.recYds.lean?.includes("OVER") ? "lean-over" : "lean-neutral"}`}>{nflPd.props.recYds.lean}</span>
+                    </div>
+                  )}
+                  {nflPd.props.rec && (
+                    <div className="nfl-prop-row">
+                      <span className="nfl-prop-name">CATCHES</span>
+                      <span className={`nfl-prop-val ${nflPd.props.rec.lean?.includes("OVER") ? "lean-over" : "lean-neutral"}`}>{nflPd.props.rec.lean}</span>
+                    </div>
+                  )}
+                  {nflPd.props.td && (
+                    <div className="nfl-prop-row">
+                      <span className="nfl-prop-name">TD SCORER</span>
+                      <span className={`nfl-prop-val ${nflPd.props.td.lean?.includes("OVER") ? "lean-over" : nflPd.props.td.lean?.includes("FADE") ? "lean-fade" : "lean-neutral"}`}>{nflPd.props.td.lean}</span>
+                    </div>
                   )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {recentResults.length > 0 && (
-          <div style={{ marginBottom: 18 }}>
-            <Eyebrow label="Results" />
-            {recentResults.map((r, i) => (
-              <div key={i} onClick={() => handleAsk(`Best props for ${r.winner} after beating ${r.loser}`)} style={S.card(false, false)}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, overflow: 'hidden' }}>
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, fontWeight: 700, color: '#F7F8FA', whiteSpace: 'nowrap' }}>{r.winner}</span>
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 11, color: 'rgba(247,248,250,0.38)', whiteSpace: 'nowrap' }}>def. {r.loser}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0 }}>
-                    {r.score && <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 9.5, color: 'rgba(247,248,250,0.26)' }}>{r.score}</span>}
-                    {r.round && <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.06em', color: 'rgba(247,248,250,0.18)', textTransform: 'uppercase' }}>{abbreviateRound(r.round)}</span>}
-                  </div>
-                </div>
+              {/* Situation */}
+              <div className="nfl-detail-section">
+                <div className="nfl-detail-section-label">SITUATION 2026</div>
+                <div className="nfl-situation">{nflPd.situation}</div>
               </div>
-            ))}
-          </div>
-        )}
 
-        <div style={{ marginBottom: 18 }}>
-          <Eyebrow label="Ask" color="rgba(245,200,66,0.55)" />
-          {dynamicAsks.map((ask) => (
-            <div key={ask} onClick={() => handleAsk(ask)} style={S.card(false, true)}>
-              <div style={S.title}>{ask}</div>
-            </div>
-          ))}
-        </div>
-
-        {dataLoading && liveTennisMatchups.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.25)' }}>Loading slate...</div>
-          </div>
-        )}
-      </div>
-    </>
-  );
-
-  // --- MIAMI --------------------------------------------------------------------
-  const miamiScreen = (
-    <>
-      <LogoFull />
-      <div style={{ padding: '0 16px 4px' }}>
-        <Eyebrow label={contextData?.currentTournament?.name || "Miami Open 2026"} color="rgba(255,45,107,0.65)" />
-        <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, lineHeight: 1.6, color: 'rgba(247,248,250,0.55)', marginBottom: 14 }}>
-          {contextData?.currentTournament?.context?.split('.').slice(0,2).join('.') + '.' || 'Best angles in ace props, first-set winners, and total-games spots.'}
-        </div>
-      </div>
-
-      {renderAskBar("Ask Miami props, players, or matchups...")}
-
-      <div style={{ padding: '0 16px' }}>
-        <div style={{ marginBottom: 18 }}>
-          <Eyebrow label="Quick asks" color="rgba(245,200,66,0.55)" />
-          {miamiPrompts.map((p) => (
-            <div key={p} onClick={() => handleAsk(p)} style={S.card(false, true)}>
-              <div style={S.title}>{p}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ marginBottom: 18 }}>
-          <Eyebrow label="Prop guide" color="rgba(245,200,66,0.55)" />
-          {[
-            { title: 'Ace props', body: 'Most playable when hold stability and short-rally profile line up.' },
-            { title: 'First set winners', body: 'Best in lopsided serve quality matchups where early pressure is predictable.' },
-            { title: 'Total games', body: 'Strongest when both players hold clean or one player controls pace but not breaks.' },
-          ].map((item) => (
-            <div key={item.title} style={{ ...S.card(false, false), cursor: 'default' }}>
-              <div style={{ ...S.title, marginBottom: 4 }}>{item.title}</div>
-              <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 12, lineHeight: 1.5, color: 'rgba(247,248,250,0.48)' }}>{item.body}</div>
-            </div>
-          ))}
-        </div>
-
-        {[{ label: 'ATP - top players', players: atpPlayers }, { label: 'WTA - top players', players: wtaPlayers }].map(({ label, players }) => (
-          <div key={label} style={{ marginBottom: 18 }}>
-            <Eyebrow label={label} color="rgba(245,200,66,0.55)" />
-            {players.map((player) => (
-              <div key={player.name} style={{ ...S.card(false, false), cursor: 'default' }}>
-                <div style={{ ...S.title, marginBottom: 8 }}>{player.name}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 5 }}>
-                  {[['Elo', player.elo], ['Hold%', player.hold], ['DR', player.dr], ['TB%', player.tb]].map(([lbl, val]) => (
-                    <div key={lbl} style={{ background: '#080808', borderRadius: 7, padding: '6px 6px' }}>
-                      <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(247,248,250,0.32)', marginBottom: 3 }}>{lbl}</div>
-                      <div style={{ fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 800, color: '#F7F8FA' }}>{val}</div>
+              {/* Betting angles */}
+              <div className="nfl-detail-section">
+                <div className="nfl-detail-section-label">BETTING ANGLES</div>
+                <div className="nfl-betting-angles">
+                  {nflPd.bettingAngles.map((angle, i) => (
+                    <div key={i} className="nfl-angle-item">
+                      <div className="nfl-angle-dot" />
+                      <div>{angle}</div>
                     </div>
                   ))}
                 </div>
               </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </>
-  );
+            </div>
 
-  // --- ASK ----------------------------------------------------------------------
-  const askScreen = (
-    <>
-      <LogoSlim />
-      {renderAskBar("Ask props, matchups, or slate questions...")}
-      <div style={{ padding: '0 16px' }}>
-        {messages.length <= 1 && (
-          <div style={{ marginBottom: 18 }}>
-            <Eyebrow label="Featured prompts" />
-            {featuredPrompts.map((p) => (
-              <div key={p} onClick={() => handleAsk(p)} style={S.card(false, true)}>
-                <div style={S.title}>{p}</div>
-              </div>
-            ))}
-          </div>
+            <div className="ask-shell">
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedNflPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking} style={{ background:"var(--nfl)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+              </button>
+            </div>
+          </main>
         )}
 
-        <div style={{ display: 'grid', gap: 10 }}>
-          {messages.map((message, index) => (
-            <div key={`${message.role}-${index}`} style={{ display: 'flex', justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{
-                width: '100%',
-                maxWidth: message.role === 'user' ? 520 : '100%',
-                borderRadius: message.role === 'user' ? 16 : '0 14px 14px 0',
-                padding: '12px 14px',
-                background: message.role === 'user'
-                  ? 'linear-gradient(90deg, rgba(0,245,233,0.12), rgba(255,45,107,0.1))'
-                  : 'rgba(255,255,255,0.03)',
-                border: message.role === 'user' ? '1px solid rgba(0,245,233,0.18)' : 'none',
-                borderLeft: message.role === 'assistant' ? '2px solid rgba(0,245,233,0.35)' : undefined,
-              }}>
-                <div style={{ fontFamily: 'DM Mono, monospace', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: message.role === 'user' ? '#F5C842' : '#00F5E9', marginBottom: 7 }}>
-                  {message.role === 'user' ? 'You' : 'UR Take'}
-                </div>
-                {message.image && (
-                  <img src={message.image} alt="attached" style={{ width: '100%', maxWidth: 280, borderRadius: 8, marginBottom: 8, display: 'block' }} />
-                )}
-                {renderMessage(message.content, message.loading)}
+        {/* ==================== MATCHUP DETAIL ==================== */}
+        {screen === "matchup" && selectedMatchup && (
+          <main className="screen">
+            <button className="detail-back" onClick={goHome}>← BACK</button>
+            <div className="detail-card">
+              <div className="detail-head">
+                <div className="detail-league" style={{ color: selectedMatchup.leagueColor }}>{selectedMatchup.league}</div>
+                <div className="detail-title">{selectedMatchup.title}</div>
+                <div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div>
+              </div>
+              <div className="what-matters">
+                <div className="wm-label">HERE'S WHAT MATTERS</div>
+                <div className="wm-text">{selectedMatchup.whatMatters}</div>
+              </div>
+              <div className="mini-grid">
+                {selectedMatchup.stats.map((s) => (
+                  <div key={s.label} className="mini-stat">
+                    <div className="mini-label">{s.label}</div>
+                    <div className="mini-value">{s.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="quick-hitters">
+                {selectedMatchup.quickHitters.map((q) => (
+                  <button key={q} className="quick-btn" onClick={() => submitMatchupAsk(q)}>{q}</button>
+                ))}
               </div>
             </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-    </>
-  );
-
-  // --- PRO ----------------------------------------------------------------------
-  const proScreen = (
-    <>
-      <LogoSlim />
-      <div style={{ padding: '8px 16px' }}>
-        <div style={{ borderLeft: '2px solid rgba(255,45,107,0.5)', borderRadius: '0 14px 14px 0', background: 'linear-gradient(180deg, rgba(0,245,233,0.04), rgba(255,45,107,0.04)), rgba(255,255,255,0.025)', padding: 18 }}>
-          <Eyebrow label="Pro" color="rgba(255,45,107,0.7)" />
-          <h2 style={{ margin: 0, fontFamily: 'Bebas Neue, sans-serif', fontSize: 38, lineHeight: 1, color: '#F7F8FA', letterSpacing: '0.03em' }}>$9.99 / month</h2>
-          <p style={{ marginTop: 10, marginBottom: 16, fontFamily: 'DM Sans, sans-serif', fontSize: 14, lineHeight: 1.6, color: 'rgba(247,248,250,0.62)' }}>
-            Unlimited UR TAKE queries, deeper matchup cards, saved threads, and more premium betting intelligence.
-          </p>
-          <div style={{ display: 'grid', gap: 5, marginBottom: 16 }}>
-            {['Unlimited UR TAKE queries', 'Deeper matchup cards', 'Saved threads', 'Expanded player and surface data'].map((f) => (
-              <div key={f} style={{ borderLeft: '2px solid rgba(0,245,233,0.28)', borderRadius: '0 8px 8px 0', padding: '9px 12px', background: 'rgba(255,255,255,0.03)', fontFamily: 'DM Sans, sans-serif', fontSize: 13, fontWeight: 700, color: '#F7F8FA' }}>{f}</div>
-            ))}
-          </div>
-          <button style={{ width: '100%', height: 48, border: 'none', borderRadius: 999, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontSize: 15, fontWeight: 800, color: '#000', background: 'linear-gradient(90deg, #00F5E9, #FF2D6B)' }}>
-            Unlock Pro
-          </button>
-        </div>
-      </div>
-    </>
-  );
-
-  // --- SHELL + NAV --------------------------------------------------------------
-  return (
-    <div style={S.shell}>
-      <style>{`
-        *,*::before,*::after{box-sizing:border-box}
-        button{border:none;background:none;padding:0;margin:0;outline:none;-webkit-tap-highlight-color:transparent}
-        input{border:none;outline:none;background:none}
-        div[role=button],div[onClick]{outline:none}
-      `}</style>
-      <div style={S.container}>
-        {activeTab === 'HOME' && homeScreen}
-        {activeTab === 'MIAMI' && miamiScreen}
-        {activeTab === 'ASK' && askScreen}
-        {activeTab === 'PRO' && proScreen}
-      </div>
-
-      {/* Style B nav: solid background, single hairline top, no pill, no gradient */}
-      <nav style={{ position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 16px calc(10px + env(safe-area-inset-bottom))', background: '#040404', borderTop: '0.5px solid rgba(255,255,255,0.1)' }}>
-        <div style={{ width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-          {[
-            { key: 'HOME', label: 'Home' },
-            { key: 'MIAMI', label: contextData?.currentTournament?.name?.split(' ')[0] || 'Miami' },
-            { key: 'ASK', label: 'Ask' },
-            { key: 'PRO', label: 'Pro' },
-          ].map((item) => {
-            const isActive = activeTab === item.key;
-            const isMiami = item.key === 'MIAMI';
-            return (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key)}
-                onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
-                onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                onTouchStart={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
-                onTouchEnd={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  borderTop: isActive ? '1.5px solid #00F5E9' : '1.5px solid transparent',
-                  cursor: 'pointer',
-                  fontFamily: 'DM Mono, monospace',
-                  fontSize: 10,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: isActive ? '#F7F8FA' : isMiami ? '#F5C842' : 'rgba(247,248,250,0.28)',
-                  padding: '9px 0 5px',
-                  transition: 'transform 0.1s ease',
-                  WebkitTapHighlightColor: 'transparent',
-                }}
-              >
-                {item.label}
+            <div className="ask-shell">
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitMatchupAsk()} disabled={isAsking}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
               </button>
-            );
-          })}
-        </div>
-      </nav>
-    </div>
+            </div>
+          </main>
+        )}
+
+        {/* ==================== TENNIS PLAYER DETAIL ==================== */}
+        {screen === "player" && pd && (
+          <main className="screen">
+            <button className="detail-back" onClick={() => setScreen("miami")}>← BACK</button>
+            <div className="detail-card">
+              <div className="detail-head">
+                <div className="detail-league" style={{ color:"var(--cyan)" }}>MIAMI OPEN 2026</div>
+                <div className="detail-title">{selectedPlayer}</div>
+                <div className="detail-sub">{Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_"," ") : pd.style} · Elo {pd.elo}</div>
+              </div>
+              <div className="what-matters">
+                <div className="wm-label">SURFACE NOTES</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:8 }}>
+                  <div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{ color:"var(--cyan)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.hard || "—"}</div></div>
+                  <div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{ color:"var(--gold)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.clay || "—"}</div></div>
+                  <div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{ color:"var(--green)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.grass || "—"}</div></div>
+                </div>
+              </div>
+              <div style={{ padding:"0 14px 14px" }}>
+                <div className="wm-label" style={{ marginBottom:8 }}>2026 FORM</div>
+                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{pd.record2026 || "—"}</div>
+              </div>
+              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">SERVE</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div></div>
+              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">RETURN</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div></div>
+              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">OVERALL</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div></div>
+              {pd.miamiNote && (
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label" style={{ color:"var(--magenta)" }}>MIAMI NOTE</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.miamiNote}</div>
+                </div>
+              )}
+              {pd.fullNote && (
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label">UR TAKE</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.fullNote}</div>
+                </div>
+              )}
+            </div>
+            <div className="ask-shell">
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+              </button>
+            </div>
+          </main>
+        )}
+
+        {/* ==================== ASK PAGE ==================== */}
+        {screen === "ask" && (
+          <main className="screen">
+            <section className="hero" style={{ paddingTop:4 }}>
+              <div className="hero-title">UR TAKE</div>
+              <div className="hero-sub">Ask in plain English. Keep it broad or get weirdly specific.</div>
+            </section>
+            <div className="ask-shell">
+              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
+              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+              </button>
+            </div>
+            {messages.length === 0 ? (
+              <section className="section">
+                <div className="section-label">TRY ONE</div>
+                <div className="q-list">
+                  {featuredQuestions.map((q) => (
+                    <button key={q.id} className="q-card" onClick={() => askUrTake(q.prompt, null, null)}>
+                      <div className="q-top">
+                        <div className="q-accent" style={{ background: q.color }} />
+                        <div className="q-text">{q.text}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : (
+              <div className="chat-thread">
+                {messages.map((m, i) => (
+                  <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.loading ? m.text : renderMessage(m.text)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+        )}
+
+        {/* ==================== PRO PAGE ==================== */}
+        {screen === "pro" && (
+          <main className="screen">
+            <div className="pro-card">
+              <div className="pro-title">UNDER REVIEW PRO</div>
+              <div className="pro-copy">Unlimited UR TAKE queries, deeper matchup cards, saved threads, cleaner data views, and a more premium sports intelligence layer.</div>
+              <div className="pro-price">$9.99 / month</div>
+              <button className="pro-btn">UPGRADE</button>
+            </div>
+          </main>
+        )}
+
+        <nav className="bottom-nav">
+          <button className={`nav-btn${tab === "home" && screen === "home" ? " active" : ""}`} onClick={goHome}>HOME</button>
+          <button className={`nav-btn${tab === "miami" ? " miami-active" : ""}`} onClick={goMiami}>MIAMI</button>
+          <button className={`nav-btn${tab === "nfl" ? " nfl-active" : ""}`} onClick={goNfl}>NFL</button>
+          <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={() => goAsk("")}>ASK</button>
+          <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>PRO</button>
+        </nav>
+
+      </div>
+    </>
   );
 }
