@@ -543,57 +543,71 @@ export default function App() {
     .sort((a, b) => b[1].ydsPg - a[1].ydsPg);
 
   // ── Shared components ─────────────────────────────────────────────────────
- 
-// ─────────────────────────────────────────────────────────────────────────────
-// AskBar — MUST live at MODULE SCOPE (outside App) so React never remounts it.
-// If defined inside App, every App re-render creates a new component type,
-// which forces unmount+remount of the <input> and kills focus after each keystroke.
-// ─────────────────────────────────────────────────────────────────────────────
-function AskBar({ value, onChange, onSubmit, placeholder, btnColor, pastedImage, onClearImage, onAttachClick, disabled }) {
-  const handleKey = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); onSubmit(); }
-  };
-  return (
-    <div className="ask-wrap">
-      <div className="ask-row">
-        <div className="ask-col">
-          {pastedImage && (
-            <div className="ask-img-preview">
-              <img src={pastedImage.previewUrl} alt="Attached" className="ask-img-thumb" />
-              <button className="ask-img-remove" onClick={onClearImage} type="button">✕ Remove</button>
-            </div>
-          )}
-          <input
-            className="ask-bar"
-            value={value}
-            onChange={onChange}
-            placeholder={pastedImage ? "Ask about this image..." : placeholder}
-            onKeyDown={handleKey}
-            disabled={disabled}
-            autoComplete="off"
-          />
-          {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP 📎 TO ATTACH</div>}
+
+  // AskBar: fully self-contained, no shared state between instances
+  function AskBar({ value, onChange, onSubmit, placeholder, btnColor }) {
+    return (
+      <div className="ask-wrap">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display:"none" }}
+          onChange={(e) => { if (e.target.files[0]) processImageFile(e.target.files[0]); }}
+        />
+        <div className="ask-row">
+          <div className="ask-col">
+            {pastedImage && (
+              <div className="ask-img-preview">
+                <img src={pastedImage.previewUrl} alt="Attached" className="ask-img-thumb" />
+                <button className="ask-img-remove" onClick={clearImage}>✕ Remove</button>
+              </div>
+            )}
+            <input
+              className="ask-bar"
+              value={value}
+              onChange={onChange}
+              placeholder={pastedImage ? "Ask about this image..." : placeholder}
+              onKeyDown={(e) => { if (e.key === "Enter") onSubmit(); }}
+              disabled={isAsking}
+              autoComplete="off"
+            />
+            {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP 📎 TO ATTACH</div>}
+          </div>
+          <button
+            className={`attach-btn${pastedImage ? " has-img" : ""}`}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+          <button
+            className="send-btn"
+            onClick={onSubmit}
+            disabled={isAsking}
+            style={btnColor ? { background: btnColor } : {}}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+          </button>
         </div>
-        <button className={`attach-btn${pastedImage ? " has-img" : ""}`} onClick={onAttachClick} type="button">{CLIP_ICON}</button>
-        <button className="send-btn" onClick={onSubmit} disabled={disabled} type="button" style={btnColor ? { background:btnColor } : {}}>{SEND_ICON}</button>
       </div>
-    </div>
-  );
-}
- 
-function ChatThread({ msgs }) {
-  if (!msgs || msgs.length === 0) return null;
-  return (
-    <div className="chat-thread" style={{ marginBottom:20 }}>
-      {msgs.map((m, i) => (
-        <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
-          {m.image && <img src={m.image} alt="" className="bubble-img" />}
-          {m.loading ? m.text : renderMessage(m.text)}
-        </div>
-      ))}
-    </div>
-  );
-}
+    );
+  }
+
+  function ChatThread({ msgs }) {
+    if (!msgs || msgs.length === 0) return null;
+    return (
+      <div className="chat-thread" style={{ marginBottom:20 }}>
+        {msgs.map((m, i) => (
+          <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+            {m.image && <img src={m.image} alt="" className="bubble-img" />}
+            {m.loading ? m.text : renderMessage(m.text)}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   function TennisPlayerCard({ name, idx, tour }) {
     const p = getPlayer(name, tour);
