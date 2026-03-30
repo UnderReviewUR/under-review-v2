@@ -313,7 +313,12 @@ export default function App() {
   const [input, setInput]                     = useState("");
   const [nflInput, setNflInput]               = useState("");
   const [miamiInput, setMiamiInput]           = useState("");
-  const [messages, setMessages]               = useState([]);
+  const [threads, setThreads] = useState({
+  ask: [],
+  miami: [],
+  nfl: [],
+  matchup: [],
+});
   const [isAsking, setIsAsking]               = useState(false);
   const [players, setPlayers]                 = useState(null);
   const [context, setContext]                 = useState(null);
@@ -379,81 +384,121 @@ export default function App() {
   }, [processImageFile]);
 
   function renderMessage(text) {
-    if (!text) return null;
-    const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
-    const normalized = clean.replace(/ • /g, "\n• ");
-    const lines = normalized.split("\n");
-    return lines.map((line, i) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("•")) {
-        const parts  = trimmed.slice(1).trim().split("—");
-        const player = parts[0]?.trim();
-        const prop   = parts[1]?.trim();
-        const reason = parts.slice(2).join("—").trim();
-        return (
-          <div key={i} style={{ display:"flex", flexDirection:"column", background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px", marginTop:8 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: reason ? 4 : 0 }}>
-              <span style={{ width:6, height:6, borderRadius:"50%", background:"var(--cyan)", flexShrink:0 }} />
-              <span style={{ fontWeight:600, color:"var(--text)", fontSize:13 }}>{player}</span>
-              {prop && <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:"var(--cyan)", background:"rgba(0,245,233,.1)", padding:"2px 7px", borderRadius:4 }}>{prop}</span>}
-            </div>
-            {reason && <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5, paddingLeft:14 }}>{reason}</div>}
-          </div>
-        );
-      }
-      if (trimmed === "") return <div key={i} style={{ height:6 }} />;
-      return <div key={i} style={{ lineHeight:1.65, marginBottom:2 }}>{trimmed}</div>;
-    });
-  }
+  if (!text) return null;
+
+  const clean = String(text)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .trim();
+
+  const paragraphs = clean.split(/\n{2,}/);
+
+  return paragraphs.map((para, i) => {
+    const lines = para.split("\n").map(s => s.trim()).filter(Boolean);
+    const bulletish = lines.every(line => line.startsWith("•") || line.includes(" — "));
+
+    if (bulletish) {
+      return (
+        <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+          {lines.map((line, j) => {
+            const normalized = line.startsWith("•") ? line.slice(1).trim() : line;
+            const parts = normalized.split("—").map(s => s.trim());
+            const head = parts[0] || "";
+            const tail = parts.slice(1).join(" — ");
+
+            return (
+              <div key={j} style={{ background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px" }}>
+                <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 13, marginBottom: tail ? 4 : 0 }}>{head}</div>
+                {tail && <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.55 }}>{tail}</div>}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <div key={i} style={{ lineHeight: 1.7, marginBottom: 10 }}>
+        {para}
+      </div>
+    );
+  });
+}
 
   async function askUrTake(text, matchup, inputSetter, imageOverride) {
-    if (!text || isAsking) return;
-    setIsAsking(true);
-    if (inputSetter) inputSetter("");
+  if (!text || isAsking) return;
 
-    const imgToSend = imageOverride || pastedImage || null;
-    clearImage();
+  const threadKey =
+    matchup ? "matchup" :
+    screen === "miami" ? "miami" :
+    screen === "nfl" ? "nfl" :
+    "ask";
 
-    const userMsg = { role:"user", text, image: imgToSend?.previewUrl || null };
-    if (screen !== "miami" && screen !== "nfl") {
-      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
-      setTab("ask"); setScreen("ask");
-    } else {
-      setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
-    }
+  setIsAsking(true);
+  if (inputSetter) inputSetter("");
 
-    try {
-      const nflContext = buildNflContext();
+  const imgToSend = imageOverride || pastedImage || null;
+  clearImage();
 
-      const body = {
-        question: text,
-        players,
-        context,
-        liveMatches,
-        tour: "atp",
-        history: messages.slice(-6),
-        matchupContext: matchup || null,
-        nflContext,
-      };
+  const userMsg = { role: "user", text, image: imgToSend?.previewUrl || null };
 
-      if (imgToSend) {
-        body.image = { base64: imgToSend.base64, mediaType: imgToSend.mediaType };
-      }
+  setThreads((prev) => ({
+    ...prev,
+    [threadKey]: [...(prev[threadKey] || []), userMsg, { role: "ai", text: "THINKING...", loading: true }],
+  }));
 
-      const response = await fetch("/api/ur-take", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(body),
-      });
-      const data = await response.json();
-      const aiText = data.response || "Couldn't get a response — try again.";
-      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:aiText }]);
-    } catch {
-      setMessages((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:"Something went wrong — try again." }]);
-    } finally {
-      setIsAsking(false);
-    }
+  if (screen !== "miami" && screen !== "nfl" && !matchup) {
+    setTab("ask");
+    setScreen("ask");
   }
+
+  try {
+    const nflContext = buildNflContext();
+
+    const historyForThread = (threads[threadKey] || []).slice(-6);
+
+    const body = {
+      question: text,
+      players,
+      context,
+      liveMatches,
+      tour: "atp",
+      history: historyForThread,
+      matchupContext: matchup || null,
+      nflContext,
+      sportHint:
+        matchup?.league === "NFL" ? "nfl" :
+        screen === "nfl" ? "nfl" :
+        screen === "miami" ? "tennis" :
+        null,
+    };
+
+    if (imgToSend) {
+      body.image = { base64: imgToSend.base64, mediaType: imgToSend.mediaType };
+    }
+
+    const response = await fetch("/api/ur-take", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    const aiText = data.response || "Couldn't get a response — try again.";
+
+    setThreads((prev) => ({
+      ...prev,
+      [threadKey]: [...(prev[threadKey] || []).filter((m) => !m.loading), { role: "ai", text: aiText }],
+    }));
+  } catch {
+    setThreads((prev) => ({
+      ...prev,
+      [threadKey]: [...(prev[threadKey] || []).filter((m) => !m.loading), { role: "ai", text: "Something went wrong — try again." }],
+    }));
+  } finally {
+    setIsAsking(false);
+  }
+}
 
   // ── Navigation ────────────────────────────────────────────────────────────
   function goHome()  { setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
@@ -719,9 +764,9 @@ export default function App() {
               </div>
             </div>
 
-            {messages.length > 0 && (
+            {activemessages.length > 0 && (
               <div className="chat-thread" style={{ marginBottom:20 }}>
-                {messages.map((m, i) => (
+                {activemessages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
                     {m.image && <img src={m.image} alt="" className="bubble-img" />}
                     {m.loading ? m.text : renderMessage(m.text)}
@@ -788,9 +833,9 @@ export default function App() {
               </div>
             </div>
 
-            {messages.length > 0 && (
+            {activemessages.length > 0 && (
               <div className="chat-thread" style={{ marginBottom:20 }}>
-                {messages.map((m, i) => (
+                {activemessages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
                     {m.image && <img src={m.image} alt="" className="bubble-img" />}
                     {m.loading ? m.text : renderMessage(m.text)}
@@ -993,7 +1038,7 @@ export default function App() {
               onSubmit={() => submitAsk()}
               placeholder="What do you want to know?"
             />
-            {messages.length === 0 ? (
+            {activemessages.length === 0 ? (
               <section className="section">
                 <div className="section-label">TRY ONE</div>
                 <div className="q-list">
@@ -1009,7 +1054,7 @@ export default function App() {
               </section>
             ) : (
               <div className="chat-thread">
-                {messages.map((m, i) => (
+                {activemessages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
                     {m.image && <img src={m.image} alt="" className="bubble-img" />}
                     {m.loading ? m.text : renderMessage(m.text)}
