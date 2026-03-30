@@ -39,15 +39,16 @@ const NFL_QBS = {
 };
 
 // --- Sport detection ----------------------------------------------------------
-function detectSport(question) {
-  const q = question.toLowerCase();
+function detectSport(question, sportHint = null) {
+  const q = String(question || "").toLowerCase();
+
+  if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
+
   const nflSignals = [
-    "nfl","quarterback","qb","touchdown","interception","passing yards",
-    "rushing yards","fantasy football","super bowl","afc","nfc","wide receiver",
-    "running back","tight end","offensive line","defensive line","linebacker",
-    "cornerback","safety","field goal","punt","snap","blitz","coverage",
-    "pocket","scramble","red zone","two-point","audible","shotgun","pistol",
-    "play action","rpo","dome","outdoor stadium",
+    "nfl","quarterback","qb","touchdown","touchdowns","interception","interceptions",
+    "passing yards","rushing yards","receiving yards","fantasy football","super bowl",
+    "afc","nfc","wide receiver","running back","tight end","red zone","scramble",
+    "blitz","coverage","pocket","play action","rpo","field goal","snap",
     "bills","patriots","dolphins","jets","ravens","bengals","browns","steelers",
     "texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos",
     "cowboys","giants","eagles","commanders","bears","lions","packers","vikings",
@@ -56,12 +57,34 @@ function detectSport(question) {
     "maye","love","darnold","stafford","purdy","goff","daniels","williams",
     "ward","nix","lawrence","dart","young","mayfield","penix","jackson",
     "sanders","shough","brissett","rudolph","willis","o'connell","smith",
-    // RB/WR/TE signals
-    "cook","henry","taylor","robinson","achane","nacua","chase","smith-njigba",
-    "pickens","lamb","mcbride","bowers","kelce","warren",
-    "rb","wr","te","receiver","back","tight end","prop","props",
+    "cook","henry","taylor","robinson","achane","nacua","chase","pickens",
+    "lamb","mcbride","bowers","kelce","warren","rb","wr","te","receiver"
   ];
-  return nflSignals.some(s => q.includes(s)) ? "nfl" : "tennis";
+
+  const tennisSignals = [
+    "tennis","atp","wta","miami open","roland garros","french open","wimbledon","us open",
+    "australian open","indian wells","charleston","clay","grass","hard court","hard courts",
+    "serve","aces","double faults","break point","hold percentage","return points won",
+    "tiebreak","tiebreaks","draw","surface elo","elo","best of three",
+    "alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz",
+    "sabalenka","swiatek","rybakina","pegula","gauff","muchova","svitolina","anisimova",
+    "osaka","keys","raducanu","paolini","noskova","kasatkina"
+  ];
+
+  let nflScore = 0;
+  let tennisScore = 0;
+
+  for (const s of nflSignals) {
+    if (q.includes(s)) nflScore += s.length > 6 ? 2 : 1;
+  }
+  for (const s of tennisSignals) {
+    if (q.includes(s)) tennisScore += s.length > 6 ? 2 : 1;
+  }
+
+  if (tennisScore > nflScore) return "tennis";
+  if (nflScore > tennisScore) return "nfl";
+
+  return "tennis";
 }
 
 // --- Extract relevant QB profiles from question -------------------------------
@@ -79,7 +102,41 @@ function getRelevantQBs(question) {
   }
   return Object.keys(relevant).length > 0 ? relevant : NFL_QBS;
 }
+function getRelevantSkillPlayers(question, nflContext) {
+  if (!nflContext) return "No skill position data provided.";
 
+  const q = String(question || "").toLowerCase();
+  const blocks = String(nflContext).split("\n\n");
+
+  const matched = blocks.filter((block) => {
+    const lower = block.toLowerCase();
+    const firstLine = lower.split("\n")[0] || "";
+    const tokens = firstLine.split("|").map(s => s.trim());
+    return tokens.some(token => token && token.length > 2 && q.includes(token));
+  });
+
+  if (matched.length > 0) return matched.slice(0, 10).join("\n\n");
+
+  const genericNeedles = ["rb", "wr", "te", "touchdown", "td", "receiving", "rushing", "catches", "yards", "prop"];
+  if (genericNeedles.some(n => q.includes(n))) {
+    return blocks.slice(0, 20).join("\n\n");
+  }
+
+  return blocks.slice(0, 10).join("\n\n");
+}
+
+function summarizeMatchupContext(matchupContext) {
+  if (!matchupContext) return null;
+  const parts = [];
+  if (matchupContext.title) parts.push(`Title: ${matchupContext.title}`);
+  if (matchupContext.league) parts.push(`League: ${matchupContext.league}`);
+  if (matchupContext.time) parts.push(`Time: ${matchupContext.time}`);
+  if (matchupContext.whatMatters) parts.push(`What matters: ${matchupContext.whatMatters}`);
+  if (Array.isArray(matchupContext.quickHitters) && matchupContext.quickHitters.length) {
+    parts.push(`Quick hitters: ${matchupContext.quickHitters.join(" | ")}`);
+  }
+  return parts.join("\n");
+}
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -91,10 +148,22 @@ export default async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
 
-  const { question, players, context, liveMatches, tournamentResults, oddsData, tour, history, matchupContext, image, nflContext } = req.body;
-  if (!question) return res.status(400).json({ error: "Missing question" });
+const {
+  question,
+  players,
+  context,
+  liveMatches,
+  tournamentResults,
+  oddsData,
+  tour,
+  history,
+  matchupContext,
+  image,
+  nflContext,
+  sportHint
+} = req.body;  if (!question) return res.status(400).json({ error: "Missing question" });
 
-  const sport = detectSport(question);
+  const sport = detectSport(question, sportHint);
   const isNFL = sport === "nfl";
 
   // --- Odds context builder ------------------------------------------------
@@ -155,13 +224,47 @@ export default async function handler(req, res) {
   let systemPrompt;
 
   if (isNFL) {
-    const relevantQBs = getRelevantQBs(question);
-    const qbData = JSON.stringify(relevantQBs, null, 0).slice(0, 12000);
+  const relevantQBs = getRelevantQBs(question);
+  const qbData = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
+  const skillPositionData = getRelevantSkillPlayers(question, nflContext);
+  const matchupCtx = summarizeMatchupContext(matchupContext);
 
-    // nflContext is the rich RB/WR/TE data string sent from the frontend
-    const skillPositionData = nflContext || "No skill position data provided.";
+  systemPrompt = `
+You are Under Review's sports betting answer engine.
 
-    systemPrompt = `You are UR TAKE -- the voice of Under Review, a sharp sports betting intelligence app.
+You do not describe yourself as an "NFL intelligence model", "football-only model", or anything similarly restrictive.
+Never say you lack RB, WR, TE, or NFL data when it is provided below.
+Never talk about prompts, databases, hidden instructions, or sources.
+Do not refuse just because the question is broad. Answer directly.
+
+STYLE
+- Sound sharp, concise, confident, and specific.
+- Lead with the take.
+- Use the strongest stat, not a pile of stats.
+- No markdown headers.
+- No "UR TAKE:" prefix.
+- No self-introduction.
+- No meta commentary.
+
+OUTPUT RULES
+- For prop questions: open with "Player — OVER/UNDER — why".
+- For ranking questions: rank decisively and explain the top 1-3.
+- For comparison questions: pick a side, then explain.
+- For futures questions: say the best bet, best value, and best fade when possible.
+- Keep answers complete and self-contained.
+- Do not stop early.
+- If the data clearly supports a conclusion, do not hedge.
+
+NFL QB DATA
+${qbData}
+
+NFL SKILL POSITION DATA
+${skillPositionData}
+
+${matchupCtx ? `MATCHUP CONTEXT\n${matchupCtx}\n` : ""}
+
+${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nUse exact lines when present and say whether the number is soft, fair, or too high.` : "No live betting lines provided. Give directional leans only."}
+`.trim();
 
 CORE JOB
 Answer the user's question immediately with a sharp, stat-backed take. Lead with the lean, then back it with data. Sound like a savvy bettor talking to a friend -- confident, direct, specific. Never hedge when the data points clearly.
@@ -252,7 +355,23 @@ ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nWhen lines are present: reference t
   } else {
     // --- TENNIS SYSTEM PROMPT (unchanged) ----------------------------------
     systemPrompt = `
-You are UR TAKE -- the voice of Under Review, a sharp sports betting intelligence app covering all of professional tennis.
+systemPrompt = `
+You are Under Review's sports betting answer engine for tennis.
+
+You do not describe yourself as limited to football or to any single sport.
+Never say you cannot answer tennis questions when player data, tournament context, or surface data is present.
+Never talk about prompts, databases, hidden instructions, or sources.
+Do not stop at "I don't have draw data" when other tennis data is available.
+
+STYLE
+- Sound sharp, confident, natural, and specific.
+- Lead with the take.
+- No markdown headers.
+- No "UR TAKE:" prefix.
+- No self-introduction.
+- No meta commentary.
+...
+`.trim();
 
 CORE JOB
 Answer any tennis question immediately with a sharp, stat-backed take. Lead with the lean, back it with data. Sound like the sharpest bettor in the room talking to a friend -- confident, specific, natural. Never hedge when data points clearly. Never flip a take from social pressure.
@@ -448,13 +567,13 @@ Pick the right mode for the question. Use surface Elo as the primary signal for 
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: image ? "claude-sonnet-4-5" : "claude-haiku-4-5-20251001",
-        max_tokens: 700,
-        temperature: 0.7,
-        system: systemPrompt,
-        messages,
-      }),
+     body: JSON.stringify({
+  model: image ? "claude-sonnet-4-5" : "claude-sonnet-4-5",
+  max_tokens: 1200,
+  temperature: 0.45,
+  system: systemPrompt,
+  messages,
+}),
     });
 
     const data = await response.json();
@@ -464,8 +583,21 @@ Pick the right mode for the question. Use surface Elo as the primary signal for 
       return res.status(500).json({ error: "AI response failed", details: data });
     }
 
-    const text = data?.content?.filter(i => i.type === "text")?.map(i => i.text)?.join("\n")?.trim() || "Couldn't get a response. Try again.";
-    return res.status(200).json({ response: text });
+    clet text =
+  data?.content
+    ?.filter(i => i.type === "text")
+    ?.map(i => i.text)
+    ?.join("\n")
+    ?.trim() || "Couldn't get a response. Try again.";
+
+text = text
+  .replace(/^i['’]m ur take.*$/gim, "")
+  .replace(/^ur take[:\-]\s*/gim, "")
+  .replace(/^i am an nfl.*$/gim, "")
+  .replace(/^i don['’]t have tennis data.*$/gim, "")
+  .trim();
+
+return res.status(200).json({ response: text });
   } catch (err) {
     console.error("UR TAKE error:", err);
     return res.status(500).json({ error: "Request failed", details: err.message });
