@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -26,12 +26,24 @@ const css = `
   .hero-title{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:1px;line-height:1;margin-bottom:8px;}
   .hero-sub{color:var(--soft);font-size:14px;line-height:1.55;max-width:360px;margin:0 auto;}
 
-  .ask-shell{margin:12px 0 18px;display:flex;gap:8px;align-items:center;}
-  .ask-bar{width:100%;border:1px solid var(--border-2);background:var(--surface-2);border-radius:18px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;}
+  /* ── ASK BAR WITH IMAGE PASTE ── */
+  .ask-wrap{margin:12px 0 18px;display:flex;flex-direction:column;gap:6px;}
+  .ask-shell{display:flex;gap:8px;align-items:flex-end;}
+  .ask-input-col{flex:1;display:flex;flex-direction:column;gap:0;border:1px solid var(--border-2);background:var(--surface-2);border-radius:18px;overflow:hidden;transition:border-color .15s;}
+  .ask-input-col:focus-within{border-color:rgba(0,245,233,.4);}
+  .ask-img-preview{padding:8px 12px 0;display:flex;align-items:center;gap:8px;}
+  .ask-img-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border-2);}
+  .ask-img-remove{background:rgba(255,45,107,.15);border:1px solid rgba(255,45,107,.3);color:var(--magenta);border-radius:6px;padding:3px 8px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;}
+  .ask-img-remove:hover{background:rgba(255,45,107,.3);}
+  .ask-bar{width:100%;border:none;background:transparent;padding:12px 14px;color:var(--text);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;resize:none;min-height:44px;max-height:120px;}
   .ask-bar::placeholder{color:var(--muted);}
+  .ask-paste-hint{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;padding:0 14px 8px;opacity:.6;}
   .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan);color:var(--black);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
   .send-btn:hover{background:var(--magenta);}
   .send-btn:disabled{background:var(--border);cursor:not-allowed;}
+  .img-attach-btn{width:36px;height:36px;border:1px solid var(--border-2);border-radius:50%;background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
+  .img-attach-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .img-attach-btn.has-img{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,233,.08);}
 
   .section{margin-top:18px;}
   .section-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;}
@@ -81,6 +93,7 @@ const css = `
   .bubble.user{margin-left:auto;background:#1E2B38;border:1px solid #2A3A4A;color:var(--text);border-bottom-right-radius:6px;}
   .bubble.ai{margin-right:auto;background:var(--surface);border:1px solid var(--border);color:#D0D7E2;border-bottom-left-radius:6px;max-width:96%;}
   .bubble.loading{opacity:0.5;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);}
+  .bubble-img{width:100%;max-width:200px;border-radius:10px;margin-bottom:6px;display:block;}
 
   .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:rgba(8,10,12,.98);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:10px 6px max(12px,env(safe-area-inset-bottom));z-index:30;}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;padding:6px 0;}
@@ -203,176 +216,116 @@ const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minau
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
 const NFL_PLAYERS = {
-  "James Cook":       { pos:"RB", team:"BUF", tier:"ELITE",  ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6},  props:{recYds:{floor:80,ceil:150,lean:"OVER"},          td:{pg:0.88,lean:"OVER — 14 TDs, elite scorer"}},            situation:"Bills RB1 with Josh Allen. Allen's rushing is the only ceiling check but Cook is the every-down back.", bettingAngles:["Rush yards OVER every week","TD scorer OVER is the primary play","Volume is guaranteed — 16g starter"] },
-  "Jonathan Taylor":  { pos:"RB", team:"IND", tier:"ELITE",  ydsPg:105.1, rec2025:{g:17,yds:1786,td:14,recPg:3.2,ydsPg:105.1,ypr:4.6},  props:{recYds:{floor:75,ceil:145,lean:"OVER — 105 yds/g base"}, td:{pg:0.82,lean:"OVER 0.5 — elite red zone back"}},    situation:"Colts RB1. Taylor owns the ground game. Richardson health is the only risk.", bettingAngles:["Rush yards OVER weekly","TD scorer OVER — 82% rate is elite","Monitor Richardson health"] },
-  "Derrick Henry":    { pos:"RB", team:"BAL", tier:"ELITE",  ydsPg:103.3, rec2025:{g:16,yds:1653,td:15,recPg:1.1,ydsPg:103.3,ypr:5.1},  props:{recYds:{floor:75,ceil:145,lean:"OVER"},          td:{pg:0.94,lean:"OVER — 15 TDs, most on team"}},            situation:"Ravens RB1 and primary red zone weapon. Lamar Jackson's legs open massive running lanes. Elite workload.", bettingAngles:["Rush yards OVER is the clearest play","TD scorer every week","Fade receiving yards — he does not catch passes"] },
-  "Bijan Robinson":   { pos:"RB", team:"ATL", tier:"ELITE",  ydsPg:100.8, rec2025:{g:17,yds:1713,td:11,recPg:3.8,ydsPg:100.8,ypr:5.3}, props:{recYds:{floor:70,ceil:140,lean:"OVER"},          td:{pg:0.65,lean:"OVER in favorable matchups"}},             situation:"Falcons RB1 with Penix. Every-down back with elite receiving role. One of the best RB situations in football.", bettingAngles:["Rush yards OVER — elite volume","Receiving yards OVER on pass-heavy weeks","TD scorer reliable but not elite rate"] },
-  "De'Von Achane":    { pos:"RB", team:"MIA", tier:"ELITE",  ydsPg:93.7,  rec2025:{g:14,yds:1312,td:12,recPg:5.4,ydsPg:93.7,ypr:6.3},   props:{recYds:{floor:65,ceil:135,lean:"OVER"},          td:{pg:0.86,lean:"OVER — 12 TDs in 14 games"}},              situation:"Dolphins dual-threat RB. Receives 5+ per game regularly. Missed 3 games — health is the only risk.", bettingAngles:["Rush yards OVER when healthy","Receiving yards OVER — 5+ rec/g","Hard fade when injury report shows anything"] },
-  "Puka Nacua":       { pos:"WR", team:"LAR", tier:"ELITE",  ydsPg:107.2, rec2025:{g:16,tgt:166,rec:129,yds:1715,td:0,recPg:8.1,ydsPg:107.2,ypr:13.3},   props:{recYds:{floor:75,ceil:140,lean:"OVER — 107.2 base leads WRs"}, rec:{floor:6,ceil:11,lean:"OVER — 8.1 rec/g"}, td:{pg:0,lean:"FADE TD scorer — zero TDs in 16g"}}, situation:"Rams WR1 with Stafford. Most receptions in NFL 2025. TD regression coming but timing is unknown.", bettingAngles:["Receiving yards OVER every week","Catches OVER is elite volume play","FADE TD scorer until proven otherwise"] },
-  "Ja'Marr Chase":    { pos:"WR", team:"CIN", tier:"ELITE",  ydsPg:88.3,  rec2025:{g:16,tgt:185,rec:125,yds:1412,td:10,recPg:7.8,ydsPg:88.3,ypr:11.3},   props:{recYds:{floor:65,ceil:125,lean:"OVER when Burrow healthy"}, td:{pg:0.63,lean:"OVER 0.5 in favorable matchups"}}, situation:"Bengals WR1. Most talented WR in football. Burrow health is the only variable — monitor weekly.", bettingAngles:["Receiving yards OVER when Burrow active","TD scorer OVER in red zone games","Hard fade when Burrow out"] },
-  "Jaxon Smith-Njigba":{ pos:"WR", team:"SEA", tier:"ELITE", ydsPg:105.5, rec2025:{g:17,tgt:163,rec:119,yds:1793,td:6,recPg:7.0,ydsPg:105.5,ypr:15.1},  props:{recYds:{floor:75,ceil:145,lean:"OVER — led NFL in receiving yards"}, td:{pg:0.35,lean:"Moderate"}}, situation:"Seahawks WR1. Led the NFL in receiving yards in 2025. Full WR1 ascension confirmed.", bettingAngles:["Receiving yards OVER is the primary lean","Volume is locked in regardless of QB","Market may underrate him — exploit"] },
-  "George Pickens":   { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:84.1,  rec2025:{g:17,tgt:137,rec:93,yds:1429,td:8,recPg:5.5,ydsPg:84.1,ypr:15.4},    props:{recYds:{floor:65,ceil:125,lean:"OVER"}, td:{pg:0.47,lean:"OVER 0.5 in red zone games"}}, situation:"Cowboys WR with Prescott. Targets him downfield consistently.", bettingAngles:["Receiving yards OVER","TD scorer when Cowboys in red zone","Deep threat — big play in every game"] },
-  "CeeDee Lamb":      { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:76.9,  rec2025:{g:14,tgt:117,rec:75,yds:1077,td:6,recPg:5.4,ydsPg:76.9,ypr:14.4},    props:{recYds:{floor:60,ceil:115,lean:"OVER when healthy"}, td:{pg:0.43,lean:"OVER in favorable matchups"}}, situation:"Cowboys WR1 when healthy. Missed 3 games in 2025.", bettingAngles:["OVER when active — elite talent","Hard fade when any injury report","Monitor weekly"] },
-  "Trey McBride":     { pos:"TE", team:"ARI", tier:"ELITE",  ydsPg:72.9,  rec2025:{g:17,tgt:169,rec:126,yds:1239,td:5,recPg:7.4,ydsPg:72.9,ypr:9.8},    props:{rec:{floor:5,ceil:10,lean:"OVER — 7.4 rec/g leads all TEs"}, recYds:{floor:55,ceil:100,lean:"OVER"}, td:{pg:0.29,lean:"Moderate — 5 TDs only"}}, situation:"Best TE situation in football. Murray-McBride is the most reliable QB-TE connection in the NFL.", bettingAngles:["Catches OVER every week — 7.4/g is the floor","Receiving yards OVER is reliable","FADE TD scorer — barely scores despite elite volume"] },
-  "Brock Bowers":     { pos:"TE", team:"LVR", tier:"ELITE",  ydsPg:56.7,  rec2025:{g:12,tgt:86,rec:64,yds:680,td:3,recPg:5.3,ydsPg:56.7,ypr:10.6},      props:{rec:{floor:4,ceil:8,lean:"OVER when healthy"}, recYds:{lean:"OVER when healthy"}}, situation:"Raiders TE1. Historic rookie 2024. Health is the major variable — missed 5 games in 2025.", bettingAngles:["Health monitor every week","OVER immediately when active","Fade anything when injury report shows anything"] },
-  "Travis Kelce":     { pos:"TE", team:"KAN", tier:"ELITE",  ydsPg:50.1,  rec2025:{g:17,tgt:108,rec:76,yds:851,td:4,recPg:4.5,ydsPg:50.1,ypr:11.2},     props:{rec:{floor:3,ceil:7,lean:"OVER — Mahomes always finds him"}, td:{pg:0.24,lean:"Moderate"}}, situation:"Chiefs TE1 but age 37 in 2026. Declining production is real. Mahomes connection keeps him relevant.", bettingAngles:["Catches OVER when Mahomes healthy","FADE receiving yards — 50 is the real base","Monitor usage as season progresses"] },
-  "Tyler Warren":     { pos:"TE", team:"IND", tier:"ELITE",  ydsPg:48.1,  rec2025:{g:17,tgt:112,rec:76,yds:817,td:5,recPg:4.5,ydsPg:48.1,ypr:10.7},     props:{rec:{floor:3,ceil:7,lean:"OVER — 4.5/g is elite TE volume"}, td:{lean:"OVER 0.5 in favorable matchups"}}, situation:"Colts TE1. Elite rookie season. Richardson health is the key variable.", bettingAngles:["Catches OVER every week","Receiving yards OVER as Richardson improves","Year 2 with Richardson should be elite"] },
+  "James Cook":        { pos:"RB", team:"BUF", tier:"ELITE",  ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6},  props:{recYds:{floor:80,ceil:150,lean:"OVER"},                          td:{pg:0.88,lean:"OVER — 14 TDs, elite scorer"}},              situation:"Bills RB1 with Josh Allen. Allen's rushing is the only ceiling check but Cook is the every-down back.", bettingAngles:["Rush yards OVER every week","TD scorer OVER is the primary play","Volume is guaranteed — 16g starter"] },
+  "Jonathan Taylor":   { pos:"RB", team:"IND", tier:"ELITE",  ydsPg:105.1, rec2025:{g:17,yds:1786,td:14,recPg:3.2,ydsPg:105.1,ypr:4.6},  props:{recYds:{floor:75,ceil:145,lean:"OVER — 105 yds/g base"},         td:{pg:0.82,lean:"OVER 0.5 — elite red zone back"}},            situation:"Colts RB1. Taylor owns the ground game. Richardson health is the only risk.", bettingAngles:["Rush yards OVER weekly","TD scorer OVER — 82% rate is elite","Monitor Richardson health"] },
+  "Derrick Henry":     { pos:"RB", team:"BAL", tier:"ELITE",  ydsPg:103.3, rec2025:{g:16,yds:1653,td:15,recPg:1.1,ydsPg:103.3,ypr:5.1},  props:{recYds:{floor:75,ceil:145,lean:"OVER"},                          td:{pg:0.94,lean:"OVER — 15 TDs, most on team"}},               situation:"Ravens RB1 and primary red zone weapon. Lamar Jackson's legs open massive running lanes. Elite workload.", bettingAngles:["Rush yards OVER is the clearest play","TD scorer every week","Fade receiving yards — he does not catch passes"] },
+  "Bijan Robinson":    { pos:"RB", team:"ATL", tier:"ELITE",  ydsPg:100.8, rec2025:{g:17,yds:1713,td:11,recPg:3.8,ydsPg:100.8,ypr:5.3},  props:{recYds:{floor:70,ceil:140,lean:"OVER"},                          td:{pg:0.65,lean:"OVER in favorable matchups"}},                situation:"Falcons RB1 with Penix. Every-down back with elite receiving role. One of the best RB situations in football.", bettingAngles:["Rush yards OVER — elite volume","Receiving yards OVER on pass-heavy weeks","TD scorer reliable but not elite rate"] },
+  "De'Von Achane":     { pos:"RB", team:"MIA", tier:"ELITE",  ydsPg:93.7,  rec2025:{g:14,yds:1312,td:12,recPg:5.4,ydsPg:93.7,ypr:6.3},   props:{recYds:{floor:65,ceil:135,lean:"OVER"},                          td:{pg:0.86,lean:"OVER — 12 TDs in 14 games"}},                 situation:"Dolphins dual-threat RB. Receives 5+ per game regularly. Missed 3 games — health is the only risk.", bettingAngles:["Rush yards OVER when healthy","Receiving yards OVER — 5+ rec/g","Hard fade when injury report shows anything"] },
+  "Puka Nacua":        { pos:"WR", team:"LAR", tier:"ELITE",  ydsPg:107.2, rec2025:{g:16,tgt:166,rec:129,yds:1715,td:0,recPg:8.1,ydsPg:107.2,ypr:13.3}, props:{recYds:{floor:75,ceil:140,lean:"OVER — 107.2 base leads WRs"}, rec:{floor:6,ceil:11,lean:"OVER — 8.1 rec/g"}, td:{pg:0,lean:"FADE TD scorer — zero TDs in 16g"}}, situation:"Rams WR1 with Stafford. Most receptions in NFL 2025. TD regression coming but timing unknown.", bettingAngles:["Receiving yards OVER every week","Catches OVER is elite volume play","FADE TD scorer until proven otherwise"] },
+  "Ja'Marr Chase":     { pos:"WR", team:"CIN", tier:"ELITE",  ydsPg:88.3,  rec2025:{g:16,tgt:185,rec:125,yds:1412,td:10,recPg:7.8,ydsPg:88.3,ypr:11.3}, props:{recYds:{floor:65,ceil:125,lean:"OVER when Burrow healthy"}, td:{pg:0.63,lean:"OVER 0.5 in favorable matchups"}}, situation:"Bengals WR1. Most talented WR in football. Burrow health is the only variable — monitor weekly.", bettingAngles:["Receiving yards OVER when Burrow active","TD scorer OVER in red zone games","Hard fade when Burrow out"] },
+  "Jaxon Smith-Njigba":{ pos:"WR", team:"SEA", tier:"ELITE",  ydsPg:105.5, rec2025:{g:17,tgt:163,rec:119,yds:1793,td:6,recPg:7.0,ydsPg:105.5,ypr:15.1}, props:{recYds:{floor:75,ceil:145,lean:"OVER — led NFL in receiving yards"}, td:{pg:0.35,lean:"Moderate"}}, situation:"Seahawks WR1. Led the NFL in receiving yards in 2025. Full WR1 ascension confirmed.", bettingAngles:["Receiving yards OVER is the primary lean","Volume is locked in regardless of QB","Market may underrate him — exploit"] },
+  "George Pickens":    { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:84.1,  rec2025:{g:17,tgt:137,rec:93,yds:1429,td:8,recPg:5.5,ydsPg:84.1,ypr:15.4},   props:{recYds:{floor:65,ceil:125,lean:"OVER"}, td:{pg:0.47,lean:"OVER 0.5 in red zone games"}}, situation:"Cowboys WR with Prescott. Targets him downfield consistently.", bettingAngles:["Receiving yards OVER","TD scorer when Cowboys in red zone","Deep threat — big play in every game"] },
+  "CeeDee Lamb":       { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:76.9,  rec2025:{g:14,tgt:117,rec:75,yds:1077,td:6,recPg:5.4,ydsPg:76.9,ypr:14.4},   props:{recYds:{floor:60,ceil:115,lean:"OVER when healthy"}, td:{pg:0.43,lean:"OVER in favorable matchups"}}, situation:"Cowboys WR1 when healthy. Missed 3 games in 2025.", bettingAngles:["OVER when active — elite talent","Hard fade when any injury report","Monitor weekly"] },
+  "Trey McBride":      { pos:"TE", team:"ARI", tier:"ELITE",  ydsPg:72.9,  rec2025:{g:17,tgt:169,rec:126,yds:1239,td:5,recPg:7.4,ydsPg:72.9,ypr:9.8},   props:{rec:{floor:5,ceil:10,lean:"OVER — 7.4 rec/g leads all TEs"}, recYds:{floor:55,ceil:100,lean:"OVER"}, td:{pg:0.29,lean:"Moderate — 5 TDs only"}}, situation:"Best TE situation in football. Murray-McBride is the most reliable QB-TE connection in the NFL.", bettingAngles:["Catches OVER every week — 7.4/g is the floor","Receiving yards OVER is reliable","FADE TD scorer — barely scores despite elite volume"] },
+  "Brock Bowers":      { pos:"TE", team:"LVR", tier:"ELITE",  ydsPg:56.7,  rec2025:{g:12,tgt:86,rec:64,yds:680,td:3,recPg:5.3,ydsPg:56.7,ypr:10.6},     props:{rec:{floor:4,ceil:8,lean:"OVER when healthy"}, recYds:{lean:"OVER when healthy"}, td:{pg:0.25,lean:"Moderate"}}, situation:"Raiders TE1. Historic rookie 2024. Health is the major variable — missed 5 games in 2025.", bettingAngles:["Health monitor every week","OVER immediately when active","Fade anything when injury report shows anything"] },
+  "Travis Kelce":      { pos:"TE", team:"KAN", tier:"ELITE",  ydsPg:50.1,  rec2025:{g:17,tgt:108,rec:76,yds:851,td:4,recPg:4.5,ydsPg:50.1,ypr:11.2},    props:{rec:{floor:3,ceil:7,lean:"OVER — Mahomes always finds him"}, td:{pg:0.24,lean:"Moderate — age 37 concern"}}, situation:"Chiefs TE1 but age 37 in 2026. Declining production is real. Mahomes connection keeps him relevant.", bettingAngles:["Catches OVER when Mahomes healthy","FADE receiving yards — 50 is the real base","Monitor usage as season progresses"] },
+  "Tyler Warren":      { pos:"TE", team:"IND", tier:"ELITE",  ydsPg:48.1,  rec2025:{g:17,tgt:112,rec:76,yds:817,td:5,recPg:4.5,ydsPg:48.1,ypr:10.7},    props:{rec:{floor:3,ceil:7,lean:"OVER — 4.5/g is elite TE volume"}, td:{pg:0.29,lean:"OVER 0.5 in favorable matchups"}}, situation:"Colts TE1. Elite rookie season. Richardson health is the key variable.", bettingAngles:["Catches OVER every week","Receiving yards OVER as Richardson improves","Year 2 with Richardson should be elite"] },
 };
 
 const NFL_POSITIONS = ["ALL","RB","WR","TE"];
 
 const NFL_PROP_GUIDE = [
-  { player:"James Cook",    pos:"RB", team:"BUF", propType:"RUSH YDS",   line:"115.5", floor:80,  ceil:150, lean:"OVER — 112.3 avg, elite workload",            leanClass:"lean-over" },
-  { player:"Puka Nacua",    pos:"WR", team:"LAR", propType:"REC YDS",    line:"85.5",  floor:75,  ceil:140, lean:"OVER — 107.2 yds/g leads NFL",                 leanClass:"lean-over" },
-  { player:"Trey McBride",  pos:"TE", team:"ARI", propType:"CATCHES",    line:"6.5",   floor:5,   ceil:10,  lean:"OVER — 7.4/g is historic TE production",        leanClass:"lean-over" },
-  { player:"Ja'Marr Chase", pos:"WR", team:"CIN", propType:"REC YDS",    line:"75.5",  floor:65,  ceil:125, lean:"OVER when Burrow healthy",                      leanClass:"lean-over" },
-  { player:"Derrick Henry", pos:"RB", team:"BAL", propType:"RUSH TDs",   line:"0.5",   floor:0,   ceil:2,   lean:"OVER — 0.94 TDs/g is elite",                   leanClass:"lean-over" },
-  { player:"Travis Kelce",  pos:"TE", team:"KAN", propType:"REC YDS",    line:"52.5",  floor:35,  ceil:80,  lean:"FADE — real floor is ~50, market overprices",   leanClass:"lean-fade" },
+  { player:"James Cook",    pos:"RB", team:"BUF", propType:"RUSH YDS",  line:"115.5", floor:80,  ceil:150, lean:"OVER — 112.3 avg, elite workload",            leanClass:"lean-over" },
+  { player:"Puka Nacua",    pos:"WR", team:"LAR", propType:"REC YDS",   line:"85.5",  floor:75,  ceil:140, lean:"OVER — 107.2 yds/g leads NFL",                 leanClass:"lean-over" },
+  { player:"Trey McBride",  pos:"TE", team:"ARI", propType:"CATCHES",   line:"6.5",   floor:5,   ceil:10,  lean:"OVER — 7.4/g is historic TE production",        leanClass:"lean-over" },
+  { player:"Ja'Marr Chase", pos:"WR", team:"CIN", propType:"REC YDS",   line:"75.5",  floor:65,  ceil:125, lean:"OVER when Burrow healthy",                      leanClass:"lean-over" },
+  { player:"Derrick Henry", pos:"RB", team:"BAL", propType:"RUSH TDs",  line:"0.5",   floor:0,   ceil:2,   lean:"OVER — 0.94 TDs/g is elite",                   leanClass:"lean-over" },
+  { player:"Travis Kelce",  pos:"TE", team:"KAN", propType:"REC YDS",   line:"52.5",  floor:35,  ceil:80,  lean:"FADE — real floor is ~50, market overprices",   leanClass:"lean-fade" },
 ];
 
-// ─── HOME SCREEN DATA ────────────────────────────────────────────────────────
-
 const featuredQuestions = [
-  {
-    id: "q1",
-    color: "#00F5E9",
-    text: "Best ace props at Miami Open tonight?",
-    prompt: "What are the best ace props at Miami Open tonight based on the player data?"
-  },
-  {
-    id: "q2",
-    color: "#FF2D6B",
-    text: "Who wins Alcaraz vs Sinner on hard court?",
-    prompt: "Who wins Alcaraz vs Sinner on hard court and what are the betting angles?"
-  },
-  {
-    id: "q3",
-    color: "#FF6B35",
-    text: "Will Puka Nacua go over 1,500 receiving yards in 2026?",
-    prompt: "Will Puka Nacua go over 1,500 receiving yards in 2026? Give me the lean and the reasoning."
-  },
-  {
-    id: "q4",
-    color: "#F5C842",
-    text: "Which RB scores the most TDs in 2026?",
-    prompt: "Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?"
-  },
+  { id:"q1", color:"#00F5E9", text:"Best ace props at Miami Open tonight?",                prompt:"What are the best ace props at Miami Open tonight based on the player data?" },
+  { id:"q2", color:"#FF2D6B", text:"Who wins Alcaraz vs Sinner on hard court?",           prompt:"Who wins Alcaraz vs Sinner on hard court and what are the betting angles?" },
+  { id:"q3", color:"#FF6B35", text:"Will Puka Nacua go over 1,500 receiving yards in 2026?", prompt:"Will Puka Nacua go over 1,500 receiving yards in 2026? Give me the lean and the reasoning." },
+  { id:"q4", color:"#F5C842", text:"Which RB scores the most TDs in 2026?",               prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?" },
 ];
 
 const featuredMatchups = [
-  {
-    id: "m1",
-    league: "ATP",
-    leagueColor: "#00F5E9",
-    title: "Sinner vs Alcaraz",
-    time: "Miami Open 2026",
-    network: "Tennis Channel",
-    blurb: "The cleanest rivalry in tennis. Alcaraz leads H2H 11-6 but Sinner owns Miami — won here in 2022 and 2023. Hard court conditions suit both but in different ways.",
-    whatMatters: "Alcaraz's movement and drop-shot variety give him the tactical edge. Sinner's 91.8% hold rate and 81% tiebreak win rate are the counters. This comes down to who breaks serve first and who closes in the tiebreak.",
-    quickHitters: ["Who wins in three sets?","Is Sinner over 8 aces the play?","What is the total games lean?"],
-    stats: [
-      { label:"H2H",          value:"11-6 ALC" },
-      { label:"SINNER HOLD",  value:"91.8%" },
-      { label:"SURFACE",      value:"Hard" }
-    ]
-  },
-  {
-    id: "m2",
-    league: "WTA",
-    leagueColor: "#FF2D6B",
-    title: "Sabalenka vs Rybakina",
-    time: "Miami Open 2026",
-    network: "Tennis Channel",
-    blurb: "One of the thinnest edges in women's tennis. Sabalenka's power baseline meets Rybakina's serve — the one weapon that can consistently hold up against her pace.",
-    whatMatters: "Rybakina's 10.3% ace rate is the tour's best and neutralizes Sabalenka's return aggression. Sabalenka leads H2H 9-7 but Rybakina has the cleaner surface edge in Miami's conditions.",
-    quickHitters: ["Rybakina aces over 6.5?","Does this go three sets?","Sabalenka ML or plus games?"],
-    stats: [
-      { label:"H2H",       value:"9-7 SAB" },
-      { label:"RYB ACE%",  value:"10.3%" },
-      { label:"LEAN",      value:"RYB +2.5" }
-    ]
-  },
-  {
-    id: "m3",
-    league: "NFL",
-    leagueColor: "#FF6B35",
-    title: "Puka Nacua — 2026 Season Total",
-    time: "2026 NFL Season",
-    network: "Underdog / DK",
-    blurb: "Led the NFL in receptions in 2025 with 129 catches for 1,715 yards. Stafford's MVP season was built around him. The question is whether books have caught up to his true floor.",
-    whatMatters: "Nacua averages 107.2 receiving yards per game. Zero TDs in 2025 is the red flag but also the regression opportunity. His catches and yards props are the play — not TDs.",
-    quickHitters: ["Nacua over 1,500 yards in 2026?","Is TD regression coming?","Best Nacua prop to target?"],
-    stats: [
-      { label:"YDS/G 2025",  value:"107.2" },
-      { label:"REC 2025",    value:"129" },
-      { label:"TDs 2025",    value:"0 (!)" }
-    ]
-  },
-  {
-    id: "m4",
-    league: "NFL",
-    leagueColor: "#FF6B35",
-    title: "Derrick Henry — TD Season Total",
-    time: "2026 NFL Season",
-    network: "Underdog / DK",
-    blurb: "15 TDs in 2025 at 0.94 per game is the most reliable TD-scorer profile in football. Baltimore's scheme and Lamar Jackson's rushing open running lanes nobody else gets.",
-    whatMatters: "Henry's TD rate (0.94/g) is elite — the question is whether he stays healthy for 16+ games. When active he is the primary red zone weapon in one of the best run-blocking offenses in the NFL.",
-    quickHitters: ["Henry over 12 TDs in 2026?","Is he a reliable scorer prop weekly?","How much does Lamar affect his carries?"],
-    stats: [
-      { label:"TDs/G 2025",  value:"0.94" },
-      { label:"YDS/G",       value:"103.3" },
-      { label:"LEAN",        value:"TD OVER" }
-    ]
-  },
+  { id:"m1", league:"ATP", leagueColor:"#00F5E9", title:"Sinner vs Alcaraz", time:"Miami Open 2026", network:"Tennis Channel", blurb:"The cleanest rivalry in tennis. Alcaraz leads H2H 11-6 but Sinner owns Miami — won here in 2022 and 2023. Hard court conditions suit both but in different ways.", whatMatters:"Alcaraz's movement and drop-shot variety give him the tactical edge. Sinner's 91.8% hold rate and 81% tiebreak win rate are the counters. This comes down to who breaks serve first and who closes in the tiebreak.", quickHitters:["Who wins in three sets?","Is Sinner over 8 aces the play?","What is the total games lean?"], stats:[{label:"H2H",value:"11-6 ALC"},{label:"SINNER HOLD",value:"91.8%"},{label:"SURFACE",value:"Hard"}] },
+  { id:"m2", league:"WTA", leagueColor:"#FF2D6B", title:"Sabalenka vs Rybakina", time:"Miami Open 2026", network:"Tennis Channel", blurb:"One of the thinnest edges in women's tennis. Sabalenka's power baseline meets Rybakina's serve — the one weapon that can consistently hold up against her pace.", whatMatters:"Rybakina's 10.3% ace rate is the tour's best and neutralizes Sabalenka's return aggression. Sabalenka leads H2H 9-7 but Rybakina has the cleaner surface edge in Miami's conditions.", quickHitters:["Rybakina aces over 6.5?","Does this go three sets?","Sabalenka ML or plus games?"], stats:[{label:"H2H",value:"9-7 SAB"},{label:"RYB ACE%",value:"10.3%"},{label:"LEAN",value:"RYB +2.5"}] },
+  { id:"m3", league:"NFL", leagueColor:"#FF6B35", title:"Puka Nacua — 2026 Season Total", time:"2026 NFL Season", network:"Underdog / DK", blurb:"Led the NFL in receptions in 2025 with 129 catches for 1,715 yards. Stafford's MVP season was built around him. The question is whether books have caught up to his true floor.", whatMatters:"Nacua averages 107.2 receiving yards per game. Zero TDs in 2025 is the red flag but also the regression opportunity. His catches and yards props are the play — not TDs.", quickHitters:["Nacua over 1,500 yards in 2026?","Is TD regression coming?","Best Nacua prop to target?"], stats:[{label:"YDS/G 2025",value:"107.2"},{label:"REC 2025",value:"129"},{label:"TDs 2025",value:"0 (!)"}] },
+  { id:"m4", league:"NFL", leagueColor:"#FF6B35", title:"Derrick Henry — TD Season Total", time:"2026 NFL Season", network:"Underdog / DK", blurb:"15 TDs in 2025 at 0.94 per game is the most reliable TD-scorer profile in football. Baltimore's scheme and Lamar Jackson's rushing open running lanes nobody else gets.", whatMatters:"Henry's TD rate (0.94/g) is elite — the question is whether he stays healthy for 16+ games. When active he is the primary red zone weapon in one of the best run-blocking offenses in the NFL.", quickHitters:["Henry over 12 TDs in 2026?","Is he a reliable scorer prop weekly?","How much does Lamar affect his carries?"], stats:[{label:"TDs/G 2025",value:"0.94"},{label:"YDS/G",value:"103.3"},{label:"LEAN",value:"TD OVER"}] },
 ];
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 function formatServeStats(s) {
   if (!s) return "—";
   const p = [];
   if (s.holdPct !== undefined) p.push(`Hold ${s.holdPct}%`);
-  if (s.acePct !== undefined) p.push(`Ace ${s.acePct}%`);
-  if (s.dfPct !== undefined) p.push(`DF ${s.dfPct}%`);
+  if (s.acePct  !== undefined) p.push(`Ace ${s.acePct}%`);
+  if (s.dfPct   !== undefined) p.push(`DF ${s.dfPct}%`);
   return p.length ? p.join(", ") : "—";
 }
 function formatReturnStats(s) {
   if (!s) return "—";
   const p = [];
-  if (s.rpwPct !== undefined) p.push(`RPW ${s.rpwPct}%`);
+  if (s.rpwPct   !== undefined) p.push(`RPW ${s.rpwPct}%`);
   if (s.breakPct !== undefined) p.push(`Break ${s.breakPct}%`);
   return p.length ? p.join(", ") : "—";
 }
 function formatOverallStats(s) {
   if (!s) return "—";
   const p = [];
-  if (s.dominanceRatio !== undefined) p.push(`DR ${s.dominanceRatio}`);
-  if (s.totalPointsWonPct !== undefined) p.push(`TPW ${s.totalPointsWonPct}%`);
-  if (s.tiebreakPct !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
+  if (s.dominanceRatio      !== undefined) p.push(`DR ${s.dominanceRatio}`);
+  if (s.totalPointsWonPct   !== undefined) p.push(`TPW ${s.totalPointsWonPct}%`);
+  if (s.tiebreakPct         !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
   return p.length ? p.join(", ") : "—";
 }
-function getHoldValue(p) { return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—"; }
+function getHoldValue(p) { return p?.serveStats?.holdPct  !== undefined ? `${p.serveStats.holdPct}%`          : "—"; }
 function getDrValue(p)   { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—"; }
-function getTbValue(p)   { return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—"; }
+function getTbValue(p)   { return p?.overallStats?.tiebreakPct    !== undefined ? `${p.overallStats.tiebreakPct}%`  : "—"; }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// ── Build the rich NFL context string sent to the API ──────────────────────
+function buildNflContext() {
+  return Object.entries(NFL_PLAYERS).map(([name, p]) => {
+    const tdPg      = p.props.td?.pg    !== undefined ? `${p.props.td.pg} TDs/g` : "";
+    const totalTds  = p.rec2025.td      !== undefined ? `${p.rec2025.td} total TDs` : "";
+    const games     = p.rec2025.g       !== undefined ? `${p.rec2025.g}g` : "";
+    const tdLean    = p.props.td?.lean  || "—";
+    const ydsLean   = p.props.recYds?.lean || p.props.rec?.lean || "—";
+    const recPg     = p.rec2025.recPg   !== undefined ? `, ${p.rec2025.recPg} rec/g` : "";
+    const tgt       = p.rec2025.tgt     !== undefined ? `, ${p.rec2025.tgt} tgt` : "";
+    const ypr       = p.rec2025.ypr     !== undefined ? `, ${p.rec2025.ypr} ypr` : "";
+    return [
+      `${name} | ${p.pos} | ${p.team} | ${p.tier}`,
+      `  Stats: ${p.ydsPg} yds/g, ${totalTds} in ${games}${recPg}${tgt}${ypr}`,
+      `  TD rate: ${tdPg || "n/a"} | TD lean: ${tdLean}`,
+      `  Volume lean: ${ydsLean}`,
+      `  Situation: ${p.situation}`,
+      `  Betting angles: ${p.bettingAngles.join(" | ")}`,
+    ].join("\n");
+  }).join("\n\n");
+}
 
 export default function App() {
-  const [tab, setTab]                     = useState("home");
-  const [screen, setScreen]               = useState("home");
+  const [tab, setTab]                         = useState("home");
+  const [screen, setScreen]                   = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
-  const [input, setInput]                 = useState("");
-  const [nflInput, setNflInput]           = useState("");
-  const [miamiInput, setMiamiInput]       = useState("");
-  const [messages, setMessages]           = useState([]);
-  const [isAsking, setIsAsking]           = useState(false);
-  const [players, setPlayers]             = useState(null);
-  const [context, setContext]             = useState(null);
-  const [tennisLoading, setTennisLoading] = useState(false);
-  const [selectedPlayer, setSelectedPlayer]       = useState(null);
-  const [liveMatches, setLiveMatches]     = useState([]);
+  const [input, setInput]                     = useState("");
+  const [nflInput, setNflInput]               = useState("");
+  const [miamiInput, setMiamiInput]           = useState("");
+  const [messages, setMessages]               = useState([]);
+  const [isAsking, setIsAsking]               = useState(false);
+  const [players, setPlayers]                 = useState(null);
+  const [context, setContext]                 = useState(null);
+  const [tennisLoading, setTennisLoading]     = useState(false);
+  const [selectedPlayer, setSelectedPlayer]   = useState(null);
+  const [liveMatches, setLiveMatches]         = useState([]);
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
-  const [nflPosFilter, setNflPosFilter]   = useState("ALL");
+  const [nflPosFilter, setNflPosFilter]       = useState("ALL");
+
+  // ── Image state ──────────────────────────────────────────────────────────
+  const [pastedImage, setPastedImage]         = useState(null); // { base64, mediaType, previewUrl }
+  const fileInputRef                          = useRef(null);
 
   useEffect(() => {
     setTennisLoading(true);
@@ -390,6 +343,41 @@ export default function App() {
       .catch(() => setTennisLoading(false));
   }, []);
 
+  // ── Image helpers ─────────────────────────────────────────────────────────
+  const processImageFile = useCallback((file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const base64 = dataUrl.split(",")[1];
+      setPastedImage({ base64, mediaType: file.type, previewUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const clearImage = useCallback(() => {
+    setPastedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  // Global paste listener — captures image paste anywhere on the page
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) processImageFile(file);
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [processImageFile]);
+
   function renderMessage(text) {
     if (!text) return null;
     const clean = text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
@@ -398,7 +386,7 @@ export default function App() {
     return lines.map((line, i) => {
       const trimmed = line.trim();
       if (trimmed.startsWith("•")) {
-        const parts = trimmed.slice(1).trim().split("—");
+        const parts  = trimmed.slice(1).trim().split("—");
         const player = parts[0]?.trim();
         const prop   = parts[1]?.trim();
         const reason = parts.slice(2).join("—").trim();
@@ -418,12 +406,15 @@ export default function App() {
     });
   }
 
-  async function askUrTake(text, matchup, inputSetter) {
+  async function askUrTake(text, matchup, inputSetter, imageOverride) {
     if (!text || isAsking) return;
     setIsAsking(true);
     if (inputSetter) inputSetter("");
 
-    const userMsg = { role:"user", text };
+    const imgToSend = imageOverride || pastedImage || null;
+    clearImage();
+
+    const userMsg = { role:"user", text, image: imgToSend?.previewUrl || null };
     if (screen !== "miami" && screen !== "nfl") {
       setMessages((prev) => [...prev, userMsg, { role:"ai", text:"THINKING...", loading:true }]);
       setTab("ask"); setScreen("ask");
@@ -432,23 +423,27 @@ export default function App() {
     }
 
     try {
-      const nflContext = Object.entries(NFL_PLAYERS).map(([name, p]) =>
-        `${name} (${p.pos}, ${p.team}, ${p.tier}): ${p.ydsPg} yds/g. ${p.situation} Best prop: ${p.props.recYds?.lean || p.props.rec?.lean || "See data"}`
-      ).join("\n");
+      const nflContext = buildNflContext();
+
+      const body = {
+        question: text,
+        players,
+        context,
+        liveMatches,
+        tour: "atp",
+        history: messages.slice(-6),
+        matchupContext: matchup || null,
+        nflContext,
+      };
+
+      if (imgToSend) {
+        body.image = { base64: imgToSend.base64, mediaType: imgToSend.mediaType };
+      }
 
       const response = await fetch("/api/ur-take", {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({
-          question: text,
-          players,
-          context,
-          liveMatches,
-          tour: "atp",
-          history: messages.slice(-6),
-          matchupContext: matchup || null,
-          nflContext,
-        }),
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
       });
       const data = await response.json();
       const aiText = data.response || "Couldn't get a response — try again.";
@@ -460,20 +455,20 @@ export default function App() {
     }
   }
 
-  // ── Navigation helpers ────────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
   function goHome()  { setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
   function goMiami() { setTab("miami"); setScreen("miami"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
   function goNfl()   { setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
   function goAsk(prefill = "") { setTab("ask"); setScreen("ask"); setSelectedMatchup(null); setInput(prefill); }
   function goPro()   { setTab("pro");   setScreen("pro");   setSelectedMatchup(null); }
-  function openMatchup(m)   { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
+  function openMatchup(m)      { setSelectedMatchup(m); setScreen("matchup"); setTab("home"); setInput(""); }
   function openPlayer(name)    { setSelectedPlayer(name);    setScreen("player"); }
   function openNflPlayer(name) { setSelectedNflPlayer(name); setScreen("nflplayer"); }
 
-  function submitAsk(forced)       { const t = (forced ?? input).trim();      if (!t || isAsking) return; setInput("");      askUrTake(t, selectedMatchup, null); }
-  function submitMatchupAsk(forced){ const t = (forced ?? input).trim();      if (!t || isAsking) return; setInput("");      askUrTake(t, selectedMatchup, null); }
-  function submitMiamiAsk(forced)  { const t = (forced ?? miamiInput).trim(); if (!t || isAsking) return; askUrTake(t, null, setMiamiInput); }
-  function submitNflAsk(forced)    { const t = (forced ?? nflInput).trim();   if (!t || isAsking) return; askUrTake(t, null, setNflInput); }
+  function submitAsk(forced)        { const t = (forced ?? input).trim();      if (!t || isAsking) return; setInput("");      askUrTake(t, selectedMatchup, null); }
+  function submitMatchupAsk(forced) { const t = (forced ?? input).trim();      if (!t || isAsking) return; setInput("");      askUrTake(t, selectedMatchup, null); }
+  function submitMiamiAsk(forced)   { const t = (forced ?? miamiInput).trim(); if (!t || isAsking) return; askUrTake(t, null, setMiamiInput); }
+  function submitNflAsk(forced)     { const t = (forced ?? nflInput).trim();   if (!t || isAsking) return; askUrTake(t, null, setNflInput); }
 
   function getPlayer(name, tour = "atp") {
     if (!players) return null;
@@ -484,14 +479,65 @@ export default function App() {
     return players.atp?.[name] || players.wta?.[name] || null;
   }
 
-  const pd    = (screen === "player"    && selectedPlayer)    ? getPlayerAny(selectedPlayer)      : null;
-  const nflPd = (screen === "nflplayer" && selectedNflPlayer) ? NFL_PLAYERS[selectedNflPlayer]    : null;
+  const pd    = (screen === "player"    && selectedPlayer)    ? getPlayerAny(selectedPlayer)   : null;
+  const nflPd = (screen === "nflplayer" && selectedNflPlayer) ? NFL_PLAYERS[selectedNflPlayer] : null;
 
   const filteredNflPlayers = Object.entries(NFL_PLAYERS)
     .filter(([, p]) => nflPosFilter === "ALL" || p.pos === nflPosFilter)
     .sort((a, b) => b[1].ydsPg - a[1].ydsPg);
 
-  // ── Sub-components ────────────────────────────────────────────────────────
+  // ── Shared image paste input component ───────────────────────────────────
+  function AskInput({ value, onChange, onSubmit, placeholder, btnColor, tabContext }) {
+    return (
+      <div className="ask-wrap">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display:"none" }}
+          onChange={(e) => { if (e.target.files[0]) processImageFile(e.target.files[0]); }}
+        />
+        <div className="ask-shell">
+          <div className="ask-input-col">
+            {pastedImage && (
+              <div className="ask-img-preview">
+                <img src={pastedImage.previewUrl} alt="Attached" className="ask-img-thumb" />
+                <button className="ask-img-remove" onClick={clearImage}>✕ Remove</button>
+              </div>
+            )}
+            <input
+              className="ask-bar"
+              value={value}
+              onChange={onChange}
+              placeholder={pastedImage ? "Ask about this image..." : placeholder}
+              onKeyDown={(e) => e.key === "Enter" && onSubmit()}
+              disabled={isAsking}
+            />
+            {!pastedImage && (
+              <div className="ask-paste-hint">PASTE IMAGE OR TAP 📎</div>
+            )}
+          </div>
+          <button
+            className={`img-attach-btn${pastedImage ? " has-img" : ""}`}
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+          <button
+            className="send-btn"
+            onClick={onSubmit}
+            disabled={isAsking}
+            style={btnColor ? { background: btnColor } : {}}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   function TennisPlayerCard({ name, idx, tour }) {
     const p = getPlayer(name, tour);
@@ -550,22 +596,17 @@ export default function App() {
     );
   }
 
-  // ── Send arrow SVG ────────────────────────────────────────────────────────
   const sendIcon = (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
       <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
     </svg>
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{css}</style>
       <div className="app">
 
-        {/* ── HEADER ── */}
         <header className="hdr">
           <div>
             <span className="logo-under">UNDER</span>
@@ -574,7 +615,7 @@ export default function App() {
           <div>
             {screen === "miami"     && <span className="pill-live">MIAMI OPEN</span>}
             {screen === "nfl"       && <span className="pill-nfl">NFL 2026</span>}
-            {screen === "nflplayer" && nflPd   && <span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
+            {screen === "nflplayer" && nflPd && <span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
             {screen === "player"    && <span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
             {screen === "matchup"   && selectedMatchup && <span className="pill-tag">{selectedMatchup.league}</span>}
             {screen === "ask"       && <span className="pill-tag">UR TAKE</span>}
@@ -582,9 +623,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* ══════════════════════════════════════════
-            HOME
-        ══════════════════════════════════════════ */}
+        {/* ══ HOME ══ */}
         {screen === "home" && (
           <main className="screen">
             <section className="hero">
@@ -592,17 +631,12 @@ export default function App() {
               <div className="hero-sub">Tennis, NFL, stats, props, predictions — in plain English.</div>
             </section>
 
-            <div className="ask-shell">
-              <input
-                className="ask-bar"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask UR TAKE anything..."
-                onKeyDown={(e) => e.key === "Enter" && submitAsk()}
-                disabled={isAsking}
-              />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>{sendIcon}</button>
-            </div>
+            <AskInput
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onSubmit={() => submitAsk()}
+              placeholder="Ask UR TAKE anything..."
+            />
 
             <section className="section">
               <div className="section-label">TRENDING ASKS</div>
@@ -647,9 +681,7 @@ export default function App() {
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            MIAMI / TENNIS
-        ══════════════════════════════════════════ */}
+        {/* ══ MIAMI / TENNIS ══ */}
         {screen === "miami" && (
           <main className="screen">
             <div className="miami-banner">
@@ -674,12 +706,14 @@ export default function App() {
 
             <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16 }}>
               <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8 }}>ASK ANYTHING — MIAMI OPEN</div>
-              <div className="ask-shell" style={{ margin:0 }}>
-                <input className="ask-bar" value={miamiInput} onChange={(e) => setMiamiInput(e.target.value)} placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?" onKeyDown={(e) => e.key === "Enter" && submitMiamiAsk()} disabled={isAsking} />
-                <button className="send-btn" onClick={() => submitMiamiAsk()} disabled={isAsking}>{sendIcon}</button>
-              </div>
-              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
-                {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays on the board?"].map((q) => (
+              <AskInput
+                value={miamiInput}
+                onChange={(e) => setMiamiInput(e.target.value)}
+                onSubmit={() => submitMiamiAsk()}
+                placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?"
+              />
+              <div style={{ display:"flex", gap:8, marginTop:4, flexWrap:"wrap" }}>
+                {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays?"].map((q) => (
                   <button key={q} className="quick-btn" onClick={() => submitMiamiAsk(q)} style={{ fontSize:11 }}>{q}</button>
                 ))}
               </div>
@@ -689,6 +723,7 @@ export default function App() {
               <div className="chat-thread" style={{ marginBottom:20 }}>
                 {messages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.image && <img src={m.image} alt="" className="bubble-img" />}
                     {m.loading ? m.text : renderMessage(m.text)}
                   </div>
                 ))}
@@ -726,26 +761,27 @@ export default function App() {
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            NFL
-        ══════════════════════════════════════════ */}
+        {/* ══ NFL ══ */}
         {screen === "nfl" && (
           <main className="screen">
             <div className="nfl-banner">
               <div className="nfl-banner-title">NFL 2026 Season</div>
               <div className="nfl-banner-sub">Props · Player Stats · Betting Angles</div>
               <div className="nfl-banner-note">
-                Skill positions database: WR, RB, TE tiers with per-game stats, prop floors and ceilings, and lean rationale. Ask UR TAKE about any player or matchup.
+                Skill positions database: WR, RB, TE tiers with per-game stats, prop floors and ceilings, TD rates, and lean rationale. Ask UR TAKE about any player or matchup.
               </div>
             </div>
 
             <div className="nfl-ask-shell">
               <div className="nfl-ask-label">ASK ANYTHING — NFL</div>
-              <div className="ask-shell" style={{ margin:0 }}>
-                <input className="ask-bar" value={nflInput} onChange={(e) => setNflInput(e.target.value)} placeholder="e.g. Should I take Nacua over 85.5 rec yards? Best TE prop?" onKeyDown={(e) => e.key === "Enter" && submitNflAsk()} disabled={isAsking} />
-                <button className="send-btn" onClick={() => submitNflAsk()} disabled={isAsking} style={{ background:"var(--nfl)" }}>{sendIcon}</button>
-              </div>
-              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+              <AskInput
+                value={nflInput}
+                onChange={(e) => setNflInput(e.target.value)}
+                onSubmit={() => submitNflAsk()}
+                placeholder="e.g. Which RB leads TDs in 2026? Best WR prop this week?"
+                btnColor="var(--nfl)"
+              />
+              <div style={{ display:"flex", gap:8, marginTop:4, flexWrap:"wrap" }}>
                 {["Best WR props this week?","Top TE by volume?","Fade or take Kelce?","Best RB rushing prop?"].map((q) => (
                   <button key={q} className="quick-btn" onClick={() => submitNflAsk(q)} style={{ fontSize:11 }}>{q}</button>
                 ))}
@@ -756,6 +792,7 @@ export default function App() {
               <div className="chat-thread" style={{ marginBottom:20 }}>
                 {messages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.image && <img src={m.image} alt="" className="bubble-img" />}
                     {m.loading ? m.text : renderMessage(m.text)}
                   </div>
                 ))}
@@ -786,9 +823,7 @@ export default function App() {
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            NFL PLAYER DETAIL
-        ══════════════════════════════════════════ */}
+        {/* ══ NFL PLAYER DETAIL ══ */}
         {screen === "nflplayer" && nflPd && (
           <main className="screen">
             <button className="detail-back" onClick={() => { setScreen("nfl"); setSelectedNflPlayer(null); }}>← BACK</button>
@@ -798,16 +833,14 @@ export default function App() {
                 <div className="nfl-detail-name">{selectedNflPlayer}</div>
                 <div className="nfl-detail-sub">{nflPd.ydsPg} yds/g · {nflPd.rec2025.g} games played</div>
               </div>
-
               <div className="nfl-detail-grid">
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">YDS/G</div><div className="nfl-detail-value" style={{ color:"var(--nfl)" }}>{nflPd.ydsPg}</div></div>
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">TDs</div><div className="nfl-detail-value" style={{ color:"var(--gold)" }}>{nflPd.rec2025.td}</div></div>
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">YPR</div><div className="nfl-detail-value">{nflPd.rec2025.ypr}</div></div>
-                {nflPd.rec2025.tgt && <div className="nfl-detail-stat"><div className="nfl-detail-label">TARGETS</div><div className="nfl-detail-value">{nflPd.rec2025.tgt}</div></div>}
+                {nflPd.rec2025.tgt   && <div className="nfl-detail-stat"><div className="nfl-detail-label">TARGETS</div><div className="nfl-detail-value">{nflPd.rec2025.tgt}</div></div>}
                 {nflPd.rec2025.recPg && <div className="nfl-detail-stat"><div className="nfl-detail-label">REC/G</div><div className="nfl-detail-value">{nflPd.rec2025.recPg}</div></div>}
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">GAMES</div><div className="nfl-detail-value">{nflPd.rec2025.g}</div></div>
               </div>
-
               <div className="nfl-detail-section">
                 <div className="nfl-detail-section-label">PROP BREAKDOWN</div>
                 <div className="nfl-prop-block">
@@ -837,12 +870,10 @@ export default function App() {
                   )}
                 </div>
               </div>
-
               <div className="nfl-detail-section">
                 <div className="nfl-detail-section-label">SITUATION 2026</div>
                 <div className="nfl-situation">{nflPd.situation}</div>
               </div>
-
               <div className="nfl-detail-section">
                 <div className="nfl-detail-section-label">BETTING ANGLES</div>
                 <div className="nfl-betting-angles">
@@ -855,17 +886,17 @@ export default function App() {
                 </div>
               </div>
             </div>
-
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedNflPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking} style={{ background:"var(--nfl)" }}>{sendIcon}</button>
-            </div>
+            <AskInput
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onSubmit={() => submitAsk()}
+              placeholder={`Ask about ${selectedNflPlayer}...`}
+              btnColor="var(--nfl)"
+            />
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            MATCHUP DETAIL
-        ══════════════════════════════════════════ */}
+        {/* ══ MATCHUP DETAIL ══ */}
         {screen === "matchup" && selectedMatchup && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
@@ -893,16 +924,16 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedMatchup.title}...`} onKeyDown={(e) => e.key === "Enter" && submitMatchupAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitMatchupAsk()} disabled={isAsking}>{sendIcon}</button>
-            </div>
+            <AskInput
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onSubmit={() => submitMatchupAsk()}
+              placeholder={`Ask about ${selectedMatchup.title}...`}
+            />
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            TENNIS PLAYER DETAIL
-        ══════════════════════════════════════════ */}
+        {/* ══ TENNIS PLAYER DETAIL ══ */}
         {screen === "player" && pd && (
           <main className="screen">
             <button className="detail-back" onClick={() => setScreen("miami")}>← BACK</button>
@@ -940,26 +971,28 @@ export default function App() {
                 </div>
               )}
             </div>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask about ${selectedPlayer}...`} onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>{sendIcon}</button>
-            </div>
+            <AskInput
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onSubmit={() => submitAsk()}
+              placeholder={`Ask about ${selectedPlayer}...`}
+            />
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            ASK
-        ══════════════════════════════════════════ */}
+        {/* ══ ASK ══ */}
         {screen === "ask" && (
           <main className="screen">
             <section className="hero" style={{ paddingTop:4 }}>
               <div className="hero-title">UR TAKE</div>
-              <div className="hero-sub">Ask in plain English. Keep it broad or get weirdly specific.</div>
+              <div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div>
             </section>
-            <div className="ask-shell">
-              <input className="ask-bar" value={input} onChange={(e) => setInput(e.target.value)} placeholder="What do you want to know?" onKeyDown={(e) => e.key === "Enter" && submitAsk()} disabled={isAsking} />
-              <button className="send-btn" onClick={() => submitAsk()} disabled={isAsking}>{sendIcon}</button>
-            </div>
+            <AskInput
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onSubmit={() => submitAsk()}
+              placeholder="What do you want to know?"
+            />
             {messages.length === 0 ? (
               <section className="section">
                 <div className="section-label">TRY ONE</div>
@@ -978,6 +1011,7 @@ export default function App() {
               <div className="chat-thread">
                 {messages.map((m, i) => (
                   <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+                    {m.image && <img src={m.image} alt="" className="bubble-img" />}
                     {m.loading ? m.text : renderMessage(m.text)}
                   </div>
                 ))}
@@ -986,9 +1020,7 @@ export default function App() {
           </main>
         )}
 
-        {/* ══════════════════════════════════════════
-            PRO
-        ══════════════════════════════════════════ */}
+        {/* ══ PRO ══ */}
         {screen === "pro" && (
           <main className="screen">
             <div className="pro-card">
@@ -1000,13 +1032,12 @@ export default function App() {
           </main>
         )}
 
-        {/* ── BOTTOM NAV ── */}
         <nav className="bottom-nav">
-          <button className={`nav-btn${tab === "home"  && screen === "home"  ? " active"      : ""}`} onClick={goHome}>HOME</button>
-          <button className={`nav-btn${tab === "miami"                       ? " miami-active" : ""}`} onClick={goMiami}>MIAMI</button>
-          <button className={`nav-btn${tab === "nfl"                         ? " nfl-active"   : ""}`} onClick={goNfl}>NFL</button>
-          <button className={`nav-btn${tab === "ask"                         ? " active"       : ""}`} onClick={() => goAsk("")}>ASK</button>
-          <button className={`nav-btn${tab === "pro"                         ? " active"       : ""}`} onClick={goPro}>PRO</button>
+          <button className={`nav-btn${tab === "home"  && screen === "home"  ? " active"       : ""}`} onClick={goHome}>HOME</button>
+          <button className={`nav-btn${tab === "miami"                        ? " miami-active" : ""}`} onClick={goMiami}>MIAMI</button>
+          <button className={`nav-btn${tab === "nfl"                          ? " nfl-active"   : ""}`} onClick={goNfl}>NFL</button>
+          <button className={`nav-btn${tab === "ask"                          ? " active"       : ""}`} onClick={() => goAsk("")}>ASK</button>
+          <button className={`nav-btn${tab === "pro"                          ? " active"       : ""}`} onClick={goPro}>PRO</button>
         </nav>
 
       </div>
