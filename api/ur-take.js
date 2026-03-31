@@ -1,5 +1,9 @@
 export const config = {
-  api: { bodyParser: { sizeLimit: "10mb" } },
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb",
+    },
+  },
 };
 
 // ── NFL QB Database ───────────────────────────────────────────────────────────
@@ -31,219 +35,479 @@ const NFL_QBS = {
 // ── Sport detection ───────────────────────────────────────────────────────────
 function detectSport(question, sportHint) {
   const q = String(question || "").toLowerCase();
-  if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
 
-  // Hard-check: the word "nfl" alone settles it immediately.
+  if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
   if (q.includes("nfl")) return "nfl";
+  if (q.includes("tennis")) return "tennis";
 
   const nflSignals = [
-    // Core positions & football concepts
-    "quarterback","qb","touchdown","touchdowns","interception","interceptions",
-    "passing yards","rushing yards","receiving yards","fantasy football","super bowl",
-    "afc","nfc","wide receiver","running back","tight end","red zone","scramble",
-    "blitz","pocket","play action","rpo","offense","defense","defenses","defensive",
-    "offensive","secondary","cornerback","linebacker","safety","pass rush",
-    "pass rusher","edge rusher","interior lineman","sacks","sack","pressure rate",
-    "draft pick","draft class","first round","win total","team total","season total",
-    "week","game script","rb","wr","te","receiver","futures","divisional","playoff",
-    // Teams
-    "bills","patriots","dolphins","jets","ravens","bengals","browns","steelers",
-    "texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos",
-    "cowboys","giants","eagles","commanders","bears","lions","packers","vikings",
-    "falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks",
-    // Players
-    "allen","mahomes","lamar","burrow","hurts","prescott","stroud","herbert",
-    "maye","love","darnold","stafford","purdy","goff","daniels","caleb williams",
-    "cam ward","bo nix","lawrence","dart","bryce young","mayfield","penix","jackson",
-    "shough","brissett","cook","henry","taylor","robinson","achane","nacua","chase",
-    "pickens","lamb","mcbride","bowers","kelce","warren","surtain","watt","bosa",
-    "parsons","micah","myles garrett","tj watt","nick bosa","von miller",
-    // Draft & roster language
-    "draft","rookie","rookies","incoming","prospect","prospects","mock draft",
-    "first overall","top pick",
+    "quarterback",
+    "qb",
+    "touchdown",
+    "touchdowns",
+    "interception",
+    "interceptions",
+    "passing yards",
+    "rushing yards",
+    "receiving yards",
+    "fantasy football",
+    "super bowl",
+    "afc",
+    "nfc",
+    "wide receiver",
+    "running back",
+    "tight end",
+    "red zone",
+    "scramble",
+    "blitz",
+    "pocket",
+    "play action",
+    "rpo",
+    "offense",
+    "defense",
+    "defenses",
+    "defensive",
+    "offensive",
+    "secondary",
+    "cornerback",
+    "linebacker",
+    "safety",
+    "pass rush",
+    "pass rusher",
+    "edge rusher",
+    "interior lineman",
+    "sacks",
+    "sack",
+    "pressure rate",
+    "draft pick",
+    "draft class",
+    "first round",
+    "win total",
+    "team total",
+    "season total",
+    "week",
+    "game script",
+    "rb",
+    "wr",
+    "te",
+    "receiver",
+    "futures",
+    "divisional",
+    "playoff",
+    "bills",
+    "patriots",
+    "dolphins",
+    "jets",
+    "ravens",
+    "bengals",
+    "browns",
+    "steelers",
+    "texans",
+    "colts",
+    "jaguars",
+    "titans",
+    "chiefs",
+    "raiders",
+    "chargers",
+    "broncos",
+    "cowboys",
+    "giants",
+    "eagles",
+    "commanders",
+    "bears",
+    "lions",
+    "packers",
+    "vikings",
+    "falcons",
+    "panthers",
+    "saints",
+    "buccaneers",
+    "cardinals",
+    "rams",
+    "49ers",
+    "seahawks",
+    "allen",
+    "mahomes",
+    "lamar",
+    "burrow",
+    "hurts",
+    "prescott",
+    "stroud",
+    "herbert",
+    "maye",
+    "love",
+    "darnold",
+    "stafford",
+    "purdy",
+    "goff",
+    "daniels",
+    "caleb williams",
+    "cam ward",
+    "bo nix",
+    "lawrence",
+    "dart",
+    "bryce young",
+    "mayfield",
+    "penix",
+    "jackson",
+    "shough",
+    "brissett",
+    "cook",
+    "henry",
+    "taylor",
+    "robinson",
+    "achane",
+    "nacua",
+    "chase",
+    "pickens",
+    "lamb",
+    "mcbride",
+    "bowers",
+    "kelce",
+    "warren",
+    "surtain",
+    "watt",
+    "bosa",
+    "parsons",
+    "micah",
+    "myles garrett",
+    "tj watt",
+    "nick bosa",
+    "von miller",
+    "draft",
+    "rookie",
+    "rookies",
+    "incoming",
+    "prospect",
+    "prospects",
+    "mock draft",
+    "first overall",
+    "top pick",
   ];
 
   const tennisSignals = [
-    "tennis","atp","wta","miami open","roland garros","french open","wimbledon",
-    "us open","australian open","indian wells","clay court","grass court",
-    "hard court","serve","aces","ace rate","double faults","break point",
-    "hold percentage","tiebreak","tiebreaks","surface elo","dominance ratio",
-    "alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton",
-    "fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova",
-    "osaka","keys","draper","fils","ruud","rublev","paolini","andreeva",
-    "draw path","grand slam","tour","match play",
+    "tennis",
+    "atp",
+    "wta",
+    "roland garros",
+    "french open",
+    "wimbledon",
+    "us open",
+    "australian open",
+    "indian wells",
+    "clay court",
+    "grass court",
+    "hard court",
+    "serve",
+    "aces",
+    "ace rate",
+    "double faults",
+    "break point",
+    "hold percentage",
+    "tiebreak",
+    "tiebreaks",
+    "surface elo",
+    "dominance ratio",
+    "alcaraz",
+    "sinner",
+    "djokovic",
+    "zverev",
+    "medvedev",
+    "de minaur",
+    "shelton",
+    "fritz",
+    "sabalenka",
+    "swiatek",
+    "rybakina",
+    "pegula",
+    "gauff",
+    "muchova",
+    "osaka",
+    "keys",
+    "draper",
+    "fils",
+    "ruud",
+    "rublev",
+    "paolini",
+    "andreeva",
+    "draw path",
+    "grand slam",
+    "tour",
+    "match play",
   ];
 
-  let nfl = 0, tennis = 0;
-  for (const s of nflSignals)    { if (q.includes(s)) nfl    += s.length > 6 ? 2 : 1; }
-  for (const s of tennisSignals) { if (q.includes(s)) tennis += s.length > 6 ? 2 : 1; }
+  let nfl = 0;
+  let tennis = 0;
+
+  for (const s of nflSignals) {
+    if (q.includes(s)) nfl += s.length > 6 ? 2 : 1;
+  }
+
+  for (const s of tennisSignals) {
+    if (q.includes(s)) tennis += s.length > 6 ? 2 : 1;
+  }
 
   if (tennis > nfl) return "tennis";
   if (nfl > tennis) return "nfl";
-  // Tie / no signals: default to NFL (most ambiguous betting questions are football)
+
   return "nfl";
 }
 
 function getRelevantQBs(question) {
-  const q = question.toLowerCase();
+  const q = String(question || "").toLowerCase();
   const relevant = {};
+
   for (const [name, data] of Object.entries(NFL_QBS)) {
     const parts = name.toLowerCase().split(" ");
-    if (parts.some(p => p.length > 3 && q.includes(p))) relevant[name] = data;
+    if (parts.some((p) => p.length > 3 && q.includes(p))) relevant[name] = data;
     if (data.team && q.includes(data.team.toLowerCase())) relevant[name] = data;
   }
+
   return Object.keys(relevant).length > 0 ? relevant : NFL_QBS;
 }
 
 function getRelevantSkillPlayers(question, nflContext) {
   if (!nflContext) return "No skill position data provided.";
+
   const q = String(question || "").toLowerCase();
   const blocks = String(nflContext).split("\n\n");
-  const matched = blocks.filter(block => {
+
+  const matched = blocks.filter((block) => {
     const lower = block.toLowerCase();
     const firstLine = lower.split("\n")[0] || "";
-    const tokens = firstLine.split("|").map(s => s.trim());
-    return tokens.some(token => token && token.length > 2 && q.includes(token));
+    const tokens = firstLine.split("|").map((s) => s.trim());
+    return tokens.some((token) => token && token.length > 2 && q.includes(token));
   });
+
   if (matched.length > 0) return matched.slice(0, 10).join("\n\n");
-  const generic = ["rb","wr","te","touchdown","td","receiving","rushing","catches","yards","prop"];
-  if (generic.some(n => q.includes(n))) return blocks.slice(0, 20).join("\n\n");
+
+  const generic = ["rb", "wr", "te", "touchdown", "td", "receiving", "rushing", "catches", "yards", "prop"];
+  if (generic.some((n) => q.includes(n))) return blocks.slice(0, 20).join("\n\n");
+
   return blocks.slice(0, 10).join("\n\n");
 }
 
 function summarizeMatchupContext(mc) {
   if (!mc) return null;
+
   const parts = [];
-  if (mc.title)       parts.push(`Title: ${mc.title}`);
-  if (mc.league)      parts.push(`League: ${mc.league}`);
-  if (mc.time)        parts.push(`Time: ${mc.time}`);
+  if (mc.title) parts.push(`Title: ${mc.title}`);
+  if (mc.league) parts.push(`League: ${mc.league}`);
+  if (mc.time) parts.push(`Time: ${mc.time}`);
   if (mc.whatMatters) parts.push(`What matters: ${mc.whatMatters}`);
-  if (Array.isArray(mc.quickHitters) && mc.quickHitters.length) parts.push(`Quick hitters: ${mc.quickHitters.join(" | ")}`);
+  if (Array.isArray(mc.quickHitters) && mc.quickHitters.length) {
+    parts.push(`Quick hitters: ${mc.quickHitters.join(" | ")}`);
+  }
+
   return parts.join("\n");
 }
 
-// ── Main handler ──────────────────────────────────────────────────────────────
+function buildOddsContext(odds) {
+  if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
+
+  const lines = [];
+
+  if (odds.matches?.length) {
+    lines.push("LIVE MATCH ODDS:");
+    for (const m of odds.matches) {
+      if (m.homeOdds !== null && m.awayOdds !== null) {
+        lines.push(
+          `${m.home} (${m.homeOdds > 0 ? "+" : ""}${m.homeOdds}) vs ${m.away} (${m.awayOdds > 0 ? "+" : ""}${m.awayOdds})`
+        );
+      }
+    }
+  }
+
+  return lines.length ? lines.join("\n") : null;
+}
+
+function buildDrawPath(results) {
+  if (!Array.isArray(results) || !results.length) return null;
+
+  const byRound = {};
+  for (const r of results) {
+    const round = r.round || "Unknown";
+    if (!byRound[round]) byRound[round] = [];
+    byRound[round].push(r);
+  }
+
+  const lines = [];
+  for (const [round, matches] of Object.entries(byRound)) {
+    lines.push(`${round}:`);
+    for (const m of matches) {
+      lines.push(`- ${m.winner} def. ${m.loser}${m.score ? ` (${m.score})` : ""}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function getUpcomingTournaments(context) {
+  const tournaments = context?.tournaments ? Object.values(context.tournaments) : [];
+  return tournaments.slice(0, 8);
+}
+
+function buildTennisWindowContext(context, liveMatches) {
+  const currentTournament = context?.currentTournament || null;
+  const live = Array.isArray(liveMatches) ? liveMatches.filter((m) => String(m?.raw?.live || m?.live || "0") === "1") : [];
+  const upcoming = Array.isArray(liveMatches)
+    ? liveMatches.filter((m) => String(m?.raw?.live || m?.live || "0") !== "1")
+    : [];
+
+  const lines = [];
+
+  if (currentTournament?.name) {
+    lines.push(`ACTIVE TENNIS WINDOW: ${currentTournament.name}`);
+    lines.push(`Surface: ${currentTournament.surface || "Unknown"}`);
+    lines.push(`Speed: ${currentTournament.speed || "Unknown"}`);
+    if (currentTournament.context) lines.push(`Context: ${currentTournament.context}`);
+    if (currentTournament.atp_favorite) lines.push(`ATP favorite: ${currentTournament.atp_favorite}`);
+    if (currentTournament.wta_favorite) lines.push(`WTA favorite: ${currentTournament.wta_favorite}`);
+  } else if (live.length) {
+    lines.push("ACTIVE TENNIS WINDOW: Live board is available now.");
+  } else if (upcoming.length) {
+    lines.push("ACTIVE TENNIS WINDOW: Upcoming tennis board is available now.");
+  } else {
+    lines.push("ACTIVE TENNIS WINDOW: No confirmed live board loaded. Use current-season and upcoming-tour logic, not stale event-specific framing.");
+  }
+
+  if (live.length) {
+    lines.push("");
+    lines.push("LIVE MATCHES:");
+    for (const m of live.slice(0, 8)) {
+      lines.push(`- ${m.title || `${m.home_team} vs ${m.away_team}`} — ${m.network || m.tournament || "Tour Match"} — ${m.raw?.score || m.score || "Live"}`);
+    }
+  }
+
+  if (upcoming.length) {
+    lines.push("");
+    lines.push("UPCOMING MATCHES:");
+    for (const m of upcoming.slice(0, 8)) {
+      const round = m.raw?.round || m.round || "Scheduled";
+      lines.push(`- ${m.title || `${m.home_team} vs ${m.away_team}`} — ${m.network || m.tournament || "Tour Match"} — ${round}`);
+    }
+  }
+
+  const upcomingTournaments = getUpcomingTournaments(context);
+  if (upcomingTournaments.length) {
+    lines.push("");
+    lines.push("CURRENT / UPCOMING TOURNAMENTS:");
+    for (const t of upcomingTournaments) {
+      lines.push(
+        `- ${t.name} (${t.surface || "Unknown surface"}, ${t.speed || "Unknown speed"}) — ATP ${t.atp_favorite || "TBD"} / WTA ${t.wta_favorite || "TBD"}`
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function cleanResponseText(text) {
+  return String(text || "")
+    .replace(/^i['’]?m ur take.*$/gim, "")
+    .replace(/^ur take[:\-]\s*/gim, "")
+    .replace(/^i am an nfl.*$/gim, "")
+    .replace(/^i don['’]?t have tennis data.*$/gim, "")
+    .replace(/^i don['’]?t cover tennis futures.*$/gim, "")
+    .trim();
+}
+
+// ── MAIN HANDLER ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")   return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
+  if (!ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
+  }
 
-  const { question, players, context, liveMatches, tour, history, matchupContext, image, nflContext, sportHint } = req.body;
-  if (!question) return res.status(400).json({ error: "Missing question" });
+  const {
+    question,
+    players,
+    context,
+    liveMatches,
+    history,
+    matchupContext,
+    image,
+    nflContext,
+    sportHint,
+  } = req.body;
+
+  if (!question) {
+    return res.status(400).json({ error: "Missing question" });
+  }
 
   const sport = detectSport(question, sportHint);
   const isNFL = sport === "nfl";
 
-  // ── Prompt builders ───────────────────────────────────────────────────────
-  function buildOddsContext(odds) {
-    if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
-    const lines = [];
-    if (odds.matches?.length) {
-      lines.push("LIVE MATCH ODDS:");
-      for (const m of odds.matches) {
-        if (m.homeOdds !== null && m.awayOdds !== null) {
-          lines.push(`  ${m.home} (${m.homeOdds > 0 ? "+" : ""}${m.homeOdds}) vs ${m.away} (${m.awayOdds > 0 ? "+" : ""}${m.awayOdds})`);
-        }
-      }
-    }
-    return lines.length ? lines.join("\n") : null;
-  }
-
-  function buildDrawPath(results) {
-    if (!Array.isArray(results) || !results.length) return null;
-    const byRound = {};
-    for (const r of results) {
-      const round = r.round || "Unknown";
-      if (!byRound[round]) byRound[round] = [];
-      byRound[round].push(r);
-    }
-    const lines = [];
-    for (const [round, matches] of Object.entries(byRound)) {
-      lines.push(`${round}:`);
-      for (const m of matches) lines.push(`  ${m.winner} def. ${m.loser}${m.score ? ` (${m.score})` : ""}`);
-    }
-    return lines.join("\n");
-  }
-
-  const oddsCtx  = buildOddsContext(req.body.oddsData);
+  const oddsCtx = buildOddsContext(req.body.oddsData);
   const drawPath = buildDrawPath(req.body.tournamentResults);
   const matchupCtxStr = summarizeMatchupContext(matchupContext);
 
-  // ── NFL system prompt ─────────────────────────────────────────────────────
   let systemPrompt;
 
   if (isNFL) {
     const relevantQBs = getRelevantQBs(question);
-    const qbData      = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
-    const skillData   = getRelevantSkillPlayers(question, nflContext);
+    const qbData = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
+    const skillData = getRelevantSkillPlayers(question, nflContext);
 
-    systemPrompt = `You are Under Review's sports betting answer engine for the NFL.
+    systemPrompt = `
+You are Under Review's sports betting answer engine for the NFL.
 
 STYLE
-Lead with the take. Be sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction. No meta commentary.
+Lead with the take.
+Be sharp, concise, confident, specific.
+No markdown headers.
+No "UR TAKE:" prefix.
+No self-introduction.
+No meta commentary.
 
 OUTPUT RULES
 - Prop questions: "Player — OVER/UNDER — why" format.
 - Ranking questions: rank decisively, explain top 1-3.
 - Comparison questions: pick a side, then explain.
 - Futures questions: best bet, best value, best fade.
-- Draft/rookie questions: focus on the UPCOMING 2026 NFL Draft (April 2026), not the 2025 class.
+- Draft/rookie questions: focus on the UPCOMING 2026 NFL Draft or already confirmed 2026 outcomes if user is clearly referencing them.
 - If data clearly supports a conclusion, do not hedge.
 
 NFL STAT GLOSSARY
 ontgt = on-target throw % (league avg 74.9%)
 badTh = bad throw rate % (league avg 16.1%)
-prss  = pressure rate % (league avg 21.9% — above is a problem)
+prss = pressure rate % (league avg 21.9% — above is a problem)
 iay_pa = intended air yards per attempt (8.5+ = deep, 6.5- = checkdown)
 ydsPg = yards per game | td = touchdowns | recPg = receptions per game
 
-KEY TD RATES (for TD leader questions):
-Derrick Henry (RB, BAL): 0.94 TDs/g, 15 total — HIGHEST TD RATE
-James Cook (RB, BUF): 0.88 TDs/g, 14 total
-De'Von Achane (RB, MIA): 0.86 TDs/g, 12 total in 14g
-Jonathan Taylor (RB, IND): 0.82 TDs/g, 14 total
-Bijan Robinson (RB, ATL): 0.65 TDs/g, 11 total
-Ja'Marr Chase (WR, CIN): 0.63 TDs/g, 10 total
-Puka Nacua (WR, LAR): 0 TDs/g, 0 total — FADE TD scorer
+KEY TD RATES
+Derrick Henry (RB, BAL): 0.94 TDs/g
+James Cook (RB, BUF): 0.88 TDs/g
+De'Von Achane (RB, MIA): 0.86 TDs/g
+Jonathan Taylor (RB, IND): 0.82 TDs/g
+Bijan Robinson (RB, ATL): 0.65 TDs/g
+Ja'Marr Chase (WR, CIN): 0.63 TDs/g
+Puka Nacua (WR, LAR): 0 TDs/g in 2025 — fade TD scorer until the market forces you not to.
 
-2026 NFL DRAFT CONTEXT (April 2026 — UPCOMING)
-When asked about "the draft", "incoming rookies", "this year's draft class" — answer about the April 2026 NFL Draft, not the 2025 class.
-Top prospects entering the 2026 season:
-- Shedeur Sanders (QB, Colorado) — projected top-5 pick. Most NFL-ready QB in the class. Pro-style offense, 74% completion rate. Giants (pick 3) and Titans (pick 1) are primary destinations. Whichever team drafts him sees win total jump 1.5-2 games immediately. His landing spot is the single biggest betting market mover in the draft.
-- Travis Hunter (CB/WR, Colorado) — best athlete in the draft. Two-way player but betting impact limited by usage uncertainty. Heisman winner, elite talent. Team buying him as a WR or CB changes how to price him.
-- Mason Graham (DL, Michigan) — drafted #2 by Cleveland Browns. Elite interior pass rusher, immediate impact on Browns pass rush. Improves Cleveland from bottom-tier to average defense.
-- Abdul Carter (EDGE, Penn State) — drafted #3 by New York Giants. Highest pass rush ceiling in class, 2025 Big Ten Defensive Player of Year. Immediately improves Giants' defense from weak to competitive.
-- Shedeur Sanders (QB, Colorado) — drafted by Tennessee Titans #1 overall. Most NFL-ready QB, 74% completion rate. Titans win total jumps 1.5-2 games immediately. Biggest single market mover.
-- Travis Hunter (CB/WR, Colorado) — Heisman winner with two-way versatility. Betting impact depends on usage designation at landing team.
-- Tetairoa McMillan (WR, Arizona) — best WR in the class. Already drafted by Giants (note: in database). Nabers-level talent — whoever QBs with him sees the WR1 role immediately.
-2026 DRAFT RESULTS (April 2026 — now confirmed):
-Pick 1: Tennessee Titans — Shedeur Sanders (QB, Colorado) — Titans win total up 1.5-2 games
-Pick 2: Cleveland Browns — Mason Graham (DL, Michigan) — Browns pass rush improves immediately  
-Pick 3: New York Giants — Abdul Carter (EDGE, Penn State) — Giants defense improves to competitive
-Shedeur Sanders is the primary single betting market mover. QBs change win totals faster than any other position.
+DEFENSE TIERS
+ELITE: PHI, BAL, MIN, DEN
+STRONG: KC, SF, GB, BUF, HOU, TB, LAC, PIT
+AVERAGE: NE, ATL, IND, DAL, DET, LAR, JAX, SEA, CHI, WAS, NO
+WEAK: MIA, CIN, NYJ, NYG, ARI
+BOTTOM: TEN, CLE, LVR, CAR
 
-DEFENSE TIERS (for matchup-adjusted prop leans):
-ELITE (hard fade all props): PHI, BAL, MIN, DEN
-STRONG (lean fade props): KC, SF, GB, BUF, HOU, TB, LAC, PIT
-AVERAGE (neutral): NE, ATL, IND, DAL, DET, LAR, JAX, SEA, CHI, WAS, NO
-WEAK (lean over props): MIA, CIN, NYJ, NYG, ARI
-BOTTOM (hard over props): TEN, CLE, LVR, CAR
+KEY MATCHUP RULES
+- ELITE pass rush teams = fade QB passing yards, fade WR1 props.
+- Pat Surtain II = hard fade many WR1 matchups.
+- Eagles pass rush still forces WR1 caution.
+- T.J. Watt changes game plans.
+- Antoine Winfield Jr. suppresses TE lanes.
+- BOTTOM defenses = attack opposing skill position overs.
 
-KEY MATCHUP RULES:
-- ELITE pass rush teams (PHI, BAL, PIT, DEN) = fade QB passing yards, fade WR1 props
-- Pat Surtain II (DEN) = hard fade every WR1 matchup — best cover corner in NFL
-- PHI secondary = fade WR1 props — Eagles pass rush (Sweat, Carter) is elite even with CB changes
-- T.J. Watt (PIT) = most dominant edge in AFC — fade opposing QB passing props
-- Antoine Winfield Jr. (TB) = hard fade TE receiving yards — best coverage safety in NFC
-- BOTTOM defenses (TEN, CLE, LVR, CAR) = OVER on every opposing skill position prop
-- NOTE ON PERSONNEL: Rosters change in offseason. 2025 stats are the baseline.
-  When asked about specific defensive players or coordinators, state 2025 data clearly
-  and acknowledge roster/staff changes may have occurred since the 2025 season ended.
+NOTE ON PERSONNEL
+Use the provided stats as the baseline. If a roster or coach may have changed, frame it as a baseline-driven lean rather than pretending certainty.
 
 RB/WR/TE SKILL POSITION DATABASE
 ${skillData}
@@ -252,89 +516,72 @@ QB DATABASE
 ${qbData}
 
 ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}\n` : ""}
-${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers. State if sharp/soft/fair.` : "No live lines — directional leans only."}`;
-
-
+${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers when useful.` : "No live lines — directional leans only."}
+`.trim();
   } else {
-    // ── Tennis system prompt ───────────────────────────────────────────────
-    const tournamentCtx = (() => {
-      const t = context?.currentTournament;
-      if (t) {
-        return [
-          `ACTIVE: ${t.name} — ${t.surface}, ${t.speed} speed.`,
-          t.context || "",
-          `ATP FAVORITE: ${t.atp_favorite || "TBD"}`,
-          `WTA FAVORITE: ${t.wta_favorite || "TBD"}`,
-        ].join("\n");
-      }
-      return "ACTIVE: Miami Open 2026 — Hard court, medium-fast.\nATP FAVORITE: Sinner\nWTA FAVORITE: Sabalenka";
-    })();
-
-    const allTournaments = (() => {
-      const all = context?.tournaments;
-      if (!all) return "Full season schedule unavailable.";
-      return Object.values(all).map(t =>
-        `${t.name} (${t.surface}, ${t.speed}) — Favorites: ATP ${t.atp_favorite || "TBD"} / WTA ${t.wta_favorite || "TBD"}`
-      ).join("\n");
-    })();
-
     const playerDataStr = players ? JSON.stringify(players, null, 0).slice(0, 16000) : "Player data unavailable";
-
-    const liveMatchStr = Array.isArray(liveMatches) && liveMatches.length
-      ? liveMatches.slice(0, 12).map(m => `${m.home_team} vs ${m.away_team} — ${m.round || "Current Tournament"} — ${m.live === "1" ? "LIVE" : m.status || "Scheduled"}`).join("\n")
-      : "No live matches currently";
-
     const acePropsStr = context?.ace_props
-      ? Object.entries(context.ace_props).map(([k, v]) => `${k}: hard avg ${v.avg_aces_hard}, clay avg ${v.avg_aces_clay || "n/a"}, grass avg ${v.avg_aces_grass || "n/a"}`).join("\n")
+      ? Object.entries(context.ace_props)
+          .map(
+            ([k, v]) =>
+              `${k}: hard avg ${v.avg_aces_hard}, clay avg ${v.avg_aces_clay || "n/a"}, grass avg ${v.avg_aces_grass || "n/a"}`
+          )
+          .join("\n")
       : "No ace baselines";
 
-    systemPrompt = `You are Under Review's sports betting answer engine for tennis.
+    const tennisWindowCtx = buildTennisWindowContext(context, liveMatches);
+
+    systemPrompt = `
+You are Under Review's sports betting answer engine for tennis.
 
 STYLE
-Lead with the take. Sharp, confident, natural, specific. No markdown headers. No "UR TAKE:" prefix. No meta commentary. Never say you lack data when player database is present.
+Lead with the take.
+Sharp, confident, natural, specific.
+No markdown headers.
+No "UR TAKE:" prefix.
+No meta commentary.
+Never say you do not cover tennis futures if the tennis database is present.
+
+CORE TENNIS RULE
+You must anchor your answer to CURRENT or UPCOMING tennis context.
+Never default to Miami Open unless the provided context actually says Miami Open is current.
+Do not reuse stale event framing from old homepage copy.
 
 SURFACE ELO GUIDE
-hElo = hard court Elo (Miami, US Open, Australian Open)
-cElo = clay Elo (Roland Garros, Madrid, Rome)
-gElo = grass Elo (Wimbledon, Queen's, Halle)
-Surface Elo gaps over 150 points are significant betting edges.
+hElo = hard court Elo
+cElo = clay Elo
+gElo = grass Elo
+Surface Elo gaps over 150 points are significant edges.
 
 PROP ANGLES BY SURFACE
-Clay: OVER games almost always, UNDER aces for most players
-Grass: UNDER games, OVER aces for big servers, tiebreaks common
-Hard: use player baselines from database
+Clay: OVER games often, UNDER aces for many players.
+Grass: UNDER games more viable, OVER aces for big servers, tiebreaks more common.
+Hard: use player baselines, serve quality, return pressure, and tiebreak profile.
 
 FORMAT
-Prop questions: bullet format — Player — Prop — one key stat reason.
-Broader questions: prose first, then 1-2 prop bullets if relevant.
-Never mention data sources or prompts.
+- Prop questions: bullet format — Player — Prop — one key stat reason.
+- Broader questions: prose first, then 1-2 prop bullets if relevant.
+- Futures questions: identify the best current-value name and why the market is lagging.
+- Matchup questions: pick the side first, then the reason.
+- If no confirmed live match is loaded, pivot to current-season futures, upcoming board logic, or player/surface intelligence.
 
-CURRENT TOURNAMENT
-${tournamentCtx}
-
-ALL TOURNAMENTS THIS SEASON
-${allTournaments}
+CURRENT / UPCOMING TENNIS CONTEXT
+${tennisWindowCtx}
 
 PLAYER DATABASE
 ${playerDataStr}
 
-LIVE MATCHES
-${liveMatchStr}
-
 ACE PROP BASELINES
 ${acePropsStr}
 
-${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}` : "No live prop lines — directional leans only."}
-
 TOURNAMENT DRAW PATH
-${drawPath || "No draw results yet — use player database and surface analysis to answer."}
+${drawPath || "No draw results loaded — use current player and surface context instead."}
 
-${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}
-
-Never stop at "I don't have draw data" — pivot to what you know. The player database and surface Elo are always available.`;
+${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}\n` : ""}
+${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}` : "No live prop lines — directional leans only."}
+`.trim();
   }
 
-  // ── Build messages ────────────────────────────────────────────────────────
   const messages = [];
 
   if (Array.isArray(history) && history.length > 0) {
@@ -342,23 +589,39 @@ Never stop at "I don't have draw data" — pivot to what you know. The player da
       if (!msg || msg.loading) continue;
       const text = msg.text || msg.content;
       if (!text) continue;
-      messages.push({ role: msg.role === "user" ? "user" : "assistant", content: text });
+
+      messages.push({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: text,
+      });
     }
   }
 
-  if (image && image.base64 && image.mediaType) {
+  if (image?.base64 && image?.mediaType) {
     messages.push({
       role: "user",
       content: [
-        { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
-        { type: "text", text: question },
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: image.mediaType,
+            data: image.base64,
+          },
+        },
+        {
+          type: "text",
+          text: question,
+        },
       ],
     });
   } else {
-    messages.push({ role: "user", content: question });
+    messages.push({
+      role: "user",
+      content: question,
+    });
   }
 
-  // ── Call Anthropic ────────────────────────────────────────────────────────
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -380,25 +643,27 @@ Never stop at "I don't have draw data" — pivot to what you know. The player da
 
     if (!response.ok) {
       console.error("Anthropic API error:", data);
-      return res.status(500).json({ error: "AI response failed", details: data });
+      return res.status(500).json({
+        error: "AI response failed",
+        details: data,
+      });
     }
 
-    let text = data?.content
-      ?.filter(i => i.type === "text")
-      ?.map(i => i.text)
-      ?.join("\n")
-      ?.trim() || "Couldn't get a response. Try again.";
+    const text =
+      data?.content
+        ?.filter((i) => i.type === "text")
+        ?.map((i) => i.text)
+        ?.join("\n")
+        ?.trim() || "Couldn't get a response. Try again.";
 
-    text = text
-      .replace(/^i['']m ur take.*$/gim, "")
-      .replace(/^ur take[:\-]\s*/gim, "")
-      .replace(/^i am an nfl.*$/gim, "")
-      .replace(/^i don['']t have tennis data.*$/gim, "")
-      .trim();
-
-    return res.status(200).json({ response: text });
+    return res.status(200).json({
+      response: cleanResponseText(text),
+    });
   } catch (err) {
     console.error("UR TAKE error:", err);
-    return res.status(500).json({ error: "Request failed", details: err.message });
+    return res.status(500).json({
+      error: "Request failed",
+      details: err.message,
+    });
   }
 }
