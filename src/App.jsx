@@ -881,13 +881,25 @@ const NFL_PROP_GUIDE = [
 
 const NFL_POSITIONS = ["ALL","RB","WR","TE"];
 
-function normalizeTennisMatch(match, fallbackTour = "ATP") {
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeTennisMatch(match, fallbackTour = "ATP", activeTournament = null) {
   if (!match) return null;
 
   const league =
     match.league ||
-    (String(match.league_name || "").toLowerCase().includes("wta") ||
-    String(match.event_type_type || "").toLowerCase().includes("women")
+    (normalizeText(match.league_name).includes("wta") ||
+    normalizeText(match.event_type_type).includes("women")
       ? "WTA"
       : fallbackTour);
 
@@ -895,52 +907,74 @@ function normalizeTennisMatch(match, fallbackTour = "ATP") {
   const away = String(match.away_team || match.event_second_player || "").trim();
 
   if (!home || !away) return null;
-  if (home.toLowerCase() === "player 1" || away.toLowerCase() === "player 2") return null;
-  if (home.toLowerCase() === "tbd" || away.toLowerCase() === "tbd") return null;
 
-  let status = match.status || match.event_status || "Scheduled";
-  const rawLive = String(match.live ?? match.event_live ?? "0");
-  const isLive = rawLive === "1";
-
-  if (isLive && !String(status).toLowerCase().includes("live")) {
-    status = "Live";
-  }
+  const blocked = new Set(["player 1", "player 2", "tbd", "unknown", "n/a", "-"]);
+  if (blocked.has(home.toLowerCase()) || blocked.has(away.toLowerCase())) return null;
+  if (home.toLowerCase() === away.toLowerCase()) return null;
 
   const tournament = String(match.tournament || match.tournament_name || "").trim();
   if (!tournament) return null;
 
+  const rawLive = String(match.live ?? match.event_live ?? "0");
+  const isLive = rawLive === "1";
+
+  let status = String(match.status || match.event_status || "Scheduled").trim();
+  if (isLive) status = "Live";
+
+  const eventDate = String(match.event_date || "").trim();
+  const eventTime = String(match.event_time || "").trim();
+  const commenceTime =
+    match.commence_time ||
+    (eventDate && eventTime ? `${eventDate}T${eventTime}:00` : eventDate ? `${eventDate}T00:00:00` : null);
+
+  const tournamentSlug = slugify(tournament);
+  const activeName = activeTournament?.name ? slugify(activeTournament.name) : "";
+  const activeKey = activeTournament?.key ? slugify(activeTournament.key) : "";
+
+  const isPreferredTournament =
+    !!activeTournament &&
+    (
+      tournamentSlug.includes(activeName) ||
+      tournamentSlug.includes(activeKey.replace(/_open$/, "")) ||
+      activeName.includes(tournamentSlug) ||
+      activeKey.includes(tournamentSlug)
+    );
+
   return {
-    id: match.id || match.event_key || `${home}-${away}-${league}`,
+    id: match.id || match.event_key || `${home}-${away}-${league}-${eventDate || tournament}`,
     league,
     leagueColor: league === "WTA" ? "#E11D48" : "#0891B2",
     title: `${home} vs ${away}`,
     time: status,
     network: tournament,
-    blurb: `${home} vs ${away}${match.round ? ` · ${match.round}` : ""}${match.score && match.score !== "-" ? ` · ${match.score}` : ""}`,
+    blurb: `${home} vs ${away}${match.round ? ` · ${match.round}` : match.tournament_round ? ` · ${match.tournament_round}` : ""}${match.score && match.score !== "-" ? ` · ${match.score}` : match.event_final_result && match.event_final_result !== "-" ? ` · ${match.event_final_result}` : ""}`,
     whatMatters: "Ask for the side, total, props, or live angle.",
     quickHitters: ["Best angle here?","Moneyline or total?","Any live edge?"],
     confirmed: true,
+    isPreferredTournament,
+    tournamentSlug,
+    commenceTime,
+    commenceTs: commenceTime ? new Date(commenceTime).getTime() : Number.MAX_SAFE_INTEGER,
     raw: {
       ...match,
       live: rawLive,
       status,
       home,
       away,
+      tournament,
+      event_date: eventDate,
+      event_time: eventTime,
     },
   };
 }
 
-function getCurrentMonth() {
-  return new Date().getMonth();
-}
-
 function isNflInSeason() {
-  const m = getCurrentMonth();
+  const m = new Date().getMonth();
   return m >= 8 || m <= 1;
 }
 
 function isNflRampMode() {
-  const m = getCurrentMonth();
+  const m = new Date().getMonth();
   return m >= 6 && m <= 7;
 }
 
@@ -1195,6 +1229,36 @@ function NavIcon({ type }) {
   );
 }
 
+function getTournamentFetchParam(context) {
+  const active = context?.currentTournament;
+  if (!active) return "charleston";
+  const candidates = [
+    active.key,
+    active.name,
+    active.location,
+  ].filter(Boolean);
+  const joined = candidates.map((v) => slugify(v)).join(",");
+  return joined || "charleston";
+}
+
+function preferredTournamentScore(match, context) {
+  const active = context?.currentTournament;
+  if (!active || !match) return 0;
+
+  const tournamentSlug = slugify(match.network || match.raw?.tournament || "");
+  const keySlug = slugify(active.key || "");
+  const nameSlug = slugify(active.name || "");
+
+  if (!tournamentSlug) return 0;
+  if (nameSlug && tournamentSlug.includes(nameSlug)) return 5;
+  if (keySlug && tournamentSlug.includes(keySlug)) return 5;
+  if (nameSlug && nameSlug.includes(tournamentSlug)) return 4;
+  if (keySlug && keySlug.includes(tournamentSlug)) return 4;
+
+  if (nameSlug.includes("charleston") && tournamentSlug.includes("charleston")) return 5;
+  return 0;
+}
+
 export default function App() {
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home");
@@ -1234,62 +1298,83 @@ export default function App() {
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
   const nflRampMode = useMemo(() => isNflRampMode(), []);
 
+  const fetchTennisBoard = useCallback(async (activeContext = null) => {
+    const tournamentParam = getTournamentFetchParam(activeContext);
+
+    const [atpRes, wtaRes] = await Promise.all([
+      fetch(`/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`),
+      fetch(`/api/tennis?tour=wta&activeTournament=${encodeURIComponent(tournamentParam)}`),
+    ]);
+
+    const [atpData, wtaData] = await Promise.all([atpRes.json(), wtaRes.json()]);
+
+    const merged = [
+      ...(Array.isArray(atpData) ? atpData.map((m) => normalizeTennisMatch(m, "ATP", activeContext)) : []),
+      ...(Array.isArray(wtaData) ? wtaData.map((m) => normalizeTennisMatch(m, "WTA", activeContext)) : []),
+    ].filter(Boolean);
+
+    const seen = new Set();
+    const deduped = [];
+
+    for (const m of merged) {
+      const key = [
+        normalizeText(m.league),
+        normalizeText(m.raw?.home),
+        normalizeText(m.raw?.away),
+        normalizeText(m.network),
+        normalizeText(m.raw?.round),
+        normalizeText(m.raw?.event_date),
+      ].join("|");
+
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(m);
+    }
+
+    return deduped.sort((a, b) => {
+      const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
+      const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+
+      const aPref = preferredTournamentScore(a, activeContext);
+      const bPref = preferredTournamentScore(b, activeContext);
+      if (aPref !== bPref) return bPref - aPref;
+
+      const aTime = Number.isFinite(a.commenceTs) ? a.commenceTs : Number.MAX_SAFE_INTEGER;
+      const bTime = Number.isFinite(b.commenceTs) ? b.commenceTs : Number.MAX_SAFE_INTEGER;
+      if (aTime !== bTime) return aTime - bTime;
+
+      const aWta = a.league === "WTA" ? 1 : 0;
+      const bWta = b.league === "WTA" ? 1 : 0;
+      if (aWta !== bWta) return bWta - aWta;
+
+      return (a.title || "").localeCompare(b.title || "");
+    });
+  }, []);
+
   useEffect(() => {
     let active = true;
+    let pollId = null;
 
-    async function loadData() {
+    async function loadAll() {
       setTennisLoading(true);
+
       try {
-        const [pRes, cRes, atpRes, wtaRes] = await Promise.all([
+        const [pRes, cRes] = await Promise.all([
           fetch("/api/tennis-players"),
           fetch("/api/tennis-context"),
-          fetch("/api/tennis?tour=atp"),
-          fetch("/api/tennis?tour=wta"),
         ]);
 
-        const [p, c, atpLive, wtaLive] = await Promise.all([
-          pRes.json(),
-          cRes.json(),
-          atpRes.json(),
-          wtaRes.json(),
-        ]);
-
+        const [p, c] = await Promise.all([pRes.json(), cRes.json()]);
         if (!active) return;
 
         setPlayers(p);
         setContext(c);
 
-        const merged = [
-          ...(Array.isArray(atpLive) ? atpLive.map((m) => normalizeTennisMatch(m, "ATP")) : []),
-          ...(Array.isArray(wtaLive) ? wtaLive.map((m) => normalizeTennisMatch(m, "WTA")) : []),
-        ].filter(Boolean);
+        const board = await fetchTennisBoard(c);
+        if (!active) return;
 
-        const deduped = [];
-        const seen = new Set();
-
-        for (const m of merged) {
-          const key = `${m.league}-${m.title}-${m.network}-${m.raw?.status || ""}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          deduped.push(m);
-        }
-
-        const sorted = deduped.sort((a, b) => {
-          const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
-          const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
-          if (aLive !== bLive) return bLive - aLive;
-
-          const aTime = a?.raw?.event_date && a?.raw?.event_time
-            ? new Date(`${a.raw.event_date}T${a.raw.event_time}:00`).getTime()
-            : Number.MAX_SAFE_INTEGER;
-          const bTime = b?.raw?.event_date && b?.raw?.event_time
-            ? new Date(`${b.raw.event_date}T${b.raw.event_time}:00`).getTime()
-            : Number.MAX_SAFE_INTEGER;
-
-          return aTime - bTime;
-        });
-
-        setLiveMatches(sorted);
+        setLiveMatches(board);
       } catch {
         if (active) setLiveMatches([]);
       } finally {
@@ -1297,11 +1382,45 @@ export default function App() {
       }
     }
 
-    loadData();
+    async function pollBoard() {
+      try {
+        const board = await fetchTennisBoard(context);
+        if (active) setLiveMatches(board);
+      } catch {
+        // keep existing state on poll failures
+      }
+    }
+
+    loadAll();
+
+    pollId = window.setInterval(() => {
+      pollBoard();
+    }, 60000);
+
     return () => {
       active = false;
+      if (pollId) window.clearInterval(pollId);
     };
-  }, []);
+  }, [fetchTennisBoard]); // intentionally only initial loader
+
+  useEffect(() => {
+    if (!context) return;
+    let cancelled = false;
+
+    async function refreshAfterContext() {
+      try {
+        const board = await fetchTennisBoard(context);
+        if (!cancelled) setLiveMatches(board);
+      } catch {
+        // ignore
+      }
+    }
+
+    refreshAfterContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [context, fetchTennisBoard]);
 
   const processImageFile = useCallback((file) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -1416,20 +1535,49 @@ export default function App() {
     [liveMatches]
   );
 
+  const activeTournamentMatches = useMemo(() => {
+    return liveMatches.filter((m) => preferredTournamentScore(m, context) > 0);
+  }, [liveMatches, context]);
+
+  const tennisBoardHeadline = useMemo(() => {
+    const currentName = context?.currentTournament?.name;
+    if (activeTournamentMatches.length > 0 && currentName) return currentName;
+    return "Tennis Board";
+  }, [activeTournamentMatches.length, context]);
+
+  const tennisBoardSubline = useMemo(() => {
+    const currentName = context?.currentTournament?.name;
+    if (activeTournamentMatches.length > 0 && currentName) {
+      return `${currentName.toUpperCase()} · LIVE + UPCOMING`;
+    }
+    return "CURRENT + UPCOMING TOUR MATCHES";
+  }, [activeTournamentMatches.length, context]);
+
   const homeTennisCards = useMemo(() => {
+    const source = activeTournamentMatches.length > 0 ? activeTournamentMatches : liveMatches;
+    const livePreferred = source.filter((m) => String(m?.raw?.live || "0") === "1");
+    const upcomingPreferred = source.filter((m) => String(m?.raw?.live || "0") !== "1");
+
     const cards = [];
 
-    if (tennisLiveMatches[0]) {
+    if (livePreferred[0]) {
       cards.push({
-        ...tennisLiveMatches[0],
+        ...livePreferred[0],
         homeCategory: "Live Tennis",
       });
     }
 
-    if (tennisUpcomingMatches[0]) {
+    if (upcomingPreferred[0]) {
       cards.push({
-        ...tennisUpcomingMatches[0],
+        ...upcomingPreferred[0],
         homeCategory: "Upcoming Tennis",
+      });
+    }
+
+    if (!cards.length && liveMatches[0]) {
+      cards.push({
+        ...liveMatches[0],
+        homeCategory: String(liveMatches[0]?.raw?.live || "0") === "1" ? "Live Tennis" : "Upcoming Tennis",
       });
     }
 
@@ -1438,10 +1586,14 @@ export default function App() {
         id:"tennis-future-1",
         league:"TENNIS",
         leagueColor:"#0891B2",
-        title:"Best current tennis future value",
+        title: context?.currentTournament?.name
+          ? `Best angle at ${context.currentTournament.name}`
+          : "Best current tennis future value",
         time:"Current Market",
-        network:"Tour Futures",
-        blurb:"Futures, form, path, and current market value.",
+        network: context?.currentTournament?.surface || "Tour Futures",
+        blurb: context?.currentTournament?.context
+          ? context.currentTournament.context
+          : "Futures, form, path, and current market value.",
         whatMatters:"Ask for the best current tennis future, path, or price.",
         quickHitters:["Best tennis future right now?","Who has the best path?","Which price is stale?"],
         confirmed:true,
@@ -1449,7 +1601,7 @@ export default function App() {
     }
 
     return cards.slice(0, 2);
-  }, [tennisLiveMatches, tennisUpcomingMatches]);
+  }, [activeTournamentMatches, liveMatches, context]);
 
   const homeNflCards = useMemo(() => {
     if (nflSeasonMode) {
@@ -1524,23 +1676,24 @@ export default function App() {
       prompts.push(item);
     };
 
-    if (tennisLiveMatches[0]) {
-      const match = tennisLiveMatches[0];
-      const label = getPlayerShortLabel(match);
+    const preferredLive = activeTournamentMatches.find((m) => String(m?.raw?.live || "0") === "1") || tennisLiveMatches[0];
+    const preferredUpcoming = activeTournamentMatches.find((m) => String(m?.raw?.live || "0") !== "1") || tennisUpcomingMatches[0];
+
+    if (preferredLive) {
+      const label = getPlayerShortLabel(preferredLive);
       push({
         id:"q1",
-        color: match.league === "WTA" ? "#E11D48" : "#0891B2",
+        color: preferredLive.league === "WTA" ? "#E11D48" : "#0891B2",
         text:`Best live angle for ${label}?`,
         prompt:`What is the best live betting angle for ${label} right now? Give me the strongest side, total, and any prop edge.`,
       });
     }
 
-    if (tennisUpcomingMatches[0]) {
-      const match = tennisUpcomingMatches[0];
-      const label = getPlayerShortLabel(match);
+    if (preferredUpcoming) {
+      const label = getPlayerShortLabel(preferredUpcoming);
       push({
         id:"q2",
-        color: match.league === "WTA" ? "#E11D48" : "#0891B2",
+        color: preferredUpcoming.league === "WTA" ? "#E11D48" : "#0891B2",
         text:`Best tennis bet in ${label} ${daypart}?`,
         prompt:`What is the best bet in ${label} ${daypart}? Give me the cleanest angle and one sharper alternative.`,
       });
@@ -1549,8 +1702,12 @@ export default function App() {
     push({
       id:"q3",
       color:"#0891B2",
-      text:"Which tennis future still has value right now?",
-      prompt:"Which tennis future still has value right now, and why has the market not fully priced it correctly?",
+      text: context?.currentTournament?.name
+        ? `Best futures angle around ${context.currentTournament.name}?`
+        : "Which tennis future still has value right now?",
+      prompt: context?.currentTournament?.name
+        ? `What is the best current futures or tournament-value angle connected to ${context.currentTournament.name}?`
+        : "Which tennis future still has value right now, and why has the market not fully priced it correctly?",
     });
 
     if (nflSeasonMode) {
@@ -1584,7 +1741,7 @@ export default function App() {
     }
 
     return prompts.slice(0, 5);
-  }, [tennisLiveMatches, tennisUpcomingMatches, nflSeasonMode]);
+  }, [activeTournamentMatches, tennisLiveMatches, tennisUpcomingMatches, nflSeasonMode, context]);
 
   const goHome = useCallback(() => {
     setTab("home");
@@ -1628,7 +1785,7 @@ export default function App() {
     setMatchupMsgs([]);
     setMatchupInput("");
     setScreen("matchup");
-    setTab(m?.league?.includes("NFL") ? "nfl" : "home");
+    setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
   }, []);
 
   const openPlayer = useCallback((name) => {
@@ -1753,14 +1910,14 @@ export default function App() {
 
   const activeHeaderPill = (
     <>
-      {screen === "tennis" && <span className="pill-live">TENNIS</span>}
+      {screen === "tennis" && <span className="pill-live">{context?.currentTournament?.name ? context.currentTournament.name.toUpperCase() : "TENNIS"}</span>}
       {screen === "nfl" && <span className="pill-nfl">{nflSeasonMode ? "NFL IN-SEASON" : "NFL FUTURES"}</span>}
       {screen === "nflplayer" && nflPd && <span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
       {screen === "player" && <span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen === "matchup" && selectedMatchup && (
         selectedMatchup.league?.includes("NFL")
           ? <span className="pill-nfl">{selectedMatchup.league}</span>
-          : <span className="pill-tag">{selectedMatchup.league}</span>
+          : <span className="pill-tag">{selectedMatchup.network?.toUpperCase() || selectedMatchup.league}</span>
       )}
       {screen === "ask" && <span className="pill-tag">UR TAKE</span>}
       {(screen === "home" || screen === "pro") && <span className="pill-live">LIVE</span>}
@@ -1788,7 +1945,7 @@ export default function App() {
             <section className="hero">
               <div className="hero-title">What do you want to know?</div>
               <div className="hero-sub">
-                Tennis now, NFL futures for now, and weekly NFL once the season starts.
+                Live tennis first, futures where needed, and weekly NFL once the season flips.
               </div>
             </section>
 
@@ -1863,11 +2020,11 @@ export default function App() {
         {screen === "tennis" && (
           <main className="screen">
             <div className="tour-banner">
-              <div className="banner-title">Tennis Board</div>
-              <div className="banner-sub">CURRENT + UPCOMING TOUR MATCHES</div>
+              <div className="banner-title">{tennisBoardHeadline}</div>
+              <div className="banner-sub">{tennisBoardSubline}</div>
               <div className="banner-note">
                 {liveMatches.length > 0
-                  ? `${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming`
+                  ? `${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length ? ` · ${activeTournamentMatches.length} in active tournament focus` : ""}`
                   : "No current matches loaded right now."}
               </div>
             </div>
@@ -1904,13 +2061,17 @@ export default function App() {
 
             <ChatThread msgs={tennisMsgs} />
 
-            <div className="section-divider">Live + Upcoming Matches</div>
+            <div className="section-divider">
+              {activeTournamentMatches.length > 0 && context?.currentTournament?.name
+                ? `${context.currentTournament.name} Board`
+                : "Live + Upcoming Matches"}
+            </div>
 
             {tennisLoading ? (
               <div className="loading-state"><div className="loading-text">LOADING TENNIS BOARD...</div></div>
             ) : liveMatches.length > 0 ? (
               <div className="matchup-list">
-                {liveMatches.map((m) => (
+                {(activeTournamentMatches.length > 0 ? activeTournamentMatches : liveMatches).map((m) => (
                   <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
                     <div className="matchup-top">
                       <div className="matchup-league" style={{ color:m.leagueColor }}>{m.league}</div>
@@ -1929,6 +2090,33 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+
+                {activeTournamentMatches.length > 0 && liveMatches.length > activeTournamentMatches.length && (
+                  <>
+                    <div className="section-divider">Other Tour Matches</div>
+                    {liveMatches
+                      .filter((m) => !activeTournamentMatches.some((x) => x.id === m.id))
+                      .map((m) => (
+                        <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
+                          <div className="matchup-top">
+                            <div className="matchup-league" style={{ color:m.leagueColor }}>{m.league}</div>
+                            <div className="matchup-time">{String(m?.raw?.live || "0") === "1" ? "LIVE" : (m.raw?.status || m.time)}</div>
+                          </div>
+                          <div className="matchup-body">
+                            <div className="matchup-title">{m.title}</div>
+                            <div className="matchup-meta">
+                              {m.network}
+                              {m.raw?.round ? ` · ${m.raw.round}` : ""}
+                            </div>
+                            <div className="matchup-blurb">
+                              {m.raw?.score && m.raw.score !== "-" ? `Current score: ${m.raw.score}. ` : ""}
+                              {m.blurb}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </>
+                )}
               </div>
             ) : (
               <div className="loading-state"><div className="loading-text">NO CONFIRMED TENNIS MATCHES FOUND</div></div>
@@ -2118,7 +2306,7 @@ export default function App() {
           <main className="screen">
             <button className="detail-back" onClick={() => {
               setSelectedMatchup(null);
-              setScreen(selectedMatchup?.league?.includes("NFL") ? "nfl" : "home");
+              setScreen(selectedMatchup?.league?.includes("NFL") ? "nfl" : "tennis");
             }}>
               ← BACK
             </button>
@@ -2346,7 +2534,7 @@ export default function App() {
           </button>
           <button className={`nav-btn${tab === "tennis" ? " tennis-active" : ""}`} onClick={goTennis}>
             <NavIcon type="tennis" />
-            <span>Tennis</span>
+            <span>{context?.currentTournament?.name ? context.currentTournament.name.split(" ")[0] : "Tennis"}</span>
           </button>
           <button className={`nav-btn${tab === "nfl" ? " nfl-active" : ""}`} onClick={goNfl}>
             <NavIcon type="nfl" />
