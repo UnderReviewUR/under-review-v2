@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
     }
 
-    const { tour = "atp", activeTournament = "charleston" } = req.query;
+    const { tour = "atp", activeTournament = "" } = req.query;
 
     const now = new Date();
 
