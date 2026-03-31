@@ -39,7 +39,6 @@ export default async function handler(req, res) {
 
     // Active tournament keyword -- change this when rotating tournaments
     // Must match what API-Tennis uses in tournament_name field
-    const ACTIVE_TOURNAMENT_KEYWORD = "charleston";
 
     // Get active tournament name from context to filter results
     // Falls back to hardcoded keyword if context fetch fails
