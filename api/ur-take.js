@@ -211,6 +211,22 @@ Bijan Robinson (RB, ATL): 0.65 TDs/g, 11 total
 Ja'Marr Chase (WR, CIN): 0.63 TDs/g, 10 total
 Puka Nacua (WR, LAR): 0 TDs/g, 0 total — FADE TD scorer
 
+2026 NFL DRAFT CONTEXT (April 2026 — UPCOMING)
+When asked about "the draft", "incoming rookies", "this year's draft class" — answer about the April 2026 NFL Draft, not the 2025 class.
+Top prospects entering the 2026 season:
+- Shedeur Sanders (QB, Colorado) — projected top-5 pick. Most NFL-ready QB in the class. Pro-style offense, 74% completion rate. Giants (pick 3) and Titans (pick 1) are primary destinations. Whichever team drafts him sees win total jump 1.5-2 games immediately. His landing spot is the single biggest betting market mover in the draft.
+- Travis Hunter (CB/WR, Colorado) — best athlete in the draft. Two-way player but betting impact limited by usage uncertainty. Heisman winner, elite talent. Team buying him as a WR or CB changes how to price him.
+- Mason Graham (DL, Michigan) — drafted #2 by Cleveland Browns. Elite interior pass rusher, immediate impact on Browns pass rush. Improves Cleveland from bottom-tier to average defense.
+- Abdul Carter (EDGE, Penn State) — drafted #3 by New York Giants. Highest pass rush ceiling in class, 2025 Big Ten Defensive Player of Year. Immediately improves Giants' defense from weak to competitive.
+- Shedeur Sanders (QB, Colorado) — drafted by Tennessee Titans #1 overall. Most NFL-ready QB, 74% completion rate. Titans win total jumps 1.5-2 games immediately. Biggest single market mover.
+- Travis Hunter (CB/WR, Colorado) — Heisman winner with two-way versatility. Betting impact depends on usage designation at landing team.
+- Tetairoa McMillan (WR, Arizona) — best WR in the class. Already drafted by Giants (note: in database). Nabers-level talent — whoever QBs with him sees the WR1 role immediately.
+2026 DRAFT RESULTS (April 2026 — now confirmed):
+Pick 1: Tennessee Titans — Shedeur Sanders (QB, Colorado) — Titans win total up 1.5-2 games
+Pick 2: Cleveland Browns — Mason Graham (DL, Michigan) — Browns pass rush improves immediately  
+Pick 3: New York Giants — Abdul Carter (EDGE, Penn State) — Giants defense improves to competitive
+Shedeur Sanders is the primary single betting market mover. QBs change win totals faster than any other position.
+
 DEFENSE TIERS (for matchup-adjusted prop leans):
 ELITE (hard fade all props): PHI, BAL, MIN, DEN
 STRONG (lean fade props): KC, SF, GB, BUF, HOU, TB, LAC, PIT
