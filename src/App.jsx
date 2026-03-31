@@ -99,12 +99,6 @@ const css = `
   .nav-btn.miami-active{color:var(--gold);}
   .nav-btn.nfl-active{color:var(--nfl);}
 
-  .pro-card{background:var(--surface);border:1px solid rgba(255,45,107,.25);border-radius:18px;padding:18px;}
-  .pro-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px;}
-  .pro-copy{color:var(--soft);font-size:14px;line-height:1.7;margin-bottom:14px;}
-  .pro-price{font-size:34px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:12px;}
-  .pro-btn{width:100%;border:none;border-radius:14px;padding:14px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--black);background:linear-gradient(90deg,var(--cyan),var(--magenta));}
-
   .player-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;margin-bottom:10px;}
   .player-card:hover{border-color:var(--border-2);}
   .player-top{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}
@@ -247,29 +241,7 @@ const featuredQuestions = [
   { id:"q5", color:"#FF2D6B", text:"Which 2026 NFL Draft rookie has the biggest betting impact?", prompt:"Among rookies entering the NFL in the 2026 NFL Draft (April 2026 draft), which player will have the biggest immediate impact on team win totals, player props, and betting markets in the 2026 season? Consider QB situations, team needs, and how quickly each position typically contributes." },
 ];
 
-const featuredMatchups = [
-  {
-    id:"m1", league:"ATP", leagueColor:"#00F5E9",
-    title:"Sinner vs Alcaraz — Miami Open",
-    time:"Live Now · Miami Open 2026",
-    network:"Tennis Channel",
-    blurb:"The cleanest rivalry in tennis. Alcaraz leads H2H 11-6 but Sinner owns Miami — won here in 2022 and 2023. Both are in the draw.",
-    whatMatters:"Alcaraz's drop-shot variety gives him the tactical edge. Sinner's 91.8% hold rate and 81% tiebreak win rate are the counters. This comes down to who breaks serve first.",
-    quickHitters:["Who wins in three sets?","Is Sinner over 8 aces the play?","Total games lean?"],
-    stats:[{label:"H2H",value:"11-6 ALC"},{label:"SINNER HOLD",value:"91.8%"},{label:"SURFACE",value:"Hard"}],
-    confirmed: true,
-  },
-  {
-    id:"m2", league:"WTA", leagueColor:"#FF2D6B",
-    title:"Sabalenka vs Rybakina — Miami Open",
-    time:"Live Now · Miami Open 2026",
-    network:"Tennis Channel",
-    blurb:"One of the thinnest edges in women's tennis. Sabalenka's power baseline meets Rybakina's serve — the one weapon that holds up against her pace.",
-    whatMatters:"Rybakina's 10.3% ace rate neutralizes Sabalenka's return aggression. Sabalenka leads H2H 9-7 but Rybakina has the cleaner surface edge in Miami.",
-    quickHitters:["Rybakina aces over 6.5?","Does this go three sets?","Sabalenka ML or plus games?"],
-    stats:[{label:"H2H",value:"9-7 SAB"},{label:"RYB ACE%",value:"10.3%"},{label:"LEAN",value:"RYB +2.5"}],
-    confirmed: true,
-  },
+const fallbackMatchups = [
   {
     id:"m3", league:"NFL FUTURE", leagueColor:"#FF6B35",
     title:"Puka Nacua — 2026 Season Total",
@@ -466,12 +438,61 @@ function ChatThread({ msgs }) {
   );
 }
 
-function normalizeMatches(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.matches)) return payload.matches;
-  if (Array.isArray(payload?.events)) return payload.events;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
+function normalizeTennisMatch(match, fallbackLeague = "ATP") {
+  if (!match) return null;
+
+  const home = match.home_team || "Player 1";
+  const away = match.away_team || "Player 2";
+  const tournament = match.tournament || "Miami";
+  const round = match.round ? ` · ${match.round}` : "";
+  const statusRaw = String(match.status || "Scheduled");
+  const live = String(match.live || "0") === "1";
+
+  let timeLabel = statusRaw;
+  if (!live && match.commence_time) {
+    const d = new Date(match.commence_time);
+    if (!Number.isNaN(d.getTime())) {
+      timeLabel = d.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+  } else if (live) {
+    timeLabel = `Live · ${statusRaw}`;
+  }
+
+  const leagueGuess = fallbackLeague;
+  const leagueColor = leagueGuess === "WTA" ? "#FF2D6B" : "#00F5E9";
+
+  const p1Odds = match.bookmakers?.[0]?.markets?.[0]?.outcomes?.[0]?.price ?? "N/A";
+  const p2Odds = match.bookmakers?.[0]?.markets?.[0]?.outcomes?.[1]?.price ?? "N/A";
+
+  return {
+    id: match.id || `${leagueGuess}-${home}-${away}-${match.commence_time || ""}`,
+    league: leagueGuess,
+    leagueColor,
+    title: `${home} vs ${away}`,
+    time: `${timeLabel} · ${tournament}${round}`,
+    network: match.score && match.score !== "-" ? `Score: ${match.score}` : "Confirmed Match",
+    blurb: live
+      ? `Live Miami match. Current status: ${statusRaw}.`
+      : `Upcoming confirmed Miami match on the ${leagueGuess} side.`,
+    whatMatters: `${home} vs ${away} at the Miami Open. Moneyline snapshot: ${home} ${p1Odds} / ${away} ${p2Odds}. Use UR TAKE for side, games, ace props, and matchup-specific angles.`,
+    quickHitters: [
+      `Who wins ${home} vs ${away}?`,
+      `Best props for ${home} vs ${away}?`,
+      `Total games lean for ${home} vs ${away}?`,
+    ],
+    stats: [
+      { label: "TOUR", value: leagueGuess },
+      { label: "STATUS", value: live ? "LIVE" : "UPCOMING" },
+      { label: "ODDS", value: `${p1Odds} / ${p2Odds}` },
+    ],
+    confirmed: true,
+    raw: match,
+  };
 }
 
 export default function App() {
@@ -511,17 +532,30 @@ export default function App() {
       fetch("/api/tennis?tour=atp").then(r => r.json()),
       fetch("/api/tennis?tour=wta").then(r => r.json()),
     ])
-      .then(([p, c, atpLive, wtaLive]) => {
+      .then(([p, c, atpRaw, wtaRaw]) => {
         setPlayers(p);
         setContext(c);
 
-        const atpMatches = normalizeMatches(atpLive);
-        const wtaMatches = normalizeMatches(wtaLive);
-        setLiveMatches([...atpMatches, ...wtaMatches]);
+        const atpMatches = Array.isArray(atpRaw) ? atpRaw.map(m => normalizeTennisMatch(m, "ATP")).filter(Boolean) : [];
+        const wtaMatches = Array.isArray(wtaRaw) ? wtaRaw.map(m => normalizeTennisMatch(m, "WTA")).filter(Boolean) : [];
 
+        const merged = [...atpMatches, ...wtaMatches].sort((a, b) => {
+          const aLive = a?.raw?.live === "1" ? 1 : 0;
+          const bLive = b?.raw?.live === "1" ? 1 : 0;
+          if (aLive !== bLive) return bLive - aLive;
+
+          const aTime = new Date(a?.raw?.commence_time || 0).getTime();
+          const bTime = new Date(b?.raw?.commence_time || 0).getTime();
+          return aTime - bTime;
+        });
+
+        setLiveMatches(merged);
         setTennisLoading(false);
       })
-      .catch(() => setTennisLoading(false));
+      .catch(() => {
+        setLiveMatches([]);
+        setTennisLoading(false);
+      });
   }, []);
 
   const processImageFile = useCallback((file) => {
@@ -678,76 +712,8 @@ export default function App() {
     .filter(([, p]) => nflPosFilter === "ALL" || p.pos === nflPosFilter)
     .sort((a, b) => b[1].ydsPg - a[1].ydsPg);
 
-  const homepageTennisMatchups = (Array.isArray(liveMatches) ? liveMatches : [])
-    .filter((m) => {
-      const home = m?.home_team || m?.home || m?.player1 || m?.players?.[0] || "";
-      const away = m?.away_team || m?.away || m?.player2 || m?.players?.[1] || "";
-      return home && away;
-    })
-    .sort((a, b) => {
-      const aTime = new Date(a?.commence_time || a?.commenceTime || a?.start_time || a?.startTime || 0).getTime();
-      const bTime = new Date(b?.commence_time || b?.commenceTime || b?.start_time || b?.startTime || 0).getTime();
-      return aTime - bTime;
-    })
-    .slice(0, 8)
-    .map((m, idx) => {
-      const home = m.home_team || m.home || m.player1 || m.players?.[0] || "Player 1";
-      const away = m.away_team || m.away || m.player2 || m.players?.[1] || "Player 2";
-      const commence = m.commence_time || m.commenceTime || m.start_time || m.startTime || null;
-
-      let timeLabel = "Upcoming";
-      if (commence) {
-        const d = new Date(commence);
-        const now = Date.now();
-        const start = d.getTime();
-        const diffHours = (start - now) / (1000 * 60 * 60);
-
-        if (diffHours <= 0 && diffHours >= -4) {
-          timeLabel = "Live Now";
-        } else {
-          timeLabel = d.toLocaleString([], {
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-          });
-        }
-      }
-
-      const sportKey = String(m.sport_key || m.sportKey || m.tour || "").toLowerCase();
-      const isWta = sportKey.includes("wta");
-      const league = isWta ? "WTA" : "ATP";
-      const leagueColor = isWta ? "#FF2D6B" : "#00F5E9";
-
-      const tournamentLabel =
-        (m.sport_title || m.tournament || m.tournamentName || m.event_name || "Tennis").replace(/_/g, " ");
-
-      return {
-        id: m.id || `live-${idx}`,
-        league,
-        leagueColor,
-        title: `${home} vs ${away}`,
-        time: `${timeLabel} · ${tournamentLabel}`,
-        network: "Confirmed Match",
-        blurb: "Current or upcoming confirmed tennis match pulled from the live feed.",
-        whatMatters: `Live market matchup: ${home} vs ${away}. Use UR TAKE for side, total games, ace props, and matchup-specific angles.`,
-        quickHitters: [
-          `Who wins ${home} vs ${away}?`,
-          `Best props for ${home} vs ${away}?`,
-          `Total games lean for ${home} vs ${away}?`
-        ],
-        stats: [
-          { label: "TOUR", value: league },
-          { label: "STATUS", value: timeLabel.includes("Live") ? "LIVE" : "UPCOMING" },
-          { label: "EVENT", value: tournamentLabel.slice(0, 12).toUpperCase() }
-        ],
-        confirmed: true,
-        raw: m,
-      };
-    });
-
-  const homeMatchupsToShow =
-    homepageTennisMatchups.length > 0 ? homepageTennisMatchups : featuredMatchups;
+  const homeTennisCards = liveMatches.slice(0, 6);
+  const homeCards = homeTennisCards.length > 0 ? [...homeTennisCards, ...fallbackMatchups] : fallbackMatchups;
 
   function TennisPlayerCard({ name, idx, tour }) {
     const p = getPlayer(name, tour);
@@ -861,10 +827,10 @@ export default function App() {
 
             <section className="section">
               <div className="section-label">
-                {homepageTennisMatchups.length > 0 ? "LIVE / UPCOMING TENNIS" : "MATCHUPS TO TAP INTO"}
+                {homeTennisCards.length > 0 ? "CURRENT / UPCOMING TENNIS MATCHES" : "MATCHUPS TO TAP INTO"}
               </div>
               <div className="matchup-list">
-                {homeMatchupsToShow.map((m) => (
+                {homeCards.map((m) => (
                   <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
                     <div className="matchup-top">
                       <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
@@ -934,11 +900,11 @@ export default function App() {
 
             <ChatThread msgs={miamiMsgs} />
 
-            {homepageTennisMatchups.length > 0 && (
+            {liveMatches.length > 0 && (
               <>
                 <div className="miami-section-title">CONFIRMED MATCHES</div>
                 <div className="matchup-list">
-                  {homepageTennisMatchups.map((m) => (
+                  {liveMatches.map((m) => (
                     <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
                       <div className="matchup-top">
                         <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
@@ -1248,78 +1214,6 @@ export default function App() {
                 <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--muted)" }}>CANCEL ANYTIME</span>
                 <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--muted)" }}>NO COMMITMENT</span>
               </div>
-            </div>
-
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
-              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--cyan)", marginBottom:14 }}>WHAT YOU GET</div>
-              {[
-                ["Unlimited UR TAKE queries", "No throttling mid-slate, no daily cap. Ask everything."],
-                ["Real prop edges", "True floors and ceilings — not public line guesswork."],
-                ["Full player intelligence", "QB + RB/WR/TE database + tennis profiles + defense tiers."],
-                ["Live matchup breakdowns", "Defense-adjusted prop leans with actual betting angles."],
-                ["Saved threads", "Track your takes and review what hit."],
-                ["Priority responses", "Faster answers during live games when it matters most."],
-              ].map(([title, desc], i) => (
-                <div key={i} style={{ display:"flex", gap:12, marginBottom:i < 5 ? 12 : 0 }}>
-                  <div style={{ width:6, height:6, borderRadius:"50%", background:"var(--cyan)", flexShrink:0, marginTop:6 }} />
-                  <div>
-                    <div style={{ fontSize:13, fontWeight:600, color:"var(--text)", marginBottom:2 }}>{title}</div>
-                    <div style={{ fontSize:12, color:"var(--muted)", lineHeight:1.4 }}>{desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
-              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--magenta)", marginBottom:14 }}>WHY IT WINS</div>
-              {[
-                "Built on real player data — not generic AI models",
-                "Designed for props and edges, not narrative predictions",
-                "Defense-adjusted context (other apps skip this entirely)",
-                "Tennis + NFL in one place — two markets, one intelligence layer",
-                "Updates with real usage, trend signals, and matchup context",
-              ].map((item, i) => (
-                <div key={i} style={{ display:"flex", gap:10, marginBottom:i < 4 ? 10 : 0 }}>
-                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:12, color:"var(--magenta)", flexShrink:0, marginTop:1 }}>→</div>
-                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.45 }}>{item}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
-              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--gold)", marginBottom:14 }}>EXAMPLE UR TAKE</div>
-
-              <div style={{ background:"rgba(0,245,233,.04)", border:"1px solid rgba(0,245,233,.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                  <span style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>Derrick Henry</span>
-                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#00E676", background:"rgba(0,230,118,.1)", padding:"2px 8px", borderRadius:4 }}>TD OVER 0.5</span>
-                </div>
-                <div style={{ fontSize:12, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>0.94 TDs/game · highest rate in NFL</div>
-                <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5 }}>Ravens red zone usage is unmatched. Henry gets carries inside the 5 that no other RB sees. Fade the under every week.</div>
-              </div>
-
-              <div style={{ background:"rgba(0,245,233,.04)", border:"1px solid rgba(0,245,233,.12)", borderRadius:12, padding:"12px 14px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                  <span style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>Puka Nacua</span>
-                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#00E676", background:"rgba(0,230,118,.1)", padding:"2px 8px", borderRadius:4 }}>REC YDS OVER</span>
-                </div>
-                <div style={{ fontSize:12, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>107.2 yds/g · 129 catches · led NFL</div>
-                <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5 }}>Volume is the edge — not touchdowns. 8.1 catches per game is historic TE-level production from a WR. Catches and yards OVER every week.</div>
-              </div>
-            </div>
-
-            <div style={{ background:"rgba(255,45,107,.06)", border:"1px solid rgba(255,45,107,.2)", borderRadius:14, padding:"14px 16px", marginBottom:20 }}>
-              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--magenta)", letterSpacing:2, marginBottom:8 }}>FREE VERSION LIMITS</div>
-              <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.6 }}>
-                Free users hit query limits during peak hours — typically right before and during live games when you need it most. Pro removes every cap.
-              </div>
-            </div>
-
-            <button style={{ width:"100%", border:"none", borderRadius:14, padding:"15px 0", cursor:"pointer", fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:3, color:"var(--black)", background:"linear-gradient(90deg,var(--cyan),var(--magenta))", marginBottom:8 }}>
-              GET FULL ACCESS NOW
-            </button>
-            <div style={{ textAlign:"center", fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--muted)", paddingBottom:8 }}>
-              MOST USERS UPGRADE AFTER HITTING LIMITS DURING LIVE GAMES
             </div>
           </main>
         )}
