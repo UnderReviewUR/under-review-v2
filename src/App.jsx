@@ -1231,14 +1231,14 @@ function NavIcon({ type }) {
 
 function getTournamentFetchParam(context) {
   const active = context?.currentTournament;
-  if (!active) return "charleston";
+  if (!active) return "";
   const candidates = [
     active.key,
     active.name,
     active.location,
   ].filter(Boolean);
   const joined = candidates.map((v) => slugify(v)).join(",");
-  return joined || "charleston";
+  return joined || "";
 }
 
 function preferredTournamentScore(match, context) {
