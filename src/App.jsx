@@ -208,8 +208,6 @@ const css = `
   .nfl-ask-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;}
 `;
 
-// ── Static data ──────────────────────────────────────────────────────────────
-
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
@@ -242,15 +240,14 @@ const NFL_PROP_GUIDE = [
 ];
 
 const featuredQuestions = [
-  { id:"q1", color:"#00F5E9", text:"Best ace props at Miami Open tonight?",                   prompt:"What are the best ace props at Miami Open tonight based on the player data?" },
-  { id:"q2", color:"#FF2D6B", text:"Who wins Alcaraz vs Sinner on hard court?",              prompt:"Who wins Alcaraz vs Sinner on hard court and what are the betting angles?" },
+  { id:"q1", color:"#00F5E9", text:"Best ace props at Miami Open tonight?", prompt:"What are the best ace props at Miami Open tonight based on the player data?" },
+  { id:"q2", color:"#FF2D6B", text:"Who wins Alcaraz vs Sinner on hard court?", prompt:"Who wins Alcaraz vs Sinner on hard court and what are the betting angles?" },
   { id:"q3", color:"#FF6B35", text:"Will Puka Nacua go over 1,500 receiving yards in 2026?", prompt:"Will Puka Nacua go over 1,500 receiving yards in 2026? Give me the lean and the reasoning." },
-  { id:"q4", color:"#F5C842", text:"Which RB scores the most TDs in 2026?",                  prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?" },
+  { id:"q4", color:"#F5C842", text:"Which RB scores the most TDs in 2026?", prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?" },
   { id:"q5", color:"#FF2D6B", text:"Which 2026 NFL Draft rookie has the biggest betting impact?", prompt:"Among rookies entering the NFL in the 2026 NFL Draft (April 2026 draft), which player will have the biggest immediate impact on team win totals, player props, and betting markets in the 2026 season? Consider QB situations, team needs, and how quickly each position typically contributes." },
 ];
 
 const featuredMatchups = [
-  // ── TENNIS: label as live tournament context, not a specific scheduled match ──
   {
     id:"m1", league:"ATP", leagueColor:"#00F5E9",
     title:"Sinner vs Alcaraz — Miami Open",
@@ -273,7 +270,6 @@ const featuredMatchups = [
     stats:[{label:"H2H",value:"9-7 SAB"},{label:"RYB ACE%",value:"10.3%"},{label:"LEAN",value:"RYB +2.5"}],
     confirmed: true,
   },
-  // ── NFL FUTURES: season totals are always valid until the season starts ──
   {
     id:"m3", league:"NFL FUTURE", leagueColor:"#FF6B35",
     title:"Puka Nacua — 2026 Season Total",
@@ -298,8 +294,6 @@ const featuredMatchups = [
   },
 ];
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 function formatServeStats(s) {
   if (!s) return "—";
   const p = [];
@@ -323,9 +317,9 @@ function formatOverallStats(s) {
   if (s.tiebreakPct       !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
   return p.length ? p.join(", ") : "—";
 }
-function getHoldValue(p) { return p?.serveStats?.holdPct         !== undefined ? `${p.serveStats.holdPct}%`          : "—"; }
-function getDrValue(p)   { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}`  : "—"; }
-function getTbValue(p)   { return p?.overallStats?.tiebreakPct    !== undefined ? `${p.overallStats.tiebreakPct}%`   : "—"; }
+function getHoldValue(p) { return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—"; }
+function getDrValue(p)   { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—"; }
+function getTbValue(p)   { return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—"; }
 
 function buildNflContext() {
   return Object.entries(NFL_PLAYERS).map(([name, p]) => {
@@ -380,7 +374,97 @@ function renderMessage(text) {
   });
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+function AskBar({
+  value,
+  onChange,
+  onSubmit,
+  placeholder,
+  btnColor,
+  pastedImage,
+  clearImage,
+  isAsking,
+  fileInputRef,
+  processImageFile,
+}) {
+  return (
+    <div className="ask-wrap">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display:"none" }}
+        onChange={(e) => {
+          if (e.target.files[0]) processImageFile(e.target.files[0]);
+        }}
+      />
+      <div className="ask-row">
+        <div className="ask-col">
+          {pastedImage && (
+            <div className="ask-img-preview">
+              <img src={pastedImage.previewUrl} alt="Attached" className="ask-img-thumb" />
+              <button className="ask-img-remove" onClick={clearImage} type="button">
+                ✕ Remove
+              </button>
+            </div>
+          )}
+
+          <input
+            className="ask-bar"
+            value={value}
+            onChange={onChange}
+            placeholder={pastedImage ? "Ask about this image..." : placeholder}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSubmit();
+            }}
+            disabled={isAsking}
+            autoComplete="off"
+          />
+
+          {!pastedImage && (
+            <div className="ask-hint">PASTE IMAGE OR TAP 📎 TO ATTACH</div>
+          )}
+        </div>
+
+        <button
+          className={`attach-btn${pastedImage ? " has-img" : ""}`}
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+        </button>
+
+        <button
+          className="send-btn"
+          onClick={onSubmit}
+          disabled={isAsking}
+          type="button"
+          style={btnColor ? { background: btnColor } : {}}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatThread({ msgs }) {
+  if (!msgs || msgs.length === 0) return null;
+
+  return (
+    <div className="chat-thread" style={{ marginBottom:20 }}>
+      {msgs.map((m, i) => (
+        <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
+          {m.image && <img src={m.image} alt="" className="bubble-img" />}
+          {m.loading ? m.text : renderMessage(m.text)}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function App() {
   const [tab, setTab]                         = useState("home");
@@ -390,26 +474,23 @@ export default function App() {
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
   const [nflPosFilter, setNflPosFilter]       = useState("ALL");
 
-  // ── Per-screen input state (fixes focus/one-char bug) ─────────────────────
   const [homeInput,    setHomeInput]    = useState("");
   const [askInput,     setAskInput]     = useState("");
   const [miamiInput,   setMiamiInput]   = useState("");
   const [nflInput,     setNflInput]     = useState("");
   const [matchupInput, setMatchupInput] = useState("");
 
-  // ── Per-screen message threads (fixes undefined activemessages crash) ──────
   const [askMsgs,     setAskMsgs]     = useState([]);
   const [miamiMsgs,   setMiamiMsgs]   = useState([]);
   const [nflMsgs,     setNflMsgs]     = useState([]);
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
-  const [isAsking, setIsAsking]   = useState(false);
-  const [players, setPlayers]     = useState(null);
-  const [context, setContext]     = useState(null);
+  const [isAsking, setIsAsking] = useState(false);
+  const [players, setPlayers] = useState(null);
+  const [context, setContext] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
   const [tennisLoading, setTennisLoading] = useState(false);
 
-  // ── Image state ───────────────────────────────────────────────────────────
   const [pastedImage, setPastedImage] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -429,7 +510,6 @@ export default function App() {
       .catch(() => setTennisLoading(false));
   }, []);
 
-  // ── Image helpers ─────────────────────────────────────────────────────────
   const processImageFile = useCallback((file) => {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
@@ -462,17 +542,16 @@ export default function App() {
     return () => window.removeEventListener("paste", handlePaste);
   }, [processImageFile]);
 
-  // ── Core ask function ─────────────────────────────────────────────────────
   async function askUrTake({ text, matchup, setMsgs, sportHint }) {
     if (!text || isAsking) return;
     setIsAsking(true);
-    clearImage();
 
     const imgToSend = pastedImage;
     const userMsg   = { role:"user", text, image: imgToSend?.previewUrl || null };
     const thinkMsg  = { role:"ai",   text:"THINKING...", loading:true };
 
     setMsgs(prev => [...prev, userMsg, thinkMsg]);
+    clearImage();
 
     try {
       const body = {
@@ -486,11 +565,17 @@ export default function App() {
         nflContext: buildNflContext(),
         sportHint: sportHint || null,
       };
+
       if (imgToSend) {
         body.image = { base64: imgToSend.base64, mediaType: imgToSend.mediaType };
       }
 
-      const res  = await fetch("/api/ur-take", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
+      const res = await fetch("/api/ur-take", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body),
+      });
+
       const data = await res.json();
       const aiText = data.response || "Couldn't get a response — try again.";
       setMsgs(prev => [...prev.filter(m => !m.loading), { role:"ai", text:aiText }]);
@@ -501,7 +586,6 @@ export default function App() {
     }
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────
   function goHome()  { setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
   function goMiami() { setTab("miami"); setScreen("miami"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
   function goNfl()   { setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
@@ -518,12 +602,10 @@ export default function App() {
   function openPlayer(name)    { setSelectedPlayer(name);    setScreen("player"); }
   function openNflPlayer(name) { setSelectedNflPlayer(name); setScreen("nflplayer"); }
 
-  // ── Submit handlers (each uses its own input + msgs) ─────────────────────
   function submitHome() {
     const t = homeInput.trim();
     if (!t || isAsking) return;
     setHomeInput("");
-    // Route home ask to ASK tab
     setAskInput("");
     setTab("ask");
     setScreen("ask");
@@ -555,11 +637,10 @@ export default function App() {
     const t = (forced ?? matchupInput).trim();
     if (!t || isAsking) return;
     if (!forced) setMatchupInput("");
-    const hint = selectedMatchup?.league === "NFL" ? "nfl" : "tennis";
+    const hint = selectedMatchup?.league.includes("NFL") ? "nfl" : "tennis";
     askUrTake({ text: t, matchup: selectedMatchup, setMsgs: setMatchupMsgs, sportHint: hint });
   }
 
-  // Fire a question directly (from featured prompts on HOME)
   function firePrompt(prompt) {
     setTab("ask");
     setScreen("ask");
@@ -567,7 +648,6 @@ export default function App() {
     askUrTake({ text: prompt, setMsgs: setAskMsgs });
   }
 
-  // ── Data helpers ──────────────────────────────────────────────────────────
   function getPlayer(name, tour = "atp") {
     if (!players) return null;
     return (tour === "atp" ? players.atp : players.wta)?.[name] || null;
@@ -583,73 +663,6 @@ export default function App() {
   const filteredNflPlayers = Object.entries(NFL_PLAYERS)
     .filter(([, p]) => nflPosFilter === "ALL" || p.pos === nflPosFilter)
     .sort((a, b) => b[1].ydsPg - a[1].ydsPg);
-
-  // ── Shared components ─────────────────────────────────────────────────────
-
-  // AskBar: fully self-contained, no shared state between instances
-  function AskBar({ value, onChange, onSubmit, placeholder, btnColor }) {
-    return (
-      <div className="ask-wrap">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display:"none" }}
-          onChange={(e) => { if (e.target.files[0]) processImageFile(e.target.files[0]); }}
-        />
-        <div className="ask-row">
-          <div className="ask-col">
-            {pastedImage && (
-              <div className="ask-img-preview">
-                <img src={pastedImage.previewUrl} alt="Attached" className="ask-img-thumb" />
-                <button className="ask-img-remove" onClick={clearImage}>✕ Remove</button>
-              </div>
-            )}
-            <input
-              className="ask-bar"
-              value={value}
-              onChange={onChange}
-              placeholder={pastedImage ? "Ask about this image..." : placeholder}
-              onKeyDown={(e) => { if (e.key === "Enter") onSubmit(); }}
-              disabled={isAsking}
-              autoComplete="off"
-            />
-            {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP 📎 TO ATTACH</div>}
-          </div>
-          <button
-            className={`attach-btn${pastedImage ? " has-img" : ""}`}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-            </svg>
-          </button>
-          <button
-            className="send-btn"
-            onClick={onSubmit}
-            disabled={isAsking}
-            style={btnColor ? { background: btnColor } : {}}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function ChatThread({ msgs }) {
-    if (!msgs || msgs.length === 0) return null;
-    return (
-      <div className="chat-thread" style={{ marginBottom:20 }}>
-        {msgs.map((m, i) => (
-          <div key={i} className={`bubble ${m.role}${m.loading ? " loading" : ""}`}>
-            {m.image && <img src={m.image} alt="" className="bubble-img" />}
-            {m.loading ? m.text : renderMessage(m.text)}
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   function TennisPlayerCard({ name, idx, tour }) {
     const p = getPlayer(name, tour);
@@ -708,14 +721,10 @@ export default function App() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{css}</style>
       <div className="app">
-
         <header className="hdr">
           <div>
             <span className="logo-under">UNDER</span>
@@ -732,7 +741,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* ══ HOME ══ */}
         {screen === "home" && (
           <main className="screen">
             <section className="hero">
@@ -745,6 +753,11 @@ export default function App() {
               onChange={e => setHomeInput(e.target.value)}
               onSubmit={submitHome}
               placeholder="Ask UR TAKE anything..."
+              pastedImage={pastedImage}
+              clearImage={clearImage}
+              isAsking={isAsking}
+              fileInputRef={fileInputRef}
+              processImageFile={processImageFile}
             />
 
             <section className="section">
@@ -790,7 +803,6 @@ export default function App() {
           </main>
         )}
 
-        {/* ══ MIAMI / TENNIS ══ */}
         {screen === "miami" && (
           <main className="screen">
             <div className="miami-banner">
@@ -820,6 +832,11 @@ export default function App() {
                 onChange={e => setMiamiInput(e.target.value)}
                 onSubmit={() => submitMiami()}
                 placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?"
+                pastedImage={pastedImage}
+                clearImage={clearImage}
+                isAsking={isAsking}
+                fileInputRef={fileInputRef}
+                processImageFile={processImageFile}
               />
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                 {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays?"].map((q) => (
@@ -861,7 +878,6 @@ export default function App() {
           </main>
         )}
 
-        {/* ══ NFL ══ */}
         {screen === "nfl" && (
           <main className="screen">
             <div className="nfl-banner">
@@ -878,6 +894,11 @@ export default function App() {
                 onSubmit={() => submitNfl()}
                 placeholder="e.g. Which RB leads TDs in 2026? Best WR prop this week?"
                 btnColor="var(--nfl)"
+                pastedImage={pastedImage}
+                clearImage={clearImage}
+                isAsking={isAsking}
+                fileInputRef={fileInputRef}
+                processImageFile={processImageFile}
               />
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                 {["Best WR props this week?","Top TE by volume?","Fade or take Kelce?","Best RB rushing prop?"].map((q) => (
@@ -912,7 +933,6 @@ export default function App() {
           </main>
         )}
 
-        {/* ══ NFL PLAYER DETAIL ══ */}
         {screen === "nflplayer" && nflPd && (
           <main className="screen">
             <button className="detail-back" onClick={() => { setScreen("nfl"); setSelectedNflPlayer(null); }}>← BACK</button>
@@ -962,11 +982,15 @@ export default function App() {
               onSubmit={() => submitNfl()}
               placeholder={`Ask about ${selectedNflPlayer}...`}
               btnColor="var(--nfl)"
+              pastedImage={pastedImage}
+              clearImage={clearImage}
+              isAsking={isAsking}
+              fileInputRef={fileInputRef}
+              processImageFile={processImageFile}
             />
           </main>
         )}
 
-        {/* ══ MATCHUP DETAIL ══ */}
         {screen === "matchup" && selectedMatchup && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
@@ -1000,11 +1024,15 @@ export default function App() {
               onChange={e => setMatchupInput(e.target.value)}
               onSubmit={() => submitMatchup()}
               placeholder={`Ask about ${selectedMatchup.title}...`}
+              pastedImage={pastedImage}
+              clearImage={clearImage}
+              isAsking={isAsking}
+              fileInputRef={fileInputRef}
+              processImageFile={processImageFile}
             />
           </main>
         )}
 
-        {/* ══ TENNIS PLAYER DETAIL ══ */}
         {screen === "player" && pd && (
           <main className="screen">
             <button className="detail-back" onClick={() => setScreen("miami")}>← BACK</button>
@@ -1037,11 +1065,15 @@ export default function App() {
               onChange={e => setMiamiInput(e.target.value)}
               onSubmit={() => submitMiami()}
               placeholder={`Ask about ${selectedPlayer}...`}
+              pastedImage={pastedImage}
+              clearImage={clearImage}
+              isAsking={isAsking}
+              fileInputRef={fileInputRef}
+              processImageFile={processImageFile}
             />
           </main>
         )}
 
-        {/* ══ ASK ══ */}
         {screen === "ask" && (
           <main className="screen">
             <section className="hero" style={{ paddingTop:4 }}>
@@ -1053,6 +1085,11 @@ export default function App() {
               onChange={e => setAskInput(e.target.value)}
               onSubmit={submitAsk}
               placeholder="What do you want to know?"
+              pastedImage={pastedImage}
+              clearImage={clearImage}
+              isAsking={isAsking}
+              fileInputRef={fileInputRef}
+              processImageFile={processImageFile}
             />
             {askMsgs.length === 0 ? (
               <section className="section">
@@ -1074,11 +1111,8 @@ export default function App() {
           </main>
         )}
 
-        {/* ══ PRO ══ */}
         {screen === "pro" && (
           <main className="screen">
-
-            {/* HOOK */}
             <div style={{ textAlign:"center", padding:"20px 4px 16px" }}>
               <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:30, letterSpacing:1, lineHeight:1.1, marginBottom:10 }}>
                 Stop Guessing.<br />
@@ -1091,7 +1125,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* PRICE + CTA */}
             <div style={{ background:"var(--surface)", border:"1px solid rgba(0,245,233,.2)", borderRadius:20, padding:"20px 18px", marginBottom:14 }}>
               <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:4 }}>
                 <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:42, letterSpacing:1, lineHeight:1, color:"var(--text)" }}>$9.99</span>
@@ -1109,7 +1142,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* WHAT YOU GET */}
             <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
               <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--cyan)", marginBottom:14 }}>WHAT YOU GET</div>
               {[
@@ -1130,7 +1162,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* WHY IT WINS */}
             <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
               <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--magenta)", marginBottom:14 }}>WHY IT WINS</div>
               {[
@@ -1147,7 +1178,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* EXAMPLE TAKES */}
             <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
               <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--gold)", marginBottom:14 }}>EXAMPLE UR TAKE</div>
 
@@ -1170,7 +1200,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* URGENCY */}
             <div style={{ background:"rgba(255,45,107,.06)", border:"1px solid rgba(255,45,107,.2)", borderRadius:14, padding:"14px 16px", marginBottom:20 }}>
               <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--magenta)", letterSpacing:2, marginBottom:8 }}>FREE VERSION LIMITS</div>
               <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.6 }}>
@@ -1178,14 +1207,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* BOTTOM CTA */}
             <button style={{ width:"100%", border:"none", borderRadius:14, padding:"15px 0", cursor:"pointer", fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:3, color:"var(--black)", background:"linear-gradient(90deg,var(--cyan),var(--magenta))", marginBottom:8 }}>
               GET FULL ACCESS NOW
             </button>
             <div style={{ textAlign:"center", fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--muted)", paddingBottom:8 }}>
               MOST USERS UPGRADE AFTER HITTING LIMITS DURING LIVE GAMES
             </div>
-
           </main>
         )}
 
@@ -1196,7 +1223,6 @@ export default function App() {
           <button className={`nav-btn${tab === "ask"                          ? " active"       : ""}`} onClick={goAsk}>ASK</button>
           <button className={`nav-btn${tab === "pro"                          ? " active"       : ""}`} onClick={goPro}>PRO</button>
         </nav>
-
       </div>
     </>
   );
