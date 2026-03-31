@@ -4,29 +4,39 @@ const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   :root{
-    --black:#080A0C;
+    --cyan:#0891B2;
+    --cyan-bright:#00F5E9;
+    --mag:#E11D48;
+    --magenta:#FF2D6B;
+    --gold:#D97706;
+    --green:#00E676;
+    --red:#FF4444;
+    --nfl:#FF6B35;
+
+    --bg:#080A0C;
     --surface:#0F1215;
     --surface-2:#0C1014;
     --border:#1E2328;
     --border-2:#2A3040;
-    --cyan:#00F5E9;
-    --cyan-deep:#00cfc5;
-    --magenta:#FF2D6B;
-    --gold:#F5C842;
-    --nfl:#FF6B35;
     --text:#E8EAF0;
     --muted:#AAB3C2;
     --soft:#D6DCE6;
-    --green:#00E676;
-    --red:#FF4444;
+    --header-bg:rgba(8,10,12,.97);
+    --nav-bg:rgba(8,10,12,.98);
+    --card-shadow:none;
+    --card-shadow-hover:0 10px 30px rgba(0,0,0,.18);
+    --body-font:'DM Sans',sans-serif;
+    --mono-font:'DM Mono',monospace;
+    --display-font:'Bebas Neue',sans-serif;
+    --bottom-nav-height:74px;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body,#root{height:100%;}
   body{
-    background:var(--black);
+    background:var(--bg);
     color:var(--text);
-    font-family:'DM Sans',sans-serif;
+    font-family:var(--body-font);
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
     -moz-osx-font-smoothing:grayscale;
@@ -34,7 +44,7 @@ const css = `
 
   .app{
     min-height:100vh;
-    background:var(--black);
+    background:var(--bg);
     color:var(--text);
     display:flex;
     flex-direction:column;
@@ -43,15 +53,15 @@ const css = `
   .hdr{
     padding:14px 16px;
     border-bottom:1px solid var(--border);
-    background:rgba(8,10,12,.97);
+    background:var(--header-bg);
     display:flex;
     align-items:center;
     justify-content:space-between;
     position:sticky;
     top:0;
     z-index:30;
-    gap:12px;
     backdrop-filter:blur(10px);
+    gap:14px;
   }
 
   .wordmark{
@@ -64,7 +74,7 @@ const css = `
 
   .logo-under{
     display:block;
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:5px;
     color:rgba(255,255,255,.6);
@@ -74,11 +84,11 @@ const css = `
 
   .logo-review{
     display:block;
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:22px;
     letter-spacing:2px;
     line-height:1;
-    background:linear-gradient(90deg,var(--cyan),var(--magenta));
+    background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));
     -webkit-background-clip:text;
     -webkit-text-fill-color:transparent;
     background-clip:text;
@@ -92,7 +102,7 @@ const css = `
   }
 
   .pill-tag,.pill-live,.pill-nfl{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     padding:4px 9px;
     border-radius:999px;
@@ -106,7 +116,7 @@ const css = `
   }
 
   .pill-live{
-    color:var(--cyan);
+    color:var(--cyan-bright);
     border:1px solid rgba(0,245,233,.25);
     background:rgba(0,245,233,.06);
   }
@@ -130,17 +140,17 @@ const css = `
   }
 
   .hero-title{
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:34px;
     letter-spacing:1px;
     line-height:1;
-    margin-bottom:8px;
+    margin-bottom:10px;
   }
 
   .hero-sub{
     color:var(--soft);
     font-size:14px;
-    line-height:1.55;
+    line-height:1.6;
     max-width:560px;
     margin:0 auto;
   }
@@ -153,10 +163,13 @@ const css = `
     background:var(--surface-2);
     border-radius:18px;
     overflow:hidden;
-    transition:border-color .15s ease;
+    transition:border-color .15s ease, box-shadow .15s ease;
+    box-shadow:var(--card-shadow);
   }
 
-  .ask-col:focus-within{border-color:rgba(0,245,233,.4);}
+  .ask-col:focus-within{
+    border-color:rgba(0,245,233,.4);
+  }
 
   .ask-img-preview{padding:8px 12px 0;display:flex;align-items:center;gap:8px;}
   .ask-img-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border-2);}
@@ -166,7 +179,7 @@ const css = `
     color:var(--magenta);
     border-radius:6px;
     padding:3px 8px;
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     cursor:pointer;
   }
@@ -179,13 +192,13 @@ const css = `
     color:var(--text);
     font-size:14px;
     outline:none;
-    font-family:'DM Sans',sans-serif;
+    font-family:var(--body-font);
   }
 
   .ask-bar::placeholder{color:var(--muted);}
 
   .ask-hint{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:9px;
     color:var(--muted);
     letter-spacing:1px;
@@ -198,8 +211,8 @@ const css = `
     height:44px;
     border:none;
     border-radius:50%;
-    background:var(--cyan);
-    color:var(--black);
+    background:var(--cyan-bright);
+    color:#080A0C;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -225,16 +238,16 @@ const css = `
     transition:all .15s ease;
   }
 
-  .attach-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .attach-btn:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);}
   .attach-btn.has-img{
-    border-color:var(--cyan);
-    color:var(--cyan);
+    border-color:var(--cyan-bright);
+    color:var(--cyan-bright);
     background:rgba(0,245,233,.08);
   }
 
   .section{margin-top:20px;}
   .section-label{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:2px;
     color:var(--muted);
@@ -253,11 +266,13 @@ const css = `
     padding:12px;
     cursor:pointer;
     color:var(--text);
+    box-shadow:var(--card-shadow);
     transition:all .18s ease;
   }
 
   .q-card:hover{
-    border-color:var(--cyan);
+    border-color:var(--cyan-bright);
+    box-shadow:var(--card-shadow-hover);
     transform:translateY(-1px);
   }
 
@@ -265,7 +280,6 @@ const css = `
   .q-accent{width:4px;height:30px;border-radius:2px;flex-shrink:0;}
   .q-text{font-size:14px;line-height:1.45;color:var(--soft);}
 
-  .status-banner,
   .tour-banner,
   .nfl-banner{
     border-radius:16px;
@@ -273,21 +287,21 @@ const css = `
     margin-bottom:16px;
     border:1px solid var(--border);
     background:var(--surface);
+    box-shadow:var(--card-shadow);
   }
 
-  .status-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(255,45,107,.05));}
   .tour-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(245,200,66,.06));}
   .nfl-banner{background:linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,45,107,.05));}
 
   .banner-title{
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:26px;
     letter-spacing:1px;
     margin-bottom:4px;
   }
 
   .banner-sub{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     color:var(--muted);
     letter-spacing:2px;
@@ -299,24 +313,6 @@ const css = `
     font-size:13px;
     color:var(--soft);
     line-height:1.5;
-    font-family:'DM Sans',sans-serif;
-  }
-
-  .banner-pills{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-top:12px;
-  }
-
-  .banner-pill{
-    border:1px solid var(--border);
-    background:rgba(255,255,255,.03);
-    color:var(--soft);
-    border-radius:999px;
-    padding:7px 12px;
-    font-size:11px;
-    font-family:'DM Mono',monospace;
   }
 
   .matchup-list{display:flex;flex-direction:column;gap:10px;}
@@ -327,12 +323,14 @@ const css = `
     border-radius:16px;
     overflow:hidden;
     cursor:pointer;
+    box-shadow:var(--card-shadow);
     transition:all .18s ease;
     position:relative;
   }
 
   .matchup-card:hover{
-    border-color:var(--cyan);
+    border-color:var(--cyan-bright);
+    box-shadow:var(--card-shadow-hover);
     transform:translateY(-1px);
   }
 
@@ -346,41 +344,37 @@ const css = `
   }
 
   .matchup-league{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:2px;
     text-transform:uppercase;
   }
 
   .matchup-time{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     color:var(--muted);
-    text-transform:uppercase;
   }
 
   .matchup-body{padding:12px;}
 
   .matchup-title{
     font-size:16px;
-    font-weight:700;
+    font-weight:600;
     margin-bottom:4px;
     color:var(--text);
-    font-family:'DM Sans',sans-serif;
   }
 
   .matchup-meta{
     font-size:12px;
     color:var(--muted);
     margin-bottom:8px;
-    font-family:'DM Sans',sans-serif;
   }
 
   .matchup-blurb{
     font-size:13px;
     color:var(--soft);
     line-height:1.55;
-    font-family:'DM Sans',sans-serif;
   }
 
   .sport-chips{display:flex;gap:8px;flex-wrap:wrap;}
@@ -390,20 +384,20 @@ const css = `
     color:var(--soft);
     border-radius:999px;
     padding:8px 14px;
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:11px;
     cursor:pointer;
     transition:all .15s;
   }
 
-  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan);color:var(--cyan);}
+  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);}
   .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);}
 
   .detail-back{
     background:none;
     border:none;
     color:var(--muted);
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:11px;
     letter-spacing:1px;
     margin-bottom:12px;
@@ -419,6 +413,7 @@ const css = `
     border-radius:18px;
     overflow:hidden;
     margin-bottom:14px;
+    box-shadow:var(--card-shadow);
   }
 
   .detail-head{
@@ -428,7 +423,7 @@ const css = `
   }
 
   .detail-league{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:2px;
     margin-bottom:6px;
@@ -436,36 +431,25 @@ const css = `
   }
 
   .detail-title{
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:28px;
     letter-spacing:1px;
     line-height:1;
     margin-bottom:6px;
   }
 
-  .detail-sub{
-    font-size:12px;
-    color:var(--muted);
-    font-family:'DM Sans',sans-serif;
-  }
-
-  .detail-section{padding:14px;}
-  .detail-label{
-    font-family:'DM Mono',monospace;
+  .detail-sub{font-size:12px;color:var(--muted);}
+  .what-matters{padding:14px;}
+  .wm-label{
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:2px;
-    color:var(--cyan);
+    color:var(--cyan-bright);
     margin-bottom:8px;
     text-transform:uppercase;
   }
 
-  .detail-copy{
-    font-size:14px;
-    line-height:1.7;
-    color:var(--soft);
-    font-family:'DM Sans',sans-serif;
-  }
-
+  .wm-text{font-size:14px;line-height:1.7;color:var(--soft);}
   .quick-hitters{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 14px;}
   .quick-btn{
     border:1px solid var(--border-2);
@@ -476,10 +460,9 @@ const css = `
     font-size:12px;
     cursor:pointer;
     transition:all .15s ease;
-    font-family:'DM Sans',sans-serif;
   }
 
-  .quick-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .quick-btn:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);}
   .mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px 14px;}
   .mini-stat{
     background:var(--surface-2);
@@ -487,10 +470,11 @@ const css = `
     border-radius:12px;
     padding:10px;
     text-align:center;
+    box-shadow:var(--card-shadow);
   }
 
-  .mini-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;}
-  .mini-value{font-size:15px;font-weight:700;font-family:'DM Sans',sans-serif;}
+  .mini-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);margin-bottom:4px;}
+  .mini-value{font-size:15px;font-weight:700;}
 
   .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:8px;}
   .bubble{
@@ -498,7 +482,6 @@ const css = `
     padding:13px 14px;
     font-size:14px;
     line-height:1.65;
-    font-family:'DM Sans',sans-serif;
   }
 
   .bubble.user{
@@ -517,11 +500,12 @@ const css = `
     border:1px solid var(--border);
     color:var(--soft);
     border-bottom-left-radius:6px;
+    box-shadow:var(--card-shadow);
   }
 
   .bubble.loading{
     opacity:.5;
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:12px;
     letter-spacing:2px;
     color:var(--muted);
@@ -542,10 +526,11 @@ const css = `
     overflow:hidden;
     cursor:pointer;
     margin-bottom:10px;
+    box-shadow:var(--card-shadow);
     transition:all .18s ease;
   }
 
-  .player-card:hover{border-color:var(--border-2);}
+  .player-card:hover{border-color:var(--border-2);box-shadow:var(--card-shadow-hover);}
   .player-top{
     padding:12px 14px;
     display:flex;
@@ -554,7 +539,7 @@ const css = `
   }
 
   .player-rank{
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:32px;
     color:var(--muted);
     line-height:1;
@@ -563,47 +548,47 @@ const css = `
   }
 
   .player-info{flex:1;}
-  .player-name{font-size:16px;font-weight:600;color:var(--text);margin-bottom:2px;font-family:'DM Sans',sans-serif;}
-  .player-style{font-size:12px;color:var(--muted);font-family:'DM Sans',sans-serif;}
+  .player-name{font-size:16px;font-weight:600;color:var(--text);margin-bottom:2px;}
+  .player-style{font-size:12px;color:var(--muted);}
   .player-elo{text-align:right;}
   .player-elo-num{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:16px;
-    color:var(--cyan);
+    color:var(--cyan-bright);
     display:block;
   }
 
-  .player-elo-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+  .player-elo-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
   .player-stats{padding:0 14px 12px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
   .pstat{background:var(--surface-2);border-radius:8px;padding:8px;text-align:center;}
-  .pstat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
-  .pstat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;}
+  .pstat-label{font-family:var(--mono-font);font-size:8px;color:var(--muted);margin-bottom:3px;}
+  .pstat-value{font-family:var(--mono-font);font-size:12px;font-weight:500;}
 
   .surface-pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
-  .surface-pill{font-family:'DM Mono',monospace;font-size:9px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);}
-  .surface-hard{color:var(--cyan);border-color:rgba(0,245,233,.3);}
+  .surface-pill{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:6px;border:1px solid var(--border);}
+  .surface-hard{color:var(--cyan-bright);border-color:rgba(0,245,233,.3);}
   .surface-clay{color:var(--gold);border-color:rgba(245,200,66,.3);}
   .surface-grass{color:var(--green);border-color:rgba(0,230,118,.3);}
   .form-badge{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:9px;
     padding:2px 7px;
     border-radius:4px;
     background:rgba(0,245,233,.1);
-    color:var(--cyan);
+    color:var(--cyan-bright);
     border:1px solid rgba(0,245,233,.2);
   }
 
   .loading-state{text-align:center;padding:40px 20px;}
   .loading-text{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:11px;
     color:var(--muted);
     letter-spacing:2px;
   }
 
   .section-divider{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:3px;
     margin:20px 0 10px;
@@ -633,7 +618,7 @@ const css = `
   .pos-tabs::-webkit-scrollbar{display:none;}
 
   .pos-tab{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:1px;
     border:1px solid var(--border);
@@ -661,13 +646,14 @@ const css = `
     margin-bottom:10px;
     cursor:pointer;
     transition:all .15s ease;
+    box-shadow:var(--card-shadow);
   }
 
-  .nfl-player-card:hover{border-color:rgba(255,107,53,.4);}
+  .nfl-player-card:hover{border-color:rgba(255,107,53,.4);box-shadow:var(--card-shadow-hover);}
   .nfl-player-top{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;}
   .nfl-player-left{display:flex;align-items:center;gap:12px;flex:1;}
   .nfl-rank{
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:28px;
     color:var(--muted);
     line-height:1;
@@ -676,15 +662,15 @@ const css = `
   }
 
   .nfl-player-info{flex:1;}
-  .nfl-player-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:1px;font-family:'DM Sans',sans-serif;}
-  .nfl-player-meta{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
+  .nfl-player-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:1px;}
+  .nfl-player-meta{font-family:var(--mono-font);font-size:10px;color:var(--muted);}
   .nfl-player-right{text-align:right;}
-  .nfl-yds-pg{font-family:'DM Mono',monospace;font-size:16px;color:var(--nfl);display:block;}
-  .nfl-yds-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);}
+  .nfl-yds-pg{font-family:var(--mono-font);font-size:16px;color:var(--nfl);display:block;}
+  .nfl-yds-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
   .nfl-player-stats{padding:0 14px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
   .nfl-stat{background:var(--surface-2);border-radius:8px;padding:7px;text-align:center;}
-  .nfl-stat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-bottom:3px;}
-  .nfl-stat-value{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;}
+  .nfl-stat-label{font-family:var(--mono-font);font-size:8px;color:var(--muted);margin-bottom:3px;}
+  .nfl-stat-value{font-family:var(--mono-font);font-size:12px;font-weight:600;}
 
   .nfl-prop-card{
     background:var(--surface);
@@ -694,13 +680,14 @@ const css = `
     margin-bottom:8px;
     cursor:pointer;
     transition:all .15s ease;
+    box-shadow:var(--card-shadow);
   }
 
-  .nfl-prop-card:hover{border-color:rgba(255,107,53,.35);}
+  .nfl-prop-card:hover{border-color:rgba(255,107,53,.35);box-shadow:var(--card-shadow-hover);}
   .nfl-prop-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
-  .nfl-prop-player{font-size:14px;font-weight:600;color:var(--text);font-family:'DM Sans',sans-serif;}
+  .nfl-prop-player{font-size:14px;font-weight:600;color:var(--text);}
   .nfl-prop-type{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     color:var(--nfl);
     background:rgba(255,107,53,.1);
@@ -708,8 +695,8 @@ const css = `
     border-radius:4px;
   }
 
-  .nfl-prop-line{font-family:'DM Mono',monospace;font-size:11px;color:var(--gold);margin-bottom:3px;}
-  .nfl-prop-lean{font-size:12px;color:var(--soft);line-height:1.4;font-family:'DM Sans',sans-serif;}
+  .nfl-prop-line{font-family:var(--mono-font);font-size:11px;color:var(--gold);margin-bottom:3px;}
+  .nfl-prop-lean{font-size:12px;color:var(--soft);line-height:1.4;}
 
   .nfl-detail-head{
     padding:14px;
@@ -718,7 +705,7 @@ const css = `
   }
 
   .nfl-detail-pos{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:2px;
     color:var(--nfl);
@@ -727,14 +714,14 @@ const css = `
   }
 
   .nfl-detail-name{
-    font-family:'Bebas Neue',sans-serif;
+    font-family:var(--display-font);
     font-size:28px;
     letter-spacing:1px;
     line-height:1;
     margin-bottom:6px;
   }
 
-  .nfl-detail-sub{font-size:12px;color:var(--muted);font-family:'DM Sans',sans-serif;}
+  .nfl-detail-sub{font-size:12px;color:var(--muted);}
   .nfl-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px;}
   .nfl-detail-stat{
     background:var(--surface-2);
@@ -742,13 +729,14 @@ const css = `
     border-radius:12px;
     padding:10px;
     text-align:center;
+    box-shadow:var(--card-shadow);
   }
 
-  .nfl-detail-label{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;}
-  .nfl-detail-value{font-size:15px;font-weight:700;font-family:'DM Sans',sans-serif;}
+  .nfl-detail-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);margin-bottom:4px;}
+  .nfl-detail-value{font-size:15px;font-weight:700;}
   .nfl-detail-section{padding:0 14px 14px;}
   .nfl-detail-section-label{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:2px;
     color:var(--nfl);
@@ -765,8 +753,8 @@ const css = `
 
   .nfl-prop-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
   .nfl-prop-row:last-child{margin-bottom:0;}
-  .nfl-prop-name{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-  .nfl-prop-val{font-family:'DM Mono',monospace;font-size:11px;}
+  .nfl-prop-name{font-family:var(--mono-font);font-size:11px;color:var(--muted);}
+  .nfl-prop-val{font-family:var(--mono-font);font-size:11px;}
   .lean-over{color:var(--green);}
   .lean-fade{color:var(--red);}
   .lean-neutral{color:var(--gold);}
@@ -777,11 +765,10 @@ const css = `
     font-size:13px;
     color:var(--soft);
     line-height:1.6;
-    font-family:'DM Sans',sans-serif;
   }
 
   .nfl-betting-angles{display:flex;flex-direction:column;gap:6px;}
-  .nfl-angle-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--soft);line-height:1.5;font-family:'DM Sans',sans-serif;}
+  .nfl-angle-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--soft);line-height:1.5;}
   .nfl-angle-dot{width:5px;height:5px;border-radius:50%;background:var(--nfl);flex-shrink:0;margin-top:5px;}
   .nfl-ask-shell{
     background:var(--surface);
@@ -789,10 +776,11 @@ const css = `
     border-radius:14px;
     padding:14px;
     margin-bottom:16px;
+    box-shadow:var(--card-shadow);
   }
 
   .nfl-ask-label{
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     color:var(--nfl);
     letter-spacing:2px;
@@ -805,21 +793,21 @@ const css = `
     left:0;
     right:0;
     bottom:0;
-    background:rgba(8,10,12,.98);
+    background:var(--nav-bg);
     border-top:1px solid var(--border);
     display:grid;
     grid-template-columns:repeat(5,1fr);
     padding:10px 6px max(12px,env(safe-area-inset-bottom));
     z-index:30;
     backdrop-filter:blur(10px);
-    min-height:74px;
+    min-height:var(--bottom-nav-height);
   }
 
   .nav-btn{
     background:none;
     border:none;
     color:var(--muted);
-    font-family:'DM Mono',monospace;
+    font-family:var(--mono-font);
     font-size:10px;
     letter-spacing:1px;
     cursor:pointer;
@@ -831,15 +819,26 @@ const css = `
     opacity:.85;
   }
 
-  .nav-btn.active{color:var(--cyan);}
+  .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:var(--gold);}
   .nav-btn.nfl-active{color:var(--nfl);}
+
+  .nav-icon{
+    width:18px;
+    height:18px;
+    display:none;
+  }
 
   .page-spacer{height:80px;}
 
   @media (max-width: 720px){
-    .hdr{padding:12px 14px;}
-    .header-right{gap:8px;}
+    .hdr{
+      padding:12px 14px;
+    }
+
+    .header-right{
+      gap:8px;
+    }
   }
 `;
 
@@ -882,123 +881,44 @@ const NFL_PROP_GUIDE = [
 
 const NFL_POSITIONS = ["ALL","RB","WR","TE"];
 
-function safeLower(value) {
-  return String(value ?? "").toLowerCase();
-}
-
-function firstDefined(...values) {
-  for (const value of values) {
-    if (value !== undefined && value !== null && value !== "") return value;
-  }
-  return undefined;
-}
-
-function normalizeTourLabel(match, fallbackTour = "ATP") {
-  const joined = [
-    match?.league,
-    match?.league_name,
-    match?.event_type_type,
-    match?.tournament,
-    match?.tournament_name,
-    match?.tour,
-    match?.category,
-  ].map((v) => safeLower(v)).join(" ");
-
-  if (joined.includes("wta") || joined.includes("women")) return "WTA";
-  if (joined.includes("atp") || joined.includes("men")) return "ATP";
-  return fallbackTour;
-}
-
-function normalizeLiveFlag(match) {
-  const raw = firstDefined(
-    match?.live,
-    match?.event_live,
-    match?.is_live,
-    match?.inplay,
-    match?.in_play,
-    match?.currently_live
-  );
-
-  const normalized = safeLower(raw);
-  if (["1", "true", "yes", "live", "inplay", "in_play"].includes(normalized)) return "1";
-
-  const status = safeLower(firstDefined(match?.status, match?.event_status, match?.match_status));
-  if (status.includes("live") || status.includes("in play") || status.includes("inplay")) return "1";
-
-  return "0";
-}
-
-function normalizeStatus(match, isLive) {
-  const raw = firstDefined(match?.status, match?.event_status, match?.match_status, match?.state, "Scheduled");
-  const status = String(raw);
-  if (isLive && !safeLower(status).includes("live")) return "Live";
-  return status;
-}
-
-function normalizeRound(match) {
-  return firstDefined(match?.round, match?.event_round, match?.stage, match?.match_round, "");
-}
-
-function normalizeScore(match) {
-  return firstDefined(match?.score, match?.scores, match?.event_final_result, match?.result, "");
-}
-
-function normalizeTournament(match) {
-  return firstDefined(
-    match?.tournament,
-    match?.tournament_name,
-    match?.event_title,
-    match?.league_name,
-    match?.competition,
-    "Tour Match"
-  );
-}
-
-function normalizePlayers(match) {
-  const home = firstDefined(
-    match?.home_team,
-    match?.event_first_player,
-    match?.player1,
-    match?.first_player,
-    match?.home,
-    match?.participant1,
-    "Player 1"
-  );
-
-  const away = firstDefined(
-    match?.away_team,
-    match?.event_second_player,
-    match?.player2,
-    match?.second_player,
-    match?.away,
-    match?.participant2,
-    "Player 2"
-  );
-
-  return { home: String(home), away: String(away) };
-}
-
 function normalizeTennisMatch(match, fallbackTour = "ATP") {
-  if (!match || typeof match !== "object") return null;
+  if (!match) return null;
 
-  const league = normalizeTourLabel(match, fallbackTour);
-  const { home, away } = normalizePlayers(match);
-  const rawLive = normalizeLiveFlag(match);
+  const league =
+    match.league ||
+    (String(match.league_name || "").toLowerCase().includes("wta") ||
+    String(match.event_type_type || "").toLowerCase().includes("women")
+      ? "WTA"
+      : fallbackTour);
+
+  const home = String(match.home_team || match.event_first_player || "").trim();
+  const away = String(match.away_team || match.event_second_player || "").trim();
+
+  if (!home || !away) return null;
+  if (home.toLowerCase() === "player 1" || away.toLowerCase() === "player 2") return null;
+  if (home.toLowerCase() === "tbd" || away.toLowerCase() === "tbd") return null;
+
+  let status = match.status || match.event_status || "Scheduled";
+  const rawLive = String(match.live ?? match.event_live ?? "0");
   const isLive = rawLive === "1";
-  const status = normalizeStatus(match, isLive);
-  const round = normalizeRound(match);
-  const score = normalizeScore(match);
-  const tournament = normalizeTournament(match);
+
+  if (isLive && !String(status).toLowerCase().includes("live")) {
+    status = "Live";
+  }
+
+  const tournament = String(match.tournament || match.tournament_name || "").trim();
+  if (!tournament) return null;
 
   return {
-    id: firstDefined(match?.id, match?.event_key, match?.match_id, `${league}-${home}-${away}-${tournament}`),
+    id: match.id || match.event_key || `${home}-${away}-${league}`,
     league,
-    leagueColor: league === "WTA" ? "#FF2D6B" : "#00F5E9",
+    leagueColor: league === "WTA" ? "#E11D48" : "#0891B2",
     title: `${home} vs ${away}`,
     time: status,
     network: tournament,
-    blurb: [round, score].filter(Boolean).join(" · "),
-    quickHitters: ["Best angle here?", "Moneyline or total?", "Any live edge?"],
+    blurb: `${home} vs ${away}${match.round ? ` · ${match.round}` : ""}${match.score && match.score !== "-" ? ` · ${match.score}` : ""}`,
+    whatMatters: "Ask for the side, total, props, or live angle.",
+    quickHitters: ["Best angle here?","Moneyline or total?","Any live edge?"],
     confirmed: true,
     raw: {
       ...match,
@@ -1006,9 +926,6 @@ function normalizeTennisMatch(match, fallbackTour = "ATP") {
       status,
       home,
       away,
-      round,
-      score,
-      tournament,
     },
   };
 }
@@ -1123,7 +1040,7 @@ function renderMessage(text) {
             const tail = parts.slice(1).join(" — ");
 
             return (
-              <div key={j} style={{ background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px" }}>
+              <div key={j} style={{ background:"rgba(8,145,178,.06)", border:"1px solid rgba(8,145,178,.12)", borderRadius:10, padding:"10px 12px" }}>
                 <div style={{ fontWeight:600, color:"var(--text)", fontSize:13, marginBottom: tail ? 4 : 0 }}>{head}</div>
                 {tail && <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.55 }}>{tail}</div>}
               </div>
@@ -1240,6 +1157,44 @@ function ChatThread({ msgs }) {
   );
 }
 
+function NavIcon({ type }) {
+  if (type === "home") {
+    return (
+      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      </svg>
+    );
+  }
+  if (type === "tennis") {
+    return (
+      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 8v4l3 3"/>
+      </svg>
+    );
+  }
+  if (type === "ask") {
+    return (
+      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </svg>
+    );
+  }
+  if (type === "pro") {
+    return (
+      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+    );
+  }
+  return (
+    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 19h16M4 5h16M4 12h16"/>
+    </svg>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home");
@@ -1284,13 +1239,12 @@ export default function App() {
 
     async function loadData() {
       setTennisLoading(true);
-
       try {
         const [pRes, cRes, atpRes, wtaRes] = await Promise.all([
           fetch("/api/tennis-players"),
           fetch("/api/tennis-context"),
-          fetch("/api/tennis?tour=atp", { cache: "no-store" }),
-          fetch("/api/tennis?tour=wta", { cache: "no-store" }),
+          fetch("/api/tennis?tour=atp"),
+          fetch("/api/tennis?tour=wta"),
         ]);
 
         const [p, c, atpLive, wtaLive] = await Promise.all([
@@ -1305,36 +1259,16 @@ export default function App() {
         setPlayers(p);
         setContext(c);
 
-        const atpArray = Array.isArray(atpLive)
-          ? atpLive
-          : Array.isArray(atpLive?.events)
-          ? atpLive.events
-          : Array.isArray(atpLive?.results)
-          ? atpLive.results
-          : Array.isArray(atpLive?.data)
-          ? atpLive.data
-          : [];
-
-        const wtaArray = Array.isArray(wtaLive)
-          ? wtaLive
-          : Array.isArray(wtaLive?.events)
-          ? wtaLive.events
-          : Array.isArray(wtaLive?.results)
-          ? wtaLive.results
-          : Array.isArray(wtaLive?.data)
-          ? wtaLive.data
-          : [];
-
         const merged = [
-          ...atpArray.map((m) => normalizeTennisMatch(m, "ATP")),
-          ...wtaArray.map((m) => normalizeTennisMatch(m, "WTA")),
+          ...(Array.isArray(atpLive) ? atpLive.map((m) => normalizeTennisMatch(m, "ATP")) : []),
+          ...(Array.isArray(wtaLive) ? wtaLive.map((m) => normalizeTennisMatch(m, "WTA")) : []),
         ].filter(Boolean);
 
         const deduped = [];
         const seen = new Set();
 
         for (const m of merged) {
-          const key = `${m.league}-${m.raw?.home}-${m.raw?.away}-${m.raw?.tournament}-${m.raw?.round}`;
+          const key = `${m.league}-${m.title}-${m.network}-${m.raw?.status || ""}`;
           if (seen.has(key)) continue;
           seen.add(key);
           deduped.push(m);
@@ -1343,13 +1277,16 @@ export default function App() {
         const sorted = deduped.sort((a, b) => {
           const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
           const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
-          if (bLive !== aLive) return bLive - aLive;
+          if (aLive !== bLive) return bLive - aLive;
 
-          const aHasScore = a?.raw?.score ? 1 : 0;
-          const bHasScore = b?.raw?.score ? 1 : 0;
-          if (bHasScore !== aHasScore) return bHasScore - aHasScore;
+          const aTime = a?.raw?.event_date && a?.raw?.event_time
+            ? new Date(`${a.raw.event_date}T${a.raw.event_time}:00`).getTime()
+            : Number.MAX_SAFE_INTEGER;
+          const bTime = b?.raw?.event_date && b?.raw?.event_time
+            ? new Date(`${b.raw.event_date}T${b.raw.event_time}:00`).getTime()
+            : Number.MAX_SAFE_INTEGER;
 
-          return String(a?.title || "").localeCompare(String(b?.title || ""));
+          return aTime - bTime;
         });
 
         setLiveMatches(sorted);
@@ -1483,43 +1420,31 @@ export default function App() {
     const cards = [];
 
     if (tennisLiveMatches[0]) {
-      const m = tennisLiveMatches[0];
       cards.push({
-        ...m,
+        ...tennisLiveMatches[0],
         homeCategory: "Live Tennis",
-        blurb: [
-          m.raw?.tournament,
-          m.raw?.round,
-          m.raw?.score && m.raw.score !== "-" ? `Score: ${m.raw.score}` : null,
-        ].filter(Boolean).join(" · "),
       });
     }
 
     if (tennisUpcomingMatches[0]) {
-      const m = tennisUpcomingMatches[0];
       cards.push({
-        ...m,
+        ...tennisUpcomingMatches[0],
         homeCategory: "Upcoming Tennis",
-        blurb: [
-          m.raw?.tournament,
-          m.raw?.round,
-          m.raw?.status && m.raw?.status !== "Scheduled" ? m.raw.status : null,
-        ].filter(Boolean).join(" · "),
       });
     }
 
     if (cards.length < 2) {
       cards.push({
-        id:"tennis-fallback-1",
+        id:"tennis-future-1",
         league:"TENNIS",
-        leagueColor:"#00F5E9",
+        leagueColor:"#0891B2",
         title:"Best current tennis future value",
         time:"Current Market",
         network:"Tour Futures",
         blurb:"Futures, form, path, and current market value.",
+        whatMatters:"Ask for the best current tennis future, path, or price.",
         quickHitters:["Best tennis future right now?","Who has the best path?","Which price is stale?"],
         confirmed:true,
-        raw:{ live:"0", home:"", away:"" },
       });
     }
 
@@ -1531,27 +1456,27 @@ export default function App() {
       return [
         {
           id:"nfl-home-1",
-          league:"NFL",
-          leagueColor:"#FF6B35",
+          league:"NFL IN-SEASON",
+          leagueColor:"#D97706",
           title:"Best weekly NFL prop board",
-          time:"This Week",
+          time:"Weekly Market",
           network:"Weekly Props",
-          blurb:"Current usage, role shifts, and prop value.",
+          blurb:"Usage, role changes, and current mispricing.",
+          whatMatters:"Ask for the best current weekly NFL edge.",
           quickHitters:["Best prop this week?","Biggest role shift?","Best TD angle?"],
           confirmed:true,
-          raw:{ live:"0" },
         },
         {
           id:"nfl-home-2",
-          league:"NFL",
-          leagueColor:"#FF6B35",
+          league:"NFL IN-SEASON",
+          leagueColor:"#D97706",
           title:"Most mispriced in-season usage spot",
-          time:"This Week",
+          time:"Weekly Market",
           network:"Role + Volume",
-          blurb:"Market lag versus actual opportunity.",
+          blurb:"Where the market is lagging behind current role and usage.",
+          whatMatters:"Ask for the cleanest role-driven edge.",
           quickHitters:["Which line is stale?","Best volume play?","Best role-based edge?"],
           confirmed:true,
-          raw:{ live:"0" },
         }
       ];
     }
@@ -1560,31 +1485,33 @@ export default function App() {
       {
         id:"nfl-home-future-1",
         league:"NFL FUTURE",
-        leagueColor:"#FF6B35",
+        leagueColor:"#D97706",
         title:"Puka Nacua 2026 outlook",
         time:nflRampMode ? "Season Approaching" : "Futures Window",
         network:"Season Futures",
-        blurb:"Yards, catches, and season-long value.",
+        blurb:"Elite volume profile for the futures window.",
+        whatMatters:"Ask whether yards, catches, or team context creates the edge.",
         quickHitters:["Best Puka future?","Yards or catches?","Is price fair yet?"],
         confirmed:true,
-        raw:{ live:"0" },
       },
       {
         id:"nfl-home-future-2",
         league:"NFL FUTURE",
-        leagueColor:"#FF6B35",
+        leagueColor:"#D97706",
         title:"Derrick Henry TD future",
         time:nflRampMode ? "Season Approaching" : "Futures Window",
         network:"Season Futures",
-        blurb:"One of the cleanest TD archetypes in football.",
+        blurb:"Still one of the clearest touchdown archetypes in football.",
+        whatMatters:"Ask whether the price still has value.",
         quickHitters:["Henry TD over?","Best RB TD future?","Most reliable scorer profile?"],
         confirmed:true,
-        raw:{ live:"0" },
       }
     ];
   }, [nflSeasonMode, nflRampMode]);
 
-  const homeCards = useMemo(() => [...homeTennisCards, ...homeNflCards], [homeTennisCards, homeNflCards]);
+  const homeCards = useMemo(() => {
+    return [...homeTennisCards, ...homeNflCards].filter(Boolean);
+  }, [homeTennisCards, homeNflCards]);
 
   const dynamicHomeQuestions = useMemo(() => {
     const prompts = [];
@@ -1602,7 +1529,7 @@ export default function App() {
       const label = getPlayerShortLabel(match);
       push({
         id:"q1",
-        color: match.league === "WTA" ? "#FF2D6B" : "#00F5E9",
+        color: match.league === "WTA" ? "#E11D48" : "#0891B2",
         text:`Best live angle for ${label}?`,
         prompt:`What is the best live betting angle for ${label} right now? Give me the strongest side, total, and any prop edge.`,
       });
@@ -1613,7 +1540,7 @@ export default function App() {
       const label = getPlayerShortLabel(match);
       push({
         id:"q2",
-        color: match.league === "WTA" ? "#FF2D6B" : "#00F5E9",
+        color: match.league === "WTA" ? "#E11D48" : "#0891B2",
         text:`Best tennis bet in ${label} ${daypart}?`,
         prompt:`What is the best bet in ${label} ${daypart}? Give me the cleanest angle and one sharper alternative.`,
       });
@@ -1621,7 +1548,7 @@ export default function App() {
 
     push({
       id:"q3",
-      color:"#00F5E9",
+      color:"#0891B2",
       text:"Which tennis future still has value right now?",
       prompt:"Which tennis future still has value right now, and why has the market not fully priced it correctly?",
     });
@@ -1629,28 +1556,28 @@ export default function App() {
     if (nflSeasonMode) {
       push({
         id:"q4",
-        color:"#FF6B35",
+        color:"#E11D48",
         text:"Which NFL weekly prop is most mispriced?",
         prompt:"Which NFL weekly player prop looks the most mispriced right now based on current usage and the player database?",
       });
 
       push({
         id:"q5",
-        color:"#FF6B35",
+        color:"#E11D48",
         text:"Best NFL in-season edge on the board?",
         prompt:"What is the best NFL in-season betting edge on the board right now, and what is the clearest reason the market may be wrong?",
       });
     } else {
       push({
         id:"q4",
-        color:"#FF6B35",
+        color:"#E11D48",
         text:"Which NFL future looks most mispriced?",
         prompt:"Which NFL future looks the most mispriced right now based on the current player database and team context?",
       });
 
       push({
         id:"q5",
-        color:"#FF6B35",
+        color:"#E11D48",
         text:"Which RB scores the most TDs in 2026?",
         prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?",
       });
@@ -1696,6 +1623,7 @@ export default function App() {
   }, []);
 
   const openMatchup = useCallback((m) => {
+    if (!m?.title || !m?.network) return;
     setSelectedMatchup(m);
     setMatchupMsgs([]);
     setMatchupInput("");
@@ -1877,22 +1805,8 @@ export default function App() {
               processImageFile={processImageFile}
             />
 
-            <div className="status-banner">
-              <div className="banner-title">Board Snapshot</div>
-              <div className="banner-sub">LIVE TENNIS + CURRENT NFL MODE</div>
-              <div className="banner-note">
-                {liveMatches.length > 0
-                  ? `${tennisLiveMatches.length} live tennis matches · ${tennisUpcomingMatches.length} upcoming tennis matches`
-                  : "No tennis matches loaded right now"}
-              </div>
-              <div className="banner-pills">
-                <span className="banner-pill">{nflSeasonMode ? "NFL: Weekly Mode" : "NFL: Futures Mode"}</span>
-                <span className="banner-pill">{liveMatches.length > 0 ? "Tennis feed loaded" : "Tennis feed empty"}</span>
-              </div>
-            </div>
-
             <section className="section">
-              <div className="section-label">Trending Asks</div>
+              <div className="section-label">TRENDING ASKS</div>
               <div className="q-list">
                 {dynamicHomeQuestions.map((q) => (
                   <button key={q.id} className="q-card" onClick={() => firePrompt(q.prompt)}>
@@ -1906,7 +1820,8 @@ export default function App() {
             </section>
 
             <section className="section">
-              <div className="section-label">Homepage Cards</div>
+              <div className="section-label">HOMEPAGE CARDS</div>
+
               <div className="matchup-list">
                 {homeCards.map((m) => (
                   <div
@@ -1915,7 +1830,9 @@ export default function App() {
                     onClick={() => openMatchup(m)}
                   >
                     <div className="matchup-top">
-                      <div className="matchup-league" style={{ color:m.leagueColor }}>{m.homeCategory || m.league}</div>
+                      <div className="matchup-league" style={{ color:m.leagueColor }}>
+                        {m.homeCategory || m.league}
+                      </div>
                       <div className="matchup-time">{m.time}</div>
                     </div>
 
@@ -1930,7 +1847,7 @@ export default function App() {
             </section>
 
             <section className="section">
-              <div className="section-label">Sports</div>
+              <div className="section-label">SPORTS</div>
               <div className="sport-chips">
                 <button className="sport-chip active" onClick={goTennis}>TENNIS</button>
                 <button className="sport-chip nfl-chip active" onClick={goNfl}>
@@ -1951,12 +1868,12 @@ export default function App() {
               <div className="banner-note">
                 {liveMatches.length > 0
                   ? `${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming`
-                  : "No confirmed tennis matches found from the current feed"}
+                  : "No current matches loaded right now."}
               </div>
             </div>
 
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8, textTransform:"uppercase" }}>
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16, boxShadow:"var(--card-shadow)" }}>
+              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"var(--mono-font)", letterSpacing:2, marginBottom:8, textTransform:"uppercase" }}>
                 Ask Anything — Tennis
               </div>
               <AskBar
@@ -2002,10 +1919,12 @@ export default function App() {
                     <div className="matchup-body">
                       <div className="matchup-title">{m.title}</div>
                       <div className="matchup-meta">
-                        {[m.network, m.raw?.round].filter(Boolean).join(" · ")}
+                        {m.network}
+                        {m.raw?.round ? ` · ${m.raw.round}` : ""}
                       </div>
                       <div className="matchup-blurb">
-                        {m.raw?.score && m.raw.score !== "-" ? `Current score: ${m.raw.score}` : "Match is on the board now."}
+                        {m.raw?.score && m.raw.score !== "-" ? `Current score: ${m.raw.score}. ` : ""}
+                        {m.blurb}
                       </div>
                     </div>
                   </div>
@@ -2025,7 +1944,7 @@ export default function App() {
                         <div className="matchup-title" style={{ fontSize:15 }}>{name}</div>
                         <div className="matchup-meta">ACES</div>
                         <div className="matchup-blurb">{data.avg_aces_hard} avg · {data.ace_rate}</div>
-                        <div className="matchup-blurb" style={{ marginTop:6 }}>{data.note}</div>
+                        <div className="matchup-blurb" style={{ marginTop:6 }}>{data.note || ""}</div>
                       </div>
                     </div>
                   ))}
@@ -2054,8 +1973,8 @@ export default function App() {
               <div className="banner-sub">{nflSeasonMode ? "WEEKLY PROPS · USAGE · PLAYER ANGLES" : "FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
               <div className="banner-note">
                 {nflSeasonMode
-                  ? "Weekly props, role changes, usage shifts, and current edges."
-                  : "Future-facing NFL board until the season flips into weekly mode."}
+                  ? "Current weekly props, role changes, usage shifts, and market edges."
+                  : "Future-facing NFL until the season turns weekly."}
               </div>
             </div>
 
@@ -2211,15 +2130,10 @@ export default function App() {
                 <div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div>
               </div>
 
-              <div className="detail-section">
-                <div className="detail-label">Match Snapshot</div>
-                <div className="detail-copy">
-                  {selectedMatchup.raw?.score && selectedMatchup.raw.score !== "-"
-                    ? `Current score: ${selectedMatchup.raw.score}. `
-                    : ""}
-                  {[selectedMatchup.raw?.tournament, selectedMatchup.raw?.round, selectedMatchup.raw?.status]
-                    .filter(Boolean)
-                    .join(" · ") || "Ask for sides, totals, props, or live angles."}
+              <div className="what-matters">
+                <div className="wm-label">Match Snapshot</div>
+                <div className="wm-text">
+                  {selectedMatchup.whatMatters || "Ask for the side, total, props, or live angle."}
                 </div>
               </div>
 
@@ -2273,8 +2187,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="detail-section">
-                <div className="detail-label">Surface Notes</div>
+              <div className="what-matters">
+                <div className="wm-label">Surface Notes</div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:8 }}>
                   <div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{ color:"var(--cyan)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.hard || "—"}</div></div>
                   <div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{ color:"var(--gold)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.clay || "—"}</div></div>
@@ -2282,39 +2196,39 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="detail-section" style={{ paddingTop:0 }}>
-                <div className="detail-label">2026 Form</div>
+              <div style={{ padding:"0 14px 14px" }}>
+                <div className="wm-label" style={{ marginBottom:8 }}>2026 Form</div>
                 <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>
                   {pd.record2026 || "—"}
                 </div>
               </div>
 
-              <div className="detail-section" style={{ paddingTop:0 }}>
-                <div className="detail-label">Serve</div>
-                <div className="detail-copy">{formatServeStats(pd.serveStats)}</div>
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">Serve</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div>
               </div>
 
-              <div className="detail-section" style={{ paddingTop:0 }}>
-                <div className="detail-label">Return</div>
-                <div className="detail-copy">{formatReturnStats(pd.returnStats)}</div>
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">Return</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div>
               </div>
 
-              <div className="detail-section" style={{ paddingTop:0 }}>
-                <div className="detail-label">Overall</div>
-                <div className="detail-copy">{formatOverallStats(pd.overallStats)}</div>
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">Overall</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div>
               </div>
 
               {pd.miamiNote && (
-                <div className="detail-section" style={{ paddingTop:0 }}>
-                  <div className="detail-label" style={{ color:"var(--magenta)" }}>Tournament Note</div>
-                  <div className="detail-copy">{pd.miamiNote}</div>
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label" style={{ color:"var(--mag)" }}>Tournament Note</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.miamiNote}</div>
                 </div>
               )}
 
               {pd.fullNote && (
-                <div className="detail-section" style={{ paddingTop:0 }}>
-                  <div className="detail-label">UR Take</div>
-                  <div className="detail-copy">{pd.fullNote}</div>
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label">UR Take</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.fullNote}</div>
                 </div>
               )}
             </div>
@@ -2356,7 +2270,7 @@ export default function App() {
 
             {askMsgs.length === 0 ? (
               <section className="section">
-                <div className="section-label">Try One</div>
+                <div className="section-label">TRY ONE</div>
                 <div className="q-list">
                   {dynamicHomeQuestions.map((q) => (
                     <button key={q.id} className="q-card" onClick={() => firePrompt(q.prompt)}>
@@ -2377,9 +2291,9 @@ export default function App() {
         {screen === "pro" && (
           <main className="screen">
             <div style={{ textAlign:"center", padding:"20px 4px 16px" }}>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:30, letterSpacing:"1px", lineHeight:1.1, marginBottom:10 }}>
+              <div style={{ fontFamily:"var(--display-font)", fontSize:30, letterSpacing:"1px", lineHeight:1.1, marginBottom:10 }}>
                 Stop Guessing.<br />
-                <span style={{ background:"linear-gradient(90deg,var(--cyan),var(--magenta))", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+                <span style={{ background:"linear-gradient(90deg,var(--cyan),var(--mag))", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
                   Start Beating the Line.
                 </span>
               </div>
@@ -2388,21 +2302,21 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:20, padding:"20px 18px", marginBottom:14 }}>
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:20, padding:"20px 18px", marginBottom:14, boxShadow:"var(--card-shadow)" }}>
               <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:4 }}>
-                <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:42, lineHeight:1, color:"var(--text)" }}>$9.99</span>
-                <span style={{ fontFamily:"'DM Mono',monospace", fontSize:12, color:"var(--muted)", marginBottom:6 }}>/month</span>
+                <span style={{ fontFamily:"var(--display-font)", fontSize:42, lineHeight:1, color:"var(--text)" }}>$9.99</span>
+                <span style={{ fontFamily:"var(--mono-font)", fontSize:12, color:"var(--muted)", marginBottom:6 }}>/month</span>
               </div>
-              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--cyan)", marginBottom:16, letterSpacing:1 }}>
+              <div style={{ fontFamily:"var(--mono-font)", fontSize:10, color:"var(--cyan)", marginBottom:16, letterSpacing:1 }}>
                 LESS THAN ONE BAD BET
               </div>
-              <button style={{ width:"100%", border:"none", borderRadius:14, padding:"15px 0", cursor:"pointer", fontFamily:"'Bebas Neue',sans-serif", fontSize:20, color:"#080A0C", background:"linear-gradient(90deg,var(--cyan),var(--magenta))" }}>
+              <button style={{ width:"100%", border:"none", borderRadius:14, padding:"15px 0", cursor:"pointer", fontFamily:"var(--display-font)", fontSize:20, color:"#080A0C", background:"linear-gradient(90deg,var(--cyan),var(--mag))" }}>
                 UNLOCK MY EDGE
               </button>
             </div>
 
-            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
-              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--cyan)", marginBottom:14, textTransform:"uppercase" }}>WHAT YOU GET</div>
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14, boxShadow:"var(--card-shadow)" }}>
+              <div style={{ fontFamily:"var(--mono-font)", fontSize:10, letterSpacing:3, color:"var(--cyan)", marginBottom:14, textTransform:"uppercase" }}>WHAT YOU GET</div>
               {[
                 ["Unlimited UR TAKE queries", "No throttling mid-slate, no daily cap. Ask everything."],
                 ["Real prop edges", "True floors and ceilings — not public line guesswork."],
@@ -2427,18 +2341,23 @@ export default function App() {
 
         <nav className="bottom-nav">
           <button className={`nav-btn${tab === "home" && screen === "home" ? " active" : ""}`} onClick={goHome}>
+            <NavIcon type="home" />
             <span>Home</span>
           </button>
           <button className={`nav-btn${tab === "tennis" ? " tennis-active" : ""}`} onClick={goTennis}>
+            <NavIcon type="tennis" />
             <span>Tennis</span>
           </button>
           <button className={`nav-btn${tab === "nfl" ? " nfl-active" : ""}`} onClick={goNfl}>
+            <NavIcon type="nfl" />
             <span>NFL</span>
           </button>
           <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={goAsk}>
+            <NavIcon type="ask" />
             <span>Ask</span>
           </button>
           <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>
+            <NavIcon type="pro" />
             <span>Pro</span>
           </button>
         </nav>
