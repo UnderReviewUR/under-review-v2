@@ -1,182 +1,185 @@
-export const config = { api: { bodyParser: false } };
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-const TOURNAMENTS = {
-  miami_open: {
-    name: "Miami Open",
-    dates: "2026-03-19 to 2026-03-30",
-    surface: "Hard (Plexicushion)",
-    speed: "medium",
-    location: "Miami Gardens, FL",
-    tour: "ATP/WTA",
-    context: "Balanced hard-court event. Use hard-court form, return quality, and tiebreak pressure.",
-    surface_notes: "Use hElo as primary Elo signal.",
-    atp_favorite: "Sinner",
-    wta_favorite: "Sabalenka",
-  },
-
-  charleston_open: {
-    name: "Charleston Open",
-    dates: "2026-04-07 to 2026-04-13",
-    surface: "Clay (Green Clay)",
-    speed: "slow",
-    location: "Charleston, SC",
-    tour: "WTA",
-    context: "Green clay raises break rate and extends rallies. Strong baseliners and movement profiles gain value.",
-    surface_notes: "Use cElo as primary Elo signal.",
-    atp_favorite: "N/A",
-    wta_favorite: "Swiatek",
-  },
-
-  madrid_open: {
-    name: "Madrid Open",
-    dates: "2026-04-24 to 2026-05-03",
-    surface: "Clay",
-    speed: "medium-slow",
-    location: "Madrid, Spain",
-    tour: "ATP/WTA",
-    context: "Altitude speeds conditions up versus standard clay. Power carries more than usual.",
-    surface_notes: "Use cElo, but weight serve and aggression more than normal clay.",
-    atp_favorite: "Alcaraz",
-    wta_favorite: "Swiatek",
-  },
-
-  italian_open: {
-    name: "Italian Open (Rome)",
-    dates: "2026-05-10 to 2026-05-18",
-    surface: "Clay (Red Clay)",
-    speed: "slow",
-    location: "Rome, Italy",
-    tour: "ATP/WTA",
-    context: "Traditional slow clay. Long rallies, higher break rate, and fitness edge.",
-    surface_notes: "Use cElo as primary signal.",
-    atp_favorite: "Alcaraz",
-    wta_favorite: "Swiatek",
-  },
-
-  roland_garros: {
-    name: "Roland Garros",
-    dates: "2026-05-25 to 2026-06-08",
-    surface: "Clay (Red Clay)",
-    speed: "slow",
-    location: "Paris, France",
-    tour: "ATP/WTA",
-    context: "Slowest major. Surface specialists gain the most.",
-    surface_notes: "Use cElo as strongest clay signal.",
-    atp_favorite: "Alcaraz",
-    wta_favorite: "Swiatek",
-  },
-
-  wimbledon: {
-    name: "Wimbledon",
-    dates: "2026-06-29 to 2026-07-12",
-    surface: "Grass",
-    speed: "fast",
-    location: "London, UK",
-    tour: "ATP/WTA",
-    context: "Fast surface, short rallies, tiebreak pressure, and hold-heavy profiles.",
-    surface_notes: "Use gElo as primary signal.",
-    atp_favorite: "Djokovic",
-    wta_favorite: "Sabalenka",
-  },
-
-  us_open: {
-    name: "US Open",
-    dates: "2026-08-31 to 2026-09-13",
-    surface: "Hard (DecoTurf)",
-    speed: "medium-fast",
-    location: "New York, NY",
-    tour: "ATP/WTA",
-    context: "Faster hard-court major. Power and return aggression both matter.",
-    surface_notes: "Use hElo as primary signal.",
-    atp_favorite: "Sinner",
-    wta_favorite: "Sabalenka",
-  },
-
-  australian_open: {
-    name: "Australian Open",
-    dates: "2027-01-12 to 2027-01-26",
-    surface: "Hard (Plexicushion)",
-    speed: "medium",
-    location: "Melbourne, Australia",
-    tour: "ATP/WTA",
-    context: "Medium hard-court conditions with heat as a major variable.",
-    surface_notes: "Use hElo as primary signal.",
-    atp_favorite: "Sinner",
-    wta_favorite: "Sabalenka",
-  },
-};
-
-const SURFACE_ELO_MAP = {
-  "Hard": "hElo",
-  "Clay": "cElo",
-  "Grass": "gElo",
-  "Hard (Plexicushion)": "hElo",
-  "Hard (DecoTurf)": "hElo",
-  "Clay (Red Clay)": "cElo",
-  "Clay (Green Clay)": "cElo",
-};
-
-const MATCHUP_CONTEXT = {};
-
-const ACE_PROPS = {
-  sinner:    { avg_aces_hard: 8.1, avg_aces_clay: 5.2, avg_aces_grass: 9.4, ace_rate: "10.2%" },
-  alcaraz:   { avg_aces_hard: 7.4, avg_aces_clay: 6.1, avg_aces_grass: 8.9, ace_rate: "9.8%" },
-  djokovic:  { avg_aces_hard: 6.2, avg_aces_clay: 4.8, avg_aces_grass: 7.1, ace_rate: "7.9%" },
-  medvedev:  { avg_aces_hard: 9.3, avg_aces_clay: 5.9, avg_aces_grass: 10.2, ace_rate: "12.1%" },
-  zverev:    { avg_aces_hard: 8.8, avg_aces_clay: 6.4, avg_aces_grass: 9.7, ace_rate: "11.3%" },
-  fritz:     { avg_aces_hard: 10.2, avg_aces_clay: 6.8, avg_aces_grass: 11.4, ace_rate: "13.5%" },
-  sabalenka: { avg_aces_hard: 5.8, avg_aces_clay: 3.9, avg_aces_grass: 6.4, ace_rate: "7.2%" },
-  swiatek:   { avg_aces_hard: 3.1, avg_aces_clay: 2.8, avg_aces_grass: 3.4, ace_rate: "3.9%" },
-  gauff:     { avg_aces_hard: 4.2, avg_aces_clay: 2.9, avg_aces_grass: 4.8, ace_rate: "5.3%" },
-  rybakina:  { avg_aces_hard: 8.4, avg_aces_clay: 5.1, avg_aces_grass: 9.2, ace_rate: "11.1%" },
-  pegula:    { avg_aces_hard: 3.8, avg_aces_clay: 2.4, avg_aces_grass: 4.1, ace_rate: "4.9%" },
-};
-
-function parseDateRange(range) {
-  const [start, end] = String(range || "").split(" to ").map((s) => s.trim());
-  return {
-    start: start ? new Date(`${start}T00:00:00`) : null,
-    end: end ? new Date(`${end}T23:59:59`) : null,
-  };
-}
-
-function getActiveTournamentKey() {
-  const now = new Date();
-
-  for (const [key, tournament] of Object.entries(TOURNAMENTS)) {
-    const { start, end } = parseDateRange(tournament.dates);
-    if (start && end && now >= start && now <= end) {
-      return key;
-    }
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
   }
 
-  const ordered = Object.entries(TOURNAMENTS)
-    .map(([key, tournament]) => {
-      const { start } = parseDateRange(tournament.dates);
-      return { key, start };
-    })
-    .filter((item) => item.start instanceof Date && !isNaN(item.start))
-    .sort((a, b) => a.start - b.start);
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  const upcoming = ordered.find((item) => item.start >= now);
-  return upcoming?.key || "miami_open";
-}
+  try {
+    const API_KEY = process.env.API_TENNIS_KEY;
 
-export default function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+    if (!API_KEY) {
+      return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
+    }
 
-  const activeKey = getActiveTournamentKey();
-  const currentTournament = TOURNAMENTS[activeKey];
-  const primaryElo = SURFACE_ELO_MAP[currentTournament?.surface] || "hElo";
+    const { tour = "atp" } = req.query;
 
-  res.status(200).json({
-    currentTournament: {
-      ...currentTournament,
-      key: activeKey,
-      primaryElo,
-    },
-    tournaments: TOURNAMENTS,
-    matchups: MATCHUP_CONTEXT,
-    ace_props: ACE_PROPS,
-  });
+    const today = new Date();
+    const end = new Date();
+    end.setDate(today.getDate() + 7);
+
+    const formatDate = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const date_start = formatDate(today);
+    const date_stop = formatDate(end);
+
+    const url =
+      "https://api.api-tennis.com/tennis/?method=get_fixtures" +
+      "&APIkey=" + encodeURIComponent(API_KEY) +
+      "&date_start=" + encodeURIComponent(date_start) +
+      "&date_stop=" + encodeURIComponent(date_stop);
+
+    const tennisRes = await fetch(url);
+    const data = await tennisRes.json();
+
+    if (!tennisRes.ok) {
+      return res.status(tennisRes.status).json(data);
+    }
+
+    const results = Array.isArray(data?.result) ? data.result : [];
+
+    const normalize = (value) => String(value || "").trim().toLowerCase();
+
+    const isFinishedStatus = (status) => {
+      const s = normalize(status);
+      return (
+        s.includes("finished") ||
+        s.includes("final") ||
+        s.includes("ended") ||
+        s.includes("retired") ||
+        s.includes("walkover") ||
+        s.includes("cancelled") ||
+        s.includes("canceled")
+      );
+    };
+
+    const isWtaMatch = (match) => {
+      const combined = [
+        match.event_type_type,
+        match.league_name,
+        match.tournament_name,
+      ]
+        .map(normalize)
+        .join(" ");
+
+      return combined.includes("women") || combined.includes("wta");
+    };
+
+    const hasRealPlayers = (match) => {
+      const p1 = String(match.event_first_player || "").trim();
+      const p2 = String(match.event_second_player || "").trim();
+
+      if (!p1 || !p2) return false;
+
+      const bad = ["player 1", "player 2", "tbd", "unknown"];
+      if (bad.includes(p1.toLowerCase()) || bad.includes(p2.toLowerCase())) return false;
+
+      return true;
+    };
+
+    const hasUsefulTournament = (match) => {
+      const t = String(match.tournament_name || "").trim().toLowerCase();
+      return !!t && t !== "tour match";
+    };
+
+    const matchesByTour = results.filter((match) => {
+      if (tour === "wta") return isWtaMatch(match);
+      return !isWtaMatch(match);
+    });
+
+    const cleaned = matchesByTour.filter((match) => {
+      const live = String(match.event_live || "0") === "1";
+      const finished = isFinishedStatus(match.event_status);
+
+      if (!hasRealPlayers(match)) return false;
+      if (!hasUsefulTournament(match)) return false;
+
+      return live || !finished;
+    });
+
+    const withSortMeta = cleaned.map((match) => {
+      const live = String(match.event_live || "0") === "1";
+
+      let commenceTime = null;
+      if (match.event_date && match.event_time) {
+        commenceTime = `${match.event_date}T${match.event_time}:00`;
+      } else if (match.event_date) {
+        commenceTime = `${match.event_date}T00:00:00`;
+      }
+
+      const commenceTs = commenceTime
+        ? new Date(commenceTime).getTime()
+        : Number.MAX_SAFE_INTEGER;
+
+      return {
+        match,
+        live,
+        commenceTime,
+        commenceTs: Number.isFinite(commenceTs) ? commenceTs : Number.MAX_SAFE_INTEGER,
+      };
+    });
+
+    withSortMeta.sort((a, b) => {
+      if (a.live !== b.live) return a.live ? -1 : 1;
+      return a.commenceTs - b.commenceTs;
+    });
+
+    const transformed = withSortMeta.map(({ match, live, commenceTime }) => ({
+      id:
+        match.event_key ||
+        `${match.event_first_player}-${match.event_second_player}-${match.event_date}`,
+      commence_time: commenceTime,
+      home_team: String(match.event_first_player || "").trim(),
+      away_team: String(match.event_second_player || "").trim(),
+      tournament: String(match.tournament_name || "").trim(),
+      round: String(match.tournament_round || "").trim(),
+      status: live ? "Live" : String(match.event_status || "Scheduled").trim(),
+      live: live ? "1" : "0",
+      score: String(match.event_final_result || match.event_game_result || "-").trim(),
+      event_type_type: match.event_type_type || "",
+      league_name: match.league_name || "",
+      event_date: match.event_date || "",
+      event_time: match.event_time || "",
+      odd_1: match.odd_1 || null,
+      odd_2: match.odd_2 || null,
+      bookmakers: [
+        {
+          markets: [
+            {
+              key: "h2h",
+              outcomes: [
+                {
+                  name: String(match.event_first_player || "").trim(),
+                  price: match.odd_1 || "N/A",
+                },
+                {
+                  name: String(match.event_second_player || "").trim(),
+                  price: match.odd_2 || "N/A",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }));
+
+    return res.status(200).json(transformed);
+  } catch (err) {
+    console.error("Tennis fetch error:", err);
+    return res.status(500).json({
+      error: "Failed to fetch tennis fixtures",
+      details: err.message,
+    });
+  }
 }
