@@ -33,8 +33,46 @@ function detectSport(question, sportHint) {
   const q = String(question || "").toLowerCase();
   if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
 
-  const nflSignals = ["nfl","quarterback","qb","touchdown","touchdowns","interception","passing yards","rushing yards","receiving yards","fantasy football","super bowl","afc","nfc","wide receiver","running back","tight end","red zone","scramble","blitz","pocket","play action","rpo","bills","patriots","dolphins","jets","ravens","bengals","browns","steelers","texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos","cowboys","giants","eagles","commanders","bears","lions","packers","vikings","falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks","allen","mahomes","lamar","burrow","hurts","prescott","stroud","herbert","maye","love","darnold","stafford","purdy","goff","daniels","williams","ward","nix","lawrence","dart","young","mayfield","penix","jackson","sanders","shough","brissett","cook","henry","taylor","robinson","achane","nacua","chase","pickens","lamb","mcbride","bowers","kelce","warren","rb","wr","te","receiver"];
-  const tennisSignals = ["tennis","atp","wta","miami open","roland garros","french open","wimbledon","us open","australian open","indian wells","clay","grass","hard court","serve","aces","double faults","break point","hold percentage","tiebreak","elo","alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova","osaka","keys"];
+  // Hard-check: the word "nfl" alone settles it immediately.
+  if (q.includes("nfl")) return "nfl";
+
+  const nflSignals = [
+    // Core positions & football concepts
+    "quarterback","qb","touchdown","touchdowns","interception","interceptions",
+    "passing yards","rushing yards","receiving yards","fantasy football","super bowl",
+    "afc","nfc","wide receiver","running back","tight end","red zone","scramble",
+    "blitz","pocket","play action","rpo","offense","defense","defenses","defensive",
+    "offensive","secondary","cornerback","linebacker","safety","pass rush",
+    "pass rusher","edge rusher","interior lineman","sacks","sack","pressure rate",
+    "draft pick","draft class","first round","win total","team total","season total",
+    "week","game script","rb","wr","te","receiver","futures","divisional","playoff",
+    // Teams
+    "bills","patriots","dolphins","jets","ravens","bengals","browns","steelers",
+    "texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos",
+    "cowboys","giants","eagles","commanders","bears","lions","packers","vikings",
+    "falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks",
+    // Players
+    "allen","mahomes","lamar","burrow","hurts","prescott","stroud","herbert",
+    "maye","love","darnold","stafford","purdy","goff","daniels","caleb williams",
+    "cam ward","bo nix","lawrence","dart","bryce young","mayfield","penix","jackson",
+    "shough","brissett","cook","henry","taylor","robinson","achane","nacua","chase",
+    "pickens","lamb","mcbride","bowers","kelce","warren","surtain","watt","bosa",
+    "parsons","micah","myles garrett","tj watt","nick bosa","von miller",
+    // Draft & roster language
+    "draft","rookie","rookies","incoming","prospect","prospects","mock draft",
+    "first overall","top pick",
+  ];
+
+  const tennisSignals = [
+    "tennis","atp","wta","miami open","roland garros","french open","wimbledon",
+    "us open","australian open","indian wells","clay court","grass court",
+    "hard court","serve","aces","ace rate","double faults","break point",
+    "hold percentage","tiebreak","tiebreaks","surface elo","dominance ratio",
+    "alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton",
+    "fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova",
+    "osaka","keys","draper","fils","ruud","rublev","paolini","andreeva",
+    "draw path","grand slam","tour","match play",
+  ];
 
   let nfl = 0, tennis = 0;
   for (const s of nflSignals)    { if (q.includes(s)) nfl    += s.length > 6 ? 2 : 1; }
@@ -42,7 +80,8 @@ function detectSport(question, sportHint) {
 
   if (tennis > nfl) return "tennis";
   if (nfl > tennis) return "nfl";
-  return "tennis";
+  // Tie / no signals: default to NFL (most ambiguous betting questions are football)
+  return "nfl";
 }
 
 function getRelevantQBs(question) {
@@ -177,10 +216,16 @@ When asked about "the draft", "incoming rookies", "this year's draft class" — 
 Top prospects entering the 2026 season:
 - Shedeur Sanders (QB, Colorado) — projected top-5 pick. Most NFL-ready QB in the class. Pro-style offense, 74% completion rate. Giants (pick 3) and Titans (pick 1) are primary destinations. Whichever team drafts him sees win total jump 1.5-2 games immediately. His landing spot is the single biggest betting market mover in the draft.
 - Travis Hunter (CB/WR, Colorado) — best athlete in the draft. Two-way player but betting impact limited by usage uncertainty. Heisman winner, elite talent. Team buying him as a WR or CB changes how to price him.
-- Mason Graham (DL, Michigan) — elite interior pass rusher. Immediate impact on team sack totals and opposing QB pressure rates. Won't move skill position props but improves any defense's DVOA meaningfully.
-- Abdul Carter (EDGE, Penn State) — highest pass rush ceiling in class. 2025 Big Ten Defensive Player of Year. Joins any roster with immediate starting potential.
+- Mason Graham (DL, Michigan) — drafted #2 by Cleveland Browns. Elite interior pass rusher, immediate impact on Browns pass rush. Improves Cleveland from bottom-tier to average defense.
+- Abdul Carter (EDGE, Penn State) — drafted #3 by New York Giants. Highest pass rush ceiling in class, 2025 Big Ten Defensive Player of Year. Immediately improves Giants' defense from weak to competitive.
+- Shedeur Sanders (QB, Colorado) — drafted by Tennessee Titans #1 overall. Most NFL-ready QB, 74% completion rate. Titans win total jumps 1.5-2 games immediately. Biggest single market mover.
+- Travis Hunter (CB/WR, Colorado) — Heisman winner with two-way versatility. Betting impact depends on usage designation at landing team.
 - Tetairoa McMillan (WR, Arizona) — best WR in the class. Already drafted by Giants (note: in database). Nabers-level talent — whoever QBs with him sees the WR1 role immediately.
-QBs change win totals fastest of any position. Shedeur Sanders is the primary betting market mover in the 2026 draft.
+2026 DRAFT RESULTS (April 2026 — now confirmed):
+Pick 1: Tennessee Titans — Shedeur Sanders (QB, Colorado) — Titans win total up 1.5-2 games
+Pick 2: Cleveland Browns — Mason Graham (DL, Michigan) — Browns pass rush improves immediately  
+Pick 3: New York Giants — Abdul Carter (EDGE, Penn State) — Giants defense improves to competitive
+Shedeur Sanders is the primary single betting market mover. QBs change win totals faster than any other position.
 
 DEFENSE TIERS (for matchup-adjusted prop leans):
 ELITE (hard fade all props): PHI, BAL, MIN, DEN
@@ -190,12 +235,15 @@ WEAK (lean over props): MIA, CIN, NYJ, NYG, ARI
 BOTTOM (hard over props): TEN, CLE, LVR, CAR
 
 KEY MATCHUP RULES:
-- ELITE pass rush (PHI, BAL, PIT, DEN) = fade QB passing yards, fade WR1 props
+- ELITE pass rush teams (PHI, BAL, PIT, DEN) = fade QB passing yards, fade WR1 props
 - Pat Surtain II (DEN) = hard fade every WR1 matchup — best cover corner in NFL
-- Darius Slay (PHI) = hard fade WR1 props — travels with opposing WR1
-- T.J. Watt (PIT) = most dominant edge in AFC — fade opposite QB props
+- PHI secondary = fade WR1 props — Eagles pass rush (Sweat, Carter) is elite even with CB changes
+- T.J. Watt (PIT) = most dominant edge in AFC — fade opposing QB passing props
 - Antoine Winfield Jr. (TB) = hard fade TE receiving yards — best coverage safety in NFC
 - BOTTOM defenses (TEN, CLE, LVR, CAR) = OVER on every opposing skill position prop
+- NOTE ON PERSONNEL: Rosters change in offseason. 2025 stats are the baseline.
+  When asked about specific defensive players or coordinators, state 2025 data clearly
+  and acknowledge roster/staff changes may have occurred since the 2025 season ended.
 
 RB/WR/TE SKILL POSITION DATABASE
 ${skillData}
