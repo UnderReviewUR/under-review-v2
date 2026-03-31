@@ -466,6 +466,14 @@ function ChatThread({ msgs }) {
   );
 }
 
+function normalizeMatches(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.matches)) return payload.matches;
+  if (Array.isArray(payload?.events)) return payload.events;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 export default function App() {
   const [tab, setTab]                         = useState("home");
   const [screen, setScreen]                   = useState("home");
@@ -496,15 +504,21 @@ export default function App() {
 
   useEffect(() => {
     setTennisLoading(true);
+
     Promise.all([
       fetch("/api/tennis-players").then(r => r.json()),
       fetch("/api/tennis-context").then(r => r.json()),
       fetch("/api/tennis?tour=atp").then(r => r.json()),
+      fetch("/api/tennis?tour=wta").then(r => r.json()),
     ])
-      .then(([p, c, live]) => {
+      .then(([p, c, atpLive, wtaLive]) => {
         setPlayers(p);
         setContext(c);
-        setLiveMatches(Array.isArray(live) ? live : []);
+
+        const atpMatches = normalizeMatches(atpLive);
+        const wtaMatches = normalizeMatches(wtaLive);
+        setLiveMatches([...atpMatches, ...wtaMatches]);
+
         setTennisLoading(false);
       })
       .catch(() => setTennisLoading(false));
@@ -664,6 +678,77 @@ export default function App() {
     .filter(([, p]) => nflPosFilter === "ALL" || p.pos === nflPosFilter)
     .sort((a, b) => b[1].ydsPg - a[1].ydsPg);
 
+  const homepageTennisMatchups = (Array.isArray(liveMatches) ? liveMatches : [])
+    .filter((m) => {
+      const home = m?.home_team || m?.home || m?.player1 || m?.players?.[0] || "";
+      const away = m?.away_team || m?.away || m?.player2 || m?.players?.[1] || "";
+      return home && away;
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a?.commence_time || a?.commenceTime || a?.start_time || a?.startTime || 0).getTime();
+      const bTime = new Date(b?.commence_time || b?.commenceTime || b?.start_time || b?.startTime || 0).getTime();
+      return aTime - bTime;
+    })
+    .slice(0, 8)
+    .map((m, idx) => {
+      const home = m.home_team || m.home || m.player1 || m.players?.[0] || "Player 1";
+      const away = m.away_team || m.away || m.player2 || m.players?.[1] || "Player 2";
+      const commence = m.commence_time || m.commenceTime || m.start_time || m.startTime || null;
+
+      let timeLabel = "Upcoming";
+      if (commence) {
+        const d = new Date(commence);
+        const now = Date.now();
+        const start = d.getTime();
+        const diffHours = (start - now) / (1000 * 60 * 60);
+
+        if (diffHours <= 0 && diffHours >= -4) {
+          timeLabel = "Live Now";
+        } else {
+          timeLabel = d.toLocaleString([], {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          });
+        }
+      }
+
+      const sportKey = String(m.sport_key || m.sportKey || m.tour || "").toLowerCase();
+      const isWta = sportKey.includes("wta");
+      const league = isWta ? "WTA" : "ATP";
+      const leagueColor = isWta ? "#FF2D6B" : "#00F5E9";
+
+      const tournamentLabel =
+        (m.sport_title || m.tournament || m.tournamentName || m.event_name || "Tennis").replace(/_/g, " ");
+
+      return {
+        id: m.id || `live-${idx}`,
+        league,
+        leagueColor,
+        title: `${home} vs ${away}`,
+        time: `${timeLabel} · ${tournamentLabel}`,
+        network: "Confirmed Match",
+        blurb: "Current or upcoming confirmed tennis match pulled from the live feed.",
+        whatMatters: `Live market matchup: ${home} vs ${away}. Use UR TAKE for side, total games, ace props, and matchup-specific angles.`,
+        quickHitters: [
+          `Who wins ${home} vs ${away}?`,
+          `Best props for ${home} vs ${away}?`,
+          `Total games lean for ${home} vs ${away}?`
+        ],
+        stats: [
+          { label: "TOUR", value: league },
+          { label: "STATUS", value: timeLabel.includes("Live") ? "LIVE" : "UPCOMING" },
+          { label: "EVENT", value: tournamentLabel.slice(0, 12).toUpperCase() }
+        ],
+        confirmed: true,
+        raw: m,
+      };
+    });
+
+  const homeMatchupsToShow =
+    homepageTennisMatchups.length > 0 ? homepageTennisMatchups : featuredMatchups;
+
   function TennisPlayerCard({ name, idx, tour }) {
     const p = getPlayer(name, tour);
     if (!p) return null;
@@ -775,9 +860,11 @@ export default function App() {
             </section>
 
             <section className="section">
-              <div className="section-label">MATCHUPS TO TAP INTO</div>
+              <div className="section-label">
+                {homepageTennisMatchups.length > 0 ? "LIVE / UPCOMING TENNIS" : "MATCHUPS TO TAP INTO"}
+              </div>
               <div className="matchup-list">
-                {featuredMatchups.map((m) => (
+                {homeMatchupsToShow.map((m) => (
                   <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
                     <div className="matchup-top">
                       <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
@@ -846,6 +933,27 @@ export default function App() {
             </div>
 
             <ChatThread msgs={miamiMsgs} />
+
+            {homepageTennisMatchups.length > 0 && (
+              <>
+                <div className="miami-section-title">CONFIRMED MATCHES</div>
+                <div className="matchup-list">
+                  {homepageTennisMatchups.map((m) => (
+                    <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
+                      <div className="matchup-top">
+                        <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
+                        <div className="matchup-time">{m.time}</div>
+                      </div>
+                      <div className="matchup-body">
+                        <div className="matchup-title">{m.title}</div>
+                        <div className="matchup-meta">{m.network}</div>
+                        <div className="matchup-blurb">{m.blurb}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {context?.ace_props && (
               <>
