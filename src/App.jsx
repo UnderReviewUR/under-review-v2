@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -200,10 +200,22 @@ const css = `
   .nfl-angle-dot{width:5px;height:5px;border-radius:50%;background:var(--nfl);flex-shrink:0;margin-top:5px;}
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;}
+
+  .live-home-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(255,45,107,.05));border:1px solid rgba(0,245,233,.18);border-radius:16px;padding:14px 16px;margin-bottom:16px;}
+  .live-home-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--cyan);margin-bottom:8px;}
+  .live-home-copy{font-size:13px;color:var(--soft);line-height:1.55;}
 `;
 
-const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
-const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
+const ATP_PLAYERS = [
+  "Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti",
+  "Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"
+];
+
+const WTA_PLAYERS = [
+  "Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic",
+  "Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea",
+  "Jovic","Alexandrova","Zheng","Kartal"
+];
 
 const NFL_PLAYERS = {
   "James Cook":         { pos:"RB", team:"BUF", tier:"ELITE",  ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6},  props:{recYds:{floor:80,ceil:150,lean:"OVER"},                          td:{pg:0.88,lean:"OVER — 14 TDs, elite scorer"}},              situation:"Bills RB1 with Josh Allen. Allen's rushing is the only ceiling check but Cook is the every-down back.", bettingAngles:["Rush yards OVER every week","TD scorer OVER is the primary play","Volume is guaranteed — 16g starter"] },
@@ -233,15 +245,29 @@ const NFL_PROP_GUIDE = [
   { player:"Travis Kelce",  pos:"TE", team:"KAN", propType:"REC YDS",   line:"52.5",  floor:35,  ceil:80,  lean:"FADE — real floor is ~50, market overprices",   leanClass:"lean-fade" },
 ];
 
-const featuredQuestions = [
-  { id:"q1", color:"#00F5E9", text:"Best ace props at Miami Open tonight?", prompt:"What are the best ace props at Miami Open tonight based on the player data?" },
-  { id:"q2", color:"#FF2D6B", text:"Who wins Alcaraz vs Sinner on hard court?", prompt:"Who wins Alcaraz vs Sinner on hard court and what are the betting angles?" },
-  { id:"q3", color:"#FF6B35", text:"Will Puka Nacua go over 1,500 receiving yards in 2026?", prompt:"Will Puka Nacua go over 1,500 receiving yards in 2026? Give me the lean and the reasoning." },
-  { id:"q4", color:"#F5C842", text:"Which RB scores the most TDs in 2026?", prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?" },
-  { id:"q5", color:"#FF2D6B", text:"Which 2026 NFL Draft rookie has the biggest betting impact?", prompt:"Among rookies entering the NFL in the 2026 NFL Draft (April 2026 draft), which player will have the biggest immediate impact on team win totals, player props, and betting markets in the 2026 season? Consider QB situations, team needs, and how quickly each position typically contributes." },
-];
-
-const fallbackMatchups = [
+const featuredMatchups = [
+  {
+    id:"m1", league:"ATP", leagueColor:"#00F5E9",
+    title:"Sinner vs Alcaraz — Miami Open",
+    time:"Live Now · Miami Open 2026",
+    network:"Tennis Channel",
+    blurb:"The cleanest rivalry in tennis. Alcaraz leads H2H 11-6 but Sinner owns Miami — won here in 2022 and 2023. Both are in the draw.",
+    whatMatters:"Alcaraz's drop-shot variety gives him the tactical edge. Sinner's 91.8% hold rate and 81% tiebreak win rate are the counters. This comes down to who breaks serve first.",
+    quickHitters:["Who wins in three sets?","Is Sinner over 8 aces the play?","Total games lean?"],
+    stats:[{label:"H2H",value:"11-6 ALC"},{label:"SINNER HOLD",value:"91.8%"},{label:"SURFACE",value:"Hard"}],
+    confirmed: true,
+  },
+  {
+    id:"m2", league:"WTA", leagueColor:"#FF2D6B",
+    title:"Sabalenka vs Rybakina — Miami Open",
+    time:"Live Now · Miami Open 2026",
+    network:"Tennis Channel",
+    blurb:"One of the thinnest edges in women's tennis. Sabalenka's power baseline meets Rybakina's serve — the one weapon that holds up against her pace.",
+    whatMatters:"Rybakina's 10.3% ace rate neutralizes Sabalenka's return aggression. Sabalenka leads H2H 9-7 but Rybakina has the cleaner surface edge in Miami.",
+    quickHitters:["Rybakina aces over 6.5?","Does this go three sets?","Sabalenka ML or plus games?"],
+    stats:[{label:"H2H",value:"9-7 SAB"},{label:"RYB ACE%",value:"10.3%"},{label:"LEAN",value:"RYB +2.5"}],
+    confirmed: true,
+  },
   {
     id:"m3", league:"NFL FUTURE", leagueColor:"#FF6B35",
     title:"Puka Nacua — 2026 Season Total",
@@ -266,6 +292,144 @@ const fallbackMatchups = [
   },
 ];
 
+function normalizeTennisMatch(match, fallbackTour = "ATP") {
+  if (!match) return null;
+
+  const league =
+    match.league ||
+    (String(match.league_name || "").toLowerCase().includes("wta") ||
+    String(match.event_type_type || "").toLowerCase().includes("women")
+      ? "WTA"
+      : "ATP");
+
+  const home = match.home_team || match.event_first_player || "Player 1";
+  const away = match.away_team || match.event_second_player || "Player 2";
+
+  let status = match.status || match.event_status || "Scheduled";
+  const rawLive = String(match.live ?? match.event_live ?? "0");
+  const isLive = rawLive === "1";
+
+  if (isLive && !String(status).toLowerCase().includes("live")) {
+    status = "Live";
+  }
+
+  return {
+    id: match.id || match.event_key || `${home}-${away}`,
+    league: league || fallbackTour,
+    leagueColor: league === "WTA" ? "#FF2D6B" : "#00F5E9",
+    title: `${home} vs ${away}`,
+    time: status,
+    network: match.tournament || match.tournament_name || "Tour Match",
+    blurb: `${home} vs ${away}${match.round ? ` · ${match.round}` : ""}${match.score ? ` · ${match.score}` : ""}`,
+    confirmed: true,
+    raw: {
+      ...match,
+      live: rawLive,
+      status,
+      home,
+      away,
+    },
+  };
+}
+
+function getDaypartLabel() {
+  const h = new Date().getHours();
+  if (h < 12) return "today";
+  if (h < 18) return "this afternoon";
+  return "tonight";
+}
+
+function getPlayerShortLabel(match) {
+  if (!match?.raw) return match?.title || "";
+  return `${match.raw.home} vs ${match.raw.away}`;
+}
+
+function buildDynamicTrendingQuestions(matches = []) {
+  const prompts = [];
+  const used = new Set();
+  const daypart = getDaypartLabel();
+
+  const push = (item) => {
+    if (!item || used.has(item.text)) return;
+    used.add(item.text);
+    prompts.push(item);
+  };
+
+  const tennisMatches = (matches || []).filter((m) => m?.league === "ATP" || m?.league === "WTA");
+  const live = tennisMatches.filter((m) => String(m?.raw?.live || "0") === "1");
+  const upcoming = tennisMatches.filter((m) => String(m?.raw?.live || "0") !== "1");
+
+  if (live[0]) {
+    const match = live[0];
+    const label = getPlayerShortLabel(match);
+    push({
+      id: "dyn1",
+      color: match.league === "WTA" ? "#FF2D6B" : "#00F5E9",
+      text: `Best live angle for ${label}?`,
+      prompt: `What is the best live betting angle for ${label} right now? Give me the strongest side, total, and any prop edge.`,
+    });
+  }
+
+  if (upcoming[0]) {
+    const match = upcoming[0];
+    const label = getPlayerShortLabel(match);
+    push({
+      id: "dyn2",
+      color: match.league === "WTA" ? "#FF2D6B" : "#00F5E9",
+      text: `What is the best bet in ${label} ${daypart}?`,
+      prompt: `What is the best bet in ${label} ${daypart}? Give me the cleanest angle and one sharper alternative.`,
+    });
+  }
+
+  if (upcoming[1]) {
+    const match = upcoming[1];
+    const label = getPlayerShortLabel(match);
+    push({
+      id: "dyn3",
+      color: match.league === "WTA" ? "#FF2D6B" : "#00F5E9",
+      text: `What is the cooler angle in ${label}?`,
+      prompt: `For ${label}, what is the cool angle most bettors probably are not considering?`,
+    });
+  }
+
+  push({
+    id: "dyn4",
+    color: "#F5C842",
+    text: "What is the coolest bet nobody is talking about today?",
+    prompt: "Give me the coolest betting angle on the board today that most people probably are not considering.",
+  });
+
+  push({
+    id: "dyn5",
+    color: "#FF6B35",
+    text: "Which NFL future looks most mispriced right now?",
+    prompt: "Which NFL future looks the most mispriced right now based on the current player database and team context?",
+  });
+
+  push({
+    id: "dyn6",
+    color: "#FF2D6B",
+    text: "Which tennis future still has value right now?",
+    prompt: "Which tennis future still has value right now, and why has the market not fully priced it correctly?",
+  });
+
+  push({
+    id: "dyn7",
+    color: "#00F5E9",
+    text: "What is the best value tennis matchup on the board?",
+    prompt: "What is the best value tennis matchup on the board right now, including one angle the market may be missing?",
+  });
+
+  push({
+    id: "dyn8",
+    color: "#FF6B35",
+    text: "Which RB scores the most TDs in 2026?",
+    prompt: "Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?",
+  });
+
+  return prompts.slice(0, 5);
+}
+
 function formatServeStats(s) {
   if (!s) return "—";
   const p = [];
@@ -274,6 +438,7 @@ function formatServeStats(s) {
   if (s.dfPct   !== undefined) p.push(`DF ${s.dfPct}%`);
   return p.length ? p.join(", ") : "—";
 }
+
 function formatReturnStats(s) {
   if (!s) return "—";
   const p = [];
@@ -281,6 +446,7 @@ function formatReturnStats(s) {
   if (s.breakPct !== undefined) p.push(`Break ${s.breakPct}%`);
   return p.length ? p.join(", ") : "—";
 }
+
 function formatOverallStats(s) {
   if (!s) return "—";
   const p = [];
@@ -289,9 +455,18 @@ function formatOverallStats(s) {
   if (s.tiebreakPct       !== undefined) p.push(`Tiebreak ${s.tiebreakPct}%`);
   return p.length ? p.join(", ") : "—";
 }
-function getHoldValue(p) { return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—"; }
-function getDrValue(p)   { return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—"; }
-function getTbValue(p)   { return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—"; }
+
+function getHoldValue(p) {
+  return p?.serveStats?.holdPct !== undefined ? `${p.serveStats.holdPct}%` : "—";
+}
+
+function getDrValue(p) {
+  return p?.overallStats?.dominanceRatio !== undefined ? `${p.overallStats.dominanceRatio}` : "—";
+}
+
+function getTbValue(p) {
+  return p?.overallStats?.tiebreakPct !== undefined ? `${p.overallStats.tiebreakPct}%` : "—";
+}
 
 function buildNflContext() {
   return Object.entries(NFL_PLAYERS).map(([name, p]) => {
@@ -320,18 +495,24 @@ function renderMessage(text) {
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")
     .trim();
+
   const paragraphs = clean.split(/\n{2,}/);
+
   return paragraphs.map((para, i) => {
-    const lines = para.split("\n").map(s => s.trim()).filter(Boolean);
-    const allBullets = lines.length > 1 && lines.every(l => l.startsWith("•") || (l.includes(" — ") && !l.endsWith(".")));
+    const lines = para.split("\n").map((s) => s.trim()).filter(Boolean);
+    const allBullets =
+      lines.length > 1 &&
+      lines.every((l) => l.startsWith("•") || (l.includes(" — ") && !l.endsWith(".")));
+
     if (allBullets) {
       return (
         <div key={i} style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:10 }}>
           {lines.map((line, j) => {
             const norm  = line.startsWith("•") ? line.slice(1).trim() : line;
-            const parts = norm.split("—").map(s => s.trim());
+            const parts = norm.split("—").map((s) => s.trim());
             const head  = parts[0] || "";
             const tail  = parts.slice(1).join(" — ");
+
             return (
               <div key={j} style={{ background:"rgba(0,245,233,.05)", border:"1px solid rgba(0,245,233,.15)", borderRadius:10, padding:"10px 12px" }}>
                 <div style={{ fontWeight:600, color:"var(--text)", fontSize:13, marginBottom: tail ? 4 : 0 }}>{head}</div>
@@ -342,6 +523,7 @@ function renderMessage(text) {
         </div>
       );
     }
+
     return <div key={i} style={{ lineHeight:1.7, marginBottom:10 }}>{para}</div>;
   });
 }
@@ -369,6 +551,7 @@ function AskBar({
           if (e.target.files[0]) processImageFile(e.target.files[0]);
         }}
       />
+
       <div className="ask-row">
         <div className="ask-col">
           {pastedImage && (
@@ -438,80 +621,23 @@ function ChatThread({ msgs }) {
   );
 }
 
-function normalizeTennisMatch(match, fallbackLeague = "ATP") {
-  if (!match) return null;
-
-  const home = match.home_team || "Player 1";
-  const away = match.away_team || "Player 2";
-  const tournament = match.tournament || "Miami";
-  const round = match.round ? ` · ${match.round}` : "";
-  const statusRaw = String(match.status || "Scheduled");
-  const live = String(match.live || "0") === "1";
-
-  let timeLabel = statusRaw;
-  if (!live && match.commence_time) {
-    const d = new Date(match.commence_time);
-    if (!Number.isNaN(d.getTime())) {
-      timeLabel = d.toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    }
-  } else if (live) {
-    timeLabel = `Live · ${statusRaw}`;
-  }
-
-  const leagueGuess = fallbackLeague;
-  const leagueColor = leagueGuess === "WTA" ? "#FF2D6B" : "#00F5E9";
-
-  const p1Odds = match.bookmakers?.[0]?.markets?.[0]?.outcomes?.[0]?.price ?? "N/A";
-  const p2Odds = match.bookmakers?.[0]?.markets?.[0]?.outcomes?.[1]?.price ?? "N/A";
-
-  return {
-    id: match.id || `${leagueGuess}-${home}-${away}-${match.commence_time || ""}`,
-    league: leagueGuess,
-    leagueColor,
-    title: `${home} vs ${away}`,
-    time: `${timeLabel} · ${tournament}${round}`,
-    network: match.score && match.score !== "-" ? `Score: ${match.score}` : "Confirmed Match",
-    blurb: live
-      ? `Live Miami match. Current status: ${statusRaw}.`
-      : `Upcoming confirmed Miami match on the ${leagueGuess} side.`,
-    whatMatters: `${home} vs ${away} at the Miami Open. Moneyline snapshot: ${home} ${p1Odds} / ${away} ${p2Odds}. Use UR TAKE for side, games, ace props, and matchup-specific angles.`,
-    quickHitters: [
-      `Who wins ${home} vs ${away}?`,
-      `Best props for ${home} vs ${away}?`,
-      `Total games lean for ${home} vs ${away}?`,
-    ],
-    stats: [
-      { label: "TOUR", value: leagueGuess },
-      { label: "STATUS", value: live ? "LIVE" : "UPCOMING" },
-      { label: "ODDS", value: `${p1Odds} / ${p2Odds}` },
-    ],
-    confirmed: true,
-    raw: match,
-  };
-}
-
 export default function App() {
-  const [tab, setTab]                         = useState("home");
-  const [screen, setScreen]                   = useState("home");
+  const [tab, setTab] = useState("home");
+  const [screen, setScreen] = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
-  const [selectedPlayer, setSelectedPlayer]   = useState(null);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
-  const [nflPosFilter, setNflPosFilter]       = useState("ALL");
+  const [nflPosFilter, setNflPosFilter] = useState("ALL");
 
-  const [homeInput,    setHomeInput]    = useState("");
-  const [askInput,     setAskInput]     = useState("");
-  const [miamiInput,   setMiamiInput]   = useState("");
-  const [nflInput,     setNflInput]     = useState("");
+  const [homeInput, setHomeInput] = useState("");
+  const [askInput, setAskInput] = useState("");
+  const [miamiInput, setMiamiInput] = useState("");
+  const [nflInput, setNflInput] = useState("");
   const [matchupInput, setMatchupInput] = useState("");
 
-  const [askMsgs,     setAskMsgs]     = useState([]);
-  const [miamiMsgs,   setMiamiMsgs]   = useState([]);
-  const [nflMsgs,     setNflMsgs]     = useState([]);
+  const [askMsgs, setAskMsgs] = useState([]);
+  const [miamiMsgs, setMiamiMsgs] = useState([]);
+  const [nflMsgs, setNflMsgs] = useState([]);
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
   const [isAsking, setIsAsking] = useState(false);
@@ -524,38 +650,57 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    setTennisLoading(true);
+    let active = true;
 
-    Promise.all([
-      fetch("/api/tennis-players").then(r => r.json()),
-      fetch("/api/tennis-context").then(r => r.json()),
-      fetch("/api/tennis?tour=atp").then(r => r.json()),
-      fetch("/api/tennis?tour=wta").then(r => r.json()),
-    ])
-      .then(([p, c, atpRaw, wtaRaw]) => {
+    async function loadData() {
+      setTennisLoading(true);
+      try {
+        const [pRes, cRes, atpRes, wtaRes] = await Promise.all([
+          fetch("/api/tennis-players"),
+          fetch("/api/tennis-context"),
+          fetch("/api/tennis?tour=atp"),
+          fetch("/api/tennis?tour=wta"),
+        ]);
+
+        const [p, c, atpLive, wtaLive] = await Promise.all([
+          pRes.json(),
+          cRes.json(),
+          atpRes.json(),
+          wtaRes.json(),
+        ]);
+
+        if (!active) return;
+
         setPlayers(p);
         setContext(c);
 
-        const atpMatches = Array.isArray(atpRaw) ? atpRaw.map(m => normalizeTennisMatch(m, "ATP")).filter(Boolean) : [];
-        const wtaMatches = Array.isArray(wtaRaw) ? wtaRaw.map(m => normalizeTennisMatch(m, "WTA")).filter(Boolean) : [];
+        const merged = [
+          ...(Array.isArray(atpLive) ? atpLive.map((m) => normalizeTennisMatch(m, "ATP")) : []),
+          ...(Array.isArray(wtaLive) ? wtaLive.map((m) => normalizeTennisMatch(m, "WTA")) : []),
+        ].filter(Boolean);
 
-        const merged = [...atpMatches, ...wtaMatches].sort((a, b) => {
-          const aLive = a?.raw?.live === "1" ? 1 : 0;
-          const bLive = b?.raw?.live === "1" ? 1 : 0;
-          if (aLive !== bLive) return bLive - aLive;
+        const deduped = [];
+        const seen = new Set();
 
-          const aTime = new Date(a?.raw?.commence_time || 0).getTime();
-          const bTime = new Date(b?.raw?.commence_time || 0).getTime();
-          return aTime - bTime;
-        });
+        for (const m of merged) {
+          const key = `${m.league}-${m.title}-${m.network}-${m.raw?.status || ""}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(m);
+        }
 
-        setLiveMatches(merged);
-        setTennisLoading(false);
-      })
-      .catch(() => {
-        setLiveMatches([]);
-        setTennisLoading(false);
-      });
+        setLiveMatches(deduped);
+      } catch (e) {
+        if (active) setLiveMatches([]);
+      } finally {
+        if (active) setTennisLoading(false);
+      }
+    }
+
+    loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const processImageFile = useCallback((file) => {
@@ -563,7 +708,11 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target.result;
-      setPastedImage({ base64: dataUrl.split(",")[1], mediaType: file.type, previewUrl: dataUrl });
+      setPastedImage({
+        base64: dataUrl.split(",")[1],
+        mediaType: file.type,
+        previewUrl: dataUrl,
+      });
     };
     reader.readAsDataURL(file);
   }, []);
@@ -592,13 +741,14 @@ export default function App() {
 
   async function askUrTake({ text, matchup, setMsgs, sportHint }) {
     if (!text || isAsking) return;
+
     setIsAsking(true);
 
     const imgToSend = pastedImage;
-    const userMsg   = { role:"user", text, image: imgToSend?.previewUrl || null };
-    const thinkMsg  = { role:"ai",   text:"THINKING...", loading:true };
+    const userMsg = { role:"user", text, image: imgToSend?.previewUrl || null };
+    const thinkMsg = { role:"ai", text:"THINKING...", loading:true };
 
-    setMsgs(prev => [...prev, userMsg, thinkMsg]);
+    setMsgs((prev) => [...prev, userMsg, thinkMsg]);
     clearImage();
 
     try {
@@ -615,7 +765,10 @@ export default function App() {
       };
 
       if (imgToSend) {
-        body.image = { base64: imgToSend.base64, mediaType: imgToSend.mediaType };
+        body.image = {
+          base64: imgToSend.base64,
+          mediaType: imgToSend.mediaType,
+        };
       }
 
       const res = await fetch("/api/ur-take", {
@@ -626,19 +779,49 @@ export default function App() {
 
       const data = await res.json();
       const aiText = data.response || "Couldn't get a response — try again.";
-      setMsgs(prev => [...prev.filter(m => !m.loading), { role:"ai", text:aiText }]);
+      setMsgs((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text: aiText }]);
     } catch {
-      setMsgs(prev => [...prev.filter(m => !m.loading), { role:"ai", text:"Something went wrong — try again." }]);
+      setMsgs((prev) => [...prev.filter((m) => !m.loading), { role:"ai", text:"Something went wrong — try again." }]);
     } finally {
       setIsAsking(false);
     }
   }
 
-  function goHome()  { setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
-  function goMiami() { setTab("miami"); setScreen("miami"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
-  function goNfl()   { setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); }
-  function goAsk()   { setTab("ask");   setScreen("ask");   setSelectedMatchup(null); }
-  function goPro()   { setTab("pro");   setScreen("pro");   setSelectedMatchup(null); }
+  function goHome() {
+    setTab("home");
+    setScreen("home");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }
+
+  function goMiami() {
+    setTab("miami");
+    setScreen("miami");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }
+
+  function goNfl() {
+    setTab("nfl");
+    setScreen("nfl");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }
+
+  function goAsk() {
+    setTab("ask");
+    setScreen("ask");
+    setSelectedMatchup(null);
+  }
+
+  function goPro() {
+    setTab("pro");
+    setScreen("pro");
+    setSelectedMatchup(null);
+  }
 
   function openMatchup(m) {
     setSelectedMatchup(m);
@@ -647,8 +830,16 @@ export default function App() {
     setScreen("matchup");
     setTab("home");
   }
-  function openPlayer(name)    { setSelectedPlayer(name);    setScreen("player"); }
-  function openNflPlayer(name) { setSelectedNflPlayer(name); setScreen("nflplayer"); }
+
+  function openPlayer(name) {
+    setSelectedPlayer(name);
+    setScreen("player");
+  }
+
+  function openNflPlayer(name) {
+    setSelectedNflPlayer(name);
+    setScreen("nflplayer");
+  }
 
   function submitHome() {
     const t = homeInput.trim();
@@ -700,31 +891,40 @@ export default function App() {
     if (!players) return null;
     return (tour === "atp" ? players.atp : players.wta)?.[name] || null;
   }
+
   function getPlayerAny(name) {
     if (!players) return null;
     return players.atp?.[name] || players.wta?.[name] || null;
   }
 
-  const pd    = (screen === "player"    && selectedPlayer)    ? getPlayerAny(selectedPlayer)   : null;
-  const nflPd = (screen === "nflplayer" && selectedNflPlayer) ? NFL_PLAYERS[selectedNflPlayer] : null;
+  const pd = screen === "player" && selectedPlayer ? getPlayerAny(selectedPlayer) : null;
+  const nflPd = screen === "nflplayer" && selectedNflPlayer ? NFL_PLAYERS[selectedNflPlayer] : null;
 
   const filteredNflPlayers = Object.entries(NFL_PLAYERS)
     .filter(([, p]) => nflPosFilter === "ALL" || p.pos === nflPosFilter)
     .sort((a, b) => b[1].ydsPg - a[1].ydsPg);
 
-  const homeTennisCards = liveMatches.slice(0, 6);
-  const homeCards = homeTennisCards.length > 0 ? [...homeTennisCards, ...fallbackMatchups] : fallbackMatchups;
+  const dynamicHomeQuestions = useMemo(() => buildDynamicTrendingQuestions(liveMatches), [liveMatches]);
+
+  const homeLiveCard = useMemo(() => {
+    const live = liveMatches.filter((m) => String(m?.raw?.live || "0") === "1");
+    const upcoming = liveMatches.filter((m) => String(m?.raw?.live || "0") !== "1");
+    return live[0] || upcoming[0] || null;
+  }, [liveMatches]);
 
   function TennisPlayerCard({ name, idx, tour }) {
     const p = getPlayer(name, tour);
     if (!p) return null;
+
     return (
       <div className="player-card" onClick={() => openPlayer(name)}>
         <div className="player-top">
           <div className="player-rank">#{idx + 1}</div>
           <div className="player-info">
             <div className="player-name">{name}</div>
-            <div className="player-style">{Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}</div>
+            <div className="player-style">
+              {Array.isArray(p.style) ? p.style.join(", ").replaceAll("_"," ") : p.style}
+            </div>
             <div className="surface-pills">
               {p.surfaceNote?.hard  && <span className="surface-pill surface-hard">HARD</span>}
               {p.surfaceNote?.clay  && <span className="surface-pill surface-clay">CLAY</span>}
@@ -775,14 +975,16 @@ export default function App() {
   return (
     <>
       <style>{css}</style>
+
       <div className="app">
         <header className="hdr">
           <div>
             <span className="logo-under">UNDER</span>
             <span className="logo-review">REVIEW</span>
           </div>
+
           <div>
-            {screen === "miami"     && <span className="pill-live">MIAMI OPEN</span>}
+            {screen === "miami"     && <span className="pill-live">TENNIS</span>}
             {screen === "nfl"       && <span className="pill-nfl">NFL 2026</span>}
             {screen === "nflplayer" && nflPd && <span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
             {screen === "player"    && <span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
@@ -801,7 +1003,7 @@ export default function App() {
 
             <AskBar
               value={homeInput}
-              onChange={e => setHomeInput(e.target.value)}
+              onChange={(e) => setHomeInput(e.target.value)}
               onSubmit={submitHome}
               placeholder="Ask UR TAKE anything..."
               pastedImage={pastedImage}
@@ -811,10 +1013,23 @@ export default function App() {
               processImageFile={processImageFile}
             />
 
+            {homeLiveCard && (
+              <div className="live-home-banner">
+                <div className="live-home-title">
+                  {String(homeLiveCard?.raw?.live || "0") === "1" ? "LIVE TENNIS BOARD" : "UPCOMING TENNIS BOARD"}
+                </div>
+                <div className="live-home-copy">
+                  {homeLiveCard.title} · {homeLiveCard.network}
+                  {homeLiveCard.raw?.round ? ` · ${homeLiveCard.raw.round}` : ""}
+                  {homeLiveCard.raw?.score && homeLiveCard.raw.score !== "-" ? ` · ${homeLiveCard.raw.score}` : ""}
+                </div>
+              </div>
+            )}
+
             <section className="section">
               <div className="section-label">TRENDING ASKS</div>
               <div className="q-list">
-                {featuredQuestions.map((q) => (
+                {dynamicHomeQuestions.map((q) => (
                   <button key={q.id} className="q-card" onClick={() => firePrompt(q.prompt)}>
                     <div className="q-top">
                       <div className="q-accent" style={{ background: q.color }} />
@@ -826,11 +1041,9 @@ export default function App() {
             </section>
 
             <section className="section">
-              <div className="section-label">
-                {homeTennisCards.length > 0 ? "CURRENT / UPCOMING TENNIS MATCHES" : "MATCHUPS TO TAP INTO"}
-              </div>
+              <div className="section-label">MATCHUPS TO TAP INTO</div>
               <div className="matchup-list">
-                {homeCards.map((m) => (
+                {featuredMatchups.map((m) => (
                   <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
                     <div className="matchup-top">
                       <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
@@ -850,7 +1063,7 @@ export default function App() {
               <div className="section-label">SPORTS</div>
               <div className="sport-chips">
                 <button className="sport-chip nfl-chip active" onClick={goNfl}>NFL</button>
-                <button className="sport-chip active" onClick={goMiami}>Tennis</button>
+                <button className="sport-chip active" onClick={goMiami}>TENNIS</button>
               </div>
             </section>
           </main>
@@ -859,32 +1072,22 @@ export default function App() {
         {screen === "miami" && (
           <main className="screen">
             <div className="miami-banner">
-              <div className="miami-banner-title">Miami Open 2026</div>
-              <div className="miami-banner-sub">Hard Court · Medium-Fast · Miami, FL</div>
+              <div className="miami-banner-title">Tennis Board</div>
+              <div className="miami-banner-sub">Current + Upcoming Confirmed Matches</div>
               <div className="miami-banner-note">
-                {context?.tournaments?.miami_open?.note || "Hard courts play slightly slower than US Open. Big servers still have an edge but rallies run longer."}
+                {liveMatches.length > 0
+                  ? `Pulling confirmed live and upcoming matches from the tennis API. ${liveMatches.filter((m) => String(m?.raw?.live || "0") === "1").length} live / ${liveMatches.filter((m) => String(m?.raw?.live || "0") !== "1").length} upcoming.`
+                  : "No live or upcoming tennis matches are loaded right now, so the board falls back to player intelligence and futures angles."}
               </div>
-              {context?.tournaments?.miami_open && (
-                <div style={{ marginTop:10, display:"flex", gap:16 }}>
-                  <div>
-                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>ATP FAV </span>
-                    <span style={{ fontSize:12, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.atp_favorite}</span>
-                  </div>
-                  <div>
-                    <span style={{ fontSize:10, color:"var(--muted)", fontFamily:"'DM Mono',monospace" }}>WTA FAV </span>
-                    <span style={{ fontSize:12, color:"var(--magenta)", fontFamily:"'DM Mono',monospace", fontWeight:700 }}>{context.tournaments.miami_open.wta_favorite}</span>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:14, padding:14, marginBottom:16 }}>
-              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8 }}>ASK ANYTHING — MIAMI OPEN</div>
+              <div style={{ fontSize:10, color:"var(--cyan)", fontFamily:"'DM Mono',monospace", letterSpacing:2, marginBottom:8 }}>ASK ANYTHING — TENNIS</div>
               <AskBar
                 value={miamiInput}
-                onChange={e => setMiamiInput(e.target.value)}
+                onChange={(e) => setMiamiInput(e.target.value)}
                 onSubmit={() => submitMiami()}
-                placeholder="e.g. Best props tonight? Who wins Alcaraz vs Sinner?"
+                placeholder="e.g. Best bets tonight? Which match is mispriced? Best live angle?"
                 pastedImage={pastedImage}
                 clearImage={clearImage}
                 isAsking={isAsking}
@@ -892,7 +1095,12 @@ export default function App() {
                 processImageFile={processImageFile}
               />
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {["Best props tonight?","Who wins Sinner vs Zverev?","Sabalenka aces over 4.5?","Top value plays?"].map((q) => (
+                {[
+                  "Best tennis bets tonight?",
+                  "Which tennis match is mispriced?",
+                  "Best live tennis angle right now?",
+                  "What futures still have value?"
+                ].map((q) => (
                   <button key={q} className="quick-btn" onClick={() => submitMiami(q)} style={{ fontSize:11 }}>{q}</button>
                 ))}
               </div>
@@ -900,25 +1108,37 @@ export default function App() {
 
             <ChatThread msgs={miamiMsgs} />
 
-            {liveMatches.length > 0 && (
-              <>
-                <div className="miami-section-title">CONFIRMED MATCHES</div>
-                <div className="matchup-list">
-                  {liveMatches.map((m) => (
-                    <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
-                      <div className="matchup-top">
-                        <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
-                        <div className="matchup-time">{m.time}</div>
-                      </div>
-                      <div className="matchup-body">
-                        <div className="matchup-title">{m.title}</div>
-                        <div className="matchup-meta">{m.network}</div>
-                        <div className="matchup-blurb">{m.blurb}</div>
+            <div className="miami-section-title">LIVE + UPCOMING MATCHES</div>
+            {tennisLoading ? (
+              <div className="loading-state"><div className="loading-text">LOADING TENNIS BOARD...</div></div>
+            ) : liveMatches.length > 0 ? (
+              <div className="matchup-list" style={{ marginBottom: 12 }}>
+                {liveMatches.map((m) => (
+                  <div key={m.id} className="matchup-card" onClick={() => openMatchup(m)}>
+                    <div className="matchup-top">
+                      <div className="matchup-league" style={{ color: m.leagueColor }}>{m.league}</div>
+                      <div className="matchup-time">
+                        {String(m?.raw?.live || "0") === "1" ? "LIVE" : (m.raw?.status || m.time)}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </>
+                    <div className="matchup-body">
+                      <div className="matchup-title">{m.title}</div>
+                      <div className="matchup-meta">
+                        {m.network}
+                        {m.raw?.round ? ` · ${m.raw.round}` : ""}
+                      </div>
+                      <div className="matchup-blurb">
+                        {m.raw?.score && m.raw.score !== "-"
+                          ? `Current score: ${m.raw.score}. `
+                          : ""}
+                        {m.blurb}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="loading-state"><div className="loading-text">NO CONFIRMED TENNIS MATCHES FOUND</div></div>
             )}
 
             {context?.ace_props && (
@@ -926,7 +1146,7 @@ export default function App() {
                 <div className="miami-section-title">PROP GUIDE</div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
                   {Object.entries(context.ace_props).map(([name, data]) => (
-                    <div key={name} className="prop-card" onClick={() => submitMiami(`Tell me about ${name} ace props at Miami`)}>
+                    <div key={name} className="prop-card" onClick={() => submitMiami(`Tell me about ${name} ace props right now`)}>
                       <div className="prop-top">
                         <div className="prop-player">{name}</div>
                         <div className="prop-type">ACES</div>
@@ -939,12 +1159,11 @@ export default function App() {
               </>
             )}
 
-            {tennisLoading ? (
-              <div className="loading-state"><div className="loading-text">LOADING PLAYER DATA...</div></div>
-            ) : players && (
+            {players && (
               <>
                 <div className="miami-section-title">ATP TOP 25</div>
                 {ATP_PLAYERS.map((name, idx) => <TennisPlayerCard key={name} name={name} idx={idx} tour="atp" />)}
+
                 <div className="miami-section-title">WTA TOP 24</div>
                 {WTA_PLAYERS.map((name, idx) => <TennisPlayerCard key={name} name={name} idx={idx} tour="wta" />)}
               </>
@@ -964,7 +1183,7 @@ export default function App() {
               <div className="nfl-ask-label">ASK ANYTHING — NFL</div>
               <AskBar
                 value={nflInput}
-                onChange={e => setNflInput(e.target.value)}
+                onChange={(e) => setNflInput(e.target.value)}
                 onSubmit={() => submitNfl()}
                 placeholder="e.g. Which RB leads TDs in 2026? Best WR prop this week?"
                 btnColor="var(--nfl)"
@@ -985,7 +1204,11 @@ export default function App() {
 
             <div className="nfl-section-title">TOP PROP LEANS</div>
             {NFL_PROP_GUIDE.map((prop) => (
-              <div key={`${prop.player}-${prop.propType}`} className="nfl-prop-card" onClick={() => submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)}>
+              <div
+                key={`${prop.player}-${prop.propType}`}
+                className="nfl-prop-card"
+                onClick={() => submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)}
+              >
                 <div className="nfl-prop-top">
                   <div className="nfl-prop-player">{prop.player}</div>
                   <div className="nfl-prop-type">{prop.propType}</div>
@@ -998,9 +1221,12 @@ export default function App() {
             <div className="nfl-section-title">PLAYER DATABASE</div>
             <div className="pos-tabs">
               {NFL_POSITIONS.map((pos) => (
-                <button key={pos} className={`pos-tab${nflPosFilter === pos ? " active" : ""}`} onClick={() => setNflPosFilter(pos)}>{pos}</button>
+                <button key={pos} className={`pos-tab${nflPosFilter === pos ? " active" : ""}`} onClick={() => setNflPosFilter(pos)}>
+                  {pos}
+                </button>
               ))}
             </div>
+
             {filteredNflPlayers.map(([name, player]) => (
               <NflPlayerCard key={name} name={name} player={player} />
             ))}
@@ -1010,20 +1236,23 @@ export default function App() {
         {screen === "nflplayer" && nflPd && (
           <main className="screen">
             <button className="detail-back" onClick={() => { setScreen("nfl"); setSelectedNflPlayer(null); }}>← BACK</button>
+
             <div className="detail-card">
               <div className="nfl-detail-head">
                 <div className="nfl-detail-pos">{nflPd.pos} · {nflPd.team} · {nflPd.tier}</div>
                 <div className="nfl-detail-name">{selectedNflPlayer}</div>
                 <div className="nfl-detail-sub">{nflPd.ydsPg} yds/g · {nflPd.rec2025.g} games played</div>
               </div>
+
               <div className="nfl-detail-grid">
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">YDS/G</div><div className="nfl-detail-value" style={{ color:"var(--nfl)" }}>{nflPd.ydsPg}</div></div>
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">TDs</div><div className="nfl-detail-value" style={{ color:"var(--gold)" }}>{nflPd.rec2025.td}</div></div>
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">YPR</div><div className="nfl-detail-value">{nflPd.rec2025.ypr}</div></div>
-                {nflPd.rec2025.tgt   && <div className="nfl-detail-stat"><div className="nfl-detail-label">TARGETS</div><div className="nfl-detail-value">{nflPd.rec2025.tgt}</div></div>}
+                {nflPd.rec2025.tgt && <div className="nfl-detail-stat"><div className="nfl-detail-label">TARGETS</div><div className="nfl-detail-value">{nflPd.rec2025.tgt}</div></div>}
                 {nflPd.rec2025.recPg && <div className="nfl-detail-stat"><div className="nfl-detail-label">REC/G</div><div className="nfl-detail-value">{nflPd.rec2025.recPg}</div></div>}
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">GAMES</div><div className="nfl-detail-value">{nflPd.rec2025.g}</div></div>
               </div>
+
               <div className="nfl-detail-section">
                 <div className="nfl-detail-section-label">PROP BREAKDOWN</div>
                 <div className="nfl-prop-block">
@@ -1037,22 +1266,28 @@ export default function App() {
                   {nflPd.props.td  && <div className="nfl-prop-row"><span className="nfl-prop-name">TD SCORER</span><span className={`nfl-prop-val ${nflPd.props.td.lean?.includes("OVER") ? "lean-over" : nflPd.props.td.lean?.includes("FADE") ? "lean-fade" : "lean-neutral"}`}>{nflPd.props.td.lean}</span></div>}
                 </div>
               </div>
+
               <div className="nfl-detail-section">
                 <div className="nfl-detail-section-label">SITUATION 2026</div>
                 <div className="nfl-situation">{nflPd.situation}</div>
               </div>
+
               <div className="nfl-detail-section">
                 <div className="nfl-detail-section-label">BETTING ANGLES</div>
                 <div className="nfl-betting-angles">
                   {nflPd.bettingAngles.map((angle, i) => (
-                    <div key={i} className="nfl-angle-item"><div className="nfl-angle-dot" /><div>{angle}</div></div>
+                    <div key={i} className="nfl-angle-item">
+                      <div className="nfl-angle-dot" />
+                      <div>{angle}</div>
+                    </div>
                   ))}
                 </div>
               </div>
             </div>
+
             <AskBar
               value={nflInput}
-              onChange={e => setNflInput(e.target.value)}
+              onChange={(e) => setNflInput(e.target.value)}
               onSubmit={() => submitNfl()}
               placeholder={`Ask about ${selectedNflPlayer}...`}
               btnColor="var(--nfl)"
@@ -1068,34 +1303,46 @@ export default function App() {
         {screen === "matchup" && selectedMatchup && (
           <main className="screen">
             <button className="detail-back" onClick={goHome}>← BACK</button>
+
             <div className="detail-card">
               <div className="detail-head">
                 <div className="detail-league" style={{ color: selectedMatchup.leagueColor }}>{selectedMatchup.league}</div>
                 <div className="detail-title">{selectedMatchup.title}</div>
                 <div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div>
               </div>
+
               <div className="what-matters">
                 <div className="wm-label">HERE'S WHAT MATTERS</div>
-                <div className="wm-text">{selectedMatchup.whatMatters}</div>
+                <div className="wm-text">
+                  {selectedMatchup.whatMatters || "This is a live or upcoming board matchup. Ask for sides, totals, or player-specific angles."}
+                </div>
               </div>
-              <div className="mini-grid">
-                {selectedMatchup.stats.map((s) => (
-                  <div key={s.label} className="mini-stat">
-                    <div className="mini-label">{s.label}</div>
-                    <div className="mini-value">{s.value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="quick-hitters">
-                {selectedMatchup.quickHitters.map((q) => (
-                  <button key={q} className="quick-btn" onClick={() => submitMatchup(q)}>{q}</button>
-                ))}
-              </div>
+
+              {selectedMatchup.stats && (
+                <div className="mini-grid">
+                  {selectedMatchup.stats.map((s) => (
+                    <div key={s.label} className="mini-stat">
+                      <div className="mini-label">{s.label}</div>
+                      <div className="mini-value">{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedMatchup.quickHitters && (
+                <div className="quick-hitters">
+                  {selectedMatchup.quickHitters.map((q) => (
+                    <button key={q} className="quick-btn" onClick={() => submitMatchup(q)}>{q}</button>
+                  ))}
+                </div>
+              )}
             </div>
+
             <ChatThread msgs={matchupMsgs} />
+
             <AskBar
               value={matchupInput}
-              onChange={e => setMatchupInput(e.target.value)}
+              onChange={(e) => setMatchupInput(e.target.value)}
               onSubmit={() => submitMatchup()}
               placeholder={`Ask about ${selectedMatchup.title}...`}
               pastedImage={pastedImage}
@@ -1110,12 +1357,16 @@ export default function App() {
         {screen === "player" && pd && (
           <main className="screen">
             <button className="detail-back" onClick={() => setScreen("miami")}>← BACK</button>
+
             <div className="detail-card">
               <div className="detail-head">
-                <div className="detail-league" style={{ color:"var(--cyan)" }}>MIAMI OPEN 2026</div>
+                <div className="detail-league" style={{ color:"var(--cyan)" }}>TENNIS PLAYER PROFILE</div>
                 <div className="detail-title">{selectedPlayer}</div>
-                <div className="detail-sub">{Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_"," ") : pd.style} · Elo {pd.elo}</div>
+                <div className="detail-sub">
+                  {Array.isArray(pd.style) ? pd.style.join(", ").replaceAll("_"," ") : pd.style} · Elo {pd.elo}
+                </div>
               </div>
+
               <div className="what-matters">
                 <div className="wm-label">SURFACE NOTES</div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:8 }}>
@@ -1124,19 +1375,47 @@ export default function App() {
                   <div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{ color:"var(--green)" }}>•</div><div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>{pd.surfaceNote?.grass || "—"}</div></div>
                 </div>
               </div>
+
               <div style={{ padding:"0 14px 14px" }}>
                 <div className="wm-label" style={{ marginBottom:8 }}>2026 FORM</div>
-                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{pd.record2026 || "—"}</div>
+                <div style={{ background:"var(--surface-2)", borderRadius:10, padding:10, fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>
+                  {pd.record2026 || "—"}
+                </div>
               </div>
-              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">SERVE</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div></div>
-              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">RETURN</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div></div>
-              <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">OVERALL</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div></div>
-              {pd.miamiNote && <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label" style={{ color:"var(--magenta)" }}>MIAMI NOTE</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.miamiNote}</div></div>}
-              {pd.fullNote  && <div className="what-matters" style={{ paddingTop:0 }}><div className="wm-label">UR TAKE</div><div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.fullNote}</div></div>}
+
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">SERVE</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatServeStats(pd.serveStats)}</div>
+              </div>
+
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">RETURN</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatReturnStats(pd.returnStats)}</div>
+              </div>
+
+              <div className="what-matters" style={{ paddingTop:0 }}>
+                <div className="wm-label">OVERALL</div>
+                <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.5 }}>{formatOverallStats(pd.overallStats)}</div>
+              </div>
+
+              {pd.miamiNote && (
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label" style={{ color:"var(--magenta)" }}>TOURNAMENT NOTE</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.miamiNote}</div>
+                </div>
+              )}
+
+              {pd.fullNote && (
+                <div className="what-matters" style={{ paddingTop:0 }}>
+                  <div className="wm-label">UR TAKE</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.55 }}>{pd.fullNote}</div>
+                </div>
+              )}
             </div>
+
             <AskBar
               value={miamiInput}
-              onChange={e => setMiamiInput(e.target.value)}
+              onChange={(e) => setMiamiInput(e.target.value)}
               onSubmit={() => submitMiami()}
               placeholder={`Ask about ${selectedPlayer}...`}
               pastedImage={pastedImage}
@@ -1154,9 +1433,10 @@ export default function App() {
               <div className="hero-title">UR TAKE</div>
               <div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div>
             </section>
+
             <AskBar
               value={askInput}
-              onChange={e => setAskInput(e.target.value)}
+              onChange={(e) => setAskInput(e.target.value)}
               onSubmit={submitAsk}
               placeholder="What do you want to know?"
               pastedImage={pastedImage}
@@ -1165,11 +1445,12 @@ export default function App() {
               fileInputRef={fileInputRef}
               processImageFile={processImageFile}
             />
+
             {askMsgs.length === 0 ? (
               <section className="section">
                 <div className="section-label">TRY ONE</div>
                 <div className="q-list">
-                  {featuredQuestions.map((q) => (
+                  {dynamicHomeQuestions.map((q) => (
                     <button key={q.id} className="q-card" onClick={() => firePrompt(q.prompt)}>
                       <div className="q-top">
                         <div className="q-accent" style={{ background: q.color }} />
@@ -1215,15 +1496,87 @@ export default function App() {
                 <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--muted)" }}>NO COMMITMENT</span>
               </div>
             </div>
+
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
+              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--cyan)", marginBottom:14 }}>WHAT YOU GET</div>
+              {[
+                ["Unlimited UR TAKE queries", "No throttling mid-slate, no daily cap. Ask everything."],
+                ["Real prop edges", "True floors and ceilings — not public line guesswork."],
+                ["Full player intelligence", "QB + RB/WR/TE database + tennis profiles + defense tiers."],
+                ["Live matchup breakdowns", "Defense-adjusted prop leans with actual betting angles."],
+                ["Saved threads", "Track your takes and review what hit."],
+                ["Priority responses", "Faster answers during live games when it matters most."],
+              ].map(([title, desc], i) => (
+                <div key={i} style={{ display:"flex", gap:12, marginBottom:i < 5 ? 12 : 0 }}>
+                  <div style={{ width:6, height:6, borderRadius:"50%", background:"var(--cyan)", flexShrink:0, marginTop:6 }} />
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:"var(--text)", marginBottom:2 }}>{title}</div>
+                    <div style={{ fontSize:12, color:"var(--muted)", lineHeight:1.4 }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
+              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--magenta)", marginBottom:14 }}>WHY IT WINS</div>
+              {[
+                "Built on real player data — not generic AI models",
+                "Designed for props and edges, not narrative predictions",
+                "Defense-adjusted context (other apps skip this entirely)",
+                "Tennis + NFL in one place — two markets, one intelligence layer",
+                "Updates with real usage, trend signals, and matchup context",
+              ].map((item, i) => (
+                <div key={i} style={{ display:"flex", gap:10, marginBottom:i < 4 ? 10 : 0 }}>
+                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:12, color:"var(--magenta)", flexShrink:0, marginTop:1 }}>→</div>
+                  <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.45 }}>{item}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:16, padding:"16px 18px", marginBottom:14 }}>
+              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:3, color:"var(--gold)", marginBottom:14 }}>EXAMPLE UR TAKE</div>
+
+              <div style={{ background:"rgba(0,245,233,.04)", border:"1px solid rgba(0,245,233,.12)", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <span style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>Derrick Henry</span>
+                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#00E676", background:"rgba(0,230,118,.1)", padding:"2px 8px", borderRadius:4 }}>TD OVER 0.5</span>
+                </div>
+                <div style={{ fontSize:12, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>0.94 TDs/game · highest rate in NFL</div>
+                <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5 }}>Ravens red zone usage is unmatched. Henry gets carries inside the 5 that no other RB sees. Fade the under every week.</div>
+              </div>
+
+              <div style={{ background:"rgba(0,245,233,.04)", border:"1px solid rgba(0,245,233,.12)", borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                  <span style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>Puka Nacua</span>
+                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"#00E676", background:"rgba(0,230,118,.1)", padding:"2px 8px", borderRadius:4 }}>REC YDS OVER</span>
+                </div>
+                <div style={{ fontSize:12, color:"var(--muted)", fontFamily:"'DM Mono',monospace", marginBottom:6 }}>107.2 yds/g · 129 catches · led NFL</div>
+                <div style={{ fontSize:12, color:"var(--soft)", lineHeight:1.5 }}>Volume is the edge — not touchdowns. 8.1 catches per game is historic TE-level production from a WR. Catches and yards OVER every week.</div>
+              </div>
+            </div>
+
+            <div style={{ background:"rgba(255,45,107,.06)", border:"1px solid rgba(255,45,107,.2)", borderRadius:14, padding:"14px 16px", marginBottom:20 }}>
+              <div style={{ fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--magenta)", letterSpacing:2, marginBottom:8 }}>FREE VERSION LIMITS</div>
+              <div style={{ fontSize:13, color:"var(--soft)", lineHeight:1.6 }}>
+                Free users hit query limits during peak hours — typically right before and during live games when you need it most. Pro removes every cap.
+              </div>
+            </div>
+
+            <button style={{ width:"100%", border:"none", borderRadius:14, padding:"15px 0", cursor:"pointer", fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:3, color:"var(--black)", background:"linear-gradient(90deg,var(--cyan),var(--magenta))", marginBottom:8 }}>
+              GET FULL ACCESS NOW
+            </button>
+            <div style={{ textAlign:"center", fontFamily:"'DM Mono',monospace", fontSize:10, color:"var(--muted)", paddingBottom:8 }}>
+              MOST USERS UPGRADE AFTER HITTING LIMITS DURING LIVE GAMES
+            </div>
           </main>
         )}
 
         <nav className="bottom-nav">
-          <button className={`nav-btn${tab === "home"  && screen === "home"  ? " active"       : ""}`} onClick={goHome}>HOME</button>
-          <button className={`nav-btn${tab === "miami"                        ? " miami-active" : ""}`} onClick={goMiami}>TENNIS</button>
-          <button className={`nav-btn${tab === "nfl"                          ? " nfl-active"   : ""}`} onClick={goNfl}>NFL</button>
-          <button className={`nav-btn${tab === "ask"                          ? " active"       : ""}`} onClick={goAsk}>ASK</button>
-          <button className={`nav-btn${tab === "pro"                          ? " active"       : ""}`} onClick={goPro}>PRO</button>
+          <button className={`nav-btn${tab === "home" && screen === "home" ? " active" : ""}`} onClick={goHome}>HOME</button>
+          <button className={`nav-btn${tab === "miami" ? " miami-active" : ""}`} onClick={goMiami}>TENNIS</button>
+          <button className={`nav-btn${tab === "nfl" ? " nfl-active" : ""}`} onClick={goNfl}>NFL</button>
+          <button className={`nav-btn${tab === "ask" ? " active" : ""}`} onClick={goAsk}>ASK</button>
+          <button className={`nav-btn${tab === "pro" ? " active" : ""}`} onClick={goPro}>PRO</button>
         </nav>
       </div>
     </>
