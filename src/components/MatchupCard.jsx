@@ -1,4 +1,3 @@
-// Reusable matchup card tile
 export default function MatchupCard({ m, onOpen, showCategory = false }) {
   return (
     <div className="matchup-card" onClick={() => onOpen(m)}>
