@@ -1,40 +1,39 @@
+import NflPlayerCard from "../components/NflPlayerCard";
 import AskBar from "../components/AskBar";
-import ChatThread from "../components/ChatThread";
 
 export default function NflPlayerScreen({
-  askInput,
-  setAskInput,
-  askMsgs,
-  submitAsk,
+  selectedNflPlayerName,
+  nflInput,
+  setNflInput,
+  onSubmitNfl,
+  onBack,
   isAsking,
   pastedImage,
   clearImage,
   processImageFile,
-  askInputRef,
   fileInputRef,
-  player,
 }) {
   return (
     <main className="screen">
-      <section className="hero">
-        <div className="hero-title">{player?.name || "NFL Player"}</div>
-        {player?.note && <div className="hero-sub">{player.note}</div>}
-      </section>
+      <button type="button" onClick={onBack} style={{ marginBottom: 12 }}>
+        ← Back
+      </button>
+
+      <NflPlayerCard playerName={selectedNflPlayerName} />
 
       <AskBar
-        inputRef={askInputRef}
+        inputRef={null}
         fileInputRef={fileInputRef}
-        value={askInput}
-        onChange={setAskInput}
-        onSubmit={submitAsk}
-        placeholder="Best prop or angle for this player?"
+        value={nflInput}
+        onChange={setNflInput}
+        onSubmit={() => onSubmitNfl()}
+        placeholder={`Bet angle on ${selectedNflPlayerName || "this NFL player"}?`}
         pastedImage={pastedImage}
         clearImage={clearImage}
         isAsking={isAsking}
         processImageFile={processImageFile}
+        btnColor="#E11D48"
       />
-
-      <ChatThread msgs={askMsgs} />
     </main>
   );
 }

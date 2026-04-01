@@ -1,27 +1,23 @@
 import AskBar from "../components/AskBar";
-import ChatThread from "../components/ChatThread";
-import PropCard from "../components/PropCard";
-
-const HOME_PROMPTS = [
-  "Best bets for today's slate at the Charleston Open?",
-  "Will Dak throw for over 3556 yards this season?",
-  "Who will lead the NFL in rushing touchdowns this season?",
-  "Will Drake Maye experience regression this year?",
-];
 
 export default function HomeScreen({
-  askInput,
-  setAskInput,
-  askMsgs,
-  submitAsk,
+  homeInput,
+  setHomeInput,
+  onSubmitHome,
+  onFirePrompt,
   isAsking,
+  fileInputRef,
   pastedImage,
   clearImage,
   processImageFile,
-  askInputRef,
-  fileInputRef,
-  submitQuickAsk,
 }) {
+  const prompts = [
+    "Best bets for today's slate at the Charleston Open?",
+    "Will Dak throw for over 3556 yards this season?",
+    "Who will lead the NFL in rushing touchdowns this season?",
+    "Will Drake Maye experience a regression this year?",
+  ];
+
   return (
     <main className="screen">
       <section className="hero">
@@ -32,11 +28,11 @@ export default function HomeScreen({
       </section>
 
       <AskBar
-        inputRef={askInputRef}
+        inputRef={null}
         fileInputRef={fileInputRef}
-        value={askInput}
-        onChange={setAskInput}
-        onSubmit={submitAsk}
+        value={homeInput}
+        onChange={setHomeInput}
+        onSubmit={onSubmitHome}
         placeholder="Ask UR TAKE anything..."
         pastedImage={pastedImage}
         clearImage={clearImage}
@@ -44,23 +40,21 @@ export default function HomeScreen({
         processImageFile={processImageFile}
       />
 
-      {askMsgs.length === 0 && (
-        <section className="home-prompts">
-          {HOME_PROMPTS.map((prompt) => (
+      <section className="prompt-section">
+        <div className="prompt-grid">
+          {prompts.map((q, i) => (
             <button
-              key={prompt}
+              key={q}
+              className={`prompt-chip ${i % 2 ? "nfl" : "tennis"}`}
+              onClick={() => onFirePrompt(q)}
               type="button"
-              className="prompt-card"
-              onClick={() => submitQuickAsk(prompt)}
               disabled={isAsking}
             >
-              <PropCard player="UR TAKE" prop="Quick Prompt" reason={prompt} />
+              {q}
             </button>
           ))}
-        </section>
-      )}
-
-      <ChatThread msgs={askMsgs} />
+        </div>
+      </section>
     </main>
   );
 }

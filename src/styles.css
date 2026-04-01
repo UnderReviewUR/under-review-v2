@@ -239,6 +239,13 @@ body,
   font-size: 11px;
 }
 
+.nav-btn.active,
+.nav-btn.tennis-active,
+.nav-btn.nfl-active {
+  background: rgba(79, 140, 255, 0.14);
+  border-radius: 10px;
+}
+
 .nav-icon {
   width: 18px;
   height: 18px;

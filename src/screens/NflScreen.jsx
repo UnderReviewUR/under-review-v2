@@ -1,18 +1,26 @@
 import AskBar from "../components/AskBar";
 import ChatThread from "../components/ChatThread";
+import NflPlayerCard from "../components/NflPlayerCard";
+import { NFL_PROP_GUIDE, NFL_POSITIONS } from "../data/nflPlayers";
 
 export default function NflScreen({
-  askInput,
-  setAskInput,
-  askMsgs,
-  submitAsk,
+  nflMsgs,
+  nflInput,
+  setNflInput,
+  nflPosFilter,
+  setNflPosFilter,
+  onSubmitNfl,
+  onOpenNflPlayer,
   isAsking,
   pastedImage,
   clearImage,
   processImageFile,
-  askInputRef,
   fileInputRef,
 }) {
+  const filtered = NFL_PROP_GUIDE.filter(
+    (p) => nflPosFilter === "ALL" || p.pos === nflPosFilter
+  );
+
   return (
     <main className="screen">
       <section className="hero">
@@ -22,20 +30,46 @@ export default function NflScreen({
         </div>
       </section>
 
+      <div className="filter-row">
+        {NFL_POSITIONS.map((pos) => (
+          <button
+            key={pos}
+            type="button"
+            className={`prompt-chip${nflPosFilter === pos ? " active" : ""}`}
+            onClick={() => setNflPosFilter(pos)}
+          >
+            {pos}
+          </button>
+        ))}
+      </div>
+
+      <div className="cards-list">
+        {filtered.map((p) => (
+          <NflPlayerCard
+            key={`${p.player}-${p.propType}`}
+            item={p}
+            onAsk={(q) => {
+              setNflInput(q);
+              onSubmitNfl(q);
+            }}
+            onOpenNflPlayer={onOpenNflPlayer}
+          />
+        ))}
+      </div>
+
       <AskBar
-        inputRef={askInputRef}
         fileInputRef={fileInputRef}
-        value={askInput}
-        onChange={setAskInput}
-        onSubmit={submitAsk}
-        placeholder="Best NFL bet this week?"
+        value={nflInput}
+        onChange={setNflInput}
+        onSubmit={onSubmitNfl}
+        placeholder="Ask an NFL prop, future, or player angle..."
         pastedImage={pastedImage}
         clearImage={clearImage}
         isAsking={isAsking}
         processImageFile={processImageFile}
       />
 
-      <ChatThread msgs={askMsgs} />
+      <ChatThread msgs={nflMsgs} />
     </main>
   );
 }

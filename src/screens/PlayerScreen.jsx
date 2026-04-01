@@ -1,40 +1,45 @@
 import AskBar from "../components/AskBar";
-import ChatThread from "../components/ChatThread";
+import TennisPlayerCard from "../components/TennisPlayerCard";
 
 export default function PlayerScreen({
-  askInput,
-  setAskInput,
-  askMsgs,
-  submitAsk,
+  selectedPlayerName,
+  players,
+  tennisInput,
+  setTennisInput,
+  onSubmitTennis,
+  onBack,
   isAsking,
   pastedImage,
   clearImage,
   processImageFile,
-  askInputRef,
   fileInputRef,
-  player,
 }) {
+  const player =
+    (selectedPlayerName && (players?.atp?.[selectedPlayerName] || players?.wta?.[selectedPlayerName])) ||
+    null;
+
   return (
     <main className="screen">
       <section className="hero">
-        <div className="hero-title">{player?.name || "Player"}</div>
-        {player?.note && <div className="hero-sub">{player.note}</div>}
+        <button type="button" onClick={onBack} className="prompt-chip" style={{ marginBottom: 8 }}>
+          Back to Tennis
+        </button>
+        <div className="hero-title">{selectedPlayerName || "Tennis Player"}</div>
       </section>
 
+      <TennisPlayerCard name={selectedPlayerName} player={player} />
+
       <AskBar
-        inputRef={askInputRef}
         fileInputRef={fileInputRef}
-        value={askInput}
-        onChange={setAskInput}
-        onSubmit={submitAsk}
-        placeholder="How should I bet this player?"
+        value={tennisInput}
+        onChange={setTennisInput}
+        onSubmit={() => onSubmitTennis()}
+        placeholder="Ask about this tennis player..."
         pastedImage={pastedImage}
         clearImage={clearImage}
         isAsking={isAsking}
         processImageFile={processImageFile}
       />
-
-      <ChatThread msgs={askMsgs} />
     </main>
   );
 }

@@ -1,34 +1,39 @@
+import { useRef } from "react";
 import AskBar from "../components/AskBar";
 import ChatThread from "../components/ChatThread";
 
 export default function MatchupScreen({
-  askInput,
-  setAskInput,
-  askMsgs,
-  submitAsk,
+  selectedMatchup,
+  matchupMsgs,
+  matchupInput,
+  setMatchupInput,
+  onSubmitMatchup,
+  onBack,
   isAsking,
   pastedImage,
   clearImage,
   processImageFile,
-  askInputRef,
   fileInputRef,
-  matchupContext,
 }) {
+  const inputRef = useRef(null);
+
   return (
     <main className="screen">
       <section className="hero">
-        <div className="hero-title">Matchup</div>
-        {matchupContext?.title && (
-          <div className="hero-sub">{matchupContext.title}</div>
-        )}
+        <div className="hero-title">{selectedMatchup?.title || "Matchup"}</div>
+        {selectedMatchup?.blurb && <div className="hero-sub">{selectedMatchup.blurb}</div>}
       </section>
 
+      <button type="button" onClick={onBack} className="prompt-chip" style={{ marginBottom: 10 }}>
+        ← Back
+      </button>
+
       <AskBar
-        inputRef={askInputRef}
+        inputRef={inputRef}
         fileInputRef={fileInputRef}
-        value={askInput}
-        onChange={setAskInput}
-        onSubmit={submitAsk}
+        value={matchupInput}
+        onChange={setMatchupInput}
+        onSubmit={onSubmitMatchup}
         placeholder="How does this matchup play out?"
         pastedImage={pastedImage}
         clearImage={clearImage}
@@ -36,7 +41,7 @@ export default function MatchupScreen({
         processImageFile={processImageFile}
       />
 
-      <ChatThread msgs={askMsgs} />
+      <ChatThread msgs={matchupMsgs} />
     </main>
   );
 }
