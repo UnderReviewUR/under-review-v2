@@ -298,7 +298,7 @@ ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No liv
         ].join("\n");
       }
       // No hardwired tournament name — let the model work from player data and signals
-      return "Current tournament context not loaded. Answer from player database and surface Elo data.";
+     return "NO CONFIRMED ACTIVE TOURNAMENT. Answer globally using player form, surface Elo, and current market conditions. Do NOT reference a specific tournament or assume player participation.";
     })();
 
     const allTournaments = (() => {
@@ -320,6 +320,12 @@ ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No liv
     systemPrompt = `You are Under Review — a sharp sports betting intelligence tool covering tennis and NFL.
 
 STYLE
+TOURNAMENT GROUNDING RULE (CRITICAL):
+• Do NOT assume a player is entered in a tournament unless explicitly confirmed by:
+  – context.currentTournament, OR
+  – liveMatches data
+• If no tournament is confirmed, answer GENERICALLY.
+• NEVER invent tournament participation or recent titles.
 Lead with the take. Sharp, confident, natural, specific. No markdown headers. No "UR TAKE:" prefix.
 Never say you lack data — pivot to what you know from the player database and surface Elo.
 
@@ -413,20 +419,51 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
       data?.content?.filter(i => i.type === "text")?.map(i => i.text)?.join("\n")?.trim() || ""
     );
 
-    // Correction loop: if response looks wrong for the classified sport, retry once
-    if (text && responseLooksWrongForSport(text, sport)) {
-      const correctionSystem = systemPrompt + "\n\nCORRECTION: Your previous response was off-topic. Answer ONLY as a " + sport.toUpperCase() + " analyst. Do not apologize. Do not mention another sport. Give a direct answer.";
-      const correctionRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1200, temperature: 0.2, system: correctionSystem, messages }),
-      });
-      const correctionData = await correctionRes.json();
-      if (correctionRes.ok) {
-        text = cleanResponseText(correctionData?.content?.filter(i => i.type === "text")?.map(i => i.text)?.join("\n")?.trim() || "");
-      }
-    }
+    // Correction loop: if response looks wrong for the classified sport
+if (text && responseLooksWrongForSport(text, sport)) {
 
+  // ── TENNIS: do NOT retry — return grounded fallback
+  if (sport === "tennis") {
+    return res.status(200).json({
+      response:
+        "No confirmed tournament context. Best current tennis edges depend on surface form, recent results, and upcoming draws — confirm player participation before betting outrights."
+    });
+  }
+
+  // ── NFL: retry once with stricter correction
+  const correctionSystem =
+    systemPrompt +
+    "\n\nCORRECTION: Your previous response was off-topic. Answer ONLY as a " +
+    sport.toUpperCase() +
+    " analyst. Do not apologize. Do not mention another sport. Give a direct answer.";
+
+  const correctionRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5",
+      max_tokens: 1200,
+      temperature: 0.2,
+      system: correctionSystem,
+      messages
+    }),
+  });
+
+  const correctionData = await correctionRes.json();
+  if (correctionRes.ok) {
+    text = cleanResponseText(
+      correctionData?.content
+        ?.filter(i => i.type === "text")
+        ?.map(i => i.text)
+        ?.join("\n")
+        ?.trim() || ""
+    );
+  }
+}
     return res.status(200).json({ response: text || "Couldn't get a response. Try again." });
   } catch (err) {
     console.error("UR TAKE error:", err);
