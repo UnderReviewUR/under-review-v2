@@ -1,10 +1,42 @@
-export default function MatchupScreen() {
+import AskBar from "../components/AskBar";
+import ChatThread from "../components/ChatThread";
+
+export default function MatchupScreen({
+  askInput,
+  setAskInput,
+  askMsgs,
+  submitAsk,
+  isAsking,
+  pastedImage,
+  clearImage,
+  processImageFile,
+  askInputRef,
+  fileInputRef,
+  matchupContext,
+}) {
   return (
     <main className="screen">
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <h2>Matchup</h2>
-        <p>Matchup screen stub (R1 shell)</p>
-      </div>
+      <section className="hero">
+        <div className="hero-title">Matchup</div>
+        {matchupContext?.title && (
+          <div className="hero-sub">{matchupContext.title}</div>
+        )}
+      </section>
+
+      <AskBar
+        inputRef={askInputRef}
+        fileInputRef={fileInputRef}
+        value={askInput}
+        onChange={setAskInput}
+        onSubmit={submitAsk}
+        placeholder="How does this matchup play out?"
+        pastedImage={pastedImage}
+        clearImage={clearImage}
+        isAsking={isAsking}
+        processImageFile={processImageFile}
+      />
+
+      <ChatThread msgs={askMsgs} />
     </main>
   );
 }
