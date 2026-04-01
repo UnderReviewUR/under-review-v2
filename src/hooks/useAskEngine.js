@@ -7,12 +7,28 @@ export default function useAskEngine({
   context,
   liveMatches,
 }) {
-  const [askInput, setAskInput] = useState("");
-  const [askMsgs, setAskMsgs] = useState([]);
+  // ─────────────────────────
+  // Global ask state
+  // ─────────────────────────
   const [isAsking, setIsAsking] = useState(false);
 
+  // ─────────────────────────
+  // Home / Ask tab
+  // ─────────────────────────
+  const [askInput, setAskInput] = useState("");
+  const [askMsgs, setAskMsgs] = useState([]);
   const askInputRef = useRef(null);
 
+  // ─────────────────────────
+  // Tennis tab
+  // ─────────────────────────
+  const [tennisInput, setTennisInput] = useState("");
+  const [tennisMsgs, setTennisMsgs] = useState([]);
+  const tennisInputRef = useRef(null);
+
+  // ─────────────────────────
+  // Submit: generic Ask
+  // ─────────────────────────
   const submitAsk = useCallback(async () => {
     const text = askInput.trim();
     if (!text || isAsking) return;
@@ -63,14 +79,80 @@ export default function useAskEngine({
     } finally {
       setIsAsking(false);
     }
-  }, [askInput, isAsking, pastedImage, players, context, liveMatches, clearImage]);
+  }, [
+    askInput,
+    isAsking,
+    pastedImage,
+    players,
+    context,
+    liveMatches,
+    clearImage,
+  ]);
 
+  // ─────────────────────────
+  // Submit: Tennis
+  // ─────────────────────────
+  const submitTennis = useCallback(async () => {
+    const text = tennisInput.trim();
+    if (!text || isAsking) return;
+
+    setIsAsking(true);
+
+    const userMsg = { role: "user", text };
+    const thinking = { role: "ai", text: "THINKING...", loading: true };
+
+    setTennisMsgs((prev) => [...prev, userMsg, thinking]);
+    setTennisInput("");
+
+    try {
+      const res = await fetch("/api/ur-take", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          sportHint: "tennis",
+          players,
+          context,
+          liveMatches,
+          history: [],
+        }),
+      });
+
+      const data = await res.json();
+
+      setTennisMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: data.response || "No response." },
+      ]);
+    } catch {
+      setTennisMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: "Something went wrong." },
+      ]);
+    } finally {
+      setIsAsking(false);
+    }
+  }, [tennisInput, isAsking, players, context, liveMatches]);
+
+  // ─────────────────────────
+  // Public API
+  // ─────────────────────────
   return {
+    // Ask / Home
     askInput,
     setAskInput,
     askMsgs,
     submitAsk,
-    isAsking,
     askInputRef,
+
+    // Tennis
+    tennisInput,
+    setTennisInput,
+    tennisMsgs,
+    submitTennis,
+    tennisInputRef,
+
+    // Shared
+    isAsking,
   };
 }
