@@ -1,10 +1,40 @@
-export default function PlayerScreen() {
+import AskBar from "../components/AskBar";
+import ChatThread from "../components/ChatThread";
+
+export default function PlayerScreen({
+  askInput,
+  setAskInput,
+  askMsgs,
+  submitAsk,
+  isAsking,
+  pastedImage,
+  clearImage,
+  processImageFile,
+  askInputRef,
+  fileInputRef,
+  player,
+}) {
   return (
     <main className="screen">
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <h2>Player</h2>
-        <p>Player screen stub (R1 shell)</p>
-      </div>
+      <section className="hero">
+        <div className="hero-title">{player?.name || "Player"}</div>
+        {player?.note && <div className="hero-sub">{player.note}</div>}
+      </section>
+
+      <AskBar
+        inputRef={askInputRef}
+        fileInputRef={fileInputRef}
+        value={askInput}
+        onChange={setAskInput}
+        onSubmit={submitAsk}
+        placeholder="How should I bet this player?"
+        pastedImage={pastedImage}
+        clearImage={clearImage}
+        isAsking={isAsking}
+        processImageFile={processImageFile}
+      />
+
+      <ChatThread msgs={askMsgs} />
     </main>
   );
 }
