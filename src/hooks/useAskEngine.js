@@ -135,6 +135,51 @@ export default function useAskEngine({
   }, [tennisInput, isAsking, players, context, liveMatches]);
 
   // ─────────────────────────
+  // Submit: Home prompt card
+  // ─────────────────────────
+  const submitAskFromText = useCallback(async (rawText) => {
+    const text = String(rawText || "").trim();
+    if (!text || isAsking) return;
+
+    setIsAsking(true);
+
+    const userMsg = { role: "user", text };
+    const thinking = { role: "ai", text: "THINKING...", loading: true };
+
+    setAskMsgs((prev) => [...prev, userMsg, thinking]);
+    setAskInput("");
+    clearImage?.();
+
+    try {
+      const res = await fetch("/api/ur-take", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          players,
+          context,
+          liveMatches,
+          history: [],
+        }),
+      });
+
+      const data = await res.json();
+
+      setAskMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: data.response || "No response." },
+      ]);
+    } catch {
+      setAskMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: "Something went wrong." },
+      ]);
+    } finally {
+      setIsAsking(false);
+    }
+  }, [isAsking, clearImage, players, context, liveMatches]);
+
+  // ─────────────────────────
   // Public API
   // ─────────────────────────
   return {
@@ -143,6 +188,7 @@ export default function useAskEngine({
     setAskInput,
     askMsgs,
     submitAsk,
+    submitAskFromText,
     askInputRef,
 
     // Tennis
