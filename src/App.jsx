@@ -85,8 +85,17 @@ export default function App() {
     />
   );
 } else if (screen === "nflplayer") {
-    content = <NflPlayerScreen {...ask} />;
-  } else if (screen === "pro") {
+  content = (
+    <NflPlayerScreen
+      {...ask}
+      player={tennis.selectedNflPlayer}
+      pastedImage={image.pastedImage}
+      clearImage={image.clearImage}
+      processImageFile={image.processImageFile}
+      fileInputRef={fileInputRef}
+    />
+  );
+} else if (screen === "pro") {
     content = <ProScreen />;
   }
 
