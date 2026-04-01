@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import AskBar from "../components/AskBar";
 import ChatThread from "../components/ChatThread";
 
@@ -14,42 +15,45 @@ export default function AskScreen({
   processImageFile,
   fileInputRef,
 }) {
+  const inputRef = useRef(null);
+
   return (
     <main className="screen">
-      <section className="hero">
-        <div className="hero-title">Ask UR Take</div>
-        <div className="hero-sub">Cross-sport Q&A with fast edges and clear takes.</div>
+      <section className="hero" style={{ paddingTop: 4 }}>
+        <div className="hero-title">UR TAKE</div>
+        <div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div>
       </section>
 
       <AskBar
+        inputRef={inputRef}
+        fileInputRef={fileInputRef}
         value={askInput}
         onChange={setAskInput}
         onSubmit={onSubmitAsk}
-        placeholder="Ask anything..."
+        placeholder="What do you want to know?"
         pastedImage={pastedImage}
         clearImage={clearImage}
         isAsking={isAsking}
         processImageFile={processImageFile}
-        fileInputRef={fileInputRef}
       />
 
-      {Array.isArray(dynamicQuestions) && dynamicQuestions.length > 0 && (
-        <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {dynamicQuestions.map((q) => (
-            <button
-              key={q.id || q.text}
-              type="button"
-              className="prompt-chip"
-              onClick={() => onFirePrompt(q.prompt)}
-              title={q.prompt}
-            >
-              {q.text}
-            </button>
-          ))}
-        </div>
+      {askMsgs.length === 0 ? (
+        <section className="section">
+          <div className="section-label">TRY ONE</div>
+          <div className="q-list">
+            {(dynamicQuestions || []).map((q) => (
+              <button key={q.id} className="q-card" onClick={() => onFirePrompt(q.prompt)}>
+                <div className="q-top">
+                  <div className="q-accent" style={{ background: q.color }} />
+                  <div className="q-text">{q.text}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <ChatThread msgs={askMsgs} />
       )}
-
-      <ChatThread msgs={askMsgs} />
     </main>
   );
 }
