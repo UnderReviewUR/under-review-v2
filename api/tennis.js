@@ -1,3 +1,5 @@
+import { getQueryParam } from "./_request-query.js";
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -18,7 +20,8 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
     }
 
-    const { tour = "atp", activeTournament = "" } = req.query;
+    const tour = getQueryParam(req, "tour", "atp");
+    const activeTournament = getQueryParam(req, "activeTournament", "");
 
     const now = new Date();
 
