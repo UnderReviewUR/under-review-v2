@@ -225,6 +225,13 @@ export default async function handler(req, res) {
     const relevantQBs = getRelevantQBs(question);
     const qbData      = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
     const skillData   = getRelevantSkillPlayers(question, nflContext);
+const rosterCtx =
+  nflContext?.rosters
+    ? `CURRENT NFL ROSTERS (AUTHORITATIVE — OVERRIDES MEMORY):
+${nflContext.rosters}
+
+`
+    : "";
 
     systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
 You cover NFL and tennis. You answer whatever is asked.
