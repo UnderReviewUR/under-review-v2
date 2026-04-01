@@ -63,9 +63,17 @@ export default function App() {
     />
   );
 }
-  } else if (screen === "matchup") {
-    content = <MatchupScreen {...ask} />;
-  } else if (screen === "player") {
+ } else if (screen === "matchup") {
+  content = (
+    <MatchupScreen
+      {...ask}
+      pastedImage={image.pastedImage}
+      clearImage={image.clearImage}
+      processImageFile={image.processImageFile}
+      fileInputRef={fileInputRef}
+    />
+  );
+} else if (screen === "player") {
     content = <PlayerScreen {...tennis} {...ask} />;
   } else if (screen === "nflplayer") {
     content = <NflPlayerScreen {...ask} />;
