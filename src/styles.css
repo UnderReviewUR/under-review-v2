@@ -146,6 +146,41 @@ body,
   gap: 10px;
 }
 
+.prompt-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.prompt-btn {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(24, 35, 61, 0.82) 0%, rgba(16, 24, 44, 0.9) 100%);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.prompt-btn:hover {
+  border-color: #43619e;
+}
+
+.prompt-eyebrow {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #89a2d9;
+}
+
+.prompt-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .bubble {
   max-width: min(760px, 92%);
   border: 1px solid var(--border);

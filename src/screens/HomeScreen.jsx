@@ -1,5 +1,13 @@
 import AskBar from "../components/AskBar";
 import ChatThread from "../components/ChatThread";
+import PropCard from "../components/PropCard";
+
+const HOME_PROMPTS = [
+  "Best bets for today's slate at the Charleston Open?",
+  "Will Dak throw for over 3556 yards this season?",
+  "Who will lead the NFL in rushing touchdowns this season?",
+  "Will Drake Maye experience regression this year?",
+];
 
 export default function HomeScreen({
   askInput,
@@ -12,6 +20,7 @@ export default function HomeScreen({
   processImageFile,
   askInputRef,
   fileInputRef,
+  submitQuickAsk,
 }) {
   return (
     <main className="screen">
@@ -34,6 +43,22 @@ export default function HomeScreen({
         isAsking={isAsking}
         processImageFile={processImageFile}
       />
+
+      {askMsgs.length === 0 && (
+        <section className="home-prompts">
+          {HOME_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              className="prompt-card"
+              onClick={() => submitQuickAsk(prompt)}
+              disabled={isAsking}
+            >
+              <PropCard player="UR TAKE" prop="Quick Prompt" reason={prompt} />
+            </button>
+          ))}
+        </section>
+      )}
 
       <ChatThread msgs={askMsgs} />
     </main>
