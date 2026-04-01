@@ -20,7 +20,7 @@ const AskBar = memo(function AskBar({
     [onSubmit]
   );
 
-  const handleFileChange = useCallback(
+  const handleFile = useCallback(
     (e) => {
       if (e.target.files?.[0]) {
         processImageFile(e.target.files[0]);
@@ -36,19 +36,15 @@ const AskBar = memo(function AskBar({
         type="file"
         accept="image/*"
         style={{ display: "none" }}
-        onChange={handleFileChange}
+        onChange={handleFile}
       />
 
       <div className="ask-row">
         <div className="ask-col">
           {pastedImage && (
             <div className="ask-img-preview">
-              {pastedImage.previewUrl}
-              <button
-                className="ask-img-remove"
-                type="button"
-                onClick={clearImage}
-              >
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" />
+              <button onClick={clearImage} type="button" className="ask-img-remove">
                 ✕ Remove
               </button>
             </div>
@@ -62,31 +58,25 @@ const AskBar = memo(function AskBar({
             onKeyDown={handleKeyDown}
             placeholder={pastedImage ? "Ask about this image..." : placeholder}
             disabled={isAsking}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="sentences"
-            spellCheck={false}
           />
 
-          {!pastedImage && (
-            <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>
-          )}
+          {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>}
         </div>
 
         <button
           className={`attach-btn${pastedImage ? " has-img" : ""}`}
-          type="button"
           onClick={() => fileInputRef.current?.click()}
+          type="button"
         >
           📎
         </button>
 
         <button
           className="send-btn"
-          type="button"
+          style={btnColor ? { background: btnColor } : undefined}
           onClick={onSubmit}
           disabled={isAsking}
-          style={btnColor ? { background: btnColor } : undefined}
+          type="button"
         >
           ➤
         </button>
@@ -96,3 +86,4 @@ const AskBar = memo(function AskBar({
 });
 
 export default AskBar;
+``
