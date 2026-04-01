@@ -1,10 +1,41 @@
-export default function NflScreen() {
+import AskBar from "../components/AskBar";
+import ChatThread from "../components/ChatThread";
+
+export default function NflScreen({
+  askInput,
+  setAskInput,
+  askMsgs,
+  submitAsk,
+  isAsking,
+  pastedImage,
+  clearImage,
+  processImageFile,
+  askInputRef,
+  fileInputRef,
+}) {
   return (
     <main className="screen">
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <h2>NFL</h2>
-        <p>NFL screen stub (R1 shell)</p>
-      </div>
+      <section className="hero">
+        <div className="hero-title">NFL</div>
+        <div className="hero-sub">
+          Weekly edges, props, futures, and draft angles.
+        </div>
+      </section>
+
+      <AskBar
+        inputRef={askInputRef}
+        fileInputRef={fileInputRef}
+        value={askInput}
+        onChange={setAskInput}
+        onSubmit={submitAsk}
+        placeholder="Best NFL bet this week?"
+        pastedImage={pastedImage}
+        clearImage={clearImage}
+        isAsking={isAsking}
+        processImageFile={processImageFile}
+      />
+
+      <ChatThread msgs={askMsgs} />
     </main>
   );
 }
