@@ -31,7 +31,17 @@ export default function App() {
   let content = null;
 
   if (screen === "home") {
-    content = <HomeScreen {...tennis} {...ask} go={setScreen} setTab={setTab} />;
+  content = (
+    <HomeScreen
+      {...ask}
+      pastedImage={image.pastedImage}
+      clearImage={image.clearImage}
+      processImageFile={image.processImageFile}
+      fileInputRef={fileInputRef}
+    />
+  );
+}
+
   } else if (screen === "tennis") {
     content = <TennisScreen {...tennis} {...ask} />;
   } else if (screen === "nfl") {
