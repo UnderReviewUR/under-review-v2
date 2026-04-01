@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { atp, wta } from "../lib/tennis/data/index.js";
-
 export default function useTennisBoard() {
-  const [players, setPlayers] = useState({ atp, wta });
+  const [players, setPlayers] = useState({ atp: {}, wta: {} });
   const [context, setContext] = useState(null);
   const [liveMatches, setLiveMatches] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -20,6 +18,22 @@ export default function useTennisBoard() {
         if (!cancelled) setContext(json);
       } catch {
         // Keep local defaults when API is unavailable.
+      }
+    }
+
+    async function loadPlayers() {
+      try {
+        const res = await fetch("/api/tennis-players");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) {
+          setPlayers({
+            atp: json?.atp || {},
+            wta: json?.wta || {},
+          });
+        }
+      } catch {
+        // Keep empty local defaults when API is unavailable.
       }
     }
 
@@ -49,16 +63,12 @@ export default function useTennisBoard() {
     }
 
     loadContext();
+    loadPlayers();
     loadLiveMatches();
 
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    // Keep a stable object shape for consumers that expect player maps.
-    setPlayers({ atp, wta });
   }, []);
 
   return {
