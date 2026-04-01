@@ -2,6 +2,8 @@
 // Fetches live tennis prop lines from The Odds API v4.
 // Returns structured lines for UR Take prompt context.
 
+import { getQuery } from "./_request-query.js";
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -14,7 +16,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing ODDS_API_KEY" });
   }
 
-  const { tour = "atp" } = req.query;
+  const { tour = "atp" } = getQuery(req);
   const sportKeys = tour === "wta"
     ? ["tennis_wta_miami", "tennis_wta"]
     : ["tennis_atp_miami", "tennis_atp"];

@@ -1,3 +1,5 @@
+import { getQueryParams } from "./_request-query.js";
+
 // api/tennis-results.js
 // Fetches completed matches from the current active tournament window.
 // Returns structured draw path: winner, loser, round, score.
@@ -17,7 +19,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
     }
 
-    const { tour = "atp" } = req.query;
+    const { tour = "atp" } = getQueryParams(req);
 
     // Look back 21 days to capture full tournament draws including qualifying
     const today = new Date();
