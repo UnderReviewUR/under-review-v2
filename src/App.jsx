@@ -17,7 +17,6 @@ import NavIcon from "./components/NavIcon";
 
 export default function App() {
   const [screen, setScreen] = useState("home");
-  const [tab, setTab] = useState("home");
 
   const fileInputRef = useRef(null);
 
@@ -31,72 +30,73 @@ export default function App() {
   let content = null;
 
   if (screen === "home") {
-  content = (
-    <HomeScreen
-      {...ask}
-      pastedImage={image.pastedImage}
-      clearImage={image.clearImage}
-      processImageFile={image.processImageFile}
-      fileInputRef={fileInputRef}
-    />
-  );
-}
-
+    content = (
+      <HomeScreen
+        {...ask}
+        pastedImage={image.pastedImage}
+        clearImage={image.clearImage}
+        processImageFile={image.processImageFile}
+        fileInputRef={fileInputRef}
+      />
+    );
   } else if (screen === "tennis") {
-  content = (
-    <TennisScreen
-      {...ask}
-      pastedImage={image.pastedImage}
-      clearImage={image.clearImage}
-      processImageFile={image.processImageFile}
-      fileInputRef={fileInputRef}
-    />
-  );
-} else if (screen === "nfl") {
-  content = (
-    <NflScreen
-      {...ask}
-      pastedImage={image.pastedImage}
-      clearImage={image.clearImage}
-      processImageFile={image.processImageFile}
-      fileInputRef={fileInputRef}
-    />
-  );
-}
- } else if (screen === "matchup") {
-  content = (
-    <MatchupScreen
-      {...ask}
-      pastedImage={image.pastedImage}
-      clearImage={image.clearImage}
-      processImageFile={image.processImageFile}
-      fileInputRef={fileInputRef}
-    />
-  );
-} else if (screen === "player") {
-  content = (
-    <PlayerScreen
-      {...ask}
-      player={tennis.selectedPlayer}
-      pastedImage={image.pastedImage}
-      clearImage={image.clearImage}
-      processImageFile={image.processImageFile}
-      fileInputRef={fileInputRef}
-    />
-  );
-} else if (screen === "nflplayer") {
-  content = (
-    <NflPlayerScreen
-      {...ask}
-      player={tennis.selectedNflPlayer}
-      pastedImage={image.pastedImage}
-      clearImage={image.clearImage}
-      processImageFile={image.processImageFile}
-      fileInputRef={fileInputRef}
-    />
-  );
-} else if (screen === "pro") {
+    content = (
+      <TennisScreen
+        {...ask}
+        pastedImage={image.pastedImage}
+        clearImage={image.clearImage}
+        processImageFile={image.processImageFile}
+        fileInputRef={fileInputRef}
+      />
+    );
+  } else if (screen === "nfl") {
+    content = (
+      <NflScreen
+        {...ask}
+        pastedImage={image.pastedImage}
+        clearImage={image.clearImage}
+        processImageFile={image.processImageFile}
+        fileInputRef={fileInputRef}
+      />
+    );
+  } else if (screen === "ask") {
+    content = <AskScreen />;
+  } else if (screen === "matchup") {
+    content = (
+      <MatchupScreen
+        {...ask}
+        pastedImage={image.pastedImage}
+        clearImage={image.clearImage}
+        processImageFile={image.processImageFile}
+        fileInputRef={fileInputRef}
+      />
+    );
+  } else if (screen === "player") {
+    content = (
+      <PlayerScreen
+        {...ask}
+        player={tennis.selectedPlayer}
+        pastedImage={image.pastedImage}
+        clearImage={image.clearImage}
+        processImageFile={image.processImageFile}
+        fileInputRef={fileInputRef}
+      />
+    );
+  } else if (screen === "nflplayer") {
+    content = (
+      <NflPlayerScreen
+        {...ask}
+        player={tennis.selectedNflPlayer}
+        pastedImage={image.pastedImage}
+        clearImage={image.clearImage}
+        processImageFile={image.processImageFile}
+        fileInputRef={fileInputRef}
+      />
+    );
+  } else if (screen === "pro") {
     content = <ProScreen />;
+  } else {
+    content = <HomeScreen {...ask} pastedImage={image.pastedImage} clearImage={image.clearImage} processImageFile={image.processImageFile} fileInputRef={fileInputRef} />;
   }
 
   return (
@@ -104,27 +104,27 @@ export default function App() {
       {content}
 
       <nav className="bottom-nav">
-        <button onClick={() => { setScreen("home"); setTab("home"); }}>
+        <button onClick={() => setScreen("home")}>
           <NavIcon type="home" />
           <span>Home</span>
         </button>
 
-        <button onClick={() => { setScreen("tennis"); setTab("tennis"); }}>
+        <button onClick={() => setScreen("tennis")}>
           <NavIcon type="tennis" />
           <span>Tennis</span>
         </button>
 
-        <button onClick={() => { setScreen("nfl"); setTab("nfl"); }}>
+        <button onClick={() => setScreen("nfl")}>
           <NavIcon type="nfl" />
           <span>NFL</span>
         </button>
 
-        <button onClick={() => { setScreen("ask"); setTab("ask"); }}>
+        <button onClick={() => setScreen("ask")}>
           <NavIcon type="ask" />
           <span>Ask</span>
         </button>
 
-        <button onClick={() => { setScreen("pro"); setTab("pro"); }}>
+        <button onClick={() => setScreen("pro")}>
           <NavIcon type="pro" />
           <span>Pro</span>
         </button>
