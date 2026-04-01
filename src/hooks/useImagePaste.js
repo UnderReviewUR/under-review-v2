@@ -1,45 +1,78 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-export default function useImagePaste() {
-  const [pastedImage, setPastedImage] = useState(null);
-  const fileInputRef = useRef(null);
-
-  const processImageFile = useCallback((file) => {
-    if (!file || !file.type.startsWith("image/")) return;
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target.result;
-      setPastedImage({
-        base64: dataUrl.split(",")[1],
-        mediaType: file.type,
-        previewUrl: dataUrl,
-      });
-    };
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image file"));
     reader.readAsDataURL(file);
-  }, []);
+  });
+}
+
+function parseDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mediaType: match[1], base64: match[2] };
+}
+
+export default function useImagePaste(fileInputRef) {
+  const [pastedImage, setPastedImage] = useState(null);
 
   const clearImage = useCallback(() => {
-    setPastedImage(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    setPastedImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+    if (fileInputRef?.current) fileInputRef.current.value = "";
+  }, [fileInputRef]);
+
+  const processImageFile = useCallback(async (file) => {
+    if (!file || !file.type?.startsWith("image/")) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    const dataUrl = await fileToDataUrl(file);
+    const parsed = parseDataUrl(dataUrl);
+
+    setPastedImage((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return {
+        fileName: file.name,
+        previewUrl,
+        mediaType: parsed?.mediaType || file.type,
+        base64: parsed?.base64 || "",
+      };
+    });
   }, []);
 
-  // Global paste handler
   useEffect(() => {
-    const handle = (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
+    const handlePaste = (event) => {
+      const items = event.clipboardData?.items || [];
       for (const item of items) {
-        if (item.type.startsWith("image/")) {
-          e.preventDefault();
-          const f = item.getAsFile();
-          if (f) processImageFile(f);
+        if (!item.type?.startsWith("image/")) continue;
+        const file = item.getAsFile();
+        if (file) {
+          processImageFile(file).catch(() => {});
           break;
         }
       }
     };
-    window.addEventListener("paste", handle);
-    return () => window.removeEventListener("paste", handle);
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
   }, [processImageFile]);
 
-  return { pastedImage, processImageFile, clearImage, fileInputRef };
+  useEffect(() => {
+    return () => {
+      setPastedImage((prev) => {
+        if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        return null;
+      });
+    };
+  }, []);
+
+  return {
+    pastedImage,
+    clearImage,
+    processImageFile,
+  };
 }
