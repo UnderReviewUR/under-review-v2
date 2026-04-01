@@ -45,10 +45,8 @@ export default function App() {
   } else if (screen === "tennis") {
     content = <TennisScreen {...tennis} {...ask} />;
   } else if (screen === "nfl") {
-    content = <NflScreen {...ask} />;
-  } else if (screen === "ask") {
   content = (
-    <AskScreen
+    <NflScreen
       {...ask}
       pastedImage={image.pastedImage}
       clearImage={image.clearImage}
