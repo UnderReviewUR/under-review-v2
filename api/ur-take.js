@@ -168,19 +168,62 @@ function responseLooksWrongForSport(text, sport) {
   return false;
 }
 
+// ── Rate limiting (per-IP, in-memory — resets on cold start) ─────────────────
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 });
+    return true;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) return false;
+  return true;
+}
+
+// Allowed origins — add your production domain(s) here
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+function getAllowedOrigin(req) {
+  const origin = req.headers?.origin || "";
+  if (ALLOWED_ORIGINS.length === 0) return origin || "*";
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return null;
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const allowedOrigin = getAllowedOrigin(req);
+  if (!allowedOrigin) return res.status(403).json({ error: "Forbidden" });
+
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST")   return res.status(405).json({ error: "Method not allowed" });
 
+  const clientIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim()
+    || req.headers["x-real-ip"]
+    || req.socket?.remoteAddress
+    || "unknown";
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({ error: "Too many requests. Try again in a minute." });
+  }
+
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
 
   const { question, players, context, liveMatches, history, matchupContext, image, nflContext, sportHint } = req.body;
-  if (!question) return res.status(400).json({ error: "Missing question" });
+  if (!question || typeof question !== "string" || question.length > 2000) {
+    return res.status(400).json({ error: "Invalid or missing question" });
+  }
 
   const sport = detectSport(question, sportHint, matchupContext);
   const isNFL = sport === "nfl";

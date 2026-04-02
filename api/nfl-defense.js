@@ -651,17 +651,6 @@ export default async function handler(req, res) {
       bettingAngles: ["Saints defense is mediocre without elite talent", "Tyler Shough can't carry a below-average defense — OVER lean in Saints games"],
       note: "Tyrann Mathieu is aging but still a smart veteran safety. Saints defense is mediocre across the board — functional but not a game-changer in either direction."
     },
-
-    "GB": {
-      team: "Green Bay Packers", abbr: "GB", conf: "NFC", season: 2025, tier: "STRONG",
-      overall: { rank: 7, ptsAllowed: 20.8, ydsAllowed: 318.1, dvoa: -12.4 },
-      pass: { rank: 9, ydsAllowed: 191.3, sacks: 2.6, pressurePct: 26.8, intPg: 1.1, dvoa: -13.2 },
-      rush: { rank: 7, ydsAllowed: 126.8, dvoa: -11.3 },
-      keyPlayers: ["Rashan Gary", "Kenny Clark", "Jaire Alexander", "Xavier McKinney"],
-      propImpact: { qb: "LEAN FADE", rb: "MODERATE", wr: "LEAN FADE WR1 — Jaire", te: "PLAYABLE" },
-      bettingAngles: ["Jaire Alexander healthy = hard fade WR1 every game", "Lambeau Field in cold weather = 3-4 point defensive advantage"],
-      note: "Packers defense with Jaire Alexander healthy is top-8. Without him it's a different unit. Rashan Gary is a legitimate edge rusher when healthy."
-    },
   };
 
   return res.status(200).json({ defenses, updated_at: "2026-03-30", season: 2025 });

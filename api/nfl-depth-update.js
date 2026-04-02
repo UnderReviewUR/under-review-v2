@@ -14,31 +14,20 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  // Allow GET for reading cached data from other endpoints
+  // GET: Vercel cron invokes GET — scrape fresh data then cache it.
+  //      Also serves cached data to other endpoints reading depth charts.
   if (req.method === "GET") {
     if (cachedDepth && Date.now() - cacheTime < CACHE_TTL) {
       return res.status(200).json({ source: "cache", updatedAt: new Date(cacheTime).toISOString(), depth: cachedDepth });
     }
-    // Fetch fresh
-    const depth = await fetchOurladsQBs();
-    if (depth) {
-      cachedDepth = depth;
-      cacheTime = Date.now();
-      return res.status(200).json({ source: "fresh", updatedAt: new Date(cacheTime).toISOString(), depth });
-    }
-    return res.status(500).json({ error: "Failed to fetch depth charts" });
-  }
-
-  // POST is called by Vercel cron
-  if (req.method === "POST") {
     const depth = await fetchOurladsQBs();
     if (depth) {
       cachedDepth = depth;
       cacheTime = Date.now();
       console.log(`[nfl-depth-update] Updated at ${new Date().toISOString()} - ${Object.keys(depth).length} teams`);
-      return res.status(200).json({ success: true, updatedAt: new Date(cacheTime).toISOString(), teamsUpdated: Object.keys(depth).length });
+      return res.status(200).json({ source: "fresh", updatedAt: new Date(cacheTime).toISOString(), depth });
     }
-    return res.status(500).json({ error: "Fetch failed" });
+    return res.status(500).json({ error: "Failed to fetch depth charts" });
   }
 
   return res.status(405).json({ error: "Method not allowed" });

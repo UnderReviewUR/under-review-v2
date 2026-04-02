@@ -37,12 +37,8 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
-    // Active tournament keyword -- change this when rotating tournaments
-    // Must match what API-Tennis uses in tournament_name field
-
     // Get active tournament name from context to filter results
-    // Falls back to hardcoded keyword if context fetch fails
-    let tournamentKeywords = [ACTIVE_TOURNAMENT_KEYWORD];
+    let tournamentKeywords = [];
     try {
       const contextRes = await fetch(
         `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/api/tennis-context`

@@ -79,14 +79,14 @@ const QBs = {
   },
 
   "Shedeur Sanders": {
-    team: "CLE", backup: "Dillon Gabriel", age: 23, tier: "BELOW_AVG",
+    team: "TEN", backup: "Cam Ward", age: 23, tier: "ROOKIE",
     style: ["pocket passer", "accuracy-first", "improviser", "football IQ"],
-    stats2024: { games: 8, record: "3-4", cmp: 56.6, yds: 1400, td: 7, int: 10, ypa: 6.6, aya: 5.1, rate: 68.1, qbr: 18.9, skPct: 9.79 },
-    situation2025: "Drafted 5th overall by Cleveland. Deshaun Watson also listed but effectively done. Shedeur is the franchise QB. Numbers were generated behind one of the worst OLs in NFL history — context matters.",
-    strengths: ["Football IQ and pre-snap reads are advanced for his age", "Accuracy in clean pockets confirmed by college tape", "Leadership and composure are proven traits", "Dillon Gabriel as backup signals youth-first rebuild"],
-    weaknesses: ["10 INTs in 8 games — alarming even with context", "QBR 18.9 — historically poor start", "Cleveland OL not fixed overnight", "Sack rate 9.79% — took brutal punishment"],
-    bettingAngles: ["Browns team total UNDER until OL and weapons materially improve", "Sanders sack taken OVER — Cleveland line is still a problem", "Fade Browns vs top-10 pass rushes — rookie QB behind bad line is exploitable"],
-    fantasyProfile: { pprRank: "QB28-32 in 2025", nonPprRank: "QB28-32", upside: "Dynasty asset — ceiling is real if Cleveland builds properly", risk: "Extreme in 2025 — bad OL, bad weapons, massive learning curve", note: "Redraft: do not touch. Dynasty: buy low now, patience required." }
+    stats2024: { games: 0, note: "2026 Draft Pick — has not played an NFL game yet. College stats from Colorado 2025 season." },
+    situation2025: "Drafted #1 overall by Tennessee Titans (April 2026). Most NFL-ready QB in the 2026 class. 74% completion rate at Colorado. Titans supporting cast is bottom-5.",
+    strengths: ["Football IQ and pre-snap reads are advanced for his age", "Accuracy in clean pockets confirmed by college tape", "Leadership and composure are proven traits", "Most NFL-ready passer in the 2026 draft class"],
+    weaknesses: ["Titans O-line is bottom-5 — will take punishment early", "Supporting cast is thin", "Year 1 expected to be rough regardless of talent"],
+    bettingAngles: ["Titans team total UNDER — market overvalues rookie QBs", "Fade Titans early-season totals", "Sanders sack taken OVER — Tennessee line is a problem"],
+    fantasyProfile: { pprRank: "QB28-32 in 2026", nonPprRank: "QB28-32", upside: "Dynasty asset — ceiling is real if Tennessee builds properly", risk: "Extreme in 2026 — bad OL, thin weapons, massive learning curve", note: "Redraft: do not touch. Dynasty: buy low now, patience required." }
   },
 
   "Mason Rudolph": {
