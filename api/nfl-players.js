@@ -3,8 +3,10 @@
 // QB data: 2024 PFR stats as baseline, 2025/2026 roster situations from Ourlads (March 2026)
 // Auto-updated weekly via api/nfl-sync.js
 
+import { applyCors } from "./_cors.js";
+
 export default function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  if (!applyCors(req, res)) return;
   res.status(200).json({ qb: QBs, rb: RBs, wr: WRs, te: TEs, coaches: Coaches });
 }
 

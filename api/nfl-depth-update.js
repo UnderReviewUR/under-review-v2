@@ -11,8 +11,10 @@ let cachedDepth = null;
 let cacheTime = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
+import { applyCors } from "./_cors.js";
+
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  if (!applyCors(req, res)) return;
 
   // GET: Vercel cron invokes GET — scrape fresh data then cache it.
   //      Also serves cached data to other endpoints reading depth charts.

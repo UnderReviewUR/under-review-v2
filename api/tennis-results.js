@@ -4,8 +4,10 @@
 // Injected into ur-take system prompt as TOURNAMENT DRAW PATH.
 // Tournament filter is dynamic -- reads from tennis-context ACTIVE_TOURNAMENT.
 
+import { applyCors } from "./_cors.js";
+
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  if (!applyCors(req, res)) return;
 
   try {
     const API_KEY = process.env.API_TENNIS_KEY;

@@ -168,6 +168,8 @@ function responseLooksWrongForSport(text, sport) {
   return false;
 }
 
+import { applyCors } from "./_cors.js";
+
 // ── Rate limiting (per-IP, in-memory — resets on cold start) ─────────────────
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -185,29 +187,37 @@ function checkRateLimit(ip) {
   return true;
 }
 
-// Allowed origins — add your production domain(s) here
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
-  .split(",")
-  .map(s => s.trim())
-  .filter(Boolean);
+// ── Response cache (in-memory, 15-min TTL — resets on cold start) ────────────
+const responseCache = new Map();
+const CACHE_TTL_MS = 15 * 60_000;
+const MAX_CACHE_SIZE = 200;
 
-function getAllowedOrigin(req) {
-  const origin = req.headers?.origin || "";
-  if (ALLOWED_ORIGINS.length === 0) return origin || "*";
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  return null;
+function getCacheKey(question, sport) {
+  return `${sport}:${question.toLowerCase().trim().replace(/\s+/g, " ")}`;
+}
+
+function getCachedResponse(key) {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL_MS) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry.response;
+}
+
+function setCachedResponse(key, response) {
+  if (responseCache.size >= MAX_CACHE_SIZE) {
+    const oldest = responseCache.keys().next().value;
+    responseCache.delete(oldest);
+  }
+  responseCache.set(key, { response, ts: Date.now() });
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  const allowedOrigin = getAllowedOrigin(req);
-  if (!allowedOrigin) return res.status(403).json({ error: "Forbidden" });
-
-  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")   return res.status(405).json({ error: "Method not allowed" });
+  if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const clientIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim()
     || req.headers["x-real-ip"]
@@ -227,6 +237,14 @@ export default async function handler(req, res) {
 
   const sport = detectSport(question, sportHint, matchupContext);
   const isNFL = sport === "nfl";
+
+  // Cache lookup — only for text-only questions without conversation history or images
+  const isSimpleQuery = !image && (!Array.isArray(history) || history.length === 0);
+  const cacheKey = isSimpleQuery ? getCacheKey(question, sport) : null;
+  if (cacheKey) {
+    const cached = getCachedResponse(cacheKey);
+    if (cached) return res.status(200).json({ response: cached, cached: true });
+  }
 
   function buildOddsContext(odds) {
     if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
@@ -470,7 +488,9 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
       }
     }
 
-    return res.status(200).json({ response: text || "Couldn't get a response. Try again." });
+    const finalText = text || "Couldn't get a response. Try again.";
+    if (cacheKey && text) setCachedResponse(cacheKey, finalText);
+    return res.status(200).json({ response: finalText });
   } catch (err) {
     console.error("UR TAKE error:", err);
     return res.status(500).json({ error: "Request failed", details: err.message });

@@ -162,8 +162,10 @@ function getActiveTournamentKey() {
   return upcoming?.key || "miami_open";
 }
 
+import { applyCors } from "./_cors.js";
+
 export default function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  if (!applyCors(req, res)) return;
 
   const activeKey = getActiveTournamentKey();
   const currentTournament = TOURNAMENTS[activeKey];
