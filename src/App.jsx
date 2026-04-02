@@ -3,30 +3,28 @@ import useTennisBoard from "./hooks/useTennisBoard";
 import useImagePaste from "./hooks/useImagePaste";
 import useAskEngine from "./hooks/useAskEngine";
 
-import HomeScreen from "./screens/HomeScreen";
-import TennisScreen from "./screens/TennisScreen";
-import NflScreen from "./screens/NflScreen";
-import AskScreen from "./screens/AskScreen";
+import HomeScreen    from "./screens/HomeScreen";
+import TennisScreen  from "./screens/TennisScreen";
+import NflScreen     from "./screens/NflScreen";
+import AskScreen     from "./screens/AskScreen";
 import MatchupScreen from "./screens/MatchupScreen";
-import PlayerScreen from "./screens/PlayerScreen";
+import PlayerScreen  from "./screens/PlayerScreen";
 import NflPlayerScreen from "./screens/NflPlayerScreen";
-import ProScreen from "./screens/ProScreen";
+import ProScreen     from "./screens/ProScreen";
 
 import NavIcon from "./components/NavIcon";
+import { preferredTournamentScore, getDaypartLabel, isNflInSeason } from "./lib/tennis";
 
-import { preferredTournamentScore, getDaypartLabel } from "./lib/tennis";
-
-// ── App — owns all navigation state, per-screen input state, and message threads
 export default function App() {
 
-  // ── Navigation ────────────────────────────────────────────────────────────
-  const [tab, setTab]                         = useState("home");   // controls nav highlight
-  const [screen, setScreen]                   = useState("home");   // controls which screen renders
-  const [selectedMatchup, setSelectedMatchup] = useState(null);
-  const [selectedPlayerName, setSelectedPlayerName]       = useState(null);
-  const [selectedNflPlayerName, setSelectedNflPlayerName] = useState(null);
+  // ── Navigation ───────────────────────────────────────────────────────────
+  const [tab,    setTab]    = useState("home");
+  const [screen, setScreen] = useState("home");
+  const [selectedMatchup,        setSelectedMatchup]        = useState(null);
+  const [selectedPlayerName,     setSelectedPlayerName]     = useState(null);
+  const [selectedNflPlayerName,  setSelectedNflPlayerName]  = useState(null);
 
-  // ── Per-screen inputs — NEVER share between screens (one-char typing bug) ─
+  // ── Per-screen inputs — never shared, prevents the 1-char typing bug ─────
   const [homeInput,    setHomeInput]    = useState("");
   const [askInput,     setAskInput]     = useState("");
   const [tennisInput,  setTennisInput]  = useState("");
@@ -34,13 +32,13 @@ export default function App() {
   const [matchupInput, setMatchupInput] = useState("");
   const [nflPosFilter, setNflPosFilter] = useState("ALL");
 
-  // ── Per-screen message threads ────────────────────────────────────────────
+  // ── Per-screen message threads ───────────────────────────────────────────
   const [askMsgs,     setAskMsgs]     = useState([]);
   const [tennisMsgs,  setTennisMsgs]  = useState([]);
   const [nflMsgs,     setNflMsgs]     = useState([]);
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
-  // ── Data hooks ────────────────────────────────────────────────────────────
+  // ── Data hooks ───────────────────────────────────────────────────────────
   const tennis = useTennisBoard();
   const image  = useImagePaste();
   const { isAsking, askUrTake } = useAskEngine({
@@ -50,15 +48,16 @@ export default function App() {
     clearImage:  image.clearImage,
   });
 
-  // ── Shared image props (passed to every AskBar) ───────────────────────────
+  // Spread once — passed to every screen that has an AskBar
   const imageProps = {
     pastedImage:      image.pastedImage,
     clearImage:       image.clearImage,
     processImageFile: image.processImageFile,
     fileInputRef:     image.fileInputRef,
+    isAsking,
   };
 
-  // ── Navigation helpers ────────────────────────────────────────────────────
+  // ── Nav helpers ──────────────────────────────────────────────────────────
   const goHome   = useCallback(() => { setTab("home");   setScreen("home");   setSelectedMatchup(null); }, []);
   const goTennis = useCallback(() => { setTab("tennis"); setScreen("tennis"); }, []);
   const goNfl    = useCallback(() => { setTab("nfl");    setScreen("nfl");    }, []);
@@ -86,14 +85,12 @@ export default function App() {
     setTab("nfl");
   }, []);
 
-  // ── Submit handlers — one per screen, each with its own sportHint ─────────
+  // ── Submit handlers ──────────────────────────────────────────────────────
   const submitHome = useCallback(() => {
     const t = homeInput.trim();
     if (!t || isAsking) return;
-    setHomeInput("");
-    setAskInput("");
-    setTab("ask");
-    setScreen("ask");
+    setHomeInput(""); setAskInput("");
+    setTab("ask"); setScreen("ask");
     askUrTake({ text: t, setMsgs: setAskMsgs, pastedImage: image.pastedImage });
   }, [askUrTake, homeInput, image.pastedImage, isAsking]);
 
@@ -126,89 +123,105 @@ export default function App() {
     askUrTake({ text: t, matchup: selectedMatchup, setMsgs: setMatchupMsgs, sportHint: hint, pastedImage: image.pastedImage });
   }, [askUrTake, image.pastedImage, isAsking, matchupInput, selectedMatchup]);
 
-  // firePrompt: called from trending questions — always goes to Ask screen
   const firePrompt = useCallback((prompt) => {
-    setTab("ask");
-    setScreen("ask");
-    setAskInput("");
+    setTab("ask"); setScreen("ask"); setAskInput("");
     askUrTake({ text: prompt, setMsgs: setAskMsgs, pastedImage: image.pastedImage });
   }, [askUrTake, image.pastedImage]);
 
-  // ── Dynamic questions (shared by HomeScreen and AskScreen) ────────────────
+  // ── Dynamic trending questions (used by Home + Ask screens) ─────────────
   const dynamicQuestions = useMemo(() => {
     const { liveMatches, context } = tennis;
-    const prompts = [];
-    const used    = new Set();
+    const prompts = []; const used = new Set();
     const daypart = getDaypartLabel();
-
-    function push(item) {
-      if (!item || used.has(item.text)) return;
-      used.add(item.text);
-      prompts.push(item);
-    }
+    const push = (item) => { if (!item || used.has(item.text)) return; used.add(item.text); prompts.push(item); };
 
     const active   = liveMatches.filter(m => preferredTournamentScore(m, context) > 0);
     const live     = liveMatches.filter(m => String(m?.raw?.live || "0") === "1");
     const upcoming = liveMatches.filter(m => String(m?.raw?.live || "0") !== "1");
-
     const prefLive     = active.find(m => String(m?.raw?.live || "0") === "1") || live[0];
     const prefUpcoming = active.find(m => String(m?.raw?.live || "0") !== "1") || upcoming[0];
 
     if (prefLive) {
       const label = `${prefLive.raw?.home || ""} vs ${prefLive.raw?.away || ""}`;
       push({ id:"q1", color: prefLive.league === "WTA" ? "#E11D48" : "#0891B2",
-        text:   `Best live angle for ${label}?`,
+        text: `Best live angle for ${label}?`,
         prompt: `What is the best live betting angle for ${label} right now? Give me the strongest side, total, and any prop edge.` });
     }
-
     if (prefUpcoming) {
       const label = `${prefUpcoming.raw?.home || ""} vs ${prefUpcoming.raw?.away || ""}`;
       push({ id:"q2", color: prefUpcoming.league === "WTA" ? "#E11D48" : "#0891B2",
-        text:   `Best tennis bet in ${label} ${daypart}?`,
-        prompt: `What is the best bet in ${label} ${daypart}? Cleanest angle and one sharper alternative.` });
+        text: `Best tennis bet in ${label} ${daypart}?`,
+        prompt: `What is the best bet in ${label} ${daypart}? Cleanest angle and one alternative.` });
     }
-
     const tourneyName = context?.currentTournament?.name;
     push({ id:"q3", color:"#0891B2",
-      text:   tourneyName ? `Best futures angle around ${tourneyName}?` : "Which tennis future still has value right now?",
+      text: tourneyName ? `Best futures angle around ${tourneyName}?` : "Which tennis future still has value right now?",
       prompt: tourneyName
         ? `What is the best current futures or tournament-value angle connected to ${tourneyName}?`
         : "Which tennis future still has value right now, and why has the market not fully priced it correctly?" });
 
-    // NFL always present in off-season; weekly in-season
-    const now = new Date().getMonth();
-    const nflInSeason = now >= 8 || now <= 1;
+    const nflInSeason = isNflInSeason();
     if (nflInSeason) {
-      push({ id:"q4", color:"#E11D48", text:"Which NFL weekly prop is most mispriced?",   prompt:"Which NFL weekly player prop looks most mispriced right now based on current usage and the player database?" });
-      push({ id:"q5", color:"#E11D48", text:"Best NFL in-season edge on the board?",      prompt:"What is the best NFL in-season betting edge on the board right now?" });
+      push({ id:"q4", color:"#E11D48", text:"Which NFL weekly prop is most mispriced?", prompt:"Which NFL weekly player prop looks most mispriced right now based on current usage and the player database?" });
+      push({ id:"q5", color:"#E11D48", text:"Best NFL in-season edge on the board?",   prompt:"What is the best NFL in-season betting edge on the board right now?" });
     } else {
-      push({ id:"q4", color:"#E11D48", text:"Which NFL future looks most mispriced?",     prompt:"Which NFL future looks the most mispriced right now based on the player database and team context?" });
-      push({ id:"q5", color:"#E11D48", text:"Which RB scores the most TDs in 2026?",      prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?" });
+      push({ id:"q4", color:"#E11D48", text:"Which NFL future looks most mispriced?",   prompt:"Which NFL future looks the most mispriced right now based on the player database and team context?" });
+      push({ id:"q5", color:"#E11D48", text:"Which RB scores the most TDs in 2026?",    prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?" });
     }
-
     return prompts.slice(0, 5);
   }, [tennis]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Header pill — changes based on current screen ────────────────────────
+  const nflSeasonMode = isNflInSeason();
+  const headerPill = (
+    <>
+      {screen === "tennis"    && <span className="pill-live">{tennis.context?.currentTournament?.name ? tennis.context.currentTournament.name.toUpperCase() : "TENNIS"}</span>}
+      {screen === "nfl"       && <span className="pill-nfl">{nflSeasonMode ? "NFL IN-SEASON" : "NFL FUTURES"}</span>}
+      {screen === "nflplayer" && <span className="pill-nfl">{selectedNflPlayerName?.toUpperCase()}</span>}
+      {screen === "player"    && <span className="pill-tag">{selectedPlayerName?.toUpperCase()}</span>}
+      {screen === "matchup"   && selectedMatchup && (
+        selectedMatchup.league?.includes("NFL")
+          ? <span className="pill-nfl">{selectedMatchup.league}</span>
+          : <span className="pill-tag">{selectedMatchup.network?.toUpperCase() || selectedMatchup.league}</span>
+      )}
+      {screen === "ask"  && <span className="pill-tag">UR TAKE</span>}
+      {(screen === "home" || screen === "pro") && <span className="pill-live">LIVE</span>}
+    </>
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="app">
 
+      <header className="hdr">
+        <div className="wordmark">
+          <span className="logo-under">Under</span>
+          <span className="logo-review">Review</span>
+        </div>
+        <div className="header-right">{headerPill}</div>
+      </header>
+
       {screen === "home" && (
         <HomeScreen
-          {...tennis}
+          liveMatches={tennis.liveMatches}
+          context={tennis.context}
           homeInput={homeInput} setHomeInput={setHomeInput}
           onSubmitHome={submitHome}
           onFirePrompt={firePrompt}
           onOpenMatchup={openMatchup}
           goTennis={goTennis}
           goNfl={goNfl}
+          dynamicQuestions={dynamicQuestions}
           {...imageProps}
         />
       )}
 
       {screen === "tennis" && (
         <TennisScreen
-          {...tennis}
+          players={tennis.players}
+          context={tennis.context}
+          liveMatches={tennis.liveMatches}
+          tennisLoading={tennis.tennisLoading}
           tennisMsgs={tennisMsgs}
           tennisInput={tennisInput} setTennisInput={setTennisInput}
           onSubmitTennis={submitTennis}
@@ -236,7 +249,6 @@ export default function App() {
           onSubmitAsk={submitAsk}
           onFirePrompt={firePrompt}
           dynamicQuestions={dynamicQuestions}
-          isAsking={isAsking}
           {...imageProps}
         />
       )}
@@ -247,11 +259,7 @@ export default function App() {
           matchupMsgs={matchupMsgs}
           matchupInput={matchupInput} setMatchupInput={setMatchupInput}
           onSubmitMatchup={submitMatchup}
-          onBack={() => {
-            setSelectedMatchup(null);
-            setScreen(selectedMatchup?.league?.includes("NFL") ? "nfl" : "tennis");
-          }}
-          isAsking={isAsking}
+          onBack={() => { setSelectedMatchup(null); setScreen(selectedMatchup?.league?.includes("NFL") ? "nfl" : "tennis"); }}
           {...imageProps}
         />
       )}
@@ -263,7 +271,6 @@ export default function App() {
           tennisInput={tennisInput} setTennisInput={setTennisInput}
           onSubmitTennis={submitTennis}
           onBack={() => setScreen("tennis")}
-          isAsking={isAsking}
           {...imageProps}
         />
       )}
@@ -274,14 +281,12 @@ export default function App() {
           nflInput={nflInput} setNflInput={setNflInput}
           onSubmitNfl={submitNfl}
           onBack={() => setScreen("nfl")}
-          isAsking={isAsking}
           {...imageProps}
         />
       )}
 
       {screen === "pro" && <ProScreen />}
 
-      {/* ── Bottom nav ── */}
       <nav className="bottom-nav">
         {[
           { key:"home",   label:"Home",   icon:"home" },
@@ -290,15 +295,11 @@ export default function App() {
           { key:"ask",    label:"Ask",    icon:"ask" },
           { key:"pro",    label:"Pro",    icon:"pro" },
         ].map(({ key, label, icon }) => {
-          const isActive = tab === key && (key !== "home" || screen === "home");
-          const activeClass = key === "tennis" ? "tennis-active" : key === "nfl" ? "nfl-active" : "active";
-          const onClick = { home:goHome, tennis:goTennis, nfl:goNfl, ask:goAsk, pro:goPro }[key];
+          const active = tab === key && (key !== "home" || screen === "home");
+          const cls = key === "tennis" ? "tennis-active" : key === "nfl" ? "nfl-active" : "active";
+          const go  = { home:goHome, tennis:goTennis, nfl:goNfl, ask:goAsk, pro:goPro }[key];
           return (
-            <button
-              key={key}
-              className={`nav-btn${isActive ? ` ${activeClass}` : ""}`}
-              onClick={onClick}
-            >
+            <button key={key} className={`nav-btn${active ? ` ${cls}` : ""}`} onClick={go}>
               <NavIcon type={icon} />
               <span>{label}</span>
             </button>
