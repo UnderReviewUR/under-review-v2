@@ -34,7 +34,7 @@ function detectSport(question, sportHint, matchupContext = null) {
   const q = String(question || "").toLowerCase();
 
   // 1. Explicit hint from the UI tab always wins
-  if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
+  if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1") return sportHint;
 
   // 2. Matchup context league (when user is in a matchup detail screen)
   const mcLeague = String(matchupContext?.league || "").toLowerCase();
@@ -49,6 +49,11 @@ function detectSport(question, sportHint, matchupContext = null) {
   }
 
   if (q.includes("nfl")) return "nfl";
+
+  const explicitF1 = ["formula 1","formula one","f1 ","f1,","grand prix","verstappen","norris","leclerc","hamilton","piastri","russell","antonelli","ferrari","mclaren","red bull racing","mercedes","aston martin","alpine","williams","haas","racing bulls","cadillac","audi f1","pit stop","drs","pole position","qualifying","free practice","sprint race"];
+  for (const kw of explicitF1) {
+    if (q.includes(kw)) return "f1";
+  }
 
   // 3. Signal scoring for everything else
   //    IMPORTANT: no single-letter or two-letter tokens (rb, wr, te) — they cause
@@ -87,13 +92,28 @@ function detectSport(question, sportHint, matchupContext = null) {
     "serve","draw path","match play","tour match",
   ];
 
-  let nfl = 0, ten = 0;
+  const f1Signals = [
+    "constructor","grand prix","paddock","safety car","undercut","overcut",
+    "soft compound","medium compound","hard compound","race pace","qualifying lap",
+    "grid penalty","parc ferme","drs zone","slipstream","aerodynamics","downforce",
+    "monaco","spa","silverstone","monza","suzuka","interlagos","bahrain","jeddah",
+    "lando","oscar","carlos","lewis","george","charles","yuki","tsunoda","gasly",
+    "albon","stroll","ocon","hulkenberg","bottas","bearman","lawson","alpine f1",
+    "visa cash app","kick sauber","stake f1","visa","cash app",
+  ];
+
+  let nfl = 0, ten = 0, f1 = 0;
   for (const s of nflSignals)    { if (q.includes(s)) nfl += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
   for (const s of tennisSignals) { if (q.includes(s)) ten += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
+  for (const s of f1Signals)     { if (q.includes(s)) f1 += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
 
-  if (ten > nfl) return "tennis";
-  if (nfl > ten) return "nfl";
-  return "nfl"; // true ambiguity defaults to NFL
+  const maxScore = Math.max(nfl, ten, f1);
+  const winners = [];
+  if (nfl === maxScore) winners.push("nfl");
+  if (ten === maxScore) winners.push("tennis");
+  if (f1 === maxScore) winners.push("f1");
+  if (winners.length === 1) return winners[0];
+  return "nfl"; // ties and true ambiguity default to NFL
 }
 
 function getRelevantQBs(question) {
@@ -230,13 +250,14 @@ export default async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
 
-  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, sportHint } = req.body;
+  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, f1Context, sportHint } = req.body;
   if (!question || typeof question !== "string" || question.length > 2000) {
     return res.status(400).json({ error: "Invalid or missing question" });
   }
 
   const sport = detectSport(question, sportHint, matchupContext);
   const isNFL = sport === "nfl";
+  const isF1 = sport === "f1";
 
   // Cache lookup — only for text-only questions without conversation history or images
   const isSimpleQuery = !image && (!Array.isArray(history) || history.length === 0);
@@ -346,6 +367,45 @@ ${qbData}
 ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}\n` : ""}
 ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No live lines — directional leans only."}`;
 
+  } else if (isF1) {
+    systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
+You cover NFL, tennis, and Formula 1. You answer whatever is asked.
+
+STYLE
+Lead with the take. Sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction.
+
+F1 BETTING CONTEXT
+The 2026 F1 season uses new regulations. Key betting markets:
+- Race winner, podium finish, fastest lap
+- Head-to-head driver matchups
+- Constructor championship
+- Qualifying position props
+- Points finish props
+
+2026 DRIVER STANDINGS (after 3 races):
+#1 Kimi Antonelli (Mercedes) — 72 pts — Rookie sensation leading the championship
+#2 George Russell (Mercedes) — 63 pts — Mercedes 1-2 in constructors
+#3 Charles Leclerc (Ferrari) — 49 pts — Ferrari competitive but behind Mercedes
+#4 Lewis Hamilton (Ferrari) — 41 pts — Adapting to Ferrari
+#5 Lando Norris (McLaren) — 25 pts — McLaren struggling with new regs
+#6 Oscar Piastri (McLaren) — 21 pts — McLaren's pace inconsistent
+#7 Oliver Bearman (Haas) — 17 pts — Impressive rookie season
+#8 Pierre Gasly (Alpine) — 15 pts — Alpine resurgence
+#9 Max Verstappen (Red Bull) — 12 pts — Red Bull fallen from dominance
+#10 Liam Lawson (Racing Bulls) — 10 pts
+
+KEY NARRATIVES:
+- Mercedes dominance with new 2026 regs — Antonelli is the real deal
+- Red Bull/Verstappen regression from 2023-2024 dominance
+- Hamilton's move to Ferrari — still adapting
+- New teams: Cadillac (formerly Andretti), Audi (formerly Sauber)
+
+CIRCUIT TYPES FOR BETTING:
+- Street circuits: favor driver skill, safety cars likely, more variance
+- Power circuits: favor top engines (Mercedes in 2026)
+- High downforce: technical advantage matters more
+
+${f1Context || "No additional F1 context provided."}`;
   } else {
     // ── Tennis system prompt ─────────────────────────────────────────────────
     const tournamentCtx = (() => {
