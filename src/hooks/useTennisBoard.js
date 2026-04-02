@@ -1,83 +1,94 @@
-import { useEffect, useState } from "react";
+// ── Tennis board fetcher + 60s poller ────────────────────────────────────────
+import { useState, useEffect, useCallback } from "react";
+import { normalizeTennisMatch, normalizeText, preferredTournamentScore, getTournamentFetchParam } from "../lib/tennis";
 
 export default function useTennisBoard() {
-  const [players, setPlayers] = useState({ atp: {}, wta: {} });
-  const [context, setContext] = useState(null);
-  const [liveMatches, setLiveMatches] = useState([]);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
+  const [players, setPlayers]           = useState(null);
+  const [context, setContext]           = useState(null);
+  const [liveMatches, setLiveMatches]   = useState([]);
+  const [tennisLoading, setTennisLoading] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchBoard = useCallback(async (activeContext = null) => {
+    const tournamentParam = getTournamentFetchParam(activeContext);
+    const [atpRes, wtaRes] = await Promise.all([
+      fetch(`/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`),
+      fetch(`/api/tennis?tour=wta&activeTournament=${encodeURIComponent(tournamentParam)}`),
+    ]);
+    const [atpData, wtaData] = await Promise.all([atpRes.json(), wtaRes.json()]);
 
-    async function loadContext() {
-      try {
-        const res = await fetch("/api/tennis-context");
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!cancelled) setContext(json);
-      } catch {
-        // Keep local defaults when API is unavailable.
-      }
+    const merged = [
+      ...(Array.isArray(atpData) ? atpData.map(m => normalizeTennisMatch(m, "ATP", activeContext)) : []),
+      ...(Array.isArray(wtaData) ? wtaData.map(m => normalizeTennisMatch(m, "WTA", activeContext)) : []),
+    ].filter(Boolean);
+
+    const seen = new Set();
+    const deduped = [];
+    for (const m of merged) {
+      const key = [
+        normalizeText(m.league), normalizeText(m.raw?.home),
+        normalizeText(m.raw?.away), normalizeText(m.network),
+        normalizeText(m.raw?.round), normalizeText(m.raw?.event_date),
+      ].join("|");
+      if (!seen.has(key)) { seen.add(key); deduped.push(m); }
     }
 
-    async function loadPlayers() {
-      try {
-        const res = await fetch("/api/tennis-players");
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!cancelled) {
-          setPlayers({
-            atp: json?.atp || {},
-            wta: json?.wta || {},
-          });
-        }
-      } catch {
-        // Keep empty local defaults when API is unavailable.
-      }
-    }
-
-    async function loadLiveMatches() {
-      try {
-        const [atpRes, wtaRes] = await Promise.allSettled([
-          fetch("/api/tennis?tour=atp"),
-          fetch("/api/tennis?tour=wta"),
-        ]);
-
-        const parsed = [];
-
-        if (atpRes.status === "fulfilled" && atpRes.value.ok) {
-          const atpMatches = await atpRes.value.json();
-          if (Array.isArray(atpMatches)) parsed.push(...atpMatches);
-        }
-
-        if (wtaRes.status === "fulfilled" && wtaRes.value.ok) {
-          const wtaMatches = await wtaRes.value.json();
-          if (Array.isArray(wtaMatches)) parsed.push(...wtaMatches);
-        }
-
-        if (!cancelled) setLiveMatches(parsed);
-      } catch {
-        // Keep empty list when API is unavailable.
-      }
-    }
-
-    loadContext();
-    loadPlayers();
-    loadLiveMatches();
-
-    return () => {
-      cancelled = true;
-    };
+    return deduped.sort((a, b) => {
+      const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
+      const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+      const aPref = preferredTournamentScore(a, activeContext);
+      const bPref = preferredTournamentScore(b, activeContext);
+      if (aPref !== bPref) return bPref - aPref;
+      return (a.commenceTs || Infinity) - (b.commenceTs || Infinity);
+    });
   }, []);
 
-  return {
-    players,
-    context,
-    liveMatches,
-    selectedPlayer,
-    setSelectedPlayer,
-    selectedNflPlayer,
-    setSelectedNflPlayer,
-  };
+  // Initial load
+  useEffect(() => {
+    let active = true;
+    let pollId = null;
+
+    async function loadAll() {
+      setTennisLoading(true);
+      try {
+        const [pRes, cRes] = await Promise.all([
+          fetch("/api/tennis-players"),
+          fetch("/api/tennis-context"),
+        ]);
+        const [p, c] = await Promise.all([pRes.json(), cRes.json()]);
+        if (!active) return;
+        setPlayers(p);
+        setContext(c);
+        const board = await fetchBoard(c);
+        if (!active) return;
+        setLiveMatches(board);
+      } catch {
+        if (active) setLiveMatches([]);
+      } finally {
+        if (active) setTennisLoading(false);
+      }
+    }
+
+    loadAll();
+
+    pollId = window.setInterval(() => {
+      // Use functional setState to get latest context in poll
+      setContext(prev => {
+        fetchBoard(prev).then(b => { if (active) setLiveMatches(b); }).catch(() => {});
+        return prev;
+      });
+    }, 60000);
+
+    return () => { active = false; if (pollId) window.clearInterval(pollId); };
+  }, [fetchBoard]);
+
+  // Refresh when context changes (after initial load)
+  useEffect(() => {
+    if (!context) return;
+    let cancelled = false;
+    fetchBoard(context).then(b => { if (!cancelled) setLiveMatches(b); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [context, fetchBoard]);
+
+  return { players, context, liveMatches, tennisLoading };
 }
