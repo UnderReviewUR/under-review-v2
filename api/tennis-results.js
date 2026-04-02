@@ -1,5 +1,3 @@
-import { getQueryParams } from "./_request-query.js";
-
 // api/tennis-results.js
 // Fetches completed matches from the current active tournament window.
 // Returns structured draw path: winner, loser, round, score.
@@ -8,10 +6,6 @@ import { getQueryParams } from "./_request-query.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const API_KEY = process.env.API_TENNIS_KEY;
@@ -19,7 +13,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing API_TENNIS_KEY" });
     }
 
-    const { tour = "atp" } = getQueryParams(req);
+    const { tour = "atp" } = req.query;
 
     // Look back 21 days to capture full tournament draws including qualifying
     const today = new Date();
@@ -43,9 +37,12 @@ export default async function handler(req, res) {
 
     const results = Array.isArray(data?.result) ? data.result : [];
 
+    // Active tournament keyword -- change this when rotating tournaments
+    // Must match what API-Tennis uses in tournament_name field
+
     // Get active tournament name from context to filter results
     // Falls back to hardcoded keyword if context fetch fails
-    let tournamentKeywords = ["miami"];
+    let tournamentKeywords = [ACTIVE_TOURNAMENT_KEYWORD];
     try {
       const contextRes = await fetch(
         `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host}/api/tennis-context`
