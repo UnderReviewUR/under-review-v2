@@ -43,7 +43,7 @@ const AskBar = memo(function AskBar({
         <div className="ask-col">
           {pastedImage && (
             <div className="ask-img-preview">
-              <img src={pastedImage.previewUrl} alt="Attached preview" className="ask-img-thumb" />
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" />
               <button onClick={clearImage} type="button" className="ask-img-remove">
                 ✕ Remove
               </button>
@@ -86,3 +86,4 @@ const AskBar = memo(function AskBar({
 });
 
 export default AskBar;
+``
