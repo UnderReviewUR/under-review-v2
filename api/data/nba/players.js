@@ -1,202 +1,36 @@
-// api/nba.js
-// Proxies NBA Stats API endpoints — no API key needed
-// Fetches today's scoreboard, player season averages, recent game logs
-// 5-minute cache to respect NBA Stats rate limits
+// NBA player database — 2024-25 season
+// Used by ur-take.js for prop analysis context
+// tier: ELITE | STAR | STARTER | ROLE
 
-import { applyCors } from "./_cors.js";
-
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const cache = new Map();
-
-function getCached(key) {
-  const entry = cache.get(key);
-  if (!entry || Date.now() > entry.expires) return null;
-  return entry.payload;
-}
-
-function setCached(key, payload) {
-  cache.set(key, { expires: Date.now() + CACHE_TTL_MS, payload });
-}
-
-// NBA Stats requires these headers or it returns 403
-const NBA_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Referer": "https://www.nba.com/",
-  "Origin": "https://www.nba.com",
-  "Accept": "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
-  "x-nba-stats-origin": "stats",
-  "x-nba-stats-token": "true",
+export const NBA_PLAYERS = {
+  "Shai Gilgeous-Alexander": { team:"OKC", tier:"ELITE", pts:32.7, reb:5.5, ast:6.4, pos:"G", usg:33.1, propAngles:["PTS OVER — elite usage","PRA OVER — reliable floor","Assists OVER in up-tempo OKC"] },
+  "Nikola Jokic":             { team:"DEN", tier:"ELITE", pts:29.6, reb:13.0, ast:10.2, pos:"C", usg:30.2, propAngles:["PRA OVER — safest bet in NBA","Rebounds OVER","Assists OVER — true point center"] },
+  "Giannis Antetokounmpo":    { team:"MIL", tier:"ELITE", pts:30.4, reb:11.9, ast:6.5, pos:"F", usg:33.8, propAngles:["PRA OVER","Points OVER","Rebounds OVER"] },
+  "Luka Doncic":              { team:"DAL", tier:"ELITE", pts:28.6, reb:8.7, ast:8.0, pos:"G", usg:35.2, propAngles:["PRA OVER — highest usage","Assists OVER","Points OVER"] },
+  "Joel Embiid":              { team:"PHI", tier:"ELITE", pts:34.7, reb:11.0, ast:5.6, pos:"C", usg:37.8, propAngles:["Points OVER when healthy","PRA OVER","FADE when on injury report"] },
+  "Jayson Tatum":             { team:"BOS", tier:"ELITE", pts:26.9, reb:8.1, ast:4.9, pos:"F", usg:30.1, propAngles:["Points OVER","PRA OVER","Rebounds OVER for a wing"] },
+  "Donovan Mitchell":         { team:"CLE", tier:"ELITE", pts:26.3, reb:4.7, ast:6.0, pos:"G", usg:31.4, propAngles:["Points OVER","Assists OVER","OVER in fast pace matchups"] },
+  "Anthony Edwards":          { team:"MIN", tier:"ELITE", pts:27.1, reb:5.4, ast:5.1, pos:"G", usg:32.2, propAngles:["Points OVER","PRA OVER","3PM OVER"] },
+  "Kevin Durant":             { team:"PHX", tier:"ELITE", pts:26.8, reb:6.5, ast:4.1, pos:"F", usg:30.8, propAngles:["Points OVER","PRA OVER reliable"] },
+  "LeBron James":             { team:"LAL", tier:"ELITE", pts:24.0, reb:7.3, ast:8.4, pos:"F", usg:29.5, propAngles:["Assists OVER","PRA OVER","Fade back-to-backs"] },
+  "Stephen Curry":            { team:"GSW", tier:"ELITE", pts:26.4, reb:4.6, ast:5.2, pos:"G", usg:30.6, propAngles:["3PM OVER","Points OVER","PRA OVER"] },
+  "Victor Wembanyama":        { team:"SAS", tier:"ELITE", pts:24.3, reb:10.6, ast:3.9, pos:"C", usg:28.0, propAngles:["Blocks OVER","PRA OVER","Points OVER"] },
+  "Anthony Davis":            { team:"LAL", tier:"ELITE", pts:24.7, reb:12.6, ast:3.5, pos:"C", usg:29.0, propAngles:["Rebounds OVER","Points OVER","PRA OVER"] },
+  "Jalen Brunson":            { team:"NYK", tier:"STAR",  pts:28.7, reb:3.6, ast:7.0, pos:"G", usg:33.5, propAngles:["Points OVER","Assists OVER","PRA OVER"] },
+  "Tyrese Haliburton":        { team:"IND", tier:"STAR",  pts:20.1, reb:3.9, ast:10.9, pos:"G", usg:25.3, propAngles:["Assists OVER — most reliable","3PM OVER","PRA OVER"] },
+  "Trae Young":               { team:"ATL", tier:"STAR",  pts:23.8, reb:3.4, ast:11.3, pos:"G", usg:33.0, propAngles:["Assists OVER","Points OVER","FADE rebounds"] },
+  "Devin Booker":             { team:"PHX", tier:"STAR",  pts:25.7, reb:4.5, ast:6.5, pos:"G", usg:30.4, propAngles:["Points OVER","Assists OVER","PRA OVER"] },
+  "Damian Lillard":           { team:"MIL", tier:"STAR",  pts:25.2, reb:4.4, ast:6.8, pos:"G", usg:31.2, propAngles:["Points OVER","3PM OVER","Assists OVER"] },
+  "Paolo Banchero":           { team:"ORL", tier:"STAR",  pts:25.4, reb:7.1, ast:5.9, pos:"F", usg:30.7, propAngles:["Points OVER","PRA OVER","Assists OVER"] },
+  "Cade Cunningham":          { team:"DET", tier:"STAR",  pts:23.5, reb:4.4, ast:9.4, pos:"G", usg:29.7, propAngles:["Assists OVER","Points OVER","PRA OVER"] },
+  "De'Aaron Fox":             { team:"SAC", tier:"STAR",  pts:25.6, reb:4.2, ast:7.5, pos:"G", usg:30.8, propAngles:["Points OVER","Assists OVER","PRA OVER"] },
+  "Alperen Sengun":           { team:"HOU", tier:"STAR",  pts:21.1, reb:9.5, ast:5.8, pos:"C", usg:24.6, propAngles:["PRA OVER","Rebounds OVER","Assists OVER"] },
+  "Franz Wagner":             { team:"ORL", tier:"STAR",  pts:24.2, reb:5.0, ast:4.5, pos:"F", usg:27.3, propAngles:["Points OVER","PRA OVER","3PM OVER"] },
+  "Karl-Anthony Towns":       { team:"NYK", tier:"STAR",  pts:21.5, reb:8.8, ast:3.3, pos:"C", usg:27.0, propAngles:["Rebounds OVER","Points OVER","3PM OVER"] },
+  "Jaren Jackson Jr.":        { team:"MEM", tier:"STAR",  pts:22.4, reb:6.0, ast:2.4, pos:"F", usg:25.1, propAngles:["Points OVER","Blocks OVER","3PM OVER"] },
+  "Jaylen Brown":             { team:"BOS", tier:"STAR",  pts:22.3, reb:5.5, ast:3.6, pos:"G/F", usg:27.5, propAngles:["Points OVER","PRA OVER","3PM OVER"] },
+  "Evan Mobley":              { team:"CLE", tier:"STAR",  pts:18.3, reb:9.0, ast:2.9, pos:"F/C", usg:22.0, propAngles:["Rebounds OVER","PRA OVER","Blocks OVER"] },
+  "Bam Adebayo":              { team:"MIA", tier:"STAR",  pts:19.8, reb:10.4, ast:3.3, pos:"C", usg:24.5, propAngles:["Rebounds OVER","PRA OVER","FADE assists"] },
+  "Zach LaVine":              { team:"CHI", tier:"STAR",  pts:24.8, reb:4.9, ast:4.6, pos:"G", usg:30.5, propAngles:["Points OVER","3PM OVER","Fade in blowouts"] },
+  "Darius Garland":           { team:"CLE", tier:"STAR",  pts:20.6, reb:3.0, ast:7.8, pos:"G", usg:26.8, propAngles:["Assists OVER","Points OVER","3PM OVER"] },
 };
-
-async function fetchNba(url) {
-  const res = await fetch(url, { headers: NBA_HEADERS });
-  if (!res.ok) throw new Error(`NBA Stats ${res.status}: ${url}`);
-  return res.json();
-}
-
-async function getTodaysGames() {
-  const cached = getCached("scoreboard");
-  if (cached) return cached;
-  try {
-    const data = await fetchNba(
-      "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json"
-    );
-    const games = (data?.scoreboard?.games || []).map(g => ({
-      gameId: g.gameId,
-      status: g.gameStatusText,
-      statusCode: g.gameStatus, // 1=scheduled, 2=live, 3=final
-      period: g.period,
-      gameClock: g.gameClock,
-      homeTeam: {
-        name: g.homeTeam?.teamName,
-        tricode: g.homeTeam?.teamTricode,
-        score: g.homeTeam?.score,
-        wins: g.homeTeam?.wins,
-        losses: g.homeTeam?.losses,
-      },
-      awayTeam: {
-        name: g.awayTeam?.teamName,
-        tricode: g.awayTeam?.teamTricode,
-        score: g.awayTeam?.score,
-        wins: g.awayTeam?.wins,
-        losses: g.awayTeam?.losses,
-      },
-      arena: g.gameLeaders ? undefined : g.arena?.arenaName,
-    }));
-    setCached("scoreboard", games);
-    return games;
-  } catch (err) {
-    console.error("Scoreboard fetch error:", err.message);
-    return [];
-  }
-}
-
-async function getPlayerStats() {
-  const cached = getCached("playerstats");
-  if (cached) return cached;
-  try {
-    const url = "https://stats.nba.com/stats/leaguedashplayerstats?" + new URLSearchParams({
-      LastNGames: "0",
-      LeagueID: "00",
-      MeasureType: "Base",
-      Month: "0",
-      OpponentTeamID: "0",
-      PaceAdjust: "N",
-      PerMode: "PerGame",
-      Period: "0",
-      PlusMinus: "N",
-      Rank: "N",
-      Season: "2024-25",
-      SeasonSegment: "",
-      SeasonType: "Regular Season",
-      TeamID: "0",
-    });
-    const data = await fetchNba(url);
-    const headers = data?.resultSets?.[0]?.headers || [];
-    const rows = data?.resultSets?.[0]?.rowSet || [];
-    const idx = h => headers.indexOf(h);
-    const stats = rows.map(r => ({
-      playerId: r[idx("PLAYER_ID")],
-      name: r[idx("PLAYER_NAME")],
-      team: r[idx("TEAM_ABBREVIATION")],
-      gp: r[idx("GP")],
-      pts: r[idx("PTS")],
-      reb: r[idx("REB")],
-      ast: r[idx("AST")],
-      stl: r[idx("STL")],
-      blk: r[idx("BLK")],
-      tov: r[idx("TOV")],
-      fgPct: r[idx("FG_PCT")],
-      fg3Pct: r[idx("FG3_PCT")],
-      ftPct: r[idx("FT_PCT")],
-      min: r[idx("MIN")],
-      usg: r[idx("USG_PCT")] ?? null,
-    }));
-    // Sort by points desc, return top 100
-    stats.sort((a, b) => (b.pts || 0) - (a.pts || 0));
-    const top = stats.slice(0, 100);
-    setCached("playerstats", top);
-    return top;
-  } catch (err) {
-    console.error("Player stats fetch error:", err.message);
-    return [];
-  }
-}
-
-async function getRecentGameLogs() {
-  const cached = getCached("gamelogs");
-  if (cached) return cached;
-  try {
-    const url = "https://stats.nba.com/stats/leaguegamelog?" + new URLSearchParams({
-      Counter: "0",
-      DateFrom: "",
-      DateTo: "",
-      Direction: "DESC",
-      LeagueID: "00",
-      PlayerOrTeam: "P",
-      Season: "2024-25",
-      SeasonType: "Regular Season",
-      Sorter: "DATE",
-    });
-    const data = await fetchNba(url);
-    const headers = data?.resultSets?.[0]?.headers || [];
-    const rows = data?.resultSets?.[0]?.rowSet || [];
-    const idx = h => headers.indexOf(h);
-    // Last 3 games per player, top scorers only
-    const byPlayer = {};
-    for (const r of rows) {
-      const name = r[idx("PLAYER_NAME")];
-      if (!byPlayer[name]) byPlayer[name] = [];
-      if (byPlayer[name].length < 3) {
-        byPlayer[name].push({
-          date: r[idx("GAME_DATE")],
-          matchup: r[idx("MATCHUP")],
-          pts: r[idx("PTS")],
-          reb: r[idx("REB")],
-          ast: r[idx("AST")],
-          min: r[idx("MIN")],
-          fgm: r[idx("FGM")],
-          fga: r[idx("FGA")],
-        });
-      }
-    }
-    setCached("gamelogs", byPlayer);
-    return byPlayer;
-  } catch (err) {
-    console.error("Game logs fetch error:", err.message);
-    return {};
-  }
-}
-
-export default async function handler(req, res) {
-  if (!applyCors(req, res)) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
-  const view = String(req.query.view || "board").toLowerCase();
-
-  try {
-    if (view === "scoreboard") {
-      return res.status(200).json(await getTodaysGames());
-    }
-    if (view === "playerstats") {
-      return res.status(200).json(await getPlayerStats());
-    }
-    if (view === "board") {
-      const cached = getCached("board");
-      if (cached) return res.status(200).json(cached);
-      const [games, playerStats, gameLogs] = await Promise.all([
-        getTodaysGames(),
-        getPlayerStats(),
-        getRecentGameLogs(),
-      ]);
-      const board = { games, playerStats, gameLogs };
-      setCached("board", board);
-      return res.status(200).json(board);
-    }
-    return res.status(400).json({ error: "Invalid view", allowed: ["board", "scoreboard", "playerstats"] });
-  } catch (err) {
-    console.error("NBA API error:", err);
-    return res.status(500).json({ error: "Failed to fetch NBA data", details: err.message });
-  }
-}
