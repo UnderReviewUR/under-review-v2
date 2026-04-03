@@ -419,6 +419,8 @@ export default function App() {
   const [pastedImage, setPastedImage] = useState(null);
   const [f1Data, setF1Data]           = useState(null);
   const [f1Loading, setF1Loading]     = useState(false);
+  const [nbaData, setNbaData]     = useState(null);
+const [nbaLoading, setNbaLoading] = useState(false);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef    = useRef(null);
