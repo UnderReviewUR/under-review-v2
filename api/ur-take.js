@@ -34,7 +34,7 @@ function detectSport(question, sportHint, matchupContext = null) {
   const q = String(question || "").toLowerCase();
 
   // 1. Explicit hint from the UI tab always wins
-  if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1") return sportHint;
+  if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
 
   // 2. Matchup context league (when user is in a matchup detail screen)
   const mcLeague = String(matchupContext?.league || "").toLowerCase();
@@ -49,24 +49,6 @@ function detectSport(question, sportHint, matchupContext = null) {
   }
 
   if (q.includes("nfl")) return "nfl";
-
-  const explicitF1 = ["formula 1","formula one","f1 ","f1,","grand prix","verstappen","norris","leclerc","hamilton","piastri","russell","antonelli","ferrari","mclaren","red bull racing","mercedes","aston martin","alpine","williams","haas","racing bulls","cadillac","audi f1","pit stop","drs","pole position","qualifying","free practice","sprint race"];
-  for (const kw of explicitF1) {
-    if (q.includes(kw)) return "f1";
-    const explicitNba = [
-  "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
-  "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks",
-  "grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs",
-  "raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
-  "jokic","sga","gilgeous-alexander","doncic","tatum","giannis","edwards","wembanyama",
-  "towns","haliburton","mitchell","adebayo","lebron","curry","durant","booker",
-  "morant","zion","siakam","fox","garland","cunningham","banchero","brunson",
-  "points prop","rebounds prop","assists prop","pra prop","double double",
-  "nba props","basketball props","nba future","nba bet",
-];
-for (const kw of explicitNba) {
-  if (q.includes(kw)) return "nba";
-}
 
   // 3. Signal scoring for everything else
   //    IMPORTANT: no single-letter or two-letter tokens (rb, wr, te) — they cause
@@ -105,28 +87,13 @@ for (const kw of explicitNba) {
     "serve","draw path","match play","tour match",
   ];
 
-  const f1Signals = [
-    "constructor","grand prix","paddock","safety car","undercut","overcut",
-    "soft compound","medium compound","hard compound","race pace","qualifying lap",
-    "grid penalty","parc ferme","drs zone","slipstream","aerodynamics","downforce",
-    "monaco","spa","silverstone","monza","suzuka","interlagos","bahrain","jeddah",
-    "lando","oscar","carlos","lewis","george","charles","yuki","tsunoda","gasly",
-    "albon","stroll","ocon","hulkenberg","bottas","bearman","lawson","alpine f1",
-    "visa cash app","kick sauber","stake f1","visa","cash app",
-  ];
-
-  let nfl = 0, ten = 0, f1 = 0;
+  let nfl = 0, ten = 0;
   for (const s of nflSignals)    { if (q.includes(s)) nfl += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
   for (const s of tennisSignals) { if (q.includes(s)) ten += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
-  for (const s of f1Signals)     { if (q.includes(s)) f1 += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
 
-  const maxScore = Math.max(nfl, ten, f1);
-  const winners = [];
-  if (nfl === maxScore) winners.push("nfl");
-  if (ten === maxScore) winners.push("tennis");
-  if (f1 === maxScore) winners.push("f1");
-  if (winners.length === 1) return winners[0];
-  return "nfl"; // ties and true ambiguity default to NFL
+  if (ten > nfl) return "tennis";
+  if (nfl > ten) return "nfl";
+  return "nfl"; // true ambiguity defaults to NFL
 }
 
 function getRelevantQBs(question) {
@@ -201,85 +168,22 @@ function responseLooksWrongForSport(text, sport) {
   return false;
 }
 
-import { applyCors } from "./_cors.js";
-
-// ── Rate limiting (per-IP, in-memory — resets on cold start) ─────────────────
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 10;
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimitMap.set(ip, { windowStart: now, count: 1 });
-    return true;
-  }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_MAX) return false;
-  return true;
-}
-
-// ── Response cache (in-memory, 15-min TTL — resets on cold start) ────────────
-const responseCache = new Map();
-const CACHE_TTL_MS = 15 * 60_000;
-const MAX_CACHE_SIZE = 200;
-
-function getCacheKey(question, sport) {
-  return `${sport}:${question.toLowerCase().trim().replace(/\s+/g, " ")}`;
-}
-
-function getCachedResponse(key) {
-  const entry = responseCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL_MS) {
-    responseCache.delete(key);
-    return null;
-  }
-  return entry.response;
-}
-
-function setCachedResponse(key, response) {
-  if (responseCache.size >= MAX_CACHE_SIZE) {
-    const oldest = responseCache.keys().next().value;
-    responseCache.delete(oldest);
-  }
-  responseCache.set(key, { response, ts: Date.now() });
-}
-
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  const clientIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim()
-    || req.headers["x-real-ip"]
-    || req.socket?.remoteAddress
-    || "unknown";
-  if (!checkRateLimit(clientIp)) {
-    return res.status(429).json({ error: "Too many requests. Try again in a minute." });
-  }
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")   return res.status(405).json({ error: "Method not allowed" });
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
 
-  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, f1Context, sportHint } = req.body;
-  if (!question || typeof question !== "string" || question.length > 2000) {
-    return res.status(400).json({ error: "Invalid or missing question" });
-  }
+  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, sportHint } = req.body;
+  if (!question) return res.status(400).json({ error: "Missing question" });
 
   const sport = detectSport(question, sportHint, matchupContext);
   const isNFL = sport === "nfl";
-  const isNba = sport === "nba";
-  const isF1 = sport === "f1";
-
-  // Cache lookup — only for text-only questions without conversation history or images
-  const isSimpleQuery = !image && (!Array.isArray(history) || history.length === 0);
-  const cacheKey = isSimpleQuery ? getCacheKey(question, sport) : null;
-  if (cacheKey) {
-    const cached = getCachedResponse(cacheKey);
-    if (cached) return res.status(200).json({ response: cached, cached: true });
-  }
 
   function buildOddsContext(odds) {
     if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
@@ -380,129 +284,7 @@ ${qbData}
 
 ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}\n` : ""}
 ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No live lines — directional leans only."}`;
-} else if (isNba) {
-    // ── Build live NBA context ────────────────────────────────────────────
-    const nbaCtx = req.body.nbaContext;
 
-    const todaysGamesStr = (() => {
-      const games = nbaCtx?.todaysGames;
-      if (!games?.length) return "No NBA games today.";
-      return games.map(g => {
-        const status = g.statusCode === 2
-          ? `LIVE Q${g.period} ${g.gameClock || ""}`
-          : g.statusCode === 3 ? "FINAL" : g.status;
-        return `${g.awayTeam.tricode} ${g.awayTeam.score ?? ""} @ ${g.homeTeam.tricode} ${g.homeTeam.score ?? ""} — ${status}`;
-      }).join("\n");
-    })();
-
-    const liveStatsStr = (() => {
-      const stats = nbaCtx?.liveStats;
-      if (!stats?.length) return "";
-      return "TOP SCORERS TODAY:\n" + stats.slice(0, 10).map(s =>
-        `${s.name} (${s.team}): ${s.pts}pts ${s.reb}reb ${s.ast}ast`
-      ).join("\n");
-    })();
-
-    const playerDbStr = (() => {
-      const db = nbaCtx?.playerDb;
-      if (!db) return "Player database unavailable.";
-      // Smart filter: pull mentioned players to top
-      const q_lower = question.toLowerCase();
-      const entries = Object.entries(db);
-      const mentioned = entries.filter(([name]) => q_lower.includes(name.toLowerCase()));
-      const rest = entries.filter(([name]) => !q_lower.includes(name.toLowerCase()));
-      const ordered = [...mentioned, ...rest];
-      return JSON.stringify(Object.fromEntries(ordered)).slice(0, 16000);
-    })();
-
-    const seasonStatsStr = (() => {
-      const stats = nbaCtx?.seasonStats;
-      if (!stats?.length) return "";
-      return "LIVE SEASON AVERAGES (top 30 by pts):\n" + stats.slice(0, 30).map(s =>
-        `${s.name} (${s.team}): ${s.pts}pts ${s.reb}reb ${s.ast}ast ${s.min}min`
-      ).join("\n");
-    })();
-
-    systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
-You cover NFL, tennis, Formula 1, and NBA. You answer whatever is asked.
-
-STYLE
-Lead with the take. Sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction.
-Never refuse to answer. Work from the player database and live stats.
-
-NBA PROP FORMAT
-For prop questions: "Player — OVER/UNDER X — one key reason"
-For PRA: combine pts+reb+ast total. PRA is the most reliable multi-stat market.
-For game totals: reference pace, defensive rating, and injury context.
-
-KEY PROP PRINCIPLES
-- PRA (pts+reb+ast) is the safest multi-stat prop — variance is lower than individual stats
-- Injury replacement value is the most exploitable edge in NBA props
-- Back players whose teammates are out — usage spikes are predictable and consistent
-- Fade players in blowout-likely games — garbage time limits stat accumulation
-- Home/away matters less than usage and matchup quality
-- Game total (pace) is the strongest contextual signal — high totals mean more possessions = more stats
-
-PROP MARKET GUIDE
-Points: most volatile individual prop — variance is high
-Rebounds: most predictable — position and matchup driven
-Assists: pace-dependent — back in fast games, fade in slow ones
-3-pointers made: highest variance — only back with volume signal
-Steals/Blocks: specialist props — use only for elite defenders (Gobert, JJJ, Wemby, OG)
-PRA: most reliable — book it as the primary vehicle
-
-TODAY'S NBA GAMES
-${todaysGamesStr}
-
-${liveStatsStr}
-
-${seasonStatsStr ? seasonStatsStr + "\n" : ""}PLAYER PROP DATABASE (curated profiles with angles)
-${playerDbStr}
-
-BETTING ANGLE REMINDERS
-- Always check injury report context before committing to a prop
-- Usage spike plays (teammate out) are the highest-confidence bets
-- Fade stars in back-to-back second legs for blowout-prone teams
-- Game total is the pace proxy — use it to scale assists and 3-pointers props`;
-  } else if (isF1) {
-    systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
-You cover NFL, NBA, tennis, and Formula 1. You answer whatever is asked.
-
-STYLE
-Lead with the take. Sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction.
-
-F1 BETTING CONTEXT
-The 2026 F1 season uses new regulations. Key betting markets:
-- Race winner, podium finish, fastest lap
-- Head-to-head driver matchups
-- Constructor championship
-- Qualifying position props
-- Points finish props
-
-2026 DRIVER STANDINGS (after 3 races):
-#1 Kimi Antonelli (Mercedes) — 72 pts — Rookie sensation leading the championship
-#2 George Russell (Mercedes) — 63 pts — Mercedes 1-2 in constructors
-#3 Charles Leclerc (Ferrari) — 49 pts — Ferrari competitive but behind Mercedes
-#4 Lewis Hamilton (Ferrari) — 41 pts — Adapting to Ferrari
-#5 Lando Norris (McLaren) — 25 pts — McLaren struggling with new regs
-#6 Oscar Piastri (McLaren) — 21 pts — McLaren's pace inconsistent
-#7 Oliver Bearman (Haas) — 17 pts — Impressive rookie season
-#8 Pierre Gasly (Alpine) — 15 pts — Alpine resurgence
-#9 Max Verstappen (Red Bull) — 12 pts — Red Bull fallen from dominance
-#10 Liam Lawson (Racing Bulls) — 10 pts
-
-KEY NARRATIVES:
-- Mercedes dominance with new 2026 regs — Antonelli is the real deal
-- Red Bull/Verstappen regression from 2023-2024 dominance
-- Hamilton's move to Ferrari — still adapting
-- New teams: Cadillac (formerly Andretti), Audi (formerly Sauber)
-
-CIRCUIT TYPES FOR BETTING:
-- Street circuits: favor driver skill, safety cars likely, more variance
-- Power circuits: favor top engines (Mercedes in 2026)
-- High downforce: technical advantage matters more
-
-${f1Context || "No additional F1 context provided."}`;
   } else {
     // ── Tennis system prompt ─────────────────────────────────────────────────
     const tournamentCtx = (() => {
@@ -613,7 +395,7 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-5",
         max_tokens: 1200,
         temperature: 0.45,
         system: systemPrompt,
@@ -637,7 +419,7 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
       const correctionRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 1200, temperature: 0.2, system: correctionSystem, messages }),
+        body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1200, temperature: 0.2, system: correctionSystem, messages }),
       });
       const correctionData = await correctionRes.json();
       if (correctionRes.ok) {
@@ -645,9 +427,7 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
       }
     }
 
-    const finalText = text || "Couldn't get a response. Try again.";
-    if (cacheKey && text) setCachedResponse(cacheKey, finalText);
-    return res.status(200).json({ response: finalText });
+    return res.status(200).json({ response: text || "Couldn't get a response. Try again." });
   } catch (err) {
     console.error("UR TAKE error:", err);
     return res.status(500).json({ error: "Request failed", details: err.message });
