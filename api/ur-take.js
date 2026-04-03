@@ -613,7 +613,7 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 1200,
         temperature: 0.45,
         system: systemPrompt,
@@ -637,7 +637,7 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
       const correctionRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1200, temperature: 0.2, system: correctionSystem, messages }),
+        body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 1200, temperature: 0.2, system: correctionSystem, messages }),
       });
       const correctionData = await correctionRes.json();
       if (correctionRes.ok) {
