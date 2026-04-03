@@ -3,7 +3,6 @@ import { applyCors } from "./_cors.js";
 const OPENF1 = "https://api.openf1.org/v1";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** @type {Map<string, { expires: number, payload: unknown }>} */
 const cache = new Map();
 
 function getCached(key) {
@@ -54,31 +53,36 @@ function mergeDriversAndStandings(drivers, championship) {
   return merged;
 }
 
+// FIX: renamed internal variables to avoid duplicate 'const current' in same scope
 function buildSchedule(meetings) {
   const now  = new Date();
   const list = Array.isArray(meetings) ? [...meetings] : [];
   list.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
 
-  // Find next meeting key
   let nextMeetingKey = null;
-  const raceCurrent = list.find((m) => {
+
+  // Use 'activeRace' instead of 'current' to avoid duplicate declaration
+  const activeRace = list.find((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
   });
-  if (raceCurrent) {
-    nextMeetingKey = raceCurrent.meeting_key;
+
+  if (activeRace) {
+    nextMeetingKey = activeRace.meeting_key;
   } else {
     const future = list.find((m) => new Date(m.date_start) > now);
     nextMeetingKey = future ? future.meeting_key : null;
   }
 
-  const races    = list.map((m) => ({ ...m, is_next: m.meeting_key === nextMeetingKey }));
-  const past     = races.filter((m) => new Date(m.date_end) < now);
+  const races = list.map((m) => ({ ...m, is_next: m.meeting_key === nextMeetingKey }));
+
+  const past = races.filter((m) => new Date(m.date_end) < now);
+
   const upcoming = races.filter((m) => new Date(m.date_start) > now);
 
-  // Renamed from 'current' to 'active' — avoids Node ESM duplicate identifier error
-  const active   = races.filter((m) => {
+  // Use 'inProgress' instead of 'current' to avoid duplicate declaration
+  const inProgress = races.filter((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
@@ -88,7 +92,7 @@ function buildSchedule(meetings) {
     races,
     upcoming,
     past,
-    current: active,        // keep the return key as 'current' so downstream code is unchanged
+    current: inProgress,          // keep the return key as 'current' so App.jsx is unchanged
     next_meeting_key: nextMeetingKey,
   };
 }
