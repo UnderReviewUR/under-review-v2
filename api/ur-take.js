@@ -53,7 +53,20 @@ function detectSport(question, sportHint, matchupContext = null) {
   const explicitF1 = ["formula 1","formula one","f1 ","f1,","grand prix","verstappen","norris","leclerc","hamilton","piastri","russell","antonelli","ferrari","mclaren","red bull racing","mercedes","aston martin","alpine","williams","haas","racing bulls","cadillac","audi f1","pit stop","drs","pole position","qualifying","free practice","sprint race"];
   for (const kw of explicitF1) {
     if (q.includes(kw)) return "f1";
-  }
+    const explicitNba = [
+  "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
+  "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks",
+  "grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs",
+  "raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
+  "jokic","sga","gilgeous-alexander","doncic","tatum","giannis","edwards","wembanyama",
+  "towns","haliburton","mitchell","adebayo","lebron","curry","durant","booker",
+  "morant","zion","siakam","fox","garland","cunningham","banchero","brunson",
+  "points prop","rebounds prop","assists prop","pra prop","double double",
+  "nba props","basketball props","nba future","nba bet",
+];
+for (const kw of explicitNba) {
+  if (q.includes(kw)) return "nba";
+}
 
   // 3. Signal scoring for everything else
   //    IMPORTANT: no single-letter or two-letter tokens (rb, wr, te) — they cause
@@ -257,6 +270,7 @@ export default async function handler(req, res) {
 
   const sport = detectSport(question, sportHint, matchupContext);
   const isNFL = sport === "nfl";
+  const isNba = sport === "nba";
   const isF1 = sport === "f1";
 
   // Cache lookup — only for text-only questions without conversation history or images
@@ -366,10 +380,93 @@ ${qbData}
 
 ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}\n` : ""}
 ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No live lines — directional leans only."}`;
+} else if (isNba) {
+    // ── Build live NBA context ────────────────────────────────────────────
+    const nbaCtx = req.body.nbaContext;
 
+    const todaysGamesStr = (() => {
+      const games = nbaCtx?.todaysGames;
+      if (!games?.length) return "No NBA games today.";
+      return games.map(g => {
+        const status = g.statusCode === 2
+          ? `LIVE Q${g.period} ${g.gameClock || ""}`
+          : g.statusCode === 3 ? "FINAL" : g.status;
+        return `${g.awayTeam.tricode} ${g.awayTeam.score ?? ""} @ ${g.homeTeam.tricode} ${g.homeTeam.score ?? ""} — ${status}`;
+      }).join("\n");
+    })();
+
+    const liveStatsStr = (() => {
+      const stats = nbaCtx?.liveStats;
+      if (!stats?.length) return "";
+      return "TOP SCORERS TODAY:\n" + stats.slice(0, 10).map(s =>
+        `${s.name} (${s.team}): ${s.pts}pts ${s.reb}reb ${s.ast}ast`
+      ).join("\n");
+    })();
+
+    const playerDbStr = (() => {
+      const db = nbaCtx?.playerDb;
+      if (!db) return "Player database unavailable.";
+      // Smart filter: pull mentioned players to top
+      const q_lower = question.toLowerCase();
+      const entries = Object.entries(db);
+      const mentioned = entries.filter(([name]) => q_lower.includes(name.toLowerCase()));
+      const rest = entries.filter(([name]) => !q_lower.includes(name.toLowerCase()));
+      const ordered = [...mentioned, ...rest];
+      return JSON.stringify(Object.fromEntries(ordered)).slice(0, 16000);
+    })();
+
+    const seasonStatsStr = (() => {
+      const stats = nbaCtx?.seasonStats;
+      if (!stats?.length) return "";
+      return "LIVE SEASON AVERAGES (top 30 by pts):\n" + stats.slice(0, 30).map(s =>
+        `${s.name} (${s.team}): ${s.pts}pts ${s.reb}reb ${s.ast}ast ${s.min}min`
+      ).join("\n");
+    })();
+
+    systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
+You cover NFL, tennis, Formula 1, and NBA. You answer whatever is asked.
+
+STYLE
+Lead with the take. Sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction.
+Never refuse to answer. Work from the player database and live stats.
+
+NBA PROP FORMAT
+For prop questions: "Player — OVER/UNDER X — one key reason"
+For PRA: combine pts+reb+ast total. PRA is the most reliable multi-stat market.
+For game totals: reference pace, defensive rating, and injury context.
+
+KEY PROP PRINCIPLES
+- PRA (pts+reb+ast) is the safest multi-stat prop — variance is lower than individual stats
+- Injury replacement value is the most exploitable edge in NBA props
+- Back players whose teammates are out — usage spikes are predictable and consistent
+- Fade players in blowout-likely games — garbage time limits stat accumulation
+- Home/away matters less than usage and matchup quality
+- Game total (pace) is the strongest contextual signal — high totals mean more possessions = more stats
+
+PROP MARKET GUIDE
+Points: most volatile individual prop — variance is high
+Rebounds: most predictable — position and matchup driven
+Assists: pace-dependent — back in fast games, fade in slow ones
+3-pointers made: highest variance — only back with volume signal
+Steals/Blocks: specialist props — use only for elite defenders (Gobert, JJJ, Wemby, OG)
+PRA: most reliable — book it as the primary vehicle
+
+TODAY'S NBA GAMES
+${todaysGamesStr}
+
+${liveStatsStr}
+
+${seasonStatsStr ? seasonStatsStr + "\n" : ""}PLAYER PROP DATABASE (curated profiles with angles)
+${playerDbStr}
+
+BETTING ANGLE REMINDERS
+- Always check injury report context before committing to a prop
+- Usage spike plays (teammate out) are the highest-confidence bets
+- Fade stars in back-to-back second legs for blowout-prone teams
+- Game total is the pace proxy — use it to scale assists and 3-pointers props`;
   } else if (isF1) {
     systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
-You cover NFL, tennis, and Formula 1. You answer whatever is asked.
+You cover NFL, NBA, tennis, and Formula 1. You answer whatever is asked.
 
 STYLE
 Lead with the take. Sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction.
