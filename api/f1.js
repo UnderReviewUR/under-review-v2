@@ -221,10 +221,10 @@ async function getSessionFastestLaps(sessionKey) {
     const byDriver = new Map();
     for (const lap of laps) {
       const dn = lap.driver_number;
-      const ms = lap.lap_duration; // seconds (float) in OpenF1
-      if (ms == null) continue;
-      if (!byDriver.has(dn) || ms < byDriver.get(dn).fastest_lap_s) {
-        byDriver.set(dn, { fastest_lap_s: ms, driver_number: dn });
+      const lapSec = lap.lap_duration; // seconds (float) in OpenF1
+      if (lapSec == null) continue;
+      if (!byDriver.has(dn) || lapSec < byDriver.get(dn).fastest_lap_s) {
+        byDriver.set(dn, { fastest_lap_s: lapSec, driver_number: dn });
       }
     }
     const result = {};
