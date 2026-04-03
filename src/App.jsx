@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import AskBar from "./components/AskBar";
+import { NBA_PLAYERS } from "./data/nba/players.js";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -14,6 +15,7 @@ const css = `
     --red:#FF4444;
     --nfl:#FF6B35;
     --f1:#E10600;
+    --nba:#FF6B00;
     --bg:#080A0C;
     --surface:#0F1215;
     --surface-2:#0C1014;
@@ -43,11 +45,12 @@ const css = `
   .logo-under{display:block;font-family:var(--mono-font);font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;text-transform:uppercase;}
   .logo-review{display:block;font-family:var(--display-font);font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
-  .pill-tag,.pill-live,.pill-nfl{font-family:var(--mono-font);font-size:10px;padding:4px 9px;border-radius:999px;white-space:nowrap;}
+  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba{font-family:var(--mono-font);font-size:10px;padding:4px 9px;border-radius:999px;white-space:nowrap;}
   .pill-tag{color:var(--magenta);border:1px solid rgba(255,45,107,.25);background:rgba(255,45,107,.06);}
   .pill-live{color:var(--cyan-bright);border:1px solid rgba(0,245,233,.25);background:rgba(0,245,233,.06);}
   .pill-nfl{color:var(--nfl);border:1px solid rgba(255,107,53,.25);background:rgba(255,107,53,.06);}
   .pill-f1{color:var(--f1);border:1px solid rgba(225,6,0,.25);background:rgba(225,6,0,.06);}
+  .pill-nba{color:var(--nba);border:1px solid rgba(255,107,0,.25);background:rgba(255,107,0,.06);}
 
   .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:110px;}
   .hero{padding:12px 2px 16px;text-align:center;}
@@ -103,6 +106,8 @@ const css = `
   .sport-chip{border:1px solid var(--border);background:var(--surface);color:var(--soft);border-radius:999px;padding:8px 14px;font-family:var(--mono-font);font-size:11px;cursor:pointer;transition:all .15s;}
   .sport-chip.active,.sport-chip:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);}
   .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);}
+  .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);}
+  .sport-chip.nba-chip.active,.sport-chip.nba-chip:hover{border-color:var(--nba);color:var(--nba);}
 
   .detail-back{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:6px;}
   .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px;}
@@ -209,12 +214,14 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:10px 4px max(12px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:10px;letter-spacing:1px;cursor:pointer;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.85;}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:10px 4px max(12px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:9px;letter-spacing:1px;cursor:pointer;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.85;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:var(--gold);}
   .nav-btn.nfl-active{color:var(--nfl);}
   .nav-btn.f1-active{color:var(--f1);}
+  .nav-btn.nba-active{color:var(--nba);}
+
   .f1-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid var(--border);background:linear-gradient(135deg,rgba(225,6,0,.08),rgba(255,107,53,.05));}
   .f1-standing-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s ease;}
   .f1-standing-card:hover{border-color:rgba(225,6,0,.4);}
@@ -234,7 +241,28 @@ const css = `
   .f1-race-badge{font-family:var(--mono-font);font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(225,6,0,.1);color:var(--f1);border:1px solid rgba(225,6,0,.2);}
   .f1-ask-shell{background:var(--surface);border:1px solid rgba(225,6,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .f1-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--f1);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
-  .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);}
+
+  .nba-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,107,0,.2);background:linear-gradient(135deg,rgba(255,107,0,.08),rgba(255,45,107,.04));}
+  .nba-ask-shell{background:var(--surface);border:1px solid rgba(255,107,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .nba-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nba);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
+  .nba-player-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s ease;}
+  .nba-player-card:hover{border-color:rgba(255,107,0,.4);}
+  .nba-player-rank{font-family:var(--display-font);font-size:24px;color:var(--muted);min-width:28px;text-align:right;line-height:1;}
+  .nba-player-info{flex:1;}
+  .nba-player-name{font-size:15px;font-weight:700;color:var(--text);margin-bottom:1px;}
+  .nba-player-meta{font-family:var(--mono-font);font-size:10px;color:var(--muted);}
+  .nba-player-stats{text-align:right;}
+  .nba-pts{font-family:var(--mono-font);font-size:16px;color:var(--nba);display:block;}
+  .nba-pts-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
+  .nba-game-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s ease;}
+  .nba-game-card:hover{border-color:rgba(255,107,0,.35);}
+  .nba-game-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .nba-game-teams{font-size:15px;font-weight:600;color:var(--text);}
+  .nba-game-status{font-family:var(--mono-font);font-size:10px;color:var(--muted);}
+  .nba-game-score{font-family:var(--mono-font);font-size:13px;color:var(--text);margin-bottom:4px;}
+  .nba-game-records{font-size:11px;color:var(--muted);}
+  .nba-live-badge{color:var(--green);font-family:var(--mono-font);font-size:10px;}
+
   .page-spacer{height:80px;}
 `;
 
@@ -272,7 +300,6 @@ const NFL_PROP_GUIDE = [
 // ── Utils ────────────────────────────────────────────────────────────────────
 function normalizeText(v) { return String(v || "").trim().toLowerCase(); }
 function slugify(v) { return String(v||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); }
-
 function isNflInSeason() { const m=new Date().getMonth(); return m>=8||m<=1; }
 function isNflRampMode() { const m=new Date().getMonth(); return m>=6&&m<=7; }
 function getDaypartLabel() { const h=new Date().getHours(); if(h<12)return"today"; if(h<18)return"this afternoon"; return"tonight"; }
@@ -389,12 +416,12 @@ function ChatThread({ msgs }) {
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab]                       = useState("home");
-  const [screen, setScreen]                 = useState("home");
+  const [tab, setTab]                         = useState("home");
+  const [screen, setScreen]                   = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [selectedPlayer, setSelectedPlayer]   = useState(null);
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
-  const [nflPosFilter, setNflPosFilter]     = useState("ALL");
+  const [nflPosFilter, setNflPosFilter]       = useState("ALL");
 
   // Per-screen inputs — never shared — prevents 1-char typing bug
   const [homeInput, setHomeInput]       = useState("");
@@ -402,6 +429,7 @@ export default function App() {
   const [tennisInput, setTennisInput]   = useState("");
   const [nflInput, setNflInput]         = useState("");
   const [f1Input, setF1Input]           = useState("");
+  const [nbaInput, setNbaInput]         = useState("");
   const [matchupInput, setMatchupInput] = useState("");
 
   // Per-screen message threads
@@ -409,33 +437,36 @@ export default function App() {
   const [tennisMsgs, setTennisMsgs]   = useState([]);
   const [nflMsgs, setNflMsgs]         = useState([]);
   const [f1Msgs, setF1Msgs]           = useState([]);
+  const [nbaMsgs, setNbaMsgs]         = useState([]);
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
-  const [isAsking, setIsAsking] = useState(false);
-  const [players, setPlayers]   = useState(null);
-  const [context, setContext]   = useState(null);
-  const [liveMatches, setLiveMatches] = useState([]);
+  const [isAsking, setIsAsking]         = useState(false);
+  const [players, setPlayers]           = useState(null);
+  const [context, setContext]           = useState(null);
+  const [liveMatches, setLiveMatches]   = useState([]);
   const [tennisLoading, setTennisLoading] = useState(false);
-  const [pastedImage, setPastedImage] = useState(null);
-  const [f1Data, setF1Data]           = useState(null);
-  const [f1Loading, setF1Loading]     = useState(false);
-  const [nbaData, setNbaData]     = useState(null);
-const [nbaLoading, setNbaLoading] = useState(false);
+  const [pastedImage, setPastedImage]   = useState(null);
+  const [f1Data, setF1Data]             = useState(null);
+  const [f1Loading, setF1Loading]       = useState(false);
+  const [nbaData, setNbaData]           = useState(null);
+  const [nbaLoading, setNbaLoading]     = useState(false);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
-  const homeInputRef    = useRef(null);
-  const askInputRef     = useRef(null);
-  const tennisInputRef  = useRef(null);
-  const nflInputRef     = useRef(null);
-  const f1InputRef      = useRef(null);
-  const matchupInputRef = useRef(null);
-  const playerInputRef  = useRef(null);
+  const homeInputRef      = useRef(null);
+  const askInputRef       = useRef(null);
+  const tennisInputRef    = useRef(null);
+  const nflInputRef       = useRef(null);
+  const f1InputRef        = useRef(null);
+  const nbaInputRef       = useRef(null);
+  const matchupInputRef   = useRef(null);
+  const playerInputRef    = useRef(null);
   const nflPlayerInputRef = useRef(null);
-  const fileInputRef    = useRef(null);
+  const fileInputRef      = useRef(null);
 
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
   const nflRampMode   = useMemo(() => isNflRampMode(), []);
 
+  // ── Tennis fetch ───────────────────────────────────────────────────────────
   const fetchTennisBoard = useCallback(async (activeContext=null) => {
     const tournamentParam = getTournamentFetchParam(activeContext);
     const [atpRes, wtaRes] = await Promise.all([
@@ -494,7 +525,7 @@ const [nbaLoading, setNbaLoading] = useState(false);
     return () => { cancelled=true; };
   }, [context, fetchTennisBoard]);
 
-  // F1 data fetch
+  // ── F1 data fetch ──────────────────────────────────────────────────────────
   useEffect(() => {
     let active=true;
     async function loadF1() {
@@ -513,6 +544,26 @@ const [nbaLoading, setNbaLoading] = useState(false);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
+  // ── NBA data fetch ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    let active=true;
+    async function loadNba() {
+      setNbaLoading(true);
+      try {
+        const res = await fetch("/api/nba?view=board");
+        const data = await res.json();
+        if (active) setNbaData(data);
+      } catch { if (active) setNbaData(null); }
+      finally { if (active) setNbaLoading(false); }
+    }
+    loadNba();
+    const poll = window.setInterval(() => {
+      fetch("/api/nba?view=board").then(r=>r.json()).then(d=>{ if(active) setNbaData(d); }).catch(()=>{});
+    }, 300000); // 5 min
+    return () => { active=false; window.clearInterval(poll); };
+  }, []);
+
+  // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
     if (!file||!file.type.startsWith("image/")) return;
     const reader=new FileReader();
@@ -528,6 +579,39 @@ const [nbaLoading, setNbaLoading] = useState(false);
     return ()=>window.removeEventListener("paste",handle);
   }, [processImageFile]);
 
+  // ── Context builders ───────────────────────────────────────────────────────
+  const buildF1Context = useCallback(() => {
+    if (!f1Data) return null;
+    const standings = (f1Data.standings || []).slice(0, 20).map(d =>
+      `P${d.position ?? "?"} ${d.full_name || d.name_acronym || `#${d.driver_number}`} (${d.team_name || "Unknown"}) — ${d.points ?? 0} pts`
+    ).join("\n");
+    const nextRace = f1Data.schedule?.races?.find(r => r.is_next);
+    const upcomingRaces = (f1Data.schedule?.races || [])
+      .filter(r => new Date(r.date_start) > new Date())
+      .slice(0, 5)
+      .map(r => {
+        const d = r.date_start ? new Date(r.date_start).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBD";
+        return `${r.meeting_name || r.location} — ${d} — ${r.circuit_short_name || r.location || ""}${r.is_next ? " [NEXT RACE]" : ""}`;
+      }).join("\n");
+    const session = f1Data.session;
+    const sessionStr = session
+      ? `LATEST SESSION: ${session.session_name || session.session_type || "Unknown"} at ${session.meeting_name || session.location || "Unknown"} (${session.date_start ? new Date(session.date_start).toLocaleDateString() : "TBD"})`
+      : "";
+    return { standings, upcomingRaces, nextRace, sessionStr };
+  }, [f1Data]);
+
+  const buildNbaContext = useCallback(() => {
+    if (!nbaData) return null;
+    // Smart filter: pull mentioned players to front is handled server-side
+    return {
+      todaysGames: nbaData.games || [],
+      seasonStats: nbaData.playerStats || [],
+      playerDb: NBA_PLAYERS,
+      liveStats: (nbaData.playerStats || []).slice(0, 20),
+    };
+  }, [nbaData]);
+
+  // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
     if (!text||isAsking) return;
     setIsAsking(true);
@@ -535,7 +619,18 @@ const [nbaLoading, setNbaLoading] = useState(false);
     setMsgs(prev=>[...prev,{role:"user",text,image:imgToSend?.previewUrl||null},{role:"ai",text:"THINKING...",loading:true}]);
     clearImage();
     try {
-      const body={question:text,players,context,liveMatches,history:[],matchupContext:matchup||null,nflContext:buildNflContext(),sportHint:sportHint||null};
+      const body={
+        question: text,
+        players,
+        context,
+        liveMatches,
+        history: [],
+        matchupContext: matchup || null,
+        nflContext: buildNflContext(),
+        f1Context: buildF1Context(),
+        nbaContext: buildNbaContext(),
+        sportHint: sportHint || null,
+      };
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
       const res=await fetch("/api/ur-take",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const data=await res.json();
@@ -543,18 +638,20 @@ const [nbaLoading, setNbaLoading] = useState(false);
     } catch {
       setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong — try again."}]);
     } finally { setIsAsking(false); }
-  }, [clearImage, context, isAsking, liveMatches, pastedImage, players]);
+  }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext]);
 
-  const getPlayer     = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
-  const getPlayerAny  = useCallback(name => { if(!players)return null; return players.atp?.[name]||players.wta?.[name]||null; }, [players]);
+  // ── Player lookups ─────────────────────────────────────────────────────────
+  const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
+  const getPlayerAny = useCallback(name => { if(!players)return null; return players.atp?.[name]||players.wta?.[name]||null; }, [players]);
 
   const pd    = screen==="player"    && selectedPlayer    ? getPlayerAny(selectedPlayer)   : null;
   const nflPd = screen==="nflplayer" && selectedNflPlayer ? NFL_PLAYERS[selectedNflPlayer] : null;
 
   const filteredNflPlayers = useMemo(() => Object.entries(NFL_PLAYERS).filter(([,p])=>nflPosFilter==="ALL"||p.pos===nflPosFilter).sort((a,b)=>b[1].ydsPg-a[1].ydsPg), [nflPosFilter]);
 
-  const tennisLiveMatches    = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")==="1"),[liveMatches]);
-  const tennisUpcomingMatches= useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")!=="1"),[liveMatches]);
+  // ── Tennis derived state ───────────────────────────────────────────────────
+  const tennisLiveMatches     = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")==="1"),[liveMatches]);
+  const tennisUpcomingMatches = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")!=="1"),[liveMatches]);
   const activeTournamentMatches = useMemo(()=>liveMatches.filter(m=>preferredTournamentScore(m,context)>0),[liveMatches,context]);
 
   const tennisBoardHeadline = useMemo(() => {
@@ -569,7 +666,7 @@ const [nbaLoading, setNbaLoading] = useState(false);
     return "CURRENT + UPCOMING TOUR MATCHES";
   }, [activeTournamentMatches.length,context]);
 
-  // Home tennis cards — live/upcoming matches if available, else contextual tournament card
+  // ── Home cards ─────────────────────────────────────────────────────────────
   const homeTennisCards = useMemo(() => {
     const source = activeTournamentMatches.length>0 ? activeTournamentMatches : liveMatches;
     const liveCards = source.filter(m=>String(m?.raw?.live||"0")==="1");
@@ -578,15 +675,11 @@ const [nbaLoading, setNbaLoading] = useState(false);
     if(liveCards[0]) cards.push({...liveCards[0],homeCategory:"Live Tennis"});
     if(upcomingCards[0]) cards.push({...upcomingCards[0],homeCategory:"Upcoming Tennis"});
     if(!cards.length&&liveMatches[0]) cards.push({...liveMatches[0],homeCategory:String(liveMatches[0]?.raw?.live||"0")==="1"?"Live Tennis":"Upcoming Tennis"});
-    // Fallback: contextual card from tournament context
     if(!cards.length) {
       cards.push({
-        id:"tennis-ctx-1",
-        league:"TENNIS",
-        leagueColor:"#0891B2",
+        id:"tennis-ctx-1", league:"TENNIS", leagueColor:"#0891B2",
         title:context?.currentTournament?.name?`Best angle at ${context.currentTournament.name}`:"Tennis Futures — Value Plays",
-        time:"Current Market",
-        network:context?.currentTournament?.surface||"Tour Futures",
+        time:"Current Market", network:context?.currentTournament?.surface||"Tour Futures",
         blurb:context?.currentTournament?.context?context.currentTournament.context:"Player database, surface Elo, and futures context are loaded.",
         whatMatters:"Ask for the best current tennis future, matchup angle, or surface edge.",
         quickHitters:["Best tennis future right now?","Best clay angle?","Who has the best current value?"],
@@ -596,7 +689,6 @@ const [nbaLoading, setNbaLoading] = useState(false);
     return cards.slice(0,2);
   }, [activeTournamentMatches,liveMatches,context]);
 
-  // Home NFL cards — in-season vs futures window
   const homeNflCards = useMemo(() => {
     if (nflSeasonMode) return [
       {id:"nfl-season-1",league:"NFL IN-SEASON",leagueColor:"#D97706",title:"Best weekly NFL prop board",time:"Weekly Market",network:"Weekly Props",blurb:"Usage, role changes, and current mispricing.",whatMatters:"Ask for the best current weekly NFL edge.",quickHitters:["Best prop this week?","Biggest role shift?","Best TD angle?"],confirmed:true},
@@ -614,7 +706,7 @@ const [nbaLoading, setNbaLoading] = useState(false);
     const cards = [];
     if (nextRace) {
       const dateStr = nextRace.date_start ? new Date(nextRace.date_start).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
-      cards.push({id:"f1-next-1",league:"F1",leagueColor:"#E10600",title:nextRace.meeting_name||"Next Grand Prix",time:dateStr,network:nextRace.circuit_short_name||nextRace.location||"",blurb:`${nextRace.location} — ${nextRace.circuit_type||"Permanent"}. Ask for the best F1 angle.`,whatMatters:"Ask for race winner, podium, or qualifying prop edges.",quickHitters:["Best F1 bet this weekend?","Who wins qualifying?","Podium value play?"],confirmed:true});
+      cards.push({id:"f1-next-1",league:"F1",leagueColor:"#E10600",title:nextRace.meeting_name||"Next Grand Prix",time:dateStr,network:nextRace.circuit_short_name||nextRace.location||"",blurb:`${nextRace.location} — Ask for the best F1 angle.`,whatMatters:"Ask for race winner, podium, or qualifying prop edges.",quickHitters:["Best F1 bet this weekend?","Who wins qualifying?","Podium value play?"],confirmed:true});
     }
     if (leader) {
       cards.push({id:"f1-standings-1",league:"F1 CHAMPIONSHIP",leagueColor:"#E10600",title:`${leader.full_name||"Leader"} leads — ${leader.points||0} pts`,time:"2026 Season",network:"Driver Championship",blurb:`${leader.team_name||""} ${leader.full_name||""} leads the 2026 championship. Ask about title odds.`,whatMatters:"Ask about championship futures and driver head-to-heads.",quickHitters:["Who wins the 2026 WDC?","Best F1 future right now?","Constructor championship value?"],confirmed:true});
@@ -625,8 +717,24 @@ const [nbaLoading, setNbaLoading] = useState(false);
     return cards.slice(0,1);
   }, [f1Data]);
 
-  const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards]);
+  const homeNbaCards = useMemo(() => {
+    const games = nbaData?.games || [];
+    const liveGame = games.find(g => g.statusCode === 2);
+    const nextGame = games.find(g => g.statusCode === 1);
+    const cards = [];
+    if (liveGame) {
+      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${liveGame.awayTeam.tricode} vs ${liveGame.homeTeam.tricode}`,time:"LIVE",network:`${liveGame.awayTeam.score} — ${liveGame.homeTeam.score} · Q${liveGame.period}`,blurb:"Live game in progress. Ask for the best in-game prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
+    } else if (nextGame) {
+      cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${nextGame.awayTeam.tricode} vs ${nextGame.homeTeam.tricode}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
+    } else {
+      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:"NBA Props — 2024-25",time:"Active",network:"Player Props",blurb:"80-player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
+    }
+    return cards.slice(0,1);
+  }, [nbaData]);
 
+  const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards]);
+
+  // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
     const prompts=[]; const used=new Set(); const daypart=getDaypartLabel();
     const push=item=>{ if(!item||used.has(item.text))return; used.add(item.text); prompts.push(item); };
@@ -635,32 +743,36 @@ const [nbaLoading, setNbaLoading] = useState(false);
     if(prefLive){ const label=`${prefLive.raw?.home||""} vs ${prefLive.raw?.away||""}`; push({id:"q1",color:prefLive.league==="WTA"?"#E11D48":"#0891B2",text:`Best live angle for ${label}?`,prompt:`What is the best live betting angle for ${label} right now? Give me the strongest side, total, and any prop edge.`}); }
     if(prefUpcoming){ const label=`${prefUpcoming.raw?.home||""} vs ${prefUpcoming.raw?.away||""}`; push({id:"q2",color:prefUpcoming.league==="WTA"?"#E11D48":"#0891B2",text:`Best tennis bet in ${label} ${daypart}?`,prompt:`What is the best bet in ${label} ${daypart}? Cleanest angle and one sharper alternative.`}); }
     push({id:"q3",color:"#0891B2",text:context?.currentTournament?.name?`Best futures angle around ${context.currentTournament.name}?`:"Which tennis future still has value right now?",prompt:context?.currentTournament?.name?`What is the best current futures or tournament-value angle connected to ${context.currentTournament.name}?`:"Which tennis future still has value right now, and why has the market not fully priced it correctly?"});
-    if(nflSeasonMode){ push({id:"q4",color:"#E11D48",text:"Which NFL weekly prop is most mispriced?",prompt:"Which NFL weekly player prop looks most mispriced right now based on current usage and the player database?"}); push({id:"q5",color:"#E11D48",text:"Best NFL in-season edge on the board?",prompt:"What is the best NFL in-season betting edge on the board right now?"}); }
-    else { push({id:"q4",color:"#E11D48",text:"Which NFL future looks most mispriced?",prompt:"Which NFL future looks the most mispriced right now based on the player database and team context?"}); push({id:"q5",color:"#E11D48",text:"Which RB scores the most TDs in 2026?",prompt:"Based on the NFL player database, which running back is most likely to lead the NFL in touchdowns in 2026?"}); }
-    push({id:"q6",color:"#E10600",text:"How realistic is a Hamilton podium this weekend?",prompt:"How realistic is a Lewis Hamilton podium at the next Grand Prix? Consider his current form at Ferrari, circuit characteristics, and recent pace data."});
+    if(nflSeasonMode){ push({id:"q4",color:"#E11D48",text:"Which NFL weekly prop is most mispriced?",prompt:"Which NFL weekly player prop looks most mispriced right now based on current usage and the player database?"}); }
+    else { push({id:"q4",color:"#E11D48",text:"Which NFL future looks most mispriced?",prompt:"Which NFL future looks the most mispriced right now based on the player database and team context?"}); }
+    push({id:"q5",color:"#FF6B00",text:"Best NBA prop on tonight's slate?",prompt:"What is the safest and highest-confidence NBA prop bet on tonight's slate? Give me the top PRA play and one secondary angle."});
+    push({id:"q6",color:"#E10600",text:"Best F1 betting angle this weekend?",prompt:"What is the best F1 betting angle for the next Grand Prix? Consider current standings, circuit type, and any relevant pace data."});
     return prompts.slice(0,5);
   }, [activeTournamentMatches,tennisLiveMatches,tennisUpcomingMatches,nflSeasonMode,context]);
 
-  // Navigation
+  // ── Navigation ─────────────────────────────────────────────────────────────
   const goHome   = useCallback(()=>{ setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goTennis = useCallback(()=>{ setTab("tennis");setScreen("tennis");setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goNfl    = useCallback(()=>{ setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goF1     = useCallback(()=>{ setTab("f1");    setScreen("f1");    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
+  const goNba    = useCallback(()=>{ setTab("nba");   setScreen("nba");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goAsk    = useCallback(()=>{ setTab("ask");   setScreen("ask");   setSelectedMatchup(null); },[]);
-  const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); },[]);
 
-  const openMatchup = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
-  const openPlayer  = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
+  const openMatchup   = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
+  const openPlayer    = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
   const openNflPlayer = useCallback(name=>{ setSelectedNflPlayer(name); setScreen("nflplayer"); setTab("nfl"); },[]);
-  const firePrompt  = useCallback(prompt=>{ setTab("ask"); setScreen("ask"); setAskInput(""); askUrTake({text:prompt,setMsgs:setAskMsgs}); },[askUrTake]);
+  const firePrompt    = useCallback(prompt=>{ setTab("ask"); setScreen("ask"); setAskInput(""); askUrTake({text:prompt,setMsgs:setAskMsgs}); },[askUrTake]);
 
+  // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); },[askInput,askUrTake,isAsking]);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); },[askUrTake,isAsking,tennisInput]);
   const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); },[askUrTake,isAsking,nflInput]);
   const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); },[askUrTake,isAsking,f1Input]);
+  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); },[askUrTake,isAsking,nbaInput]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const hint=selectedMatchup?.league?.includes("NFL")?"nfl":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
 
+  // ── Sub-components ─────────────────────────────────────────────────────────
   function TennisPlayerCard({ name, idx, tour }) {
     const p=getPlayer(name,tour); if(!p)return null;
     return (
@@ -702,20 +814,28 @@ const [nbaLoading, setNbaLoading] = useState(false);
 
   const askBarCommon = { fileInputRef, pastedImage, clearImage, isAsking, processImageFile };
 
-  // Header pill
+  // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (
     <>
       {screen==="tennis"&&<span className="pill-live">{context?.currentTournament?.name?context.currentTournament.name.toUpperCase():"TENNIS"}</span>}
       {screen==="nfl"&&<span className="pill-nfl">{nflSeasonMode?"NFL IN-SEASON":"NFL FUTURES"}</span>}
       {screen==="nflplayer"&&nflPd&&<span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
       {screen==="f1"&&<span className="pill-f1">F1 2026</span>}
+      {screen==="nba"&&<span className="pill-nba">NBA PROPS</span>}
       {screen==="player"&&<span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen==="matchup"&&selectedMatchup&&(selectedMatchup.league?.includes("NFL")?<span className="pill-nfl">{selectedMatchup.league}</span>:<span className="pill-tag">{selectedMatchup.network?.toUpperCase()||selectedMatchup.league}</span>)}
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
-      {(screen==="home"||screen==="pro")&&<span className="pill-live">LIVE</span>}
+      {screen==="home"&&<span className="pill-live">LIVE</span>}
     </>
   );
 
+  // ── NBA top players from live stats (sorted by pts) ────────────────────────
+  const nbaTopPlayers = useMemo(() => {
+    const stats = nbaData?.playerStats || [];
+    return stats.slice(0, 20);
+  }, [nbaData]);
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{css}</style>
@@ -731,7 +851,7 @@ const [nbaLoading, setNbaLoading] = useState(false);
           <main className="screen">
             <section className="hero">
               <div className="hero-title">What do you want to know?</div>
-              <div className="hero-sub">Live tennis first, futures where needed, and weekly NFL once the season flips.</div>
+              <div className="hero-sub">Live tennis, NBA props, NFL, and F1 — all in one place.</div>
             </section>
 
             <AskBar inputRef={homeInputRef} value={homeInput} onChange={setHomeInput} onSubmit={submitHome} placeholder="Ask UR TAKE anything..." {...askBarCommon} />
@@ -765,6 +885,7 @@ const [nbaLoading, setNbaLoading] = useState(false);
                 <button className="sport-chip active" onClick={goTennis}>TENNIS</button>
                 <button className="sport-chip nfl-chip active" onClick={goNfl}>{nflSeasonMode?"NFL IN-SEASON":"NFL"}</button>
                 <button className="sport-chip f1-chip active" onClick={goF1}>F1</button>
+                <button className="sport-chip nba-chip active" onClick={goNba}>NBA</button>
               </div>
             </section>
             <div className="page-spacer"/>
@@ -976,6 +1097,88 @@ const [nbaLoading, setNbaLoading] = useState(false);
           </main>
         )}
 
+        {/* ══ NBA ══ */}
+        {screen==="nba"&&(
+          <main className="screen">
+            <div className="nba-banner">
+              <div className="banner-title">NBA — 2024-25</div>
+              <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
+              <div className="banner-note">
+                {nbaData?.games?.length
+                  ? `${nbaData.games.length} games today · ${nbaData.playerStats?.length||0} players tracked`
+                  : nbaLoading ? "Loading NBA data..." : "80-player prop database loaded"}
+              </div>
+            </div>
+
+            <div className="nba-ask-shell">
+              <div className="nba-ask-label">Ask Anything — NBA Props</div>
+              <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Jokic PRA over tonight? Best prop this slate?" btnColor="var(--nba)" {...askBarCommon} />
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["Best prop on tonight's slate?","Safest PRA bet tonight?","Who has a usage spike today?","Best game total play?"].map(q=>(
+                  <button key={q} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{q}</button>
+                ))}
+              </div>
+            </div>
+
+            <ChatThread msgs={nbaMsgs}/>
+
+            {nbaLoading ? (
+              <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
+            ) : (
+              <>
+                {nbaData?.games?.length > 0 && (
+                  <>
+                    <div className="section-divider">Today's Games</div>
+                    {nbaData.games.map((g,i) => (
+                      <div key={g.gameId||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${g.awayTeam.tricode} vs ${g.homeTeam.tricode} tonight?`)}>
+                        <div className="nba-game-top">
+                          <div className="nba-game-teams">{g.awayTeam.tricode} vs {g.homeTeam.tricode}</div>
+                          <div>{g.statusCode===2 ? <span className="nba-live-badge">● LIVE Q{g.period}</span> : <span className="nba-game-status">{g.status}</span>}</div>
+                        </div>
+                        {g.statusCode===2 && (
+                          <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
+                        )}
+                        <div className="nba-game-records">{g.awayTeam.wins}-{g.awayTeam.losses} vs {g.homeTeam.wins}-{g.homeTeam.losses}</div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                <div className="section-divider">Top Prop Players</div>
+                {nbaTopPlayers.length > 0 ? nbaTopPlayers.map((p,i) => (
+                  <div key={p.playerId||i} className="nba-player-card" onClick={()=>submitNba(`Best prop angle for ${p.name} tonight? Give me the PRA line, floor, ceiling, and lean.`)}>
+                    <div className="nba-player-rank">#{i+1}</div>
+                    <div className="nba-player-info">
+                      <div className="nba-player-name">{p.name}</div>
+                      <div className="nba-player-meta">{p.team} · {p.min}min</div>
+                    </div>
+                    <div className="nba-player-stats">
+                      <span className="nba-pts">{p.pts}</span>
+                      <span className="nba-pts-label">{p.reb}r · {p.ast}a</span>
+                    </div>
+                  </div>
+                )) : (
+                  // Fallback: show curated profiles when live stats unavailable
+                  Object.entries(NBA_PLAYERS).filter(([,p])=>p.tier==="ELITE"||p.tier==="STAR").slice(0,15).map(([name,p],i) => (
+                    <div key={name} className="nba-player-card" onClick={()=>submitNba(`Best prop angle for ${name} tonight? Give me the PRA line, floor, ceiling, and lean.`)}>
+                      <div className="nba-player-rank">#{i+1}</div>
+                      <div className="nba-player-info">
+                        <div className="nba-player-name">{name}</div>
+                        <div className="nba-player-meta">{p.team} · {p.tier}</div>
+                      </div>
+                      <div className="nba-player-stats">
+                        <span className="nba-pts">{p.pts}</span>
+                        <span className="nba-pts-label">{p.reb}r · {p.ast}a</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+            <div className="page-spacer"/>
+          </main>
+        )}
+
         {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
           <main className="screen">
@@ -1022,35 +1225,13 @@ const [nbaLoading, setNbaLoading] = useState(false);
           </main>
         )}
 
-        {/* ══ PRO ══ */}
-        {screen==="pro"&&(
-          <main className="screen">
-            <div style={{textAlign:"center",padding:"20px 4px 16px"}}>
-              <div style={{fontFamily:"var(--display-font)",fontSize:30,letterSpacing:1,lineHeight:1.1,marginBottom:10}}>Stop Guessing.<br/><span style={{background:"linear-gradient(90deg,var(--cyan-bright),var(--mag))",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Start Beating the Line.</span></div>
-              <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.55,maxWidth:340,margin:"0 auto"}}>You're leaving edges on the table every single slate. UR TAKE Pro closes the gap.</div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid rgba(0,245,233,.2)",borderRadius:20,padding:"20px 18px",marginBottom:14}}>
-              <div style={{display:"flex",alignItems:"flex-end",gap:8,marginBottom:4}}><span style={{fontFamily:"var(--display-font)",fontSize:42,lineHeight:1,color:"var(--text)"}}>$9.99</span><span style={{fontFamily:"var(--mono-font)",fontSize:12,color:"var(--muted)",marginBottom:6}}>/month</span></div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",marginBottom:16,letterSpacing:1}}>LESS THAN ONE BAD BET</div>
-              <button style={{width:"100%",border:"none",borderRadius:14,padding:"15px 0",cursor:"pointer",fontFamily:"var(--display-font)",fontSize:20,letterSpacing:3,color:"#080A0C",background:"linear-gradient(90deg,var(--cyan-bright),var(--mag))"}}>UNLOCK MY EDGE</button>
-              <div style={{display:"flex",justifyContent:"center",gap:20,marginTop:12}}><span style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)"}}>CANCEL ANYTIME</span><span style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)"}}>NO COMMITMENT</span></div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:"16px 18px",marginBottom:14}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:3,color:"var(--cyan-bright)",marginBottom:14,textTransform:"uppercase"}}>WHAT YOU GET</div>
-              {[["Unlimited UR TAKE queries","No throttling mid-slate, no daily cap."],["Real prop edges","True floors and ceilings — not public guesswork."],["Full player intelligence","QB + RB/WR/TE database + tennis profiles + defense tiers."],["Live matchup breakdowns","Defense-adjusted prop leans with betting angles."],["Saved threads","Track your takes and review what hit."],["Priority responses","Faster answers during live games."]].map(([title,desc],i)=>(
-                <div key={i} style={{display:"flex",gap:12,marginBottom:i<5?12:0}}><div style={{width:6,height:6,borderRadius:"50%",background:"var(--cyan-bright)",flexShrink:0,marginTop:6}}/><div><div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:2}}>{title}</div><div style={{fontSize:12,color:"var(--muted)",lineHeight:1.4}}>{desc}</div></div></div>
-              ))}
-            </div>
-            <div className="page-spacer"/>
-          </main>
-        )}
-
         {/* ══ NAV ══ */}
         <nav className="bottom-nav">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
           <button className={`nav-btn${tab==="tennis"?" tennis-active":""}`} onClick={goTennis}><span>Tennis</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
+          <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="ask"?" active":""}`} onClick={goAsk}><span>Ask</span></button>
         </nav>
 
