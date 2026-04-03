@@ -241,6 +241,40 @@ const css = `
   .f1-race-badge{font-family:var(--mono-font);font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(225,6,0,.1);color:var(--f1);border:1px solid rgba(225,6,0,.2);}
   .f1-ask-shell{background:var(--surface);border:1px solid rgba(225,6,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .f1-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--f1);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
+  .f1-form-badges{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;}
+  .f1-form-badge{font-family:var(--mono-font);font-size:9px;padding:2px 5px;border-radius:3px;font-weight:600;}
+  .f1-form-w{background:rgba(0,230,118,.15);color:var(--green);border:1px solid rgba(0,230,118,.3);}
+  .f1-form-p2{background:rgba(255,215,0,.12);color:#FFD700;border:1px solid rgba(255,215,0,.25);}
+  .f1-form-p3{background:rgba(205,127,50,.12);color:#CD7F32;border:1px solid rgba(205,127,50,.25);}
+  .f1-form-pos{background:rgba(255,255,255,.06);color:var(--muted);border:1px solid rgba(255,255,255,.1);}
+  .f1-form-dnf{background:rgba(255,68,68,.12);color:var(--red);border:1px solid rgba(255,68,68,.25);}
+  .f1-circuit-card{background:var(--surface);border:1px solid rgba(225,6,0,.25);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .f1-circuit-type{font-family:var(--mono-font);font-size:9px;padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:8px;}
+  .f1-circuit-type.street{background:rgba(255,107,53,.12);color:#FF6B35;border:1px solid rgba(255,107,53,.3);}
+  .f1-circuit-type.power{background:rgba(0,245,233,.1);color:var(--cyan-bright);border:1px solid rgba(0,245,233,.2);}
+  .f1-circuit-type.high-downforce{background:rgba(225,6,0,.1);color:var(--f1);border:1px solid rgba(225,6,0,.2);}
+  .f1-circuit-type.traditional{background:rgba(170,179,194,.1);color:var(--muted);border:1px solid rgba(170,179,194,.2);}
+  .f1-circuit-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;}
+  .f1-circuit-stat{background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px;}
+  .f1-circuit-stat-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .f1-circuit-stat-value{font-family:var(--mono-font);font-size:12px;color:var(--text);margin-top:2px;font-weight:500;}
+  .f1-circuit-angles{margin-top:10px;}
+  .f1-circuit-angle{font-size:12px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+  .f1-circuit-angle:last-child{border-bottom:none;}
+  .f1-result-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+  .f1-result-row:last-child{border-bottom:none;}
+  .f1-result-pos{font-family:var(--display-font);font-size:20px;color:var(--muted);min-width:24px;text-align:right;}
+  .f1-result-info{flex:1;}
+  .f1-result-name{font-size:13px;font-weight:600;color:var(--text);}
+  .f1-result-team{font-family:var(--mono-font);font-size:10px;color:var(--muted);}
+  .f1-result-fl{font-family:var(--mono-font);font-size:10px;color:var(--gold);}
+  .f1-grid-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;}
+  .f1-constructor-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+  .f1-constructor-pos{font-family:var(--display-font);font-size:22px;color:var(--muted);min-width:26px;text-align:right;line-height:1;}
+  .f1-constructor-info{flex:1;}
+  .f1-constructor-name{font-size:14px;font-weight:600;color:var(--text);}
+  .f1-constructor-pts{font-family:var(--mono-font);font-size:14px;color:var(--f1);}
+  .f1-constructor-pts-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);display:block;}
 
   .nba-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,107,0,.2);background:linear-gradient(135deg,rgba(255,107,0,.08),rgba(255,45,107,.04));}
   .nba-ask-shell{background:var(--surface);border:1px solid rgba(255,107,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
@@ -582,9 +616,17 @@ export default function App() {
   // ── Context builders ───────────────────────────────────────────────────────
   const buildF1Context = useCallback(() => {
     if (!f1Data) return null;
-    const standings = (f1Data.standings || []).slice(0, 20).map(d =>
-      `P${d.position ?? "?"} ${d.full_name || d.name_acronym || `#${d.driver_number}`} (${d.team_name || "Unknown"}) — ${d.points ?? 0} pts`
+    const standings = (f1Data.standings || []).slice(0, 20).map(d => {
+      const form = d.form_str ? ` | Form: ${d.form_str}` : "";
+      const avgFinish = d.avg_finish != null ? ` | AvgFinish: P${d.avg_finish}` : "";
+      const dnfs = d.dnf_count ? ` | DNFs: ${d.dnf_count}` : "";
+      return `P${d.position ?? "?"} ${d.full_name || d.name_acronym || `#${d.driver_number}`} (${d.team_name || "Unknown"}) — ${d.points ?? 0} pts${form}${avgFinish}${dnfs}`;
+    }).join("\n");
+
+    const constructors = (f1Data.constructors || []).slice(0, 10).map(c =>
+      `P${c.position_current ?? "?"} ${c.team_name || "Unknown"} — ${c.points_current ?? 0} pts`
     ).join("\n");
+
     const nextRace = f1Data.schedule?.races?.find(r => r.is_next);
     const upcomingRaces = (f1Data.schedule?.races || [])
       .filter(r => new Date(r.date_start) > new Date())
@@ -593,11 +635,38 @@ export default function App() {
         const d = r.date_start ? new Date(r.date_start).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBD";
         return `${r.meeting_name || r.location} — ${d} — ${r.circuit_short_name || r.location || ""}${r.is_next ? " [NEXT RACE]" : ""}`;
       }).join("\n");
+
     const session = f1Data.session;
     const sessionStr = session
       ? `LATEST SESSION: ${session.session_name || session.session_type || "Unknown"} at ${session.meeting_name || session.location || "Unknown"} (${session.date_start ? new Date(session.date_start).toLocaleDateString() : "TBD"})`
       : "";
-    return { standings, upcomingRaces, nextRace, sessionStr };
+
+    const nextCircuit = f1Data.nextCircuit;
+    const circuitStr = nextCircuit
+      ? [
+          `NEXT RACE CIRCUIT: ${nextCircuit.meeting_name || nextCircuit.name} — ${nextCircuit.type?.toUpperCase()} CIRCUIT`,
+          `Power benefit: ${nextCircuit.keyDrivers?.powerBenefit} | Downforce demand: ${nextCircuit.keyDrivers?.downforceDemand} | Street specialist: ${nextCircuit.keyDrivers?.streetSpecialist ? "YES" : "NO"}`,
+          `Safety car probability: ${nextCircuit.safetyCar} | Avg pit stops: ${nextCircuit.avgPitStops}`,
+          `Tire strategy: ${nextCircuit.tireStrategy?.dominant} (${nextCircuit.tireStrategy?.deg} deg)`,
+          `Key traits: ${(nextCircuit.characteristics || []).join(", ")}`,
+          `Historical winner pattern: ${nextCircuit.winner?.pattern || ""}`,
+          `Betting angles:`,
+          ...(nextCircuit.bettingAngles || []).map(a => `  • ${a}`),
+        ].join("\n")
+      : "";
+
+    const lastRaceStr = (() => {
+      const results = f1Data.lastRaceResults;
+      if (!results?.length) return "";
+      const top5 = results.slice(0, 5).map(r => {
+        const fl = r.has_fastest_lap ? " [FL]" : "";
+        const pos = r.dnf ? "DNF" : `P${r.position}`;
+        return `${pos} ${r.full_name} (${r.team_name})${fl}`;
+      }).join(", ");
+      return `LAST RACE (${f1Data.lastRaceName || ""}): ${top5}`;
+    })();
+
+    return { standings, constructors, upcomingRaces, nextRace, sessionStr, circuitStr, lastRaceStr };
   }, [f1Data]);
 
   const buildNbaContext = useCallback(() => {
@@ -1041,7 +1110,7 @@ export default function App() {
               <div className="f1-ask-label">Ask Anything — F1</div>
               <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {["Who wins the next Grand Prix?","Best F1 future right now?","Is Antonelli for real?","Hamilton podium value?"].map(q=>(
+                {["Who wins the next Grand Prix?","Best F1 future right now?","Is Antonelli for real?","Hamilton podium value?","DNF risk this weekend?","Best qualifying bet?"].map(q=>(
                   <button key={q} className="quick-btn" onClick={()=>submitF1(q)} style={{fontSize:11}}>{q}</button>
                 ))}
               </div>
@@ -1053,16 +1122,79 @@ export default function App() {
               <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>
             ) : (
               <>
+                {/* ── Next Race Circuit Preview ── */}
+                {f1Data?.nextCircuit && (
+                  <>
+                    <div className="section-divider">Race Preview</div>
+                    <div className="f1-circuit-card">
+                      <span className={`f1-circuit-type ${f1Data.nextCircuit.type||"traditional"}`}>
+                        {(f1Data.nextCircuit.type||"traditional").toUpperCase()}
+                      </span>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:2}}>
+                        {f1Data.nextCircuit.meeting_name||f1Data.nextCircuit.name}
+                      </div>
+                      <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>
+                        {f1Data.nextCircuit.location} · {f1Data.nextCircuit.circuitLength}km × {f1Data.nextCircuit.laps} laps
+                      </div>
+                      <div className="f1-circuit-stats">
+                        <div className="f1-circuit-stat">
+                          <div className="f1-circuit-stat-label">Safety Car</div>
+                          <div className="f1-circuit-stat-value" style={{color:f1Data.nextCircuit.safetyCar==="very high"?"var(--red)":f1Data.nextCircuit.safetyCar==="high"?"var(--gold)":"var(--text)"}}>{f1Data.nextCircuit.safetyCar}</div>
+                        </div>
+                        <div className="f1-circuit-stat">
+                          <div className="f1-circuit-stat-label">Avg Pit Stops</div>
+                          <div className="f1-circuit-stat-value">{f1Data.nextCircuit.avgPitStops}</div>
+                        </div>
+                        <div className="f1-circuit-stat">
+                          <div className="f1-circuit-stat-label">Tire Strategy</div>
+                          <div className="f1-circuit-stat-value">{f1Data.nextCircuit.tireStrategy?.dominant}</div>
+                        </div>
+                        <div className="f1-circuit-stat">
+                          <div className="f1-circuit-stat-label">Overtaking</div>
+                          <div className="f1-circuit-stat-value">{f1Data.nextCircuit.overtakingDifficulty}</div>
+                        </div>
+                        <div className="f1-circuit-stat">
+                          <div className="f1-circuit-stat-label">Power Benefit</div>
+                          <div className="f1-circuit-stat-value">{f1Data.nextCircuit.keyDrivers?.powerBenefit}</div>
+                        </div>
+                        <div className="f1-circuit-stat">
+                          <div className="f1-circuit-stat-label">Downforce</div>
+                          <div className="f1-circuit-stat-value">{f1Data.nextCircuit.keyDrivers?.downforceDemand}</div>
+                        </div>
+                      </div>
+                      <div style={{fontSize:10,color:"var(--f1)",fontFamily:"var(--mono-font)",letterSpacing:1,marginBottom:6,textTransform:"uppercase"}}>Betting Angles</div>
+                      <div className="f1-circuit-angles">
+                        {(f1Data.nextCircuit.bettingAngles||[]).map((angle,i)=>(
+                          <div key={i} className="f1-circuit-angle">• {angle}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── Driver Standings with Form ── */}
                 {f1Data?.standings?.length > 0 && (
                   <>
                     <div className="section-divider">Driver Standings</div>
                     {f1Data.standings.map((d,i) => (
                       <div key={d.driver_number||i} className="f1-standing-card" onClick={()=>submitF1(`Tell me about ${d.full_name||d.name_acronym} — form, pace, and best betting angle`)}>
                         <div className="f1-pos">P{d.position||i+1}</div>
-                        <div style={{width:4,height:30,borderRadius:2,background:`#${d.team_colour||'666'}`,flexShrink:0}}/>
+                        <div style={{width:4,height:d.form?.length?38:30,borderRadius:2,background:`#${d.team_colour||'666'}`,flexShrink:0}}/>
                         <div className="f1-driver-info">
                           <div className="f1-driver-name">{d.full_name||d.name_acronym||`#${d.driver_number}`}</div>
-                          <div className="f1-driver-team">{d.team_name||"—"}</div>
+                          <div className="f1-driver-team">{d.team_name||"—"}{d.avg_finish!=null?` · Avg P${d.avg_finish}`:""}</div>
+                          {d.form?.length > 0 && (
+                            <div className="f1-form-badges">
+                              {d.form.map((f,fi)=>{
+                                let cls="f1-form-pos", label=f.dnf?"DNF":`P${f.position}`;
+                                if(f.dnf) cls="f1-form-dnf";
+                                else if(f.position===1){cls="f1-form-w";label="W";}
+                                else if(f.position===2) cls="f1-form-p2";
+                                else if(f.position===3) cls="f1-form-p3";
+                                return <span key={fi} className={`f1-form-badge ${cls}`} title={f.race}>{label}</span>;
+                              })}
+                            </div>
+                          )}
                         </div>
                         <div className="f1-pts"><span className="f1-pts-num">{d.points ?? "—"}</span><span className="f1-pts-label">PTS</span></div>
                       </div>
@@ -1070,6 +1202,47 @@ export default function App() {
                   </>
                 )}
 
+                {/* ── Constructor Standings ── */}
+                {f1Data?.constructors?.length > 0 && (
+                  <>
+                    <div className="section-divider">Constructor Standings</div>
+                    {f1Data.constructors.map((c,i) => (
+                      <div key={c.team_name||i} className="f1-constructor-card" onClick={()=>submitF1(`Tell me about ${c.team_name} in 2026 — reliability, car strengths, and best betting angle`)}>
+                        <div className="f1-constructor-pos">P{c.position_current||i+1}</div>
+                        <div style={{width:4,height:30,borderRadius:2,background:`#${c.team_colour||'666'}`,flexShrink:0}}/>
+                        <div className="f1-constructor-info">
+                          <div className="f1-constructor-name">{c.team_name||"—"}</div>
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <span className="f1-constructor-pts">{c.points_current ?? "—"}</span>
+                          <span className="f1-constructor-pts-label">PTS</span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* ── Last Race Results ── */}
+                {f1Data?.lastRaceResults?.length > 0 && (
+                  <>
+                    <div className="section-divider">Last Race: {f1Data.lastRaceName||"Results"}</div>
+                    <div className="f1-grid-card">
+                      {f1Data.lastRaceResults.slice(0,10).map((r,i) => (
+                        <div key={r.driver_number||i} className="f1-result-row">
+                          <div className="f1-result-pos" style={{color:r.dnf?"var(--red)":r.position===1?"var(--gold)":"var(--muted)"}}>{r.dnf?"DNF":`P${r.position}`}</div>
+                          <div style={{width:3,height:28,borderRadius:2,background:`#${r.team_colour||'555'}`,flexShrink:0}}/>
+                          <div className="f1-result-info">
+                            <div className="f1-result-name">{r.full_name}</div>
+                            <div className="f1-result-team">{r.team_name}{r.has_fastest_lap?" · ⚡ Fastest Lap":""}</div>
+                          </div>
+                          {r.avg_pit_s!=null&&<div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)",textAlign:"right"}}>{r.pit_count} stop{r.pit_count!==1?"s":""}<br/>{r.avg_pit_s}s avg</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* ── Race Calendar ── */}
                 {f1Data?.schedule?.races?.length > 0 && (
                   <>
                     <div className="section-divider">Race Calendar</div>
@@ -1077,7 +1250,7 @@ export default function App() {
                       const d = race.date_start ? new Date(race.date_start) : null;
                       const dateStr = d ? d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
                       return (
-                        <div key={race.meeting_key} className={`f1-race-card${race.is_next?" next-race":""}`}>
+                        <div key={race.meeting_key} className={`f1-race-card${race.is_next?" next-race":""}`} onClick={()=>race.is_next&&submitF1(`What are the best betting angles for the ${race.meeting_name}?`)}>
                           <div className="f1-race-top">
                             <div className="f1-race-name">{race.meeting_name}</div>
                             <div>{race.is_next && <span className="f1-race-badge">NEXT</span>}</div>
