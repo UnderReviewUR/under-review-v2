@@ -114,7 +114,9 @@ async function fetchPlayerStats() {
   } catch (err) {
     console.error("ESPN players fetch error:", err.message);
     // Return empty structure so the app degrades gracefully
-    return { players: {}, season: `${seasonYear - 1}-${String(seasonYear).slice(2)}`, seasonType: seasonType === 3 ? "Playoffs" : "Regular Season", fetchedAt: new Date().toISOString() };
+    const fallbackYear = getCurrentSeasonYear();
+    const fallbackType = getCurrentSeasonType();
+    return { players: {}, season: `${fallbackYear - 1}-${String(fallbackYear).slice(2)}`, seasonType: fallbackType === 3 ? "Playoffs" : "Regular Season", fetchedAt: new Date().toISOString() };
   }
 }
 

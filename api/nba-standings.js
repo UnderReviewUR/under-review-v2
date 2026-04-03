@@ -77,8 +77,8 @@ async function fetchStandings() {
     return result;
   } catch (err) {
     console.error("ESPN standings fetch error:", err.message);
-    const seasonYear2 = getCurrentSeasonYear();
-    return { standings: [], season: `${seasonYear2 - 1}-${String(seasonYear2).slice(2)}`, fetchedAt: new Date().toISOString() };
+    const fallbackYear = getCurrentSeasonYear();
+    return { standings: [], season: `${fallbackYear - 1}-${String(fallbackYear).slice(2)}`, fetchedAt: new Date().toISOString() };
   }
 }
 
