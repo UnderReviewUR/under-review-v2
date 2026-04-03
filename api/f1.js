@@ -63,13 +63,13 @@ function buildSchedule(meetings) {
   );
 
   let nextMeetingKey = null;
-  const current = list.find((m) => {
+  const currentRace = list.find((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
   });
-  if (current) {
-    nextMeetingKey = current.meeting_key;
+  if (currentRace) {
+    nextMeetingKey = currentRace.meeting_key;
   } else {
     const future = list.find((m) => new Date(m.date_start) > now);
     nextMeetingKey = future ? future.meeting_key : null;
