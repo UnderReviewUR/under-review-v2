@@ -1,3 +1,5 @@
+import { applyCors } from "./_cors.js";
+
 export const config = {
   api: { bodyParser: { sizeLimit: "10mb" } },
 };
@@ -53,20 +55,22 @@ function detectSport(question, sportHint, matchupContext = null) {
   const explicitF1 = ["formula 1","formula one","f1 ","f1,","grand prix","verstappen","norris","leclerc","hamilton","piastri","russell","antonelli","ferrari","mclaren","red bull racing","mercedes","aston martin","alpine","williams","haas","racing bulls","cadillac","audi f1","pit stop","drs","pole position","qualifying","free practice","sprint race"];
   for (const kw of explicitF1) {
     if (q.includes(kw)) return "f1";
-    const explicitNba = [
-  "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
-  "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks",
-  "grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs",
-  "raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
-  "jokic","sga","gilgeous-alexander","doncic","tatum","giannis","edwards","wembanyama",
-  "towns","haliburton","mitchell","adebayo","lebron","curry","durant","booker",
-  "morant","zion","siakam","fox","garland","cunningham","banchero","brunson",
-  "points prop","rebounds prop","assists prop","pra prop","double double",
-  "nba props","basketball props","nba future","nba bet",
-];
-for (const kw of explicitNba) {
-  if (q.includes(kw)) return "nba";
-}
+  }
+
+  const explicitNba = [
+    "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
+    "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks",
+    "grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs",
+    "raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
+    "jokic","sga","gilgeous-alexander","doncic","tatum","giannis","edwards","wembanyama",
+    "towns","haliburton","mitchell","adebayo","lebron","curry","durant","booker",
+    "morant","zion","siakam","fox","garland","cunningham","banchero","brunson",
+    "points prop","rebounds prop","assists prop","pra prop","double double",
+    "nba props","basketball props","nba future","nba bet",
+  ];
+  for (const kw of explicitNba) {
+    if (q.includes(kw)) return "nba";
+  }
 
   // 3. Signal scoring for everything else
   //    IMPORTANT: no single-letter or two-letter tokens (rb, wr, te) — they cause
@@ -200,8 +204,6 @@ function responseLooksWrongForSport(text, sport) {
   }
   return false;
 }
-
-import { applyCors } from "./_cors.js";
 
 // ── Rate limiting (per-IP, in-memory — resets on cold start) ─────────────────
 const rateLimitMap = new Map();
