@@ -465,6 +465,14 @@ BETTING ANGLE REMINDERS
 - Fade stars in back-to-back second legs for blowout-prone teams
 - Game total is the pace proxy — use it to scale assists and 3-pointers props`;
   } else if (isF1) {
+    const f1Ctx = f1Context || {};
+    const standingsStr = typeof f1Ctx === "string" ? f1Ctx : (f1Ctx.standings || "");
+    const constructorsStr = f1Ctx.constructors || "";
+    const upcomingRacesStr = f1Ctx.upcomingRaces || "";
+    const sessionStr = f1Ctx.sessionStr || "";
+    const circuitStr = f1Ctx.circuitStr || "";
+    const lastRaceStr = f1Ctx.lastRaceStr || "";
+
     systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
 You cover NFL, NBA, tennis, and Formula 1. You answer whatever is asked.
 
@@ -479,30 +487,39 @@ The 2026 F1 season uses new regulations. Key betting markets:
 - Qualifying position props
 - Points finish props
 
-2026 DRIVER STANDINGS (after 3 races):
-#1 Kimi Antonelli (Mercedes) — 72 pts — Rookie sensation leading the championship
-#2 George Russell (Mercedes) — 63 pts — Mercedes 1-2 in constructors
-#3 Charles Leclerc (Ferrari) — 49 pts — Ferrari competitive but behind Mercedes
-#4 Lewis Hamilton (Ferrari) — 41 pts — Adapting to Ferrari
-#5 Lando Norris (McLaren) — 25 pts — McLaren struggling with new regs
-#6 Oscar Piastri (McLaren) — 21 pts — McLaren's pace inconsistent
-#7 Oliver Bearman (Haas) — 17 pts — Impressive rookie season
-#8 Pierre Gasly (Alpine) — 15 pts — Alpine resurgence
-#9 Max Verstappen (Red Bull) — 12 pts — Red Bull fallen from dominance
-#10 Liam Lawson (Racing Bulls) — 10 pts
-
 KEY NARRATIVES:
 - Mercedes dominance with new 2026 regs — Antonelli is the real deal
 - Red Bull/Verstappen regression from 2023-2024 dominance
 - Hamilton's move to Ferrari — still adapting
 - New teams: Cadillac (formerly Andretti), Audi (formerly Sauber)
 
-CIRCUIT TYPES FOR BETTING:
+${standingsStr ? `LIVE DRIVER STANDINGS (with recent form):\n${standingsStr}` : ""}
+
+${constructorsStr ? `CONSTRUCTOR STANDINGS:\n${constructorsStr}` : ""}
+
+${lastRaceStr ? `${lastRaceStr}` : ""}
+
+${upcomingRacesStr ? `UPCOMING RACES:\n${upcomingRacesStr}` : ""}
+
+${sessionStr}
+
+${circuitStr ? `\n${circuitStr}` : `CIRCUIT TYPE BETTING GUIDE:
 - Street circuits: favor driver skill, safety cars likely, more variance
 - Power circuits: favor top engines (Mercedes in 2026)
 - High downforce: technical advantage matters more
+- Traditional: best overall car package wins`}
 
-${f1Context || "No additional F1 context provided."}`;
+DRIVER FORM GUIDE:
+- Form badges: W = win, P2/P3 = podium, Pn = finish position, DNF = did not finish
+- DNF rate matters for reliability bets — check each driver's recent DNF count
+- Avg finish position is the best race pace proxy across different circuit types
+
+PROP MARKET GUIDE:
+- Race winner: check form + circuit type suitability + qualifying advantage
+- Podium finish: higher probability plays — useful for value bets on drivers P4-P8 in standings
+- Qualifying H2H: check teammate pace differential and circuit preference
+- Fastest lap: often set by the leader on fresh tires — check who has fastest pit timing
+- Points finish: safest prop — check reliability and historical mid-field pace`;
   } else {
     // ── Tennis system prompt ─────────────────────────────────────────────────
     const tournamentCtx = (() => {
