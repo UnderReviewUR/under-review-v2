@@ -57,31 +57,30 @@ function mergeDriversAndStandings(drivers, championship) {
 function buildSchedule(meetings) {
   const now  = new Date();
   const list = Array.isArray(meetings) ? [...meetings] : [];
-  list.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
+  list.sort(
+    (a, b) =>
+      new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
+  );
 
   let nextMeetingKey = null;
-
-  // Use 'activeRace' instead of 'current' to avoid duplicate declaration
-  const activeRace = list.find((m) => {
+  const activeNow = list.find((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
   });
-
-  if (activeRace) {
-    nextMeetingKey = activeRace.meeting_key;
+  if (activeNow) {
+    nextMeetingKey = activeNow.meeting_key;
   } else {
     const future = list.find((m) => new Date(m.date_start) > now);
     nextMeetingKey = future ? future.meeting_key : null;
   }
 
-  const races = list.map((m) => ({ ...m, is_next: m.meeting_key === nextMeetingKey }));
-
+  const races = list.map((m) => ({
+    ...m,
+    is_next: m.meeting_key === nextMeetingKey,
+  }));
   const past = races.filter((m) => new Date(m.date_end) < now);
-
   const upcoming = races.filter((m) => new Date(m.date_start) > now);
-
-  // Use 'inProgress' instead of 'current' to avoid duplicate declaration
   const inProgress = races.filter((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
@@ -92,7 +91,7 @@ function buildSchedule(meetings) {
     races,
     upcoming,
     past,
-    current: inProgress,          // keep the return key as 'current' so App.jsx is unchanged
+    current: inProgress,
     next_meeting_key: nextMeetingKey,
   };
 }
