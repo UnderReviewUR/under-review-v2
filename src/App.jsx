@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import AskBar from "./components/AskBar";
-import { NBA_PLAYERS } from "./data/nba/players.js";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -450,6 +449,7 @@ export default function App() {
   const [f1Loading, setF1Loading]       = useState(false);
   const [nbaData, setNbaData]           = useState(null);
   const [nbaLoading, setNbaLoading]     = useState(false);
+  const [nbaPlayers, setNbaPlayers]     = useState(null);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef      = useRef(null);
@@ -563,6 +563,16 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
+  // ── NBA players fetch (ESPN API — current season player profiles) ──────────
+  useEffect(() => {
+    let active=true;
+    fetch("/api/nba-players")
+      .then(r=>r.json())
+      .then(d=>{ if(active) setNbaPlayers(d); })
+      .catch(()=>{});
+    return () => { active=false; };
+  }, []);
+
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
     if (!file||!file.type.startsWith("image/")) return;
@@ -606,10 +616,10 @@ export default function App() {
     return {
       todaysGames: nbaData.games || [],
       seasonStats: nbaData.playerStats || [],
-      playerDb: NBA_PLAYERS,
+      playerDb: nbaPlayers?.players || {},
       liveStats: (nbaData.playerStats || []).slice(0, 20),
     };
-  }, [nbaData]);
+  }, [nbaData, nbaPlayers]);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -727,10 +737,10 @@ export default function App() {
     } else if (nextGame) {
       cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${nextGame.awayTeam.tricode} vs ${nextGame.homeTeam.tricode}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
     } else {
-      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:"NBA Props — 2024-25",time:"Active",network:"Player Props",blurb:"80-player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
+      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:`NBA Props — ${nbaPlayers?.season || "2025-26"}`,time:"Active",network:"Player Props",blurb:"Live player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
     }
     return cards.slice(0,1);
-  }, [nbaData]);
+  }, [nbaData, nbaPlayers]);
 
   const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards]);
 
@@ -1101,7 +1111,7 @@ export default function App() {
         {screen==="nba"&&(
           <main className="screen">
             <div className="nba-banner">
-              <div className="banner-title">NBA — 2024-25</div>
+              <div className="banner-title">NBA — {nbaPlayers?.season || "2025-26"} {nbaPlayers?.seasonType ? `· ${nbaPlayers.seasonType}` : "· Playoffs"}</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
                 {nbaData?.games?.length
@@ -1159,7 +1169,7 @@ export default function App() {
                   </div>
                 )) : (
                   // Fallback: show curated profiles when live stats unavailable
-                  Object.entries(NBA_PLAYERS).filter(([,p])=>p.tier==="ELITE"||p.tier==="STAR").slice(0,15).map(([name,p],i) => (
+                  Object.entries(nbaPlayers?.players || {}).filter(([,p])=>p.tier==="ELITE"||p.tier==="STAR").slice(0,15).map(([name,p],i) => (
                     <div key={name} className="nba-player-card" onClick={()=>submitNba(`Best prop angle for ${name} tonight? Give me the PRA line, floor, ceiling, and lean.`)}>
                       <div className="nba-player-rank">#{i+1}</div>
                       <div className="nba-player-info">

@@ -34,7 +34,7 @@ function detectSport(question, sportHint, matchupContext = null) {
   const q = String(question || "").toLowerCase();
 
   // 1. Explicit hint from the UI tab always wins
-  if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1") return sportHint;
+  if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1" || sportHint === "nba") return sportHint;
 
   // 2. Matchup context league (when user is in a matchup detail screen)
   const mcLeague = String(matchupContext?.league || "").toLowerCase();
@@ -50,25 +50,27 @@ function detectSport(question, sportHint, matchupContext = null) {
 
   if (q.includes("nfl")) return "nfl";
 
+  const explicitNba = [
+    "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
+    "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks",
+    "grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs",
+    "raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
+    "jokic","sga","gilgeous-alexander","doncic","tatum","giannis","edwards","wembanyama",
+    "towns","haliburton","mitchell","adebayo","lebron","curry","durant","booker",
+    "morant","zion","siakam","fox","garland","cunningham","banchero","brunson",
+    "points prop","rebounds prop","assists prop","pra prop","double double",
+    "nba props","basketball props","nba future","nba bet",
+  ];
+  for (const kw of explicitNba) {
+    if (q.includes(kw)) return "nba";
+  }
+
   const explicitF1 = ["formula 1","formula one","f1 ","f1,","grand prix","verstappen","norris","leclerc","hamilton","piastri","russell","antonelli","ferrari","mclaren","red bull racing","mercedes","aston martin","alpine","williams","haas","racing bulls","cadillac","audi f1","pit stop","drs","pole position","qualifying","free practice","sprint race"];
   for (const kw of explicitF1) {
     if (q.includes(kw)) return "f1";
-    const explicitNba = [
-  "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
-  "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks",
-  "grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs",
-  "raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
-  "jokic","sga","gilgeous-alexander","doncic","tatum","giannis","edwards","wembanyama",
-  "towns","haliburton","mitchell","adebayo","lebron","curry","durant","booker",
-  "morant","zion","siakam","fox","garland","cunningham","banchero","brunson",
-  "points prop","rebounds prop","assists prop","pra prop","double double",
-  "nba props","basketball props","nba future","nba bet",
-];
-for (const kw of explicitNba) {
-  if (q.includes(kw)) return "nba";
-}
+  }
 
-  // 3. Signal scoring for everything else
+  // 4. Signal scoring for everything else
   //    IMPORTANT: no single-letter or two-letter tokens (rb, wr, te) — they cause
   //    false positives inside tennis words like "te" inside "tennis"
   const nflSignals = [

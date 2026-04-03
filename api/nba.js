@@ -8,6 +8,24 @@ import { applyCors } from "./_cors.js";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map();
 
+// Auto-detect the current NBA season string (e.g. "2025-26")
+function getCurrentSeason() {
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-based
+  const year = now.getFullYear();
+  if (month >= 10) return `${year}-${String(year + 1).slice(2)}`;
+  return `${year - 1}-${String(year).slice(2)}`;
+}
+
+// Auto-detect the current NBA season type
+// Oct–Mar → Regular Season | Apr–Jun → Playoffs | Jul–Sep → Pre Season
+function getCurrentSeasonType() {
+  const month = new Date().getMonth() + 1;
+  if (month >= 4 && month <= 6) return "Playoffs";
+  if (month >= 10 || month <= 3) return "Regular Season";
+  return "Pre Season";
+}
+
 function getCached(key) {
   const entry = cache.get(key);
   if (!entry || Date.now() > entry.expires) return null;
@@ -87,9 +105,9 @@ async function getPlayerStats() {
       Period: "0",
       PlusMinus: "N",
       Rank: "N",
-      Season: "2024-25",
+      Season: getCurrentSeason(),
       SeasonSegment: "",
-      SeasonType: "Regular Season",
+      SeasonType: getCurrentSeasonType(),
       TeamID: "0",
     });
     const data = await fetchNba(url);
@@ -135,8 +153,8 @@ async function getRecentGameLogs() {
       Direction: "DESC",
       LeagueID: "00",
       PlayerOrTeam: "P",
-      Season: "2024-25",
-      SeasonType: "Regular Season",
+      Season: getCurrentSeason(),
+      SeasonType: getCurrentSeasonType(),
       Sorter: "DATE",
     });
     const data = await fetchNba(url);
