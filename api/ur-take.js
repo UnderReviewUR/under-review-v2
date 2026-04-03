@@ -34,7 +34,7 @@ function detectSport(question, sportHint, matchupContext = null) {
   const q = String(question || "").toLowerCase();
 
   // 1. Explicit hint from the UI tab always wins
-  if (sportHint === "nfl" || sportHint === "tennis") return sportHint;
+  if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1" || sportHint === "nba") return sportHint;
 
   // 2. Matchup context league (when user is in a matchup detail screen)
   const mcLeague = String(matchupContext?.league || "").toLowerCase();
@@ -179,11 +179,13 @@ export default async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
 
-  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, sportHint } = req.body;
+  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, f1Context, nbaContext, sportHint } = req.body;
   if (!question) return res.status(400).json({ error: "Missing question" });
 
   const sport = detectSport(question, sportHint, matchupContext);
-  const isNFL = sport === "nfl";
+  const isNFL    = sport === "nfl";
+  const isF1     = sport === "f1";
+  const isNBA    = sport === "nba";
 
   function buildOddsContext(odds) {
     if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
@@ -221,7 +223,75 @@ export default async function handler(req, res) {
 
   let systemPrompt;
 
-  if (isNFL) {
+  if (isF1) {
+    // ── F1 system prompt ──────────────────────────────────────────────────
+    const f1Ctx = f1Context || {};
+    const standingsStr  = f1Ctx.standings  || "Standings not available.";
+    const upcomingStr   = f1Ctx.upcomingRaces || "Schedule not available.";
+    const sessionStr    = f1Ctx.sessionStr  || "";
+    const nextRace      = f1Ctx.nextRace;
+    const nextRaceStr   = nextRace
+      ? `NEXT RACE: ${nextRace.meeting_name || ""} at ${nextRace.location || ""} (${nextRace.date_start ? new Date(nextRace.date_start).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "TBD"})`
+      : "Next race: TBD";
+
+    systemPrompt = \`You are Under Review — a sharp sports betting intelligence tool covering F1.
+
+IDENTITY: You cover F1 here. Lead with the take. Be sharp, specific, confident. No markdown headers. No prefix.
+
+F1 BETTING CONTEXT
+Constructor/driver bet types: Race winner, podium finish, fastest lap, head-to-head matchups, championship outrights, grid position.
+Key edges: qualifying pace vs race pace, circuit characteristics, tyre strategy, weather impact, team orders, crash rates.
+
+CURRENT STANDINGS
+\${standingsStr}
+
+\${nextRaceStr}
+
+UPCOMING RACES
+\${upcomingStr}
+
+\${sessionStr ? \`SESSION DATA\n\${sessionStr}\` : ""}
+
+\${matchupCtxStr ? \`MATCHUP CONTEXT\n\${matchupCtxStr}\` : ""}
+No live lines — directional leans only.\`;
+
+  } else if (isNBA) {
+    // ── NBA system prompt ─────────────────────────────────────────────────
+    const nbaCtx     = nbaContext || {};
+    const gamesStr   = Array.isArray(nbaCtx.todaysGames) && nbaCtx.todaysGames.length
+      ? nbaCtx.todaysGames.map(g => \`\${g.awayTeam?.tricode} vs \${g.homeTeam?.tricode} — \${g.statusCode === 2 ? \`LIVE Q\${g.period} \${g.awayTeam?.score}-\${g.homeTeam?.score}\` : g.status || "Tonight"}\`).join("\n")
+      : "No live games right now.";
+    const statsStr   = Array.isArray(nbaCtx.liveStats) && nbaCtx.liveStats.length
+      ? nbaCtx.liveStats.map(p => \`\${p.name} (\${p.team}): \${p.pts}pts \${p.reb}reb \${p.ast}ast in \${p.min}min\`).join("\n")
+      : "Live stats not loaded.";
+    const playerDbStr = nbaCtx.playerDb
+      ? Object.entries(nbaCtx.playerDb).slice(0, 30).map(([name, p]) =>
+          \`\${name} | \${p.team} | \${p.tier} | \${p.pts}pts \${p.reb}reb \${p.ast}ast | PRA avg: \${((p.pts||0)+(p.reb||0)+(p.ast||0)).toFixed(1)}\`
+        ).join("\n")
+      : "Player database not loaded.";
+
+    systemPrompt = \`You are Under Review — a sharp sports betting intelligence tool covering NBA props.
+
+IDENTITY: You cover NBA player props here. Lead with the take. Sharp, specific, confident. No markdown headers. No prefix.
+
+NBA BETTING FOCUS
+Primary markets: PRA (points+rebounds+assists), individual pts/reb/ast props, game totals, spread.
+Key edges: minutes, usage rate, matchup defense, pace, home/away splits, injury report, back-to-back.
+Format for prop questions: Player — OVER/UNDER line — floor/ceil — primary reason.
+
+TODAY'S GAMES
+\${gamesStr}
+
+LIVE PLAYER STATS (tonight)
+\${statsStr}
+
+PLAYER DATABASE
+\${playerDbStr}
+
+\${matchupCtxStr ? \`MATCHUP CONTEXT\n\${matchupCtxStr}\` : ""}
+No live lines unless provided — directional leans only.\`;
+
+  } else if (isNFL) {
     const relevantQBs = getRelevantQBs(question);
     const qbData      = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
     const skillData   = getRelevantSkillPlayers(question, nflContext);
