@@ -36,13 +36,13 @@ function mergeDriversAndStandings(drivers, championship) {
     byNumber.set(c.driver_number, {
       ...row,
       ...c,
-      position: c.position_current,
-      points: c.points_current,
+      position:       c.position_current,
+      points:         c.points_current,
       position_start: c.position_start,
-      points_start: c.points_start,
-      full_name: row.full_name,
-      team_name: row.team_name,
-      team_colour: row.team_colour,
+      points_start:   c.points_start,
+      full_name:      row.full_name,
+      team_name:      row.team_name,
+      team_colour:    row.team_colour,
     });
   }
   const merged = Array.from(byNumber.values());
@@ -55,34 +55,30 @@ function mergeDriversAndStandings(drivers, championship) {
 }
 
 function buildSchedule(meetings) {
-  const now = new Date();
+  const now  = new Date();
   const list = Array.isArray(meetings) ? [...meetings] : [];
-  list.sort(
-    (a, b) =>
-      new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
-  );
+  list.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
 
+  // Find next meeting key
   let nextMeetingKey = null;
-  const currentRace = list.find((m) => {
+  const raceCurrent = list.find((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
   });
-  if (currentRace) {
-    nextMeetingKey = currentRace.meeting_key;
+  if (raceCurrent) {
+    nextMeetingKey = raceCurrent.meeting_key;
   } else {
     const future = list.find((m) => new Date(m.date_start) > now);
     nextMeetingKey = future ? future.meeting_key : null;
   }
 
-  const races = list.map((m) => ({
-    ...m,
-    is_next: m.meeting_key === nextMeetingKey,
-  }));
-
-  const past = races.filter((m) => new Date(m.date_end) < now);
+  const races    = list.map((m) => ({ ...m, is_next: m.meeting_key === nextMeetingKey }));
+  const past     = races.filter((m) => new Date(m.date_end) < now);
   const upcoming = races.filter((m) => new Date(m.date_start) > now);
-  const current = races.filter((m) => {
+
+  // Renamed from 'current' to 'active' — avoids Node ESM duplicate identifier error
+  const active   = races.filter((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
@@ -92,7 +88,7 @@ function buildSchedule(meetings) {
     races,
     upcoming,
     past,
-    current,
+    current: active,        // keep the return key as 'current' so downstream code is unchanged
     next_meeting_key: nextMeetingKey,
   };
 }
@@ -126,18 +122,13 @@ async function getSessionData() {
     fetchJson("/sessions?session_key=latest"),
     fetchJson("/sessions?meeting_key=latest"),
   ]);
-  const session = Array.isArray(sessionLatest) ? sessionLatest[0] : sessionLatest;
+  const session  = Array.isArray(sessionLatest) ? sessionLatest[0] : sessionLatest;
   const sessions = Array.isArray(meetingSessions) ? meetingSessions : [];
   const sortedSessions = [...sessions].sort(
-    (a, b) =>
-      new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
+    (a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime()
   );
   const drivers = await fetchJson("/drivers?session_key=latest");
-  const data = {
-    session: session || null,
-    sessions: sortedSessions,
-    drivers,
-  };
+  const data = { session: session || null, sessions: sortedSessions, drivers };
   setCached("session", data);
   return data;
 }
@@ -177,28 +168,20 @@ export default async function handler(req, res) {
         getSessionData(),
       ]);
 
-      const { standings } = standingsFull;
+      const { standings }        = standingsFull;
       const { session, drivers } = sessionFull;
 
-      const body = {
-        schedule: scheduleFull,
-        standings,
-        session,
-        drivers,
-      };
+      const body = { schedule: scheduleFull, standings, session, drivers };
       setCached("board", body);
       return res.status(200).json(body);
     }
 
     return res.status(400).json({
-      error: "Invalid view",
+      error:   "Invalid view",
       allowed: ["board", "schedule", "standings", "session"],
     });
   } catch (err) {
     console.error("F1 OpenF1 proxy error:", err);
-    return res.status(500).json({
-      error: "Failed to fetch F1 data",
-      details: err.message,
-    });
+    return res.status(500).json({ error: "Failed to fetch F1 data", details: err.message });
   }
 }
