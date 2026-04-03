@@ -27,6 +27,15 @@ async function fetchJson(path) {
   return res.json();
 }
 
+/** Fetch JSON but return a fallback value instead of throwing on any error. */
+async function fetchJsonSafe(path, fallback = []) {
+  try {
+    return await fetchJson(path);
+  } catch {
+    return fallback;
+  }
+}
+
 function mergeDriversAndStandings(drivers, championship) {
   const byNumber = new Map();
   for (const d of drivers || []) {
@@ -83,7 +92,7 @@ function buildSchedule(meetings) {
 
   const past = races.filter((m) => new Date(m.date_end) < now);
   const upcoming = races.filter((m) => new Date(m.date_start) > now);
-  const current = races.filter((m) => {
+  const currentRaces = races.filter((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
     return s <= now && now <= e;
@@ -93,7 +102,7 @@ function buildSchedule(meetings) {
     races,
     upcoming,
     past,
-    current,
+    current: currentRaces,
     next_meeting_key: nextMeetingKey,
   };
 }
@@ -435,7 +444,7 @@ async function getLatestRaceResults() {
       getRacePositions(sessionKey),
       getSessionFastestLaps(sessionKey),
       getSessionPitStops(sessionKey),
-      fetchJson(`/drivers?session_key=${sessionKey}`),
+      fetchJsonSafe(`/drivers?session_key=${sessionKey}`, []),
     ]);
 
     const driverInfo = new Map();
@@ -619,7 +628,17 @@ export default async function handler(req, res) {
       const cached = getCached("board");
       if (cached) return res.status(200).json(cached);
 
-      const [scheduleFull, standingsFull, sessionFull, constructorsFull, driverFormFull, raceResultsFull, nextCircuit] = await Promise.all([
+      // Use Promise.allSettled so individual OpenF1 failures don't crash the whole response.
+      // Core data (schedule, standings, session) are required; enhanced data gracefully degrades.
+      const [
+        scheduleResult,
+        standingsResult,
+        sessionResult,
+        constructorsResult,
+        driverFormResult,
+        raceResultsResult,
+        nextCircuitResult,
+      ] = await Promise.allSettled([
         getScheduleData(),
         getStandingsData(),
         getSessionData(),
@@ -629,11 +648,20 @@ export default async function handler(req, res) {
         getNextRaceCircuitData(),
       ]);
 
-      const { standings } = standingsFull;
-      const { session, drivers } = sessionFull;
-      const { constructors } = constructorsFull;
-      const { driverForm, pastRaces } = driverFormFull;
-      const { raceResults, raceName: lastRaceName } = raceResultsFull;
+      // Core data — throw if unavailable (caller gets a 500 for true failures)
+      if (scheduleResult.status === "rejected") throw scheduleResult.reason;
+      if (standingsResult.status === "rejected") throw standingsResult.reason;
+      if (sessionResult.status === "rejected") throw sessionResult.reason;
+
+      const scheduleFull = scheduleResult.value;
+      const { standings } = standingsResult.value;
+      const { session, drivers } = sessionResult.value;
+
+      // Enhanced data — fall back to empty values on failure
+      const { constructors = [] } = constructorsResult.status === "fulfilled" ? constructorsResult.value : {};
+      const { driverForm = [], pastRaces = [] } = driverFormResult.status === "fulfilled" ? driverFormResult.value : {};
+      const { raceResults = [], raceName: lastRaceName = null } = raceResultsResult.status === "fulfilled" ? raceResultsResult.value : {};
+      const nextCircuit = nextCircuitResult.status === "fulfilled" ? nextCircuitResult.value : null;
 
       // Merge form data into standings for easy UI consumption
       const formByDriverNumber = new Map();
