@@ -29,63 +29,28 @@ const NFL_QBS = {
 };
 
 // ── Sport detection ───────────────────────────────────────────────────────────
-// CRITICAL RULE: explicit sport keywords win IMMEDIATELY before any scoring
-function detectSport(question, sportHint, matchupContext = null) {
+function detectSport(question, sportHint, matchupContext) {
   const q = String(question || "").toLowerCase();
 
-  // 1. Explicit hint from the UI tab always wins
   if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1" || sportHint === "nba") return sportHint;
 
-  // 2. Matchup context league (when user is in a matchup detail screen)
   const mcLeague = String(matchupContext?.league || "").toLowerCase();
   if (mcLeague.includes("nfl")) return "nfl";
   if (mcLeague.includes("atp") || mcLeague.includes("wta") || mcLeague.includes("tennis")) return "tennis";
 
-  // 3. Hard explicit keyword checks — these settle it with no scoring needed
-  //    Order matters: check these BEFORE running the signal arrays
   const explicitTennis = ["tennis","atp ","wta ","atp tour","wta tour","roland garros","french open","wimbledon","us open","australian open","indian wells","miami open","madrid open","rome open","queen's club","halle open"];
-  for (const kw of explicitTennis) {
-    if (q.includes(kw)) return "tennis";
-  }
+  for (const kw of explicitTennis) { if (q.includes(kw)) return "tennis"; }
 
   if (q.includes("nfl")) return "nfl";
 
-  // 3. Signal scoring for everything else
-  //    IMPORTANT: no single-letter or two-letter tokens (rb, wr, te) — they cause
-  //    false positives inside tennis words like "te" inside "tennis"
-  const nflSignals = [
-    "quarterback","qb ","touchdown","touchdowns","interception","interceptions",
-    "passing yards","rushing yards","receiving yards","fantasy football","super bowl",
-    "afc ","nfc ","wide receiver","running back","tight end","red zone","scramble",
-    "blitz","pocket","play action","rpo ","offense","defense","defenses","defensive",
-    "offensive","secondary","cornerback","linebacker","safety net","pass rush",
-    "pass rusher","edge rusher","sacks","sack rate","pressure rate",
-    "draft pick","draft class","first round","win total","team total","season total",
-    "game script","receiver props","skill position","futures","divisional","playoff",
-    // Teams (long enough to be unambiguous)
-    "bills","patriots","dolphins","jets","ravens","bengals","browns","steelers",
-    "texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos",
-    "cowboys","giants","eagles","commanders","bears","lions","packers","vikings",
-    "falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks",
-    // Players — last names only, long enough to be unambiguous
-    "allen","mahomes","lamar","burrow","hurts","prescott","stroud","herbert",
-    "maye","love","darnold","stafford","purdy","goff","daniels","caleb","cam ward","bo nix",
-    "lawrence","dart","bryce young","mayfield","penix","jackson","shough","brissett",
-    "cook","henry","taylor","robinson","achane","nacua","chase","pickens","lamb",
-    "mcbride","bowers","kelce","warren","surtain","watt","bosa","parsons",
-    // Draft language
-    "draft","rookie","rookies","incoming","prospect","prospects","mock draft",
-  ];
+  const explicitF1 = ["formula 1","formula one","f1 ","f1,","grand prix","verstappen","norris","leclerc","hamilton","piastri","russell","antonelli","ferrari","mclaren","red bull racing","mercedes f1","aston martin f1","alpine f1","williams f1","haas f1","racing bulls","cadillac f1","audi f1","pit stop","drs","pole position","qualifying lap","free practice","sprint race f1"];
+  for (const kw of explicitF1) { if (q.includes(kw)) return "f1"; }
 
-  const tennisSignals = [
-    "alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton",
-    "fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova",
-    "osaka","keys","draper","fils","ruud","rublev","paolini","andreeva",
-    "kartal","zheng","mensik","bublik","tien","lehecka","cerundolo",
-    "surface elo","dominance ratio","hold percentage","tiebreak","double faults",
-    "ace rate","break point","grand slam","clay court","grass court","hard court",
-    "serve","draw path","match play","tour match",
-  ];
+  const explicitNba = ["nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat","thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks","grizzlies","pelicans","jazz","kings","blazers","rockets","spurs","raptors","magic","pacers","hawks","hornets","pistons","timberwolves","jokic","gilgeous-alexander","doncic","tatum","giannis","wembanyama","brunson","curry","durant","booker","morant","pra prop","points prop","rebounds prop","assists prop","nba props","game total nba"];
+  for (const kw of explicitNba) { if (q.includes(kw)) return "nba"; }
+
+  const nflSignals = ["quarterback","qb ","touchdown","touchdowns","interception","passing yards","rushing yards","receiving yards","fantasy football","super bowl","afc ","nfc ","wide receiver","running back","tight end","red zone","blitz","pocket","play action","offense","defense","defensive","offensive","cornerback","linebacker","pass rush","edge rusher","sacks","sack rate","pressure rate","draft pick","draft class","first round","win total","team total","season total","game script","receiver props","skill position","futures","divisional","playoff","bills","patriots","dolphins","jets","ravens","bengals","browns","steelers","texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos","cowboys","giants","eagles","commanders","bears","lions","packers","vikings","falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks","mahomes","lamar","burrow","hurts","prescott","stroud","stafford","purdy","goff","daniels","cook","henry","taylor","robinson","achane","nacua","chase","pickens","lamb","mcbride","bowers","kelce","warren","draft","rookie","rookies"];
+  const tennisSignals = ["alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova","osaka","keys","draper","fils","ruud","rublev","paolini","andreeva","kartal","zheng","mensik","bublik","tien","lehecka","cerundolo","surface elo","dominance ratio","hold percentage","tiebreak","double faults","ace rate","break point","grand slam","clay court","grass court","hard court","serve","draw path"];
 
   let nfl = 0, ten = 0;
   for (const s of nflSignals)    { if (q.includes(s)) nfl += s.length > 7 ? 3 : s.length > 4 ? 2 : 1; }
@@ -93,7 +58,7 @@ function detectSport(question, sportHint, matchupContext = null) {
 
   if (ten > nfl) return "tennis";
   if (nfl > ten) return "nfl";
-  return "nfl"; // true ambiguity defaults to NFL
+  return "nfl";
 }
 
 function getRelevantQBs(question) {
@@ -126,16 +91,14 @@ function getRelevantSkillPlayers(question, nflContext) {
 function summarizeMatchupContext(mc) {
   if (!mc) return null;
   const parts = [];
-  if (mc.title)       parts.push(`Title: ${mc.title}`);
-  if (mc.league)      parts.push(`League: ${mc.league}`);
-  if (mc.time)        parts.push(`Time: ${mc.time}`);
-  if (mc.whatMatters) parts.push(`What matters: ${mc.whatMatters}`);
-  if (Array.isArray(mc.quickHitters) && mc.quickHitters.length) parts.push(`Quick hitters: ${mc.quickHitters.join(" | ")}`);
+  if (mc.title)       parts.push("Title: " + mc.title);
+  if (mc.league)      parts.push("League: " + mc.league);
+  if (mc.time)        parts.push("Time: " + mc.time);
+  if (mc.whatMatters) parts.push("What matters: " + mc.whatMatters);
+  if (Array.isArray(mc.quickHitters) && mc.quickHitters.length) parts.push("Quick hitters: " + mc.quickHitters.join(" | "));
   return parts.join("\n");
 }
 
-
-// ── Response validation helpers ───────────────────────────────────────────────
 function cleanResponseText(text) {
   return String(text || "")
     .replace(/^i['']?m ur take.*$/gim, "")
@@ -168,6 +131,90 @@ function responseLooksWrongForSport(text, sport) {
   return false;
 }
 
+// ── F1 system prompt builder ──────────────────────────────────────────────────
+function buildF1SystemPrompt(f1Context, matchupCtxStr) {
+  const f1Ctx = f1Context || {};
+  const standingsStr = f1Ctx.standings || "Standings not available — answer from general 2026 F1 knowledge.";
+  const upcomingStr  = f1Ctx.upcomingRaces || "Schedule not available.";
+  const sessionStr   = f1Ctx.sessionStr || "";
+  const nextRace     = f1Ctx.nextRace;
+  const nextRaceStr  = nextRace
+    ? "NEXT RACE: " + (nextRace.meeting_name || "") + " at " + (nextRace.location || "") + " (" + (nextRace.date_start ? new Date(nextRace.date_start).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBD") + ")"
+    : "Next race: TBD";
+
+  return "You are Under Review — a sharp sports betting intelligence tool covering F1.\n\n" +
+    "IDENTITY: You cover F1 here. Lead with the take. Be sharp, specific, confident. No markdown headers. No prefix.\n\n" +
+    "F1 BETTING CONTEXT\n" +
+    "Constructor/driver bet types: Race winner, podium finish, fastest lap, head-to-head matchups, championship outrights, grid position.\n" +
+    "Key edges: qualifying pace vs race pace, circuit characteristics, tyre strategy, weather impact, team orders, crash rates.\n\n" +
+    "CIRCUIT TYPE BETTING GUIDE\n" +
+    "Street circuits (Monaco, Baku, Singapore, Las Vegas, Miami, Jeddah): High variance, safety cars likely, qualifying position critical, overtaking difficult.\n" +
+    "Power circuits (Monza, Spa, Silverstone): Power unit advantage decisive — favors Mercedes in 2026.\n" +
+    "High downforce / technical (Hungary, Singapore): Aero efficiency matters, favors technically refined packages.\n" +
+    "Mixed (Bahrain, Australia, Japan, Canada): Championship form is the strongest signal.\n\n" +
+    "2026 KEY NARRATIVES\n" +
+    "- New 2026 regulations reshaped the grid. Mercedes-powered cars have the strongest power unit.\n" +
+    "- Kimi Antonelli (Mercedes): Rookie leading the championship — extraordinary start.\n" +
+    "- George Russell: Consistent Mercedes P2, strong qualifier, proven race manager.\n" +
+    "- Charles Leclerc: Elite qualifier, Ferrari race pace strong but reliability is a factor.\n" +
+    "- Lewis Hamilton: Now at Ferrari after 12 years at Mercedes — adapting to a new car.\n" +
+    "- Lando Norris: 2025 world champion, but McLaren struggling with 2026 regulations.\n" +
+    "- Max Verstappen: Red Bull dominant 2023-2024, but their power unit is significantly off the pace in 2026.\n\n" +
+    "CURRENT STANDINGS\n" + standingsStr + "\n\n" +
+    nextRaceStr + "\n\n" +
+    "UPCOMING RACES\n" + upcomingStr + "\n\n" +
+    (sessionStr ? "SESSION DATA\n" + sessionStr + "\n\n" : "") +
+    (matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n" : "") +
+    "No live lines — directional leans only.";
+}
+
+// ── NBA system prompt builder ──────────────────────────────────────────────────
+function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
+  const nbaCtx = nbaContext || {};
+
+  const gamesStr = (Array.isArray(nbaCtx.todaysGames) && nbaCtx.todaysGames.length)
+    ? nbaCtx.todaysGames.map(function(g) {
+        const status = g.statusCode === 2
+          ? "LIVE Q" + g.period + " " + (g.awayTeam && g.awayTeam.score) + "-" + (g.homeTeam && g.homeTeam.score)
+          : (g.status || "Tonight");
+        return (g.awayTeam && g.awayTeam.tricode) + " vs " + (g.homeTeam && g.homeTeam.tricode) + " — " + status;
+      }).join("\n")
+    : "No live games right now.";
+
+  const statsStr = (Array.isArray(nbaCtx.liveStats) && nbaCtx.liveStats.length)
+    ? nbaCtx.liveStats.map(function(p) {
+        return p.name + " (" + p.team + "): " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast in " + p.min + "min";
+      }).join("\n")
+    : "Live stats not loaded.";
+
+  const playerDbStr = nbaCtx.playerDb
+    ? Object.entries(nbaCtx.playerDb).slice(0, 30).map(function(entry) {
+        const name = entry[0];
+        const p = entry[1];
+        const pra = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
+        return name + " | " + p.team + " | " + p.tier + " | " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast | PRA avg: " + pra;
+      }).join("\n")
+    : "Player database not loaded.";
+
+  return "You are Under Review — a sharp sports betting intelligence tool covering NBA props.\n\n" +
+    "IDENTITY: You cover NBA player props here. Lead with the take. Sharp, specific, confident. No markdown headers. No prefix.\n\n" +
+    "NBA BETTING FOCUS\n" +
+    "Primary markets: PRA (points+rebounds+assists), individual pts/reb/ast props, game totals, spread.\n" +
+    "Key edges: minutes, usage rate, matchup defense, pace, home/away splits, injury report, back-to-back.\n" +
+    "Format for prop questions: Player — OVER/UNDER line — floor/ceil — primary reason.\n\n" +
+    "KEY PROP PRINCIPLES\n" +
+    "- PRA (pts+reb+ast) is the safest multi-stat prop — variance is lower than individual stats\n" +
+    "- Injury replacement value is the most exploitable edge in NBA props\n" +
+    "- Back players whose teammates are out — usage spikes are predictable\n" +
+    "- Fade players in blowout-likely games — garbage time limits stats\n" +
+    "- Game total (pace) is the strongest contextual signal — more possessions = more stats\n\n" +
+    "TODAY'S GAMES\n" + gamesStr + "\n\n" +
+    "LIVE PLAYER STATS (tonight)\n" + statsStr + "\n\n" +
+    "PLAYER DATABASE\n" + playerDbStr + "\n\n" +
+    (matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n" : "") +
+    "No live lines unless provided — directional leans only.";
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -183,9 +230,9 @@ export default async function handler(req, res) {
   if (!question) return res.status(400).json({ error: "Missing question" });
 
   const sport = detectSport(question, sportHint, matchupContext);
-  const isNFL    = sport === "nfl";
-  const isF1     = sport === "f1";
-  const isNBA    = sport === "nba";
+  const isNFL = sport === "nfl";
+  const isF1  = sport === "f1";
+  const isNBA = sport === "nba";
 
   function buildOddsContext(odds) {
     if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
@@ -194,7 +241,7 @@ export default async function handler(req, res) {
       lines.push("LIVE MATCH ODDS:");
       for (const m of odds.matches) {
         if (m.homeOdds !== null && m.awayOdds !== null) {
-          lines.push(`  ${m.home} (${m.homeOdds > 0 ? "+" : ""}${m.homeOdds}) vs ${m.away} (${m.awayOdds > 0 ? "+" : ""}${m.awayOdds})`);
+          lines.push("  " + m.home + " (" + (m.homeOdds > 0 ? "+" : "") + m.homeOdds + ") vs " + m.away + " (" + (m.awayOdds > 0 ? "+" : "") + m.awayOdds + ")");
         }
       }
     }
@@ -211,8 +258,8 @@ export default async function handler(req, res) {
     }
     const lines = [];
     for (const [round, matches] of Object.entries(byRound)) {
-      lines.push(`${round}:`);
-      for (const m of matches) lines.push(`  ${m.winner} def. ${m.loser}${m.score ? ` (${m.score})` : ""}`);
+      lines.push(round + ":");
+      for (const m of matches) lines.push("  " + m.winner + " def. " + m.loser + (m.score ? " (" + m.score + ")" : ""));
     }
     return lines.join("\n");
   }
@@ -224,72 +271,10 @@ export default async function handler(req, res) {
   let systemPrompt;
 
   if (isF1) {
-    // ── F1 system prompt ──────────────────────────────────────────────────
-    const f1Ctx = f1Context || {};
-    const standingsStr  = f1Ctx.standings  || "Standings not available.";
-    const upcomingStr   = f1Ctx.upcomingRaces || "Schedule not available.";
-    const sessionStr    = f1Ctx.sessionStr  || "";
-    const nextRace      = f1Ctx.nextRace;
-    const nextRaceStr   = nextRace
-      ? `NEXT RACE: ${nextRace.meeting_name || ""} at ${nextRace.location || ""} (${nextRace.date_start ? new Date(nextRace.date_start).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "TBD"})`
-      : "Next race: TBD";
-
-    systemPrompt = \`You are Under Review — a sharp sports betting intelligence tool covering F1.
-
-IDENTITY: You cover F1 here. Lead with the take. Be sharp, specific, confident. No markdown headers. No prefix.
-
-F1 BETTING CONTEXT
-Constructor/driver bet types: Race winner, podium finish, fastest lap, head-to-head matchups, championship outrights, grid position.
-Key edges: qualifying pace vs race pace, circuit characteristics, tyre strategy, weather impact, team orders, crash rates.
-
-CURRENT STANDINGS
-\${standingsStr}
-
-\${nextRaceStr}
-
-UPCOMING RACES
-\${upcomingStr}
-
-\${sessionStr ? \`SESSION DATA\n\${sessionStr}\` : ""}
-
-\${matchupCtxStr ? \`MATCHUP CONTEXT\n\${matchupCtxStr}\` : ""}
-No live lines — directional leans only.\`;
+    systemPrompt = buildF1SystemPrompt(f1Context, matchupCtxStr);
 
   } else if (isNBA) {
-    // ── NBA system prompt ─────────────────────────────────────────────────
-    const nbaCtx     = nbaContext || {};
-    const gamesStr   = Array.isArray(nbaCtx.todaysGames) && nbaCtx.todaysGames.length
-      ? nbaCtx.todaysGames.map(g => \`\${g.awayTeam?.tricode} vs \${g.homeTeam?.tricode} — \${g.statusCode === 2 ? \`LIVE Q\${g.period} \${g.awayTeam?.score}-\${g.homeTeam?.score}\` : g.status || "Tonight"}\`).join("\n")
-      : "No live games right now.";
-    const statsStr   = Array.isArray(nbaCtx.liveStats) && nbaCtx.liveStats.length
-      ? nbaCtx.liveStats.map(p => \`\${p.name} (\${p.team}): \${p.pts}pts \${p.reb}reb \${p.ast}ast in \${p.min}min\`).join("\n")
-      : "Live stats not loaded.";
-    const playerDbStr = nbaCtx.playerDb
-      ? Object.entries(nbaCtx.playerDb).slice(0, 30).map(([name, p]) =>
-          \`\${name} | \${p.team} | \${p.tier} | \${p.pts}pts \${p.reb}reb \${p.ast}ast | PRA avg: \${((p.pts||0)+(p.reb||0)+(p.ast||0)).toFixed(1)}\`
-        ).join("\n")
-      : "Player database not loaded.";
-
-    systemPrompt = \`You are Under Review — a sharp sports betting intelligence tool covering NBA props.
-
-IDENTITY: You cover NBA player props here. Lead with the take. Sharp, specific, confident. No markdown headers. No prefix.
-
-NBA BETTING FOCUS
-Primary markets: PRA (points+rebounds+assists), individual pts/reb/ast props, game totals, spread.
-Key edges: minutes, usage rate, matchup defense, pace, home/away splits, injury report, back-to-back.
-Format for prop questions: Player — OVER/UNDER line — floor/ceil — primary reason.
-
-TODAY'S GAMES
-\${gamesStr}
-
-LIVE PLAYER STATS (tonight)
-\${statsStr}
-
-PLAYER DATABASE
-\${playerDbStr}
-
-\${matchupCtxStr ? \`MATCHUP CONTEXT\n\${matchupCtxStr}\` : ""}
-No live lines unless provided — directional leans only.\`;
+    systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
 
   } else if (isNFL) {
     const relevantQBs = getRelevantQBs(question);
@@ -352,8 +337,8 @@ ${skillData}
 QB DATABASE
 ${qbData}
 
-${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}\n` : ""}
-${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No live lines — directional leans only."}`;
+${matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr + "\n" : ""}
+${oddsCtx ? "LIVE BETTING LINES\n" + oddsCtx + "\nReference exact numbers." : "No live lines — directional leans only."}`;
 
   } else {
     // ── Tennis system prompt ─────────────────────────────────────────────────
@@ -361,13 +346,12 @@ ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No liv
       const t = context?.currentTournament;
       if (t) {
         return [
-          `ACTIVE: ${t.name} — ${t.surface}, ${t.speed} speed.`,
+          "ACTIVE: " + t.name + " — " + t.surface + ", " + t.speed + " speed.",
           t.context || "",
-          `ATP FAVORITE: ${t.atp_favorite || "TBD"}`,
-          `WTA FAVORITE: ${t.wta_favorite || "TBD"}`,
+          "ATP FAVORITE: " + (t.atp_favorite || "TBD"),
+          "WTA FAVORITE: " + (t.wta_favorite || "TBD"),
         ].join("\n");
       }
-      // No hardwired tournament name — let the model work from player data and signals
       return "Current tournament context not loaded. Answer from player database and surface Elo data.";
     })();
 
@@ -375,16 +359,16 @@ ${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}\nReference exact numbers.` : "No liv
       const all = context?.tournaments;
       if (!all) return "Full season schedule unavailable.";
       return Object.values(all).map(t =>
-        `${t.name} (${t.surface}, ${t.speed}) — Favorites: ATP ${t.atp_favorite || "TBD"} / WTA ${t.wta_favorite || "TBD"}`
+        t.name + " (" + t.surface + ", " + t.speed + ") — Favorites: ATP " + (t.atp_favorite || "TBD") + " / WTA " + (t.wta_favorite || "TBD")
       ).join("\n");
     })();
 
     const playerDataStr = players ? JSON.stringify(players, null, 0).slice(0, 16000) : "Player data unavailable";
     const liveMatchStr  = Array.isArray(liveMatches) && liveMatches.length
-      ? liveMatches.slice(0, 12).map(m => `${m.raw?.home || m.home_team} vs ${m.raw?.away || m.away_team} — ${m.raw?.round || "Current Tournament"} — ${String(m.raw?.live || m.live || "0") === "1" ? "LIVE" : m.raw?.status || "Scheduled"}`).join("\n")
+      ? liveMatches.slice(0, 12).map(m => (m.raw?.home || m.home_team) + " vs " + (m.raw?.away || m.away_team) + " — " + (m.raw?.round || "Current Tournament") + " — " + (String(m.raw?.live || m.live || "0") === "1" ? "LIVE" : m.raw?.status || "Scheduled")).join("\n")
       : "No live matches currently";
     const acePropsStr   = context?.ace_props
-      ? Object.entries(context.ace_props).map(([k, v]) => `${k}: hard avg ${v.avg_aces_hard}, clay avg ${v.avg_aces_clay || "n/a"}, grass avg ${v.avg_aces_grass || "n/a"}`).join("\n")
+      ? Object.entries(context.ace_props).map(([k, v]) => k + ": hard avg " + v.avg_aces_hard + ", clay avg " + (v.avg_aces_clay || "n/a") + ", grass avg " + (v.avg_aces_grass || "n/a")).join("\n")
       : "No ace baselines";
 
     systemPrompt = `You are Under Review — a sharp sports betting intelligence tool covering tennis and NFL.
@@ -427,9 +411,9 @@ ${playerDataStr}
 ACE PROP BASELINES
 ${acePropsStr}
 
-${oddsCtx ? `LIVE BETTING LINES\n${oddsCtx}` : "No live prop lines — directional leans only."}
-${drawPath ? `TOURNAMENT DRAW PATH\n${drawPath}` : ""}
-${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
+${oddsCtx ? "LIVE BETTING LINES\n" + oddsCtx : "No live prop lines — directional leans only."}
+${drawPath ? "TOURNAMENT DRAW PATH\n" + drawPath : ""}
+${matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr : ""}`;
   }
 
   // ── Build messages ────────────────────────────────────────────────────────
@@ -483,7 +467,6 @@ ${matchupCtxStr ? `MATCHUP CONTEXT\n${matchupCtxStr}` : ""}`;
       data?.content?.filter(i => i.type === "text")?.map(i => i.text)?.join("\n")?.trim() || ""
     );
 
-    // Correction loop: if response looks wrong for the classified sport, retry once
     if (text && responseLooksWrongForSport(text, sport)) {
       const correctionSystem = systemPrompt + "\n\nCORRECTION: Your previous response was off-topic. Answer ONLY as a " + sport.toUpperCase() + " analyst. Do not apologize. Do not mention another sport. Give a direct answer.";
       const correctionRes = await fetch("https://api.anthropic.com/v1/messages", {
