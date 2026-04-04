@@ -1159,35 +1159,26 @@ export default function App() {
                   </>
                 )}
 
-                <div className="section-divider">Top Prop Players</div>
-                {nbaTopPlayers.length > 0 ? nbaTopPlayers.map((p,i) => (
-                  <div key={p.playerId||i} className="nba-player-card" onClick={()=>submitNba(`Best prop angle for ${p.name} tonight? Give me the PRA line, floor, ceiling, and lean.`)}>
-                    <div className="nba-player-rank">#{i+1}</div>
-                    <div className="nba-player-info">
-                      <div className="nba-player-name">{p.name}</div>
-                      <div className="nba-player-meta">{p.team} · {p.min}min</div>
-                    </div>
-                    <div className="nba-player-stats">
-                      <span className="nba-pts">{p.pts}</span>
-                      <span className="nba-pts-label">{p.reb}r · {p.ast}a</span>
-                    </div>
-                  </div>
-                )) : (
-                  // Fallback: show curated profiles when live stats unavailable
-                  Object.entries(NBA_PLAYERS).filter(([,p])=>p.tier==="ELITE"||p.tier==="STAR").slice(0,15).map(([name,p],i) => (
-                    <div key={name} className="nba-player-card" onClick={()=>submitNba(`Best prop angle for ${name} tonight? Give me the PRA line, floor, ceiling, and lean.`)}>
-                      <div className="nba-player-rank">#{i+1}</div>
-                      <div className="nba-player-info">
-                        <div className="nba-player-name">{name}</div>
-                        <div className="nba-player-meta">{p.team} · {p.tier}</div>
-                      </div>
-                      <div className="nba-player-stats">
-                        <span className="nba-pts">{p.pts}</span>
-                        <span className="nba-pts-label">{p.reb}r · {p.ast}a</span>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <div className="section-divider">Quick Prop Angles</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+                  {[
+                    ["Best PRA bet tonight?", "Who has the highest floor PRA on tonight's slate? Give me floor, ceiling, and lean."],
+                    ["Best 3PM prop?", "Who should I bet OVER on 3-pointers made tonight? Give me the play with volume and efficiency context."],
+                    ["Injury replacement edge?", "Who has a usage spike tonight due to injury? Find the replacement play with the best prop value."],
+                    ["Best game total?", "Which game total on tonight's slate has the sharpest OVER or UNDER? Give me the pace matchup and lean."],
+                    ["Safest prop tonight?", "What is the single safest, highest-confidence NBA prop on tonight's slate? One play, full reasoning."],
+                    ["Best points prop?", "Who has the best points OVER tonight? Give me the matchup, defensive ranking they're facing, and lean."],
+                  ].map(([label, q]) => (
+                    <button key={label} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{label}</button>
+                  ))}
+                </div>
+
+                <div className="section-divider">Ask About Any Player</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+                  {["Jokic","SGA","Luka","Tatum","Giannis","Wembanyama","Brunson","Edwards","KAT","Curry","Haliburton","Mitchell","KD","Booker","Ja Morant"].map(name => (
+                    <button key={name} className="quick-btn" onClick={()=>submitNba(`Best prop angle for ${name} tonight? PRA line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
+                  ))}
+                </div>
               </>
             )}
             <div className="page-spacer"/>
