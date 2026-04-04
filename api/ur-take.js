@@ -268,19 +268,20 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
     }).join("\n");
   }
 
-  // ── Season averages from BallDontLie ─────────────────────────────────────
+  // ── Season averages from BallDontLie — flag injured players ──────────────
   let seasonAvgsStr = "Season averages not loaded.";
   if (Array.isArray(ctx.playerStats) && ctx.playerStats.length > 0) {
     seasonAvgsStr = ctx.playerStats.slice(0, 25).map(function(p) {
-      const pra = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
-      return p.name + " (" + p.team + "): " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast | PRA avg " + pra + " | " + p.gp + "gp";
+      const pra      = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
+      const isHurt   = injuredNames.has(p.name.toLowerCase());
+      const hurtFlag = isHurt ? " ⚠️ INJURED — DO NOT RECOMMEND" : "";
+      return p.name + " (" + p.team + "): " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast | PRA avg " + pra + " | " + p.gp + "gp" + hurtFlag;
     }).join("\n");
   }
 
   // ── Actual prop lines from Odds API ──────────────────────────────────────
   let propLinesStr = "No live prop lines available — use season averages and curated floors/ceilings for directional leans.";
   if (Array.isArray(ctx.propLines) && ctx.propLines.length > 0) {
-    // Group by player+prop for cleaner display
     const grouped = {};
     for (const line of ctx.propLines) {
       const k = line.player + "|" + line.prop;
@@ -296,24 +297,48 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
     }
   }
 
-  // ── Curated player database ───────────────────────────────────────────────
+  // ── Curated player database — injured players flagged and sorted last ─────
   let playerDbStr = "Curated database not loaded.";
   if (ctx.playerDb && Object.keys(ctx.playerDb).length > 0) {
-    // Smart filter: pull mentioned players to top
-    const q       = (ctx.question || "").toLowerCase();
-    const entries = Object.entries(ctx.playerDb);
-    const mentioned = entries.filter(function(e) { return q.includes(e[0].toLowerCase().split(" ")[1] || e[0].toLowerCase()); });
-    const rest      = entries.filter(function(e) { return !q.includes(e[0].toLowerCase().split(" ")[1] || e[0].toLowerCase()); });
-    const ordered   = mentioned.concat(rest).slice(0, 35);
+    const q        = (ctx.question || "").toLowerCase();
+    const entries  = Object.entries(ctx.playerDb);
+
+    // Mark each entry as injured or healthy
+    const withStatus = entries.map(function(e) {
+      const name    = e[0];
+      const isHurt  = injuredNames.has(name.toLowerCase());
+      // Also check last name match
+      const lastName = name.toLowerCase().split(" ").pop();
+      const hurtByLastName = Array.from(injuredNames).some(function(n) { return n.includes(lastName); });
+      return { name: name, p: e[1], isHurt: isHurt || hurtByLastName };
+    });
+
+    // Sort: mentioned first, then healthy, then injured
+    const mentioned = withStatus.filter(function(e) {
+      const ln = e.name.toLowerCase().split(" ").pop();
+      return q.includes(e.name.toLowerCase()) || q.includes(ln);
+    });
+    const healthyRest  = withStatus.filter(function(e) {
+      const ln = e.name.toLowerCase().split(" ").pop();
+      return !e.isHurt && !q.includes(e.name.toLowerCase()) && !q.includes(ln);
+    });
+    const injuredRest  = withStatus.filter(function(e) {
+      const ln = e.name.toLowerCase().split(" ").pop();
+      return e.isHurt && !q.includes(e.name.toLowerCase()) && !q.includes(ln);
+    });
+
+    const ordered = mentioned.concat(healthyRest).concat(injuredRest).slice(0, 35);
+
     playerDbStr = ordered.map(function(entry) {
-      const name = entry[0];
-      const p    = entry[1];
-      const pra  = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
-      const pFloor = (p.props && p.props.pra && p.props.pra.floor) || (p.props && p.props.pts && p.props.pts.floor) || "—";
-      const pCeil  = (p.props && p.props.pra && p.props.pra.ceil)  || (p.props && p.props.pts && p.props.pts.ceil)  || "—";
-      const lean   = (p.props && p.props.pra && p.props.pra.lean)  || (p.props && p.props.pts && p.props.pts.lean)  || "—";
-      const angles = (p.bettingAngles || []).slice(0, 2).join(" | ");
-      return name + " | " + p.team + " | " + p.tier + " | season avg " + p.pts + "pts/" + p.reb + "reb/" + p.ast + "ast | PRA avg " + pra + " | floor/ceil " + pFloor + "/" + pCeil + " | " + lean + (angles ? " | " + angles : "");
+      const name    = entry.name;
+      const p       = entry.p;
+      const pra     = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
+      const pFloor  = (p.props && p.props.pra && p.props.pra.floor) || (p.props && p.props.pts && p.props.pts.floor) || "—";
+      const pCeil   = (p.props && p.props.pra && p.props.pra.ceil)  || (p.props && p.props.pts && p.props.pts.ceil)  || "—";
+      const lean    = (p.props && p.props.pra && p.props.pra.lean)  || (p.props && p.props.pts && p.props.pts.lean)  || "—";
+      const angles  = (p.bettingAngles || []).slice(0, 2).join(" | ");
+      const hurtTag = entry.isHurt ? " | ⚠️ CURRENTLY INJURED — SKIP THIS PLAYER" : "";
+      return name + " | " + p.team + " | " + p.tier + " | " + p.pts + "pts/" + p.reb + "reb/" + p.ast + "ast | PRA avg " + pra + " | floor/ceil " + pFloor + "/" + pCeil + " | " + lean + (angles ? " | " + angles : "") + hurtTag;
     }).join("\n");
   }
 
