@@ -565,17 +565,49 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  // Fetch NBA games — polls every 60s for live updates
+  // Fetch NBA games directly from NBA's static schedule — no auth, no CORS
   useEffect(() => {
     let active = true;
     async function loadGames() {
       try {
-        const res = await fetch("/api/nba?view=games");
-        if (!res.ok) throw new Error(res.status);
+        // Try the NBA CDN live scoreboard first
+        const res = await fetch(
+          "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json"
+        );
+        if (!res.ok) throw new Error("CDN " + res.status);
         const data = await res.json();
-        if (active && Array.isArray(data) && data.length > 0) setNbaGames(data);
+        const gameDate = data?.scoreboard?.gameDate || "";
+        const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+
+        // Only use if data is fresh (within last 2 days)
+        const games = (data?.scoreboard?.games || []).map(g => ({
+          id: g.gameId,
+          status: g.gameStatusText,
+          state: g.gameStatus === 2 ? "in" : g.gameStatus === 3 ? "post" : "pre",
+          period: g.period,
+          homeTeam: { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
+          awayTeam: { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
+        }));
+
+        if (active && games.length > 0) {
+          setNbaGames(games);
+        } else if (active) {
+          // Fallback: try our own API
+          const apiRes = await fetch("/api/nba?view=games");
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            if (Array.isArray(apiData) && apiData.length > 0) setNbaGames(apiData);
+          }
+        }
       } catch(err) {
-        console.log("Games fetch failed:", err.message);
+        // Final fallback: our API
+        try {
+          const apiRes = await fetch("/api/nba?view=games");
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            if (active && Array.isArray(apiData) && apiData.length > 0) setNbaGames(apiData);
+          }
+        } catch { }
       }
     }
     loadGames();
