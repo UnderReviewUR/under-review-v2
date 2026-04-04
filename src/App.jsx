@@ -610,6 +610,7 @@ export default function App() {
       liveStats:       nbaData.liveStats     || [],
       playerStats:     nbaData.playerStats   || [],
       propLines:       nbaData.propLines     || [],
+      injuries:        nbaData.injuries      || [],
       playerDb:        NBA_PLAYERS,
       question:        questionText || "",
     };
