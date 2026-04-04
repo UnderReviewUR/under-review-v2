@@ -1,86 +1,307 @@
 // api/nba.js
-// Uses only the NBA CDN scoreboard endpoint (never blocked)
-// Player stats come from the curated database in src/data/nba/players.js
-// stats.nba.com blocks Vercel datacenter IPs — avoided entirely
+// BallDontLie API — real game data, live scores, season averages, recent logs
+// Odds API — actual NBA prop lines from DraftKings/FanDuel
+// 5-minute cache on all endpoints
 
 import { applyCors } from "./_cors.js";
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const cache = new Map();
+const BDL_BASE    = "https://api.balldontlie.io/nba/v1";
+const ODDS_BASE   = "https://api.the-odds-api.com/v4";
+const CACHE_TTL   = 5 * 60 * 1000;
+const cache       = new Map();
 
 function getCached(key) {
-  const entry = cache.get(key);
-  if (!entry || Date.now() > entry.expires) return null;
-  return entry.payload;
+  const e = cache.get(key);
+  if (!e || Date.now() > e.expires) return null;
+  return e.payload;
 }
-
 function setCached(key, payload) {
-  cache.set(key, { expires: Date.now() + CACHE_TTL_MS, payload });
+  cache.set(key, { expires: Date.now() + CACHE_TTL, payload });
 }
 
-async function getTodaysGames() {
-  const cached = getCached("scoreboard");
-  if (cached) return cached;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getNbaSeasonContext() {
+  const now   = new Date();
+  const month = now.getMonth() + 1;
+  const day   = now.getDate();
+
+  if (month === 10 || month === 11 || month === 12 || month === 1) {
+    return { phase: "Regular Season (early)", season: 2024, playoffs: false };
+  }
+  if (month === 2 || (month === 3 && day < 10)) {
+    return { phase: "Regular Season (mid) — All-Star break in mid-February", season: 2024, playoffs: false };
+  }
+  if ((month === 3 && day >= 10) || month === 4 && day < 20) {
+    return { phase: "Regular Season (final stretch) — Play-In Tournament approaching", season: 2024, playoffs: false };
+  }
+  if (month === 4 && day >= 20) {
+    return { phase: "NBA Playoffs — First Round", season: 2024, playoffs: true };
+  }
+  if (month === 5) {
+    return { phase: "NBA Playoffs — Conference Semifinals", season: 2024, playoffs: true };
+  }
+  if (month === 6) {
+    return { phase: "NBA Playoffs — Conference Finals or NBA Finals", season: 2024, playoffs: true };
+  }
+  return { phase: "NBA Offseason — No games scheduled", season: 2024, playoffs: false };
+}
+
+async function bdlFetch(path, apiKey) {
+  const res = await fetch(`${BDL_BASE}${path}`, {
+    headers: { "Authorization": apiKey },
+  });
+  if (!res.ok) throw new Error(`BDL ${res.status}: ${path}`);
+  return res.json();
+}
+
+// ── Today's games with scores ─────────────────────────────────────────────────
+async function getTodaysGames(apiKey) {
+  const key = "games_today";
+  if (getCached(key)) return getCached(key);
   try {
-    const res = await fetch(
-      "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json"
-    );
-    if (!res.ok) throw new Error(`CDN ${res.status}`);
-    const data = await res.json();
-    const games = (data?.scoreboard?.games || []).map(g => ({
-      gameId: g.gameId,
-      status: g.gameStatusText,
-      statusCode: g.gameStatus, // 1=scheduled, 2=live, 3=final
-      period: g.period,
-      gameClock: g.gameClock,
-      homeTeam: {
-        name: g.homeTeam?.teamName,
-        tricode: g.homeTeam?.teamTricode,
-        score: g.homeTeam?.score,
-        wins: g.homeTeam?.wins,
-        losses: g.homeTeam?.losses,
-      },
-      awayTeam: {
-        name: g.awayTeam?.teamName,
-        tricode: g.awayTeam?.teamTricode,
-        score: g.awayTeam?.score,
-        wins: g.awayTeam?.wins,
-        losses: g.awayTeam?.losses,
-      },
+    const today = new Date().toISOString().split("T")[0];
+    const data  = await bdlFetch(`/games?dates[]=${today}&per_page=15`, apiKey);
+    const games = (data.data || []).map(g => ({
+      id:         g.id,
+      date:       g.date,
+      status:     g.status,
+      period:     g.period,
+      time:       g.time,
+      postseason: g.postseason,
+      homeTeam:   { id: g.home_team.id, name: g.home_team.full_name, abbr: g.home_team.abbreviation, score: g.home_team_score },
+      awayTeam:   { id: g.visitor_team.id, name: g.visitor_team.full_name, abbr: g.visitor_team.abbreviation, score: g.visitor_team_score },
     }));
-    setCached("scoreboard", games);
+    setCached(key, games);
     return games;
   } catch (err) {
-    console.error("Scoreboard fetch error:", err.message);
+    console.error("BDL games error:", err.message);
     return [];
   }
 }
 
+// ── Last night's box scores ───────────────────────────────────────────────────
+async function getLastNightResults(apiKey) {
+  const key = "last_night";
+  if (getCached(key)) return getCached(key);
+  try {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const data = await bdlFetch(`/games?dates[]=${yesterday}&per_page=15`, apiKey);
+    const games = (data.data || []).filter(g => g.status === "Final").map(g => ({
+      id:       g.id,
+      homeTeam: { name: g.home_team.full_name, abbr: g.home_team.abbreviation, score: g.home_team_score },
+      awayTeam: { name: g.visitor_team.full_name, abbr: g.visitor_team.abbreviation, score: g.visitor_team_score },
+      winner:   g.home_team_score > g.visitor_team_score ? g.home_team.full_name : g.visitor_team.full_name,
+    }));
+    setCached(key, games);
+    return games;
+  } catch (err) {
+    console.error("BDL last night error:", err.message);
+    return [];
+  }
+}
+
+// ── Player stats for specific games (box scores) ──────────────────────────────
+async function getGameStats(gameIds, apiKey) {
+  if (!gameIds.length) return [];
+  const key = "gamestats_" + gameIds.join("_");
+  if (getCached(key)) return getCached(key);
+  try {
+    const params = gameIds.map(id => `game_ids[]=${id}`).join("&");
+    const data   = await bdlFetch(`/stats?${params}&per_page=100`, apiKey);
+    const stats  = (data.data || []).map(s => ({
+      player:  s.player.first_name + " " + s.player.last_name,
+      team:    s.team.abbreviation,
+      pts:     s.pts,
+      reb:     s.reb,
+      ast:     s.ast,
+      stl:     s.stl,
+      blk:     s.blk,
+      min:     s.min,
+      fgm:     s.fgm,
+      fga:     s.fga,
+      fg3m:    s.fg3m,
+    }));
+    stats.sort((a, b) => (b.pts || 0) - (a.pts || 0));
+    setCached(key, stats);
+    return stats;
+  } catch (err) {
+    console.error("BDL game stats error:", err.message);
+    return [];
+  }
+}
+
+// ── Season averages for top players ──────────────────────────────────────────
+// BDL player IDs for top 25 players (stable IDs)
+const TOP_PLAYER_IDS = [
+  246,  // Nikola Jokic
+  434,  // Shai Gilgeous-Alexander
+  140,  // Luka Doncic
+  237,  // Jayson Tatum
+  403,  // Giannis Antetokounmpo
+  473,  // Anthony Edwards
+  666,  // Victor Wembanyama
+  777,  // Karl-Anthony Towns
+  469,  // Tyrese Haliburton
+  394,  // Donovan Mitchell
+  115,  // Stephen Curry
+  144,  // Kevin Durant
+  101,  // Devin Booker
+  445,  // Jalen Brunson
+  488,  // Cade Cunningham
+  467,  // Paolo Banchero
+  462,  // Scottie Barnes
+  471,  // Franz Wagner
+  464,  // Alperen Sengun
+  282,  // Trae Young
+  233,  // Damian Lillard
+  32,   // LeBron James
+  9,    // Bam Adebayo
+  15,   // Jaylen Brown
+  91,   // Ja Morant
+];
+
+async function getSeasonAverages(apiKey) {
+  const key = "season_avgs";
+  if (getCached(key)) return getCached(key);
+  try {
+    const { season } = getNbaSeasonContext();
+    const ids = TOP_PLAYER_IDS.map(id => `player_ids[]=${id}`).join("&");
+    const data = await bdlFetch(`/season_averages?season=${season}&${ids}`, apiKey);
+    const avgs = (data.data || []).map(s => ({
+      playerId: s.player.id,
+      name:     s.player.first_name + " " + s.player.last_name,
+      team:     s.team ? s.team.abbreviation : "?",
+      pts:      s.pts,
+      reb:      s.reb,
+      ast:      s.ast,
+      stl:      s.stl,
+      blk:      s.blk,
+      min:      s.min,
+      fgPct:    s.fg_pct,
+      fg3Pct:   s.fg3_pct,
+      gp:       s.games_played,
+    }));
+    avgs.sort((a, b) => (b.pts || 0) - (a.pts || 0));
+    setCached(key, avgs);
+    return avgs;
+  } catch (err) {
+    console.error("BDL season averages error:", err.message);
+    return [];
+  }
+}
+
+// ── NBA prop lines from Odds API ──────────────────────────────────────────────
+async function getNbaPropLines(oddsApiKey) {
+  if (!oddsApiKey) return [];
+  const key = "nba_props";
+  if (getCached(key)) return getCached(key);
+  try {
+    // Get active NBA games first
+    const eventsRes = await fetch(
+      `${ODDS_BASE}/sports/basketball_nba/odds/?apiKey=${oddsApiKey}&regions=us&markets=h2h&oddsFormat=american`
+    );
+    if (!eventsRes.ok) return [];
+    const events = await eventsRes.json();
+    if (!Array.isArray(events) || !events.length) return [];
+
+    // Get player props for first 3 games (rate limit friendly)
+    const propMarkets = "player_points,player_rebounds,player_assists,player_points_rebounds_assists";
+    const propLines = [];
+
+    for (const event of events.slice(0, 3)) {
+      try {
+        const propRes = await fetch(
+          `${ODDS_BASE}/sports/basketball_nba/events/${event.id}/odds?apiKey=${oddsApiKey}&regions=us&markets=${propMarkets}&oddsFormat=american`
+        );
+        if (!propRes.ok) continue;
+        const propData = await propRes.json();
+        const bookmakers = propData.bookmakers || [];
+        const preferred = bookmakers.find(b => ["draftkings","fanduel","betmgm"].includes(b.key)) || bookmakers[0];
+        if (!preferred) continue;
+
+        for (const market of preferred.markets || []) {
+          for (const outcome of market.outcomes || []) {
+            propLines.push({
+              game:     `${event.away_team} @ ${event.home_team}`,
+              player:   outcome.description || outcome.name,
+              prop:     market.key.replace("player_","").replace(/_/g," "),
+              line:     outcome.point,
+              side:     outcome.name,
+              odds:     outcome.price,
+              book:     preferred.key,
+            });
+          }
+        }
+      } catch { continue; }
+    }
+
+    setCached(key, propLines);
+    return propLines;
+  } catch (err) {
+    console.error("NBA props error:", err.message);
+    return [];
+  }
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
+  const BDL_KEY  = process.env.BALLDONTLIE_API_KEY;
+  const ODDS_KEY = process.env.ODDS_API_KEY;
+
+  if (!BDL_KEY) return res.status(500).json({ error: "Missing BALLDONTLIE_API_KEY" });
+
   const view = String(req.query.view || "board").toLowerCase();
 
   try {
-    if (view === "scoreboard") {
-      return res.status(200).json(await getTodaysGames());
+    if (view === "games") {
+      return res.status(200).json(await getTodaysGames(BDL_KEY));
+    }
+
+    if (view === "averages") {
+      return res.status(200).json(await getSeasonAverages(BDL_KEY));
     }
 
     if (view === "board") {
-      const cached = getCached("board");
-      if (cached) return res.status(200).json(cached);
+      const boardCached = getCached("board");
+      if (boardCached) return res.status(200).json(boardCached);
 
-      const games = await getTodaysGames();
+      const seasonCtx = getNbaSeasonContext();
 
-      // playerStats is empty — player data comes from curated database in App.jsx
-      // This avoids stats.nba.com which blocks Vercel datacenter IPs
-      const board = { games, playerStats: [], gameLogs: {} };
+      const [todaysGames, lastNight, seasonAverages, propLines] = await Promise.all([
+        getTodaysGames(BDL_KEY),
+        getLastNightResults(BDL_KEY),
+        getSeasonAverages(BDL_KEY),
+        getNbaPropLines(ODDS_KEY),
+      ]);
+
+      // Get box scores for last night's games
+      const lastNightIds   = lastNight.map(g => g.id).filter(Boolean);
+      const lastNightStats = lastNightIds.length ? await getGameStats(lastNightIds, BDL_KEY) : [];
+
+      // Get live stats for today's in-progress games
+      const liveIds   = todaysGames.filter(g => g.status !== "Final" && !g.status.includes("ET")).map(g => g.id);
+      const liveStats = liveIds.length ? await getGameStats(liveIds, BDL_KEY) : [];
+
+      const board = {
+        seasonContext: seasonCtx,
+        todaysGames,
+        lastNight,
+        lastNightStats: lastNightStats.slice(0, 30),
+        liveStats:      liveStats.slice(0, 30),
+        playerStats:    seasonAverages,
+        propLines:      propLines.slice(0, 60),
+        fetchedAt:      new Date().toISOString(),
+      };
+
       setCached("board", board);
       return res.status(200).json(board);
     }
 
-    return res.status(400).json({ error: "Invalid view", allowed: ["board", "scoreboard"] });
+    return res.status(400).json({ error: "Invalid view", allowed: ["board", "games", "averages"] });
+
   } catch (err) {
     console.error("NBA API error:", err);
     return res.status(500).json({ error: "Failed to fetch NBA data", details: err.message });
