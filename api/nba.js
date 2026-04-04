@@ -59,7 +59,83 @@ async function getTodaysGames(apiKey) {
   const key = "games_today";
   if (getCached(key)) return getCached(key);
 
-  // Try BallDontLie first
+  // NBA Stats scoreboard with today's date — most reliable source
+  try {
+    const now = new Date();
+    // NBA uses Eastern Time for game dates
+    const etOffset = -5; // ET (use -4 for EDT)
+    const et = new Date(now.getTime() + (etOffset * 60 + now.getTimezoneOffset()) * 60000);
+    const mm = String(et.getMonth() + 1).padStart(2, "0");
+    const dd = String(et.getDate()).padStart(2, "0");
+    const yyyy = et.getFullYear();
+    const dateStr = mm + "%2F" + dd + "%2F" + yyyy; // e.g. 04%2F04%2F2026
+
+    const url = "https://stats.nba.com/stats/scoreboardv2?DayOffset=0&LeagueID=00&gameDate=" + dateStr;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://www.nba.com/",
+        "Origin": "https://www.nba.com",
+        "x-nba-stats-origin": "stats",
+        "x-nba-stats-token": "true",
+        "Accept": "application/json",
+      }
+    });
+    if (!res.ok) throw new Error("NBA Stats " + res.status);
+    const data = await res.json();
+
+    // Parse the GameHeader result set
+    const resultSets = data.resultSets || [];
+    const gameHeader = resultSets.find(r => r.name === "GameHeader");
+    const lineScore  = resultSets.find(r => r.name === "LineScore");
+
+    if (!gameHeader || !gameHeader.rowSet.length) {
+      setCached(key, []);
+      return [];
+    }
+
+    const gh = gameHeader.headers;
+    const ls = lineScore ? lineScore.headers : [];
+    const lsRows = lineScore ? lineScore.rowSet : [];
+
+    const getIdx = (headers, field) => headers.indexOf(field);
+
+    // Build score lookup by game_id + team
+    const scoreMap = {};
+    lsRows.forEach(row => {
+      const gameId = row[getIdx(ls, "GAME_ID")];
+      const teamAbbr = row[getIdx(ls, "TEAM_ABBREVIATION")];
+      const pts = row[getIdx(ls, "PTS")] || 0;
+      if (!scoreMap[gameId]) scoreMap[gameId] = {};
+      scoreMap[gameId][teamAbbr] = pts;
+    });
+
+    const games = gameHeader.rowSet.map(row => {
+      const gameId     = row[getIdx(gh, "GAME_ID")];
+      const status     = row[getIdx(gh, "GAME_STATUS_TEXT")];
+      const homeAbbr   = row[getIdx(gh, "HOME_TEAM_ABBREVIATION")] || "";
+      const awayAbbr   = row[getIdx(gh, "VISITOR_TEAM_ABBREVIATION")] || "";
+      const homeName   = row[getIdx(gh, "HOME_TEAM_CITY")] || homeAbbr;
+      const awayName   = row[getIdx(gh, "VISITOR_TEAM_CITY")] || awayAbbr;
+      const period     = row[getIdx(gh, "LIVE_PERIOD")] || 0;
+      const scores     = scoreMap[gameId] || {};
+
+      return {
+        id:       gameId,
+        status:   status,
+        period:   period,
+        homeTeam: { name: homeName, abbr: homeAbbr, score: scores[homeAbbr] || 0 },
+        awayTeam: { name: awayName, abbr: awayAbbr, score: scores[awayAbbr] || 0 },
+      };
+    });
+
+    setCached(key, games);
+    return games;
+  } catch (err) {
+    console.error("NBA Stats scoreboard error:", err.message);
+  }
+
+  // Final fallback: BallDontLie if key works
   try {
     const today = new Date().toISOString().split("T")[0];
     const data  = await bdlFetch(`/games?dates[]=${today}&per_page=15`, apiKey);
@@ -68,36 +144,13 @@ async function getTodaysGames(apiKey) {
       date:       g.date,
       status:     g.status,
       period:     g.period,
-      time:       g.time,
-      postseason: g.postseason,
-      homeTeam:   { id: g.home_team.id, name: g.home_team.full_name, abbr: g.home_team.abbreviation, score: g.home_team_score },
-      awayTeam:   { id: g.visitor_team.id, name: g.visitor_team.full_name, abbr: g.visitor_team.abbreviation, score: g.visitor_team_score },
+      homeTeam:   { name: g.home_team.full_name, abbr: g.home_team.abbreviation, score: g.home_team_score },
+      awayTeam:   { name: g.visitor_team.full_name, abbr: g.visitor_team.abbreviation, score: g.visitor_team_score },
     }));
     setCached(key, games);
     return games;
   } catch (err) {
-    console.error("BDL games error:", err.message, "— falling back to CDN");
-  }
-
-  // CDN fallback — no auth required, always works
-  try {
-    const res = await fetch("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json");
-    if (!res.ok) throw new Error("CDN " + res.status);
-    const data = await res.json();
-    const games = (data?.scoreboard?.games || []).map(g => ({
-      id:         g.gameId,
-      date:       g.gameEt?.split("T")[0] || new Date().toISOString().split("T")[0],
-      status:     g.gameStatusText,
-      period:     g.period,
-      time:       g.gameClock,
-      postseason: false,
-      homeTeam:   { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
-      awayTeam:   { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
-    }));
-    setCached(key, games);
-    return games;
-  } catch (err) {
-    console.error("CDN fallback error:", err.message);
+    console.error("BDL fallback error:", err.message);
     return [];
   }
 }
