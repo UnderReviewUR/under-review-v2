@@ -796,7 +796,7 @@ ${matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr : ""}`;
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: (isNBA || isNFL) ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-5",
         max_tokens: 1200,
         temperature: 0.45,
         system: systemPrompt,
