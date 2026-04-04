@@ -405,10 +405,12 @@ function ChatThread({ msgs }) {
   return (
     <div className="chat-thread" style={{marginBottom:20}}>
       {msgs.map((m,i) => (
-        <div key={i} className={`bubble ${m.role}${m.loading?" loading":""}`}>
-          {m.image && <img src={m.image} alt="" className="bubble-img" />}
-          {m.loading ? m.text : renderMessage(m.text)}
-        </div>
+        m.loading
+          ? <LoadingBubble key={i} sport={m.sport} />
+          : <div key={i} className={`bubble ${m.role}`}>
+              {m.image && <img src={m.image} alt="" className="bubble-img" />}
+              {renderMessage(m.text)}
+            </div>
       ))}
     </div>
   );
@@ -463,7 +465,41 @@ export default function App() {
   const nflPlayerInputRef = useRef(null);
   const fileInputRef      = useRef(null);
 
-  const nflSeasonMode = useMemo(() => isNflInSeason(), []);
+  const getLoadingText = useCallback((hint) => {
+    if (hint === "nba") return "🏀";
+    if (hint === "nfl") return "🏈";
+    if (hint === "f1")  return "🏎️";
+    if (hint === "tennis") return "🎾";
+    return "⚡";
+  }, []);
+
+  const LoadingBubble = memo(({ sport }) => {
+    const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : "⚡";
+    return (
+      <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:8,minHeight:44}}>
+        <style>{`
+          @keyframes bounce-ball {
+            0%,100%{transform:translateX(0) translateY(0);}
+            25%{transform:translateX(40px) translateY(-8px);}
+            50%{transform:translateX(80px) translateY(0);}
+            75%{transform:translateX(40px) translateY(-8px);}
+          }
+          @keyframes spin-car {
+            0%{transform:translateX(0);}
+            45%{transform:translateX(80px);}
+            50%{transform:translateX(80px) scaleX(-1);}
+            95%{transform:translateX(0) scaleX(-1);}
+            100%{transform:translateX(0);}
+          }
+          .sport-loader{display:inline-block;font-size:20px;}
+          .sport-loader.bounce{animation:bounce-ball 1s ease-in-out infinite;}
+          .sport-loader.spin{animation:spin-car 1.2s ease-in-out infinite;}
+        `}</style>
+        <span className={`sport-loader ${sport === "f1" ? "spin" : "bounce"}`}>{emoji}</span>
+        <span style={{fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:2,color:"var(--muted)"}}>ANALYZING...</span>
+      </div>
+    );
+  });
   const nflRampMode   = useMemo(() => isNflRampMode(), []);
 
   // ── Tennis fetch ───────────────────────────────────────────────────────────
@@ -692,7 +728,7 @@ export default function App() {
     if (!text||isAsking) return;
     setIsAsking(true);
     const imgToSend=pastedImage;
-    setMsgs(prev=>[...prev,{role:"user",text,image:imgToSend?.previewUrl||null},{role:"ai",text:"THINKING...",loading:true}]);
+    setMsgs(prev=>[...prev,{role:"user",text,image:imgToSend?.previewUrl||null},{role:"ai",text:"ANALYZING...",loading:true,sport:sportHint}]);
     clearImage();
     try {
       const body={
