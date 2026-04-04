@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import AskBar from "./components/AskBar";
-import { NBA_PLAYERS } from "./data/nba/players.js";
+import { NBA_PLAYERS } from "./components/data/nba/players.js";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
