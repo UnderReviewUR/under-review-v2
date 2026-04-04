@@ -552,7 +552,10 @@ export default function App() {
     async function loadNba() {
       setNbaLoading(true);
       try {
-        const res = await fetch("/api/nba?view=board");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch("/api/nba?view=board", { signal: controller.signal });
+        clearTimeout(timeout);
         const data = await res.json();
         if (active) setNbaData(data);
       } catch { if (active) setNbaData(null); }
@@ -578,14 +581,16 @@ export default function App() {
         const data = await res.json();
         const events = data?.events || [];
 
-        // ESPN returns the most recent game day — filter to today ET
+        // Get today's date in ET
         const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-        const todayStr = nowET.toISOString().split("T")[0];
+        const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
 
         const games = events
           .filter(e => {
-            const gDate = new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" });
-            return new Date(gDate).toISOString().split("T")[0] === todayStr;
+            // ESPN date is UTC — convert to ET date for comparison
+            const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
+            const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
+            return gStr === todayStr;
           })
           .map(e => {
             const comp = e.competitions?.[0];
