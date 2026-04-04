@@ -92,8 +92,11 @@ function detectSport(question, sportHint, matchupContext) {
   if (nba > nfl && nba > ten) return "nba";
   if (ten > nfl) return "tennis";
   if (nfl > ten) return "nfl";
-  // Default: if nothing matches and it sounds like prop/betting context, try NBA
-  if (q.includes("prop") || q.includes("over") || q.includes("under") || q.includes("bet") || q.includes("pick")) return "nba";
+  // Only default to NBA for prop/betting language if there are zero tennis or NFL signals
+  if (nfl === 0 && ten === 0) {
+    if (q.includes("prop") || q.includes("bet") || q.includes("pick") || q.includes("parlay")) return "nba";
+    // "over" and "under" alone are too ambiguous — default to NFL not NBA
+  }
   return "nfl";
 }
 
@@ -216,6 +219,14 @@ function buildF1SystemPrompt(f1Context, matchupCtxStr) {
 function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   const ctx = nbaContext || {};
 
+  // ── Build injuredNames Set FIRST — used throughout entire function ─────────
+  const injuredNames = new Set();
+  if (Array.isArray(ctx.injuries)) {
+    ctx.injuries.forEach(function(i) {
+      if (i.player) injuredNames.add(i.player.toLowerCase());
+    });
+  }
+
   // ── Date + season grounding — always accurate ─────────────────────────────
   const now        = new Date();
   const todayStr   = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
@@ -273,9 +284,10 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   if (Array.isArray(ctx.playerStats) && ctx.playerStats.length > 0) {
     seasonAvgsStr = ctx.playerStats.slice(0, 25).map(function(p) {
       const pra      = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
-      const isHurt   = injuredNames.has(p.name.toLowerCase());
+      const pName    = p.name || "Unknown";
+      const isHurt   = injuredNames.has(pName.toLowerCase());
       const hurtFlag = isHurt ? " ⚠️ INJURED — DO NOT RECOMMEND" : "";
-      return p.name + " (" + p.team + "): " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast | PRA avg " + pra + " | " + p.gp + "gp" + hurtFlag;
+      return pName + " (" + (p.team||"?") + "): " + (p.pts||0) + "pts " + (p.reb||0) + "reb " + (p.ast||0) + "ast | PRA avg " + pra + " | " + (p.gp||0) + "gp" + hurtFlag;
     }).join("\n");
   }
 
@@ -342,6 +354,7 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
     }).join("\n");
   }
 
+
   // ── Injury report — CRITICAL ──────────────────────────────────────────────
   let injuryStr = "No current injury data loaded.";
   if (Array.isArray(ctx.injuries) && ctx.injuries.length > 0) {
@@ -349,14 +362,6 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
       const ret = i.returnDate ? " (est. return: " + i.returnDate + ")" : "";
       return i.player + " (" + i.team + ") — " + i.status + ret + (i.description ? " — " + i.description : "");
     }).join("\n");
-  }
-
-  // Build set of injured player names for quick lookup
-  const injuredNames = new Set();
-  if (Array.isArray(ctx.injuries)) {
-    ctx.injuries.forEach(function(i) {
-      if (i.player) injuredNames.add(i.player.toLowerCase());
-    });
   }
 
 
