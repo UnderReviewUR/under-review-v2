@@ -190,7 +190,27 @@ async function getSeasonAverages(apiKey) {
   }
 }
 
-// ── NBA prop lines from Odds API ──────────────────────────────────────────────
+async function getInjuries(apiKey) {
+  const key = "injuries";
+  if (getCached(key)) return getCached(key);
+  try {
+    const data = await bdlFetch(`/player_injuries?per_page=100`, apiKey);
+    const injuries = (data.data || []).map(i => ({
+      player:   (i.player && (i.player.first_name + " " + i.player.last_name)) || "Unknown",
+      team:     (i.team && i.team.abbreviation) || "?",
+      status:   i.status || "Out",
+      returnDate: i.return_date || null,
+      description: i.description || "",
+    }));
+    setCached(key, injuries);
+    return injuries;
+  } catch (err) {
+    console.error("BDL injuries error:", err.message);
+    return [];
+  }
+}
+
+
 async function getNbaPropLines(oddsApiKey) {
   if (!oddsApiKey) return [];
   const key = "nba_props";
@@ -270,11 +290,12 @@ export default async function handler(req, res) {
 
       const seasonCtx = getNbaSeasonContext();
 
-      const [todaysGames, lastNight, seasonAverages, propLines] = await Promise.all([
+      const [todaysGames, lastNight, seasonAverages, propLines, injuries] = await Promise.all([
         getTodaysGames(BDL_KEY),
         getLastNightResults(BDL_KEY),
         getSeasonAverages(BDL_KEY),
         getNbaPropLines(ODDS_KEY),
+        getInjuries(BDL_KEY),
       ]);
 
       // Get box scores for last night's games
@@ -293,6 +314,7 @@ export default async function handler(req, res) {
         liveStats:      liveStats.slice(0, 30),
         playerStats:    seasonAverages,
         propLines:      propLines.slice(0, 60),
+        injuries:       injuries,
         fetchedAt:      new Date().toISOString(),
       };
 
