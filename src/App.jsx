@@ -1111,11 +1111,11 @@ export default function App() {
         {screen==="nba"&&(
           <main className="screen">
             <div className="nba-banner">
-              <div className="banner-title">NBA — {(()=>{const now=new Date();const m=now.getMonth();const y=now.getFullYear();return m>=9?`${y}-${String(y+1).slice(2)}`:`${y-1}-${String(y).slice(2)}`;})()}{new Date().getMonth()>=3&&new Date().getMonth()<=5?" · Playoffs":""}</div>
+              <div className="banner-title">NBA — {(()=>{const now=new Date();const m=now.getMonth();const y=now.getFullYear();return m>=9?`${y}-${String(y+1).slice(2)}`:`${y-1}-${String(y).slice(2)}`;})()}</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
                 {nbaData?.todaysGames?.length
-                  ? `${nbaData.todaysGames.length} games today · ${nbaData.playerStats?.length||0} players tracked`
+                  ? `${nbaData.todaysGames.length} games today · Live scores updating`
                   : nbaLoading ? "Loading NBA data..." : "80-player prop database loaded"}
               </div>
             </div>
