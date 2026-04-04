@@ -176,58 +176,144 @@ function buildF1SystemPrompt(f1Context, matchupCtxStr) {
 function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   const ctx = nbaContext || {};
 
-  let gamesStr = "No games today.";
+  // ── Date + season grounding — always accurate ─────────────────────────────
+  const now        = new Date();
+  const todayStr   = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  const seasonCtx  = ctx.seasonContext || {};
+  const phase      = seasonCtx.phase || "NBA Season Active";
+
+  // ── Today's games ─────────────────────────────────────────────────────────
+  let gamesStr = "No games on today's schedule. This is a rest/travel day within the season — NOT an offseason or break unless the season phase above indicates otherwise.";
   if (Array.isArray(ctx.todaysGames) && ctx.todaysGames.length > 0) {
     gamesStr = ctx.todaysGames.map(function(g) {
-      const away = (g.awayTeam && g.awayTeam.tricode) || "AWAY";
-      const home = (g.homeTeam && g.homeTeam.tricode) || "HOME";
-      if (g.statusCode === 2) {
-        const awayScore = (g.awayTeam && g.awayTeam.score) || 0;
-        const homeScore = (g.homeTeam && g.homeTeam.score) || 0;
-        return away + " vs " + home + " — LIVE Q" + (g.period || "?") + " " + awayScore + "-" + homeScore;
+      const away  = (g.awayTeam && (g.awayTeam.abbr || g.awayTeam.name)) || "AWAY";
+      const home  = (g.homeTeam && (g.homeTeam.abbr || g.homeTeam.name)) || "HOME";
+      const awayS = (g.awayTeam && g.awayTeam.score) || 0;
+      const homeS = (g.homeTeam && g.homeTeam.score) || 0;
+      const isLive = g.status && !g.status.includes("ET") && g.status !== "Final" && g.time !== "Final";
+      if (isLive && (awayS > 0 || homeS > 0)) {
+        return away + " " + awayS + " @ " + home + " " + homeS + " — LIVE Q" + (g.period || "?");
       }
-      return away + " vs " + home + " — " + (g.status || "Tonight");
+      if (g.status === "Final" || g.time === "Final") {
+        return away + " " + awayS + " @ " + home + " " + homeS + " — FINAL";
+      }
+      return away + " @ " + home + " — " + (g.status || "Scheduled");
     }).join("\n");
   }
 
-  let statsStr = "Season averages loaded — see player database.";
+  // ── Last night's results ──────────────────────────────────────────────────
+  let lastNightStr = "No results from last night.";
+  if (Array.isArray(ctx.lastNight) && ctx.lastNight.length > 0) {
+    lastNightStr = ctx.lastNight.map(function(g) {
+      const away = (g.awayTeam && g.awayTeam.abbr) || "AWAY";
+      const home = (g.homeTeam && g.homeTeam.abbr) || "HOME";
+      return away + " " + (g.awayTeam && g.awayTeam.score) + " @ " + home + " " + (g.homeTeam && g.homeTeam.score) + " — FINAL";
+    }).join("\n");
+  }
+
+  // ── Last night's top performers ───────────────────────────────────────────
+  let lastNightStatsStr = "";
+  if (Array.isArray(ctx.lastNightStats) && ctx.lastNightStats.length > 0) {
+    lastNightStatsStr = "TOP PERFORMERS LAST NIGHT:\n" + ctx.lastNightStats.slice(0, 15).map(function(s) {
+      const pra = (s.pts || 0) + (s.reb || 0) + (s.ast || 0);
+      return s.player + " (" + s.team + "): " + s.pts + "pts " + s.reb + "reb " + s.ast + "ast — PRA " + pra;
+    }).join("\n");
+  }
+
+  // ── Live stats if games in progress ──────────────────────────────────────
+  let liveStatsStr = "";
   if (Array.isArray(ctx.liveStats) && ctx.liveStats.length > 0) {
-    statsStr = ctx.liveStats.map(function(p) {
-      return p.name + " (" + p.team + "): " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast " + p.min + "min";
+    liveStatsStr = "LIVE STATS (in-game):\n" + ctx.liveStats.slice(0, 15).map(function(s) {
+      return s.player + " (" + s.team + "): " + s.pts + "pts " + s.reb + "reb " + s.ast + "ast in " + s.min + "min";
     }).join("\n");
   }
 
-  let playerDbStr = "Player database not loaded.";
-  if (ctx.playerDb) {
-    const entries = Object.entries(ctx.playerDb).slice(0, 40);
-    playerDbStr = entries.map(function(entry) {
+  // ── Season averages from BallDontLie ─────────────────────────────────────
+  let seasonAvgsStr = "Season averages not loaded.";
+  if (Array.isArray(ctx.playerStats) && ctx.playerStats.length > 0) {
+    seasonAvgsStr = ctx.playerStats.slice(0, 25).map(function(p) {
+      const pra = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
+      return p.name + " (" + p.team + "): " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast | PRA avg " + pra + " | " + p.gp + "gp";
+    }).join("\n");
+  }
+
+  // ── Actual prop lines from Odds API ──────────────────────────────────────
+  let propLinesStr = "No live prop lines available — use season averages and curated floors/ceilings for directional leans.";
+  if (Array.isArray(ctx.propLines) && ctx.propLines.length > 0) {
+    // Group by player+prop for cleaner display
+    const grouped = {};
+    for (const line of ctx.propLines) {
+      const k = line.player + "|" + line.prop;
+      if (!grouped[k]) grouped[k] = { player: line.player, prop: line.prop, game: line.game, lines: [] };
+      grouped[k].lines.push(line.side + " " + line.line + " (" + (line.odds > 0 ? "+" : "") + line.odds + ")");
+    }
+    const propEntries = Object.values(grouped).slice(0, 25);
+    if (propEntries.length > 0) {
+      propLinesStr = "LIVE PROP LINES (" + (ctx.propLines[0] && ctx.propLines[0].book ? ctx.propLines[0].book : "books") + "):\n" +
+        propEntries.map(function(e) {
+          return e.player + " — " + e.prop.toUpperCase() + " — " + e.lines.join(" / ") + " [" + e.game + "]";
+        }).join("\n");
+    }
+  }
+
+  // ── Curated player database ───────────────────────────────────────────────
+  let playerDbStr = "Curated database not loaded.";
+  if (ctx.playerDb && Object.keys(ctx.playerDb).length > 0) {
+    // Smart filter: pull mentioned players to top
+    const q       = (ctx.question || "").toLowerCase();
+    const entries = Object.entries(ctx.playerDb);
+    const mentioned = entries.filter(function(e) { return q.includes(e[0].toLowerCase().split(" ")[1] || e[0].toLowerCase()); });
+    const rest      = entries.filter(function(e) { return !q.includes(e[0].toLowerCase().split(" ")[1] || e[0].toLowerCase()); });
+    const ordered   = mentioned.concat(rest).slice(0, 35);
+    playerDbStr = ordered.map(function(entry) {
       const name = entry[0];
       const p    = entry[1];
       const pra  = ((p.pts || 0) + (p.reb || 0) + (p.ast || 0)).toFixed(1);
-      const propFloor = (p.props && p.props.pra && p.props.pra.floor) || "—";
-      const propCeil  = (p.props && p.props.pra && p.props.pra.ceil)  || "—";
-      const lean      = (p.props && p.props.pra && p.props.pra.lean)  || (p.props && p.props.pts && p.props.pts.lean) || "—";
-      return name + " | " + p.team + " | " + p.tier + " | " + p.pts + "pts " + p.reb + "reb " + p.ast + "ast | PRA: " + pra + " (floor " + propFloor + " / ceil " + propCeil + ") | " + lean;
+      const pFloor = (p.props && p.props.pra && p.props.pra.floor) || (p.props && p.props.pts && p.props.pts.floor) || "—";
+      const pCeil  = (p.props && p.props.pra && p.props.pra.ceil)  || (p.props && p.props.pts && p.props.pts.ceil)  || "—";
+      const lean   = (p.props && p.props.pra && p.props.pra.lean)  || (p.props && p.props.pts && p.props.pts.lean)  || "—";
+      const angles = (p.bettingAngles || []).slice(0, 2).join(" | ");
+      return name + " | " + p.team + " | " + p.tier + " | season avg " + p.pts + "pts/" + p.reb + "reb/" + p.ast + "ast | PRA avg " + pra + " | floor/ceil " + pFloor + "/" + pCeil + " | " + lean + (angles ? " | " + angles : "");
     }).join("\n");
   }
 
+  // ── Build prompt ──────────────────────────────────────────────────────────
   let prompt = "You are Under Review — a sharp sports betting intelligence tool covering NBA player props.\n\n";
-  prompt += "STYLE: Lead with the take. Sharp, specific, confident. No markdown headers. No prefix.\n\n";
+  prompt += "STYLE: Lead with the take. Sharp, specific, confident. No markdown headers. No prefix. Never apologize for missing data.\n\n";
+
+  prompt += "TODAY: " + todayStr + "\n";
+  prompt += "NBA SEASON PHASE: " + phase + "\n\n";
+
+  prompt += "CRITICAL DATE RULES:\n";
+  prompt += "- Never mention All-Star break unless it is currently February and the schedule confirms it\n";
+  prompt += "- Never say the league is dark unless today's game schedule is empty AND the season phase is offseason\n";
+  prompt += "- If today's schedule shows no games, say it is a rest day within the season — not a break\n";
+  prompt += "- Use the actual date above for all temporal reasoning\n\n";
+
   prompt += "NBA PROP FORMAT\n";
-  prompt += "For prop questions: Player — OVER/UNDER [line] — floor/ceil — primary reason.\n";
-  prompt += "PRA = points + rebounds + assists. It is the most reliable multi-stat prop — lower variance than individual stats.\n\n";
+  prompt += "For prop questions: Player — OVER/UNDER [line] — why — confidence\n";
+  prompt += "PRA = pts+reb+ast — most reliable multi-stat prop, lowest variance\n";
+  prompt += "When live lines are available: reference exact line and odds\n";
+  prompt += "When no live lines: use curated floor/ceil from database as directional framework\n\n";
+
   prompt += "KEY PROP PRINCIPLES\n";
-  prompt += "- PRA is the safest multi-stat prop — back it as the primary vehicle\n";
-  prompt += "- Injury replacement plays are the highest-confidence edge: when a teammate is out, usage spikes are predictable\n";
-  prompt += "- Fade stars in blowout-likely games — garbage time caps stats\n";
-  prompt += "- Game total (pace proxy) is the strongest contextual signal — more possessions = more counting stats\n";
-  prompt += "- Rebounds are the most predictable individual prop — driven by position and matchup, not luck\n";
-  prompt += "- Assists spike in fast-paced games; fade in slow half-court matchups\n\n";
-  prompt += "TODAY'S GAMES\n" + gamesStr + "\n\n";
-  prompt += "SEASON AVERAGES (top players)\n" + statsStr + "\n\n";
-  prompt += "PLAYER DATABASE (with prop floors, ceilings, and betting angles)\n" + playerDbStr + "\n\n";
+  prompt += "- Injury replacement is the highest-confidence edge — usage spikes are predictable and consistent\n";
+  prompt += "- PRA is the primary vehicle — back it before individual stats\n";
+  prompt += "- Game total is the pace proxy — high totals = more possessions = more counting stats\n";
+  prompt += "- Rebounds most predictable — position and matchup driven, not luck\n";
+  prompt += "- Assists spike in fast pace; fade in slow half-court\n";
+  prompt += "- Fade stars in blowout-likely games — garbage time kills props\n";
+  prompt += "- Playoffs: minutes increase but role compression matters — fade role players, back stars\n\n";
+
+  prompt += "TODAY'S SCHEDULE\n" + gamesStr + "\n\n";
+  prompt += "LAST NIGHT'S RESULTS\n" + lastNightStr + "\n\n";
+  if (lastNightStatsStr) prompt += lastNightStatsStr + "\n\n";
+  if (liveStatsStr) prompt += liveStatsStr + "\n\n";
+  prompt += "LIVE SEASON AVERAGES (BallDontLie — current 2024-25 season)\n" + seasonAvgsStr + "\n\n";
+  prompt += propLinesStr + "\n\n";
+  prompt += "CURATED PROP DATABASE (betting angles, floors, ceilings)\n" + playerDbStr + "\n\n";
   if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
-  prompt += "No live lines unless provided — directional leans only.";
+
   return prompt;
 }
 
