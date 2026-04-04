@@ -53,6 +53,7 @@ function mergeDriversAndStandings(drivers, championship) {
   return merged;
 }
 
+// FIX: renamed internal variables to avoid duplicate 'const current' in same scope
 function buildSchedule(meetings) {
   const now  = new Date();
   const list = Array.isArray(meetings) ? [...meetings] : [];
@@ -60,6 +61,7 @@ function buildSchedule(meetings) {
 
   let nextMeetingKey = null;
 
+  // Use 'activeRace' instead of 'current' to avoid duplicate declaration
   const activeRace = list.find((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
@@ -79,6 +81,7 @@ function buildSchedule(meetings) {
 
   const upcoming = races.filter((m) => new Date(m.date_start) > now);
 
+  // Use 'inProgress' instead of 'current' to avoid duplicate declaration
   const inProgress = races.filter((m) => {
     const s = new Date(m.date_start);
     const e = new Date(m.date_end);
@@ -89,7 +92,7 @@ function buildSchedule(meetings) {
     races,
     upcoming,
     past,
-    current: inProgress,
+    current: inProgress,          // keep the return key as 'current' so App.jsx is unchanged
     next_meeting_key: nextMeetingKey,
   };
 }
