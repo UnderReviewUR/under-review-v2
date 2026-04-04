@@ -59,69 +59,42 @@ async function getTodaysGames(apiKey) {
   const key = "games_today";
   if (getCached(key)) return getCached(key);
 
-  // ESPN hidden API — free, no auth, always current
+  // ESPN scoreboard — no date filter, returns current day's games
   try {
-    const now = new Date();
-    // Try with date parameter first, fall back to default
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const dd = String(now.getDate()).padStart(2, "0");
-    const dateParam = `${yyyy}${mm}${dd}`;
-
-    // ESPN uses ET for NBA dates — adjust if needed
     const res = await fetch(
-      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${dateParam}&limit=20`,
+      "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
       { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } }
     );
     if (!res.ok) throw new Error("ESPN " + res.status);
     const data = await res.json();
-
     const games = (data.events || []).map(e => {
-      const comp    = e.competitions?.[0];
-      const home    = comp?.competitors?.find(c => c.homeAway === "home");
-      const away    = comp?.competitors?.find(c => c.homeAway === "away");
-      const status  = e.status?.type;
+      const comp   = e.competitions?.[0];
+      const home   = comp?.competitors?.find(c => c.homeAway === "home");
+      const away   = comp?.competitors?.find(c => c.homeAway === "away");
+      const status = e.status?.type;
+      const odds   = comp?.odds?.[0];
       return {
         id:       e.id,
+        name:     e.shortName,
         status:   status?.shortDetail || status?.description || "Scheduled",
+        state:    status?.state || "pre",
         period:   e.status?.period || 0,
-        homeTeam: {
-          name:  home?.team?.displayName || home?.team?.name || "",
-          abbr:  home?.team?.abbreviation || "",
-          score: parseInt(home?.score || "0"),
-        },
-        awayTeam: {
-          name:  away?.team?.displayName || away?.team?.name || "",
-          abbr:  away?.team?.abbreviation || "",
-          score: parseInt(away?.score || "0"),
-        },
+        clock:    e.status?.displayClock || "",
+        homeTeam: { name: home?.team?.displayName, abbr: home?.team?.abbreviation, score: parseInt(home?.score||"0") },
+        awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: parseInt(away?.score||"0") },
+        spread:   odds?.details || "",
+        overUnder: odds?.overUnder || null,
       };
     });
-
     setCached(key, games);
     return games;
   } catch (err) {
-    console.error("ESPN scoreboard error:", err.message);
-  }
-
-  // Fallback: BallDontLie
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const data  = await bdlFetch(`/games?dates[]=${today}&per_page=15`, apiKey);
-    const games = (data.data || []).map(g => ({
-      id:       g.id,
-      status:   g.status,
-      period:   g.period,
-      homeTeam: { name: g.home_team.full_name, abbr: g.home_team.abbreviation, score: g.home_team_score },
-      awayTeam: { name: g.visitor_team.full_name, abbr: g.visitor_team.abbreviation, score: g.visitor_team_score },
-    }));
-    setCached(key, games);
-    return games;
-  } catch (err) {
-    console.error("BDL fallback error:", err.message);
+    console.error("ESPN error:", err.message);
     return [];
   }
 }
+
+
 
 // ── Last night's box scores ───────────────────────────────────────────────────
 async function getLastNightResults(apiKey) {
