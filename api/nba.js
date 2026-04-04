@@ -55,43 +55,54 @@ async function bdlFetch(path, apiKey) {
 }
 
 // ── Today's games with scores ─────────────────────────────────────────────────
-async function getTodaysGames(apiKey) {
+async function getTodaysGames(oddsApiKey) {
   const key = "games_today";
   if (getCached(key)) return getCached(key);
 
-  // ESPN scoreboard — no date filter, returns current day's games
-  try {
-    const res = await fetch(
-      "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
-      { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } }
-    );
-    if (!res.ok) throw new Error("ESPN " + res.status);
-    const data = await res.json();
-    const games = (data.events || []).map(e => {
-      const comp   = e.competitions?.[0];
-      const home   = comp?.competitors?.find(c => c.homeAway === "home");
-      const away   = comp?.competitors?.find(c => c.homeAway === "away");
-      const status = e.status?.type;
-      const odds   = comp?.odds?.[0];
-      return {
-        id:       e.id,
-        name:     e.shortName,
-        status:   status?.shortDetail || status?.description || "Scheduled",
-        state:    status?.state || "pre",
-        period:   e.status?.period || 0,
-        clock:    e.status?.displayClock || "",
-        homeTeam: { name: home?.team?.displayName, abbr: home?.team?.abbreviation, score: parseInt(home?.score||"0") },
-        awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: parseInt(away?.score||"0") },
-        spread:   odds?.details || "",
-        overUnder: odds?.overUnder || null,
-      };
-    });
-    setCached(key, games);
-    return games;
-  } catch (err) {
-    console.error("ESPN error:", err.message);
-    return [];
+  // Use The Odds API for NBA scores — already have this key
+  if (oddsApiKey) {
+    try {
+      const res = await fetch(
+        `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${oddsApiKey}&daysFrom=1`,
+        { headers: { "Accept": "application/json" } }
+      );
+      if (!res.ok) throw new Error("OddsAPI scores " + res.status);
+      const data = await res.json();
+
+      const today = new Date().toISOString().split("T")[0];
+      const games = (Array.isArray(data) ? data : [])
+        .filter(g => {
+          const gameDate = new Date(g.commence_time).toISOString().split("T")[0];
+          return gameDate === today || g.completed === false;
+        })
+        .map(g => {
+          const home = g.home_team;
+          const away = g.away_team;
+          const scores = g.scores || [];
+          const homeScore = scores.find(s => s.name === home)?.score || 0;
+          const awayScore = scores.find(s => s.name === away)?.score || 0;
+          const isLive = !g.completed && scores.length > 0;
+          const isFinal = g.completed;
+
+          return {
+            id:       g.id,
+            status:   isFinal ? "Final" : isLive ? "Live" : new Date(g.commence_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET",
+            state:    isFinal ? "post" : isLive ? "in" : "pre",
+            homeTeam: { name: home, abbr: home.split(" ").pop().slice(0,3).toUpperCase(), score: parseInt(homeScore) },
+            awayTeam: { name: away, abbr: away.split(" ").pop().slice(0,3).toUpperCase(), score: parseInt(awayScore) },
+          };
+        });
+
+      if (games.length > 0) {
+        setCached(key, games);
+        return games;
+      }
+    } catch (err) {
+      console.error("OddsAPI scores error:", err.message);
+    }
   }
+
+  return [];
 }
 
 
@@ -294,7 +305,7 @@ export default async function handler(req, res) {
 
   try {
     if (view === "games") {
-      return res.status(200).json(await getTodaysGames(BDL_KEY));
+      return res.status(200).json(await getTodaysGames(ODDS_KEY));
     }
 
     if (view === "board") {
@@ -305,7 +316,7 @@ export default async function handler(req, res) {
 
       // FREE TIER: games always work
       const [todaysGames, lastNight] = await Promise.all([
-        getTodaysGames(BDL_KEY),
+        getTodaysGames(ODDS_KEY),
         getLastNightResults(BDL_KEY),
       ]);
 
