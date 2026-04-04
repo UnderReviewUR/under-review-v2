@@ -545,8 +545,10 @@ export default function App() {
   }, []);
 
   // ── NBA data fetch ─────────────────────────────────────────────────────────
+  const [nbaGames, setNbaGames] = useState([]);
+
   useEffect(() => {
-    let active=true;
+    let active = true;
     async function loadNba() {
       setNbaLoading(true);
       try {
@@ -559,7 +561,25 @@ export default function App() {
     loadNba();
     const poll = window.setInterval(() => {
       fetch("/api/nba?view=board").then(r=>r.json()).then(d=>{ if(active) setNbaData(d); }).catch(()=>{});
-    }, 300000); // 5 min
+    }, 300000);
+    return () => { active=false; window.clearInterval(poll); };
+  }, []);
+
+  // Fetch NBA games — polls every 60s for live updates
+  useEffect(() => {
+    let active = true;
+    async function loadGames() {
+      try {
+        const res = await fetch("/api/nba?view=games");
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        if (active && Array.isArray(data) && data.length > 0) setNbaGames(data);
+      } catch(err) {
+        console.log("Games fetch failed:", err.message);
+      }
+    }
+    loadGames();
+    const poll = window.setInterval(loadGames, 60000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
@@ -601,20 +621,19 @@ export default function App() {
   }, [f1Data]);
 
   const buildNbaContext = useCallback((questionText) => {
-    if (!nbaData) return null;
     return {
-      seasonContext:   nbaData.seasonContext || {},
-      todaysGames:     nbaData.todaysGames   || [],
-      lastNight:       nbaData.lastNight     || [],
-      lastNightStats:  nbaData.lastNightStats|| [],
-      liveStats:       nbaData.liveStats     || [],
-      playerStats:     nbaData.playerStats   || [],
-      propLines:       nbaData.propLines     || [],
-      injuries:        nbaData.injuries      || [],
+      seasonContext:   nbaData?.seasonContext || {},
+      todaysGames:     nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []),
+      lastNight:       nbaData?.lastNight     || [],
+      lastNightStats:  nbaData?.lastNightStats|| [],
+      liveStats:       nbaData?.liveStats     || [],
+      playerStats:     nbaData?.playerStats   || [],
+      propLines:       nbaData?.propLines     || [],
+      injuries:        nbaData?.injuries      || [],
       playerDb:        NBA_PLAYERS,
       question:        questionText || "",
     };
-  }, [nbaData]);
+  }, [nbaData, nbaGames]);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -1114,9 +1133,9 @@ export default function App() {
               <div className="banner-title">NBA — {(()=>{const now=new Date();const m=now.getMonth();const y=now.getFullYear();return m>=9?`${y}-${String(y+1).slice(2)}`:`${y-1}-${String(y).slice(2)}`;})()}</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
-                {nbaData?.todaysGames?.length
-                  ? `${nbaData.todaysGames.length} games today · Live scores updating`
-                  : nbaLoading ? "Loading NBA data..." : "80-player prop database loaded"}
+                {nbaGames.length > 0
+                  ? `${nbaGames.filter(g=>g.state==="in").length > 0 ? nbaGames.filter(g=>g.state==="in").length + " live · " : ""}${nbaGames.length} games today`
+                  : nbaLoading ? "Loading..." : "Ask anything about NBA props"}
               </div>
             </div>
 
@@ -1136,22 +1155,24 @@ export default function App() {
               <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
             ) : (
               <>
-                {nbaData?.todaysGames?.length > 0 && (
+                {nbaGames.length > 0 && (
                   <>
-                    <div className="section-divider">Today's Games</div>
-                    {nbaData.todaysGames.map((g,i) => {
+                    <div className="section-divider">
+                      {nbaGames.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
+                    </div>
+                    {nbaGames.map((g,i) => {
                       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
                       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
-                      const isLive = g.status && !g.status.includes("ET") && g.status !== "Final" && (g.awayTeam?.score > 0 || g.homeTeam?.score > 0);
-                      const isFinal = g.status === "Final" || g.time === "Final";
+                      const isLive = g.state === "in";
+                      const isFinal = g.state === "post";
                       return (
                         <div key={g.id||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${away} vs ${home} tonight?`)}>
                           <div className="nba-game-top">
                             <div className="nba-game-teams">{away} vs {home}</div>
-                            <div>{isLive ? <span className="nba-live-badge">● LIVE Q{g.period||"?"}</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
+                            <div>{isLive ? <span className="nba-live-badge">● LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
                           </div>
-                          {(isLive || isFinal) && (
-                            <div className="nba-game-score">{g.awayTeam?.score||0} — {g.homeTeam?.score||0}</div>
+                          {(isLive || isFinal) && g.awayTeam?.score != null && (
+                            <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
                           )}
                         </div>
                       );
