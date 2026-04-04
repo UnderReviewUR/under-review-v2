@@ -565,22 +565,53 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  // Fetch NBA games directly from NBA's static schedule — no auth, no CORS
+  // Fetch NBA games — browser-side ESPN fetch, no auth needed
   useEffect(() => {
     let active = true;
     async function loadGames() {
       try {
-        // Try the NBA CDN live scoreboard first
         const res = await fetch(
-          "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json"
+          "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
+          { cache: "no-store" }
         );
-        if (!res.ok) throw new Error("CDN " + res.status);
+        if (!res.ok) throw new Error("ESPN " + res.status);
         const data = await res.json();
-        const gameDate = data?.scoreboard?.gameDate || "";
-        const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+        const events = data?.events || [];
 
-        // Only use if data is fresh (within last 2 days)
-        const games = (data?.scoreboard?.games || []).map(g => ({
+        // ESPN returns the most recent game day — filter to today ET
+        const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+        const todayStr = nowET.toISOString().split("T")[0];
+
+        const games = events
+          .filter(e => {
+            const gDate = new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" });
+            return new Date(gDate).toISOString().split("T")[0] === todayStr;
+          })
+          .map(e => {
+            const comp = e.competitions?.[0];
+            const home = comp?.competitors?.find(c => c.homeAway === "home");
+            const away = comp?.competitors?.find(c => c.homeAway === "away");
+            const status = e.status?.type;
+            return {
+              id: e.id,
+              status: status?.shortDetail || status?.description || "Scheduled",
+              state: status?.state || "pre",
+              period: e.status?.period || 0,
+              homeTeam: { name: home?.team?.shortDisplayName, abbr: home?.team?.abbreviation, score: parseInt(home?.score || "0") },
+              awayTeam: { name: away?.team?.shortDisplayName, abbr: away?.team?.abbreviation, score: parseInt(away?.score || "0") },
+            };
+          });
+
+        if (active && games.length > 0) {
+          setNbaGames(games);
+          return;
+        }
+
+        // If ESPN returned nothing for today, try NBA CDN
+        const cdn = await fetch("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json", { cache: "no-store" });
+        if (!cdn.ok) throw new Error("CDN " + cdn.status);
+        const cdnData = await cdn.json();
+        const cdnGames = (cdnData?.scoreboard?.games || []).map(g => ({
           id: g.gameId,
           status: g.gameStatusText,
           state: g.gameStatus === 2 ? "in" : g.gameStatus === 3 ? "post" : "pre",
@@ -588,26 +619,10 @@ export default function App() {
           homeTeam: { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
           awayTeam: { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
         }));
+        if (active && cdnGames.length > 0) setNbaGames(cdnGames);
 
-        if (active && games.length > 0) {
-          setNbaGames(games);
-        } else if (active) {
-          // Fallback: try our own API
-          const apiRes = await fetch("/api/nba?view=games");
-          if (apiRes.ok) {
-            const apiData = await apiRes.json();
-            if (Array.isArray(apiData) && apiData.length > 0) setNbaGames(apiData);
-          }
-        }
       } catch(err) {
-        // Final fallback: our API
-        try {
-          const apiRes = await fetch("/api/nba?view=games");
-          if (apiRes.ok) {
-            const apiData = await apiRes.json();
-            if (active && Array.isArray(apiData) && apiData.length > 0) setNbaGames(apiData);
-          }
-        } catch { }
+        console.log("Games fetch failed:", err.message);
       }
     }
     loadGames();
@@ -1162,7 +1177,7 @@ export default function App() {
         {screen==="nba"&&(
           <main className="screen">
             <div className="nba-banner">
-              <div className="banner-title">NBA — {(()=>{const now=new Date();const m=now.getMonth();const y=now.getFullYear();return m>=9?`${y}-${String(y+1).slice(2)}`:`${y-1}-${String(y).slice(2)}`;})()}</div>
+              <div className="banner-title">NBA</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
                 {nbaGames.length > 0
