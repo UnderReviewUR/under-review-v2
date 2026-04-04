@@ -723,16 +723,21 @@ export default function App() {
   }, [f1Data]);
 
   const homeNbaCards = useMemo(() => {
-    const games = nbaData?.games || [];
-    const liveGame = games.find(g => g.statusCode === 2);
-    const nextGame = games.find(g => g.statusCode === 1);
+    const games = nbaData?.todaysGames || [];
+    const liveGame = games.find(g => g.status && !g.status.includes("ET") && g.status !== "Final" && (g.awayTeam?.score > 0 || g.homeTeam?.score > 0));
+    const nextGame = games.find(g => g.status && g.status.includes("ET"));
     const cards = [];
     if (liveGame) {
-      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${liveGame.awayTeam.tricode} vs ${liveGame.homeTeam.tricode}`,time:"LIVE",network:`${liveGame.awayTeam.score} — ${liveGame.homeTeam.score} · Q${liveGame.period}`,blurb:"Live game in progress. Ask for the best in-game prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
+      const away = liveGame.awayTeam?.abbr || liveGame.awayTeam?.name || "Away";
+      const home = liveGame.homeTeam?.abbr || liveGame.homeTeam?.name || "Home";
+      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0} · Q${liveGame.period||"?"}`,blurb:"Live game in progress. Ask for the best in-game prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
     } else if (nextGame) {
-      cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${nextGame.awayTeam.tricode} vs ${nextGame.homeTeam.tricode}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
+      const away = nextGame.awayTeam?.abbr || nextGame.awayTeam?.name || "Away";
+      const home = nextGame.homeTeam?.abbr || nextGame.homeTeam?.name || "Home";
+      cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
     } else {
-      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:"NBA Props — 2024-25",time:"Active",network:"Player Props",blurb:"80-player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
+      const nbaSeason = new Date().getMonth() >= 9 ? `${new Date().getFullYear()}-${String(new Date().getFullYear()+1).slice(2)}` : `${new Date().getFullYear()-1}-${String(new Date().getFullYear()).slice(2)}`;
+      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:`NBA Props — ${nbaSeason}`,time:"Active",network:"Player Props",blurb:"80-player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
     }
     return cards.slice(0,1);
   }, [nbaData]);
@@ -1106,11 +1111,11 @@ export default function App() {
         {screen==="nba"&&(
           <main className="screen">
             <div className="nba-banner">
-              <div className="banner-title">NBA — 2024-25</div>
+              <div className="banner-title">NBA — {(()=>{const now=new Date();const m=now.getMonth();const y=now.getFullYear();return m>=9?`${y}-${String(y+1).slice(2)}`:`${y-1}-${String(y).slice(2)}`;})()}{new Date().getMonth()>=3&&new Date().getMonth()<=5?" · Playoffs":""}</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
-                {nbaData?.games?.length
-                  ? `${nbaData.games.length} games today · ${nbaData.playerStats?.length||0} players tracked`
+                {nbaData?.todaysGames?.length
+                  ? `${nbaData.todaysGames.length} games today · ${nbaData.playerStats?.length||0} players tracked`
                   : nbaLoading ? "Loading NBA data..." : "80-player prop database loaded"}
               </div>
             </div>
@@ -1131,21 +1136,26 @@ export default function App() {
               <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
             ) : (
               <>
-                {nbaData?.games?.length > 0 && (
+                {nbaData?.todaysGames?.length > 0 && (
                   <>
                     <div className="section-divider">Today's Games</div>
-                    {nbaData.games.map((g,i) => (
-                      <div key={g.gameId||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${g.awayTeam.tricode} vs ${g.homeTeam.tricode} tonight?`)}>
-                        <div className="nba-game-top">
-                          <div className="nba-game-teams">{g.awayTeam.tricode} vs {g.homeTeam.tricode}</div>
-                          <div>{g.statusCode===2 ? <span className="nba-live-badge">● LIVE Q{g.period}</span> : <span className="nba-game-status">{g.status}</span>}</div>
+                    {nbaData.todaysGames.map((g,i) => {
+                      const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+                      const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+                      const isLive = g.status && !g.status.includes("ET") && g.status !== "Final" && (g.awayTeam?.score > 0 || g.homeTeam?.score > 0);
+                      const isFinal = g.status === "Final" || g.time === "Final";
+                      return (
+                        <div key={g.id||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${away} vs ${home} tonight?`)}>
+                          <div className="nba-game-top">
+                            <div className="nba-game-teams">{away} vs {home}</div>
+                            <div>{isLive ? <span className="nba-live-badge">● LIVE Q{g.period||"?"}</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
+                          </div>
+                          {(isLive || isFinal) && (
+                            <div className="nba-game-score">{g.awayTeam?.score||0} — {g.homeTeam?.score||0}</div>
+                          )}
                         </div>
-                        {g.statusCode===2 && (
-                          <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
-                        )}
-                        <div className="nba-game-records">{g.awayTeam.wins}-{g.awayTeam.losses} vs {g.homeTeam.wins}-{g.homeTeam.losses}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </>
                 )}
 
