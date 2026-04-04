@@ -742,7 +742,7 @@ export default function App() {
   }, [f1Data]);
 
   const homeNbaCards = useMemo(() => {
-    const games = nbaData?.todaysGames || [];
+    const games = nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []);
     const liveGame = games.find(g => g.status && !g.status.includes("ET") && g.status !== "Final" && (g.awayTeam?.score > 0 || g.homeTeam?.score > 0));
     const nextGame = games.find(g => g.status && g.status.includes("ET"));
     const cards = [];
@@ -759,9 +759,7 @@ export default function App() {
       cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:`NBA Props — ${nbaSeason}`,time:"Active",network:"Player Props",blurb:"80-player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
     }
     return cards.slice(0,1);
-  }, [nbaData]);
-
-  const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards]);
+  }, [nbaData, nbaGames]); = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards]);
 
   // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
