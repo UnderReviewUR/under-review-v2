@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import AskBar from "./components/AskBar";
-import { NBA_PLAYERS } from "../../api/data/nba/players.js";
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -606,7 +605,7 @@ export default function App() {
     return {
       todaysGames: nbaData.games || [],
       seasonStats: nbaData.playerStats || [],
-      playerDb: NBA_PLAYERS,
+      playerDb: {},
       liveStats: (nbaData.playerStats || []).slice(0, 20),
     };
   }, [nbaData]);
@@ -1158,17 +1157,17 @@ export default function App() {
                     </div>
                   </div>
                 )) : (
-                  // Fallback: show curated profiles when live stats unavailable
-                  Object.entries(NBA_PLAYERS).filter(([,p])=>p.tier==="ELITE"||p.tier==="STAR").slice(0,15).map(([name,p],i) => (
+                  // Fallback when live stats unavailable
+                  [["Nikola Jokic","DEN",29.6,12.7,10.2],["Shai Gilgeous-Alexander","OKC",32.7,5.1,6.4],["Luka Doncic","LAL",28.1,8.2,8.0],["Jayson Tatum","BOS",26.9,8.1,4.9],["Giannis Antetokounmpo","MIL",30.4,11.5,6.5],["Anthony Edwards","MIN",27.8,5.4,5.1],["Victor Wembanyama","SAS",24.5,10.6,3.9],["Karl-Anthony Towns","NYK",24.3,13.7,3.2],["Tyrese Haliburton","IND",20.1,3.9,10.9],["Donovan Mitchell","CLE",26.1,4.4,5.4],["Stephen Curry","GSW",26.4,4.5,6.1],["Kevin Durant","PHX",27.1,6.8,4.2],["Devin Booker","PHX",25.4,4.3,6.8],["Jalen Brunson","NYK",26.6,3.4,7.5],["Cade Cunningham","DET",25.2,6.1,9.0]].map(([name,team,pts,reb,ast],i) => (
                     <div key={name} className="nba-player-card" onClick={()=>submitNba(`Best prop angle for ${name} tonight? Give me the PRA line, floor, ceiling, and lean.`)}>
                       <div className="nba-player-rank">#{i+1}</div>
                       <div className="nba-player-info">
                         <div className="nba-player-name">{name}</div>
-                        <div className="nba-player-meta">{p.team} · {p.tier}</div>
+                        <div className="nba-player-meta">{team} · 2024-25</div>
                       </div>
                       <div className="nba-player-stats">
-                        <span className="nba-pts">{p.pts}</span>
-                        <span className="nba-pts-label">{p.reb}r · {p.ast}a</span>
+                        <span className="nba-pts">{pts}</span>
+                        <span className="nba-pts-label">{reb}r · {ast}a</span>
                       </div>
                     </div>
                   ))
