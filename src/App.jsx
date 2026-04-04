@@ -600,14 +600,18 @@ export default function App() {
     return { standings, upcomingRaces, nextRace, sessionStr };
   }, [f1Data]);
 
-  const buildNbaContext = useCallback(() => {
+  const buildNbaContext = useCallback((questionText) => {
     if (!nbaData) return null;
-    // Smart filter: pull mentioned players to front is handled server-side
     return {
-      todaysGames: nbaData.games || [],
-      seasonStats: nbaData.playerStats || [],
-      playerDb: NBA_PLAYERS,
-      liveStats: (nbaData.playerStats || []).slice(0, 20),
+      seasonContext:   nbaData.seasonContext || {},
+      todaysGames:     nbaData.todaysGames   || [],
+      lastNight:       nbaData.lastNight     || [],
+      lastNightStats:  nbaData.lastNightStats|| [],
+      liveStats:       nbaData.liveStats     || [],
+      playerStats:     nbaData.playerStats   || [],
+      propLines:       nbaData.propLines     || [],
+      playerDb:        NBA_PLAYERS,
+      question:        questionText || "",
     };
   }, [nbaData]);
 
@@ -628,7 +632,7 @@ export default function App() {
         matchupContext: matchup || null,
         nflContext: buildNflContext(),
         f1Context: buildF1Context(),
-        nbaContext: buildNbaContext(),
+        nbaContext: buildNbaContext(text),
         sportHint: sportHint || null,
       };
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
