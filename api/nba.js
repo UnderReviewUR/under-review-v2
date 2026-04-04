@@ -58,6 +58,8 @@ async function bdlFetch(path, apiKey) {
 async function getTodaysGames(apiKey) {
   const key = "games_today";
   if (getCached(key)) return getCached(key);
+
+  // Try BallDontLie first
   try {
     const today = new Date().toISOString().split("T")[0];
     const data  = await bdlFetch(`/games?dates[]=${today}&per_page=15`, apiKey);
@@ -74,7 +76,28 @@ async function getTodaysGames(apiKey) {
     setCached(key, games);
     return games;
   } catch (err) {
-    console.error("BDL games error:", err.message);
+    console.error("BDL games error:", err.message, "— falling back to CDN");
+  }
+
+  // CDN fallback — no auth required, always works
+  try {
+    const res = await fetch("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json");
+    if (!res.ok) throw new Error("CDN " + res.status);
+    const data = await res.json();
+    const games = (data?.scoreboard?.games || []).map(g => ({
+      id:         g.gameId,
+      date:       g.gameEt?.split("T")[0] || new Date().toISOString().split("T")[0],
+      status:     g.gameStatusText,
+      period:     g.period,
+      time:       g.gameClock,
+      postseason: false,
+      homeTeam:   { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
+      awayTeam:   { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
+    }));
+    setCached(key, games);
+    return games;
+  } catch (err) {
+    console.error("CDN fallback error:", err.message);
     return [];
   }
 }
@@ -280,41 +303,54 @@ export default async function handler(req, res) {
       return res.status(200).json(await getTodaysGames(BDL_KEY));
     }
 
-    if (view === "averages") {
-      return res.status(200).json(await getSeasonAverages(BDL_KEY));
-    }
-
     if (view === "board") {
       const boardCached = getCached("board");
       if (boardCached) return res.status(200).json(boardCached);
 
       const seasonCtx = getNbaSeasonContext();
 
-      const [todaysGames, lastNight, seasonAverages, propLines, injuries] = await Promise.all([
+      // FREE TIER: games always work
+      const [todaysGames, lastNight] = await Promise.all([
         getTodaysGames(BDL_KEY),
         getLastNightResults(BDL_KEY),
-        getSeasonAverages(BDL_KEY),
-        getNbaPropLines(ODDS_KEY),
-        getInjuries(BDL_KEY),
       ]);
 
-      // Get box scores for last night's games
-      const lastNightIds   = lastNight.map(g => g.id).filter(Boolean);
-      const lastNightStats = lastNightIds.length ? await getGameStats(lastNightIds, BDL_KEY) : [];
+      // ALL-STAR TIER ($9.99/mo): injuries, game stats — fail gracefully
+      let injuries = [];
+      let liveStats = [];
+      let lastNightStats = [];
 
-      // Get live stats for today's in-progress games
-      const liveIds   = todaysGames.filter(g => g.status !== "Final" && !g.status.includes("ET")).map(g => g.id);
-      const liveStats = liveIds.length ? await getGameStats(liveIds, BDL_KEY) : [];
+      try { injuries = await getInjuries(BDL_KEY); } catch { }
+
+      const liveIds = todaysGames
+        .filter(g => g.status && !g.status.includes("ET") && g.status !== "Final" && (g.awayTeam?.score > 0 || g.homeTeam?.score > 0))
+        .map(g => g.id);
+      if (liveIds.length) {
+        try { liveStats = await getGameStats(liveIds, BDL_KEY); } catch { }
+      }
+
+      const lastNightIds = lastNight.map(g => g.id).filter(Boolean);
+      if (lastNightIds.length) {
+        try { lastNightStats = await getGameStats(lastNightIds, BDL_KEY); } catch { }
+      }
+
+      // GOAT TIER ($39.99/mo): season averages — fail gracefully, curated DB handles this
+      let playerStats = [];
+      try { playerStats = await getSeasonAverages(BDL_KEY); } catch { }
+
+      // ODDS API: separate key
+      let propLines = [];
+      try { propLines = await getNbaPropLines(ODDS_KEY); } catch { }
 
       const board = {
-        seasonContext: seasonCtx,
+        seasonContext:  seasonCtx,
         todaysGames,
         lastNight,
         lastNightStats: lastNightStats.slice(0, 30),
         liveStats:      liveStats.slice(0, 30),
-        playerStats:    seasonAverages,
+        playerStats,
         propLines:      propLines.slice(0, 60),
-        injuries:       injuries,
+        injuries,
         fetchedAt:      new Date().toISOString(),
       };
 
@@ -322,7 +358,7 @@ export default async function handler(req, res) {
       return res.status(200).json(board);
     }
 
-    return res.status(400).json({ error: "Invalid view", allowed: ["board", "games", "averages"] });
+    return res.status(400).json({ error: "Invalid view", allowed: ["board", "games"] });
 
   } catch (err) {
     console.error("NBA API error:", err);
