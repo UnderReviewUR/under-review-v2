@@ -297,7 +297,7 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   const BDL_KEY  = process.env.BALLDONTLIE_API_KEY;
-  const ODDS_KEY = process.env.ODDS_API_KEY;
+  const ODDS_KEY = process.env.odds_api || process.env.ODDS_API_KEY;
 
   if (!BDL_KEY) return res.status(500).json({ error: "Missing BALLDONTLIE_API_KEY" });
 
