@@ -59,17 +59,19 @@ async function getTodaysGames(apiKey) {
   const key = "games_today";
   if (getCached(key)) return getCached(key);
 
-  // ESPN hidden API — free, no auth, always current — pass today's date explicitly
+  // ESPN hidden API — free, no auth, always current
   try {
     const now = new Date();
+    // Try with date parameter first, fall back to default
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, "0");
     const dd = String(now.getDate()).padStart(2, "0");
-    const dateParam = `${yyyy}${mm}${dd}`; // e.g. 20260404
+    const dateParam = `${yyyy}${mm}${dd}`;
 
+    // ESPN uses ET for NBA dates — adjust if needed
     const res = await fetch(
-      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${dateParam}`,
-      { headers: { "Accept": "application/json" } }
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${dateParam}&limit=20`,
+      { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } }
     );
     if (!res.ok) throw new Error("ESPN " + res.status);
     const data = await res.json();
