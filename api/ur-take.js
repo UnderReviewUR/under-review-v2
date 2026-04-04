@@ -205,7 +205,29 @@ function buildF1SystemPrompt(f1Context, matchupCtxStr) {
       (daysUntilRace !== null ? " — " + daysUntilRace + " days away" : "");
   }
 
-  // Determine race week context
+  // ── Classify next circuit type ─────────────────────────────────────────────
+  const STREET_CIRCUITS   = ["monaco","baku","singapore","las vegas","jeddah","miami","sao paulo"];
+  const POWER_CIRCUITS    = ["monza","spa","silverstone","baku","interlagos"];
+  const HIGH_DOWNFORCE    = ["hungary","hungaroring","singapore","barcelona","catalunya"];
+
+  let circuitType = "mixed";
+  let circuitBettingNote = "Championship form is the primary signal at this circuit type.";
+
+  if (nextRace) {
+    const venue = ((nextRace.location || "") + " " + (nextRace.circuit_short_name || "") + " " + (nextRace.meeting_name || "")).toLowerCase();
+    if (STREET_CIRCUITS.some(c => venue.includes(c))) {
+      circuitType = "STREET CIRCUIT";
+      circuitBettingNote = "Qualifying position is 80% of the race result. Overtaking nearly impossible. Always lean pole sitter for race winner. Safety car is near-certain — factor in restart ability.";
+    } else if (POWER_CIRCUITS.some(c => venue.includes(c))) {
+      circuitType = "POWER CIRCUIT";
+      circuitBettingNote = "Engine advantage is decisive here. Mercedes power unit structural edge is at its maximum. Antonelli and Russell are the primary race winner plays. Norris and Verstappen are fades.";
+    } else if (HIGH_DOWNFORCE.some(c => venue.includes(c))) {
+      circuitType = "HIGH DOWNFORCE";
+      circuitBettingNote = "Aero efficiency decides the race. Ferrari's package competes here — Leclerc becomes a live race winner. Mercedes still leads constructor battle.";
+    }
+  }
+
+
   const isRaceWeek = daysUntilRace !== null && daysUntilRace <= 7;
   const isOffWeek  = daysUntilRace === null || daysUntilRace > 7;
 
@@ -218,7 +240,7 @@ function buildF1SystemPrompt(f1Context, matchupCtxStr) {
   prompt += "IDENTITY\n";
   prompt += "You are a sharp F1 betting analyst — not a commentator. Every response should read like it came from someone tracking power unit data, sector times, and championship math. Lead with conviction. Never open with what data you lack — pivot to what you know and give the take.\n\n";
 
-  prompt += "STYLE: Lead with the take. Sharp, specific, confident. No markdown headers. No prefix. Never say 'without live data' — use what you have and give a real angle.\n\n";
+  prompt += "STYLE: Lead with the take. Sharp, specific, confident. No markdown headers. No prefix. Never say 'without live data' or 'without knowing the venue' — the circuit type is provided above, use it. Give one direct recommendation, not conditional scenarios.\n\n";
 
   prompt += "RESPONSE STRUCTURE — ALWAYS END WITH THIS:\n";
   prompt += "THE BET:\n";
@@ -231,7 +253,7 @@ function buildF1SystemPrompt(f1Context, matchupCtxStr) {
   prompt += "TODAY: " + todayStr + "\n";
   prompt += weekContext + "\n\n";
 
-  prompt += "OFF-WEEK CONTENT FRAMEWORK (use when no race this weekend):\n";
+  prompt += "RESPONSE LENGTH: Keep it tight. 3-5 short paragraphs max before THE BET section. Pick one direction and commit — do not give three conditional scenarios. The user wants a bet, not a preview show.\n\n";
   prompt += "Championship math — who needs what results, which drivers can still win, where the gaps close\n";
   prompt += "Upcoming circuit preview — which teams/drivers gain from the next venue type\n";
   prompt += "Futures value — current outright prices vs expected performance trajectory\n";
@@ -266,7 +288,9 @@ function buildF1SystemPrompt(f1Context, matchupCtxStr) {
   prompt += "- Constructor champion: Mercedes is the current structural favorite — back at any price above +150\n\n";
 
   prompt += "CURRENT CHAMPIONSHIP STANDINGS\n" + standings + "\n\n";
-  prompt += nextRaceStr + "\n\n";
+  prompt += nextRaceStr + "\n";
+  prompt += "NEXT CIRCUIT TYPE: " + circuitType + "\n";
+  prompt += "CIRCUIT BETTING NOTE: " + circuitBettingNote + "\n\n";
   prompt += "UPCOMING RACES\n" + upcoming + "\n\n";
   if (sessionStr) prompt += "LATEST SESSION DATA\n" + sessionStr + "\n\n";
   if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
@@ -293,18 +317,29 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   const phase      = seasonCtx.phase || "NBA Season Active";
 
   // ── Today's games ─────────────────────────────────────────────────────────
-  let gamesStr = "No games on today's schedule. This is a rest/travel day within the season — NOT an offseason or break unless the season phase above indicates otherwise.";
+  // Build date-aware fallback — if API fails we still know what day it is
+  const todayNow = new Date();
+  const todayDay = todayNow.getDay(); // 0=Sun, 1=Mon...6=Sat
+  const todayHour = todayNow.getHours();
+  const nbaTypicalGameDays = [0,1,2,3,4,5,6]; // NBA plays every day in season
+  const likelyHasGames = nbaTypicalGameDays.includes(todayDay);
+
+  let gamesStr = likelyHasGames
+    ? "Game schedule not loaded from API — but NBA plays nearly every day in the regular season. There are likely games today. Do NOT say the league is dark or there are no games unless you are certain it is a confirmed rest day. Check the injury report and give prop analysis for the slate."
+    : "No games on today's schedule.";
+
   if (Array.isArray(ctx.todaysGames) && ctx.todaysGames.length > 0) {
     gamesStr = ctx.todaysGames.map(function(g) {
       const away  = (g.awayTeam && (g.awayTeam.abbr || g.awayTeam.name)) || "AWAY";
       const home  = (g.homeTeam && (g.homeTeam.abbr || g.homeTeam.name)) || "HOME";
-      const awayS = (g.awayTeam && g.awayTeam.score) || 0;
-      const homeS = (g.homeTeam && g.homeTeam.score) || 0;
-      const isLive = g.status && !g.status.includes("ET") && g.status !== "Final" && g.time !== "Final";
-      if (isLive && (awayS > 0 || homeS > 0)) {
-        return away + " " + awayS + " @ " + home + " " + homeS + " — LIVE Q" + (g.period || "?");
+      const awayS = (g.awayTeam && g.awayTeam.score) != null ? g.awayTeam.score : "";
+      const homeS = (g.homeTeam && g.homeTeam.score) != null ? g.homeTeam.score : "";
+      const isLive = g.state === "in" || (g.status && g.status === "Live");
+      const isFinal = g.state === "post" || g.status === "Final";
+      if (isLive && awayS !== "") {
+        return away + " " + awayS + " @ " + home + " " + homeS + " — LIVE";
       }
-      if (g.status === "Final" || g.time === "Final") {
+      if (isFinal && awayS !== "") {
         return away + " " + awayS + " @ " + home + " " + homeS + " — FINAL";
       }
       return away + " @ " + home + " — " + (g.status || "Scheduled");
@@ -442,7 +477,12 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   prompt += "TODAY: " + todayStr + "\n";
   prompt += "NBA SEASON PHASE: " + phase + "\n\n";
 
-  prompt += "CRITICAL DATE RULES:\n";
+  prompt += "GAME STATUS RULES — NON-NEGOTIABLE:\n";
+  prompt += "- FINAL means the game is OVER. Do not reference it as live. Do not recommend props for it.\n";
+  prompt += "- LIVE means the game is currently in progress. Flag as live betting only.\n";
+  prompt += "- A time like '7:00 PM ET' means the game has NOT started yet. This is your primary prop target.\n";
+  prompt += "- If the user asks for the best prop and all games are FINAL, say so clearly and give tomorrow's best plays instead.\n";
+  prompt += "- NEVER say a game is live or in overtime if its status says FINAL. The score shown is the final score.\n\n";
   prompt += "- Never mention All-Star break unless it is currently February and the schedule confirms it\n";
   prompt += "- Never say the league is dark unless today's game schedule is empty AND the season phase is offseason\n";
   prompt += "- If today's schedule shows no games, say it is a rest day within the season — not a break\n";
