@@ -46,19 +46,54 @@ function detectSport(question, sportHint, matchupContext) {
   const explicitF1 = ["formula 1","formula one","f1 race","f1 season","grand prix","verstappen","leclerc","antonelli","george russell","oscar piastri","lando norris","ferrari f1","mclaren f1","red bull f1","mercedes f1","pit stop","drs","pole position","qualifying f1","free practice f1","sprint race f1","constructor championship","driver championship"];
   for (let i = 0; i < explicitF1.length; i++) { if (q.includes(explicitF1[i])) return "f1"; }
 
-  const explicitNba = ["nba ","nba,","nba.","nba?","basketball","lakers","celtics","warriors","nuggets","bucks","heat","thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks","grizzlies","pelicans","jazz","kings","trail blazers","rockets","spurs","raptors","magic","pacers","hawks","hornets","pistons","timberwolves","jokic","gilgeous-alexander","doncic","tatum","giannis","wembanyama","brunson","steph curry","kevin durant","devin booker","ja morant","pra over","pra under","points prop","rebounds prop","assists prop","nba props","game total nba","nba future"];
+  // NBA — broad keyword net including prop betting language
+  const explicitNba = [
+    // League + teams
+    "nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat",
+    "thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns",
+    "mavericks","grizzlies","pelicans","jazz","kings","trail blazers","blazers",
+    "rockets","spurs","raptors","magic","pacers","hawks","hornets","pistons","timberwolves",
+    // Star players — first OR last name
+    "jokic","gilgeous-alexander","shai","doncic","tatum","giannis","wembanyama",
+    "brunson","steph curry","stephen curry","kevin durant","devin booker","ja morant",
+    "anthony edwards","karl-anthony","tyrese haliburton","donovan mitchell",
+    "bam adebayo","lebron","lamelo","damian lillard","trae young","kyrie",
+    "anthony davis","rudy gobert","jaren jackson","desmond bane","lauri markkanen",
+    "cade cunningham","paolo banchero","scottie barnes","franz wagner","alperen sengun",
+    "jaylen brown","mikal bridges","og anunoby","josh hart","evan mobley",
+    "jamal murray","anfernee simons","zach lavine","jordan poole","draymond",
+    // Prop betting terms — the key fix
+    "3 pointer","3-pointer","three pointer","3pm","threes made","three pointers",
+    "pra","pra over","pra under","points prop","rebounds prop","assists prop",
+    "nba prop","nba props","player prop","prop bet","prop line","prop pick",
+    "game total","over under","points over","points under","rebounds over",
+    "assists over","double double","triple double","usage rate","usage spike",
+    "minutes prop","steal prop","block prop","fantasy basketball",
+    "nba future","nba bet","nba pick","nba parlay","nba same game parlay",
+    "nba playoff","nba finals","nba champion","nba mvp","defensive player",
+    "box score","field goal","free throw","three point","paint points",
+    "fast break","half court","second half","first half nba",
+  ];
   for (let i = 0; i < explicitNba.length; i++) { if (q.includes(explicitNba[i])) return "nba"; }
 
-  const nflSignals = ["quarterback","qb ","touchdown","touchdowns","interception","passing yards","rushing yards","receiving yards","fantasy football","super bowl","afc ","nfc ","wide receiver","running back","tight end","red zone","blitz","pocket","play action","offense","defense","defensive","offensive","cornerback","linebacker","pass rush","edge rusher","sacks","sack rate","draft pick","draft class","first round","win total","team total","season total","game script","skill position","futures","divisional","playoff","bills","patriots","dolphins","jets","ravens","bengals","browns","steelers","texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos","cowboys","giants","eagles","commanders","bears","lions","packers","vikings","falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks","mahomes","lamar","burrow","hurts","prescott","stroud","stafford","purdy","goff","daniels","cook","henry","taylor","robinson","achane","nacua","chase","pickens","lamb","mcbride","bowers","kelce","warren","draft","rookie","rookies"];
-  const tennisSignals = ["alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova","osaka","keys","draper","fils","ruud","rublev","paolini","andreeva","kartal","zheng","mensik","bublik","tien","lehecka","cerundolo","surface elo","dominance ratio","hold percentage","tiebreak","double faults","ace rate","break point","grand slam","clay court","grass court","hard court","draw path"];
+  const nflSignals = ["quarterback","qb ","touchdown","touchdowns","interception","passing yards","rushing yards","receiving yards","fantasy football","super bowl","afc ","nfc ","wide receiver","running back","tight end","red zone","blitz","pocket","play action","offense","defense","defensive","offensive","cornerback","linebacker","pass rush","edge rusher","sacks","sack rate","draft pick","draft class","first round","win total","team total","season total","game script","skill position","divisional","bills","patriots","dolphins","jets","ravens","bengals","browns","steelers","texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos","cowboys","giants","eagles","commanders","bears","lions","packers","vikings","falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks","mahomes","lamar","burrow","hurts","prescott","stroud","stafford","purdy","goff","daniels","cook","henry","taylor","robinson","achane","nacua","chase","pickens","lamb","mcbride","bowers","kelce","warren","draft","rookie","rookies"];
+  const tennisSignals = ["alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova","osaka","keys","draper","fils","ruud","rublev","paolini","andreeva","kartal","zheng","mensik","bublik","tien","lehecka","cerundolo","surface elo","dominance ratio","hold percentage","tiebreak","double faults","ace rate","break point","clay court","grass court","hard court","draw path"];
 
   let nfl = 0;
   let ten = 0;
+  let nba = 0;
   for (let i = 0; i < nflSignals.length; i++)    { if (q.includes(nflSignals[i]))    nfl += nflSignals[i].length > 7 ? 3 : nflSignals[i].length > 4 ? 2 : 1; }
   for (let i = 0; i < tennisSignals.length; i++) { if (q.includes(tennisSignals[i])) ten += tennisSignals[i].length > 7 ? 3 : tennisSignals[i].length > 4 ? 2 : 1; }
 
+  // Additional NBA signals for scoring
+  const nbaSignals = ["points per game","rebounds per game","assists per game","per game","scorer","shooting","field goal percentage","three point percentage","playoff basketball","conference finals","nba season"];
+  for (let i = 0; i < nbaSignals.length; i++) { if (q.includes(nbaSignals[i])) nba += 3; }
+
+  if (nba > nfl && nba > ten) return "nba";
   if (ten > nfl) return "tennis";
   if (nfl > ten) return "nfl";
+  // Default: if nothing matches and it sounds like prop/betting context, try NBA
+  if (q.includes("prop") || q.includes("over") || q.includes("under") || q.includes("bet") || q.includes("pick")) return "nba";
   return "nfl";
 }
 
@@ -110,6 +145,11 @@ function cleanResponseText(text) {
     .replace(/^i don['']?t cover tennis.*$/gim, "")
     .replace(/^i only cover nfl.*$/gim, "")
     .replace(/^i['']?m built for nfl betting only.*$/gim, "")
+    .replace(/^wrong sport[^\n]*/gim, "")
+    .replace(/^i cover nfl[^\n]*/gim, "")
+    .replace(/^that['']?s not my area[^\n]*/gim, "")
+    .replace(/^i don['']?t cover (nba|basketball)[^\n]*/gim, "")
+    .replace(/^if you['']?re asking (nba|basketball)[^\n]*/gim, "")
     .trim();
 }
 
@@ -277,9 +317,26 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
     }).join("\n");
   }
 
-  // ── Build prompt ──────────────────────────────────────────────────────────
-  let prompt = "You are Under Review — a sharp sports betting intelligence tool covering NBA player props.\n\n";
-  prompt += "STYLE: Lead with the take. Sharp, specific, confident. No markdown headers. No prefix. Never apologize for missing data.\n\n";
+  // ── Injury report — CRITICAL ──────────────────────────────────────────────
+  let injuryStr = "No current injury data loaded.";
+  if (Array.isArray(ctx.injuries) && ctx.injuries.length > 0) {
+    injuryStr = ctx.injuries.map(function(i) {
+      const ret = i.returnDate ? " (est. return: " + i.returnDate + ")" : "";
+      return i.player + " (" + i.team + ") — " + i.status + ret + (i.description ? " — " + i.description : "");
+    }).join("\n");
+  }
+
+  // Build set of injured player names for quick lookup
+  const injuredNames = new Set();
+  if (Array.isArray(ctx.injuries)) {
+    ctx.injuries.forEach(function(i) {
+      if (i.player) injuredNames.add(i.player.toLowerCase());
+    });
+  }
+
+
+  let prompt = "You are Under Review — a sharp sports betting intelligence tool covering NBA, NFL, tennis, and F1.\n\n";
+  prompt += "STYLE: Lead with the take. Sharp, specific, confident. No markdown headers. No prefix. Never deflect. Never say 'wrong sport.' Always give a real answer.\n\n";
 
   prompt += "TODAY: " + todayStr + "\n";
   prompt += "NBA SEASON PHASE: " + phase + "\n\n";
@@ -305,7 +362,15 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   prompt += "- Fade stars in blowout-likely games — garbage time kills props\n";
   prompt += "- Playoffs: minutes increase but role compression matters — fade role players, back stars\n\n";
 
-  prompt += "TODAY'S SCHEDULE\n" + gamesStr + "\n\n";
+  prompt += "INJURY REPORT (LIVE — from BallDontLie)\n" + injuryStr + "\n\n";
+  prompt += "INJURY RULES — NON-NEGOTIABLE:\n";
+  prompt += "- NEVER recommend a prop bet on a player listed as Out or Day-To-Day without explicitly flagging it\n";
+  prompt += "- If a user asks about an injured player, acknowledge the injury FIRST, then pivot to available alternatives\n";
+  prompt += "- If a player is Out, say so immediately and redirect to the best available replacement\n";
+  prompt += "- Do NOT use season averages to recommend players who are currently injured\n";
+  prompt += "- When recommending 3-pointers made, check the injury report — if Curry or Lillard are out, say so and give alternatives\n\n";
+
+
   prompt += "LAST NIGHT'S RESULTS\n" + lastNightStr + "\n\n";
   if (lastNightStatsStr) prompt += lastNightStatsStr + "\n\n";
   if (liveStatsStr) prompt += liveStatsStr + "\n\n";
@@ -385,8 +450,8 @@ export default async function handler(req, res) {
     const qbData      = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
     const skillData   = getRelevantSkillPlayers(question, nflContext);
 
-    systemPrompt = `You are Under Review — a sharp sports betting intelligence tool.
-You cover NFL, tennis, NBA, and F1. You answer whatever is asked.
+    systemPrompt = `You are Under Review — a sharp sports betting intelligence tool covering NFL, NBA, tennis, and F1.
+You answer whatever is asked. Never say you cover only one sport. Never deflect or say "wrong sport."
 
 STYLE
 Lead with the take. Sharp, concise, confident, specific. No markdown headers. No "UR TAKE:" prefix. No self-introduction.
