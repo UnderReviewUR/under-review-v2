@@ -561,7 +561,10 @@ export default function App() {
     async function loadF1() {
       setF1Loading(true);
       try {
-        const res = await fetch("/api/f1");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch("/api/f1", { signal: controller.signal });
+        clearTimeout(timeout);
         const data = await res.json();
         if (active) setF1Data(data);
       } catch { if (active) setF1Data(null); }
