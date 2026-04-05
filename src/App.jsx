@@ -102,8 +102,8 @@ const css = `
   .matchup-meta{font-size:11px;color:var(--muted);margin-bottom:4px;}
   .matchup-blurb{font-size:12px;color:var(--soft);line-height:1.45;}
 
-  .sport-chips{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
-  .sport-chip{border:1px solid var(--border-2);background:var(--surface);color:var(--soft);border-radius:10px;padding:11px 12px;font-family:var(--mono-font);font-size:11px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;font-weight:500;letter-spacing:1px;}
+  .sport-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .sport-chip{border:1px solid var(--border-2);background:var(--surface);color:var(--soft);border-radius:12px;padding:16px 12px;font-family:var(--display-font);font-size:18px;letter-spacing:2px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
   .sport-chip.active,.sport-chip:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);background:rgba(0,245,233,.06);}
   .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);background:rgba(255,107,53,.06);}
   .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);background:rgba(225,6,0,.06);}
@@ -825,20 +825,22 @@ export default function App() {
 
   const homeNbaCards = useMemo(() => {
     const games = nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []);
-    const liveGame = games.find(g => g.status && !g.status.includes("ET") && g.status !== "Final" && (g.awayTeam?.score > 0 || g.homeTeam?.score > 0));
-    const nextGame = games.find(g => g.status && g.status.includes("ET"));
+    const liveGame = games.find(g => g.state === "in");
+    const nextGame = games.find(g => g.state === "pre");
     const cards = [];
     if (liveGame) {
       const away = liveGame.awayTeam?.abbr || liveGame.awayTeam?.name || "Away";
       const home = liveGame.homeTeam?.abbr || liveGame.homeTeam?.name || "Home";
-      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0} · Q${liveGame.period||"?"}`,blurb:"Live game in progress. Ask for the best in-game prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
+      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}`,blurb:"Live game in progress. Ask for the best prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
     } else if (nextGame) {
       const away = nextGame.awayTeam?.abbr || nextGame.awayTeam?.name || "Away";
       const home = nextGame.homeTeam?.abbr || nextGame.homeTeam?.name || "Home";
       cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
+    } else if (games.length > 0) {
+      // All games final — show tomorrow preview
+      cards.push({id:"nba-tomorrow",league:"NBA",leagueColor:"#FF6B00",title:"Tonight's slate is done",time:"Check back tomorrow",network:"NBA Props",blurb:"All games final. Ask for the best plays on tomorrow's slate.",whatMatters:"Ask for tomorrow's best prop plays.",quickHitters:["Best prop tomorrow?","Safest PRA bet tomorrow?","Top plays for tomorrow?"],confirmed:true});
     } else {
-      const nbaSeason = new Date().getMonth() >= 9 ? `${new Date().getFullYear()}-${String(new Date().getFullYear()+1).slice(2)}` : `${new Date().getFullYear()-1}-${String(new Date().getFullYear()).slice(2)}`;
-      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:`NBA Props — ${nbaSeason}`,time:"Active",network:"Player Props",blurb:"80-player prop database with PRA floors, ceilings, and usage angles.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
+      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:"NBA Props",time:"Active",network:"Player Props",blurb:"Ask about any player prop, PRA bet, or game total.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
     }
     return cards.slice(0,1);
   }, [nbaData, nbaGames]);
