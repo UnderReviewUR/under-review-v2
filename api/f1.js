@@ -177,6 +177,7 @@ export default async function handler(req, res) {
 
       const body = { schedule: scheduleFull, standings, session, drivers };
       setCached("board", body);
+      res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
       return res.status(200).json(body);
     }
 
