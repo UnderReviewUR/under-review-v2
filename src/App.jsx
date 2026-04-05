@@ -494,6 +494,7 @@ export default function App() {
   const fileInputRef      = useRef(null);
 
   const nflRampMode   = useMemo(() => isNflRampMode(), []);
+  const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
   // ── Tennis fetch ───────────────────────────────────────────────────────────
   const fetchTennisBoard = useCallback(async (activeContext=null) => {
