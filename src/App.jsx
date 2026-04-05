@@ -41,7 +41,7 @@ const css = `
   .app{min-height:100vh;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
 
   .hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--header-bg);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);gap:14px;}
-  .wordmark{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:fit-content;}
+  .wordmark{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:fit-content;cursor:pointer;}
   .logo-under{display:block;font-family:var(--mono-font);font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;text-transform:uppercase;}
   .logo-review{display:block;font-family:var(--display-font);font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
@@ -214,8 +214,8 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:10px 4px max(12px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:9px;letter-spacing:1px;cursor:pointer;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.85;}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:8px 4px max(16px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;cursor:pointer;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;opacity:.85;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:var(--gold);}
   .nav-btn.nfl-active{color:var(--nfl);}
@@ -953,7 +953,7 @@ export default function App() {
       <div className="app">
 
         <header className="hdr">
-          <div className="wordmark"><span className="logo-under">Under</span><span className="logo-review">Review</span></div>
+          <div className="wordmark" onClick={goHome}><span className="logo-under">Under</span><span className="logo-review">Review</span></div>
           <div className="header-right">{headerPill}</div>
         </header>
 
@@ -966,6 +966,25 @@ export default function App() {
             </section>
 
             <AskBar inputRef={homeInputRef} value={homeInput} onChange={setHomeInput} onSubmit={submitHome} placeholder="Ask UR TAKE anything..." {...askBarCommon} />
+
+            {/* Live NBA games strip */}
+            {nbaGames.length > 0 && (
+              <div style={{display:"flex",gap:8,overflowX:"auto",padding:"4px 0 12px",scrollbarWidth:"none"}}>
+                {nbaGames.map((g,i) => {
+                  const away = g.awayTeam?.abbr || "AWAY";
+                  const home = g.homeTeam?.abbr || "HOME";
+                  const isLive = g.state === "in";
+                  const isFinal = g.state === "post";
+                  return (
+                    <div key={g.id||i} onClick={()=>goNba()} style={{flexShrink:0,background:"var(--surface)",border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,borderRadius:12,padding:"8px 12px",cursor:"pointer",minWidth:130}}>
+                      <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:isLive?"var(--green)":isFinal?"var(--muted)":"var(--nba)",letterSpacing:1,marginBottom:4}}>{isLive?"● LIVE":isFinal?"FINAL":g.status}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{away} vs {home}</div>
+                      {(isLive||isFinal) && g.awayTeam?.score != null && <div style={{fontFamily:"var(--mono-font)",fontSize:12,color:"var(--soft)",marginTop:2}}>{g.awayTeam.score} — {g.homeTeam.score}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <section className="section">
               <div className="section-label">TRENDING ASKS</div>
