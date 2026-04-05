@@ -31,7 +31,7 @@ const css = `
     --body-font:'DM Sans',sans-serif;
     --mono-font:'DM Mono',monospace;
     --display-font:'Bebas Neue',sans-serif;
-    --bottom-nav-height:74px;
+    --bottom-nav-height:60px;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -52,7 +52,7 @@ const css = `
   .pill-f1{color:var(--f1);border:1px solid rgba(225,6,0,.25);background:rgba(225,6,0,.06);}
   .pill-nba{color:var(--nba);border:1px solid rgba(255,107,0,.25);background:rgba(255,107,0,.06);}
 
-  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:90px;}
+  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:70px;}
   .hero{padding:6px 2px 8px;text-align:center;}
   .hero-title{font-family:var(--display-font);font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
   .hero-sub{color:var(--soft);font-size:13px;line-height:1.5;max-width:560px;margin:0 auto;}
@@ -214,8 +214,8 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:8px 4px max(16px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;cursor:pointer;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;opacity:.85;}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:6px 4px max(10px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;cursor:pointer;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.85;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:var(--gold);}
   .nav-btn.nfl-active{color:var(--nfl);}
