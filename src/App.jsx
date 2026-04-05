@@ -40,22 +40,22 @@ const css = `
 
   .app{min-height:100vh;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
 
-  .hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--header-bg);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);gap:14px;}
+  .hdr{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--header-bg);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);gap:14px;}
   .wordmark{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:fit-content;cursor:pointer;}
-  .logo-under{display:block;font-family:var(--mono-font);font-size:10px;letter-spacing:5px;color:rgba(255,255,255,.6);margin-bottom:2px;text-transform:uppercase;}
-  .logo-review{display:block;font-family:var(--display-font);font-size:22px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .logo-under{display:block;font-family:var(--mono-font);font-size:8px;letter-spacing:4px;color:rgba(255,255,255,.4);margin-bottom:1px;text-transform:uppercase;}
+  .logo-review{display:block;font-family:var(--display-font);font-size:20px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
-  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba{font-family:var(--mono-font);font-size:10px;padding:4px 9px;border-radius:999px;white-space:nowrap;}
+  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
   .pill-tag{color:var(--magenta);border:1px solid rgba(255,45,107,.25);background:rgba(255,45,107,.06);}
   .pill-live{color:var(--cyan-bright);border:1px solid rgba(0,245,233,.25);background:rgba(0,245,233,.06);}
   .pill-nfl{color:var(--nfl);border:1px solid rgba(255,107,53,.25);background:rgba(255,107,53,.06);}
   .pill-f1{color:var(--f1);border:1px solid rgba(225,6,0,.25);background:rgba(225,6,0,.06);}
   .pill-nba{color:var(--nba);border:1px solid rgba(255,107,0,.25);background:rgba(255,107,0,.06);}
 
-  .screen{flex:1;overflow-y:auto;padding:16px;padding-bottom:110px;}
-  .hero{padding:12px 2px 16px;text-align:center;}
-  .hero-title{font-family:var(--display-font);font-size:34px;letter-spacing:1px;line-height:1;margin-bottom:10px;}
-  .hero-sub{color:var(--soft);font-size:14px;line-height:1.6;max-width:560px;margin:0 auto;}
+  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:90px;}
+  .hero{padding:6px 2px 8px;text-align:center;}
+  .hero-title{font-family:var(--display-font);font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
+  .hero-sub{color:var(--soft);font-size:13px;line-height:1.5;max-width:560px;margin:0 auto;}
 
   .ask-wrap{margin:12px 0 18px;}
   .ask-row{display:flex;gap:8px;align-items:flex-end;}
@@ -74,40 +74,40 @@ const css = `
   .attach-btn:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);}
   .attach-btn.has-img{border-color:var(--cyan-bright);color:var(--cyan-bright);background:rgba(0,245,233,.08);}
 
-  .section{margin-top:20px;}
-  .section-label{font-family:var(--mono-font);font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;}
+  .section{margin-top:10px;}
+  .section-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;}
 
-  .q-list{display:flex;flex-direction:column;gap:8px;}
-  .q-card{width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;cursor:pointer;color:var(--text);transition:all .18s ease;}
+  .q-list{display:flex;flex-direction:column;gap:4px;}
+  .q-card{width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 10px;cursor:pointer;color:var(--text);transition:all .18s ease;}
   .q-card:hover{border-color:var(--cyan-bright);transform:translateY(-1px);}
-  .q-top{display:flex;align-items:center;gap:10px;}
-  .q-accent{width:4px;height:30px;border-radius:2px;flex-shrink:0;}
-  .q-text{font-size:14px;line-height:1.45;color:var(--soft);}
+  .q-top{display:flex;align-items:center;gap:8px;}
+  .q-accent{width:3px;height:22px;border-radius:2px;flex-shrink:0;}
+  .q-text{font-size:13px;line-height:1.35;color:var(--soft);}
 
-  .tour-banner,.nfl-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid var(--border);background:var(--surface);}
+  .tour-banner,.nfl-banner{border-radius:12px;padding:12px;margin-bottom:10px;border:1px solid var(--border);background:var(--surface);}
   .tour-banner{background:linear-gradient(135deg,rgba(0,245,233,.08),rgba(245,200,66,.06));}
   .nfl-banner{background:linear-gradient(135deg,rgba(255,107,53,.08),rgba(255,45,107,.05));}
-  .banner-title{font-family:var(--display-font);font-size:26px;letter-spacing:1px;margin-bottom:4px;}
-  .banner-sub{font-family:var(--mono-font);font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
-  .banner-note{font-size:13px;color:var(--soft);line-height:1.5;}
+  .banner-title{font-family:var(--display-font);font-size:22px;letter-spacing:1px;margin-bottom:2px;}
+  .banner-sub{font-family:var(--mono-font);font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px;text-transform:uppercase;}
+  .banner-note{font-size:12px;color:var(--soft);line-height:1.4;}
 
-  .matchup-list{display:flex;flex-direction:column;gap:10px;}
-  .matchup-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;cursor:pointer;transition:all .18s ease;position:relative;}
+  .matchup-list{display:flex;flex-direction:column;gap:6px;}
+  .matchup-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .18s ease;position:relative;}
   .matchup-card:hover{border-color:var(--cyan-bright);transform:translateY(-1px);}
-  .matchup-top{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.01);}
-  .matchup-league{font-family:var(--mono-font);font-size:10px;letter-spacing:2px;text-transform:uppercase;}
-  .matchup-time{font-family:var(--mono-font);font-size:10px;color:var(--muted);}
-  .matchup-body{padding:12px;}
-  .matchup-title{font-size:16px;font-weight:600;margin-bottom:4px;color:var(--text);}
-  .matchup-meta{font-size:12px;color:var(--muted);margin-bottom:8px;}
-  .matchup-blurb{font-size:13px;color:var(--soft);line-height:1.55;}
+  .matchup-top{padding:7px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.01);}
+  .matchup-league{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;text-transform:uppercase;}
+  .matchup-time{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
+  .matchup-body{padding:8px 10px;}
+  .matchup-title{font-size:14px;font-weight:600;margin-bottom:2px;color:var(--text);}
+  .matchup-meta{font-size:11px;color:var(--muted);margin-bottom:4px;}
+  .matchup-blurb{font-size:12px;color:var(--soft);line-height:1.45;}
 
-  .sport-chips{display:flex;gap:8px;flex-wrap:wrap;}
-  .sport-chip{border:1px solid var(--border);background:var(--surface);color:var(--soft);border-radius:999px;padding:8px 14px;font-family:var(--mono-font);font-size:11px;cursor:pointer;transition:all .15s;}
-  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);}
-  .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);}
-  .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);}
-  .sport-chip.nba-chip.active,.sport-chip.nba-chip:hover{border-color:var(--nba);color:var(--nba);}
+  .sport-chips{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+  .sport-chip{border:1px solid var(--border-2);background:var(--surface);color:var(--soft);border-radius:10px;padding:11px 12px;font-family:var(--mono-font);font-size:11px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;font-weight:500;letter-spacing:1px;}
+  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);background:rgba(0,245,233,.06);}
+  .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);background:rgba(255,107,53,.06);}
+  .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);background:rgba(225,6,0,.06);}
+  .sport-chip.nba-chip.active,.sport-chip.nba-chip:hover{border-color:var(--nba);color:var(--nba);background:rgba(255,107,0,.06);}
 
   .detail-back{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:6px;}
   .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px;}
@@ -263,7 +263,7 @@ const css = `
   .nba-game-records{font-size:11px;color:var(--muted);}
   .nba-live-badge{color:var(--green);font-family:var(--mono-font);font-size:10px;}
 
-  .page-spacer{height:80px;}
+  .page-spacer{height:20px;}
 `;
 
 // ── Player data ──────────────────────────────────────────────────────────────
@@ -1010,7 +1010,7 @@ export default function App() {
             </section>
 
             <section className="section">
-              <div className="section-label">SPORTS</div>
+              <div className="section-label">EXPLORE BY SPORT →</div>
               <div className="sport-chips">
                 <button className="sport-chip active" onClick={goTennis}>TENNIS</button>
                 <button className="sport-chip nfl-chip active" onClick={goNfl}>{nflSeasonMode?"NFL IN-SEASON":"NFL"}</button>
