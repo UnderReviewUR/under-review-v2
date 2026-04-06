@@ -717,6 +717,7 @@ export default function App() {
       injuries:        nbaData?.injuries      || [],
       recentForm:      nbaData?.recentForm    || "",
       h2hSplits:       nbaData?.h2hSplits     || [],
+      gameTotals:      nbaData?.gameTotals     || {},
       playerDb:        NBA_PLAYERS,
       question:        questionText || "",
     };
