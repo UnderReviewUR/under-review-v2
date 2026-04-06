@@ -21,9 +21,9 @@ const NFL_QBS = {
 "Caleb Williams":   { team:"CHI", tier:"STARTER",  passing:{ gs:17, cmp:58.1, yds:3942, td:27, int:7,  ypa:6.9,  rate:90.1,  qbr:58.2 }, advanced:{ ontgt:69.8, badTh:20.7, prss:25.1, pktTime:2.5, iay_pa:8.5 }, rushing:{ attPg:4.5, ydsPg:22.8, tier:"STRONG RUSHER" }, props:{ best:"Bears team total OVER — best cast Williams has had." }, futures:{ wins:"10-12", playoff:"60-70%" }, note:"Year 2 with better cast is the buy." },
 "Bo Nix":           { team:"DEN", tier:"STARTER",  passing:{ gs:17, cmp:63.4, yds:3931, td:25, int:11, ypa:6.4,  rate:87.8,  qbr:58.3 }, advanced:{ ontgt:77.4, badTh:15.9, prss:19.1, pktTime:2.4, iay_pa:7.3 }, rushing:{ attPg:4.9, ydsPg:20.9, tier:"STRONG RUSHER" }, props:{ best:"Broncos team total UNDER vs elite offenses. Nix rushing OVER." }, futures:{ wins:"10-12", playoff:"55-65%" }, note:"RPO scheme is where Denver generates offense. Fade in shootouts." },
 "Baker Mayfield":   { team:"TB",  tier:"STARTER",  passing:{ gs:17, cmp:63.2, yds:3693, td:26, int:11, ypa:6.8,  rate:90.6,  qbr:61.3 }, advanced:{ ontgt:73.7, badTh:15.7, prss:14.8, pktTime:2.3, iay_pa:8.0 }, rushing:{ attPg:3.2, ydsPg:22.5, ypc:6.9, tier:"STRONG RUSHER" }, props:{ best:"Evans TD scorer OVER. Mayfield rushing yards OVER." }, futures:{ wins:"8-10", playoff:"50-60%" }, note:"Lowest pressure rate among starters (14.8%). Books underrate Tampa." },
-"Kyler Murray":     { team:"MIN", tier:"STARTER",  passing:{ gs:5,  cmp:68.3, yds:962,  td:6,  int:3,  note:"5 games pre-trade" }, rushing:{ attPg:5.8, ydsPg:34.6, ypc:6.0, tier:"ELITE RUSHER" }, props:{ rushYds:{ lean:"OVER when healthy" }, best:"Vikings team total OVER when Murray healthy." }, futures:{ wins:"10-13 healthy", playoff:"70-80% healthy" }, note:"O’Connell scheme + Jefferson is generational. Health is the only ceiling." },
+"Kyler Murray":     { team:"MIN", tier:"STARTER",  passing:{ gs:5,  cmp:68.3, yds:962,  td:6,  int:3,  note:"5 games pre-trade" }, rushing:{ attPg:5.8, ydsPg:34.6, ypc:6.0, tier:"ELITE RUSHER" }, props:{ rushYds:{ lean:"OVER when healthy" }, best:"Vikings team total OVER when Murray healthy." }, futures:{ wins:"10-13 healthy", playoff:"70-80% healthy" }, note:"O'Connell scheme + Jefferson is generational. Health is the only ceiling." },
 "Jaxson Dart":      { team:"NYG", tier:"BELOW_AVG", passing:{ gs:12, cmp:63.7, yds:2272, td:15, int:5,  ypa:6.7,  rate:91.7,  qbr:57.5 }, advanced:{ ontgt:72.9, badTh:15.5, prss:23.3, pktTime:2.4, iay_pa:8.1 }, rushing:{ attPg:6.1, ydsPg:34.8, tdPg:0.64, ypc:5.7, tier:"ELITE RUSHER" }, props:{ rushYds:{ lean:"OVER — market ignores 34.8 yds/g" }, best:"Rushing yards OVER every week." }, futures:{ wins:"7-9", playoff:"30-40%" }, note:"34.8 rushing yds/g is the best prop edge in the NFC. Market ignores it." },
-"Sam Darnold":      { team:"SEA", tier:"STARTER",  passing:{ gs:17, cmp:67.7, yds:4048, td:25, int:14, ypa:8.5,  rate:99.1,  qbr:55.6, note:"MIN under O’Connell — regression is the base case" }, advanced:{ ontgt:79.8, badTh:14.6, prss:21.0, pktTime:2.4, iay_pa:7.8 }, props:{ best:"Darnold INT OVER 0.5 every week." }, futures:{ wins:"7-10", playoff:"40-50%" }, note:"Numbers were O’Connell scheme and Jefferson. Regression is the base case." },
+"Sam Darnold":      { team:"SEA", tier:"STARTER",  passing:{ gs:17, cmp:67.7, yds:4048, td:25, int:14, ypa:8.5,  rate:99.1,  qbr:55.6, note:"MIN under O'Connell — regression is the base case" }, advanced:{ ontgt:79.8, badTh:14.6, prss:21.0, pktTime:2.4, iay_pa:7.8 }, props:{ best:"Darnold INT OVER 0.5 every week." }, futures:{ wins:"7-10", playoff:"40-50%" }, note:"Numbers were O'Connell scheme and Jefferson. Regression is the base case." },
 "Shedeur Sanders":  { team:"TEN", tier:"ROOKIE",   passing:{ gs:0,  note:"2026 DRAFT PICK — Drafted #1 overall by Tennessee Titans (April 2026)." }, advanced:{ ontgt:69.6, badTh:18.0, prss:40.3, note:"College stats from Colorado 2025" }, props:{ best:"Fade Titans early-season totals — market overvalues rookie QBs." }, futures:{ wins:"5-7", playoff:"10-15%" }, note:"Most NFL-ready QB in 2026 class. Titans supporting cast is bottom-5." },
 "Cam Ward":         { team:"TEN", tier:"BELOW_AVG", passing:{ gs:17, cmp:59.8, yds:3169, td:15, int:7,  ypa:5.9,  rate:80.2,  qbr:33.2, note:"Was Titans starter before Sanders drafted" }, advanced:{ ontgt:72.6, badTh:19.0, prss:27.8, pktTime:2.4, iay_pa:7.2 }, props:{ best:"Titans team total UNDER regardless of QB." }, futures:{ wins:"5-8", playoff:"10-15%" }, note:"Titans situation is a mess. Sanders drafted #1 — Ward is either traded or backup." },
 };
@@ -38,7 +38,7 @@ const mcLeague = String((matchupContext && matchupContext.league) || "").toLower
 if (mcLeague.includes("nfl")) return "nfl";
 if (mcLeague.includes("atp") || mcLeague.includes("wta") || mcLeague.includes("tennis")) return "tennis";
 
-const explicitTennis = ["tennis","atp ","wta ","atp tour","wta tour","roland garros","french open","wimbledon","us open","australian open","indian wells","miami open","madrid open","rome open","queen’s club","halle open"];
+const explicitTennis = ["tennis","atp ","wta ","atp tour","wta tour","roland garros","french open","wimbledon","us open","australian open","indian wells","miami open","madrid open","rome open","queen's club","halle open"];
 for (let i = 0; i < explicitTennis.length; i++) { if (q.includes(explicitTennis[i])) return "tennis"; }
 
 if (q.includes("nfl")) return "nfl";
@@ -131,26 +131,26 @@ return parts.join("\n");
 
 function cleanResponseText(text) {
 return String(text || "")
-.replace(/^i[’’]?m ur take.*$/gim, "")
+.replace(/^i['']?m ur take.*$/gim, "")
 .replace(/^ur take[:-]\s*/gim, "")
 .replace(/^i am an nfl.*$/gim, "")
-.replace(/^i don[’’]?t have tennis data.*$/gim, "")
-.replace(/^i don[’’]?t cover tennis.*$/gim, "")
+.replace(/^i don['']?t have tennis data.*$/gim, "")
+.replace(/^i don['']?t cover tennis.*$/gim, "")
 .replace(/^i only cover nfl.*$/gim, "")
-.replace(/^i[’’]?m built for nfl betting only.*$/gim, "")
+.replace(/^i['']?m built for nfl betting only.*$/gim, "")
 .replace(/^wrong sport[^\n]*/gim, "")
 .replace(/^i cover nfl[^\n]*/gim, "")
-.replace(/^that[’’]?s not my area[^\n]*/gim, "")
-.replace(/^i don[’’]?t cover (nba|basketball)[^\n]*/gim, "")
-.replace(/^if you[’’]?re asking (nba|basketball)[^\n]*/gim, "")
+.replace(/^that['']?s not my area[^\n]*/gim, "")
+.replace(/^i don['']?t cover (nba|basketball)[^\n]*/gim, "")
+.replace(/^if you['']?re asking (nba|basketball)[^\n]*/gim, "")
 .replace(/^without live data[^\n]*/gim, "")
 .replace(/^without (access to |real-?time |current )[^\n]*/gim, "")
-.replace(/^i don[’’]?t have (access to |real-?time |live |current )[^\n]*/gim, "")
+.replace(/^i don['']?t have (access to |real-?time |live |current )[^\n]*/gim, "")
 .replace(/^as of my (knowledge |training )?cutoff[^\n]*/gim, "")
-.replace(/^i can[’’]?t give you a sharp answer[^\n]*/gim, "")
-.replace(/^i can[’’]?t (give|provide) a (sharp|specific|direct)[^\n]*/gim, "")
-.replace(/^the (race )?schedule isn[’’]?t loaded[^\n]*/gim, "")
-.replace(/^i don[’’]?t know which (race|circuit|grand prix)[^\n]*/gim, "")
+.replace(/^i can['']?t give you a sharp answer[^\n]*/gim, "")
+.replace(/^i can['']?t (give|provide) a (sharp|specific|direct)[^\n]*/gim, "")
+.replace(/^the (race )?schedule isn['']?t loaded[^\n]*/gim, "")
+.replace(/^i don['']?t know which (race|circuit|grand prix)[^\n]*/gim, "")
 .trim();
 }
 
@@ -158,14 +158,14 @@ function responseLooksWrongForSport(text, sport) {
 const t = String(text || "").toLowerCase();
 if (sport === "tennis") {
 return (
-t.includes("i don’t cover tennis") ||
+t.includes("i don't cover tennis") ||
 t.includes("built for nfl betting only") ||
 t.includes("i only cover nfl") ||
 (t.includes("quarterback") && !t.includes("tennis"))
 );
 }
 if (sport === "nfl") {
-return t.includes("i don’t cover nfl") || (t.includes("grand slam") && !t.includes("super bowl"));
+return t.includes("i don't cover nfl") || (t.includes("grand slam") && !t.includes("super bowl"));
 }
 return false;
 }
@@ -323,10 +323,10 @@ const weekContext = isRaceWeek
 
 let prompt = "You are Under Review — a sharp sports betting intelligence tool covering Formula 1, NBA, tennis, and NFL.\n\n";
 
-prompt += "IDENTITY: Sharp F1 betting analyst. Lead every response with the take — not with what you don’t know. Give one direct recommendation with conviction. No conditional scenarios.\n\n";
+prompt += "IDENTITY: Sharp F1 betting analyst. Lead every response with the take — not with what you don't know. Give one direct recommendation with conviction. No conditional scenarios.\n\n";
 
 prompt += "CRITICAL RULE — NON-NEGOTIABLE:\n";
-prompt += "NEVER open with a limitation, a data gap, or what you can’t tell the user.\n";
+prompt += "NEVER open with a limitation, a data gap, or what you can't tell the user.\n";
 prompt += "ALWAYS lead with the structural lean first. If live data is unavailable, use the 2026 power unit order and circuit type to give the best available read. Mention data gaps at the END if at all.\n\n";
 
 prompt += "STYLE: 2-3 sharp sentences of structural analysis, then THE BET. No hedging.\n\n";
@@ -402,7 +402,7 @@ const likelyHasGames = [0,1,2,3,4,5,6].includes(todayDay);
 
 let gamesStr = likelyHasGames
 ? "Game schedule not loaded from API — but NBA plays nearly every day in the regular season. There are likely games today. Do NOT say the league is dark unless the schedule confirms it."
-: "No games on today’s schedule.";
+: "No games on today's schedule.";
 
 if (Array.isArray(ctx.todaysGames) && ctx.todaysGames.length > 0) {
 gamesStr = ctx.todaysGames.map(function(g) {
@@ -519,7 +519,7 @@ prompt += "NBA SEASON PHASE: " + phase + "\n\n";
 prompt += "GAME STATUS RULES:\n";
 prompt += "FINAL = game is over. Do not recommend props for it.\n";
 prompt += "LIVE = in progress. Flag as live betting only.\n";
-prompt += "Scheduled time = game hasn’t started. Primary prop target.\n";
+prompt += "Scheduled time = game hasn't started. Primary prop target.\n";
 prompt += "Never say the league is dark unless the schedule is empty AND it is offseason.\n\n";
 prompt += "KEY PROP PRINCIPLES:\n";
 prompt += "PRA is the primary vehicle — lower variance than any single stat.\n";
@@ -528,13 +528,31 @@ prompt += "Rebounds most predictable prop — position and matchup, not luck.\n"
 prompt += "Fade stars in blowout-likely games.\n\n";
 prompt += "INJURY REPORT\n" + injuryStr + "\n\n";
 prompt += "INJURY RULES: NEVER recommend a prop on a player listed Out. Always acknowledge injury first, pivot to replacement.\n\n";
-prompt += "TODAY’S SCHEDULE\n" + gamesStr + "\n\n";
-prompt += "LAST NIGHT’S RESULTS\n" + lastNightStr + "\n\n";
+prompt += "TODAY'S SCHEDULE\n" + gamesStr + "\n\n";
+prompt += "LAST NIGHT'S RESULTS\n" + lastNightStr + "\n\n";
 if (lastNightStatsStr) prompt += lastNightStatsStr + "\n\n";
 if (liveStatsStr)      prompt += liveStatsStr      + "\n\n";
 prompt += "LIVE SEASON AVERAGES\n" + seasonAvgsStr + "\n\n";
 prompt += propLinesStr + "\n\n";
+
+const recentFormStr = ctx.recentForm || "";
+if (recentFormStr) {
+  prompt += "RECENT FORM (cite specific game lines — enables hot/cold streak analysis)\n";
+  prompt += recentFormStr + "\n\n";
+}
+const h2hArr = Array.isArray(ctx.h2hSplits) ? ctx.h2hSplits : [];
+if (h2hArr.length) {
+  prompt += "H2H SPLITS (how tonight's key players perform vs tonight's opponent)\n";
+  prompt += h2hArr.join("\n") + "\n\n";
+}
+
 prompt += "CURATED PROP DATABASE\n" + playerDbStr + "\n\n";
+
+prompt += "HOW TO USE RECENT FORM + H2H:\n";
+prompt += "- 3+ games above prop line = hot streak, lean OVER. 3+ below = cold, lean UNDER.\n";
+prompt += "- H2H split 2+ pts above season avg vs tonight's opp = strong lean signal.\n";
+prompt += "- Always cite specific numbers: 'scored 31/28/34 in last 3' not 'has been scoring well'\n\n";
+
 if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
 
 return prompt;
