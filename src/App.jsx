@@ -715,6 +715,8 @@ export default function App() {
       playerStats:     nbaData?.playerStats   || [],
       propLines:       nbaData?.propLines     || [],
       injuries:        nbaData?.injuries      || [],
+      recentForm:      nbaData?.recentForm    || "",
+      h2hSplits:       nbaData?.h2hSplits     || [],
       playerDb:        NBA_PLAYERS,
       question:        questionText || "",
     };
