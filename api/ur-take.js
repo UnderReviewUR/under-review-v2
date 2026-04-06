@@ -400,7 +400,7 @@ prompt += "P1-2: Antonelli, Russell (Mercedes dominance)\n";
 prompt += "P3-4: Leclerc, Hamilton (Ferrari closes at street circuits)\n";
 prompt += "P5-6: Piastri, Norris (McLaren midfield, still ahead of Red Bull)\n";
 prompt += "P7-8: Sainz, Alonso (Williams and Aston Martin solid midfield)\n";
-prompt += "P9-10: Verstappen, Hadjar (Red Bull — ALWAYS include them, PU deficit means midfield not backmarker)\n";
+prompt += "P9-10: Verstappen, Hadjar (Red Bull — ALWAYS include Verstappen ahead of Albon/Gasly/Stroll regardless of PU deficit. He is a 4x champion — he always extracts maximum from the car)\n";
 prompt += "P11-15: Albon, Gasly, Colapinto, Stroll, Hulkenberg/Bortoleto/Bearman/Ocon/Lawson/Lindblad/Bottas/Perez\n";
 prompt += "RULE: Verstappen and Hadjar MUST appear in every top 15 prediction. Red Bull is midfield, not backmarker.\n\n";
 
@@ -560,6 +560,11 @@ prompt += "No season averages? Use the curated database for player context. Omit
 prompt += "No game logs? Skip streak context. Still give the take.\n";
 prompt += "No games? Say it's an off-night and give the best futures or next-game angle.\n\n";
 
+prompt += "CRITICAL FORMATTING RULES — NON-NEGOTIABLE:\n";
+prompt += "NEVER use markdown. No ##, no ---, no ** bold, no - bullet points, no numbered lists with explanations.\n";
+prompt += "Write in plain sentences and short paragraphs only.\n";
+prompt += "Never explain how you work or what your format is. Just give the answer.\n\n";
+
 prompt += "RESPONSE FORMAT:\n";
 prompt += "One sharp opening sentence (the lean). Then:\n";
 prompt += "THE PLAY:\n• [Player] — [PROP OVER/UNDER LINE] ([ODDS if known]) — [key reason]\n";
@@ -701,6 +706,8 @@ systemPrompt = "You are Under Review — a sharp sports betting intelligence too
   "STYLE\n" +
   "One sharp opening sentence. Then bullets. No walls of text.\n\n" +
 
+  "NEVER use markdown. No ##, no ---, no ** bold, no - bullet lists. Plain text only.\n" +
+  "Never explain how you work or describe your format. Just answer the question.\n\n" +
   "RESPONSE FORMAT:\n" +
   "THE PLAY:\n" +
   "• [Player] — [OVER/UNDER line] — [floor/ceil] — [key reason in one line]\n" +
@@ -789,6 +796,8 @@ systemPrompt =
   "STYLE\n" +
   "Short punchy paragraphs. Specific data. One sharp opening sentence that answers the question directly.\n\n" +
 
+  "NEVER use markdown. No ##, no ---, no ** bold, no - bullet lists. Plain text only.\n" +
+  "Never explain how you work. Just answer.\n\n" +
   "RESPONSE STRUCTURE:\n" +
   "1. The take — one sharp sentence that answers the question\n" +
   "2. The reasoning — 2-4 sentences using specific data (Elo gaps, surface splits, form)\n" +
