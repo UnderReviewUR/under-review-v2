@@ -8,6 +8,8 @@ var cache = new Map();
 // ── 2026 driver grid — verified from formula1.com ────────────────────────────
 // Jack Doohan replaced by Franco Colapinto mid-season at Alpine
 // Sauber is now Audi
+// Full 2026 grid — 11 teams, 22 drivers. Norris is reigning WDC.
+// Hadjar at Red Bull, Lindblad at Racing Bulls (only rookie). Cadillac new entry.
 var FALLBACK_STANDINGS = [
   { position: 1,  full_name: "Kimi Antonelli",    team_name: "Mercedes",      points: 62, driver_number: 12 },
   { position: 2,  full_name: "George Russell",    team_name: "Mercedes",      points: 43, driver_number: 63 },
@@ -18,17 +20,19 @@ var FALLBACK_STANDINGS = [
   { position: 7,  full_name: "Max Verstappen",    team_name: "Red Bull",      points: 8,  driver_number: 1  },
   { position: 8,  full_name: "Carlos Sainz",      team_name: "Williams",      points: 6,  driver_number: 55 },
   { position: 9,  full_name: "Fernando Alonso",   team_name: "Aston Martin",  points: 4,  driver_number: 14 },
-  { position: 10, full_name: "Isack Hadjar",      team_name: "Racing Bulls",  points: 4,  driver_number: 6  },
+  { position: 10, full_name: "Isack Hadjar",      team_name: "Red Bull",      points: 4,  driver_number: 6  },
   { position: 11, full_name: "Alexander Albon",   team_name: "Williams",      points: 2,  driver_number: 23 },
   { position: 12, full_name: "Pierre Gasly",      team_name: "Alpine",        points: 1,  driver_number: 10 },
-  { position: 13, full_name: "Franco Colapinto",  team_name: "Alpine",        points: 0,  driver_number: 43 },
-  { position: 14, full_name: "Nico Hulkenberg",   team_name: "Audi",          points: 0,  driver_number: 27 },
-  { position: 15, full_name: "Gabriel Bortoleto", team_name: "Audi",          points: 0,  driver_number: 5  },
-  { position: 16, full_name: "Oliver Bearman",    team_name: "Haas",          points: 0,  driver_number: 87 },
-  { position: 17, full_name: "Esteban Ocon",      team_name: "Haas",          points: 0,  driver_number: 31 },
-  { position: 18, full_name: "Liam Lawson",       team_name: "Racing Bulls",  points: 0,  driver_number: 30 },
-  { position: 19, full_name: "Lance Stroll",      team_name: "Aston Martin",  points: 0,  driver_number: 18 },
-  { position: 20, full_name: "Valtteri Bottas",   team_name: "Cadillac",      points: 0,  driver_number: 77 },
+  { position: 13, full_name: "Liam Lawson",       team_name: "Racing Bulls",  points: 0,  driver_number: 30 },
+  { position: 14, full_name: "Arvid Lindblad",    team_name: "Racing Bulls",  points: 0,  driver_number: 8  },
+  { position: 15, full_name: "Lance Stroll",      team_name: "Aston Martin",  points: 0,  driver_number: 18 },
+  { position: 16, full_name: "Franco Colapinto",  team_name: "Alpine",        points: 0,  driver_number: 43 },
+  { position: 17, full_name: "Nico Hulkenberg",   team_name: "Audi",          points: 0,  driver_number: 27 },
+  { position: 18, full_name: "Gabriel Bortoleto", team_name: "Audi",          points: 0,  driver_number: 5  },
+  { position: 19, full_name: "Oliver Bearman",    team_name: "Haas",          points: 0,  driver_number: 87 },
+  { position: 20, full_name: "Esteban Ocon",      team_name: "Haas",          points: 0,  driver_number: 31 },
+  { position: 21, full_name: "Valtteri Bottas",   team_name: "Cadillac",      points: 0,  driver_number: 77 },
+  { position: 22, full_name: "Sergio Perez",      team_name: "Cadillac",      points: 0,  driver_number: 11 },
 ];
 
 // ── 2026 calendar — verified from formula1.com ────────────────────────────────
