@@ -45,12 +45,14 @@ const css = `
   .logo-under{display:block;font-family:var(--mono-font);font-size:8px;letter-spacing:4px;color:rgba(255,255,255,.4);margin-bottom:1px;text-transform:uppercase;}
   .logo-review{display:block;font-family:var(--display-font);font-size:20px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
-  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
   .pill-tag{color:var(--magenta);border:1px solid rgba(255,45,107,.25);background:rgba(255,45,107,.06);}
   .pill-live{color:var(--cyan-bright);border:1px solid rgba(0,245,233,.25);background:rgba(0,245,233,.06);}
-  .pill-nfl{color:var(--nfl);border:1px solid rgba(255,107,53,.25);background:rgba(255,107,53,.06);}
+  .pill-tennis{color:#F5C842;border:1px solid rgba(245,200,66,.3);background:rgba(245,200,66,.06);}
+  .pill-nfl{color:#4A90D9;border:1px solid rgba(74,144,217,.3);background:rgba(74,144,217,.06);}
   .pill-f1{color:var(--f1);border:1px solid rgba(225,6,0,.25);background:rgba(225,6,0,.06);}
-  .pill-nba{color:var(--nba);border:1px solid rgba(255,107,0,.25);background:rgba(255,107,0,.06);}
+  .pill-nba{color:#FF6B00;border:1px solid rgba(255,107,0,.3);background:rgba(255,107,0,.06);}
+  .hdr-tagline{font-family:var(--mono-font);font-size:9px;color:rgba(255,255,255,.28);letter-spacing:1px;white-space:nowrap;}
 
   .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:70px;}
   .hero{padding:6px 2px 8px;text-align:center;}
@@ -104,10 +106,10 @@ const css = `
 
   .sport-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
   .sport-chip{border:1px solid var(--border-2);background:var(--surface);color:var(--soft);border-radius:12px;padding:16px 12px;font-family:var(--display-font);font-size:18px;letter-spacing:2px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
-  .sport-chip.active,.sport-chip:hover{border-color:var(--cyan-bright);color:var(--cyan-bright);background:rgba(0,245,233,.06);}
-  .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:var(--nfl);color:var(--nfl);background:rgba(255,107,53,.06);}
+  .sport-chip.active,.sport-chip:hover{border-color:#F5C842;color:#F5C842;background:rgba(245,200,66,.06);}
+  .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:#4A90D9;color:#4A90D9;background:rgba(74,144,217,.06);}
   .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);background:rgba(225,6,0,.06);}
-  .sport-chip.nba-chip.active,.sport-chip.nba-chip:hover{border-color:var(--nba);color:var(--nba);background:rgba(255,107,0,.06);}
+  .sport-chip.nba-chip.active,.sport-chip.nba-chip:hover{border-color:#FF6B00;color:#FF6B00;background:rgba(255,107,0,.06);}
 
   .detail-back{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:6px;}
   .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px;}
@@ -217,10 +219,10 @@ const css = `
   .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:6px 4px max(10px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);min-height:var(--bottom-nav-height);}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;cursor:pointer;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.85;}
   .nav-btn.active{color:var(--cyan-bright);}
-  .nav-btn.tennis-active{color:var(--gold);}
-  .nav-btn.nfl-active{color:var(--nfl);}
+  .nav-btn.tennis-active{color:#F5C842;}
+  .nav-btn.nfl-active{color:#4A90D9;}
   .nav-btn.f1-active{color:var(--f1);}
-  .nav-btn.nba-active{color:var(--nba);}
+  .nav-btn.nba-active{color:#FF6B00;}
 
   .f1-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid var(--border);background:linear-gradient(135deg,rgba(225,6,0,.08),rgba(255,107,53,.05));}
   .f1-standing-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s ease;}
@@ -488,6 +490,7 @@ export default function App() {
   // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef      = useRef(null);
   const askInputRef       = useRef(null);
+  const askBarBottomRef   = useRef(null);
   const tennisInputRef    = useRef(null);
   const nflInputRef       = useRef(null);
   const f1InputRef        = useRef(null);
@@ -888,11 +891,15 @@ export default function App() {
 
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
-  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); },[askInput,askUrTake,isAsking]);
-  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); },[askUrTake,isAsking,tennisInput]);
-  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); },[askUrTake,isAsking,nflInput]);
-  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); },[askUrTake,isAsking,f1Input]);
-  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); },[askUrTake,isAsking,nbaInput]);
+  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); setTimeout(()=>{ askBarBottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askInput,askUrTake,isAsking,askBarBottomRef]);
+  const tennisBarRef  = useRef(null);
+  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); setTimeout(()=>{ tennisBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,tennisInput]);
+  const nflBarRef     = useRef(null);
+  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); setTimeout(()=>{ nflBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,nflInput]);
+  const f1BarRef      = useRef(null);
+  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); setTimeout(()=>{ f1BarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,f1Input]);
+  const nbaBarRef     = useRef(null);
+  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); setTimeout(()=>{ nbaBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,nbaInput]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const hint=selectedMatchup?.league?.includes("NFL")?"nfl":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
 
   // ── Sub-components ─────────────────────────────────────────────────────────
@@ -940,7 +947,7 @@ export default function App() {
   // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (
     <>
-      {screen==="tennis"&&<span className="pill-live">{context?.currentTournament?.name?context.currentTournament.name.toUpperCase():"TENNIS"}</span>}
+      {screen==="tennis"&&<span className="pill-tennis">{context?.currentTournament?.name?context.currentTournament.name.toUpperCase():"TENNIS"}</span>}
       {screen==="nfl"&&<span className="pill-nfl">{nflSeasonMode?"NFL IN-SEASON":"NFL FUTURES"}</span>}
       {screen==="nflplayer"&&nflPd&&<span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
       {screen==="f1"&&<span className="pill-f1">F1 2026</span>}
@@ -948,7 +955,7 @@ export default function App() {
       {screen==="player"&&<span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen==="matchup"&&selectedMatchup&&(selectedMatchup.league?.includes("NFL")?<span className="pill-nfl">{selectedMatchup.league}</span>:<span className="pill-tag">{selectedMatchup.network?.toUpperCase()||selectedMatchup.league}</span>)}
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
-      {screen==="home"&&<span className="pill-live">LIVE</span>}
+      {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
     </>
   );
 
@@ -979,6 +986,14 @@ export default function App() {
 
             <AskBar inputRef={homeInputRef} value={homeInput} onChange={setHomeInput} onSubmit={submitHome} placeholder="Ask UR TAKE anything..." {...askBarCommon} />
 
+            {/* Sport navigation chips — top of home */}
+            <div className="sport-chips" style={{marginBottom:14}}>
+              <button className="sport-chip active" onClick={goTennis}>TENNIS</button>
+              <button className="sport-chip nfl-chip active" onClick={goNfl}>{nflSeasonMode?"NFL IN-SEASON":"NFL"}</button>
+              <button className="sport-chip f1-chip active" onClick={goF1}>F1</button>
+              <button className="sport-chip nba-chip active" onClick={goNba}>NBA</button>
+            </div>
+
             {/* Live NBA games strip */}
             {nbaGames.length > 0 && (
               <div style={{display:"flex",gap:8,overflowX:"auto",padding:"4px 0 12px",scrollbarWidth:"none"}}>
@@ -989,7 +1004,7 @@ export default function App() {
                   const isFinal = g.state === "post";
                   return (
                     <div key={g.id||i} onClick={()=>goNba()} style={{flexShrink:0,background:"var(--surface)",border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,borderRadius:12,padding:"8px 12px",cursor:"pointer",minWidth:130}}>
-                      <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:isLive?"var(--green)":isFinal?"var(--muted)":"var(--nba)",letterSpacing:1,marginBottom:4}}>{isLive?"● LIVE":isFinal?"FINAL":g.status}</div>
+                      <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:isLive?"var(--green)":isFinal?"var(--muted)":"#FF6B00",letterSpacing:1,marginBottom:4}}>{isLive?"● LIVE":isFinal?"FINAL":g.status}</div>
                       <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{away} vs {home}</div>
                       {(isLive||isFinal) && g.awayTeam?.score != null && <div style={{fontFamily:"var(--mono-font)",fontSize:12,color:"var(--soft)",marginTop:2}}>{g.awayTeam.score} — {g.homeTeam.score}</div>}
                     </div>
@@ -1020,16 +1035,6 @@ export default function App() {
                 ))}
               </div>
             </section>
-
-            <section className="section">
-              <div className="section-label">EXPLORE BY SPORT →</div>
-              <div className="sport-chips">
-                <button className="sport-chip active" onClick={goTennis}>TENNIS</button>
-                <button className="sport-chip nfl-chip active" onClick={goNfl}>{nflSeasonMode?"NFL IN-SEASON":"NFL"}</button>
-                <button className="sport-chip f1-chip active" onClick={goF1}>F1</button>
-                <button className="sport-chip nba-chip active" onClick={goNba}>NBA</button>
-              </div>
-            </section>
             <div className="page-spacer"/>
           </main>
         )}
@@ -1043,8 +1048,8 @@ export default function App() {
               <div className="banner-note">{liveMatches.length>0?`${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in active tournament focus`:""}`:"No current matches loaded right now."}</div>
             </div>
 
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:14,padding:14,marginBottom:16}}>
-              <div style={{fontSize:10,color:"var(--cyan-bright)",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
+            <div ref={tennisBarRef} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:14,padding:14,marginBottom:16}}>
+              <div style={{fontSize:10,color:"#F5C842",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
               <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet tonight? Which match is mispriced? Best live angle?" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {["Best tennis bets tonight?","Which tennis match is mispriced?","Best live tennis angle right now?","What futures still have value?"].map(q=>(
@@ -1116,9 +1121,9 @@ export default function App() {
               <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
               <div className="banner-note">{nflSeasonMode?"Current weekly props, role changes, usage shifts, and market edges.":"Skill positions database with per-game stats, TD rates, prop floors and ceilings."}</div>
             </div>
-            <div className="nfl-ask-shell">
+            <div className="nfl-ask-shell" ref={nflBarRef}>
               <div className="nfl-ask-label">Ask Anything — NFL</div>
-              <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder={nflSeasonMode?"Best WR prop this week? Biggest role change?":"Which RB leads TDs in 2026? Best future?"} btnColor="var(--nfl)" {...askBarCommon} />
+              <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder={nflSeasonMode?"Best WR prop this week? Biggest role change?":"Which RB leads TDs in 2026? Best future?"} btnColor="#4A90D9" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {(nflSeasonMode?["Best WR props this week?","Biggest usage jump?","Best TD scorer angle?","Which line is stale?"]:["Best WR future?","Top TE by volume?","Fade or take Kelce?","Best RB rushing future?"]).map(q=>(
                   <button key={q} className="quick-btn" onClick={()=>submitNfl(q)} style={{fontSize:11}}>{q}</button>
@@ -1179,7 +1184,7 @@ export default function App() {
               <div className="banner-note">{f1Data?.standings?.length ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}</div>
             </div>
 
-            <div className="f1-ask-shell">
+            <div className="f1-ask-shell" ref={f1BarRef}>
               <div className="f1-ask-label">Ask Anything — F1</div>
               <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1252,7 +1257,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="nba-ask-shell">
+            <div className="nba-ask-shell" ref={nbaBarRef}>
               <div className="nba-ask-label">Ask Anything — NBA Props</div>
               <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Jokic PRA over tonight? Best prop this slate?" btnColor="var(--nba)" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1357,6 +1362,7 @@ export default function App() {
           <main className="screen">
             <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="What do you want to know?" {...askBarCommon}/>
+            <div ref={askBarBottomRef} style={{height:1}}/>
             {askMsgs.length===0?(
               <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
             ):(
