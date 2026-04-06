@@ -403,27 +403,34 @@ function renderMessage(text) {
 function LoadingBubble({ sport }) {
   const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : "⚡";
   return (
-    <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:8,minHeight:44}}>
+    <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:8,minHeight:44,overflow:"hidden"}}>
       <style>{`
         @keyframes bounce-ball {
           0%,100%{transform:translateX(0) translateY(0);}
-          25%{transform:translateX(40px) translateY(-8px);}
-          50%{transform:translateX(80px) translateY(0);}
-          75%{transform:translateX(40px) translateY(-8px);}
+          25%{transform:translateX(30px) translateY(-6px);}
+          50%{transform:translateX(60px) translateY(0);}
+          75%{transform:translateX(30px) translateY(-6px);}
         }
         @keyframes spin-car {
-          0%{transform:translateX(0);}
-          45%{transform:translateX(80px);}
-          50%{transform:translateX(80px) scaleX(-1);}
-          95%{transform:translateX(0) scaleX(-1);}
-          100%{transform:translateX(0);}
+          0%  {transform:translateX(0) scaleX(1);}
+          44% {transform:translateX(60px) scaleX(1);}
+          50% {transform:translateX(60px) scaleX(-1);}
+          94% {transform:translateX(0) scaleX(-1);}
+          100%{transform:translateX(0) scaleX(1);}
         }
-        .sport-loader{display:inline-block;font-size:20px;}
-        .sport-loader.bounce{animation:bounce-ball 1s ease-in-out infinite;}
-        .sport-loader.spin{animation:spin-car 1.2s ease-in-out infinite;}
+        .sport-loader{display:inline-block;font-size:18px;position:relative;}
+        .sport-loader.bounce{animation:bounce-ball 0.9s ease-in-out infinite;}
+        .sport-loader.spin{animation:spin-car 1.4s ease-in-out infinite;}
+        .loader-wrap{display:flex;align-items:center;gap:8px;width:100%;}
+        .loader-track{position:relative;width:80px;height:24px;flex-shrink:0;overflow:hidden;}
+        .loader-track .sport-loader{position:absolute;top:50%;transform:translateY(-50%);}
       `}</style>
-      <span className={`sport-loader ${sport === "f1" ? "spin" : "bounce"}`}>{emoji}</span>
-      <span style={{fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:2,color:"var(--muted)"}}>ANALYZING...</span>
+      <div className="loader-wrap">
+        <div className="loader-track">
+          <span className={`sport-loader ${sport === "f1" ? "spin" : "bounce"}`}>{emoji}</span>
+        </div>
+        <span style={{fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:2,color:"var(--muted)"}}>ANALYZING...</span>
+      </div>
     </div>
   );
 }
