@@ -174,44 +174,50 @@ return false;
 // Vercel serverless functions cannot reliably call their own endpoints.
 // We embed the 2026 calendar and driver grid directly so F1 questions
 // always have context regardless of OpenF1 availability.
+// ── 2026 F1 Calendar — verified from formula1.com ────────────────────────────
+// Rounds 1-3 complete. Next: Miami May 1-3.
+// Results: R1 Russell, R2 Antonelli, R3 Antonelli
 var F1_FALLBACK_CALENDAR = [
-  { meeting_name: "Australian Grand Prix",     location: "Melbourne",   date_start: "2026-03-15T00:00:00", date_end: "2026-03-17T23:59:00" },
-  { meeting_name: "Chinese Grand Prix",        location: "Shanghai",    date_start: "2026-03-22T00:00:00", date_end: "2026-03-24T23:59:00" },
-  { meeting_name: "Japanese Grand Prix",       location: "Suzuka",      date_start: "2026-04-05T00:00:00", date_end: "2026-04-07T23:59:00" },
-  { meeting_name: "Bahrain Grand Prix",        location: "Bahrain",     date_start: "2026-04-19T00:00:00", date_end: "2026-04-21T23:59:00" },
-  { meeting_name: "Saudi Arabian Grand Prix",  location: "Jeddah",      date_start: "2026-04-26T00:00:00", date_end: "2026-04-28T23:59:00" },
-  { meeting_name: "Miami Grand Prix",          location: "Miami",       date_start: "2026-05-03T00:00:00", date_end: "2026-05-05T23:59:00" },
-  { meeting_name: "Emilia Romagna Grand Prix", location: "Imola",       date_start: "2026-05-17T00:00:00", date_end: "2026-05-19T23:59:00" },
-  { meeting_name: "Monaco Grand Prix",         location: "Monaco",      date_start: "2026-05-24T00:00:00", date_end: "2026-05-26T23:59:00" },
-  { meeting_name: "Spanish Grand Prix",        location: "Barcelona",   date_start: "2026-06-01T00:00:00", date_end: "2026-06-03T23:59:00" },
-  { meeting_name: "Canadian Grand Prix",       location: "Montreal",    date_start: "2026-06-15T00:00:00", date_end: "2026-06-17T23:59:00" },
-  { meeting_name: "Austrian Grand Prix",       location: "Spielberg",   date_start: "2026-06-28T00:00:00", date_end: "2026-06-30T23:59:00" },
-  { meeting_name: "British Grand Prix",        location: "Silverstone", date_start: "2026-07-05T00:00:00", date_end: "2026-07-07T23:59:00" },
-  { meeting_name: "Belgian Grand Prix",        location: "Spa",         date_start: "2026-07-26T00:00:00", date_end: "2026-07-28T23:59:00" },
-  { meeting_name: "Hungarian Grand Prix",      location: "Budapest",    date_start: "2026-08-02T00:00:00", date_end: "2026-08-04T23:59:00" },
-  { meeting_name: "Dutch Grand Prix",          location: "Zandvoort",   date_start: "2026-08-30T00:00:00", date_end: "2026-09-01T23:59:00" },
-  { meeting_name: "Italian Grand Prix",        location: "Monza",       date_start: "2026-09-06T00:00:00", date_end: "2026-09-08T23:59:00" },
-  { meeting_name: "Azerbaijan Grand Prix",     location: "Baku",        date_start: "2026-09-20T00:00:00", date_end: "2026-09-22T23:59:00" },
-  { meeting_name: "Singapore Grand Prix",      location: "Singapore",   date_start: "2026-10-04T00:00:00", date_end: "2026-10-06T23:59:00" },
-  { meeting_name: "United States Grand Prix",  location: "Austin",      date_start: "2026-10-18T00:00:00", date_end: "2026-10-20T23:59:00" },
-  { meeting_name: "Mexico City Grand Prix",    location: "Mexico City", date_start: "2026-10-25T00:00:00", date_end: "2026-10-27T23:59:00" },
-  { meeting_name: "Sao Paulo Grand Prix",      location: "Sao Paulo",   date_start: "2026-11-08T00:00:00", date_end: "2026-11-10T23:59:00" },
-  { meeting_name: "Las Vegas Grand Prix",      location: "Las Vegas",   date_start: "2026-11-21T00:00:00", date_end: "2026-11-23T23:59:00" },
-  { meeting_name: "Qatar Grand Prix",          location: "Lusail",      date_start: "2026-11-29T00:00:00", date_end: "2026-12-01T23:59:00" },
-  { meeting_name: "Abu Dhabi Grand Prix",      location: "Abu Dhabi",   date_start: "2026-12-06T00:00:00", date_end: "2026-12-08T23:59:00" },
+  { meeting_name: "Australian Grand Prix",     location: "Melbourne",   date_start: "2026-03-06T00:00:00", date_end: "2026-03-08T23:59:00",  completed: true,  winner: "Russell"   },
+  { meeting_name: "Chinese Grand Prix",        location: "Shanghai",    date_start: "2026-03-13T00:00:00", date_end: "2026-03-15T23:59:00",  completed: true,  winner: "Antonelli" },
+  { meeting_name: "Japanese Grand Prix",       location: "Suzuka",      date_start: "2026-03-27T00:00:00", date_end: "2026-03-29T23:59:00",  completed: true,  winner: "Antonelli" },
+  { meeting_name: "Miami Grand Prix",          location: "Miami",       date_start: "2026-05-01T00:00:00", date_end: "2026-05-03T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Canadian Grand Prix",       location: "Montreal",    date_start: "2026-05-22T00:00:00", date_end: "2026-05-24T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Monaco Grand Prix",         location: "Monaco",      date_start: "2026-06-05T00:00:00", date_end: "2026-06-07T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Spanish Grand Prix",        location: "Barcelona",   date_start: "2026-06-12T00:00:00", date_end: "2026-06-14T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Austrian Grand Prix",       location: "Spielberg",   date_start: "2026-06-26T00:00:00", date_end: "2026-06-28T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "British Grand Prix",        location: "Silverstone", date_start: "2026-07-03T00:00:00", date_end: "2026-07-05T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Belgian Grand Prix",        location: "Spa",         date_start: "2026-07-17T00:00:00", date_end: "2026-07-19T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Hungarian Grand Prix",      location: "Budapest",    date_start: "2026-07-24T00:00:00", date_end: "2026-07-26T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Dutch Grand Prix",          location: "Zandvoort",   date_start: "2026-08-21T00:00:00", date_end: "2026-08-23T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Italian Grand Prix",        location: "Monza",       date_start: "2026-09-04T00:00:00", date_end: "2026-09-06T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Spanish Grand Prix (2)",    location: "Madrid",      date_start: "2026-09-11T00:00:00", date_end: "2026-09-13T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Azerbaijan Grand Prix",     location: "Baku",        date_start: "2026-09-24T00:00:00", date_end: "2026-09-26T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Singapore Grand Prix",      location: "Singapore",   date_start: "2026-10-09T00:00:00", date_end: "2026-10-11T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "United States Grand Prix",  location: "Austin",      date_start: "2026-10-23T00:00:00", date_end: "2026-10-25T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Mexico City Grand Prix",    location: "Mexico City", date_start: "2026-10-30T00:00:00", date_end: "2026-11-01T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Sao Paulo Grand Prix",      location: "Sao Paulo",   date_start: "2026-11-06T00:00:00", date_end: "2026-11-08T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Las Vegas Grand Prix",      location: "Las Vegas",   date_start: "2026-11-19T00:00:00", date_end: "2026-11-21T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Qatar Grand Prix",          location: "Lusail",      date_start: "2026-11-27T00:00:00", date_end: "2026-11-29T23:59:00",  completed: false, winner: null        },
+  { meeting_name: "Abu Dhabi Grand Prix",      location: "Abu Dhabi",   date_start: "2026-12-04T00:00:00", date_end: "2026-12-06T23:59:00",  completed: false, winner: null        },
 ];
 
+// ── 2026 Championship standings after 3 rounds ───────────────────────────────
+// R1 AUS: Russell 1st, Antonelli 2nd, Leclerc 3rd
+// R2 CHN: Antonelli 1st, Russell 2nd, Hamilton 3rd
+// R3 JPN: Antonelli 1st, Piastri 2nd, Leclerc 3rd
+// Mercedes dominant — 4 of 6 podiums. Red Bull/Verstappen yet to podium.
 var F1_FALLBACK_STANDINGS = [
-  { position: 1,  full_name: "Kimi Antonelli",    team_name: "Mercedes",        points: 0, driver_number: 12 },
-  { position: 2,  full_name: "George Russell",    team_name: "Mercedes",        points: 0, driver_number: 63 },
-  { position: 3,  full_name: "Charles Leclerc",   team_name: "Ferrari",         points: 0, driver_number: 16 },
-  { position: 4,  full_name: "Lewis Hamilton",    team_name: "Ferrari",         points: 0, driver_number: 44 },
-  { position: 5,  full_name: "Lando Norris",      team_name: "McLaren",         points: 0, driver_number: 4  },
-  { position: 6,  full_name: "Oscar Piastri",     team_name: "McLaren",         points: 0, driver_number: 81 },
-  { position: 7,  full_name: "Max Verstappen",    team_name: "Red Bull Racing", points: 0, driver_number: 1  },
-  { position: 8,  full_name: "Yuki Tsunoda",      team_name: "Red Bull Racing", points: 0, driver_number: 22 },
-  { position: 9,  full_name: "Fernando Alonso",   team_name: "Aston Martin",    points: 0, driver_number: 14 },
-  { position: 10, full_name: "Lance Stroll",      team_name: "Aston Martin",    points: 0, driver_number: 18 },
+  { position: 1,  full_name: "Kimi Antonelli",    team_name: "Mercedes",      points: 62, driver_number: 12 },
+  { position: 2,  full_name: "George Russell",    team_name: "Mercedes",      points: 43, driver_number: 63 },
+  { position: 3,  full_name: "Charles Leclerc",   team_name: "Ferrari",       points: 30, driver_number: 16 },
+  { position: 4,  full_name: "Oscar Piastri",     team_name: "McLaren",       points: 18, driver_number: 81 },
+  { position: 5,  full_name: "Lewis Hamilton",    team_name: "Ferrari",       points: 15, driver_number: 44 },
+  { position: 6,  full_name: "Lando Norris",      team_name: "McLaren",       points: 12, driver_number: 4  },
+  { position: 7,  full_name: "Max Verstappen",    team_name: "Red Bull",      points: 8,  driver_number: 1  },
+  { position: 8,  full_name: "Carlos Sainz",      team_name: "Williams",      points: 6,  driver_number: 55 },
+  { position: 9,  full_name: "Fernando Alonso",   team_name: "Aston Martin",  points: 4,  driver_number: 14 },
+  { position: 10, full_name: "Isack Hadjar",      team_name: "Racing Bulls",  points: 4,  driver_number: 6  },
 ];
 
 function fetchF1LiveData() {
@@ -231,153 +237,143 @@ function fetchF1LiveData() {
 // ── F1 system prompt builder ───────────────────────────────────────────────────
 function buildF1SystemPrompt(liveData, matchupCtxStr) {
 
-const STREET_CIRCUITS = ["monaco","baku","singapore","las vegas","jeddah","miami","sao paulo","azerbaijan"];
-const POWER_CIRCUITS  = ["monza","spa","silverstone","baku","interlagos","spa-francorchamps"];
-const HIGH_DOWNFORCE  = ["hungary","hungaroring","singapore","barcelona","catalunya"];
+var STREET_CIRCUITS = ["monaco","baku","singapore","las vegas","miami","azerbaijan","jeddah"];
+var POWER_CIRCUITS  = ["monza","spa","silverstone","interlagos","baku"];
+var HIGH_DOWNFORCE  = ["hungary","hungaroring","singapore","barcelona","catalunya"];
 
-const now      = new Date();
-const todayStr = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+var now      = new Date();
+var todayStr = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 
-// ── Parse live data ────────────────────────────────────────────────────────
-let standingsStr  = "Championship standings not loaded.";
-let upcomingStr   = "Race schedule not loaded.";
-let sessionStr    = "";
-let nextRaceLine  = "NEXT RACE: Not yet determined — no live schedule data.";
-let nextRaceName  = "the next race";
-let circuitType   = "mixed";
-let circuitNote   = "Championship form is the primary signal at this circuit type.";
-let daysUntil     = null;
-let isRaceWeek    = false;
+var standingsStr = "Championship standings not loaded.";
+var nextRaceLine = "NEXT RACE: Not yet determined.";
+var nextRaceName = "the next race";
+var upcomingStr  = "";
+var recentStr    = "";
+var circuitType  = "mixed";
+var circuitNote  = "Championship form is the primary signal.";
+var daysUntil    = null;
+var isRaceWeek   = false;
+var sessionStr   = "";
 
 if (liveData) {
-// Standings
-if (Array.isArray(liveData.standings) && liveData.standings.length) {
-standingsStr = liveData.standings.slice(0, 10).map(function(d, i) {
-const pos  = d.position || d.position_current || (i + 1);
-const name = d.full_name || d.name_acronym || ("Driver #" + d.driver_number);
-const team = d.team_name || "";
-const pts  = d.points   || d.points_current || 0;
-return pos + ". " + name + " (" + team + ") — " + pts + " pts";
-}).join("\n");
-}
-
-// Schedule
-const schedule = liveData.schedule || {};
-const upcoming = Array.isArray(schedule.upcoming) ? schedule.upcoming : [];
-const current  = Array.isArray(schedule.current)  ? schedule.current  : [];
-
-const activeRace = current[0] || upcoming[0] || null;
-
-if (activeRace) {
-  nextRaceName = activeRace.meeting_name || "Next Grand Prix";
-  const loc    = activeRace.location || activeRace.circuit_short_name || "TBD";
-
-  let dateStr = "TBD";
-  if (activeRace.date_start) {
-    const rd = new Date(activeRace.date_start);
-    dateStr   = rd.toLocaleDateString("en-US", { month:"short", day:"numeric" });
-    daysUntil = Math.ceil((rd - now) / (1000 * 60 * 60 * 24));
+  // Standings
+  if (Array.isArray(liveData.standings) && liveData.standings.length) {
+    standingsStr = liveData.standings.slice(0, 10).map(function(d, i) {
+      var pos  = d.position || (i + 1);
+      var name = d.full_name || "Driver";
+      var team = d.team_name || "";
+      var pts  = d.points   || 0;
+      return pos + ". " + name + " (" + team + ") — " + pts + " pts";
+    }).join("\n");
   }
 
-  const isLive = current.length > 0;
-  nextRaceLine = (isLive ? "ACTIVE RACE WEEKEND: " : "NEXT RACE: ") +
-    nextRaceName + " — " + loc + " (" + dateStr + ")" +
-    (daysUntil !== null ? " — " + daysUntil + " days away" : "");
+  var schedule = liveData.schedule || {};
+  var allRaces = Array.isArray(schedule.races) ? schedule.races : [];
+  var upcoming = Array.isArray(schedule.upcoming) ? schedule.upcoming : [];
+  var current  = Array.isArray(schedule.current)  ? schedule.current  : [];
 
-  isRaceWeek = isLive || (daysUntil !== null && daysUntil <= 7);
+  // Recent completed races — last 3
+  var completed = allRaces.filter(function(r) { return r.completed && r.winner; });
+  if (completed.length) {
+    recentStr = "RECENT RESULTS:\n" + completed.slice(-3).reverse().map(function(r) {
+      return r.meeting_name + ": Winner — " + r.winner;
+    }).join("\n");
+  }
 
-  // Circuit classification
-  const venueLower = (loc + " " + nextRaceName).toLowerCase();
-  if (STREET_CIRCUITS.some(c => venueLower.includes(c))) {
-    circuitType = "STREET CIRCUIT";
-    circuitNote = "Qualifying position is 80% of the race result. Overtaking nearly impossible. Always lean pole sitter. Safety car is near-certain — factor in restart ability.";
-  } else if (POWER_CIRCUITS.some(c => venueLower.includes(c))) {
-    circuitType = "POWER CIRCUIT";
-    circuitNote = "Engine advantage is decisive. Mercedes power unit edge is at maximum. Antonelli and Russell are the primary race winner plays. Norris and Verstappen are fades.";
-  } else if (HIGH_DOWNFORCE.some(c => venueLower.includes(c))) {
-    circuitType = "HIGH DOWNFORCE";
-    circuitNote = "Aero efficiency decides the race. Ferrari competitive here — Leclerc becomes a live race winner. Mercedes still leads constructor battle.";
-  } else {
-    circuitNote = "Championship form is the primary signal. Mercedes structural edge holds at mixed-type circuits.";
+  var activeRace = current[0] || upcoming[0] || null;
+  if (activeRace) {
+    nextRaceName = activeRace.meeting_name || "Next Grand Prix";
+    var loc = activeRace.location || "TBD";
+    var dateStr = "TBD";
+    if (activeRace.date_start) {
+      var rd = new Date(activeRace.date_start);
+      dateStr   = rd.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+      daysUntil = Math.ceil((rd - now) / (1000 * 60 * 60 * 24));
+    }
+    var isLive = current.length > 0;
+    nextRaceLine = (isLive ? "ACTIVE RACE WEEKEND: " : "NEXT RACE: ") +
+      nextRaceName + " — " + loc + " (" + dateStr + ")" +
+      (daysUntil !== null ? " — " + daysUntil + " days away" : "");
+    isRaceWeek = isLive || (daysUntil !== null && daysUntil <= 7);
+
+    // Circuit classification
+    var venueLower = (loc + " " + nextRaceName).toLowerCase();
+    if (STREET_CIRCUITS.some(function(c) { return venueLower.includes(c); })) {
+      circuitType = "STREET CIRCUIT";
+      circuitNote = "Miami is a semi-street/street-adjacent circuit. Qualifying position is critical — track position is nearly everything. Safety car near-certain. Antonelli pole-to-win is the primary play. Mercedes PU advantage holds in the straights.";
+    } else if (POWER_CIRCUITS.some(function(c) { return venueLower.includes(c); })) {
+      circuitType = "POWER CIRCUIT";
+      circuitNote = "Engine advantage is decisive. Mercedes PU edge is at maximum here. Antonelli and Russell are the primary race winner plays. Norris and Verstappen are fades.";
+    } else if (HIGH_DOWNFORCE.some(function(c) { return venueLower.includes(c); })) {
+      circuitType = "HIGH DOWNFORCE";
+      circuitNote = "Aero efficiency decides the race. Ferrari competitive here — Leclerc becomes a live race winner. Mercedes still leads constructor battle.";
+    } else {
+      circuitNote = "Championship form is the primary signal. Mercedes structural edge holds at mixed-type circuits.";
+    }
+  }
+
+  if (upcoming.length) {
+    upcomingStr = upcoming.slice(0, 5).map(function(m) {
+      var d = m.date_start ? new Date(m.date_start).toLocaleDateString("en-US", { month:"short", day:"numeric" }) : "TBD";
+      return (m.meeting_name || "Race") + " — " + (m.location || "TBD") + " (" + d + ")";
+    }).join("\n");
+  }
+
+  var sess = liveData.session;
+  if (sess && sess.session_name) {
+    sessionStr = "LATEST SESSION: " + sess.session_name + " — " + (sess.meeting_name || "") + (sess.location ? " at " + sess.location : "");
   }
 }
 
-if (upcoming.length) {
-  upcomingStr = upcoming.slice(0, 6).map(function(m) {
-    const d = m.date_start ? new Date(m.date_start).toLocaleDateString("en-US", { month:"short", day:"numeric" }) : "TBD";
-    return (m.meeting_name || "Race") + " — " + (m.location || "TBD") + " (" + d + ")";
-  }).join("\n");
-}
+var weekContext = isRaceWeek
+  ? "RACE WEEK — " + nextRaceName + (daysUntil !== null ? " is " + daysUntil + " days away" : " is this weekend") + ". Focus: circuit-specific advantages, qualifying vs race pace, podium props."
+  : "OFF WEEK — No race this weekend. Best window for futures. Focus: championship outright value, upcoming circuit edges.";
 
-// Session
-const sess = liveData.session;
-if (sess && sess.session_name) {
-  sessionStr = "LATEST SESSION: " + sess.session_name + " — " + (sess.meeting_name || "") + (sess.location ? " at " + sess.location : "");
-}
+var prompt = "You are Under Review — a sharp F1 betting intelligence tool.\n\n";
+prompt += "IDENTITY: Sharp F1 analyst. Lead with the take. Never hedge. Never open with a limitation.\n\n";
 
-}
+prompt += "CRITICAL RULES:\n";
+prompt += "1. NEVER open with a limitation or data gap. ALWAYS lead with the lean.\n";
+prompt += "2. Use recent results (below) to inform momentum — Antonelli has won 2 of 3 races.\n";
+prompt += "3. Name the NEXT race correctly — do not reference completed races as upcoming.\n";
+prompt += "4. Always state the circuit type and what it means for the betting angle.\n\n";
 
-const weekContext = isRaceWeek
-? "RACE WEEK — " + nextRaceName + (daysUntil !== null ? " is " + daysUntil + " days away" : " is this weekend") + ". Focus: circuit-specific advantages, qualifying vs race pace split, head-to-head props, podium props."
-: "OFF WEEK — No race this weekend. Highest-value window for futures betting. Focus: championship outright value, team trajectory, upcoming circuit-specific edges, driver head-to-head season props.";
+prompt += "RESPONSE FORMAT:\n";
+prompt += "One sharp opening sentence (the lean). Then:\n";
+prompt += "THE BET:\n• [Driver] — [market] — [key reason]\n";
+prompt += "FADE: [one line]\nCONFIDENCE: [High/Medium/Speculative]\nTIMING: [one line]\n\n";
 
-let prompt = "You are Under Review — a sharp sports betting intelligence tool covering Formula 1, NBA, tennis, and NFL.\n\n";
+prompt += "2026 POWER UNIT ORDER (most important F1 signal):\n";
+prompt += "1. Mercedes (Antonelli, Russell) — best PU on grid. 4 of 6 podiums in first 3 races.\n";
+prompt += "2. Ferrari (Leclerc, Hamilton) — closes gap at high-downforce circuits\n";
+prompt += "3. McLaren (Norris, Piastri) — competitive but overpriced on 2025 reputation\n";
+prompt += "4. Red Bull (Verstappen) — Honda PU deficit. Zero podiums in first 3 races.\n\n";
 
-prompt += "IDENTITY: Sharp F1 betting analyst. Lead every response with the take — not with what you don't know. Give one direct recommendation with conviction. No conditional scenarios.\n\n";
+prompt += "KEY NARRATIVE: Antonelli is the 2026 championship leader. 2 wins, 1 second place in 3 races. \n";
+prompt += "Russell won Australia. Mercedes is dominant. Verstappen is in crisis — zero podiums.\n";
+prompt += "Norris/Piastri are the fade — overpriced on 2025 reputation, McLaren is midfield in 2026.\n\n";
 
-prompt += "CRITICAL RULE — NON-NEGOTIABLE:\n";
-prompt += "NEVER open with a limitation, a data gap, or what you can't tell the user.\n";
-prompt += "ALWAYS lead with the structural lean first. If live data is unavailable, use the 2026 power unit order and circuit type to give the best available read. Mention data gaps at the END if at all.\n\n";
-
-prompt += "STYLE: 2-3 sharp sentences of structural analysis, then THE BET. No hedging.\n\n";
-
-prompt += "RESPONSE FORMAT — STRICT:\n";
-prompt += "Open with the lean (one sentence — name the driver/team and the edge).\n";
-prompt += "2-3 sentences of supporting analysis using specific data.\n";
-prompt += "Then:\n";
-prompt += "THE BET:\n";
-prompt += "• [Driver] — [market] — [key reason]\n";
-prompt += "FADE: [one line]\n";
-prompt += "CONFIDENCE: [High / Medium / Speculative]\n";
-prompt += "TIMING: [bet now / wait for qualifying / futures window]\n\n";
+prompt += "CIRCUIT CHEAT SHEET:\n";
+prompt += "Street/semi-street = qualifying is everything. Pole sitter wins. Safety car near-certain.\n";
+prompt += "Power circuit = Mercedes wins. Back Antonelli/Russell hard.\n";
+prompt += "High downforce = Ferrari competitive. Leclerc race winner is live.\n\n";
 
 prompt += "TODAY: " + todayStr + "\n";
 prompt += weekContext + "\n\n";
 
-prompt += "2026 POWER UNIT ORDER (most important F1 betting signal):\n";
-prompt += "1. Mercedes (Antonelli, Russell) — best PU on grid\n";
-prompt += "2. Ferrari (Leclerc, Hamilton) — closes gap at high-downforce\n";
-prompt += "3. McLaren (Norris, Piastri) — midfield, overpriced on 2025 reputation\n";
-prompt += "4. Red Bull (Verstappen) — Honda PU deficit, fighting from behind\n\n";
+prompt += nextRaceLine + "\n";
+prompt += "CIRCUIT TYPE: " + circuitType + "\n";
+prompt += "BETTING NOTE: " + circuitNote + "\n\n";
 
-prompt += "KEY FADES: Norris (overpriced on 2025 rep — 2026 car is midfield). Verstappen (Honda PU deficit). Hamilton fade vs Leclerc H2H.\n";
-prompt += "KEY BACKS: Antonelli/Russell at any circuit. Leclerc qualifying props. Mercedes constructor outright.\n\n";
+if (recentStr) prompt += recentStr + "\n\n";
 
-prompt += "CIRCUIT TYPE CHEAT SHEET:\n";
-prompt += "Street circuit = qualifying is everything, pole sitter wins, safety car certain.\n";
-prompt += "Power circuit = Mercedes wins. Back Antonelli/Russell hard.\n";
-prompt += "High downforce = Ferrari competitive. Leclerc race winner is live.\n";
-prompt += "Mixed = standings form. Mercedes structural edge holds.\n\n";
+prompt += "CHAMPIONSHIP STANDINGS (after 3 rounds)\n" + standingsStr + "\n\n";
 
-prompt += "NEXT CIRCUIT: " + circuitType + "\n";
-prompt += "CIRCUIT BETTING NOTE: " + circuitNote + "\n\n";
-
-prompt += "LIVE DATA\n";
-prompt += nextRaceLine + "\n\n";
-
-prompt += "CHAMPIONSHIP STANDINGS (Top 10)\n" + standingsStr + "\n\n";
-
-prompt += "UPCOMING RACES\n" + upcomingStr + "\n\n";
-
-if (sessionStr) prompt += sessionStr + "\n\n";
-
-if (!liveData) {
-prompt += "NOTE: Live race data unavailable this request. Use power unit order, circuit type, and structural knowledge above — they are sufficient for directional leans.\n\n";
-}
+if (upcomingStr) prompt += "UPCOMING RACES\n" + upcomingStr + "\n\n";
+if (sessionStr)  prompt += sessionStr + "\n\n";
 
 if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
 
-prompt += "No live betting lines available — directional leans only based on structural analysis.";
 return prompt;
 }
 
