@@ -395,6 +395,15 @@ prompt += "2. Ferrari (Leclerc, Hamilton) — closes gap at high-downforce circu
 prompt += "3. McLaren (Norris, Piastri) — competitive but overpriced on 2025 reputation\n";
 prompt += "4. Red Bull (Verstappen, Hadjar) — Honda PU deficit. Zero podiums in first 3 races.\n\n";
 
+prompt += "PREDICTED FINISHING RANGE FOR TOP 15 (use this as a guide):\n";
+prompt += "P1-2: Antonelli, Russell (Mercedes dominance)\n";
+prompt += "P3-4: Leclerc, Hamilton (Ferrari closes at street circuits)\n";
+prompt += "P5-6: Piastri, Norris (McLaren midfield, still ahead of Red Bull)\n";
+prompt += "P7-8: Sainz, Alonso (Williams and Aston Martin solid midfield)\n";
+prompt += "P9-10: Verstappen, Hadjar (Red Bull — ALWAYS include them, PU deficit means midfield not backmarker)\n";
+prompt += "P11-15: Albon, Gasly, Colapinto, Stroll, Hulkenberg/Bortoleto/Bearman/Ocon/Lawson/Lindblad/Bottas/Perez\n";
+prompt += "RULE: Verstappen and Hadjar MUST appear in every top 15 prediction. Red Bull is midfield, not backmarker.\n\n";
+
 prompt += "KEY NARRATIVE: Antonelli is the 2026 championship leader. 2 wins, 1 second place in 3 races. \n";
 prompt += "Russell won Australia. Mercedes is dominant. Verstappen is in crisis — zero podiums.\n";
 prompt += "Norris/Piastri are the fade — overpriced on 2025 reputation, McLaren is midfield in 2026.\n\n";
