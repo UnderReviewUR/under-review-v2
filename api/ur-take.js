@@ -383,150 +383,181 @@ return prompt;
 
 // ── NBA system prompt builder ─────────────────────────────────────────────────
 function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
-const ctx = nbaContext || {};
+var ctx = nbaContext || {};
 
-const now      = new Date();
-const todayStr = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
-const phase    = (ctx.seasonContext && ctx.seasonContext.phase) || "NBA Season Active";
+var now      = new Date();
+var todayStr = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+var phase    = (ctx.seasonContext && ctx.seasonContext.phase) || "NBA Season Active";
 
-// ── Live scoreboard (NBA CDN — always accurate) ───────────────────────────────
-var gamesStr = "No games on today's schedule.";
+// ── Live scoreboard ───────────────────────────────────────────────────────────
 var gamesList = ctx.todaysGames || [];
-if (gamesList.length > 0) {
+var gamesStr  = "No games on today's schedule.";
+var hasGames  = gamesList.length > 0;
+
+if (hasGames) {
   gamesStr = gamesList.map(function(g) {
-    var away    = (g.awayTeam && g.awayTeam.tricode) || "AWAY";
-    var home    = (g.homeTeam && g.homeTeam.tricode) || "HOME";
-    var awayS   = (g.awayTeam && g.awayTeam.score)   != null ? g.awayTeam.score : "";
-    var homeS   = (g.homeTeam && g.homeTeam.score)   != null ? g.homeTeam.score : "";
-    var code    = g.statusCode;
-    if (code === 3) return away + " " + awayS + " @ " + home + " " + homeS + " — FINAL (do not recommend props)";
-    if (code === 2) return away + " " + awayS + " @ " + home + " " + homeS + " — LIVE Q" + g.period;
+    var away = (g.awayTeam && g.awayTeam.tricode) || (g.awayTeam && g.awayTeam.name) || "AWAY";
+    var home = (g.homeTeam && g.homeTeam.tricode) || (g.homeTeam && g.homeTeam.name) || "HOME";
+    var code = g.statusCode;
+    var awayS = (g.awayTeam && g.awayTeam.score) != null ? g.awayTeam.score : "";
+    var homeS = (g.homeTeam && g.homeTeam.score) != null ? g.homeTeam.score : "";
+    if (code === 3) return away + " " + awayS + " @ " + home + " " + homeS + " — FINAL";
+    if (code === 2) return away + " " + awayS + " @ " + home + " " + homeS + " — LIVE Q" + (g.period||"");
     return away + " @ " + home + " — " + (g.status || "Scheduled");
   }).join("\n");
 }
 
-// ── Season averages (NBA Stats — current teams, reflects all trades) ──────────
-var seasonAvgsStr = "Season averages not loaded.";
-if (Array.isArray(ctx.playerStats) && ctx.playerStats.length > 0) {
-  // Only surface players with meaningful minutes
-  seasonAvgsStr = ctx.playerStats.slice(0, 50).map(function(p) {
-    var pra = ((parseFloat(p.pts)||0) + (parseFloat(p.reb)||0) + (parseFloat(p.ast)||0)).toFixed(1);
-    var usg = p.usg ? " | USG " + (parseFloat(p.usg)*100).toFixed(1) + "%" : "";
-    return p.name + " (" + p.team + "): " + p.pts + "pts/" + p.reb + "reb/" + p.ast + "ast | PRA " + pra + usg + " | " + p.gp + "gp";
+// ── Game totals — pace proxy ──────────────────────────────────────────────────
+var totalsStr = "";
+var gameTotals = ctx.gameTotals || {};
+if (Object.keys(gameTotals).length) {
+  var tLines = [];
+  for (var gk in gameTotals) {
+    var t = gameTotals[gk];
+    var paceNote = t.pace === "HIGH" ? " — HIGH PACE (elevated counting stats, back OVER props)" :
+                   t.pace === "LOW"  ? " — LOW PACE (fade counting stat overs)" : "";
+    tLines.push(gk + ": " + t.total + paceNote);
+  }
+  totalsStr = tLines.join("\n");
+}
+
+// ── Prop lines ────────────────────────────────────────────────────────────────
+var propLinesStr = "";
+var propLines = ctx.propLines || [];
+var hasProps = propLines.length > 0;
+
+if (hasProps) {
+  var grouped = {};
+  for (var li = 0; li < propLines.length; li++) {
+    var pl = propLines[li];
+    var k  = pl.player + "|" + pl.prop;
+    if (!grouped[k]) grouped[k] = { player: pl.player, prop: pl.prop, game: pl.game, over: null, under: null };
+    if (pl.side === "Over")  grouped[k].over  = pl.line + " (" + (pl.odds > 0 ? "+" : "") + pl.odds + ")";
+    if (pl.side === "Under") grouped[k].under = pl.line;
+  }
+  var pEntries = Object.values(grouped).slice(0, 80);
+  propLinesStr = pEntries.map(function(e) {
+    var sides = e.over ? "OVER " + e.over : "";
+    if (e.under) sides += (sides ? " / UNDER " : "UNDER ") + e.under;
+    return e.player + " — " + e.prop.toUpperCase() + " — " + sides + " [" + e.game + "]";
   }).join("\n");
 }
 
-// ── Recent form — streak data (NBA Stats game logs) ───────────────────────────
+// ── Season averages (ESPN — current teams) ────────────────────────────────────
+var seasonAvgsStr = "";
+var playerStats = ctx.playerStats || [];
+var hasStats = playerStats.length > 0;
+
+if (hasStats) {
+  seasonAvgsStr = playerStats.slice(0, 60).map(function(p) {
+    var pra = ((parseFloat(p.pts)||0)+(parseFloat(p.reb)||0)+(parseFloat(p.ast)||0)).toFixed(1);
+    return p.name + " (" + p.team + "): " + p.pts + "pts/" + p.reb + "reb/" + p.ast + "ast | PRA " + pra;
+  }).join("\n");
+}
+
+// ── Recent form (NBA Stats game logs) ────────────────────────────────────────
 var recentFormStr = ctx.recentForm || "";
 
-// ── Prop lines (Odds API — actual lines from DK/FD/BetMGM) ───────────────────
-var propLinesStr = "No live prop lines available.";
-if (Array.isArray(ctx.propLines) && ctx.propLines.length > 0) {
-  var grouped = {};
-  for (var li = 0; li < ctx.propLines.length; li++) {
-    var line = ctx.propLines[li];
-    var k    = line.player + "|" + line.prop;
-    if (!grouped[k]) grouped[k] = { player: line.player, prop: line.prop, game: line.game, over: null, under: null };
-    if (line.side === "Over")  grouped[k].over  = line.line + " (" + (line.odds > 0 ? "+" : "") + line.odds + ")";
-    if (line.side === "Under") grouped[k].under = line.line + " (" + (line.odds > 0 ? "+" : "") + line.odds + ")";
-  }
-  var entries = Object.values(grouped).slice(0, 80);
-  if (entries.length > 0) {
-    propLinesStr = "LIVE PROP LINES:\n" + entries.map(function(e) {
-      var sides = [];
-      if (e.over)  sides.push("OVER "  + e.over);
-      if (e.under) sides.push("UNDER " + e.under);
-      return e.player + " — " + e.prop.toUpperCase() + " — " + sides.join(" / ") + " [" + e.game + "]";
-    }).join("\n");
-  }
-}
-
-// ── Game totals — pace context ────────────────────────────────────────────────
-var totalsStr = "";
-if (ctx.gameTotals && Object.keys(ctx.gameTotals).length) {
-  totalsStr = "GAME TOTALS (pace proxy — high total = more possessions = elevated counting stats):\n";
-  for (var game in ctx.gameTotals) {
-    var t = ctx.gameTotals[game];
-    var pace = t.total >= 228 ? " HIGH PACE" : t.total <= 218 ? " LOW PACE" : "";
-    totalsStr += game + ": " + t.total + pace + "\n";
-  }
-}
-
-// ── Curated prop database (betting philosophy — timeless) ─────────────────────
-var playerDbStr = "Curated database not loaded.";
+// ── Curated betting philosophy ────────────────────────────────────────────────
+var playerDbStr = "";
 if (ctx.playerDb && Object.keys(ctx.playerDb).length > 0) {
-  var q        = (ctx.question || "").toLowerCase();
-  var entries  = Object.entries(ctx.playerDb);
-  var propSet  = new Set((ctx.propLines || []).map(function(p) { return p.player && p.player.toLowerCase(); }).filter(Boolean));
+  var q       = (ctx.question || "").toLowerCase();
+  var entries = Object.entries(ctx.playerDb);
+  var propSet = new Set(propLines.map(function(p) { return p.player && p.player.toLowerCase(); }).filter(Boolean));
 
   var mentioned = entries.filter(function(e) {
     var ln = e[0].toLowerCase().split(" ").pop();
     return q.includes(e[0].toLowerCase()) || q.includes(ln);
   });
   var playing = entries.filter(function(e) {
-    var n  = e[0].toLowerCase();
-    var ln = n.split(" ").pop();
+    var n = e[0].toLowerCase(); var ln = n.split(" ").pop();
     return !q.includes(n) && !q.includes(ln) &&
-           (propSet.has(n) || Array.from(propSet).some(function(p) { return p && p.includes(ln); }));
+           (propSet.has(n) || Array.from(propSet).some(function(p){return p&&p.includes(ln);}));
+  });
+  var others = entries.filter(function(e) {
+    var n = e[0].toLowerCase(); var ln = n.split(" ").pop();
+    return !q.includes(n) && !q.includes(ln) &&
+           !propSet.has(n) && !Array.from(propSet).some(function(p){return p&&p.includes(ln);});
   });
 
-  var ordered = mentioned.concat(playing).slice(0, 25);
+  var ordered = mentioned.concat(playing).concat(others.slice(0,10)).slice(0, 30);
   playerDbStr = ordered.map(function(entry) {
-    var name   = entry[0];
-    var p      = entry[1];
-    var pFloor = (p.props && p.props.pra && p.props.pra.floor) || (p.props && p.props.pts && p.props.pts.floor) || "—";
-    var pCeil  = (p.props && p.props.pra && p.props.pra.ceil)  || (p.props && p.props.pts && p.props.pts.ceil)  || "—";
-    var lean   = (p.props && p.props.pra && p.props.pra.lean)  || (p.props && p.props.pts && p.props.pts.lean)  || "—";
-    var angles = (p.bettingAngles || []).slice(0, 2).join(" | ");
-    return name + " | " + p.tier + " | PRA range " + pFloor + "-" + pCeil + " | " + lean + (angles ? " | " + angles : "");
+    var name = entry[0]; var p = entry[1];
+    var pFloor = (p.props&&p.props.pra&&p.props.pra.floor)||(p.props&&p.props.pts&&p.props.pts.floor)||"—";
+    var pCeil  = (p.props&&p.props.pra&&p.props.pra.ceil) ||(p.props&&p.props.pts&&p.props.pts.ceil) ||"—";
+    var lean   = (p.props&&p.props.pra&&p.props.pra.lean) ||(p.props&&p.props.pts&&p.props.pts.lean) ||"—";
+    var angles = (p.bettingAngles||[]).slice(0,2).join(" | ");
+    return name + " | " + p.tier + " | PRA range " + pFloor + "-" + pCeil + " | " + lean + (angles ? " | "+angles : "");
   }).join("\n");
 }
 
 var prompt = "You are Under Review — a sharp sports betting intelligence tool covering NBA, NFL, tennis, and F1.\n\n";
 
-prompt += "IDENTITY\nSharp betting analyst. Lead every response with the take. Recommendation first, reasoning second. Never hedge.\n\n";
+prompt += "IDENTITY: Sharp betting analyst. Lead with the take. Never hedge. Never open with what you don't have.\n\n";
 
-prompt += "CRITICAL RULES:\n";
-prompt += "1. NEVER open with a limitation. Lead with the lean.\n";
-prompt += "2. NEVER recommend props for a game marked FINAL.\n";
-prompt += "3. Team assignments come from SEASON AVERAGES below — not from the curated database. NBA Stats reflects all trades.\n";
-prompt += "4. Players in tonight's PROP LINES are healthy and active. Recommend freely.\n";
-prompt += "5. Always cite the actual line: 'KAT REBOUNDS OVER 12.5 (-115)' — not 'over his average'.\n";
-prompt += "6. When recent form data exists, cite it specifically: 'scored 44/48/51 in his last 3'.\n\n";
+prompt += "ABSOLUTE RULES:\n";
+prompt += "1. NEVER open with a limitation, a data gap, or what you are missing. ALWAYS lead with the lean.\n";
+prompt += "2. If prop lines are loaded — cite the exact line and odds. If not loaded — use the philosophy database to give directional leans.\n";
+prompt += "3. If season averages are loaded — use them for team assignments (they reflect all trades). If not — use only player names, not teams.\n";
+prompt += "4. NEVER recommend props for a game marked FINAL.\n";
+prompt += "5. NEVER ask the user to confirm data availability. You work with what you have and give the best answer possible.\n";
+prompt += "6. A player appearing in tonight's prop lines is healthy and active. Recommend freely.\n\n";
+
+prompt += "WHAT TO DO WHEN DATA IS MISSING:\n";
+prompt += "No prop lines? Use PRA floor/ceiling from the philosophy database. Say 'directional lean' not 'I can't answer'.\n";
+prompt += "No season averages? Use the curated database for player context. Omit team abbreviations.\n";
+prompt += "No game logs? Skip streak context. Still give the take.\n";
+prompt += "No games? Say it's an off-night and give the best futures or next-game angle.\n\n";
 
 prompt += "RESPONSE FORMAT:\n";
-prompt += "One sharp opening sentence. Then:\n";
-prompt += "THE PLAY:\n";
-prompt += "• [Player] — [PROP] [OVER/UNDER] [LINE] ([ODDS]) — [reason in one line]\n";
-prompt += "FADE: [one line]\n";
-prompt += "CONFIDENCE: [High / Medium / Speculative]\n";
-prompt += "TIMING: [one line]\n\n";
+prompt += "One sharp opening sentence (the lean). Then:\n";
+prompt += "THE PLAY:\n• [Player] — [PROP OVER/UNDER LINE] ([ODDS if known]) — [key reason]\n";
+prompt += "FADE: [one line]\nCONFIDENCE: [High/Medium/Speculative]\nTIMING: [one line]\n\n";
 
 prompt += "KEY PRINCIPLES:\n";
-prompt += "Game total = pace proxy. 228+ total = high pace = elevated counting stats.\n";
-prompt += "PRA is primary — lower variance than any single stat.\n";
+prompt += "PRA = primary vehicle (pts+reb+ast combined — lower variance than any single stat).\n";
+prompt += "Game total 228+ = high pace = back OVER props across the board.\n";
 prompt += "Elite rebounders vs undersized frontcourts = OVER. Always.\n";
-prompt += "Injury replacement = highest-confidence edge. Name who benefits.\n\n";
+prompt += "Injury replacement = highest-confidence edge. Name who benefits explicitly.\n\n";
 
 prompt += "TODAY: " + todayStr + "\n";
 prompt += "NBA PHASE: " + phase + "\n\n";
 
-prompt += "TODAY'S GAMES (NBA live scoreboard)\n" + gamesStr + "\n\n";
+// Always include games — this always works (NBA CDN)
+prompt += "TONIGHT'S GAMES\n" + gamesStr + "\n\n";
 
-if (totalsStr) prompt += totalsStr + "\n";
-
-prompt += "LIVE PROP LINES (Odds API — use these exact numbers)\n" + propLinesStr + "\n\n";
-
-if (recentFormStr) {
-  prompt += "RECENT FORM (NBA Stats game logs — cite these in your response)\n";
-  prompt += recentFormStr + "\n\n";
+// Game totals if available
+if (totalsStr) {
+  prompt += "GAME TOTALS (pace proxy)\n" + totalsStr + "\n\n";
 }
 
-prompt += "SEASON AVERAGES (NBA Stats — teams are current, reflects all trades)\n" + seasonAvgsStr + "\n\n";
+// Prop lines if available
+if (hasProps && propLinesStr) {
+  prompt += "LIVE PROP LINES — cite these exact numbers\n" + propLinesStr + "\n\n";
+} else {
+  prompt += "PROP LINES: Not yet posted for tonight. Use curated database for directional leans.\n\n";
+}
 
-prompt += "BETTING PHILOSOPHY (timeless angles — floors/ceilings/usage context)\n";
-prompt += "Note: Use team from Season Averages above, not from this database.\n";
-prompt += playerDbStr + "\n\n";
+// Recent form if available
+if (recentFormStr) {
+  prompt += "RECENT FORM — cite these in your response\n" + recentFormStr + "\n\n";
+}
+
+// Season averages if available (ESPN — reflects trades)
+if (hasStats && seasonAvgsStr) {
+  prompt += "SEASON AVERAGES (ESPN — teams are current, reflects all trades)\n" + seasonAvgsStr + "\n\n";
+} else {
+  prompt += "SEASON AVERAGES: Not loaded this request. Use curated database. Do not assign teams.\n\n";
+}
+
+// Always include philosophy database
+if (playerDbStr) {
+  prompt += "BETTING PHILOSOPHY DATABASE\n";
+  if (hasStats) {
+    prompt += "Note: Use Season Averages above for team assignments, not this database.\n";
+  }
+  prompt += playerDbStr + "\n\n";
+}
 
 if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
 
