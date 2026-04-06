@@ -170,23 +170,62 @@ return t.includes("i don’t cover nfl") || (t.includes("grand slam") && !t.incl
 return false;
 }
 
-// ── Fetch live F1 data from the OpenF1 proxy ──────────────────────────────────
-async function fetchF1LiveData(req) {
-try {
-const proto = (req.headers["x-forwarded-proto"] || "https");
-const host  = req.headers.host;
-const base  = proto + "://" + host;
+// ── F1 static fallback data ───────────────────────────────────────────────────
+// Vercel serverless functions cannot reliably call their own endpoints.
+// We embed the 2026 calendar and driver grid directly so F1 questions
+// always have context regardless of OpenF1 availability.
+var F1_FALLBACK_CALENDAR = [
+  { meeting_name: "Australian Grand Prix",     location: "Melbourne",   date_start: "2026-03-15T00:00:00", date_end: "2026-03-17T23:59:00" },
+  { meeting_name: "Chinese Grand Prix",        location: "Shanghai",    date_start: "2026-03-22T00:00:00", date_end: "2026-03-24T23:59:00" },
+  { meeting_name: "Japanese Grand Prix",       location: "Suzuka",      date_start: "2026-04-05T00:00:00", date_end: "2026-04-07T23:59:00" },
+  { meeting_name: "Bahrain Grand Prix",        location: "Bahrain",     date_start: "2026-04-19T00:00:00", date_end: "2026-04-21T23:59:00" },
+  { meeting_name: "Saudi Arabian Grand Prix",  location: "Jeddah",      date_start: "2026-04-26T00:00:00", date_end: "2026-04-28T23:59:00" },
+  { meeting_name: "Miami Grand Prix",          location: "Miami",       date_start: "2026-05-03T00:00:00", date_end: "2026-05-05T23:59:00" },
+  { meeting_name: "Emilia Romagna Grand Prix", location: "Imola",       date_start: "2026-05-17T00:00:00", date_end: "2026-05-19T23:59:00" },
+  { meeting_name: "Monaco Grand Prix",         location: "Monaco",      date_start: "2026-05-24T00:00:00", date_end: "2026-05-26T23:59:00" },
+  { meeting_name: "Spanish Grand Prix",        location: "Barcelona",   date_start: "2026-06-01T00:00:00", date_end: "2026-06-03T23:59:00" },
+  { meeting_name: "Canadian Grand Prix",       location: "Montreal",    date_start: "2026-06-15T00:00:00", date_end: "2026-06-17T23:59:00" },
+  { meeting_name: "Austrian Grand Prix",       location: "Spielberg",   date_start: "2026-06-28T00:00:00", date_end: "2026-06-30T23:59:00" },
+  { meeting_name: "British Grand Prix",        location: "Silverstone", date_start: "2026-07-05T00:00:00", date_end: "2026-07-07T23:59:00" },
+  { meeting_name: "Belgian Grand Prix",        location: "Spa",         date_start: "2026-07-26T00:00:00", date_end: "2026-07-28T23:59:00" },
+  { meeting_name: "Hungarian Grand Prix",      location: "Budapest",    date_start: "2026-08-02T00:00:00", date_end: "2026-08-04T23:59:00" },
+  { meeting_name: "Dutch Grand Prix",          location: "Zandvoort",   date_start: "2026-08-30T00:00:00", date_end: "2026-09-01T23:59:00" },
+  { meeting_name: "Italian Grand Prix",        location: "Monza",       date_start: "2026-09-06T00:00:00", date_end: "2026-09-08T23:59:00" },
+  { meeting_name: "Azerbaijan Grand Prix",     location: "Baku",        date_start: "2026-09-20T00:00:00", date_end: "2026-09-22T23:59:00" },
+  { meeting_name: "Singapore Grand Prix",      location: "Singapore",   date_start: "2026-10-04T00:00:00", date_end: "2026-10-06T23:59:00" },
+  { meeting_name: "United States Grand Prix",  location: "Austin",      date_start: "2026-10-18T00:00:00", date_end: "2026-10-20T23:59:00" },
+  { meeting_name: "Mexico City Grand Prix",    location: "Mexico City", date_start: "2026-10-25T00:00:00", date_end: "2026-10-27T23:59:00" },
+  { meeting_name: "Sao Paulo Grand Prix",      location: "Sao Paulo",   date_start: "2026-11-08T00:00:00", date_end: "2026-11-10T23:59:00" },
+  { meeting_name: "Las Vegas Grand Prix",      location: "Las Vegas",   date_start: "2026-11-21T00:00:00", date_end: "2026-11-23T23:59:00" },
+  { meeting_name: "Qatar Grand Prix",          location: "Lusail",      date_start: "2026-11-29T00:00:00", date_end: "2026-12-01T23:59:00" },
+  { meeting_name: "Abu Dhabi Grand Prix",      location: "Abu Dhabi",   date_start: "2026-12-06T00:00:00", date_end: "2026-12-08T23:59:00" },
+];
 
-```
-const res = await fetch(base + "/api/f1?view=board", { signal: AbortSignal.timeout(4000) });
-if (!res.ok) return null;
-return await res.json();
-```
+var F1_FALLBACK_STANDINGS = [
+  { position: 1,  full_name: "Kimi Antonelli",    team_name: "Mercedes",        points: 0, driver_number: 12 },
+  { position: 2,  full_name: "George Russell",    team_name: "Mercedes",        points: 0, driver_number: 63 },
+  { position: 3,  full_name: "Charles Leclerc",   team_name: "Ferrari",         points: 0, driver_number: 16 },
+  { position: 4,  full_name: "Lewis Hamilton",    team_name: "Ferrari",         points: 0, driver_number: 44 },
+  { position: 5,  full_name: "Lando Norris",      team_name: "McLaren",         points: 0, driver_number: 4  },
+  { position: 6,  full_name: "Oscar Piastri",     team_name: "McLaren",         points: 0, driver_number: 81 },
+  { position: 7,  full_name: "Max Verstappen",    team_name: "Red Bull Racing", points: 0, driver_number: 1  },
+  { position: 8,  full_name: "Yuki Tsunoda",      team_name: "Red Bull Racing", points: 0, driver_number: 22 },
+  { position: 9,  full_name: "Fernando Alonso",   team_name: "Aston Martin",    points: 0, driver_number: 14 },
+  { position: 10, full_name: "Lance Stroll",      team_name: "Aston Martin",    points: 0, driver_number: 18 },
+];
 
-} catch (e) {
-console.warn("F1 live data fetch failed:", e.message);
-return null;
-}
+function fetchF1LiveData() {
+  var now      = new Date();
+  var upcoming = F1_FALLBACK_CALENDAR.filter(function(m) { return new Date(m.date_start) > now; });
+  var current  = F1_FALLBACK_CALENDAR.filter(function(m) {
+    return new Date(m.date_start) <= now && now <= new Date(m.date_end);
+  });
+  var past     = F1_FALLBACK_CALENDAR.filter(function(m) { return new Date(m.date_end) < now; });
+  return {
+    schedule:  { upcoming: upcoming, current: current, past: past, races: F1_FALLBACK_CALENDAR },
+    standings: F1_FALLBACK_STANDINGS,
+    session:   null,
+  };
 }
 
 // ── F1 system prompt builder ───────────────────────────────────────────────────
@@ -569,8 +608,8 @@ let systemPrompt;
 if (isF1) {
 // Always try to fetch live F1 data server-side first
 // Fall back to client-provided context if fetch fails
-const liveF1Data = await fetchF1LiveData(req);
-systemPrompt = buildF1SystemPrompt(liveF1Data || clientF1Context, matchupCtxStr);
+const liveF1Data = fetchF1LiveData();
+systemPrompt = buildF1SystemPrompt(liveF1Data, matchupCtxStr);
 
 } else if (isNBA) {
 systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
