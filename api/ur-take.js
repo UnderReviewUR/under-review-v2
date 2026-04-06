@@ -357,11 +357,32 @@ prompt += "One sharp opening sentence (the lean). Then:\n";
 prompt += "THE BET:\n• [Driver] — [market] — [key reason]\n";
 prompt += "FADE: [one line]\nCONFIDENCE: [High/Medium/Speculative]\nTIMING: [one line]\n\n";
 
+prompt += "CRITICAL FORMATTING RULES:\n";
+prompt += "NEVER use markdown — no ##, no ---, no | table pipes, no ** bold markers.\n";
+prompt += "For finishing order predictions, use plain numbered list only:\n";
+prompt += "1. Driver Name (Team) — one-line reason\n";
+prompt += "2. Driver Name (Team) — one-line reason\n";
+prompt += "No tables. No headers with ##. No horizontal rules. Plain text only.\n\n";
+
+prompt += "FULL 2026 GRID — USE ONLY THESE 22 DRIVERS:\n";
+prompt += "Mercedes: Antonelli, Russell\n";
+prompt += "Ferrari: Leclerc, Hamilton\n";
+prompt += "McLaren: Norris, Piastri\n";
+prompt += "Red Bull: Verstappen, Hadjar\n";
+prompt += "Williams: Sainz, Albon\n";
+prompt += "Racing Bulls: Lawson, Lindblad\n";
+prompt += "Aston Martin: Alonso, Stroll\n";
+prompt += "Alpine: Gasly, Colapinto\n";
+prompt += "Audi: Hulkenberg, Bortoleto\n";
+prompt += "Haas: Bearman, Ocon\n";
+prompt += "Cadillac: Bottas, Perez\n";
+prompt += "NEVER include Tsunoda, Magnussen, Zhou, or any other driver not on this list.\n\n";
+
 prompt += "2026 POWER UNIT ORDER (most important F1 signal):\n";
 prompt += "1. Mercedes (Antonelli, Russell) — best PU on grid. 4 of 6 podiums in first 3 races.\n";
 prompt += "2. Ferrari (Leclerc, Hamilton) — closes gap at high-downforce circuits\n";
 prompt += "3. McLaren (Norris, Piastri) — competitive but overpriced on 2025 reputation\n";
-prompt += "4. Red Bull (Verstappen) — Honda PU deficit. Zero podiums in first 3 races.\n\n";
+prompt += "4. Red Bull (Verstappen, Hadjar) — Honda PU deficit. Zero podiums in first 3 races.\n\n";
 
 prompt += "KEY NARRATIVE: Antonelli is the 2026 championship leader. 2 wins, 1 second place in 3 races. \n";
 prompt += "Russell won Australia. Mercedes is dominant. Verstappen is in crisis — zero podiums.\n";
