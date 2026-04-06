@@ -261,7 +261,6 @@ return pos + ". " + name + " (" + team + ") — " + pts + " pts";
 }).join("\n");
 }
 
-```
 // Schedule
 const schedule = liveData.schedule || {};
 const upcoming = Array.isArray(schedule.upcoming) ? schedule.upcoming : [];
@@ -315,7 +314,6 @@ const sess = liveData.session;
 if (sess && sess.session_name) {
   sessionStr = "LATEST SESSION: " + sess.session_name + " — " + (sess.meeting_name || "") + (sess.location ? " at " + sess.location : "");
 }
-```
 
 }
 
@@ -485,7 +483,6 @@ const healthyRest = withStatus.filter(function(e) { const ln = e.name.toLowerCas
 const injuredRest = withStatus.filter(function(e) { const ln = e.name.toLowerCase().split(" ").pop(); return e.isHurt  && !q.includes(e.name.toLowerCase()) && !q.includes(ln); });
 const ordered = mentioned.concat(healthyRest).concat(injuredRest).slice(0, 35);
 
-```
 playerDbStr = ordered.map(function(entry) {
   const name   = entry.name;
   const p      = entry.p;
@@ -496,7 +493,6 @@ playerDbStr = ordered.map(function(entry) {
   const angles = (p.bettingAngles || []).slice(0, 2).join(" | ");
   return name + " | " + p.team + " | " + p.tier + " | " + p.pts + "pts/" + p.reb + "reb/" + p.ast + "ast | PRA avg " + pra + " | floor/ceil " + pFloor + "/" + pCeil + " | " + lean + (angles ? " | " + angles : "") + (entry.isHurt ? " | CURRENTLY INJURED — SKIP" : "");
 }).join("\n");
-```
 
 }
 
@@ -619,7 +615,6 @@ const relevantQBs = getRelevantQBs(question);
 const qbData      = JSON.stringify(relevantQBs, null, 0).slice(0, 9000);
 const skillData   = getRelevantSkillPlayers(question, nflContext);
 
-```
 systemPrompt = "You are Under Review — a sharp sports betting intelligence tool covering NFL, NBA, tennis, and F1.\n" +
   "You answer whatever is asked. Never deflect. Never say 'wrong sport.'\n\n" +
 
@@ -674,7 +669,6 @@ systemPrompt = "You are Under Review — a sharp sports betting intelligence too
 
   (matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n" : "") +
   (oddsCtx ? "LIVE BETTING LINES\n" + oddsCtx : "No live lines — use database floors/ceilings for directional leans.");
-```
 
 } else {
 // ── Tennis ───────────────────────────────────────────────────────────────
@@ -683,7 +677,6 @@ const tournamentCtx = t
 ? "ACTIVE: " + t.name + " — " + t.surface + ", " + t.speed + " speed.\n" + (t.context || "") + "\nATP FAVORITE: " + (t.atp_favorite || "TBD") + "\nWTA FAVORITE: " + (t.wta_favorite || "TBD")
 : "Current tournament context not loaded. Answer from player database and surface Elo data.";
 
-```
 const allTournaments = (context && context.tournaments)
   ? Object.values(context.tournaments).map(function(t2) {
       return t2.name + " (" + t2.surface + ", " + t2.speed + ") — ATP: " + (t2.atp_favorite || "TBD") + " / WTA: " + (t2.wta_favorite || "TBD");
@@ -757,7 +750,6 @@ systemPrompt =
   (oddsCtx ? "LIVE BETTING LINES\n" + oddsCtx + "\n" : "No live prop lines — directional leans only.\n") +
   (drawPath ? "TOURNAMENT DRAW PATH\n" + drawPath + "\n" : "") +
   (matchupCtxStr ? "MATCHUP CONTEXT\n" + matchupCtxStr : "");
-```
 
 }
 
@@ -802,7 +794,6 @@ messages,
 }),
 });
 
-```
 const data = await response.json();
 if (!response.ok) {
   console.error("Anthropic API error:", data);
@@ -835,7 +826,6 @@ if (text && responseLooksWrongForSport(text, sport)) {
 }
 
 return res.status(200).json({ response: text || "Couldn't get a response. Try again." });
-```
 
 } catch (err) {
 console.error("UR TAKE error:", err);
