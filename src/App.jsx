@@ -402,35 +402,32 @@ function renderMessage(text) {
 
 function LoadingBubble({ sport }) {
   const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : "⚡";
+  const isF1 = sport === "f1";
   return (
-    <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:8,minHeight:44,overflow:"hidden"}}>
+    <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:12,minHeight:44}}>
       <style>{`
-        @keyframes bounce-ball {
+        @keyframes ur-bounce {
           0%,100%{transform:translateX(0) translateY(0);}
-          25%{transform:translateX(30px) translateY(-6px);}
-          50%{transform:translateX(60px) translateY(0);}
-          75%{transform:translateX(30px) translateY(-6px);}
+          25%{transform:translateX(24px) translateY(-5px);}
+          50%{transform:translateX(48px) translateY(0);}
+          75%{transform:translateX(24px) translateY(-5px);}
         }
-        @keyframes spin-car {
-          0%  {transform:translateX(0) scaleX(1);}
-          44% {transform:translateX(60px) scaleX(1);}
-          50% {transform:translateX(60px) scaleX(-1);}
-          94% {transform:translateX(0) scaleX(-1);}
-          100%{transform:translateX(0) scaleX(1);}
+        @keyframes ur-drive {
+          0%  {left:0;   transform:scaleX(1);}
+          44% {left:52px;transform:scaleX(1);}
+          50% {left:52px;transform:scaleX(-1);}
+          94% {left:0;   transform:scaleX(-1);}
+          100%{left:0;   transform:scaleX(1);}
         }
-        .sport-loader{display:inline-block;font-size:18px;position:relative;}
-        .sport-loader.bounce{animation:bounce-ball 0.9s ease-in-out infinite;}
-        .sport-loader.spin{animation:spin-car 1.4s ease-in-out infinite;}
-        .loader-wrap{display:flex;align-items:center;gap:8px;width:100%;}
-        .loader-track{position:relative;width:80px;height:24px;flex-shrink:0;overflow:hidden;}
-        .loader-track .sport-loader{position:absolute;top:50%;transform:translateY(-50%);}
+        .ur-track{position:relative;width:72px;height:28px;flex-shrink:0;}
+        .ur-emoji{position:absolute;top:50%;margin-top:-11px;font-size:20px;line-height:1;}
+        .ur-emoji.driving{animation:ur-drive 1.4s ease-in-out infinite;}
+        .ur-emoji.bouncing{animation:ur-bounce 0.9s ease-in-out infinite;left:0;}
       `}</style>
-      <div className="loader-wrap">
-        <div className="loader-track">
-          <span className={`sport-loader ${sport === "f1" ? "spin" : "bounce"}`}>{emoji}</span>
-        </div>
-        <span style={{fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:2,color:"var(--muted)"}}>ANALYZING...</span>
+      <div className="ur-track">
+        <span className={`ur-emoji ${isF1 ? "driving" : "bouncing"}`}>{emoji}</span>
       </div>
+      <span style={{fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:2,color:"var(--muted)"}}>ANALYZING...</span>
     </div>
   );
 }
