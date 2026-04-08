@@ -16,6 +16,7 @@ const css = `
     --nfl:#FF6B35;
     --f1:#E10600;
     --nba:#FF6B00;
+    --mlb:#1DB954;
     --bg:#080A0C;
     --surface:#0F1215;
     --surface-2:#0C1014;
@@ -48,13 +49,17 @@ const css = `
   .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
   .pill-tag{color:var(--magenta);border:1px solid rgba(255,45,107,.25);background:rgba(255,45,107,.06);}
   .pill-live{color:var(--cyan-bright);border:1px solid rgba(0,245,233,.25);background:rgba(0,245,233,.06);}
-  .pill-tennis{color:#F5C842;border:1px solid rgba(245,200,66,.3);background:rgba(245,200,66,.06);}
+  .pill-tennis{color:#FFE600;border:1px solid rgba(255,230,0,.35);background:rgba(255,230,0,.06);}
   .pill-nfl{color:#4A90D9;border:1px solid rgba(74,144,217,.3);background:rgba(74,144,217,.06);}
   .pill-f1{color:var(--f1);border:1px solid rgba(225,6,0,.25);background:rgba(225,6,0,.06);}
   .pill-nba{color:#FF6B00;border:1px solid rgba(255,107,0,.3);background:rgba(255,107,0,.06);}
+  .pill-mlb{color:#1DB954;border:1px solid rgba(29,185,84,.3);background:rgba(29,185,84,.06);}
   .hdr-tagline{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.45);letter-spacing:0.5px;white-space:nowrap;}
 
   .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:70px;}
+  .screen.has-msgs{padding-bottom:140px;}
+  .docked-bar{position:fixed;left:0;right:0;bottom:var(--bottom-nav-height);background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px;z-index:25;backdrop-filter:blur(12px);}
+  .docked-bar-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;opacity:.7;}
   .hero{padding:6px 2px 8px;text-align:center;}
   .hero-title{font-family:var(--display-font);font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
   .hero-sub{color:var(--soft);font-size:13px;line-height:1.5;max-width:560px;margin:0 auto;}
@@ -63,7 +68,8 @@ const css = `
   .sport-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin-bottom:14px;}
   .sport-rail::-webkit-scrollbar{display:none;}
   .sport-pill{flex-shrink:0;border-radius:999px;padding:8px 20px;font-family:var(--display-font);font-size:15px;letter-spacing:2px;cursor:pointer;border:1.5px solid;transition:all .15s;background:transparent;}
-  .sport-pill-tennis{color:#F5C842;border-color:#F5C842;}
+  .sport-pill-tennis{color:#FFE600;border-color:#FFE600;}
+  .sport-pill-mlb{color:#1DB954;border-color:#1DB954;}
   .sport-pill-nfl{color:#4A90D9;border-color:#4A90D9;}
   .sport-pill-f1{color:#E10600;border-color:#E10600;}
   .sport-pill-nba{color:#FF6B00;border-color:#FF6B00;}
@@ -141,10 +147,11 @@ const css = `
 
   .sport-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
   .sport-chip{border:1px solid var(--border-2);background:var(--surface);color:var(--soft);border-radius:12px;padding:16px 12px;font-family:var(--display-font);font-size:18px;letter-spacing:2px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;}
-  .sport-chip.active,.sport-chip:hover{border-color:#F5C842;color:#F5C842;background:rgba(245,200,66,.06);}
+  .sport-chip.active,.sport-chip:hover{border-color:#FFE600;color:#FFE600;background:rgba(255,230,0,.06);}
   .sport-chip.nfl-chip.active,.sport-chip.nfl-chip:hover{border-color:#4A90D9;color:#4A90D9;background:rgba(74,144,217,.06);}
   .sport-chip.f1-chip.active,.sport-chip.f1-chip:hover{border-color:var(--f1);color:var(--f1);background:rgba(225,6,0,.06);}
   .sport-chip.nba-chip.active,.sport-chip.nba-chip:hover{border-color:#FF6B00;color:#FF6B00;background:rgba(255,107,0,.06);}
+  .sport-chip.mlb-chip.active,.sport-chip.mlb-chip:hover{border-color:#1DB954;color:#1DB954;background:rgba(29,185,84,.06);}
 
   .detail-back{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:11px;letter-spacing:1px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:6px;}
   .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:14px;}
@@ -251,13 +258,14 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(6,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:13px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
   .nav-btn.nfl-active{color:#4A90D9;}
   .nav-btn.f1-active{color:var(--f1);}
   .nav-btn.nba-active{color:#FF6B00;}
+  .nav-btn.mlb-active{color:#1DB954;}
 
   .f1-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid var(--border);background:linear-gradient(135deg,rgba(225,6,0,.08),rgba(255,107,53,.05));}
   .f1-standing-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s ease;}
@@ -282,6 +290,17 @@ const css = `
   .nba-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,107,0,.2);background:linear-gradient(135deg,rgba(255,107,0,.08),rgba(255,45,107,.04));}
   .nba-ask-shell{background:var(--surface);border:1px solid rgba(255,107,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nba-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nba);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
+  .mlb-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(29,185,84,.2);background:linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04));}
+  .mlb-ask-shell{background:var(--surface);border:1px solid rgba(29,185,84,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .mlb-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--mlb);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
+  .mlb-game-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s ease;}
+  .mlb-game-card:hover{border-color:rgba(29,185,84,.35);}
+  .mlb-game-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .mlb-game-teams{font-size:15px;font-weight:600;color:var(--text);}
+  .mlb-game-status{font-family:var(--mono-font);font-size:10px;color:var(--muted);}
+  .mlb-game-score{font-family:var(--mono-font);font-size:13px;color:var(--text);margin-bottom:4px;}
+  .mlb-pitcher{font-size:11px;color:var(--muted);}
+  .mlb-live-badge{color:var(--green);font-family:var(--mono-font);font-size:10px;}
   .nba-player-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s ease;}
   .nba-player-card:hover{border-color:rgba(255,107,0,.4);}
   .nba-player-rank{font-family:var(--display-font);font-size:24px;color:var(--muted);min-width:28px;text-align:right;line-height:1;}
@@ -501,6 +520,7 @@ export default function App() {
   const [nflInput, setNflInput]         = useState("");
   const [f1Input, setF1Input]           = useState("");
   const [nbaInput, setNbaInput]         = useState("");
+  const [mlbInput, setMlbInput]         = useState("");
   const [matchupInput, setMatchupInput] = useState("");
 
   // Per-screen message threads
@@ -521,6 +541,8 @@ export default function App() {
   const [f1Loading, setF1Loading]       = useState(false);
   const [nbaData, setNbaData]           = useState(null);
   const [nbaLoading, setNbaLoading]     = useState(false);
+  const [mlbData, setMlbData]           = useState(null);
+  const [mlbLoading, setMlbLoading]     = useState(false);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef      = useRef(null);
@@ -530,6 +552,7 @@ export default function App() {
   const nflInputRef       = useRef(null);
   const f1InputRef        = useRef(null);
   const nbaInputRef       = useRef(null);
+  const mlbInputRef       = useRef(null);
   const matchupInputRef   = useRef(null);
   const playerInputRef    = useRef(null);
   const nflPlayerInputRef = useRef(null);
@@ -710,6 +733,28 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
+  // ── MLB data fetch ────────────────────────────────────────────────────────
+  useEffect(() => {
+    let active = true;
+    async function loadMlb() {
+      setMlbLoading(true);
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch("/api/mlb?view=board", { signal: controller.signal });
+        clearTimeout(timeout);
+        const data = await res.json();
+        if (active) setMlbData(data);
+      } catch { if (active) setMlbData(null); }
+      finally { if (active) setMlbLoading(false); }
+    }
+    loadMlb();
+    const poll = window.setInterval(() => {
+      fetch("/api/mlb?view=board").then(r=>r.json()).then(d=>{ if(active) setMlbData(d); }).catch(()=>{});
+    }, 180000);
+    return () => { active=false; window.clearInterval(poll); };
+  }, []);
+
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
     if (!file||!file.type.startsWith("image/")) return;
@@ -765,6 +810,16 @@ export default function App() {
     };
   }, [nbaData, nbaGames]);
 
+  const buildMlbContext = useCallback((questionText) => {
+    return {
+      seasonContext: mlbData?.seasonContext || {},
+      games:         mlbData?.games        || [],
+      propLines:     mlbData?.propLines    || [],
+      gameTotals:    mlbData?.gameTotals   || {},
+      question:      questionText || "",
+    };
+  }, [mlbData]);
+
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
     if (!text||isAsking) return;
@@ -783,6 +838,7 @@ export default function App() {
         nflContext: buildNflContext(),
         f1Context: buildF1Context(),
         nbaContext: buildNbaContext(text),
+        mlbContext: buildMlbContext(text),
         sportHint: sportHint || null,
       };
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
@@ -893,7 +949,26 @@ export default function App() {
     return cards.slice(0,1);
   }, [nbaData, nbaGames]);
 
-  const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards]);
+  const homeMlbCards = useMemo(() => {
+    const games = mlbData?.games || [];
+    const liveGame = games.find(g => g.state === "in");
+    const nextGame = games.find(g => g.state === "pre");
+    if (liveGame) {
+      const away = liveGame.awayTeam?.abbr || "Away";
+      const home = liveGame.homeTeam?.abbr || "Home";
+      return [{ id:"mlb-live-1", league:"MLB LIVE", leagueColor:"#1DB954", title:`${away} @ ${home}`, time:"LIVE", network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}`, blurb:"Live game. Ask for best live prop or total angle.", whatMatters:"Ask for live K prop, batter hit, or first-5 angle.", quickHitters:["Best live prop?","Pitcher still rolling?","Back the OVER or UNDER?"], confirmed:true }];
+    }
+    if (nextGame) {
+      const away = nextGame.awayTeam?.abbr || "Away";
+      const home = nextGame.homeTeam?.abbr || "Home";
+      const awayP = nextGame.awayTeam?.pitcher ? ` [${nextGame.awayTeam.pitcher.split(" ").pop()}]` : "";
+      const homeP = nextGame.homeTeam?.pitcher ? ` [${nextGame.homeTeam.pitcher.split(" ").pop()}]` : "";
+      return [{ id:"mlb-next-1", league:"MLB", leagueColor:"#1DB954", title:`${away}${awayP} @ ${home}${homeP}`, time:nextGame.status, network:"Today's Slate", blurb:"Ask for the starter matchup, game total lean, or best batter prop.", whatMatters:"Pitcher K prop, game total, or correlated batter play.", quickHitters:["Best prop tonight?","Game total lean?","Best K prop?"], confirmed:true }];
+    }
+    return [{ id:"mlb-default", league:"MLB", leagueColor:"#1DB954", title:"MLB Props", time:"Active", network:"Player Props", blurb:"Ask about any pitcher K prop, batter hit, or game total.", whatMatters:"Ask for the best MLB prop on today's slate.", quickHitters:["Best K prop?","Best batter prop?","Best game total?"], confirmed:true }];
+  }, [mlbData]);
+
+  const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards,...homeMlbCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards,homeMlbCards]);
 
   // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
@@ -917,6 +992,7 @@ export default function App() {
   const goNfl    = useCallback(()=>{ setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goF1     = useCallback(()=>{ setTab("f1");    setScreen("f1");    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goNba    = useCallback(()=>{ setTab("nba");   setScreen("nba");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
+  const goMlb    = useCallback(()=>{ setTab("mlb");   setScreen("mlb");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goAsk    = useCallback(()=>{ setTab("ask");   setScreen("ask");   setSelectedMatchup(null); },[]);
 
   const openMatchup   = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
@@ -935,6 +1011,8 @@ export default function App() {
   const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); setTimeout(()=>{ f1BarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,f1Input]);
   const nbaBarRef     = useRef(null);
   const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); setTimeout(()=>{ nbaBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,nbaInput]);
+  const mlbBarRef     = useRef(null);
+  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); setTimeout(()=>{ mlbBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,mlbInput]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const hint=selectedMatchup?.league?.includes("NFL")?"nfl":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
 
   // ── Sub-components ─────────────────────────────────────────────────────────
@@ -990,6 +1068,7 @@ export default function App() {
       {screen==="player"&&<span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen==="matchup"&&selectedMatchup&&(selectedMatchup.league?.includes("NFL")?<span className="pill-nfl">{selectedMatchup.league}</span>:<span className="pill-tag">{selectedMatchup.network?.toUpperCase()||selectedMatchup.league}</span>)}
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
+      {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
     </>
   );
@@ -1021,9 +1100,10 @@ export default function App() {
             {/* Sport pill rail — horizontal scroll, feels like tabs */}
             <div className="sport-rail">
               <button className="sport-pill sport-pill-tennis" onClick={goTennis}>TENNIS</button>
-              <button className="sport-pill sport-pill-nfl" onClick={goNfl}>{nflSeasonMode?"NFL":"NFL"}</button>
+              <button className="sport-pill sport-pill-nfl" onClick={goNfl}>NFL</button>
               <button className="sport-pill sport-pill-f1" onClick={goF1}>F1</button>
               <button className="sport-pill sport-pill-nba" onClick={goNba}>NBA</button>
+              <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
             </div>
 
             {/* NBA games ticker — only when games exist */}
@@ -1081,15 +1161,17 @@ export default function App() {
               <div className="banner-note">{liveMatches.length>0?`${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in active tournament focus`:""}`:"No current matches loaded right now."}</div>
             </div>
 
-            <div ref={tennisBarRef} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:14,padding:14,marginBottom:16}}>
-              <div style={{fontSize:10,color:"#F5C842",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
-              <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet tonight? Which match is mispriced? Best live angle?" {...askBarCommon} />
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {["Best tennis bets tonight?","Which tennis match is mispriced?","Best live tennis angle right now?","What futures still have value?"].map(q=>(
-                  <button key={q} className="quick-btn" onClick={()=>submitTennis(q)} style={{fontSize:11}}>{q}</button>
-                ))}
+            {tennisMsgs.length===0&&(
+              <div ref={tennisBarRef} style={{background:"var(--surface)",border:"1px solid rgba(255,230,0,.2)",borderRadius:14,padding:14,marginBottom:16}}>
+                <div style={{fontSize:10,color:"#FFE600",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
+                <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet? Which match is mispriced?" {...askBarCommon} />
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {["Best tennis bet tonight?","Which match is mispriced?","Best live angle?","Best futures value?"].map(q=>(
+                    <button key={q} className="quick-btn" onClick={()=>submitTennis(q)} style={{fontSize:11}}>{q}</button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <ChatThread msgs={tennisMsgs}/>
 
@@ -1154,7 +1236,7 @@ export default function App() {
               <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
               <div className="banner-note">{nflSeasonMode?"Current weekly props, role changes, usage shifts, and market edges.":"Skill positions database with per-game stats, TD rates, prop floors and ceilings."}</div>
             </div>
-            <div className="nfl-ask-shell" ref={nflBarRef}>
+            {nflMsgs.length===0&&<div className="nfl-ask-shell" ref={nflBarRef}>
               <div className="nfl-ask-label">Ask Anything — NFL</div>
               <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder={nflSeasonMode?"Best WR prop this week? Biggest role change?":"Which RB leads TDs in 2026? Best future?"} btnColor="#4A90D9" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1162,7 +1244,7 @@ export default function App() {
                   <button key={q} className="quick-btn" onClick={()=>submitNfl(q)} style={{fontSize:11}}>{q}</button>
                 ))}
               </div>
-            </div>
+            </div>}
             <ChatThread msgs={nflMsgs}/>
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
             {NFL_PROP_GUIDE.map(prop=>(
@@ -1217,7 +1299,7 @@ export default function App() {
               <div className="banner-note">{f1Data?.standings?.length ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}</div>
             </div>
 
-            <div className="f1-ask-shell" ref={f1BarRef}>
+            {f1Msgs.length===0&&<div className="f1-ask-shell" ref={f1BarRef}>
               <div className="f1-ask-label">Ask Anything — F1</div>
               <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1290,7 +1372,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="nba-ask-shell" ref={nbaBarRef}>
+            {nbaMsgs.length===0&&<div className="nba-ask-shell" ref={nbaBarRef}>
               <div className="nba-ask-label">Ask Anything — NBA Props</div>
               <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Jokic PRA over tonight? Best prop this slate?" btnColor="var(--nba)" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -1357,7 +1439,100 @@ export default function App() {
           </main>
         )}
 
-        {/* ══ MATCHUP DETAIL ══ */}
+        {/* ══ MLB ══ */}
+    {screen==="mlb"&&(
+      <main className={`screen${mlbMsgs.length>0?" has-msgs":""}`}>
+        <div className="mlb-banner">
+          <div className="banner-title">MLB</div>
+          <div className="banner-sub">PROPS · GAME TOTALS · PITCHER ANGLES</div>
+          <div className="banner-note">
+            {mlbData?.games?.length > 0
+              ? `${mlbData.games.filter(g=>g.state==="in").length > 0 ? mlbData.games.filter(g=>g.state==="in").length + " live · " : ""}${mlbData.games.length} games today · ${mlbData?.seasonContext?.phase||"MLB Season"}`
+              : mlbLoading ? "Loading..." : mlbData?.seasonContext?.phase || "MLB Season Active"}
+          </div>
+        </div>
+
+        {mlbMsgs.length===0&&(
+          <div className="mlb-ask-shell" ref={mlbBarRef}>
+            <div className="mlb-ask-label">Ask Anything — MLB</div>
+            <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="var(--mlb)" {...askBarCommon}/>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {["Best pitcher K prop tonight?","Best batter hits prop?","Which game total should I bet?","Best home run prop tonight?"].map(q=>(
+                <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <ChatThread msgs={mlbMsgs}/>
+
+        {mlbLoading ? (
+          <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
+        ) : (
+          <>
+            {mlbData?.games?.length > 0 && (
+              <>
+                <div className="section-divider">
+                  {mlbData.games.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
+                </div>
+                {mlbData.games.map((g,i) => {
+                  const away = g.awayTeam;
+                  const home = g.homeTeam;
+                  const isLive = g.state === "in";
+                  const isFinal = g.state === "post";
+                  const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
+                  return (
+                    <div key={g.id||i} className="mlb-game-card" onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today? Starter matchup, game total lean, and best batter prop.`)}>
+                      <div className="mlb-game-top">
+                        <div className="mlb-game-teams">{away.abbr||away.name} @ {home.abbr||home.name}</div>
+                        <div>{isLive
+                          ? <span className="mlb-live-badge">● {g.inningHalf?.slice(0,3)||"Live"} {g.inning}</span>
+                          : <span className="mlb-game-status">{isFinal ? "FINAL" : g.status}</span>
+                        }</div>
+                      </div>
+                      {(isLive||isFinal) && away.score != null && (
+                        <div className="mlb-game-score">{away.score} — {home.score}</div>
+                      )}
+                      {(away.pitcher||home.pitcher) && (
+                        <div className="mlb-pitcher">
+                          {away.pitcher && <span>{away.abbr}: {away.pitcher}</span>}
+                          {away.pitcher && home.pitcher && <span style={{margin:"0 6px",color:"var(--border-2)"}}>·</span>}
+                          {home.pitcher && <span>{home.abbr}: {home.pitcher}</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            <div className="section-divider">Quick Prop Angles</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+              {[
+                ["Best K prop tonight?", "Who is the best pitcher strikeout OVER tonight? Give me K/9 context, opposing lineup, and confidence level."],
+                ["Best hits prop?", "Who has the best batter hits OVER tonight? Consider batting average, pitcher ERA, and park factor."],
+                ["Best game total?", "Which MLB game total has the sharpest angle tonight? Give me the run environment, starting pitchers, and lean."],
+                ["Best HR prop?", "Who has the best home run prop tonight? Give me barrel rate, launch angle, and pitcher HR/FB rate context."],
+                ["Park factor edge?", "Which game tonight has the biggest park factor edge? Coors, Petco, or any extreme park factor plays today?"],
+                ["Best same game parlay?", "Build me the sharpest MLB same game parlay tonight. Starting pitcher K over + correlated batter prop."],
+              ].map(([label, q]) => (
+                <button key={label} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{label}</button>
+              ))}
+            </div>
+
+            <div className="section-divider">Ask About Any Player</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+              {["Ohtani","Judge","Freeman","Betts","Acuña","Lindor","Seager","Harper","Guerrero","Ramirez","J. Rodriguez","Carroll","Henderson","Pete Alonso","Corbin Burnes","Zack Wheeler","Paul Skenes","Hunter Greene"].map(name => (
+                <button key={name} className="quick-btn" onClick={()=>submitMlb(`Best prop angle for ${name} today? Line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
+              ))}
+            </div>
+          </>
+        )}
+        <div className="page-spacer"/>
+      </main>
+    )}
+
+    {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
           <main className="screen">
             <button className="detail-back" onClick={()=>{setSelectedMatchup(null);setScreen(selectedMatchup?.league?.includes("NFL")?"nfl":"tennis");}}>← BACK</button>
@@ -1404,6 +1579,43 @@ export default function App() {
           </main>
         )}
 
+        {/* ══ DOCKED INPUT BARS ══ */}
+        {screen==="tennis"&&tennisMsgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(255,230,0,.25)"}}>
+            <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis · Ask another</div>
+            <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Ask another..." {...askBarCommon}/>
+          </div>
+        )}
+        {screen==="nfl"&&nflMsgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(74,144,217,.25)"}}>
+            <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>
+            <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder="Ask another..." btnColor="#4A90D9" {...askBarCommon}/>
+          </div>
+        )}
+        {screen==="f1"&&f1Msgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(225,6,0,.25)"}}>
+            <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 · Ask another</div>
+            <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Ask another..." btnColor="var(--f1)" {...askBarCommon}/>
+          </div>
+        )}
+        {screen==="nba"&&nbaMsgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(255,107,0,.25)"}}>
+            <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA · Ask another</div>
+            <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Ask another..." btnColor="var(--nba)" {...askBarCommon}/>
+          </div>
+        )}
+        {screen==="mlb"&&mlbMsgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(29,185,84,.25)"}}>
+            <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB · Ask another</div>
+            <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon}/>
+          </div>
+        )}
+        {screen==="ask"&&askMsgs.length>0&&(
+          <div className="docked-bar">
+            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
+          </div>
+        )}
+
         {/* ══ NAV ══ */}
         <nav className="bottom-nav">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
@@ -1411,6 +1623,7 @@ export default function App() {
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
+          <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="ask"?" active":""}`} onClick={goAsk}><span>Ask</span></button>
         </nav>
 
