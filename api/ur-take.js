@@ -32,7 +32,7 @@ const NFL_QBS = {
 function detectSport(question, sportHint, matchupContext) {
 const q = String(question || "").toLowerCase();
 
-if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1" || sportHint === "nba") return sportHint;
+if (sportHint === "nfl" || sportHint === "tennis" || sportHint === "f1" || sportHint === "nba" || sportHint === "mlb") return sportHint;
 
 const mcLeague = String((matchupContext && matchupContext.league) || "").toLowerCase();
 if (mcLeague.includes("nfl")) return "nfl";
@@ -71,6 +71,9 @@ const explicitNba = [
 "fast break","half court","second half","first half nba",
 ];
 for (let i = 0; i < explicitNba.length; i++) { if (q.includes(explicitNba[i])) return "nba"; }
+
+const explicitMlb = ["mlb","baseball","world series","home run","strikeout","batting average","era ","whip ","starting pitcher","bullpen","slugging","ops ","woba","fip ","park factor","stolen base","no-hitter","perfect game","spring training","american league","national league","dodgers","yankees","red sox","cubs","mets","braves","astros","padres","phillies","giants","cardinals","brewers","mariners","rangers","twins","guardians","orioles","blue jays","rays","white sox","tigers","royals","athletics","angels","rockies","diamondbacks","reds","pirates","marlins","nationals","statcast","exit velocity","launch angle","spin rate","barrel","hard hit","called strike","wager baseball","ohtani","trout","judge","acuna","trea turner","francisco lindor","mookie betts","freddie freeman","pete alonso","corbin carroll","gunnar henderson","corey seager","bryce harper","vladmir guerrero","bo bichette","jose ramirez","julio rodriguez","shohei"];
+for (let i = 0; i < explicitMlb.length; i++) { if (q.includes(explicitMlb[i])) return "mlb"; }
 
 const nflSignals = ["quarterback","qb ","touchdown","touchdowns","interception","passing yards","rushing yards","receiving yards","fantasy football","super bowl","afc ","nfc ","wide receiver","running back","tight end","red zone","blitz","pocket","play action","offense","defense","defensive","offensive","cornerback","linebacker","pass rush","edge rusher","sacks","sack rate","draft pick","draft class","first round","win total","team total","season total","game script","skill position","divisional","bills","patriots","dolphins","jets","ravens","bengals","browns","steelers","texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos","cowboys","giants","eagles","commanders","bears","lions","packers","vikings","falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks","mahomes","lamar","burrow","hurts","prescott","stroud","stafford","purdy","goff","daniels","cook","henry","taylor","robinson","achane","nacua","chase","pickens","lamb","mcbride","bowers","kelce","warren","draft","rookie","rookies"];
 const tennisSignals = ["alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz","sabalenka","swiatek","rybakina","pegula","gauff","muchova","osaka","keys","draper","fils","ruud","rublev","paolini","andreeva","kartal","zheng","mensik","bublik","tien","lehecka","cerundolo","cobolli","hurkacz","vacherot","surface elo","dominance ratio","hold percentage","tiebreak","double faults","double fault","ace rate","ace count","break point","clay court","grass court","hard court","draw path","monte carlo","clay swing","clay specialist","clay form","serve technique","second serve","first serve"];
@@ -558,7 +561,11 @@ prompt += "WHAT TO DO WHEN DATA IS MISSING:\n";
 prompt += "No prop lines? Use PRA floor/ceiling from the philosophy database. Say 'directional lean' not 'I can't answer'.\n";
 prompt += "No season averages? Use the curated database for player context. Omit team abbreviations.\n";
 prompt += "No game logs? Skip streak context. Still give the take.\n";
-prompt += "No games? Say it's an off-night and give the best futures or next-game angle.\n\n";
+prompt += "No games? Do NOT just say the schedule is dark. Instead:\n";
+prompt += "1. Acknowledge briefly (one sentence max).\n";
+prompt += "2. Give the best FUTURES angle — championship odds, series props, player awards.\n";
+prompt += "3. Name a specific player and specific futures bet that has value RIGHT NOW.\n";
+prompt += "NBA PLAYOFF CONTEXT: NBA Playoffs begin April 19, 2026. Top seeds: OKC, CLE (West/East leaders). Best futures plays: SGA MVP, Jokic PRA series props, Celtics/Cavs Finals futures.\n\n";
 
 prompt += "CRITICAL FORMATTING RULES — NON-NEGOTIABLE:\n";
 prompt += "NEVER use markdown. No ##, no ---, no ** bold, no - bullet points, no numbered lists with explanations.\n";
@@ -620,6 +627,102 @@ if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
 return prompt;
 }
 
+// ── MLB system prompt builder ─────────────────────────────────────────────────
+function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
+var ctx = mlbContext || {};
+var now = new Date();
+var todayStr = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+var phase = (ctx.seasonContext && ctx.seasonContext.phase) || "MLB Season Active";
+
+// Games
+var gamesStr = "No games on today's schedule.";
+var games = ctx.games || [];
+if (games.length > 0) {
+  gamesStr = games.map(function(g) {
+    var away = g.awayTeam;
+    var home = g.homeTeam;
+    var awayStr = (away.abbr||away.name||"AWAY") + (away.pitcher ? " [SP: " + away.pitcher + "]" : "");
+    var homeStr = (home.abbr||home.name||"HOME") + (home.pitcher ? " [SP: " + home.pitcher + "]" : "");
+    if (g.state === "post") return awayStr + " " + away.score + " @ " + homeStr + " " + home.score + " — FINAL";
+    if (g.state === "in") {
+      var inn = g.inning ? (g.inningHalf === "Bottom" ? "Bot" : "Top") + " " + g.inning : "Live";
+      return awayStr + " " + away.score + " @ " + homeStr + " " + home.score + " — " + inn;
+    }
+    return awayStr + " @ " + homeStr + " — " + g.status;
+  }).join("\n");
+}
+
+// Totals
+var totalsStr = "";
+var gameTotals = ctx.gameTotals || {};
+if (Object.keys(gameTotals).length) {
+  var tLines = [];
+  for (var gk in gameTotals) {
+    var t = gameTotals[gk];
+    var runNote = t.run_env === "HIGH" ? " — HIGH run environment (back OVERs, K unders)" :
+                  t.run_env === "LOW"  ? " — LOW run environment (back UNDERs, K overs)" : "";
+    tLines.push(gk + ": O/U " + t.total + runNote);
+  }
+  totalsStr = tLines.join("\n");
+}
+
+// Prop lines
+var propLinesStr = "No prop lines posted yet.";
+var propLines = ctx.propLines || [];
+if (propLines.length > 0) {
+  var grouped = {};
+  for (var li = 0; li < propLines.length; li++) {
+    var pl = propLines[li];
+    var k = pl.player + "|" + pl.prop;
+    if (!grouped[k]) grouped[k] = { player: pl.player, prop: pl.prop, game: pl.game, over: null, under: null };
+    if (pl.side === "Over")  grouped[k].over  = pl.line + " (" + (pl.odds > 0 ? "+" : "") + pl.odds + ")";
+    if (pl.side === "Under") grouped[k].under = pl.line;
+  }
+  var entries = Object.values(grouped).slice(0, 60);
+  propLinesStr = entries.map(function(e) {
+    var sides = e.over ? "OVER " + e.over : "";
+    if (e.under) sides += (sides ? " / UNDER " : "UNDER ") + e.under;
+    return e.player + " — " + e.prop.toUpperCase() + " — " + sides + " [" + e.game + "]";
+  }).join("\n");
+}
+
+var prompt = "You are Under Review — a sharp MLB betting intelligence tool.\n\n";
+prompt += "IDENTITY: Sharp baseball analyst. Lead with the take. No hedging. No markdown.\n\n";
+
+prompt += "CRITICAL RULES:\n";
+prompt += "1. NEVER use markdown. No ##, no ---, no ** bold. Plain text only.\n";
+prompt += "2. NEVER open with a limitation. Lead with the lean.\n";
+prompt += "3. Always cite the actual prop line number when recommending.\n";
+prompt += "4. Do not recommend props for FINAL games.\n\n";
+
+prompt += "RESPONSE FORMAT:\n";
+prompt += "One sharp opening sentence. Then:\n";
+prompt += "THE PLAY: • [Player] — [PROP OVER/UNDER LINE] ([ODDS]) — [key reason]\n";
+prompt += "FADE: [one line]\nCONFIDENCE: [High/Medium/Speculative]\nTIMING: [one line]\n\n";
+
+prompt += "MLB BETTING PRINCIPLES:\n";
+prompt += "Starting pitcher strikeouts = primary MLB prop market. K/9 vs opposing K% is the edge.\n";
+prompt += "Game total is run environment proxy. Over 9 = both offenses cooking. Under 7 = pitchers dominate.\n";
+prompt += "Park factors matter enormously. Coors Field = back OVERs always. Petco Park = fade OVERs.\n";
+prompt += "Platoon splits = the most underused edge. Left vs right pitcher splits change lines by 30-40%.\n";
+prompt += "Batter hits props: .300+ hitter vs weak starter = OVER. Elite pitcher at home = UNDER.\n";
+prompt += "Home run props: barrel rate + launch angle vs pitcher HR/FB rate. Not just slugging average.\n\n";
+
+prompt += "PARK FACTOR CHEAT SHEET (run environment — 100 = neutral):\n";
+prompt += "OVER-friendly: Coors Field (COL, ~120), Great American Ball Park (CIN, ~108), Globe Life Field (TEX, ~107)\n";
+prompt += "UNDER-friendly: Petco Park (SD, ~93), Oracle Park (SF, ~92), T-Mobile Park (SEA, ~91)\n";
+prompt += "Neutral: Dodger Stadium (~99), Yankee Stadium (~101), Wrigley Field (~100)\n\n";
+
+prompt += "TODAY: " + todayStr + "\n";
+prompt += "MLB PHASE: " + phase + "\n\n";
+prompt += "TODAY'S GAMES (probable starters listed)\n" + gamesStr + "\n\n";
+if (totalsStr) prompt += "GAME TOTALS (run environment signal)\n" + totalsStr + "\n\n";
+prompt += "LIVE PROP LINES\n" + propLinesStr + "\n\n";
+if (matchupCtxStr) prompt += "MATCHUP CONTEXT\n" + matchupCtxStr + "\n\n";
+
+return prompt;
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
 res.setHeader("Access-Control-Allow-Origin", "*");
@@ -633,7 +736,7 @@ if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_
 
 const {
 question, players, context, liveMatches, history,
-matchupContext, image, nflContext, nbaContext, sportHint,
+matchupContext, image, nflContext, nbaContext, mlbContext, sportHint,
 // f1Context from client is accepted as fallback but we prefer server-fetched
 f1Context: clientF1Context,
 } = req.body;
@@ -644,6 +747,7 @@ const sport = detectSport(question, sportHint, matchupContext);
 const isNFL = sport === "nfl";
 const isF1  = sport === "f1";
 const isNBA = sport === "nba";
+const isMLB = sport === "mlb";
 
 function buildOddsContext(odds) {
 if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
@@ -682,10 +786,11 @@ const matchupCtxStr = summarizeMatchupContext(matchupContext);
 let systemPrompt;
 
 if (isF1) {
-// Always try to fetch live F1 data server-side first
-// Fall back to client-provided context if fetch fails
 const liveF1Data = fetchF1LiveData();
 systemPrompt = buildF1SystemPrompt(liveF1Data, matchupCtxStr);
+
+} else if (isMLB) {
+systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
 
 } else if (isNBA) {
 systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
