@@ -258,7 +258,7 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(8,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:13px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
@@ -266,6 +266,12 @@ const css = `
   .nav-btn.f1-active{color:var(--f1);}
   .nav-btn.nba-active{color:#FF6B00;}
   .nav-btn.mlb-active{color:#1DB954;}
+  .nav-btn.pro-active{color:#F5C842;}
+  .pro-banner{border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid rgba(245,200,66,.3);background:linear-gradient(135deg,rgba(245,200,66,.08),rgba(255,45,107,.04));text-align:center;}
+  .pro-feature{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;}
+  .pro-feature-dot{width:8px;height:8px;border-radius:50%;background:#F5C842;flex-shrink:0;margin-top:4px;}
+  .pro-cta{width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#F5C842,#FF2D6B);color:#080A0C;font-family:var(--display-font);font-size:20px;letter-spacing:2px;cursor:pointer;margin-top:8px;transition:opacity .15s;}
+  .pro-cta:hover{opacity:.9;}
 
   .f1-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid var(--border);background:linear-gradient(135deg,rgba(225,6,0,.08),rgba(255,107,53,.05));}
   .f1-standing-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s ease;}
@@ -994,6 +1000,7 @@ export default function App() {
   const goNba    = useCallback(()=>{ setTab("nba");   setScreen("nba");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goMlb    = useCallback(()=>{ setTab("mlb");   setScreen("mlb");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goAsk    = useCallback(()=>{ setTab("ask");   setScreen("ask");   setSelectedMatchup(null); },[]);
+  const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
 
   const openMatchup   = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
   const openPlayer    = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
@@ -1068,6 +1075,7 @@ export default function App() {
       {screen==="player"&&<span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen==="matchup"&&selectedMatchup&&(selectedMatchup.league?.includes("NFL")?<span className="pill-nfl">{selectedMatchup.league}</span>:<span className="pill-tag">{selectedMatchup.network?.toUpperCase()||selectedMatchup.league}</span>)}
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
+      {screen==="pro"&&<span className="pill-tag" style={{color:"#F5C842",borderColor:"rgba(245,200,66,.3)"}}>PRO</span>}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
     </>
@@ -1443,97 +1451,134 @@ export default function App() {
         )}
 
         {/* ══ MLB ══ */}
-    {screen==="mlb"&&(
-      <main className={`screen${mlbMsgs.length>0?" has-msgs":""}`}>
-        <div className="mlb-banner">
-          <div className="banner-title">MLB</div>
-          <div className="banner-sub">PROPS · GAME TOTALS · PITCHER ANGLES</div>
-          <div className="banner-note">
-            {mlbData?.games?.length > 0
-              ? `${mlbData.games.filter(g=>g.state==="in").length > 0 ? mlbData.games.filter(g=>g.state==="in").length + " live · " : ""}${mlbData.games.length} games today · ${mlbData?.seasonContext?.phase||"MLB Season"}`
-              : mlbLoading ? "Loading..." : mlbData?.seasonContext?.phase || "MLB Season Active"}
-          </div>
-        </div>
-
-        {mlbMsgs.length===0&&(
-          <div className="mlb-ask-shell" ref={mlbBarRef}>
-            <div className="mlb-ask-label">Ask Anything — MLB</div>
-            <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="var(--mlb)" {...askBarCommon}/>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {["Best pitcher K prop tonight?","Best batter hits prop?","Which game total should I bet?","Best home run prop tonight?"].map(q=>(
-                <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
-              ))}
+        {screen==="mlb"&&(
+          <main className={`screen${mlbMsgs.length>0?" has-msgs":""}`}>
+            <div className="mlb-banner">
+              <div className="banner-title">MLB</div>
+              <div className="banner-sub">PROPS · GAME TOTALS · PITCHER ANGLES</div>
+              <div className="banner-note">
+                {mlbData?.games?.length > 0
+                  ? `${mlbData.games.filter(g=>g.state==="in").length > 0 ? mlbData.games.filter(g=>g.state==="in").length + " live · " : ""}${mlbData.games.length} games today · ${mlbData?.seasonContext?.phase||"MLB Season"}`
+                  : mlbLoading ? "Loading..." : mlbData?.seasonContext?.phase || "MLB Season Active"}
+              </div>
             </div>
-          </div>
-        )}
 
-        <ChatThread msgs={mlbMsgs}/>
-
-        {mlbLoading ? (
-          <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
-        ) : (
-          <>
-            {mlbData?.games?.length > 0 && (
-              <>
-                <div className="section-divider">
-                  {mlbData.games.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
+            {mlbMsgs.length===0&&(
+              <div className="mlb-ask-shell" ref={mlbBarRef}>
+                <div className="mlb-ask-label">Ask Anything -- MLB</div>
+                <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="var(--mlb)" {...askBarCommon}/>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {["Best pitcher K prop?","Best batter hits prop?","Best game total?","Best home run prop?"].map(q=>(
+                    <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
+                  ))}
                 </div>
-                {mlbData.games.map((g,i) => {
-                  const away = g.awayTeam;
-                  const home = g.homeTeam;
-                  const isLive = g.state === "in";
-                  const isFinal = g.state === "post";
-                  const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
-                  return (
-                    <div key={g.id||i} className="mlb-game-card" onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today? Starter matchup, game total lean, and best batter prop.`)}>
-                      <div className="mlb-game-top">
-                        <div className="mlb-game-teams">{away.abbr||away.name} @ {home.abbr||home.name}</div>
-                        <div>{isLive
-                          ? <span className="mlb-live-badge">● {g.inningHalf?.slice(0,3)||"Live"} {g.inning}</span>
-                          : <span className="mlb-game-status">{isFinal ? "FINAL" : g.status}</span>
-                        }</div>
-                      </div>
-                      {(isLive||isFinal) && away.score != null && (
-                        <div className="mlb-game-score">{away.score} — {home.score}</div>
-                      )}
-                      {(away.pitcher||home.pitcher) && (
-                        <div className="mlb-pitcher">
-                          {away.pitcher && <span>{away.abbr}: {away.pitcher}</span>}
-                          {away.pitcher && home.pitcher && <span style={{margin:"0 6px",color:"var(--border-2)"}}>·</span>}
-                          {home.pitcher && <span>{home.abbr}: {home.pitcher}</span>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
+              </div>
             )}
 
-            <div className="section-divider">Quick Prop Angles</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
-              {[
-                ["Best K prop tonight?", "Who is the best pitcher strikeout OVER tonight? Give me K/9 context, opposing lineup, and confidence level."],
-                ["Best hits prop?", "Who has the best batter hits OVER tonight? Consider batting average, pitcher ERA, and park factor."],
-                ["Best game total?", "Which MLB game total has the sharpest angle tonight? Give me the run environment, starting pitchers, and lean."],
-                ["Best HR prop?", "Who has the best home run prop tonight? Give me barrel rate, launch angle, and pitcher HR/FB rate context."],
-                ["Park factor edge?", "Which game tonight has the biggest park factor edge? Coors, Petco, or any extreme park factor plays today?"],
-                ["Best same game parlay?", "Build me the sharpest MLB same game parlay tonight. Starting pitcher K over + correlated batter prop."],
-              ].map(([label, q]) => (
-                <button key={label} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{label}</button>
-              ))}
-            </div>
+            <ChatThread msgs={mlbMsgs}/>
 
-            <div className="section-divider">Ask About Any Player</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
-              {["Ohtani","Judge","Freeman","Betts","Acuña","Lindor","Seager","Harper","Guerrero","Ramirez","J. Rodriguez","Carroll","Henderson","Pete Alonso","Corbin Burnes","Zack Wheeler","Paul Skenes","Hunter Greene"].map(name => (
-                <button key={name} className="quick-btn" onClick={()=>submitMlb(`Best prop angle for ${name} today? Line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
-              ))}
-            </div>
-          </>
+            {mlbLoading ? (
+              <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
+            ) : (
+              <>
+                {mlbData?.games?.length > 0 && (
+                  <>
+                    <div className="section-divider">
+                      {mlbData.games.filter(g=>g.state==="in").length > 0 ? "Live Games" : "Today's Games"}
+                    </div>
+                    {mlbData.games.map((g,i) => {
+                      const away = g.awayTeam;
+                      const home = g.homeTeam;
+                      const isLive = g.state === "in";
+                      const isFinal = g.state === "post";
+                      const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
+                      return (
+                        <div key={g.id||i} className="mlb-game-card" onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today?`)}>
+                          <div className="mlb-game-top">
+                            <div className="mlb-game-teams">{away.abbr||away.name} @ {home.abbr||home.name}</div>
+                            <div>{isLive
+                              ? <span className="mlb-live-badge">Live {g.inning||""}</span>
+                              : <span className="mlb-game-status">{isFinal?"FINAL":g.status}</span>
+                            }</div>
+                          </div>
+                          {(isLive||isFinal) && away.score != null && (
+                            <div className="mlb-game-score">{away.score} - {home.score}</div>
+                          )}
+                          {(away.pitcher||home.pitcher) && (
+                            <div className="mlb-pitcher">
+                              {away.pitcher&&<span>{away.abbr}: {away.pitcher}</span>}
+                              {away.pitcher&&home.pitcher&&<span style={{margin:"0 6px"}}>·</span>}
+                              {home.pitcher&&<span>{home.abbr}: {home.pitcher}</span>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                <div className="section-divider">Quick Prop Angles</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+                  {[
+                    ["Best K prop?","Who is the best pitcher strikeout OVER tonight? K/9, opposing lineup, confidence."],
+                    ["Best hits prop?","Best batter hits OVER tonight? Batting average, pitcher ERA, park factor."],
+                    ["Best game total?","Which MLB game total has the sharpest angle tonight? Run environment and lean."],
+                    ["Best HR prop?","Best home run prop tonight? Barrel rate, launch angle, pitcher HR/FB rate."],
+                    ["Park factor edge?","Which game tonight has the biggest park factor edge? Coors, Petco, extreme parks."],
+                    ["Best SGP?","Build the sharpest MLB same game parlay tonight. Pitcher K over + batter prop."],
+                  ].map(([label,q]) => (
+                    <button key={label} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{label}</button>
+                  ))}
+                </div>
+                <div className="section-divider">Ask About Any Player</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+                  {["Ohtani","Judge","Freeman","Betts","Acuna","Lindor","Seager","Harper","Guerrero","Ramirez","J. Rodriguez","Carroll","Henderson","Pete Alonso","Corbin Burnes","Zack Wheeler","Paul Skenes","Hunter Greene"].map(name => (
+                    <button key={name} className="quick-btn" onClick={()=>submitMlb(`Best prop angle for ${name} today? Line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="page-spacer"/>
+          </main>
         )}
-        <div className="page-spacer"/>
-      </main>
-    )}
+
+        {/* ══ PRO ══ */}
+        {screen==="pro"&&(
+          <main className="screen">
+            <div className="pro-banner">
+              <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:3,color:"#F5C842",marginBottom:8}}>UNDER REVIEW</div>
+              <div style={{fontFamily:"var(--display-font)",fontSize:36,letterSpacing:2,marginBottom:6}}>GO PRO</div>
+              <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>Sharp takes. Real data. Every sport.</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:22,color:"#F5C842",margin:"12px 0 4px"}}>$9.99<span style={{fontSize:12,color:"var(--muted)"}}>/month</span></div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)",letterSpacing:1}}>7-DAY FREE TRIAL</div>
+            </div>
+            {[
+              ["Unlimited UR TAKE questions","Ask about any player, game, or prop with no limits."],
+              ["Tennis deep database","Full ATP/WTA Elo suite, surface splits, and rally profiles."],
+              ["MLB pitcher and batter props","Park factors, K/9, barrel rate, and platoon splits baked in."],
+              ["F1 race and qualifying angles","2026 grid, standings, and circuit-specific edges."],
+              ["NBA props and game totals","PRA floors, usage spikes, and pace-adjusted edges."],
+              ["NFL futures database","Full skill position database with prop floors, ceilings, and TD rates."],
+            ].map(([title,desc]) => (
+              <div key={title} className="pro-feature">
+                <div className="pro-feature-dot"/>
+                <div><div style={{fontWeight:600,marginBottom:2}}>{title}</div><div style={{fontSize:12,color:"var(--muted)"}}>{desc}</div></div>
+              </div>
+            ))}
+            <div style={{margin:"16px 0 8px",textAlign:"center"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:1,marginBottom:12}}>CANCEL ANYTIME. NO COMMITMENT.</div>
+              <button className="pro-cta" onClick={async ()=>{
+                try {
+                  const res = await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+                  const data = await res.json();
+                  if (data.url) window.location.href = data.url;
+                  else alert("Could not start checkout. Try again.");
+                } catch { alert("Something went wrong. Try again."); }
+              }}>START FREE TRIAL</button>
+            </div>
+            <div style={{textAlign:"center",marginTop:16,fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:1}}>Powered by Stripe. Secure checkout.</div>
+            <div className="page-spacer"/>
+          </main>
+        )}
 
     {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
@@ -1627,6 +1672,7 @@ export default function App() {
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
+          <button className={`nav-btn${tab==="pro"?" pro-active":""}`} onClick={goPro}><span>Pro</span></button>
           <button className={`nav-btn${tab==="ask"?" active":""}`} onClick={goAsk}><span>Ask</span></button>
         </nav>
 
