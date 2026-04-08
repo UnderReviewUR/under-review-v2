@@ -43,8 +43,8 @@ const css = `
 
   .hdr{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--header-bg);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);gap:14px;}
   .wordmark{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:fit-content;cursor:pointer;}
-  .logo-under{display:block;font-family:var(--mono-font);font-size:8px;letter-spacing:4px;color:rgba(255,255,255,.4);margin-bottom:1px;text-transform:uppercase;}
-  .logo-review{display:block;font-family:var(--display-font);font-size:20px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .logo-under{display:block;font-family:var(--mono-font);font-size:9px;letter-spacing:4px;color:rgba(255,255,255,.45);margin-bottom:2px;text-transform:uppercase;}
+  .logo-review{display:block;font-family:var(--display-font);font-size:26px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
   .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
   .pill-tag{color:var(--magenta);border:1px solid rgba(255,45,107,.25);background:rgba(255,45,107,.06);}
@@ -258,7 +258,7 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(8,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:13px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
@@ -1648,30 +1648,25 @@ export default function App() {
 
         {/* ══ PRO ══ */}
         {screen==="pro"&&(
-          <main className="screen">
-            <div className="pro-banner">
-              <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:3,color:"#F5C842",marginBottom:8}}>UNDER REVIEW</div>
-              <div style={{fontFamily:"var(--display-font)",fontSize:36,letterSpacing:2,marginBottom:6}}>GO PRO</div>
-              <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>Sharp takes. Real data. Every sport.</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:22,color:"#F5C842",margin:"12px 0 4px"}}>$9.99<span style={{fontSize:12,color:"var(--muted)"}}>/month</span></div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)",letterSpacing:1}}>7-DAY FREE TRIAL</div>
-            </div>
-            {[
-              ["Unlimited UR TAKE questions","Ask about any player, game, or prop with no limits."],
-              ["Tennis deep database","Full ATP/WTA Elo suite, surface splits, and rally profiles."],
-              ["MLB pitcher and batter props","Park factors, K/9, barrel rate, and platoon splits baked in."],
-              ["F1 race and qualifying angles","2026 grid, standings, and circuit-specific edges."],
-              ["NBA props and game totals","PRA floors, usage spikes, and pace-adjusted edges."],
-              ["NFL futures database","Full skill position database with prop floors, ceilings, and TD rates."],
-            ].map(([title,desc]) => (
-              <div key={title} className="pro-feature">
-                <div className="pro-feature-dot"/>
-                <div><div style={{fontWeight:600,marginBottom:2}}>{title}</div><div style={{fontSize:12,color:"var(--muted)"}}>{desc}</div></div>
+          <main className="screen" style={{padding:"0 0 80px"}}>
+
+            {/* Hero — full-width, bold, no fluff */}
+            <div style={{
+              background:"linear-gradient(160deg,rgba(245,200,66,.1) 0%,rgba(255,45,107,.06) 60%,var(--bg) 100%)",
+              borderBottom:"1px solid rgba(245,200,66,.15)",
+              padding:"32px 20px 28px",textAlign:"center",marginBottom:4,
+            }}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:4,color:"rgba(245,200,66,.6)",marginBottom:12,textTransform:"uppercase"}}>Under Review</div>
+              <div style={{fontFamily:"var(--display-font)",fontSize:52,letterSpacing:2,lineHeight:1,marginBottom:10,background:"linear-gradient(135deg,#F5C842,#FF8C00)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>PRO</div>
+              <div style={{fontSize:15,color:"var(--soft)",lineHeight:1.6,maxWidth:280,margin:"0 auto 20px"}}>
+                The sharpest betting intelligence on any sport. Yours for less than one bad bet.
               </div>
-            ))}
-            <div style={{margin:"16px 0 8px",textAlign:"center"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:1,marginBottom:12}}>CANCEL ANYTIME. NO COMMITMENT.</div>
-              <button className="pro-cta" onClick={async ()=>{
+              <div style={{display:"inline-flex",alignItems:"baseline",gap:4,marginBottom:6}}>
+                <span style={{fontFamily:"var(--display-font)",fontSize:42,color:"#F5C842",letterSpacing:1}}>$9.99</span>
+                <span style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--muted)"}}>/month</span>
+              </div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:2,color:"rgba(245,200,66,.5)",marginBottom:24}}>7 DAYS FREE — NO CARD CHARGED UNTIL TRIAL ENDS</div>
+              <button className="pro-cta" style={{maxWidth:340,margin:"0 auto",display:"block"}} onClick={async ()=>{
                 try {
                   const res = await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
                   const data = await res.json();
@@ -1679,8 +1674,65 @@ export default function App() {
                   else alert("Could not start checkout. Try again.");
                 } catch { alert("Something went wrong. Try again."); }
               }}>START FREE TRIAL</button>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",marginTop:10,letterSpacing:1}}>Cancel anytime. No commitment.</div>
             </div>
-            <div style={{textAlign:"center",marginTop:16,fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:1}}>Powered by Stripe. Secure checkout.</div>
+
+            {/* Features — what you actually get */}
+            <div style={{padding:"20px 16px 0"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:"var(--muted)",marginBottom:14,textTransform:"uppercase"}}>What you get</div>
+
+              {[
+                {
+                  sport:"TENNIS",color:"#FFE600",
+                  title:"Deep Tennis Intelligence",
+                  body:"ATP/WTA Elo ratings across every surface. Rally profiles, serve baselines, and draw-path edges. The only tool that tells you when a clay specialist is mispriced on a hard court."
+                },
+                {
+                  sport:"MLB",color:"#1DB954",
+                  title:"MLB Pitcher & Batter Props",
+                  body:"Park-adjusted K props, platoon splits, and barrel rate context. When lines drop, you'll know exactly which pitcher is overvalued and which batter is facing a weak arm."
+                },
+                {
+                  sport:"NBA",color:"#FF6B00",
+                  title:"NBA Prop Edges",
+                  body:"PRA floors and ceilings calibrated to pace and matchup. Injury replacement plays surfaced in real time. The plays that move before the public catches up."
+                },
+                {
+                  sport:"NFL",color:"#4A90D9",
+                  title:"NFL Skill Position Database",
+                  body:"Per-game stats, TD rates, prop floors and ceilings for every relevant RB, WR, and TE. Built for the futures window and in-season weekly props."
+                },
+                {
+                  sport:"F1",color:"#E10600",
+                  title:"F1 Race & Qualifying Angles",
+                  body:"Full 2026 driver grid with circuit-specific edges. Street circuit vs power circuit edges. Antonelli, Russell, and the fades that the market hasn't priced yet."
+                },
+              ].map(f=>(
+                <div key={f.sport} style={{
+                  background:"var(--surface)",border:"1px solid var(--border)",
+                  borderRadius:14,padding:"14px 16px",marginBottom:8,
+                  borderLeft:`3px solid ${f.color}`,
+                }}>
+                  <div style={{fontFamily:"var(--mono-font)",fontSize:8,letterSpacing:2,color:f.color,marginBottom:6}}>{f.sport}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:4}}>{f.title}</div>
+                  <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6}}>{f.body}</div>
+                </div>
+              ))}
+
+              {/* Social proof strip */}
+              <div style={{
+                background:"rgba(245,200,66,.04)",border:"1px solid rgba(245,200,66,.12)",
+                borderRadius:12,padding:"14px 16px",marginTop:16,marginBottom:8,textAlign:"center"
+              }}>
+                <div style={{fontSize:13,color:"var(--soft)",lineHeight:1.7,fontStyle:"italic"}}>
+                  "Less than the cost of one bad prop bet. More edge than most services charging 10x this."
+                </div>
+              </div>
+
+              <div style={{textAlign:"center",padding:"16px 0 4px",fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:1}}>
+                Powered by Stripe. Secure checkout. Cancel anytime.
+              </div>
+            </div>
             <div className="page-spacer"/>
           </main>
         )}
@@ -1777,8 +1829,7 @@ export default function App() {
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
-          <button className={`nav-btn${tab==="pro"?" pro-active":""}`} onClick={goPro}><span>Pro</span></button>
-          <button className={`nav-btn${tab==="ask"?" active":""}`} onClick={goAsk}><span>Ask</span></button>
+          <button className={`nav-btn pro-active`} onClick={goPro}><span>Pro</span></button>
         </nav>
 
       </div>
