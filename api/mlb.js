@@ -49,11 +49,75 @@ function getMlbSeasonContext() {
   return { phase: "MLB Offseason", season: 2026 };
 }
 
-// ── Today's games (MLB Stats API — free, no key) ──────────────────────────────
+// ── Today's games — ESPN primary, MLB Stats API fallback ─────────────────────
 async function getTodaysGames() {
   const cached = getCached("mlb_games");
   if (cached) return cached;
 
+  // ── Source 1: ESPN (same approach as NBA — reliable) ──────────────────────
+  try {
+    const espnData = await safeFetch(
+      "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard"
+    );
+    if (espnData?.events?.length > 0) {
+      const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
+
+      const games = espnData.events
+        .filter(e => {
+          const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
+          const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
+          return gStr === todayStr;
+        })
+        .map(e => {
+          const comp   = e.competitions?.[0];
+          const home   = comp?.competitors?.find(c => c.homeAway === "home");
+          const away   = comp?.competitors?.find(c => c.homeAway === "away");
+          const status = e.status?.type;
+          const isLive = status?.state === "in";
+          const isFinal = status?.state === "post";
+          const gameTime = e.date
+            ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
+            : "TBD";
+          // Extract probable pitchers from notes if available
+          const notes = comp?.notes || [];
+          const awayPitcher = notes.find(n => n.type === "away_starter")?.headline || null;
+          const homePitcher = notes.find(n => n.type === "home_starter")?.headline || null;
+          return {
+            id:       e.id,
+            status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
+            state:    isFinal ? "post" : isLive ? "in" : "pre",
+            inning:   isLive ? status?.period : null,
+            inningHalf: null,
+            homeTeam: {
+              name:    home?.team?.displayName,
+              abbr:    home?.team?.abbreviation,
+              score:   isFinal||isLive ? parseInt(home?.score||"0") : null,
+              pitcher: homePitcher,
+              record:  home?.records?.[0]?.summary || null,
+            },
+            awayTeam: {
+              name:    away?.team?.displayName,
+              abbr:    away?.team?.abbreviation,
+              score:   isFinal||isLive ? parseInt(away?.score||"0") : null,
+              pitcher: awayPitcher,
+              record:  away?.records?.[0]?.summary || null,
+            },
+            venue: comp?.venue?.fullName || null,
+          };
+        });
+
+      if (games.length > 0) {
+        console.log("MLB ESPN games:", games.length);
+        setCached("mlb_games", games);
+        return games;
+      }
+    }
+  } catch (err) {
+    console.warn("MLB ESPN fetch failed:", err.message);
+  }
+
+  // ── Source 2: MLB Stats API fallback ──────────────────────────────────────
   const now     = new Date();
   const etNow   = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const dateStr = `${etNow.getFullYear()}-${String(etNow.getMonth()+1).padStart(2,"0")}-${String(etNow.getDate()).padStart(2,"0")}`;
@@ -70,25 +134,20 @@ async function getTodaysGames() {
     const status = g.status?.detailedState || "Scheduled";
     const isLive = status.includes("In Progress") || status.includes("Warmup");
     const isFinal = status.includes("Final") || status.includes("Game Over");
-
     const gameTime = g.gameDate
-      ? new Date(g.gameDate).toLocaleTimeString("en-US", {
-          hour: "numeric", minute: "2-digit", timeZone: "America/New_York"
-        }) + " ET"
+      ? new Date(g.gameDate).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
       : "TBD";
-
     return {
-      id:       g.gamePk,
-      status:   isFinal ? "Final" : isLive ? status : gameTime,
-      state:    isFinal ? "post" : isLive ? "in" : "pre",
-      inning:   g.linescore?.currentInning || null,
+      id:         g.gamePk,
+      status:     isFinal ? "Final" : isLive ? status : gameTime,
+      state:      isFinal ? "post" : isLive ? "in" : "pre",
+      inning:     g.linescore?.currentInning || null,
       inningHalf: g.linescore?.inningHalf || null,
       homeTeam: {
         name:    home?.team?.name,
         abbr:    home?.team?.abbreviation,
         score:   home?.score ?? null,
         pitcher: home?.probablePitcher?.fullName || null,
-        pitcherId: home?.probablePitcher?.id || null,
         record:  home?.leagueRecord ? `${home.leagueRecord.wins}-${home.leagueRecord.losses}` : null,
       },
       awayTeam: {
@@ -96,10 +155,9 @@ async function getTodaysGames() {
         abbr:    away?.team?.abbreviation,
         score:   away?.score ?? null,
         pitcher: away?.probablePitcher?.fullName || null,
-        pitcherId: away?.probablePitcher?.id || null,
         record:  away?.leagueRecord ? `${away.leagueRecord.wins}-${away.leagueRecord.losses}` : null,
       },
-      venue:    g.venue?.name || null,
+      venue: g.venue?.name || null,
     };
   });
 
