@@ -568,6 +568,108 @@ export default function App() {
   const nflRampMode   = useMemo(() => isNflRampMode(), []);
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
+  // Detect Stripe redirect back to app
+  const [proSuccess, setProSuccess] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("pro");
+      if (p === "success") {
+        window.history.replaceState({}, "", window.location.pathname);
+        return true;
+      }
+    }
+    return false;
+  });
+
+  // ── Access tier ─────────────────────────────────────────────────────────────
+  // tier: "free" | "friend" | "owner" | "pro"
+  const [accessTier, setAccessTier] = useState(() => {
+    if (typeof window === "undefined") return "free";
+    try {
+      const token = localStorage.getItem("ur_access_token");
+      if (token) {
+        const b64 = token.split(".")[0];
+        const payload = JSON.parse(atob(b64));
+        if (!payload.expiresAt || new Date() < new Date(payload.expiresAt)) {
+          return payload.tier || "free";
+        }
+      }
+    } catch {}
+    return "free";
+  });
+  const [accessToken, setAccessToken] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : ""
+  );
+
+  // ── Email gate ──────────────────────────────────────────────────────────────
+  const [userEmail, setUserEmail] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("ur_email") || "" : ""
+  );
+  const [weeklyUsed, setWeeklyUsed]     = useState(0);
+  const [showEmailGate, setShowEmailGate] = useState(false);
+  const [showCodeEntry, setShowCodeEntry] = useState(false);
+  const [gateEmail, setGateEmail]         = useState("");
+  const [codeInput, setCodeInput]         = useState("");
+  const [codeError, setCodeError]         = useState("");
+  const [codeLoading, setCodeLoading]     = useState(false);
+
+  const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
+  const FREE_LIMIT  = 5;
+
+  // Load weekly usage on mount
+  useEffect(() => {
+    if (isUnlimited) return;
+    const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
+    const now  = Date.now();
+    const week = 7 * 24 * 60 * 60 * 1000;
+    const recent = used.filter(t => now - t < week);
+    setWeeklyUsed(recent.length);
+    localStorage.setItem("ur_queries", JSON.stringify(recent));
+  }, [isUnlimited]);
+
+  // Redeem access code
+  const redeemCode = useCallback(async () => {
+    if (!codeInput.trim()) return;
+    setCodeLoading(true); setCodeError("");
+    try {
+      const res  = await fetch("/api/access", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ code: codeInput.trim() }) });
+      const data = await res.json();
+      if (data.valid) {
+        localStorage.setItem("ur_access_token", data.token);
+        setAccessToken(data.token);
+        setAccessTier(data.tier);
+        setShowCodeEntry(false);
+        setCodeInput("");
+      } else {
+        setCodeError(data.error || "Invalid code. Check with whoever shared it.");
+      }
+    } catch {
+      setCodeError("Something went wrong. Try again.");
+    }
+    setCodeLoading(false);
+  }, [codeInput]);
+
+  // Check if user can ask — called before every query
+  const canAsk = useCallback(() => {
+    if (isUnlimited) return true;
+    if (!userEmail) { setShowEmailGate(true); return false; }
+    if (weeklyUsed >= FREE_LIMIT) { goPro(); return false; }
+    return true;
+  }, [isUnlimited, userEmail, weeklyUsed]);
+
+  // Record a query use
+  const recordQuery = useCallback(() => {
+    if (isUnlimited) return;
+    const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
+    used.push(Date.now());
+    localStorage.setItem("ur_queries", JSON.stringify(used));
+    setWeeklyUsed(prev => prev + 1);
+    // Fire-and-forget server record
+    if (userEmail) {
+      fetch("/api/gate", { method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ action:"consume", email:userEmail }) }).catch(()=>{});
+    }
+  }, [isUnlimited, userEmail]);
+
   // ── Tennis fetch ───────────────────────────────────────────────────────────
   const fetchTennisBoard = useCallback(async (activeContext=null) => {
     const tournamentParam = getTournamentFetchParam(activeContext);
@@ -889,6 +991,8 @@ export default function App() {
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
     if (!text||isAsking) return;
+    if (!canAsk()) return;   // gate check
+    recordQuery();            // record usage
     setIsAsking(true);
     const imgToSend=pastedImage;
     setMsgs(prev=>[...prev,{role:"user",text,image:imgToSend?.previewUrl||null},{role:"ai",text:"ANALYZING...",loading:true,sport:sportHint}]);
@@ -1207,7 +1311,7 @@ export default function App() {
                         <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
                         {isLive && g.awayTeam?.score!=null &&
                           <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--soft)",marginTop:2}}>
-                            {g.awayTeam.score}–{g.homeTeam.score}
+                            {g.awayTeam.score}-{g.homeTeam.score}
                           </div>}
                       </div>
                     );
@@ -1650,6 +1754,26 @@ export default function App() {
         {screen==="pro"&&(
           <main className="screen" style={{padding:"0 0 80px"}}>
 
+            {/* Already unlocked banner */}
+            {(accessTier==="owner"||accessTier==="friend")&&!proSuccess&&(
+              <div style={{background:"linear-gradient(135deg,rgba(0,245,233,.08),rgba(0,245,233,.04))",border:"1px solid rgba(0,245,233,.2)",borderRadius:14,padding:"14px 20px",margin:"12px 16px 0",display:"flex",alignItems:"center",gap:12}}>
+                <div style={{fontSize:18}}>🔓</div>
+                <div>
+                  <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,marginBottom:2}}>{accessTier==="owner"?"OWNER ACCESS":"FRIEND ACCESS"}</div>
+                  <div style={{fontSize:12,color:"var(--muted)"}}>{accessTier==="owner"?"Full access. No limits.":"Unlocked via access code. Enjoy."}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Success banner */}
+            {proSuccess&&(
+              <div style={{background:"linear-gradient(135deg,rgba(0,230,118,.12),rgba(29,185,84,.06))",border:"1px solid rgba(0,230,118,.3)",borderRadius:14,padding:"16px 20px",margin:"12px 16px 0",textAlign:"center"}}>
+                <div style={{fontSize:20,marginBottom:4}}>🎉</div>
+                <div style={{fontFamily:"var(--display-font)",fontSize:22,letterSpacing:1,color:"#00E676",marginBottom:4}}>YOU'RE IN</div>
+                <div style={{fontSize:13,color:"var(--soft)"}}>Welcome to Under Review Pro. Every edge is unlocked.</div>
+              </div>
+            )}
+
             {/* Hero — full-width, bold, no fluff */}
             <div style={{
               background:"linear-gradient(160deg,rgba(245,200,66,.1) 0%,rgba(255,45,107,.06) 60%,var(--bg) 100%)",
@@ -1675,6 +1799,9 @@ export default function App() {
                 } catch { alert("Something went wrong. Try again."); }
               }}>START FREE TRIAL</button>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",marginTop:10,letterSpacing:1}}>Cancel anytime. No commitment.</div>
+              <div style={{marginTop:14}}>
+                <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here</button>
+              </div>
             </div>
 
             {/* Features — what you actually get */}
@@ -1818,6 +1945,67 @@ export default function App() {
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
+          </div>
+        )}
+
+        {/* ══ EMAIL GATE MODAL ══ */}
+        {showEmailGate&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:28,maxWidth:360,width:"100%",textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>⚡</div>
+              <div style={{fontFamily:"var(--display-font)",fontSize:26,letterSpacing:1,marginBottom:6}}>FREE ACCESS</div>
+              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:20}}>
+                Enter your email to get <strong style={{color:"var(--text)"}}>{FREE_LIMIT} free questions per week</strong>. No password. No spam.
+              </div>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={gateEmail}
+                onChange={e=>setGateEmail(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter"&&gateEmail.includes("@")){ localStorage.setItem("ur_email",gateEmail); setUserEmail(gateEmail); setShowEmailGate(false); fetch("/api/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"register",email:gateEmail})}).catch(()=>{}); } }}
+                style={{width:"100%",background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:14,fontFamily:"var(--body-font)",outline:"none",marginBottom:12}}
+                autoFocus
+              />
+              <button
+                disabled={!gateEmail.includes("@")}
+                onClick={()=>{ localStorage.setItem("ur_email",gateEmail); setUserEmail(gateEmail); setShowEmailGate(false); fetch("/api/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"register",email:gateEmail})}).catch(()=>{}); }}
+                style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:gateEmail.includes("@")?"var(--cyan-bright)":"var(--border)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:gateEmail.includes("@")?"pointer":"not-allowed",marginBottom:12}}
+              >UNLOCK FREE ACCESS</button>
+              <div style={{fontSize:11,color:"var(--muted)"}}>Already have a code? <button onClick={()=>{setShowEmailGate(false);setShowCodeEntry(true);}} style={{background:"none",border:"none",color:"var(--cyan-bright)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)"}}>Enter it here →</button></div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ CODE ENTRY MODAL ══ */}
+        {showCodeEntry&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:28,maxWidth:360,width:"100%",textAlign:"center"}}>
+              <div style={{fontFamily:"var(--display-font)",fontSize:24,letterSpacing:1,marginBottom:6}}>ENTER ACCESS CODE</div>
+              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:20}}>Got a code from someone? Enter it below for unlocked access.</div>
+              <input
+                type="text"
+                placeholder="Access code"
+                value={codeInput}
+                onChange={e=>{setCodeInput(e.target.value);setCodeError("");}}
+                onKeyDown={e=>{ if(e.key==="Enter") redeemCode(); }}
+                style={{width:"100%",background:"var(--surface-2)",border:`1px solid ${codeError?"var(--red)":"var(--border-2)"}`,borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:14,fontFamily:"var(--mono-font)",letterSpacing:2,outline:"none",marginBottom:codeError?6:12,textTransform:"uppercase"}}
+                autoFocus
+              />
+              {codeError&&<div style={{fontSize:11,color:"var(--red)",marginBottom:12,textAlign:"left"}}>{codeError}</div>}
+              <button
+                disabled={!codeInput.trim()||codeLoading}
+                onClick={redeemCode}
+                style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:codeInput.trim()?"var(--cyan-bright)":"var(--border)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:codeInput.trim()?"pointer":"not-allowed",marginBottom:12}}
+              >{codeLoading?"CHECKING...":"UNLOCK"}</button>
+              <button onClick={()=>{setShowCodeEntry(false);setCodeInput("");setCodeError("");}} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:12,fontFamily:"var(--body-font)"}}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ QUERY COUNTER — shows when not unlimited ══ */}
+        {!isUnlimited&&userEmail&&weeklyUsed>0&&(
+          <div style={{position:"fixed",top:52,right:10,zIndex:20,background:"rgba(8,10,12,.85)",border:"1px solid var(--border)",borderRadius:999,padding:"3px 10px",fontFamily:"var(--mono-font)",fontSize:9,color:weeklyUsed>=FREE_LIMIT?"var(--red)":weeklyUsed>=FREE_LIMIT-1?"var(--gold)":"var(--muted)",letterSpacing:1,backdropFilter:"blur(8px)",cursor:"pointer"}} onClick={weeklyUsed>=FREE_LIMIT?goPro:undefined}>
+            {weeklyUsed>=FREE_LIMIT?"LIMIT REACHED — GO PRO":`${FREE_LIMIT-weeklyUsed} FREE LEFT THIS WEEK`}
           </div>
         )}
 
