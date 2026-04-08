@@ -1546,34 +1546,56 @@ export default function App() {
                     <div className="section-divider">
                       {(mlbGames.length > 0 ? mlbGames : mlbData.games).filter(g=>g.state==="in").length > 0 ? "Live Games" : "Today's Games"}
                     </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
                     {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
                       const away = g.awayTeam;
                       const home = g.homeTeam;
                       const isLive = g.state === "in";
                       const isFinal = g.state === "post";
+                      const isPre = g.state === "pre";
                       const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
                       return (
-                        <div key={g.id||i} style={{background:"var(--surface)",border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,borderRadius:14,padding:"12px 14px",marginBottom:8,cursor:"pointer",transition:"all .15s"}} onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today?`)}>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-                            <div style={{fontSize:15,fontWeight:600,color:"var(--text)"}}>{away.abbr||away.name} @ {home.abbr||home.name}</div>
-                            <div>{isLive
-                              ? <span style={{color:"var(--green)",fontFamily:"var(--mono-font)",fontSize:10}}>Live {g.inning||""}</span>
-                              : <span style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)"}}>{isFinal?"FINAL":g.status}</span>
-                            }</div>
+                        <div key={g.id||i} style={{
+                          background: isLive ? "linear-gradient(135deg,rgba(0,230,118,.06),var(--surface))" : "var(--surface)",
+                          border:`1px solid ${isLive?"rgba(0,230,118,.35)":"var(--border)"}`,
+                          borderRadius:12,padding:"10px 12px",cursor:"pointer",
+                          transition:"all .15s",position:"relative"
+                        }} onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today? Give me K prop, game total lean, and best batter play.`)}>
+                          {/* Status badge */}
+                          <div style={{fontFamily:"var(--mono-font)",fontSize:8,letterSpacing:1.5,marginBottom:5,
+                            color:isLive?"var(--green)":isFinal?"var(--muted)":"#1DB954"}}>
+                            {isLive ? "● LIVE" : isFinal ? "FINAL" : g.status}
                           </div>
-                          {(isLive||isFinal) && away.score != null && (
-                            <div style={{fontFamily:"var(--mono-font)",fontSize:13,color:"var(--text)",marginBottom:4}}>{away.score} - {home.score}</div>
-                          )}
+                          {/* Teams + score */}
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:isLive||isFinal?4:0}}>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away.abbr||away.name}</div>
+                              <div style={{fontSize:11,color:"var(--muted)",marginTop:1}}>@ {home.abbr||home.name}</div>
+                            </div>
+                            {(isLive||isFinal) && away.score != null ? (
+                              <div style={{textAlign:"right"}}>
+                                <div style={{fontFamily:"var(--mono-font)",fontSize:16,fontWeight:700,
+                                  color:isLive?"var(--text)":"var(--soft)"}}>{away.score}</div>
+                                <div style={{fontFamily:"var(--mono-font)",fontSize:16,fontWeight:700,
+                                  color:isLive?"var(--text)":"var(--soft)"}}>{home.score}</div>
+                              </div>
+                            ) : isPre ? (
+                              <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)",textAlign:"right"}}>
+                                {g.status?.replace(" ET","") || ""}
+                              </div>
+                            ) : null}
+                          </div>
+                          {/* Pitchers */}
                           {(away.pitcher||home.pitcher) && (
-                            <div style={{fontSize:11,color:"var(--muted)"}}>
-                              {away.pitcher&&<span>{away.abbr}: {away.pitcher}</span>}
-                              {away.pitcher&&home.pitcher&&<span style={{margin:"0 6px"}}>·</span>}
-                              {home.pitcher&&<span>{home.abbr}: {home.pitcher}</span>}
+                            <div style={{fontSize:9,color:"var(--muted)",marginTop:4,fontFamily:"var(--mono-font)",
+                              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                              {away.pitcher ? away.pitcher.split(" ").pop() : "TBD"} vs {home.pitcher ? home.pitcher.split(" ").pop() : "TBD"}
                             </div>
                           )}
                         </div>
                       );
                     })}
+                    </div>
                   </>
                 )}
                 <div className="section-divider">Quick Prop Angles</div>
