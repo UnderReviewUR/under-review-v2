@@ -64,7 +64,7 @@ const css = `
   .hero-title{font-family:var(--display-font);font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
   .hero-sub{color:var(--soft);font-size:13px;line-height:1.5;max-width:560px;margin:0 auto;}
 
-  /* ?? Home sport rail ?? */
+  /* ── Home sport rail ── */
   .sport-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin-bottom:14px;}
   .sport-rail::-webkit-scrollbar{display:none;}
   .sport-pill{flex-shrink:0;border-radius:999px;padding:8px 20px;font-family:var(--display-font);font-size:15px;letter-spacing:2px;cursor:pointer;border:1.5px solid;transition:all .15s;background:transparent;}
@@ -75,7 +75,7 @@ const css = `
   .sport-pill-nba{color:#FF6B00;border-color:#FF6B00;}
   .sport-pill:active{opacity:.7;transform:scale(.97);}
 
-  /* ?? Live game ticker ?? */
+  /* ── Live game ticker ── */
   .game-ticker{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-bottom:16px;}
   .game-ticker::-webkit-scrollbar{display:none;}
   .ticker-card{flex-shrink:0;background:var(--surface);border-radius:10px;padding:8px 12px;cursor:pointer;min-width:120px;border:1px solid var(--border);}
@@ -84,14 +84,14 @@ const css = `
   .ticker-teams{font-size:13px;font-weight:600;color:var(--text);}
   .ticker-score{font-family:var(--mono-font);font-size:11px;color:var(--soft);margin-top:2px;}
 
-  /* ?? Ask cards (replace q-list) ?? */
+  /* ── Ask cards (replace q-list) ── */
   .ask-cards{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
   .ask-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:border-color .15s;}
   .ask-card:active{opacity:.8;}
   .ask-card-bar{width:3px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:18px;}
   .ask-card-text{font-size:14px;color:var(--soft);line-height:1.35;}
 
-  /* ?? Spotlight card (replaces matchup cards) ?? */
+  /* ── Spotlight card (replaces matchup cards) ── */
   .spotlight-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;margin-bottom:8px;transition:border-color .15s;}
   .spotlight-card:active{opacity:.85;}
   .spotlight-top{padding:10px 14px 0;display:flex;align-items:center;justify-content:space-between;}
@@ -328,38 +328,38 @@ const css = `
   .page-spacer{height:20px;}
 `;
 
-// ?? Player data ??????????????????????????????????????????????????????????????
+// ── Player data ──────────────────────────────────────────────────────────────
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
 const NFL_PLAYERS = {
-  "James Cook":         { pos:"RB", team:"BUF", tier:"ELITE",  ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6},  props:{recYds:{floor:80,ceil:150,lean:"OVER"},td:{pg:0.88,lean:"OVER  -  14 TDs, elite scorer"}},              situation:"Bills RB1. Every-down back. Volume guaranteed.", bettingAngles:["Rush yards OVER every week","TD scorer OVER  -  primary play","16g starter  -  volume locked in"] },
-  "Jonathan Taylor":    { pos:"RB", team:"IND", tier:"ELITE",  ydsPg:105.1, rec2025:{g:17,yds:1786,td:14,recPg:3.2,ydsPg:105.1,ypr:4.6},  props:{recYds:{floor:75,ceil:145,lean:"OVER"},td:{pg:0.82,lean:"OVER 0.5  -  elite red zone back"}},            situation:"Colts RB1. Richardson health is the only risk.", bettingAngles:["Rush yards OVER weekly","TD scorer OVER","Monitor Richardson health"] },
-  "Derrick Henry":      { pos:"RB", team:"BAL", tier:"ELITE",  ydsPg:103.3, rec2025:{g:16,yds:1653,td:15,recPg:1.1,ydsPg:103.3,ypr:5.1},  props:{recYds:{floor:75,ceil:145,lean:"OVER"},td:{pg:0.94,lean:"OVER  -  15 TDs, most on team"}},               situation:"Ravens RB1 and primary red zone weapon.", bettingAngles:["Rush yards OVER every week","TD scorer  -  highest rate in NFL","Fade receiving yards"] },
+  "James Cook":         { pos:"RB", team:"BUF", tier:"ELITE",  ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6},  props:{recYds:{floor:80,ceil:150,lean:"OVER"},td:{pg:0.88,lean:"OVER — 14 TDs, elite scorer"}},              situation:"Bills RB1. Every-down back. Volume guaranteed.", bettingAngles:["Rush yards OVER every week","TD scorer OVER — primary play","16g starter — volume locked in"] },
+  "Jonathan Taylor":    { pos:"RB", team:"IND", tier:"ELITE",  ydsPg:105.1, rec2025:{g:17,yds:1786,td:14,recPg:3.2,ydsPg:105.1,ypr:4.6},  props:{recYds:{floor:75,ceil:145,lean:"OVER"},td:{pg:0.82,lean:"OVER 0.5 — elite red zone back"}},            situation:"Colts RB1. Richardson health is the only risk.", bettingAngles:["Rush yards OVER weekly","TD scorer OVER","Monitor Richardson health"] },
+  "Derrick Henry":      { pos:"RB", team:"BAL", tier:"ELITE",  ydsPg:103.3, rec2025:{g:16,yds:1653,td:15,recPg:1.1,ydsPg:103.3,ypr:5.1},  props:{recYds:{floor:75,ceil:145,lean:"OVER"},td:{pg:0.94,lean:"OVER — 15 TDs, most on team"}},               situation:"Ravens RB1 and primary red zone weapon.", bettingAngles:["Rush yards OVER every week","TD scorer — highest rate in NFL","Fade receiving yards"] },
   "Bijan Robinson":     { pos:"RB", team:"ATL", tier:"ELITE",  ydsPg:100.8, rec2025:{g:17,yds:1713,td:11,recPg:3.8,ydsPg:100.8,ypr:5.3},  props:{recYds:{floor:70,ceil:140,lean:"OVER"},td:{pg:0.65,lean:"OVER in favorable matchups"}},                situation:"Falcons RB1. Every-down back with elite receiving role.", bettingAngles:["Rush yards OVER","Receiving yards OVER pass-heavy weeks","TD scorer reliable"] },
-  "De'Von Achane":      { pos:"RB", team:"MIA", tier:"ELITE",  ydsPg:93.7,  rec2025:{g:14,yds:1312,td:12,recPg:5.4,ydsPg:93.7,ypr:6.3},   props:{recYds:{floor:65,ceil:135,lean:"OVER"},td:{pg:0.86,lean:"OVER  -  12 TDs in 14g"}},                      situation:"Dolphins dual-threat RB. Health is the only risk.", bettingAngles:["Rush yards OVER when healthy","Receiving yards OVER","Hard fade when injured"] },
-  "Puka Nacua":         { pos:"WR", team:"LAR", tier:"ELITE",  ydsPg:107.2, rec2025:{g:16,tgt:166,rec:129,yds:1715,td:0,recPg:8.1,ydsPg:107.2,ypr:13.3}, props:{recYds:{floor:75,ceil:140,lean:"OVER"},rec:{floor:6,ceil:11,lean:"OVER  -  8.1/g"},td:{pg:0,lean:"FADE TD scorer  -  0 TDs in 16g"}}, situation:"Rams WR1. Most receptions in NFL 2025. Zero TDs.", bettingAngles:["Receiving yards OVER every week","Catches OVER  -  elite volume","FADE TD scorer"] },
+  "De'Von Achane":      { pos:"RB", team:"MIA", tier:"ELITE",  ydsPg:93.7,  rec2025:{g:14,yds:1312,td:12,recPg:5.4,ydsPg:93.7,ypr:6.3},   props:{recYds:{floor:65,ceil:135,lean:"OVER"},td:{pg:0.86,lean:"OVER — 12 TDs in 14g"}},                      situation:"Dolphins dual-threat RB. Health is the only risk.", bettingAngles:["Rush yards OVER when healthy","Receiving yards OVER","Hard fade when injured"] },
+  "Puka Nacua":         { pos:"WR", team:"LAR", tier:"ELITE",  ydsPg:107.2, rec2025:{g:16,tgt:166,rec:129,yds:1715,td:0,recPg:8.1,ydsPg:107.2,ypr:13.3}, props:{recYds:{floor:75,ceil:140,lean:"OVER"},rec:{floor:6,ceil:11,lean:"OVER — 8.1/g"},td:{pg:0,lean:"FADE TD scorer — 0 TDs in 16g"}}, situation:"Rams WR1. Most receptions in NFL 2025. Zero TDs.", bettingAngles:["Receiving yards OVER every week","Catches OVER — elite volume","FADE TD scorer"] },
   "Ja'Marr Chase":      { pos:"WR", team:"CIN", tier:"ELITE",  ydsPg:88.3,  rec2025:{g:16,tgt:185,rec:125,yds:1412,td:10,recPg:7.8,ydsPg:88.3,ypr:11.3}, props:{recYds:{floor:65,ceil:125,lean:"OVER when Burrow healthy"},td:{pg:0.63,lean:"OVER 0.5 favorable matchups"}}, situation:"Bengals WR1. Burrow health is the only variable.", bettingAngles:["Rec yards OVER when Burrow active","TD scorer OVER in red zone games","Hard fade when Burrow out"] },
   "Jaxon Smith-Njigba": { pos:"WR", team:"SEA", tier:"ELITE",  ydsPg:105.5, rec2025:{g:17,tgt:163,rec:119,yds:1793,td:6,recPg:7.0,ydsPg:105.5,ypr:15.1}, props:{recYds:{floor:75,ceil:145,lean:"OVER"},td:{pg:0.35,lean:"Moderate"}}, situation:"Seahawks WR1. Led NFL in receiving yards 2025.", bettingAngles:["Receiving yards OVER","Volume locked regardless of QB","Market underrates him"] },
   "George Pickens":     { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:84.1,  rec2025:{g:17,tgt:137,rec:93,yds:1429,td:8,recPg:5.5,ydsPg:84.1,ypr:15.4},   props:{recYds:{floor:65,ceil:125,lean:"OVER"},td:{pg:0.47,lean:"OVER 0.5 red zone games"}}, situation:"Cowboys WR. Deep threat.", bettingAngles:["Receiving yards OVER","TD scorer in red zone","Big play every game"] },
   "CeeDee Lamb":        { pos:"WR", team:"DAL", tier:"STRONG", ydsPg:76.9,  rec2025:{g:14,tgt:117,rec:75,yds:1077,td:6,recPg:5.4,ydsPg:76.9,ypr:14.4},   props:{recYds:{floor:60,ceil:115,lean:"OVER when healthy"},td:{pg:0.43,lean:"OVER favorable matchups"}}, situation:"Cowboys WR1 when healthy. Missed 3 games 2025.", bettingAngles:["OVER when active","Hard fade when injured","Monitor weekly"] },
-  "Trey McBride":       { pos:"TE", team:"ARI", tier:"ELITE",  ydsPg:72.9,  rec2025:{g:17,tgt:169,rec:126,yds:1239,td:5,recPg:7.4,ydsPg:72.9,ypr:9.8},   props:{rec:{floor:5,ceil:10,lean:"OVER  -  7.4/g leads all TEs"},recYds:{floor:55,ceil:100,lean:"OVER"},td:{pg:0.29,lean:"Moderate  -  5 TDs only"}}, situation:"Best TE situation in football.", bettingAngles:["Catches OVER every week","Receiving yards OVER","FADE TD scorer"] },
+  "Trey McBride":       { pos:"TE", team:"ARI", tier:"ELITE",  ydsPg:72.9,  rec2025:{g:17,tgt:169,rec:126,yds:1239,td:5,recPg:7.4,ydsPg:72.9,ypr:9.8},   props:{rec:{floor:5,ceil:10,lean:"OVER — 7.4/g leads all TEs"},recYds:{floor:55,ceil:100,lean:"OVER"},td:{pg:0.29,lean:"Moderate — 5 TDs only"}}, situation:"Best TE situation in football.", bettingAngles:["Catches OVER every week","Receiving yards OVER","FADE TD scorer"] },
   "Brock Bowers":       { pos:"TE", team:"LVR", tier:"ELITE",  ydsPg:56.7,  rec2025:{g:12,tgt:86,rec:64,yds:680,td:3,recPg:5.3,ydsPg:56.7,ypr:10.6},     props:{rec:{floor:4,ceil:8,lean:"OVER when healthy"},recYds:{lean:"OVER when healthy"},td:{pg:0.25,lean:"Moderate"}}, situation:"Raiders TE1. Health is the major variable.", bettingAngles:["Health monitor every week","OVER when active","Fade when on injury report"] },
-  "Travis Kelce":       { pos:"TE", team:"KAN", tier:"ELITE",  ydsPg:50.1,  rec2025:{g:17,tgt:108,rec:76,yds:851,td:4,recPg:4.5,ydsPg:50.1,ypr:11.2},    props:{rec:{floor:3,ceil:7,lean:"OVER  -  Mahomes always finds him"},td:{pg:0.24,lean:"Moderate  -  age 37"}}, situation:"Chiefs TE1. Age 37. Declining but Mahomes keeps him relevant.", bettingAngles:["Catches OVER when Mahomes healthy","FADE receiving yards  -  50 is the real base","Monitor usage"] },
+  "Travis Kelce":       { pos:"TE", team:"KAN", tier:"ELITE",  ydsPg:50.1,  rec2025:{g:17,tgt:108,rec:76,yds:851,td:4,recPg:4.5,ydsPg:50.1,ypr:11.2},    props:{rec:{floor:3,ceil:7,lean:"OVER — Mahomes always finds him"},td:{pg:0.24,lean:"Moderate — age 37"}}, situation:"Chiefs TE1. Age 37. Declining but Mahomes keeps him relevant.", bettingAngles:["Catches OVER when Mahomes healthy","FADE receiving yards — 50 is the real base","Monitor usage"] },
   "Tyler Warren":       { pos:"TE", team:"IND", tier:"ELITE",  ydsPg:48.1,  rec2025:{g:17,tgt:112,rec:76,yds:817,td:5,recPg:4.5,ydsPg:48.1,ypr:10.7},    props:{rec:{floor:3,ceil:7,lean:"OVER"},td:{pg:0.29,lean:"OVER 0.5 favorable matchups"}}, situation:"Colts TE1. Elite rookie season. Richardson health key.", bettingAngles:["Catches OVER every week","Receiving yards OVER","Year 2 with Richardson"] },
 };
 
 const NFL_POSITIONS = ["ALL","RB","WR","TE"];
 const NFL_PROP_GUIDE = [
-  { player:"James Cook",    pos:"RB", team:"BUF", propType:"RUSH YDS",  line:"115.5", floor:80,  ceil:150, lean:"OVER  -  112.3 avg, elite workload",           leanClass:"lean-over" },
-  { player:"Puka Nacua",    pos:"WR", team:"LAR", propType:"REC YDS",   line:"85.5",  floor:75,  ceil:140, lean:"OVER  -  107.2 yds/g leads NFL",                leanClass:"lean-over" },
-  { player:"Trey McBride",  pos:"TE", team:"ARI", propType:"CATCHES",   line:"6.5",   floor:5,   ceil:10,  lean:"OVER  -  7.4/g is historic TE production",       leanClass:"lean-over" },
+  { player:"James Cook",    pos:"RB", team:"BUF", propType:"RUSH YDS",  line:"115.5", floor:80,  ceil:150, lean:"OVER — 112.3 avg, elite workload",           leanClass:"lean-over" },
+  { player:"Puka Nacua",    pos:"WR", team:"LAR", propType:"REC YDS",   line:"85.5",  floor:75,  ceil:140, lean:"OVER — 107.2 yds/g leads NFL",                leanClass:"lean-over" },
+  { player:"Trey McBride",  pos:"TE", team:"ARI", propType:"CATCHES",   line:"6.5",   floor:5,   ceil:10,  lean:"OVER — 7.4/g is historic TE production",       leanClass:"lean-over" },
   { player:"Ja'Marr Chase", pos:"WR", team:"CIN", propType:"REC YDS",   line:"75.5",  floor:65,  ceil:125, lean:"OVER when Burrow healthy",                     leanClass:"lean-over" },
-  { player:"Derrick Henry", pos:"RB", team:"BAL", propType:"RUSH TDs",  line:"0.5",   floor:0,   ceil:2,   lean:"OVER  -  0.94 TDs/g is elite",                  leanClass:"lean-over" },
-  { player:"Travis Kelce",  pos:"TE", team:"KAN", propType:"REC YDS",   line:"52.5",  floor:35,  ceil:80,  lean:"FADE  -  real floor ~50, market overprices",     leanClass:"lean-fade" },
+  { player:"Derrick Henry", pos:"RB", team:"BAL", propType:"RUSH TDs",  line:"0.5",   floor:0,   ceil:2,   lean:"OVER — 0.94 TDs/g is elite",                  leanClass:"lean-over" },
+  { player:"Travis Kelce",  pos:"TE", team:"KAN", propType:"REC YDS",   line:"52.5",  floor:35,  ceil:80,  lean:"FADE — real floor ~50, market overprices",     leanClass:"lean-fade" },
 ];
 
-// ?? Utils ????????????????????????????????????????????????????????????????????
+// ── Utils ────────────────────────────────────────────────────────────────────
 function normalizeText(v) { return String(v || "").trim().toLowerCase(); }
 function slugify(v) { return String(v||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); }
 function isNflInSeason() { const m=new Date().getMonth(); return m>=8||m<=1; }
@@ -388,7 +388,7 @@ function normalizeTennisMatch(match, fallbackTour="ATP", activeTournament=null) 
     id: match.id||match.event_key||`${home}-${away}-${league}-${eventDate||tournament}`,
     league, leagueColor: league==="WTA"?"#E11D48":"#0891B2",
     title:`${home} vs ${away}`, time:status, network:tournament,
-    blurb:`${home} vs ${away}${match.round?` ? ${match.round}`:""}${match.score&&match.score!=="-"?` ? ${match.score}`:""}`,
+    blurb:`${home} vs ${away}${match.round?` · ${match.round}`:""}${match.score&&match.score!=="-"?` · ${match.score}`:""}`,
     whatMatters:"Ask for the side, total, props, or live angle.",
     quickHitters:["Best angle here?","Moneyline or total?","Any live edge?"],
     confirmed:true,
@@ -424,8 +424,8 @@ function buildNflContext() {
     const tdPg=p.props.td?.pg!==undefined?`${p.props.td.pg} TDs/g`:"";
     const total=p.rec2025.td!==undefined?`${p.rec2025.td} total TDs`:"";
     const games=p.rec2025.g!==undefined?`${p.rec2025.g}g`:"";
-    const tdLean=p.props.td?.lean||" - ";
-    const yLean=p.props.recYds?.lean||p.props.rec?.lean||" - ";
+    const tdLean=p.props.td?.lean||"—";
+    const yLean=p.props.recYds?.lean||p.props.rec?.lean||"—";
     const recPg=p.rec2025.recPg!==undefined?`, ${p.rec2025.recPg} rec/g`:"";
     const tgt=p.rec2025.tgt!==undefined?`, ${p.rec2025.tgt} tgt`:"";
     const ypr=p.rec2025.ypr!==undefined?`, ${p.rec2025.ypr} ypr`:"";
@@ -433,26 +433,26 @@ function buildNflContext() {
   }).join("\n\n");
 }
 
-function formatServeStats(s) { if(!s)return" - "; const p=[]; if(s.holdPct!==undefined)p.push(`Hold ${s.holdPct}%`); if(s.acePct!==undefined)p.push(`Ace ${s.acePct}%`); if(s.dfPct!==undefined)p.push(`DF ${s.dfPct}%`); return p.length?p.join(", "):" - "; }
-function formatReturnStats(s) { if(!s)return" - "; const p=[]; if(s.rpwPct!==undefined)p.push(`RPW ${s.rpwPct}%`); if(s.breakPct!==undefined)p.push(`Break ${s.breakPct}%`); return p.length?p.join(", "):" - "; }
-function formatOverallStats(s) { if(!s)return" - "; const p=[]; if(s.dominanceRatio!==undefined)p.push(`DR ${s.dominanceRatio}`); if(s.totalPointsWonPct!==undefined)p.push(`TPW ${s.totalPointsWonPct}%`); if(s.tiebreakPct!==undefined)p.push(`Tiebreak ${s.tiebreakPct}%`); return p.length?p.join(", "):" - "; }
-function getHoldValue(p) { return p?.serveStats?.holdPct!==undefined?`${p.serveStats.holdPct}%`:" - "; }
-function getDrValue(p) { return p?.overallStats?.dominanceRatio!==undefined?`${p.overallStats.dominanceRatio}`:" - "; }
-function getTbValue(p) { return p?.overallStats?.tiebreakPct!==undefined?`${p.overallStats.tiebreakPct}%`:" - "; }
+function formatServeStats(s) { if(!s)return"—"; const p=[]; if(s.holdPct!==undefined)p.push(`Hold ${s.holdPct}%`); if(s.acePct!==undefined)p.push(`Ace ${s.acePct}%`); if(s.dfPct!==undefined)p.push(`DF ${s.dfPct}%`); return p.length?p.join(", "):"—"; }
+function formatReturnStats(s) { if(!s)return"—"; const p=[]; if(s.rpwPct!==undefined)p.push(`RPW ${s.rpwPct}%`); if(s.breakPct!==undefined)p.push(`Break ${s.breakPct}%`); return p.length?p.join(", "):"—"; }
+function formatOverallStats(s) { if(!s)return"—"; const p=[]; if(s.dominanceRatio!==undefined)p.push(`DR ${s.dominanceRatio}`); if(s.totalPointsWonPct!==undefined)p.push(`TPW ${s.totalPointsWonPct}%`); if(s.tiebreakPct!==undefined)p.push(`Tiebreak ${s.tiebreakPct}%`); return p.length?p.join(", "):"—"; }
+function getHoldValue(p) { return p?.serveStats?.holdPct!==undefined?`${p.serveStats.holdPct}%`:"—"; }
+function getDrValue(p) { return p?.overallStats?.dominanceRatio!==undefined?`${p.overallStats.dominanceRatio}`:"—"; }
+function getTbValue(p) { return p?.overallStats?.tiebreakPct!==undefined?`${p.overallStats.tiebreakPct}%`:"—"; }
 
 function renderMessage(text) {
   if (!text) return null;
   const clean = String(text).replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").trim();
   return clean.split(/\n{2,}/).map((para,i) => {
     const lines = para.split("\n").map(s=>s.trim()).filter(Boolean);
-    const allBullets = lines.length>1&&lines.every(l=>l.startsWith("?")||(l.includes("  -  ")&&!l.endsWith(".")));
+    const allBullets = lines.length>1&&lines.every(l=>l.startsWith("•")||(l.includes(" — ")&&!l.endsWith(".")));
     if (allBullets) {
       return (
         <div key={i} style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
           {lines.map((line,j) => {
-            const norm=line.startsWith("?")?line.slice(1).trim():line;
-            const parts=norm.split(" - ").map(s=>s.trim());
-            const head=parts[0]||""; const tail=parts.slice(1).join("  -  ");
+            const norm=line.startsWith("•")?line.slice(1).trim():line;
+            const parts=norm.split("—").map(s=>s.trim());
+            const head=parts[0]||""; const tail=parts.slice(1).join(" — ");
             return (<div key={j} style={{background:"rgba(8,145,178,.06)",border:"1px solid rgba(8,145,178,.12)",borderRadius:10,padding:"10px 12px"}}><div style={{fontWeight:600,color:"var(--text)",fontSize:13,marginBottom:tail?4:0}}>{head}</div>{tail&&<div style={{fontSize:12,color:"var(--soft)",lineHeight:1.55}}>{tail}</div>}</div>);
           })}
         </div>
@@ -463,7 +463,7 @@ function renderMessage(text) {
 }
 
 function LoadingBubble({ sport }) {
-  const emoji = sport === "nba" ? "?" : sport === "nfl" ? "?" : sport === "f1" ? "??" : sport === "tennis" ? "?" : "?";
+  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : "⚡";
   const isF1 = sport === "f1";
   return (
     <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:12,minHeight:44}}>
@@ -510,7 +510,7 @@ function ChatThread({ msgs }) {
   );
 }
 
-// ?? App ??????????????????????????????????????????????????????????????????????
+// ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab]                         = useState("home");
   const [screen, setScreen]                   = useState("home");
@@ -519,7 +519,7 @@ export default function App() {
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
   const [nflPosFilter, setNflPosFilter]       = useState("ALL");
 
-  // Per-screen inputs  -  never shared  -  prevents 1-char typing bug
+  // Per-screen inputs — never shared — prevents 1-char typing bug
   const [homeInput, setHomeInput]       = useState("");
   const [askInput, setAskInput]         = useState("");
   const [tennisInput, setTennisInput]   = useState("");
@@ -551,7 +551,7 @@ export default function App() {
   const [mlbData, setMlbData]           = useState(null);
   const [mlbLoading, setMlbLoading]     = useState(false);
 
-  // Separate inputRef per screen  -  critical for AskBar memo optimization
+  // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef      = useRef(null);
   const askInputRef       = useRef(null);
   const askBarBottomRef   = useRef(null);
@@ -568,7 +568,7 @@ export default function App() {
   const nflRampMode   = useMemo(() => isNflRampMode(), []);
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
-  // ?? Tennis fetch ???????????????????????????????????????????????????????????
+  // ── Tennis fetch ───────────────────────────────────────────────────────────
   const fetchTennisBoard = useCallback(async (activeContext=null) => {
     const tournamentParam = getTournamentFetchParam(activeContext);
     const [atpRes, wtaRes] = await Promise.all([
@@ -627,7 +627,7 @@ export default function App() {
     return () => { cancelled=true; };
   }, [context, fetchTennisBoard]);
 
-  // ?? F1 data fetch ??????????????????????????????????????????????????????????
+  // ── F1 data fetch ──────────────────────────────────────────────────────────
   useEffect(() => {
     let active=true;
     async function loadF1() {
@@ -649,7 +649,7 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  // ?? NBA data fetch ?????????????????????????????????????????????????????????
+  // ── NBA data fetch ─────────────────────────────────────────────────────────
   const [nbaGames, setNbaGames] = useState([]);
 
   useEffect(() => {
@@ -673,7 +673,7 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  // Fetch NBA games  -  browser-side ESPN fetch, no auth needed
+  // Fetch NBA games — browser-side ESPN fetch, no auth needed
   useEffect(() => {
     let active = true;
     async function loadGames() {
@@ -692,7 +692,7 @@ export default function App() {
 
         const games = events
           .filter(e => {
-            // ESPN date is UTC  -  convert to ET date for comparison
+            // ESPN date is UTC — convert to ET date for comparison
             const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
             const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
             return gStr === todayStr;
@@ -740,7 +740,9 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  // ?? MLB data fetch ????????????????????????????????????????????????????????
+  // ── MLB data fetch ────────────────────────────────────────────────────────
+  const [mlbGames, setMlbGames] = useState([]);
+
   useEffect(() => {
     let active = true;
     async function loadMlb() {
@@ -762,7 +764,53 @@ export default function App() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  // ?? Image handling ?????????????????????????????????????????????????????????
+  // ── MLB games — browser-side ESPN fetch (bypasses server cache) ────────────
+  useEffect(() => {
+    let active = true;
+    async function loadMlbGames() {
+      try {
+        const res = await fetch(
+          "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
+          { cache: "no-store" }
+        );
+        if (!res.ok) throw new Error("ESPN MLB " + res.status);
+        const data = await res.json();
+        const events = data?.events || [];
+        const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+        const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
+        const games = events
+          .filter(e => {
+            const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
+            const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
+            return gStr === todayStr;
+          })
+          .map(e => {
+            const comp   = e.competitions?.[0];
+            const home   = comp?.competitors?.find(c => c.homeAway === "home");
+            const away   = comp?.competitors?.find(c => c.homeAway === "away");
+            const status = e.status?.type;
+            const isLive = status?.state === "in";
+            const isFinal = status?.state === "post";
+            const gameTime = e.date
+              ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
+              : "TBD";
+            return {
+              id:       e.id,
+              status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
+              state:    isFinal ? "post" : isLive ? "in" : "pre",
+              homeTeam: { name: home?.team?.displayName, abbr: home?.team?.abbreviation, score: isFinal||isLive ? parseInt(home?.score||"0") : null },
+              awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
+            };
+          });
+        if (active && games.length > 0) setMlbGames(games);
+      } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
+    }
+    loadMlbGames();
+    const poll = window.setInterval(loadMlbGames, 60000);
+    return () => { active=false; window.clearInterval(poll); };
+  }, []);
+
+  // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
     if (!file||!file.type.startsWith("image/")) return;
     const reader=new FileReader();
@@ -778,11 +826,11 @@ export default function App() {
     return ()=>window.removeEventListener("paste",handle);
   }, [processImageFile]);
 
-  // ?? Context builders ???????????????????????????????????????????????????????
+  // ── Context builders ───────────────────────────────────────────────────────
   const buildF1Context = useCallback(() => {
     if (!f1Data) return null;
     const standings = (f1Data.standings || []).slice(0, 20).map(d =>
-      `P${d.position ?? "?"} ${d.full_name || d.name_acronym || `#${d.driver_number}`} (${d.team_name || "Unknown"})  -  ${d.points ?? 0} pts`
+      `P${d.position ?? "?"} ${d.full_name || d.name_acronym || `#${d.driver_number}`} (${d.team_name || "Unknown"}) — ${d.points ?? 0} pts`
     ).join("\n");
     const nextRace = f1Data.schedule?.races?.find(r => r.is_next);
     const upcomingRaces = (f1Data.schedule?.races || [])
@@ -790,7 +838,7 @@ export default function App() {
       .slice(0, 5)
       .map(r => {
         const d = r.date_start ? new Date(r.date_start).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBD";
-        return `${r.meeting_name || r.location}  -  ${d}  -  ${r.circuit_short_name || r.location || ""}${r.is_next ? " [NEXT RACE]" : ""}`;
+        return `${r.meeting_name || r.location} — ${d} — ${r.circuit_short_name || r.location || ""}${r.is_next ? " [NEXT RACE]" : ""}`;
       }).join("\n");
     const session = f1Data.session;
     const sessionStr = session
@@ -820,14 +868,14 @@ export default function App() {
   const buildMlbContext = useCallback((questionText) => {
     return {
       seasonContext: mlbData?.seasonContext || {},
-      games:         mlbData?.games        || [],
+      games:         mlbGames.length > 0 ? mlbGames : (mlbData?.games || []),
       propLines:     mlbData?.propLines    || [],
       gameTotals:    mlbData?.gameTotals   || {},
       question:      questionText || "",
     };
-  }, [mlbData]);
+  }, [mlbData, mlbGames]);
 
-  // ?? Core AI call ???????????????????????????????????????????????????????????
+  // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
     if (!text||isAsking) return;
     setIsAsking(true);
@@ -851,13 +899,13 @@ export default function App() {
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
       const res=await fetch("/api/ur-take",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const data=await res.json();
-      setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:data.response||"Couldn't get a response  -  try again."}]);
+      setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:data.response||"Couldn't get a response — try again."}]);
     } catch {
-      setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong  -  try again."}]);
+      setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong — try again."}]);
     } finally { setIsAsking(false); }
   }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext]);
 
-  // ?? Player lookups ?????????????????????????????????????????????????????????
+  // ── Player lookups ─────────────────────────────────────────────────────────
   const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
   const getPlayerAny = useCallback(name => { if(!players)return null; return players.atp?.[name]||players.wta?.[name]||null; }, [players]);
 
@@ -866,7 +914,7 @@ export default function App() {
 
   const filteredNflPlayers = useMemo(() => Object.entries(NFL_PLAYERS).filter(([,p])=>nflPosFilter==="ALL"||p.pos===nflPosFilter).sort((a,b)=>b[1].ydsPg-a[1].ydsPg), [nflPosFilter]);
 
-  // ?? Tennis derived state ???????????????????????????????????????????????????
+  // ── Tennis derived state ───────────────────────────────────────────────────
   const tennisLiveMatches     = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")==="1"),[liveMatches]);
   const tennisUpcomingMatches = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")!=="1"),[liveMatches]);
   const activeTournamentMatches = useMemo(()=>liveMatches.filter(m=>preferredTournamentScore(m,context)>0),[liveMatches,context]);
@@ -879,11 +927,11 @@ export default function App() {
 
   const tennisBoardSubline = useMemo(() => {
     const n=context?.currentTournament?.name;
-    if (activeTournamentMatches.length>0&&n) return `${n.toUpperCase()} ? LIVE + UPCOMING`;
+    if (activeTournamentMatches.length>0&&n) return `${n.toUpperCase()} · LIVE + UPCOMING`;
     return "CURRENT + UPCOMING TOUR MATCHES";
   }, [activeTournamentMatches.length,context]);
 
-  // ?? Home cards ?????????????????????????????????????????????????????????????
+  // ── Home cards ─────────────────────────────────────────────────────────────
   const homeTennisCards = useMemo(() => {
     const source = activeTournamentMatches.length>0 ? activeTournamentMatches : liveMatches;
     const liveCards = source.filter(m=>String(m?.raw?.live||"0")==="1");
@@ -895,7 +943,7 @@ export default function App() {
     if(!cards.length) {
       cards.push({
         id:"tennis-ctx-1", league:"TENNIS", leagueColor:"#0891B2",
-        title:context?.currentTournament?.name?`Best angle at ${context.currentTournament.name}`:"Tennis Futures  -  Value Plays",
+        title:context?.currentTournament?.name?`Best angle at ${context.currentTournament.name}`:"Tennis Futures — Value Plays",
         time:"Current Market", network:context?.currentTournament?.surface||"Tour Futures",
         blurb:context?.currentTournament?.context?context.currentTournament.context:"Player database, surface Elo, and futures context are loaded.",
         whatMatters:"Ask for the best current tennis future, matchup angle, or surface edge.",
@@ -923,13 +971,13 @@ export default function App() {
     const cards = [];
     if (nextRace) {
       const dateStr = nextRace.date_start ? new Date(nextRace.date_start).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
-      cards.push({id:"f1-next-1",league:"F1",leagueColor:"#E10600",title:nextRace.meeting_name||"Next Grand Prix",time:dateStr,network:nextRace.circuit_short_name||nextRace.location||"",blurb:`${nextRace.location}  -  Ask for the best F1 angle.`,whatMatters:"Ask for race winner, podium, or qualifying prop edges.",quickHitters:["Best F1 bet this weekend?","Who wins qualifying?","Podium value play?"],confirmed:true});
+      cards.push({id:"f1-next-1",league:"F1",leagueColor:"#E10600",title:nextRace.meeting_name||"Next Grand Prix",time:dateStr,network:nextRace.circuit_short_name||nextRace.location||"",blurb:`${nextRace.location} — Ask for the best F1 angle.`,whatMatters:"Ask for race winner, podium, or qualifying prop edges.",quickHitters:["Best F1 bet this weekend?","Who wins qualifying?","Podium value play?"],confirmed:true});
     }
     if (leader) {
-      cards.push({id:"f1-standings-1",league:"F1 CHAMPIONSHIP",leagueColor:"#E10600",title:`${leader.full_name||"Leader"} leads  -  ${leader.points||0} pts`,time:"2026 Season",network:"Driver Championship",blurb:`${leader.team_name||""} ${leader.full_name||""} leads the 2026 championship. Ask about title odds.`,whatMatters:"Ask about championship futures and driver head-to-heads.",quickHitters:["Who wins the 2026 WDC?","Best F1 future right now?","Constructor championship value?"],confirmed:true});
+      cards.push({id:"f1-standings-1",league:"F1 CHAMPIONSHIP",leagueColor:"#E10600",title:`${leader.full_name||"Leader"} leads — ${leader.points||0} pts`,time:"2026 Season",network:"Driver Championship",blurb:`${leader.team_name||""} ${leader.full_name||""} leads the 2026 championship. Ask about title odds.`,whatMatters:"Ask about championship futures and driver head-to-heads.",quickHitters:["Who wins the 2026 WDC?","Best F1 future right now?","Constructor championship value?"],confirmed:true});
     }
     if (!cards.length) {
-      cards.push({id:"f1-default",league:"F1",leagueColor:"#E10600",title:"Formula 1  -  2026 Season",time:"Active",network:"Grand Prix Racing",blurb:"New 2026 regulations. Mercedes resurgent. Red Bull fallen. Ask about any F1 angle.",whatMatters:"Ask about race winners, championship futures, or driver matchups.",quickHitters:["Best F1 future?","Who wins the WDC?","Best value bet?"],confirmed:true});
+      cards.push({id:"f1-default",league:"F1",leagueColor:"#E10600",title:"Formula 1 — 2026 Season",time:"Active",network:"Grand Prix Racing",blurb:"New 2026 regulations. Mercedes resurgent. Red Bull fallen. Ask about any F1 angle.",whatMatters:"Ask about race winners, championship futures, or driver matchups.",quickHitters:["Best F1 future?","Who wins the WDC?","Best value bet?"],confirmed:true});
     }
     return cards.slice(0,1);
   }, [f1Data]);
@@ -942,13 +990,13 @@ export default function App() {
     if (liveGame) {
       const away = liveGame.awayTeam?.abbr || liveGame.awayTeam?.name || "Away";
       const home = liveGame.homeTeam?.abbr || liveGame.homeTeam?.name || "Home";
-      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0}  -  ${liveGame.homeTeam?.score||0}`,blurb:"Live game in progress. Ask for the best prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
+      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}`,blurb:"Live game in progress. Ask for the best prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
     } else if (nextGame) {
       const away = nextGame.awayTeam?.abbr || nextGame.awayTeam?.name || "Away";
       const home = nextGame.homeTeam?.abbr || nextGame.homeTeam?.name || "Home";
       cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
     } else if (games.length > 0) {
-      // All games final  -  show tomorrow preview
+      // All games final — show tomorrow preview
       cards.push({id:"nba-tomorrow",league:"NBA",leagueColor:"#FF6B00",title:"Tonight's slate is done",time:"Check back tomorrow",network:"NBA Props",blurb:"All games final. Ask for the best plays on tomorrow's slate.",whatMatters:"Ask for tomorrow's best prop plays.",quickHitters:["Best prop tomorrow?","Safest PRA bet tomorrow?","Top plays for tomorrow?"],confirmed:true});
     } else {
       cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:"NBA Props",time:"Active",network:"Player Props",blurb:"Ask about any player prop, PRA bet, or game total.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
@@ -963,7 +1011,7 @@ export default function App() {
     if (liveGame) {
       const away = liveGame.awayTeam?.abbr || "Away";
       const home = liveGame.homeTeam?.abbr || "Home";
-      return [{ id:"mlb-live-1", league:"MLB LIVE", leagueColor:"#1DB954", title:`${away} @ ${home}`, time:"LIVE", network:`${liveGame.awayTeam?.score||0}  -  ${liveGame.homeTeam?.score||0}`, blurb:"Live game. Ask for best live prop or total angle.", whatMatters:"Ask for live K prop, batter hit, or first-5 angle.", quickHitters:["Best live prop?","Pitcher still rolling?","Back the OVER or UNDER?"], confirmed:true }];
+      return [{ id:"mlb-live-1", league:"MLB LIVE", leagueColor:"#1DB954", title:`${away} @ ${home}`, time:"LIVE", network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}`, blurb:"Live game. Ask for best live prop or total angle.", whatMatters:"Ask for live K prop, batter hit, or first-5 angle.", quickHitters:["Best live prop?","Pitcher still rolling?","Back the OVER or UNDER?"], confirmed:true }];
     }
     if (nextGame) {
       const away = nextGame.awayTeam?.abbr || "Away";
@@ -977,7 +1025,7 @@ export default function App() {
 
   const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards,...homeMlbCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards,homeMlbCards]);
 
-  // ?? Dynamic home questions ?????????????????????????????????????????????????
+  // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
     const prompts=[]; const used=new Set(); const daypart=getDaypartLabel();
     const push=item=>{ if(!item||used.has(item.text))return; used.add(item.text); prompts.push(item); };
@@ -993,7 +1041,7 @@ export default function App() {
     return prompts.slice(0,5);
   }, [activeTournamentMatches,tennisLiveMatches,tennisUpcomingMatches,nflSeasonMode,context]);
 
-  // ?? Navigation ?????????????????????????????????????????????????????????????
+  // ── Navigation ─────────────────────────────────────────────────────────────
   const goHome   = useCallback(()=>{ setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goTennis = useCallback(()=>{ setTab("tennis");setScreen("tennis");setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goNfl    = useCallback(()=>{ setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
@@ -1008,7 +1056,7 @@ export default function App() {
   const openNflPlayer = useCallback(name=>{ setSelectedNflPlayer(name); setScreen("nflplayer"); setTab("nfl"); },[]);
   const firePrompt    = useCallback(prompt=>{ setTab("ask"); setScreen("ask"); setAskInput(""); askUrTake({text:prompt,setMsgs:setAskMsgs}); },[askUrTake]);
 
-  // ?? Submit handlers ????????????????????????????????????????????????????????
+  // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); setTimeout(()=>{ askBarBottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askInput,askUrTake,isAsking,askBarBottomRef]);
   const tennisBarRef  = useRef(null);
@@ -1023,7 +1071,7 @@ export default function App() {
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); setTimeout(()=>{ mlbBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,mlbInput]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const hint=selectedMatchup?.league?.includes("NFL")?"nfl":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
 
-  // ?? Sub-components ?????????????????????????????????????????????????????????
+  // ── Sub-components ─────────────────────────────────────────────────────────
   function TennisPlayerCard({ name, idx, tour }) {
     const p=getPlayer(name,tour); if(!p)return null;
     return (
@@ -1050,13 +1098,13 @@ export default function App() {
     return (
       <div className="nfl-player-card" onClick={()=>openNflPlayer(name)}>
         <div className="nfl-player-top">
-          <div className="nfl-player-left"><div className="nfl-rank">{player.pos}</div><div className="nfl-player-info"><div className="nfl-player-name">{name}</div><div className="nfl-player-meta">{player.team} ? {player.tier}</div></div></div>
+          <div className="nfl-player-left"><div className="nfl-rank">{player.pos}</div><div className="nfl-player-info"><div className="nfl-player-name">{name}</div><div className="nfl-player-meta">{player.team} · {player.tier}</div></div></div>
           <div className="nfl-player-right"><span className="nfl-yds-pg">{player.ydsPg}</span><span className="nfl-yds-label">YDS/G</span></div>
         </div>
         <div className="nfl-player-stats">
           <div className="nfl-stat"><div className="nfl-stat-label">GAMES</div><div className="nfl-stat-value">{player.rec2025.g}</div></div>
           <div className="nfl-stat"><div className="nfl-stat-label">TDs</div><div className="nfl-stat-value" style={{color:"var(--nfl)"}}>{player.rec2025.td}</div></div>
-          {player.rec2025.tgt?<div className="nfl-stat"><div className="nfl-stat-label">TGT</div><div className="nfl-stat-value">{player.rec2025.tgt}</div></div>:<div className="nfl-stat"><div className="nfl-stat-label">REC/G</div><div className="nfl-stat-value">{player.rec2025.recPg??" - "}</div></div>}
+          {player.rec2025.tgt?<div className="nfl-stat"><div className="nfl-stat-label">TGT</div><div className="nfl-stat-value">{player.rec2025.tgt}</div></div>:<div className="nfl-stat"><div className="nfl-stat-label">REC/G</div><div className="nfl-stat-value">{player.rec2025.recPg??"—"}</div></div>}
           <div className="nfl-stat"><div className="nfl-stat-label">YPR</div><div className="nfl-stat-value">{player.rec2025.ypr}</div></div>
         </div>
       </div>
@@ -1065,7 +1113,7 @@ export default function App() {
 
   const askBarCommon = { fileInputRef, pastedImage, clearImage, isAsking, processImageFile };
 
-  // ?? Header pill ????????????????????????????????????????????????????????????
+  // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (
     <>
       {screen==="tennis"&&<span className="pill-tennis">{context?.currentTournament?.name?context.currentTournament.name.toUpperCase():"TENNIS"}</span>}
@@ -1082,13 +1130,13 @@ export default function App() {
     </>
   );
 
-  // ?? NBA top players from live stats (sorted by pts) ????????????????????????
+  // ── NBA top players from live stats (sorted by pts) ────────────────────────
   const nbaTopPlayers = useMemo(() => {
     const stats = nbaData?.playerStats || [];
     return stats.slice(0, 20);
   }, [nbaData]);
 
-  // ?????????????????????????????????????????????????????????????????????????
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{css}</style>
@@ -1099,14 +1147,14 @@ export default function App() {
           <div className="header-right">{headerPill}</div>
         </header>
 
-        {/* ?? HOME ?? */}
+        {/* ══ HOME ══ */}
         {screen==="home"&&(
           <main className="screen" style={{padding:"8px 12px 70px"}}>
 
-            {/* Ask bar  -  leads immediately, no hero copy */}
+            {/* Ask bar — leads immediately, no hero copy */}
             <AskBar inputRef={homeInputRef} value={homeInput} onChange={setHomeInput} onSubmit={submitHome} placeholder="Ask about any player, game, or bet..." {...askBarCommon} />
 
-            {/* Sport pill rail  -  horizontal scroll, feels like tabs */}
+            {/* Sport pill rail — horizontal scroll, feels like tabs */}
             <div className="sport-rail">
               <button className="sport-pill sport-pill-tennis" onClick={goTennis}>TENNIS</button>
               <button className="sport-pill sport-pill-nfl" onClick={goNfl}>NFL</button>
@@ -1115,8 +1163,8 @@ export default function App() {
               <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
             </div>
 
-            {/* NBA games ticker  -  only when games exist */}
-            {nbaGames.length > 0 && (
+            {/* NBA games ticker — only when games exist */}
+            {(nbaGames.length > 0 || mlbGames.length > 0 || (mlbData?.games?.length > 0)) && (
               <div className="game-ticker">
                 {nbaGames.map((g,i) => {
                   const away = g.awayTeam?.abbr || "AWAY";
@@ -1124,28 +1172,41 @@ export default function App() {
                   const isLive = g.state === "in";
                   const isFinal = g.state === "post";
                   return (
-                    <div key={g.id||i} className={`ticker-card${isLive?" live":""}`} onClick={()=>goNba()}>
-                      <div className="ticker-status" style={{color:isLive?"#00E676":isFinal?"var(--muted)":"#FF6B00"}}>{isLive?"? LIVE":isFinal?"FINAL":g.status}</div>
-                      <div className="ticker-teams">{away} ? {home}</div>
-                      {(isLive||isFinal) && g.awayTeam?.score != null && <div className="ticker-score">{g.awayTeam.score}  -  {g.homeTeam.score}</div>}
+                    <div key={"nba-"+( g.id||i)} className={`ticker-card${isLive?" live":""}`} onClick={()=>goNba()}>
+                      <div className="ticker-status" style={{color:isLive?"#00E676":isFinal?"var(--muted)":"#FF6B00"}}>{isLive?"● LIVE":isFinal?"FINAL":g.status}</div>
+                      <div className="ticker-teams">{away} @ {home}</div>
+                      {(isLive||isFinal) && g.awayTeam?.score != null && <div className="ticker-score">{g.awayTeam.score} — {g.homeTeam.score}</div>}
+                    </div>
+                  );
+                })}
+                {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
+                  const away = g.awayTeam?.abbr || "AWAY";
+                  const home = g.homeTeam?.abbr || "HOME";
+                  const isLive = g.state === "in";
+                  const isFinal = g.state === "post";
+                  return (
+                    <div key={"mlb-"+(g.id||i)} className={`ticker-card${isLive?" live":""}`} onClick={()=>goMlb()}>
+                      <div className="ticker-status" style={{color:isLive?"#00E676":isFinal?"var(--muted)":"#1DB954",letterSpacing:1}}>⚾ {isLive?"LIVE":isFinal?"FINAL":g.status}</div>
+                      <div className="ticker-teams">{away} @ {home}</div>
+                      {(isLive||isFinal) && g.awayTeam?.score != null && <div className="ticker-score">{g.awayTeam.score} — {g.homeTeam.score}</div>}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {/* Ask cards  -  sharp, action-oriented, colored accent bars */}
+            {/* Ask cards — sharp, action-oriented, colored accent bars */}
             <div className="ask-cards">
               {dynamicHomeQuestions.map(q=>(
                 <div key={q.id} className="ask-card" onClick={()=>firePrompt(q.prompt)}>
                   <div className="ask-card-bar" style={{background:q.color}}/>
                   <div className="ask-card-text">{q.text}</div>
-                  <div style={{color:"var(--muted)",fontSize:16,flexShrink:0}}>?</div>
+                  <div style={{color:"var(--muted)",fontSize:16,flexShrink:0}}>›</div>
                 </div>
               ))}
             </div>
 
-            {/* Spotlight cards  -  tight, sport-colored, edge-focused */}
+            {/* Spotlight cards — tight, sport-colored, edge-focused */}
             {homeCards.map(m=>(
               <div key={m.id} className="spotlight-card" onClick={()=>openMatchup(m)}>
                 <div className="spotlight-top">
@@ -1161,18 +1222,18 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? TENNIS ?? */}
+        {/* ══ TENNIS ══ */}
         {screen==="tennis"&&(
           <main className="screen">
             <div className="tour-banner">
               <div className="banner-title">{tennisBoardHeadline}</div>
               <div className="banner-sub">{tennisBoardSubline}</div>
-              <div className="banner-note">{liveMatches.length>0?`${tennisLiveMatches.length} live ? ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` ? ${activeTournamentMatches.length} in active tournament focus`:""}`:"No current matches loaded right now."}</div>
+              <div className="banner-note">{liveMatches.length>0?`${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in active tournament focus`:""}`:"No current matches loaded right now."}</div>
             </div>
 
             {tennisMsgs.length===0&&(
               <div ref={tennisBarRef} style={{background:"var(--surface)",border:"1px solid rgba(255,230,0,.2)",borderRadius:14,padding:14,marginBottom:16}}>
-                <div style={{fontSize:10,color:"#FFE600",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything  -  Tennis</div>
+                <div style={{fontSize:10,color:"#FFE600",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
                 <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet? Which match is mispriced?" {...askBarCommon} />
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   {["Best tennis bet tonight?","Which match is mispriced?","Best live angle?","Best futures value?"].map(q=>(
@@ -1193,7 +1254,7 @@ export default function App() {
                 {(activeTournamentMatches.length>0?activeTournamentMatches:liveMatches).map(m=>(
                   <div key={m.id} className="matchup-card" onClick={()=>openMatchup(m)}>
                     <div className="matchup-top"><div className="matchup-league" style={{color:m.leagueColor}}>{m.league}</div><div className="matchup-time">{String(m?.raw?.live||"0")==="1"?"LIVE":(m.raw?.status||m.time)}</div></div>
-                    <div className="matchup-body"><div className="matchup-title">{m.title}</div><div className="matchup-meta">{m.network}{m.raw?.round?` ? ${m.raw.round}`:""}</div><div className="matchup-blurb">{m.raw?.score&&m.raw.score!=="-"?`Score: ${m.raw.score}. `:""}{m.blurb}</div></div>
+                    <div className="matchup-body"><div className="matchup-title">{m.title}</div><div className="matchup-meta">{m.network}{m.raw?.round?` · ${m.raw.round}`:""}</div><div className="matchup-blurb">{m.raw?.score&&m.raw.score!=="-"?`Score: ${m.raw.score}. `:""}{m.blurb}</div></div>
                   </div>
                 ))}
                 {activeTournamentMatches.length>0&&liveMatches.length>activeTournamentMatches.length&&(
@@ -1202,7 +1263,7 @@ export default function App() {
                     {liveMatches.filter(m=>!activeTournamentMatches.some(x=>x.id===m.id)).map(m=>(
                       <div key={m.id} className="matchup-card" onClick={()=>openMatchup(m)}>
                         <div className="matchup-top"><div className="matchup-league" style={{color:m.leagueColor}}>{m.league}</div><div className="matchup-time">{String(m?.raw?.live||"0")==="1"?"LIVE":(m.raw?.status||m.time)}</div></div>
-                        <div className="matchup-body"><div className="matchup-title">{m.title}</div><div className="matchup-meta">{m.network}{m.raw?.round?` ? ${m.raw.round}`:""}</div><div className="matchup-blurb">{m.raw?.score&&m.raw.score!=="-"?`Score: ${m.raw.score}. `:""}{m.blurb}</div></div>
+                        <div className="matchup-body"><div className="matchup-title">{m.title}</div><div className="matchup-meta">{m.network}{m.raw?.round?` · ${m.raw.round}`:""}</div><div className="matchup-blurb">{m.raw?.score&&m.raw.score!=="-"?`Score: ${m.raw.score}. `:""}{m.blurb}</div></div>
                       </div>
                     ))}
                   </>
@@ -1218,7 +1279,7 @@ export default function App() {
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
                   {Object.entries(context.ace_props).map(([name,data])=>(
                     <div key={name} className="matchup-card" onClick={()=>submitTennis(`Tell me about ${name} ace props right now`)}>
-                      <div className="matchup-body"><div className="matchup-title" style={{fontSize:15}}>{name}</div><div className="matchup-meta">ACES</div><div className="matchup-blurb">{data.avg_aces_hard} avg ? {data.ace_rate}</div><div className="matchup-blurb" style={{marginTop:6}}>{data.note||""}</div></div>
+                      <div className="matchup-body"><div className="matchup-title" style={{fontSize:15}}>{name}</div><div className="matchup-meta">ACES</div><div className="matchup-blurb">{data.avg_aces_hard} avg · {data.ace_rate}</div><div className="matchup-blurb" style={{marginTop:6}}>{data.note||""}</div></div>
                     </div>
                   ))}
                 </div>
@@ -1237,12 +1298,12 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? NFL ?? */}
+        {/* ══ NFL ══ */}
         {screen==="nfl"&&(
           <main className="screen">
             <div className="nfl-banner">
               <div className="banner-title">{nflSeasonMode?"NFL In-Season Board":"NFL Futures Board"}</div>
-              <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS ? USAGE ? PLAYER ANGLES":"FUTURES ? PLAYER STATS ? BETTING ANGLES"}</div>
+              <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
               <div className="banner-note">{nflSeasonMode?"Current weekly props, role changes, usage shifts, and market edges.":"Skill positions database with per-game stats, TD rates, prop floors and ceilings."}</div>
             </div>
             {nflMsgs.length===0&&(
@@ -1258,9 +1319,9 @@ export default function App() {
             <ChatThread msgs={nflMsgs}/>
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
             {NFL_PROP_GUIDE.map(prop=>(
-              <div key={`${prop.player}-${prop.propType}`} className="nfl-prop-card" onClick={()=>submitNfl(`Tell me about ${prop.player} ${prop.propType} prop  -  line is ${prop.line}`)}>
+              <div key={`${prop.player}-${prop.propType}`} className="nfl-prop-card" onClick={()=>submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)}>
                 <div className="nfl-prop-top"><div className="nfl-prop-player">{prop.player}</div><div className="nfl-prop-type">{prop.propType}</div></div>
-                <div className="nfl-prop-line">Line: {prop.line} ? Floor {prop.floor} / Ceil {prop.ceil}</div>
+                <div className="nfl-prop-line">Line: {prop.line} · Floor {prop.floor} / Ceil {prop.ceil}</div>
                 <div className={`nfl-prop-lean ${prop.leanClass}`}>{prop.lean}</div>
               </div>
             ))}
@@ -1271,12 +1332,12 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? NFL PLAYER DETAIL ?? */}
+        {/* ══ NFL PLAYER DETAIL ══ */}
         {screen==="nflplayer"&&nflPd&&(
           <main className="screen">
-            <button className="detail-back" onClick={()=>{setScreen("nfl");setSelectedNflPlayer(null);}}>? BACK</button>
+            <button className="detail-back" onClick={()=>{setScreen("nfl");setSelectedNflPlayer(null);}}>← BACK</button>
             <div className="detail-card">
-              <div className="nfl-detail-head"><div className="nfl-detail-pos">{nflPd.pos} ? {nflPd.team} ? {nflPd.tier}</div><div className="nfl-detail-name">{selectedNflPlayer}</div><div className="nfl-detail-sub">{nflPd.ydsPg} yds/g ? {nflPd.rec2025.g} games played</div></div>
+              <div className="nfl-detail-head"><div className="nfl-detail-pos">{nflPd.pos} · {nflPd.team} · {nflPd.tier}</div><div className="nfl-detail-name">{selectedNflPlayer}</div><div className="nfl-detail-sub">{nflPd.ydsPg} yds/g · {nflPd.rec2025.g} games played</div></div>
               <div className="nfl-detail-grid">
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">YDS/G</div><div className="nfl-detail-value" style={{color:"var(--nfl)"}}>{nflPd.ydsPg}</div></div>
                 <div className="nfl-detail-stat"><div className="nfl-detail-label">TDs</div><div className="nfl-detail-value" style={{color:"var(--gold)"}}>{nflPd.rec2025.td}</div></div>
@@ -1300,18 +1361,18 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? F1 ?? */}
+        {/* ══ F1 ══ */}
         {screen==="f1"&&(
           <main className="screen">
             <div className="f1-banner">
-              <div className="banner-title">Formula 1  -  2026</div>
-              <div className="banner-sub">DRIVER STANDINGS ? RACE CALENDAR ? BETTING ANGLES</div>
-              <div className="banner-note">{f1Data?.standings?.length ? `${f1Data.standings.length} drivers ? ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}</div>
+              <div className="banner-title">Formula 1 — 2026</div>
+              <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
+              <div className="banner-note">{f1Data?.standings?.length ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}</div>
             </div>
 
             {f1Msgs.length===0&&(
               <div className="f1-ask-shell" ref={f1BarRef}>
-                <div className="f1-ask-label">Ask Anything  -  F1</div>
+                <div className="f1-ask-label">Ask Anything — F1</div>
                 <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   {["Who wins the next Grand Prix?","Best F1 future right now?","Is Antonelli for real?","Hamilton podium value?"].map(q=>(
@@ -1330,14 +1391,14 @@ export default function App() {
                   <>
                     <div className="section-divider">Driver Standings</div>
                     {f1Data.standings.map((d,i) => (
-                      <div key={d.driver_number||i} className="f1-standing-card" onClick={()=>submitF1(`Tell me about ${d.full_name||d.name_acronym}  -  form, pace, and best betting angle`)}>
+                      <div key={d.driver_number||i} className="f1-standing-card" onClick={()=>submitF1(`Tell me about ${d.full_name||d.name_acronym} — form, pace, and best betting angle`)}>
                         <div className="f1-pos">P{d.position||i+1}</div>
                         <div style={{width:4,height:30,borderRadius:2,background:`#${d.team_colour||'666'}`,flexShrink:0}}/>
                         <div className="f1-driver-info">
                           <div className="f1-driver-name">{d.full_name||d.name_acronym||`#${d.driver_number}`}</div>
-                          <div className="f1-driver-team">{d.team_name||" - "}</div>
+                          <div className="f1-driver-team">{d.team_name||"—"}</div>
                         </div>
-                        <div className="f1-pts"><span className="f1-pts-num">{d.points ?? " - "}</span><span className="f1-pts-label">PTS</span></div>
+                        <div className="f1-pts"><span className="f1-pts-num">{d.points ?? "—"}</span><span className="f1-pts-label">PTS</span></div>
                       </div>
                     ))}
                   </>
@@ -1356,7 +1417,7 @@ export default function App() {
                             <div>{race.is_next && <span className="f1-race-badge">NEXT</span>}</div>
                           </div>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div className="f1-race-location">{race.location} ? {race.circuit_short_name}</div>
+                            <div className="f1-race-location">{race.location} · {race.circuit_short_name}</div>
                             <div className="f1-race-date">{dateStr}</div>
                           </div>
                         </div>
@@ -1370,15 +1431,15 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? NBA ?? */}
+        {/* ══ NBA ══ */}
         {screen==="nba"&&(
           <main className="screen">
             <div className="nba-banner">
               <div className="banner-title">NBA</div>
-              <div className="banner-sub">PLAYER PROPS ? GAME TOTALS ? BETTING ANGLES</div>
+              <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
                 {nbaGames.length > 0
-                  ? `${nbaGames.filter(g=>g.state==="in").length > 0 ? nbaGames.filter(g=>g.state==="in").length + " live ? " : ""}${nbaGames.length} games today`
+                  ? `${nbaGames.filter(g=>g.state==="in").length > 0 ? nbaGames.filter(g=>g.state==="in").length + " live · " : ""}${nbaGames.length} games today`
                   : nbaLoading ? "Loading..." : "Ask anything about NBA props"}
               </div>
             </div>
@@ -1403,7 +1464,7 @@ export default function App() {
                 {nbaGames.length > 0 && (
                   <>
                     <div className="section-divider">
-                      {nbaGames.filter(g=>g.state==="in").length > 0 ? "? Live Games" : "Today's Games"}
+                      {nbaGames.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
                     </div>
                     {nbaGames.map((g,i) => {
                       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
@@ -1414,10 +1475,10 @@ export default function App() {
                         <div key={g.id||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${away} vs ${home} tonight?`)}>
                           <div className="nba-game-top">
                             <div className="nba-game-teams">{away} vs {home}</div>
-                            <div>{isLive ? <span className="nba-live-badge">? LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
+                            <div>{isLive ? <span className="nba-live-badge">● LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
                           </div>
                           {(isLive || isFinal) && g.awayTeam?.score != null && (
-                            <div className="nba-game-score">{g.awayTeam.score}  -  {g.homeTeam.score}</div>
+                            <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
                           )}
                         </div>
                       );
@@ -1451,14 +1512,14 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? MLB ?? */}
+        {/* ══ MLB ══ */}
         {screen==="mlb"&&(
           <main className="screen">
             <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS ? GAME TOTALS ? PITCHER ANGLES</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
-                {mlbLoading ? "Loading..." : (mlbData && mlbData.games && mlbData.games.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active  -  Ask about any game or player"}
+                {mlbLoading ? "Loading..." : mlbGames.length > 0 ? `${mlbGames.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
               </div>
             </div>
 
@@ -1476,16 +1537,16 @@ export default function App() {
 
             <ChatThread msgs={mlbMsgs}/>
 
-            {mlbLoading ? (
+            {mlbLoading && mlbGames.length === 0 ? (
               <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
             ) : (
               <>
-                {mlbData?.games?.length > 0 && (
+                {(mlbGames.length > 0 || mlbData?.games?.length > 0) && (
                   <>
                     <div className="section-divider">
-                      {mlbData.games.filter(g=>g.state==="in").length > 0 ? "Live Games" : "Today's Games"}
+                      {(mlbGames.length > 0 ? mlbGames : mlbData.games).filter(g=>g.state==="in").length > 0 ? "Live Games" : "Today's Games"}
                     </div>
-                    {mlbData.games.map((g,i) => {
+                    {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
                       const away = g.awayTeam;
                       const home = g.homeTeam;
                       const isLive = g.state === "in";
@@ -1506,7 +1567,7 @@ export default function App() {
                           {(away.pitcher||home.pitcher) && (
                             <div style={{fontSize:11,color:"var(--muted)"}}>
                               {away.pitcher&&<span>{away.abbr}: {away.pitcher}</span>}
-                              {away.pitcher&&home.pitcher&&<span style={{margin:"0 6px"}}>?</span>}
+                              {away.pitcher&&home.pitcher&&<span style={{margin:"0 6px"}}>·</span>}
                               {home.pitcher&&<span>{home.abbr}: {home.pitcher}</span>}
                             </div>
                           )}
@@ -1540,7 +1601,7 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? PRO ?? */}
+        {/* ══ PRO ══ */}
         {screen==="pro"&&(
           <main className="screen">
             <div className="pro-banner">
@@ -1579,12 +1640,12 @@ export default function App() {
           </main>
         )}
 
-    {/* ?? MATCHUP DETAIL ?? */}
+    {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
           <main className="screen">
-            <button className="detail-back" onClick={()=>{setSelectedMatchup(null);setScreen(selectedMatchup?.league?.includes("NFL")?"nfl":"tennis");}}>? BACK</button>
+            <button className="detail-back" onClick={()=>{setSelectedMatchup(null);setScreen(selectedMatchup?.league?.includes("NFL")?"nfl":"tennis");}}>← BACK</button>
             <div className="detail-card">
-              <div className="detail-head"><div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div><div className="detail-title">{selectedMatchup.title}</div><div className="detail-sub">{selectedMatchup.time} ? {selectedMatchup.network}</div></div>
+              <div className="detail-head"><div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div><div className="detail-title">{selectedMatchup.title}</div><div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div></div>
               <div className="what-matters"><div className="wm-label">Match Snapshot</div><div className="wm-text">{selectedMatchup.whatMatters||"Ask for the side, total, props, or live angle."}</div></div>
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
@@ -1594,14 +1655,14 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? TENNIS PLAYER DETAIL ?? */}
+        {/* ══ TENNIS PLAYER DETAIL ══ */}
         {screen==="player"&&pd&&(
           <main className="screen">
-            <button className="detail-back" onClick={()=>setScreen("tennis")}>? BACK</button>
+            <button className="detail-back" onClick={()=>setScreen("tennis")}>← BACK</button>
             <div className="detail-card">
-              <div className="detail-head"><div className="detail-league" style={{color:"var(--cyan-bright)"}}>TENNIS PLAYER PROFILE</div><div className="detail-title">{selectedPlayer}</div><div className="detail-sub">{Array.isArray(pd.style)?pd.style.join(", ").replaceAll("_"," "):pd.style} ? Elo {pd.elo}</div></div>
-              <div className="what-matters"><div className="wm-label">Surface Notes</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:8}}><div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{color:"var(--cyan-bright)"}}>?</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.hard||" - "}</div></div><div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{color:"var(--gold)"}}>?</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.clay||" - "}</div></div><div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{color:"var(--green)"}}>?</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.grass||" - "}</div></div></div></div>
-              <div style={{padding:"0 14px 14px"}}><div className="wm-label" style={{marginBottom:8}}>2026 Form</div><div style={{background:"var(--surface-2)",borderRadius:10,padding:10,fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{pd.record2026||" - "}</div></div>
+              <div className="detail-head"><div className="detail-league" style={{color:"var(--cyan-bright)"}}>TENNIS PLAYER PROFILE</div><div className="detail-title">{selectedPlayer}</div><div className="detail-sub">{Array.isArray(pd.style)?pd.style.join(", ").replaceAll("_"," "):pd.style} · Elo {pd.elo}</div></div>
+              <div className="what-matters"><div className="wm-label">Surface Notes</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:8}}><div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{color:"var(--cyan-bright)"}}>•</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.hard||"—"}</div></div><div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{color:"var(--gold)"}}>•</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.clay||"—"}</div></div><div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{color:"var(--green)"}}>•</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.grass||"—"}</div></div></div></div>
+              <div style={{padding:"0 14px 14px"}}><div className="wm-label" style={{marginBottom:8}}>2026 Form</div><div style={{background:"var(--surface-2)",borderRadius:10,padding:10,fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{pd.record2026||"—"}</div></div>
               <div className="what-matters" style={{paddingTop:0}}><div className="wm-label">Serve</div><div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{formatServeStats(pd.serveStats)}</div></div>
               <div className="what-matters" style={{paddingTop:0}}><div className="wm-label">Return</div><div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{formatReturnStats(pd.returnStats)}</div></div>
               <div className="what-matters" style={{paddingTop:0}}><div className="wm-label">Overall</div><div style={{fontSize:13,color:"var(--soft)",lineHeight:1.5}}>{formatOverallStats(pd.overallStats)}</div></div>
@@ -1612,7 +1673,7 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? ASK ?? */}
+        {/* ══ ASK ══ */}
         {screen==="ask"&&(
           <main className="screen">
             <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
@@ -1626,34 +1687,34 @@ export default function App() {
           </main>
         )}
 
-        {/* ?? DOCKED INPUT BARS ?? */}
+        {/* ══ DOCKED INPUT BARS ══ */}
         {screen==="tennis"&&tennisMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(255,230,0,.25)"}}>
-            <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis ? Ask another</div>
+            <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis · Ask another</div>
             <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Ask another..." {...askBarCommon}/>
           </div>
         )}
         {screen==="nfl"&&nflMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(74,144,217,.25)"}}>
-            <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL ? Ask another</div>
+            <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>
             <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder="Ask another..." btnColor="#4A90D9" {...askBarCommon}/>
           </div>
         )}
         {screen==="f1"&&f1Msgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(225,6,0,.25)"}}>
-            <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 ? Ask another</div>
+            <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 · Ask another</div>
             <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Ask another..." btnColor="var(--f1)" {...askBarCommon}/>
           </div>
         )}
         {screen==="nba"&&nbaMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(255,107,0,.25)"}}>
-            <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA ? Ask another</div>
+            <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA · Ask another</div>
             <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Ask another..." btnColor="var(--nba)" {...askBarCommon}/>
           </div>
         )}
         {screen==="mlb"&&mlbMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(29,185,84,.25)"}}>
-            <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB ? Ask another</div>
+            <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB · Ask another</div>
             <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon}/>
           </div>
         )}
@@ -1663,7 +1724,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ?? NAV ?? */}
+        {/* ══ NAV ══ */}
         <nav className="bottom-nav">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
           <button className={`nav-btn${tab==="tennis"?" tennis-active":""}`} onClick={goTennis}><span>Tennis</span></button>
