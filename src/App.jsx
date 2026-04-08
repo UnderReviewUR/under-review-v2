@@ -866,10 +866,21 @@ export default function App() {
   }, [nbaData, nbaGames]);
 
   const buildMlbContext = useCallback((questionText) => {
+    const allGames = mlbGames.length > 0 ? mlbGames : (mlbData?.games || []);
+    // Trim each game to essentials only — avoid oversized payload
+    const trimmedGames = allGames.map(g => ({
+      id: g.id,
+      state: g.state,
+      status: g.status,
+      inning: g.inning || null,
+      inningHalf: g.inningHalf || null,
+      homeTeam: { abbr: g.homeTeam?.abbr, name: g.homeTeam?.name, score: g.homeTeam?.score ?? null, pitcher: g.homeTeam?.pitcher || null },
+      awayTeam: { abbr: g.awayTeam?.abbr, name: g.awayTeam?.name, score: g.awayTeam?.score ?? null, pitcher: g.awayTeam?.pitcher || null },
+    }));
     return {
       seasonContext: mlbData?.seasonContext || {},
-      games:         mlbGames.length > 0 ? mlbGames : (mlbData?.games || []),
-      propLines:     mlbData?.propLines    || [],
+      games:         trimmedGames,
+      propLines:     (mlbData?.propLines || []).slice(0, 40),
       gameTotals:    mlbData?.gameTotals   || {},
       question:      questionText || "",
     };
@@ -1164,36 +1175,56 @@ export default function App() {
             </div>
 
             {/* NBA games ticker — only when games exist */}
-            {(nbaGames.length > 0 || mlbGames.length > 0 || (mlbData?.games?.length > 0)) && (
-              <div className="game-ticker">
-                {nbaGames.map((g,i) => {
-                  const away = g.awayTeam?.abbr || "AWAY";
-                  const home = g.homeTeam?.abbr || "HOME";
-                  const isLive = g.state === "in";
-                  const isFinal = g.state === "post";
-                  return (
-                    <div key={"nba-"+( g.id||i)} className={`ticker-card${isLive?" live":""}`} onClick={()=>goNba()}>
-                      <div className="ticker-status" style={{color:isLive?"#00E676":isFinal?"var(--muted)":"#FF6B00"}}>{isLive?"● LIVE":isFinal?"FINAL":g.status}</div>
-                      <div className="ticker-teams">{away} @ {home}</div>
-                      {(isLive||isFinal) && g.awayTeam?.score != null && <div className="ticker-score">{g.awayTeam.score} — {g.homeTeam.score}</div>}
+            {(()=>{
+              // Priority: live games first, then next upcoming. Max 5 cards + See All.
+              const nbaLive = nbaGames.filter(g=>g.state==="in");
+              const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
+              const allMlb  = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
+              const mlbLive = allMlb.filter(g=>g.state==="in");
+              const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
+              const cards   = [...nbaLive,...nbaNext,...mlbLive,...mlbNext].slice(0,5);
+              const hasMore = allMlb.length > mlbLive.length + mlbNext.length || nbaGames.length > nbaLive.length + nbaNext.length;
+              if (cards.length === 0) return null;
+              return (
+                <div style={{display:"flex",gap:8,overflowX:"auto",scrollbarWidth:"none",marginBottom:14,alignItems:"stretch"}}>
+                  {cards.map((g,i)=>{
+                    const isNba  = nbaGames.includes(g);
+                    const away   = g.awayTeam?.abbr||"AWAY";
+                    const home   = g.homeTeam?.abbr||"HOME";
+                    const isLive = g.state==="in";
+                    const accent = isNba?"#FF6B00":"#1DB954";
+                    return (
+                      <div key={i} onClick={isNba?goNba:goMlb} style={{
+                        flexShrink:0,background:"var(--surface)",
+                        border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
+                        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:100,
+                      }}>
+                        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
+                          color:isLive?"#00E676":accent,marginBottom:3}}>
+                          {isNba?"":"⚾ "}{isLive?"● LIVE":g.status}
+                        </div>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away}</div>
+                        <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
+                        {isLive && g.awayTeam?.score!=null &&
+                          <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--soft)",marginTop:2}}>
+                            {g.awayTeam.score}–{g.homeTeam.score}
+                          </div>}
+                      </div>
+                    );
+                  })}
+                  {hasMore && (
+                    <div onClick={goMlb} style={{
+                      flexShrink:0,background:"transparent",border:"1px solid var(--border-2)",
+                      borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:72,
+                      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                    }}>
+                      <div style={{fontSize:11,color:"var(--muted)"}}>See</div>
+                      <div style={{fontSize:11,color:"var(--muted)"}}>all →</div>
                     </div>
-                  );
-                })}
-                {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
-                  const away = g.awayTeam?.abbr || "AWAY";
-                  const home = g.homeTeam?.abbr || "HOME";
-                  const isLive = g.state === "in";
-                  const isFinal = g.state === "post";
-                  return (
-                    <div key={"mlb-"+(g.id||i)} className={`ticker-card${isLive?" live":""}`} onClick={()=>goMlb()}>
-                      <div className="ticker-status" style={{color:isLive?"#00E676":isFinal?"var(--muted)":"#1DB954",letterSpacing:1}}>⚾ {isLive?"LIVE":isFinal?"FINAL":g.status}</div>
-                      <div className="ticker-teams">{away} @ {home}</div>
-                      {(isLive||isFinal) && g.awayTeam?.score != null && <div className="ticker-score">{g.awayTeam.score} — {g.homeTeam.score}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Ask cards — sharp, action-oriented, colored accent bars */}
             <div className="ask-cards">
@@ -1543,9 +1574,13 @@ export default function App() {
               <>
                 {(mlbGames.length > 0 || mlbData?.games?.length > 0) && (
                   <>
-                    <div className="section-divider">
-                      {(mlbGames.length > 0 ? mlbGames : mlbData.games).filter(g=>g.state==="in").length > 0 ? "Live Games" : "Today's Games"}
-                    </div>
+                    {(()=>{
+                      const src = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
+                      const liveCount = src.filter(g=>g.state==="in").length;
+                      const finalCount = src.filter(g=>g.state==="post").length;
+                      const preCount = src.filter(g=>g.state==="pre").length;
+                      return <div className="section-divider">{liveCount>0?`${liveCount} Live`:""}{liveCount>0&&(finalCount+preCount>0)?" · ":""}{finalCount>0?`${finalCount} Final`:""}{preCount>0&&(liveCount+finalCount>0)?" · ":""}{preCount>0?`${preCount} Upcoming`:""}</div>;
+                    })()}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
                     {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
                       const away = g.awayTeam;
@@ -1556,42 +1591,30 @@ export default function App() {
                       const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
                       return (
                         <div key={g.id||i} style={{
-                          background: isLive ? "linear-gradient(135deg,rgba(0,230,118,.06),var(--surface))" : "var(--surface)",
-                          border:`1px solid ${isLive?"rgba(0,230,118,.35)":"var(--border)"}`,
-                          borderRadius:12,padding:"10px 12px",cursor:"pointer",
-                          transition:"all .15s",position:"relative"
-                        }} onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today? Give me K prop, game total lean, and best batter play.`)}>
-                          {/* Status badge */}
-                          <div style={{fontFamily:"var(--mono-font)",fontSize:8,letterSpacing:1.5,marginBottom:5,
-                            color:isLive?"var(--green)":isFinal?"var(--muted)":"#1DB954"}}>
-                            {isLive ? "● LIVE" : isFinal ? "FINAL" : g.status}
+                          background:"var(--surface)",
+                          border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
+                          borderRadius:10,padding:"9px 10px",cursor:"pointer",transition:"border-color .15s",
+                        }} onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today? Give me the sharpest K prop, game total lean, and best batter play.`)}>
+                          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,marginBottom:4,
+                            color:isLive?"#00E676":isFinal?"var(--muted)":"#1DB954"}}>
+                            {isLive?"● LIVE":isFinal?"FINAL":g.status?.replace(" ET","ET")||""}
                           </div>
-                          {/* Teams + score */}
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:isLive||isFinal?4:0}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                             <div>
-                              <div style={{fontSize:13,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away.abbr||away.name}</div>
-                              <div style={{fontSize:11,color:"var(--muted)",marginTop:1}}>@ {home.abbr||home.name}</div>
+                              <div style={{fontSize:13,fontWeight:700,color:"var(--text)",lineHeight:1.15}}>{away.abbr||away.name}</div>
+                              <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.15}}>@ {home.abbr||home.name}</div>
                             </div>
-                            {(isLive||isFinal) && away.score != null ? (
-                              <div style={{textAlign:"right"}}>
-                                <div style={{fontFamily:"var(--mono-font)",fontSize:16,fontWeight:700,
-                                  color:isLive?"var(--text)":"var(--soft)"}}>{away.score}</div>
-                                <div style={{fontFamily:"var(--mono-font)",fontSize:16,fontWeight:700,
-                                  color:isLive?"var(--text)":"var(--soft)"}}>{home.score}</div>
+                            {(isLive||isFinal) && away.score!=null ? (
+                              <div style={{fontFamily:"var(--mono-font)",textAlign:"right"}}>
+                                <div style={{fontSize:14,fontWeight:700,color:isLive?"var(--text)":"var(--soft)",lineHeight:1.15}}>{away.score}</div>
+                                <div style={{fontSize:14,fontWeight:700,color:isLive?"var(--text)":"var(--soft)",lineHeight:1.15}}>{home.score}</div>
                               </div>
-                            ) : isPre ? (
-                              <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)",textAlign:"right"}}>
-                                {g.status?.replace(" ET","") || ""}
+                            ) : (
+                              <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"var(--muted)",textAlign:"right",lineHeight:1.4}}>
+                                TAP<br/>ANGLE
                               </div>
-                            ) : null}
+                            )}
                           </div>
-                          {/* Pitchers */}
-                          {(away.pitcher||home.pitcher) && (
-                            <div style={{fontSize:9,color:"var(--muted)",marginTop:4,fontFamily:"var(--mono-font)",
-                              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                              {away.pitcher ? away.pitcher.split(" ").pop() : "TBD"} vs {home.pitcher ? home.pitcher.split(" ").pop() : "TBD"}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
