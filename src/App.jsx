@@ -1452,22 +1452,20 @@ export default function App() {
 
         {/* ══ MLB ══ */}
         {screen==="mlb"&&(
-          <main className={`screen${mlbMsgs.length>0?" has-msgs":""}`}>
-            <div className="mlb-banner">
-              <div className="banner-title">MLB</div>
-              <div className="banner-sub">PROPS · GAME TOTALS · PITCHER ANGLES</div>
-              <div className="banner-note">
-                {mlbData?.games?.length > 0
-                  ? `${mlbData.games.filter(g=>g.state==="in").length > 0 ? mlbData.games.filter(g=>g.state==="in").length + " live · " : ""}${mlbData.games.length} games today · ${mlbData?.seasonContext?.phase||"MLB Season"}`
-                  : mlbLoading ? "Loading..." : mlbData?.seasonContext?.phase || "MLB Season Active"}
+          <main className="screen">
+            <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
+              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS · GAME TOTALS · PITCHER ANGLES</div>
+              <div style={{fontSize:12,color:"var(--soft)"}}>
+                {mlbLoading ? "Loading..." : (mlbData && mlbData.games && mlbData.games.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
               </div>
             </div>
 
             {mlbMsgs.length===0&&(
-              <div className="mlb-ask-shell" ref={mlbBarRef}>
-                <div className="mlb-ask-label">Ask Anything -- MLB</div>
-                <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="var(--mlb)" {...askBarCommon}/>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <div style={{background:"var(--surface)",border:"1px solid rgba(29,185,84,.2)",borderRadius:14,padding:14,marginBottom:16}} ref={mlbBarRef}>
+                <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"#1DB954",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything -- MLB</div>
+                <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="#1DB954" {...askBarCommon}/>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
                   {["Best pitcher K prop?","Best batter hits prop?","Best game total?","Best home run prop?"].map(q=>(
                     <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
                   ))}
@@ -1493,19 +1491,19 @@ export default function App() {
                       const isFinal = g.state === "post";
                       const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
                       return (
-                        <div key={g.id||i} className="mlb-game-card" onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today?`)}>
-                          <div className="mlb-game-top">
-                            <div className="mlb-game-teams">{away.abbr||away.name} @ {home.abbr||home.name}</div>
+                        <div key={g.id||i} style={{background:"var(--surface)",border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,borderRadius:14,padding:"12px 14px",marginBottom:8,cursor:"pointer",transition:"all .15s"}} onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today?`)}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                            <div style={{fontSize:15,fontWeight:600,color:"var(--text)"}}>{away.abbr||away.name} @ {home.abbr||home.name}</div>
                             <div>{isLive
-                              ? <span className="mlb-live-badge">Live {g.inning||""}</span>
-                              : <span className="mlb-game-status">{isFinal?"FINAL":g.status}</span>
+                              ? <span style={{color:"var(--green)",fontFamily:"var(--mono-font)",fontSize:10}}>Live {g.inning||""}</span>
+                              : <span style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--muted)"}}>{isFinal?"FINAL":g.status}</span>
                             }</div>
                           </div>
                           {(isLive||isFinal) && away.score != null && (
-                            <div className="mlb-game-score">{away.score} - {home.score}</div>
+                            <div style={{fontFamily:"var(--mono-font)",fontSize:13,color:"var(--text)",marginBottom:4}}>{away.score} - {home.score}</div>
                           )}
                           {(away.pitcher||home.pitcher) && (
-                            <div className="mlb-pitcher">
+                            <div style={{fontSize:11,color:"var(--muted)"}}>
                               {away.pitcher&&<span>{away.abbr}: {away.pitcher}</span>}
                               {away.pitcher&&home.pitcher&&<span style={{margin:"0 6px"}}>·</span>}
                               {home.pitcher&&<span>{home.abbr}: {home.pitcher}</span>}
