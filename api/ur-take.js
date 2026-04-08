@@ -1,4 +1,4 @@
-export const config = {
+=export const config = {
 api: { bodyParser: { sizeLimit: "10mb" } },
 };
 
@@ -634,21 +634,27 @@ var now = new Date();
 var todayStr = now.toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 var phase = (ctx.seasonContext && ctx.seasonContext.phase) || "MLB Season Active";
 
-// Games
+// Games — handle both ESPN format (abbr only) and MLB Stats API format (pitcher data)
 var gamesStr = "No games on today's schedule.";
 var games = ctx.games || [];
 if (games.length > 0) {
   gamesStr = games.map(function(g) {
-    var away = g.awayTeam;
-    var home = g.homeTeam;
-    var awayStr = (away.abbr||away.name||"AWAY") + (away.pitcher ? " [SP: " + away.pitcher + "]" : "");
-    var homeStr = (home.abbr||home.name||"HOME") + (home.pitcher ? " [SP: " + home.pitcher + "]" : "");
-    if (g.state === "post") return awayStr + " " + away.score + " @ " + homeStr + " " + home.score + " — FINAL";
+    var away = g.awayTeam || {};
+    var home = g.homeTeam || {};
+    var awayId = away.abbr || away.name || away.tricode || "AWAY";
+    var homeId = home.abbr || home.name || home.tricode || "HOME";
+    var awayPitcher = away.pitcher ? " [SP: " + away.pitcher + "]" : "";
+    var homePitcher = home.pitcher ? " [SP: " + home.pitcher + "]" : "";
+    var awayStr = awayId + awayPitcher;
+    var homeStr = homeId + homePitcher;
+    var awayScore = away.score != null ? away.score : "";
+    var homeScore = home.score != null ? home.score : "";
+    if (g.state === "post") return awayStr + " " + awayScore + " @ " + homeStr + " " + homeScore + " — FINAL";
     if (g.state === "in") {
-      var inn = g.inning ? (g.inningHalf === "Bottom" ? "Bot" : "Top") + " " + g.inning : "Live";
-      return awayStr + " " + away.score + " @ " + homeStr + " " + home.score + " — " + inn;
+      var inn = g.inning ? " (" + (g.inningHalf === "Bottom" ? "Bot" : "Top") + " " + g.inning + ")" : " (Live)";
+      return awayStr + " " + awayScore + " @ " + homeStr + " " + homeScore + " —" + inn;
     }
-    return awayStr + " @ " + homeStr + " — " + g.status;
+    return awayStr + " @ " + homeStr + " — " + (g.status || "Scheduled");
   }).join("\n");
 }
 
@@ -700,6 +706,7 @@ prompt += "One sharp opening sentence. Then:\n";
 prompt += "THE PLAY: • [Player] — [PROP OVER/UNDER LINE] ([ODDS]) — [key reason]\n";
 prompt += "FADE: [one line]\nCONFIDENCE: [High/Medium/Speculative]\nTIMING: [one line]\n\n";
 
+prompt += "NO GAMES TODAY? Do NOT just say there are no games. Give the best MLB futures or early-week angle instead. Name a specific pitcher matchup coming up, a team total, or a player prop to target when lines post. Always end with an actionable lean.\n\n";
 prompt += "MLB BETTING PRINCIPLES:\n";
 prompt += "Starting pitcher strikeouts = primary MLB prop market. K/9 vs opposing K% is the edge.\n";
 prompt += "Game total is run environment proxy. Over 9 = both offenses cooking. Under 7 = pitchers dominate.\n";
