@@ -1,268 +1,315 @@
-// api/mlb.js
-// MLB data sources (all free):
-//   1. MLB Stats API (statsapi.mlb.com) — live scores, game schedule, no key needed
-//   2. Odds API — prop lines + game totals (already paid)
-// Park factors and pitcher context are embedded — updated manually each season
-
 import { applyCors } from "./_cors.js";
 
-const CACHE_TTL      = 5  * 60 * 1000;
-const CACHE_TTL_LONG = 30 * 60 * 1000;
-const cache          = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
+const cache = new Map();
 
 function getCached(key) {
   const e = cache.get(key);
   if (!e || Date.now() > e.expires) return null;
   return e.payload;
 }
-function setCached(key, payload, ttl) {
-  cache.set(key, { expires: Date.now() + (ttl || CACHE_TTL), payload });
+function setCached(key, payload, ttl = CACHE_TTL) {
+  cache.set(key, { expires: Date.now() + ttl, payload });
 }
 
-async function safeFetch(url, options) {
-  try {
-    const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 7000);
-    const res   = await fetch(url, Object.assign({ signal: ctrl.signal }, options || {}));
-    clearTimeout(timer);
-    if (!res.ok) { console.warn("safeFetch", res.status, url.slice(0, 80)); return null; }
-    return await res.json();
-  } catch (e) {
-    console.warn("safeFetch failed:", url.slice(0, 60), e.message);
-    return null;
-  }
+// ── Park factors (2024 run environment index, 100 = neutral) ─────────────────
+const PARK_FACTORS = {
+  COL: { name:"Coors Field",                 pf:120, run_env:"HIGH",   note:"Extreme altitude — always back OVERs and batter props" },
+  CIN: { name:"Great American Ball Park",    pf:108, run_env:"HIGH",   note:"Hitter-friendly — above-average run environment" },
+  TEX: { name:"Globe Life Field",            pf:107, run_env:"HIGH",   note:"Texas heat in summer boosts run environment" },
+  BOS: { name:"Fenway Park",                 pf:105, run_env:"HIGH",   note:"Green Monster inflates doubles/hits props" },
+  CHC: { name:"Wrigley Field",               pf:100, run_env:"NEUTRAL",note:"Wind-dependent — check direction day-of" },
+  NYY: { name:"Yankee Stadium",              pf:101, run_env:"NEUTRAL",note:"Short porch in right — favors lefty power" },
+  LAD: { name:"Dodger Stadium",              pf:99,  run_env:"NEUTRAL",note:"Pitcher-friendly in summer, neutral overall" },
+  ATL: { name:"Truist Park",                 pf:102, run_env:"NEUTRAL",note:"Slightly above average, especially day games" },
+  PHI: { name:"Citizens Bank Park",          pf:104, run_env:"HIGH",   note:"One of the best hitter parks in NL" },
+  HOU: { name:"Minute Maid Park",            pf:100, run_env:"NEUTRAL",note:"Roof variable — night games lean neutral" },
+  MIL: { name:"American Family Field",       pf:101, run_env:"NEUTRAL",note:"Dome-adjacent — neutral most nights" },
+  MIN: { name:"Target Field",                pf:100, run_env:"NEUTRAL",note:"Cold early season suppresses offense" },
+  TOR: { name:"Rogers Centre",               pf:103, run_env:"NEUTRAL",note:"Indoor turf — consistent run environment" },
+  TB:  { name:"Tropicana Field",             pf:97,  run_env:"LOW",    note:"Dome with deep dimensions — pitcher-friendly" },
+  PIT: { name:"PNC Park",                    pf:97,  run_env:"LOW",    note:"Deep to right-center suppresses power" },
+  MIA: { name:"loanDepot park",              pf:96,  run_env:"LOW",    note:"Spacious and humid — pitchers thrive" },
+  NYM: { name:"Citi Field",                  pf:96,  run_env:"LOW",    note:"Pitcher-friendly, especially to right field" },
+  CLE: { name:"Progressive Field",           pf:96,  run_env:"LOW",    note:"Large outfield gaps suppress extra-base hits" },
+  KC:  { name:"Kauffman Stadium",            pf:96,  run_env:"LOW",    note:"Large park, good for pitchers" },
+  DET: { name:"Comerica Park",               pf:95,  run_env:"LOW",    note:"Deep center field — one of best pitcher parks" },
+  OAK: { name:"Oakland Coliseum",            pf:94,  run_env:"LOW",    note:"Marine layer + massive foul territory" },
+  SEA: { name:"T-Mobile Park",               pf:91,  run_env:"LOW",    note:"Marine layer + deep dimensions = elite pitcher park" },
+  SF:  { name:"Oracle Park",                 pf:92,  run_env:"LOW",    note:"Marine layer suppresses fly balls significantly" },
+  SD:  { name:"Petco Park",                  pf:93,  run_env:"LOW",    note:"Deep dimensions, marine layer — fade OVERs here" },
+  LAA: { name:"Angel Stadium",               pf:98,  run_env:"NEUTRAL",note:"Generally neutral" },
+  ARI: { name:"Chase Field",                 pf:103, run_env:"HIGH",   note:"Roof open = outdoor heat; closed = neutral" },
+  STL: { name:"Busch Stadium",               pf:98,  run_env:"NEUTRAL",note:"Generally neutral, slight pitcher lean" },
+  BAL: { name:"Camden Yards",                pf:104, run_env:"HIGH",   note:"Short right field — lefty power plays up" },
+  CHW: { name:"Guaranteed Rate Field",       pf:103, run_env:"NEUTRAL",note:"Decent hitter park, especially mid-summer" },
+  WAS: { name:"Nationals Park",              pf:99,  run_env:"NEUTRAL",note:"Generally neutral, windy at times" },
+};
+
+// ── Team abbr → home park mapping ────────────────────────────────────────────
+const TEAM_PARK = {
+  "Colorado Rockies":"COL","Cincinnati Reds":"CIN","Texas Rangers":"TEX",
+  "Boston Red Sox":"BOS","Chicago Cubs":"CHC","New York Yankees":"NYY",
+  "Los Angeles Dodgers":"LAD","Atlanta Braves":"ATL","Philadelphia Phillies":"PHI",
+  "Houston Astros":"HOU","Milwaukee Brewers":"MIL","Minnesota Twins":"MIN",
+  "Toronto Blue Jays":"TOR","Tampa Bay Rays":"TB","Pittsburgh Pirates":"PIT",
+  "Miami Marlins":"MIA","New York Mets":"NYM","Cleveland Guardians":"CLE",
+  "Kansas City Royals":"KC","Detroit Tigers":"DET","Oakland Athletics":"OAK",
+  "Seattle Mariners":"SEA","San Francisco Giants":"SF","San Diego Padres":"SD",
+  "Los Angeles Angels":"LAA","Arizona Diamondbacks":"ARI","St. Louis Cardinals":"STL",
+  "Baltimore Orioles":"BAL","Chicago White Sox":"CHW","Washington Nationals":"WAS",
+};
+
+function getParkForGame(homeTeamName) {
+  const abbr = TEAM_PARK[homeTeamName] || (homeTeamName||"").split(" ").pop().slice(0,3).toUpperCase();
+  return PARK_FACTORS[abbr] || { pf:100, run_env:"NEUTRAL", note:"Park data unavailable" };
 }
 
-// ── MLB season context ────────────────────────────────────────────────────────
+function getTeamAbbr(fullName) {
+  return TEAM_PARK[fullName]
+    ? Object.keys(PARK_FACTORS).find(k => TEAM_PARK[fullName] === k) || fullName.split(" ").pop().slice(0,3).toUpperCase()
+    : (fullName||"").split(" ").pop().slice(0,3).toUpperCase();
+}
+
 function getMlbSeasonContext() {
-  const now   = new Date();
+  const now = new Date();
   const month = now.getMonth() + 1;
-  const day   = now.getDate();
-  if (month === 3 && day >= 20) return { phase: "Opening Month", season: 2026 };
-  if (month === 4 || month === 5) return { phase: "Early Season", season: 2026 };
-  if (month === 6 || month === 7) return { phase: "Mid-Season", season: 2026 };
-  if (month === 8) return { phase: "Stretch Run", season: 2026 };
-  if (month === 9) return { phase: "September — Pennant Race", season: 2026 };
-  if (month === 10 && day <= 10) return { phase: "Wild Card + Division Series", season: 2026 };
-  if (month === 10) return { phase: "Championship Series", season: 2026 };
-  if (month === 11 && day <= 7) return { phase: "World Series", season: 2026 };
-  return { phase: "MLB Offseason", season: 2026 };
+  const day = now.getDate();
+  if (month === 3 || (month === 4 && day < 15)) return { phase:"Opening Month — small sample, fade extreme lines", season:2025 };
+  if (month >= 4 && month <= 6) return { phase:"Spring stretch — form establishing, trust K/9 baselines", season:2025 };
+  if (month >= 7 && month <= 8) return { phase:"Midsummer — pitchers tire, bullpen reliance up", season:2025 };
+  if (month === 9 || (month === 10 && day < 5)) return { phase:"Pennant race — manage stakes carefully", season:2025 };
+  if (month >= 10) return { phase:"Playoffs — elite pitching, fade OVERs vs aces", season:2025 };
+  return { phase:"Offseason", season:2025 };
 }
 
-// ── Today's games — ESPN primary, MLB Stats API fallback ─────────────────────
-async function getTodaysGames() {
-  const cached = getCached("mlb_games");
-  if (cached) return cached;
-
-  // ── Source 1: ESPN (same approach as NBA — reliable) ──────────────────────
-  try {
-    const espnData = await safeFetch(
-      "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard"
-    );
-    if (espnData?.events?.length > 0) {
-      const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-      const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
-
-      const games = espnData.events
-        .filter(e => {
-          const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
-          const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
-          return gStr === todayStr;
-        })
-        .map(e => {
-          const comp   = e.competitions?.[0];
-          const home   = comp?.competitors?.find(c => c.homeAway === "home");
-          const away   = comp?.competitors?.find(c => c.homeAway === "away");
-          const status = e.status?.type;
-          const isLive = status?.state === "in";
-          const isFinal = status?.state === "post";
-          const gameTime = e.date
-            ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
-            : "TBD";
-          // Extract probable pitchers from notes if available
-          const notes = comp?.notes || [];
-          const awayPitcher = notes.find(n => n.type === "away_starter")?.headline || null;
-          const homePitcher = notes.find(n => n.type === "home_starter")?.headline || null;
-          return {
-            id:       e.id,
-            status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
-            state:    isFinal ? "post" : isLive ? "in" : "pre",
-            inning:   isLive ? status?.period : null,
-            inningHalf: null,
-            homeTeam: {
-              name:    home?.team?.displayName,
-              abbr:    home?.team?.abbreviation,
-              score:   isFinal||isLive ? parseInt(home?.score||"0") : null,
-              pitcher: homePitcher,
-              record:  home?.records?.[0]?.summary || null,
-            },
-            awayTeam: {
-              name:    away?.team?.displayName,
-              abbr:    away?.team?.abbreviation,
-              score:   isFinal||isLive ? parseInt(away?.score||"0") : null,
-              pitcher: awayPitcher,
-              record:  away?.records?.[0]?.summary || null,
-            },
-            venue: comp?.venue?.fullName || null,
-          };
-        });
-
-      if (games.length > 0) {
-        console.log("MLB ESPN games:", games.length);
-        setCached("mlb_games", games);
-        return games;
-      }
-    }
-  } catch (err) {
-    console.warn("MLB ESPN fetch failed:", err.message);
-  }
-
-  // ── Source 2: MLB Stats API fallback ──────────────────────────────────────
-  const now     = new Date();
-  const etNow   = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const dateStr = `${etNow.getFullYear()}-${String(etNow.getMonth()+1).padStart(2,"0")}-${String(etNow.getDate()).padStart(2,"0")}`;
-
-  const data = await safeFetch(
-    `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=team,linescore,probablePitcher`
-  );
-
-  if (!data || !data.dates || !data.dates.length) return [];
-
-  const games = (data.dates[0]?.games || []).map(g => {
-    const home = g.teams?.home;
-    const away = g.teams?.away;
-    const status = g.status?.detailedState || "Scheduled";
-    const isLive = status.includes("In Progress") || status.includes("Warmup");
-    const isFinal = status.includes("Final") || status.includes("Game Over");
-    const gameTime = g.gameDate
-      ? new Date(g.gameDate).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
-      : "TBD";
-    return {
-      id:         g.gamePk,
-      status:     isFinal ? "Final" : isLive ? status : gameTime,
-      state:      isFinal ? "post" : isLive ? "in" : "pre",
-      inning:     g.linescore?.currentInning || null,
-      inningHalf: g.linescore?.inningHalf || null,
-      homeTeam: {
-        name:    home?.team?.name,
-        abbr:    home?.team?.abbreviation,
-        score:   home?.score ?? null,
-        pitcher: home?.probablePitcher?.fullName || null,
-        record:  home?.leagueRecord ? `${home.leagueRecord.wins}-${home.leagueRecord.losses}` : null,
-      },
-      awayTeam: {
-        name:    away?.team?.name,
-        abbr:    away?.team?.abbreviation,
-        score:   away?.score ?? null,
-        pitcher: away?.probablePitcher?.fullName || null,
-        record:  away?.leagueRecord ? `${away.leagueRecord.wins}-${away.leagueRecord.losses}` : null,
-      },
-      venue: g.venue?.name || null,
-    };
-  });
-
-  if (games.length > 0) setCached("mlb_games", games);
-  return games;
+function toEtDateString(isoString) {
+  const local = new Date(new Date(isoString).toLocaleString("en-US", { timeZone:"America/New_York" }));
+  return local.toISOString().split("T")[0];
+}
+function getTodayEtDateString() {
+  const etNow = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
+  return etNow.toISOString().split("T")[0];
+}
+function getTomorrowEtDateString() {
+  const etNow = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
+  etNow.setDate(etNow.getDate() + 1);
+  return etNow.toISOString().split("T")[0];
 }
 
-// ── Prop lines (Odds API) ─────────────────────────────────────────────────────
-async function getMlbPropLines(oddsKey) {
-  const cached = getCached("mlb_props");
+// ── Fetch games with probable pitchers from ESPN ──────────────────────────────
+async function getMlbGamesWithPitchers() {
+  const cacheKey = "mlb_games";
+  const cached = getCached(cacheKey);
   if (cached) return cached;
-  if (!oddsKey) return [];
 
   try {
-    const events = await safeFetch(
-      `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`
-    );
-    if (!Array.isArray(events) || !events.length) return [];
+    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard", { cache:"no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const events = data?.events || [];
 
-    const propMarkets = "batter_home_runs,batter_hits,batter_total_bases,batter_rbis,batter_strikeouts,pitcher_strikeouts,pitcher_hits_allowed";
-    const propLines   = [];
+    const nowET = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
+    const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
 
-    const results = await Promise.all(
-      events.slice(0, 6).map(event =>
-        safeFetch(
-          `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`
-        ).then(d => ({ event, data: d }))
-      )
-    );
+    const games = events
+      .filter(e => {
+        const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone:"America/New_York" }));
+        const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
+        return gStr === todayStr;
+      })
+      .map(e => {
+        const comp   = e.competitions?.[0];
+        const home   = comp?.competitors?.find(c => c.homeAway === "home");
+        const away   = comp?.competitors?.find(c => c.homeAway === "away");
+        const status = e.status?.type;
+        const isLive  = status?.state === "in";
+        const isFinal = status?.state === "post";
+        const gameTime = e.date
+          ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
+          : "TBD";
 
-    for (const { event, data } of results) {
-      if (!data) continue;
-      const book = (data.bookmakers || []).find(b =>
-        ["draftkings","fanduel","betmgm"].includes(b.key)
-      ) || (data.bookmakers || [])[0];
-      if (!book) continue;
+        // Extract probable pitchers from probables array
+        const probables = comp?.probables || [];
+        const homePitcher = probables.find(p => p.homeAway === "home")?.athlete?.shortName || null;
+        const awayPitcher = probables.find(p => p.homeAway === "away")?.athlete?.shortName || null;
 
-      for (const market of book.markets || []) {
-        for (const outcome of market.outcomes || []) {
-          if (outcome.point == null) continue;
-          propLines.push({
-            game:   event.away_team + " @ " + event.home_team,
-            player: outcome.description || outcome.name,
-            prop:   market.key.replace("batter_","").replace("pitcher_","P: ").replace(/_/g," "),
-            line:   outcome.point,
-            side:   outcome.name,
-            odds:   outcome.price,
-            book:   book.key,
-          });
-        }
-      }
-    }
+        // Park factor for home team
+        const homeTeamFull = home?.team?.displayName || home?.team?.name || "";
+        const parkInfo = getParkForGame(homeTeamFull);
 
-    if (propLines.length > 0) setCached("mlb_props", propLines);
-    return propLines;
+        return {
+          id:       e.id,
+          status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
+          state:    isFinal ? "post" : isLive ? "in" : "pre",
+          inning:   isLive ? e.status?.period : null,
+          homeTeam: {
+            name: homeTeamFull,
+            abbr: getTeamAbbr(homeTeamFull),
+            score: (isFinal || isLive) ? parseInt(home?.score || "0") : null,
+            pitcher: homePitcher,
+          },
+          awayTeam: {
+            name: away?.team?.displayName || away?.team?.name || "",
+            abbr: getTeamAbbr(away?.team?.displayName || away?.team?.name || ""),
+            score: (isFinal || isLive) ? parseInt(away?.score || "0") : null,
+            pitcher: awayPitcher,
+          },
+          park: parkInfo,
+          venue: comp?.venue?.fullName || "",
+        };
+      });
+
+    if (games.length > 0) setCached(cacheKey, games, 3 * 60 * 1000); // 3min cache for live games
+    return games;
   } catch (err) {
-    console.error("MLB props error:", err.message);
+    console.warn("MLB ESPN games error:", err.message);
     return [];
   }
 }
 
-// ── Game totals (Odds API) ────────────────────────────────────────────────────
-async function getMlbTotals(oddsKey) {
-  const cached = getCached("mlb_totals");
+// ── Fetch prop lines from Odds API (two-step like NBA) ────────────────────────
+async function getMlbPropLines(oddsKey) {
+  if (!oddsKey) return [];
+  const cacheKey = "mlb_props";
+  const cached = getCached(cacheKey);
   if (cached) return cached;
+
+  try {
+    const todayET    = getTodayEtDateString();
+    const tomorrowET = getTomorrowEtDateString();
+
+    // Step 1: Get event list
+    const eventsRes = await fetch(
+      `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`
+    );
+    if (!eventsRes.ok) {
+      console.warn("MLB odds events status:", eventsRes.status);
+      return [];
+    }
+    const events = await eventsRes.json();
+    if (!Array.isArray(events) || !events.length) return [];
+
+    // Filter to today/tomorrow
+    const targetEvents = events
+      .filter(e => { const d = toEtDateString(e.commence_time); return d === todayET || d === tomorrowET; })
+      .slice(0, 8); // Max 8 games to save API credits
+
+    // Step 2: Fetch player props per event
+    // MLB prop markets — pitcher strikeouts is the money market
+    const propMarkets = [
+      "pitcher_strikeouts",
+      "batter_hits",
+      "batter_home_runs",
+      "batter_total_bases",
+      "batter_rbis",
+    ].join(",");
+
+    const propLines = [];
+
+    for (const event of targetEvents) {
+      try {
+        const propRes = await fetch(
+          `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`
+        );
+        if (!propRes.ok) continue;
+        const propData = await propRes.json();
+        const bookmakers = propData.bookmakers || [];
+
+        // Prefer DraftKings → FanDuel → BetMGM → first available
+        const preferred = bookmakers.find(b => b.key === "draftkings")
+          || bookmakers.find(b => b.key === "fanduel")
+          || bookmakers.find(b => b.key === "betmgm")
+          || bookmakers[0];
+        if (!preferred) continue;
+
+        for (const market of preferred.markets || []) {
+          for (const outcome of market.outcomes || []) {
+            propLines.push({
+              game:    `${event.away_team} @ ${event.home_team}`,
+              player:  outcome.description || outcome.name,
+              prop:    market.key.replace("pitcher_","").replace("batter_","").replace(/_/g," "),
+              propRaw: market.key,
+              line:    outcome.point,
+              side:    outcome.name,   // "Over" | "Under"
+              odds:    outcome.price,
+              book:    preferred.key,
+              eventId: event.id,
+              gameTime: new Date(event.commence_time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZone:"America/New_York"}) + " ET",
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("MLB prop fetch error for event:", event.id, e.message);
+        continue;
+      }
+    }
+
+    console.log(`MLB props fetched: ${propLines.length} lines`);
+    if (propLines.length > 0) setCached(cacheKey, propLines);
+    return propLines;
+  } catch (err) {
+    console.error("getMlbPropLines error:", err.message);
+    return [];
+  }
+}
+
+// ── Fetch game totals from Odds API ───────────────────────────────────────────
+async function getMlbGameTotals(oddsKey) {
   if (!oddsKey) return {};
+  const cacheKey = "mlb_totals";
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
 
-  const data = await safeFetch(
-    `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`
-  );
-  if (!Array.isArray(data)) return {};
+  try {
+    const todayET = getTodayEtDateString();
+    const res = await fetch(
+      `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    if (!Array.isArray(data)) return {};
 
-  const totals = {};
-  for (const event of data) {
-    const book = (event.bookmakers || []).find(b =>
-      ["draftkings","fanduel","betmgm"].includes(b.key)
-    ) || (event.bookmakers || [])[0];
-    if (!book) continue;
-    const tm = (book.markets || []).find(m => m.key === "totals");
-    if (!tm) continue;
-    const over = (tm.outcomes || []).find(o => o.name === "Over");
-    if (over?.point) {
-      const key = event.away_team + " @ " + event.home_team;
-      totals[key] = {
+    const totals = {};
+    for (const event of data.filter(e => toEtDateString(e.commence_time) === todayET)) {
+      const gameKey = `${event.away_team} @ ${event.home_team}`;
+      const book = event.bookmakers?.[0];
+      if (!book) continue;
+      const market = book.markets?.find(m => m.key === "totals");
+      if (!market) continue;
+      const over = market.outcomes?.find(o => o.name === "Over");
+      if (!over) continue;
+
+      // Determine run environment from park factor
+      const homePark = getParkForGame(event.home_team);
+      totals[gameKey] = {
         total: over.point,
-        run_env: over.point >= 9 ? "HIGH" : over.point <= 7 ? "LOW" : "NORMAL",
+        run_env: homePark.run_env,
+        park: homePark.name,
+        parkNote: homePark.note,
+        parkFactor: homePark.pf,
       };
     }
-  }
 
-  setCached("mlb_totals", totals, CACHE_TTL_LONG);
-  return totals;
+    setCached(cacheKey, totals);
+    return totals;
+  } catch (err) {
+    console.warn("getMlbGameTotals error:", err.message);
+    return {};
+  }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET") return res.status(405).json({ error:"Method not allowed" });
 
   const ODDS_KEY = process.env.ODDS_API_KEY;
-  const view     = String(req.query.view || "board").toLowerCase();
+  const view = String(req.query.view || "board").toLowerCase();
 
   try {
     if (view === "games") {
-      return res.status(200).json(await getTodaysGames());
+      return res.status(200).json(await getMlbGamesWithPitchers());
     }
 
     if (view === "board") {
@@ -270,34 +317,36 @@ export default async function handler(req, res) {
       if (boardCached) return res.status(200).json(boardCached);
 
       const [games, propLines, gameTotals] = await Promise.all([
-        getTodaysGames(),
+        getMlbGamesWithPitchers(),
         getMlbPropLines(ODDS_KEY),
-        getMlbTotals(ODDS_KEY),
+        getMlbGameTotals(ODDS_KEY),
       ]);
+
+      // Enrich games with park factor data
+      const gamesWithPark = games.map(g => ({
+        ...g,
+        park: g.park || getParkForGame(g.homeTeam?.name || ""),
+      }));
 
       const board = {
         seasonContext: getMlbSeasonContext(),
-        games,
+        games: gamesWithPark,
         propLines: propLines.slice(0, 100),
         gameTotals,
+        parkFactors: PARK_FACTORS,
         fetchedAt: new Date().toISOString(),
       };
 
-      if (games.length > 0) setCached("mlb_board", board);
-      res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=300");
+      if (games.length > 0 || propLines.length > 0) {
+        setCached("mlb_board", board, 4 * 60 * 1000);
+      }
+
       return res.status(200).json(board);
     }
 
-    return res.status(400).json({ error: "Invalid view" });
-
+    return res.status(400).json({ error:"Invalid view", allowed:["board","games"] });
   } catch (err) {
     console.error("MLB API error:", err);
-    return res.status(200).json({
-      seasonContext: getMlbSeasonContext(),
-      games: [],
-      propLines: [],
-      gameTotals: {},
-      error: err.message,
-    });
+    return res.status(500).json({ error:"Failed to fetch MLB data", details:err.message });
   }
 }
