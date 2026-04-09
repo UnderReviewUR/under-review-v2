@@ -29,7 +29,7 @@ const NFL_QBS = {
 
 function detectSport(question, sportHint, matchupContext) {
   const q = String(question || "").toLowerCase();
-  if (["nfl","tennis","f1","nba","mlb"].includes(sportHint)) return sportHint;
+  if (["nfl","tennis","f1","nba","mlb","golf"].includes(sportHint)) return sportHint;
 
   const mcLeague = String((matchupContext && matchupContext.league) || "").toLowerCase();
   if (mcLeague.includes("nfl")) return "nfl";
@@ -48,6 +48,10 @@ function detectSport(question, sportHint, matchupContext) {
 
   const explicitNba = ["nba","basketball","lakers","celtics","warriors","nuggets","bucks","heat","thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks","grizzlies","pelicans","jazz","kings","trail blazers","blazers","rockets","spurs","raptors","magic","pacers","hawks","hornets","pistons","timberwolves","jokic","gilgeous-alexander","shai","doncic","tatum","giannis","wembanyama","brunson","steph curry","stephen curry","kevin durant","devin booker","ja morant","anthony edwards","karl-anthony","tyrese haliburton","donovan mitchell","bam adebayo","lebron","lamelo","damian lillard","trae young","kyrie","anthony davis","rudy gobert","jaren jackson","desmond bane","lauri markkanen","cade cunningham","paolo banchero","scottie barnes","franz wagner","alperen sengun","jaylen brown","mikal bridges","og anunoby","josh hart","evan mobley","jamal murray","anfernee simons","zach lavine","jordan poole","draymond","3 pointer","3-pointer","three pointer","3pm","threes made","pra","pra over","pra under","points prop","rebounds prop","assists prop","nba prop","nba props","player prop","prop bet","prop line","prop pick","game total","points over","points under","rebounds over","assists over","double double","triple double","usage rate","usage spike","minutes prop","steal prop","block prop","fantasy basketball","nba future","nba bet","nba pick","nba parlay","nba playoff","nba finals","nba champion","nba mvp","box score","field goal","free throw","three point","paint points","fast break","half court","second half","first half nba"];
   for (let i = 0; i < explicitNba.length; i++) if (q.includes(explicitNba[i])) return "nba";
+
+
+  const explicitGolf = ["pga","pga tour","golf","golfer","birdie","bogey","eagle","par 3","par 4","par 5","fairway","green in regulation","driving distance","strokes gained","sg total","sg putting","sg approach","caddy","major championship","the masters","us open golf","the open championship","ryder cup","lpga","augusta","pebble beach","tpc sawgrass","pinehurst","torrey pines","muirfield","riviera country club","memorial tournament","genesis invitational","players championship","make cut","miss cut","top 10 finish","top 20 finish","frl golf","first round leader","scheffler","rory mcilroy","xander schauffele","collin morikawa","viktor hovland","patrick cantlay","wyndham clark","tony finau","sam burns","sungjae im","tommy fleetwood","cameron smith","tyrrell hatton","shane lowry","hideki matsuyama","justin thomas","jordan spieth","rickie fowler","keegan bradley","adam scott","cameron young","tom kim","ludvig aberg","robert macintyre","sahith theegala","nick taylor","matt fitzpatrick","dustin johnson","brooks koepka","bryson dechambeau","phil mickelson","akshay bhatia","sepp straka","brian harman","justin rose"];
+  for (let i = 0; i < explicitGolf.length; i++) if (q.includes(explicitGolf[i])) return "golf";
 
   const explicitMlb = ["mlb","baseball","world series","home run","strikeout","batting average","era ","whip ","starting pitcher","bullpen","slugging","ops ","woba","fip ","park factor","stolen base","no-hitter","spring training","american league","national league","dodgers","yankees","red sox","cubs","mets","braves","astros","padres","phillies","giants","cardinals","brewers","mariners","rangers","twins","guardians","orioles","blue jays","rays","white sox","tigers","royals","athletics","angels","rockies","diamondbacks","reds","pirates","marlins","nationals","statcast","exit velocity","launch angle","spin rate","barrel","hard hit","ohtani","trout","judge","acuna","trea turner","francisco lindor","mookie betts","freddie freeman","pete alonso","corbin carroll","gunnar henderson","corey seager","bryce harper","jose ramirez","julio rodriguez","shohei"];
   for (let i = 0; i < explicitMlb.length; i++) if (q.includes(explicitMlb[i])) return "mlb";
@@ -467,7 +471,7 @@ export default async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error:"Missing ANTHROPIC_API_KEY" });
 
-  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, nbaContext, mlbContext, sportHint, f1Context:clientF1Context } = req.body;
+  const { question, players, context, liveMatches, history, matchupContext, image, nflContext, nbaContext, mlbContext, golfContext, sportHint, f1Context:clientF1Context } = req.body;
   if (!question) return res.status(400).json({ error:"Missing question" });
 
   const sport  = detectSport(question, sportHint, matchupContext);
@@ -475,6 +479,7 @@ export default async function handler(req, res) {
   const isF1   = sport === "f1";
   const isNBA  = sport === "nba";
   const isMLB  = sport === "mlb";
+  const isGolf  = sport === "golf";
 
   function buildOddsContext(odds) {
     if (!odds || (!odds.matches?.length && !odds.props?.length)) return null;
@@ -503,7 +508,10 @@ export default async function handler(req, res) {
 
   let systemPrompt;
 
-  if (isF1) {
+  if (isGolf) {
+    systemPrompt = buildGolfSystemPrompt(golfContext, matchupCtxStr);
+
+  } else if (isF1) {
     systemPrompt = buildF1SystemPrompt(fetchF1LiveData(), matchupCtxStr);
 
   } else if (isMLB) {
