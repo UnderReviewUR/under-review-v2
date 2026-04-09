@@ -869,7 +869,7 @@ export default function App() {
   // ── MLB games — browser-side ESPN fetch (bypasses server cache) ────────────
   useEffect(() => {
     let active = true;
-    async function loadmlbData.games() {
+    async function loadMlbGames() {
       try {
         const res = await fetch(
           "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
