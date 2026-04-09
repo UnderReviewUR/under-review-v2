@@ -843,7 +843,7 @@ export default function App() {
   }, []);
 
   // ── MLB data fetch ────────────────────────────────────────────────────────
-  const [mlbData.games, setmlbData.games] = useState([]);
+  const [mlbGames, setMlbGames] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -968,7 +968,7 @@ export default function App() {
   }, [nbaData, nbaGames]);
 
   const buildMlbContext = useCallback((questionText) => {
-    const allGames = mlbData.games.length > 0 ? mlbData.games : (mlbData?.games || []);
+    const src = mlbData?.games || [];
     // Trim each game to essentials only — avoid oversized payload
     const trimmedGames = allGames.map(g => ({
       id: g.id,
@@ -1295,7 +1295,7 @@ export default function App() {
               // Priority: live games first, then next upcoming. Max 5 cards + See All.
               const nbaLive = nbaGames.filter(g=>g.state==="in");
               const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
-              const allMlb  = mlbData.games.length > 0 ? mlbData.games : (mlbData?.games||[]);
+              const allMlb  = mlbData?.games || [];
               const mlbLive = allMlb.filter(g=>g.state==="in");
               const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
               const cards   = [...nbaLive,...nbaNext,...mlbLive,...mlbNext].slice(0,5);
@@ -1666,7 +1666,7 @@ export default function App() {
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
-                {mlbLoading ? "Loading..." : mlbData.games.length > 0 ? `${mlbData.games.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
+                {mlbLoading ? "Loading..." : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
               </div>
             </div>
 
@@ -1691,7 +1691,7 @@ export default function App() {
                 {(mlbData.games.length > 0 || mlbData?.games?.length > 0) && (
                   <>
                     {(()=>{
-                      const src = mlbData.games.length > 0 ? mlbData.games : (mlbData?.games||[]);
+                      const src = mlbData?.games || [];
                       const liveCount = src.filter(g=>g.state==="in").length;
                       const finalCount = src.filter(g=>g.state==="post").length;
                       const preCount = src.filter(g=>g.state==="pre").length;
