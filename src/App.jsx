@@ -843,7 +843,7 @@ export default function App() {
   }, []);
 
   // ── MLB data fetch ────────────────────────────────────────────────────────
-  const [mlbGames, setMlbGames] = useState([]);
+  const [mlbData.games, setmlbData.games] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -869,7 +869,7 @@ export default function App() {
   // ── MLB games — browser-side ESPN fetch (bypasses server cache) ────────────
   useEffect(() => {
     let active = true;
-    async function loadMlbGames() {
+    async function loadmlbData.games() {
       try {
         const res = await fetch(
           "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
@@ -904,11 +904,11 @@ export default function App() {
               awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
             };
           });
-        if (active && games.length > 0) setMlbGames(games);
+        if (active && games.length > 0) setmlbData.games(games);
       } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
     }
-    loadMlbGames();
-    const poll = window.setInterval(loadMlbGames, 60000);
+    loadmlbData.games();
+    const poll = window.setInterval(loadmlbData.games, 60000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
@@ -968,7 +968,7 @@ export default function App() {
   }, [nbaData, nbaGames]);
 
   const buildMlbContext = useCallback((questionText) => {
-    const allGames = mlbGames.length > 0 ? mlbGames : (mlbData?.games || []);
+    const allGames = mlbData.games.length > 0 ? mlbData.games : (mlbData?.games || []);
     // Trim each game to essentials only — avoid oversized payload
     const trimmedGames = allGames.map(g => ({
       id: g.id,
@@ -986,7 +986,7 @@ export default function App() {
       gameTotals:    mlbData?.gameTotals   || {},
       question:      questionText || "",
     };
-  }, [mlbData, mlbGames]);
+  }, [mlbData, mlbData.games]);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -1018,7 +1018,19 @@ export default function App() {
     } catch {
       setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong — try again."}]);
     } finally { setIsAsking(false); }
-  }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext]);
+    }, [
+    clearImage,
+    context,
+    isAsking,
+    liveMatches,
+    pastedImage,
+    players,
+    buildF1Context,
+    buildNbaContext,
+    buildMlbContext,
+    canAsk,
+    recordQuery,
+  ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
   const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
@@ -1283,7 +1295,7 @@ export default function App() {
               // Priority: live games first, then next upcoming. Max 5 cards + See All.
               const nbaLive = nbaGames.filter(g=>g.state==="in");
               const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
-              const allMlb  = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
+              const allMlb  = mlbData.games.length > 0 ? mlbData.games : (mlbData?.games||[]);
               const mlbLive = allMlb.filter(g=>g.state==="in");
               const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
               const cards   = [...nbaLive,...nbaNext,...mlbLive,...mlbNext].slice(0,5);
@@ -1654,7 +1666,7 @@ export default function App() {
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
-                {mlbLoading ? "Loading..." : mlbGames.length > 0 ? `${mlbGames.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
+                {mlbLoading ? "Loading..." : mlbData.games.length > 0 ? `${mlbData.games.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
               </div>
             </div>
 
@@ -1672,21 +1684,21 @@ export default function App() {
 
             <ChatThread msgs={mlbMsgs}/>
 
-            {mlbLoading && mlbGames.length === 0 ? (
+            {mlbLoading && mlbData.games.length === 0 ? (
               <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
             ) : (
               <>
-                {(mlbGames.length > 0 || mlbData?.games?.length > 0) && (
+                {(mlbData.games.length > 0 || mlbData?.games?.length > 0) && (
                   <>
                     {(()=>{
-                      const src = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
+                      const src = mlbData.games.length > 0 ? mlbData.games : (mlbData?.games||[]);
                       const liveCount = src.filter(g=>g.state==="in").length;
                       const finalCount = src.filter(g=>g.state==="post").length;
                       const preCount = src.filter(g=>g.state==="pre").length;
                       return <div className="section-divider">{liveCount>0?`${liveCount} Live`:""}{liveCount>0&&(finalCount+preCount>0)?" · ":""}{finalCount>0?`${finalCount} Final`:""}{preCount>0&&(liveCount+finalCount>0)?" · ":""}{preCount>0?`${preCount} Upcoming`:""}</div>;
                     })()}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
-                    {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
+                    {(mlbData.games.length > 0 ? mlbData.games : (mlbData?.games || [])).map((g,i) => {
                       const away = g.awayTeam;
                       const home = g.homeTeam;
                       const isLive = g.state === "in";
