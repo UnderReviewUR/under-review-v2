@@ -1,7 +1,36 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import AskBar from "./components/AskBar";
-import { NBA_PLAYERS } from "./components/data/nba/players.js";
-import { PGA_PLAYERS, PGA_COURSES, GOLF_MARKETS } from "./components/data/golf/players.js";
+
+// ── Inlined AskBar component ──────────────────────────────────────────────────
+const AskBar = memo(function AskBar({
+  inputRef, fileInputRef, value, onChange, onSubmit,
+  placeholder, btnColor, pastedImage, clearImage, isAsking, processImageFile,
+}) {
+  const handleKeyDown = useCallback((e) => { if (e.key === "Enter") onSubmit(); }, [onSubmit]);
+  const handleFile = useCallback((e) => { if (e.target.files?.[0]) processImageFile(e.target.files[0]); }, [processImageFile]);
+  return (
+    <div className="ask-wrap">
+      <input ref={fileInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
+      <div className="ask-row">
+        <div className="ask-col">
+          {pastedImage && (
+            <div className="ask-img-preview">
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt=""/>
+              <button onClick={clearImage} type="button" className="ask-img-remove">✕ Remove</button>
+            </div>
+          )}
+          <input ref={inputRef} className="ask-bar" value={value}
+            onChange={(e) => onChange(e.target.value)} onKeyDown={handleKeyDown}
+            placeholder={pastedImage ? "Ask about this image..." : placeholder} disabled={isAsking}/>
+          {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>}
+        </div>
+        <button className={`attach-btn${pastedImage ? " has-img" : ""}`}
+          onClick={() => fileInputRef.current?.click()} type="button">📎</button>
+        <button className="send-btn" style={btnColor ? {background:btnColor} : undefined}
+          onClick={onSubmit} disabled={isAsking} type="button">➤</button>
+      </div>
+    </div>
+  );
+});
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -259,7 +288,7 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(8,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:13px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
@@ -327,61 +356,1452 @@ const css = `
   .nba-live-badge{color:var(--green);font-family:var(--mono-font);font-size:10px;}
 
   .page-spacer{height:20px;}
-`;
-const GOLF_CSS = `
-  /* Golf tab — white when active */
-  .nav-btn.golf-active { color: #FFFFFF; }
- 
-  /* Golf loading animation */
-  @keyframes ur-golf-bounce {
-    0%,100%{ transform:translateY(0); }
-    30%     { transform:translateY(-14px); }
-    50%     { transform:translateY(-6px); }
-    70%     { transform:translateY(-10px); }
-  }
-  .ur-golf-ball {
-    display:inline-block;
-    animation: ur-golf-bounce 0.85s ease-in-out infinite;
-    font-size: 20px;
-  }
- 
-  /* Golf screen styles */
-  .golf-banner {
-    border-radius:16px; padding:16px; margin-bottom:16px;
-    border:1px solid rgba(255,255,255,.15);
-    background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
-  }
-  .golf-ask-shell {
-    background:var(--surface); border:1px solid rgba(255,255,255,.15);
-    border-radius:14px; padding:14px; margin-bottom:16px;
-  }
-  .golf-ask-label {
-    font-family:var(--mono-font); font-size:10px; color:#FFFFFF;
-    letter-spacing:2px; margin-bottom:8px; text-transform:uppercase; opacity:.85;
-  }
-  .golf-leaderboard-card {
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:12px; padding:10px 14px; margin-bottom:6px;
-    display:flex; align-items:center; gap:12px; cursor:pointer; transition:all .15s;
-  }
-  .golf-leaderboard-card:hover { border-color:rgba(255,255,255,.3); }
-  .golf-pos { font-family:var(--display-font); font-size:22px; color:var(--muted); min-width:36px; text-align:right; line-height:1; }
-  .golf-player-info { flex:1; }
-  .golf-player-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:1px; }
-  .golf-player-country { font-family:var(--mono-font); font-size:9px; color:var(--muted); }
-  .golf-score { text-align:right; }
-  .golf-score-num { font-family:var(--mono-font); font-size:16px; color:#FFFFFF; display:block; }
-  .golf-score-label { font-family:var(--mono-font); font-size:9px; color:var(--muted); }
-  .golf-odds-card {
-    background:var(--surface); border:1px solid var(--border); border-radius:12px;
-    padding:10px 14px; margin-bottom:6px; display:flex; align-items:center;
-    justify-content:space-between; cursor:pointer; transition:all .15s;
-  }
-  .golf-odds-card:hover { border-color:rgba(255,255,255,.3); }
-  .golf-player-odds { font-family:var(--mono-font); font-size:14px; color:#FFFFFF; }
+  /* Golf tab */
+  .nav-btn.golf-active{color:#FFFFFF;}
+  .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
+  .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .golf-ask-label{font-family:var(--mono-font);font-size:10px;color:#FFFFFF;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;opacity:.85;}
+  .golf-leaderboard-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s;}
+  .golf-leaderboard-card:hover{border-color:rgba(255,255,255,.3);}
+  .golf-pos{font-family:var(--display-font);font-size:22px;color:var(--muted);min-width:36px;text-align:right;line-height:1;}
+  .golf-player-info{flex:1;}
+  .golf-player-name{font-size:14px;font-weight:700;color:var(--text);margin-bottom:1px;}
+  .golf-player-country{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
+  .golf-score{text-align:right;}
+  .golf-score-num{font-family:var(--mono-font);font-size:16px;color:#FFFFFF;display:block;}
+  .golf-score-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
+  .golf-odds-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .15s;}
+  .golf-odds-card:hover{border-color:rgba(255,255,255,.3);}
+  .golf-player-odds{font-family:var(--mono-font);font-size:14px;color:#FFFFFF;}
 `;
 
-// ── Player data ──────────────────────────────────────────────────────────────
+// ── NBA Player data ─────────────────────────────────────────────────────────
+const NBA_PLAYERS = {
+
+  "Nikola Jokic": {
+    team:"DEN", pos:"C", tier:"ELITE",
+    pts:29.6, reb:12.7, ast:10.2,
+    props:{
+      pts:{floor:22,ceil:45,lean:"OVER — triple-double machine, usage never dips"},
+      reb:{floor:10,ceil:18,lean:"OVER — elite rebounder, sets own floor"},
+      ast:{floor:7,ceil:15,lean:"OVER — best passing big in NBA history"},
+      pra:{floor:45,ceil:70,lean:"OVER on PRA totals — safest bet in the NBA"},
+    },
+    usage:"37.2%",
+    bettingAngles:[
+      "PRA over is the safest prop in basketball — consistent 50+ nights",
+      "Assists over in fast-paced games or vs weak defensive teams",
+      "Rebounds over when Murray or Porter are out — he does everything",
+      "Fade his pts line vs elite rim protection — PRA stays elite even then",
+    ],
+    note:"The most reliable prop player in the NBA. His floor is elite even on off nights.",
+  },
+
+  "Shai Gilgeous-Alexander": {
+    team:"OKC", pos:"G", tier:"ELITE",
+    pts:32.7, reb:5.1, ast:6.4,
+    props:{
+      pts:{floor:25,ceil:50,lean:"OVER — MVP-level scorer, gets to line at will"},
+      reb:{floor:4,ceil:8,lean:"LEAN OVER — underrated rebounder for a guard"},
+      ast:{floor:4,ceil:9,lean:"NEUTRAL — varies with pace and game script"},
+      pra:{floor:38,ceil:58,lean:"OVER"},
+    },
+    usage:"34.1%",
+    bettingAngles:[
+      "Points over is the primary play — he gets to the line 8-10 times per game",
+      "Free throw attempts prop: OVER almost every game",
+      "PRA safer than pts alone — his reb/ast pad the line reliably",
+    ],
+    note:"2024-25 MVP frontrunner. Most efficient high-volume scorer in the league.",
+  },
+
+  "Luka Doncic": {
+    team:"LAL", pos:"G", tier:"ELITE",
+    pts:28.1, reb:8.2, ast:8.0,
+    props:{
+      pts:{floor:20,ceil:45,lean:"OVER — elite creator, but inconsistent nights exist"},
+      reb:{floor:6,ceil:12,lean:"OVER — massive for a guard"},
+      ast:{floor:6,ceil:13,lean:"OVER in pace-up games"},
+      pra:{floor:38,ceil:60,lean:"OVER"},
+    },
+    usage:"36.8%",
+    bettingAngles:[
+      "PRA over is the safest play — even quiet scoring nights produce big all-around lines",
+      "Assists over when LeBron/AD are limiting his scoring load",
+      "Fade pts line vs elite perimeter defenders",
+    ],
+    note:"Trade to Lakers adds uncertainty. Monitor usage split with LeBron early season.",
+  },
+
+  "Jayson Tatum": {
+    team:"BOS", pos:"F", tier:"ELITE",
+    pts:26.9, reb:8.1, ast:4.9,
+    props:{
+      pts:{floor:20,ceil:42,lean:"OVER in playoff spots, NEUTRAL in blowouts"},
+      reb:{floor:6,ceil:12,lean:"OVER"},
+      ast:{floor:3,ceil:7,lean:"NEUTRAL"},
+      pra:{floor:35,ceil:55,lean:"OVER"},
+    },
+    usage:"32.1%",
+    bettingAngles:[
+      "Points floor is high — scores 20+ in 70%+ of games",
+      "Fade in big blowouts — Celtics rest starters early",
+      "Back in elimination/must-win spots — elite performer under pressure",
+    ],
+    note:"High floor, massive ceiling. PRA is more reliable than pts alone.",
+  },
+
+  "Giannis Antetokounmpo": {
+    team:"MIL", pos:"F", tier:"ELITE",
+    pts:30.4, reb:11.5, ast:6.5,
+    props:{
+      pts:{floor:24,ceil:50,lean:"OVER — unstoppable in paint"},
+      reb:{floor:9,ceil:16,lean:"OVER"},
+      ast:{floor:4,ceil:10,lean:"NEUTRAL"},
+      pra:{floor:44,ceil:65,lean:"OVER"},
+    },
+    usage:"35.7%",
+    bettingAngles:[
+      "PRA over is elite — 50+ PRA in over 40% of games",
+      "FT volume makes pts props viable even on off nights",
+      "Fade vs teams with multiple physical rim protectors",
+    ],
+    note:"All-time great. PRA is the safest market.",
+  },
+
+  "Anthony Edwards": {
+    team:"MIN", pos:"G", tier:"ELITE",
+    pts:27.8, reb:5.4, ast:5.1,
+    props:{
+      pts:{floor:20,ceil:44,lean:"OVER — explosive scorer, big ceiling"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:3,ceil:8,lean:"NEUTRAL"},
+      pra:{floor:32,ceil:52,lean:"OVER"},
+    },
+    usage:"33.4%",
+    bettingAngles:[
+      "Points over is the primary market — he goes off in big games",
+      "Back in rivalry/national TV games — elevates for big moments",
+      "Fade vs elite perimeter defenders",
+    ],
+    note:"Best athlete in the league. Ceiling plays more reliable than floor plays.",
+  },
+
+  "Victor Wembanyama": {
+    team:"SAS", pos:"C", tier:"ELITE",
+    pts:24.5, reb:10.6, ast:3.9,
+    props:{
+      pts:{floor:18,ceil:40,lean:"OVER — unique offensive skill set"},
+      reb:{floor:8,ceil:15,lean:"OVER"},
+      ast:{floor:2,ceil:6,lean:"NEUTRAL"},
+      blk:{floor:2,ceil:6,lean:"OVER — elite shot blocker"},
+    },
+    usage:"30.2%",
+    bettingAngles:[
+      "Blocks over is the unique angle — 3.5 per game pace, best in the league",
+      "PRA over in pace-up matchups",
+      "Points ceiling is massive — 40+ point games are real",
+    ],
+    note:"Generational talent. Blocks prop is the best differentiating angle.",
+  },
+
+  "Karl-Anthony Towns": {
+    team:"NYK", pos:"C", tier:"STAR",
+    pts:24.3, reb:13.7, ast:3.2,
+    props:{
+      pts:{floor:18,ceil:38,lean:"OVER"},
+      reb:{floor:11,ceil:18,lean:"OVER — elite rebounder"},
+      ast:{floor:2,ceil:5,lean:"NEUTRAL"},
+      pra:{floor:38,ceil:55,lean:"OVER"},
+    },
+    usage:"28.7%",
+    bettingAngles:[
+      "Rebounds over is the primary play",
+      "Back in MSG — home crowd lifts his performance",
+      "PRA and rebounds are the reliable markets",
+    ],
+    note:"Elite rebounder, stretch big. PRA and rebounds are the consistent markets.",
+  },
+
+  "Tyrese Haliburton": {
+    team:"IND", pos:"G", tier:"STAR",
+    pts:20.1, reb:3.9, ast:10.9,
+    props:{
+      pts:{floor:14,ceil:32,lean:"NEUTRAL — scoring varies with game script"},
+      reb:{floor:3,ceil:6,lean:"NEUTRAL"},
+      ast:{floor:8,ceil:16,lean:"OVER — elite passer, primary creator"},
+      pra:{floor:30,ceil:48,lean:"OVER"},
+    },
+    usage:"25.4%",
+    bettingAngles:[
+      "Assists over is the primary play — top-3 assist rate in the league",
+      "Back in fast-paced games — Pacers run and his assists spike",
+      "Injury history is the main risk — monitor reports",
+    ],
+    note:"Best pure point guard prop player for assists.",
+  },
+
+  "Donovan Mitchell": {
+    team:"CLE", pos:"G", tier:"STAR",
+    pts:26.1, reb:4.4, ast:5.4,
+    props:{
+      pts:{floor:19,ceil:42,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      ast:{floor:3,ceil:8,lean:"NEUTRAL"},
+      pra:{floor:30,ceil:50,lean:"OVER"},
+    },
+    usage:"30.8%",
+    bettingAngles:[
+      "Points over is the primary play — explosive scorer",
+      "Back in national TV/big market games",
+      "Fade vs elite perimeter defenders",
+    ],
+    note:"One of the most explosive scorers in the East.",
+  },
+
+  "Bam Adebayo": {
+    team:"MIA", pos:"C", tier:"STAR",
+    pts:19.2, reb:10.4, ast:4.4,
+    props:{
+      pts:{floor:14,ceil:28,lean:"NEUTRAL"},
+      reb:{floor:8,ceil:14,lean:"OVER"},
+      ast:{floor:3,ceil:7,lean:"OVER in pace-up games"},
+      pra:{floor:30,ceil:46,lean:"OVER"},
+    },
+    usage:"25.1%",
+    bettingAngles:[
+      "PRA over is the consistent play",
+      "Rebounds over in slow, physical games",
+      "Fade pts vs elite rim protectors",
+    ],
+    note:"Elite two-way player. PRA is the reliable market.",
+  },
+
+  "LeBron James": {
+    team:"LAL", pos:"F", tier:"STAR",
+    pts:23.7, reb:8.0, ast:8.2,
+    props:{
+      pts:{floor:18,ceil:38,lean:"NEUTRAL — age-related variance increasing"},
+      reb:{floor:6,ceil:11,lean:"OVER"},
+      ast:{floor:6,ceil:12,lean:"OVER"},
+      pra:{floor:36,ceil:55,lean:"OVER"},
+    },
+    usage:"29.4%",
+    bettingAngles:[
+      "PRA over is the safest play — contributes across all categories even at 40",
+      "Fade pts on back-to-backs — rest management is real",
+      "Doncic trade changes dynamics — monitor usage split",
+    ],
+    note:"Age-related variance is real. PRA safer than pts alone.",
+  },
+
+  "Stephen Curry": {
+    team:"GSW", pos:"G", tier:"STAR",
+    pts:26.4, reb:4.5, ast:6.1,
+    props:{
+      pts:{floor:18,ceil:50,lean:"OVER — massive ceiling on hot nights"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      ast:{floor:4,ceil:9,lean:"NEUTRAL"},
+      threes:{floor:2,ceil:10,lean:"OVER — best shooter in NBA history"},
+    },
+    usage:"30.5%",
+    bettingAngles:[
+      "3-pointers made over is the signature play — 5+ three nights are routine",
+      "Points ceiling is massive — 50+ point games are still real",
+      "Back in Chase Center — home crowd lifts his shooting",
+    ],
+    note:"3-pointers made prop is the unique differentiating market.",
+  },
+
+  "Kevin Durant": {
+    team:"PHX", pos:"F", tier:"STAR",
+    pts:27.1, reb:6.8, ast:4.2,
+    props:{
+      pts:{floor:22,ceil:45,lean:"OVER — elite scorer, most efficient in the league"},
+      reb:{floor:5,ceil:10,lean:"NEUTRAL"},
+      ast:{floor:2,ceil:6,lean:"NEUTRAL"},
+      pra:{floor:33,ceil:55,lean:"OVER"},
+    },
+    usage:"31.8%",
+    bettingAngles:[
+      "Points over is the primary play — elite efficiency means consistent scoring",
+      "Back when Booker is out — usage spikes significantly",
+      "Fade in blowout losses — DNP risk in garbage time",
+    ],
+    note:"Most efficient scorer in the league. Points props are the most reliable market.",
+  },
+
+  "Devin Booker": {
+    team:"PHX", pos:"G", tier:"STAR",
+    pts:25.4, reb:4.3, ast:6.8,
+    props:{
+      pts:{floor:18,ceil:40,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      ast:{floor:5,ceil:10,lean:"OVER"},
+      pra:{floor:32,ceil:50,lean:"OVER"},
+    },
+    usage:"30.1%",
+    bettingAngles:[
+      "Points over is primary — elite scorer, gets to the line well",
+      "Assists over when Durant is on a minutes restriction",
+      "Back in nationally televised games",
+    ],
+    note:"Elite scorer. PRA and points are the consistent markets.",
+  },
+
+  "Ja Morant": {
+    team:"MEM", pos:"G", tier:"STAR",
+    pts:24.7, reb:5.1, ast:8.1,
+    props:{
+      pts:{floor:18,ceil:42,lean:"OVER when healthy"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:6,ceil:12,lean:"OVER"},
+      pra:{floor:33,ceil:52,lean:"OVER"},
+    },
+    usage:"30.9%",
+    bettingAngles:[
+      "Health is the primary risk — monitor injury reports closely",
+      "Points over when fully healthy — explosive scorer",
+      "Fade on back-to-backs or after any injury concern",
+    ],
+    note:"Injury history is the main variable. Health check is mandatory.",
+  },
+
+  "Zion Williamson": {
+    team:"NOP", pos:"F", tier:"STAR",
+    pts:23.8, reb:5.8, ast:4.1,
+    props:{
+      pts:{floor:18,ceil:38,lean:"OVER when healthy"},
+      reb:{floor:4,ceil:9,lean:"NEUTRAL"},
+      ast:{floor:3,ceil:6,lean:"NEUTRAL"},
+      pra:{floor:28,ceil:46,lean:"OVER when playing"},
+    },
+    usage:"32.4%",
+    bettingAngles:[
+      "Health check is non-negotiable — confirm active before any bet",
+      "FT volume: draws contact at elite rate",
+      "Fade on minutes restriction games",
+    ],
+    note:"Highest injury risk on this list. Never bet without confirming active status.",
+  },
+
+  "Pascal Siakam": {
+    team:"IND", pos:"F", tier:"STAR",
+    pts:21.3, reb:7.8, ast:4.4,
+    props:{
+      pts:{floor:16,ceil:32,lean:"OVER"},
+      reb:{floor:6,ceil:11,lean:"OVER"},
+      ast:{floor:3,ceil:7,lean:"NEUTRAL"},
+      pra:{floor:30,ceil:48,lean:"OVER"},
+    },
+    usage:"27.3%",
+    bettingAngles:[
+      "PRA over is the consistent play — contributes across all three categories",
+      "Pacers fast pace benefits his athleticism",
+      "Back alongside Haliburton",
+    ],
+    note:"Underrated prop player. PRA is the most consistent market.",
+  },
+
+  "De'Aaron Fox": {
+    team:"SAC", pos:"G", tier:"STAR",
+    pts:24.8, reb:4.1, ast:6.8,
+    props:{
+      pts:{floor:18,ceil:40,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      ast:{floor:5,ceil:10,lean:"OVER"},
+      pra:{floor:30,ceil:48,lean:"OVER"},
+    },
+    usage:"29.7%",
+    bettingAngles:[
+      "Points over in pace-up games — elite in transition",
+      "Check game total and opponent defensive pace before betting",
+      "Back in home games",
+    ],
+    note:"Pace-dependent scorer. Game total is the key contextual signal.",
+  },
+
+  "Darius Garland": {
+    team:"CLE", pos:"G", tier:"STAR",
+    pts:21.6, reb:2.8, ast:7.9,
+    props:{
+      pts:{floor:15,ceil:32,lean:"OVER"},
+      reb:{floor:2,ceil:5,lean:"NEUTRAL"},
+      ast:{floor:6,ceil:12,lean:"OVER"},
+      pra:{floor:27,ceil:44,lean:"OVER"},
+    },
+    usage:"26.2%",
+    bettingAngles:[
+      "Assists over is the primary play — elite creator alongside Mitchell",
+      "Points over in games where Mitchell is limited",
+      "Back in pace-up matchups",
+    ],
+    note:"Elite passer. Assists are the primary market.",
+  },
+
+  "Cade Cunningham": {
+    team:"DET", pos:"G", tier:"STAR",
+    pts:25.2, reb:6.1, ast:9.0,
+    props:{
+      pts:{floor:19,ceil:38,lean:"OVER"},
+      reb:{floor:5,ceil:9,lean:"OVER"},
+      ast:{floor:7,ceil:13,lean:"OVER"},
+      pra:{floor:36,ceil:54,lean:"OVER"},
+    },
+    usage:"31.5%",
+    bettingAngles:[
+      "PRA over is a strong play — elite all-around contributor",
+      "Assists over — top-5 playmaker in the league",
+      "Detroit rebuilding around him — usage locked in",
+    ],
+    note:"Undervalued prop player. PRA and assists are the consistent markets.",
+  },
+
+  "Paolo Banchero": {
+    team:"ORL", pos:"F", tier:"STAR",
+    pts:24.6, reb:7.4, ast:5.8,
+    props:{
+      pts:{floor:18,ceil:38,lean:"OVER"},
+      reb:{floor:5,ceil:10,lean:"OVER"},
+      ast:{floor:4,ceil:8,lean:"NEUTRAL"},
+      pra:{floor:33,ceil:52,lean:"OVER"},
+    },
+    usage:"30.2%",
+    bettingAngles:[
+      "PRA over — young star contributing across all three categories",
+      "Points over in pace-up matchups",
+      "Orlando's clear #1 option — usage is maximized",
+    ],
+    note:"Ascending star. PRA is the most reliable market.",
+  },
+
+  "Scottie Barnes": {
+    team:"TOR", pos:"F", tier:"STAR",
+    pts:21.8, reb:8.5, ast:6.2,
+    props:{
+      pts:{floor:16,ceil:32,lean:"NEUTRAL"},
+      reb:{floor:7,ceil:12,lean:"OVER"},
+      ast:{floor:4,ceil:9,lean:"OVER"},
+      pra:{floor:32,ceil:48,lean:"OVER"},
+    },
+    usage:"27.8%",
+    bettingAngles:[
+      "PRA over is the primary play",
+      "Rebounds over in physical matchups",
+      "Toronto rebuilding around him — usage maximized",
+    ],
+    note:"Underrated prop player. PRA and rebounds are the most reliable markets.",
+  },
+
+  "Franz Wagner": {
+    team:"ORL", pos:"F", tier:"STAR",
+    pts:22.4, reb:5.2, ast:4.8,
+    props:{
+      pts:{floor:16,ceil:35,lean:"OVER"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:3,ceil:7,lean:"NEUTRAL"},
+      pra:{floor:26,ceil:44,lean:"OVER"},
+    },
+    usage:"27.1%",
+    bettingAngles:[
+      "Points over is the primary market — consistent scorer alongside Banchero",
+      "Back in games where Banchero draws double teams",
+      "PRA over in pace-up matchups",
+    ],
+    note:"Reliable second scorer. Points are the consistent market.",
+  },
+
+  "Alperen Sengun": {
+    team:"HOU", pos:"C", tier:"STAR",
+    pts:21.1, reb:9.4, ast:5.1,
+    props:{
+      pts:{floor:16,ceil:32,lean:"OVER"},
+      reb:{floor:7,ceil:14,lean:"OVER"},
+      ast:{floor:3,ceil:8,lean:"OVER — elite passer for a center"},
+      pra:{floor:32,ceil:50,lean:"OVER"},
+    },
+    usage:"26.4%",
+    bettingAngles:[
+      "PRA over is the primary play — elite all-around big man",
+      "Assists over — rare playmaking ability for his position",
+      "Most underrated prop player at the center position",
+    ],
+    note:"Most underrated prop player at center. PRA and assists are the edges.",
+  },
+
+  "Jalen Brunson": {
+    team:"NYK", pos:"G", tier:"STAR",
+    pts:26.6, reb:3.4, ast:7.5,
+    props:{
+      pts:{floor:20,ceil:42,lean:"OVER"},
+      reb:{floor:2,ceil:5,lean:"NEUTRAL"},
+      ast:{floor:5,ceil:11,lean:"OVER"},
+      pra:{floor:30,ceil:50,lean:"OVER"},
+    },
+    usage:"32.6%",
+    bettingAngles:[
+      "Points over is the primary play — elite scorer with no clear weakness",
+      "Back at MSG — home crowd elevates his performance",
+      "Assists over in pace-up games",
+    ],
+    note:"Top-5 scoring prop player. Points and assists are both reliable markets.",
+  },
+
+  "Jaylen Brown": {
+    team:"BOS", pos:"F", tier:"STAR",
+    pts:23.0, reb:5.5, ast:3.6,
+    props:{
+      pts:{floor:17,ceil:36,lean:"OVER"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:2,ceil:5,lean:"NEUTRAL"},
+      pra:{floor:28,ceil:44,lean:"OVER"},
+    },
+    usage:"28.1%",
+    bettingAngles:[
+      "Points over is primary — elite scorer in Boston's championship system",
+      "Back in elimination/playoff games",
+      "Fade in blowouts — Boston rests starters when ahead big",
+    ],
+    note:"Championship-level performer. Points and PRA are the consistent markets.",
+  },
+
+  "Trae Young": {
+    team:"ATL", pos:"G", tier:"STAR",
+    pts:23.7, reb:2.8, ast:11.4,
+    props:{
+      pts:{floor:17,ceil:38,lean:"OVER"},
+      reb:{floor:2,ceil:5,lean:"NEUTRAL"},
+      ast:{floor:9,ceil:16,lean:"OVER — top-3 assists in the league"},
+      pra:{floor:32,ceil:52,lean:"OVER"},
+    },
+    usage:"31.2%",
+    bettingAngles:[
+      "Assists over is the primary play — consistently top-3 in the NBA",
+      "Points over in pace-up games",
+      "Atlanta rebuilding gives him maximum usage",
+    ],
+    note:"Most reliable assists prop player alongside Haliburton.",
+  },
+
+  "Damian Lillard": {
+    team:"MIL", pos:"G", tier:"STAR",
+    pts:24.1, reb:4.2, ast:7.4,
+    props:{
+      pts:{floor:18,ceil:40,lean:"OVER"},
+      reb:{floor:3,ceil:6,lean:"NEUTRAL"},
+      ast:{floor:5,ceil:11,lean:"OVER"},
+      threes:{floor:2,ceil:7,lean:"OVER"},
+    },
+    usage:"29.8%",
+    bettingAngles:[
+      "Points over when Giannis is limited — usage spikes",
+      "3-pointers made: elite from deep, especially from logo range",
+      "Back in big games — elite clutch performer",
+    ],
+    note:"Elite scorer. Points and 3-pointers made are the primary markets.",
+  },
+
+  "LaMelo Ball": {
+    team:"CHA", pos:"G", tier:"STAR",
+    pts:22.4, reb:5.2, ast:8.5,
+    props:{
+      pts:{floor:16,ceil:36,lean:"NEUTRAL"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:6,ceil:12,lean:"OVER"},
+      pra:{floor:30,ceil:50,lean:"OVER"},
+    },
+    usage:"28.6%",
+    bettingAngles:[
+      "Assists over is the primary play — elite playmaker",
+      "Health check required — injury history is real",
+      "PRA over when fully healthy",
+    ],
+    note:"Health-dependent. When healthy, assists and PRA are the reliable markets.",
+  },
+
+  "Anthony Davis": {
+    team:"LAL", pos:"C", tier:"STAR",
+    pts:24.7, reb:12.1, ast:3.4,
+    props:{
+      pts:{floor:18,ceil:38,lean:"OVER when healthy"},
+      reb:{floor:9,ceil:16,lean:"OVER"},
+      blk:{floor:1,ceil:4,lean:"OVER"},
+      pra:{floor:36,ceil:54,lean:"OVER"},
+    },
+    usage:"28.9%",
+    bettingAngles:[
+      "PRA over is the primary play — elite rebounder and scorer",
+      "Health check required — history of missing games",
+      "Fade when on minutes restriction",
+    ],
+    note:"Health and minutes are the variables. When fully playing, stats are elite.",
+  },
+
+  "Rudy Gobert": {
+    team:"MIN", pos:"C", tier:"SOLID",
+    pts:13.4, reb:12.0, ast:1.4,
+    props:{
+      pts:{floor:10,ceil:20,lean:"NEUTRAL"},
+      reb:{floor:10,ceil:17,lean:"OVER — elite rebounder"},
+      blk:{floor:1,ceil:4,lean:"OVER"},
+      pra:{floor:24,ceil:36,lean:"NEUTRAL"},
+    },
+    usage:"17.8%",
+    bettingAngles:[
+      "Rebounds over is the primary play — consistently top-3 in the NBA",
+      "Double-double prop: strong play, hits it 70%+ of games",
+      "Fade pts — low usage, below-average FT shooter",
+    ],
+    note:"Rebounds and double-double props are the only consistent markets.",
+  },
+
+  "Jaren Jackson Jr.": {
+    team:"MEM", pos:"C", tier:"SOLID",
+    pts:22.1, reb:6.0, ast:1.6,
+    props:{
+      pts:{floor:16,ceil:34,lean:"OVER"},
+      reb:{floor:4,ceil:9,lean:"NEUTRAL"},
+      blk:{floor:2,ceil:5,lean:"OVER — Defensive Player of the Year caliber"},
+      pra:{floor:26,ceil:42,lean:"OVER"},
+    },
+    usage:"27.4%",
+    bettingAngles:[
+      "Blocks over is the unique angle — one of the top-2 shot blockers in the league",
+      "Points over in games where he's featured offensively alongside Ja",
+      "Back when Ja is healthy — their pairing opens his offensive role",
+    ],
+    note:"Blocks prop is the differentiating market.",
+  },
+
+  "Desmond Bane": {
+    team:"MEM", pos:"G", tier:"SOLID",
+    pts:21.4, reb:4.2, ast:5.1,
+    props:{
+      pts:{floor:15,ceil:32,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      threes:{floor:2,ceil:6,lean:"OVER"},
+      pra:{floor:26,ceil:44,lean:"OVER"},
+    },
+    usage:"25.6%",
+    bettingAngles:[
+      "3-pointers made: elite shooter — back this prop in any pace-up game",
+      "Points over when Ja is limited — usage spikes significantly",
+      "Back in high-scoring games",
+    ],
+    note:"Elite shooter. 3-pointers made and points are the primary markets.",
+  },
+
+  "Kyrie Irving": {
+    team:"DAL", pos:"G", tier:"SOLID",
+    pts:24.2, reb:4.0, ast:5.3,
+    props:{
+      pts:{floor:18,ceil:40,lean:"OVER"},
+      reb:{floor:3,ceil:6,lean:"NEUTRAL"},
+      ast:{floor:4,ceil:8,lean:"NEUTRAL"},
+      pra:{floor:28,ceil:48,lean:"OVER"},
+    },
+    usage:"29.4%",
+    bettingAngles:[
+      "Points over in games where he's the primary creator",
+      "Health check required — availability has been inconsistent",
+      "Dallas situation uncertain post-Doncic trade",
+    ],
+    note:"Dallas situation uncertain. Monitor team context carefully.",
+  },
+
+  "Brandon Ingram": {
+    team:"NOP", pos:"F", tier:"SOLID",
+    pts:22.3, reb:5.4, ast:5.8,
+    props:{
+      pts:{floor:16,ceil:34,lean:"OVER"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:4,ceil:8,lean:"NEUTRAL"},
+      pra:{floor:28,ceil:46,lean:"OVER"},
+    },
+    usage:"28.1%",
+    bettingAngles:[
+      "Points over is primary — elite mid-range scorer",
+      "Back when Zion is out — becomes the clear #1 option",
+      "Fade when Zion is healthy and dominating usage",
+    ],
+    note:"Reliable scorer. Best value when Zion is limited or out.",
+  },
+
+  "Tyler Herro": {
+    team:"MIA", pos:"G", tier:"SOLID",
+    pts:22.8, reb:5.1, ast:5.2,
+    props:{
+      pts:{floor:16,ceil:36,lean:"OVER"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:3,ceil:8,lean:"NEUTRAL"},
+      pra:{floor:28,ceil:46,lean:"OVER"},
+    },
+    usage:"27.8%",
+    bettingAngles:[
+      "Points over is primary — elite shooter with high-volume usage",
+      "Back when Jimmy Butler is out — usage spikes massively",
+      "Fade when full Miami roster is healthy",
+    ],
+    note:"Best value when Butler is limited. Monitor Butler status.",
+  },
+
+  "Jalen Williams": {
+    team:"OKC", pos:"F", tier:"SOLID",
+    pts:22.5, reb:4.5, ast:5.8,
+    props:{
+      pts:{floor:16,ceil:34,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      ast:{floor:4,ceil:8,lean:"OVER"},
+      pra:{floor:28,ceil:46,lean:"OVER"},
+    },
+    usage:"26.8%",
+    bettingAngles:[
+      "Points over when SGA is limited — usage spikes",
+      "PRA over — elite all-around second option",
+      "SGA usage is the primary variable",
+    ],
+    note:"Reliable second option. Best prop value when SGA is limited.",
+  },
+
+  "Evan Mobley": {
+    team:"CLE", pos:"C", tier:"SOLID",
+    pts:18.6, reb:9.4, ast:2.9,
+    props:{
+      pts:{floor:14,ceil:28,lean:"OVER"},
+      reb:{floor:7,ceil:14,lean:"OVER"},
+      blk:{floor:1,ceil:4,lean:"OVER"},
+      pra:{floor:28,ceil:44,lean:"OVER"},
+    },
+    usage:"23.8%",
+    bettingAngles:[
+      "PRA over is the consistent play — elite all-around big man",
+      "Rebounds over in physical interior matchups",
+      "Blocks over — one of the best shot blockers in the East",
+    ],
+    note:"Undervalued prop player. PRA and rebounds are the reliable markets.",
+  },
+
+  "Josh Hart": {
+    team:"NYK", pos:"G", tier:"SOLID",
+    pts:12.4, reb:9.8, ast:4.6,
+    props:{
+      pts:{floor:8,ceil:22,lean:"NEUTRAL"},
+      reb:{floor:8,ceil:14,lean:"OVER — elite rebounder for a guard"},
+      ast:{floor:3,ceil:7,lean:"NEUTRAL"},
+      pra:{floor:24,ceil:38,lean:"OVER"},
+    },
+    usage:"17.2%",
+    bettingAngles:[
+      "Rebounds over is the primary play — anomalous for his position",
+      "PRA over — contributes across all three categories",
+      "Elite rebounder for a guard — market often underprices this",
+    ],
+    note:"Rebounds are the standout prop. Market often underprices his rebounding.",
+  },
+
+  "Mikal Bridges": {
+    team:"NYK", pos:"F", tier:"SOLID",
+    pts:18.2, reb:4.1, ast:3.6,
+    props:{
+      pts:{floor:13,ceil:28,lean:"NEUTRAL"},
+      reb:{floor:3,ceil:6,lean:"NEUTRAL"},
+      stl:{floor:1,ceil:3,lean:"OVER"},
+      pra:{floor:22,ceil:36,lean:"NEUTRAL"},
+    },
+    usage:"22.4%",
+    bettingAngles:[
+      "Steals over is the unique differentiating prop — elite on-ball defender",
+      "Fade pts — fourth scoring option in Knicks system",
+      "Back on 3-pointers made when getting open looks",
+    ],
+    note:"Defensive stats (steals) are the prop angle. Scoring ceiling is capped.",
+  },
+
+  "OG Anunoby": {
+    team:"NYK", pos:"F", tier:"SOLID",
+    pts:16.8, reb:5.1, ast:2.1,
+    props:{
+      pts:{floor:12,ceil:26,lean:"NEUTRAL"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      stl:{floor:1,ceil:3,lean:"OVER"},
+      pra:{floor:22,ceil:36,lean:"NEUTRAL"},
+    },
+    usage:"21.6%",
+    bettingAngles:[
+      "Steals over is the unique differentiating prop",
+      "Back when Brunson/Towns are drawing attention",
+      "Fade pts — fourth scoring option in Knicks system",
+    ],
+    note:"Defensive stats (steals) are the prop angle.",
+  },
+
+  "Amen Thompson": {
+    team:"HOU", pos:"F", tier:"SOLID",
+    pts:15.8, reb:7.6, ast:4.9,
+    props:{
+      pts:{floor:11,ceil:24,lean:"NEUTRAL"},
+      reb:{floor:6,ceil:11,lean:"OVER"},
+      ast:{floor:3,ceil:7,lean:"NEUTRAL"},
+      pra:{floor:24,ceil:40,lean:"OVER"},
+    },
+    usage:"21.4%",
+    bettingAngles:[
+      "PRA over — contributes across all three categories",
+      "Ascending player — props may be undervalued as he develops",
+      "Back alongside Sengun",
+    ],
+    note:"Ascending player. PRA is the reliable market as his role expands.",
+  },
+
+  "Jamal Murray": {
+    team:"DEN", pos:"G", tier:"SOLID",
+    pts:20.8, reb:4.2, ast:6.3,
+    props:{
+      pts:{floor:14,ceil:34,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      ast:{floor:4,ceil:9,lean:"OVER"},
+      pra:{floor:28,ceil:46,lean:"OVER"},
+    },
+    usage:"24.6%",
+    bettingAngles:[
+      "Points over in playoff-important games — elite clutch performer",
+      "Health check required — injury history is real",
+      "PRA over when healthy alongside Jokic",
+    ],
+    note:"Elite playoff performer. Health check is mandatory before betting.",
+  },
+
+  "Anfernee Simons": {
+    team:"POR", pos:"G", tier:"SOLID",
+    pts:21.7, reb:3.4, ast:5.4,
+    props:{
+      pts:{floor:15,ceil:35,lean:"OVER"},
+      reb:{floor:2,ceil:5,lean:"NEUTRAL"},
+      threes:{floor:2,ceil:6,lean:"OVER"},
+      pra:{floor:26,ceil:44,lean:"OVER"},
+    },
+    usage:"27.8%",
+    bettingAngles:[
+      "Points over — primary option on rebuilding Portland",
+      "3-pointers made: elite from deep with high volume",
+      "Back in high game totals",
+    ],
+    note:"High-volume scorer on a weak team. Game total and defense are the variables.",
+  },
+
+  "Lauri Markkanen": {
+    team:"UTA", pos:"F", tier:"SOLID",
+    pts:23.2, reb:8.2, ast:2.4,
+    props:{
+      pts:{floor:17,ceil:34,lean:"OVER"},
+      reb:{floor:6,ceil:12,lean:"OVER"},
+      threes:{floor:2,ceil:5,lean:"OVER"},
+      pra:{floor:28,ceil:46,lean:"OVER"},
+    },
+    usage:"26.4%",
+    bettingAngles:[
+      "PRA over is the consistent play — elite all-around stretch big",
+      "3-pointers made: elite shooter from the 4 position",
+      "Utah rebuilding — his usage is maximized",
+    ],
+    note:"Undervalued prop player. PRA and 3-pointers are the reliable markets.",
+  },
+
+  "Immanuel Quickley": {
+    team:"TOR", pos:"G", tier:"SOLID",
+    pts:18.4, reb:4.1, ast:7.2,
+    props:{
+      pts:{floor:13,ceil:28,lean:"OVER as starter"},
+      reb:{floor:3,ceil:6,lean:"NEUTRAL"},
+      ast:{floor:5,ceil:10,lean:"OVER"},
+      pra:{floor:26,ceil:42,lean:"OVER"},
+    },
+    usage:"24.1%",
+    bettingAngles:[
+      "Assists over is the primary play",
+      "PRA over — contributes across all three categories",
+      "Toronto rebuilding — usage maximized",
+    ],
+    note:"Undervalued. PRA and assists are reliable with Toronto's system.",
+  },
+
+  "Dejounte Murray": {
+    team:"NOP", pos:"G", tier:"SOLID",
+    pts:20.4, reb:5.2, ast:7.8,
+    props:{
+      pts:{floor:14,ceil:30,lean:"OVER"},
+      reb:{floor:4,ceil:8,lean:"NEUTRAL"},
+      ast:{floor:5,ceil:11,lean:"OVER"},
+      pra:{floor:30,ceil:46,lean:"OVER"},
+    },
+    usage:"25.7%",
+    bettingAngles:[
+      "PRA over is the primary play — elite all-around contributor",
+      "Steals prop: elite on-ball defender, averages 1.5+ per game",
+      "Back when Zion/Ingram are limited",
+    ],
+    note:"Reliable all-around player. PRA, assists, and steals are the markets.",
+  },
+
+  "Nikola Vucevic": {
+    team:"CHI", pos:"C", tier:"SOLID",
+    pts:18.2, reb:10.6, ast:3.4,
+    props:{
+      pts:{floor:13,ceil:26,lean:"NEUTRAL"},
+      reb:{floor:8,ceil:14,lean:"OVER"},
+      ast:{floor:2,ceil:5,lean:"NEUTRAL"},
+      pra:{floor:28,ceil:42,lean:"OVER"},
+    },
+    usage:"22.7%",
+    bettingAngles:[
+      "Rebounds over is the primary play",
+      "Double-double prop: strong play, hits 65%+ of games",
+      "Fade pts vs elite rim protectors",
+    ],
+    note:"Reliable rebounder. Rebounds and double-double are the markets.",
+  },
+
+  "Zach LaVine": {
+    team:"CHI", pos:"G", tier:"SOLID",
+    pts:22.8, reb:4.7, ast:4.2,
+    props:{
+      pts:{floor:16,ceil:36,lean:"OVER"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      threes:{floor:2,ceil:6,lean:"OVER"},
+      pra:{floor:26,ceil:42,lean:"OVER"},
+    },
+    usage:"28.4%",
+    bettingAngles:[
+      "Points over when Chicago needs scoring",
+      "3-pointers made: elite shooter, back when getting volume",
+      "Fade in slow games where Chicago's offense stagnates",
+    ],
+    note:"Scorer first. Points and 3-pointers are the primary markets.",
+  },
+
+  "Draymond Green": {
+    team:"GSW", pos:"F", tier:"ROLE",
+    pts:9.0, reb:7.2, ast:6.8,
+    props:{
+      pts:{floor:6,ceil:16,lean:"NEUTRAL"},
+      reb:{floor:5,ceil:10,lean:"OVER"},
+      ast:{floor:4,ceil:9,lean:"OVER"},
+      pra:{floor:20,ceil:34,lean:"OVER"},
+    },
+    usage:"13.8%",
+    bettingAngles:[
+      "PRA over — contributes across all three categories despite low scoring",
+      "Assists over in Golden State's system",
+      "Fade pts — scoring is not his role",
+    ],
+    note:"Scoring props are fades. PRA and assists are the only reliable markets.",
+  },
+
+  "Jordan Poole": {
+    team:"WAS", pos:"G", tier:"ROLE",
+    pts:18.1, reb:2.8, ast:5.3,
+    props:{
+      pts:{floor:13,ceil:30,lean:"OVER as primary option"},
+      reb:{floor:2,ceil:5,lean:"NEUTRAL"},
+      threes:{floor:2,ceil:6,lean:"OVER"},
+      pra:{floor:22,ceil:40,lean:"OVER"},
+    },
+    usage:"27.1%",
+    bettingAngles:[
+      "Points over — Washington gives him maximum usage",
+      "3-pointers made: high volume from deep",
+      "Back in high game totals — Washington games tend to be high-scoring",
+    ],
+    note:"Primary option on a weak team — usage is maximized.",
+  },
+
+  "Michael Porter Jr.": {
+    team:"DEN", pos:"F", tier:"ROLE",
+    pts:16.4, reb:6.8, ast:1.6,
+    props:{
+      pts:{floor:11,ceil:28,lean:"NEUTRAL"},
+      reb:{floor:5,ceil:10,lean:"OVER"},
+      threes:{floor:1,ceil:5,lean:"OVER"},
+      pra:{floor:22,ceil:38,lean:"NEUTRAL"},
+    },
+    usage:"20.4%",
+    bettingAngles:[
+      "3-pointers made: elite shooter off Jokic gravity",
+      "Rebounds over in games where Jokic is playing high usage",
+      "Health check required — significant injury history",
+    ],
+    note:"Injury-prone. 3-pointers made is the prop angle.",
+  },
+
+  "Kristaps Porzingis": {
+    team:"BOS", pos:"C", tier:"ROLE",
+    pts:17.9, reb:6.8, ast:1.8,
+    props:{
+      pts:{floor:12,ceil:28,lean:"OVER when healthy"},
+      reb:{floor:5,ceil:10,lean:"OVER"},
+      blk:{floor:1,ceil:3,lean:"OVER"},
+      threes:{floor:1,ceil:4,lean:"OVER"},
+    },
+    usage:"23.4%",
+    bettingAngles:[
+      "Health check required — significant injury history",
+      "Points over when healthy — elite stretch big",
+      "Fade on any minutes restriction signal",
+    ],
+    note:"Health is the overriding variable. Never bet without confirming full health.",
+  },
+
+  "Andrew Wiggins": {
+    team:"GSW", pos:"F", tier:"ROLE",
+    pts:15.8, reb:4.4, ast:2.1,
+    props:{
+      pts:{floor:11,ceil:24,lean:"NEUTRAL"},
+      reb:{floor:3,ceil:7,lean:"NEUTRAL"},
+      threes:{floor:1,ceil:4,lean:"NEUTRAL"},
+      pra:{floor:18,ceil:32,lean:"NEUTRAL"},
+    },
+    usage:"20.2%",
+    bettingAngles:[
+      "Back pts when Curry has heavy usage night — opens kick-out threes",
+      "Fade in games where Curry is cold",
+      "PRA UNDER often value",
+    ],
+    note:"Role player. Only clear matchup or Curry correlation plays.",
+  },
+
+};
+
+
+// ── Golf Player data ─────────────────────────────────────────────────────────
+const PGA_PLAYERS = {
+
+  // ── TIER 1: WORLD TOP 5 ──────────────────────────────────────────────────
+
+  "Scottie Scheffler": {
+    tier: "ELITE", rank: 1, country: "USA",
+    sg: { total: 4.1, ott: 1.1, app: 1.6, arg: 0.6, putt: 0.8 },
+    stats: { drivingDist: 308, fairwayPct: 62, girPct: 74, scrambling: 68, top10Rate: 0.62, cutRate: 0.89, winRate: 0.18 },
+    courseTypes: { links: "A", parkland: "A+", desert: "A", coastal: "A", treelined: "A+" },
+    markets: { outright: "Always overpriced — bet top-5/top-10 instead", top5: "Best market — 62% top-10 rate", top10: "Strong value when 6/1 or better", makecut: "Near-lock — only fade extreme links courses" },
+    form: "Best player in the world by a significant margin. Iron play is generational. Putting elevated in 2024.",
+    bestAt: ["Augusta National", "TPC Sawgrass", "Riviera", "Bay Hill", "East Lake"],
+    fade: ["Links courses — lower on the list vs US parkland"],
+    note: "Don't bet outright — the juice is never there. Top-5 at 7/2 or better is the play every week.",
+    comps: ["Tiger Woods 2000-era dominance in consistency metrics"],
+  },
+
+  "Rory McIlroy": {
+    tier: "ELITE", rank: 2, country: "NIR",
+    sg: { total: 2.8, ott: 1.4, app: 0.9, arg: 0.2, putt: 0.3 },
+    stats: { drivingDist: 326, fairwayPct: 58, girPct: 71, scrambling: 60, top10Rate: 0.48, cutRate: 0.82, winRate: 0.11 },
+    courseTypes: { links: "A+", parkland: "A", desert: "B+", coastal: "A", treelined: "A" },
+    markets: { outright: "Value at 12/1 or better", top5: "Solid market — elite ball-striker", top10: "Strong value at 5/1 or better", makecut: "Reliable — fade desert only" },
+    form: "Elevated after 2024 Masters. Finally closed at Augusta. Driver is a weapon on wide-open courses.",
+    bestAt: ["Augusta National", "TPC Sawgrass", "Quail Hollow", "Valhalla", "Royal Portrush"],
+    fade: ["Accurate, tight driving layouts — his miss rate is too high"],
+    note: "Best value in majors when the course suits his power. Don't fade him on links — grew up on them.",
+    comps: ["Dustin Johnson in prime on power-friendly setups"],
+  },
+
+  "Xander Schauffele": {
+    tier: "ELITE", rank: 3, country: "USA",
+    sg: { total: 2.4, ott: 0.8, app: 1.0, arg: 0.3, putt: 0.3 },
+    stats: { drivingDist: 315, fairwayPct: 64, girPct: 72, scrambling: 63, top10Rate: 0.51, cutRate: 0.85, winRate: 0.10 },
+    courseTypes: { links: "A", parkland: "A", desert: "A-", coastal: "A", treelined: "A" },
+    markets: { outright: "Value at 14/1 or better", top5: "Best market — elite consistency", top10: "Strong any week", makecut: "Near-lock" },
+    form: "Won PGA Championship and The Open 2024. Clutch performer. One of the most consistent players on tour.",
+    bestAt: ["Oakmont", "Augusta National", "Royal Troon", "TPC Sawgrass"],
+    fade: ["Extremely tight driving corridors — accuracy is above-average but not elite"],
+    note: "His SG:APP is elite — approach play wins at premium courses. Top-5 is the money market.",
+    comps: ["Justin Thomas in consistency and all-around SG profile"],
+  },
+
+  "Collin Morikawa": {
+    tier: "ELITE", rank: 4, country: "USA",
+    sg: { total: 2.1, ott: 0.3, app: 1.5, arg: 0.1, putt: 0.2 },
+    stats: { drivingDist: 299, fairwayPct: 72, girPct: 76, scrambling: 64, top10Rate: 0.44, cutRate: 0.87, winRate: 0.09 },
+    courseTypes: { links: "A+", parkland: "A", desert: "A", coastal: "A+", treelined: "A" },
+    markets: { outright: "Value at 16/1 or better", top5: "Strong — elite GIR percentage", top10: "Best market every week", makecut: "Near-lock" },
+    form: "Iron play is best on tour. Multiple major winner. Rebounding in 2025 after inconsistent 2024.",
+    bestAt: ["Augusta National", "Royal Birkdale", "Wentworth"],
+    fade: ["Par-5 heavy courses — not a power player"],
+    note: "SG:APP leader most seasons. Premium on approach-heavy setups. The most reliable iron player in the world.",
+    comps: ["Luke Donald in iron precision — but more athletic"],
+  },
+
+  "Viktor Hovland": {
+    tier: "ELITE", rank: 5, country: "NOR",
+    sg: { total: 1.9, ott: 0.7, app: 0.8, arg: 0.2, putt: 0.2 },
+    stats: { drivingDist: 318, fairwayPct: 60, girPct: 69, scrambling: 58, top10Rate: 0.42, cutRate: 0.78, winRate: 0.08 },
+    courseTypes: { links: "A", parkland: "A-", desert: "B+", coastal: "A", treelined: "B+" },
+    markets: { outright: "Value at 18/1 or better", top5: "Strong on power/links setups", top10: "Reliable", makecut: "Good — fade if cold putter" },
+    form: "Elite ball-striker with sometimes-volatile putting. When putter is hot, top-5 caliber any week.",
+    bestAt: ["East Lake", "DP World venues", "The Open Championship"],
+    fade: ["When putter is cold — his SG:P can dip negative easily"],
+    note: "Track his putting stats week to week. Top-10 on pure ball-striking setups is solid every time.",
+    comps: ["Justin Rose in ball-striking profile"],
+  },
+
+  // ── TIER 2: TOUR ELITE ────────────────────────────────────────────────────
+
+  "Patrick Cantlay": {
+    tier: "TOUR_ELITE", rank: 7, country: "USA",
+    sg: { total: 1.8, ott: 0.4, app: 0.8, arg: 0.4, putt: 0.6 },
+    stats: { drivingDist: 302, fairwayPct: 66, girPct: 70, scrambling: 66, top10Rate: 0.44, cutRate: 0.84, winRate: 0.07 },
+    courseTypes: { links: "B+", parkland: "A", desert: "A", coastal: "A", treelined: "A" },
+    markets: { outright: "Value at 20/1 or better", top5: "Strong on patient, shot-making setups", top10: "Reliable", makecut: "Strong" },
+    form: "Methodical, precision-based player. Elite at courses rewarding positioning over power.",
+    bestAt: ["Riviera", "TPC Summerlin", "Olympia Fields"],
+    fade: ["Wide-open bombers' paradise — he can't out-drive the field"],
+    note: "Premium on difficult, precision setups. Riviera is his best venue on tour.",
+    comps: ["Bryson DeChambeau without the power — pure precision"],
+  },
+
+  "Jon Rahm": {
+    tier: "TOUR_ELITE", rank: 8, country: "ESP",
+    sg: { total: 2.0, ott: 0.7, app: 0.9, arg: 0.3, putt: 0.5 },
+    stats: { drivingDist: 312, fairwayPct: 61, girPct: 69, scrambling: 64, top10Rate: 0.50, cutRate: 0.82, winRate: 0.09 },
+    courseTypes: { links: "A+", parkland: "A", desert: "A", coastal: "A", treelined: "A" },
+    markets: { outright: "Value at 14/1 or better on LIV eligible events", top5: "Strong on any setup", top10: "Reliable", makecut: "Strong" },
+    form: "On LIV Golf 2024-25 — limited PGA/major access. Elite when eligible. Clay-specialist comp doesn't apply — he's an all-surface A+ player.",
+    bestAt: ["Augusta National", "US Open setups", "Spanish/Mediterranean courses"],
+    fade: ["Limited PGA Tour schedule — eligibility check required"],
+    note: "When eligible, top-5 caliber at majors. His LIV schedule means fewer data points.",
+    comps: ["Seve Ballesteros in fight and imagination around the green"],
+  },
+
+  "Ludvig Aberg": {
+    tier: "TOUR_ELITE", rank: 9, country: "SWE",
+    sg: { total: 1.7, ott: 0.9, app: 0.7, arg: 0.1, putt: 0.0 },
+    stats: { drivingDist: 319, fairwayPct: 60, girPct: 68, scrambling: 60, top10Rate: 0.38, cutRate: 0.76, winRate: 0.05 },
+    courseTypes: { links: "A", parkland: "A-", desert: "B+", coastal: "A", treelined: "A-" },
+    markets: { outright: "Value at 25/1 or better", top5: "Strong when driver is clicking", top10: "Solid any week", makecut: "Good" },
+    form: "Rapid ascent. Top-5 at 2024 Masters as a rookie. Elite ball-striker, short game developing.",
+    bestAt: ["Augusta National", "Power-friendly setups"],
+    fade: ["Tight driving corridors — miss rate needs to improve"],
+    note: "Elite ceiling. Short game is the only limiting factor. If it clicks, top-5 any major.",
+    comps: ["Young Rory McIlroy in trajectory and power profile"],
+  },
+
+  "Tom Kim": {
+    tier: "TOUR_ELITE", rank: 12, country: "KOR",
+    sg: { total: 1.4, ott: 0.5, app: 0.6, arg: 0.2, putt: 0.1 },
+    stats: { drivingDist: 305, fairwayPct: 62, girPct: 67, scrambling: 62, top10Rate: 0.35, cutRate: 0.78, winRate: 0.06 },
+    courseTypes: { links: "B+", parkland: "A-", desert: "B+", coastal: "A-", treelined: "A-" },
+    markets: { outright: "Value at 30/1 or better", top5: "Streaky — strong when hot", top10: "Best market", makecut: "Good" },
+    form: "Multiple PGA wins before age 23. Volatile but elite ceiling.",
+    bestAt: ["Shriners Children's Open", "Bermuda Open setups"],
+    fade: ["Tough precision setups — drives it well but not consistent enough"],
+    note: "Age 22-23 — best value is top-10/top-20. His floor is lower than his ceiling suggests.",
+    comps: ["Young Jordan Spieth in raw ability"],
+  },
+
+  "Jordan Spieth": {
+    tier: "TOUR_ELITE", rank: 14, country: "USA",
+    sg: { total: 1.2, ott: -0.1, app: 0.6, arg: 0.5, putt: 0.6 },
+    stats: { drivingDist: 296, fairwayPct: 60, girPct: 65, scrambling: 68, top10Rate: 0.40, cutRate: 0.80, winRate: 0.07 },
+    courseTypes: { links: "A+", parkland: "A", desert: "A-", coastal: "A+", treelined: "A" },
+    markets: { outright: "Value at 20/1 or better on major/links setups", top5: "Strong at premium venues", top10: "Reliable", makecut: "Strong" },
+    form: "Clutch putter and scrambler. Short game is top-3 on tour. Driver is the liability.",
+    bestAt: ["Augusta National", "Royal Birkdale", "TPC San Antonio", "Pebble Beach"],
+    fade: ["Wide-open, power-heavy setups — can't keep up off the tee"],
+    note: "His ARG + putting combo wins at premium venues. Top-5 at Augusta and links majors is the play.",
+    comps: ["Phil Mickelson in short game creativity"],
+  },
+
+  "Justin Thomas": {
+    tier: "TOUR_ELITE", rank: 16, country: "USA",
+    sg: { total: 1.5, ott: 0.5, app: 0.7, arg: 0.2, putt: 0.1 },
+    stats: { drivingDist: 312, fairwayPct: 62, girPct: 70, scrambling: 63, top10Rate: 0.38, cutRate: 0.79, winRate: 0.07 },
+    courseTypes: { links: "A-", parkland: "A", desert: "A", coastal: "A-", treelined: "A" },
+    markets: { outright: "Value at 22/1 or better", top5: "Streaky — strong when clicking", top10: "Best market", makecut: "Good" },
+    form: "Elite when healthy and hot. Multiple major winner. Inconsistent 2024 but returning to form.",
+    bestAt: ["Quail Hollow", "Kapalua", "TPC Sawgrass"],
+    fade: ["When putting is cold — top-15 ceiling only"],
+    note: "His driver + iron combo is elite. Watch his SG:P stats in the lead-up week.",
+    comps: ["Rory McIlroy with more precision, less power"],
+  },
+
+  "Max Homa": {
+    tier: "TOUR_ELITE", rank: 17, country: "USA",
+    sg: { total: 1.3, ott: 0.3, app: 0.7, arg: 0.2, putt: 0.1 },
+    stats: { drivingDist: 303, fairwayPct: 65, girPct: 68, scrambling: 62, top10Rate: 0.36, cutRate: 0.80, winRate: 0.06 },
+    courseTypes: { links: "B+", parkland: "A", desert: "A", coastal: "A-", treelined: "A" },
+    markets: { outright: "Value at 28/1 or better", top5: "Best on his best courses", top10: "Reliable", makecut: "Strong" },
+    form: "Riviera specialist. Multiple wins at Riviera Country Club. Smart, positioning-based player.",
+    bestAt: ["Riviera", "Nicklaus-designed courses"],
+    fade: ["Links and coastal — not his best surface"],
+    note: "Riviera is one of the best course-player angle in golf. Back him there aggressively.",
+    comps: ["Patrick Cantlay in patient course management approach"],
+  },
+
+  "Matt Fitzpatrick": {
+    tier: "TOUR_ELITE", rank: 18, country: "ENG",
+    sg: { total: 1.3, ott: 0.1, app: 0.7, arg: 0.3, putt: 0.2 },
+    stats: { drivingDist: 295, fairwayPct: 70, girPct: 70, scrambling: 64, top10Rate: 0.38, cutRate: 0.82, winRate: 0.06 },
+    courseTypes: { links: "A", parkland: "A", desert: "A-", coastal: "A", treelined: "A" },
+    markets: { outright: "Value at 25/1 or better at precision setups", top5: "Strong at US Open-style courses", top10: "Reliable", makecut: "Strong" },
+    form: "US Open champion 2022. Precision-based, elite iron player. Short hitter who maximizes every yard.",
+    bestAt: ["US Open setups", "Brookline", "tight parkland"],
+    fade: ["Power-heavy setups — 295 avg distance is a liability on bombers tracks"],
+    note: "Premium at narrow, demanding setups that punish inaccuracy. Fade at wide-open tracks.",
+    comps: ["Luke Donald in precision and course management"],
+  },
+
+  "Tommy Fleetwood": {
+    tier: "TOUR_ELITE", rank: 19, country: "ENG",
+    sg: { total: 1.4, ott: 0.4, app: 0.8, arg: 0.1, putt: 0.1 },
+    stats: { drivingDist: 305, fairwayPct: 63, girPct: 70, scrambling: 60, top10Rate: 0.40, cutRate: 0.81, winRate: 0.06 },
+    courseTypes: { links: "A+", parkland: "A", desert: "A-", coastal: "A+", treelined: "A-" },
+    markets: { outright: "Value at 22/1 or better at links/major setups", top5: "Strong at The Open", top10: "Reliable", makecut: "Strong" },
+    form: "Elite links player. Multiple top-5 finishes at The Open Championship. Elite in European conditions.",
+    bestAt: ["The Open Championship", "European Tour venues", "Scottish courses"],
+    fade: ["Desert courses — not his best conditions"],
+    note: "Best value at The Open or links-style US Open setups. Underpriced every time.",
+    comps: ["Ian Poulter in European conditions mastery"],
+  },
+
+  "Shane Lowry": {
+    tier: "TOUR_ELITE", rank: 20, country: "IRL",
+    sg: { total: 1.2, ott: 0.2, app: 0.6, arg: 0.3, putt: 0.1 },
+    stats: { drivingDist: 298, fairwayPct: 63, girPct: 68, scrambling: 63, top10Rate: 0.36, cutRate: 0.79, winRate: 0.06 },
+    courseTypes: { links: "A+", parkland: "A-", desert: "B", coastal: "A+", treelined: "B+" },
+    markets: { outright: "Value at 25/1 or better at links", top5: "Strong at The Open", top10: "Reliable at links setups", makecut: "Good" },
+    form: "Open Championship winner. Bred for links golf. Great in wind and tough conditions.",
+    bestAt: ["Royal Portrush", "The Open Championship venues", "tough-weather events"],
+    fade: ["Desert / warm-weather US Tour events — not his element"],
+    note: "If it's windy and links-style, back Shane Lowry. He's made for it.",
+    comps: ["Padraig Harrington in grit and links mastery"],
+  },
+
+  "Hideki Matsuyama": {
+    tier: "TOUR_ELITE", rank: 21, country: "JPN",
+    sg: { total: 1.5, ott: 0.4, app: 0.8, arg: 0.2, putt: 0.1 },
+    stats: { drivingDist: 308, fairwayPct: 59, girPct: 70, scrambling: 62, top10Rate: 0.40, cutRate: 0.79, winRate: 0.07 },
+    courseTypes: { links: "A-", parkland: "A", desert: "A", coastal: "A", treelined: "A" },
+    markets: { outright: "Value at 20/1 or better", top5: "Strong — especially Augusta", top10: "Reliable", makecut: "Good" },
+    form: "Masters champion. Methodical ball-striker. Driver can be wild but iron play saves him.",
+    bestAt: ["Augusta National", "Zozo Championship"],
+    fade: ["Putting-dependent fast greens — his SG:P is inconsistent"],
+    note: "Augusta specialist — the draw suits Masters perfectly. Back him there every year.",
+    comps: ["Tiger Woods in patience and course management strategy"],
+  },
+
+  "Brian Harman": {
+    tier: "SOLID", rank: 28, country: "USA",
+    sg: { total: 0.9, ott: 0.0, app: 0.4, arg: 0.3, putt: 0.2 },
+    stats: { drivingDist: 287, fairwayPct: 70, girPct: 65, scrambling: 65, top10Rate: 0.28, cutRate: 0.78, winRate: 0.04 },
+    courseTypes: { links: "A+", parkland: "A-", desert: "B+", coastal: "A", treelined: "B+" },
+    markets: { outright: "Value at 40/1 or better at links", top5: "Strong at The Open", top10: "Good at precision setups", makecut: "Reliable" },
+    form: "Open Championship winner 2023. Won by 6 shots. Elite links player despite short drives.",
+    bestAt: ["Hoylake", "Links venues", "tough-conditions events"],
+    fade: ["Power-heavy setups — shortest driver in elite tier"],
+    note: "Don't fade him at links just because he's short. He's won The Open. Accuracy > distance there.",
+    comps: ["Zach Johnson in grinding out results from nowhere"],
+  },
+
+  "Cameron Young": {
+    tier: "SOLID", rank: 30, country: "USA",
+    sg: { total: 0.9, ott: 0.8, arg: 0.1, app: 0.2, putt: -0.2 },
+    stats: { drivingDist: 326, fairwayPct: 54, girPct: 65, scrambling: 60, top10Rate: 0.28, cutRate: 0.73, winRate: 0.03 },
+    courseTypes: { links: "B", parkland: "A-", desert: "A-", coastal: "B+", treelined: "B+" },
+    markets: { outright: "Value at 45/1 or better on bombers tracks", top5: "Power setups only", top10: "Best market", makecut: "Volatile" },
+    form: "Elite distance off the tee — top-5 on tour. Putting and scrambling are liabilities.",
+    bestAt: ["Kapalua", "wide-open bombers tracks"],
+    fade: ["Precision courses — his miss rate is too high without putter saving him"],
+    note: "Top-10 on power tracks is the play. Fade on tight, demanding setups.",
+    comps: ["Dustin Johnson without the consistency"],
+  },
+
+  "Wyndham Clark": {
+    tier: "SOLID", rank: 22, country: "USA",
+    sg: { total: 1.1, ott: 0.5, app: 0.4, arg: 0.1, putt: 0.1 },
+    stats: { drivingDist: 314, fairwayPct: 60, girPct: 67, scrambling: 61, top10Rate: 0.32, cutRate: 0.76, winRate: 0.06 },
+    courseTypes: { links: "B+", parkland: "A-", desert: "A-", coastal: "B+", treelined: "A-" },
+    markets: { outright: "Value at 30/1 or better", top5: "Streaky", top10: "Reliable", makecut: "Good" },
+    form: "US Open champion 2023. Power player with improving course management.",
+    bestAt: ["Los Angeles Country Club", "power-friendly setups"],
+    fade: ["Traditional links — not his best surface"],
+    note: "Value at US Open setups — his power + accuracy combo suits them well.",
+    comps: ["Dustin Johnson in power and inconsistency pattern"],
+  },
+
+  "Patrick Reed": {
+    tier: "SOLID", rank: 35, country: "USA",
+    sg: { total: 0.8, ott: 0.1, app: 0.3, arg: 0.3, putt: 0.3 },
+    stats: { drivingDist: 298, fairwayPct: 62, girPct: 65, scrambling: 65, top10Rate: 0.25, cutRate: 0.74, winRate: 0.04 },
+    courseTypes: { links: "A-", parkland: "A", desert: "A", coastal: "A-", treelined: "A" },
+    markets: { outright: "Value at 50/1 or better", top5: "Best at Augusta-style setups", top10: "Reliable", makecut: "Good" },
+    form: "On LIV Golf. Masters champion. Clutch, combative style. Short game is elite.",
+    bestAt: ["Augusta National", "Ryder Cup/team formats"],
+    fade: ["Power-dependent setups"],
+    note: "When eligible at majors, Augusta is always a top-10 angle. Elite putter and scrambler.",
+    comps: ["Seve Ballesteros in short game and combativeness"],
+  },
+
+  "Russell Henley": {
+    tier: "SOLID", rank: 26, country: "USA",
+    sg: { total: 1.0, ott: 0.2, app: 0.5, arg: 0.2, putt: 0.1 },
+    stats: { drivingDist: 296, fairwayPct: 66, girPct: 68, scrambling: 63, top10Rate: 0.30, cutRate: 0.80, winRate: 0.04 },
+    courseTypes: { links: "B+", parkland: "A", desert: "A-", coastal: "A-", treelined: "A" },
+    markets: { outright: "Value at 45/1 or better", top5: "Best market", top10: "Reliable", makecut: "Strong" },
+    form: "Quiet but consistent. Elite iron player who shows up at premium venues.",
+    bestAt: ["Augusta National", "US Open setups"],
+    fade: ["Power courses — can't bomb it"],
+    note: "Underrated at precision setups. Watch for top-20/top-10 value at major venues.",
+    comps: ["Matt Fitzpatrick in precision and quietness"],
+  },
+
+  "Akshay Bhatia": {
+    tier: "SOLID", rank: 29, country: "USA",
+    sg: { total: 0.9, ott: 0.5, arg: 0.2, app: 0.3, putt: -0.1 },
+    stats: { drivingDist: 316, fairwayPct: 57, girPct: 64, scrambling: 60, top10Rate: 0.28, cutRate: 0.70, winRate: 0.05 },
+    courseTypes: { links: "B", parkland: "A-", desert: "A-", coastal: "B", treelined: "B+" },
+    markets: { outright: "Value at 45/1 or better", top5: "Upside plays only", top10: "Best market", makecut: "Volatile" },
+    form: "Young gun. Big hitter with high ceiling. Short game still developing.",
+    bestAt: ["Power-friendly setups", "Valero Texas Open"],
+    fade: ["Precision courses — his miss rate is high"],
+    note: "Top-20 value every week. Back him on power tracks at 40/1 or better for outright value.",
+    comps: ["Young Dustin Johnson in power with inconsistency"],
+  },
+
+  "Chris Kirk": {
+    tier: "SOLID", rank: 32, country: "USA",
+    sg: { total: 0.8, ott: 0.2, app: 0.4, arg: 0.1, putt: 0.1 },
+    stats: { drivingDist: 295, fairwayPct: 66, girPct: 66, scrambling: 62, top10Rate: 0.25, cutRate: 0.78, winRate: 0.04 },
+    courseTypes: { links: "B+", parkland: "A-", desert: "A-", coastal: "B+", treelined: "A-" },
+    markets: { outright: "Value at 60/1 or better", top5: "Low percentage", top10: "Best market", makecut: "Reliable" },
+    form: "Reliable, veteran presence. Best value in top-10 markets at weaker events.",
+    bestAt: ["Honda Classic", "Bermuda setups"],
+    fade: ["Majors — ceiling not high enough"],
+    note: "Value play at non-majors. Look for top-20 or make-cut markets.",
+    comps: ["Kevin Kisner in grit without the personality"],
+  },
+
+  "Sahith Theegala": {
+    tier: "SOLID", rank: 27, country: "USA",
+    sg: { total: 1.0, ott: 0.5, app: 0.4, arg: 0.1, putt: 0.0 },
+    stats: { drivingDist: 314, fairwayPct: 58, girPct: 66, scrambling: 61, top10Rate: 0.32, cutRate: 0.76, winRate: 0.04 },
+    courseTypes: { links: "B", parkland: "A-", desert: "A-", coastal: "B+", treelined: "A-" },
+    markets: { outright: "Value at 50/1 or better", top5: "Upside plays", top10: "Best market", makecut: "Good" },
+    form: "Power player. Short game is developing. Elite ceiling in right conditions.",
+    bestAt: ["Power-friendly setups", "warm-weather California swing"],
+    fade: ["Links — not his game"],
+    note: "FedEx Cup points player. Top-10 every week at softer events.",
+    comps: ["Cameron Young in power/inconsistency profile"],
+  },
+};
+
+// ── Course Database ───────────────────────────────────────────────────────────
+const PGA_COURSES = {
+
+  "Augusta National": {
+    location: "Augusta, GA", type: "parkland",
+    premiums: ["driver accuracy", "iron precision", "lag putting", "course management"],
+    penalizes: ["short hitters in places", "poor iron play", "bad chipping around greens"],
+    advantages: ["Right-to-left ball flight (draw)", "premium approach play", "patience"],
+    history: "Scheffler, Morikawa, Spieth, Matsuyama all elite here. Bombers with draws win.",
+    note: "Best draw players win Augusta. Approach play to undulating greens is the separator.",
+  },
+
+  "Pebble Beach": {
+    location: "Pebble Beach, CA", type: "coastal links-style",
+    premiums: ["driver accuracy (small fairways)", "wind management", "iron from rough"],
+    penalizes: ["wild drivers — out of bounds everywhere"],
+    advantages: ["Links-style experience helps", "precision over power"],
+    note: "Small fairways penalize big hitters. Accurate, smart players win here.",
+  },
+
+  "TPC Sawgrass": {
+    location: "Ponte Vedra Beach, FL", type: "parkland, water everywhere",
+    premiums: ["iron precision", "composure under pressure", "accurate tee shots"],
+    penalizes: ["aggressive play near water", "wild drivers"],
+    advantages: ["17th Island Green separates pretenders — back clutch putters"],
+    note: "Players' Championship venue. All-around skill required. Best players win.",
+  },
+
+  "Riviera": {
+    location: "Pacific Palisades, CA", type: "classic parkland",
+    premiums: ["accurate driving", "iron play to Poa annua greens", "scrambling"],
+    penalizes: ["power over accuracy", "poor putting on slow Poa greens"],
+    advantages: ["Course knowledge huge — experience here matters"],
+    note: "Max Homa venue. Patrick Cantlay. Precision specialists win.",
+  },
+
+  "Quail Hollow": {
+    location: "Charlotte, NC", type: "parkland",
+    premiums: ["distance (challenging long holes)", "iron play", "putting"],
+    penalizes: ["short hitters — the final stretch (Green Mile) is brutal"],
+    advantages: ["Power players have edge on back nine"],
+    note: "Rory McIlroy venue. Power + iron play required. The Green Mile finishes 16-18.",
+  },
+
+  "Torrey Pines South": {
+    location: "La Jolla, CA", type: "coastal",
+    premiums: ["accuracy", "iron play", "rough recovery"],
+    penalizes: ["wild drivers into thick rough"],
+    advantages: ["California coastal conditions favor ball-strikers"],
+    note: "Farmers Insurance host. Classic US Open setup — accuracy and iron play.",
+  },
+
+  "East Lake": {
+    location: "Atlanta, GA", type: "parkland",
+    premiums: ["all-around game", "putting on difficult greens", "consistency"],
+    penalizes: ["flawed parts of the game — no place to hide at Tour Championship"],
+    advantages: ["Top-30 players only — best field in golf"],
+    note: "Tour Championship. FedEx Cup points matter for starting scores. Season-long data most predictive.",
+  },
+
+  "Royal Portrush": {
+    location: "N. Ireland", type: "links",
+    premiums: ["wind management", "bump-and-run", "patience", "flight the ball"],
+    penalizes: ["high ball flight", "aggressive target golf"],
+    advantages: ["Northern European players have links-DNA advantage"],
+    note: "Rory's home course. Tommy Fleetwood, Shane Lowry elite here.",
+  },
+};
+
+// ── Golf Markets Reference ────────────────────────────────────────────────────
+const GOLF_MARKETS = {
+  outright: {
+    description: "Win the tournament outright",
+    bestUse: "Elite players at home courses. Value above 20/1.",
+    avoid: "Scheffler outright — always juiced. Short prices in weak fields.",
+  },
+  top5: {
+    description: "Finish top 5",
+    bestUse: "Elite players any week. Scheffler top-5 is the best recurring play.",
+    avoid: "Volatile players — Cameron Young types",
+  },
+  top10: {
+    description: "Finish top 10",
+    bestUse: "Best default market. Solid players in good form any week.",
+    avoid: "Majors for tier-2 players — field quality kills the percentage",
+  },
+  top20: {
+    description: "Finish top 20",
+    bestUse: "Best value market for mid-tier plays. Consistent players at soft events.",
+    avoid: "Overpriced favorites",
+  },
+  makecut: {
+    description: "Make the 36-hole cut",
+    bestUse: "Elite players, especially when form is strong. Near-certainty for top-10 players.",
+    avoid: "Volatile drivers — anyone with >45% miss fairway rate",
+  },
+  matchup: {
+    description: "Head-to-head matchup bet",
+    bestUse: "Course-specialist vs similar-priced generic player. Use SG splits.",
+    avoid: "Volatile players against consistent ones when priced even",
+  },
+  firstRoundLeader: {
+    description: "Lead after round 1",
+    bestUse: "Morning draw + power player + hot putter. Low probability but high value.",
+    avoid: "Afternoon draw in wind",
+  },
+};
+
+
+// ── Tennis/NFL Player data ───────────────────────────────────────────────────
 const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
 const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
@@ -516,7 +1936,7 @@ function renderMessage(text) {
 }
 
 function LoadingBubble({ sport }) {
-  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : "⚡";
+  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : sport === "golf" ? "⛳" : "⚡";
   const isF1 = sport === "f1";
   return (
     <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:12,minHeight:44}}>
@@ -581,7 +2001,6 @@ export default function App() {
   const [nbaInput, setNbaInput]         = useState("");
   const [mlbInput, setMlbInput]         = useState("");
   const [matchupInput, setMatchupInput] = useState("");
-  const [golfInput, setGolfInput]   = useState("");
 
   // Per-screen message threads
   const [askMsgs, setAskMsgs]         = useState([]);
@@ -591,7 +2010,6 @@ export default function App() {
   const [nbaMsgs, setNbaMsgs]         = useState([]);
   const [mlbMsgs, setMlbMsgs]         = useState([]);
   const [matchupMsgs, setMatchupMsgs] = useState([]);
-  const [golfMsgs, setGolfMsgs]     = useState([]);
 
   const [isAsking, setIsAsking]         = useState(false);
   const [players, setPlayers]           = useState(null);
@@ -605,8 +2023,10 @@ export default function App() {
   const [nbaLoading, setNbaLoading]     = useState(false);
   const [mlbData, setMlbData]           = useState(null);
   const [mlbLoading, setMlbLoading]     = useState(false);
-  const [golfData, setGolfData]     = useState(null);
-  const [golfLoading, setGolfLoading] = useState(false);
+  const [golfData, setGolfData]         = useState(null);
+  const [golfLoading, setGolfLoading]   = useState(false);
+  const [golfInput, setGolfInput]       = useState("");
+  const [golfMsgs, setGolfMsgs]         = useState([]);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef      = useRef(null);
@@ -617,12 +2037,12 @@ export default function App() {
   const f1InputRef        = useRef(null);
   const nbaInputRef       = useRef(null);
   const mlbInputRef       = useRef(null);
+  const golfInputRef      = useRef(null);
+  const golfBarRef        = useRef(null);
   const matchupInputRef   = useRef(null);
   const playerInputRef    = useRef(null);
   const nflPlayerInputRef = useRef(null);
   const fileInputRef      = useRef(null);
-  const golfInputRef  = useRef(null);
-  const golfBarRef    = useRef(null);
 
   const nflRampMode   = useMemo(() => isNflRampMode(), []);
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
@@ -809,29 +2229,6 @@ export default function App() {
     }, 120000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
-  
-  // ── Golf data fetch ─────────────────────────────────────────────────────────
-  const GOLF_FETCH = `
-  
-  useEffect(() => {
-    let active = true;
-    async function loadGolf() {
-      setGolfLoading(true);
-      try {
-        const res = await fetch("/api/golf?view=board");
-        if (!res.ok) throw new Error("Golf API " + res.status);
-        const data = await res.json();
-        if (active) setGolfData(data);
-      } catch { if (active) setGolfData(null); }
-      finally  { if (active) setGolfLoading(false); }
-    }
-    loadGolf();
-    const poll = window.setInterval(() => {
-      fetch("/api/golf?view=board").then(r=>r.json()).then(d=>{ if(active) setGolfData(d); }).catch(()=>{});
-    }, 8 * 60 * 1000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-`;
 
   // ── NBA data fetch ─────────────────────────────────────────────────────────
   const [nbaGames, setNbaGames] = useState([]);
@@ -986,11 +2383,32 @@ export default function App() {
               awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
             };
           });
-        if (active && games.length > 0) setmlbData.games(games);
+        if (active && games.length > 0) setMlbGames(games);
       } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
     }
-    loadmlbData.games();
-    const poll = window.setInterval(loadmlbData.games, 60000);
+    loadMlbGames();
+    const poll = window.setInterval(loadMlbGames, 60000);
+    return () => { active=false; window.clearInterval(poll); };
+  }, []);
+
+
+  // ── Golf data fetch ────────────────────────────────────────────────────────
+  useEffect(() => {
+    let active = true;
+    async function loadGolf() {
+      setGolfLoading(true);
+      try {
+        const res = await fetch("/api/golf?view=board");
+        if (!res.ok) throw new Error("Golf " + res.status);
+        const data = await res.json();
+        if (active) setGolfData(data);
+      } catch { if (active) setGolfData(null); }
+      finally { if (active) setGolfLoading(false); }
+    }
+    loadGolf();
+    const poll = window.setInterval(() => {
+      fetch("/api/golf?view=board").then(r=>r.json()).then(d=>{ if(active) setGolfData(d); }).catch(()=>{});
+    }, 8 * 60 * 1000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
@@ -1031,19 +2449,6 @@ export default function App() {
     return { standings, upcomingRaces, nextRace, sessionStr };
   }, [f1Data]);
 
-  const BUILD_GOLF_CONTEXT = `
-  const buildGolfContext = useCallback((questionText) => {
-    return {
-      currentEvent: golfData?.currentEvent || null,
-      rankings:     golfData?.rankings     || [],
-      odds:         golfData?.odds         || {},
-      playerDb:     PGA_PLAYERS,
-      courseDb:     PGA_COURSES,
-      question:     questionText || "",
-    };
-  }, [golfData]);
-`;
-  
   const buildNbaContext = useCallback((questionText) => {
     return {
       seasonContext:   nbaData?.seasonContext || {},
@@ -1063,7 +2468,7 @@ export default function App() {
   }, [nbaData, nbaGames]);
 
   const buildMlbContext = useCallback((questionText) => {
-    const src = mlbData?.games || [];
+    const allGames = mlbGames.length > 0 ? mlbGames : (mlbData?.games || []);
     // Trim each game to essentials only — avoid oversized payload
     const trimmedGames = allGames.map(g => ({
       id: g.id,
@@ -1081,7 +2486,20 @@ export default function App() {
       gameTotals:    mlbData?.gameTotals   || {},
       question:      questionText || "",
     };
-  }, [mlbData, mlbData.games]);
+  }, [mlbData, mlbGames]);
+
+
+  const buildGolfContext = useCallback((questionText) => {
+    return {
+      currentEvent: golfData?.currentEvent || null,
+      rankings:     golfData?.rankings     || [],
+      odds:         golfData?.odds         || {},
+      playerDb:     PGA_PLAYERS,
+      courseDb:     PGA_COURSES,
+      markets:      GOLF_MARKETS,
+      question:     questionText || "",
+    };
+  }, [golfData]);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -1104,6 +2522,7 @@ export default function App() {
         f1Context: buildF1Context(),
         nbaContext: buildNbaContext(text),
         mlbContext: buildMlbContext(text),
+        golfContext: buildGolfContext(text),
         sportHint: sportHint || null,
       };
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
@@ -1113,19 +2532,7 @@ export default function App() {
     } catch {
       setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong — try again."}]);
     } finally { setIsAsking(false); }
-    }, [
-    clearImage,
-    context,
-    isAsking,
-    liveMatches,
-    pastedImage,
-    players,
-    buildF1Context,
-    buildNbaContext,
-    buildMlbContext,
-    canAsk,
-    recordQuery,
-  ]);
+  }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
   const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
@@ -1269,324 +2676,11 @@ export default function App() {
   const goNfl    = useCallback(()=>{ setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goF1     = useCallback(()=>{ setTab("f1");    setScreen("f1");    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goNba    = useCallback(()=>{ setTab("nba");   setScreen("nba");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  // ═══════════════════════════════════════════════════════════════════════════
-// App.jsx additions for Golf tab
-// Add these pieces to your existing App.jsx
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ── 1. IMPORT at top of App.jsx ──────────────────────────────────────────────
-// import { PGA_PLAYERS, PGA_COURSES, GOLF_MARKETS } from "./components/data/golf/players.js";
-
-
-// ── 2. CSS additions (add to the css const string) ──────────────────────────
-const GOLF_CSS = `
-  /* Golf tab — white when active */
-  .nav-btn.golf-active { color: #FFFFFF; }
-
-  /* Golf loading animation */
-  @keyframes ur-golf-bounce {
-    0%,100%{ transform:translateY(0); }
-    30%     { transform:translateY(-14px); }
-    50%     { transform:translateY(-6px); }
-    70%     { transform:translateY(-10px); }
-  }
-  .ur-golf-ball {
-    display:inline-block;
-    animation: ur-golf-bounce 0.85s ease-in-out infinite;
-    font-size: 20px;
-  }
-
-  /* Golf screen styles */
-  .golf-banner {
-    border-radius:16px; padding:16px; margin-bottom:16px;
-    border:1px solid rgba(255,255,255,.15);
-    background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
-  }
-  .golf-ask-shell {
-    background:var(--surface); border:1px solid rgba(255,255,255,.15);
-    border-radius:14px; padding:14px; margin-bottom:16px;
-  }
-  .golf-ask-label {
-    font-family:var(--mono-font); font-size:10px; color:#FFFFFF;
-    letter-spacing:2px; margin-bottom:8px; text-transform:uppercase; opacity:.85;
-  }
-  .golf-leaderboard-card {
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:12px; padding:10px 14px; margin-bottom:6px;
-    display:flex; align-items:center; gap:12px; cursor:pointer; transition:all .15s;
-  }
-  .golf-leaderboard-card:hover { border-color:rgba(255,255,255,.3); }
-  .golf-pos { font-family:var(--display-font); font-size:22px; color:var(--muted); min-width:36px; text-align:right; line-height:1; }
-  .golf-player-info { flex:1; }
-  .golf-player-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:1px; }
-  .golf-player-country { font-family:var(--mono-font); font-size:9px; color:var(--muted); }
-  .golf-score { text-align:right; }
-  .golf-score-num { font-family:var(--mono-font); font-size:16px; color:#FFFFFF; display:block; }
-  .golf-score-label { font-family:var(--mono-font); font-size:9px; color:var(--muted); }
-  .golf-odds-card {
-    background:var(--surface); border:1px solid var(--border); border-radius:12px;
-    padding:10px 14px; margin-bottom:6px; display:flex; align-items:center;
-    justify-content:space-between; cursor:pointer; transition:all .15s;
-  }
-  .golf-odds-card:hover { border-color:rgba(255,255,255,.3); }
-  .golf-player-odds { font-family:var(--mono-font); font-size:14px; color:#FFFFFF; }
-`;
-
-
-// ── 3. STATE additions (add to App component state) ─────────────────────────
-const GOLF_STATE = `
-  const [golfData, setGolfData]     = useState(null);
-  const [golfLoading, setGolfLoading] = useState(false);
-  const [golfInput, setGolfInput]   = useState("");
-  const [golfMsgs, setGolfMsgs]     = useState([]);
-  const golfInputRef  = useRef(null);
-  const golfBarRef    = useRef(null);
-`;
-
-
-// ── 4. DATA FETCH (add with the other sport useEffects) ──────────────────────
-const GOLF_FETCH = `
-  useEffect(() => {
-    let active = true;
-    async function loadGolf() {
-      setGolfLoading(true);
-      try {
-        const res = await fetch("/api/golf?view=board");
-        if (!res.ok) throw new Error("Golf API " + res.status);
-        const data = await res.json();
-        if (active) setGolfData(data);
-      } catch { if (active) setGolfData(null); }
-      finally  { if (active) setGolfLoading(false); }
-    }
-    loadGolf();
-    const poll = window.setInterval(() => {
-      fetch("/api/golf?view=board").then(r=>r.json()).then(d=>{ if(active) setGolfData(d); }).catch(()=>{});
-    }, 8 * 60 * 1000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-`;
-
-
-// ── 5. buildGolfContext (add with other context builders) ────────────────────
-const BUILD_GOLF_CONTEXT = `
-  const buildGolfContext = useCallback((questionText) => {
-    return {
-      currentEvent: golfData?.currentEvent || null,
-      rankings:     golfData?.rankings     || [],
-      odds:         golfData?.odds         || {},
-      playerDb:     PGA_PLAYERS,
-      courseDb:     PGA_COURSES,
-      question:     questionText || "",
-    };
-  }, [golfData]);
-`;
-
-
-// ── 6. SUBMIT handler (add with other submit handlers) ──────────────────────
-const GOLF_SUBMIT = `
-  const submitGolf = useCallback(forced => {
-    const t = (forced ?? golfInput).trim();
-    if (!t || isAsking) return;
-    if (!forced) setGolfInput("");
-    askUrTake({ text:t, setMsgs:setGolfMsgs, sportHint:"golf" });
-    setTimeout(() => { golfBarRef.current?.scrollIntoView({ behavior:"smooth", block:"end" }); }, 100);
-  }, [askUrTake, isAsking, golfInput]);
-`;
-
-
-// ── 7. goGolf navigation (add with other nav functions) ─────────────────────
-const GO_GOLF = `
-  const goGolf = useCallback(() => {
-    setTab("golf"); setScreen("golf");
-    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null);
-  }, []);
-`;
-
-
-// ── 8. golfContext in askUrTake body (add to the body const in askUrTake) ────
-const GOLF_BODY_ADDITION = `
-  // In askUrTake, add to the body object:
-  golfContext: buildGolfContext(text),
-`;
-
-
-// ── 9. The Golf screen JSX ───────────────────────────────────────────────────
-// Add this full screen block in the return() JSX, alongside the other screens
-
-const GOLF_SCREEN_JSX = `
-{screen === "golf" && (
-  <main className="screen">
-    {/* Banner */}
-    <div className="golf-banner">
-      <div style={{ fontFamily:"var(--display-font)", fontSize:28, letterSpacing:1, marginBottom:2 }}>
-        {golfData?.currentEvent?.name || "PGA TOUR"}
-      </div>
-      <div style={{ fontFamily:"var(--mono-font)", fontSize:9, color:"var(--muted)", letterSpacing:2, textTransform:"uppercase", marginBottom:4 }}>
-        OUTRIGHTS · PROPS · MATCHUP EDGES
-      </div>
-      <div style={{ fontSize:12, color:"var(--soft)" }}>
-        {golfLoading ? "Loading..." :
-         golfData?.currentEvent
-           ? golfData.currentEvent.course + " — " + golfData.currentEvent.round
-           : "Ask about any player, tournament, or prop"}
-      </div>
-    </div>
-
-    {/* Ask bar */}
-    {golfMsgs.length === 0 && (
-      <div className="golf-ask-shell" ref={golfBarRef}>
-        <div className="golf-ask-label">Ask Anything — Golf</div>
-        <AskBar
-          inputRef={golfInputRef} value={golfInput} onChange={setGolfInput}
-          onSubmit={() => submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?"
-          btnColor="#FFFFFF" {...askBarCommon}
-        />
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {["Best outright value?","Safest make-cut play?","Best matchup H2H?","Best top-10 play?"].map(q => (
-            <button key={q} className="quick-btn" onClick={() => submitGolf(q)} style={{ fontSize:11 }}>{q}</button>
-          ))}
-        </div>
-      </div>
-    )}
-
-    <ChatThread msgs={golfMsgs} />
-
-    {/* Live leaderboard */}
-    {golfData?.currentEvent?.leaderboard?.length > 0 && (
-      <>
-        <div className="section-divider">
-          {golfData.currentEvent.name} — {golfData.currentEvent.round}
-        </div>
-        {golfData.currentEvent.leaderboard.slice(0, 20).map((player, i) => (
-          <div key={i} className="golf-leaderboard-card"
-            onClick={() => submitGolf("Best betting angle on " + player.name + " right now?")}
-          >
-            <div className="golf-pos">{player.position || i+1}</div>
-            <div className="golf-player-info">
-              <div className="golf-player-name">{player.name}</div>
-              <div className="golf-player-country">{player.country}</div>
-            </div>
-            <div className="golf-score">
-              <span className="golf-score-num"
-                style={{ color: player.score && player.score.startsWith("-") ? "#00E676" : player.score === "E" ? "var(--text)" : "#FF4444" }}
-              >
-                {player.score || "—"}
-              </span>
-              <span className="golf-score-label">
-                {player.thru && player.thru !== "—" ? "THRU " + player.thru : ""}
-              </span>
-            </div>
-          </div>
-        ))}
-      </>
-    )}
-
-    {/* Outright odds */}
-    {golfData?.odds?.outrights?.length > 0 && (
-      <>
-        <div className="section-divider">Outright Odds (This Week)</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
-          {golfData.odds.outrights.slice(0, 20).map((o, i) => (
-            <div key={i} className="golf-odds-card"
-              onClick={() => submitGolf("Best angle on " + o.player + "? Outright, top 10, or matchup?")}
-            >
-              <div style={{ fontSize:13, color:"var(--text)", fontWeight:600 }}>{o.player}</div>
-              <div className="golf-player-odds">{o.odds > 0 ? "+" : ""}{o.odds}</div>
-            </div>
-          ))}
-        </div>
-      </>
-    )}
-
-    {/* Quick ask buttons */}
-    <div className="section-divider">Quick Angles</div>
-    <div style={{ display:"flex", gap:8, flexWrap:"wrap", padding:"0 0 12px" }}>
-      {[
-        ["Best outright value?", "Who has the best outright value at this week's PGA Tour event? Consider field strength, course fit, and SG profile."],
-        ["Best top-10 play?",    "Who is the best top-10 bet at this week's PGA Tour event? Give me the highest-confidence play with reasoning."],
-        ["Safest make-cut?",     "Who is the safest make-cut bet at this week's event? Only players with 82%+ cut-making history."],
-        ["Best matchup H2H?",    "Build the sharpest head-to-head matchup play at this week's event. Iron player vs power player split."],
-        ["Best FRL play?",       "Who is the best first round leader bet? Consider power players, morning draws, and current form."],
-        ["Fade who?",            "Who should I fade this week? Tell me the player who is overpriced relative to their SG profile and course fit."],
-      ].map(([label, prompt]) => (
-        <button key={label} className="quick-btn" onClick={() => submitGolf(prompt)} style={{ fontSize:11 }}>{label}</button>
-      ))}
-    </div>
-
-    {/* Ask about specific players */}
-    <div className="section-divider">Ask About Any Player</div>
-    <div style={{ display:"flex", gap:8, flexWrap:"wrap", padding:"0 0 8px" }}>
-      {["Scheffler","Rory","Schauffele","Morikawa","Hovland","Cantlay","Rahm","Ludvig Aberg","Tom Kim","Spieth","JT","Fleetwood","Fitzpatrick","Hatton","Lowry","Matsuyama","Brian Harman","Cameron Young"].map(name => (
-        <button key={name} className="quick-btn"
-          onClick={() => submitGolf("Best betting angle for " + name + " this week? Top 10, matchup, outright, or make cut?")}
-          style={{ fontSize:11 }}
-        >{name}</button>
-      ))}
-    </div>
-
-    <div className="page-spacer" />
-  </main>
-)}
-`;
-
-
-// ── 10. Docked bar for Golf (add with other docked bars) ─────────────────────
-const GOLF_DOCKED_BAR = `
-{screen === "golf" && golfMsgs.length > 0 && (
-  <div className="docked-bar" style={{ borderTopColor:"rgba(255,255,255,.2)" }}>
-    <div className="docked-bar-label" style={{ color:"#FFFFFF" }}>Golf · Ask another</div>
-    <AskBar
-      inputRef={golfInputRef} value={golfInput} onChange={setGolfInput}
-      onSubmit={() => submitGolf()} placeholder="Ask another..."
-      btnColor="#FFFFFF" {...askBarCommon}
-    />
-  </div>
-)}
-`;
-
-
-// ── 11. Nav button (update the bottom nav) ───────────────────────────────────
-const GOLF_NAV_BUTTON = `
-// In the bottom nav, change the nav grid from 7 columns to 8, and add:
-// Change: grid-template-columns:repeat(7,1fr)  →  grid-template-columns:repeat(8,1fr)
-// Add golf button:
-<button className={\`nav-btn\${tab==="golf"?" golf-active":""}\`} onClick={goGolf}>
-  <span>Golf</span>
-</button>
-`;
-
-
-// ── 12. Header pill (add to headerPill) ──────────────────────────────────────
-const GOLF_HEADER_PILL = `
-// Add to headerPill:
-{screen==="golf" && (
-  <span style={{ fontFamily:"var(--mono-font)", fontSize:9, padding:"3px 8px",
-    borderRadius:999, color:"#FFFFFF", border:"1px solid rgba(255,255,255,.25)",
-    background:"rgba(255,255,255,.06)", whiteSpace:"nowrap" }}>
-    {golfData?.currentEvent?.shortName || "PGA TOUR"}
-  </span>
-)}
-`;
-
-
-// ── 13. LoadingBubble golf emoji (update the LoadingBubble component) ────────
-const GOLF_LOADING_BUBBLE = `
-// In LoadingBubble, update emoji assignment:
-const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" :
-              sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" :
-              sport === "golf" ? "⛳" : "⚡";
-
-// Update the CSS inside LoadingBubble to add golf-specific bounce:
-// The golf emoji should use the ur-bounce animation (not driving)
-// ur-emoji.bouncing already handles this — golf will bounce like other sports
-// No change needed to animation code, emoji "⛳" bounces via ur-bounce class
-`;
-
-console.log("All App.jsx additions documented");
   const goMlb    = useCallback(()=>{ setTab("mlb");   setScreen("mlb");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goAsk    = useCallback(()=>{ setTab("ask");   setScreen("ask");   setSelectedMatchup(null); },[]);
   const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
 
+  const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const openMatchup   = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
   const openPlayer    = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
   const openNflPlayer = useCallback(name=>{ setSelectedNflPlayer(name); setScreen("nflplayer"); setTab("nfl"); },[]);
@@ -1595,15 +2689,6 @@ console.log("All App.jsx additions documented");
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); setTimeout(()=>{ askBarBottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askInput,askUrTake,isAsking,askBarBottomRef]);
-  const GOLF_SUBMIT = `
-  const submitGolf = useCallback(forced => {
-    const t = (forced ?? golfInput).trim();
-    if (!t || isAsking) return;
-    if (!forced) setGolfInput("");
-    askUrTake({ text:t, setMsgs:setGolfMsgs, sportHint:"golf" });
-    setTimeout(() => { golfBarRef.current?.scrollIntoView({ behavior:"smooth", block:"end" }); }, 100);
-  }, [askUrTake, isAsking, golfInput]);
-`;
   const tennisBarRef  = useRef(null);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); setTimeout(()=>{ tennisBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,tennisInput]);
   const nflBarRef     = useRef(null);
@@ -1614,6 +2699,9 @@ console.log("All App.jsx additions documented");
   const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); setTimeout(()=>{ nbaBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,nbaInput]);
   const mlbBarRef     = useRef(null);
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); setTimeout(()=>{ mlbBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,mlbInput]);
+
+  const golfBarRefLocal = golfBarRef;
+  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); setTimeout(()=>{ golfBarRefLocal.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,golfInput,golfBarRefLocal]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const hint=selectedMatchup?.league?.includes("NFL")?"nfl":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
 
   // ── Sub-components ─────────────────────────────────────────────────────────
@@ -1671,6 +2759,7 @@ console.log("All App.jsx additions documented");
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
       {screen==="pro"&&<span className="pill-tag" style={{color:"#F5C842",borderColor:"rgba(245,200,66,.3)"}}>PRO</span>}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
+      {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
     </>
   );
@@ -1706,6 +2795,7 @@ console.log("All App.jsx additions documented");
               <button className="sport-pill sport-pill-f1" onClick={goF1}>F1</button>
               <button className="sport-pill sport-pill-nba" onClick={goNba}>NBA</button>
               <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
+              <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"rgba(255,255,255,.5)"}} onClick={goGolf}>GOLF</button>
             </div>
 
             {/* NBA games ticker — only when games exist */}
@@ -1713,7 +2803,7 @@ console.log("All App.jsx additions documented");
               // Priority: live games first, then next upcoming. Max 5 cards + See All.
               const nbaLive = nbaGames.filter(g=>g.state==="in");
               const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
-              const allMlb  = mlbData?.games || [];
+              const allMlb  = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
               const mlbLive = allMlb.filter(g=>g.state==="in");
               const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
               const cards   = [...nbaLive,...nbaNext,...mlbLive,...mlbNext].slice(0,5);
@@ -2084,7 +3174,7 @@ console.log("All App.jsx additions documented");
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
-                {mlbLoading ? "Loading..." : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
+                {mlbLoading ? "Loading..." : mlbGames.length > 0 ? `${mlbGames.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
               </div>
             </div>
 
@@ -2102,21 +3192,21 @@ console.log("All App.jsx additions documented");
 
             <ChatThread msgs={mlbMsgs}/>
 
-            {mlbLoading && mlbData.games.length === 0 ? (
+            {mlbLoading && mlbGames.length === 0 ? (
               <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
             ) : (
               <>
-                {(mlbData.games.length > 0 || mlbData?.games?.length > 0) && (
+                {(mlbGames.length > 0 || mlbData?.games?.length > 0) && (
                   <>
                     {(()=>{
-                      const src = mlbData?.games || [];
+                      const src = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
                       const liveCount = src.filter(g=>g.state==="in").length;
                       const finalCount = src.filter(g=>g.state==="post").length;
                       const preCount = src.filter(g=>g.state==="pre").length;
                       return <div className="section-divider">{liveCount>0?`${liveCount} Live`:""}{liveCount>0&&(finalCount+preCount>0)?" · ":""}{finalCount>0?`${finalCount} Final`:""}{preCount>0&&(liveCount+finalCount>0)?" · ":""}{preCount>0?`${preCount} Upcoming`:""}</div>;
                     })()}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
-                    {(mlbData.games.length > 0 ? mlbData.games : (mlbData?.games || [])).map((g,i) => {
+                    {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
                       const away = g.awayTeam;
                       const home = g.homeTeam;
                       const isLive = g.state === "in";
@@ -2176,6 +3266,94 @@ console.log("All App.jsx additions documented");
                 </div>
               </>
             )}
+            <div className="page-spacer"/>
+          </main>
+        )}
+
+
+        {/* ══ GOLF ══ */}
+        {screen==="golf"&&(
+          <main className="screen">
+            <div className="golf-banner">
+              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{golfData?.currentEvent?.name||"PGA TOUR"}</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>OUTRIGHTS / PROPS / MATCHUP EDGES</div>
+              <div style={{fontSize:12,color:"var(--soft)"}}>
+                {golfLoading?"Loading...":golfData?.currentEvent
+                  ?`${golfData.currentEvent.course} — ${golfData.currentEvent.round}`
+                  :"Ask about any player, tournament, or prop"}
+              </div>
+            </div>
+
+            {golfMsgs.length===0&&(
+              <div className="golf-ask-shell" ref={golfBarRef}>
+                <div className="golf-ask-label">Ask Anything — Golf</div>
+                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?" btnColor="#FFFFFF" {...askBarCommon}/>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+                  {["Best outright value?","Safest make-cut play?","Best top-10 play?","Best matchup H2H?"].map(q=>(
+                    <button key={q} className="quick-btn" onClick={()=>submitGolf(q)} style={{fontSize:11}}>{q}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <ChatThread msgs={golfMsgs}/>
+
+            {/* Live leaderboard */}
+            {golfData?.currentEvent?.leaderboard?.length > 0 && (
+              <>
+                <div className="section-divider">{golfData.currentEvent.name} — {golfData.currentEvent.round}</div>
+                {golfData.currentEvent.leaderboard.slice(0,20).map((player,i)=>(
+                  <div key={i} className="golf-leaderboard-card" onClick={()=>submitGolf(`Best betting angle on ${player.name} right now? Outright, top-10, or matchup?`)}>
+                    <div className="golf-pos">{player.position||i+1}</div>
+                    <div className="golf-player-info">
+                      <div className="golf-player-name">{player.name}</div>
+                      <div className="golf-player-country">{player.country}</div>
+                    </div>
+                    <div className="golf-score">
+                      <span className="golf-score-num" style={{color:player.score&&player.score.startsWith("-")?"#00E676":player.score==="E"?"var(--text)":"#FF4444"}}>{player.score||"—"}</span>
+                      <span className="golf-score-label">{player.thru&&player.thru!=="—"?`THRU ${player.thru}`:""}</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Outright odds */}
+            {golfData?.odds?.outrights?.length > 0 && (
+              <>
+                <div className="section-divider">Outright Odds — This Week</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+                  {golfData.odds.outrights.slice(0,20).map((o,i)=>(
+                    <div key={i} className="golf-odds-card" onClick={()=>submitGolf(`Best angle on ${o.player}? Outright, top 10, or matchup — give me the sharpest play.`)}>
+                      <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>{o.player}</div>
+                      <div className="golf-player-odds">{o.odds>0?"+":""}{o.odds}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="section-divider">Quick Angles</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+              {[
+                ["Best outright value?","Who has the best outright value at this week's PGA Tour event? Consider field strength, course fit, and SG profile."],
+                ["Best top-10 play?","Who is the best top-10 bet at this week's PGA Tour event? Give me the highest-confidence play with reasoning."],
+                ["Safest make-cut?","Who is the safest make-cut bet at this week's event? Prioritize players with 80%+ cut-making history and good current form."],
+                ["Best matchup H2H?","Build the sharpest head-to-head matchup play at this week's event. Consider SG splits and course fit."],
+                ["Best FRL play?","Who is the best first round leader bet? Consider power players, morning draws, and current form."],
+                ["Who to fade?","Who should I fade this week? Tell me the player overpriced relative to their SG profile and course fit."],
+              ].map(([label,prompt])=>(
+                <button key={label} className="quick-btn" onClick={()=>submitGolf(prompt)} style={{fontSize:11}}>{label}</button>
+              ))}
+            </div>
+
+            <div className="section-divider">Ask About Any Player</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+              {["Scheffler","Rory","Schauffele","Morikawa","Hovland","Cantlay","Rahm","Ludvig Aberg","Tom Kim","Spieth","JT","Fleetwood","Fitzpatrick","Hatton","Lowry","Matsuyama","Brian Harman","Cameron Young","Wyndham Clark","Sahith Theegala"].map(name=>(
+                <button key={name} className="quick-btn" onClick={()=>submitGolf(`Best betting angle for ${name} this week? Top 10, matchup, outright, or make cut?`)} style={{fontSize:11}}>{name}</button>
+              ))}
+            </div>
+
             <div className="page-spacer"/>
           </main>
         )}
@@ -2372,6 +3550,12 @@ console.log("All App.jsx additions documented");
             <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon}/>
           </div>
         )}
+        {screen==="golf"&&golfMsgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(255,255,255,.2)"}}>
+            <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
+            <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#FFFFFF" {...askBarCommon}/>
+          </div>
+        )}
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
@@ -2447,6 +3631,7 @@ console.log("All App.jsx additions documented");
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
+          <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
           <button className={`nav-btn pro-active`} onClick={goPro}><span>Pro</span></button>
         </nav>
 
