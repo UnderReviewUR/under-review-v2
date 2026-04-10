@@ -259,7 +259,7 @@ const css = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(8,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
   .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:13px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
@@ -516,7 +516,7 @@ function renderMessage(text) {
 }
 
 function LoadingBubble({ sport }) {
-  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : "⚡";
+  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : sport === "golf" ? "⛳" : "⚡";
   const isF1 = sport === "f1";
   return (
     <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:12,minHeight:44}}>
@@ -811,8 +811,6 @@ export default function App() {
   }, []);
   
   // ── Golf data fetch ─────────────────────────────────────────────────────────
-  const GOLF_FETCH = `
-  
   useEffect(() => {
     let active = true;
     async function loadGolf() {
@@ -831,7 +829,6 @@ export default function App() {
     }, 8 * 60 * 1000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
-`;
 
   // ── NBA data fetch ─────────────────────────────────────────────────────────
   const [nbaGames, setNbaGames] = useState([]);
@@ -986,11 +983,11 @@ export default function App() {
               awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
             };
           });
-        if (active && games.length > 0) setmlbData.games(games);
+        if (active && games.length > 0) setMlbGames(games);
       } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
     }
-    loadmlbData.games();
-    const poll = window.setInterval(loadmlbData.games, 60000);
+    loadMlbGames();
+    const poll = window.setInterval(loadMlbGames, 60000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
@@ -1031,7 +1028,6 @@ export default function App() {
     return { standings, upcomingRaces, nextRace, sessionStr };
   }, [f1Data]);
 
-  const BUILD_GOLF_CONTEXT = `
   const buildGolfContext = useCallback((questionText) => {
     return {
       currentEvent: golfData?.currentEvent || null,
@@ -1042,7 +1038,6 @@ export default function App() {
       question:     questionText || "",
     };
   }, [golfData]);
-`;
   
   const buildNbaContext = useCallback((questionText) => {
     return {
@@ -1065,7 +1060,7 @@ export default function App() {
   const buildMlbContext = useCallback((questionText) => {
     const src = mlbData?.games || [];
     // Trim each game to essentials only — avoid oversized payload
-    const trimmedGames = allGames.map(g => ({
+    const trimmedGames = src.map(g => ({
       id: g.id,
       state: g.state,
       status: g.status,
@@ -1081,7 +1076,7 @@ export default function App() {
       gameTotals:    mlbData?.gameTotals   || {},
       question:      questionText || "",
     };
-  }, [mlbData, mlbData.games]);
+  }, [mlbData]);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -1104,6 +1099,7 @@ export default function App() {
         f1Context: buildF1Context(),
         nbaContext: buildNbaContext(text),
         mlbContext: buildMlbContext(text),
+        golfContext: buildGolfContext(text),
         sportHint: sportHint || null,
       };
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
@@ -1123,6 +1119,7 @@ export default function App() {
     buildF1Context,
     buildNbaContext,
     buildMlbContext,
+    buildGolfContext,
     canAsk,
     recordQuery,
   ]);
@@ -1269,320 +1266,7 @@ export default function App() {
   const goNfl    = useCallback(()=>{ setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goF1     = useCallback(()=>{ setTab("f1");    setScreen("f1");    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goNba    = useCallback(()=>{ setTab("nba");   setScreen("nba");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  // ═══════════════════════════════════════════════════════════════════════════
-// App.jsx additions for Golf tab
-// Add these pieces to your existing App.jsx
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ── 1. IMPORT at top of App.jsx ──────────────────────────────────────────────
-// import { PGA_PLAYERS, PGA_COURSES, GOLF_MARKETS } from "./components/data/golf/players.js";
-
-
-// ── 2. CSS additions (add to the css const string) ──────────────────────────
-const GOLF_CSS = `
-  /* Golf tab — white when active */
-  .nav-btn.golf-active { color: #FFFFFF; }
-
-  /* Golf loading animation */
-  @keyframes ur-golf-bounce {
-    0%,100%{ transform:translateY(0); }
-    30%     { transform:translateY(-14px); }
-    50%     { transform:translateY(-6px); }
-    70%     { transform:translateY(-10px); }
-  }
-  .ur-golf-ball {
-    display:inline-block;
-    animation: ur-golf-bounce 0.85s ease-in-out infinite;
-    font-size: 20px;
-  }
-
-  /* Golf screen styles */
-  .golf-banner {
-    border-radius:16px; padding:16px; margin-bottom:16px;
-    border:1px solid rgba(255,255,255,.15);
-    background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
-  }
-  .golf-ask-shell {
-    background:var(--surface); border:1px solid rgba(255,255,255,.15);
-    border-radius:14px; padding:14px; margin-bottom:16px;
-  }
-  .golf-ask-label {
-    font-family:var(--mono-font); font-size:10px; color:#FFFFFF;
-    letter-spacing:2px; margin-bottom:8px; text-transform:uppercase; opacity:.85;
-  }
-  .golf-leaderboard-card {
-    background:var(--surface); border:1px solid var(--border);
-    border-radius:12px; padding:10px 14px; margin-bottom:6px;
-    display:flex; align-items:center; gap:12px; cursor:pointer; transition:all .15s;
-  }
-  .golf-leaderboard-card:hover { border-color:rgba(255,255,255,.3); }
-  .golf-pos { font-family:var(--display-font); font-size:22px; color:var(--muted); min-width:36px; text-align:right; line-height:1; }
-  .golf-player-info { flex:1; }
-  .golf-player-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:1px; }
-  .golf-player-country { font-family:var(--mono-font); font-size:9px; color:var(--muted); }
-  .golf-score { text-align:right; }
-  .golf-score-num { font-family:var(--mono-font); font-size:16px; color:#FFFFFF; display:block; }
-  .golf-score-label { font-family:var(--mono-font); font-size:9px; color:var(--muted); }
-  .golf-odds-card {
-    background:var(--surface); border:1px solid var(--border); border-radius:12px;
-    padding:10px 14px; margin-bottom:6px; display:flex; align-items:center;
-    justify-content:space-between; cursor:pointer; transition:all .15s;
-  }
-  .golf-odds-card:hover { border-color:rgba(255,255,255,.3); }
-  .golf-player-odds { font-family:var(--mono-font); font-size:14px; color:#FFFFFF; }
-`;
-
-
-// ── 3. STATE additions (add to App component state) ─────────────────────────
-const GOLF_STATE = `
-  const [golfData, setGolfData]     = useState(null);
-  const [golfLoading, setGolfLoading] = useState(false);
-  const [golfInput, setGolfInput]   = useState("");
-  const [golfMsgs, setGolfMsgs]     = useState([]);
-  const golfInputRef  = useRef(null);
-  const golfBarRef    = useRef(null);
-`;
-
-
-// ── 4. DATA FETCH (add with the other sport useEffects) ──────────────────────
-const GOLF_FETCH = `
-  useEffect(() => {
-    let active = true;
-    async function loadGolf() {
-      setGolfLoading(true);
-      try {
-        const res = await fetch("/api/golf?view=board");
-        if (!res.ok) throw new Error("Golf API " + res.status);
-        const data = await res.json();
-        if (active) setGolfData(data);
-      } catch { if (active) setGolfData(null); }
-      finally  { if (active) setGolfLoading(false); }
-    }
-    loadGolf();
-    const poll = window.setInterval(() => {
-      fetch("/api/golf?view=board").then(r=>r.json()).then(d=>{ if(active) setGolfData(d); }).catch(()=>{});
-    }, 8 * 60 * 1000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-`;
-
-
-// ── 5. buildGolfContext (add with other context builders) ────────────────────
-const BUILD_GOLF_CONTEXT = `
-  const buildGolfContext = useCallback((questionText) => {
-    return {
-      currentEvent: golfData?.currentEvent || null,
-      rankings:     golfData?.rankings     || [],
-      odds:         golfData?.odds         || {},
-      playerDb:     PGA_PLAYERS,
-      courseDb:     PGA_COURSES,
-      question:     questionText || "",
-    };
-  }, [golfData]);
-`;
-
-
-// ── 6. SUBMIT handler (add with other submit handlers) ──────────────────────
-const GOLF_SUBMIT = `
-  const submitGolf = useCallback(forced => {
-    const t = (forced ?? golfInput).trim();
-    if (!t || isAsking) return;
-    if (!forced) setGolfInput("");
-    askUrTake({ text:t, setMsgs:setGolfMsgs, sportHint:"golf" });
-    setTimeout(() => { golfBarRef.current?.scrollIntoView({ behavior:"smooth", block:"end" }); }, 100);
-  }, [askUrTake, isAsking, golfInput]);
-`;
-
-
-// ── 7. goGolf navigation (add with other nav functions) ─────────────────────
-const GO_GOLF = `
-  const goGolf = useCallback(() => {
-    setTab("golf"); setScreen("golf");
-    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null);
-  }, []);
-`;
-
-
-// ── 8. golfContext in askUrTake body (add to the body const in askUrTake) ────
-const GOLF_BODY_ADDITION = `
-  // In askUrTake, add to the body object:
-  golfContext: buildGolfContext(text),
-`;
-
-
-// ── 9. The Golf screen JSX ───────────────────────────────────────────────────
-// Add this full screen block in the return() JSX, alongside the other screens
-
-const GOLF_SCREEN_JSX = `
-{screen === "golf" && (
-  <main className="screen">
-    {/* Banner */}
-    <div className="golf-banner">
-      <div style={{ fontFamily:"var(--display-font)", fontSize:28, letterSpacing:1, marginBottom:2 }}>
-        {golfData?.currentEvent?.name || "PGA TOUR"}
-      </div>
-      <div style={{ fontFamily:"var(--mono-font)", fontSize:9, color:"var(--muted)", letterSpacing:2, textTransform:"uppercase", marginBottom:4 }}>
-        OUTRIGHTS · PROPS · MATCHUP EDGES
-      </div>
-      <div style={{ fontSize:12, color:"var(--soft)" }}>
-        {golfLoading ? "Loading..." :
-         golfData?.currentEvent
-           ? golfData.currentEvent.course + " — " + golfData.currentEvent.round
-           : "Ask about any player, tournament, or prop"}
-      </div>
-    </div>
-
-    {/* Ask bar */}
-    {golfMsgs.length === 0 && (
-      <div className="golf-ask-shell" ref={golfBarRef}>
-        <div className="golf-ask-label">Ask Anything — Golf</div>
-        <AskBar
-          inputRef={golfInputRef} value={golfInput} onChange={setGolfInput}
-          onSubmit={() => submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?"
-          btnColor="#FFFFFF" {...askBarCommon}
-        />
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-          {["Best outright value?","Safest make-cut play?","Best matchup H2H?","Best top-10 play?"].map(q => (
-            <button key={q} className="quick-btn" onClick={() => submitGolf(q)} style={{ fontSize:11 }}>{q}</button>
-          ))}
-        </div>
-      </div>
-    )}
-
-    <ChatThread msgs={golfMsgs} />
-
-    {/* Live leaderboard */}
-    {golfData?.currentEvent?.leaderboard?.length > 0 && (
-      <>
-        <div className="section-divider">
-          {golfData.currentEvent.name} — {golfData.currentEvent.round}
-        </div>
-        {golfData.currentEvent.leaderboard.slice(0, 20).map((player, i) => (
-          <div key={i} className="golf-leaderboard-card"
-            onClick={() => submitGolf("Best betting angle on " + player.name + " right now?")}
-          >
-            <div className="golf-pos">{player.position || i+1}</div>
-            <div className="golf-player-info">
-              <div className="golf-player-name">{player.name}</div>
-              <div className="golf-player-country">{player.country}</div>
-            </div>
-            <div className="golf-score">
-              <span className="golf-score-num"
-                style={{ color: player.score && player.score.startsWith("-") ? "#00E676" : player.score === "E" ? "var(--text)" : "#FF4444" }}
-              >
-                {player.score || "—"}
-              </span>
-              <span className="golf-score-label">
-                {player.thru && player.thru !== "—" ? "THRU " + player.thru : ""}
-              </span>
-            </div>
-          </div>
-        ))}
-      </>
-    )}
-
-    {/* Outright odds */}
-    {golfData?.odds?.outrights?.length > 0 && (
-      <>
-        <div className="section-divider">Outright Odds (This Week)</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
-          {golfData.odds.outrights.slice(0, 20).map((o, i) => (
-            <div key={i} className="golf-odds-card"
-              onClick={() => submitGolf("Best angle on " + o.player + "? Outright, top 10, or matchup?")}
-            >
-              <div style={{ fontSize:13, color:"var(--text)", fontWeight:600 }}>{o.player}</div>
-              <div className="golf-player-odds">{o.odds > 0 ? "+" : ""}{o.odds}</div>
-            </div>
-          ))}
-        </div>
-      </>
-    )}
-
-    {/* Quick ask buttons */}
-    <div className="section-divider">Quick Angles</div>
-    <div style={{ display:"flex", gap:8, flexWrap:"wrap", padding:"0 0 12px" }}>
-      {[
-        ["Best outright value?", "Who has the best outright value at this week's PGA Tour event? Consider field strength, course fit, and SG profile."],
-        ["Best top-10 play?",    "Who is the best top-10 bet at this week's PGA Tour event? Give me the highest-confidence play with reasoning."],
-        ["Safest make-cut?",     "Who is the safest make-cut bet at this week's event? Only players with 82%+ cut-making history."],
-        ["Best matchup H2H?",    "Build the sharpest head-to-head matchup play at this week's event. Iron player vs power player split."],
-        ["Best FRL play?",       "Who is the best first round leader bet? Consider power players, morning draws, and current form."],
-        ["Fade who?",            "Who should I fade this week? Tell me the player who is overpriced relative to their SG profile and course fit."],
-      ].map(([label, prompt]) => (
-        <button key={label} className="quick-btn" onClick={() => submitGolf(prompt)} style={{ fontSize:11 }}>{label}</button>
-      ))}
-    </div>
-
-    {/* Ask about specific players */}
-    <div className="section-divider">Ask About Any Player</div>
-    <div style={{ display:"flex", gap:8, flexWrap:"wrap", padding:"0 0 8px" }}>
-      {["Scheffler","Rory","Schauffele","Morikawa","Hovland","Cantlay","Rahm","Ludvig Aberg","Tom Kim","Spieth","JT","Fleetwood","Fitzpatrick","Hatton","Lowry","Matsuyama","Brian Harman","Cameron Young"].map(name => (
-        <button key={name} className="quick-btn"
-          onClick={() => submitGolf("Best betting angle for " + name + " this week? Top 10, matchup, outright, or make cut?")}
-          style={{ fontSize:11 }}
-        >{name}</button>
-      ))}
-    </div>
-
-    <div className="page-spacer" />
-  </main>
-)}
-`;
-
-
-// ── 10. Docked bar for Golf (add with other docked bars) ─────────────────────
-const GOLF_DOCKED_BAR = `
-{screen === "golf" && golfMsgs.length > 0 && (
-  <div className="docked-bar" style={{ borderTopColor:"rgba(255,255,255,.2)" }}>
-    <div className="docked-bar-label" style={{ color:"#FFFFFF" }}>Golf · Ask another</div>
-    <AskBar
-      inputRef={golfInputRef} value={golfInput} onChange={setGolfInput}
-      onSubmit={() => submitGolf()} placeholder="Ask another..."
-      btnColor="#FFFFFF" {...askBarCommon}
-    />
-  </div>
-)}
-`;
-
-
-// ── 11. Nav button (update the bottom nav) ───────────────────────────────────
-const GOLF_NAV_BUTTON = `
-// In the bottom nav, change the nav grid from 7 columns to 8, and add:
-// Change: grid-template-columns:repeat(7,1fr)  →  grid-template-columns:repeat(8,1fr)
-// Add golf button:
-<button className={\`nav-btn\${tab==="golf"?" golf-active":""}\`} onClick={goGolf}>
-  <span>Golf</span>
-</button>
-`;
-
-
-// ── 12. Header pill (add to headerPill) ──────────────────────────────────────
-const GOLF_HEADER_PILL = `
-// Add to headerPill:
-{screen==="golf" && (
-  <span style={{ fontFamily:"var(--mono-font)", fontSize:9, padding:"3px 8px",
-    borderRadius:999, color:"#FFFFFF", border:"1px solid rgba(255,255,255,.25)",
-    background:"rgba(255,255,255,.06)", whiteSpace:"nowrap" }}>
-    {golfData?.currentEvent?.shortName || "PGA TOUR"}
-  </span>
-)}
-`;
-
-
-// ── 13. LoadingBubble golf emoji (update the LoadingBubble component) ────────
-const GOLF_LOADING_BUBBLE = `
-// In LoadingBubble, update emoji assignment:
-const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" :
-              sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" :
-              sport === "golf" ? "⛳" : "⚡";
-
-// Update the CSS inside LoadingBubble to add golf-specific bounce:
-// The golf emoji should use the ur-bounce animation (not driving)
-// ur-emoji.bouncing already handles this — golf will bounce like other sports
-// No change needed to animation code, emoji "⛳" bounces via ur-bounce class
-`;
-
-console.log("All App.jsx additions documented");
+  const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goMlb    = useCallback(()=>{ setTab("mlb");   setScreen("mlb");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
   const goAsk    = useCallback(()=>{ setTab("ask");   setScreen("ask");   setSelectedMatchup(null); },[]);
   const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
@@ -1595,15 +1279,7 @@ console.log("All App.jsx additions documented");
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); setTimeout(()=>{ askBarBottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askInput,askUrTake,isAsking,askBarBottomRef]);
-  const GOLF_SUBMIT = `
-  const submitGolf = useCallback(forced => {
-    const t = (forced ?? golfInput).trim();
-    if (!t || isAsking) return;
-    if (!forced) setGolfInput("");
-    askUrTake({ text:t, setMsgs:setGolfMsgs, sportHint:"golf" });
-    setTimeout(() => { golfBarRef.current?.scrollIntoView({ behavior:"smooth", block:"end" }); }, 100);
-  }, [askUrTake, isAsking, golfInput]);
-`;
+  const submitGolf    = useCallback(forced=>{ const t=(forced??golfInput).trim();    if(!t||isAsking)return; if(!forced)setGolfInput("");  askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); setTimeout(()=>{ golfBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,golfInput]);
   const tennisBarRef  = useRef(null);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); setTimeout(()=>{ tennisBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,tennisInput]);
   const nflBarRef     = useRef(null);
@@ -1671,6 +1347,7 @@ console.log("All App.jsx additions documented");
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
       {screen==="pro"&&<span className="pill-tag" style={{color:"#F5C842",borderColor:"rgba(245,200,66,.3)"}}>PRO</span>}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
+      {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
     </>
   );
@@ -1684,7 +1361,7 @@ console.log("All App.jsx additions documented");
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
-      <style>{css}</style>
+      <style>{css}{GOLF_CSS}</style>
       <div className="app">
 
         <header className="hdr">
@@ -1706,6 +1383,7 @@ console.log("All App.jsx additions documented");
               <button className="sport-pill sport-pill-f1" onClick={goF1}>F1</button>
               <button className="sport-pill sport-pill-nba" onClick={goNba}>NBA</button>
               <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
+              <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"#FFFFFF"}} onClick={goGolf}>GOLF</button>
             </div>
 
             {/* NBA games ticker — only when games exist */}
@@ -2077,6 +1755,86 @@ console.log("All App.jsx additions documented");
           </main>
         )}
 
+        {/* ══ GOLF ══ */}
+        {screen==="golf"&&(
+          <main className="screen">
+            <div className="golf-banner">
+              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>
+                {golfData?.currentEvent?.name||"PGA TOUR"}
+              </div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>
+                OUTRIGHTS · PROPS · MATCHUP EDGES
+              </div>
+              <div style={{fontSize:12,color:"var(--soft)"}}>
+                {golfLoading?"Loading...":golfData?.currentEvent?golfData.currentEvent.course+" — "+golfData.currentEvent.round:"Ask about any player, tournament, or prop"}
+              </div>
+            </div>
+
+            {golfMsgs.length===0&&(
+              <div className="golf-ask-shell" ref={golfBarRef}>
+                <div className="golf-ask-label">Ask Anything — Golf</div>
+                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?" btnColor="#FFFFFF" {...askBarCommon}/>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {["Best outright value?","Safest make-cut play?","Best matchup H2H?","Best top-10 play?"].map(q=>(
+                    <button key={q} className="quick-btn" onClick={()=>submitGolf(q)} style={{fontSize:11}}>{q}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <ChatThread msgs={golfMsgs}/>
+
+            {golfData?.currentEvent?.leaderboard?.length>0&&(
+              <>
+                <div className="section-divider">{golfData.currentEvent.name} — {golfData.currentEvent.round}</div>
+                {golfData.currentEvent.leaderboard.slice(0,20).map((player,i)=>(
+                  <div key={i} className="golf-leaderboard-card" onClick={()=>submitGolf("Best betting angle on "+player.name+" right now?")}>
+                    <div className="golf-pos">{player.position||i+1}</div>
+                    <div className="golf-player-info">
+                      <div className="golf-player-name">{player.name}</div>
+                      <div className="golf-player-country">{player.country}</div>
+                    </div>
+                    <div className="golf-score">
+                      <span className="golf-score-num" style={{color:player.score&&player.score.startsWith("-")?"#00E676":player.score==="E"?"var(--text)":"#FF4444"}}>{player.score||"—"}</span>
+                      <span className="golf-score-label">{player.thru&&player.thru!=="—"?"THRU "+player.thru:""}</span>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {golfData?.odds?.outrights?.length>0&&(
+              <>
+                <div className="section-divider">Outright Odds (This Week)</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
+                  {golfData.odds.outrights.slice(0,20).map((o,i)=>(
+                    <div key={i} className="golf-odds-card" onClick={()=>submitGolf("Best angle on "+o.player+"? Outright, top 10, or matchup?")}>
+                      <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>{o.player}</div>
+                      <div className="golf-player-odds">{o.odds>0?"+":""}{o.odds}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="section-divider">Quick Angles</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+              {[["Best outright value?","Who has the best outright value at this week's PGA Tour event? Consider field strength, course fit, and SG profile."],["Best top-10 play?","Who is the best top-10 bet at this week's PGA Tour event? Give me the highest-confidence play with reasoning."],["Safest make-cut?","Who is the safest make-cut bet at this week's event? Only players with 82%+ cut-making history."],["Best matchup H2H?","Build the sharpest head-to-head matchup play at this week's event. Iron player vs power player split."],["Best FRL play?","Who is the best first round leader bet? Consider power players, morning draws, and current form."],["Fade who?","Who should I fade this week? Tell me the player who is overpriced relative to their SG profile and course fit."]].map(([label,prompt])=>(
+                <button key={label} className="quick-btn" onClick={()=>submitGolf(prompt)} style={{fontSize:11}}>{label}</button>
+              ))}
+            </div>
+
+            <div className="section-divider">Ask About Any Player</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+              {["Scheffler","Rory","Schauffele","Morikawa","Hovland","Cantlay","Rahm","Ludvig Aberg","Tom Kim","Spieth","JT","Fleetwood","Fitzpatrick","Hatton","Lowry","Matsuyama","Brian Harman","Cameron Young"].map(name=>(
+                <button key={name} className="quick-btn" onClick={()=>submitGolf("Best betting angle for "+name+" this week? Top 10, matchup, outright, or make cut?")} style={{fontSize:11}}>{name}</button>
+              ))}
+            </div>
+
+            <div className="page-spacer"/>
+          </main>
+        )}
+
         {/* ══ MLB ══ */}
         {screen==="mlb"&&(
           <main className="screen">
@@ -2372,6 +2130,12 @@ console.log("All App.jsx additions documented");
             <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon}/>
           </div>
         )}
+        {screen==="golf"&&golfMsgs.length>0&&(
+          <div className="docked-bar" style={{borderTopColor:"rgba(255,255,255,.2)"}}>
+            <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
+            <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#FFFFFF" {...askBarCommon}/>
+          </div>
+        )}
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
@@ -2447,6 +2211,7 @@ console.log("All App.jsx additions documented");
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
+          <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
           <button className={`nav-btn pro-active`} onClick={goPro}><span>Pro</span></button>
         </nav>
 
