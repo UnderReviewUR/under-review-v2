@@ -461,6 +461,144 @@ function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
   return prompt;
 }
 
+// ── Golf system prompt ────────────────────────────────────────────────────────
+function buildGolfSystemPrompt(golfContext, matchupCtxStr) {
+  var ctx      = golfContext || {};
+  var now      = new Date();
+  var todayStr = now.toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  var event    = ctx.currentEvent || null;
+  var odds     = ctx.odds || {};
+  var players  = ctx.playerDb || {};
+  var question = ctx.question || "";
+  var q        = question.toLowerCase();
+
+  var eventStr  = "No active tournament loaded this week.";
+  var courseStr = "";
+  var leaderStr = "";
+
+  if (event) {
+    eventStr = event.name + " — " + event.course + ", " + (event.location||"");
+    if (event.round) eventStr += " [" + event.round + "]";
+    courseStr = "COURSE: " + event.course + " (Par " + (event.par||72) + ")";
+    var lb = event.leaderboard || [];
+    if (lb.length > 0) {
+      leaderStr = "LIVE LEADERBOARD (Top 10)\n" + lb.slice(0,10).map(function(p) {
+        return (p.position||"—") + " " + p.name + " — " + p.score + (p.thru&&p.thru!=="—"?" (thru "+p.thru+")":"") + (p.today&&p.today!=="—"?" [today: "+p.today+"]":"");
+      }).join("\n");
+    }
+  }
+
+  var oddsStr = "No current odds loaded — use directional leans only.";
+  if (odds.outrights && odds.outrights.length > 0) {
+    oddsStr = "OUTRIGHT ODDS (favorites first)\n" + odds.outrights.slice(0,20).map(function(o) {
+      return o.player + ": " + (o.odds>0?"+":"") + o.odds;
+    }).join("\n");
+  }
+
+  var allPlayerKeys = Object.keys(players);
+  var relevantPlayers = [];
+
+  for (var i=0; i<allPlayerKeys.length; i++) {
+    var pk = allPlayerKeys[i];
+    var lastName = pk.split(" ").pop().toLowerCase();
+    var firstName = pk.split(" ")[0].toLowerCase();
+    if (q.includes(pk.toLowerCase()) || q.includes(lastName) || q.includes(firstName)) {
+      relevantPlayers.push(pk);
+    }
+  }
+  if (odds.outrights) {
+    for (var oe=0; oe<Math.min(25,odds.outrights.length); oe++) {
+      var on = odds.outrights[oe].player.toLowerCase();
+      for (var pk2i=0; pk2i<allPlayerKeys.length; pk2i++) {
+        var pk2 = allPlayerKeys[pk2i];
+        if (!relevantPlayers.includes(pk2) && (pk2.toLowerCase()===on || on.includes(pk2.split(" ").pop().toLowerCase()))) {
+          relevantPlayers.push(pk2);
+        }
+      }
+    }
+  }
+  for (var li=0; li<Math.min(10,(event&&event.leaderboard?event.leaderboard.length:0)); li++) {
+    var lbn = ((event.leaderboard[li]||{}).name||"").toLowerCase();
+    for (var pk3i=0; pk3i<allPlayerKeys.length; pk3i++) {
+      var pk3 = allPlayerKeys[pk3i];
+      if (!relevantPlayers.includes(pk3) && lbn.includes(pk3.split(" ").pop().toLowerCase())) {
+        relevantPlayers.push(pk3);
+      }
+    }
+  }
+  if (relevantPlayers.length < 5) {
+    var topTier = allPlayerKeys.filter(function(k){return players[k]&&players[k].tier===1;}).sort(function(a,b){return (players[a].rank||99)-(players[b].rank||99);}).slice(0,12);
+    for (var ti=0; ti<topTier.length; ti++) { if (!relevantPlayers.includes(topTier[ti])) relevantPlayers.push(topTier[ti]); }
+  }
+  relevantPlayers = relevantPlayers.slice(0,18);
+
+  var playerContextStr = "";
+  for (var pi=0; pi<relevantPlayers.length; pi++) {
+    var pName = relevantPlayers[pi];
+    var p = players[pName];
+    if (!p) continue;
+    var playerOdds = "";
+    if (odds.outrights) {
+      for (var oi=0; oi<odds.outrights.length; oi++) {
+        var om = odds.outrights[oi];
+        var omn = om.player.toLowerCase(), pn2 = pName.toLowerCase();
+        if (omn===pn2 || omn.includes(pName.split(" ").pop().toLowerCase())) {
+          playerOdds = " | OUTRIGHT: " + (om.odds>0?"+":"") + om.odds;
+          break;
+        }
+      }
+    }
+    if (odds.topFinish && odds.topFinish[pName]) {
+      var tf=odds.topFinish[pName];
+      if (tf.top_10_finish) playerOdds += " | T10: "+(tf.top_10_finish>0?"+":"")+tf.top_10_finish;
+      if (tf.top_20_finish) playerOdds += " | T20: "+(tf.top_20_finish>0?"+":"")+tf.top_20_finish;
+    }
+    if (odds.makeCut && odds.makeCut[pName]) playerOdds += " | CUT: "+(odds.makeCut[pName]>0?"+":"")+odds.makeCut[pName];
+    var sg=p.sg||{};
+    var sgStr="SG: Total "+(sg.total||"—")+" | OTT "+(sg.ott||"—")+" | App "+(sg.app||"—")+" | ARG "+(sg.arg||"—")+" | Putt "+(sg.putt||"—");
+    playerContextStr += "\n"+pName+" (#"+p.rank+", "+p.country+", Tier "+p.tier+")"+playerOdds+"\n";
+    playerContextStr += "  "+sgStr+"\n";
+    playerContextStr += "  Cut:"+p.cutMaking+" | T10:"+p.top10Rate+" | T20:"+p.top20Rate+" | Win%:"+p.winRate+"\n";
+    playerContextStr += "  Form: "+((p.recentForm||[]).join(","))+"\n";
+    playerContextStr += "  Best markets: "+((p.bestMarkets||[]).join(","))+"\n";
+    playerContextStr += "  NOTE: "+(p.note||"—")+"\n";
+    if (p.tier===2&&p.comps) playerContextStr += "  COMPS: "+p.comps.join(", ")+"\n";
+  }
+
+  var rankingsStr = "";
+  if (ctx.rankings && ctx.rankings.length>0) {
+    rankingsStr = "WORLD RANKINGS (Top 15)\n"+ctx.rankings.slice(0,15).map(function(r){return "#"+r.rank+" "+r.name+" ("+r.country+")";}).join("\n");
+  }
+
+  var prompt = "You are Under Review — a sharp PGA Tour betting intelligence tool.\n\n";
+  prompt += "IDENTITY: Sharp golf analyst. Lead with the take. Never hedge. Never open with a limitation.\n\n";
+  prompt += "ABSOLUTE RULES:\n";
+  prompt += "1. ALWAYS lead with the lean — never open with what you don't know.\n";
+  prompt += "2. If a player is NOT in your database: say 'I don't have [Player] fully modeled. The closest comps in this market are X and Y.' Then give real angles on those comps.\n";
+  prompt += "3. Cite exact odds when available. If no odds loaded, give directional lean with probability language.\n";
+  prompt += "4. Never recommend a player for a market that contradicts their profile (don't bet make-cut on a 72% cutter).\n";
+  prompt += "5. LIV players (Dustin Johnson, Koepka, DeChambeau, Rahm, Cameron Smith, Tyrrell Hatton, Bubba Watson, Phil Mickelson) — always note VERIFY THEY ARE IN THE FIELD.\n";
+  prompt += "6. NEVER use markdown. Plain text only.\n\n";
+  prompt += "RESPONSE FORMAT:\nOne sharp opening sentence (the lean). Then:\nTHE PLAY:\n• [Player] — [MARKET] [ODDS] — [key reason]\nFADE: [one clear fade with reason]\nCONFIDENCE: [High/Medium/Speculative]\nTIMING: [one line]\n\n";
+  prompt += "GOLF BETTING PRINCIPLES:\n";
+  prompt += "Top 10 is the best value market most weeks — wide enough to capture consistent players, narrow enough for real odds.\n";
+  prompt += "Outright bets lose 85-90% of the time. Value starts at +800 for true Tier 1 players.\n";
+  prompt += "Make-cut is the safest bet — only target players with 82%+ cut-making history.\n";
+  prompt += "H2H matchup is the sharpest market — pair consistent iron players vs boom-bust power players.\n";
+  prompt += "FRL (First Round Leader) is volatile but high-ROI — power players and morning draws.\n";
+  prompt += "SG Total > 2.0 = elite. 1.5-2.0 = very good. 1.0-1.5 = solid. Below 1.0 = journeyman.\n";
+  prompt += "Recent form (last 3 events) matters more than season averages.\n\n";
+  prompt += "TODAY: "+todayStr+"\n\n";
+  prompt += "CURRENT TOURNAMENT\n"+eventStr+"\n\n";
+  if (courseStr) prompt += courseStr+"\n\n";
+  if (leaderStr) prompt += leaderStr+"\n\n";
+  if (rankingsStr) prompt += rankingsStr+"\n\n";
+  prompt += oddsStr+"\n\n";
+  prompt += "PLAYER DATABASE (relevant to this query)\n"+(playerContextStr||"No specific player data loaded — give general golf betting principles.")+"\n";
+  if (matchupCtxStr) prompt += "\nMATCHUP CONTEXT\n"+matchupCtxStr+"\n";
+  return prompt;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
