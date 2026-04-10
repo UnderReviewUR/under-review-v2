@@ -289,7 +289,7 @@ const css = `
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
   .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(8,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:13px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:10px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;text-transform:uppercase;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
   .nav-btn.nfl-active{color:#4A90D9;}
