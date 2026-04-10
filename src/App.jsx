@@ -2490,13 +2490,11 @@ export default function App() {
 
 
   const buildGolfContext = useCallback((questionText) => {
+    // Player DB lives server-side in ur-take.js — only send live event data
     return {
       currentEvent: golfData?.currentEvent || null,
-      rankings:     golfData?.rankings     || [],
+      rankings:     (golfData?.rankings    || []).slice(0, 20),
       odds:         golfData?.odds         || {},
-      playerDb:     PGA_PLAYERS,
-      courseDb:     PGA_COURSES,
-      markets:      GOLF_MARKETS,
       question:     questionText || "",
     };
   }, [golfData]);
