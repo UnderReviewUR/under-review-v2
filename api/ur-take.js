@@ -1904,5 +1904,4 @@ return res.status(200).json({ response: text || "Couldn't get a response. Try ag
 console.error("UR TAKE error:", err);
 return res.status(500).json({ error: "Request failed", details: err.message });
 }
-  "You may optionally add at the end: Drop the course name and I can sharpen the course-fit angle — but the play above holds regardless. This comes AFTER the pick, not instead of it.\\n\\n" +
 }
