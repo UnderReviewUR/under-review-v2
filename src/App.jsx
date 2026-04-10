@@ -2530,7 +2530,7 @@ export default function App() {
     } catch {
       setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong — try again."}]);
     } finally { setIsAsking(false); }
-  }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext]);
+  }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext, buildNbaContext, buildMlbContext, buildGolfContext, canAsk, recordQuery]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
   const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
