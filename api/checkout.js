@@ -1,57 +1,54 @@
 // api/checkout.js
-// Creates a Stripe Checkout session for the $9.99/month Pro subscription.
-// Security:
-//   - STRIPE_SECRET_KEY never leaves the server
-//   - ALLOWED_ORIGINS blocks cross-site abuse
-//   - Webhook signature verification (in api/webhook.js) prevents fake events
-//   - No card data ever touches your server — Stripe hosts the payment page
+// Creates a Stripe Checkout session for Under Review Pro.
+// Called from the frontend when the user clicks "Start Free Trial".
 
 import { applyCors } from "./_cors.js";
+import Stripe from "stripe";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-  if (!STRIPE_SECRET_KEY) {
-    return res.status(500).json({ error: "Stripe not configured" });
-  }
+  const STRIPE_PRICE_ID   = process.env.STRIPE_PRICE_ID;
 
-  // The origin of the request becomes the base URL for success/cancel redirects
-  const origin = req.headers.origin || "https://underreview.gg";
+  if (!STRIPE_SECRET_KEY) return res.status(500).json({ error: "Missing STRIPE_SECRET_KEY" });
+  if (!STRIPE_PRICE_ID)   return res.status(500).json({ error: "Missing STRIPE_PRICE_ID" });
+
+  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
+
+  // Optional: pass email from frontend if user already entered it
+  const { email } = req.body || {};
 
   try {
-    const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${STRIPE_SECRET_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: STRIPE_PRICE_ID,
+          quantity: 1,
+        },
+      ],
+      // 7-day free trial
+      subscription_data: {
+        trial_period_days: 7,
       },
-      body: new URLSearchParams({
-        "mode": "subscription",
-        "line_items[0][price]": process.env.STRIPE_PRICE_ID,
-        "line_items[0][quantity]": "1",
-        "success_url": `${origin}/?pro=success`,
-        "cancel_url": `${origin}/?pro=cancel`,
-        // Collect email for future user management
-        "customer_creation": "always",
-        // Allow promo codes
-        "allow_promotion_codes": "true",
-        // 7-day free trial — great for conversion
-        "subscription_data[trial_period_days]": "7",
-      }).toString(),
+      // Pre-fill email if we have it
+      ...(email ? { customer_email: email } : {}),
+      // Where to send the user after payment
+      success_url: "https://under-review.app?pro=success",
+      cancel_url:  "https://under-review.app?pro=cancelled",
+      // Store metadata so webhook can identify the tier
+      metadata: {
+        product: "under_review_pro",
+        tier: "pro",
+      },
     });
-
-    const session = await response.json();
-
-    if (!response.ok) {
-      console.error("Stripe error:", session);
-      return res.status(500).json({ error: "Failed to create checkout session" });
-    }
 
     return res.status(200).json({ url: session.url });
   } catch (err) {
-    console.error("Checkout error:", err.message);
-    return res.status(500).json({ error: "Internal error" });
+    console.error("Stripe checkout error:", err.message);
+    return res.status(500).json({ error: "Failed to create checkout session", details: err.message });
   }
 }
