@@ -1,6 +1,8 @@
-// Shared CORS + origin validation for all API endpoints.
-// Set the ALLOWED_ORIGINS env var in Vercel (comma-separated) to lock down access.
-// When ALLOWED_ORIGINS is empty, all origins are allowed (development mode).
+// Shared CORS helper for all API endpoints.
+// ALLOWED_ORIGINS env var: comma-separated list of allowed origins.
+// If empty → all origins allowed (development / public API mode).
+// IMPORTANT: under-review.app must be in this list in production.
+
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map(s => s.trim())
