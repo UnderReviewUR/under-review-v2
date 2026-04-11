@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     if (!code) return res.status(400).json({ error: "No code provided" });
 
     const registry = getCodeRegistry();
-    const entry = registry[code.toLowerCase().trim()];
+    const normalizedCode = String(code || "").trim().toLowerCase(); const entry = registry[normalizedCode];
 
     if (!entry) {
       return res.status(200).json({ valid: false, error: "Invalid code" });
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
 
     const payload = {
       tier: entry.tier,
-      code: code.toLowerCase(),
+      code: normalizedCode,
       issuedAt: new Date().toISOString(),
       expiresAt: entry.expiresAt,
     };
