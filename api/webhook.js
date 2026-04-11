@@ -1,108 +1,161 @@
 // api/webhook.js
-// Handles Stripe webhook events to track active subscriptions.
-// SECURITY: Stripe signs every webhook with STRIPE_WEBHOOK_SECRET.
-// We verify the signature before processing — fake/tampered events are rejected.
+// Stripe webhook handler for Under Review Pro subscriptions.
 //
 // Events handled:
-//   checkout.session.completed  → user subscribed
-//   customer.subscription.deleted → user cancelled
-//   invoice.payment_failed      → payment failed, subscription at risk
+//   checkout.session.completed      → new subscriber (including trial start)
+//   customer.subscription.updated  → plan change, trial ended, payment method update
+//   customer.subscription.deleted  → cancellation / non-payment churn
+//   invoice.payment_succeeded       → renewal confirmed (optional — keeps logs clean)
+//   invoice.payment_failed          → payment failed (optional — for future dunning)
+//
+// Vercel requirement: bodyParser MUST be disabled for Stripe signature verification.
+// Stripe sends a raw body; if Vercel parses it first, signature check always fails.
 
 export const config = {
-  api: { bodyParser: false }, // Must receive raw body for signature verification
+  api: { bodyParser: false },
 };
 
+import Stripe from "stripe";
+import crypto from "crypto";
+
+const STRIPE_SECRET_KEY    = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const TOKEN_SECRET          = process.env.ACCESS_TOKEN_SECRET || "ur-dev-secret-changeme";
+
+// ── Read raw body from Vercel serverless ─────────────────────────────────────
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", chunk => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end",  () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
 
-// Stripe signature verification — pure Node crypto, no SDK needed
-async function verifyStripeSignature(rawBody, signature, secret) {
-  const crypto = await import("crypto");
-  const parts = signature.split(",");
-  const timestamp = parts.find(p => p.startsWith("t="))?.slice(2);
-  const v1 = parts.find(p => p.startsWith("v1="))?.slice(3);
-
-  if (!timestamp || !v1) return false;
-
-  // Reject webhooks older than 5 minutes (replay attack protection)
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
-
-  const payload = `${timestamp}.${rawBody.toString()}`;
-  const expected = crypto.default
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex");
-
-  // Constant-time comparison prevents timing attacks
-  return crypto.default.timingSafeEqual(
-    Buffer.from(v1, "hex"),
-    Buffer.from(expected, "hex")
-  );
+// ── Sign a local access token ────────────────────────────────────────────────
+function signToken(payload) {
+  const data = JSON.stringify(payload);
+  const sig  = crypto.createHmac("sha256", TOKEN_SECRET).update(data).digest("hex");
+  return Buffer.from(data).toString("base64") + "." + sig;
 }
 
+// ── Simple in-memory log (Vercel logs will capture these) ────────────────────
+function log(event, email, status) {
+  console.log(`[webhook] ${event} | ${email || "no-email"} | ${status}`);
+}
+
+// ── Main handler ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end();
+  // Always allow OPTIONS for preflight (shouldn't happen for webhooks but safe)
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")   return res.status(405).json({ error: "Method not allowed" });
 
-  const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!WEBHOOK_SECRET) return res.status(500).json({ error: "Webhook not configured" });
+  if (!STRIPE_SECRET_KEY)     return res.status(500).json({ error: "Missing STRIPE_SECRET_KEY" });
+  if (!STRIPE_WEBHOOK_SECRET) return res.status(500).json({ error: "Missing STRIPE_WEBHOOK_SECRET" });
 
-  const signature = req.headers["stripe-signature"];
-  if (!signature) return res.status(400).json({ error: "Missing signature" });
+  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
+  // Read raw body BEFORE any parsing
   let rawBody;
   try {
     rawBody = await getRawBody(req);
-  } catch {
-    return res.status(400).json({ error: "Could not read body" });
+  } catch (err) {
+    console.error("[webhook] Failed to read body:", err.message);
+    return res.status(400).json({ error: "Could not read request body" });
   }
 
-  const isValid = await verifyStripeSignature(rawBody, signature, WEBHOOK_SECRET);
-  if (!isValid) {
-    console.warn("Invalid Stripe webhook signature");
-    return res.status(400).json({ error: "Invalid signature" });
-  }
-
+  // Verify Stripe signature
+  const sig = req.headers["stripe-signature"];
   let event;
   try {
-    event = JSON.parse(rawBody.toString());
-  } catch {
-    return res.status(400).json({ error: "Invalid JSON" });
+    event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("[webhook] Signature verification failed:", err.message);
+    return res.status(400).json({ error: `Webhook signature failed: ${err.message}` });
   }
 
-  // Handle events
-  // In a production app with a database, you'd write subscriber status here.
-  // For now we log — and the frontend uses Stripe's hosted customer portal
-  // to manage subscriptions. No sensitive data stored on your server.
+  // ── Handle events ──────────────────────────────────────────────────────────
+  try {
+    switch (event.type) {
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object;
-      console.log("New subscriber:", session.customer_email, "| Customer:", session.customer);
-      // TODO: store session.customer + session.subscription in your DB
-      break;
+      // ── New subscription (checkout complete) ──────────────────────────────
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        const email   = session.customer_email || session.customer_details?.email;
+        const custId  = session.customer;
+        const subId   = session.subscription;
+        const tier    = session.metadata?.tier || "pro";
+
+        log("checkout.session.completed", email, `customer=${custId} sub=${subId}`);
+
+        // Nothing to write to a DB here — token is issued on-demand by pro-status.js
+        // Just log it. If you add a database later, store (email, custId, subId) here.
+        break;
+      }
+
+      // ── Subscription state change ─────────────────────────────────────────
+      case "customer.subscription.updated": {
+        const sub    = event.data.object;
+        const custId = sub.customer;
+        const status = sub.status; // active | trialing | past_due | canceled | unpaid
+
+        // Look up email from customer
+        const customer = await stripe.customers.retrieve(custId);
+        const email    = customer.email;
+
+        log("customer.subscription.updated", email, status);
+
+        // If subscription moved to active from trialing → user is now a paid subscriber
+        // If status is past_due or unpaid → access should be revoked (handled by pro-status.js
+        // returning false when it checks Stripe live)
+        break;
+      }
+
+      // ── Subscription cancelled ────────────────────────────────────────────
+      case "customer.subscription.deleted": {
+        const sub    = event.data.object;
+        const custId = sub.customer;
+
+        const customer = await stripe.customers.retrieve(custId);
+        const email    = customer.email;
+
+        log("customer.subscription.deleted", email, "CANCELLED");
+
+        // The next time this user hits /api/pro-status, Stripe will return no active sub
+        // and the token check will fail → access naturally revoked.
+        // No action needed unless you maintain a DB.
+        break;
+      }
+
+      // ── Successful renewal payment ────────────────────────────────────────
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+        const email   = invoice.customer_email;
+        const custId  = invoice.customer;
+        log("invoice.payment_succeeded", email, `invoice=${invoice.id}`);
+        // Renewal confirmed — access continues via pro-status.js live Stripe check
+        break;
+      }
+
+      // ── Failed payment ────────────────────────────────────────────────────
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+        const email   = invoice.customer_email;
+        log("invoice.payment_failed", email, `attempt=${invoice.attempt_count}`);
+        // Stripe will retry automatically per your retry settings.
+        // After max retries, subscription moves to canceled → handled above.
+        break;
+      }
+
+      // ── Ignore everything else ────────────────────────────────────────────
+      default:
+        // Return 200 to acknowledge — Stripe will retry if you return non-2xx
+        break;
     }
-    case "customer.subscription.deleted": {
-      const sub = event.data.object;
-      console.log("Subscription cancelled:", sub.customer);
-      // TODO: mark subscriber as inactive in your DB
-      break;
-    }
-    case "invoice.payment_failed": {
-      const invoice = event.data.object;
-      console.warn("Payment failed:", invoice.customer_email);
-      // TODO: flag account for retry
-      break;
-    }
-    default:
-      // Ignore other events
-      break;
+  } catch (err) {
+    console.error("[webhook] Event processing error:", err.message);
+    // Still return 200 so Stripe doesn't retry infinitely for a processing bug
+    return res.status(200).json({ received: true, warning: err.message });
   }
 
   return res.status(200).json({ received: true });
