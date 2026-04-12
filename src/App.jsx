@@ -2812,57 +2812,114 @@ export default function App() {
             </div>
 
             {/* NBA games ticker — only when games exist */}
-            {(()=>{
-              // Priority: live games first, then next upcoming. Max 5 cards + See All.
-              const nbaLive = nbaGames.filter(g=>g.state==="in");
-              const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
-              const allMlb  = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
-              const mlbLive = allMlb.filter(g=>g.state==="in");
-              const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
-              const cards   = [...nbaLive,...nbaNext,...mlbLive,...mlbNext].slice(0,5);
-              const hasMore = allMlb.length > mlbLive.length + mlbNext.length || nbaGames.length > nbaLive.length + nbaNext.length;
-              if (cards.length === 0) return null;
-              return (
-                <div style={{display:"flex",gap:8,overflowX:"auto",scrollbarWidth:"none",marginBottom:14,alignItems:"stretch"}}>
-                  {cards.map((g,i)=>{
-                    const isNba  = nbaGames.includes(g);
-                    const away   = g.awayTeam?.abbr||"AWAY";
-                    const home   = g.homeTeam?.abbr||"HOME";
-                    const isLive = g.state==="in";
-                    const accent = isNba?"#FF6B00":"#1DB954";
-                    return (
-                      <div key={i} onClick={isNba?goNba:goMlb} style={{
-                        flexShrink:0,background:"var(--surface)",
-                        border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
-                        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:100,
-                      }}>
-                        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
-                          color:isLive?"#00E676":accent,marginBottom:3}}>
-                          {isNba?"":"⚾ "}{isLive?"● LIVE":g.status}
-                        </div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away}</div>
-                        <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
-                        {isLive && g.awayTeam?.score!=null &&
-                          <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--soft)",marginTop:2}}>
-                            {g.awayTeam.score}-{g.homeTeam.score}
-                          </div>}
-                      </div>
-                    );
-                  })}
-                  {hasMore && (
-                    <div onClick={goMlb} style={{
-                      flexShrink:0,background:"transparent",border:"1px solid var(--border-2)",
-                      borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:72,
-                      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                    }}>
-                      <div style={{fontSize:11,color:"var(--muted)"}}>See</div>
-                      <div style={{fontSize:11,color:"var(--muted)"}}>all →</div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+           {(()=>{
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const nflSeason = month >= 9 || month <= 1;
 
+  // Golf top-3 mini card
+  const golfCard = golfData?.currentEvent ? (
+    <div key="golf-ticker" onClick={goGolf} style={{
+      flexShrink:0,background:"var(--surface)",
+      border:"1px solid rgba(255,255,255,.12)",
+      borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:140,
+    }}>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#FFFFFF",opacity:.6,marginBottom:3,textTransform:"uppercase"}}>
+        ⛳ {golfData.currentEvent.shortName||"PGA Tour"}
+      </div>
+      {(golfData.currentEvent.leaderboard||[]).slice(0,3).map((p,i)=>(
+        <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:i===0?"var(--text)":"var(--muted)",lineHeight:1.4}}>
+          <span>{p.position} {p.name.split(" ").pop()}</span>
+          <span style={{fontFamily:"var(--mono-font)",color:p.score&&p.score.startsWith("-")?"#00E676":p.score==="E"?"var(--text)":"#FF4444"}}>{p.score}</span>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
+  // Sport priority order based on season
+  const nbaLive = nbaGames.filter(g=>g.state==="in");
+  const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
+  const allMlb  = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
+  const mlbLive = allMlb.filter(g=>g.state==="in");
+  const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
+
+  // Build game cards by priority
+  const buildGameCard = (g, isNba, i) => {
+    const away   = g.awayTeam?.abbr||"AWAY";
+    const home   = g.homeTeam?.abbr||"HOME";
+    const isLive = g.state==="in";
+    const accent = isNba?"#FF6B00":"#1DB954";
+    return (
+      <div key={`${isNba?"nba":"mlb"}-${i}`} onClick={isNba?goNba:goMlb} style={{
+        flexShrink:0,background:"var(--surface)",
+        border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
+        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:100,
+      }}>
+        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
+          color:isLive?"#00E676":accent,marginBottom:3,textTransform:"uppercase"}}>
+          {isNba?"🏀 ":"⚾ "}{isLive?"● LIVE":g.status}
+        </div>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away}</div>
+        <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
+        {isLive&&g.awayTeam?.score!=null&&
+          <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--soft)",marginTop:2}}>
+            {g.awayTeam.score}-{g.homeTeam.score}
+          </div>}
+      </div>
+    );
+  };
+
+  // Priority order: NFL season → NBA → Golf → MLB → F1
+  let cards = [];
+  if (nflSeason) {
+    // NFL in season — show NFL banner card + any NBA/MLB live
+    cards = [
+      <div key="nfl-live" onClick={goNfl} style={{
+        flexShrink:0,background:"rgba(74,144,217,.08)",
+        border:"1px solid rgba(74,144,217,.25)",
+        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:120,
+      }}>
+        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#4A90D9",marginBottom:3}}>🏈 NFL</div>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>Weekly Props</div>
+        <div style={{fontSize:10,color:"var(--muted)"}}>Live board →</div>
+      </div>,
+      ...nbaLive.slice(0,2).map((g,i)=>buildGameCard(g,true,i)),
+      ...mlbLive.slice(0,1).map((g,i)=>buildGameCard(g,false,i)),
+    ];
+  } else {
+    // Off-season priority: NBA → Golf → MLB → F1
+    const nbaCards = [...nbaLive,...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
+    const mlbCards = [...mlbLive,...mlbNext].slice(0,2).map((g,i)=>buildGameCard(g,false,i));
+
+    // F1 next race mini card
+    const nextRace = f1Data?.schedule?.races?.find(r=>r.is_next);
+    const f1Card = nextRace ? (
+      <div key="f1-ticker" onClick={goF1} style={{
+        flexShrink:0,background:"rgba(225,6,0,.06)",
+        border:"1px solid rgba(225,6,0,.2)",
+        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:110,
+      }}>
+        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#E10600",marginBottom:3}}>🏎️ F1 NEXT</div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3}}>{nextRace.meeting_name}</div>
+        <div style={{fontSize:10,color:"var(--muted)"}}>{nextRace.location}</div>
+      </div>
+    ) : null;
+
+    cards = [
+      ...nbaCards,
+      ...(golfCard ? [golfCard] : []),
+      ...mlbCards,
+      ...(f1Card ? [f1Card] : []),
+    ];
+  }
+
+  if (cards.length===0) return null;
+  return (
+    <div style={{display:"flex",gap:8,overflowX:"auto",scrollbarWidth:"none",marginBottom:14,alignItems:"stretch"}}>
+      {cards.slice(0,6)}
+    </div>
+  );
+})()}
             {/* Ask cards — sharp, action-oriented, colored accent bars */}
             <div className="ask-cards">
               {dynamicHomeQuestions.map(q=>(
