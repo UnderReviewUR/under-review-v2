@@ -1,6 +1,6 @@
 // api/checkout.js
 // Creates a Stripe Checkout session for Under Review Pro.
-// Called from the frontend when the user clicks "Start Free Trial".
+// Called when user clicks "START FREE TRIAL" in App.jsx.
 
 import { applyCors } from "./_cors.js";
 import Stripe from "stripe";
@@ -17,29 +17,20 @@ export default async function handler(req, res) {
 
   const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
-  // Optional: pass email from frontend if user already entered it
+  // Optional: pre-fill email if user already entered it in the gate
   const { email } = req.body || {};
 
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price: STRIPE_PRICE_ID,
-          quantity: 1,
-        },
-      ],
-      // 7-day free trial
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
       subscription_data: {
-        trial_period_days: 7,
+        trial_period_days: 3,
       },
-      // Pre-fill email if we have it
       ...(email ? { customer_email: email } : {}),
-      // Where to send the user after payment
-      success_url: "https://under-review.app?pro=success",
-      cancel_url:  "https://under-review.app?pro=cancelled",
-      // Store metadata so webhook can identify the tier
+      success_url: "https://under-review-v2.vercel.app?pro=success",
+      cancel_url:  "https://under-review-v2.vercel.app?pro=cancelled",
       metadata: {
         product: "under_review_pro",
         tier: "pro",
