@@ -388,22 +388,46 @@ QUESTION: ${question}`;
 }
 
 // ── F1 System Prompt ──────────────────────────────────────────────────────────
-function buildF1SystemPrompt(matchupCtxStr) {
+function buildF1SystemPrompt(matchupCtxStr, f1Context) {
   const today = getTodayStr();
   const now = new Date();
   const STREET = ["monaco","baku","singapore","las vegas","miami","azerbaijan","bahrain"];
   const POWER  = ["monza","spa","silverstone","interlagos","sao paulo"];
   const HDFRC  = ["hungary","hungaroring","barcelona","catalunya","zandvoort"];
 
-  const upcoming  = F1_CALENDAR.filter(m => !m.completed && new Date(m.date_start) > now);
-  const current   = F1_CALENDAR.filter(m => {
+  // Use live standings from f1.js if available, fall back to hardcoded
+  const liveStandings = f1Context?.standings;
+  const standingsSource = (Array.isArray(liveStandings) && liveStandings.length > 0)
+    ? liveStandings
+    : F1_STANDINGS;
+
+  // Use live schedule from f1.js if available
+  const liveRaces = f1Context?.schedule?.races;
+  const useCalendar = (Array.isArray(liveRaces) && liveRaces.length > 0)
+    ? liveRaces.map(r => ({
+        meeting_name: r.meeting_name || r.name,
+        location: r.location || r.circuit_short_name,
+        date_start: r.date_start,
+        date_end: r.date_end,
+        completed: r.completed || (r.date_end ? new Date(r.date_end) < now : false),
+        winner: r.winner || null,
+      }))
+    : F1_CALENDAR;
+
+  const upcoming  = useCalendar.filter(m => !m.completed && new Date(m.date_start) > now);
+  const current   = useCalendar.filter(m => {
     const start = new Date(m.date_start);
     const end   = m.date_end ? new Date(m.date_end) : new Date(start.getTime() + 3 * 86400000);
     return start <= now && now <= end;
   });
-  const completed = F1_CALENDAR.filter(r => r.completed && r.winner);
+  const completed = useCalendar.filter(r => r.completed && r.winner);
 
-  const standingsStr = F1_STANDINGS.map((d, i) => `${d.position || i + 1}. ${d.full_name} (${d.team_name}) -- ${d.points} pts`).join("\n");
+  const standingsStr = standingsSource.map((d, i) =>
+    `${d.position || i + 1}. ${d.full_name || d.name} (${d.team_name || d.team}) -- ${d.points ?? 0} pts`
+  ).join("\n");
+  const standingsNote = (Array.isArray(liveStandings) && liveStandings.length > 0)
+    ? "LIVE standings from OpenF1 API"
+    : "WARNING: standings may be stale -- live API unavailable";
   const recentStr = completed.length ? "RECENT RESULTS:\n" + completed.slice(-3).reverse().map(r => `${r.meeting_name}: Winner -- ${r.winner}`).join("\n") : "";
 
   const activeRace = current[0] || upcoming[0] || null;
@@ -455,7 +479,7 @@ ${isRaceWeek ? "RACE WEEK -- " + (activeRace?.meeting_name || "") + "." : "OFF W
 ${nextRaceLine}
 CIRCUIT TYPE: ${circuitType} | BETTING NOTE: ${circuitNote}
 
-${recentStr ? recentStr + "\n\n" : ""}CHAMPIONSHIP STANDINGS:
+${recentStr ? recentStr + "\n\n" : ""}CHAMPIONSHIP STANDINGS (${standingsNote}):
 ${standingsStr}
 
 ${upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
@@ -719,7 +743,7 @@ export default async function handler(req, res) {
 
   const {
     question, players, context, liveMatches, history,
-    matchupContext, image, nflContext, nbaContext, mlbContext, golfContext, sportHint,
+    matchupContext, image, nflContext, nbaContext, mlbContext, golfContext, f1Context, sportHint,
   } = req.body;
 
   if (!question) return res.status(400).json({ error: "Missing question" });
@@ -729,7 +753,7 @@ export default async function handler(req, res) {
   let systemPrompt;
 
   if (sport === "f1") {
-    systemPrompt = buildF1SystemPrompt(matchupCtxStr);
+    systemPrompt = buildF1SystemPrompt(matchupCtxStr, f1Context);
   } else if (sport === "mlb") {
     systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
   } else if (sport === "golf") {
