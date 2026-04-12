@@ -29,8 +29,8 @@ export default async function handler(req, res) {
         trial_period_days: 3,
       },
       ...(email ? { customer_email: email } : {}),
-      success_url: "https://under-review-v2.vercel.app?pro=success",
-      cancel_url:  "https://under-review-v2.vercel.app?pro=cancelled",
+      success_url: "https://under-review.app?pro=success",
+      cancel_url:  "https://under-review.app?pro=cancelled",
       metadata: {
         product: "under_review_pro",
         tier: "pro",
