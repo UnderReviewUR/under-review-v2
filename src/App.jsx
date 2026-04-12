@@ -2202,6 +2202,21 @@ export default function App() {
   }, [fetchTennisBoard]);
 
   useEffect(() => {
+  if (userEmail && !isUnlimited) {
+    fetch(`/api/pro-status?email=${encodeURIComponent(userEmail)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.pro && data.token) {
+          localStorage.setItem("ur_access_token", data.token);
+          setAccessToken(data.token);
+          setAccessTier("pro");
+        }
+      })
+      .catch(() => {});
+  }
+}, [userEmail]);
+
+  useEffect(() => {
     if (!context) return;
     let cancelled=false;
     fetchTennisBoard(context).then(b=>{ if(!cancelled) setLiveMatches(b); }).catch(()=>{});
