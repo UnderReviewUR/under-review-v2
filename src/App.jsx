@@ -2995,6 +2995,20 @@ export default function App() {
 
   // Build a consistent home rail: Golf + ~3 NBA + ~3-4 MLB.
   const nbaCards = [...nbaLive, ...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
+  const nbaSeriesCards = Object.keys(NBA_PLAYOFF_SERIES || {})
+    .map((k, i) => {
+      const [away, home] = String(k).split(" vs ").map(s => s?.trim()).filter(Boolean);
+      if (!away || !home) return null;
+      const label = getSeriesLabel(away, home) || "Series confirmed";
+      return buildPlaceholderCard(`nba-series-${away}-${home}-${i}`, "🏀 NBA", `${away} vs ${home}`, label, "#FF6B00", goNba);
+    })
+    .filter(Boolean);
+
+  // If confirmed playoff series are set manually, prioritize those before generic pending placeholders.
+  while (nbaCards.length < 3 && nbaSeriesCards.length > 0) {
+    nbaCards.push(nbaSeriesCards.shift());
+  }
+
   while (nbaCards.length < 3) {
     const idx = nbaCards.length + 1;
     nbaCards.push(buildPlaceholderCard(`nba-placeholder-${idx}`, "🏀 NBA", `Game ${idx} pending`, "More NBA lines loading", "#FF6B00", goNba));
