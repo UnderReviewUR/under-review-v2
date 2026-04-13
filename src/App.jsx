@@ -2298,6 +2298,8 @@ export default function App() {
             const home = comp?.competitors?.find(c => c.homeAway === "home");
             const away = comp?.competitors?.find(c => c.homeAway === "away");
             const status = e.status?.type;
+            const series = comp?.series;
+            const isPlayoff = series?.type === "playoff";
             return {
               id: e.id,
               status: status?.shortDetail || status?.description || "Scheduled",
@@ -2305,6 +2307,8 @@ export default function App() {
               period: e.status?.period || 0,
               homeTeam: { name: home?.team?.shortDisplayName, abbr: home?.team?.abbreviation, score: parseInt(home?.score || "0") },
               awayTeam: { name: away?.team?.shortDisplayName, abbr: away?.team?.abbreviation, score: parseInt(away?.score || "0") },
+              seriesGameNumber: isPlayoff ? (series?.gameNumber || null) : null,
+              seriesStatus: isPlayoff ? (series?.title || null) : null,
             };
           });
 
@@ -2324,6 +2328,8 @@ export default function App() {
           period: g.period,
           homeTeam: { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
           awayTeam: { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
+          seriesGameNumber: g.gameLabel ? (parseInt(g.gameLabel.match(/[Gg]ame\s*(\d+)/)?.[1]) || null) : null,
+          seriesStatus: g.seriesGameStatus || null,
         }));
         if (active && cdnGames.length > 0) setNbaGames(cdnGames);
 
@@ -2817,7 +2823,17 @@ export default function App() {
   const month = now.getMonth() + 1;
   const nflSeason = month >= 9 || month <= 1;
 
-  // Golf top-3 mini card
+  // ── NBA Playoff detection (April 19 – June 15, 2026) ──────────────────────
+  const isNbaPlayoffs = now >= new Date("2026-04-19") && now <= new Date("2026-06-15T23:59:59");
+
+  const getPlayoffRound = () => {
+    if (now >= new Date("2026-06-02")) return "NBA Finals";
+    if (now >= new Date("2026-05-18")) return "Conference Finals";
+    if (now >= new Date("2026-05-04")) return "Conference Semifinals";
+    return "First Round";
+  };
+
+  // ── Golf card — shows event name/course/round even without leaderboard ────
   const golfCard = golfData?.currentEvent ? (
     <div key="golf-ticker" onClick={goGolf} style={{
       flexShrink:0,background:"var(--surface)",
@@ -2825,8 +2841,16 @@ export default function App() {
       borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:140,
     }}>
       <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#FFFFFF",opacity:.6,marginBottom:3,textTransform:"uppercase"}}>
-        ⛳ {golfData.currentEvent.shortName||"PGA Tour"}
+        ⛳ PGA TOUR
       </div>
+      <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>
+        {golfData.currentEvent.shortName||golfData.currentEvent.name||"Tournament"}
+      </div>
+      {(golfData.currentEvent.course||golfData.currentEvent.round) && (
+        <div style={{fontSize:10,color:"var(--muted)",marginBottom:(golfData.currentEvent.leaderboard||[]).length?3:0}}>
+          {[golfData.currentEvent.course,golfData.currentEvent.round].filter(Boolean).join(" · ")}
+        </div>
+      )}
       {(golfData.currentEvent.leaderboard||[]).slice(0,3).map((p,i)=>(
         <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:i===0?"var(--text)":"var(--muted)",lineHeight:1.4}}>
           <span>{p.position} {p.name.split(" ").pop()}</span>
@@ -2836,28 +2860,65 @@ export default function App() {
     </div>
   ) : null;
 
-  // Sport priority order based on season
-  const nbaLive = nbaGames.filter(g=>g.state==="in");
-  const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
-  const allMlb  = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
-  const mlbLive = allMlb.filter(g=>g.state==="in");
-  const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
+  // ── Sport priority order based on season ──────────────────────────────────
+  const nbaLive  = nbaGames.filter(g=>g.state==="in");
+  const nbaToday = nbaGames.filter(g=>g.state==="pre");
+  const allMlb   = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
+  const mlbLive  = allMlb.filter(g=>g.state==="in");
+  const mlbNext  = allMlb.filter(g=>g.state==="pre").slice(0,1);
 
-  // Build game cards by priority
-  const buildGameCard = (g, isNba, i) => {
+  // ── NBA card builder with optional playoff series context ─────────────────
+  const buildNbaCard = (g, i) => {
     const away   = g.awayTeam?.abbr||"AWAY";
     const home   = g.homeTeam?.abbr||"HOME";
     const isLive = g.state==="in";
-    const accent = isNba?"#FF6B00":"#1DB954";
+    let seriesLine = null;
+    if (isNbaPlayoffs) {
+      const round   = getPlayoffRound();
+      const gameNum = g.seriesGameNumber;
+      const label   = gameNum ? `Game ${gameNum} · ${round}` : `${round}`;
+      const status  = g.seriesStatus;
+      seriesLine = (
+        <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"var(--muted)",marginTop:2,lineHeight:1.3}}>
+          {label}{status ? ` · ${status}` : ""}
+        </div>
+      );
+    }
     return (
-      <div key={`${isNba?"nba":"mlb"}-${i}`} onClick={isNba?goNba:goMlb} style={{
+      <div key={`nba-${i}`} onClick={goNba} style={{
+        flexShrink:0,background:"var(--surface)",
+        border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
+        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:110,
+      }}>
+        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
+          color:isLive?"#00E676":"#FF6B00",marginBottom:3,textTransform:"uppercase"}}>
+          🏀 {isLive?"● LIVE":g.status}
+        </div>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away}</div>
+        <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
+        {isLive&&g.awayTeam?.score!=null&&
+          <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--soft)",marginTop:2}}>
+            {g.awayTeam.score}-{g.homeTeam.score}
+          </div>}
+        {seriesLine}
+      </div>
+    );
+  };
+
+  // ── MLB card builder ───────────────────────────────────────────────────────
+  const buildMlbCard = (g, i) => {
+    const away   = g.awayTeam?.abbr||"AWAY";
+    const home   = g.homeTeam?.abbr||"HOME";
+    const isLive = g.state==="in";
+    return (
+      <div key={`mlb-${i}`} onClick={goMlb} style={{
         flexShrink:0,background:"var(--surface)",
         border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
         borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:100,
       }}>
         <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
-          color:isLive?"#00E676":accent,marginBottom:3,textTransform:"uppercase"}}>
-          {isNba?"🏀 ":"⚾ "}{isLive?"● LIVE":g.status}
+          color:isLive?"#00E676":"#1DB954",marginBottom:3,textTransform:"uppercase"}}>
+          ⚾ {isLive?"● LIVE":g.status}
         </div>
         <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away}</div>
         <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
@@ -2869,10 +2930,10 @@ export default function App() {
     );
   };
 
-  // Priority order: NFL season → NBA → Golf → MLB → F1
+  // ── Priority order: NFL season → NBA → Golf → MLB → F1 ───────────────────
   let cards = [];
   if (nflSeason) {
-    // NFL in season — show NFL banner card + any NBA/MLB live
+    // NFL in season — show NFL banner card + any live NBA/MLB
     cards = [
       <div key="nfl-live" onClick={goNfl} style={{
         flexShrink:0,background:"rgba(74,144,217,.08)",
@@ -2883,13 +2944,30 @@ export default function App() {
         <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>Weekly Props</div>
         <div style={{fontSize:10,color:"var(--muted)"}}>Live board →</div>
       </div>,
-      ...nbaLive.slice(0,2).map((g,i)=>buildGameCard(g,true,i)),
-      ...mlbLive.slice(0,1).map((g,i)=>buildGameCard(g,false,i)),
+      ...nbaLive.slice(0,2).map((g,i)=>buildNbaCard(g,i)),
+      ...mlbLive.slice(0,1).map((g,i)=>buildMlbCard(g,i)),
     ];
   } else {
-    // Off-season priority: NBA → Golf → MLB → F1
-    const nbaCards = [...nbaLive,...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
-    const mlbCards = [...mlbLive,...mlbNext].slice(0,2).map((g,i)=>buildGameCard(g,false,i));
+    // Off-season: NBA (live → today → playoff placeholder) → Golf → MLB → F1
+    let nbaCards = [];
+    if (nbaLive.length > 0 || nbaToday.length > 0) {
+      nbaCards = [...nbaLive,...nbaToday].slice(0,3).map((g,i)=>buildNbaCard(g,i));
+    } else if (isNbaPlayoffs) {
+      // Playoffs active but no games today — show round placeholder
+      nbaCards = [
+        <div key="nba-playoffs" onClick={goNba} style={{
+          flexShrink:0,background:"rgba(255,107,0,.06)",
+          border:"1px solid rgba(255,107,0,.25)",
+          borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:130,
+        }}>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#FF6B00",marginBottom:3}}>🏀 NBA PLAYOFFS</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{getPlayoffRound()}</div>
+          <div style={{fontSize:10,color:"var(--muted)"}}>Scores & analysis →</div>
+        </div>,
+      ];
+    }
+
+    const mlbCards = [...mlbLive,...mlbNext].slice(0,2).map((g,i)=>buildMlbCard(g,i));
 
     // F1 next race mini card
     const nextRace = f1Data?.schedule?.races?.find(r=>r.is_next);
