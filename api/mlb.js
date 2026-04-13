@@ -104,13 +104,12 @@ async function getMlbGamesWithPitchers() {
   if (cached) return cached;
 
   try {
-    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard", { cache:"no-store" });
+    const nowET = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
+    const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${todayStr.replace(/-/g,"")}`, { cache:"no-store" });
     if (!res.ok) return [];
     const data = await res.json();
     const events = data?.events || [];
-
-    const nowET = new Date(new Date().toLocaleString("en-US", { timeZone:"America/New_York" }));
-    const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
 
     const games = events
       .filter(e => {
