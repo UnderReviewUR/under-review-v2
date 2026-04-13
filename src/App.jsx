@@ -2939,8 +2939,9 @@ export default function App() {
   })();
 
   // Sport priority order based on season
-  const nbaLive = nbaGames.filter(g=>g.state==="in");
-  const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
+  const allNba  = nbaGames.length>0 ? nbaGames : (nbaData?.todaysGames||[]);
+  const nbaLive = allNba.filter(g=>g.state==="in");
+  const nbaNext = allNba.filter(g=>g.state==="pre").slice(0,4);
   const allMlb  = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
   const mlbLive = allMlb.filter(g=>g.state==="in");
   const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,3);
