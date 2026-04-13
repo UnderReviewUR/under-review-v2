@@ -73,7 +73,7 @@ const css = `
 
   .hdr{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--header-bg);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);gap:14px;}
   .wordmark{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:fit-content;cursor:pointer;}
-  .logo-under{display:block;font-family:var(--mono-font);font-size:9px;letter-spacing:4px;color:rgba(255,255,255,.45);margin-bottom:2px;text-transform:uppercase;}
+  .logo-under{display:block;font-family:var(--mono-font);font-size:9px;letter-spacing:4px;color:rgba(255,255,255,.88);margin-bottom:2px;text-transform:uppercase;}
   .logo-review{display:block;font-family:var(--display-font);font-size:26px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
   .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
@@ -2248,6 +2248,24 @@ export default function App() {
   // ── NBA data fetch ─────────────────────────────────────────────────────────
   const [nbaGames, setNbaGames] = useState([]);
 
+  // NBA Playoff series tracker — update manually each round or wire to API
+  const NBA_PLAYOFF_SERIES = {
+    // Format: "AWAY_ABBR vs HOME_ABBR" or "HOME_ABBR vs AWAY_ABBR" → series state
+    // Update after each game. gameNum = total games played in series.
+    // leader = abbr of team leading, or null if tied
+  };
+
+  function getSeriesLabel(awayAbbr, homeAbbr) {
+    const key1 = `${awayAbbr} vs ${homeAbbr}`;
+    const key2 = `${homeAbbr} vs ${awayAbbr}`;
+    const series = NBA_PLAYOFF_SERIES[key1] || NBA_PLAYOFF_SERIES[key2];
+    if (!series) return null;
+    const { gameNum, leader, awayWins, homeWins } = series;
+    if (gameNum === 0 || !gameNum) return "Game 1";
+    if (!leader) return `Game ${gameNum + 1} · Series tied ${awayWins}-${homeWins}`;
+    return `Game ${gameNum + 1} · ${leader} lead ${Math.max(awayWins,homeWins)}-${Math.min(awayWins,homeWins)}`;
+  }
+
   useEffect(() => {
     let active = true;
     async function loadNba() {
@@ -2632,11 +2650,11 @@ export default function App() {
     if (liveGame) {
       const away = liveGame.awayTeam?.abbr || liveGame.awayTeam?.name || "Away";
       const home = liveGame.homeTeam?.abbr || liveGame.homeTeam?.name || "Home";
-      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}`,blurb:"Live game in progress. Ask for the best prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
+      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}${getSeriesLabel(liveGame.awayTeam?.abbr,liveGame.homeTeam?.abbr) ? " · "+getSeriesLabel(liveGame.awayTeam?.abbr,liveGame.homeTeam?.abbr) : ""}`,blurb:"Live game in progress. Ask for the best prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
     } else if (nextGame) {
       const away = nextGame.awayTeam?.abbr || nextGame.awayTeam?.name || "Away";
       const home = nextGame.homeTeam?.abbr || nextGame.homeTeam?.name || "Home";
-      cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:nextGame.status,network:"Tonight's Slate",blurb:"Ask for the best prop angle on tonight's NBA slate.",whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
+      cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:nextGame.status,network:"Tonight's Slate",blurb:`${getSeriesLabel(nextGame.awayTeam?.abbr,nextGame.homeTeam?.abbr) || "Game time"} · Ask for the best prop angle.`,whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
     } else if (games.length > 0) {
       // All games final — show tomorrow preview
       cards.push({id:"nba-tomorrow",league:"NBA",leagueColor:"#FF6B00",title:"Tonight's slate is done",time:"Check back tomorrow",network:"NBA Props",blurb:"All games final. Ask for the best plays on tomorrow's slate.",whatMatters:"Ask for tomorrow's best prop plays.",quickHitters:["Best prop tomorrow?","Safest PRA bet tomorrow?","Top plays for tomorrow?"],confirmed:true});
@@ -2818,23 +2836,69 @@ export default function App() {
   const nflSeason = month >= 9 || month <= 1;
 
   // Golf top-3 mini card
-  const golfCard = golfData?.currentEvent ? (
-    <div key="golf-ticker" onClick={goGolf} style={{
-      flexShrink:0,background:"var(--surface)",
-      border:"1px solid rgba(255,255,255,.12)",
-      borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:140,
-    }}>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#FFFFFF",opacity:.6,marginBottom:3,textTransform:"uppercase"}}>
-        ⛳ {golfData.currentEvent.shortName||"PGA Tour"}
-      </div>
-      {(golfData.currentEvent.leaderboard||[]).slice(0,3).map((p,i)=>(
-        <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:i===0?"var(--text)":"var(--muted)",lineHeight:1.4}}>
-          <span>{p.position} {p.name.split(" ").pop()}</span>
-          <span style={{fontFamily:"var(--mono-font)",color:p.score&&p.score.startsWith("-")?"#00E676":p.score==="E"?"var(--text)":"#FF4444"}}>{p.score}</span>
+  const golfCard = (() => {
+    // Determine what to show: active event OR next upcoming event
+    const activeEvent = golfData?.currentEvent;
+    const isActive = activeEvent && activeEvent.state !== "pre" && (activeEvent.leaderboard?.length > 0);
+
+    if (!golfData && !golfLoading) return null;
+
+    // If active event with leaderboard — show top 3
+    if (isActive) {
+      const top3 = (activeEvent.leaderboard || []).slice(0, 3);
+      return (
+        <div key="golf-ticker" onClick={goGolf} style={{
+          flexShrink:0, background:"var(--surface)",
+          border:"1px solid rgba(255,255,255,.12)",
+          borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:150,
+        }}>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
+            color:"rgba(255,255,255,.7)", marginBottom:4, textTransform:"uppercase"}}>
+            ⛳ {activeEvent.shortName || activeEvent.name || "PGA Tour"}
+          </div>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",marginBottom:4,letterSpacing:1}}>
+            {activeEvent.round || "In Progress"}
+          </div>
+          {top3.map((p,i) => (
+            <div key={i} style={{display:"flex",justifyContent:"space-between",
+              fontSize:11, color: i===0 ? "var(--text)" : "var(--muted)", lineHeight:1.5}}>
+              <span style={{display:"flex",gap:4,alignItems:"center"}}>
+                <span style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",minWidth:14}}>{p.position}</span>
+                <span style={{fontWeight: i===0?700:400}}>{p.name.split(" ").pop()}</span>
+              </span>
+              <span style={{fontFamily:"var(--mono-font)",
+                color: p.score && p.score.startsWith("-") ? "#00E676" : p.score==="E" ? "var(--text)" : "#FF4444"}}>
+                {p.score}
+              </span>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
-  ) : null;
+      );
+    }
+
+    // No active event — show "Next Up" card pointing to upcoming tournament
+    const eventName = activeEvent?.name || "PGA Tour";
+    const courseInfo = activeEvent?.course || "";
+    return (
+      <div key="golf-ticker" onClick={goGolf} style={{
+        flexShrink:0, background:"var(--surface)",
+        border:"1px solid rgba(255,255,255,.1)",
+        borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:130,
+      }}>
+        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
+          color:"rgba(255,255,255,.5)", marginBottom:3, textTransform:"uppercase"}}>
+          ⛳ PGA Tour
+        </div>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3,marginBottom:2}}>
+          {eventName.length > 22 ? eventName.slice(0,20)+"…" : eventName}
+        </div>
+        {courseInfo && <div style={{fontSize:10,color:"var(--muted)"}}>{courseInfo}</div>}
+        <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"rgba(255,255,255,.4)",marginTop:4}}>
+          Odds loading →
+        </div>
+      </div>
+    );
+  })();
 
   // Sport priority order based on season
   const nbaLive = nbaGames.filter(g=>g.state==="in");
@@ -2845,25 +2909,33 @@ export default function App() {
 
   // Build game cards by priority
   const buildGameCard = (g, isNba, i) => {
-    const away   = g.awayTeam?.abbr||"AWAY";
-    const home   = g.homeTeam?.abbr||"HOME";
-    const isLive = g.state==="in";
-    const accent = isNba?"#FF6B00":"#1DB954";
+    const away   = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
+    const home   = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
+    const isLive = g.state === "in";
+    const accent = isNba ? "#FF6B00" : "#1DB954";
+
+    // Series label for playoffs
+    const seriesLabel = isNba ? getSeriesLabel(away, home) : null;
+
     return (
       <div key={`${isNba?"nba":"mlb"}-${i}`} onClick={isNba?goNba:goMlb} style={{
-        flexShrink:0,background:"var(--surface)",
+        flexShrink:0, background:"var(--surface)",
         border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
-        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:100,
+        borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:110,
       }}>
         <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
-          color:isLive?"#00E676":accent,marginBottom:3,textTransform:"uppercase"}}>
+          color:isLive?"#00E676":accent, marginBottom:3, textTransform:"uppercase"}}>
           {isNba?"🏀 ":"⚾ "}{isLive?"● LIVE":g.status}
         </div>
         <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{away}</div>
         <div style={{fontSize:11,color:"var(--muted)"}}>@ {home}</div>
-        {isLive&&g.awayTeam?.score!=null&&
+        {isLive && g.awayTeam?.score != null &&
           <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--soft)",marginTop:2}}>
             {g.awayTeam.score}-{g.homeTeam.score}
+          </div>}
+        {isNba && seriesLabel &&
+          <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"#FF6B00",marginTop:3,letterSpacing:0.5}}>
+            {seriesLabel}
           </div>}
       </div>
     );
@@ -3455,7 +3527,7 @@ export default function App() {
     {/* Hero — logo centered */}
     <div style={{textAlign:"center",padding:"36px 20px 24px",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
       <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",marginBottom:14,cursor:"default"}}>
-        <span className="logo-under" style={{fontSize:10,letterSpacing:5,marginBottom:2}}>Under</span>
+        <span className="logo-under" style={{fontSize:10,letterSpacing:5,marginBottom:2,color:"rgba(255,255,255,.88)"}}>Under</span>
         <span className="logo-review" style={{fontSize:44,letterSpacing:2}}>Review</span>
         <span style={{
           fontFamily:"var(--display-font)",
