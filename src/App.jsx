@@ -1985,6 +1985,7 @@ function ChatThread({ msgs }) {
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const HOME_RAIL_VERSION = "rail-v3";
   const [tab, setTab]                         = useState("home");
   const [screen, setScreen]                   = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
@@ -2435,12 +2436,22 @@ export default function App() {
         if (!res.ok) throw new Error("Golf " + res.status);
         const data = await res.json();
         if (active) setGolfData(data);
-      } catch { if (active) setGolfData(null); }
+      } catch {
+        // Keep last known data if fetch fails so the golf rail card doesn't disappear.
+        if (active) setGolfData(prev => prev || {
+          currentEvent: { name:"PGA Tour", shortName:"PGA Tour", course:"", round:"", state:"pre", leaderboard:[] },
+          rankings: [],
+          odds: { outrights: [], topFinish: {}, makeCut: {}, matchups: [] },
+        });
+      }
       finally { if (active) setGolfLoading(false); }
     }
     loadGolf();
     const poll = window.setInterval(() => {
-      fetch("/api/golf?view=board").then(r=>r.json()).then(d=>{ if(active) setGolfData(d); }).catch(()=>{});
+      fetch("/api/golf?view=board")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (active && d) setGolfData(d); })
+        .catch(() => {});
     }, 8 * 60 * 1000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
@@ -2828,6 +2839,9 @@ export default function App() {
               <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
               <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"rgba(255,255,255,.5)"}} onClick={goGolf}>GOLF</button>
             </div>
+            <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"rgba(255,255,255,.35)",letterSpacing:1,marginBottom:6}}>
+              HOME RAIL {HOME_RAIL_VERSION}
+            </div>
 
             {/* NBA games ticker — only when games exist */}
            {(()=>{
@@ -2839,9 +2853,28 @@ export default function App() {
   const golfCard = (() => {
     // Determine what to show: active event OR next upcoming event
     const activeEvent = golfData?.currentEvent;
-    const isActive = activeEvent && activeEvent.state !== "pre" && (activeEvent.leaderboard?.length > 0);
+    const isActive = activeEvent && activeEvent.state !== "pre" && Array.isArray(activeEvent.leaderboard) && activeEvent.leaderboard.length > 0;
 
-    if (!golfData && !golfLoading) return null;
+    if (!golfData && !golfLoading) {
+      return (
+        <div key="golf-ticker" onClick={goGolf} style={{
+          flexShrink:0, background:"var(--surface)",
+          border:"1px solid rgba(255,255,255,.1)",
+          borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:130,
+        }}>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
+            color:"rgba(255,255,255,.5)", marginBottom:3, textTransform:"uppercase"}}>
+            ⛳ PGA Tour
+          </div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3,marginBottom:2}}>
+            Next event loading…
+          </div>
+          <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"rgba(255,255,255,.4)",marginTop:4}}>
+            Tap for full golf board →
+          </div>
+        </div>
+      );
+    }
 
     // If active event with leaderboard — show top 3
     if (isActive) {
@@ -2859,19 +2892,22 @@ export default function App() {
           <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",marginBottom:4,letterSpacing:1}}>
             {activeEvent.round || "In Progress"}
           </div>
-          {top3.map((p,i) => (
+          {top3.map((p,i) => {
+            const playerName = (p?.name || "Player").split(" ").pop();
+            const playerScore = String(p?.score ?? "E");
+            return (
             <div key={i} style={{display:"flex",justifyContent:"space-between",
               fontSize:11, color: i===0 ? "var(--text)" : "var(--muted)", lineHeight:1.5}}>
               <span style={{display:"flex",gap:4,alignItems:"center"}}>
-                <span style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",minWidth:14}}>{p.position}</span>
-                <span style={{fontWeight: i===0?700:400}}>{p.name.split(" ").pop()}</span>
+                <span style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",minWidth:14}}>{p?.position || i + 1}</span>
+                <span style={{fontWeight: i===0?700:400}}>{playerName}</span>
               </span>
               <span style={{fontFamily:"var(--mono-font)",
-                color: p.score && p.score.startsWith("-") ? "#00E676" : p.score==="E" ? "var(--text)" : "#FF4444"}}>
-                {p.score}
+                color: playerScore.startsWith("-") ? "#00E676" : playerScore==="E" ? "var(--text)" : "#FF4444"}}>
+                {playerScore}
               </span>
             </div>
-          ))}
+          );})}
         </div>
       );
     }
@@ -2879,6 +2915,7 @@ export default function App() {
     // No active event — show "Next Up" card pointing to upcoming tournament
     const eventName = activeEvent?.name || "PGA Tour";
     const courseInfo = activeEvent?.course || "";
+    const whenInfo = activeEvent?.round || activeEvent?.location || "";
     return (
       <div key="golf-ticker" onClick={goGolf} style={{
         flexShrink:0, background:"var(--surface)",
@@ -2893,6 +2930,7 @@ export default function App() {
           {eventName.length > 22 ? eventName.slice(0,20)+"…" : eventName}
         </div>
         {courseInfo && <div style={{fontSize:10,color:"var(--muted)"}}>{courseInfo}</div>}
+        {whenInfo && <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"var(--muted)",marginTop:2}}>{whenInfo}</div>}
         <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"rgba(255,255,255,.4)",marginTop:4}}>
           Odds loading →
         </div>
@@ -2905,7 +2943,7 @@ export default function App() {
   const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
   const allMlb  = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
   const mlbLive = allMlb.filter(g=>g.state==="in");
-  const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
+  const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,3);
 
   // Build game cards by priority
   const buildGameCard = (g, isNba, i) => {
@@ -2941,11 +2979,42 @@ export default function App() {
     );
   };
 
-  // Priority order: NFL season → NBA → Golf → MLB → F1
-  let cards = [];
+  const buildPlaceholderCard = (key, icon, title, subtitle, color, onClick) => (
+    <div key={key} onClick={onClick} style={{
+      flexShrink:0, background:"var(--surface)",
+      border:"1px dashed rgba(255,255,255,.2)",
+      borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:120,
+    }}>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color,marginBottom:3,textTransform:"uppercase"}}>
+        {icon}
+      </div>
+      <div style={{fontSize:12,fontWeight:700,color:"var(--text)",lineHeight:1.2}}>{title}</div>
+      <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{subtitle}</div>
+    </div>
+  );
+
+  // Build a consistent home rail: Golf + ~3 NBA + ~3-4 MLB.
+  const nbaCards = [...nbaLive, ...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
+  while (nbaCards.length < 3) {
+    const idx = nbaCards.length + 1;
+    nbaCards.push(buildPlaceholderCard(`nba-placeholder-${idx}`, "🏀 NBA", `Game ${idx} pending`, "More NBA lines loading", "#FF6B00", goNba));
+  }
+
+  const mlbCards = [...mlbLive, ...mlbNext].slice(0,4).map((g,i)=>buildGameCard(g,false,i));
+  while (mlbCards.length < 3) {
+    const idx = mlbCards.length + 1;
+    mlbCards.push(buildPlaceholderCard(`mlb-placeholder-${idx}`, "⚾ MLB", `Game ${idx} pending`, "More MLB lines loading", "#1DB954", goMlb));
+  }
+
+  let cards = [
+    ...(golfCard ? [golfCard] : [buildPlaceholderCard("golf-placeholder", "⛳ PGA TOUR", "Next event loading…", "Tap for full golf board", "#FFFFFF", goGolf)]),
+    ...nbaCards,
+    ...mlbCards,
+  ];
+
+  // Keep NFL/F1 context as overflow after core rail cards.
   if (nflSeason) {
-    // NFL in season — show NFL banner card + any NBA/MLB live
-    cards = [
+    cards.push(
       <div key="nfl-live" onClick={goNfl} style={{
         flexShrink:0,background:"rgba(74,144,217,.08)",
         border:"1px solid rgba(74,144,217,.25)",
@@ -2954,41 +3023,29 @@ export default function App() {
         <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#4A90D9",marginBottom:3}}>🏈 NFL</div>
         <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>Weekly Props</div>
         <div style={{fontSize:10,color:"var(--muted)"}}>Live board →</div>
-      </div>,
-      ...nbaLive.slice(0,2).map((g,i)=>buildGameCard(g,true,i)),
-      ...mlbLive.slice(0,1).map((g,i)=>buildGameCard(g,false,i)),
-    ];
-  } else {
-    // Off-season priority: NBA → Golf → MLB → F1
-    const nbaCards = [...nbaLive,...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
-    const mlbCards = [...mlbLive,...mlbNext].slice(0,2).map((g,i)=>buildGameCard(g,false,i));
-
-    // F1 next race mini card
-    const nextRace = f1Data?.schedule?.races?.find(r=>r.is_next);
-    const f1Card = nextRace ? (
-      <div key="f1-ticker" onClick={goF1} style={{
-        flexShrink:0,background:"rgba(225,6,0,.06)",
-        border:"1px solid rgba(225,6,0,.2)",
-        borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:110,
-      }}>
-        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#E10600",marginBottom:3}}>🏎️ F1 NEXT</div>
-        <div style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3}}>{nextRace.meeting_name}</div>
-        <div style={{fontSize:10,color:"var(--muted)"}}>{nextRace.location}</div>
       </div>
-    ) : null;
-
-    cards = [
-      ...nbaCards,
-      ...(golfCard ? [golfCard] : []),
-      ...mlbCards,
-      ...(f1Card ? [f1Card] : []),
-    ];
+    );
+  } else {
+    const nextRace = f1Data?.schedule?.races?.find(r=>r.is_next);
+    if (nextRace) {
+      cards.push(
+        <div key="f1-ticker" onClick={goF1} style={{
+          flexShrink:0,background:"rgba(225,6,0,.06)",
+          border:"1px solid rgba(225,6,0,.2)",
+          borderRadius:10,padding:"8px 11px",cursor:"pointer",minWidth:110,
+        }}>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,color:"#E10600",marginBottom:3}}>🏎️ F1 NEXT</div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3}}>{nextRace.meeting_name}</div>
+          <div style={{fontSize:10,color:"var(--muted)"}}>{nextRace.location}</div>
+        </div>
+      );
+    }
   }
 
   if (cards.length===0) return null;
   return (
     <div style={{display:"flex",gap:8,overflowX:"auto",scrollbarWidth:"none",marginBottom:14,alignItems:"stretch"}}>
-      {cards.slice(0,6)}
+      {cards.slice(0,9)}
     </div>
   );
 })()}
