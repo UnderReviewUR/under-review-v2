@@ -2371,12 +2371,15 @@ export default function App() {
         );
         if (!res.ok) throw new Error("ESPN MLB " + res.status);
         const data = await res.json();
+        console.log("ESPN MLB data:", data);
         const events = data?.events || [];
         const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
         const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
+        console.log("MLB todayStr:", todayStr, "total ESPN events:", events.length);
         const games = events
           .filter(e => {
-            const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
+            const gDate = new Date(e.date);
+            const gET = new Date(gDate.toLocaleString("en-US", { timeZone: "America/New_York" }));
             const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
             return gStr === todayStr;
           })
@@ -2398,7 +2401,8 @@ export default function App() {
               awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
             };
           });
-        if (active && games.length > 0) setMlbGames(games);
+        console.log("MLB games filtered for today:", games.length, "of", events.length);
+        if (active) setMlbGames(games);
       } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
     }
     loadMlbGames();
@@ -2840,6 +2844,7 @@ export default function App() {
   const nbaLive = nbaGames.filter(g=>g.state==="in");
   const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
   const allMlb  = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
+  if (mlbGames.length===0 && !(mlbData?.games?.length>0)) console.log("MLB: no games from ESPN or /api/mlb — mlbGames:", mlbGames, "mlbData?.games:", mlbData?.games);
   const mlbLive = allMlb.filter(g=>g.state==="in");
   const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
 
