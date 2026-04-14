@@ -2675,7 +2675,25 @@ export default function App() {
     return [{ id:"mlb-default", league:"MLB", leagueColor:"#1DB954", title:"MLB Props", time:"Active", network:"Player Props", blurb:"Ask about any pitcher K prop, batter hit, or game total.", whatMatters:"Ask for the best MLB prop on today's slate.", quickHitters:["Best K prop?","Best batter prop?","Best game total?"], confirmed:true }];
   }, [mlbData]);
 
-  const homeCards = useMemo(() => [...homeTennisCards,...homeNflCards,...homeF1Cards,...homeNbaCards,...homeMlbCards].filter(Boolean), [homeTennisCards,homeNflCards,homeF1Cards,homeNbaCards,homeMlbCards]);
+  const homeCards = useMemo(
+  () =>
+    [
+      ...homeTennisCards,
+      ...homeNflCards,
+      ...homeF1Cards,
+      ...homeNbaCards,
+      ...homeMlbCards,
+      ...(homeGolfCards || []),
+    ].filter(Boolean),
+  [
+    homeTennisCards,
+    homeNflCards,
+    homeF1Cards,
+    homeNbaCards,
+    homeMlbCards,
+    homeGolfCards,
+  ]
+);
 
   // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
@@ -2828,69 +2846,186 @@ export default function App() {
   const nflSeason = month >= 9 || month <= 1;
 
   // Golf top-3 mini card
-  const golfCard = (() => {
-    // Determine what to show: active event OR next upcoming event
-    const activeEvent = golfData?.currentEvent;
-    const isActive = activeEvent && activeEvent.state !== "pre" && (activeEvent.leaderboard?.length > 0);
+const golfCard = (() => {
+  const activeEvent = golfData?.currentEvent || null;
+  const fallbackTournament = golfData?.tournament || null;
 
-    if (!golfLoading && (!golfData || !golfData.currentEvent)) return null;
+  const displayEvent =
+    activeEvent ||
+    (fallbackTournament
+      ? {
+          name: fallbackTournament.name || "PGA Tour Event",
+          shortName: fallbackTournament.shortName || fallbackTournament.name || "PGA Tour",
+          course: fallbackTournament.courseName || golfData?.course?.name || "",
+          location: fallbackTournament.location || "",
+          startDate: fallbackTournament.startDate || null,
+          state: "pre",
+          leaderboard: [],
+        }
+      : null);
 
-    // If active event with leaderboard — show top 3
-    if (isActive) {
-      const top3 = (activeEvent.leaderboard || []).slice(0, 3);
-      return (
-        <div key="golf-ticker" onClick={goGolf} style={{
-          flexShrink:0, background:"var(--surface)",
-          border:"1px solid rgba(255,255,255,.12)",
-          borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:150,
-        }}>
-          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
-            color:"rgba(255,255,255,.7)", marginBottom:4, textTransform:"uppercase"}}>
-            ⛳ {activeEvent.shortName || activeEvent.name || "PGA Tour"}
-          </div>
-          <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",marginBottom:4,letterSpacing:1}}>
-            {activeEvent.round || "In Progress"}
-          </div>
-          {top3.map((p,i) => (
-            <div key={i} style={{display:"flex",justifyContent:"space-between",
-              fontSize:11, color: i===0 ? "var(--text)" : "var(--muted)", lineHeight:1.5}}>
-              <span style={{display:"flex",gap:4,alignItems:"center"}}>
-                <span style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",minWidth:14}}>{p.position}</span>
-                <span style={{fontWeight: i===0?700:400}}>{p.name.split(" ").pop()}</span>
-              </span>
-              <span style={{fontFamily:"var(--mono-font)",
-                color: p.score && p.score.startsWith("-") ? "#00E676" : p.score==="E" ? "var(--text)" : "#FF4444"}}>
-                {p.score}
-              </span>
-            </div>
-          ))}
-        </div>
-      );
-    }
+  if (!golfLoading && !displayEvent) return null;
 
-    // No active event — show "Next Up" card pointing to upcoming tournament
-    const eventName = activeEvent?.name || "PGA Tour";
-    const courseInfo = activeEvent?.course || "";
+  const isActive =
+    !!activeEvent &&
+    activeEvent.state !== "pre" &&
+    Array.isArray(activeEvent.leaderboard) &&
+    activeEvent.leaderboard.length > 0;
+
+  if (isActive) {
+    const top3 = activeEvent.leaderboard.slice(0, 3);
+
     return (
-      <div key="golf-ticker" onClick={goGolf} style={{
-        flexShrink:0, background:"var(--surface)",
-        border:"1px solid rgba(255,255,255,.1)",
-        borderRadius:10, padding:"8px 11px", cursor:"pointer", minWidth:130,
-      }}>
-        <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,
-          color:"rgba(255,255,255,.5)", marginBottom:3, textTransform:"uppercase"}}>
-          ⛳ PGA Tour
+      <div
+        key="golf-ticker"
+        onClick={goGolf}
+        style={{
+          flexShrink: 0,
+          background: "var(--surface)",
+          border: "1px solid rgba(255,255,255,.12)",
+          borderRadius: 10,
+          padding: "8px 11px",
+          cursor: "pointer",
+          minWidth: 150,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 7,
+            letterSpacing: 1.5,
+            color: "rgba(255,255,255,.7)",
+            marginBottom: 4,
+            textTransform: "uppercase",
+          }}
+        >
+          ⛳ {activeEvent.shortName || activeEvent.name || "PGA Tour"}
         </div>
-        <div style={{fontSize:11,fontWeight:700,color:"var(--text)",lineHeight:1.3,marginBottom:2}}>
-          {eventName.length > 22 ? eventName.slice(0,20)+"…" : eventName}
+
+        <div
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 8,
+            color: "var(--muted)",
+            marginBottom: 4,
+            letterSpacing: 1,
+          }}
+        >
+          {activeEvent.round || "In Progress"}
         </div>
-        {courseInfo && <div style={{fontSize:10,color:"var(--muted)"}}>{courseInfo}</div>}
-        <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"rgba(255,255,255,.4)",marginTop:4}}>
-          Odds loading →
-        </div>
+
+        {top3.map((p, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 11,
+              color: i === 0 ? "var(--text)" : "var(--muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <span
+                style={{
+                  fontFamily: "var(--mono-font)",
+                  fontSize: 9,
+                  color: "var(--muted)",
+                  minWidth: 14,
+                }}
+              >
+                {p.position}
+              </span>
+              <span style={{ fontWeight: i === 0 ? 700 : 400 }}>
+                {String(p.name || "").split(" ").pop()}
+              </span>
+            </span>
+
+            <span
+              style={{
+                fontFamily: "var(--mono-font)",
+                color:
+                  p.score && String(p.score).startsWith("-")
+                    ? "#00E676"
+                    : p.score === "E"
+                    ? "var(--text)"
+                    : "#FF4444",
+              }}
+            >
+              {p.score}
+            </span>
+          </div>
+        ))}
       </div>
     );
-  })();
+  }
+
+  const eventName = displayEvent?.name || "PGA Tour Event";
+  const courseInfo = displayEvent?.course || "";
+  const locationInfo = displayEvent?.location || "";
+
+  return (
+    <div
+      key="golf-ticker"
+      onClick={goGolf}
+      style={{
+        flexShrink: 0,
+        background: "var(--surface)",
+        border: "1px solid rgba(255,255,255,.1)",
+        borderRadius: 10,
+        padding: "8px 11px",
+        cursor: "pointer",
+        minWidth: 140,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--mono-font)",
+          fontSize: 7,
+          letterSpacing: 1.5,
+          color: "rgba(255,255,255,.5)",
+          marginBottom: 3,
+          textTransform: "uppercase",
+        }}
+      >
+        ⛳ PGA Tour
+      </div>
+
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: "var(--text)",
+          lineHeight: 1.3,
+          marginBottom: 2,
+        }}
+      >
+        {eventName.length > 24 ? eventName.slice(0, 22) + "…" : eventName}
+      </div>
+
+      {courseInfo ? (
+        <div style={{ fontSize: 10, color: "var(--muted)" }}>
+          {courseInfo}
+        </div>
+      ) : locationInfo ? (
+        <div style={{ fontSize: 10, color: "var(--muted)" }}>
+          {locationInfo}
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          fontSize: 9,
+          fontFamily: "var(--mono-font)",
+          color: "rgba(255,255,255,.4)",
+          marginTop: 4,
+        }}
+      >
+        Next up →
+      </div>
+    </div>
+  );
+})();
 
   // Sport priority order based on season
   const nbaLive = nbaGames.filter(g=>g.state==="in");
@@ -2953,8 +3088,50 @@ const mlbNext = allMlb.filter(g => g.state === "pre").slice(0, 2);
   } else {
     // Off-season priority: NBA → Golf → MLB → F1
     const nbaCards = [...nbaLive,...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
-    const mlbCards = [   ...mlbLive.map((g, i) => buildGameCard(g, false, `live-${i}`)),   ...mlbNext.map((g, i) => buildGameCard(g, false, `pre-${i}`)), ];
+const mlbCardsRaw = [
+  ...mlbLive.map((g, i) => buildGameCard(g, false, `live-${i}`)),
+  ...mlbNext.map((g, i) => buildGameCard(g, false, `pre-${i}`)),
+];
 
+const mlbFallbackCard =
+  mlbCardsRaw.length === 0
+    ? [
+        <div
+          key="mlb-fallback"
+          onClick={goMlb}
+          style={{
+            flexShrink: 0,
+            background: "var(--surface)",
+            border: "1px solid rgba(29,185,84,.18)",
+            borderRadius: 10,
+            padding: "8px 11px",
+            cursor: "pointer",
+            minWidth: 120,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 7,
+              letterSpacing: 1.5,
+              color: "#1DB954",
+              marginBottom: 3,
+              textTransform: "uppercase",
+            }}
+          >
+            ⚾ MLB
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
+            MLB Board
+          </div>
+          <div style={{ fontSize: 10, color: "var(--muted)" }}>
+            Schedule / props →
+          </div>
+        </div>,
+      ]
+    : [];
+
+const mlbCards = [...mlbCardsRaw, ...mlbFallbackCard];    
     // F1 next race mini card
     const nextRace = f1Data?.schedule?.races?.find(r=>r.is_next);
     const f1Card = nextRace ? (
