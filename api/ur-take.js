@@ -653,7 +653,7 @@ ${upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MAT
 }
 
 // ── NBA System Prompt ─────────────────────────────────────────────────────────
-function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
+function buildNbaSystemPrompt({ ...(nbaContext || {}), question }, matchupCtxStr) {
   const today = getTodayStr();
   const ctx = nbaContext || {};
   const phase = ctx.seasonContext?.phase || "NBA Season Active";
@@ -739,7 +739,7 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
 }
 
 // ── MLB System Prompt ─────────────────────────────────────────────────────────
-function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
+function buildMlbSystemPrompt({ ...(mlbContext || {}), question }, matchupCtxStr) {
   const today = getTodayStr();
   const ctx = mlbContext || {};
   const phase = ctx.seasonContext?.phase || "MLB Season Active";
@@ -923,11 +923,11 @@ export default async function handler(req, res) {
   if (sportHint === "f1" || sport === "f1") {
  systemPrompt = buildF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
 } else if (sportHint === "mlb" || sport === "mlb") {
-  systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
+  systemPrompt = buildMlbSystemPrompt({ ...(mlbContext || {}), question }, matchupCtxStr);
 } else if (sportHint === "golf" || sport === "golf") {
   systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
 } else if (sportHint === "nba" || sport === "nba") {
-  systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
+  systemPrompt = buildNbaSystemPrompt({ ...(nbaContext || {}), question }, matchupCtxStr);
 } else if (sportHint === "nfl" || sport === "nfl") {
   systemPrompt = buildNflSystemPrompt(question, nflContext, matchupCtxStr);
 } else {
