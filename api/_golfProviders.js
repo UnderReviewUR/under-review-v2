@@ -30,7 +30,10 @@ function slugify(value) {
 }
 
 function safeTimeoutSignal(ms) {
-  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+  if (
+    typeof AbortSignal !== "undefined" &&
+    typeof AbortSignal.timeout === "function"
+  ) {
     return AbortSignal.timeout(ms);
   }
   return undefined;
@@ -72,46 +75,22 @@ async function safeFetchJson(url, options = {}) {
       ok: false,
       status: 0,
       data: null,
-      error: err.message || "Network error",
+      error: err?.message || "Network error",
     };
   }
 }
 
-async function safeBdlFetch(path) {
-  return bdlFetch(`/pga/v1${path}`);
-}
-
-function pickPreferredTournament(tournaments) {
-  if (!Array.isArray(tournaments) || tournaments.length === 0) return null;
-
-  const now = Date.now();
-
-  const enriched = tournaments.map((t) => {
-    const startTs = t?.start_date ? new Date(t.start_date).getTime() : Number.MAX_SAFE_INTEGER;
-    return { ...t, _startTs: startTs };
-  });
-
-  const inProgress = enriched
-    .filter((t) => normalizeString(t.status) === "in_progress")
-    .sort((a, b) => a._startTs - b._startTs);
-
-  if (inProgress.length > 0) return inProgress[0];
-
-  const scheduled = enriched
-    .filter((t) => normalizeString(t.status) === "scheduled")
-    .sort((a, b) => Math.abs(a._startTs - now) - Math.abs(b._startTs - now));
-
-  if (scheduled.length > 0) return scheduled[0];
-
-  return enriched.sort((a, b) => b._startTs - a._startTs)[0];
+async function safeBdlFetch(path, params = {}) {
+  return bdlFetch(`/pga/v1${path}`, params, { timeoutMs: 8000 });
 }
 
 function normalizeBdlTournament(tournament) {
   if (!tournament) return null;
 
-  const primaryCourse = Array.isArray(tournament.courses) && tournament.courses.length > 0
-    ? tournament.courses[0]?.course || null
-    : null;
+  const primaryCourse =
+    Array.isArray(tournament.courses) && tournament.courses.length > 0
+      ? tournament.courses[0]?.course || null
+      : null;
 
   return {
     id: tournament.id || null,
@@ -123,7 +102,9 @@ function normalizeBdlTournament(tournament) {
     city: tournament.city || "",
     state: tournament.state || "",
     country: tournament.country || "",
-    location: [tournament.city, tournament.state || tournament.country].filter(Boolean).join(", "),
+    location: [tournament.city, tournament.state || tournament.country]
+      .filter(Boolean)
+      .join(", "),
     purse: tournament.purse || null,
     status: tournament.status || null,
     courseName: tournament.course_name || primaryCourse?.name || null,
@@ -212,13 +193,14 @@ async function getEspnCurrentEvent() {
   }
 
   const liveEvent =
-  events.find((e) => e?.status?.type?.state === "in") ||
-  events.find((e) => e?.status?.type?.state === "pre") ||
-  null;
+    events.find((e) => e?.status?.type?.state === "in") ||
+    events.find((e) => e?.status?.type?.state === "pre") ||
+    null;
+
   if (!liveEvent) {
-  setCache(cacheKey, null, 60 * 1000);
-  return null;
-}
+    setCache(cacheKey, null, 60 * 1000);
+    return null;
+  }
 
   const comp = liveEvent?.competitions?.[0] || {};
   const venue = comp?.venue || {};
@@ -230,6 +212,7 @@ async function getEspnCurrentEvent() {
     .map((c) => {
       const stats = c.statistics || [];
       const score = c.score || {};
+
       return {
         position: c?.status?.position?.displayText || "—",
         name: c?.athlete?.displayName || c?.athlete?.fullName || "",
@@ -250,7 +233,9 @@ async function getEspnCurrentEvent() {
     name: liveEvent?.name || liveEvent?.shortName || "PGA Tour Event",
     shortName: liveEvent?.shortName || liveEvent?.name || "PGA Tour Event",
     course: venue?.fullName || venue?.shortName || null,
-    location: [venue?.city, venue?.state || venue?.country].filter(Boolean).join(", "),
+    location: [venue?.city, venue?.state || venue?.country]
+      .filter(Boolean)
+      .join(", "),
     round: status?.shortDetail || status?.description || "In Progress",
     state: status?.state || "pre",
     par: comp?.format?.par || null,
@@ -296,12 +281,22 @@ async function getOddsBoard(oddsApiKey) {
   if (cached) return cached;
 
   if (!oddsApiKey) {
-    const empty = { outrights: [], topFinish: {}, makeCut: {}, eventName: null };
+    const empty = {
+      outrights: [],
+      topFinish: {},
+      makeCut: {},
+      eventName: null,
+    };
     setCache(cacheKey, empty, 60 * 1000);
     return empty;
   }
 
-  const board = { outrights: [], topFinish: {}, makeCut: {}, eventName: null };
+  const board = {
+    outrights: [],
+    topFinish: {},
+    makeCut: {},
+    eventName: null,
+  };
 
   const base = await safeFetchJson(
     `https://api.the-odds-api.com/v4/sports/golf_pga/odds/?apiKey=${oddsApiKey}&regions=us&markets=outrights&oddsFormat=american`,
@@ -372,7 +367,10 @@ async function getBdlTournamentBundle() {
 
   const season = new Date().getFullYear();
 
-  const tournamentsRes = await safeBdlFetch(`/tournaments?season=${season}&per_page=100`);
+  const tournamentsRes = await safeBdlFetch("/tournaments", {
+    season,
+    per_page: 100,
+  });
 
   const allTournaments = tournamentsRes.ok
     ? (tournamentsRes.data?.data || [])
@@ -383,8 +381,12 @@ async function getBdlTournamentBundle() {
   const normalized = allTournaments
     .map((t) => ({
       ...t,
-      _startTs: t?.start_date ? new Date(t.start_date).getTime() : Number.MAX_SAFE_INTEGER,
-      _endTs: t?.end_date ? new Date(t.end_date).getTime() : Number.MAX_SAFE_INTEGER,
+      _startTs: t?.start_date
+        ? new Date(t.start_date).getTime()
+        : Number.MAX_SAFE_INTEGER,
+      _endTs: t?.end_date
+        ? new Date(t.end_date).getTime()
+        : Number.MAX_SAFE_INTEGER,
     }))
     .sort((a, b) => a._startTs - b._startTs);
 
@@ -407,40 +409,32 @@ async function getBdlTournamentBundle() {
 
   const normalizedTournament = normalizeBdlTournament(picked);
 
-  const matchedCourse =
-    (Array.isArray(picked.courses) && picked.courses.length > 0
-      ? picked.courses[0]?.course
-      : null) || null;
-
-  const bundle = {
-    tournament: normalizedTournament,
-    course: normalizeBdlCourse(matchedCourse),
-    results: [],
-    courseStats: [],
-    bdlAvailable: tournamentsRes.ok,
-  };
-
-  setCache(cacheKey, bundle, 3 * 60 * 1000);
-  return bundle;
-}
-  const normalizedTournament = normalizeBdlTournament(picked);
-
-  const courseSearchName = normalizedTournament.courseName
-    ? encodeURIComponent(normalizedTournament.courseName)
-    : null;
+  const courseSearchName = normalizedTournament.courseName || "";
 
   const [courseRes, resultsRes, courseStatsRes] = await Promise.all([
     courseSearchName
-      ? safeBdlFetch(`/courses?search=${courseSearchName}&per_page=5`)
+      ? safeBdlFetch("/courses", { search: courseSearchName, per_page: 5 })
       : Promise.resolve({ ok: false, data: null }),
-    safeBdlFetch(`/tournament_results?tournament_ids[]=${picked.id}&per_page=12`),
-safeBdlFetch(`/tournament_course_stats?tournament_ids[]=${picked.id}&per_page=36`),
+    safeBdlFetch("/tournament_results", {
+      "tournament_ids[]": picked.id,
+      per_page: 12,
+    }),
+    safeBdlFetch("/tournament_course_stats", {
+      "tournament_ids[]": picked.id,
+      per_page: 36,
+    }),
   ]);
 
   const matchedCourse =
-    (courseRes.ok ? (courseRes.data?.data || []).find((c) => slugify(c.name) === slugify(normalizedTournament.courseName)) : null) ||
+    (courseRes.ok
+      ? (courseRes.data?.data || []).find(
+          (c) => slugify(c.name) === slugify(normalizedTournament.courseName)
+        )
+      : null) ||
     (courseRes.ok ? (courseRes.data?.data || [])[0] : null) ||
-    (Array.isArray(picked.courses) && picked.courses.length > 0 ? picked.courses[0]?.course : null) ||
+    (Array.isArray(picked.courses) && picked.courses.length > 0
+      ? picked.courses[0]?.course
+      : null) ||
     null;
 
   const results = resultsRes.ok
@@ -456,32 +450,11 @@ safeBdlFetch(`/tournament_course_stats?tournament_ids[]=${picked.id}&per_page=36
     course: normalizeBdlCourse(matchedCourse),
     results,
     courseStats,
-    bdlAvailable: true,
+    bdlAvailable: tournamentsRes.ok,
   };
 
   setCache(cacheKey, bundle, 3 * 60 * 1000);
   return bundle;
-}
-
-function namesRoughlyMatch(a, b) {
-  if (!a || !b) return false;
-
-  const aa = slugify(a);
-  const bb = slugify(b);
-
-  if (!aa || !bb) return false;
-  if (aa === bb) return true;
-  if (aa.includes(bb) || bb.includes(aa)) return true;
-
-  const aWords = new Set(aa.split(" ").filter(Boolean));
-  const bWords = new Set(bb.split(" ").filter(Boolean));
-  let overlap = 0;
-
-  for (const w of aWords) {
-    if (bWords.has(w)) overlap += 1;
-  }
-
-  return overlap >= 2;
 }
 
 function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
@@ -502,7 +475,9 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const shouldUseEspnAsCurrent = espnHasLeaderboard && !espnLooksFinished;
 
   const currentEvent = {
-    id: shouldUseEspnAsCurrent ? (espnEvent?.id || null) : (tournament?.id || espnEvent?.id || null),
+    id: shouldUseEspnAsCurrent
+      ? (espnEvent?.id || null)
+      : (tournament?.id || espnEvent?.id || null),
     name: shouldUseEspnAsCurrent
       ? (espnEvent?.name || "PGA Tour Event")
       : (tournament?.name || espnEvent?.name || "PGA Tour Event"),
@@ -513,8 +488,16 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       ? (espnEvent?.course || course?.name || tournament?.courseName || "TBD")
       : (tournament?.courseName || course?.name || espnEvent?.course || "TBD"),
     location: shouldUseEspnAsCurrent
-      ? (espnEvent?.location || tournament?.location || [course?.city, course?.state || course?.country].filter(Boolean).join(", "))
-      : (tournament?.location || espnEvent?.location || [course?.city, course?.state || course?.country].filter(Boolean).join(", ")),
+      ? (
+          espnEvent?.location ||
+          tournament?.location ||
+          [course?.city, course?.state || course?.country].filter(Boolean).join(", ")
+        )
+      : (
+          tournament?.location ||
+          espnEvent?.location ||
+          [course?.city, course?.state || course?.country].filter(Boolean).join(", ")
+        ),
     round: shouldUseEspnAsCurrent
       ? (espnEvent?.round || "In Progress")
       : (tournament?.status || "Upcoming"),
