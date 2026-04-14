@@ -2463,24 +2463,16 @@ export default function App() {
 
   // ── Context builders ───────────────────────────────────────────────────────
   const buildF1Context = useCallback(() => {
-    if (!f1Data) return null;
-    const standings = (f1Data.standings || []).slice(0, 20).map(d =>
-      `P${d.position ?? "?"} ${d.full_name || d.name_acronym || `#${d.driver_number}`} (${d.team_name || "Unknown"}) — ${d.points ?? 0} pts`
-    ).join("\n");
-    const nextRace = f1Data.schedule?.races?.find(r => r.is_next);
-    const upcomingRaces = (f1Data.schedule?.races || [])
-      .filter(r => new Date(r.date_start) > new Date())
-      .slice(0, 5)
-      .map(r => {
-        const d = r.date_start ? new Date(r.date_start).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "TBD";
-        return `${r.meeting_name || r.location} — ${d} — ${r.circuit_short_name || r.location || ""}${r.is_next ? " [NEXT RACE]" : ""}`;
-      }).join("\n");
-    const session = f1Data.session;
-    const sessionStr = session
-      ? `LATEST SESSION: ${session.session_name || session.session_type || "Unknown"} at ${session.meeting_name || session.location || "Unknown"} (${session.date_start ? new Date(session.date_start).toLocaleDateString() : "TBD"})`
-      : "";
-    return { standings, upcomingRaces, nextRace, sessionStr };
-  }, [f1Data]);
+  if (!f1Data) return null;
+
+  return {
+    standings: Array.isArray(f1Data.standings) ? f1Data.standings : [],
+    schedule: f1Data.schedule || { races: [], upcoming: [], past: [], current: [], usingFallback: true },
+    session: f1Data.session || null,
+    sessions: Array.isArray(f1Data.sessions) ? f1Data.sessions : [],
+    usingFallback: !!f1Data.usingFallback,
+  };
+}, [f1Data]);
 
   const buildNbaContext = useCallback((questionText) => {
     return {
