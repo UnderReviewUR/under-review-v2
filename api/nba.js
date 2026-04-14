@@ -165,7 +165,7 @@ async function getCurrentPlayerStats(bdlKey) {
   if (!bdlKey) return [];
 
   try {
-    const season = 2024;
+    const season = 2025;
     const res = await fetch(`https://api.balldontlie.io/v1/season_averages?season=${season}`, {
       headers: { Accept:"application/json", Authorization: bdlKey },
     });
