@@ -921,17 +921,17 @@ export default async function handler(req, res) {
   let systemPrompt;
 
   if (sportHint === "f1" || sport === "f1") {
-  systemPrompt = buildTennisSystemPromptldF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
+ systemPrompt = buildF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
 } else if (sportHint === "mlb" || sport === "mlb") {
-  systemPrompt = buildTennisSystemPromptldMlbSystemPrompt(mlbContext, matchupCtxStr);
+  systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
 } else if (sportHint === "golf" || sport === "golf") {
-  systemPrompt = buildTennisSystemPromptldGolfSystemPrompt({ ...(golfContext || {}), question });
+  systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
 } else if (sportHint === "nba" || sport === "nba") {
-  systemPrompt = buildTennisSystemPromptldNbaSystemPrompt(nbaContext, matchupCtxStr);
+  systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
 } else if (sportHint === "nfl" || sport === "nfl") {
-  systemPrompt = buildTennisSystemPromptldNflSystemPrompt(question, nflContext, matchupCtxStr);
+  systemPrompt = buildNflSystemPrompt(question, nflContext, matchupCtxStr);
 } else {
-  systemPrompt = buildTennisSystemPromptldTennisSystemPrompt(question, players, context, liveMatches, matchupCtxStr);
+  systemPrompt = buildTennisSystemPrompt(question, players, context, liveMatches, matchupCtxStr);
 }
 
   const messages = [];
