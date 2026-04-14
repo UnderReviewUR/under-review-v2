@@ -1,7 +1,7 @@
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 import { applyCors } from "./_cors.js";
-import { NBA_PLAYERS } from "../src/data/nba/players.js";
+const NBA_PLAYERS = {}; // players.js removed — NBA prompt uses live ESPN data from nba.js
 
 // ── TODAY string — injected into every prompt ────────────────────────────────
 function getTodayStr() {
