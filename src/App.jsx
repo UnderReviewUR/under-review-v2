@@ -2683,7 +2683,6 @@ export default function App() {
       ...homeF1Cards,
       ...homeNbaCards,
       ...homeMlbCards,
-      ...(homeGolfCards || []),
     ].filter(Boolean),
   [
     homeTennisCards,
@@ -2691,10 +2690,9 @@ export default function App() {
     homeF1Cards,
     homeNbaCards,
     homeMlbCards,
-    homeGolfCards,
   ]
 );
-
+  
   // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
     const prompts=[]; const used=new Set(); const daypart=getDaypartLabel();
