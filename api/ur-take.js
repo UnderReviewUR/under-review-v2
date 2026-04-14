@@ -129,7 +129,7 @@ const NFL_QBS = {
 };
 
 // ── F1 Data ───────────────────────────────────────────────────────────────────
-const F1_CALENDAR = [
+const LEGACY_F1_CALENDAR_BACKUP = [
   { meeting_name:"Australian Grand Prix",    location:"Melbourne",   date_start:"2026-03-06T00:00:00", completed:true,  winner:"Russell"   },
   { meeting_name:"Chinese Grand Prix",       location:"Shanghai",    date_start:"2026-03-13T00:00:00", completed:true,  winner:"Antonelli" },
   { meeting_name:"Japanese Grand Prix",      location:"Suzuka",      date_start:"2026-03-27T00:00:00", completed:true,  winner:"Antonelli" },
@@ -148,7 +148,7 @@ const F1_CALENDAR = [
   { meeting_name:"Abu Dhabi Grand Prix",     location:"Abu Dhabi",   date_start:"2026-12-04T00:00:00", completed:false, winner:null },
 ];
 
-const F1_STANDINGS = [
+const LEGACY_F1_STANDINGS_BACKUP = [
   { position:1,  full_name:"Kimi Antonelli",    team_name:"Mercedes",     points:62 },
   { position:2,  full_name:"George Russell",    team_name:"Mercedes",     points:43 },
   { position:3,  full_name:"Charles Leclerc",   team_name:"Ferrari",      points:30 },
@@ -361,12 +361,12 @@ IDENTITY: Sharp golf analyst. Lead with the lean. Make a call. NEVER ask for mor
 FORMATTING: NEVER use markdown. No ##, no ---, no ** bold. Plain text only.
 
 CRITICAL FACTUAL RULES:
-1. RORY MCILROY WON THE 2025 MASTERS. He is the DEFENDING CHAMPION at Augusta in 2026. He beat Justin Rose in a playoff. He completed the career Grand Slam. NEVER say or imply Rory has never won the Masters.
-2. SCOTTIE SCHEFFLER 2026 MASTERS: Confirmed rounds R1=72, R3=65. Do not invent other round scores.
-3. CAMERON YOUNG 2026 MASTERS: Co-leader at -11 entering Sunday. Shot 65 in R3. He is a real contender.
-4. LIVE DATA BEATS DATABASE: Leaderboard above is ground truth. Never contradict it. Never fabricate scores.
-5. BELIEVE THE USER: If the user tells you something happened in a live tournament, accept it.
-6. DATABASE TEAMS MAY BE STALE: If live context or user says a player moved teams, believe that over this database.
+1. LIVE TOURNAMENT DATA ABOVE IS GROUND TRUTH. Never contradict the leaderboard, round status, or scores shown in the live event data.
+2. If live data is missing or partial, do not invent round-by-round scores, leaderboard positions, or finishing positions.
+3. If the user provides a live scoring update, treat the user's update as more current than the database.
+4. Player database notes are for profile/context only, not for live scoring.
+5. If course history or event history is not available, say so briefly and pivot immediately to form, SG profile, and current position.
+6. Never claim a player already finished a round unless the live data clearly shows that round is complete.
 
 UR FAIR ODDS -- REQUIRED ON EVERY PLAY:
 1. Start with player's base win rate / top-10 rate.
@@ -401,18 +401,16 @@ function buildF1SystemPrompt(matchupCtxStr, f1Context) {
     ? liveStandings
     : F1_STANDINGS;
 
-  // Use live schedule from f1.js if available
-  const liveRaces = f1Context?.schedule?.races;
-  const useCalendar = (Array.isArray(liveRaces) && liveRaces.length > 0)
-    ? liveRaces.map(r => ({
-        meeting_name: r.meeting_name || r.name,
-        location: r.location || r.circuit_short_name,
-        date_start: r.date_start,
-        date_end: r.date_end,
-        completed: r.completed || (r.date_end ? new Date(r.date_end) < now : false),
-        winner: r.winner || null,
-      }))
-    : F1_CALENDAR;
+    // Use live schedule from f1.js only — do not fall back to stale hardcoded calendar
+  const liveRaces = f1Context?.schedule?.races || [];
+  const useCalendar = liveRaces.map(r => ({
+    meeting_name: r.meeting_name || r.name,
+    location: r.location || r.circuit_short_name,
+    date_start: r.date_start,
+    date_end: r.date_end,
+    completed: r.completed || (r.date_end ? new Date(r.date_end) < now : false),
+    winner: r.winner || null,
+  }));
 
   const upcoming  = useCalendar.filter(m => !m.completed && new Date(m.date_start) > now);
   const current   = useCalendar.filter(m => {
@@ -421,6 +419,27 @@ function buildF1SystemPrompt(matchupCtxStr, f1Context) {
     return start <= now && now <= end;
   });
   const completed = useCalendar.filter(r => r.completed && r.winner);
+    if (!useCalendar.length) {
+    return `You are Under Review -- a sharp F1 betting intelligence tool.
+
+TODAY: ${today}
+IDENTITY: Lead with the take. Never hedge. Never open with a limitation.
+FORMATTING: NEVER use markdown. Plain text only.
+
+RESPONSE FORMAT:
+One sharp opening sentence. Then:
+THE BET: * [Driver] -- [market] -- [key reason]
+FADE: [one line]
+CONFIDENCE: [High/Medium/Speculative]
+TIMING: [one line]
+
+CRITICAL RULES:
+1. Do not invent the next race, session status, or standings.
+2. Use only live F1 context passed into this request.
+3. If schedule data is missing, say the schedule is not loaded and pivot to driver form or futures only.
+
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+  }
 
   const standingsStr = standingsSource.map((d, i) =>
     `${d.position || i + 1}. ${d.full_name || d.name} (${d.team_name || d.team}) -- ${d.points ?? 0} pts`
