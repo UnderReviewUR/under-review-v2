@@ -2903,9 +2903,9 @@ export default function App() {
   // Sport priority order based on season
   const nbaLive = nbaGames.filter(g=>g.state==="in");
   const nbaNext = nbaGames.filter(g=>g.state==="pre").slice(0,2);
-  const allMlb  = mlbGames.length>0 ? mlbGames : (mlbData?.games||[]);
-  const mlbLive = allMlb.filter(g=>g.state==="in");
-  const mlbNext = allMlb.filter(g=>g.state==="pre").slice(0,1);
+  const allMlb = mlbGames.length > 0 ? mlbGames : (mlbData?.games || []);
+const mlbLive = allMlb.filter(g => g.state === "in").slice(0, 3);
+const mlbNext = allMlb.filter(g => g.state === "pre").slice(0, 2);
 
   // Build game cards by priority
   const buildGameCard = (g, isNba, i) => {
@@ -2961,7 +2961,7 @@ export default function App() {
   } else {
     // Off-season priority: NBA → Golf → MLB → F1
     const nbaCards = [...nbaLive,...nbaNext].slice(0,3).map((g,i)=>buildGameCard(g,true,i));
-    const mlbCards = [...mlbLive,...mlbNext].slice(0,2).map((g,i)=>buildGameCard(g,false,i));
+    const mlbCards = [   ...mlbLive.map((g, i) => buildGameCard(g, false, `live-${i}`)),   ...mlbNext.map((g, i) => buildGameCard(g, false, `pre-${i}`)), ];
 
     // F1 next race mini card
     const nextRace = f1Data?.schedule?.races?.find(r=>r.is_next);
@@ -2988,7 +2988,7 @@ export default function App() {
   if (cards.length===0) return null;
   return (
     <div style={{display:"flex",gap:8,overflowX:"auto",scrollbarWidth:"none",marginBottom:14,alignItems:"stretch"}}>
-      {cards.slice(0,6)}
+      {cards}
     </div>
   );
 })()}
