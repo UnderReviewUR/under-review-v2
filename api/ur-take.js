@@ -74,12 +74,66 @@ const PGA_PLAYERS = {
 };
 
 const PGA_COURSES = {
-  "Augusta National": { location:"Augusta, GA", par:72, type:"parkland", grass:"bentgrass", sgPremium:"app", whoWins:"Elite iron players who draw the ball. Power helps on par 5s.", specialists:["Scottie Scheffler","Rory McIlroy","Jon Rahm","Hideki Matsuyama","Jordan Spieth"], note:"Rory McIlroy is the 2025 Masters champion and 2026 defending champion. SG:APP from 150-200 yards most predictive. Bentgrass greens reward European-style putting." },
-  "TPC Sawgrass":     { location:"Ponte Vedra Beach, FL", par:72, type:"parkland", grass:"bermuda", sgPremium:"app", whoWins:"Complete players who handle pressure. Bermuda putters.", specialists:["Scottie Scheffler","Rory McIlroy","Xander Schauffele","Matt Fitzpatrick"], note:"17th island par 3 is where tournaments are won and lost." },
-  "Riviera":          { location:"Pacific Palisades, CA", par:71, type:"parkland", grass:"poa_annua", sgPremium:"app", whoWins:"Complete precision players. Poa putting specialists.", specialists:["Patrick Cantlay","Collin Morikawa","Russell Henley"], note:"Kikuyu rough is brutal on misses. Poa annua greens." },
-  "Pebble Beach":     { location:"Pebble Beach, CA", par:72, type:"links_adjacent", grass:"poa_annua", sgPremium:"putt", whoWins:"Poa specialists and wind managers.", specialists:["Patrick Cantlay","Jordan Spieth"], note:"Wind off the Pacific is the key variable." },
-  "Quail Hollow":     { location:"Charlotte, NC", par:71, type:"parkland", grass:"bermuda", sgPremium:"ott", whoWins:"Power players who handle the Green Mile under pressure.", specialists:["Rory McIlroy","Wyndham Clark"], note:"Green Mile (16-18) decides the tournament." },
-  "Royal Troon":      { location:"Ayrshire, Scotland", par:71, type:"links", grass:"links_fescue", sgPremium:"ott", whoWins:"Links specialists. Wind managers.", specialists:["Rory McIlroy","Tommy Fleetwood","Shane Lowry","Brian Harman"], note:"The Open Championship venue." },
+  "Augusta National": {
+    location:"Augusta, GA",
+    par:72,
+    type:"parkland",
+    grass:"bentgrass",
+    sgPremium:"app",
+    whoWins:"Elite iron players who shape shots well into demanding greens. Power helps on the par 5s.",
+    specialists:["Scottie Scheffler","Rory McIlroy","Jon Rahm","Hideki Matsuyama","Jordan Spieth"],
+    note:"SG:APP, touch around the greens, and bentgrass putting matter most here. Augusta rewards elite ball-striking and composure."
+  },
+  "TPC Sawgrass": {
+    location:"Ponte Vedra Beach, FL",
+    par:72,
+    type:"parkland",
+    grass:"bermuda",
+    sgPremium:"app",
+    whoWins:"Complete players who handle pressure and control trajectory well on Bermuda greens.",
+    specialists:["Scottie Scheffler","Rory McIlroy","Xander Schauffele","Matt Fitzpatrick"],
+    note:"The island green on 17 and constant volatility make this one of the most pressure-heavy tests on Tour."
+  },
+  "Riviera": {
+    location:"Pacific Palisades, CA",
+    par:71,
+    type:"parkland",
+    grass:"poa_annua",
+    sgPremium:"app",
+    whoWins:"Complete precision players who gain with long irons and can survive poa variance.",
+    specialists:["Patrick Cantlay","Collin Morikawa","Russell Henley"],
+    note:"Kikuyu rough punishes misses and poa greens add volatility. Precision beats raw power here."
+  },
+  "Pebble Beach": {
+    location:"Pebble Beach, CA",
+    par:72,
+    type:"links_adjacent",
+    grass:"poa_annua",
+    sgPremium:"putt",
+    whoWins:"Poa specialists and strong wind managers with elite short-game control.",
+    specialists:["Patrick Cantlay","Jordan Spieth"],
+    note:"Wind off the Pacific is the key variable. Short game and putting matter more than distance."
+  },
+  "Quail Hollow": {
+    location:"Charlotte, NC",
+    par:71,
+    type:"parkland",
+    grass:"bermuda",
+    sgPremium:"ott",
+    whoWins:"Power players who can survive the Green Mile and keep gaining with the driver.",
+    specialists:["Rory McIlroy","Wyndham Clark"],
+    note:"The closing stretch is brutal. Long-game strength and late-round nerve matter most."
+  },
+  "Royal Troon": {
+    location:"Ayrshire, Scotland",
+    par:71,
+    type:"links",
+    grass:"links_fescue",
+    sgPremium:"ott",
+    whoWins:"Links specialists who control flight, handle wind, and stay patient.",
+    specialists:["Rory McIlroy","Tommy Fleetwood","Shane Lowry","Brian Harman"],
+    note:"This is a true links test. Wind control, trajectory, and short-game creativity decide it."
+  },
 };
 
 // ── NBA Player Database (with LIVE data override rule) ─────────────────────────
@@ -158,24 +212,6 @@ const NFL_QBS = {
 };
 
 // ── F1 Data ───────────────────────────────────────────────────────────────────
-const LEGACY_F1_CALENDAR_BACKUP = [
-  { meeting_name:"Australian Grand Prix",    location:"Melbourne",   date_start:"2026-03-06T00:00:00", completed:true,  winner:"Russell"   },
-  { meeting_name:"Chinese Grand Prix",       location:"Shanghai",    date_start:"2026-03-13T00:00:00", completed:true,  winner:"Antonelli" },
-  { meeting_name:"Japanese Grand Prix",      location:"Suzuka",      date_start:"2026-03-27T00:00:00", completed:true,  winner:"Antonelli" },
-  { meeting_name:"Bahrain Grand Prix",       location:"Bahrain",     date_start:"2026-04-11T00:00:00", date_end:"2026-04-13T23:59:00", completed:false, winner:null },
-  { meeting_name:"Miami Grand Prix",         location:"Miami",       date_start:"2026-05-01T00:00:00", completed:false, winner:null },
-  { meeting_name:"Canadian Grand Prix",      location:"Montreal",    date_start:"2026-05-22T00:00:00", completed:false, winner:null },
-  { meeting_name:"Monaco Grand Prix",        location:"Monaco",      date_start:"2026-06-05T00:00:00", completed:false, winner:null },
-  { meeting_name:"Spanish Grand Prix",       location:"Barcelona",   date_start:"2026-06-12T00:00:00", completed:false, winner:null },
-  { meeting_name:"Austrian Grand Prix",      location:"Spielberg",   date_start:"2026-06-26T00:00:00", completed:false, winner:null },
-  { meeting_name:"British Grand Prix",       location:"Silverstone", date_start:"2026-07-03T00:00:00", completed:false, winner:null },
-  { meeting_name:"Belgian Grand Prix",       location:"Spa",         date_start:"2026-07-17T00:00:00", completed:false, winner:null },
-  { meeting_name:"Hungarian Grand Prix",     location:"Budapest",    date_start:"2026-07-24T00:00:00", completed:false, winner:null },
-  { meeting_name:"Dutch Grand Prix",         location:"Zandvoort",   date_start:"2026-08-21T00:00:00", completed:false, winner:null },
-  { meeting_name:"Italian Grand Prix",       location:"Monza",       date_start:"2026-09-04T00:00:00", completed:false, winner:null },
-  { meeting_name:"Las Vegas Grand Prix",     location:"Las Vegas",   date_start:"2026-11-19T00:00:00", completed:false, winner:null },
-  { meeting_name:"Abu Dhabi Grand Prix",     location:"Abu Dhabi",   date_start:"2026-12-04T00:00:00", completed:false, winner:null },
-];
 
 const LEGACY_F1_STANDINGS_BACKUP = [
   { position:1,  full_name:"Kimi Antonelli",    team_name:"Mercedes",     points:62 },
@@ -325,36 +361,77 @@ function buildGolfSystemPrompt(ctx) {
   const currentEvent = ctx?.currentEvent || null;
   const odds = ctx?.odds || {};
   const question = ctx?.question || "";
-  const courseName = currentEvent ? (currentEvent.course || currentEvent.name || "") : "";
-  const courseNameLower = courseName.toLowerCase();
+
+  const tournament = ctx?.tournament || null;
+  const recentResults = Array.isArray(ctx?.recentResults) ? ctx.recentResults : [];
+  const sourceMeta = ctx?.sourceMeta || {};
+
+  const hasLiveLeaderboard = Array.isArray(currentEvent?.leaderboard) && currentEvent.leaderboard.length > 0;
+  const eventState = String(currentEvent?.state || "").toLowerCase();
+  const roundText = String(currentEvent?.round || "").toLowerCase();
+  const isLikelyFinished =
+    eventState === "post" ||
+    eventState === "final" ||
+    roundText.includes("final") ||
+    roundText.includes("completed");
+
+  const hasUpcomingTournament =
+    !!tournament?.name &&
+    !hasLiveLeaderboard &&
+    !isLikelyFinished;
+
+  const displayEventName =
+    (hasLiveLeaderboard || isLikelyFinished)
+      ? (currentEvent?.name || tournament?.name || "PGA Tour Event")
+      : (tournament?.name || currentEvent?.name || "PGA Tour Event");
+
+  const displayCourse =
+    currentEvent?.course || tournament?.courseName || ctx?.course?.name || "TBD";
+
+  const displayLocation =
+    currentEvent?.location || tournament?.location || [ctx?.course?.city, ctx?.course?.state || ctx?.course?.country].filter(Boolean).join(", ");
+
+  const courseNameLower = String(displayCourse || "").toLowerCase();
 
   let leaderBlock = "";
-  if (currentEvent?.leaderboard?.length > 0) {
+  if (hasLiveLeaderboard && !isLikelyFinished) {
     leaderBlock = `════════════════════════════════════
 LIVE TOURNAMENT DATA -- GROUND TRUTH -- DO NOT CONTRADICT
 ════════════════════════════════════
-EVENT: ${currentEvent.name || "Current PGA Tour Event"}
-COURSE: ${currentEvent.course || "TBD"} | ${currentEvent.location || ""}
-ROUND: ${currentEvent.round || "In Progress"}
+EVENT: ${displayEventName}
+COURSE: ${displayCourse} | ${displayLocation || ""}
+ROUND: ${currentEvent?.round || "In Progress"}
 
 LEADERBOARD (current):
 ${currentEvent.leaderboard.slice(0, 20).map(p =>
   `${p.position}. ${p.name} (${p.country}) -- ${p.score}` +
   (p.thru && p.thru !== "--" ? ` | Thru ${p.thru}` : "") +
-  (p.today && p.today !== "--" ? ` | Today ${p.today}` : "") +
-  (p.round1 && p.round1 !== "--" ? ` | R1:${p.round1}` : "") +
-  (p.round2 && p.round2 !== "--" ? ` | R2:${p.round2}` : "") +
-  (p.round3 && p.round3 !== "--" ? ` | R3:${p.round3}` : "") +
-  (p.round4 && p.round4 !== "--" ? ` | R4:${p.round4}` : "")
+  (p.today && p.today !== "--" ? ` | Today ${p.today}` : "")
 ).join("\n")}
 ════════════════════════════════════
 
 `;
-  } else if (currentEvent?.name) {
+  } else if (hasUpcomingTournament) {
     leaderBlock = `════════════════════════════════════
-CURRENT EVENT: ${currentEvent.name}
-Course: ${currentEvent.course || "TBD"} | Round: ${currentEvent.round || "In Progress"}
-Leaderboard: Not loaded. If user provides scores, treat as ground truth.
+UPCOMING TOURNAMENT
+════════════════════════════════════
+EVENT: ${displayEventName}
+COURSE: ${displayCourse}
+LOCATION: ${displayLocation || "TBD"}
+STATUS: Upcoming
+START DATE: ${tournament?.startDate || currentEvent?.startDate || "TBD"}
+════════════════════════════════════
+
+`;
+  } else if (displayEventName) {
+    leaderBlock = `════════════════════════════════════
+EVENT CONTEXT
+════════════════════════════════════
+EVENT: ${displayEventName}
+COURSE: ${displayCourse}
+LOCATION: ${displayLocation || "TBD"}
+STATUS: ${currentEvent?.round || tournament?.status || "Unknown"}
+No reliable live leaderboard is loaded.
 ════════════════════════════════════
 
 `;
@@ -363,24 +440,49 @@ Leaderboard: Not loaded. If user provides scores, treat as ground truth.
   let courseData = null;
   for (const cKey in PGA_COURSES) {
     if (cKey.toLowerCase().includes(courseNameLower) || courseNameLower.includes(cKey.toLowerCase())) {
-      courseData = PGA_COURSES[cKey]; break;
+      courseData = PGA_COURSES[cKey];
+      break;
     }
   }
+
   const courseSection = courseData
-    ? `COURSE: ${courseName.toUpperCase()} | Type: ${courseData.type} | Grass: ${courseData.grass} | SG premium: ${courseData.sgPremium}\nWho wins: ${courseData.whoWins}\nSpecialists: ${(courseData.specialists || []).join(", ")}\nNote: ${courseData.note}\n`
-    : courseName ? `COURSE: ${courseName.toUpperCase()} -- Not in database. Use SG profiles as primary signal.\n` : "";
+    ? `COURSE PROFILE: ${displayCourse.toUpperCase()} | Type: ${courseData.type} | Grass: ${courseData.grass} | SG premium: ${courseData.sgPremium}
+Who wins: ${courseData.whoWins}
+Specialists: ${(courseData.specialists || []).join(", ")}
+Note: ${courseData.note}
+`
+    : displayCourse
+      ? `COURSE PROFILE: ${displayCourse.toUpperCase()} -- Not in database. Use SG profile, form, and market context as primary signal.
+`
+      : "";
 
   let oddsStr = "";
   if (odds?.outrights?.length > 0) {
-    oddsStr = "MARKET ODDS:\n" +
-      odds.outrights.slice(0, 25).map(o => `${o.player}: ${o.odds > 0 ? "+" : ""}${o.odds}`).join("\n") + "\n";
+    oddsStr =
+      "MARKET ODDS:\n" +
+      odds.outrights.slice(0, 25).map(o => `${o.player}: ${o.odds > 0 ? "+" : ""}${o.odds}`).join("\n") +
+      "\n";
   }
 
-  const playerStr = "PLAYER DATABASE:\n" +
-    Object.entries(PGA_PLAYERS).filter(([, p]) => p.tier === 1).slice(0, 30).map(([name, p]) => {
-      if (!p?.sg) return "";
-      return `${name} | Rank ${p.rank} | SG: Total ${p.sg.total} OTT ${p.sg.ott} APP ${p.sg.app} ARG ${p.sg.arg} PUTT ${p.sg.putt} | Form: ${(p.recentForm || []).join(",")} | Cut:${p.cutMaking} Top10:${p.top10Rate} Win:${p.winRate} | ${p.note || ""}`;
-    }).filter(Boolean).join("\n");
+  let recentResultsStr = "";
+  if (recentResults.length > 0) {
+    recentResultsStr =
+      "RECENT TOURNAMENT RESULTS:\n" +
+      recentResults.slice(0, 10).map(r => `${r.position || "-"} ${r.player} ${r.score != null ? `(${r.score})` : ""}`.trim()).join("\n") +
+      "\n";
+  }
+
+  const playerStr =
+    "PLAYER DATABASE:\n" +
+    Object.entries(PGA_PLAYERS)
+      .filter(([, p]) => p.tier === 1)
+      .slice(0, 30)
+      .map(([name, p]) => {
+        if (!p?.sg) return "";
+        return `${name} | Rank ${p.rank} | SG: Total ${p.sg.total} OTT ${p.sg.ott} APP ${p.sg.app} ARG ${p.sg.arg} PUTT ${p.sg.putt} | Form: ${(p.recentForm || []).join(",")} | Cut:${p.cutMaking} Top10:${p.top10Rate} Win:${p.winRate} | ${p.note || ""}`;
+      })
+      .filter(Boolean)
+      .join("\n");
 
   return `You are Under Review -- the sharpest golf betting intelligence tool available.
 
@@ -390,32 +492,33 @@ IDENTITY: Sharp golf analyst. Lead with the lean. Make a call. NEVER ask for mor
 FORMATTING: NEVER use markdown. No ##, no ---, no ** bold. Plain text only.
 
 CRITICAL FACTUAL RULES:
-1. LIVE TOURNAMENT DATA ABOVE IS GROUND TRUTH. Never contradict the leaderboard, round status, or scores shown in the live event data.
-2. If live data is missing or partial, do not invent round-by-round scores, leaderboard positions, or finishing positions.
-3. If the user provides a live scoring update, treat the user's update as more current than the database.
-4. Player database notes are for profile/context only, not for live scoring.
-5. If course history or event history is not available, say so briefly and pivot immediately to form, SG profile, and current position.
-6. Never claim a player already finished a round unless the live data clearly shows that round is complete.
-7. If there is no live leaderboard loaded, do not reference any player as currently leading, trailing, co-leading, being through a round, or sitting at a specific score.
-8. Treat all player notes as evergreen scouting only. Never treat note text as current tournament state.
+1. If LIVE TOURNAMENT DATA is present, it is ground truth.
+2. If no live leaderboard is loaded, do not invent who is leading, trailing, co-leading, through a round, or at a specific score.
+3. If the event is upcoming, answer as a pre-tournament betting analyst. Do not describe any live leaderboard.
+4. If the event is complete or stale, do not treat it as current.
+5. Player notes are evergreen scouting only, not current-tournament state.
+6. Course notes are course-fit context only, not current event news.
+7. If the user asks who can win the next tournament, focus on outrights, course fit, recent form, and market price.
+8. If odds are not loaded, still answer, but label MARKET as not loaded.
 
 UR FAIR ODDS -- REQUIRED ON EVERY PLAY:
-1. Start with player's base win rate / top-10 rate.
+1. Start with player's base win rate or top-10 rate.
 2. Adjust for course fit: ELITE=+20%, NEUTRAL=-20%, STRONG=neutral.
-3. Adjust for recent form: WIN or T2-T5=+10%, missed cuts=-15%.
-4. Convert to American odds. Output: UR FAIR ODDS: [number] | MARKET: [line or "not loaded"] | VALUE: [gap]
+3. Adjust for recent form: WIN or T2-T5=+10%, weaker run=-10%.
+4. Convert to American odds. Output exactly: UR FAIR ODDS: [number] | MARKET: [line or "not loaded"] | VALUE: [gap]
 
 RESPONSE FORMAT:
 [One sharp opening sentence -- the lean]
-[2-4 sentences: SG data, course fit, form, leaderboard position if relevant]
+[2-4 sentences: SG data, course fit, form, and leaderboard context only if actually loaded]
 THE PLAY: [Player] -- [Market]
 UR FAIR ODDS: [fair odds] | MARKET: [line] | VALUE: [gap]
 FADE: [player to avoid + one-line reason]
 CONFIDENCE: [High/Medium/Speculative] -- [one sentence]
 
-${leaderBlock}${courseSection ? courseSection + "\n" : ""}${oddsStr ? oddsStr + "\n" : ""}${playerStr}
+${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr ? oddsStr + "\n" : ""}${playerStr}
 
-QUESTION: ${question}`;
+QUESTION: ${question}
+SOURCE META: ${JSON.stringify(sourceMeta)}`;
 }
 
 // ── F1 System Prompt ──────────────────────────────────────────────────────────
@@ -857,7 +960,7 @@ export default async function handler(req, res) {
   } else if (sport === "mlb") {
     systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
   } else if (sport === "golf") {
-    systemPrompt = buildGolfSystemPrompt(golfContext);
+    systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
   } else if (sport === "nba") {
     systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
   } else if (sport === "nfl") {
