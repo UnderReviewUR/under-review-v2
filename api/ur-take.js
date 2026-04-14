@@ -697,8 +697,7 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
       }).join("\n")
     : "";
 
-  const playoffSeries = ctx.playoffSeries || [];   const playoffSeriesStr = playoffSeries.length > 0     ? playoffSeries.map(s => `${s.round}: ${s.away} ${s.awayWins} - ${s.homeWins} ${s.home}${s.status ? " (" + s.status + ")" : ""}`).join("
-")     : "Playoffs not yet started or series data not loaded.";   const question = ctx.question || "";
+  const playoffSeries = ctx.playoffSeries || [];   const playoffSeriesStr = playoffSeries.length > 0     ? playoffSeries.map(s => `${s.round}: ${s.away} ${s.awayWins} - ${s.homeWins} ${s.home}${s.status ? " (" + s.status + ")" : ""}`).join(\n"")     : "Playoffs not yet started or series data not loaded.";   const question = ctx.question || "";
   const q = question.toLowerCase();
   const propSet = new Set(propLines.map(p => p.player && p.player.toLowerCase()).filter(Boolean));
   const entries = Object.entries(NBA_PLAYERS);
