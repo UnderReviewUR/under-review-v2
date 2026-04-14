@@ -470,65 +470,46 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const tournament = bdlBundle?.tournament || null;
   const course = bdlBundle?.course || null;
 
-  const espnMatchesTournament =
-    !!espnEvent &&
-    !!tournament &&
-    namesRoughlyMatch(espnEvent.name, tournament.name);
+  const espnHasLeaderboard =
+    Array.isArray(espnEvent?.leaderboard) && espnEvent.leaderboard.length > 0;
 
-  const useEspnIdentity = espnMatchesTournament;
+  const espnState = String(espnEvent?.state || "").toLowerCase();
+  const espnRound = String(espnEvent?.round || "").toLowerCase();
+  const espnLooksFinished =
+    espnState === "post" ||
+    espnState === "final" ||
+    espnRound.includes("final") ||
+    espnRound.includes("completed");
 
-  const useEspnLeaderboard =
-    !!espnEvent &&
-    Array.isArray(espnEvent.leaderboard) &&
-    espnEvent.leaderboard.length > 0 &&
-    (espnEvent.state === "in" || espnMatchesTournament);
-
-  const tournamentStatus = normalizeString(tournament?.status);
+  const shouldUseEspnAsCurrent = espnHasLeaderboard && !espnLooksFinished;
 
   const currentEvent = {
-    id: tournament?.id || espnEvent?.id || null,
-    name: useEspnIdentity
-      ? (espnEvent?.name || tournament?.name || "PGA Tour Event")
+    id: shouldUseEspnAsCurrent ? (espnEvent?.id || null) : (tournament?.id || espnEvent?.id || null),
+    name: shouldUseEspnAsCurrent
+      ? (espnEvent?.name || "PGA Tour Event")
       : (tournament?.name || espnEvent?.name || "PGA Tour Event"),
-    shortName: useEspnIdentity
-      ? (espnEvent?.shortName || tournament?.shortName || tournament?.name || "PGA Tour")
+    shortName: shouldUseEspnAsCurrent
+      ? (espnEvent?.shortName || espnEvent?.name || "PGA Tour")
       : (tournament?.shortName || tournament?.name || espnEvent?.shortName || "PGA Tour"),
-    course: useEspnIdentity
+    course: shouldUseEspnAsCurrent
       ? (espnEvent?.course || course?.name || tournament?.courseName || "TBD")
-      : (course?.name || tournament?.courseName || espnEvent?.course || "TBD"),
-    location: useEspnIdentity
-      ? (
-          espnEvent?.location ||
-          tournament?.location ||
-          [course?.city, course?.state || course?.country].filter(Boolean).join(", ")
-        )
-      : (
-          tournament?.location ||
-          [course?.city, course?.state || course?.country].filter(Boolean).join(", ") ||
-          espnEvent?.location ||
-          ""
-        ),
-    round: useEspnIdentity
-      ? (espnEvent?.round || tournament?.status || "Upcoming")
-      : (
-          tournamentStatus === "in_progress"
-            ? "In Progress"
-            : tournamentStatus === "scheduled"
-            ? "Upcoming"
-            : tournament?.status || espnEvent?.round || "Upcoming"
-        ),
-    state: useEspnIdentity
-      ? (espnEvent?.state || (tournamentStatus === "in_progress" ? "in" : "pre"))
-      : (
-          tournamentStatus === "in_progress"
-            ? "in"
-            : tournamentStatus === "scheduled"
-            ? "pre"
-            : (espnEvent?.state || "pre")
-        ),
-    par: espnEvent?.par || course?.par || null,
-    startDate: tournament?.startDate || espnEvent?.startDate || null,
-    leaderboard: useEspnLeaderboard ? espnEvent.leaderboard : [],
+      : (tournament?.courseName || course?.name || espnEvent?.course || "TBD"),
+    location: shouldUseEspnAsCurrent
+      ? (espnEvent?.location || tournament?.location || [course?.city, course?.state || course?.country].filter(Boolean).join(", "))
+      : (tournament?.location || espnEvent?.location || [course?.city, course?.state || course?.country].filter(Boolean).join(", ")),
+    round: shouldUseEspnAsCurrent
+      ? (espnEvent?.round || "In Progress")
+      : (tournament?.status || "Upcoming"),
+    state: shouldUseEspnAsCurrent
+      ? (espnEvent?.state || "in")
+      : (normalizeString(tournament?.status) === "in_progress" ? "in" : "pre"),
+    par: shouldUseEspnAsCurrent
+      ? (espnEvent?.par || course?.par || null)
+      : (course?.par || espnEvent?.par || null),
+    startDate: shouldUseEspnAsCurrent
+      ? (espnEvent?.startDate || tournament?.startDate || null)
+      : (tournament?.startDate || espnEvent?.startDate || null),
+    leaderboard: shouldUseEspnAsCurrent ? espnEvent.leaderboard : [],
   };
 
   return {
@@ -541,12 +522,13 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
     courseStats: Array.isArray(bdlBundle?.courseStats) ? bdlBundle.courseStats : [],
     sourceMeta: {
-      boardIdentity: tournament ? "balldontlie" : (espnEvent ? "espn" : "none"),
-      leaderboard: useEspnLeaderboard ? "espn" : "none",
+      board: shouldUseEspnAsCurrent ? "espn_live" : "balldontlie_upcoming",
       tournament: tournament ? "balldontlie" : "none",
       course: course ? "balldontlie" : "none",
       odds: odds?.outrights?.length ? "odds_api" : "none",
-      espnMatchesTournament,
+      usedFallbackLeaderboard: !shouldUseEspnAsCurrent,
+      espnHadLeaderboard: espnHasLeaderboard,
+      espnLooksFinished,
       fetchedAt: new Date().toISOString(),
     },
   };
