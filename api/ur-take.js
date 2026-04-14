@@ -697,7 +697,8 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
       }).join("\n")
     : "";
 
-  const question = ctx.question || "";
+  const playoffSeries = ctx.playoffSeries || [];   const playoffSeriesStr = playoffSeries.length > 0     ? playoffSeries.map(s => `${s.round}: ${s.away} ${s.awayWins} - ${s.homeWins} ${s.home}${s.status ? " (" + s.status + ")" : ""}`).join("
+")     : "Playoffs not yet started or series data not loaded.";   const question = ctx.question || "";
   const q = question.toLowerCase();
   const propSet = new Set(propLines.map(p => p.player && p.player.toLowerCase()).filter(Boolean));
   const entries = Object.entries(NBA_PLAYERS);
@@ -719,9 +720,9 @@ FORMATTING: NEVER use markdown. Plain text only.
 
 CRITICAL LIVE DATA RULE: The LIVE ESPN SEASON AVERAGES section below shows current team assignments and reflects all trades. If a player's team in the averages differs from the DATABASE section, the averages are correct. Always trust live data over the database.
 
-RULES: Never recommend props for FINAL games. No games? Give best NBA futures angle.
+RULES: Never recommend props for FINAL games. No props posted yet? Use season averages + matchup context to give a directional lean with the specific line you expect. Be specific about the player, stat, and number -- do not pivot to generic futures unless explicitly asked.
 NBA PHASE: ${phase}
-NBA PLAYOFFS: Begin April 19, 2026. Top seeds: OKC, CLE. Best futures: SGA MVP, Jokic PRA series props.
+NBA PLAYOFFS: Begin April 19, 2026. Top seeds: OKC, CLE. Best futures: SGA MVP, Jokic PRA series props. PLAYOFF SERIES STANDINGS: ${playoffSeriesStr}
 
 RESPONSE FORMAT:
 One sharp opening sentence. Then:
