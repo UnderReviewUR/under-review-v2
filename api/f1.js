@@ -37,8 +37,7 @@ const FALLBACK_STANDINGS = [
   { position: 22, full_name: "Sergio Perez", team_name: "Cadillac", points: 0, driver_number: 11 },
 ];
 
-// Miami is intentionally next in fallback
-const FALLBACK_CALENDAR = [
+const FALLBACK_CALENDAR = [];
   { meeting_name: "Australian Grand Prix", location: "Melbourne", date_start: "2026-03-06T00:00:00", date_end: "2026-03-08T23:59:00", completed: true, winner: "Russell" },
   { meeting_name: "Chinese Grand Prix", location: "Shanghai", date_start: "2026-03-13T00:00:00", date_end: "2026-03-15T23:59:00", completed: true, winner: "Antonelli" },
   { meeting_name: "Japanese Grand Prix", location: "Suzuka", date_start: "2026-03-27T00:00:00", date_end: "2026-03-29T23:59:00", completed: true, winner: "Antonelli" },
@@ -127,7 +126,11 @@ function buildSchedule(meetings) {
     : FALLBACK_CALENDAR.slice();
 
   const usingFallback = !Array.isArray(meetings) || meetings.length === 0;
-
+const hasReliableSchedule =
+  Array.isArray(f1Context?.schedule?.races) &&
+  f1Context.schedule.races.length > 0 &&
+  !usingFallback;
+  
   list.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
 
   const normalized = list.map((m) => {
@@ -202,7 +205,17 @@ async function getScheduleData() {
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
-  const data = buildSchedule(result.ok ? result.data : null);
+
+  const data = result.ok && Array.isArray(result.data) && result.data.length > 0
+    ? buildSchedule(result.data)
+    : {
+        races: [],
+        upcoming: [],
+        past: [],
+        current: [],
+        next_meeting_key: null,
+        usingFallback: true,
+      };
 
   setCached("f1_schedule", data, CACHE_TTL.schedule);
   return data;
@@ -254,9 +267,15 @@ async function getSessionData() {
 }
 
 function buildFallbackBoard() {
-  const schedule = buildSchedule(null);
   return {
-    schedule,
+    schedule: {
+      races: [],
+      upcoming: [],
+      past: [],
+      current: [],
+      next_meeting_key: null,
+      usingFallback: true,
+    },
     standings: FALLBACK_STANDINGS,
     session: null,
     sessions: [],
