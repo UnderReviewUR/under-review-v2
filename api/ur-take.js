@@ -532,35 +532,28 @@ SOURCE META: ${JSON.stringify(sourceMeta)}`;
 function buildF1SystemPrompt(matchupCtxStr, f1Context) {
   const today = getTodayStr();
   const now = new Date();
-  const STREET = ["monaco","baku","singapore","las vegas","miami","azerbaijan","jeddah"];
-  const POWER  = ["monza","spa","silverstone","interlagos","sao paulo","montreal"];
+
+  const STREET = ["monaco","baku","singapore","las vegas","miami","jeddah","saudi","saudi arabia"];
+  const POWER  = ["monza","spa","silverstone","interlagos","sao paulo","montreal","jeddah"];
   const HDFRC  = ["hungary","hungaroring","barcelona","catalunya","zandvoort","suzuka"];
 
   const question = String(f1Context?.question || "").toLowerCase();
   const usingFallback = !!f1Context?.usingFallback;
 
-  const liveStandings = f1Context?.standings;
-  const standingsSource = (Array.isArray(liveStandings) && liveStandings.length > 0)
+  const liveStandings = Array.isArray(f1Context?.standings) ? f1Context.standings : [];
+  const standingsSource = liveStandings.length > 0
     ? liveStandings
     : LEGACY_F1_STANDINGS_BACKUP;
 
-  const liveRaces = f1Context?.schedule?.races || [];
+  const liveRaces = Array.isArray(f1Context?.schedule?.races) ? f1Context.schedule.races : [];
   const useCalendar = liveRaces.map(r => ({
-    meeting_name: r.meeting_name || r.name,
-    location: r.location || r.circuit_short_name,
-    date_start: r.date_start,
-    date_end: r.date_end,
+    meeting_name: r.meeting_name || r.name || "Grand Prix",
+    location: r.location || r.circuit_short_name || "TBD",
+    date_start: r.date_start || null,
+    date_end: r.date_end || null,
     completed: !!r.completed || (r.date_end ? new Date(r.date_end) < now : false),
     winner: r.winner || null,
-  }));
-
-  const upcoming = useCalendar.filter(m => !m.completed && new Date(m.date_start) > now);
-  const current = useCalendar.filter(m => {
-    const start = new Date(m.date_start);
-    const end = m.date_end ? new Date(m.date_end) : new Date(start.getTime() + 3 * 86400000);
-    return start <= now && now <= end;
-  });
-  const completed = useCalendar.filter(r => r.completed && r.winner);
+  })).filter(r => r.date_start);
 
   if (!useCalendar.length) {
     return `You are Under Review -- a sharp F1 betting intelligence tool.
@@ -580,60 +573,60 @@ CRITICAL RULES:
 1. Do not invent the next race, session status, or standings.
 2. Use only live F1 context passed into this request.
 3. If schedule data is missing, say the schedule is not loaded and pivot to driver form, team strength, or futures only.
-4. If the user names a specific race or driver, answer that directly without talking about the next race.
+4. If the user names a specific race or driver, answer that directly without talking about a fake next race.
 
 ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
   }
+
+  const upcoming = useCalendar
+    .filter(m => !m.completed && new Date(m.date_start) > now)
+    .sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+
+  const current = useCalendar.filter(m => {
+    const start = new Date(m.date_start);
+    const end = m.date_end ? new Date(m.date_end) : new Date(start.getTime() + 3 * 86400000);
+    return start <= now && now <= end;
+  });
+
+  const completed = useCalendar
+    .filter(r => r.completed && r.winner)
+    .sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+
+  const activeRace = current[0] || upcoming[0] || null;
 
   const standingsStr = standingsSource.map((d, i) =>
     `${d.position || i + 1}. ${d.full_name || d.name} (${d.team_name || d.team}) -- ${d.points ?? 0} pts`
   ).join("\n");
 
-  const standingsNote = (Array.isArray(liveStandings) && liveStandings.length > 0)
-    ? "LIVE standings from OpenF1 API"
+  const standingsNote = liveStandings.length > 0
+    ? "LIVE standings from F1 route"
     : "Fallback standings in use";
 
   const recentStr = completed.length
     ? "RECENT RESULTS:\n" + completed.slice(-3).reverse().map(r => `${r.meeting_name}: Winner -- ${r.winner}`).join("\n")
     : "";
 
-  const activeRace = current[0] || upcoming[0] || null;
-
-  const isScheduleQuestion =
-    question.includes("next race") ||
-    question.includes("upcoming race") ||
-    question.includes("schedule") ||
-    question.includes("this weekend") ||
-    question.includes("who wins in ") ||
-    question.includes("grand prix") ||
-    question.includes(" gp") ||
-    question.includes("miami") ||
-    question.includes("monaco") ||
-    question.includes("silverstone") ||
-    question.includes("spa") ||
-    question.includes("monza") ||
-    question.includes("suzuka") ||
-    question.includes("barcelona") ||
-    question.includes("montreal") ||
-    question.includes("baku") ||
-    question.includes("vegas") ||
-    question.includes("abu dhabi");
-
-  let nextRaceLine = "";
+  let nextRaceLine = "NEXT RACE: Not loaded.";
   let circuitType = "mixed";
   let circuitNote = "Championship form is the primary signal.";
   let isRaceWeek = false;
 
   if (activeRace) {
     const loc = activeRace.location || "TBD";
-    const rd = new Date(activeRace.date_start);
-    const dateStr = rd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const daysUntil = Math.ceil((rd - now) / (1000 * 60 * 60 * 24));
+    const raceName = activeRace.meeting_name || "Grand Prix";
+    const start = new Date(activeRace.date_start);
+    const dateStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const daysUntil = Math.ceil((start - now) / (1000 * 60 * 60 * 24));
     const isLive = current.length > 0;
 
     isRaceWeek = isLive || daysUntil <= 7;
 
-    const vl = (loc + " " + activeRace.meeting_name).toLowerCase();
+    nextRaceLine =
+      (isLive ? "ACTIVE RACE WEEKEND: " : (usingFallback ? "NEXT LISTED RACE: " : "NEXT RACE: ")) +
+      `${raceName} -- ${loc} (${dateStr})` +
+      (daysUntil > 0 ? ` -- ${daysUntil} days away` : " -- THIS WEEKEND");
+
+    const vl = `${loc} ${raceName}`.toLowerCase();
     if (STREET.some(c => vl.includes(c))) {
       circuitType = "STREET CIRCUIT";
       circuitNote = "Qualifying matters most. Clean air and safety car variance matter more than raw long-run pace.";
@@ -643,21 +636,6 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
     } else if (HDFRC.some(c => vl.includes(c))) {
       circuitType = "HIGH DOWNFORCE";
       circuitNote = "Aero platform and medium-speed grip matter most. Tire life and qualifying balance decide the weekend.";
-    }
-
-    if (isScheduleQuestion) {
-      if (usingFallback) {
-        nextRaceLine =
-          "SCHEDULE NOTE: fallback F1 calendar is active, so race order may be approximate.\n" +
-          ((isLive ? "ACTIVE RACE WEEKEND: " : "NEXT LISTED RACE: ") +
-          activeRace.meeting_name + " -- " + loc + " (" + dateStr + ")" +
-          (daysUntil > 0 ? " -- " + daysUntil + " days away" : " -- THIS WEEKEND"));
-      } else {
-        nextRaceLine =
-          (isLive ? "ACTIVE RACE WEEKEND: " : "NEXT RACE: ") +
-          activeRace.meeting_name + " -- " + loc + " (" + dateStr + ")" +
-          (daysUntil > 0 ? " -- " + daysUntil + " days away" : " -- THIS WEEKEND");
-      }
     }
   }
 
@@ -686,13 +664,14 @@ CRITICAL: Tsunoda, Magnussen, Zhou, Doohan NOT on 2026 grid.
 POWER UNIT ORDER: 1. Mercedes | 2. Ferrari | 3. McLaren | 4. Red Bull
 KEY FACTS: Use live schedule/session context first. If fallback schedule is active, do not present race sequencing as certain.
 
+${nextRaceLine}
 ${isRaceWeek ? "RACE WEEK." : "OFF WEEK -- futures and team-form edges matter more."}
-${nextRaceLine ? nextRaceLine + "\n" : ""}CIRCUIT TYPE: ${circuitType} | BETTING NOTE: ${circuitNote}
+CIRCUIT TYPE: ${circuitType} | BETTING NOTE: ${circuitNote}
 
 ${recentStr ? recentStr + "\n\n" : ""}CHAMPIONSHIP STANDINGS (${standingsNote}):
 ${standingsStr}
 
-${isScheduleQuestion && upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
 }
 
 // ── NBA System Prompt ─────────────────────────────────────────────────────────
@@ -963,11 +942,11 @@ export default async function handler(req, res) {
   let systemPrompt;
 
   if (sport === "f1") {
-    systemPrompt = buildF1SystemPrompt(matchupCtxStr, f1Context);
-  } else if (sport === "mlb") {
-    systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
-  } else if (sport === "golf") {
-    systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
+  systemPrompt = buildF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
+} else if (sport === "mlb") {
+  systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
+} else if (sport === "golf") {
+  systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
   } else if (sport === "nba") {
     systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
   } else if (sport === "nfl") {
