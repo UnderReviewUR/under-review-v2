@@ -1,4 +1,3 @@
-// api/_golfProviders.js
 import { bdlFetch } from "./_balldontlie.js";
 
 const CACHE_TTL_MS = 3 * 60 * 1000;
@@ -75,13 +74,67 @@ async function safeFetchJson(url, options = {}) {
       ok: false,
       status: 0,
       data: null,
-      error: err?.message || "Network error",
+      error: err.message || "Network error",
     };
   }
 }
 
 async function safeBdlFetch(path, params = {}) {
-  return bdlFetch(`/pga/v1${path}`, params, { timeoutMs: 8000 });
+  return bdlFetch(`/pga/v1${path}`, params);
+}
+
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return "TBD";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return "TBD";
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  });
+}
+
+function formatDateRange(startDate, endDate) {
+  if (!startDate && !endDate) return "TBD";
+  if (startDate && !endDate) return formatDisplayDate(startDate);
+  if (!startDate && endDate) return formatDisplayDate(endDate);
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "TBD";
+  }
+
+  const sameMonth =
+    start.getMonth() === end.getMonth() &&
+    start.getFullYear() === end.getFullYear();
+
+  if (sameMonth) {
+    return `${start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "America/New_York",
+    })}–${end.toLocaleDateString("en-US", {
+      day: "numeric",
+      timeZone: "America/New_York",
+    })}`;
+  }
+
+  return `${formatDisplayDate(startDate)}–${formatDisplayDate(endDate)}`;
+}
+
+function cleanTournamentStatus(status) {
+  const s = normalizeString(status);
+
+  if (!s) return "Upcoming";
+  if (s.includes("in_progress") || s === "in") return "Live";
+  if (s.includes("final") || s.includes("complete")) return "Final";
+  if (s.includes("not_started") || s.includes("scheduled") || s.includes("pre")) {
+    return "Upcoming";
+  }
+
+  return "Upcoming";
 }
 
 function normalizeBdlTournament(tournament) {
@@ -99,6 +152,7 @@ function normalizeBdlTournament(tournament) {
     shortName: tournament.name || "PGA Tour Event",
     startDate: tournament.start_date || null,
     endDate: tournament.end_date || null,
+    displayDate: formatDateRange(tournament.start_date, tournament.end_date),
     city: tournament.city || "",
     state: tournament.state || "",
     country: tournament.country || "",
@@ -106,7 +160,8 @@ function normalizeBdlTournament(tournament) {
       .filter(Boolean)
       .join(", "),
     purse: tournament.purse || null,
-    status: tournament.status || null,
+    status: cleanTournamentStatus(tournament.status),
+    rawStatus: tournament.status || null,
     courseName: tournament.course_name || primaryCourse?.name || null,
     courseId: primaryCourse?.id || null,
     champion: tournament.champion?.display_name || null,
@@ -192,19 +247,19 @@ async function getEspnCurrentEvent() {
     return null;
   }
 
-  const liveEvent =
+  const selectedEvent =
     events.find((e) => e?.status?.type?.state === "in") ||
     events.find((e) => e?.status?.type?.state === "pre") ||
     null;
 
-  if (!liveEvent) {
+  if (!selectedEvent) {
     setCache(cacheKey, null, 60 * 1000);
     return null;
   }
 
-  const comp = liveEvent?.competitions?.[0] || {};
+  const comp = selectedEvent?.competitions?.[0] || {};
   const venue = comp?.venue || {};
-  const status = liveEvent?.status?.type || {};
+  const status = selectedEvent?.status?.type || {};
   const competitors = comp?.competitors || [];
 
   const leaderboard = competitors
@@ -212,7 +267,6 @@ async function getEspnCurrentEvent() {
     .map((c) => {
       const stats = c.statistics || [];
       const score = c.score || {};
-
       return {
         position: c?.status?.position?.displayText || "—",
         name: c?.athlete?.displayName || c?.athlete?.fullName || "",
@@ -229,19 +283,21 @@ async function getEspnCurrentEvent() {
     .slice(0, 30);
 
   const payload = {
-    id: liveEvent?.id || null,
-    name: liveEvent?.name || liveEvent?.shortName || "PGA Tour Event",
-    shortName: liveEvent?.shortName || liveEvent?.name || "PGA Tour Event",
+    id: selectedEvent?.id || null,
+    name: selectedEvent?.name || selectedEvent?.shortName || "PGA Tour Event",
+    shortName:
+      selectedEvent?.shortName || selectedEvent?.name || "PGA Tour Event",
     course: venue?.fullName || venue?.shortName || null,
     location: [venue?.city, venue?.state || venue?.country]
       .filter(Boolean)
       .join(", "),
-    round: status?.shortDetail || status?.description || "In Progress",
+    round: cleanTournamentStatus(status?.state || status?.description),
     state: status?.state || "pre",
     par: comp?.format?.par || null,
-    startDate: liveEvent?.date || null,
+    startDate: selectedEvent?.date || null,
+    displayDate: formatDisplayDate(selectedEvent?.date),
     leaderboard,
-    raw: liveEvent,
+    raw: selectedEvent,
   };
 
   setCache(cacheKey, payload, 2 * 60 * 1000);
@@ -280,13 +336,15 @@ async function getOddsBoard(oddsApiKey) {
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
+  const empty = {
+    outrights: [],
+    topFinish: {},
+    makeCut: {},
+    eventName: null,
+    marketStatus: "hidden",
+  };
+
   if (!oddsApiKey) {
-    const empty = {
-      outrights: [],
-      topFinish: {},
-      makeCut: {},
-      eventName: null,
-    };
     setCache(cacheKey, empty, 60 * 1000);
     return empty;
   }
@@ -296,6 +354,7 @@ async function getOddsBoard(oddsApiKey) {
     topFinish: {},
     makeCut: {},
     eventName: null,
+    marketStatus: "hidden",
   };
 
   const base = await safeFetchJson(
@@ -324,33 +383,40 @@ async function getOddsBoard(oddsApiKey) {
         odds: o.price,
         book: book.key,
       }))
+      .filter((o) => o.player && o.odds != null)
       .sort((a, b) => Number(a.odds || 999999) - Number(b.odds || 999999));
   }
 
-  const prop = await safeFetchJson(
-    `https://api.the-odds-api.com/v4/sports/golf_pga/events/${event.id}/odds?apiKey=${oddsApiKey}&regions=us&markets=top_10_finish,top_20_finish,make_cut&oddsFormat=american`,
-    { timeoutMs: 8000 }
-  );
+  if (board.outrights.length > 0) {
+    board.marketStatus = "live";
+  }
 
-  if (prop.ok) {
-    const propBook =
-      prop.data?.bookmakers?.find((b) => b.key === "draftkings") ||
-      prop.data?.bookmakers?.[0];
+  if (event?.id) {
+    const prop = await safeFetchJson(
+      `https://api.the-odds-api.com/v4/sports/golf_pga/events/${event.id}/odds?apiKey=${oddsApiKey}&regions=us&markets=top_10_finish,top_20_finish,make_cut&oddsFormat=american`,
+      { timeoutMs: 8000 }
+    );
 
-    if (propBook) {
-      for (const market of propBook.markets || []) {
-        for (const o of market.outcomes || []) {
-          const key = o.description || o.name;
+    if (prop.ok) {
+      const propBook =
+        prop.data?.bookmakers?.find((b) => b.key === "draftkings") ||
+        prop.data?.bookmakers?.[0];
 
-          if (market.key === "make_cut") {
-            if (o.name === "Yes") {
-              board.makeCut[key] = o.price;
+      if (propBook) {
+        for (const market of propBook.markets || []) {
+          for (const o of market.outcomes || []) {
+            const key = o.description || o.name;
+
+            if (market.key === "make_cut") {
+              if (o.name === "Yes") {
+                board.makeCut[key] = o.price;
+              }
+              continue;
             }
-            continue;
-          }
 
-          if (!board.topFinish[key]) board.topFinish[key] = {};
-          board.topFinish[key][market.key] = o.price;
+            if (!board.topFinish[key]) board.topFinish[key] = {};
+            board.topFinish[key][market.key] = o.price;
+          }
         }
       }
     }
@@ -372,10 +438,7 @@ async function getBdlTournamentBundle() {
     per_page: 100,
   });
 
-  const allTournaments = tournamentsRes.ok
-    ? (tournamentsRes.data?.data || [])
-    : [];
-
+  const allTournaments = tournamentsRes.ok ? tournamentsRes.data?.data || [] : [];
   const now = Date.now();
 
   const normalized = allTournaments
@@ -408,8 +471,7 @@ async function getBdlTournamentBundle() {
   }
 
   const normalizedTournament = normalizeBdlTournament(picked);
-
-  const courseSearchName = normalizedTournament.courseName || "";
+  const courseSearchName = normalizedTournament.courseName || null;
 
   const [courseRes, resultsRes, courseStatsRes] = await Promise.all([
     courseSearchName
@@ -465,51 +527,59 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     Array.isArray(espnEvent?.leaderboard) && espnEvent.leaderboard.length > 0;
 
   const espnState = String(espnEvent?.state || "").toLowerCase();
-  const espnRound = String(espnEvent?.round || "").toLowerCase();
-  const espnLooksFinished =
-    espnState === "post" ||
-    espnState === "final" ||
-    espnRound.includes("final") ||
-    espnRound.includes("completed");
+  const espnLooksFinished = espnState === "post" || espnState === "final";
 
   const shouldUseEspnAsCurrent = espnHasLeaderboard && !espnLooksFinished;
 
   const currentEvent = {
     id: shouldUseEspnAsCurrent
-      ? (espnEvent?.id || null)
-      : (tournament?.id || espnEvent?.id || null),
+      ? espnEvent?.id || null
+      : tournament?.id || espnEvent?.id || null,
     name: shouldUseEspnAsCurrent
-      ? (espnEvent?.name || "PGA Tour Event")
-      : (tournament?.name || espnEvent?.name || "PGA Tour Event"),
+      ? espnEvent?.name || "PGA Tour Event"
+      : tournament?.name || espnEvent?.name || "PGA Tour Event",
     shortName: shouldUseEspnAsCurrent
-      ? (espnEvent?.shortName || espnEvent?.name || "PGA Tour")
-      : (tournament?.shortName || tournament?.name || espnEvent?.shortName || "PGA Tour"),
+      ? espnEvent?.shortName || espnEvent?.name || "PGA Tour"
+      : tournament?.shortName ||
+        tournament?.name ||
+        espnEvent?.shortName ||
+        "PGA Tour",
     course: shouldUseEspnAsCurrent
-      ? (espnEvent?.course || course?.name || tournament?.courseName || "TBD")
-      : (tournament?.courseName || course?.name || espnEvent?.course || "TBD"),
+      ? espnEvent?.course || course?.name || tournament?.courseName || "TBD"
+      : tournament?.courseName || course?.name || espnEvent?.course || "TBD",
     location: shouldUseEspnAsCurrent
-      ? (
-          espnEvent?.location ||
-          tournament?.location ||
-          [course?.city, course?.state || course?.country].filter(Boolean).join(", ")
-        )
-      : (
-          tournament?.location ||
-          espnEvent?.location ||
-          [course?.city, course?.state || course?.country].filter(Boolean).join(", ")
-        ),
+      ? espnEvent?.location ||
+        tournament?.location ||
+        [course?.city, course?.state || course?.country]
+          .filter(Boolean)
+          .join(", ")
+      : tournament?.location ||
+        espnEvent?.location ||
+        [course?.city, course?.state || course?.country]
+          .filter(Boolean)
+          .join(", "),
     round: shouldUseEspnAsCurrent
-      ? (espnEvent?.round || "In Progress")
-      : (tournament?.status || "Upcoming"),
+      ? espnEvent?.round || "Live"
+      : tournament?.status || "Upcoming",
     state: shouldUseEspnAsCurrent
-      ? (espnEvent?.state || "in")
-      : (normalizeString(tournament?.status) === "in_progress" ? "in" : "pre"),
+      ? espnEvent?.state || "in"
+      : tournament?.status === "Live"
+      ? "in"
+      : "pre",
     par: shouldUseEspnAsCurrent
-      ? (espnEvent?.par || course?.par || null)
-      : (course?.par || espnEvent?.par || null),
+      ? espnEvent?.par || course?.par || null
+      : course?.par || espnEvent?.par || null,
     startDate: shouldUseEspnAsCurrent
-      ? (espnEvent?.startDate || tournament?.startDate || null)
-      : (tournament?.startDate || espnEvent?.startDate || null),
+      ? espnEvent?.startDate || tournament?.startDate || null
+      : tournament?.startDate || espnEvent?.startDate || null,
+    endDate: tournament?.endDate || null,
+    displayDate: shouldUseEspnAsCurrent
+      ? espnEvent?.displayDate ||
+        tournament?.displayDate ||
+        formatDisplayDate(espnEvent?.startDate)
+      : tournament?.displayDate ||
+        espnEvent?.displayDate ||
+        formatDisplayDate(tournament?.startDate),
     leaderboard: shouldUseEspnAsCurrent ? espnEvent.leaderboard : [],
   };
 
@@ -517,11 +587,19 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     currentEvent,
     leaderboard: currentEvent.leaderboard,
     rankings: Array.isArray(rankings) ? rankings : [],
-    odds: odds || { outrights: [], topFinish: {}, makeCut: {}, eventName: null },
+    odds: odds || {
+      outrights: [],
+      topFinish: {},
+      makeCut: {},
+      eventName: null,
+      marketStatus: "hidden",
+    },
     tournament,
     course,
     recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
-    courseStats: Array.isArray(bdlBundle?.courseStats) ? bdlBundle.courseStats : [],
+    courseStats: Array.isArray(bdlBundle?.courseStats)
+      ? bdlBundle.courseStats
+      : [],
     sourceMeta: {
       board: shouldUseEspnAsCurrent ? "espn_live" : "balldontlie_upcoming",
       tournament: tournament ? "balldontlie" : "none",
@@ -535,8 +613,8 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   };
 }
 
-export async function getUnifiedGolfBoard({ ballDontLieApiKey, oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v1";
+export async function getUnifiedGolfBoard({ oddsApiKey }) {
+  const cacheKey = "unified_golf_board_v2";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
