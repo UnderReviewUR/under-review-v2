@@ -1,6 +1,5 @@
 // api/_golfProviders.js
-
-const BDL_BASE = "https://api.balldontlie.io/pga/v1";
+import { bdlFetch } from "./_balldontlie.js";
 
 const CACHE_TTL_MS = 3 * 60 * 1000;
 const cache = new Map();
@@ -78,17 +77,8 @@ async function safeFetchJson(url, options = {}) {
   }
 }
 
-async function safeBdlFetch(path, apiKey) {
-  if (!apiKey) {
-    return { ok: false, status: 0, data: null, error: "Missing BALLDONTLIE_API_KEY" };
-  }
-
-  return safeFetchJson(`${BDL_BASE}${path}`, {
-    timeoutMs: 7000,
-    headers: {
-      Authorization: apiKey,
-    },
-  });
+async function safeBdlFetch(path) {
+  return bdlFetch(`/pga/v1${path}`);
 }
 
 function pickPreferredTournament(tournaments) {
@@ -375,36 +365,64 @@ async function getOddsBoard(oddsApiKey) {
   return board;
 }
 
-async function getBdlTournamentBundle(apiKey) {
+async function getBdlTournamentBundle() {
   const cacheKey = "bdl_tournament_bundle";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
   const season = new Date().getFullYear();
 
-  const [inProgressRes, scheduledRes] = await Promise.all([
-    safeBdlFetch(`/tournaments?season=${season}&status=IN_PROGRESS&per_page=25`, apiKey),
-    safeBdlFetch(`/tournaments?season=${season}&status=SCHEDULED&per_page=25`, apiKey),
-  ]);
+  const tournamentsRes = await safeBdlFetch(`/tournaments?season=${season}&per_page=100`);
 
-  const tournaments = [
-    ...(inProgressRes.ok ? inProgressRes.data?.data || [] : []),
-    ...(scheduledRes.ok ? scheduledRes.data?.data || [] : []),
-  ];
+  const allTournaments = tournamentsRes.ok
+    ? (tournamentsRes.data?.data || [])
+    : [];
 
-  const picked = pickPreferredTournament(tournaments);
+  const now = Date.now();
+
+  const normalized = allTournaments
+    .map((t) => ({
+      ...t,
+      _startTs: t?.start_date ? new Date(t.start_date).getTime() : Number.MAX_SAFE_INTEGER,
+      _endTs: t?.end_date ? new Date(t.end_date).getTime() : Number.MAX_SAFE_INTEGER,
+    }))
+    .sort((a, b) => a._startTs - b._startTs);
+
+  const picked =
+    normalized.find((t) => t._startTs <= now && now <= t._endTs) ||
+    normalized.find((t) => t._startTs > now) ||
+    null;
+
   if (!picked) {
     const empty = {
       tournament: null,
       course: null,
       results: [],
       courseStats: [],
-      bdlAvailable: inProgressRes.ok || scheduledRes.ok,
+      bdlAvailable: tournamentsRes.ok,
     };
     setCache(cacheKey, empty, 60 * 1000);
     return empty;
   }
 
+  const normalizedTournament = normalizeBdlTournament(picked);
+
+  const matchedCourse =
+    (Array.isArray(picked.courses) && picked.courses.length > 0
+      ? picked.courses[0]?.course
+      : null) || null;
+
+  const bundle = {
+    tournament: normalizedTournament,
+    course: normalizeBdlCourse(matchedCourse),
+    results: [],
+    courseStats: [],
+    bdlAvailable: tournamentsRes.ok,
+  };
+
+  setCache(cacheKey, bundle, 3 * 60 * 1000);
+  return bundle;
+}
   const normalizedTournament = normalizeBdlTournament(picked);
 
   const courseSearchName = normalizedTournament.courseName
@@ -413,10 +431,10 @@ async function getBdlTournamentBundle(apiKey) {
 
   const [courseRes, resultsRes, courseStatsRes] = await Promise.all([
     courseSearchName
-      ? safeBdlFetch(`/courses?search=${courseSearchName}&per_page=5`, apiKey)
+      ? safeBdlFetch(`/courses?search=${courseSearchName}&per_page=5`)
       : Promise.resolve({ ok: false, data: null }),
-    safeBdlFetch(`/tournament_results?tournament_ids[]=${picked.id}&per_page=12`, apiKey),
-    safeBdlFetch(`/tournament_course_stats?tournament_ids[]=${picked.id}&per_page=36`, apiKey),
+    safeBdlFetch(`/tournament_results?tournament_ids[]=${picked.id}&per_page=12`),
+safeBdlFetch(`/tournament_course_stats?tournament_ids[]=${picked.id}&per_page=36`),
   ]);
 
   const matchedCourse =
@@ -543,7 +561,7 @@ export async function getUnifiedGolfBoard({ ballDontLieApiKey, oddsApiKey }) {
     getEspnCurrentEvent(),
     getEspnWorldRankings(),
     getOddsBoard(oddsApiKey),
-    getBdlTournamentBundle(ballDontLieApiKey),
+    getBdlTournamentBundle(),
   ]);
 
   const merged = mergeGolfBoard({
