@@ -398,8 +398,8 @@ function buildF1SystemPrompt(matchupCtxStr, f1Context) {
   // Use live standings from f1.js if available, fall back to hardcoded
   const liveStandings = f1Context?.standings;
   const standingsSource = (Array.isArray(liveStandings) && liveStandings.length > 0)
-    ? liveStandings
-    : F1_STANDINGS;
+  ? liveStandings
+  : LEGACY_F1_STANDINGS_BACKUP;
 
     // Use live schedule from f1.js only — do not fall back to stale hardcoded calendar
   const liveRaces = f1Context?.schedule?.races || [];
