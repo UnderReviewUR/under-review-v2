@@ -391,35 +391,37 @@ QUESTION: ${question}`;
 function buildF1SystemPrompt(matchupCtxStr, f1Context) {
   const today = getTodayStr();
   const now = new Date();
-  const STREET = ["monaco","baku","singapore","las vegas","miami","azerbaijan","bahrain"];
-  const POWER  = ["monza","spa","silverstone","interlagos","sao paulo"];
-  const HDFRC  = ["hungary","hungaroring","barcelona","catalunya","zandvoort"];
+  const STREET = ["monaco","baku","singapore","las vegas","miami","azerbaijan","jeddah"];
+  const POWER  = ["monza","spa","silverstone","interlagos","sao paulo","montreal"];
+  const HDFRC  = ["hungary","hungaroring","barcelona","catalunya","zandvoort","suzuka"];
 
-  // Use live standings from f1.js if available, fall back to hardcoded
+  const question = String(f1Context?.question || "").toLowerCase();
+  const usingFallback = !!f1Context?.usingFallback;
+
   const liveStandings = f1Context?.standings;
   const standingsSource = (Array.isArray(liveStandings) && liveStandings.length > 0)
-  ? liveStandings
-  : LEGACY_F1_STANDINGS_BACKUP;
+    ? liveStandings
+    : LEGACY_F1_STANDINGS_BACKUP;
 
-    // Use live schedule from f1.js only — do not fall back to stale hardcoded calendar
   const liveRaces = f1Context?.schedule?.races || [];
   const useCalendar = liveRaces.map(r => ({
     meeting_name: r.meeting_name || r.name,
     location: r.location || r.circuit_short_name,
     date_start: r.date_start,
     date_end: r.date_end,
-    completed: r.completed || (r.date_end ? new Date(r.date_end) < now : false),
+    completed: !!r.completed || (r.date_end ? new Date(r.date_end) < now : false),
     winner: r.winner || null,
   }));
 
-  const upcoming  = useCalendar.filter(m => !m.completed && new Date(m.date_start) > now);
-  const current   = useCalendar.filter(m => {
+  const upcoming = useCalendar.filter(m => !m.completed && new Date(m.date_start) > now);
+  const current = useCalendar.filter(m => {
     const start = new Date(m.date_start);
-    const end   = m.date_end ? new Date(m.date_end) : new Date(start.getTime() + 3 * 86400000);
+    const end = m.date_end ? new Date(m.date_end) : new Date(start.getTime() + 3 * 86400000);
     return start <= now && now <= end;
   });
   const completed = useCalendar.filter(r => r.completed && r.winner);
-    if (!useCalendar.length) {
+
+  if (!useCalendar.length) {
     return `You are Under Review -- a sharp F1 betting intelligence tool.
 
 TODAY: ${today}
@@ -436,7 +438,8 @@ TIMING: [one line]
 CRITICAL RULES:
 1. Do not invent the next race, session status, or standings.
 2. Use only live F1 context passed into this request.
-3. If schedule data is missing, say the schedule is not loaded and pivot to driver form or futures only.
+3. If schedule data is missing, say the schedule is not loaded and pivot to driver form, team strength, or futures only.
+4. If the user names a specific race or driver, answer that directly without talking about the next race.
 
 ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
   }
@@ -444,13 +447,38 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
   const standingsStr = standingsSource.map((d, i) =>
     `${d.position || i + 1}. ${d.full_name || d.name} (${d.team_name || d.team}) -- ${d.points ?? 0} pts`
   ).join("\n");
+
   const standingsNote = (Array.isArray(liveStandings) && liveStandings.length > 0)
     ? "LIVE standings from OpenF1 API"
-    : "WARNING: standings may be stale -- live API unavailable";
-  const recentStr = completed.length ? "RECENT RESULTS:\n" + completed.slice(-3).reverse().map(r => `${r.meeting_name}: Winner -- ${r.winner}`).join("\n") : "";
+    : "Fallback standings in use";
+
+  const recentStr = completed.length
+    ? "RECENT RESULTS:\n" + completed.slice(-3).reverse().map(r => `${r.meeting_name}: Winner -- ${r.winner}`).join("\n")
+    : "";
 
   const activeRace = current[0] || upcoming[0] || null;
-  let nextRaceLine = "NEXT RACE: Not yet determined.";
+
+  const isScheduleQuestion =
+    question.includes("next race") ||
+    question.includes("upcoming race") ||
+    question.includes("schedule") ||
+    question.includes("this weekend") ||
+    question.includes("who wins in ") ||
+    question.includes("grand prix") ||
+    question.includes(" gp") ||
+    question.includes("miami") ||
+    question.includes("monaco") ||
+    question.includes("silverstone") ||
+    question.includes("spa") ||
+    question.includes("monza") ||
+    question.includes("suzuka") ||
+    question.includes("barcelona") ||
+    question.includes("montreal") ||
+    question.includes("baku") ||
+    question.includes("vegas") ||
+    question.includes("abu dhabi");
+
+  let nextRaceLine = "";
   let circuitType = "mixed";
   let circuitNote = "Championship form is the primary signal.";
   let isRaceWeek = false;
@@ -461,12 +489,35 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
     const dateStr = rd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const daysUntil = Math.ceil((rd - now) / (1000 * 60 * 60 * 24));
     const isLive = current.length > 0;
-    nextRaceLine = (isLive ? "ACTIVE RACE WEEKEND: " : "NEXT RACE: ") + activeRace.meeting_name + " -- " + loc + " (" + dateStr + ")" + (daysUntil > 0 ? " -- " + daysUntil + " days away" : " -- THIS WEEKEND");
+
     isRaceWeek = isLive || daysUntil <= 7;
+
     const vl = (loc + " " + activeRace.meeting_name).toLowerCase();
-    if (STREET.some(c => vl.includes(c))) { circuitType = "STREET CIRCUIT"; circuitNote = "Qualifying position is critical. Safety car near-certain. Antonelli pole-to-win is the primary play."; }
-    else if (POWER.some(c => vl.includes(c))) { circuitType = "POWER CIRCUIT"; circuitNote = "Engine advantage decisive. Mercedes PU edge at maximum."; }
-    else if (HDFRC.some(c => vl.includes(c))) { circuitType = "HIGH DOWNFORCE"; circuitNote = "Aero efficiency decides. Ferrari competitive -- Leclerc becomes live race winner."; }
+    if (STREET.some(c => vl.includes(c))) {
+      circuitType = "STREET CIRCUIT";
+      circuitNote = "Qualifying matters most. Clean air and safety car variance matter more than raw long-run pace.";
+    } else if (POWER.some(c => vl.includes(c))) {
+      circuitType = "POWER CIRCUIT";
+      circuitNote = "Straight-line speed and deployment matter. Back teams with top-end PU and overtaking pace.";
+    } else if (HDFRC.some(c => vl.includes(c))) {
+      circuitType = "HIGH DOWNFORCE";
+      circuitNote = "Aero platform and medium-speed grip matter most. Tire life and qualifying balance decide the weekend.";
+    }
+
+    if (isScheduleQuestion) {
+      if (usingFallback) {
+        nextRaceLine =
+          "SCHEDULE NOTE: fallback F1 calendar is active, so race order may be approximate.\n" +
+          ((isLive ? "ACTIVE RACE WEEKEND: " : "NEXT LISTED RACE: ") +
+          activeRace.meeting_name + " -- " + loc + " (" + dateStr + ")" +
+          (daysUntil > 0 ? " -- " + daysUntil + " days away" : " -- THIS WEEKEND"));
+      } else {
+        nextRaceLine =
+          (isLive ? "ACTIVE RACE WEEKEND: " : "NEXT RACE: ") +
+          activeRace.meeting_name + " -- " + loc + " (" + dateStr + ")" +
+          (daysUntil > 0 ? " -- " + daysUntil + " days away" : " -- THIS WEEKEND");
+      }
+    }
   }
 
   const upcomingStr = upcoming.slice(0, 5).map(m => {
@@ -491,17 +542,16 @@ TIMING: [one line]
 Kimi Antonelli (Mercedes) | George Russell (Mercedes) | Charles Leclerc (Ferrari) | Lewis Hamilton (Ferrari) | Lando Norris (McLaren) | Oscar Piastri (McLaren) | Max Verstappen (Red Bull) | Isack Hadjar (Red Bull) | Carlos Sainz (Williams) | Alexander Albon (Williams) | Fernando Alonso (Aston Martin) | Lance Stroll (Aston Martin) | Pierre Gasly (Alpine) | Franco Colapinto (Alpine) | Nico Hulkenberg (Audi) | Gabriel Bortoleto (Audi) | Oliver Bearman (Haas) | Esteban Ocon (Haas) | Liam Lawson (Racing Bulls) | Arvid Lindblad (Racing Bulls) | Valtteri Bottas (Cadillac) | Sergio Perez (Cadillac)
 CRITICAL: Tsunoda, Magnussen, Zhou, Doohan NOT on 2026 grid.
 
-POWER UNIT ORDER: 1. Mercedes (best) | 2. Ferrari (high-downforce) | 3. McLaren | 4. Red Bull (zero podiums in first 3 races)
-KEY FACTS: Antonelli leads championship with 2 wins. Verstappen in crisis. Red Bull uncompetitive in 2026.
+POWER UNIT ORDER: 1. Mercedes | 2. Ferrari | 3. McLaren | 4. Red Bull
+KEY FACTS: Use live schedule/session context first. If fallback schedule is active, do not present race sequencing as certain.
 
-${isRaceWeek ? "RACE WEEK -- " + (activeRace?.meeting_name || "") + "." : "OFF WEEK -- best window for futures."}
-${nextRaceLine}
-CIRCUIT TYPE: ${circuitType} | BETTING NOTE: ${circuitNote}
+${isRaceWeek ? "RACE WEEK." : "OFF WEEK -- futures and team-form edges matter more."}
+${nextRaceLine ? nextRaceLine + "\n" : ""}CIRCUIT TYPE: ${circuitType} | BETTING NOTE: ${circuitNote}
 
 ${recentStr ? recentStr + "\n\n" : ""}CHAMPIONSHIP STANDINGS (${standingsNote}):
 ${standingsStr}
 
-${upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${isScheduleQuestion && upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
 }
 
 // ── NBA System Prompt ─────────────────────────────────────────────────────────
