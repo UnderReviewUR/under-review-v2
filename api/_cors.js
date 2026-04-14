@@ -13,8 +13,7 @@ const ALL_ORIGINS = [...new Set([...CORE_ORIGINS, ...EXTRA_ORIGINS])];
 export function getAllowedOrigin(req) {
   const origin = req.headers?.origin || "";
 
-  // No Origin usually means same-origin/server-to-server request.
-  // Allow it and simply don't set ACAO.
+  // Allow requests that do not send Origin (same-origin/server-side)
   if (!origin) return null;
 
   if (origin.endsWith(".vercel.app")) return origin;
@@ -34,7 +33,6 @@ export function getAllowedOrigin(req) {
 export function applyCors(req, res, { methods = "GET, OPTIONS" } = {}) {
   const allowedOrigin = getAllowedOrigin(req);
 
-  // Explicit reject only when an Origin exists and is not allowed
   if (allowedOrigin === false) {
     res.setHeader("Content-Type", "application/json");
     res.status(403).json({
@@ -44,7 +42,6 @@ export function applyCors(req, res, { methods = "GET, OPTIONS" } = {}) {
     return false;
   }
 
-  // Only set CORS headers when an Origin is present and allowed
   if (allowedOrigin) {
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Access-Control-Allow-Methods", methods);
