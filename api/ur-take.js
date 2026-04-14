@@ -1,6 +1,7 @@
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 import { applyCors } from "./_cors.js";
+import { NBA_PLAYERS } from "./data/nba/players";
 
 // ── TODAY string — injected into every prompt ────────────────────────────────
 function getTodayStr() {
@@ -134,43 +135,6 @@ const PGA_COURSES = {
     specialists:["Rory McIlroy","Tommy Fleetwood","Shane Lowry","Brian Harman"],
     note:"This is a true links test. Wind control, trajectory, and short-game creativity decide it."
   },
-};
-
-// ── NBA Player Database (with LIVE data override rule) ─────────────────────────
-const NBA_PLAYERS = {
-  "Nikola Jokic":            { team:"DEN", pos:"C", tier:"ELITE", pts:29.6, reb:12.7, ast:10.2, props:{ pra:{ floor:45,ceil:70,lean:"OVER -- safest bet in NBA" }, pts:{ floor:22,ceil:45,lean:"OVER" }, reb:{ floor:10,ceil:18,lean:"OVER" }, ast:{ floor:7,ceil:15,lean:"OVER" } }, bettingAngles:["PRA over is the safest prop in basketball","Assists over in fast-paced games","Rebounds over when Murray/Porter are out"] },
-  "Shai Gilgeous-Alexander": { team:"OKC", pos:"G", tier:"ELITE", pts:32.7, reb:5.1,  ast:6.4,  props:{ pts:{ floor:25,ceil:50,lean:"OVER -- gets to line 8-10x per game" }, pra:{ floor:38,ceil:58,lean:"OVER" } }, bettingAngles:["Points over is the primary play","FT attempts prop: OVER almost every game"] },
-  "Luka Doncic":             { team:"DAL", pos:"G", tier:"ELITE", pts:28.1, reb:8.2,  ast:8.0,  props:{ pts:{ floor:20,ceil:45,lean:"OVER" }, pra:{ floor:38,ceil:60,lean:"OVER" } }, bettingAngles:["PRA over safest play","Assists over when teammates limit scoring load"] },
-  "Jayson Tatum":            { team:"BOS", pos:"F", tier:"ELITE", pts:26.9, reb:8.1,  ast:4.9,  props:{ pts:{ floor:20,ceil:42,lean:"OVER in playoff spots" }, pra:{ floor:35,ceil:55,lean:"OVER" } }, bettingAngles:["Points floor high -- scores 20+ in 70%+ of games","Fade in blowouts"] },
-  "Giannis Antetokounmpo":   { team:"MIL", pos:"F", tier:"ELITE", pts:30.4, reb:11.5, ast:6.5,  props:{ pra:{ floor:44,ceil:65,lean:"OVER" }, pts:{ floor:24,ceil:50,lean:"OVER" } }, bettingAngles:["PRA over elite -- 50+ PRA in 40%+ of games"] },
-  "Anthony Edwards":         { team:"MIN", pos:"G", tier:"ELITE", pts:27.8, reb:5.4,  ast:5.1,  props:{ pts:{ floor:20,ceil:44,lean:"OVER" }, pra:{ floor:32,ceil:52,lean:"OVER" } }, bettingAngles:["Points over is primary market","Back in rivalry/national TV games"] },
-  "Victor Wembanyama":       { team:"SAS", pos:"C", tier:"ELITE", pts:24.5, reb:10.6, ast:3.9,  props:{ pts:{ floor:18,ceil:40,lean:"OVER" }, blk:{ floor:2,ceil:6,lean:"OVER" } }, bettingAngles:["Blocks over is the unique angle -- 3.5 per game pace","PRA over in pace-up matchups"] },
-  "Karl-Anthony Towns":      { team:"NYK", pos:"C", tier:"STAR",  pts:24.3, reb:13.7, ast:3.2,  props:{ reb:{ floor:11,ceil:18,lean:"OVER" }, pra:{ floor:38,ceil:55,lean:"OVER" } }, bettingAngles:["Rebounds over is the primary play","Back in MSG"] },
-  "Tyrese Haliburton":       { team:"IND", pos:"G", tier:"STAR",  pts:20.1, reb:3.9,  ast:10.9, props:{ ast:{ floor:8,ceil:16,lean:"OVER" }, pra:{ floor:30,ceil:48,lean:"OVER" } }, bettingAngles:["Assists over is the primary play","Injury history is main risk"] },
-  "Donovan Mitchell":        { team:"CLE", pos:"G", tier:"STAR",  pts:26.1, reb:4.4,  ast:5.4,  props:{ pts:{ floor:19,ceil:42,lean:"OVER" }, pra:{ floor:30,ceil:50,lean:"OVER" } }, bettingAngles:["Points over is the primary play"] },
-  "LeBron James":            { team:"LAL", pos:"F", tier:"STAR",  pts:23.7, reb:8.0,  ast:8.2,  props:{ pra:{ floor:36,ceil:55,lean:"OVER" } }, bettingAngles:["PRA over safest play","Fade pts on back-to-backs"] },
-  "Stephen Curry":           { team:"GSW", pos:"G", tier:"STAR",  pts:26.4, reb:4.5,  ast:6.1,  props:{ threes:{ floor:2,ceil:10,lean:"OVER" } }, bettingAngles:["3-pointers made over is the signature play"] },
-  "Kevin Durant":            { team:"PHX", pos:"F", tier:"STAR",  pts:27.1, reb:6.8,  ast:4.2,  props:{ pts:{ floor:22,ceil:45,lean:"OVER" }, pra:{ floor:33,ceil:55,lean:"OVER" } }, bettingAngles:["Points over is primary","Back when Booker is out"] },
-  "Devin Booker":            { team:"PHX", pos:"G", tier:"STAR",  pts:25.4, reb:4.3,  ast:6.8,  props:{ pts:{ floor:18,ceil:40,lean:"OVER" }, pra:{ floor:32,ceil:50,lean:"OVER" } }, bettingAngles:["Points over is primary","Assists over when Durant on minutes restriction"] },
-  "Ja Morant":               { team:"MEM", pos:"G", tier:"STAR",  pts:24.7, reb:5.1,  ast:8.1,  props:{ pts:{ floor:18,ceil:42,lean:"OVER when healthy" } }, bettingAngles:["Health is the primary risk","Fade on back-to-backs or after any injury concern"] },
-  "Zion Williamson":         { team:"NOP", pos:"F", tier:"STAR",  pts:23.8, reb:5.8,  ast:4.1,  props:{ pts:{ floor:18,ceil:38,lean:"OVER when healthy" } }, bettingAngles:["Health check is non-negotiable -- confirm active before any bet"] },
-  "Cade Cunningham":         { team:"DET", pos:"G", tier:"STAR",  pts:25.2, reb:6.1,  ast:9.0,  props:{ pra:{ floor:36,ceil:54,lean:"OVER" }, ast:{ floor:7,ceil:13,lean:"OVER" } }, bettingAngles:["PRA over is a strong play","Assists over -- top-5 playmaker in league"] },
-  "Paolo Banchero":          { team:"ORL", pos:"F", tier:"STAR",  pts:24.6, reb:7.4,  ast:5.8,  props:{ pra:{ floor:33,ceil:52,lean:"OVER" } }, bettingAngles:["PRA over -- contributing across all three categories"] },
-  "Trae Young":              { team:"ATL", pos:"G", tier:"STAR",  pts:23.7, reb:2.8,  ast:11.4, props:{ ast:{ floor:9,ceil:16,lean:"OVER" }, pra:{ floor:32,ceil:52,lean:"OVER" } }, bettingAngles:["Assists over is the primary play"] },
-  "Damian Lillard":          { team:"MIL", pos:"G", tier:"STAR",  pts:24.1, reb:4.2,  ast:7.4,  props:{ pts:{ floor:18,ceil:40,lean:"OVER" }, threes:{ floor:2,ceil:7,lean:"OVER" } }, bettingAngles:["Points over when Giannis is limited","3-pointers made: elite from deep"] },
-  "LaMelo Ball":             { team:"CHA", pos:"G", tier:"STAR",  pts:22.4, reb:5.2,  ast:8.5,  props:{ ast:{ floor:6,ceil:12,lean:"OVER" }, pra:{ floor:30,ceil:50,lean:"OVER" } }, bettingAngles:["Assists over is primary","Health check required"] },
-  "Anthony Davis":           { team:"LAL", pos:"C", tier:"STAR",  pts:24.7, reb:12.1, ast:3.4,  props:{ pra:{ floor:36,ceil:54,lean:"OVER" }, reb:{ floor:9,ceil:16,lean:"OVER" } }, bettingAngles:["PRA over is the primary play","Health check required"] },
-  "Jalen Brunson":           { team:"NYK", pos:"G", tier:"STAR",  pts:26.6, reb:3.4,  ast:7.5,  props:{ pts:{ floor:20,ceil:42,lean:"OVER" }, pra:{ floor:30,ceil:50,lean:"OVER" } }, bettingAngles:["Points over is primary","Back at MSG"] },
-  "Scottie Barnes":          { team:"TOR", pos:"F", tier:"STAR",  pts:21.8, reb:8.5,  ast:6.2,  props:{ pra:{ floor:32,ceil:48,lean:"OVER" }, reb:{ floor:7,ceil:12,lean:"OVER" } }, bettingAngles:["PRA over is the primary play"] },
-  "Franz Wagner":            { team:"ORL", pos:"F", tier:"STAR",  pts:22.4, reb:5.2,  ast:4.8,  props:{ pts:{ floor:16,ceil:35,lean:"OVER" }, pra:{ floor:26,ceil:44,lean:"OVER" } }, bettingAngles:["Points over is primary"] },
-  "Alperen Sengun":          { team:"HOU", pos:"C", tier:"STAR",  pts:21.1, reb:9.4,  ast:5.1,  props:{ pra:{ floor:32,ceil:50,lean:"OVER" }, ast:{ floor:3,ceil:8,lean:"OVER" } }, bettingAngles:["PRA over is primary","Assists over -- rare playmaking ability for center"] },
-  "Jaylen Brown":            { team:"BOS", pos:"F", tier:"STAR",  pts:23.0, reb:5.5,  ast:3.6,  props:{ pts:{ floor:17,ceil:36,lean:"OVER" }, pra:{ floor:28,ceil:44,lean:"OVER" } }, bettingAngles:["Points over primary","Back in elimination/playoff games"] },
-  "Rudy Gobert":             { team:"MIN", pos:"C", tier:"SOLID", pts:13.4, reb:12.0, ast:1.4,  props:{ reb:{ floor:10,ceil:17,lean:"OVER" } }, bettingAngles:["Rebounds over is the primary play","Double-double prop hits 70%+ of games"] },
-  "Jaren Jackson Jr.":       { team:"MEM", pos:"C", tier:"SOLID", pts:22.1, reb:6.0,  ast:1.6,  props:{ blk:{ floor:2,ceil:5,lean:"OVER" }, pts:{ floor:16,ceil:34,lean:"OVER" } }, bettingAngles:["Blocks over is the unique angle"] },
-  "Evan Mobley":             { team:"CLE", pos:"C", tier:"SOLID", pts:18.6, reb:9.4,  ast:2.9,  props:{ pra:{ floor:28,ceil:44,lean:"OVER" }, reb:{ floor:7,ceil:14,lean:"OVER" } }, bettingAngles:["PRA over is the consistent play"] },
-  "Josh Hart":               { team:"NYK", pos:"G", tier:"SOLID", pts:12.4, reb:9.8,  ast:4.6,  props:{ reb:{ floor:8,ceil:14,lean:"OVER" }, pra:{ floor:24,ceil:38,lean:"OVER" } }, bettingAngles:["Rebounds over is the primary play -- anomalous for his position"] },
-  "Lauri Markkanen":         { team:"UTA", pos:"F", tier:"SOLID", pts:23.2, reb:8.2,  ast:2.4,  props:{ pra:{ floor:28,ceil:46,lean:"OVER" }, threes:{ floor:2,ceil:5,lean:"OVER" } }, bettingAngles:["PRA over is the consistent play"] },
-  "Jalen Williams":          { team:"OKC", pos:"F", tier:"SOLID", pts:22.5, reb:4.5,  ast:5.8,  props:{ pts:{ floor:16,ceil:34,lean:"OVER" }, pra:{ floor:28,ceil:46,lean:"OVER" } }, bettingAngles:["Points over when SGA is limited"] },
 };
 
 // ── NFL Databases ─────────────────────────────────────────────────────────────
