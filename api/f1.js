@@ -199,15 +199,18 @@ async function getSessionData() {
   const cached = getCached("f1_session");
   if (cached) return cached;
 
-  const [latestSessionRes, meetingSessionsRes] = await Promise.all([
-    safeFetch("/sessions?session_key=latest", { timeoutMs: 3500 }),
-    safeFetch("/sessions?meeting_key=latest", { timeoutMs: 3500 }),
-  ]);
+  const latestSessionRes = await safeFetch("/sessions?session_key=latest", { timeoutMs: 3500 });
 
   const latestSession =
     latestSessionRes.ok && Array.isArray(latestSessionRes.data)
       ? latestSessionRes.data[0] || null
       : null;
+
+  let meetingSessionsRes = { ok: false, status: 0, data: null };
+
+  if (latestSession?.meeting_key) {
+    meetingSessionsRes = await safeFetch(`/sessions?meeting_key=${latestSession.meeting_key}`, { timeoutMs: 3500 });
+  }
 
   const sessions =
     meetingSessionsRes.ok && Array.isArray(meetingSessionsRes.data)
@@ -219,7 +222,7 @@ async function getSessionData() {
   const payload = {
     session: latestSession,
     sessions,
-    usingFallbackSession: !latestSessionRes.ok && !meetingSessionsRes.ok,
+    usingFallbackSession: !latestSession,
   };
 
   setCached("f1_session", payload, CACHE_TTL.session);
