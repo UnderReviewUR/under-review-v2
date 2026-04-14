@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { NBA_PLAYERS } from "./data/nba/players";
+import { NBA_PLAYERS } from "./components/data/nba/players.js";
 
 // ── Inlined AskBar component ──────────────────────────────────────────────────
 const AskBar = memo(function AskBar({
