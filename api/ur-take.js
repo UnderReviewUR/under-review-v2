@@ -545,7 +545,7 @@ function buildF1SystemPrompt(matchupCtxStr, f1Context) {
     ? liveStandings
     : LEGACY_F1_STANDINGS_BACKUP;
 
-  const liveRaces = Array.isArray(f1Context?.schedule?.races) ? f1Context.schedule.races : [];
+  const liveRaces = hasReliableSchedule ? f1Context.schedule.races : [];
   const useCalendar = liveRaces.map(r => ({
     meeting_name: r.meeting_name || r.name || "Grand Prix",
     location: r.location || r.circuit_short_name || "TBD",
