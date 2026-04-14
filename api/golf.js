@@ -1,5 +1,3 @@
-// api/golf.js
-
 import { applyCors } from "./_cors.js";
 import { getUnifiedGolfBoard } from "./_golfProviders.js";
 
@@ -12,12 +10,14 @@ export default async function handler(req, res) {
   const view = String(req.query.view || "board").toLowerCase();
 
   if (view !== "board") {
-    return res.status(400).json({ error: "Invalid view", allowed: ["board"] });
+    return res.status(400).json({
+      error: "Invalid view",
+      allowed: ["board"],
+    });
   }
 
   try {
     const board = await getUnifiedGolfBoard({
-      ballDontLieApiKey: process.env.BALLDONTLIE_API_KEY || "",
       oddsApiKey: process.env.ODDS_API_KEY || "",
     });
 
