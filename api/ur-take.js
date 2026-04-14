@@ -810,7 +810,8 @@ TODAY: ${today} | MLB PHASE: ${phase}
 GAMES:
 ${gamesStr}
 
-${totalsStr ? "TOTALS:\n" + totalsStr + "\n\n" : ""}${propLinesStr !== "No prop lines posted yet." ? "PROP LINES:\n" + propLinesStr + "\n\n" : "PROP LINES: Not yet posted.\n\n"}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${totalsStr ? "TOTALS:\n" + totalsStr + "\n\n" : ""}${propLinesStr !== "No prop lines posted yet." ? "PROP LINES:\n" + propLinesStr + "\n\n" : "PROP LINES: Not yet posted.\n\n"}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}
+QUESTION: ${question}`;
 }
 
 // ── NFL System Prompt ─────────────────────────────────────────────────────────
