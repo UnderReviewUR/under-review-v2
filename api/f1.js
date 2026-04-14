@@ -81,6 +81,31 @@ async function safeFetch(path, options = {}) {
   }
 }
 
+const VALID_2026_RACES = new Set([
+  "Australian Grand Prix",
+  "Chinese Grand Prix",
+  "Japanese Grand Prix",
+  "Miami Grand Prix",
+  "Canadian Grand Prix",
+  "Monaco Grand Prix",
+  "Spanish Grand Prix",
+  "Austrian Grand Prix",
+  "British Grand Prix",
+  "Belgian Grand Prix",
+  "Hungarian Grand Prix",
+  "Dutch Grand Prix",
+  "Italian Grand Prix",
+  "Spanish Grand Prix (Madrid)",
+  "Azerbaijan Grand Prix",
+  "Singapore Grand Prix",
+  "United States Grand Prix",
+  "Mexico City Grand Prix",
+  "Sao Paulo Grand Prix",
+  "Las Vegas Grand Prix",
+  "Qatar Grand Prix",
+  "Abu Dhabi Grand Prix",
+]);
+
 function buildSchedule(meetings) {
   const now = new Date();
 
@@ -102,12 +127,15 @@ function buildSchedule(meetings) {
         ? new Date(m.date_end)
         : new Date(start.getTime() + 3 * 24 * 60 * 60 * 1000);
 
+      const meetingName =
+        m.meeting_name || m.meeting_official_name || "Grand Prix";
+
       const completed =
         typeof m.completed === "boolean" ? m.completed : end < now;
 
       return {
         meeting_key: m.meeting_key || null,
-        meeting_name: m.meeting_name || m.meeting_official_name || "Grand Prix",
+        meeting_name: meetingName,
         location: m.location || m.country_name || m.circuit_short_name || "TBD",
         circuit_short_name: m.circuit_short_name || null,
         country_name: m.country_name || null,
@@ -117,7 +145,19 @@ function buildSchedule(meetings) {
         winner: m.winner || null,
       };
     })
+    .filter((m) => VALID_2026_RACES.has(m.meeting_name))
     .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
+
+  if (normalized.length === 0) {
+    return {
+      races: [],
+      upcoming: [],
+      past: [],
+      current: [],
+      next_meeting_key: null,
+      usingFallback: true,
+    };
+  }
 
   const current = normalized.filter((m) => {
     const start = new Date(m.date_start);
