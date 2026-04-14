@@ -462,12 +462,19 @@ Note: ${courseData.note}
       : "";
 
   let oddsStr = "";
-  if (odds?.outrights?.length > 0) {
-    oddsStr =
-      "MARKET ODDS:\n" +
-      odds.outrights.slice(0, 25).map(o => `${o.player}: ${o.odds > 0 ? "+" : ""}${o.odds}`).join("\n") +
-      "\n";
-  }
+let oddsNote = "";
+
+if (odds?.outrights?.length > 0) {
+  oddsStr =
+    "OUTRIGHT MARKET (top of board):\n" +
+    odds.outrights
+      .slice(0, 5)
+      .map(o => `${o.player}: ${o.odds > 0 ? "+" : ""}${o.odds}`)
+      .join("\n") +
+    "\n";
+} else {
+  oddsNote = "MARKET: Odds not available yet — check closer to tee time.\n";
+}
 
   let recentResultsStr = "";
   if (recentResults.length > 0) {
@@ -522,7 +529,8 @@ UR FAIR ODDS: [fair odds] | MARKET: [line] | VALUE: [gap]
 FADE: [player to avoid + one-line reason]
 CONFIDENCE: [High/Medium/Speculative] -- [one sentence]
 
-${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr ? oddsStr + "\n" : ""}${playerStr}
+${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr}
+${oddsNote}
 
 QUESTION: ${question}
 SOURCE META: ${JSON.stringify(sourceMeta)}`;
