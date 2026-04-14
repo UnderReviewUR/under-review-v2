@@ -2,7 +2,6 @@ import { applyCors } from "./_cors.js";
 
 const OPENF1 = "https://api.openf1.org/v1";
 
-// Longer cache windows to reduce rate-limit pressure
 const CACHE_TTL = {
   board: 3 * 60 * 1000,
   schedule: 30 * 60 * 1000,
@@ -35,31 +34,6 @@ const FALLBACK_STANDINGS = [
   { position: 20, full_name: "Esteban Ocon", team_name: "Haas", points: 0, driver_number: 31 },
   { position: 21, full_name: "Valtteri Bottas", team_name: "Cadillac", points: 0, driver_number: 77 },
   { position: 22, full_name: "Sergio Perez", team_name: "Cadillac", points: 0, driver_number: 11 },
-];
-
-const FALLBACK_CALENDAR = [];
-  { meeting_name: "Australian Grand Prix", location: "Melbourne", date_start: "2026-03-06T00:00:00", date_end: "2026-03-08T23:59:00", completed: true, winner: "Russell" },
-  { meeting_name: "Chinese Grand Prix", location: "Shanghai", date_start: "2026-03-13T00:00:00", date_end: "2026-03-15T23:59:00", completed: true, winner: "Antonelli" },
-  { meeting_name: "Japanese Grand Prix", location: "Suzuka", date_start: "2026-03-27T00:00:00", date_end: "2026-03-29T23:59:00", completed: true, winner: "Antonelli" },
-  { meeting_name: "Miami Grand Prix", location: "Miami", date_start: "2026-05-01T00:00:00", date_end: "2026-05-03T23:59:00", completed: false, winner: null },
-  { meeting_name: "Canadian Grand Prix", location: "Montreal", date_start: "2026-05-22T00:00:00", date_end: "2026-05-24T23:59:00", completed: false, winner: null },
-  { meeting_name: "Monaco Grand Prix", location: "Monaco", date_start: "2026-06-05T00:00:00", date_end: "2026-06-07T23:59:00", completed: false, winner: null },
-  { meeting_name: "Spanish Grand Prix", location: "Barcelona", date_start: "2026-06-12T00:00:00", date_end: "2026-06-14T23:59:00", completed: false, winner: null },
-  { meeting_name: "Austrian Grand Prix", location: "Spielberg", date_start: "2026-06-26T00:00:00", date_end: "2026-06-28T23:59:00", completed: false, winner: null },
-  { meeting_name: "British Grand Prix", location: "Silverstone", date_start: "2026-07-03T00:00:00", date_end: "2026-07-05T23:59:00", completed: false, winner: null },
-  { meeting_name: "Belgian Grand Prix", location: "Spa", date_start: "2026-07-17T00:00:00", date_end: "2026-07-19T23:59:00", completed: false, winner: null },
-  { meeting_name: "Hungarian Grand Prix", location: "Budapest", date_start: "2026-07-24T00:00:00", date_end: "2026-07-26T23:59:00", completed: false, winner: null },
-  { meeting_name: "Dutch Grand Prix", location: "Zandvoort", date_start: "2026-08-21T00:00:00", date_end: "2026-08-23T23:59:00", completed: false, winner: null },
-  { meeting_name: "Italian Grand Prix", location: "Monza", date_start: "2026-09-04T00:00:00", date_end: "2026-09-06T23:59:00", completed: false, winner: null },
-  { meeting_name: "Spanish Grand Prix (Madrid)", location: "Madrid", date_start: "2026-09-11T00:00:00", date_end: "2026-09-13T23:59:00", completed: false, winner: null },
-  { meeting_name: "Azerbaijan Grand Prix", location: "Baku", date_start: "2026-09-24T00:00:00", date_end: "2026-09-26T23:59:00", completed: false, winner: null },
-  { meeting_name: "Singapore Grand Prix", location: "Singapore", date_start: "2026-10-09T00:00:00", date_end: "2026-10-11T23:59:00", completed: false, winner: null },
-  { meeting_name: "United States Grand Prix", location: "Austin", date_start: "2026-10-23T00:00:00", date_end: "2026-10-25T23:59:00", completed: false, winner: null },
-  { meeting_name: "Mexico City Grand Prix", location: "Mexico City", date_start: "2026-10-30T00:00:00", date_end: "2026-11-01T23:59:00", completed: false, winner: null },
-  { meeting_name: "Sao Paulo Grand Prix", location: "Sao Paulo", date_start: "2026-11-06T00:00:00", date_end: "2026-11-08T23:59:00", completed: false, winner: null },
-  { meeting_name: "Las Vegas Grand Prix", location: "Las Vegas", date_start: "2026-11-19T00:00:00", date_end: "2026-11-21T23:59:00", completed: false, winner: null },
-  { meeting_name: "Qatar Grand Prix", location: "Lusail", date_start: "2026-11-27T00:00:00", date_end: "2026-11-29T23:59:00", completed: false, winner: null },
-  { meeting_name: "Abu Dhabi Grand Prix", location: "Abu Dhabi", date_start: "2026-12-04T00:00:00", date_end: "2026-12-06T23:59:00", completed: false, winner: null },
 ];
 
 function getCached(key) {
@@ -96,60 +70,54 @@ async function safeFetch(path, options = {}) {
 
     if (!res.ok) {
       console.warn(`OpenF1 ${res.status} - ${url}`);
-      return {
-        ok: false,
-        status: res.status,
-        data: null,
-      };
+      return { ok: false, status: res.status, data: null };
     }
 
     const data = await res.json();
-    return {
-      ok: true,
-      status: res.status,
-      data,
-    };
+    return { ok: true, status: res.status, data };
   } catch (err) {
     console.warn(`OpenF1 fetch failed: ${url} - ${err.message}`);
-    return {
-      ok: false,
-      status: 0,
-      data: null,
-    };
+    return { ok: false, status: 0, data: null };
   }
 }
 
 function buildSchedule(meetings) {
   const now = new Date();
-  const list = Array.isArray(meetings) && meetings.length > 0
-    ? meetings.slice()
-    : FALLBACK_CALENDAR.slice();
 
-  const usingFallback = !Array.isArray(meetings) || meetings.length === 0;
-const hasReliableSchedule =
-  Array.isArray(f1Context?.schedule?.races) &&
-  f1Context.schedule.races.length > 0 &&
-  !usingFallback;
-  
-  list.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
-
-  const normalized = list.map((m) => {
-    const start = new Date(m.date_start);
-    const end = m.date_end ? new Date(m.date_end) : new Date(start.getTime() + (3 * 24 * 60 * 60 * 1000));
-    const completed = typeof m.completed === "boolean" ? m.completed : end < now;
-
+  if (!Array.isArray(meetings) || meetings.length === 0) {
     return {
-      meeting_key: m.meeting_key || null,
-      meeting_name: m.meeting_name || m.meeting_official_name || "Grand Prix",
-      location: m.location || m.country_name || m.circuit_short_name || "TBD",
-      circuit_short_name: m.circuit_short_name || null,
-      country_name: m.country_name || null,
-      date_start: m.date_start,
-      date_end: m.date_end || end.toISOString(),
-      completed,
-      winner: m.winner || null,
+      races: [],
+      upcoming: [],
+      past: [],
+      current: [],
+      next_meeting_key: null,
+      usingFallback: true,
     };
-  });
+  }
+
+  const normalized = meetings
+    .map((m) => {
+      const start = new Date(m.date_start);
+      const end = m.date_end
+        ? new Date(m.date_end)
+        : new Date(start.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+      const completed =
+        typeof m.completed === "boolean" ? m.completed : end < now;
+
+      return {
+        meeting_key: m.meeting_key || null,
+        meeting_name: m.meeting_name || m.meeting_official_name || "Grand Prix",
+        location: m.location || m.country_name || m.circuit_short_name || "TBD",
+        circuit_short_name: m.circuit_short_name || null,
+        country_name: m.country_name || null,
+        date_start: m.date_start,
+        date_end: m.date_end || end.toISOString(),
+        completed,
+        winner: m.winner || null,
+      };
+    })
+    .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
 
   const current = normalized.filter((m) => {
     const start = new Date(m.date_start);
@@ -173,7 +141,7 @@ const hasReliableSchedule =
     past,
     current,
     next_meeting_key: nextRace ? nextRace.meeting_key : null,
-    usingFallback,
+    usingFallback: false,
   };
 }
 
@@ -205,17 +173,7 @@ async function getScheduleData() {
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
-
-  const data = result.ok && Array.isArray(result.data) && result.data.length > 0
-    ? buildSchedule(result.data)
-    : {
-        races: [],
-        upcoming: [],
-        past: [],
-        current: [],
-        next_meeting_key: null,
-        usingFallback: true,
-      };
+  const data = buildSchedule(result.ok ? result.data : null);
 
   setCached("f1_schedule", data, CACHE_TTL.schedule);
   return data;
@@ -246,15 +204,17 @@ async function getSessionData() {
     safeFetch("/sessions?meeting_key=latest", { timeoutMs: 3500 }),
   ]);
 
-  const latestSession = latestSessionRes.ok && Array.isArray(latestSessionRes.data)
-    ? latestSessionRes.data[0] || null
-    : null;
+  const latestSession =
+    latestSessionRes.ok && Array.isArray(latestSessionRes.data)
+      ? latestSessionRes.data[0] || null
+      : null;
 
-  const sessions = meetingSessionsRes.ok && Array.isArray(meetingSessionsRes.data)
-    ? meetingSessionsRes.data
-        .slice()
-        .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime())
-    : [];
+  const sessions =
+    meetingSessionsRes.ok && Array.isArray(meetingSessionsRes.data)
+      ? meetingSessionsRes.data
+          .slice()
+          .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime())
+      : [];
 
   const payload = {
     session: latestSession,
