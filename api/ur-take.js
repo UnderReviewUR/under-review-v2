@@ -538,15 +538,20 @@ function buildF1SystemPrompt(matchupCtxStr, f1Context) {
   const HDFRC  = ["hungary","hungaroring","barcelona","catalunya","zandvoort","suzuka"];
 
   const question = String(f1Context?.question || "").toLowerCase();
-  const usingFallback = !!f1Context?.usingFallback;
+const usingFallback = !!f1Context?.usingFallback;
 
-  const liveStandings = Array.isArray(f1Context?.standings) ? f1Context.standings : [];
-  const standingsSource = liveStandings.length > 0
-    ? liveStandings
-    : LEGACY_F1_STANDINGS_BACKUP;
+const hasReliableSchedule =
+  Array.isArray(f1Context?.schedule?.races) &&
+  f1Context.schedule.races.length > 0 &&
+  !usingFallback;
 
-  const liveRaces = hasReliableSchedule ? f1Context.schedule.races : [];
-  const useCalendar = liveRaces.map(r => ({
+const liveStandings = Array.isArray(f1Context?.standings) ? f1Context.standings : [];
+const standingsSource = liveStandings.length > 0
+  ? liveStandings
+  : LEGACY_F1_STANDINGS_BACKUP;
+
+const liveRaces = hasReliableSchedule ? f1Context.schedule.races : [];
+const useCalendar = liveRaces.map(r => ({
     meeting_name: r.meeting_name || r.name || "Grand Prix",
     location: r.location || r.circuit_short_name || "TBD",
     date_start: r.date_start || null,
