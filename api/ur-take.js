@@ -946,20 +946,19 @@ export default async function handler(req, res) {
   const matchupCtxStr = summarizeMatchupContext(matchupContext);
   let systemPrompt;
 
-  if (sport === "f1") {
+  if (sportHint === "f1" || sport === "f1") {
   systemPrompt = buildF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
-} else if (sport === "mlb") {
+} else if (sportHint === "mlb" || sport === "mlb") {
   systemPrompt = buildMlbSystemPrompt(mlbContext, matchupCtxStr);
-} else if (sport === "golf") {
+} else if (sportHint === "golf" || sport === "golf") {
   systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
-  } else if (sport === "nba") {
-    systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
-  } else if (sport === "nfl") {
-    systemPrompt = buildNflSystemPrompt(question, nflContext, matchupCtxStr);
-  } else {
-    // Tennis
-    systemPrompt = buildTennisSystemPrompt(question, players, context, liveMatches, matchupCtxStr);
-  }
+} else if (sportHint === "nba" || sport === "nba") {
+  systemPrompt = buildNbaSystemPrompt(nbaContext, matchupCtxStr);
+} else if (sportHint === "nfl" || sport === "nfl") {
+  systemPrompt = buildNflSystemPrompt(question, nflContext, matchupCtxStr);
+} else {
+  systemPrompt = buildTennisSystemPrompt(question, players, context, liveMatches, matchupCtxStr);
+}
 
   const messages = [];
   if (Array.isArray(history) && history.length > 0) {
