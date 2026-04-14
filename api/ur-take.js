@@ -734,7 +734,8 @@ ${gamesStr}
 ${propLinesStr !== "No prop lines posted yet." ? "LIVE PROP LINES:\n" + propLinesStr + "\n\n" : "PROP LINES: Not yet posted.\n\n"}${seasonAvgsStr ? seasonAvgsStr + "\n\n" : ""}PLAYER DATABASE (may lag trades -- defer to LIVE ESPN AVERAGES above for team):
 ${playerDbStr}
 
-${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}
+QUESTION: ${question}`;
 }
 
 // ── MLB System Prompt ─────────────────────────────────────────────────────────
