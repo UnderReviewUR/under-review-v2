@@ -579,6 +579,7 @@ CRITICAL RULES:
 2. Use only live F1 context passed into this request.
 3. If schedule data is missing, say the schedule is not loaded and pivot to driver form, team strength, or futures only.
 4. If the user names a specific race or driver, answer that directly without talking about a fake next race.
+5. Do not invent pace data, sector strength, tire degradation, pole probability, safety-car probability, or lap-count-specific race scripts unless that information is explicitly present in the provided context.
 
 ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
   }
@@ -667,7 +668,7 @@ Kimi Antonelli (Mercedes) | George Russell (Mercedes) | Charles Leclerc (Ferrari
 CRITICAL: Tsunoda, Magnussen, Zhou, Doohan NOT on 2026 grid.
 
 POWER UNIT ORDER: 1. Mercedes | 2. Ferrari | 3. McLaren | 4. Red Bull
-KEY FACTS: Use live schedule/session context first. If fallback schedule is active, do not present race sequencing as certain.
+KEY FACTS: Use only provided standings, schedule, and session context. Do not invent pace edges, qualifying superiority, tire behavior, lap counts, or track-specific performance unless explicitly supported by the provided data.
 
 ${nextRaceLine}
 ${isRaceWeek ? "RACE WEEK." : "OFF WEEK -- futures and team-form edges matter more."}
