@@ -653,7 +653,7 @@ ${upcomingStr ? "UPCOMING:\n" + upcomingStr + "\n\n" : ""}${matchupCtxStr ? "MAT
 }
 
 // ── NBA System Prompt ─────────────────────────────────────────────────────────
-function buildNbaSystemPrompt({ ...(nbaContext || {}), question }, matchupCtxStr) {
+function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
   const today = getTodayStr();
   const ctx = nbaContext || {};
   const phase = ctx.seasonContext?.phase || "NBA Season Active";
@@ -739,9 +739,9 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
 }
 
 // ── MLB System Prompt ─────────────────────────────────────────────────────────
-function buildMlbSystemPrompt({ ...(mlbContext || {}), question }, matchupCtxStr) {
+function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
   const today = getTodayStr();
-  const ctx = mlbContext || {};
+  const ctx = mlbContext || {}; const question = ctx.question || "";
   const phase = ctx.seasonContext?.phase || "MLB Season Active";
   const games = ctx.games || [];
 
