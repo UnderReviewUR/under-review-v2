@@ -241,7 +241,7 @@ async function getNbaInjuries(propLines, todaysGames) {
   }
 }
 
-function buildGameTotalsFromProps(propLines) {
+async function getNbaPlayoffSeries() {   const cacheKey = "nba_playoff_series";   const cached = getCached(cacheKey);   if (cached) return cached;   try {     const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?groups=playoff", { cache: "no-store" });     if (!res.ok) {       const res2 = await fetch("https://site.api.espn.com/apis/v2/sports/basketball/nba/playoff?season=2025", { cache: "no-store" });       if (!res2.ok) return [];       const d2 = await res2.json();       const brackets = d2?.bracket?.series || d2?.rounds?.flatMap(r => r.series || []) || [];       const series = brackets.map(s => ({         round: s.round?.displayName || s.displayName || "",         home: s.competitors?.find(c => c.homeAway === "home")?.team?.abbreviation || "",         away: s.competitors?.find(c => c.homeAway === "away")?.team?.abbreviation || "",         homeWins: parseInt(s.competitors?.find(c => c.homeAway === "home")?.wins || 0),         awayWins: parseInt(s.competitors?.find(c => c.homeAway === "away")?.wins || 0),         status: s.status?.type?.description || s.statusText || "",       })).filter(s => s.home || s.away);       if (series.length) setCached(cacheKey, series);       return series;     }     const data = await res.json();     const events = data?.events || [];     const seriesMap = {};     for (const ev of events) {       const sid = ev.series?.id || ev.uid;       if (!sid) continue;       if (!seriesMap[sid]) {         const comps = ev.competitions?.[0]?.competitors || [];         const home = comps.find(c => c.homeAway === "home");         const away = comps.find(c => c.homeAway === "away");         seriesMap[sid] = {           round: ev.series?.type?.text || ev.seriesStatus?.displayName || "",           home: home?.team?.abbreviation || "",           away: away?.team?.abbreviation || "",           homeWins: parseInt(home?.wins || ev.seriesStatus?.homeTeamWins || 0),           awayWins: parseInt(away?.wins || ev.seriesStatus?.awayTeamWins || 0),           status: ev.seriesStatus?.summary || ev.status?.type?.description || "",         };       }     }     const series = Object.values(seriesMap).filter(s => s.home || s.away);     if (series.length) setCached(cacheKey, series);     return series;   } catch (err) {     console.warn("getNbaPlayoffSeries error:", err.message);     return [];   } } function buildGameTotalsFromProps(propLines) {
   const totals = {};
   for (const line of propLines||[]) {
     if (!line.game) continue;
@@ -267,10 +267,10 @@ export default async function handler(req, res) {
       const boardCached = getCached("board");
       if (boardCached) return res.status(200).json(boardCached);
 
-      const [todaysGames, propLines, playerStats] = await Promise.all([
+      const [todaysGames, propLines, playerStats, playoffSeries] = await Promise.all([
         getTodaysGames(ODDS_KEY),
         getNbaPropLines(ODDS_KEY),
-        getCurrentPlayerStats(BDL_KEY),
+        getCurrentPlayerStats(BDL_KEY),         getNbaPlayoffSeries(),
       ]);
 
       const injuries = await getNbaInjuries(propLines, todaysGames);
@@ -282,7 +282,7 @@ export default async function handler(req, res) {
         playerStats: playerStats.slice(0, 120),
         propLines:   propLines.slice(0, 120),
         injuries,
-        recentForm: "", h2hSplits: [],
+        playoffSeries,         recentForm: "", h2hSplits: [],
         gameTotals: buildGameTotalsFromProps(propLines),
         fetchedAt: new Date().toISOString(),
       };
