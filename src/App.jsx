@@ -1396,7 +1396,7 @@ const PGA_PLAYERS = {
     stats: { drivingDist: 326, fairwayPct: 58, girPct: 71, scrambling: 60, top10Rate: 0.48, cutRate: 0.82, winRate: 0.11 },
     courseTypes: { links: "A+", parkland: "A", desert: "B+", coastal: "A", treelined: "A" },
     markets: { outright: "Value at 12/1 or better", top5: "Solid market — elite ball-striker", top10: "Strong value at 5/1 or better", makecut: "Reliable — fade desert only" },
-    form: "Elevated after 2024 Masters. Finally closed at Augusta. Driver is a weapon on wide-open courses.",
+    form: "Elevated after winning 2025 and 2026 Masters. Finally closed at Augusta. Driver is a weapon on wide-open courses.",
     bestAt: ["Augusta National", "TPC Sawgrass", "Quail Hollow", "Valhalla", "Royal Portrush"],
     fade: ["Accurate, tight driving layouts — his miss rate is too high"],
     note: "Best value in majors when the course suits his power. Don't fade him on links — grew up on them.",
@@ -1463,7 +1463,7 @@ const PGA_PLAYERS = {
     stats: { drivingDist: 312, fairwayPct: 61, girPct: 69, scrambling: 64, top10Rate: 0.50, cutRate: 0.82, winRate: 0.09 },
     courseTypes: { links: "A+", parkland: "A", desert: "A", coastal: "A", treelined: "A" },
     markets: { outright: "Value at 14/1 or better on LIV eligible events", top5: "Strong on any setup", top10: "Reliable", makecut: "Strong" },
-    form: "On LIV Golf 2024-25 — limited PGA/major access. Elite when eligible. Clay-specialist comp doesn't apply — he's an all-surface A+ player.",
+    form: "On LIV Golf 2024-25 — limited PGA/major access. Elite when eligible.",
     bestAt: ["Augusta National", "US Open setups", "Spanish/Mediterranean courses"],
     fade: ["Limited PGA Tour schedule — eligibility check required"],
     note: "When eligible, top-5 caliber at majors. His LIV schedule means fewer data points.",
@@ -2841,7 +2841,7 @@ export default function App() {
     const activeEvent = golfData?.currentEvent;
     const isActive = activeEvent && activeEvent.state !== "pre" && (activeEvent.leaderboard?.length > 0);
 
-    if (!golfData && !golfLoading) return null;
+    if (!golfLoading && (!golfData || !golfData.currentEvent)) return null;
 
     // If active event with leaderboard — show top 3
     if (isActive) {
