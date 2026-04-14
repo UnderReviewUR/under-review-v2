@@ -493,7 +493,7 @@ UR FAIR ODDS: [fair odds] | MARKET: [line] | VALUE: [gap]
 FADE: [player to avoid + one-line reason]
 CONFIDENCE: [High/Medium/Speculative] -- [max 8 words, no hedging, no asking for more data]
 
-${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr}
+CRITICAL: THE PLAY must be a player from the database below. No exceptions.${playerStr}${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr}
 ${oddsNote}
 
 QUESTION: ${question}
