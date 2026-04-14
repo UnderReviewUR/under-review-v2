@@ -391,6 +391,11 @@ function buildGolfSystemPrompt(ctx) {
   const displayLocation =
     currentEvent?.location || tournament?.location || [ctx?.course?.city, ctx?.course?.state || ctx?.course?.country].filter(Boolean).join(", ");
 
+const upcomingEventLine =
+  hasUpcomingTournament
+    ? `NEXT TOURNAMENT: ${displayEventName} | COURSE: ${displayCourse} | LOCATION: ${displayLocation || "TBD"} | START: ${tournament?.startDate || currentEvent?.startDate || "TBD"}`
+    : "";
+  
   const courseNameLower = String(displayCourse || "").toLowerCase();
 
   let leaderBlock = "";
@@ -490,6 +495,8 @@ TODAY: ${today}
 
 IDENTITY: Sharp golf analyst. Lead with the lean. Make a call. NEVER ask for more information.
 FORMATTING: NEVER use markdown. No ##, no ---, no ** bold. Plain text only.
+
+${upcomingEventLine ? upcomingEventLine + "\n\n" : ""}
 
 CRITICAL FACTUAL RULES:
 1. If LIVE TOURNAMENT DATA is present, it is ground truth.
