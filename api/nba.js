@@ -16,13 +16,13 @@ function getNbaSeasonContext() {
   const now = new Date();
   const month = now.getMonth() + 1;
   const day = now.getDate();
-  if (month >= 10 || month === 1) return { phase: "Regular Season (early)", season: 2024 };
-  if (month === 2 || (month === 3 && day < 10)) return { phase: "Regular Season (mid)", season: 2024 };
-  if ((month === 3 && day >= 10) || (month === 4 && day < 20)) return { phase: "Regular Season — final stretch", season: 2024 };
-  if (month === 4 && day >= 20) return { phase: "NBA Playoffs — First Round", season: 2024 };
-  if (month === 5) return { phase: "NBA Playoffs — Conference Semifinals", season: 2024 };
-  if (month === 6) return { phase: "NBA Finals", season: 2024 };
-  return { phase: "NBA Offseason", season: 2024 };
+  if (month >= 10 || month === 1) return { phase: "Regular Season (early)", season: 2025 };
+  if (month === 2 || (month === 3 && day < 10)) return { phase: "Regular Season (mid)", season: 2025 };
+  if ((month === 3 && day >= 10) || (month === 4 && day < 20)) return { phase: "Regular Season — final stretch", season: 2025 };
+  if (month === 4 && day >= 20) return { phase: "NBA Playoffs — First Round", season: 2025 };
+  if (month === 5) return { phase: "NBA Playoffs — Conference Semifinals", season: 2025 };
+  if (month === 6) return { phase: "NBA Finals", season: 2025 };
+  return { phase: "NBA Offseason", season: 2025 };
 }
 
 function getTodayEtDateString() {
