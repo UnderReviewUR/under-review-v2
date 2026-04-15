@@ -1553,11 +1553,35 @@ export default function App() {
         sportHint: sportHint || null,
       };
       if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
-      const res=await fetch("/api/ur-take",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-      const data=await res.json();
-      setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:data.response||"Couldn't get a response — try again."}]);
-    } catch {
-      setMsgs(prev=>[...prev.filter(m=>!m.loading),{role:"ai",text:"Something went wrong — try again."}]);
+      const res = await fetch("/api/ur-take", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+const raw = await res.text();
+
+if (!res.ok) {
+  throw new Error(`/api/ur-take ${res.status}: ${raw}`);
+}
+
+let data;
+try {
+  data = JSON.parse(raw);
+} catch {
+  throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
+}
+
+setMsgs(prev => [
+  ...prev.filter(m => !m.loading),
+  { role: "ai", text: data.response || "Couldn't get a response — try again." }
+]);
+   } catch (err) {
+  setMsgs(prev => [
+    ...prev.filter(m => !m.loading),
+    { role: "ai", text: err?.message || "Something went wrong — try again." }
+  ]);
+}
     } finally { setIsAsking(false); }
   }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext, buildNbaContext, buildMlbContext, buildGolfContext, canAsk, recordQuery]);
 
