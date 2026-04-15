@@ -1727,7 +1727,12 @@ export default function App() {
   const openMatchup   = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
   const openPlayer    = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
   const openNflPlayer = useCallback(name=>{ setSelectedNflPlayer(name); setScreen("nflplayer"); setTab("nfl"); },[]);
-  const firePrompt    = useCallback(prompt=>{ setTab("ask"); setScreen("ask"); setAskInput(""); askUrTake({text:prompt,setMsgs:setAskMsgs}); },[askUrTake]);
+  const firePrompt = useCallback((prompt, sportHint = null) => {
+  setTab("ask");
+  setScreen("ask");
+  setAskInput("");
+  askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint });
+}, [askUrTake]);
 
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
