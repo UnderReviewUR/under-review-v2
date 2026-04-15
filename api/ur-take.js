@@ -114,12 +114,28 @@ IDENTITY: Lead with the take. Never hedge. Never open with a limitation. Plain t
 FORMATTING: NEVER use markdown. Plain text only.
 
 RESPONSE FORMAT:
-One sharp opening sentence.
+Start with one sharp opening sentence.
 
-THE PLAY: [bet or lean]
-FADE: [one line]
-CONFIDENCE: [High/Medium/Speculative]
-TIMING: [one line]`;
+Then use exactly this format with blank lines between sections:
+
+THE PLAY
+[one line]
+
+WHY IT FITS
+[one to two lines]
+
+FADE
+[one line]
+
+CONFIDENCE
+[High / Medium / Speculative]
+
+TIMING
+[one line]
+
+Do not put multiple labels on one line.
+Keep each section short.
+Plain text only.
 
   let userPrompt = question;  if (sportHint === "golf") {   userPrompt = `You are answering a golf betting question.  Question: ${question}  Golf context: ${JSON.stringify(golfContext || {}, null, 2)}  Rules: - Answer only as a golf analyst. - Do not mention NBA, NFL, MLB, F1, or tennis. - Use the tournament, odds, rankings, and player names in the provided golf context. - If data is limited, still stay within golf and say what the best golf lean is from the available board. `; } else if (sportHint === "nba") {   userPrompt = `You are answering an NBA betting question.  Question: ${question}  NBA context: ${JSON.stringify(nbaContext || {}, null, 2)}  Rules: - Answer only as an NBA analyst. - Do not mention golf, NFL, MLB, F1, or tennis. `; } else if (sportHint === "mlb") {   userPrompt = `You are answering an MLB betting question.  Question: ${question}  MLB context: ${JSON.stringify(mlbContext || {}, null, 2)}  Rules: - Answer only as an MLB analyst. - Do not mention golf, NBA, NFL, F1, or tennis. `; } else if (sportHint === "f1") {   userPrompt = `You are answering a Formula 1 betting question.  Question: ${question}  F1 context: ${JSON.stringify(f1Context || {}, null, 2)}  Rules: - Answer only as an F1 analyst. - Do not mention golf, NBA, NFL, MLB, or tennis. `; } else if (sportHint === "nfl") {   userPrompt = `You are answering an NFL betting question.  Question: ${question}  NFL context: ${typeof nflContext === "string" ? nflContext : JSON.stringify(nflContext || {}, null, 2)}  Rules: - Answer only as an NFL analyst. - Do not mention golf, NBA, MLB, F1, or tennis. `; } else if (matchupContext) {   userPrompt = `You are answering a betting question about this matchup.  Question: ${question}  Matchup context: ${JSON.stringify(matchupContext, null, 2)}  Rules: - Stay within the matchup and its sport. - Do not drift into unrelated sports. `; }  const messages = [{ role: "user", content: userPrompt }];
 
