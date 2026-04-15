@@ -1,7 +1,7 @@
 // api/access.js
 // Validates owner and friend access codes.
 // Owner code: permanent, unlimited.
-// Friend codes: expire after 120 days, unlimited during window.
+// Friend codes: expire on a fixed date you set, unlimited during window.
 // Returns a signed token stored in localStorage — no login, no account.
 
 import { applyCors } from "./_cors.js";
@@ -12,8 +12,9 @@ const TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "ur-dev-secret-changeme"
 // ── Code registry ─────────────────────────────────────────────────────────────
 // Set these in Vercel environment variables — never hardcode in production.
 // OWNER_CODE=yourprivatecode
-// FRIEND_CODES=code1:120,code2:120,code3:120
-// (format: code:days_valid)
+// FRIEND_CODES=code1:2026-08-13,code2:2026-08-13,code3:2026-08-13
+// (format: code:YYYY-MM-DD expiry date)
+// Leaving the date blank means the code never expires.
 
 function getCodeRegistry() {
   const registry = {};
@@ -24,14 +25,13 @@ function getCodeRegistry() {
     registry[ownerCode.toLowerCase()] = { tier: "owner", expiresAt: null };
   }
 
-  // Friends — parse "code:days,code:days" from env
+  // Friends — parse "code:YYYY-MM-DD,code:YYYY-MM-DD" from env
   const friendCodes = process.env.FRIEND_CODES || "";
   for (const entry of friendCodes.split(",")) {
-    const [code, days] = entry.trim().split(":");
+    const [code, expiry] = entry.trim().split(":");
     if (!code) continue;
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + parseInt(days || "120", 10));
-    registry[code.toLowerCase()] = { tier: "friend", expiresAt: expiresAt.toISOString() };
+    const expiresAt = expiry ? new Date(expiry).toISOString() : null;
+    registry[code.toLowerCase()] = { tier: "friend", expiresAt };
   }
 
   return registry;
@@ -78,7 +78,8 @@ export default async function handler(req, res) {
     if (!code) return res.status(400).json({ error: "No code provided" });
 
     const registry = getCodeRegistry();
-    const normalizedCode = String(code || "").trim().toLowerCase(); const entry = registry[normalizedCode];
+    const normalizedCode = String(code || "").trim().toLowerCase();
+    const entry = registry[normalizedCode];
 
     if (!entry) {
       return res.status(200).json({ valid: false, error: "Invalid code" });
