@@ -176,7 +176,7 @@ TIMING: [one line]`;
     console.error("UR TAKE error:", err);
     return res.status(500).json({
       error: "Request failed",
-      response: `Request failed: ${err??.message || "Unknown server error"}`,
+      response: `Request failed: ${err?.message || "Unknown server error"}`,
     });
   }
 }
