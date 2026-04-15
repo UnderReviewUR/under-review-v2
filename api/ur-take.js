@@ -1,76 +1,59 @@
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 import { applyCors } from "./_cors.js";
-const NBA_PLAYERS = {}; // players.js removed — NBA prompt uses live ESPN data from nba.js
+
+/*
+  NOTE:
+  - NBA_PLAYERS intentionally left empty because you said players.js was removed
+    and NBA should rely on live data from nba.js / frontend context.
+  - This rewrite preserves your backend shape, fixes sport routing, adds a real
+    generic fallback, improves Anthropic error handling, and returns user-visible
+    error text even on backend failures so your current frontend can surface it.
+*/
+const NBA_PLAYERS = {};
 
 // ── TODAY string — injected into every prompt ────────────────────────────────
 function getTodayStr() {
   return new Date().toLocaleDateString("en-US", {
-    weekday:"long", year:"numeric", month:"long", day:"numeric",
-    timeZone:"America/New_York",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "America/New_York",
   });
 }
 
 // ── PGA Player Database ───────────────────────────────────────────────────────
 const PGA_PLAYERS = {
   "Scottie Scheffler":  { rank:1,  country:"USA", tier:1, sg:{ total:3.12, ott:0.94, app:1.21, arg:0.48, putt:0.49 }, cutMaking:"97%", top10Rate:"52%", winRate:"18%", courseFit:{ parkland:"ELITE", links:"STRONG", bermuda:"STRONG", poa:"ELITE", bentgrass:"ELITE" }, recentForm:["WIN","T4","WIN","T2","WIN","T3"], bestMarkets:["outright","top_5","top_10","frl"], note:"Best player in the world. SG Total 3.12 is elite across every event type. High-floor outright, top-5, and top-10 profile every week." },
-
   "Rory McIlroy":       { rank:2,  country:"NIR", tier:1, sg:{ total:2.41, ott:1.18, app:0.87, arg:0.12, putt:0.24 }, cutMaking:"89%", top10Rate:"44%", winRate:"12%", courseFit:{ parkland:"ELITE", links:"ELITE", bermuda:"STRONG", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["WIN","WIN","T8","T3","T15","T5"], bestMarkets:["outright","top_5","top_10","frl","matchup"], note:"Elite driver with one of the highest ceilings in golf. Best used in outrights, top-5s, and matchup markets when the driver is decisive." },
-
   "Xander Schauffele":  { rank:3,  country:"USA", tier:1, sg:{ total:2.18, ott:0.71, app:0.89, arg:0.31, putt:0.27 }, cutMaking:"92%", top10Rate:"46%", winRate:"10%", courseFit:{ parkland:"ELITE", links:"STRONG", bermuda:"ELITE", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["WIN","T2","T6","T3","WIN","T11"], bestMarkets:["outright","top_5","top_10","make_cut"], note:"One of the steadiest elite players on the board. High-end iron play and putting make him one of the safest top-10 profiles in the game." },
-
   "Jon Rahm":           { rank:4,  country:"ESP", tier:1, sg:{ total:2.05, ott:0.68, app:0.91, arg:0.22, putt:0.24 }, cutMaking:"88%", top10Rate:"41%", winRate:"11%", courseFit:{ parkland:"ELITE", links:"ELITE", bermuda:"STRONG", poa:"ELITE", bentgrass:"STRONG" }, recentForm:["T4","WIN","T2","T8","T20","T3"], bestMarkets:["outright","top_5","top_10","matchup"], note:"Major-winning, all-surface star with an elite all-around profile. LIV schedule means field confirmation matters before making any play." },
-
   "Collin Morikawa":    { rank:5,  country:"USA", tier:1, sg:{ total:1.89, ott:0.42, app:1.08, arg:0.18, putt:0.21 }, cutMaking:"90%", top10Rate:"38%", winRate:"8%",  courseFit:{ parkland:"ELITE", links:"ELITE", bermuda:"STRONG", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["T3","T7","T2","WIN","T5","T14"], bestMarkets:["top_5","top_10","top_20","matchup"], note:"Best pure iron player in this pool. Elite approach play makes him one of the strongest top-10 and matchup options on precision courses." },
-
   "Viktor Hovland":     { rank:6,  country:"NOR", tier:1, sg:{ total:1.78, ott:0.82, app:0.71, arg:0.09, putt:0.16 }, cutMaking:"84%", top10Rate:"35%", winRate:"9%",  courseFit:{ parkland:"STRONG", links:"ELITE", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["T12","T4","WIN","T8","T3","T22"], bestMarkets:["outright","top_10","top_20","matchup"], note:"Dangerous upside play, especially on links-style or driver-heavy setups. Around-the-green play is still the pressure point." },
-
   "Patrick Cantlay":    { rank:7,  country:"USA", tier:1, sg:{ total:1.72, ott:0.44, app:0.79, arg:0.28, putt:0.21 }, cutMaking:"91%", top10Rate:"37%", winRate:"7%",  courseFit:{ parkland:"ELITE", links:"NEUTRAL", bermuda:"STRONG", poa:"ELITE", bentgrass:"STRONG" }, recentForm:["T6","T3","T18","T2","T9","T5"], bestMarkets:["top_5","top_10","top_20","make_cut","matchup"], note:"Reliable weekly profile with elite consistency. Strong top-10, top-20, and make-cut option when books price him below the biggest names." },
-
   "Ludvig Aberg":       { rank:8,  country:"SWE", tier:1, sg:{ total:1.84, ott:0.98, app:0.68, arg:0.10, putt:0.08 }, cutMaking:"85%", top10Rate:"38%", winRate:"6%",  courseFit:{ parkland:"STRONG", links:"STRONG", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T2","T4","T3","WIN","T8","T2"], bestMarkets:["outright","top_5","top_10","matchup"], note:"Explosive ceiling driven by elite ball-striking and power. One of the most dangerous outright and top-5 players whenever the driver matters." },
-
   "Wyndham Clark":      { rank:9,  country:"USA", tier:1, sg:{ total:1.64, ott:0.89, app:0.61, arg:0.08, putt:0.06 }, cutMaking:"78%", top10Rate:"28%", winRate:"8%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T4","WIN","T22","T8","T30","T5"], bestMarkets:["outright","top_10","frl"], note:"Boom-or-bust power profile. Better for outrights and first-round leader shots than conservative placement markets." },
-
   "Tommy Fleetwood":    { rank:14, country:"ENG", tier:1, sg:{ total:1.45, ott:0.48, app:0.72, arg:0.14, putt:0.11 }, cutMaking:"86%", top10Rate:"30%", winRate:"5%",  courseFit:{ parkland:"STRONG", links:"ELITE", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["T5","T3","T11","T4","T2","WIN"], bestMarkets:["top_10","top_20","matchup"], note:"Excellent links and wind player with a clean top-10 profile when the course rewards control and patience." },
-
   "Matt Fitzpatrick":   { rank:15, country:"ENG", tier:1, sg:{ total:1.44, ott:0.38, app:0.72, arg:0.22, putt:0.12 }, cutMaking:"87%", top10Rate:"30%", winRate:"5%",  courseFit:{ parkland:"ELITE", links:"STRONG", bermuda:"STRONG", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["T4","T2","T9","T11","T3","WIN"], bestMarkets:["top_5","top_10","top_20","make_cut","matchup"], note:"Precision-first player with strong placement-market value. Best on courses that reward control more than raw distance." },
-
   "Sam Burns":          { rank:12, country:"USA", tier:1, sg:{ total:1.51, ott:0.62, app:0.68, arg:0.11, putt:0.10 }, cutMaking:"85%", top10Rate:"29%", winRate:"6%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T8","WIN","T3","T12","T6","T24"], bestMarkets:["outright","top_10","top_20","make_cut"], note:"Balanced, high-upside player with multiple paths to contend. Strong top-10 and outright value when form is trending up." },
-
   "Cameron Young":      { rank:30, country:"USA", tier:1, sg:{ total:1.08, ott:0.94, app:0.28, arg:-0.04, putt:-0.10 }, cutMaking:"76%", top10Rate:"18%", winRate:"2%",  courseFit:{ parkland:"NEUTRAL", links:"STRONG", bermuda:"NEUTRAL", poa:"NEUTRAL", bentgrass:"STRONG" }, recentForm:["T14","T4","T18","T9","T28","T3"], bestMarkets:["top_10","top_20","frl"], note:"Massive power gives him ceiling, but the short game and putting make him volatile. Better as a FRL or upside placement target than a safe anchor." },
-
   "Justin Rose":        { rank:37, country:"ENG", tier:1, sg:{ total:1.18, ott:0.44, app:0.54, arg:0.12, putt:0.08 }, cutMaking:"81%", top10Rate:"20%", winRate:"2%",  courseFit:{ parkland:"STRONG", links:"STRONG", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T8","T3","T19","T6","T11","T25"], bestMarkets:["top_10","top_20","make_cut","matchup"], note:"Veteran major-caliber profile with solid placement value when the test favors experience and discipline." },
-
   "Jason Day":          { rank:46, country:"AUS", tier:1, sg:{ total:1.18, ott:0.42, app:0.58, arg:0.12, putt:0.06 }, cutMaking:"81%", top10Rate:"22%", winRate:"3%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T6","T3","T11","T4","WIN","T8"], bestMarkets:["top_10","top_20","make_cut","matchup"], note:"Well-rounded veteran who still flashes contending form. Better in top-20 and matchup markets than aggressive outrights." },
-
   "HaoTong Li":         { rank:47, country:"CHN", tier:1, sg:{ total:1.22, ott:0.54, app:0.58, arg:0.06, putt:0.04 }, cutMaking:"79%", top10Rate:"21%", winRate:"3%",  courseFit:{ parkland:"STRONG", links:"STRONG", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["WIN","T4","T8","T18","T3","T11"], bestMarkets:["outright","top_10","top_20","matchup"], note:"Live under-the-radar upside profile with enough form to justify aggressive placement or longshot outright exposure." },
-
   "Patrick Reed":       { rank:48, country:"USA", tier:1, sg:{ total:0.88, ott:0.18, app:0.38, arg:0.18, putt:0.14 }, cutMaking:"78%", top10Rate:"18%", winRate:"3%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T8","T4","T18","T11","T3","WIN"], bestMarkets:["top_10","top_20","matchup"], note:"Short-game-driven grinder with more value in specific course fits than broad weekly exposure. LIV field confirmation matters." },
-
   "Hideki Matsuyama":   { rank:20, country:"JPN", tier:1, sg:{ total:1.29, ott:0.51, app:0.64, arg:0.08, putt:0.06 }, cutMaking:"81%", top10Rate:"24%", winRate:"5%",  courseFit:{ parkland:"ELITE", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T2","WIN","T8","T5","T14","T3"], bestMarkets:["outright","top_10","top_20","matchup"], note:"Elite iron-based profile with real upside on demanding ball-striking venues. Strong outright and top-10 candidate in the right setup." },
-
   "Shane Lowry":        { rank:19, country:"IRE", tier:1, sg:{ total:1.31, ott:0.28, app:0.61, arg:0.22, putt:0.20 }, cutMaking:"84%", top10Rate:"25%", winRate:"4%",  courseFit:{ parkland:"STRONG", links:"ELITE", bermuda:"NEUTRAL", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["T4","T8","T2","T22","T11","T5"], bestMarkets:["top_10","top_20","matchup"], note:"Excellent wind and links player whose short game keeps him live in placement markets on tougher setups." },
-
   "Brian Harman":       { rank:23, country:"USA", tier:1, sg:{ total:1.22, ott:0.04, app:0.62, arg:0.28, putt:0.28 }, cutMaking:"85%", top10Rate:"22%", winRate:"3%",  courseFit:{ parkland:"STRONG", links:"ELITE", bermuda:"STRONG", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["T4","T9","WIN","T3","T18","T11"], bestMarkets:["top_10","top_20","make_cut","matchup"], note:"Short hitter, but elite short game and putting make him a strong make-cut and placement candidate on precision tracks." },
-
   "Jordan Spieth":      { rank:22, country:"USA", tier:1, sg:{ total:1.22, ott:0.08, app:0.52, arg:0.34, putt:0.28 }, cutMaking:"82%", top10Rate:"23%", winRate:"3%",  courseFit:{ parkland:"STRONG", links:"ELITE", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T5","T3","T18","T8","T2","T28"], bestMarkets:["top_10","top_20","matchup"], note:"Creative scorer with elite scrambling and putting instincts. Better in placement markets than outrights unless the setup strongly fits him." },
-
   "Russell Henley":     { rank:11, country:"USA", tier:1, sg:{ total:1.54, ott:0.41, app:0.82, arg:0.18, putt:0.13 }, cutMaking:"87%", top10Rate:"33%", winRate:"5%",  courseFit:{ parkland:"ELITE", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T3","T7","T2","T11","T4","T19"], bestMarkets:["top_5","top_10","top_20","make_cut"], note:"Quietly elite approach player with one of the best top-10 and top-20 profiles in the pool." },
-
   "Corey Conners":      { rank:36, country:"CAN", tier:1, sg:{ total:1.28, ott:0.42, app:0.72, arg:0.08, putt:0.06 }, cutMaking:"84%", top10Rate:"22%", winRate:"3%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T8","T3","T11","T6","T18","T4"], bestMarkets:["top_10","top_20","make_cut","matchup"], note:"Ball-striking specialist whose iron play keeps him live on precision courses. Putting is usually the swing factor." },
-
   "Tom Kim":            { rank:24, country:"KOR", tier:1, sg:{ total:1.06, ott:0.38, app:0.44, arg:0.14, putt:0.10 }, cutMaking:"81%", top10Rate:"22%", winRate:"4%",  courseFit:{ parkland:"STRONG", links:"STRONG", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T3","T6","WIN","T11","T4","T18"], bestMarkets:["outright","top_10","top_20","matchup"], note:"Young, versatile profile with strong all-around fit across multiple course types. Better in top-10 and top-20 than reckless outright exposure." },
-
   "Akshay Bhatia":      { rank:38, country:"USA", tier:1, sg:{ total:1.62, ott:0.78, app:0.68, arg:0.08, putt:0.08 }, cutMaking:"78%", top10Rate:"26%", winRate:"5%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["WIN","T4","T3","T8","T18","T11"], bestMarkets:["outright","top_10","top_20"], note:"Young upside player with enough power and approach quality to matter in outright and top-10 conversations." },
-
   "Nick Taylor":        { rank:16, country:"CAN", tier:1, sg:{ total:1.44, ott:0.48, app:0.64, arg:0.16, putt:0.16 }, cutMaking:"82%", top10Rate:"24%", winRate:"4%",  courseFit:{ parkland:"STRONG", links:"NEUTRAL", bermuda:"STRONG", poa:"STRONG", bentgrass:"STRONG" }, recentForm:["T6","T2","WIN","T8","T14","T4"], bestMarkets:["top_10","top_20","make_cut","matchup"], note:"Dependable iron-and-putter combination makes him a solid placement-market option in balanced fields." },
-
   "Cameron Smith":      { rank:17, country:"AUS", tier:1, sg:{ total:1.42, ott:0.38, app:0.61, arg:0.38, putt:0.45 }, cutMaking:"85%", top10Rate:"34%", winRate:"8%",  courseFit:{ parkland:"STRONG", links:"ELITE", bermuda:"STRONG", poa:"STRONG", bentgrass:"ELITE" }, recentForm:["WIN","T4","T3","T7","T18","T2"], bestMarkets:["outright","top_5","top_10","matchup"], note:"Elite putter and short-game closer. LIV field confirmation matters, but his ceiling is real whenever the putter can separate." },
-
   "Dustin Johnson":     { rank:50, country:"USA", tier:2, sg:{ total:1.44, ott:1.12, app:0.48, arg:0.02, putt:-0.18 }, cutMaking:"82%", top10Rate:"24%", winRate:"4%", recentForm:["T8","T4","T3","T18","WIN","T11"], bestMarkets:["outright","top_10","frl"], note:"Still has power-driven upside, but volatility makes him more of a ceiling play than a dependable weekly option. LIV field confirmation matters." },
-
   "Brooks Koepka":      { rank:51, country:"USA", tier:2, sg:{ total:1.58, ott:0.84, app:0.62, arg:0.08, putt:0.04 }, cutMaking:"79%", top10Rate:"22%", winRate:"5%", recentForm:["WIN","T3","T18","T4","T28","T8"], bestMarkets:["outright","top_5","top_10"], note:"Big-stage ceiling remains real. LIV field confirmation matters, but he still profiles best in outright and top-10 markets." },
-
   "Bryson DeChambeau":  { rank:52, country:"USA", tier:2, sg:{ total:1.62, ott:1.44, app:0.48, arg:0.08, putt:-0.38 }, cutMaking:"75%", top10Rate:"20%", winRate:"5%", recentForm:["WIN","T4","T18","T8","T30","WIN"], bestMarkets:["outright","frl","top_10"], note:"Extreme power gives him slate-breaking upside, but the putting volatility makes him a risky weekly click. LIV field confirmation matters." },
 };
 
@@ -176,7 +159,6 @@ const NFL_QBS = {
 };
 
 // ── F1 Data ───────────────────────────────────────────────────────────────────
-
 const LEGACY_F1_STANDINGS_BACKUP = [
   { position:1,  full_name:"Kimi Antonelli",    team_name:"Mercedes",     points:62 },
   { position:2,  full_name:"George Russell",    team_name:"Mercedes",     points:43 },
@@ -194,98 +176,120 @@ const LEGACY_F1_STANDINGS_BACKUP = [
 function summarizeMatchupContext(mc) {
   if (!mc) return null;
   const parts = [];
-  if (mc.title)       parts.push("Title: " + mc.title);
-  if (mc.league)      parts.push("League: " + mc.league);
-  if (mc.time)        parts.push("Time: " + mc.time);
+  if (mc.title) parts.push("Title: " + mc.title);
+  if (mc.league) parts.push("League: " + mc.league);
+  if (mc.time) parts.push("Time: " + mc.time);
   if (mc.whatMatters) parts.push("What matters: " + mc.whatMatters);
-  if (Array.isArray(mc.quickHitters) && mc.quickHitters.length) parts.push("Quick hitters: " + mc.quickHitters.join(" | "));
+  if (Array.isArray(mc.quickHitters) && mc.quickHitters.length) {
+    parts.push("Quick hitters: " + mc.quickHitters.join(" | "));
+  }
   return parts.join("\n");
 }
 
 function cleanResponseText(text) {
   return String(text || "")
-    .replace(/^i['']?m ur take.*$/gim, "")
+    .replace(/^i['’]?m ur take.*$/gim, "")
     .replace(/^ur take[:-]\s*/gim, "")
     .replace(/^without (access to |real-?time |current )[^\n]*/gim, "")
-    .replace(/^i don['']?t have (access to |real-?time |live |current )[^\n]*/gim, "")
+    .replace(/^i don['’]?t have (access to |real-?time |live |current )[^\n]*/gim, "")
     .replace(/^as of my (knowledge |training )?cutoff[^\n]*/gim, "")
     .trim();
 }
 
 function responseLooksWrongForSport(text, sport) {
   const t = String(text || "").toLowerCase();
-  if (sport === "tennis") return t.includes("i don't cover tennis") || (t.includes("quarterback") && !t.includes("tennis"));
-  if (sport === "nfl")    return t.includes("grand slam") && !t.includes("super bowl");
+  if (sport === "tennis") return t.includes("quarterback") && !t.includes("tennis");
+  if (sport === "nfl") return t.includes("grand slam") && !t.includes("super bowl");
+  if (sport === "golf") return t.includes("touchdown") || t.includes("quarterback");
+  if (sport === "nba") return t.includes("fairway") || t.includes("pole position");
+  if (sport === "mlb") return t.includes("ace percentage") || t.includes("drs");
+  if (sport === "f1") return t.includes("pra") || t.includes("make cut");
   return false;
+}
+
+function safeJsonError(res, status, error, responseText, details = null) {
+  return res.status(status).json({
+    error,
+    response: responseText,
+    ...(details ? { details } : {}),
+  });
+}
+
+function safeSlice(str, max = 16000) {
+  return String(str || "").slice(0, max);
 }
 
 function detectSport(question, sportHint, matchupContext) {
   const q = String(question || "").toLowerCase();
-  if (sportHint === "nfl")    return "nfl";
+
+  if (sportHint === "nfl") return "nfl";
   if (sportHint === "tennis") return "tennis";
-  if (sportHint === "f1")     return "f1";
-  if (sportHint === "nba")    return "nba";
-  if (sportHint === "mlb")    return "mlb";
-  if (sportHint === "golf")   return "golf";
+  if (sportHint === "f1") return "f1";
+  if (sportHint === "nba") return "nba";
+  if (sportHint === "mlb") return "mlb";
+  if (sportHint === "golf") return "golf";
 
   const mcLeague = String((matchupContext && matchupContext.league) || "").toLowerCase();
-  if (mcLeague.includes("nfl"))                              return "nfl";
+  if (mcLeague.includes("nfl")) return "nfl";
   if (mcLeague.includes("atp") || mcLeague.includes("wta")) return "tennis";
-  if (mcLeague.includes("pga") || mcLeague.includes("golf"))return "golf";
-  if (mcLeague.includes("f1")  || mcLeague.includes("formula")) return "f1";
-  if (mcLeague.includes("nba"))                              return "nba";
-  if (mcLeague.includes("mlb"))                              return "mlb";
+  if (mcLeague.includes("pga") || mcLeague.includes("golf")) return "golf";
+  if (mcLeague.includes("f1") || mcLeague.includes("formula")) return "f1";
+  if (mcLeague.includes("nba")) return "nba";
+  if (mcLeague.includes("mlb")) return "mlb";
 
   const golfPlayers = ["scheffler","mcilroy","rory ","schauffele","xander","morikawa","collin","hovland","viktor","cantlay","rahm","aberg","ludvig","wyndham","finau","russell henley","sam burns","sungjae","fleetwood","fitzpatrick","cameron smith","hatton","lowry","matsuyama","hideki","justin thomas","spieth","brian harman","tom kim","macintyre","theegala","rickie fowler","keegan bradley","adam scott","cameron young","chris kirk","sepp straka","dustin johnson","brooks koepka","bryson","phil mickelson","corey conners","akshay bhatia","min woo lee","nick taylor","jason day","haotong li","hao-tong","justin rose"];
-  for (const p of golfPlayers) { if (q.includes(p)) return "golf"; }
+  for (const p of golfPlayers) if (q.includes(p)) return "golf";
 
   const tennisPlayers = ["alcaraz","sinner","djokovic","zverev","medvedev","de minaur","shelton","fritz","draper","bublik","mensik","ruud","rublev","sabalenka","rybakina","swiatek","pegula","gauff","andreeva","paolini","keys","osaka","noskova","kostyuk","zheng","kartal"];
-  for (const p of tennisPlayers) { if (q.includes(p)) return "tennis"; }
+  for (const p of tennisPlayers) if (q.includes(p)) return "tennis";
 
   const f1Drivers = ["antonelli","george russell","leclerc","lewis hamilton","lando norris","oscar piastri","max verstappen","isack hadjar","carlos sainz","albon","fernando alonso","lance stroll","pierre gasly","franco colapinto","hulkenberg","bortoleto","bearman","esteban ocon","liam lawson"];
-  for (const d of f1Drivers) { if (q.includes(d)) return "f1"; }
+  for (const d of f1Drivers) if (q.includes(d)) return "f1";
 
   const nflPlayers = ["mahomes","josh allen","lamar jackson","joe burrow","dak prescott","jalen hurts","brock purdy","jared goff","matthew stafford","cj stroud","trevor lawrence","jordan love","drake maye","jayden daniels","caleb williams","bo nix","baker mayfield","shedeur sanders","derrick henry","james cook","jonathan taylor","puka nacua","ja'marr chase","jaxon smith-njigba","george pickens","ceedee lamb","trey mcbride","brock bowers","travis kelce","tyreek hill"];
-  for (const p of nflPlayers) { if (q.includes(p)) return "nfl"; }
+  for (const p of nflPlayers) if (q.includes(p)) return "nfl";
 
   const nbaPlayers = ["jokic","nikola jokic","shai gilgeous","sga","luka doncic","jayson tatum","giannis","wembanyama","jalen brunson","steph curry","kevin durant","devin booker","ja morant","anthony edwards","karl-anthony towns","tyrese haliburton","donovan mitchell","bam adebayo","lebron","lamelo","damian lillard","trae young","anthony davis","rudy gobert","jaren jackson","lauri markkanen","cade cunningham","paolo banchero","scottie barnes","franz wagner","alperen sengun","jaylen brown"];
-  for (const p of nbaPlayers) { if (q.includes(p)) return "nba"; }
+  for (const p of nbaPlayers) if (q.includes(p)) return "nba";
 
   const mlbPlayers = ["ohtani","shohei","mike trout","aaron judge","acuna","mookie betts","freddie freeman","pete alonso","lindor","corbin carroll","gunnar henderson","corey seager","bryce harper","guerrero","jose ramirez","julio rodriguez","gerrit cole","paul skenes","zack wheeler","corbin burnes"];
-  for (const p of mlbPlayers) { if (q.includes(p)) return "mlb"; }
+  for (const p of mlbPlayers) if (q.includes(p)) return "mlb";
 
   const golfTerms = ["pga tour","pga championship","the masters","masters tournament","the open championship","british open","us open golf","ryder cup","strokes gained","sg total","sg app","make cut","missed cut","course fit","bentgrass","poa annua","augusta national","tpc sawgrass","pebble beach","pinehurst","riviera","quail hollow","royal troon","amen corner","green jacket","birdie","bogey","front nine","back nine","hole-in-one"];
-  for (const t of golfTerms) { if (q.includes(t)) return "golf"; }
+  for (const t of golfTerms) if (q.includes(t)) return "golf";
 
   const tennisTerms = ["roland garros","french open","wimbledon","australian open","miami open","wta tour","atp tour","surface elo","clay court","grass court","tiebreak","ace","double fault","break point"];
-  for (const t of tennisTerms) { if (q.includes(t)) return "tennis"; }
+  for (const t of tennisTerms) if (q.includes(t)) return "tennis";
 
   const f1Terms = ["formula 1","formula one","grand prix","f1 race","constructor championship","driver championship","pit stop","drs zone","qualifying"];
-  for (const t of f1Terms) { if (q.includes(t)) return "f1"; }
+  for (const t of f1Terms) if (q.includes(t)) return "f1";
 
   const nbaTerms = ["nba finals","nba playoffs","triple double","nba prop","pra ","three pointer","usage rate","basketball"];
-  for (const t of nbaTerms) { if (q.includes(t)) return "nba"; }
+  for (const t of nbaTerms) if (q.includes(t)) return "nba";
 
   const mlbTerms = ["world series","starting pitcher","earned run average","strikeout rate","batting average","home run prop","k prop","park factor","barrel rate","statcast","baseball"];
-  for (const t of mlbTerms) { if (q.includes(t)) return "mlb"; }
+  for (const t of mlbTerms) if (q.includes(t)) return "mlb";
 
-  if (q.includes("golf"))       return "golf";
-  if (q.includes("tennis"))     return "tennis";
+  if (q.includes("golf")) return "golf";
+  if (q.includes("tennis")) return "tennis";
   if (q.includes("basketball")) return "nba";
-  if (q.includes("baseball"))   return "mlb";
-  if (q.includes("football"))   return "nfl";
+  if (q.includes("baseball")) return "mlb";
+  if (q.includes("football")) return "nfl";
 
   const nflTeams = ["bills","patriots","dolphins","jets","ravens","bengals","browns","steelers","texans","colts","jaguars","titans","chiefs","raiders","chargers","broncos","cowboys","giants","eagles","commanders","bears","lions","packers","vikings","falcons","panthers","saints","buccaneers","cardinals","rams","49ers","seahawks"];
-  for (const t of nflTeams) { if (q.includes(t)) return "nfl"; }
+  for (const t of nflTeams) if (q.includes(t)) return "nfl";
 
   const nbaTeams = ["lakers","celtics","warriors","nuggets","bucks","heat","thunder","knicks","sixers","nets","bulls","cavaliers","clippers","suns","mavericks","grizzlies","pelicans","jazz","kings","blazers","rockets","spurs","raptors","magic","pacers","hawks","hornets","pistons","timberwolves","wizards"];
-  for (const t of nbaTeams) { if (q.includes(t)) return "nba"; }
+  for (const t of nbaTeams) if (q.includes(t)) return "nba";
 
-  return "nfl";
+  const mlbTeams = ["yankees","mets","dodgers","braves","phillies","cubs","cardinals","astros","rangers","mariners","red sox","blue jays","orioles","guardians","twins","brewers","padres","giants","diamondbacks","rockies","reds","pirates","nationals","marlins","rays","angels","athletics","white sox","tigers","royals"];
+  for (const t of mlbTeams) if (q.includes(t)) return "mlb";
+
+  return "generic";
 }
 
 function getRelevantQBs(question) {
-  const q = question.toLowerCase();
+  const q = String(question || "").toLowerCase();
   const relevant = {};
   for (const name in NFL_QBS) {
     const data = NFL_QBS[name];
@@ -319,13 +323,37 @@ function buildNflSkillContext() {
   }).join("\n\n");
 }
 
+function buildGenericSportsPrompt(question, matchupCtxStr) {
+  const today = getTodayStr();
+  return `You are Under Review -- a sharp sports betting intelligence tool.
+
+TODAY: ${today}
+IDENTITY: Lead with the take. Never hedge. Never open with a limitation. Plain text only.
+FORMATTING: NEVER use markdown. Plain text only.
+
+RULES:
+1. Answer the user's sports question directly.
+2. If the sport is unclear, infer the most likely betting angle from the question.
+3. Do not pretend the question is about tennis.
+4. If the user asks about a player, game, prop, or future, give one best lean and one fade.
+5. Keep it practical and concise.
+
+RESPONSE FORMAT:
+One sharp opening sentence.
+THE PLAY: [bet or lean]
+FADE: [one line]
+CONFIDENCE: [High/Medium/Speculative]
+TIMING: [one line]
+
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
+}
+
 // ── Golf System Prompt ────────────────────────────────────────────────────────
 function buildGolfSystemPrompt(ctx) {
   const today = getTodayStr();
   const currentEvent = ctx?.currentEvent || null;
   const odds = ctx?.odds || {};
   const question = ctx?.question || "";
-
   const tournament = ctx?.tournament || null;
   const recentResults = Array.isArray(ctx?.recentResults) ? ctx.recentResults : [];
   const sourceMeta = ctx?.sourceMeta || {};
@@ -355,11 +383,11 @@ function buildGolfSystemPrompt(ctx) {
   const displayLocation =
     currentEvent?.location || tournament?.location || [ctx?.course?.city, ctx?.course?.state || ctx?.course?.country].filter(Boolean).join(", ");
 
-const upcomingEventLine =
-  hasUpcomingTournament
-    ? `NEXT TOURNAMENT: ${displayEventName} | COURSE: ${displayCourse} | LOCATION: ${displayLocation || "TBD"} | START: ${tournament?.startDate || currentEvent?.startDate || "TBD"}`
-    : "";
-  
+  const upcomingEventLine =
+    hasUpcomingTournament
+      ? `NEXT TOURNAMENT: ${displayEventName} | COURSE: ${displayCourse} | LOCATION: ${displayLocation || "TBD"} | START: ${tournament?.startDate || currentEvent?.startDate || "TBD"}`
+      : "";
+
   const courseNameLower = String(displayCourse || "").toLowerCase();
 
   let leaderBlock = "";
@@ -426,19 +454,19 @@ Note: ${courseData.note}
       : "";
 
   let oddsStr = "";
-let oddsNote = "";
+  let oddsNote = "";
 
-if (odds?.outrights?.length > 0) {
-  oddsStr =
-    "OUTRIGHT MARKET (top of board):\n" +
-    odds.outrights
-      .slice(0, 5)
-      .map(o => `${o.player}: ${o.odds > 0 ? "+" : ""}${o.odds}`)
-      .join("\n") +
-    "\n";
-} else {
-  oddsNote = "MARKET: Odds not available yet — check closer to tee time.\n";
-}
+  if (odds?.outrights?.length > 0) {
+    oddsStr =
+      "OUTRIGHT MARKET (top of board):\n" +
+      odds.outrights
+        .slice(0, 5)
+        .map(o => `${o.player}: ${o.odds > 0 ? "+" : ""}${o.odds}`)
+        .join("\n") +
+      "\n";
+  } else {
+    oddsNote = "MARKET: Odds not available yet -- check closer to tee time.\n";
+  }
 
   let recentResultsStr = "";
   if (recentResults.length > 0) {
@@ -464,8 +492,8 @@ if (odds?.outrights?.length > 0) {
 
 TODAY: ${today}
 
-IDENTITY: Your FIRST sentence is always the lean — a direct, opinionated call. No setup. No context narration. Just the take. NEVER ask for more information. NEVER say you need odds to make a call. You have the player database — use it.
-FORMATTING: Plain text only. No markdown. Response must be under 120 words total. BAD: "This is a pre-tournament setup..." or "Without live odds I cannot..." or "What I need to make the call:". GOOD: Lead with the player name and lean, then data, then THE PLAY.
+IDENTITY: Your FIRST sentence is always the lean -- a direct, opinionated call. No setup. No context narration. Just the take. NEVER ask for more information. NEVER say you need odds to make a call. You have the player database -- use it.
+FORMATTING: Plain text only. No markdown. Response must be under 140 words total.
 
 ${upcomingEventLine ? upcomingEventLine + "\n\n" : ""}
 
@@ -491,10 +519,13 @@ RESPONSE FORMAT:
 THE PLAY: [Player] -- [Market]
 UR FAIR ODDS: [fair odds] | MARKET: [line] | VALUE: [gap]
 FADE: [player to avoid + one-line reason]
-CONFIDENCE: [High/Medium/Speculative] -- [max 8 words, no hedging, no asking for more data]
+CONFIDENCE: [High/Medium/Speculative] -- [max 8 words, no hedging]
 
-CRITICAL: THE PLAY must be a player from the database below. No exceptions.${playerStr}${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr}
-${oddsNote}
+CRITICAL: THE PLAY must be a player from the database below. No exceptions.
+
+${playerStr}
+
+${leaderBlock}${courseSection ? courseSection + "\n" : ""}${recentResultsStr ? recentResultsStr + "\n" : ""}${oddsStr}${oddsNote}
 
 QUESTION: ${question}
 SOURCE META: ${JSON.stringify(sourceMeta)}`;
@@ -510,20 +541,18 @@ function buildF1SystemPrompt(matchupCtxStr, f1Context) {
   const HDFRC  = ["hungary","hungaroring","barcelona","catalunya","zandvoort","suzuka"];
 
   const question = String(f1Context?.question || "").toLowerCase();
-const usingFallback = !!f1Context?.usingFallback;
+  const usingFallback = !!f1Context?.usingFallback;
 
-const hasReliableSchedule =
-  Array.isArray(f1Context?.schedule?.races) &&
-  f1Context.schedule.races.length > 0 &&
-  !usingFallback;
+  const hasReliableSchedule =
+    Array.isArray(f1Context?.schedule?.races) &&
+    f1Context.schedule.races.length > 0 &&
+    !usingFallback;
 
-const liveStandings = Array.isArray(f1Context?.standings) ? f1Context.standings : [];
-const standingsSource = liveStandings.length > 0
-  ? liveStandings
-  : LEGACY_F1_STANDINGS_BACKUP;
+  const liveStandings = Array.isArray(f1Context?.standings) ? f1Context.standings : [];
+  const standingsSource = liveStandings.length > 0 ? liveStandings : LEGACY_F1_STANDINGS_BACKUP;
+  const liveRaces = hasReliableSchedule ? f1Context.schedule.races : [];
 
-const liveRaces = hasReliableSchedule ? f1Context.schedule.races : [];
-const useCalendar = liveRaces.map(r => ({
+  const useCalendar = liveRaces.map(r => ({
     meeting_name: r.meeting_name || r.name || "Grand Prix",
     location: r.location || r.circuit_short_name || "TBD",
     date_start: r.date_start || null,
@@ -541,7 +570,7 @@ FORMATTING: NEVER use markdown. Plain text only.
 
 RESPONSE FORMAT:
 One sharp opening sentence. Then:
-THE BET: * [Driver] -- [market] -- [key reason]
+THE BET: [Driver] -- [market] -- [key reason]
 FADE: [one line]
 CONFIDENCE: [High/Medium/Speculative]
 TIMING: [one line]
@@ -551,9 +580,9 @@ CRITICAL RULES:
 2. Use only live F1 context passed into this request.
 3. If schedule data is missing, say the schedule is not loaded and pivot to driver form, team strength, or futures only.
 4. If the user names a specific race or driver, answer that directly without talking about a fake next race.
-5. Do not invent pace data, sector strength, tire degradation, pole probability, safety-car probability, or lap-count-specific race scripts unless that information is explicitly present in the provided context.
+5. Do not invent pace data, sector strength, tire degradation, pole probability, safety-car probability, or lap-count-specific race scripts unless explicitly present.
 
-${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
   }
 
   const upcoming = useCalendar
@@ -576,9 +605,7 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
     `${d.position || i + 1}. ${d.full_name || d.name} (${d.team_name || d.team}) -- ${d.points ?? 0} pts`
   ).join("\n");
 
-  const standingsNote = liveStandings.length > 0
-    ? "LIVE standings from F1 route"
-    : "Fallback standings in use";
+  const standingsNote = liveStandings.length > 0 ? "LIVE standings from F1 route" : "Fallback standings in use";
 
   const recentStr = completed.length
     ? "RECENT RESULTS:\n" + completed.slice(-3).reverse().map(r => `${r.meeting_name}: Winner -- ${r.winner}`).join("\n")
@@ -630,7 +657,7 @@ FORMATTING: NEVER use markdown. Plain text only.
 
 RESPONSE FORMAT:
 One sharp opening sentence. Then:
-THE BET: * [Driver] -- [market] -- [key reason]
+THE BET: [Driver] -- [market] -- [key reason]
 FADE: [one line]
 CONFIDENCE: [High/Medium/Speculative]
 TIMING: [one line]
@@ -664,30 +691,28 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
         const away = g.awayTeam?.tricode || g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
         const home = g.homeTeam?.tricode || g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
         if (g.statusCode === 3 || g.state === "post") return `${away} ${g.awayTeam?.score} @ ${home} ${g.homeTeam?.score} -- FINAL`;
-        if (g.statusCode === 2 || g.state === "in")   return `${away} ${g.awayTeam?.score} @ ${home} ${g.homeTeam?.score} -- LIVE`;
+        if (g.statusCode === 2 || g.state === "in") return `${away} ${g.awayTeam?.score} @ ${home} ${g.homeTeam?.score} -- LIVE`;
         return `${away} @ ${home} -- ${g.status || "Scheduled"}`;
       }).join("\n")
     : "No games on today's schedule.";
 
-  // Live prop lines from Odds API
   const propLines = ctx.propLines || [];
   let propLinesStr = "No prop lines posted yet.";
   if (propLines.length > 0) {
     const grouped = {};
     for (const pl of propLines) {
-      const k = pl.player + "|" + pl.prop;
+      const k = `${pl.player}|${pl.prop}`;
       if (!grouped[k]) grouped[k] = { player: pl.player, prop: pl.prop, game: pl.game, over: null, under: null };
-      if (pl.side === "Over")  grouped[k].over  = pl.line + " (" + (pl.odds > 0 ? "+" : "") + pl.odds + ")";
-      if (pl.side === "Under") grouped[k].under = pl.line;
+      if (pl.side === "Over") grouped[k].over = `${pl.line} (${pl.odds > 0 ? "+" : ""}${pl.odds})`;
+      if (pl.side === "Under") grouped[k].under = `${pl.line}`;
     }
     propLinesStr = Object.values(grouped).slice(0, 80).map(e => {
-      let s = e.over ? "OVER " + e.over : "";
+      let s = e.over ? `OVER ${e.over}` : "";
       if (e.under) s += (s ? " / UNDER " : "UNDER ") + e.under;
-      return `${e.player} -- ${e.prop.toUpperCase()} -- ${s} [${e.game}]`;
+      return `${e.player} -- ${String(e.prop || "").toUpperCase()} -- ${s} [${e.game}]`;
     }).join("\n");
   }
 
-  // Live ESPN season averages — these have current teams and reflect trades
   const playerStats = ctx.playerStats || [];
   const seasonAvgsStr = playerStats.length > 0
     ? "LIVE ESPN SEASON AVERAGES (current teams -- use these over database for team info):\n" +
@@ -697,18 +722,33 @@ function buildNbaSystemPrompt(nbaContext, matchupCtxStr) {
       }).join("\n")
     : "";
 
-  const playoffSeries = ctx.playoffSeries || [];   const playoffSeriesStr = playoffSeries.length > 0     ? playoffSeries.map(s => `${s.round}: ${s.away} ${s.awayWins} - ${s.homeWins} ${s.home}${s.status ? " (" + s.status + ")" : ""}`).join(\n"")     : "Playoffs not yet started or series data not loaded.";   const question = ctx.question || "";
-  const q = question.toLowerCase();
-  const propSet = new Set(propLines.map(p => p.player && p.player.toLowerCase()).filter(Boolean));
+  const playoffSeries = Array.isArray(ctx.playoffSeries) ? ctx.playoffSeries : [];
+  const playoffSeriesStr = playoffSeries.length > 0
+    ? playoffSeries.map(s => `${s.round}: ${s.away} ${s.awayWins} - ${s.homeWins} ${s.home}${s.status ? " (" + s.status + ")" : ""}`).join("\n")
+    : "Playoffs not yet started or series data not loaded.";
+
+  const question = ctx.question || "";
+  const q = String(question).toLowerCase();
+  const propSet = new Set(propLines.map(p => p.player && String(p.player).toLowerCase()).filter(Boolean));
   const entries = Object.entries(NBA_PLAYERS);
-  const mentioned = entries.filter(([n]) => { const l = n.toLowerCase(); return q.includes(l) || q.includes(l.split(" ").pop()); });
-  const playing   = entries.filter(([n]) => { const l = n.toLowerCase(); return !q.includes(l) && (propSet.has(l) || Array.from(propSet).some(p => p && p.includes(l.split(" ").pop()))); });
-  const others    = entries.filter(([n]) => { const l = n.toLowerCase(); return !q.includes(l) && !propSet.has(l); }).slice(0, 10);
+  const mentioned = entries.filter(([n]) => {
+    const l = String(n).toLowerCase();
+    return q.includes(l) || q.includes(l.split(" ").pop());
+  });
+  const playing = entries.filter(([n]) => {
+    const l = String(n).toLowerCase();
+    return !q.includes(l) && (propSet.has(l) || Array.from(propSet).some(p => p && p.includes(l.split(" ").pop())));
+  });
+  const others = entries.filter(([n]) => {
+    const l = String(n).toLowerCase();
+    return !q.includes(l) && !propSet.has(l);
+  }).slice(0, 10);
+
   const playerDbStr = [...mentioned, ...playing, ...others].slice(0, 30).map(([name, p]) => {
-    const pFloor = p.props?.pra?.floor || p.props?.pts?.floor || "--";
-    const pCeil  = p.props?.pra?.ceil  || p.props?.pts?.ceil  || "--";
-    const lean   = p.props?.pra?.lean  || p.props?.pts?.lean  || "--";
-    return `${name} | ${p.team} | ${p.tier} | PRA ${pFloor}-${pCeil} | ${lean} | ${(p.bettingAngles || []).slice(0, 2).join(" | ")}`;
+    const pFloor = p?.props?.pra?.floor || p?.props?.pts?.floor || "--";
+    const pCeil  = p?.props?.pra?.ceil  || p?.props?.pts?.ceil  || "--";
+    const lean   = p?.props?.pra?.lean  || p?.props?.pts?.lean  || "--";
+    return `${name} | ${p?.team || "TEAM?"} | ${p?.tier || "?"} | PRA ${pFloor}-${pCeil} | ${lean} | ${((p?.bettingAngles || []).slice(0, 2)).join(" | ")}`;
   }).join("\n");
 
   return `You are Under Review -- a sharp NBA betting intelligence tool.
@@ -717,31 +757,33 @@ TODAY: ${today}
 IDENTITY: Lead with the take. Never hedge. Never open with a limitation. Plain text only.
 FORMATTING: NEVER use markdown. Plain text only.
 
-CRITICAL LIVE DATA RULE: The LIVE ESPN SEASON AVERAGES section below shows current team assignments and reflects all trades. If a player's team in the averages differs from the DATABASE section, the averages are correct. Always trust live data over the database.
+CRITICAL LIVE DATA RULE: The LIVE ESPN SEASON AVERAGES section below shows current team assignments and reflects trades. If a player's team in the averages differs from the DATABASE section, the averages are correct. Always trust live data over the database.
 
-RULES: Never recommend props for FINAL games. No props posted yet? Use season averages + matchup context to give a directional lean with the specific line you expect. Be specific about the player, stat, and number -- do not pivot to generic futures unless explicitly asked.
+RULES: Never recommend props for FINAL games. No props posted yet? Use season averages + matchup context to give a directional lean with the specific line you expect. Be specific about the player, stat, and number.
 NBA PHASE: ${phase}
-NBA PLAYOFFS: Begin April 19, 2026. Top seeds: OKC, CLE. Best futures: SGA MVP, Jokic PRA series props. PLAYOFF SERIES STANDINGS: ${playoffSeriesStr}
+NBA PLAYOFFS: Begin April 19, 2026. Top seeds: OKC, CLE. Best futures: SGA MVP, Jokic PRA series props.
+PLAYOFF SERIES STANDINGS:
+${playoffSeriesStr}
 
 RESPONSE FORMAT:
 One sharp opening sentence. Then:
-THE PLAY: * [Player] -- [PROP OVER/UNDER LINE] ([ODDS]) -- [key reason]
+THE PLAY: [Player] -- [PROP OVER/UNDER LINE] ([ODDS or ESTIMATE]) -- [key reason]
 FADE: [one line] | CONFIDENCE: [High/Medium/Speculative] | TIMING: [one line]
 
 TONIGHT'S GAMES:
 ${gamesStr}
 
 ${propLinesStr !== "No prop lines posted yet." ? "LIVE PROP LINES:\n" + propLinesStr + "\n\n" : "PROP LINES: Not yet posted.\n\n"}${seasonAvgsStr ? seasonAvgsStr + "\n\n" : ""}PLAYER DATABASE (may lag trades -- defer to LIVE ESPN AVERAGES above for team):
-${playerDbStr}
+${playerDbStr || "No static NBA player DB loaded."}
 
-${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}
-QUESTION: ${question}`;
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
 }
 
 // ── MLB System Prompt ─────────────────────────────────────────────────────────
 function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
   const today = getTodayStr();
-  const ctx = mlbContext || {}; const question = ctx.question || "";
+  const ctx = mlbContext || {};
+  const question = ctx.question || "";
   const phase = ctx.seasonContext?.phase || "MLB Season Active";
   const games = ctx.games || [];
 
@@ -754,7 +796,7 @@ function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
         const awayP  = away.pitcher ? ` [SP: ${away.pitcher}]` : "";
         const homeP  = home.pitcher ? ` [SP: ${home.pitcher}]` : "";
         if (g.state === "post") return `${awayId}${awayP} ${away.score} @ ${homeId}${homeP} ${home.score} -- FINAL`;
-        if (g.state === "in")   return `${awayId}${awayP} ${away.score} @ ${homeId}${homeP} ${home.score} -- LIVE`;
+        if (g.state === "in") return `${awayId}${awayP} ${away.score} @ ${homeId}${homeP} ${home.score} -- LIVE`;
         return `${awayId}${awayP} @ ${homeId}${homeP} -- ${g.status || "Scheduled"}`;
       }).join("\n")
     : "No games on today's schedule.";
@@ -764,15 +806,15 @@ function buildMlbSystemPrompt(mlbContext, matchupCtxStr) {
   if (propLines.length > 0) {
     const grouped = {};
     for (const pl of propLines) {
-      const k = pl.player + "|" + pl.prop;
+      const k = `${pl.player}|${pl.prop}`;
       if (!grouped[k]) grouped[k] = { player: pl.player, prop: pl.prop, game: pl.game, over: null, under: null };
-      if (pl.side === "Over")  grouped[k].over  = pl.line + " (" + (pl.odds > 0 ? "+" : "") + pl.odds + ")";
-      if (pl.side === "Under") grouped[k].under = pl.line;
+      if (pl.side === "Over") grouped[k].over = `${pl.line} (${pl.odds > 0 ? "+" : ""}${pl.odds})`;
+      if (pl.side === "Under") grouped[k].under = `${pl.line}`;
     }
     propLinesStr = Object.values(grouped).slice(0, 60).map(e => {
-      let s = e.over ? "OVER " + e.over : "";
+      let s = e.over ? `OVER ${e.over}` : "";
       if (e.under) s += (s ? " / UNDER " : "UNDER ") + e.under;
-      return `${e.player} -- ${e.prop.toUpperCase()} -- ${s} [${e.game}]`;
+      return `${e.player} -- ${String(e.prop || "").toUpperCase()} -- ${s} [${e.game}]`;
     }).join("\n");
   }
 
@@ -792,7 +834,7 @@ No props for FINAL games. No games? Give best futures or upcoming matchup angle.
 
 RESPONSE FORMAT:
 One sharp opening sentence. Then:
-THE PLAY: * [Player] -- [PROP OVER/UNDER LINE] ([ODDS]) -- [key reason]
+THE PLAY: [Player] -- [PROP OVER/UNDER LINE] ([ODDS or ESTIMATE]) -- [key reason]
 FADE: [one line] | CONFIDENCE: [High/Medium/Speculative] | TIMING: [one line]
 
 MLB PRINCIPLES:
@@ -805,13 +847,12 @@ OVER: Coors ~120, Great American ~108, Globe Life ~106
 UNDER: Petco ~93, Oracle ~92, T-Mobile ~91
 Neutral: Dodger ~99, Yankee ~101
 
-TODAY: ${today} | MLB PHASE: ${phase}
+MLB PHASE: ${phase}
 
 GAMES:
 ${gamesStr}
 
-${totalsStr ? "TOTALS:\n" + totalsStr + "\n\n" : ""}${propLinesStr !== "No prop lines posted yet." ? "PROP LINES:\n" + propLinesStr + "\n\n" : "PROP LINES: Not yet posted.\n\n"}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}
-QUESTION: ${question}`;
+${totalsStr ? "TOTALS:\n" + totalsStr + "\n\n" : ""}${propLinesStr !== "No prop lines posted yet." ? "PROP LINES:\n" + propLinesStr + "\n\n" : "PROP LINES: Not yet posted.\n\n"}${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
 }
 
 // ── NFL System Prompt ─────────────────────────────────────────────────────────
@@ -822,8 +863,8 @@ function buildNflSystemPrompt(question, nflContext, matchupCtxStr) {
     ? "IN-SEASON (weekly props are live)"
     : "OFFSEASON (futures + directional leans only)";
 
-  const qbData  = JSON.stringify(getRelevantQBs(question), null, 0).slice(0, 9000);
-  const skill   = getRelevantSkillPlayers(question, nflContext) || buildNflSkillContext();
+  const qbData = safeSlice(JSON.stringify(getRelevantQBs(question), null, 0), 9000);
+  const skill = getRelevantSkillPlayers(question, nflContext) || buildNflSkillContext();
 
   return `You are Under Review -- a sharp NFL betting intelligence tool.
 
@@ -832,11 +873,11 @@ IDENTITY: Lead with the take. Never hedge. Never open with a limitation. Plain t
 FORMATTING: NEVER use markdown. Plain text only.
 CURRENT NFL STATUS: ${phase}
 
-CRITICAL TEAM RULE: The databases below reflect 2025 season. Trades and roster moves happen. If the user mentions a player on a different team than listed, believe the user -- they have more current info. Label your response with "team unconfirmed" if uncertain.
+CRITICAL TEAM RULE: The databases below reflect 2025 season. Trades and roster moves happen. If the user mentions a player on a different team than listed, believe the user. Label your response with "team unconfirmed" if uncertain.
 
 RESPONSE FORMAT:
 One sharp opening sentence. Then:
-THE PLAY: * [Player] -- [prop type] -- [line or DIRECTIONAL] -- [floor/ceiling] -- [key reason]
+THE PLAY: [Player] -- [prop type] -- [line or DIRECTIONAL] -- [floor/ceiling] -- [key reason]
 FADE: [name specific player or team] | CONFIDENCE: [High/Medium/Speculative] | TIMING: [when to bet]
 
 NFL STAT GLOSSARY: ontgt avg 74.9% (elite 78%+) | badTh avg 16.1% (elite sub-13%) | prss avg 21.9% (liability 25%+)
@@ -858,7 +899,7 @@ ${skill}
 QB DATABASE:
 ${qbData}
 
-${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
 }
 
 // ── Tennis System Prompt ──────────────────────────────────────────────────────
@@ -868,8 +909,9 @@ function buildTennisSystemPrompt(question, players, context, liveMatches, matchu
   const tournamentCtx = t
     ? `ACTIVE: ${t.name} -- ${t.surface}, ${t.speed} speed.\n${t.context || ""}\nATP: ${t.atp_favorite || "TBD"} | WTA: ${t.wta_favorite || "TBD"}`
     : "Context not loaded. Answer from player database and surface Elo data.";
-  const playerDataStr = players ? JSON.stringify(players, null, 0).slice(0, 16000) : "Player data unavailable";
-  const liveMatchStr  = (Array.isArray(liveMatches) && liveMatches.length)
+
+  const playerDataStr = players ? safeSlice(JSON.stringify(players, null, 0), 16000) : "Player data unavailable";
+  const liveMatchStr = (Array.isArray(liveMatches) && liveMatches.length)
     ? liveMatches.slice(0, 12).map(m =>
         `${m.raw?.home || "?"} vs ${m.raw?.away || "?"} -- ${m.raw?.round || "Tournament"} -- ${String(m.raw?.live || "0") === "1" ? "LIVE" : (m.raw?.status || "Scheduled")}`
       ).join("\n")
@@ -886,8 +928,8 @@ CRITICAL LIVE DATA RULE: If live match context or user provides current scores, 
 RESPONSE FORMAT:
 1. One sharp sentence answering the question.
 2. Reasoning -- 2-4 sentences using Elo gaps, surface splits, form.
-3. THE PLAY: * [Player] -- [specific bet] -- [key stat]
-   TIMING: [when to act] | CONFIDENCE: [High/Medium/Speculative] | FADE: [who to avoid and why]
+3. THE PLAY: [Player] -- [specific bet] -- [key stat]
+TIMING: [when to act] | CONFIDENCE: [High/Medium/Speculative] | FADE: [who to avoid and why]
 
 SURFACE ELO: hElo=hard | cElo=clay | gElo=grass | DR=dominance ratio (1.8+ elite) | Hold%=service hold (85% elite hard)
 Gap 150+ pts = significant edge. Gap 300+ = lead with it.
@@ -899,49 +941,116 @@ Clay swing is active -- post-Miami, pre-Madrid. Clay specialists are underpriced
 CURRENT TOURNAMENT: ${tournamentCtx}
 LIVE MATCHES: ${liveMatchStr}
 PLAYER DATABASE: ${playerDataStr}
-${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}`;
+${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: ${question}`;
+}
+
+// ── Anthropic call wrapper ────────────────────────────────────────────────────
+async function callAnthropic({ apiKey, system, messages, temperature = 0.45, max_tokens = 800 }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
+        max_tokens,
+        temperature,
+        system,
+        messages,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    return { ok: response.ok, status: response.status, data };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractAnthropicText(data) {
+  return cleanResponseText(
+    data?.content
+      ? data.content.filter(i => i.type === "text").map(i => i.text).join("\n").trim()
+      : ""
+  );
 }
 
 // ── Main Handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") {
+    return safeJsonError(res, 405, "Method not allowed", "Only POST is supported.");
+  }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: "Missing ANTHROPIC_API_KEY" });
+  if (!ANTHROPIC_API_KEY) {
+    return safeJsonError(
+      res,
+      500,
+      "Missing ANTHROPIC_API_KEY",
+      "Backend is missing ANTHROPIC_API_KEY in Vercel Production."
+    );
+  }
 
   const {
-    question, players, context, liveMatches, history,
-    matchupContext, image, nflContext, nbaContext, mlbContext, golfContext, f1Context, sportHint,
-  } = req.body;
+    question,
+    players,
+    context,
+    liveMatches,
+    history,
+    matchupContext,
+    image,
+    nflContext,
+    nbaContext,
+    mlbContext,
+    golfContext,
+    f1Context,
+    sportHint,
+  } = req.body || {};
 
-  if (!question) return res.status(400).json({ error: "Missing question" });
+  if (!question || !String(question).trim()) {
+    return safeJsonError(res, 400, "Missing question", "No question was provided.");
+  }
 
   const sport = detectSport(question, sportHint, matchupContext);
   const matchupCtxStr = summarizeMatchupContext(matchupContext);
-  let systemPrompt;
 
+  let systemPrompt;
   if (sportHint === "f1" || sport === "f1") {
- systemPrompt = buildF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
-} else if (sportHint === "mlb" || sport === "mlb") {
-  systemPrompt = buildMlbSystemPrompt({ ...(mlbContext || {}), question }, matchupCtxStr);
-} else if (sportHint === "golf" || sport === "golf") {
-  systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
-} else if (sportHint === "nba" || sport === "nba") {
-  systemPrompt = buildNbaSystemPrompt({ ...(nbaContext || {}), question }, matchupCtxStr);
-} else if (sportHint === "nfl" || sport === "nfl") {
-  systemPrompt = buildNflSystemPrompt(question, nflContext, matchupCtxStr);
-} else {
-  systemPrompt = buildTennisSystemPrompt(question, players, context, liveMatches, matchupCtxStr);
-}
+    systemPrompt = buildF1SystemPrompt(matchupCtxStr, { ...(f1Context || {}), question });
+  } else if (sportHint === "mlb" || sport === "mlb") {
+    systemPrompt = buildMlbSystemPrompt({ ...(mlbContext || {}), question }, matchupCtxStr);
+  } else if (sportHint === "golf" || sport === "golf") {
+    systemPrompt = buildGolfSystemPrompt({ ...(golfContext || {}), question });
+  } else if (sportHint === "nba" || sport === "nba") {
+    systemPrompt = buildNbaSystemPrompt({ ...(nbaContext || {}), question }, matchupCtxStr);
+  } else if (sportHint === "nfl" || sport === "nfl") {
+    systemPrompt = buildNflSystemPrompt(question, nflContext, matchupCtxStr);
+  } else if (sportHint === "tennis" || sport === "tennis") {
+    systemPrompt = buildTennisSystemPrompt(question, players, context, liveMatches, matchupCtxStr);
+  } else {
+    systemPrompt = buildGenericSportsPrompt(question, matchupCtxStr);
+  }
 
   const messages = [];
+
   if (Array.isArray(history) && history.length > 0) {
     for (const msg of history.slice(-8)) {
       if (!msg || msg.loading) continue;
       const msgText = msg.text || msg.content;
       if (!msgText) continue;
-      messages.push({ role: msg.role === "user" ? "user" : "assistant", content: msgText });
+      messages.push({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: msgText,
+      });
     }
   }
 
@@ -949,7 +1058,14 @@ export default async function handler(req, res) {
     messages.push({
       role: "user",
       content: [
-        { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: image.mediaType,
+            data: image.base64,
+          },
+        },
         { type: "text", text: question },
       ],
     });
@@ -958,57 +1074,64 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 800,
-        temperature: 0.45,
-        system: systemPrompt,
-        messages,
-      }),
+    const first = await callAnthropic({
+      apiKey: ANTHROPIC_API_KEY,
+      system: systemPrompt,
+      messages,
+      temperature: 0.45,
+      max_tokens: 800,
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("Anthropic error:", data);
-      return res.status(500).json({ error: "AI response failed", details: data });
+    if (!first.ok) {
+      console.error("Anthropic error:", first.data);
+      const upstreamMessage =
+        first.data?.error?.message ||
+        first.data?.message ||
+        `Anthropic request failed (${first.status})`;
+
+      return safeJsonError(
+        res,
+        500,
+        "AI response failed",
+        `AI request failed: ${upstreamMessage}`,
+        first.data
+      );
     }
 
-    let text = cleanResponseText(
-      data?.content
-        ? data.content.filter(i => i.type === "text").map(i => i.text).join("\n").trim()
-        : ""
-    );
+    let text = extractAnthropicText(first.data);
 
     if (text && responseLooksWrongForSport(text, sport)) {
-      const cr = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 800,
-          temperature: 0.2,
-          system: systemPrompt + `\n\nCORRECTION: Answer ONLY as a ${sport.toUpperCase()} analyst.`,
-          messages,
-        }),
+      const retry = await callAnthropic({
+        apiKey: ANTHROPIC_API_KEY,
+        system: systemPrompt + `\n\nCORRECTION: Answer ONLY as a ${String(sport).toUpperCase()} analyst. Do not drift into another sport.`,
+        messages,
+        temperature: 0.2,
+        max_tokens: 800,
       });
-      if (cr.ok) {
-        const cd = await cr.json();
-        text = cleanResponseText(
-          cd?.content ? cd.content.filter(i => i.type === "text").map(i => i.text).join("\n").trim() : ""
-        );
+
+      if (retry.ok) {
+        const corrected = extractAnthropicText(retry.data);
+        if (corrected) text = corrected;
       }
     }
 
-    return res.status(200).json({ response: text || "Couldn't get a response. Try again." });
+    if (!text) {
+      return safeJsonError(
+        res,
+        500,
+        "Empty AI response",
+        "AI returned an empty response. Try again."
+      );
+    }
+
+    return res.status(200).json({ response: text });
   } catch (err) {
     console.error("UR TAKE error:", err);
-    return res.status(500).json({ error: "Request failed", details: err.message });
+    return safeJsonError(
+      res,
+      500,
+      "Request failed",
+      `Request failed: ${err?.message || "Unknown server error"}`
+    );
   }
 }
