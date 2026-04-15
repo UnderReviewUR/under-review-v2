@@ -91,7 +91,7 @@ export default async function handler(req, res) {
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   // Hardcoded working model instead of process.env.ANTHROPIC_MODEL
-  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
+  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
 
   if (!ANTHROPIC_API_KEY) {
     return res.status(500).json({
