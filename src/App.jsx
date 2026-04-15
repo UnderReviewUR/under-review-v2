@@ -1530,60 +1530,89 @@ export default function App() {
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
-    if (!text||isAsking) return;
-    if (!canAsk()) return;   // gate check
-    recordQuery();            // record usage
-    setIsAsking(true);
-    const imgToSend=pastedImage;
-    setMsgs(prev=>[...prev,{role:"user",text,image:imgToSend?.previewUrl||null},{role:"ai",text:"ANALYZING...",loading:true,sport:sportHint}]);
-    clearImage();
-    try {
-      const body={
-        question: text,
-        players,
-        context,
-        liveMatches,
-        history: [],
-        matchupContext: matchup || null,
-        nflContext: buildNflContext(),
-        f1Context: buildF1Context(),
-        nbaContext: buildNbaContext(text),
-        mlbContext: buildMlbContext(text),
-        golfContext: buildGolfContext(text),
-        sportHint: sportHint || null,
-      };
-      if(imgToSend) body.image={base64:imgToSend.base64,mediaType:imgToSend.mediaType};
-      const res = await fetch("/api/ur-take", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(body),
-});
+  if (!text || isAsking) return;
+  if (!canAsk()) return;
+  recordQuery();
 
-const raw = await res.text();
+  setIsAsking(true);
+  const imgToSend = pastedImage;
 
-if (!res.ok) {
-  throw new Error(`/api/ur-take ${res.status}: ${raw}`);
-}
-
-let data;
-try {
-  data = JSON.parse(raw);
-} catch {
-  throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
-}
-
-setMsgs(prev => [
-  ...prev.filter(m => !m.loading),
-  { role: "ai", text: data.response || "Couldn't get a response — try again." }
-]);
-   } catch (err) {
   setMsgs(prev => [
-    ...prev.filter(m => !m.loading),
-    { role: "ai", text: err?.message || "Something went wrong — try again." }
+    ...prev,
+    { role: "user", text, image: imgToSend?.previewUrl || null },
+    { role: "ai", text: "ANALYZING...", loading: true, sport: sportHint }
   ]);
-}
-    } finally { setIsAsking(false); }
-  }, [clearImage, context, isAsking, liveMatches, pastedImage, players, buildF1Context, buildNbaContext, buildNbaContext, buildMlbContext, buildGolfContext, canAsk, recordQuery]);
+
+  clearImage();
+
+  try {
+    const body = {
+      question: text,
+      players,
+      context,
+      liveMatches,
+      history: [],
+      matchupContext: matchup || null,
+      nflContext: buildNflContext(),
+      f1Context: buildF1Context(),
+      nbaContext: buildNbaContext(text),
+      mlbContext: buildMlbContext(text),
+      golfContext: buildGolfContext(text),
+      sportHint: sportHint || null,
+    };
+
+    if (imgToSend) {
+      body.image = {
+        base64: imgToSend.base64,
+        mediaType: imgToSend.mediaType,
+      };
+    }
+
+    const res = await fetch("/api/ur-take", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const raw = await res.text();
+
+    if (!res.ok) {
+      throw new Error(`/api/ur-take ${res.status}: ${raw}`);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
+    }
+
+    setMsgs(prev => [
+      ...prev.filter(m => !m.loading),
+      { role: "ai", text: data.response || "Couldn't get a response — try again." }
+    ]);
+  } catch (err) {
+    setMsgs(prev => [
+      ...prev.filter(m => !m.loading),
+      { role: "ai", text: err?.message || "Something went wrong — try again." }
+    ]);
+  } finally {
+    setIsAsking(false);
+  }
+}, [
+  clearImage,
+  context,
+  isAsking,
+  liveMatches,
+  pastedImage,
+  players,
+  buildF1Context,
+  buildNbaContext,
+  buildMlbContext,
+  buildGolfContext,
+  canAsk,
+  recordQuery
+]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
   const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
