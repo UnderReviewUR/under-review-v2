@@ -959,7 +959,7 @@ async function callAnthropic({ apiKey, system, messages, temperature = 0.45, max
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-3-haiku-20240307",
+        model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
         max_tokens,
         temperature,
         system,
