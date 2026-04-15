@@ -945,7 +945,14 @@ ${matchupCtxStr ? "MATCHUP CONTEXT:\n" + matchupCtxStr + "\n\n" : ""}QUESTION: $
 }
 
 // ── Anthropic call wrapper ────────────────────────────────────────────────────
-async function callAnthropic({ apiKey, system, messages, temperature = 0.45, max_tokens = 800 }) {
+async function callAnthropic({
+  apiKey,
+  model,
+  system,
+  messages,
+  temperature = 0.45,
+  max_tokens = 800,
+}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
 
@@ -959,7 +966,7 @@ async function callAnthropic({ apiKey, system, messages, temperature = 0.45, max
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
+        model,
         max_tokens,
         temperature,
         system,
@@ -967,19 +974,22 @@ async function callAnthropic({ apiKey, system, messages, temperature = 0.45, max
       }),
     });
 
+    const requestId =
+      response.headers.get("request-id") ||
+      response.headers.get("anthropic-request-id") ||
+      null;
+
     const data = await response.json().catch(() => ({}));
-    return { ok: response.ok, status: response.status, data };
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      requestId,
+      data,
+    };
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function extractAnthropicText(data) {
-  return cleanResponseText(
-    data?.content
-      ? data.content.filter(i => i.type === "text").map(i => i.text).join("\n").trim()
-      : ""
-  );
 }
 
 // ── Main Handler ──────────────────────────────────────────────────────────────
@@ -990,13 +1000,24 @@ export default async function handler(req, res) {
     return safeJsonError(res, 405, "Method not allowed", "Only POST is supported.");
   }
 
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL;
+
   if (!ANTHROPIC_API_KEY) {
     return safeJsonError(
       res,
       500,
       "Missing ANTHROPIC_API_KEY",
       "Backend is missing ANTHROPIC_API_KEY in Vercel Production."
+    );
+  }
+
+  if (!ANTHROPIC_MODEL) {
+    return safeJsonError(
+      res,
+      500,
+      "Missing ANTHROPIC_MODEL",
+      "Backend is missing ANTHROPIC_MODEL in Vercel Production."
     );
   }
 
@@ -1074,35 +1095,52 @@ export default async function handler(req, res) {
   }
 
   try {
-    const first = await callAnthropic({
+        const first = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
+      model: ANTHROPIC_MODEL,
       system: systemPrompt,
       messages,
       temperature: 0.45,
       max_tokens: 800,
     });
 
-    if (!first.ok) {
-      console.error("Anthropic error:", first.data);
+        if (!first.ok) {
+      console.error("Anthropic error:", {
+        status: first.status,
+        requestId: first.requestId,
+        model: ANTHROPIC_MODEL,
+        sport,
+        data: first.data,
+      });
+
+      const upstreamType =
+        first.data?.error?.type ||
+        "anthropic_error";
+
       const upstreamMessage =
         first.data?.error?.message ||
         first.data?.message ||
         `Anthropic request failed (${first.status})`;
 
-      return safeJsonError(
-        res,
-        500,
-        "AI response failed",
-        `AI request failed: ${upstreamMessage}`,
-        first.data
-      );
+      return res.status(first.status).json({
+        error: upstreamType,
+        response: `AI request failed: ${upstreamMessage}`,
+        requestId: first.requestId,
+        debug: {
+          status: first.status,
+          model: ANTHROPIC_MODEL,
+          sport,
+        },
+        details: first.data || null,
+      });
     }
 
     let text = extractAnthropicText(first.data);
 
     if (text && responseLooksWrongForSport(text, sport)) {
-      const retry = await callAnthropic({
+            const retry = await callAnthropic({
         apiKey: ANTHROPIC_API_KEY,
+        model: ANTHROPIC_MODEL,
         system: systemPrompt + `\n\nCORRECTION: Answer ONLY as a ${String(sport).toUpperCase()} analyst. Do not drift into another sport.`,
         messages,
         temperature: 0.2,
@@ -1124,7 +1162,7 @@ export default async function handler(req, res) {
       );
     }
 
-    return res.status(200).json({ response: text });
+    return res.status(200).json({       response: text,       sport,     });
   } catch (err) {
     console.error("UR TAKE error:", err);
     return safeJsonError(
