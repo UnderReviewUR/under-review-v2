@@ -90,7 +90,7 @@ export default async function handler(req, res) {
   }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  // Hardcoded working model instead of process.env.ANTHROPIC_MODEL
+  // Use env override if present, otherwise fall back to a known model
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
 
   if (!ANTHROPIC_API_KEY) {
@@ -100,7 +100,16 @@ export default async function handler(req, res) {
     });
   }
 
-  const {   question,   sportHint,   golfContext,   nbaContext,   mlbContext,   f1Context,   nflContext,   matchupContext, } = req.body || {};
+  const {
+  question,
+  sportHint,
+  golfContext,
+  nbaContext,
+  mlbContext,
+  f1Context,
+  nflContext,
+  matchupContext,
+} = req.body || {};
 
   if (!question || !String(question).trim()) {
     return res.status(400).json({ error: "Missing question", response: "No question was provided." });
@@ -135,7 +144,7 @@ TIMING
 
 Do not put multiple labels on one line.
 Keep each section short.
-Plain text only.
+Plain text only.`;
 
 let userPrompt = question;
 
@@ -262,9 +271,9 @@ const messages = [{ role: "user", content: userPrompt }];
     }
 
     return res.status(200).json({
-      response: text,
-      sport: "generic",
-    });
+  response: text,
+  sport: sportHint || "generic",
+});
   } catch (err) {
     console.error("UR TAKE error:", err);
     return res.status(500).json({
