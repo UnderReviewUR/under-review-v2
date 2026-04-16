@@ -2120,7 +2120,7 @@ ${themeCss}
   const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
 
   const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const openMatchup = useCallback((m) => {
+ const openMatchup = useCallback((m) => {
   if (!m?.title || !m?.network) return;
 
   if (m.league === "GOLF") {
