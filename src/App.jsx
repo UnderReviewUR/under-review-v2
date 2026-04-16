@@ -3,11 +3,6 @@ import { THEMES, DEFAULT_THEME } from "./themes.js";
 import { NBA_PLAYERS } from "./components/data/nba/players.js";
 
 // ── Inlined AskBar component ──────────────────────────────────────────────────
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { THEMES, DEFAULT_THEME } from "./themes.js";
-import { NBA_PLAYERS } from "./components/data/nba/players.js";
-
-// ── Inlined AskBar component ──────────────────────────────────────────────────
 const AskBar = memo(function AskBar({
   inputRef,
   fileInputRef,
@@ -528,12 +523,7 @@ const baseCss = `
   .golf-odds-card:hover{border-color:rgba(255,255,255,.3);}
   .golf-player-odds{font-family:var(--mono-font);font-size:14px;color:#FFFFFF;}
 `;
-const themeCss = THEMES[activeTheme]?.css || THEMES[DEFAULT_THEME].css;
 
-const css = `
-${baseCss}
-${themeCss}
-`;
 // ── Golf Player data ─────────────────────────────────────────────────────────
 const PGA_PLAYERS = {
 
