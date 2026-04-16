@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { THEMES, DEFAULT_THEME } from "./themes.js";
 import { NBA_PLAYERS } from "./components/data/nba/players.js";
 
 // ── Inlined AskBar component ──────────────────────────────────────────────────
