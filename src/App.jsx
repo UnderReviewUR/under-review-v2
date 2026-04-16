@@ -2825,7 +2825,7 @@ ${themeCss}
             );
           }),
 
-                ...(f1Data?.schedule?.races?.find((r) => r.is_next)
+                                ...(f1Data?.schedule?.races?.find((r) => r.is_next)
           ? [
               <div
                 key="f1-ticker"
