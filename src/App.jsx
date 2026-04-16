@@ -1745,7 +1745,7 @@ ${themeCss}
       recentForm:      nbaData?.recentForm    || "",
       h2hSplits:       nbaData?.h2hSplits     || [],
       gameTotals:      nbaData?.gameTotals     || {},
-      playerDb: null,,
+      playerDb: NBA_PLAYERS,
       question:        questionText || "",
     };
   }, [nbaData, nbaGames]);
@@ -1807,9 +1807,10 @@ ${themeCss}
     { role: "ai", text: "ANALYZING...", loading: true, sport: sportHint }
   ]);
 
-  clearImage();
+    clearImage();
 
-      const body = {
+  try {
+    const body = {
       question: text,
       history: [],
       sportHint: sportHint || null,
