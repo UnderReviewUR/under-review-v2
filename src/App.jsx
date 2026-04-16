@@ -2246,15 +2246,14 @@ ${themeCss}
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
-      <style>{css}</style>
-      <div
+  <style>{css}</style>
   <div
-  className={`app theme-${activeTheme}`}
-  style={{
-    background: THEMES[activeTheme]?.appBg || "var(--bg)",
-    color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"
-  }}
->
+    className={`app theme-${activeTheme}`}
+    style={{
+      background: THEMES[activeTheme]?.appBg || "var(--bg)",
+      color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"
+    }}
+  >
 
         <header className="hdr">
   <div className="wordmark" onClick={goHome}>
