@@ -2858,9 +2858,8 @@ ${themeCss}
                   {f1Data.schedule.races.find((r) => r.is_next).location}
                 </div>
               </div>,
-            ]
-          : [])
-  }
+                        ]
+          : [])}
 </div>
 {/* Ask cards — sharp, action-oriented, colored accent bars */}
 <div className="ask-cards">
