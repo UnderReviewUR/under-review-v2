@@ -1773,24 +1773,31 @@ ${themeCss}
 
 
     const buildGolfContext = useCallback((questionText) => {
-    return {
-      currentEvent: golfData?.currentEvent
-        ? {
-            name: golfData.currentEvent.name || null,
-            shortName: golfData.currentEvent.shortName || null,
-            course: golfData.currentEvent.course || null,
-            round: golfData.currentEvent.round || null,
-            state: golfData.currentEvent.state || null,
-            leaderboard: (golfData.currentEvent.leaderboard || []).slice(0, 10),
-          }
-        : null,
-      rankings: (golfData?.rankings || []).slice(0, 10),
-      odds: {
-        outrights: (golfData?.odds?.outrights || []).slice(0, 12),
-      },
-      question: questionText || "",
-    };
-  }, [golfData]);
+  return {
+    currentEvent: golfData?.currentEvent
+      ? {
+          name: golfData.currentEvent.name || null,
+          shortName: golfData.currentEvent.shortName || null,
+          course: golfData.currentEvent.course || null,
+          location: golfData.currentEvent.location || null,
+          round: golfData.currentEvent.round || null,
+          state: golfData.currentEvent.state || null,
+          leaderboard: (golfData.currentEvent.leaderboard || []).slice(0, 12),
+        }
+      : null,
+    tournament: golfData?.tournament || null,
+    course: golfData?.course || null,
+    rankings: (golfData?.rankings || []).slice(0, 12),
+    odds: {
+      outrights: (golfData?.odds?.outrights || []).slice(0, 16),
+      topFinish: golfData?.odds?.topFinish || {},
+      makeCut: golfData?.odds?.makeCut || {},
+    },
+    recentResults: (golfData?.recentResults || []).slice(0, 10),
+    courseStats: (golfData?.courseStats || []).slice(0, 8),
+    question: questionText || "",
+  };
+}, [golfData]);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -2018,25 +2025,73 @@ ${themeCss}
       return [{ id:"mlb-next-1", league:"MLB", leagueColor:"#1DB954", title:`${away}${awayP} @ ${home}${homeP}`, time:nextGame.status, network:"Today's Slate", blurb:"Ask for the starter matchup, game total lean, or best batter prop.", whatMatters:"Pitcher K prop, game total, or correlated batter play.", quickHitters:["Best prop tonight?","Game total lean?","Best K prop?"], confirmed:true }];
     }
     return [{ id:"mlb-default", league:"MLB", leagueColor:"#1DB954", title:"MLB Props", time:"Active", network:"Player Props", blurb:"Ask about any pitcher K prop, batter hit, or game total.", whatMatters:"Ask for the best MLB prop on today's slate.", quickHitters:["Best K prop?","Best batter prop?","Best game total?"], confirmed:true }];
-  }, [mlbData]);
+  }, [mlbData, mlbGames]);
 
-  const homeCards = useMemo(
-  () =>
+    const homeGolfCards = useMemo(() => {
+    const currentEvent = golfData?.currentEvent;
+    const outrights = golfData?.odds?.outrights || [];
+
+    if (currentEvent?.name) {
+      return [{
+        id: "golf-home-1",
+        league: "GOLF",
+        leagueColor: "#FFFFFF",
+        title: currentEvent.name,
+        time: currentEvent.round || currentEvent.displayDate || "This Week",
+        network: currentEvent.course || "PGA Tour",
+        blurb: currentEvent.course
+          ? `${currentEvent.course}${currentEvent.location ? ` · ${currentEvent.location}` : ""}`
+          : "Current PGA Tour event loaded from live golf data.",
+        whatMatters: "Ask for the best outright, top-10, make-cut, or matchup angle.",
+        quickHitters: [
+          "Best outright value?",
+          "Best top-10 play?",
+          "Safest make-cut?",
+        ],
+        confirmed: true,
+      }];
+    }
+
+    if (outrights.length > 0) {
+      return [{
+        id: "golf-home-2",
+        league: "GOLF",
+        leagueColor: "#FFFFFF",
+        title: "Best golf card this week",
+        time: "Odds Board",
+        network: "PGA Tour",
+        blurb: "Outrights are loaded. Ask for the best top-10, matchup, or make-cut value.",
+        whatMatters: "Ask for the sharpest golf angle on the current board.",
+        quickHitters: [
+          "Best outright value?",
+          "Best matchup?",
+          "Who should I fade?",
+        ],
+        confirmed: true,
+      }];
+    }
+
+    return [];
+  }, [golfData]);
+    const homeCards = useMemo(
+    () =>
+      [
+        ...homeTennisCards,
+        ...homeNflCards,
+        ...homeF1Cards,
+        ...homeNbaCards,
+        ...homeMlbCards,
+        ...homeGolfCards,
+      ].filter(Boolean),
     [
-      ...homeTennisCards,
-      ...homeNflCards,
-      ...homeF1Cards,
-      ...homeNbaCards,
-      ...homeMlbCards,
-    ].filter(Boolean),
-  [
-    homeTennisCards,
-    homeNflCards,
-    homeF1Cards,
-    homeNbaCards,
-    homeMlbCards,
-  ]
-);
+      homeTennisCards,
+      homeNflCards,
+      homeF1Cards,
+      homeNbaCards,
+      homeMlbCards,
+      homeGolfCards,
+    ]
+  );
   
   // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(() => {
@@ -2065,7 +2120,21 @@ ${themeCss}
   const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
 
   const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const openMatchup   = useCallback(m=>{ if(!m?.title||!m?.network)return; setSelectedMatchup(m); setMatchupMsgs([]); setMatchupInput(""); setScreen("matchup"); setTab(m?.league?.includes("NFL")?"nfl":"tennis"); },[]);
+  const openMatchup = useCallback((m) => {
+  if (!m?.title || !m?.network) return;
+
+  if (m.league === "GOLF") {
+    setTab("golf");
+    setScreen("golf");
+    return;
+  }
+
+  setSelectedMatchup(m);
+  setMatchupMsgs([]);
+  setMatchupInput("");
+  setScreen("matchup");
+  setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
+}, []);
   const openPlayer    = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
   const openNflPlayer = useCallback(name=>{ setSelectedNflPlayer(name); setScreen("nflplayer"); setTab("nfl"); },[]);
   const firePrompt = useCallback((prompt, sportHint = null) => {
@@ -2539,7 +2608,11 @@ const mlbCards = [...mlbCardsRaw, ...mlbFallbackCard];
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
             {homeCards.map(m=>(
-              <div key={m.id} className="spotlight-card" onClick={()=>openMatchup(m)}>
+  <div
+    key={m.id}
+    className="spotlight-card"
+    onClick={() => openMatchup(m)}
+  >
                 <div className="spotlight-top">
                   <span className="spotlight-sport" style={{color:m.leagueColor}}>{m.homeCategory||m.league}</span>
                   <span className="spotlight-time">{m.time}</span>
