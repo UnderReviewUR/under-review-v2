@@ -34,7 +34,7 @@ const AskBar = memo(function AskBar({
   );
 });
 
-const css = `
+const baseCss = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
 
   :root{
@@ -376,7 +376,12 @@ const css = `
   .golf-odds-card:hover{border-color:rgba(255,255,255,.3);}
   .golf-player-odds{font-family:var(--mono-font);font-size:14px;color:#FFFFFF;}
 `;
+const themeCss = THEMES[activeTheme]?.css || THEMES[DEFAULT_THEME].css;
 
+const css = `
+${baseCss}
+${themeCss}
+`;
 // ── Golf Player data ─────────────────────────────────────────────────────────
 const PGA_PLAYERS = {
 
@@ -1078,6 +1083,16 @@ function ChatThread({ msgs }) {
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [activeTheme, setActiveTheme] = useState(() => {
+  if (typeof window === "undefined") return DEFAULT_THEME;
+  return localStorage.getItem("ur_theme") || DEFAULT_THEME;
+});
+
+useEffect(() => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("ur_theme", activeTheme);
+  }
+}, [activeTheme]);
   const [tab, setTab]                         = useState("home");
   const [screen, setScreen]                   = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
@@ -1947,7 +1962,7 @@ export default function App() {
       {screen==="player"&&<span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen==="matchup"&&selectedMatchup&&(selectedMatchup.league?.includes("NFL")?<span className="pill-nfl">{selectedMatchup.league}</span>:<span className="pill-tag">{selectedMatchup.network?.toUpperCase()||selectedMatchup.league}</span>)}
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
-      {screen==="pro"&&<span className="pill-tag" style={{color:"#F5C842",borderColor:"rgba(245,200,66,.3)"}}>PRO</span>}
+      {screen==="pro"&&(   <span     className="pill-tag"     style={{       color:"#F5C842",       border:"1px solid rgba(245,200,66,.35)",       background:"rgba(245,200,66,.08)",       fontSize:11,       padding:"5px 11px",       letterSpacing:1.5,       fontWeight:700     }}   >     PRO   </span> )}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
@@ -1964,10 +1979,12 @@ export default function App() {
   return (
     <>
       <style>{css}</style>
-      <div className="app">
+      <div   className="app"   style={{     background: activeTheme === "broadsheet" ? "#EFECE5" : "var(--bg)",     color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"   }} >
 
         <header className="hdr">
-          <div className="wordmark" onClick={goHome}><span className="logo-under">Under</span><span className="logo-review">Review</span></div>
+          <div className="wordmark" onClick={goHome}>
+  <span className="logo-review">UnderReview</span>
+</div>
           <div className="header-right">{headerPill}</div>
         </header>
 
@@ -2941,7 +2958,122 @@ const mlbCards = [...mlbCardsRaw, ...mlbFallbackCard];
       <div style={{fontSize:13,color:"#8A95A3",lineHeight:1.75,fontStyle:"italic",marginBottom:6}}>"Feels like having a sharp friend who actually does the homework. I finally stopped throwing money at expensive pick services."</div>
       <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:2,color:"#3A4050",textTransform:"uppercase"}}>Under Review Pro Member</div>
     </div>
+{isUnlimited && (
+  <div style={{margin:"24px 20px 0",paddingTop:18,borderTop:"1px solid rgba(255,255,255,.07)"}}>
+    <div
+      style={{
+        fontFamily:"var(--mono-font)",
+        fontSize:9,
+        letterSpacing:3,
+        color: activeTheme === "broadsheet" ? "#8A7A6A" : "rgba(255,255,255,.3)",
+        textTransform:"uppercase",
+        marginBottom:12
+      }}
+    >
+      Display Mode
+    </div>
 
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {Object.values(THEMES)
+        .filter(theme => !theme.proOnly || accessTier === "pro")
+        .map(theme => {
+          const isActive = activeTheme === theme.id;
+          const isBroadsheet = theme.id === "broadsheet";
+
+          return (
+            <button
+              key={theme.id}
+              onClick={() => setActiveTheme(theme.id)}
+              style={{
+                background:
+                  isActive
+                    ? (activeTheme === "broadsheet"
+                        ? "rgba(26,20,16,.06)"
+                        : "rgba(0,245,233,.06)")
+                    : (activeTheme === "broadsheet"
+                        ? "#fff"
+                        : "rgba(255,255,255,.03)"),
+                border: `1px solid ${
+                  isActive
+                    ? (activeTheme === "broadsheet"
+                        ? "rgba(26,20,16,.18)"
+                        : "rgba(0,245,233,.3)")
+                    : (activeTheme === "broadsheet"
+                        ? "rgba(216,206,192,1)"
+                        : "rgba(255,255,255,.08)")
+                }`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                color: activeTheme === "broadsheet" ? "#1A1410" : "#fff"
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontFamily:"var(--body-font)",
+                    fontSize:13,
+                    fontWeight:700,
+                    color:
+                      activeTheme === "broadsheet"
+                        ? "#1A1410"
+                        : (isActive ? "#fff" : "rgba(255,255,255,.65)"),
+                    marginBottom:2
+                  }}
+                >
+                  {theme.name}
+                  {isBroadsheet && (
+                    <span
+                      style={{
+                        marginLeft:8,
+                        fontSize:9,
+                        color:"#F5C842",
+                        fontFamily:"var(--mono-font)",
+                        letterSpacing:1
+                      }}
+                    >
+                      PRO
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    fontSize:10,
+                    color:
+                      activeTheme === "broadsheet"
+                        ? "#8A7A6A"
+                        : "rgba(255,255,255,.35)",
+                    fontFamily:"var(--mono-font)",
+                    letterSpacing:.5
+                  }}
+                >
+                  {theme.label}
+                </div>
+              </div>
+
+              {isActive && (
+                <div
+                  style={{
+                    width:8,
+                    height:8,
+                    borderRadius:"50%",
+                    background: activeTheme === "broadsheet" ? "#1A1410" : "#00F5E9",
+                    flexShrink:0,
+                    marginLeft:12
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
+    </div>
+  </div>
+)}
     {/* Bottom */}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
       <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
