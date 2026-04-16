@@ -102,13 +102,14 @@ export default async function handler(req, res) {
 
   const {
   question,
-  sportHint,
+  sportHint: incomingSportHint,
   golfContext,
   nbaContext,
   mlbContext,
   f1Context,
   nflContext,
   matchupContext,
+  image,
 } = req.body || {};
 
   if (!question || !String(question).trim()) {
@@ -146,9 +147,50 @@ Do not put multiple labels on one line.
 Keep each section short.
 Plain text only.`;
 
+const hasImage = !!image?.base64;
+
+const intent = detectIntent(question, hasImage);
+
+const sportHint = resolveSportHint({
+  incomingSportHint,
+  question,
+  matchupContext,
+  hasImage,
+});
+
+const contextQuality = getContextQuality({
+  sportHint,
+  golfContext,
+  nbaContext,
+  mlbContext,
+  nflContext,
+  f1Context,
+  matchupContext,
+});
+
+const derivedConfidence = deriveConfidenceLabel({
+  intent,
+  sportHint,
+  hasImage,
+  matchupContext,
+  question,
+  contextQuality,
+});
+
 let userPrompt = question;
 
-if (sportHint === "golf") {
+if (intent === "slip_review") {
+  userPrompt = buildSlipReviewPrompt({
+    question,
+    sportHint,
+    nbaContext,
+    nflContext,
+    mlbContext,
+    golfContext,
+    f1Context,
+    derivedConfidence,
+  });
+} else if (sportHint === "golf") {
   userPrompt = `You are answering a golf betting question.
 
 Question:
@@ -157,11 +199,16 @@ ${question}
 Golf context:
 ${JSON.stringify(golfContext || {}, null, 2)}
 
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
 Rules:
 - Answer only as a golf analyst.
 - Do not mention NBA, NFL, MLB, F1, or tennis.
 - Use the tournament, odds, rankings, and player names in the provided golf context.
-- If data is limited, still stay within golf and give the best golf lean from the available board.`;
+- If data is limited, still stay within golf and give the best golf lean from the available board.
+- Do not invent unrelated teams, games, or props.`;
 } else if (sportHint === "nba") {
   userPrompt = `You are answering an NBA betting question.
 
@@ -171,9 +218,14 @@ ${question}
 NBA context:
 ${JSON.stringify(nbaContext || {}, null, 2)}
 
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
 Rules:
 - Answer only as an NBA analyst.
-- Do not mention golf, NFL, MLB, F1, or tennis.`;
+- Do not mention golf, NFL, MLB, F1, or tennis.
+- Do not invent unrelated games or props.`;
 } else if (sportHint === "mlb") {
   userPrompt = `You are answering an MLB betting question.
 
@@ -183,9 +235,14 @@ ${question}
 MLB context:
 ${JSON.stringify(mlbContext || {}, null, 2)}
 
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
 Rules:
 - Answer only as an MLB analyst.
-- Do not mention golf, NBA, NFL, F1, or tennis.`;
+- Do not mention golf, NBA, NFL, F1, or tennis.
+- Do not invent unrelated games or props.`;
 } else if (sportHint === "f1") {
   userPrompt = `You are answering a Formula 1 betting question.
 
@@ -195,9 +252,14 @@ ${question}
 F1 context:
 ${JSON.stringify(f1Context || {}, null, 2)}
 
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
 Rules:
 - Answer only as an F1 analyst.
-- Do not mention golf, NBA, NFL, MLB, or tennis.`;
+- Do not mention golf, NBA, NFL, MLB, or tennis.
+- Do not invent unrelated drivers, races, or props.`;
 } else if (sportHint === "nfl") {
   userPrompt = `You are answering an NFL betting question.
 
@@ -207,9 +269,14 @@ ${question}
 NFL context:
 ${typeof nflContext === "string" ? nflContext : JSON.stringify(nflContext || {}, null, 2)}
 
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
 Rules:
 - Answer only as an NFL analyst.
-- Do not mention golf, NBA, MLB, F1, or tennis.`;
+- Do not mention golf, NBA, MLB, F1, or tennis.
+- Do not invent unrelated games or props.`;
 } else if (matchupContext) {
   userPrompt = `You are answering a betting question about this matchup.
 
@@ -219,12 +286,34 @@ ${question}
 Matchup context:
 ${JSON.stringify(matchupContext || {}, null, 2)}
 
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
 Rules:
 - Stay within the matchup and its sport.
-- Do not drift into unrelated sports.`;
+- Do not drift into unrelated sports.
+- Do not invent unrelated teams, players, or props.`;
 }
 
-const messages = [{ role: "user", content: userPrompt }];
+const messages = hasImage
+  ? [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: userPrompt },
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: image.mediaType,
+              data: image.base64,
+            },
+          },
+        ],
+      },
+    ]
+  : [{ role: "user", content: userPrompt }];
   try {
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
@@ -273,6 +362,7 @@ const messages = [{ role: "user", content: userPrompt }];
     return res.status(200).json({
   response: text,
   sport: sportHint || "generic",
+  intent,
 });
   } catch (err) {
     console.error("UR TAKE error:", err);
