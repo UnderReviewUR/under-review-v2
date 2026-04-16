@@ -101,7 +101,16 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
   if (q.includes("f1") || q.includes("grand prix")) return "f1";
   if (q.includes("tennis")) return "tennis";
 
-  if (hasImage) return "image_review";
+  if (hasImage && matchupContext?.league) {
+  const league = normalizeText(matchupContext.league);
+  if (league.includes("nba")) return "nba";
+  if (league.includes("nfl")) return "nfl";
+  if (league.includes("mlb")) return "mlb";
+  if (league.includes("golf")) return "golf";
+  if (league.includes("f1")) return "f1";
+}
+
+if (hasImage) return incomingSportHint || "generic";
 
   return "generic";
 }
@@ -167,21 +176,85 @@ function buildSlipReviewPrompt({
   mlbContext,
   golfContext,
   f1Context,
-  derivedConfidence = "Medium",
+  derivedConfidence,
 }) {
   let relevantContext = "";
 
   if (sportHint === "nba") {
-    relevantContext = `NBA context:\n${JSON.stringify(nbaContext || {}, null, 2)}`;
+    relevantContext = `NBA context:
+${JSON.stringify({
+  seasonContext: nbaContext?.seasonContext || null,
+  todaysGames: nbaContext?.todaysGames || [],
+  propLines: (nbaContext?.propLines || []).slice(0, 80),
+  injuries: nbaContext?.injuries || [],
+  recentForm: nbaContext?.recentForm || "",
+  gameTotals: nbaContext?.gameTotals || {},
+  playerStats: (nbaContext?.playerStats || []).slice(0, 60),
+}, null, 2)}`;
   } else if (sportHint === "nfl") {
-    relevantContext = `NFL context:\n${typeof nflContext === "string" ? nflContext : JSON.stringify(nflContext || {}, null, 2)}`;
+    relevantContext = `NFL context:
+${typeof nflContext === "string" ? nflContext : JSON.stringify(nflContext || {}, null, 2)}`;
   } else if (sportHint === "mlb") {
-    relevantContext = `MLB context:\n${JSON.stringify(mlbContext || {}, null, 2)}`;
+    relevantContext = `MLB context:
+${JSON.stringify(mlbContext || {}, null, 2)}`;
   } else if (sportHint === "golf") {
-    relevantContext = `Golf context:\n${JSON.stringify(golfContext || {}, null, 2)}`;
+    relevantContext = `Golf context:
+${JSON.stringify(golfContext || {}, null, 2)}`;
   } else if (sportHint === "f1") {
-    relevantContext = `F1 context:\n${JSON.stringify(f1Context || {}, null, 2)}`;
+    relevantContext = `F1 context:
+${JSON.stringify(f1Context || {}, null, 2)}`;
   }
+
+  return `You are reviewing a betting slip or pick entry.
+
+User request:
+${question}
+
+Sport:
+${sportHint || "unknown"}
+
+${relevantContext}
+
+Critical rules:
+- Prioritize the image/slip content first.
+- Only mention players, teams, games, props, injuries, pricing, matchup edges, or market timing if they are visible in the image or supported by the provided context.
+- Do NOT invent matchup analysis that is not supported by the image or context.
+- Do NOT claim line shopping, stale pricing, or market movement unless the context clearly supports it.
+- If the slip is repetitive, say that directly.
+- Use "repetitive construction" or "same-stat fragility" instead of "correlation" unless the legs are truly linked.
+- If details are partially unreadable, say what you can confirm and stop there.
+- Be sharp, concise, and product-quality.
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Do not call something High unless the image and context clearly justify it.
+
+Required response format:
+
+OPENING TAKE
+[one sharp sentence]
+
+SLIP VERDICT
+[Keep / Trim / Fade / Rebuild]
+
+BIGGEST STRENGTH
+[one to two lines]
+
+BIGGEST RISK
+[one to two lines]
+
+BEST KEEP
+[one line]
+
+FIRST CUT
+[one line]
+
+CONFIDENCE
+[High / Medium / Low]
+
+TIMING
+[one line]`;
+}
 
   return `You are reviewing a betting slip or pick entry.
 
