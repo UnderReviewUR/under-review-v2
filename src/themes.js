@@ -12,20 +12,22 @@ export const THEMES = {
          EPILOGUE — AUTHORITY THEME
       ───────────────────────────────────────────── */
 
-      css: `
-  .app.theme-epilogue,
-  .app.theme-epilogue .screen,
-  .app.theme-epilogue .docked-bar,
-  .app.theme-epilogue .bottom-nav {
+      .app.theme-epilogue,
+      .app.theme-epilogue .screen,
+      .app.theme-epilogue .docked-bar,
+      .app.theme-epilogue .bottom-nav {
         background: #070710;
         color: #F5F7FB;
         font-family: 'Epilogue', sans-serif;
       }
 
-      /* ── Logo ── */
-      .theme-epilogue .logo-under { display: none !important; }
+      .theme-epilogue .logo-under {
+        display: none !important;
+      }
 
-      .theme-epilogue .wordmark { gap: 0; }
+      .theme-epilogue .wordmark {
+        gap: 0;
+      }
 
       .theme-epilogue .logo-review {
         font-family: 'Epilogue', sans-serif;
@@ -36,16 +38,15 @@ export const THEMES = {
         background: linear-gradient(90deg, #ffffff 0%, #ffffff 30%, #00F5E9 55%, #FF2D6B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
 
-      /* ── Header ── */
       .theme-epilogue .hdr {
         background: rgba(7,7,16,.96);
         border-bottom: 1px solid rgba(255,255,255,.08);
         backdrop-filter: blur(12px);
       }
 
-      /* ── Typography system ── */
       .theme-epilogue .hdr-tagline,
       .theme-epilogue .section-label,
       .theme-epilogue .matchup-league,
@@ -57,7 +58,6 @@ export const THEMES = {
         font-family: 'Geist Mono', monospace;
       }
 
-      /* ── Ask Bar ── */
       .theme-epilogue .ask-col {
         background: rgba(255,255,255,.03);
         border: 1px solid rgba(255,255,255,.08);
@@ -83,6 +83,7 @@ export const THEMES = {
         background: linear-gradient(135deg, #FF2D6B, #FF6B00);
         border-radius: 12px;
         font-weight: 900;
+        color: #fff;
       }
 
       .theme-epilogue .attach-btn {
@@ -90,7 +91,6 @@ export const THEMES = {
         border-color: rgba(255,255,255,.10);
       }
 
-      /* ── Cards / surfaces ── */
       .theme-epilogue .ask-card,
       .theme-epilogue .spotlight-card,
       .theme-epilogue .matchup-card,
@@ -113,7 +113,6 @@ export const THEMES = {
         border: 1px solid rgba(255,255,255,.07);
       }
 
-      /* ── Headline text ── */
       .theme-epilogue .spotlight-title,
       .theme-epilogue .matchup-title,
       .theme-epilogue .player-name,
@@ -127,7 +126,6 @@ export const THEMES = {
         color: rgba(255,255,255,.92);
       }
 
-      /* ── Secondary text ── */
       .theme-epilogue .spotlight-edge,
       .theme-epilogue .matchup-blurb,
       .theme-epilogue .matchup-meta,
@@ -136,7 +134,6 @@ export const THEMES = {
         color: rgba(255,255,255,.50);
       }
 
-      /* ── Chat ── */
       .theme-epilogue .bubble.ai {
         background: rgba(255,255,255,.03);
         border: 1px solid rgba(255,255,255,.07);
@@ -149,7 +146,6 @@ export const THEMES = {
         border: 1px solid rgba(255,255,255,.06);
       }
 
-      /* ── Nav ── */
       .theme-epilogue .bottom-nav {
         border-top: 1px solid rgba(255,255,255,.08);
         background: rgba(7,7,16,.98);
