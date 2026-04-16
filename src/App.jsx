@@ -2644,15 +2644,14 @@ ${themeCss}
 
 {/* Ask cards — sharp, action-oriented, colored accent bars */}
 <div className="ask-cards">
-            <div className="ask-cards">
-              {dynamicHomeQuestions.map(q=>(
-                <div key={q.id} className="ask-card" onClick={()=>firePrompt(q.prompt)}>
-                  <div className="ask-card-bar" style={{background:q.color}}/>
-                  <div className="ask-card-text">{q.text}</div>
-                  <div style={{color:"var(--muted)",fontSize:16,flexShrink:0}}>›</div>
-                </div>
-              ))}
-            </div>
+  {dynamicHomeQuestions.map(q=>(
+    <div key={q.id} className="ask-card" onClick={()=>firePrompt(q.prompt)}>
+      <div className="ask-card-bar" style={{background:q.color}}/>
+      <div className="ask-card-text">{q.text}</div>
+      <div style={{color:"var(--muted)",fontSize:16,flexShrink:0}}>›</div>
+    </div>
+  ))}
+</div>
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
             {homeCards.map(m=>(
