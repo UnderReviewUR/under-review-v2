@@ -12,11 +12,11 @@ export const THEMES = {
          EPILOGUE — AUTHORITY THEME
       ───────────────────────────────────────────── */
 
-      .theme-epilogue,
-      .theme-epilogue .app,
-      .theme-epilogue .screen,
-      .theme-epilogue .docked-bar,
-      .theme-epilogue .bottom-nav {
+      css: `
+  .app.theme-epilogue,
+  .app.theme-epilogue .screen,
+  .app.theme-epilogue .docked-bar,
+  .app.theme-epilogue .bottom-nav {
         background: #070710;
         color: #F5F7FB;
         font-family: 'Epilogue', sans-serif;
