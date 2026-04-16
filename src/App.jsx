@@ -2247,7 +2247,13 @@ ${themeCss}
   return (
     <>
       <style>{css}</style>
-      <div   className="app"   style={{     background: activeTheme === "broadsheet" ? "#EFECE5" : "var(--bg)",     color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"   }} >
+      <div
+  className={`app theme-${activeTheme}`}
+  style={{
+    background: activeTheme === "broadsheet" ? "#EFECE5" : THEMES[activeTheme]?.appBg || "var(--bg)",
+    color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"
+  }}
+>
 
         <header className="hdr">
   <div className="wordmark" onClick={goHome}>
