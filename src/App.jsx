@@ -1745,7 +1745,7 @@ ${themeCss}
       recentForm:      nbaData?.recentForm    || "",
       h2hSplits:       nbaData?.h2hSplits     || [],
       gameTotals:      nbaData?.gameTotals     || {},
-      playerDb:        NBA_PLAYERS,
+      playerDb: null,,
       question:        questionText || "",
     };
   }, [nbaData, nbaGames]);
@@ -1765,20 +1765,30 @@ ${themeCss}
     return {
       seasonContext: mlbData?.seasonContext || {},
       games:         trimmedGames,
-      propLines:     (mlbData?.propLines || []).slice(0, 40),
+      propLines:     (mlbData?.propLines || []).slice(0, 12),
       gameTotals:    mlbData?.gameTotals   || {},
       question:      questionText || "",
     };
   }, [mlbData, mlbGames]);
 
 
-  const buildGolfContext = useCallback((questionText) => {
-    // Player DB lives server-side in ur-take.js — only send live event data
+    const buildGolfContext = useCallback((questionText) => {
     return {
-      currentEvent: golfData?.currentEvent || null,
-      rankings:     (golfData?.rankings    || []).slice(0, 20),
-      odds:         golfData?.odds         || {},
-      question:     questionText || "",
+      currentEvent: golfData?.currentEvent
+        ? {
+            name: golfData.currentEvent.name || null,
+            shortName: golfData.currentEvent.shortName || null,
+            course: golfData.currentEvent.course || null,
+            round: golfData.currentEvent.round || null,
+            state: golfData.currentEvent.state || null,
+            leaderboard: (golfData.currentEvent.leaderboard || []).slice(0, 10),
+          }
+        : null,
+      rankings: (golfData?.rankings || []).slice(0, 10),
+      odds: {
+        outrights: (golfData?.odds?.outrights || []).slice(0, 12),
+      },
+      question: questionText || "",
     };
   }, [golfData]);
 
@@ -1799,21 +1809,44 @@ ${themeCss}
 
   clearImage();
 
-  try {
-    const body = {
+      const body = {
       question: text,
-      players,
-      context,
-      liveMatches,
       history: [],
-      matchupContext: matchup || null,
-      nflContext: buildNflContext(),
-      f1Context: buildF1Context(),
-      nbaContext: buildNbaContext(text),
-      mlbContext: buildMlbContext(text),
-      golfContext: buildGolfContext(text),
       sportHint: sportHint || null,
+      matchupContext: matchup || null,
+      image: null,
     };
+
+    if (sportHint === "tennis") {
+      body.players = players || null;
+      body.context = context || null;
+      body.liveMatches = (liveMatches || []).slice(0, 12);
+    }
+
+    if (sportHint === "nfl") {
+      body.nflContext = buildNflContext();
+    }
+
+    if (sportHint === "f1") {
+      body.f1Context = buildF1Context();
+    }
+
+    if (sportHint === "nba") {
+      body.nbaContext = buildNbaContext(text);
+    }
+
+    if (sportHint === "mlb") {
+      body.mlbContext = buildMlbContext(text);
+    }
+
+    if (sportHint === "golf") {
+      body.golfContext = buildGolfContext(text);
+    }
+
+    if (!sportHint) {
+      body.context = context || null;
+      body.liveMatches = (liveMatches || []).slice(0, 8);
+    }
 
     if (imgToSend) {
       body.image = {
@@ -2920,9 +2953,11 @@ const mlbCards = [...mlbCardsRaw, ...mlbFallbackCard];
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{golfData?.currentEvent?.name||"PGA TOUR"}</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>OUTRIGHTS / PROPS / MATCHUP EDGES</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
-                {golfLoading?"Loading...":golfData?.currentEvent
-                  ?`${golfData.currentEvent.course} — ${golfData.currentEvent.round}`
-                  :"Ask about any player, tournament, or prop"}
+                {golfLoading
+  ? "Loading..."
+  : golfData?.currentEvent?.course
+    ? `${golfData.currentEvent.course} — ${golfData.currentEvent.round || "Live"}`
+    : "Ask about any player, tournament, or prop"}
               </div>
             </div>
 
