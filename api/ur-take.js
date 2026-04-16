@@ -2,14 +2,7 @@ export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 import { applyCors } from "./_cors.js";
 
-/*
-  NOTE:
-  - NBA_PLAYERS intentionally left empty because you said players.js was removed
-    and NBA should rely on live data from nba.js / frontend context.
-  - This rewrite preserves your backend shape, fixes sport routing, adds a real
-    generic fallback, improves Anthropic error handling, and returns user-visible
-    error text even on backend failures so your current frontend can surface it.
-*/
+// Kept for compatibility with older references
 const NBA_PLAYERS = {};
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
@@ -25,11 +18,12 @@ function getTodayStr() {
 
 // ── Helper: extract text from Anthropic response ───────────────────────────
 function extractAnthropicText(data) {
-  if (!data || !data.content || !Array.isArray(data.content)) return "";
+  if (!data || !Array.isArray(data.content)) return "";
   return data.content
-    .filter((block) => block.type === "text" && block.text)
+    .filter((block) => block?.type === "text" && block?.text)
     .map((block) => block.text)
-    .join("\n");
+    .join("\n")
+    .trim();
 }
 
 // ── Intent + sport helpers ─────────────────────────────────────────────────
@@ -74,13 +68,11 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
 
   if (matchupContext?.league) {
     const league = normalizeText(matchupContext.league);
-    if (league.includes("golf")) return "golf";
-    if (league.includes("pga")) return "golf";
+    if (league.includes("golf") || league.includes("pga")) return "golf";
     if (league.includes("nba")) return "nba";
     if (league.includes("mlb")) return "mlb";
     if (league.includes("nfl")) return "nfl";
-    if (league.includes("f1")) return "f1";
-    if (league.includes("formula 1")) return "f1";
+    if (league.includes("f1") || league.includes("formula 1")) return "f1";
     if (league.includes("tennis")) return "tennis";
   }
 
@@ -102,15 +94,15 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
   if (q.includes("tennis")) return "tennis";
 
   if (hasImage && matchupContext?.league) {
-  const league = normalizeText(matchupContext.league);
-  if (league.includes("nba")) return "nba";
-  if (league.includes("nfl")) return "nfl";
-  if (league.includes("mlb")) return "mlb";
-  if (league.includes("golf")) return "golf";
-  if (league.includes("f1")) return "f1";
-}
+    const league = normalizeText(matchupContext.league);
+    if (league.includes("nba")) return "nba";
+    if (league.includes("nfl")) return "nfl";
+    if (league.includes("mlb")) return "mlb";
+    if (league.includes("golf")) return "golf";
+    if (league.includes("f1")) return "f1";
+  }
 
-if (hasImage) return incomingSportHint || "generic";
+  if (hasImage) return incomingSportHint || "generic";
 
   return "generic";
 }
@@ -150,7 +142,6 @@ function deriveConfidenceLabel({
   if (intent === "slip_review") score += 2;
   if (hasImage) score += 1;
   if (matchupContext) score += 1;
-
   if (contextQuality === "high") score += 2;
   if (contextQuality === "medium") score += 1;
 
@@ -228,53 +219,6 @@ Critical rules:
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Do not call something High unless the image and context clearly justify it.
-
-Required response format:
-
-OPENING TAKE
-[one sharp sentence]
-
-SLIP VERDICT
-[Keep / Trim / Fade / Rebuild]
-
-BIGGEST STRENGTH
-[one to two lines]
-
-BIGGEST RISK
-[one to two lines]
-
-BEST KEEP
-[one line]
-
-FIRST CUT
-[one line]
-
-CONFIDENCE
-[High / Medium / Low]
-
-TIMING
-[one line]`;
-}
-
-  return `You are reviewing a betting slip or pick entry.
-
-User request:
-${question}
-
-${relevantContext}
-
-Critical rules:
-- Prioritize the image/slip content over generic betting advice.
-- Identify what the user actually submitted.
-- Do NOT invent games, teams, players, or props that are not visible in the image or supported by provided context.
-- If the slip looks weak, say so directly.
-- Focus on structure, correlation, weak legs, strongest leg, and whether the payout justifies the risk.
-- If details are partially unreadable, say what you can confirm and do not guess beyond that.
-- Stay inside the sport shown by the slip when possible.
-
-Confidence guidance:
-- Default confidence should be ${derivedConfidence}.
-- Do not call something High unless the visible slip and context clearly support it.
 
 Required response format:
 
@@ -578,6 +522,27 @@ Rules:
 - Stay within the matchup and its sport.
 - Do not drift into unrelated sports.
 - Do not invent unrelated teams, players, or props.`;
+  } else {
+    userPrompt = `You are answering a sports betting question.
+
+Question:
+${question}
+
+Available context:
+${JSON.stringify({
+  sportHint,
+  matchupContext: matchupContext || null,
+  hasImage,
+}, null, 2)}
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
+Rules:
+- Stay within the sport most clearly implied by the question.
+- If the sport is ambiguous, answer conservatively and do not invent specifics.
+- Do not make up games, players, or props that are not supported by the prompt.`;
   }
 
   const messages = hasImage
