@@ -2248,9 +2248,10 @@ ${themeCss}
     <>
       <style>{css}</style>
       <div
+  <div
   className={`app theme-${activeTheme}`}
   style={{
-    background: activeTheme === "broadsheet" ? "#EFECE5" : THEMES[activeTheme]?.appBg || "var(--bg)",
+    background: THEMES[activeTheme]?.appBg || "var(--bg)",
     color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"
   }}
 >
