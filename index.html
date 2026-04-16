@@ -2,11 +2,39 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Mobile + viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Title -->
     <title>Under Review</title>
+
+    <!-- Theme color (mobile browser UI) -->
+    <meta name="theme-color" content="#070710" />
+
+    <!-- Preconnect for faster font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Fonts (Epilogue + Mono for labels) -->
+    <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Optional: smooth font rendering -->
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #070710;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+    </style>
   </head>
+
   <body>
     <div id="root"></div>
+
+    <!-- React entry -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
