@@ -3,32 +3,89 @@ import { THEMES, DEFAULT_THEME } from "./themes.js";
 import { NBA_PLAYERS } from "./components/data/nba/players.js";
 
 // ── Inlined AskBar component ──────────────────────────────────────────────────
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { THEMES, DEFAULT_THEME } from "./themes.js";
+import { NBA_PLAYERS } from "./components/data/nba/players.js";
+
+// ── Inlined AskBar component ──────────────────────────────────────────────────
 const AskBar = memo(function AskBar({
-  inputRef, fileInputRef, value, onChange, onSubmit,
-  placeholder, btnColor, pastedImage, clearImage, isAsking, processImageFile,
+  inputRef,
+  fileInputRef,
+  value,
+  onChange,
+  onSubmit,
+  placeholder,
+  btnColor,
+  pastedImage,
+  clearImage,
+  isAsking,
+  processImageFile,
 }) {
-  const handleKeyDown = useCallback((e) => { if (e.key === "Enter") onSubmit(); }, [onSubmit]);
-  const handleFile = useCallback((e) => { if (e.target.files?.[0]) processImageFile(e.target.files[0]); }, [processImageFile]);
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter") onSubmit();
+    },
+    [onSubmit]
+  );
+
+  const handleFile = useCallback(
+    (e) => {
+      if (e.target.files?.[0]) processImageFile(e.target.files[0]);
+    },
+    [processImageFile]
+  );
+
   return (
     <div className="ask-wrap">
-      <input ref={fileInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleFile}
+      />
+
       <div className="ask-row">
         <div className="ask-col">
           {pastedImage && (
             <div className="ask-img-preview">
-              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt=""/>
-              <button onClick={clearImage} type="button" className="ask-img-remove">✕ Remove</button>
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
+              <button onClick={clearImage} type="button" className="ask-img-remove">
+                ✕ Remove
+              </button>
             </div>
           )}
-          <input ref={inputRef} className="ask-bar" value={value}
-            onChange={(e) => onChange(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder={pastedImage ? "Ask about this image..." : placeholder} disabled={isAsking}/>
+
+          <input
+            ref={inputRef}
+            className="ask-bar"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={pastedImage ? "Ask about this image..." : placeholder}
+            disabled={isAsking}
+          />
+
           {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>}
         </div>
-        <button className={`attach-btn${pastedImage ? " has-img" : ""}`}
-          onClick={() => fileInputRef.current?.click()} type="button">📎</button>
-        <button className="send-btn" style={btnColor ? {background:btnColor} : undefined}
-          onClick={onSubmit} disabled={isAsking} type="button">➤</button>
+
+        <button
+          className={`attach-btn${pastedImage ? " has-img" : ""}`}
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+        >
+          📎
+        </button>
+
+        <button
+          className="send-btn"
+          style={btnColor ? { background: btnColor } : undefined}
+          onClick={onSubmit}
+          disabled={isAsking}
+          type="button"
+        >
+          ➤
+        </button>
       </div>
     </div>
   );
@@ -69,24 +126,123 @@ const baseCss = `
 
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body,#root{height:100%;}
-  body{background:var(--bg);color:var(--text);font-family:var(--body-font);min-height:100vh;-webkit-font-smoothing:antialiased;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--body-font);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
 
-  .app{min-height:100vh;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
+  .app{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--text);
+    display:flex;
+    flex-direction:column;
+  }
 
-  .hdr{padding:10px 14px;border-bottom:1px solid var(--border);background:var(--header-bg);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;backdrop-filter:blur(10px);gap:14px;}
-  .wordmark{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:fit-content;cursor:pointer;}
-  .logo-under{display:block;font-family:var(--mono-font);font-size:9px;letter-spacing:4px;color:rgba(255,255,255,.88);margin-bottom:2px;text-transform:uppercase;}
-  .logo-review{display:block;font-family:var(--display-font);font-size:26px;letter-spacing:2px;line-height:1;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-  .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
-  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{font-family:var(--mono-font);font-size:9px;padding:3px 8px;border-radius:999px;white-space:nowrap;}
-  .pill-tag{color:var(--magenta);border:1px solid rgba(255,45,107,.25);background:rgba(255,45,107,.06);}
-  .pill-live{color:var(--cyan-bright);border:1px solid rgba(0,245,233,.25);background:rgba(0,245,233,.06);}
-  .pill-tennis{color:#FFE600;border:1px solid rgba(255,230,0,.35);background:rgba(255,230,0,.06);}
-  .pill-nfl{color:#4A90D9;border:1px solid rgba(74,144,217,.3);background:rgba(74,144,217,.06);}
-  .pill-f1{color:var(--f1);border:1px solid rgba(225,6,0,.25);background:rgba(225,6,0,.06);}
-  .pill-nba{color:#FF6B00;border:1px solid rgba(255,107,0,.3);background:rgba(255,107,0,.06);}
-  .pill-mlb{color:#1DB954;border:1px solid rgba(29,185,84,.3);background:rgba(29,185,84,.06);}
-  .hdr-tagline{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.88);letter-spacing:0.5px;white-space:nowrap;}
+  .hdr{
+    padding:10px 14px;
+    border-bottom:1px solid var(--border);
+    background:var(--header-bg);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    position:sticky;
+    top:0;
+    z-index:30;
+    backdrop-filter:blur(10px);
+    gap:14px;
+  }
+
+  .wordmark{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+    min-width:fit-content;
+    cursor:pointer;
+  }
+
+  .logo-under{display:none;}
+
+  .logo-review{
+    display:block;
+    font-family:var(--display-font);
+    font-size:26px;
+    letter-spacing:1px;
+    line-height:1;
+    background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+
+  .header-right{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width:0;
+  }
+
+  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{
+    font-family:var(--mono-font);
+    font-size:9px;
+    padding:3px 8px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+
+  .pill-tag{
+    color:var(--magenta);
+    border:1px solid rgba(255,45,107,.25);
+    background:rgba(255,45,107,.06);
+  }
+
+  .pill-live{
+    color:var(--cyan-bright);
+    border:1px solid rgba(0,245,233,.25);
+    background:rgba(0,245,233,.06);
+  }
+
+  .pill-tennis{
+    color:#FFE600;
+    border:1px solid rgba(255,230,0,.35);
+    background:rgba(255,230,0,.06);
+  }
+
+  .pill-nfl{
+    color:#4A90D9;
+    border:1px solid rgba(74,144,217,.3);
+    background:rgba(74,144,217,.06);
+  }
+
+  .pill-f1{
+    color:var(--f1);
+    border:1px solid rgba(225,6,0,.25);
+    background:rgba(225,6,0,.06);
+  }
+
+  .pill-nba{
+    color:#FF6B00;
+    border:1px solid rgba(255,107,0,.3);
+    background:rgba(255,107,0,.06);
+  }
+
+  .pill-mlb{
+    color:#1DB954;
+    border:1px solid rgba(29,185,84,.3);
+    background:rgba(29,185,84,.06);
+  }
+
+  .hdr-tagline{
+    font-family:var(--mono-font);
+    font-size:10px;
+    color:rgba(255,255,255,.88);
+    letter-spacing:0.5px;
+    white-space:nowrap;
+  }
 
   .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:70px;}
   .screen.has-msgs{padding-bottom:140px;}
@@ -96,7 +252,6 @@ const baseCss = `
   .hero-title{font-family:var(--display-font);font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
   .hero-sub{color:var(--soft);font-size:13px;line-height:1.5;max-width:560px;margin:0 auto;}
 
-  /* ── Home sport rail ── */
   .sport-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin-bottom:14px;}
   .sport-rail::-webkit-scrollbar{display:none;}
   .sport-pill{flex-shrink:0;border-radius:999px;padding:8px 20px;font-family:var(--display-font);font-size:15px;letter-spacing:2px;cursor:pointer;border:1.5px solid;transition:all .15s;background:transparent;}
@@ -107,7 +262,6 @@ const baseCss = `
   .sport-pill-nba{color:#FF6B00;border-color:#FF6B00;}
   .sport-pill:active{opacity:.7;transform:scale(.97);}
 
-  /* ── Live game ticker ── */
   .game-ticker{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-bottom:16px;}
   .game-ticker::-webkit-scrollbar{display:none;}
   .ticker-card{flex-shrink:0;background:var(--surface);border-radius:10px;padding:8px 12px;cursor:pointer;min-width:120px;border:1px solid var(--border);}
@@ -116,14 +270,12 @@ const baseCss = `
   .ticker-teams{font-size:13px;font-weight:600;color:var(--text);}
   .ticker-score{font-family:var(--mono-font);font-size:11px;color:var(--soft);margin-top:2px;}
 
-  /* ── Ask cards (replace q-list) ── */
   .ask-cards{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
   .ask-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:border-color .15s;}
   .ask-card:active{opacity:.8;}
   .ask-card-bar{width:3px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:18px;}
   .ask-card-text{font-size:14px;color:var(--soft);line-height:1.35;}
 
-  /* ── Spotlight card (replaces matchup cards) ── */
   .spotlight-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;margin-bottom:8px;transition:border-color .15s;}
   .spotlight-card:active{opacity:.85;}
   .spotlight-top{padding:10px 14px 0;display:flex;align-items:center;justify-content:space-between;}
@@ -299,6 +451,7 @@ const baseCss = `
   .nav-btn.nba-active{color:#FF6B00;}
   .nav-btn.mlb-active{color:#1DB954;}
   .nav-btn.pro-active{color:#F5C842;}
+
   .pro-banner{border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid rgba(245,200,66,.3);background:linear-gradient(135deg,rgba(245,200,66,.08),rgba(255,45,107,.04));text-align:center;}
   .pro-feature{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;}
   .pro-feature-dot{width:8px;height:8px;border-radius:50%;background:#F5C842;flex-shrink:0;margin-top:4px;}
@@ -358,7 +511,6 @@ const baseCss = `
   .nba-live-badge{color:var(--green);font-family:var(--mono-font);font-size:10px;}
 
   .page-spacer{height:20px;}
-  /* Golf tab */
   .nav-btn.golf-active{color:#FFFFFF;}
   .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
   .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
@@ -1084,21 +1236,29 @@ function ChatThread({ msgs }) {
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeTheme, setActiveTheme] = useState(() => {
-  if (typeof window === "undefined") return DEFAULT_THEME;
-  return localStorage.getItem("ur_theme") || DEFAULT_THEME;
-});
+    if (typeof window === "undefined") return DEFAULT_THEME;
+    return localStorage.getItem("ur_theme") || DEFAULT_THEME;
+  });
 
-useEffect(() => {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("ur_theme", activeTheme);
-  }
-}, [activeTheme]);
-  const [tab, setTab]                         = useState("home");
-  const [screen, setScreen]                   = useState("home");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ur_theme", activeTheme);
+    }
+  }, [activeTheme]);
+
+  const themeCss = THEMES[activeTheme]?.css || THEMES[DEFAULT_THEME].css;
+
+  const css = `
+${baseCss}
+${themeCss}
+`;
+
+  const [tab, setTab] = useState("home");
+  const [screen, setScreen] = useState("home");
   const [selectedMatchup, setSelectedMatchup] = useState(null);
-  const [selectedPlayer, setSelectedPlayer]   = useState(null);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
-  const [nflPosFilter, setNflPosFilter]       = useState("ALL");
+  const [nflPosFilter, setNflPosFilter] = useState("ALL");
 
   // Per-screen inputs — never shared — prevents 1-char typing bug
   const [homeInput, setHomeInput]       = useState("");
@@ -1962,7 +2122,22 @@ useEffect(() => {
       {screen==="player"&&<span className="pill-tag">{selectedPlayer?.toUpperCase()}</span>}
       {screen==="matchup"&&selectedMatchup&&(selectedMatchup.league?.includes("NFL")?<span className="pill-nfl">{selectedMatchup.league}</span>:<span className="pill-tag">{selectedMatchup.network?.toUpperCase()||selectedMatchup.league}</span>)}
       {screen==="ask"&&<span className="pill-tag">UR TAKE</span>}
-      {screen==="pro"&&(   <span     className="pill-tag"     style={{       color:"#F5C842",       border:"1px solid rgba(245,200,66,.35)",       background:"rgba(245,200,66,.08)",       fontSize:11,       padding:"5px 11px",       letterSpacing:1.5,       fontWeight:700     }}   >     PRO   </span> )}
+      {screen==="pro"&&(
+  <span
+    className="pill-tag"
+    style={{
+      color:"#F5C842",
+      border:"1px solid rgba(245,200,66,.35)",
+      background:"rgba(245,200,66,.08)",
+      fontSize:11,
+      padding:"5px 11px",
+      letterSpacing:1.5,
+      fontWeight:700
+    }}
+  >
+    PRO
+  </span>
+)}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
@@ -1982,11 +2157,11 @@ useEffect(() => {
       <div   className="app"   style={{     background: activeTheme === "broadsheet" ? "#EFECE5" : "var(--bg)",     color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"   }} >
 
         <header className="hdr">
-          <div className="wordmark" onClick={goHome}>
-  <span className="logo-review">UnderReview</span>
-</div>
-          <div className="header-right">{headerPill}</div>
-        </header>
+  <div className="wordmark" onClick={goHome}>
+    <span className="logo-review">UnderReview</span>
+  </div>
+  <div className="header-right">{headerPill}</div>
+</header>
 
         {/* ══ HOME ══ */}
         {screen==="home"&&(
@@ -2861,30 +3036,29 @@ const mlbCards = [...mlbCardsRaw, ...mlbFallbackCard];
 
     {/* Hero — logo centered */}
     <div style={{textAlign:"center",padding:"36px 20px 24px",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
-      <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",marginBottom:14,cursor:"default"}}>
-        <span className="logo-under" style={{fontSize:10,letterSpacing:5,marginBottom:2,color:"rgba(255,255,255,.88)"}}>Under</span>
-        <span className="logo-review" style={{fontSize:44,letterSpacing:2}}>Review</span>
-        <span style={{
-          fontFamily:"var(--display-font)",
-          fontSize:34,
-          letterSpacing:6,
-          background:"linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
-          backgroundSize:"200% auto",
-          WebkitBackgroundClip:"text",
-          WebkitTextFillColor:"transparent",
-          backgroundClip:"text",
-          animation:"gleam 3s linear infinite",
-          display:"block",
-          marginTop:2,
-        }}>PRO</span>
-      </div>
-      <div style={{fontSize:28,fontWeight:800,lineHeight:1.12,marginBottom:10,letterSpacing:-0.3}}>
-        The <span style={{color:"var(--cyan-bright)"}}>sharpest</span> bettors<br/>don't guess. They <span style={{color:"var(--magenta)"}}>know.</span>
-      </div>
-      <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.7,maxWidth:320,margin:"0 auto"}}>
-        Real data. Real edges. Every sport. For less than one bad bet a month.
-      </div>
-    </div>
+  <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",marginBottom:14,cursor:"default"}}>
+    <span className="logo-review" style={{fontSize:44,letterSpacing:0}}>UnderReview</span>
+    <span style={{
+      fontFamily:"var(--display-font)",
+      fontSize:34,
+      letterSpacing:6,
+      background:"linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
+      backgroundSize:"200% auto",
+      WebkitBackgroundClip:"text",
+      WebkitTextFillColor:"transparent",
+      backgroundClip:"text",
+      animation:"gleam 3s linear infinite",
+      display:"block",
+      marginTop:4,
+    }}>PRO</span>
+  </div>
+  <div style={{fontSize:28,fontWeight:800,lineHeight:1.12,marginBottom:10,letterSpacing:-0.3}}>
+    The <span style={{color:"var(--cyan-bright)"}}>sharpest</span> bettors<br/>don't guess. They <span style={{color:"var(--magenta)"}}>know.</span>
+  </div>
+  <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.7,maxWidth:320,margin:"0 auto"}}>
+    Real data. Real edges. Every sport. For less than one bad bet a month.
+  </div>
+</div>
 
     {/* Price + CTA */}
     <div style={{padding:"24px 20px 0",textAlign:"center"}}>
