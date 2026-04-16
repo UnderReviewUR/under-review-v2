@@ -87,7 +87,7 @@ const AskBar = memo(function AskBar({
 });
 
 const baseCss = `
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Epilogue:wght@400;500;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap');
 
   :root{
     --cyan:#0891B2;
