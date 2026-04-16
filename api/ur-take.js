@@ -27,9 +27,207 @@ function getTodayStr() {
 function extractAnthropicText(data) {
   if (!data || !data.content || !Array.isArray(data.content)) return "";
   return data.content
-    .filter(block => block.type === "text" && block.text)
-    .map(block => block.text)
+    .filter((block) => block.type === "text" && block.text)
+    .map((block) => block.text)
     .join("\n");
+}
+
+// ── Intent + sport helpers ─────────────────────────────────────────────────
+function normalizeText(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function detectIntent(question, hasImage) {
+  const q = normalizeText(question);
+
+  if (
+    hasImage &&
+    (
+      q.includes("thoughts") ||
+      q.includes("what do you think") ||
+      q.includes("analyze") ||
+      q.includes("analysis") ||
+      q.includes("slip") ||
+      q.includes("parlay") ||
+      q.includes("entry") ||
+      q.includes("pick em") ||
+      q.includes("pick'em") ||
+      q.includes("picks") ||
+      q.includes("ticket")
+    )
+  ) {
+    return "slip_review";
+  }
+
+  if (q.includes("fade")) return "fade";
+  if (q.includes("sleeper")) return "sleeper";
+  if (q.includes("outright")) return "outright";
+  if (q.includes("prop")) return "prop";
+
+  return "general";
+}
+
+function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage }) {
+  if (incomingSportHint) return incomingSportHint;
+
+  const q = normalizeText(question);
+
+  if (matchupContext?.league) {
+    const league = normalizeText(matchupContext.league);
+    if (league.includes("golf")) return "golf";
+    if (league.includes("pga")) return "golf";
+    if (league.includes("nba")) return "nba";
+    if (league.includes("mlb")) return "mlb";
+    if (league.includes("nfl")) return "nfl";
+    if (league.includes("f1")) return "f1";
+    if (league.includes("formula 1")) return "f1";
+    if (league.includes("tennis")) return "tennis";
+  }
+
+  if (
+    q.includes("golf") ||
+    q.includes("outright") ||
+    q.includes("harbour town") ||
+    q.includes("rbc heritage") ||
+    q.includes("masters") ||
+    q.includes("pga")
+  ) {
+    return "golf";
+  }
+
+  if (q.includes("nba") || q.includes("points") || q.includes("pra")) return "nba";
+  if (q.includes("mlb") || q.includes("strikeout") || q.includes("home run")) return "mlb";
+  if (q.includes("nfl") || q.includes("receiving") || q.includes("rushing")) return "nfl";
+  if (q.includes("f1") || q.includes("grand prix")) return "f1";
+  if (q.includes("tennis")) return "tennis";
+
+  if (hasImage) return "image_review";
+
+  return "generic";
+}
+
+function getContextQuality({
+  sportHint,
+  golfContext,
+  nbaContext,
+  mlbContext,
+  nflContext,
+  f1Context,
+  matchupContext,
+}) {
+  if (matchupContext) return "high";
+
+  if (sportHint === "golf" && golfContext?.currentEvent) return "high";
+  if (sportHint === "nba" && (nbaContext?.todaysGames?.length || nbaContext?.playerStats?.length)) return "high";
+  if (sportHint === "mlb" && (mlbContext?.games?.length || mlbContext?.propLines?.length)) return "high";
+  if (sportHint === "nfl" && nflContext) return "medium";
+  if (sportHint === "f1" && (f1Context?.standings?.length || f1Context?.schedule?.races?.length)) return "high";
+
+  return "low";
+}
+
+function deriveConfidenceLabel({
+  intent,
+  sportHint,
+  hasImage,
+  matchupContext,
+  question,
+  contextQuality = "medium",
+}) {
+  const q = normalizeText(question);
+  let score = 0;
+
+  if (sportHint && sportHint !== "generic" && sportHint !== "image_review") score += 2;
+  if (intent === "slip_review") score += 2;
+  if (hasImage) score += 1;
+  if (matchupContext) score += 1;
+
+  if (contextQuality === "high") score += 2;
+  if (contextQuality === "medium") score += 1;
+
+  if (
+    q.includes("best") ||
+    q.includes("sharpest") ||
+    q.includes("safest") ||
+    q.includes("highest confidence")
+  ) {
+    score += 1;
+  }
+
+  if (score >= 6) return "High";
+  if (score >= 3) return "Medium";
+  return "Low";
+}
+
+function buildSlipReviewPrompt({
+  question,
+  sportHint,
+  nbaContext,
+  nflContext,
+  mlbContext,
+  golfContext,
+  f1Context,
+  derivedConfidence = "Medium",
+}) {
+  let relevantContext = "";
+
+  if (sportHint === "nba") {
+    relevantContext = `NBA context:\n${JSON.stringify(nbaContext || {}, null, 2)}`;
+  } else if (sportHint === "nfl") {
+    relevantContext = `NFL context:\n${typeof nflContext === "string" ? nflContext : JSON.stringify(nflContext || {}, null, 2)}`;
+  } else if (sportHint === "mlb") {
+    relevantContext = `MLB context:\n${JSON.stringify(mlbContext || {}, null, 2)}`;
+  } else if (sportHint === "golf") {
+    relevantContext = `Golf context:\n${JSON.stringify(golfContext || {}, null, 2)}`;
+  } else if (sportHint === "f1") {
+    relevantContext = `F1 context:\n${JSON.stringify(f1Context || {}, null, 2)}`;
+  }
+
+  return `You are reviewing a betting slip or pick entry.
+
+User request:
+${question}
+
+${relevantContext}
+
+Critical rules:
+- Prioritize the image/slip content over generic betting advice.
+- Identify what the user actually submitted.
+- Do NOT invent games, teams, players, or props that are not visible in the image or supported by provided context.
+- If the slip looks weak, say so directly.
+- Focus on structure, correlation, weak legs, strongest leg, and whether the payout justifies the risk.
+- If details are partially unreadable, say what you can confirm and do not guess beyond that.
+- Stay inside the sport shown by the slip when possible.
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Do not call something High unless the visible slip and context clearly support it.
+
+Required response format:
+
+OPENING TAKE
+[one sharp sentence]
+
+SLIP VERDICT
+[Keep / Trim / Fade / Rebuild]
+
+BIGGEST STRENGTH
+[one to two lines]
+
+BIGGEST RISK
+[one to two lines]
+
+BEST KEEP
+[one line]
+
+FIRST CUT
+[one line]
+
+CONFIDENCE
+[High / Medium / Low]
+
+TIMING
+[one line]`;
 }
 
 // ── Anthropic call wrapper ──────────────────────────────────────────────────
@@ -86,11 +284,13 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed", response: "Only POST is supported." });
+    return res.status(405).json({
+      error: "Method not allowed",
+      response: "Only POST is supported.",
+    });
   }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  // Use env override if present, otherwise fall back to a known model
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
 
   if (!ANTHROPIC_API_KEY) {
@@ -101,29 +301,40 @@ export default async function handler(req, res) {
   }
 
   const {
-  question,
-  sportHint: incomingSportHint,
-  golfContext,
-  nbaContext,
-  mlbContext,
-  f1Context,
-  nflContext,
-  matchupContext,
-  image,
-} = req.body || {};
+    question,
+    sportHint: incomingSportHint,
+    golfContext,
+    nbaContext,
+    mlbContext,
+    f1Context,
+    nflContext,
+    matchupContext,
+    image,
+  } = req.body || {};
 
   if (!question || !String(question).trim()) {
-    return res.status(400).json({ error: "Missing question", response: "No question was provided." });
+    return res.status(400).json({
+      error: "Missing question",
+      response: "No question was provided.",
+    });
   }
 
-  // Simple system prompt for testing
   const systemPrompt = `You are Under Review -- a sharp sports betting intelligence tool.
 
-IDENTITY: Lead with the take. Never hedge. Never open with a limitation. Plain text only.
+TODAY
+${getTodayStr()}
 
-FORMATTING: NEVER use markdown. Plain text only.
+IDENTITY
+Lead with the take.
+Never hedge.
+Never open with a limitation.
+Plain text only.
 
-RESPONSE FORMAT:
+FORMATTING
+NEVER use markdown.
+Plain text only.
+
+DEFAULT RESPONSE FORMAT
 Start with one sharp opening sentence.
 
 Then use exactly this format with blank lines between sections:
@@ -147,51 +358,51 @@ Do not put multiple labels on one line.
 Keep each section short.
 Plain text only.`;
 
-const hasImage = !!image?.base64;
+  const hasImage = !!image?.base64;
 
-const intent = detectIntent(question, hasImage);
+  const intent = detectIntent(question, hasImage);
 
-const sportHint = resolveSportHint({
-  incomingSportHint,
-  question,
-  matchupContext,
-  hasImage,
-});
-
-const contextQuality = getContextQuality({
-  sportHint,
-  golfContext,
-  nbaContext,
-  mlbContext,
-  nflContext,
-  f1Context,
-  matchupContext,
-});
-
-const derivedConfidence = deriveConfidenceLabel({
-  intent,
-  sportHint,
-  hasImage,
-  matchupContext,
-  question,
-  contextQuality,
-});
-
-let userPrompt = question;
-
-if (intent === "slip_review") {
-  userPrompt = buildSlipReviewPrompt({
+  const sportHint = resolveSportHint({
+    incomingSportHint,
     question,
-    sportHint,
-    nbaContext,
-    nflContext,
-    mlbContext,
-    golfContext,
-    f1Context,
-    derivedConfidence,
+    matchupContext,
+    hasImage,
   });
-} else if (sportHint === "golf") {
-  userPrompt = `You are answering a golf betting question.
+
+  const contextQuality = getContextQuality({
+    sportHint,
+    golfContext,
+    nbaContext,
+    mlbContext,
+    nflContext,
+    f1Context,
+    matchupContext,
+  });
+
+  const derivedConfidence = deriveConfidenceLabel({
+    intent,
+    sportHint,
+    hasImage,
+    matchupContext,
+    question,
+    contextQuality,
+  });
+
+  let userPrompt = question;
+
+  if (intent === "slip_review") {
+    userPrompt = buildSlipReviewPrompt({
+      question,
+      sportHint,
+      nbaContext,
+      nflContext,
+      mlbContext,
+      golfContext,
+      f1Context,
+      derivedConfidence,
+    });
+  } else if (sportHint === "golf") {
+    userPrompt = `You are answering a golf betting question.
 
 Question:
 ${question}
@@ -209,8 +420,8 @@ Rules:
 - Use the tournament, odds, rankings, and player names in the provided golf context.
 - If data is limited, still stay within golf and give the best golf lean from the available board.
 - Do not invent unrelated teams, games, or props.`;
-} else if (sportHint === "nba") {
-  userPrompt = `You are answering an NBA betting question.
+  } else if (sportHint === "nba") {
+    userPrompt = `You are answering an NBA betting question.
 
 Question:
 ${question}
@@ -226,8 +437,8 @@ Rules:
 - Answer only as an NBA analyst.
 - Do not mention golf, NFL, MLB, F1, or tennis.
 - Do not invent unrelated games or props.`;
-} else if (sportHint === "mlb") {
-  userPrompt = `You are answering an MLB betting question.
+  } else if (sportHint === "mlb") {
+    userPrompt = `You are answering an MLB betting question.
 
 Question:
 ${question}
@@ -243,8 +454,8 @@ Rules:
 - Answer only as an MLB analyst.
 - Do not mention golf, NBA, NFL, F1, or tennis.
 - Do not invent unrelated games or props.`;
-} else if (sportHint === "f1") {
-  userPrompt = `You are answering a Formula 1 betting question.
+  } else if (sportHint === "f1") {
+    userPrompt = `You are answering a Formula 1 betting question.
 
 Question:
 ${question}
@@ -260,8 +471,8 @@ Rules:
 - Answer only as an F1 analyst.
 - Do not mention golf, NBA, NFL, MLB, or tennis.
 - Do not invent unrelated drivers, races, or props.`;
-} else if (sportHint === "nfl") {
-  userPrompt = `You are answering an NFL betting question.
+  } else if (sportHint === "nfl") {
+    userPrompt = `You are answering an NFL betting question.
 
 Question:
 ${question}
@@ -277,8 +488,8 @@ Rules:
 - Answer only as an NFL analyst.
 - Do not mention golf, NBA, MLB, F1, or tennis.
 - Do not invent unrelated games or props.`;
-} else if (matchupContext) {
-  userPrompt = `You are answering a betting question about this matchup.
+  } else if (matchupContext) {
+    userPrompt = `You are answering a betting question about this matchup.
 
 Question:
 ${question}
@@ -294,26 +505,27 @@ Rules:
 - Stay within the matchup and its sport.
 - Do not drift into unrelated sports.
 - Do not invent unrelated teams, players, or props.`;
-}
+  }
 
-const messages = hasImage
-  ? [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: userPrompt },
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: image.mediaType,
-              data: image.base64,
+  const messages = hasImage
+    ? [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: image.mediaType,
+                data: image.base64,
+              },
             },
-          },
-        ],
-      },
-    ]
-  : [{ role: "user", content: userPrompt }];
+          ],
+        },
+      ]
+    : [{ role: "user", content: userPrompt }];
+
   try {
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
@@ -350,7 +562,7 @@ const messages = hasImage
       });
     }
 
-    let text = extractAnthropicText(result.data);
+    const text = extractAnthropicText(result.data);
 
     if (!text) {
       return res.status(500).json({
@@ -360,10 +572,10 @@ const messages = hasImage
     }
 
     return res.status(200).json({
-  response: text,
-  sport: sportHint || "generic",
-  intent,
-});
+      response: text,
+      sport: sportHint || "generic",
+      intent,
+    });
   } catch (err) {
     console.error("UR TAKE error:", err);
     return res.status(500).json({
