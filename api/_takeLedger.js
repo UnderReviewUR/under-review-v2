@@ -64,6 +64,13 @@ function extractSectionValue(text, sectionName) {
   return m?.[1] ? String(m[1]).trim() : "";
 }
 
+/** Migrate stored takes from older schema (`ungraded` → `tracked`). */
+export function migrateTakeStatuses(take) {
+  if (!take) return take;
+  if (take.status === "ungraded") return { ...take, status: "tracked" };
+  return take;
+}
+
 export function extractTakeFromResponse({ responseText, sport, intent, question }) {
   const playLine = extractSectionValue(responseText, "THE PLAY");
   const confidenceLine =
@@ -90,9 +97,9 @@ export function extractTakeFromResponse({ responseText, sport, intent, question 
     confidence: confidenceLine,
     timing: timingLine || "",
     parsedBet: parsed,
-    status: parsed ? "pending" : "ungraded",
+    status: parsed ? "pending" : "tracked",
     result: null,
-    gradingNote: parsed ? "" : "Auto-grading unavailable for this market type yet.",
+    gradingNote: parsed ? "" : "Tracked — auto-grading is not available for this market yet.",
     createdAt: new Date().toISOString(),
     settledAt: null,
   };
@@ -349,7 +356,10 @@ export async function gradeAndGetTakesForUser(email) {
   if (!cleanEmail) return [];
 
   const bundle = await getUserTakeBundle(cleanEmail);
-  const takes = Array.isArray(bundle.takes) ? bundle.takes : [];
+  const takesRaw = Array.isArray(bundle.takes) ? bundle.takes : [];
+  const takes = takesRaw.map(migrateTakeStatuses);
+
+  const needsMigratePersistence = takesRaw.some((t) => migrateTakeStatuses(t).status !== t.status);
 
   const needsNbaMlb = takes.some(
     (t) =>
@@ -359,7 +369,12 @@ export async function gradeAndGetTakesForUser(email) {
   );
   const needsTennis = takes.some(isTennisWinnerPendingTake);
 
-  if (!needsNbaMlb && !needsTennis) return takes;
+  if (!needsNbaMlb && !needsTennis) {
+    if (needsMigratePersistence) {
+      await saveUserTakeBundle(cleanEmail, { takes: clipTakes(takes) });
+    }
+    return takes;
+  }
 
   const games = needsNbaMlb ? await fetchRecentFinalGames() : [];
   const tennisMatches = needsTennis ? await fetchRecentTennisResults() : [];
@@ -425,11 +440,14 @@ function computeBucketSummary(takes) {
     0
   );
   const stake = settled.length;
+  const trackedCount = takes.filter(
+    (t) => t.status === "tracked" || t.status === "ungraded"
+  ).length;
   return {
     total: takes.length,
     settled: settled.length,
     pending: takes.filter((t) => t.status === "pending").length,
-    ungraded: takes.filter((t) => t.status === "ungraded").length,
+    tracked: trackedCount,
     wins,
     losses,
     pushes,
@@ -440,7 +458,7 @@ function computeBucketSummary(takes) {
 }
 
 export function buildPerformanceSnapshot(takes) {
-  const rows = Array.isArray(takes) ? takes : [];
+  const rows = Array.isArray(takes) ? takes.map(migrateTakeStatuses) : [];
   const summary = computeBucketSummary(rows);
 
   const bySport = {};

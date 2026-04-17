@@ -2596,10 +2596,12 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
         <div>
           <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,textTransform:"uppercase"}}>Under Review Record</div>
           <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.45}}>
-            Takes are captured from chat answers (the THE PLAY section). No manual logging — supported outcomes settle automatically after finals post.
+            What UR TAKE told you — and how it aged. Takes are saved from each answer&apos;s THE PLAY line; no manual logging.
           </div>
           <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginTop:6,opacity:.93}}>
-            Auto-grading covers NBA and MLB team moneylines (ESPN finals) and tennis match-winner lines parsed from THE PLAY (player + ML / to win) vs API-Tennis finals. Props, spreads, F1, golf, and many other markets stay pending or ungraded until we expand parsers.
+            <strong style={{fontWeight:600,color:"var(--soft)"}}>Waiting</strong> = saved play, waiting for a result we can grade.&nbsp;
+            <strong style={{fontWeight:600,color:"var(--soft)"}}>Tracked</strong> = saved for your history; auto-grading isn&apos;t wired for that market yet.&nbsp;
+            NBA/MLB team ML and tennis match winners (parsed from THE PLAY) settle automatically when finals data is available.
           </div>
         </div>
         <button
@@ -2620,28 +2622,36 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
         <div style={{fontSize:12,color:"var(--muted)"}}>{performanceLoading ? "Loading performance..." : "No performance data yet."}</div>
       ) : (
         <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:8,marginBottom:10}}>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Settled</div>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.settled || 0}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginBottom:10}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Settled</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.settled || 0}</div>
             </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Win Rate</div>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{Math.round((performanceData.summary?.winRate || 0) * 100)}%</div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Waiting</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.pending || 0}</div>
             </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>ROI</div>
-              <div style={{fontSize:16,fontWeight:700,color:(performanceData.summary?.roiUnits || 0) >= 0 ? "#00E676" : "#FF6B6B"}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Tracked</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.tracked ?? performanceData.summary?.ungraded ?? 0}</div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Win %</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{Math.round((performanceData.summary?.winRate || 0) * 100)}%</div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>ROI</div>
+              <div style={{fontSize:15,fontWeight:700,color:(performanceData.summary?.roiUnits || 0) >= 0 ? "#00E676" : "#FF6B6B"}}>
                 {(performanceData.summary?.roiUnits || 0) > 0 ? "+" : ""}{performanceData.summary?.roiUnits || 0}u
               </div>
             </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Wins</div>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.wins || 0}</div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Wins</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.wins || 0}</div>
             </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Losses</div>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.losses || 0}</div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Losses</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.losses || 0}</div>
             </div>
           </div>
 
@@ -2649,19 +2659,45 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
             Recent Takes
           </div>
           <div style={{display:"grid",gap:6}}>
-            {(performanceData.recent || []).slice(0, 6).map((take) => (
+            {(performanceData.recent || []).slice(0, 6).map((take) => {
+              const st = take.status === "ungraded" ? "tracked" : take.status;
+              const badge =
+                st === "settled"
+                  ? String(take.result || "settled").toUpperCase()
+                  : st === "pending"
+                    ? "WAITING"
+                    : "TRACKED";
+              const badgeColor =
+                st === "settled"
+                  ? take.result === "win"
+                    ? "#00E676"
+                    : take.result === "loss"
+                      ? "#FF6B6B"
+                      : "#FFD166"
+                  : st === "pending"
+                    ? "var(--cyan-bright)"
+                    : "var(--muted)";
+              const metaLine =
+                st === "settled"
+                  ? [take.gradingNote].filter(Boolean).join("")
+                  : st === "pending"
+                    ? "Waiting for final result."
+                    : take.gradingNote || "Saved — grading not enabled for this market yet.";
+              return (
               <div key={take.id} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 10px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
                   <div style={{fontSize:12,color:"var(--text)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{take.playLine || "Take recorded"}</div>
-                  <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:take.status==="settled"?(take.result==="win"?"#00E676":take.result==="loss"?"#FF6B6B":"#FFD166"):"var(--muted)",letterSpacing:1,textTransform:"uppercase",flexShrink:0}}>
-                    {take.status==="settled" ? take.result : take.status}
+                  <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:badgeColor,letterSpacing:1,textTransform:"uppercase",flexShrink:0}}>
+                    {badge}
                   </div>
                 </div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:3}}>
-                  {(take.sport || "GENERIC").toUpperCase()} · {take.confidence || "Unspecified"}{take.gradingNote ? ` · ${take.gradingNote}` : ""}
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:3,lineHeight:1.35}}>
+                  {(take.sport || "GENERIC").toUpperCase()} · {take.confidence || "Unspecified"}
+                  {metaLine ? ` · ${metaLine}` : ""}
                 </div>
               </div>
-            ))}
+            );
+            })}
             {(!performanceData.recent || performanceData.recent.length === 0) && (
               <div style={{fontSize:12,color:"var(--muted)"}}>No takes logged yet. Ask for a play and it will appear here.</div>
             )}
