@@ -71,57 +71,112 @@ function buildTourShortlist(playersByTour, surfaceKey, limit = 8) {
   return ranked;
 }
 
-/** Ranked snapshot lines for prompt injection (surface-weighted). */
+/** Best single Elo label for snapshot (thin rows may lack surface-specific fields). */
+function snapshotEloLabel(p, surfaceKey) {
+  const pick = (v, label) =>
+    Number.isFinite(Number(v)) ? `${label} ${Number(v)}` : null;
+  if (surfaceKey === "clay") {
+    const c = pick(p?.cElo, "cElo");
+    if (c) return c;
+  } else if (surfaceKey === "hard") {
+    const h = pick(p?.hElo, "hElo");
+    if (h) return h;
+  } else if (surfaceKey === "grass") {
+    const g = pick(p?.gElo, "gElo");
+    if (g) return g;
+  }
+  return (
+    pick(p?.cElo, "cElo") ||
+    pick(p?.hElo, "hElo") ||
+    pick(p?.gElo, "gElo") ||
+    pick(p?.elo, "Elo") ||
+    pick(p?.yElo2026, "yElo")
+  );
+}
+
+function snapshotHoldHint(p) {
+  if (typeof p?.serveStats === "string" && p.serveStats.trim()) {
+    return p.serveStats.split(",")[0]?.trim() || null;
+  }
+  if (p?.serveStats?.holdPct != null) {
+    return `${p.serveStats.holdPct}% hold`;
+  }
+  if (typeof p?.returnStats === "string" && p.returnStats.trim()) {
+    return p.returnStats.split(",")[0]?.trim().slice(0, 72) || null;
+  }
+  return null;
+}
+
+function snapshotDrHint(p) {
+  if (typeof p?.overallStats === "string") {
+    const m = p.overallStats.match(/Dominance Ratio\s+([\d.]+)/i);
+    if (m) return `DR ${m[1]}`;
+    const loose = p.overallStats.match(/\bDR\s+([\d.]+)\b/i);
+    if (loose) return `DR ${loose[1]}`;
+  }
+  if (p?.overallStats?.dominanceRatio != null) {
+    return `DR ${p.overallStats.dominanceRatio}`;
+  }
+  const note = String(p?.fullNote || "");
+  const fromNote = note.match(/(?:Dominance Ratio|DR)\s+([\d.]+)/i);
+  if (fromNote) return `DR ${fromNote[1]}`;
+  return null;
+}
+
+/** Ranked snapshot lines for prompt injection (surface-weighted). Safe on sparse rows. */
 function buildTennisPlayerSnapshot(playerDb, surfaceKey, limit = 30) {
   const ranked = buildTourShortlist(playerDb, surfaceKey, limit);
   return ranked
     .map(({ name }) => {
-      const p = playerDb?.[name];
-      if (!p) return `${name} | (no row in DB)`;
+      try {
+        const p = playerDb?.[name];
+        if (!p || typeof p !== "object") return `${name} | (no row in DB)`;
 
-      const cElo = Number.isFinite(Number(p.cElo)) ? `cElo ${p.cElo}` : null;
-      const hold =
-        typeof p.serveStats === "string"
-          ? p.serveStats.split(",")[0]?.trim()
-          : p.serveStats?.holdPct != null
-            ? `${p.serveStats.holdPct}% hold`
-            : null;
-      let dr = null;
-      if (typeof p.overallStats === "string") {
-        const m = p.overallStats.match(/Dominance Ratio\s+([\d.]+)/i);
-        if (m) dr = `DR ${m[1]}`;
-      } else if (p.overallStats?.dominanceRatio != null) {
-        dr = `DR ${p.overallStats.dominanceRatio}`;
+        const eloTag = snapshotEloLabel(p, surfaceKey);
+        const hold = snapshotHoldHint(p);
+        const dr = snapshotDrHint(p);
+
+        const surf =
+          p.surfaceNote?.[surfaceKey] ||
+          (surfaceKey === "clay" ? p.surfaceNote?.clay : null) ||
+          (surfaceKey === "hard" ? p.surfaceNote?.hard : null) ||
+          (surfaceKey === "grass" ? p.surfaceNote?.grass : null);
+
+        const surfaces = surf
+          ? `${surfaceKey}: ${String(surf).slice(0, 140)}`
+          : [
+              p.surfaceNote?.clay ? `clay: ${String(p.surfaceNote.clay).slice(0, 90)}` : null,
+              p.surfaceNote?.hard ? `hard: ${String(p.surfaceNote.hard).slice(0, 90)}` : null,
+            ]
+              .filter(Boolean)
+              .join(", ");
+
+        const form =
+          p.record2026 ||
+          p.surfaceRecord2026 ||
+          p.record ||
+          p.miamiNote ||
+          "";
+
+        const note = p.fullNote ? String(p.fullNote).slice(0, 120) : "";
+
+        const signals = [eloTag, hold, dr].filter(Boolean).join(" · ");
+        const thin =
+          !eloTag && !hold && !dr && !surfaces && !String(form).trim() && !note;
+
+        const bits = [
+          `${name}`,
+          p.style ? String(p.style) : "",
+          signals || (thin ? "partial row — cite cautiously from notes only" : ""),
+          surfaces || "",
+          form ? String(form).slice(0, 80) : "",
+          note ? note : "",
+        ].filter(Boolean);
+
+        return bits.join(" | ");
+      } catch {
+        return `${name} | (snapshot parse skipped — row present but malformed)`;
       }
-
-      const surf =
-        p.surfaceNote?.[surfaceKey] ||
-        (surfaceKey === "clay" ? p.surfaceNote?.clay : null) ||
-        (surfaceKey === "hard" ? p.surfaceNote?.hard : null) ||
-        (surfaceKey === "grass" ? p.surfaceNote?.grass : null);
-
-      const surfaces = surf
-        ? `${surfaceKey}: ${String(surf).slice(0, 140)}`
-        : [
-            p.surfaceNote?.clay ? `clay: ${String(p.surfaceNote.clay).slice(0, 90)}` : null,
-            p.surfaceNote?.hard ? `hard: ${String(p.surfaceNote.hard).slice(0, 90)}` : null,
-          ]
-            .filter(Boolean)
-            .join(", ");
-
-      const form = p.record2026 || p.miamiNote || "";
-      const note = p.fullNote ? String(p.fullNote).slice(0, 120) : "";
-
-      const signals = [cElo, hold, dr].filter(Boolean).join(" · ");
-      const bits = [
-        `${name}`,
-        p.style ? String(p.style) : "",
-        signals,
-        surfaces || "",
-        form ? String(form).slice(0, 80) : "",
-        note ? note : "",
-      ].filter(Boolean);
-      return bits.join(" | ");
     })
     .join("\n");
 }
@@ -835,6 +890,9 @@ Rules:
     const subject = extractNflQuestionSubject(question);
     const matchedPlayer = findNflPlayerMatch(subject, availableNflPlayers);
 
+    // Audit note: tennis previously had a static "data-only" shortcut (removed). NFL is the only
+    // intentional non-Anthropic short-circuit here — guardrail when the question names a player
+    // absent from verified context. Golf / NBA / MLB / F1 always reach callAnthropic.
     if (
       shouldApplyNflUnsupportedGuard(question) &&
       subject &&

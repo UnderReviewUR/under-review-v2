@@ -164,7 +164,16 @@ function getActiveTournamentKey() {
 
 import { applyCors } from "./_cors.js";
 
-/** Update when major news breaks (withdrawals, etc.). Clear when stale. Injected into UR TAKE tennis prompts. */
+/**
+ * Manual breaking news injected into UR TAKE tennis prompts (API field `breaking`).
+ * Leave empty when clear — stale lines (e.g. old WD) will mislead on unrelated tournaments.
+ * Prefer dated entries so ops can spot staleness at a glance:
+ *
+ * Last updated: leave empty when clear
+ * Example: "2026-04-17 | Alcaraz WD Madrid — field repricing now"
+ *
+ * Override without deploy: set env `TENNIS_BREAKING` (same format).
+ */
 const TENNIS_BREAKING = "";
 
 export default function handler(req, res) {
