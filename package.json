@@ -9,6 +9,9 @@
     "dev:local": "concurrently \"npm:dev\" \"npm:dev:api\"",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint src api scripts",
+    "format": "prettier --write \"src/**/*.{js,jsx}\" \"api/**/*.js\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx}\" \"api/**/*.js\"",
     "refresh:tennis-form": "node refresh-tennis-form.mjs"
   },
   "dependencies": {
@@ -20,8 +23,14 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^9.2.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.5.0",
+    "prettier": "^3.8.3",
     "vite": "^4.4.0"
   }
 }

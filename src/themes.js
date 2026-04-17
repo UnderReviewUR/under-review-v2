@@ -15,7 +15,9 @@ export function getStoredAccessTier() {
         return payload.tier || "free";
       }
     }
-  } catch {}
+  } catch {
+    /* ignore invalid stored token */
+  }
   return "free";
 }
 

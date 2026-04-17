@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { action, email, fingerprint } = req.body || {};
+  const { action, email, fingerprint: _fingerprint } = req.body || {};
 
   // ── action: "check" — can this user ask a question? ──────────────────────
   if (action === "check") {

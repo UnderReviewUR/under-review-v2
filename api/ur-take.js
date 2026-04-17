@@ -4,9 +4,6 @@ import { applyCors } from "./_cors.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
 
-// Kept for compatibility with older references
-const NBA_PLAYERS = {};
-
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
   return new Date().toLocaleDateString("en-US", {
@@ -201,9 +198,9 @@ function extractNflQuestionSubject(question) {
   const q = normalizeText(question).replace(/[^a-z0-9'\s.-]/g, " ");
 
   const willPattern =
-    /\bwill\s+([a-z][a-z'\-]*(?:\s+[a-z][a-z'\-]*){0,2})\s+(throw|pass|rush|run|score|catch|record|have)\b/;
+    /\bwill\s+([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})\s+(throw|pass|rush|run|score|catch|record|have)\b/;
   const overUnderPattern =
-    /\b([a-z][a-z'\-]*(?:\s+[a-z][a-z'\-]*){0,2})\s+(over|under)\s+\d/;
+    /\b([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})\s+(over|under)\s+\d/;
 
   const willMatch = q.match(willPattern);
   if (willMatch) return String(willMatch[1] || "").trim();

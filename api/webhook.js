@@ -16,11 +16,9 @@ export const config = {
 };
 
 import Stripe from "stripe";
-import crypto from "crypto";
 
-const STRIPE_SECRET_KEY    = process.env.STRIPE_SECRET_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-const TOKEN_SECRET          = process.env.ACCESS_TOKEN_SECRET || "ur-dev-secret-changeme";
 
 // ── Read raw body from Vercel serverless ─────────────────────────────────────
 async function getRawBody(req) {
@@ -30,13 +28,6 @@ async function getRawBody(req) {
     req.on("end",  () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
-}
-
-// ── Sign a local access token ────────────────────────────────────────────────
-function signToken(payload) {
-  const data = JSON.stringify(payload);
-  const sig  = crypto.createHmac("sha256", TOKEN_SECRET).update(data).digest("hex");
-  return Buffer.from(data).toString("base64") + "." + sig;
 }
 
 // ── Simple in-memory log (Vercel logs will capture these) ────────────────────
@@ -84,8 +75,6 @@ export default async function handler(req, res) {
         const email   = session.customer_email || session.customer_details?.email;
         const custId  = session.customer;
         const subId   = session.subscription;
-        const tier    = session.metadata?.tier || "pro";
-
         log("checkout.session.completed", email, `customer=${custId} sub=${subId}`);
 
         // Nothing to write to a DB here — token is issued on-demand by pro-status.js
@@ -132,7 +121,11 @@ export default async function handler(req, res) {
         const invoice = event.data.object;
         const email   = invoice.customer_email;
         const custId  = invoice.customer;
-        log("invoice.payment_succeeded", email, `invoice=${invoice.id}`);
+        log(
+          "invoice.payment_succeeded",
+          email,
+          `invoice=${invoice.id} customer=${custId}`
+        );
         // Renewal confirmed — access continues via pro-status.js live Stripe check
         break;
       }

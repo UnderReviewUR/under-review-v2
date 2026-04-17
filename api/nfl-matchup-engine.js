@@ -219,7 +219,7 @@ export default async function handler(req, res) {
   };
 
   // ── MATCHUP SCORING FUNCTION ─────────────────────────────────────────────
-  function scoreMatchup({ offPos, defTeam, propType, line, playerBaseline }) {
+  function _scoreMatchup({ offPos, defTeam, propType, line, playerBaseline }) {
     const tier = DEFENSE_TIERS[defTeam] || "AVERAGE";
     let adjustment = 0;
 

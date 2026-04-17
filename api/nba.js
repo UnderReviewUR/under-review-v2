@@ -106,7 +106,9 @@ async function getTodaysGames(oddsKey) {
             if (oddsGames.length > 0) { setCached(cacheKey, oddsGames); return oddsGames; }
           }
         }
-      } catch {}
+      } catch {
+        /* odds merge optional */
+      }
     }
 
     if (games.length > 0) setCached(cacheKey, games);
