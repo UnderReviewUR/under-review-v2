@@ -36,34 +36,304 @@ export function isProLightTheme(id) {
   return id === "broadsheet" || id === "crisp";
 }
 
+/** Pro tab marketing surfaces (inline styles assume dark; light themes need ink + paper). */
+export function getProMarketingTokens(themeId) {
+  if (themeId === "broadsheet") {
+    return {
+      perfPanel: {
+        margin: "12px 16px 0",
+        background: "#F7F4EE",
+        border: "1px solid #d8d0c4",
+        borderRadius: 14,
+        padding: "14px 14px 12px",
+      },
+      ownerBanner: {
+        background: "linear-gradient(135deg,rgba(13,148,136,.14),rgba(202,138,4,.08))",
+        border: "1px solid rgba(13,148,136,.4)",
+        borderRadius: 14,
+        padding: "14px 20px",
+        margin: "12px 16px 0",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      },
+      ownerTitle: "#0f766e",
+      ownerSub: "#4a3e2e",
+      successBanner: {
+        wrap: {
+          background: "linear-gradient(135deg,rgba(5,150,105,.16),rgba(16,185,129,.09))",
+          border: "1px solid rgba(5,150,105,.45)",
+          borderRadius: 14,
+          padding: "16px 20px",
+          margin: "12px 16px 0",
+          textAlign: "center",
+        },
+        title: "#047857",
+        sub: "#4a3e2e",
+      },
+      subscriptionCard: {
+        margin: "12px 16px 0",
+        padding: "12px 14px 14px",
+        background: "#FFFCF7",
+        border: "1px solid #d8d0c4",
+        borderRadius: 14,
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+      },
+      subLabel: "#5c5046",
+      subBody: "#4a3e2e",
+      priceAside: "#5c5046",
+      priceAsideMuted: "#6b6054",
+      trialLine: "rgba(15,118,110,.85)",
+      checkoutFoot: "rgba(26,20,16,.5)",
+      valueGrid: {
+        display: "grid",
+        gridTemplateColumns: "repeat(4,1fr)",
+        margin: "20px 20px 0",
+        border: "1px solid #c9bfb2",
+        borderRadius: 14,
+        overflow: "hidden",
+      },
+      valueCell: {
+        padding: "12px 8px",
+        textAlign: "center",
+        background: "#FFF9F2",
+        borderLeft: "1px solid rgba(26,20,16,.1)",
+      },
+      valueLabel: "#5c5046",
+      whatsInc: "#5c5046",
+      whatsIncRule: "rgba(26,20,16,.15)",
+      featureRow: (i, len) => ({
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "13px 14px",
+        background: "#FFFCF7",
+        borderRadius: i === 0 ? "12px 12px 0 0" : i === len - 1 ? "0 0 12px 12px" : 0,
+        borderTop: i > 0 ? "1px solid rgba(26,20,16,.1)" : "none",
+      }),
+      featureTitle: "#1A1410",
+      featureDesc: "#4a3e2e",
+      featureChev: "#5c5046",
+      quoteBox: {
+        margin: "16px 20px 0",
+        padding: "16px 20px",
+        borderLeft: "3px solid #be123c",
+        background: "rgba(190,18,60,.07)",
+        borderRadius: "0 12px 12px 0",
+      },
+      quoteText: "#3d3428",
+      quoteAttrib: "#5c5046",
+      bottomMuted: "#5c5046",
+      stripeFoot: "#5c5046",
+    };
+  }
+  if (themeId === "crisp") {
+    return {
+      perfPanel: {
+        margin: "12px 16px 0",
+        background: "#FFFFFF",
+        border: "1px solid #E2E8F0",
+        borderRadius: 14,
+        padding: "14px 14px 12px",
+      },
+      ownerBanner: {
+        background: "linear-gradient(135deg,rgba(56,189,248,.15),rgba(14,165,233,.08))",
+        border: "1px solid rgba(56,189,248,.45)",
+        borderRadius: 14,
+        padding: "14px 20px",
+        margin: "12px 16px 0",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+      },
+      ownerTitle: "#0369a1",
+      ownerSub: "#475569",
+      successBanner: {
+        wrap: {
+          background: "linear-gradient(135deg,rgba(5,150,105,.14),rgba(16,185,129,.08))",
+          border: "1px solid rgba(16,185,129,.4)",
+          borderRadius: 14,
+          padding: "16px 20px",
+          margin: "12px 16px 0",
+          textAlign: "center",
+        },
+        title: "#047857",
+        sub: "#475569",
+      },
+      subscriptionCard: {
+        margin: "12px 16px 0",
+        padding: "12px 14px 14px",
+        background: "#FFFFFF",
+        border: "1px solid #E2E8F0",
+        borderRadius: 14,
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+      },
+      subLabel: "#64748B",
+      subBody: "#475569",
+      priceAside: "#64748B",
+      priceAsideMuted: "#64748B",
+      trialLine: "rgba(3,105,161,.9)",
+      checkoutFoot: "rgba(15,23,42,.45)",
+      valueGrid: {
+        display: "grid",
+        gridTemplateColumns: "repeat(4,1fr)",
+        margin: "20px 20px 0",
+        border: "1px solid #E2E8F0",
+        borderRadius: 14,
+        overflow: "hidden",
+      },
+      valueCell: {
+        padding: "12px 8px",
+        textAlign: "center",
+        background: "#F8FAFC",
+        borderLeft: "1px solid #E2E8F0",
+      },
+      valueLabel: "#64748B",
+      whatsInc: "#64748B",
+      whatsIncRule: "#CBD5E1",
+      featureRow: (i, len) => ({
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "13px 14px",
+        background: "#FFFFFF",
+        borderRadius: i === 0 ? "12px 12px 0 0" : i === len - 1 ? "0 0 12px 12px" : 0,
+        borderTop: i > 0 ? "1px solid #E2E8F0" : "none",
+      }),
+      featureTitle: "#0F172A",
+      featureDesc: "#475569",
+      featureChev: "#64748B",
+      quoteBox: {
+        margin: "16px 20px 0",
+        padding: "16px 20px",
+        borderLeft: "3px solid #e11d48",
+        background: "rgba(225,29,72,.06)",
+        borderRadius: "0 12px 12px 0",
+      },
+      quoteText: "#334155",
+      quoteAttrib: "#64748B",
+      bottomMuted: "#64748B",
+      stripeFoot: "#64748B",
+    };
+  }
+  return {
+    perfPanel: {
+      margin: "12px 16px 0",
+      background: "rgba(255,255,255,.02)",
+      border: "1px solid rgba(255,255,255,.08)",
+      borderRadius: 14,
+      padding: "14px 14px 12px",
+    },
+    ownerBanner: {
+      background: "linear-gradient(135deg,rgba(0,245,233,.08),rgba(0,245,233,.04))",
+      border: "1px solid rgba(0,245,233,.2)",
+      borderRadius: 14,
+      padding: "14px 20px",
+      margin: "12px 16px 0",
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+    },
+    ownerTitle: undefined,
+    ownerSub: undefined,
+    successBanner: null,
+    subscriptionCard: {
+      margin: "12px 16px 0",
+      padding: "12px 14px 14px",
+      background: "rgba(255,255,255,.02)",
+      border: "1px solid rgba(255,255,255,.08)",
+      borderRadius: 14,
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    subLabel: undefined,
+    subBody: undefined,
+    priceAside: undefined,
+    priceAsideMuted: undefined,
+    trialLine: undefined,
+    checkoutFoot: "rgba(255,255,255,.15)",
+    valueGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(4,1fr)",
+      margin: "20px 20px 0",
+      border: "1px solid rgba(255,255,255,.06)",
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    valueCell: {
+      padding: "12px 8px",
+      textAlign: "center",
+      background: "rgba(255,255,255,.02)",
+      borderLeft: "1px solid rgba(255,255,255,.06)",
+    },
+    valueLabel: "rgba(255,255,255,.62)",
+    whatsInc: "rgba(255,255,255,.78)",
+    whatsIncRule: "rgba(255,255,255,.14)",
+    featureRow: (i, len) => ({
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+      padding: "13px 14px",
+      background: "rgba(255,255,255,.025)",
+      borderRadius: i === 0 ? "12px 12px 0 0" : i === len - 1 ? "0 0 12px 12px" : 0,
+      borderTop: i > 0 ? "1px solid rgba(255,255,255,.04)" : "none",
+    }),
+    featureTitle: undefined,
+    featureDesc: "rgba(255,255,255,.68)",
+    featureChev: "rgba(255,255,255,.55)",
+    quoteBox: {
+      margin: "16px 20px 0",
+      padding: "16px 20px",
+      borderLeft: "3px solid var(--magenta)",
+      background: "rgba(255,45,107,.04)",
+      borderRadius: "0 12px 12px 0",
+    },
+    quoteText: "rgba(255,255,255,.78)",
+    quoteAttrib: "rgba(255,255,255,.58)",
+    bottomMuted: undefined,
+    stripeFoot: "rgba(255,255,255,.52)",
+  };
+}
+
 /** Pro page “Display mode” picker chrome (dark vs two light variants). */
 export function getDisplayModeChrome(activeTheme) {
   if (activeTheme === "broadsheet") {
     return {
-      sectionLabel: "#8A7A6A",
-      activeBg: "rgba(26,20,16,.06)",
+      sectionLabel: "#5c5046",
+      activeBg: "rgba(26,20,16,.12)",
       inactiveBg: "#fff",
-      activeBorder: "rgba(26,20,16,.18)",
+      activeBorder: "#6b5e52",
       inactiveBorder: "rgba(216,206,192,1)",
       rowText: "#1A1410",
       titleActive: "#1A1410",
-      titleInactive: "rgba(26,20,16,.45)",
-      subtitle: "#8A7A6A",
+      titleInactive: "rgba(26,20,16,.55)",
+      subtitle: "#6b6054",
       dot: "#1A1410",
     };
   }
   if (activeTheme === "crisp") {
     return {
-      sectionLabel: "#64748B",
-      activeBg: "rgba(56,189,248,.12)",
+      sectionLabel: "#475569",
+      activeBg: "#e0f2fe",
       inactiveBg: "#fff",
-      activeBorder: "rgba(56,189,248,.55)",
+      activeBorder: "#0284c7",
       inactiveBorder: "#E2E8F0",
       rowText: "#0F172A",
       titleActive: "#0F172A",
-      titleInactive: "rgba(15,23,42,.45)",
-      subtitle: "#64748B",
-      dot: "#38BDF8",
+      titleInactive: "rgba(15,23,42,.55)",
+      subtitle: "#475569",
+      dot: "#0284c7",
     };
   }
   return {
@@ -236,7 +506,7 @@ export const THEMES = {
         font-size: 10px;
         font-weight: 600;
         letter-spacing: .5px;
-        color: rgba(255,255,255,.38);
+        color: rgba(255,255,255,.88);
       }
 
       .theme-epilogue .nav-btn.active {
@@ -263,6 +533,30 @@ export const THEMES = {
         background: #E0D8CC;
         color: #1A1410;
         font-family: 'DM Sans', sans-serif;
+      }
+
+      /* Readable ink on paper — overrides global :root vars meant for dark UI */
+      .app.theme-broadsheet {
+        --text: #1A1410;
+        --muted: #5c5046;
+        --soft: #4a3e2e;
+        --cyan-bright: #0f766e;
+        --cyan: #0d9488;
+        --surface: #F7F4EE;
+        --surface-2: #FAF6EF;
+        --border: #d8d0c4;
+        --border-2: #c9bfb2;
+        --bg: #E0D8CC;
+      }
+
+      .theme-broadsheet .pro-cta-btn {
+        border: 2px solid #0F0D0A !important;
+        color: #0F0D0A !important;
+        background: #FFFCF7 !important;
+      }
+      .theme-broadsheet .pro-cta-btn:hover {
+        background: #0F0D0A !important;
+        color: #F7F4EE !important;
       }
 
       .app.theme-broadsheet .docked-bar {
@@ -459,6 +753,30 @@ export const THEMES = {
         background: #CBD5E1;
         color: #0F172A;
         font-family: 'Barlow', sans-serif;
+      }
+
+      .app.theme-crisp {
+        --text: #0F172A;
+        --muted: #64748B;
+        --soft: #475569;
+        --cyan-bright: #0284c7;
+        --cyan: #0369a1;
+        --surface: #FFFFFF;
+        --surface-2: #F1F5F9;
+        --border: #E2E8F0;
+        --border-2: #CBD5E1;
+        --bg: #CBD5E1;
+      }
+
+      .theme-crisp .pro-cta-btn {
+        border: 2px solid #0F172A !important;
+        color: #FFFFFF !important;
+        background: #0F172A !important;
+      }
+      .theme-crisp .pro-cta-btn:hover {
+        background: #1e293b !important;
+        border-color: #1e293b !important;
+        color: #FFFFFF !important;
       }
 
       .app.theme-crisp .docked-bar {

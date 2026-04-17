@@ -419,8 +419,7 @@ function buildBdlLeaderboard(results) {
         round4: "—",
       };
     })
-    .filter((r) => r.name)
-    .slice(0, 30);
+    .filter((r) => r.name);
 }
 
 function hasMeaningfulLeaderboardRows(rows) {
@@ -476,7 +475,7 @@ function parseEspnLeaderboardFromHtml(html) {
     seenNames.add(name.toLowerCase());
   }
 
-  return rows.slice(0, 30);
+  return rows;
 }
 
 function summarizeCourseStats(rows) {
@@ -561,9 +560,9 @@ async function getEspnCurrentEvent() {
 
   const hasMeaningfulApiLeaderboard = competitors.some(isMeaningfulEspnCompetitor);
 
+  /* Full field: every competitor ESPN returns (AI + UI need players off the first page too). */
   const apiLeaderboard = competitors
     .filter((c) => c?.athlete)
-    .filter((c) => (hasMeaningfulApiLeaderboard ? isMeaningfulEspnCompetitor(c) : false))
     .map((c) => {
       const stats = c.statistics || [];
       const score = c.score || {};
@@ -579,8 +578,7 @@ async function getEspnCurrentEvent() {
         round3: stats.find((s) => s.name === "round3")?.displayValue || "—",
         round4: stats.find((s) => s.name === "round4")?.displayValue || "—",
       };
-    })
-    .slice(0, 30);
+    });
 
   let leaderboard = apiLeaderboard;
   let leaderboardSource = hasMeaningfulApiLeaderboard ? "espn_api" : "none";
@@ -831,7 +829,7 @@ async function getBdlTournamentBundle() {
       : Promise.resolve({ ok: false, data: null }),
     safeBdlFetch("/tournament_results", {
       "tournament_ids[]": picked.id,
-      per_page: 12,
+      per_page: 200,
     }),
     safeBdlFetch("/tournament_course_stats", {
       "tournament_ids[]": picked.id,

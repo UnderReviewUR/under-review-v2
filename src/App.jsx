@@ -7,6 +7,7 @@ import {
   isProLightTheme,
   getDisplayModeChrome,
   canUseProThemes,
+  getProMarketingTokens,
 } from "./themes.js";
 import { NBA_PLAYERS } from "./components/data/nba/players.js";
 import AskBar from "./components/AskBar.jsx";
@@ -390,7 +391,7 @@ const baseCss = `
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
   .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,auto);row-gap:2px;column-gap:2px;padding:4px 4px max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:9px;letter-spacing:0.35px;cursor:pointer;padding:5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;opacity:.92;text-transform:uppercase;min-height:34px;line-height:1.05;}
+  .nav-btn{background:none;border:none;color:rgba(255,255,255,.88);font-family:var(--mono-font);font-size:9px;letter-spacing:0.35px;cursor:pointer;padding:5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;opacity:1;text-transform:uppercase;min-height:34px;line-height:1.05;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
   .nav-btn.nfl-active{color:#4A90D9;}
@@ -1015,6 +1016,8 @@ ${themeCss}
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT  = 5;
 
+  const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
+
   useEffect(() => {
     setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
   }, [accessTier]);
@@ -1492,7 +1495,7 @@ ${themeCss}
           location: golfData.currentEvent.location || null,
           round: golfData.currentEvent.round || null,
           state: golfData.currentEvent.state || null,
-          leaderboard: (golfData.currentEvent.leaderboard || []).slice(0, 12),
+          leaderboard: golfData.currentEvent.leaderboard || [],
         }
       : null,
     tournament: golfData?.tournament || null,
@@ -3325,23 +3328,30 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
             <ChatThread msgs={golfMsgs}/>
 
-            {/* Live leaderboard */}
+            {/* Live leaderboard — full field (scroll); same list is sent to /api/ur-take as golfContext */}
             {golfData?.currentEvent?.leaderboard?.length > 0 && (
               <>
-                <div className="section-divider">{golfData.currentEvent.name} — {golfData.currentEvent.round}</div>
-                {golfData.currentEvent.leaderboard.slice(0,20).map((player,i)=>(
-                  <div key={i} className="golf-leaderboard-card" onClick={()=>submitGolf(`Best betting angle on ${player.name} right now? Outright, top-10, or matchup?`)}>
-                    <div className="golf-pos">{player.position||i+1}</div>
-                    <div className="golf-player-info">
-                      <div className="golf-player-name">{player.name}</div>
-                      <div className="golf-player-country">{player.country}</div>
+                <div className="section-divider">
+                  {golfData.currentEvent.name} — {golfData.currentEvent.round}
+                  <span style={{ fontFamily: "var(--mono-font)", fontSize: 9, color: "var(--muted)", marginLeft: 8 }}>
+                    {golfData.currentEvent.leaderboard.length} players
+                  </span>
+                </div>
+                <div style={{ maxHeight: "min(70vh, 520px)", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingRight: 4 }}>
+                  {golfData.currentEvent.leaderboard.map((player, i) => (
+                    <div key={`${player.name}-${i}`} className="golf-leaderboard-card" onClick={()=>submitGolf(`Best betting angle on ${player.name} right now? Outright, top-10, or matchup?`)}>
+                      <div className="golf-pos">{player.position||i+1}</div>
+                      <div className="golf-player-info">
+                        <div className="golf-player-name">{player.name}</div>
+                        <div className="golf-player-country">{player.country}</div>
+                      </div>
+                      <div className="golf-score">
+                        <span className="golf-score-num" style={{color:player.score&&player.score.startsWith("-")?"#00E676":player.score==="E"?"var(--text)":"#FF4444"}}>{player.score||"—"}</span>
+                        <span className="golf-score-label">{player.thru&&player.thru!=="—"?`THRU ${player.thru}`:""}</span>
+                      </div>
                     </div>
-                    <div className="golf-score">
-                      <span className="golf-score-num" style={{color:player.score&&player.score.startsWith("-")?"#00E676":player.score==="E"?"var(--text)":"#FF4444"}}>{player.score||"—"}</span>
-                      <span className="golf-score-label">{player.thru&&player.thru!=="—"?`THRU ${player.thru}`:""}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </>
             )}
 
@@ -3391,30 +3401,47 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
     {/* Already unlocked banner */}
     {(accessTier==="owner"||accessTier==="friend")&&!proSuccess&&(
-      <div style={{background:"linear-gradient(135deg,rgba(0,245,233,.08),rgba(0,245,233,.04))",border:"1px solid rgba(0,245,233,.2)",borderRadius:14,padding:"14px 20px",margin:"12px 16px 0",display:"flex",alignItems:"center",gap:12}}>
+      <div style={proMarketing.ownerBanner}>
         <div style={{fontSize:18}}>🔓</div>
         <div>
-          <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,marginBottom:2}}>{accessTier==="owner"?"OWNER ACCESS":"FRIEND ACCESS"}</div>
-          <div style={{fontSize:12,color:"var(--muted)"}}>{accessTier==="owner"?"Full access. No limits.":"Unlocked via access code. Enjoy."}</div>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.ownerTitle ?? "var(--cyan-bright)",letterSpacing:2,marginBottom:2}}>{accessTier==="owner"?"OWNER ACCESS":"FRIEND ACCESS"}</div>
+          <div style={{fontSize:12,color:proMarketing.ownerSub ?? "var(--muted)"}}>{accessTier==="owner"?"Full access. No limits.":"Unlocked via access code. Enjoy."}</div>
         </div>
       </div>
     )}
 
     {/* Success banner */}
     {proSuccess&&(
-      <div style={{background:"linear-gradient(135deg,rgba(0,230,118,.12),rgba(29,185,84,.06))",border:"1px solid rgba(0,230,118,.3)",borderRadius:14,padding:"16px 20px",margin:"12px 16px 0",textAlign:"center"}}>
+      <div style={
+        proMarketing.successBanner?.wrap ?? {
+          background:"linear-gradient(135deg,rgba(0,230,118,.12),rgba(29,185,84,.06))",
+          border:"1px solid rgba(0,230,118,.3)",
+          borderRadius:14,
+          padding:"16px 20px",
+          margin:"12px 16px 0",
+          textAlign:"center",
+        }
+      }>
         <div style={{fontSize:20,marginBottom:4}}>🎉</div>
-        <div style={{fontFamily:"var(--display-font)",fontSize:22,letterSpacing:1,color:"#00E676",marginBottom:4}}>YOU'RE IN</div>
-        <div style={{fontSize:13,color:"var(--soft)"}}>Welcome to Under Review Pro. Every edge is unlocked.</div>
+        <div style={{
+          fontFamily:"var(--display-font)",
+          fontSize:22,
+          letterSpacing:1,
+          color: proMarketing.successBanner?.title ?? "#00E676",
+          marginBottom:4,
+        }}>YOU&apos;RE IN</div>
+        <div style={{fontSize:13,color: proMarketing.successBanner?.sub ?? "var(--soft)"}}>Welcome to Under Review Pro. Every edge is unlocked.</div>
       </div>
     )}
 
     {/* Performance panel */}
-    <div style={{margin:"12px 16px 0",background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.08)",borderRadius:14,padding:"14px 14px 12px"}}>
+    <div style={proMarketing.perfPanel}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
         <div>
           <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,textTransform:"uppercase"}}>Under Review Record</div>
-          <div style={{fontSize:12,color:"var(--muted)"}}>Auto-graded from completed games when market type is supported.</div>
+          <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.45}}>
+            Takes are captured from chat answers (the THE PLAY line). When the game finishes, supported markets auto-grade — no separate button.
+          </div>
         </div>
         <button
           className="quick-btn"
@@ -3485,22 +3512,9 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
     </div>
 
     {/* Pro header — same surface language as record panel (tool, not landing) */}
-    <div
-      style={{
-        margin: "12px 16px 0",
-        padding: "12px 14px 14px",
-        background: "rgba(255,255,255,.02)",
-        border: "1px solid rgba(255,255,255,.08)",
-        borderRadius: 14,
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 12,
-      }}
-    >
+    <div style={proMarketing.subscriptionCard}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-        <div style={{ fontFamily: "var(--mono-font)", fontSize: 9, letterSpacing: 2, color: "var(--muted)", textTransform: "uppercase" }}>
+        <div style={{ fontFamily: "var(--mono-font)", fontSize: 9, letterSpacing: 2, color: proMarketing.subLabel ?? "var(--muted)", textTransform: "uppercase" }}>
           Subscription
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -3523,7 +3537,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
             PRO
           </span>
         </div>
-        <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
+        <div style={{ fontSize: 12, color: proMarketing.subBody ?? "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
           Full database access, every sport, same data-dense take style as the rest of the app.
         </div>
       </div>
@@ -3531,7 +3545,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
         style={{
           fontFamily: "var(--mono-font)",
           fontSize: 10,
-          color: "rgba(0,245,233,.5)",
+          color: proMarketing.priceAside ?? "rgba(0,245,233,.5)",
           letterSpacing: 1.2,
           lineHeight: 1.5,
           textAlign: "right",
@@ -3540,7 +3554,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
       >
         $9.99/mo · 3-day trial
         <br />
-        <span style={{ color: "var(--muted)" }}>Cancel anytime</span>
+        <span style={{ color: proMarketing.priceAsideMuted ?? "var(--muted)" }}>Cancel anytime</span>
       </div>
     </div>
 
@@ -3548,7 +3562,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
     <div style={{padding:"24px 20px 0",textAlign:"center"}}>
       <style>{`
         @keyframes gleam{0%{background-position:200% center;}100%{background-position:-200% center;}}
-        .pro-cta-btn{
+        .theme-epilogue .pro-cta-btn{
           display:block;width:100%;padding:18px;
           border:2px solid #FFFFFF;border-radius:16px;
           background:transparent;color:#FFFFFF;
@@ -3556,7 +3570,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
           cursor:pointer;transition:background .2s,color .2s;
           margin-bottom:8px;
         }
-        .pro-cta-btn:hover{background:#FFFFFF;color:#080A0C;}
+        .theme-epilogue .pro-cta-btn:hover{background:#FFFFFF;color:#080A0C;}
       `}</style>
       <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:0,marginBottom:4}}>
         <span style={{fontSize:32,fontWeight:800,color:"var(--cyan-bright)",lineHeight:1}}>$</span>
@@ -3564,7 +3578,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
         <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>.99</span>
         <span style={{fontSize:12,color:"var(--muted)",alignSelf:"flex-end",paddingBottom:8,marginLeft:4}}>/month</span>
       </div>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:"rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
       <button className="pro-cta-btn" onClick={async()=>{
         try{
           const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
@@ -3575,22 +3589,22 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
           else alert("Could not start checkout. Try again.");
         }catch{alert("Something went wrong. Try again.");}
       }}>START FREE TRIAL</button>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
     </div>
 
     {/* Value bar */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",margin:"20px 20px 0",border:"1px solid rgba(255,255,255,.06)",borderRadius:14,overflow:"hidden"}}>
+    <div style={proMarketing.valueGrid}>
       {[["6","Sports"],["Live","Data"],["AI","Powered"],["$9.99","vs $100+ picks"]].map(([val,label])=>(
-        <div key={label} style={{padding:"12px 8px",textAlign:"center",background:"rgba(255,255,255,.02)",borderLeft:"1px solid rgba(255,255,255,.06)"}}>
+        <div key={label} style={proMarketing.valueCell}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:2}}>{val}</div>
-          <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"#3A4050",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:proMarketing.valueLabel ?? "#3A4050",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
         </div>
       ))}
     </div>
 
     {/* Features */}
-    <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:"#3A4050",textTransform:"uppercase",padding:"22px 20px 12px",display:"flex",alignItems:"center",gap:8}}>
-      What's included<span style={{flex:1,height:1,background:"rgba(255,255,255,.05)",display:"block"}}/>
+    <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:proMarketing.whatsInc ?? "#3A4050",textTransform:"uppercase",padding:"22px 20px 12px",display:"flex",alignItems:"center",gap:8}}>
+      What&apos;s included<span style={{flex:1,height:1,background:proMarketing.whatsIncRule ?? "rgba(255,255,255,.05)",display:"block"}}/>
     </div>
 
     <div style={{display:"flex",flexDirection:"column",gap:1,margin:"0 20px"}}>
@@ -3602,21 +3616,21 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
         {color:"#E10600",name:"F1 — Race-Day Angles",desc:"Full 2026 driver grid. Race-day edges the market hasn't priced yet."},
         {color:"#FFFFFF",name:"Golf — Course Fit & Matchup H2Hs",desc:"PGA SG profiles, make-cut plays, and outright value the market underprices weekly."},
       ].map((f,i,arr)=>(
-        <div key={f.name} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 14px",background:"rgba(255,255,255,.025)",borderRadius:i===0?"12px 12px 0 0":i===arr.length-1?"0 0 12px 12px":0,borderTop:i>0?"1px solid rgba(255,255,255,.04)":"none"}}>
-          <div style={{width:8,height:8,borderRadius:"50%",background:f.color,flexShrink:0}}/>
+        <div key={f.name} style={proMarketing.featureRow(i, arr.length)}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:f.color === "#FFFFFF" && isProLightTheme(activeTheme) ? "#475569" : f.color,flexShrink:0}}/>
           <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:1}}>{f.name}</div>
-            <div style={{fontSize:11,color:"#4A5568",lineHeight:1.5}}>{f.desc}</div>
+            <div style={{fontSize:13,fontWeight:700,color:proMarketing.featureTitle ?? "var(--text)",marginBottom:1}}>{f.name}</div>
+            <div style={{fontSize:11,color:proMarketing.featureDesc ?? "#4A5568",lineHeight:1.5}}>{f.desc}</div>
           </div>
-          <div style={{fontSize:14,color:"#2A3040"}}>›</div>
+          <div style={{fontSize:14,color:proMarketing.featureChev ?? "#2A3040"}}>›</div>
         </div>
       ))}
     </div>
 
     {/* Quote */}
-    <div style={{margin:"16px 20px 0",padding:"16px 20px",borderLeft:"3px solid var(--magenta)",background:"rgba(255,45,107,.04)",borderRadius:"0 12px 12px 0"}}>
-      <div style={{fontSize:13,color:"#8A95A3",lineHeight:1.75,fontStyle:"italic",marginBottom:6}}>"Feels like having a sharp friend who actually does the homework. I finally stopped throwing money at expensive pick services."</div>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:2,color:"#3A4050",textTransform:"uppercase"}}>Under Review Pro Member</div>
+    <div style={proMarketing.quoteBox}>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,fontStyle:"italic",marginBottom:6}}>&quot;Feels like having a sharp friend who actually does the homework. I finally stopped throwing money at expensive pick services.&quot;</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:2,color:proMarketing.quoteAttrib ?? "#3A4050",textTransform:"uppercase"}}>Under Review Pro Member</div>
     </div>
 {isUnlimited && (() => {
       const dm = getDisplayModeChrome(activeTheme);
@@ -3732,8 +3746,8 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
     })()}
     {/* Bottom */}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
-      <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"#1E242E",letterSpacing:1}}>Powered by Stripe · Secure checkout</div>
+      <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:proMarketing.bottomMuted ?? "var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:proMarketing.stripeFoot ?? "#1E242E",letterSpacing:1}}>Powered by Stripe · Secure checkout</div>
     </div>
 
     <div className="page-spacer"/>
