@@ -3440,7 +3440,10 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
         <div>
           <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,textTransform:"uppercase"}}>Under Review Record</div>
           <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.45}}>
-            Takes are captured from chat answers (the THE PLAY line). When the game finishes, supported markets auto-grade — no separate button.
+            Takes are captured from chat answers (the THE PLAY section). No manual logging — supported outcomes settle automatically after finals post.
+          </div>
+          <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginTop:6,opacity:.93}}>
+            Auto-grading covers NBA and MLB team moneylines against ESPN finals today. Player props, tennis, F1, golf, and other plays are still tracked but often stay pending or ungraded — we&apos;re extending graders sport by sport.
           </div>
         </div>
         <button
