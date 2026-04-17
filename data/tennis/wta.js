@@ -14,7 +14,8 @@ const wta = {
     hElo: 2203.9, hEloRank: 1, cElo: 2142.8, cEloRank: 1, gElo: 2000.2, gEloRank: 1,
     peakElo: 2247.1, peakMonth: "2026-03",
     yEloRank: 1, yElo2026: 2199.2,
-    record2026: "17-1 — Dominant. Won Indian Wells. #1 in-season form by a wide margin.",
+    record2026: "23-1 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 23-1 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "63-9 (87.5%) last 52 weeks",
     style: "Power baseliner",
     strengths: "Serve power, forehand aggression, hard court dominance",
@@ -34,7 +35,8 @@ const wta = {
     hElo: 2124.3, hEloRank: 2, cElo: 2006.4, cEloRank: 4, gElo: 1915.4, gEloRank: 3,
     peakElo: 2176.7, peakMonth: "2026-02",
     yEloRank: 3, yElo2026: 2124.2,
-    record2026: "17-4 — Strong volume and quality. #3 in-season form.",
+    record2026: "21-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 21-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "61-17 (78.2%) last 52 weeks",
     style: "Power server, flat hitter",
     strengths: "Biggest serve in women's tennis — 10.3% ace rate tops the tour, flat groundstrokes, composure",
@@ -54,7 +56,8 @@ const wta = {
     hElo: 2055.5, hEloRank: 4, cElo: 2054.3, cEloRank: 2, gElo: 1950.7, gEloRank: 2,
     peakElo: 2291.0, peakMonth: "2024-07",
     yEloRank: 7, yElo2026: 1957.7,
-    record2026: "12-5 — Significantly underperforming vs career level. #7 yElo is her weakest season start in years.",
+    record2026: "9-4 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 9-4 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "56-17 (76.7%) last 52 weeks",
     style: "Heavy topspin baseliner",
     strengths: "Forehand topspin, consistency, mental strength, elite return game",
@@ -74,7 +77,8 @@ const wta = {
     hElo: 2056.0, hEloRank: 3, cElo: 1909.1, cEloRank: 8, gElo: 1876.9, gEloRank: 5,
     peakElo: 2101.6, peakMonth: "2026-03",
     yEloRank: 2, yElo2026: 2131.5,
-    record2026: "16-3 — BEST SEASON OF HER CAREER. #2 in-season form, ahead of Rybakina and Swiatek. Massively underrated coming into Miami.",
+    record2026: "24-4 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 19-4 · Clay 5-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "54-21 (72.0%) last 52 weeks",
     style: "Aggressive baseliner",
     strengths: "Forehand power, hard court consistency, low error rate",
@@ -94,7 +98,8 @@ const wta = {
     hElo: 2017.0, hEloRank: 6, cElo: 2044.5, cEloRank: 3, gElo: 1842.7, gEloRank: 6,
     peakElo: 2155.7, peakMonth: "2024-01",
     yEloRank: 14, yElo2026: 1909.8,
-    record2026: "11-5 — Underperforming relative to career level. #14 yElo is well below expectations.",
+    record2026: "13-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 13-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "48-17 (73.8%) last 52 weeks",
     style: "Athletic all-court player",
     strengths: "Return game is elite, athleticism, improving serve",
@@ -114,7 +119,8 @@ const wta = {
     hElo: 2037.4, hEloRank: 5, cElo: 1862.4, cEloRank: 10, gElo: 1749.6, gEloRank: 21,
     peakElo: 2082.1, peakMonth: "2026-03",
     yEloRank: 5, yElo2026: 2087.4,
-    record2026: "16-5 — Confirming her rise is real. #5 in-season form is extraordinary for a 20-year-old.",
+    record2026: "18-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 18-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "38-15 (71.7%) last 52 weeks",
     style: "Aggressive young baseliner",
     strengths: "Power, athleticism, rising form",
@@ -133,7 +139,8 @@ const wta = {
     hElo: 2001.5, hEloRank: 8, cElo: 1862.0, cEloRank: 11, gElo: 1885.6, gEloRank: 4,
     peakElo: 2086.9, peakMonth: "2025-11",
     yEloRank: 16, yElo2026: 1903.8,
-    record2026: "9-5 — Solid but not elite form in 2026.",
+    record2026: "12-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 12-6 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "45-18 (71.4%) last 52 weeks",
     style: "Aggressive flat hitter",
     strengths: "Forehand power, flat groundstrokes, serve",
@@ -153,7 +160,8 @@ const wta = {
     hElo: 1993.6, hEloRank: 9, cElo: 1955.7, cEloRank: 5, gElo: 1826.0, gEloRank: 7,
     peakElo: 2120.6, peakMonth: "2018-05",
     yEloRank: 4, yElo2026: 2113.1,
-    record2026: "19-4 — Most wins on the WTA tour in 2026. #4 in-season form is her best in years. Massively underrated at Miami.",
+    record2026: "20-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 20-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "46-14 (76.7%) last 52 weeks",
     style: "Counter-punching defensive baseliner",
     strengths: "Consistency, retrieval, mental toughness, low error rate",
@@ -173,7 +181,8 @@ const wta = {
     hElo: 2012.0, hEloRank: 7, cElo: 1843.7, cEloRank: 12, gElo: 1767.0, gEloRank: 14,
     peakElo: 2050.8, peakMonth: "2026-03",
     yEloRank: 6, yElo2026: 2070.9,
-    record2026: "14-3 — Best form of her career in 2026. #6 yElo with only 3 losses is extraordinary.",
+    record2026: "18-4 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 18-4 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     record: "29-14 (67.4%) last 52 weeks",
     style: "Creative all-court player",
     strengths: "Variety, drop shots, net play, slice backhand",
@@ -189,6 +198,8 @@ const wta = {
   },
 
   "Kasatkina": {
+    record2026: "4-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-6 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 9, elo: 0,
     record: "42-23",
     style: "Aggressive baseline grinder who relies on break points and consistency rather than power, with modest serve metrics offset by strong return game.",
@@ -203,6 +214,8 @@ const wta = {
   },
 
   "Krejcikova": {
+    record2026: "1-3 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 1-3 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 10, elo: 0,
     record: "21-16",
     style: "Aggressive baseline player who relies on break opportunities and tiebreak execution rather than dominant serving.",
@@ -232,6 +245,8 @@ const wta = {
   },
 
   "Paula Badosa": {
+    record2026: "6-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-7 · Clay 2-2 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 12, elo: 0, record: "37-19",
     style: "Aggressive baseline player with solid serve and excellent break point conversion who dominates on hard courts.",
     strengths: "48.5% break rate (elite level), 69.3% first serve win rate, 1.32 double break ratio.",
@@ -245,6 +260,8 @@ const wta = {
   },
 
   "Diana Shnaider": {
+    record2026: "10-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 8-7 · Clay 2-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 13, elo: 0, record: "43-21",
     style: "Aggressive baseline player with above-average serve consistency and strong tiebreak execution.",
     strengths: "Elite tiebreak conversion (77.8%) and solid first-serve win rate (64.5%); hard court dominance (26-13 record); break point conversion (48%) above tour average.",
@@ -258,6 +275,8 @@ const wta = {
   },
 
   "Anna Kalinskaya": {
+    record2026: "11-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 9-7 · Clay 2-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 14, elo: 0, record: "33-19",
     style: "Aggressive baseliner who relies on consistent first-serve placement and break point conversion rather than overpowering shot-making.",
     strengths: "Exceptional break point conversion at 42.7% (well above WTA average); dominant on hard courts (65% win rate); reliable hold percentage at 58.7%.",
@@ -271,6 +290,8 @@ const wta = {
   },
 
   "Jelena Ostapenko": {
+    record2026: "10-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 9-8 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 15, elo: 0, record: "29-18",
     style: "Aggressive baseline striker who relies on powerful groundstrokes and high first-serve velocity.",
     strengths: "Elite break point conversion at 47.4% with strong hard court form (18-10 record); ace production at 5.7% supports aggressive service strategy.",
@@ -284,6 +305,8 @@ const wta = {
   },
 
   "Mirra Andreeva": {
+    record2026: "19-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 15-6 · Clay 4-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 16, elo: 0, record: "34-16",
     style: "Aggressive baseline player with above-average break conversion who relies on consistency over power.",
     strengths: "51.6% break rate significantly outperforms tour average; 64.2% first-serve points won shows solid hold efficiency.",
@@ -297,6 +320,8 @@ const wta = {
   },
 
   "Beatriz Haddad Maia": {
+    record2026: "0-7 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 0-7 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 17, elo: 0, record: "38-27",
     style: "Aggressive baseline player who relies on break point conversion and tiebreak proficiency rather than dominant serving.",
     strengths: "Elite break conversion at 47.3% with strong tiebreak performance at 72.7%; solid first serve win rate of 64.6%.",
@@ -310,6 +335,8 @@ const wta = {
   },
 
   "Marta Kostyuk": {
+    record2026: "6-4 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 6-4 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 18, elo: 0, record: "36-20",
     style: "Aggressive baseline player with strong return game who dictates points through powerful groundstrokes.",
     strengths: "Elite break percentage at 46.3%; hard court specialist with 68.4% win rate (26-12); solid first serve conversion at 64.1%.",
@@ -323,6 +350,8 @@ const wta = {
   },
 
   "Donna Vekic": {
+    record2026: "5-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 1-4 · Clay 4-2 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 19, elo: 0, record: "33-20",
     style: "Aggressive baseline player who relies on court positioning and consistency rather than power.",
     strengths: "Excellent grass court record (11-4, 73% win rate) with strong serving fundamentals (71% first serve points won); solid hold percentage (54.4%).",
@@ -349,6 +378,8 @@ const wta = {
   },
 
   "Madison Keys": {
+    record2026: "11-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 8-5 · Clay 3-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 21, elo: 0, record: "25-12",
     style: "Aggressive baseline player who leverages elite serve power and high first-serve win rate.",
     strengths: "Exceptional first-serve dominance (65.8% 1stWon) and break conversion (43.6%); clay court specialist (13-4 record); tiebreak proficiency (72.7%).",
@@ -362,6 +393,8 @@ const wta = {
   },
 
   "Emma Navarro": {
+    record2026: "4-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-8 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 22, elo: 0, record: "45-22",
     style: "Aggressive baseline player with strong return game.",
     strengths: "47.2% break rate significantly outperforms tour average; 65.7% first serve consistency; 68% hard court win rate.",
@@ -375,6 +408,8 @@ const wta = {
   },
 
   "Liudmila Samsonova": {
+    record2026: "4-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-8 · Clay 0-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 27, elo: 0, record: "27-23",
     style: "Aggressive baseline player with heavy groundstrokes who relies on break opportunities.",
     strengths: "Strong break conversion at 45.7% and excellent grass court record (8-3, 73%); solid first serve winners at 70%.",
@@ -388,6 +423,8 @@ const wta = {
   },
 
   "Ekaterina Alexandrova": {
+    record2026: "5-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 5-8 · Clay 0-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 28, elo: 0, record: "26-24",
     style: "Aggressive baseline player who relies on heavy groundstrokes and high-risk tennis.",
     strengths: "Exceptional break point conversion (43.6%) and solid hard court record (20-14) with above-average rally consistency (1.04 DR).",
@@ -401,6 +438,8 @@ const wta = {
   },
 
   "Yulia Putintseva": {
+    record2026: "8-7 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 7-6 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 29, elo: 0, record: "35-19",
     style: "Aggressive baseline player who relies on break opportunities and consistency.",
     strengths: "Elite break conversion at 51.5% and exceptional grass court form (88.9%); combined with solid first serve percentage (70%) and hold rate (58.2%).",
@@ -414,6 +453,8 @@ const wta = {
   },
 
   "Anastasia Pavlyuchenkova": {
+    record2026: "0-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 0-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 30, elo: 0, record: "25-20",
     style: "Aggressive baseline player who relies on consistent first-serve delivery and break point conversion.",
     strengths: "Solid 66.7% first-serve win rate and 46.4% break conversion rate; thrives on hard courts with 21-13 record.",
@@ -440,6 +481,8 @@ const wta = {
   },
 
   "Elise Mertens": {
+    record2026: "8-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 8-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 34, elo: 0, record: "27-25",
     style: "Defensive baseline player with modest serve who relies on return games and break point conversion.",
     strengths: "Strong break point conversion at 45.2% well above tour average; solid first serve win rate of 67.5%; consistent hard court performer (18-16 record).",
@@ -453,6 +496,8 @@ const wta = {
   },
 
   "Anastasia Potapova": {
+    record2026: "10-7 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 6-6 · Clay 4-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 35, elo: 0, record: "26-22",
     style: "Aggressive baseline player who relies on consistency and break point conversion.",
     strengths: "Strong break point conversion at 43.7%; solid hold rate of 58.9%; hard court specialist with 17-14 record.",
@@ -479,6 +524,8 @@ const wta = {
   },
 
   "Barbora Vondrousova": {
+    record2026: "1-2 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 1-2 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 37, elo: 0, record: "31-22",
     style: "Creative left-handed baseliner who thrives in extended exchanges.",
     strengths: "Variety and slice backhand create discomfort; long-rally win rate is strong; Wimbledon champion 2023.",
@@ -492,6 +539,8 @@ const wta = {
   },
 
   "Sorana Cirstea": {
+    record2026: "17-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 15-5 · Clay 2-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 38, elo: 0, record: "30-24",
     style: "Aggressive baseliner with consistent first-serve execution.",
     strengths: "Solid break point conversion (42.8%); consistent hard court performer; experienced veteran with strong clutch instincts.",
@@ -505,6 +554,8 @@ const wta = {
   },
 
   "Linda Fruhvirtova": {
+    record2026: "3-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 3-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 40, elo: 0, record: "24-20",
     style: "Young Czech baseliner with grinder profile.",
     strengths: "Strong return game; consistent baseline pressure; clay court pedigree.",
@@ -518,6 +569,8 @@ const wta = {
   },
 
   "Marie Bouzkova": {
+    record2026: "10-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 5-8 · Clay 5-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 44, elo: 0, record: "26-22",
     style: "Defensive baseline player who relies on consistency and return of serve.",
     strengths: "Strong break point conversion at 44.5%; solid first serve win rate of 64.4%; maintains respectable hold percentage of 54.2%.",
@@ -531,6 +584,8 @@ const wta = {
   },
 
   "Katerina Siniakova": {
+    record2026: "6-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 6-6 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 45, elo: 0, record: "26-26",
     style: "Defensive baseline player relying on consistency and break point conversion.",
     strengths: "Strong break point conversion at 47.4%; excellent grass court record (5-3).",
@@ -544,6 +599,8 @@ const wta = {
   },
 
   "Rebecca Sramkova": {
+    record2026: "2-7 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 2-7 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 46, elo: 0, record: "24-10",
     style: "Aggressive baseliner with strong hold games and conversion ability on hard courts.",
     strengths: "Elite 62.3% hold rate; 48.5% break rate; 66.7% tiebreak win rate.",
@@ -557,6 +614,8 @@ const wta = {
   },
 
   "Elina Avanesyan": {
+    record2026: "1-1 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 1-1 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 43, elo: 0, record: "24-22",
     style: "Aggressive baseline player with moderate serve and strong break point conversion.",
     strengths: "Break point conversion at 46.2% significantly above tour average; clay court specialist with 61% win rate (11-7); tiebreak proficiency at 66.7%.",
@@ -570,6 +629,8 @@ const wta = {
   },
 
   "Jasmine Paolini": {
+    record2026: "7-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 7-6 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 48, elo: 0, record: "38-20",
     style: "Aggressive baseline player with strong return game and elite physical conditioning.",
     strengths: "Strong break conversion (44.1%); excellent hard court consistency; physical stamina is a genuine edge in three-set matches.",
@@ -583,6 +644,8 @@ const wta = {
   },
 
   "Linda Noskova": {
+    record2026: "9-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 9-6 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 26, elo: 0, record: "26-18",
     style: "Aggressive baseline player with solid serve who relies on break point conversion and tiebreak prowess.",
     strengths: "Elite break point conversion at 44.8% and exceptional tiebreak win rate of 68.8%; strong hard court record (17-9); consistent hold percentage at 59%.",
@@ -596,6 +659,8 @@ const wta = {
   },
 
   "Magdalena Frech": {
+    record2026: "8-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 8-8 · Clay 0-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 25, elo: 0, record: "29-27",
     style: "Aggressive baseline player who relies on break point conversion and consistent first-serve execution.",
     strengths: "Exceptional break point conversion (40.6%) significantly above tour average; strong first serve consistency (64.4%).",
@@ -609,6 +674,8 @@ const wta = {
   },
 
   "Katie Boulter": {
+    record2026: "10-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 10-4 · Clay 0-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 24, elo: 0, record: "34-22",
     style: "Aggressive baseline player leveraging strong first-serve win rate (70.6%) to dictate points.",
     strengths: "Elite first-serve conversion (70.6% win rate); solid break point conversion (43.4%); hard court specialist (64% win rate).",
@@ -622,6 +689,8 @@ const wta = {
   },
 
   "Emma Raducanu": {
+    record2026: "8-6 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 8-6 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 56, elo: 0, record: "24-13",
     style: "Aggressive baseline player with solid serve mechanics and high break-point conversion.",
     strengths: "Elite break percentage (45.7%) and tiebreak success (66.7%); strong hard court record (12-8) with 64.4% first-serve win rate; grass court form (8-3).",
@@ -635,6 +704,8 @@ const wta = {
   },
 
   "Naomi Osaka": {
+    record2026: "4-3 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-3 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 57, elo: 0, record: "22-17",
     style: "Aggressive server-reliant player who uses heavy first serve placement to dominate points.",
     strengths: "Elite first serve winning percentage (74.7%) and solid ace rate (9.7%); respectable break conversion (45.9%).",
@@ -648,6 +719,8 @@ const wta = {
   },
 
   "Jessica Bouzas Maneiro": {
+    record2026: "3-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 2-7 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 54, elo: 0, record: "10-11",
     style: "Baseline grinder with modest pace who relies on consistency and court positioning.",
     strengths: "Strong break point conversion at 48% and solid tiebreak performance (66.7%).",
@@ -661,6 +734,8 @@ const wta = {
   },
 
   "Anhelina Kalinina": {
+    record2026: "1-2 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 0-1 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 55, elo: 0, record: "20-24",
     style: "Baseline grinder with modest serve who relies on return pressure and consistency.",
     strengths: "Strong break conversion at 41.6% and solid clay court form (10-7).",
@@ -674,6 +749,8 @@ const wta = {
   },
 
   "Camila Osorio": {
+    record2026: "7-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 6-7 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 59, elo: 0, record: "20-17",
     style: "Baseline grinder with modest serve who relies on break point conversion and clay court comfort.",
     strengths: "71.3% break point conversion rate significantly above tour average; 10-4 clay record; 72.7% tiebreak win rate.",
@@ -687,6 +764,8 @@ const wta = {
   },
 
   "Katie Volynets": {
+    record2026: "5-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-6 · Clay 1-2 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 58, elo: 0, record: "13-17",
     style: "Aggressive baseline player with strong return game but inconsistent serving.",
     strengths: "Break point conversion (44.5%) well above tour average; solid first serve percentage (76.7%).",
@@ -700,6 +779,8 @@ const wta = {
   },
 
   "Viktoriya Tomova": {
+    record2026: "1-2 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 0-1 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 53, elo: 0, record: "22-27",
     style: "Inconsistent baseline player who relies on break opportunities and struggles with serve reliability.",
     strengths: "Strong break conversion rate at 45.3%; solid first serve win percentage of 59.4%.",
@@ -713,6 +794,8 @@ const wta = {
   },
 
   "Elisabetta Cocciaretto": {
+    record2026: "11-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 10-4 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 52, elo: 0, record: "18-23",
     style: "Baseline-oriented player who relies on consistency and break point conversion.",
     strengths: "Strong break point conversion at 42.8%; excellent grass court form at 3-1.",
@@ -726,6 +809,8 @@ const wta = {
   },
 
   "Lucia Bronzetti": {
+    record2026: "0-1 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 0-1 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 73, elo: 0, record: "21-27",
     style: "Defensive baseline player relying on consistency and break opportunities.",
     strengths: "Strong break point conversion (43.7%) and hold percentage (56.7%); respectable first-serve win rate (61.4%).",
@@ -739,6 +824,8 @@ const wta = {
   },
 
   "Veronika Kudermetova": {
+    record2026: "2-2 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 1-1 · Clay 1-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 72, elo: 0, record: "16-25",
     style: "Defensive baseline player relying on consistency and break point conversion.",
     strengths: "Strong break point conversion at 47.1%; solid first serve won percentage at 64%.",
@@ -752,6 +839,8 @@ const wta = {
   },
 
   "Olga Danilovic": {
+    record2026: "4-3 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 4-3 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 51, elo: 0, record: "12-7",
     style: "Consistent baseline player relying on break point conversion rather than aggressive serving.",
     strengths: "Strong break point rate at 51.8% and solid first serve win rate of 61.7%; reliable hold percentage of 58.4%.",
@@ -765,6 +854,8 @@ const wta = {
   },
 
   "Clara Tauson": {
+    record2026: "8-8 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 8-8 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 50, elo: 0, record: "23-16",
     style: "Aggressive baseline player with above-average break conversion.",
     strengths: "Strong break conversion rate (49.4%) and solid first serve win percentage (68.9%); reasonable hold percentage (56.9%).",
@@ -791,6 +882,8 @@ const wta = {
   },
 
   "Alycia Parks": {
+    record2026: "7-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 6-7 · Clay 1-2 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 82, elo: 0, record: "4-10",
     style: "Aggressive baseline player relying on power and depth rather than precision or serve dominance.",
     strengths: "Solid first-serve win rate (66.3%) and break point conversion (33.3%) when opportunities arise.",
@@ -804,6 +897,8 @@ const wta = {
   },
 
   "Sonay Kartal": {
+    record2026: "7-5 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 7-5 · Clay 0-0 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 84, elo: 0, record: "7-1",
     style: "Aggressive baseline player with high break conversion and tiebreak proficiency.",
     strengths: "Exceptional break conversion at 46.3%; perfect 100% tiebreak record; strong hard court performance at 5-0.",
@@ -817,6 +912,8 @@ const wta = {
   },
 
   "Jaqueline Cristian": {
+    record2026: "9-9 — Auto-refreshed 2026 match record (2026-04-17).",
+    surfaceRecord2026: "Hard 9-8 · Clay 0-1 · Grass 0-0 (auto-refreshed 2026-04-17)",
     eloRank: 85, elo: 0, record: "20-23",
     style: "Baseline grinder with modest serve who relies on return aggression and consistency.",
     strengths: "Strong break point conversion (43.4%) and clay court performance (11-7); solid first serve win rate (65.1%).",

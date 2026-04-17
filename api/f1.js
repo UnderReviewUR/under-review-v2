@@ -126,6 +126,7 @@ function buildSchedule(meetings) {
       const end = m.date_end
         ? new Date(m.date_end)
         : new Date(start.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const raceDateRaw = m.race_date || m.date_end || m.date_start;
 
       const meetingName =
         m.meeting_name || m.meeting_official_name || "Grand Prix";
@@ -141,12 +142,14 @@ function buildSchedule(meetings) {
         country_name: m.country_name || null,
         date_start: m.date_start,
         date_end: m.date_end || end.toISOString(),
+        race_date: raceDateRaw,
+        race_start: null,
         completed,
         winner: m.winner || null,
       };
     })
     .filter((m) => VALID_2026_RACES.has(m.meeting_name))
-    .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
+    .sort((a, b) => new Date(a.race_date || a.date_start).getTime() - new Date(b.race_date || b.date_start).getTime());
 
   if (normalized.length === 0) {
     return {
@@ -165,7 +168,7 @@ function buildSchedule(meetings) {
     return start <= now && now <= end;
   });
 
-  const upcoming = normalized.filter((m) => !m.completed && new Date(m.date_start) > now);
+  const upcoming = normalized.filter((m) => !m.completed && new Date(m.race_date || m.date_start) > now);
   const past = normalized.filter((m) => m.completed || new Date(m.date_end) < now);
 
   const nextRace = current[0] || upcoming[0] || null;
@@ -182,6 +185,35 @@ function buildSchedule(meetings) {
     current,
     next_meeting_key: nextRace ? nextRace.meeting_key : null,
     usingFallback: false,
+  };
+}
+
+function extractRaceSessionStart(sessions) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return null;
+  const raceSessions = sessions.filter((s) => {
+    const name = String(s?.session_name || "").toLowerCase();
+    if (!name) return false;
+    if (name.includes("sprint")) return false;
+    return name === "race" || name.includes("grand prix");
+  });
+  if (!raceSessions.length) return null;
+  raceSessions.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
+  return raceSessions[0]?.date_start || null;
+}
+
+function applyRaceStartToSchedule(schedule, meetingKey, raceStart) {
+  if (!schedule || !meetingKey || !raceStart) return schedule;
+  const patchRace = (r) =>
+    String(r?.meeting_key || "") === String(meetingKey)
+      ? { ...r, race_start: raceStart }
+      : r;
+
+  return {
+    ...schedule,
+    races: Array.isArray(schedule.races) ? schedule.races.map(patchRace) : [],
+    upcoming: Array.isArray(schedule.upcoming) ? schedule.upcoming.map(patchRace) : [],
+    past: Array.isArray(schedule.past) ? schedule.past.map(patchRace) : [],
+    current: Array.isArray(schedule.current) ? schedule.current.map(patchRace) : [],
   };
 }
 
@@ -209,13 +241,24 @@ function buildStandings(drivers) {
 }
 
 async function getScheduleData() {
-  const cached = getCached("f1_schedule");
+  const cached = getCached("f1_schedule_v3");
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
-  const data = buildSchedule(result.ok ? result.data : null);
+  let data = buildSchedule(result.ok ? result.data : null);
 
-  setCached("f1_schedule", data, CACHE_TTL.schedule);
+  // Enrich next race with actual race session start time.
+  if (data?.next_meeting_key) {
+    const sessionsRes = await safeFetch(`/sessions?meeting_key=${data.next_meeting_key}`, {
+      timeoutMs: 5000,
+    });
+    const raceStart = extractRaceSessionStart(
+      sessionsRes.ok && Array.isArray(sessionsRes.data) ? sessionsRes.data : []
+    );
+    data = applyRaceStartToSchedule(data, data.next_meeting_key, raceStart);
+  }
+
+  setCached("f1_schedule_v3", data, CACHE_TTL.schedule);
   return data;
 }
 
@@ -314,7 +357,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const cached = getCached("f1_board");
+      const cached = getCached("f1_board_v3");
       if (cached) {
         res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json(cached);
@@ -337,7 +380,7 @@ export default async function handler(req, res) {
           !!sessionPayload.usingFallbackSession,
       };
 
-      setCached("f1_board", body, CACHE_TTL.board);
+      setCached("f1_board_v3", body, CACHE_TTL.board);
       res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
       return res.status(200).json(body);
     }

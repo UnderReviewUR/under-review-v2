@@ -1,0 +1,690 @@
+import AskBar from "../../components/AskBar.jsx";
+
+export default function HomeScreen({
+  isActive,
+  hasDockedBar,
+  homeInputRef,
+  homeInput,
+  setHomeInput,
+  submitHome,
+  askBarCommon,
+  goTennis,
+  goNfl,
+  goF1,
+  goNba,
+  goMlb,
+  goGolf,
+  isNflInSeason,
+  nbaGames,
+  getSeriesLabel,
+  golfData,
+  mlbGames,
+  mlbData,
+  f1Data,
+  resolveF1RaceStart,
+  dynamicHomeQuestions,
+  firePrompt,
+  homeCards,
+  openMatchup,
+}) {
+  if (!isActive) return null;
+
+  return (
+    <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{ padding: "8px 12px 70px" }}>
+      <AskBar
+        inputRef={homeInputRef}
+        value={homeInput}
+        onChange={setHomeInput}
+        onSubmit={submitHome}
+        placeholder="Ask about any player, game, or bet..."
+        {...askBarCommon}
+      />
+
+      <div className="sport-rail">
+        <button className="sport-pill sport-pill-tennis" onClick={goTennis}>
+          TENNIS
+        </button>
+        <button className="sport-pill sport-pill-nfl" onClick={goNfl}>
+          NFL
+        </button>
+        <button className="sport-pill sport-pill-f1" onClick={goF1}>
+          F1
+        </button>
+        <button className="sport-pill sport-pill-nba" onClick={goNba}>
+          NBA
+        </button>
+        <button className="sport-pill sport-pill-mlb" onClick={goMlb}>
+          MLB
+        </button>
+        <button className="sport-pill" style={{ color: "#FFFFFF", borderColor: "rgba(255,255,255,.5)" }} onClick={goGolf}>
+          GOLF
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+          marginBottom: 14,
+          alignItems: "stretch",
+        }}
+      >
+        {(isNflInSeason()
+          ? [
+              <div
+                key="nfl-live"
+                onClick={goNfl}
+                style={{
+                  flexShrink: 0,
+                  background: "rgba(74,144,217,.08)",
+                  border: "1px solid rgba(74,144,217,.25)",
+                  borderRadius: 10,
+                  padding: "8px 11px",
+                  cursor: "pointer",
+                  minWidth: 120,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "var(--mono-font)",
+                    fontSize: 7,
+                    letterSpacing: 1.5,
+                    color: "#4A90D9",
+                    marginBottom: 3,
+                  }}
+                >
+                  🏈 NFL
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>Weekly Props</div>
+                <div style={{ fontSize: 10, color: "var(--muted)" }}>Live board →</div>
+              </div>,
+
+              ...nbaGames
+                .filter((g) => g.state === "in")
+                .slice(0, 2)
+                .map((g, i) => {
+                  const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
+                  const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
+                  const isLive = g.state === "in";
+                  const seriesLabel = getSeriesLabel(away, home);
+
+                  return (
+                    <div
+                      key={`nba-${i}`}
+                      onClick={goNba}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 110,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: isLive ? "#00E676" : "#FF6B00",
+                          marginBottom: 3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        🏀 {isLive ? "● LIVE" : g.status}
+                      </div>
+
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>{away}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
+
+                      {isLive && g.awayTeam?.score != null && (
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 11,
+                            color: "var(--soft)",
+                            marginTop: 2,
+                          }}
+                        >
+                          {g.awayTeam.score}-{g.homeTeam.score}
+                        </div>
+                      )}
+
+                      {seriesLabel && (
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 8,
+                            color: "#FF6B00",
+                            marginTop: 3,
+                            letterSpacing: 0.5,
+                          }}
+                        >
+                          {seriesLabel}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }),
+
+              ...(golfData?.currentEvent?.leaderboard?.length
+                ? [
+                    <div
+                      key="golf-ticker"
+                      onClick={goGolf}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: "1px solid rgba(255,255,255,.12)",
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 165,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: "rgba(255,255,255,.7)",
+                          marginBottom: 4,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                      </div>
+
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 8,
+                          color: "var(--muted)",
+                          marginBottom: 5,
+                          letterSpacing: 1,
+                        }}
+                      >
+                        {golfData.currentEvent.round || "IN PROGRESS"}
+                      </div>
+
+                      {golfData.currentEvent.leaderboard.slice(0, 3).map((p, i) => (
+                        <div
+                          key={`${p.name}-${i}`}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: 11,
+                            lineHeight: 1.5,
+                            color: i === 0 ? "var(--text)" : "var(--muted)",
+                          }}
+                        >
+                          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                            <span
+                              style={{
+                                fontFamily: "var(--mono-font)",
+                                fontSize: 9,
+                                color: "var(--muted)",
+                                minWidth: 14,
+                              }}
+                            >
+                              {p.position || i + 1}
+                            </span>
+                            <span style={{ fontWeight: i === 0 ? 700 : 500 }}>{String(p.name || "").split(" ").pop()}</span>
+                          </span>
+
+                          <span
+                            style={{
+                              fontFamily: "var(--mono-font)",
+                              color:
+                                p.score && String(p.score).startsWith("-")
+                                  ? "#00E676"
+                                  : p.score === "E"
+                                    ? "var(--text)"
+                                    : "#FF4444",
+                            }}
+                          >
+                            {p.score || "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>,
+                  ]
+                : golfData?.currentEvent
+                  ? [
+                      <div
+                        key="golf-ticker"
+                        onClick={goGolf}
+                        style={{
+                          flexShrink: 0,
+                          background: "var(--surface)",
+                          border: "1px solid rgba(255,255,255,.12)",
+                          borderRadius: 10,
+                          padding: "8px 11px",
+                          cursor: "pointer",
+                          minWidth: 170,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 7,
+                            letterSpacing: 1.5,
+                            color: "rgba(255,255,255,.7)",
+                            marginBottom: 4,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--muted)" }}>{golfData.currentEvent.course || "Course TBD"}</div>
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 9,
+                            fontFamily: "var(--mono-font)",
+                            color: "rgba(255,255,255,.75)",
+                            lineHeight: 1.35,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
+                        </div>
+                      </div>,
+                    ]
+                  : []),
+
+              ...(mlbGames.length > 0 ? mlbGames : mlbData?.games || [])
+                .filter((g) => g.state === "in")
+                .slice(0, 1)
+                .map((g, i) => {
+                  const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
+                  const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
+                  const isLive = g.state === "in";
+
+                  return (
+                    <div
+                      key={`mlb-${i}`}
+                      onClick={goMlb}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 110,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: isLive ? "#00E676" : "#1DB954",
+                          marginBottom: 3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        ⚾ {isLive ? "● LIVE" : g.status}
+                      </div>
+
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>{away}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
+
+                      {isLive && g.awayTeam?.score != null && (
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 11,
+                            color: "var(--soft)",
+                            marginTop: 2,
+                          }}
+                        >
+                          {g.awayTeam.score}-{g.homeTeam.score}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }),
+            ]
+          : [
+              ...[...nbaGames.filter((g) => g.state === "in"), ...nbaGames.filter((g) => g.state === "pre").slice(0, 2)]
+                .slice(0, 3)
+                .map((g, i) => {
+                  const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
+                  const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
+                  const isLive = g.state === "in";
+                  const seriesLabel = getSeriesLabel(away, home);
+
+                  return (
+                    <div
+                      key={`nba-${i}`}
+                      onClick={goNba}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 110,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: isLive ? "#00E676" : "#FF6B00",
+                          marginBottom: 3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        🏀 {isLive ? "● LIVE" : g.status}
+                      </div>
+
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>{away}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
+
+                      {isLive && g.awayTeam?.score != null && (
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 11,
+                            color: "var(--soft)",
+                            marginTop: 2,
+                          }}
+                        >
+                          {g.awayTeam.score}-{g.homeTeam.score}
+                        </div>
+                      )}
+
+                      {seriesLabel && (
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 8,
+                            color: "#FF6B00",
+                            marginTop: 3,
+                            letterSpacing: 0.5,
+                          }}
+                        >
+                          {seriesLabel}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }),
+
+              ...(golfData?.currentEvent?.leaderboard?.length
+                ? [
+                    <div
+                      key="golf-ticker"
+                      onClick={goGolf}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: "1px solid rgba(255,255,255,.12)",
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 165,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: "rgba(255,255,255,.7)",
+                          marginBottom: 4,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                      </div>
+
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 8,
+                          color: "var(--muted)",
+                          marginBottom: 5,
+                          letterSpacing: 1,
+                        }}
+                      >
+                        {golfData.currentEvent.round || "IN PROGRESS"}
+                      </div>
+
+                      {golfData.currentEvent.leaderboard.slice(0, 3).map((p, i) => (
+                        <div
+                          key={`${p.name}-${i}`}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: 11,
+                            lineHeight: 1.5,
+                            color: i === 0 ? "var(--text)" : "var(--muted)",
+                          }}
+                        >
+                          <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                            <span
+                              style={{
+                                fontFamily: "var(--mono-font)",
+                                fontSize: 9,
+                                color: "var(--muted)",
+                                minWidth: 14,
+                              }}
+                            >
+                              {p.position || i + 1}
+                            </span>
+                            <span style={{ fontWeight: i === 0 ? 700 : 500 }}>{String(p.name || "").split(" ").pop()}</span>
+                          </span>
+
+                          <span
+                            style={{
+                              fontFamily: "var(--mono-font)",
+                              color:
+                                p.score && String(p.score).startsWith("-")
+                                  ? "#00E676"
+                                  : p.score === "E"
+                                    ? "var(--text)"
+                                    : "#FF4444",
+                            }}
+                          >
+                            {p.score || "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>,
+                  ]
+                : golfData?.currentEvent
+                  ? [
+                      <div
+                        key="golf-ticker"
+                        onClick={goGolf}
+                        style={{
+                          flexShrink: 0,
+                          background: "var(--surface)",
+                          border: "1px solid rgba(255,255,255,.12)",
+                          borderRadius: 10,
+                          padding: "8px 11px",
+                          cursor: "pointer",
+                          minWidth: 170,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 7,
+                            letterSpacing: 1.5,
+                            color: "rgba(255,255,255,.7)",
+                            marginBottom: 4,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--muted)" }}>{golfData.currentEvent.course || "Course TBD"}</div>
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 9,
+                            fontFamily: "var(--mono-font)",
+                            color: "rgba(255,255,255,.75)",
+                            lineHeight: 1.35,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
+                        </div>
+                      </div>,
+                    ]
+                  : []),
+
+              ...(mlbGames.length > 0 ? mlbGames : mlbData?.games || [])
+                .filter((g) => g.state === "in" || g.state === "pre")
+                .slice(0, 2)
+                .map((g, i) => {
+                  const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
+                  const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
+                  const isLive = g.state === "in";
+
+                  return (
+                    <div
+                      key={`mlb-${i}`}
+                      onClick={goMlb}
+                      style={{
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 110,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: isLive ? "#00E676" : "#1DB954",
+                          marginBottom: 3,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        ⚾ {isLive ? "● LIVE" : g.status}
+                      </div>
+
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>{away}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
+
+                      {isLive && g.awayTeam?.score != null && (
+                        <div
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 11,
+                            color: "var(--soft)",
+                            marginTop: 2,
+                          }}
+                        >
+                          {g.awayTeam.score}-{g.homeTeam.score}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }),
+
+              ...(f1Data?.schedule?.races?.find((r) => r.is_next)
+                ? [
+                    <div
+                      key="f1-ticker"
+                      onClick={goF1}
+                      style={{
+                        flexShrink: 0,
+                        background: "rgba(225,6,0,.06)",
+                        border: "1px solid rgba(225,6,0,.2)",
+                        borderRadius: 10,
+                        padding: "8px 11px",
+                        cursor: "pointer",
+                        minWidth: 110,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 7,
+                          letterSpacing: 1.5,
+                          color: "#E10600",
+                          marginBottom: 3,
+                        }}
+                      >
+                        🏎️ F1 NEXT
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                        {f1Data.schedule.races.find((r) => r.is_next).meeting_name}
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                        {(() => {
+                          const nextRace = f1Data.schedule.races.find((r) => r.is_next);
+                          const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
+                          const dt = raceStart ? new Date(raceStart) : null;
+                          const when = dt
+                            ? `${dt.toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                timeZone: "America/Chicago",
+                              })} ${dt.toLocaleTimeString("en-US", {
+                                hour: "numeric",
+                                minute: "2-digit",
+                                timeZone: "America/Chicago",
+                                timeZoneName: "short",
+                              })}`
+                            : "Date/Time TBD";
+                          return when;
+                        })()}
+                      </div>
+                    </div>,
+                  ]
+                : []),
+            ])}
+      </div>
+
+      <div className="ask-cards">
+        {dynamicHomeQuestions.map((q) => (
+          <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null)}>
+            <div className="ask-card-bar" style={{ background: q.color }} />
+            <div className="ask-card-text">{q.text}</div>
+            <div style={{ color: "var(--muted)", fontSize: 16, flexShrink: 0 }}>›</div>
+          </div>
+        ))}
+      </div>
+
+      {homeCards.map((m) => (
+        <div key={m.id} className="spotlight-card" onClick={() => openMatchup(m)}>
+          <div className="spotlight-top">
+            <span className="spotlight-sport" style={{ color: m.leagueColor }}>
+              {m.homeCategory || m.league}
+            </span>
+            <span className="spotlight-time">{m.time}</span>
+          </div>
+          <div className="spotlight-title">{m.title}</div>
+          <div
+            className="spotlight-edge"
+            style={m.id?.startsWith("golf-home-leaderboard") || m.id === "ur-home-tracker" ? { whiteSpace: "pre-line" } : undefined}
+          >
+            {m.blurb}
+          </div>
+        </div>
+      ))}
+
+      <div className="page-spacer" />
+    </main>
+  );
+}

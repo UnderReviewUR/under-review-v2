@@ -43,7 +43,7 @@ const AskBar = memo(function AskBar({
         <div className="ask-col">
           {pastedImage && (
             <div className="ask-img-preview">
-              <img src={pastedImage.previewUrl} className="ask-img-thumb" />
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
               <button onClick={clearImage} type="button" className="ask-img-remove">
                 ✕ Remove
               </button>
@@ -73,7 +73,7 @@ const AskBar = memo(function AskBar({
 
         <button
           className="send-btn"
-          style={btnColor ? { background: btnColor } : undefined}
+          style={btnColor ? { background: btnColor, color: "#080A0C" } : undefined}
           onClick={onSubmit}
           disabled={isAsking}
           type="button"
@@ -86,4 +86,3 @@ const AskBar = memo(function AskBar({
 });
 
 export default AskBar;
-``

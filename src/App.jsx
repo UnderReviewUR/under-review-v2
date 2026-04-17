@@ -1,93 +1,41 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { THEMES, DEFAULT_THEME } from "./themes.js";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import {
+  THEMES,
+  DEFAULT_THEME,
+  resolveInitialTheme,
+  validateThemeForTier,
+  isProLightTheme,
+  getDisplayModeChrome,
+  canUseProThemes,
+} from "./themes.js";
 import { NBA_PLAYERS } from "./components/data/nba/players.js";
-
-// ── Inlined AskBar component ──────────────────────────────────────────────────
-const AskBar = memo(function AskBar({
-  inputRef,
-  fileInputRef,
-  value,
-  onChange,
-  onSubmit,
-  placeholder,
-  btnColor,
-  pastedImage,
-  clearImage,
-  isAsking,
-  processImageFile,
-}) {
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === "Enter") onSubmit();
-    },
-    [onSubmit]
-  );
-
-  const handleFile = useCallback(
-    (e) => {
-      if (e.target.files?.[0]) processImageFile(e.target.files[0]);
-    },
-    [processImageFile]
-  );
-
-  return (
-    <div className="ask-wrap">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: "none" }}
-        onChange={handleFile}
-      />
-
-      <div className="ask-row">
-        <div className="ask-col">
-          {pastedImage && (
-            <div className="ask-img-preview">
-              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
-              <button onClick={clearImage} type="button" className="ask-img-remove">
-                ✕ Remove
-              </button>
-            </div>
-          )}
-
-          <input
-            ref={inputRef}
-            className="ask-bar"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={pastedImage ? "Ask about this image..." : placeholder}
-            disabled={isAsking}
-          />
-
-          {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>}
-        </div>
-
-        <button
-          className={`attach-btn${pastedImage ? " has-img" : ""}`}
-          onClick={() => fileInputRef.current?.click()}
-          type="button"
-        >
-          📎
-        </button>
-
-        <button
-          className="send-btn"
-          style={btnColor ? { background: btnColor } : undefined}
-          onClick={onSubmit}
-          disabled={isAsking}
-          type="button"
-        >
-          ➤
-        </button>
-      </div>
-    </div>
-  );
-});
+import AskBar from "./components/AskBar.jsx";
+import { resolveF1RaceStart } from "./features/f1/raceStart.js";
+import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
+import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
+import NflPropGuideSection from "./features/nfl/NflPropGuideSection.jsx";
+import {
+  ChatThread,
+  buildNflContext,
+  formatOverallStats,
+  formatReturnStats,
+  formatServeStats,
+  golfScoreColor,
+  getDrValue,
+  getHoldValue,
+  getTbValue,
+  getTournamentFetchParam,
+  isNflInSeason,
+  isNflRampMode,
+  normalizeTennisMatch,
+  normalizeText,
+  preferredTournamentScore,
+  slugify,
+} from "./features/app/helpers.jsx";
+import { ATP_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE, WTA_PLAYERS } from "./features/app/constants.js";
 
 const baseCss = `
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Epilogue:wght@400;500;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:ital,wght@0,400;0,500;1,400&family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Epilogue:wght@400;500;700;800;900&family=Geist+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;0,900;1,400&display=swap');
 
   :root{
     --cyan:#0891B2;
@@ -116,7 +64,7 @@ const baseCss = `
     --body-font:'DM Sans',sans-serif;
     --mono-font:'DM Mono',monospace;
     --display-font:'Bebas Neue',sans-serif;
-    --bottom-nav-height:48px;
+    --bottom-nav-height:84px;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -239,15 +187,17 @@ const baseCss = `
     white-space:nowrap;
   }
 
-  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:70px;}
-  .screen.has-msgs{padding-bottom:140px;}
-  .docked-bar{position:fixed;left:0;right:0;bottom:var(--bottom-nav-height);background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px;z-index:25;backdrop-filter:blur(12px);}
+  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom));}
+  .screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + 170px + env(safe-area-inset-bottom));}
+  .docked-bar{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));z-index:25;backdrop-filter:blur(12px);}
+  .docked-bar .ask-wrap{margin:0;}
+  .docked-bar .ask-hint{padding-bottom:4px;}
   .docked-bar-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;opacity:.7;}
   .hero{padding:6px 2px 8px;text-align:center;}
   .hero-title{font-family:var(--display-font);font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
   .hero-sub{color:var(--soft);font-size:13px;line-height:1.5;max-width:560px;margin:0 auto;}
 
-  .sport-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin-bottom:14px;}
+  .sport-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 0 2px;margin-bottom:10px;}
   .sport-rail::-webkit-scrollbar{display:none;}
   .sport-pill{flex-shrink:0;border-radius:999px;padding:8px 20px;font-family:var(--display-font);font-size:15px;letter-spacing:2px;cursor:pointer;border:1.5px solid;transition:all .15s;background:transparent;}
   .sport-pill-tennis{color:#FFE600;border-color:#FFE600;}
@@ -265,7 +215,8 @@ const baseCss = `
   .ticker-teams{font-size:13px;font-weight:600;color:var(--text);}
   .ticker-score{font-family:var(--mono-font);font-size:11px;color:var(--soft);margin-top:2px;}
 
-  .ask-cards{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+  .ask-cards{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+  .home-live-label{font-family:var(--mono-font);font-size:8px;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;margin:0 0 6px;}
   .ask-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:border-color .15s;}
   .ask-card:active{opacity:.8;}
   .ask-card-bar{width:3px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:18px;}
@@ -286,7 +237,8 @@ const baseCss = `
   .ask-img-preview{padding:8px 12px 0;display:flex;align-items:center;gap:8px;}
   .ask-img-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border-2);}
   .ask-img-remove{background:rgba(255,45,107,.15);border:1px solid rgba(255,45,107,.3);color:var(--magenta);border-radius:6px;padding:3px 8px;font-family:var(--mono-font);font-size:10px;cursor:pointer;}
-  .ask-bar{width:100%;border:none;background:transparent;padding:12px 14px;color:var(--text);font-size:14px;outline:none;font-family:var(--body-font);}
+  /* 16px+ prevents iOS Safari from force-zooming the viewport on input focus */
+  .ask-bar{width:100%;border:none;background:transparent;padding:10px 14px;color:var(--text);font-size:16px;line-height:1.35;outline:none;font-family:var(--body-font);-webkit-text-size-adjust:100%;}
   .ask-bar::placeholder{color:var(--muted);}
   .ask-hint{font-family:var(--mono-font);font-size:9px;color:var(--muted);letter-spacing:1px;padding:0 14px 8px;opacity:.65;}
   .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan-bright);color:#080A0C;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
@@ -437,8 +389,8 @@ const baseCss = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(8,1fr);padding:2px 0 max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
-  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:10px;letter-spacing:0.5px;cursor:pointer;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.9;text-transform:uppercase;}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,auto);row-gap:2px;column-gap:2px;padding:4px 4px max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .nav-btn{background:none;border:none;color:var(--muted);font-family:var(--mono-font);font-size:9px;letter-spacing:0.35px;cursor:pointer;padding:5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;opacity:.92;text-transform:uppercase;min-height:34px;line-height:1.05;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
   .nav-btn.nfl-active{color:#4A90D9;}
@@ -913,49 +865,7 @@ const PGA_COURSES = {
   },
 };
 
-// ── Golf Markets Reference ────────────────────────────────────────────────────
-const GOLF_MARKETS = {
-  outright: {
-    description: "Win the tournament outright",
-    bestUse: "Elite players at home courses. Value above 20/1.",
-    avoid: "Scheffler outright — always juiced. Short prices in weak fields.",
-  },
-  top5: {
-    description: "Finish top 5",
-    bestUse: "Elite players any week. Scheffler top-5 is the best recurring play.",
-    avoid: "Volatile players — Cameron Young types",
-  },
-  top10: {
-    description: "Finish top 10",
-    bestUse: "Best default market. Solid players in good form any week.",
-    avoid: "Majors for tier-2 players — field quality kills the percentage",
-  },
-  top20: {
-    description: "Finish top 20",
-    bestUse: "Best value market for mid-tier plays. Consistent players at soft events.",
-    avoid: "Overpriced favorites",
-  },
-  makecut: {
-    description: "Make the 36-hole cut",
-    bestUse: "Elite players, especially when form is strong. Near-certainty for top-10 players.",
-    avoid: "Volatile drivers — anyone with >45% miss fairway rate",
-  },
-  matchup: {
-    description: "Head-to-head matchup bet",
-    bestUse: "Course-specialist vs similar-priced generic player. Use SG splits.",
-    avoid: "Volatile players against consistent ones when priced even",
-  },
-  firstRoundLeader: {
-    description: "Lead after round 1",
-    bestUse: "Morning draw + power player + hot putter. Low probability but high value.",
-    avoid: "Afternoon draw in wind",
-  },
-};
-
-
 // ── Tennis/NFL Player data ───────────────────────────────────────────────────
-const ATP_PLAYERS = ["Alcaraz","Sinner","Djokovic","Zverev","Medvedev","De Minaur","Auger-Aliassime","Shelton","Fritz","Musetti","Tien","Draper","Fils","Bublik","Mensik","Ruud","Korda","Fonseca","Paul","Fokina","Rublev","Lehecka","Cerundolo","Norrie","Khachanov"];
-const WTA_PLAYERS = ["Sabalenka","Rybakina","Swiatek","Pegula","Gauff","Mboko","Anisimova","Svitolina","Muchova","Bencic","Andreeva","Paolini","Keys","Osaka","Noskova","Kostyuk","Vondrousova","Kalinskaya","Mertens","Cirstea","Jovic","Alexandrova","Zheng","Kartal"];
 
 const NFL_PLAYERS = {
   "James Cook":         { pos:"RB", team:"BUF", tier:"ELITE",  ydsPg:112.3, rec2025:{g:16,yds:1797,td:14,recPg:2.7,ydsPg:112.3,ypr:7.6},  props:{recYds:{floor:80,ceil:150,lean:"OVER"},td:{pg:0.88,lean:"OVER — 14 TDs, elite scorer"}},              situation:"Bills RB1. Every-down back. Volume guaranteed.", bettingAngles:["Rush yards OVER every week","TD scorer OVER — primary play","16g starter — volume locked in"] },
@@ -974,261 +884,9 @@ const NFL_PLAYERS = {
   "Tyler Warren":       { pos:"TE", team:"IND", tier:"ELITE",  ydsPg:48.1,  rec2025:{g:17,tgt:112,rec:76,yds:817,td:5,recPg:4.5,ydsPg:48.1,ypr:10.7},    props:{rec:{floor:3,ceil:7,lean:"OVER"},td:{pg:0.29,lean:"OVER 0.5 favorable matchups"}}, situation:"Colts TE1. Elite rookie season. Richardson health key.", bettingAngles:["Catches OVER every week","Receiving yards OVER","Year 2 with Richardson"] },
 };
 
-const NFL_POSITIONS = ["ALL","RB","WR","TE"];
-const NFL_PROP_GUIDE = [
-  { player:"James Cook",    pos:"RB", team:"BUF", propType:"RUSH YDS",  line:"115.5", floor:80,  ceil:150, lean:"OVER — 112.3 avg, elite workload",           leanClass:"lean-over" },
-  { player:"Puka Nacua",    pos:"WR", team:"LAR", propType:"REC YDS",   line:"85.5",  floor:75,  ceil:140, lean:"OVER — 107.2 yds/g leads NFL",                leanClass:"lean-over" },
-  { player:"Trey McBride",  pos:"TE", team:"ARI", propType:"CATCHES",   line:"6.5",   floor:5,   ceil:10,  lean:"OVER — 7.4/g is historic TE production",       leanClass:"lean-over" },
-  { player:"Ja'Marr Chase", pos:"WR", team:"CIN", propType:"REC YDS",   line:"75.5",  floor:65,  ceil:125, lean:"OVER when Burrow healthy",                     leanClass:"lean-over" },
-  { player:"Derrick Henry", pos:"RB", team:"BAL", propType:"RUSH TDs",  line:"0.5",   floor:0,   ceil:2,   lean:"OVER — 0.94 TDs/g is elite",                  leanClass:"lean-over" },
-  { player:"Travis Kelce",  pos:"TE", team:"KAN", propType:"REC YDS",   line:"52.5",  floor:35,  ceil:80,  lean:"FADE — real floor ~50, market overprices",     leanClass:"lean-fade" },
-];
-
-// ── Utils ────────────────────────────────────────────────────────────────────
-function normalizeText(v) { return String(v || "").trim().toLowerCase(); }
-function slugify(v) { return String(v||"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); }
-function isNflInSeason() { const m=new Date().getMonth(); return m>=8||m<=1; }
-function isNflRampMode() { const m=new Date().getMonth(); return m>=6&&m<=7; }
-function getDaypartLabel() { const h=new Date().getHours(); if(h<12)return"today"; if(h<18)return"this afternoon"; return"tonight"; }
-
-function normalizeTennisMatch(match, fallbackTour="ATP", activeTournament=null) {
-  if (!match) return null;
-  const league = match.league || (normalizeText(match.league_name).includes("wta")||normalizeText(match.event_type_type).includes("women") ? "WTA" : fallbackTour);
-  const home = String(match.home_team||match.event_first_player||"").trim();
-  const away = String(match.away_team||match.event_second_player||"").trim();
-  if (!home||!away) return null;
-  const blocked = new Set(["player 1","player 2","tbd","unknown","n/a","-"]);
-  if (blocked.has(home.toLowerCase())||blocked.has(away.toLowerCase())) return null;
-  if (home.toLowerCase()===away.toLowerCase()) return null;
-  const tournament = String(match.tournament||match.tournament_name||"").trim();
-  if (!tournament) return null;
-  const rawLive = String(match.live??match.event_live??"0");
-  const isLive = rawLive==="1";
-  let status = String(match.status||match.event_status||"Scheduled").trim();
-  if (isLive) status="Live";
-  const eventDate=String(match.event_date||"").trim();
-  const eventTime=String(match.event_time||"").trim();
-  const commenceTime = match.commence_time||(eventDate&&eventTime?`${eventDate}T${eventTime}:00`:eventDate?`${eventDate}T00:00:00`:null);
-  return {
-    id: match.id||match.event_key||`${home}-${away}-${league}-${eventDate||tournament}`,
-    league, leagueColor: league==="WTA"?"#E11D48":"#0891B2",
-    title:`${home} vs ${away}`, time:status, network:tournament,
-    blurb:`${home} vs ${away}${match.round?` · ${match.round}`:""}${match.score&&match.score!=="-"?` · ${match.score}`:""}`,
-    whatMatters:"Ask for the side, total, props, or live angle.",
-    quickHitters:["Best angle here?","Moneyline or total?","Any live edge?"],
-    confirmed:true,
-    commenceTime,
-    commenceTs: commenceTime ? new Date(commenceTime).getTime() : Number.MAX_SAFE_INTEGER,
-    raw:{...match,live:rawLive,status,home,away,tournament,event_date:eventDate,event_time:eventTime},
-  };
-}
-
-function preferredTournamentScore(match, context) {
-  const active = context?.currentTournament;
-  if (!active||!match) return 0;
-  const tournamentSlug = slugify(match.network||match.raw?.tournament||"");
-  const keySlug = slugify(active.key||"");
-  const nameSlug = slugify(active.name||"");
-  if (!tournamentSlug) return 0;
-  if (nameSlug&&tournamentSlug.includes(nameSlug)) return 5;
-  if (keySlug&&tournamentSlug.includes(keySlug)) return 5;
-  if (nameSlug&&nameSlug.includes(tournamentSlug)) return 4;
-  if (keySlug&&keySlug.includes(tournamentSlug)) return 4;
-  return 0;
-}
-
-function getTournamentFetchParam(context) {
-  const active = context?.currentTournament;
-  if (!active) return "charleston";
-  const candidates = [active.key,active.name,active.location].filter(Boolean);
-  return candidates.map(v=>slugify(v)).join(",") || "charleston";
-}
-
-function buildNflContext() {
-  return Object.entries(NFL_PLAYERS).map(([name,p]) => {
-    const tdPg=p.props.td?.pg!==undefined?`${p.props.td.pg} TDs/g`:"";
-    const total=p.rec2025.td!==undefined?`${p.rec2025.td} total TDs`:"";
-    const games=p.rec2025.g!==undefined?`${p.rec2025.g}g`:"";
-    const tdLean=p.props.td?.lean||"—";
-    const yLean=p.props.recYds?.lean||p.props.rec?.lean||"—";
-    const recPg=p.rec2025.recPg!==undefined?`, ${p.rec2025.recPg} rec/g`:"";
-    const tgt=p.rec2025.tgt!==undefined?`, ${p.rec2025.tgt} tgt`:"";
-    const ypr=p.rec2025.ypr!==undefined?`, ${p.rec2025.ypr} ypr`:"";
-    return [`${name} | ${p.pos} | ${p.team} | ${p.tier}`,`  Stats: ${p.ydsPg} yds/g, ${total} in ${games}${recPg}${tgt}${ypr}`,`  TD rate: ${tdPg||"n/a"} | TD lean: ${tdLean}`,`  Volume lean: ${yLean}`,`  Situation: ${p.situation}`,`  Angles: ${p.bettingAngles.join(" | ")}`].join("\n");
-  }).join("\n\n");
-}
-
-function formatServeStats(s) { if(!s)return"—"; const p=[]; if(s.holdPct!==undefined)p.push(`Hold ${s.holdPct}%`); if(s.acePct!==undefined)p.push(`Ace ${s.acePct}%`); if(s.dfPct!==undefined)p.push(`DF ${s.dfPct}%`); return p.length?p.join(", "):"—"; }
-function formatReturnStats(s) { if(!s)return"—"; const p=[]; if(s.rpwPct!==undefined)p.push(`RPW ${s.rpwPct}%`); if(s.breakPct!==undefined)p.push(`Break ${s.breakPct}%`); return p.length?p.join(", "):"—"; }
-function formatOverallStats(s) { if(!s)return"—"; const p=[]; if(s.dominanceRatio!==undefined)p.push(`DR ${s.dominanceRatio}`); if(s.totalPointsWonPct!==undefined)p.push(`TPW ${s.totalPointsWonPct}%`); if(s.tiebreakPct!==undefined)p.push(`Tiebreak ${s.tiebreakPct}%`); return p.length?p.join(", "):"—"; }
-function getHoldValue(p) { return p?.serveStats?.holdPct!==undefined?`${p.serveStats.holdPct}%`:"—"; }
-function getDrValue(p) { return p?.overallStats?.dominanceRatio!==undefined?`${p.overallStats.dominanceRatio}`:"—"; }
-function getTbValue(p) { return p?.overallStats?.tiebreakPct!==undefined?`${p.overallStats.tiebreakPct}%`:"—"; }
-
-function renderMessage(text) {
-  if (!text) return null;
-
-  const clean = String(text)
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .trim();
-
-  return clean.split(/\n{2,}/).map((para, i) => {
-    const lines = para.split("\n").map(s => s.trim()).filter(Boolean);
-
-    const allBullets =
-      lines.length > 1 &&
-      lines.every(
-        l => l.startsWith("•") || (l.includes(" — ") && !l.endsWith("."))
-      );
-
-    if (allBullets) {
-      return (
-        <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-          {lines.map((line, j) => {
-            const norm = line.startsWith("•") ? line.slice(1).trim() : line;
-            const parts = norm.split("—").map(s => s.trim());
-            const head = parts[0] || "";
-            const tail = parts.slice(1).join(" — ");
-
-            return (
-              <div
-                key={j}
-                style={{
-                  background: "rgba(8,145,178,.06)",
-                  border: "1px solid rgba(8,145,178,.12)",
-                  borderRadius: 10,
-                  padding: "10px 12px"
-                }}
-              >
-                <div
-                  style={{
-                    fontWeight: 600,
-                    color: "var(--text)",
-                    fontSize: 13,
-                    marginBottom: tail ? 4 : 0
-                  }}
-                >
-                  {head}
-                </div>
-                {tail && (
-                  <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.55 }}>
-                    {tail}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-
-    const isLabelBlock =
-      lines.length >= 2 &&
-      /^[A-Z][A-Z\s]+:?$/.test(lines[0]);
-
-    if (isLabelBlock) {
-      return (
-        <div
-          key={i}
-          style={{
-            marginBottom: 12,
-            padding: "10px 12px",
-            background: "rgba(255,255,255,.02)",
-            border: "1px solid var(--border)",
-            borderRadius: 10
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--mono-font)",
-              fontSize: 10,
-              letterSpacing: 1.5,
-              color: "var(--muted)",
-              marginBottom: 6,
-              textTransform: "uppercase"
-            }}
-          >
-            {lines[0].replace(/:$/, "")}
-          </div>
-
-          <div style={{ lineHeight: 1.7 }}>
-            {lines.slice(1).map((line, j) => (
-              <div key={j} style={{ marginBottom: j === lines.slice(1).length - 1 ? 0 : 6 }}>
-                {line}
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div key={i} style={{ lineHeight: 1.7, marginBottom: 10 }}>
-        {lines.map((line, j) => (
-          <div key={j} style={{ marginBottom: j === lines.length - 1 ? 0 : 6 }}>
-            {line}
-          </div>
-        ))}
-      </div>
-    );
-  });
-}
-
-function LoadingBubble({ sport }) {
-  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : sport === "golf" ? "⛳" : "⚡";
-  const isF1 = sport === "f1";
-  return (
-    <div className="bubble ai loading" style={{display:"flex",alignItems:"center",gap:12,minHeight:44}}>
-      <style>{`
-        @keyframes ur-bounce {
-          0%,100%{transform:translateX(0) translateY(0);}
-          25%{transform:translateX(24px) translateY(-5px);}
-          50%{transform:translateX(48px) translateY(0);}
-          75%{transform:translateX(24px) translateY(-5px);}
-        }
-        @keyframes ur-drive {
-          0%  {left:0;   transform:scaleX(1);}
-          44% {left:52px;transform:scaleX(1);}
-          50% {left:52px;transform:scaleX(-1);}
-          94% {left:0;   transform:scaleX(-1);}
-          100%{left:0;   transform:scaleX(1);}
-        }
-        .ur-track{position:relative;width:72px;height:28px;flex-shrink:0;}
-        .ur-emoji{position:absolute;top:50%;margin-top:-11px;font-size:20px;line-height:1;}
-        .ur-emoji.driving{animation:ur-drive 1.4s ease-in-out infinite;}
-        .ur-emoji.bouncing{animation:ur-bounce 0.9s ease-in-out infinite;left:0;}
-      `}</style>
-      <div className="ur-track">
-        <span className={`ur-emoji ${isF1 ? "driving" : "bouncing"}`}>{emoji}</span>
-      </div>
-      <span style={{fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:2,color:"var(--muted)"}}>ANALYZING...</span>
-    </div>
-  );
-}
-
-function ChatThread({ msgs }) {
-  if (!msgs||msgs.length===0) return null;
-  return (
-    <div className="chat-thread" style={{marginBottom:20}}>
-      {msgs.map((m,i) => (
-        m.loading
-          ? <LoadingBubble key={i} sport={m.sport} />
-          : <div key={i} className={`bubble ${m.role}`}>
-              {m.image && <img src={m.image} alt="" className="bubble-img" />}
-              {renderMessage(m.text)}
-            </div>
-      ))}
-    </div>
-  );
-}
-
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [activeTheme, setActiveTheme] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_THEME;
-    return localStorage.getItem("ur_theme") || DEFAULT_THEME;
-  });
+  const [activeTheme, setActiveTheme] = useState(resolveInitialTheme);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1277,6 +935,7 @@ ${themeCss}
   const [pastedImage, setPastedImage]   = useState(null);
   const [f1Data, setF1Data]             = useState(null);
   const [f1Loading, setF1Loading]       = useState(false);
+  const [nflContextData, setNflContextData] = useState(null);
   const [nbaData, setNbaData]           = useState(null);
   const [nbaLoading, setNbaLoading]     = useState(false);
   const [mlbData, setMlbData]           = useState(null);
@@ -1343,14 +1002,22 @@ ${themeCss}
   );
   const [weeklyUsed, setWeeklyUsed]     = useState(0);
   const [showEmailGate, setShowEmailGate] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   const [gateEmail, setGateEmail]         = useState("");
   const [codeInput, setCodeInput]         = useState("");
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
+  const [performanceData, setPerformanceData] = useState(null);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState("");
 
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT  = 5;
+
+  useEffect(() => {
+    setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
+  }, [accessTier]);
 
   // Load weekly usage on mount
   useEffect(() => {
@@ -1389,7 +1056,7 @@ ${themeCss}
   const canAsk = useCallback(() => {
     if (isUnlimited) return true;
     if (!userEmail) { setShowEmailGate(true); return false; }
-    if (weeklyUsed >= FREE_LIMIT) { goPro(); return false; }
+    if (weeklyUsed >= FREE_LIMIT) { setShowUpgradeModal(true); return false; }
     return true;
   }, [isUnlimited, userEmail, weeklyUsed]);
 
@@ -1474,6 +1141,31 @@ ${themeCss}
   }
 }, [userEmail]);
 
+  const loadPerformanceSnapshot = useCallback(async () => {
+    const email = String(userEmail || "").trim();
+    if (!email) {
+      setPerformanceData(null);
+      return;
+    }
+    setPerformanceLoading(true);
+    setPerformanceError("");
+    try {
+      const res = await fetch(`/api/performance?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load performance");
+      setPerformanceData(data);
+    } catch (err) {
+      setPerformanceError(err?.message || "Failed to load performance");
+    } finally {
+      setPerformanceLoading(false);
+    }
+  }, [userEmail]);
+
+  useEffect(() => {
+    if (!userEmail) return;
+    loadPerformanceSnapshot();
+  }, [loadPerformanceSnapshot, userEmail]);
+
   useEffect(() => {
     if (!context) return;
     let cancelled=false;
@@ -1501,6 +1193,24 @@ ${themeCss}
       fetch("/api/f1").then(r=>r.json()).then(d=>{ if(active) setF1Data(d); }).catch(()=>{});
     }, 120000);
     return () => { active=false; window.clearInterval(poll); };
+  }, []);
+
+  // ── Canonical NFL context fetch (RB/WR-TE/QB merged) ──────────────────────
+  useEffect(() => {
+    let active = true;
+    async function loadNflContext() {
+      try {
+        const res = await fetch("/api/nfl-context");
+        if (!res.ok) throw new Error(`NFL context ${res.status}`);
+        const data = await res.json();
+        if (active) setNflContextData(data);
+      } catch {
+        if (active) setNflContextData(null);
+      }
+    }
+    loadNflContext();
+    const poll = window.setInterval(loadNflContext, 15 * 60 * 1000);
+    return () => { active = false; window.clearInterval(poll); };
   }, []);
 
   // ── NBA data fetch ─────────────────────────────────────────────────────────
@@ -1799,6 +1509,12 @@ ${themeCss}
   };
 }, [golfData]);
 
+  const nflPlayersForUi = useMemo(() => {
+    const remote = nflContextData?.uiPlayers;
+    if (remote && Object.keys(remote).length) return remote;
+    return NFL_PLAYERS;
+  }, [nflContextData]);
+
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
   if (!text || isAsking) return;
@@ -1819,6 +1535,7 @@ ${themeCss}
   try {
     const body = {
       question: text,
+      userEmail: userEmail || null,
       history: [],
       sportHint: sportHint || null,
       matchupContext: matchup || null,
@@ -1832,7 +1549,7 @@ ${themeCss}
     }
 
     if (sportHint === "nfl") {
-      body.nflContext = buildNflContext();
+      body.nflContext = nflContextData?.promptContext || buildNflContext(nflPlayersForUi);
     }
 
     if (sportHint === "f1") {
@@ -1886,6 +1603,9 @@ ${themeCss}
       ...prev.filter(m => !m.loading),
       { role: "ai", text: data.response || "Couldn't get a response — try again." }
     ]);
+    if (userEmail) {
+      loadPerformanceSnapshot().catch(() => {});
+    }
   } catch (err) {
     setMsgs(prev => [
       ...prev.filter(m => !m.loading),
@@ -1905,8 +1625,12 @@ ${themeCss}
   buildNbaContext,
   buildMlbContext,
   buildGolfContext,
+  nflPlayersForUi,
+  nflContextData,
   canAsk,
-  recordQuery
+  recordQuery,
+  userEmail,
+  loadPerformanceSnapshot
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -1914,9 +1638,15 @@ ${themeCss}
   const getPlayerAny = useCallback(name => { if(!players)return null; return players.atp?.[name]||players.wta?.[name]||null; }, [players]);
 
   const pd    = screen==="player"    && selectedPlayer    ? getPlayerAny(selectedPlayer)   : null;
-  const nflPd = screen==="nflplayer" && selectedNflPlayer ? NFL_PLAYERS[selectedNflPlayer] : null;
+  const nflPd = screen==="nflplayer" && selectedNflPlayer ? nflPlayersForUi[selectedNflPlayer] : null;
 
-  const filteredNflPlayers = useMemo(() => Object.entries(NFL_PLAYERS).filter(([,p])=>nflPosFilter==="ALL"||p.pos===nflPosFilter).sort((a,b)=>b[1].ydsPg-a[1].ydsPg), [nflPosFilter]);
+  const filteredNflPlayers = useMemo(
+    () =>
+      Object.entries(nflPlayersForUi)
+        .filter(([, p]) => nflPosFilter === "ALL" || p.pos === nflPosFilter)
+        .sort((a, b) => Number(b[1].ydsPg || 0) - Number(a[1].ydsPg || 0)),
+    [nflPosFilter, nflPlayersForUi]
+  );
 
   // ── Tennis derived state ───────────────────────────────────────────────────
   const tennisLiveMatches     = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")==="1"),[liveMatches]);
@@ -1971,63 +1701,135 @@ ${themeCss}
 
   const homeF1Cards = useMemo(() => {
     const nextRace = f1Data?.schedule?.races?.find(r => r.is_next);
-    const leader = f1Data?.standings?.[0];
-    const cards = [];
     if (nextRace) {
-      const dateStr = nextRace.date_start ? new Date(nextRace.date_start).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
-      cards.push({id:"f1-next-1",league:"F1",leagueColor:"#E10600",title:nextRace.meeting_name||"Next Grand Prix",time:dateStr,network:nextRace.circuit_short_name||nextRace.location||"",blurb:`${nextRace.location} — Ask for the best F1 angle.`,whatMatters:"Ask for race winner, podium, or qualifying prop edges.",quickHitters:["Best F1 bet this weekend?","Who wins qualifying?","Podium value play?"],confirmed:true});
+      const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
+      const dt = raceStart ? new Date(raceStart) : null;
+      const dateStr = dt
+        ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
+        : "TBD";
+      const fullDateStr = dt
+        ? dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })
+        : "Date TBD";
+      const timeStr = dt
+        ? dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })
+        : "";
+      return [{
+        id: "f1-next-1",
+        league: "F1",
+        leagueColor: "#E10600",
+        title: nextRace.meeting_name || "Next Grand Prix",
+        time: dateStr,
+        network: nextRace.circuit_short_name || nextRace.location || "",
+        blurb: `${nextRace.location || "Track TBD"} · ${fullDateStr}${timeStr ? ` at ${timeStr}` : ""}`,
+        whatMatters: "Ask for race winner, podium, or race-day matchup edges.",
+        quickHitters: ["Best F1 race-day bet?", "Best podium value?", "Best race matchup?"],
+        confirmed: true
+      }];
     }
-    if (leader) {
-      cards.push({id:"f1-standings-1",league:"F1 CHAMPIONSHIP",leagueColor:"#E10600",title:`${leader.full_name||"Leader"} leads — ${leader.points||0} pts`,time:"2026 Season",network:"Driver Championship",blurb:`${leader.team_name||""} ${leader.full_name||""} leads the 2026 championship. Ask about title odds.`,whatMatters:"Ask about championship futures and driver head-to-heads.",quickHitters:["Who wins the 2026 WDC?","Best F1 future right now?","Constructor championship value?"],confirmed:true});
-    }
-    if (!cards.length) {
-      cards.push({id:"f1-default",league:"F1",leagueColor:"#E10600",title:"Formula 1 — 2026 Season",time:"Active",network:"Grand Prix Racing",blurb:"New 2026 regulations. Mercedes resurgent. Red Bull fallen. Ask about any F1 angle.",whatMatters:"Ask about race winners, championship futures, or driver matchups.",quickHitters:["Best F1 future?","Who wins the WDC?","Best value bet?"],confirmed:true});
-    }
-    return cards.slice(0,1);
+    return [{
+      id: "f1-default",
+      league: "F1",
+      leagueColor: "#E10600",
+      title: "Formula 1",
+      time: "Schedule pending",
+      network: "Grand Prix Racing",
+      blurb: "Next race details are loading.",
+      whatMatters: "Ask about race winners, championship futures, or driver matchups.",
+      quickHitters: ["Best F1 future?", "Who wins the WDC?", "Best value bet?"],
+      confirmed: true
+    }];
   }, [f1Data]);
 
   const homeNbaCards = useMemo(() => {
     const games = nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []);
-    const liveGame = games.find(g => g.state === "in");
-    const nextGame = games.find(g => g.state === "pre");
-    const cards = [];
-    if (liveGame) {
-      const away = liveGame.awayTeam?.abbr || liveGame.awayTeam?.name || "Away";
-      const home = liveGame.homeTeam?.abbr || liveGame.homeTeam?.name || "Home";
-      cards.push({id:"nba-live-1",league:"NBA LIVE",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:"LIVE",network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}${getSeriesLabel(liveGame.awayTeam?.abbr,liveGame.homeTeam?.abbr) ? " · "+getSeriesLabel(liveGame.awayTeam?.abbr,liveGame.homeTeam?.abbr) : ""}`,blurb:"Live game in progress. Ask for the best prop or spread angle.",whatMatters:"Ask for live prop edges or game total angle.",quickHitters:["Best live prop right now?","Best spread angle?","Who covers?"],confirmed:true});
-    } else if (nextGame) {
-      const away = nextGame.awayTeam?.abbr || nextGame.awayTeam?.name || "Away";
-      const home = nextGame.homeTeam?.abbr || nextGame.homeTeam?.name || "Home";
-      cards.push({id:"nba-next-1",league:"NBA",leagueColor:"#FF6B00",title:`${away} vs ${home}`,time:nextGame.status,network:"Tonight's Slate",blurb:`${getSeriesLabel(nextGame.awayTeam?.abbr,nextGame.homeTeam?.abbr) || "Game time"} · Ask for the best prop angle.`,whatMatters:"Ask for the safest PRA bet or best game total.",quickHitters:["Best prop tonight?","Safest PRA bet?","Best game total?"],confirmed:true});
-    } else if (games.length > 0) {
-      // All games final — show tomorrow preview
-      cards.push({id:"nba-tomorrow",league:"NBA",leagueColor:"#FF6B00",title:"Tonight's slate is done",time:"Check back tomorrow",network:"NBA Props",blurb:"All games final. Ask for the best plays on tomorrow's slate.",whatMatters:"Ask for tomorrow's best prop plays.",quickHitters:["Best prop tomorrow?","Safest PRA bet tomorrow?","Top plays for tomorrow?"],confirmed:true});
-    } else {
-      cards.push({id:"nba-default",league:"NBA",leagueColor:"#FF6B00",title:"NBA Props",time:"Active",network:"Player Props",blurb:"Ask about any player prop, PRA bet, or game total.",whatMatters:"Ask for the best prop on any player or tonight's slate.",quickHitters:["Best PRA bet tonight?","Safest prop right now?","Best usage spike play?"],confirmed:true});
-    }
-    return cards.slice(0,1);
+    const upcoming = games.filter(g => g.state === "pre").slice(0, 2);
+    const cards = upcoming.map((g, i) => {
+      const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+      const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+      const series = getSeriesLabel(away, home);
+      return {
+        id: `nba-upcoming-${i + 1}`,
+        league: "NBA PLAYOFFS",
+        leagueColor: "#FF6B00",
+        title: `${away} vs ${home}`,
+        time: g.status || "Upcoming",
+        network: series || "Playoff matchup",
+        blurb: `${series || "Series info pending"} · Tipoff ${g.status || "TBD"}`,
+        whatMatters: "Ask for matchup edge, game total, and series leverage spots.",
+        quickHitters: ["Best playoff prop?", "Who covers this game?", "Best total angle?"],
+        confirmed: true
+      };
+    });
+    if (cards.length) return cards;
+    return [{
+      id: "nba-default",
+      league: "NBA PLAYOFFS",
+      leagueColor: "#FF6B00",
+      title: "Upcoming playoff games",
+      time: "Loading slate",
+      network: "Series board",
+      blurb: "Loading upcoming playoff matchups and series state.",
+      whatMatters: "Ask for playoff props and spread edges.",
+      quickHitters: ["Best playoff prop?", "Best spread tonight?", "Best game total?"],
+      confirmed: true
+    }];
   }, [nbaData, nbaGames]);
 
   const homeMlbCards = useMemo(() => {
     const games = mlbData?.games || [];
-    const liveGame = games.find(g => g.state === "in");
-    const nextGame = games.find(g => g.state === "pre");
-    if (liveGame) {
-      const away = liveGame.awayTeam?.abbr || "Away";
-      const home = liveGame.homeTeam?.abbr || "Home";
-      return [{ id:"mlb-live-1", league:"MLB LIVE", leagueColor:"#1DB954", title:`${away} @ ${home}`, time:"LIVE", network:`${liveGame.awayTeam?.score||0} — ${liveGame.homeTeam?.score||0}${getSeriesLabel(liveGame.awayTeam?.abbr,liveGame.homeTeam?.abbr) ? " · "+getSeriesLabel(liveGame.awayTeam?.abbr,liveGame.homeTeam?.abbr) : ""}`, blurb:"Live game. Ask for best live prop or total angle.", whatMatters:"Ask for live K prop, batter hit, or first-5 angle.", quickHitters:["Best live prop?","Pitcher still rolling?","Back the OVER or UNDER?"], confirmed:true }];
+    const pool = games.filter((g) => g.state === "in" || g.state === "pre").slice(0, 3);
+    if (!pool.length) {
+      return [{
+        id: "mlb-default",
+        league: "MLB",
+        leagueColor: "#1DB954",
+        title: "MLB slate loading",
+        time: "Active",
+        network: "Daily board",
+        blurb: "Loading up to three MLB games.",
+        whatMatters: "Ask for pitcher props, totals, and batter value.",
+        quickHitters: ["Best K prop?", "Best batter prop?", "Best game total?"],
+        confirmed: true
+      }];
     }
-    if (nextGame) {
-      const away = nextGame.awayTeam?.abbr || "Away";
-      const home = nextGame.homeTeam?.abbr || "Home";
-      const awayP = nextGame.awayTeam?.pitcher ? ` [${nextGame.awayTeam.pitcher.split(" ").pop()}]` : "";
-      const homeP = nextGame.homeTeam?.pitcher ? ` [${nextGame.homeTeam.pitcher.split(" ").pop()}]` : "";
-      return [{ id:"mlb-next-1", league:"MLB", leagueColor:"#1DB954", title:`${away}${awayP} @ ${home}${homeP}`, time:nextGame.status, network:"Today's Slate", blurb:"Ask for the starter matchup, game total lean, or best batter prop.", whatMatters:"Pitcher K prop, game total, or correlated batter play.", quickHitters:["Best prop tonight?","Game total lean?","Best K prop?"], confirmed:true }];
-    }
-    return [{ id:"mlb-default", league:"MLB", leagueColor:"#1DB954", title:"MLB Props", time:"Active", network:"Player Props", blurb:"Ask about any pitcher K prop, batter hit, or game total.", whatMatters:"Ask for the best MLB prop on today's slate.", quickHitters:["Best K prop?","Best batter prop?","Best game total?"], confirmed:true }];
+
+    const cards = pool.map((g, i) => {
+      const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+      const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+      const isLive = g.state === "in";
+      return {
+        id: `mlb-home-${i + 1}`,
+        league: isLive ? "MLB LIVE" : "MLB",
+        leagueColor: "#1DB954",
+        title: `${away} @ ${home}`,
+        time: isLive ? "LIVE" : (g.status || "Upcoming"),
+        network: isLive
+          ? `${g.awayTeam?.score || 0} — ${g.homeTeam?.score || 0}`
+          : "Today's slate",
+        blurb: isLive
+          ? "Live board — ask for in-game angle."
+          : "Upcoming matchup — ask for best total/prop.",
+        whatMatters: "Pitcher props, game totals, and matchup context.",
+        quickHitters: ["Best K prop?", "Best game total?", "Best batter play?"],
+        confirmed: true
+      };
+    });
+    cards.push({
+      id: "mlb-home-more",
+      league: "MLB",
+      leagueColor: "#1DB954",
+      title: "Click here for more MLB",
+      time: "Open full tab",
+      network: "More games",
+      blurb: "View full MLB board and all matchups.",
+      whatMatters: "Tap to open MLB tab.",
+      quickHitters: ["Open MLB tab"],
+      confirmed: true
+    });
+    return cards;
   }, [mlbData, mlbGames]);
 
-    const homeGolfCards = useMemo(() => {
+  const homeGolfCards = useMemo(() => {
     if (golfData === null && golfLoading) {
       return [{
         id: "golf-home-loading",
@@ -2045,9 +1847,6 @@ ${themeCss}
 
     const currentEvent = golfData?.currentEvent || null;
     const tournament = golfData?.tournament || null;
-    const outrights = golfData?.odds?.outrights || [];
-    const rankings = golfData?.rankings || [];
-
     const readName = (entry) =>
       String(entry?.player || entry?.name || entry?.fullName || "").trim();
 
@@ -2073,59 +1872,66 @@ ${themeCss}
 
     const eventState = String(currentEvent?.state || "").toLowerCase();
     const roundLabel = String(currentEvent?.round || "");
-    const hasLiveLeaderboard = topThree.length > 0;
     const looksLiveRound = /live|round|r\d/i.test(roundLabel);
-    const isLiveTournament =
-      hasLiveLeaderboard && (eventState === "in" || looksLiveRound);
+    const looksInProgress = eventState === "in" || looksLiveRound;
+    const boardSource = String(golfData?.sourceMeta?.board || "").toLowerCase();
+    const espnLbSource = String(golfData?.sourceMeta?.espnLeaderboardSource || "").toLowerCase();
 
-    if (isLiveTournament) {
+    const sourceLabel =
+      boardSource === "balldontlie_live_standings"
+        ? "Source: BallDontLie live standings"
+        : espnLbSource === "espn_html"
+        ? "Source: ESPN tournament leaderboard"
+        : espnLbSource === "espn_api" || boardSource.includes("espn")
+        ? "Source: ESPN scoreboard API"
+        : boardSource === "odds_market_fallback"
+        ? "Source: odds market proxy"
+        : "Source: PGA feed";
+
+    const fetchedTs = Date.parse(String(golfData?.sourceMeta?.fetchedAt || ""));
+    const freshnessLabel = Number.isNaN(fetchedTs)
+      ? "Updated recently"
+      : (() => {
+          const ageMin = Math.max(0, Math.round((Date.now() - fetchedTs) / 60000));
+          if (ageMin <= 1) return "Updated just now";
+          if (ageMin < 60) return `Updated ${ageMin}m ago`;
+          const ageHours = Math.round(ageMin / 60);
+          return `Updated ${ageHours}h ago`;
+        })();
+
+    if (topThree.length > 0) {
       const leaderboardLine = topThree
-        .map((p, i) => `${i + 1}. ${shortName(readName(p))} ${formatScore(p?.score)}`)
-        .join(" · ");
+        .map((p, i) => {
+          const thru = String(p?.thru || "").trim();
+          const thruLabel = thru && thru !== "—" && thru !== "-" ? ` (${thru})` : "";
+          return `${i + 1}. ${shortName(readName(p))} ${formatScore(p?.score)}${thruLabel}`;
+        })
+        .join("\n");
 
       return [{
-        id: "golf-home-live",
-        league: "GOLF LIVE",
+        id: "golf-home-leaderboard",
+        league: looksInProgress ? "GOLF LIVE" : "GOLF",
         leagueColor: "#FFFFFF",
-        title: currentEvent?.shortName || currentEvent?.name || "PGA Tour Live",
-        time: currentEvent?.round || "Live Leaderboard",
+        title: currentEvent?.shortName || currentEvent?.name || "PGA Tour",
+        time: currentEvent?.round || (looksInProgress ? "Live" : "Leaderboard"),
         network: currentEvent?.course || "PGA Tour",
-        blurb: leaderboardLine || "Live leaderboard is active now.",
-        whatMatters: "Back current form or fade players with unstable scoring splits.",
-        quickHitters: [
-          "Best live golf angle?",
-          "Who to back from top 3?",
-          "Who should I fade live?",
-        ],
+        blurb: `${leaderboardLine}\n${sourceLabel} · ${freshnessLabel}`,
+        topThree: topThree.map((p, i) => ({
+          rank: i + 1,
+          name: shortName(readName(p)),
+          score: formatScore(p?.score),
+          thru: String(p?.thru || "").trim(),
+        })),
+        sourceLine: `${sourceLabel} · ${freshnessLabel}`,
+        whatMatters: looksInProgress
+          ? "Back current form or fade players with unstable scoring splits."
+          : "Top of the board right now — ask for course-fit leans before the next wave.",
+        quickHitters: looksInProgress
+          ? ["Best live golf angle?", "Who to back from top 3?", "Who should I fade live?"]
+          : ["Best angle on the leader?", "Who chases from the pack?", "Best top-10 play?"],
         confirmed: true,
       }];
     }
-
-    const successNames = outrights
-      .slice(0, 2)
-      .map(readName)
-      .filter(Boolean);
-
-    if (successNames.length < 2) {
-      const rankFallback = rankings
-        .slice(0, 4)
-        .map(readName)
-        .filter(Boolean);
-      for (const candidate of rankFallback) {
-        if (!successNames.includes(candidate)) successNames.push(candidate);
-        if (successNames.length >= 2) break;
-      }
-    }
-
-    const fadeCandidates = outrights
-      .slice(6, 16)
-      .map(readName)
-      .filter(Boolean);
-    const fadeName =
-      fadeCandidates.find((name) => !successNames.includes(name)) ||
-      outrights.slice(2).map(readName).find(Boolean) ||
-      rankings.slice(5).map(readName).find(Boolean) ||
-      "";
 
     const nextEventName =
       tournament?.shortName ||
@@ -2135,11 +1941,6 @@ ${themeCss}
       "Next PGA Tour Event";
 
     if (nextEventName) {
-      const previewBits = [];
-      if (successNames[0]) previewBits.push(`Succeed: ${shortName(successNames[0])}`);
-      if (successNames[1]) previewBits.push(`Also like: ${shortName(successNames[1])}`);
-      if (fadeName) previewBits.push(`Fade: ${shortName(fadeName)}`);
-
       return [{
         id: "golf-home-next",
         league: "GOLF",
@@ -2151,56 +1952,76 @@ ${themeCss}
           currentEvent?.course ||
           golfData?.course?.name ||
           "PGA Tour",
-        blurb:
-          previewBits.join(" · ") ||
-          "No live tournament right now. Ask for next-event succeed/fade picks.",
+        blurb: `Live top-3 scoring is not posted yet. Check back as soon as tee times go live.\n${sourceLabel} · ${freshnessLabel}`,
         whatMatters: "Target course-fit winners and fade overpriced names before tee-off.",
         quickHitters: [
-          "Who should succeed this week?",
-          "Who should I fade this week?",
+          "When does live scoring start?",
           "Best pre-tourney value?",
+          "Best top-10 before tee-off?",
         ],
         confirmed: true,
       }];
     }
 
-    return [];
+    return [{
+      id: "golf-home-unavailable",
+      league: "GOLF",
+      leagueColor: "#FFFFFF",
+      title: "PGA Tour board",
+      time: "Temporarily unavailable",
+      network: "Live data offline",
+      blurb: "Golf card is still pinned on Home. Live leaderboard/odds feed is not reachable right now.",
+      whatMatters: "Start the local API server with npm run dev:local so /api/golf can hydrate this card.",
+      quickHitters: ["Open Golf tab", "Best pre-tourney value?", "Who to fade this week?"],
+      confirmed: true,
+    }];
   }, [golfData, golfLoading]);
-    const homeCards = useMemo(
+
+  const homeTrackerCards = useMemo(
+    () =>
+      buildHomeTrackerCards({
+        performanceData,
+        nbaGames,
+        mlbData,
+        golfData,
+        f1Data,
+      }),
+    [performanceData, nbaGames, mlbData, golfData, f1Data]
+  );
+
+  const homeCards = useMemo(
     () =>
       [
-        ...homeTennisCards,
+        ...homeTrackerCards,
         ...homeGolfCards,
-        ...homeNflCards,
-        ...homeF1Cards,
         ...homeNbaCards,
         ...homeMlbCards,
+        ...homeF1Cards,
       ].filter(Boolean),
     [
-      homeTennisCards,
+      homeTrackerCards,
       homeGolfCards,
-      homeNflCards,
-      homeF1Cards,
       homeNbaCards,
       homeMlbCards,
+      homeF1Cards,
     ]
   );
   
   // ── Dynamic home questions ─────────────────────────────────────────────────
-  const dynamicHomeQuestions = useMemo(() => {
-    const prompts=[]; const used=new Set(); const daypart=getDaypartLabel();
-    const push=item=>{ if(!item||used.has(item.text))return; used.add(item.text); prompts.push(item); };
-    const prefLive=activeTournamentMatches.find(m=>String(m?.raw?.live||"0")==="1")||tennisLiveMatches[0];
-    const prefUpcoming=activeTournamentMatches.find(m=>String(m?.raw?.live||"0")!=="1")||tennisUpcomingMatches[0];
-    if(prefLive){ const label=`${prefLive.raw?.home||""} vs ${prefLive.raw?.away||""}`; push({id:"q1",color:prefLive.league==="WTA"?"#E11D48":"#0891B2",text:`Best live angle for ${label}?`,prompt:`What is the best live betting angle for ${label} right now? Give me the strongest side, total, and any prop edge.`}); }
-    if(prefUpcoming){ const label=`${prefUpcoming.raw?.home||""} vs ${prefUpcoming.raw?.away||""}`; push({id:"q2",color:prefUpcoming.league==="WTA"?"#E11D48":"#0891B2",text:`Best tennis bet in ${label} ${daypart}?`,prompt:`What is the best bet in ${label} ${daypart}? Cleanest angle and one sharper alternative.`}); }
-    push({id:"q3",color:"#0891B2",text:context?.currentTournament?.name?`Best futures angle around ${context.currentTournament.name}?`:"Which tennis future still has value right now?",prompt:context?.currentTournament?.name?`What is the best current futures or tournament-value angle connected to ${context.currentTournament.name}?`:"Which tennis future still has value right now, and why has the market not fully priced it correctly?"});
-    if(nflSeasonMode){ push({id:"q4",color:"#E11D48",text:"Which NFL weekly prop is most mispriced?",prompt:"Which NFL weekly player prop looks most mispriced right now based on current usage and the player database?"}); }
-    else { push({id:"q4",color:"#E11D48",text:"Which NFL future looks most mispriced?",prompt:"Which NFL future looks the most mispriced right now based on the player database and team context?"}); }
-    push({id:"q5",color:"#FF6B00",text:"Best NBA prop on tonight's slate?",prompt:"What is the safest and highest-confidence NBA prop bet on tonight's slate? Give me the top PRA play and one secondary angle."});
-    push({id:"q6",color:"#E10600",text:"Best F1 betting angle this weekend?",prompt:"What is the best F1 betting angle for the next Grand Prix? Consider current standings, circuit type, and any relevant pace data."});
-    return prompts.slice(0,5);
-  }, [activeTournamentMatches,tennisLiveMatches,tennisUpcomingMatches,nflSeasonMode,context]);
+  const dynamicHomeQuestions = useMemo(
+    () =>
+      buildDynamicHomeQuestions({
+        activeTournamentMatches,
+        tennisLiveMatches,
+        tennisUpcomingMatches,
+        nflSeasonMode,
+        context,
+        golfData,
+        nbaGames,
+        f1Data,
+      }),
+    [activeTournamentMatches, tennisLiveMatches, tennisUpcomingMatches, nflSeasonMode, context, golfData, nbaGames, f1Data]
+  );
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goHome   = useCallback(()=>{ setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
@@ -2216,9 +2037,39 @@ ${themeCss}
  const openMatchup = useCallback((m) => {
   if (!m?.title || !m?.network) return;
 
-  if (m.league === "GOLF") {
+  if (m?.id === "mlb-home-more") {
+    setTab("mlb");
+    setScreen("mlb");
+    return;
+  }
+
+  if (m?.id === "ur-home-tracker") {
+    setTab("pro");
+    setScreen("pro");
+    return;
+  }
+
+  if ((m.league || "").includes("GOLF")) {
     setTab("golf");
     setScreen("golf");
+    return;
+  }
+
+  if ((m.league || "").includes("NBA")) {
+    setTab("nba");
+    setScreen("nba");
+    return;
+  }
+
+  if ((m.league || "").includes("MLB")) {
+    setTab("mlb");
+    setScreen("mlb");
+    return;
+  }
+
+  if ((m.league || "").includes("F1")) {
+    setTab("f1");
+    setScreen("f1");
     return;
   }
 
@@ -2253,7 +2104,7 @@ ${themeCss}
 
   const golfBarRefLocal = golfBarRef;
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); setTimeout(()=>{ golfBarRefLocal.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,golfInput,golfBarRefLocal]);
-  const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const hint=selectedMatchup?.league?.includes("NFL")?"nfl":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
+const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
 
   // ── Sub-components ─────────────────────────────────────────────────────────
   function TennisPlayerCard({ name, idx, tour }) {
@@ -2296,6 +2147,14 @@ ${themeCss}
   }
 
   const askBarCommon = { fileInputRef, pastedImage, clearImage, isAsking, processImageFile };
+  const hasDockedBar =
+    (screen === "tennis" && tennisMsgs.length > 0) ||
+    (screen === "nfl" && nflMsgs.length > 0) ||
+    (screen === "f1" && f1Msgs.length > 0) ||
+    (screen === "nba" && nbaMsgs.length > 0) ||
+    (screen === "mlb" && mlbMsgs.length > 0) ||
+    (screen === "golf" && golfMsgs.length > 0) ||
+    (screen === "ask" && askMsgs.length > 0);
 
   // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (
@@ -2341,10 +2200,15 @@ ${themeCss}
     <>
   <style>{css}</style>
   <div
-    className={`app theme-${activeTheme}`}
+    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}`}
     style={{
       background: THEMES[activeTheme]?.appBg || "var(--bg)",
-      color: activeTheme === "broadsheet" ? "#1A1410" : "var(--text)"
+      color:
+        activeTheme === "broadsheet"
+          ? "#1A1410"
+          : activeTheme === "crisp"
+            ? "#0F172A"
+            : "var(--text)",
     }}
   >
 
@@ -2357,7 +2221,7 @@ ${themeCss}
 
         {/* ══ HOME ══ */}
         {screen==="home"&&(
-          <main className="screen" style={{padding:"8px 12px 70px"}}>
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"8px 12px calc(96px + env(safe-area-inset-bottom))"}}>
 
             {/* Ask bar — leads immediately, no hero copy */}
             <AskBar inputRef={homeInputRef} value={homeInput} onChange={setHomeInput} onSubmit={submitHome} placeholder="Ask about any player, game, or bet..." {...askBarCommon} />
@@ -2372,6 +2236,18 @@ ${themeCss}
               <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"rgba(255,255,255,.5)"}} onClick={goGolf}>GOLF</button>
             </div>
 
+            {/* Prompts first — actionable before the live snapshot strip */}
+            <div className="ask-cards">
+              {dynamicHomeQuestions.map((q) => (
+                <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null)}>
+                  <div className="ask-card-bar" style={{ background: q.color }} />
+                  <div className="ask-card-text">{q.text}</div>
+                  <div style={{ color: "var(--muted)", fontSize: 16, flexShrink: 0 }}>›</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="home-live-label">Live snapshot</div>
 {/* Top ticker rail */}
 <div
   style={{
@@ -2379,7 +2255,7 @@ ${themeCss}
     gap: 8,
     overflowX: "auto",
     scrollbarWidth: "none",
-    marginBottom: 14,
+    marginBottom: 12,
     alignItems: "stretch",
   }}
 >
@@ -2569,6 +2445,50 @@ ${themeCss}
                     </span>
                   </div>
                 ))}
+              </div>,
+            ]
+          : golfData?.currentEvent
+          ? [
+              <div
+                key="golf-ticker"
+                onClick={goGolf}
+                style={{
+                  flexShrink: 0,
+                  background: "var(--surface)",
+                  border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 10,
+                  padding: "8px 11px",
+                  cursor: "pointer",
+                  minWidth: 170,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "var(--mono-font)",
+                    fontSize: 7,
+                    letterSpacing: 1.5,
+                    color: "rgba(255,255,255,.7)",
+                    marginBottom: 4,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                  {golfData.currentEvent.course || "Course TBD"}
+                </div>
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 9,
+                    fontFamily: "var(--mono-font)",
+                    color: "rgba(255,255,255,.75)",
+                    lineHeight: 1.35,
+                    whiteSpace: "pre-line",
+                  }}
+                >
+                  {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
+                </div>
               </div>,
             ]
           : []),
@@ -2785,7 +2705,7 @@ ${themeCss}
                 ))}
               </div>,
             ]
-          : golfData?.tournament || golfData?.currentEvent
+          : golfData?.currentEvent
           ? [
               <div
                 key="golf-ticker"
@@ -2793,11 +2713,11 @@ ${themeCss}
                 style={{
                   flexShrink: 0,
                   background: "var(--surface)",
-                  border: "1px solid rgba(255,255,255,.1)",
+                  border: "1px solid rgba(255,255,255,.12)",
                   borderRadius: 10,
                   padding: "8px 11px",
                   cursor: "pointer",
-                  minWidth: 150,
+                  minWidth: 170,
                 }}
               >
                 <div
@@ -2805,58 +2725,27 @@ ${themeCss}
                     fontFamily: "var(--mono-font)",
                     fontSize: 7,
                     letterSpacing: 1.5,
-                    color: "rgba(255,255,255,.5)",
-                    marginBottom: 3,
+                    color: "rgba(255,255,255,.7)",
+                    marginBottom: 4,
                     textTransform: "uppercase",
                   }}
                 >
-                  ⛳ PGA TOUR
+                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
                 </div>
-
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "var(--text)",
-                    lineHeight: 1.3,
-                    marginBottom: 2,
-                  }}
-                >
-                  {((golfData?.tournament?.shortName ||
-                    golfData?.tournament?.name ||
-                    golfData?.currentEvent?.shortName ||
-                    golfData?.currentEvent?.name ||
-                    "Next PGA Tour Event").length > 24)
-                    ? `${(golfData?.tournament?.shortName ||
-                        golfData?.tournament?.name ||
-                        golfData?.currentEvent?.shortName ||
-                        golfData?.currentEvent?.name ||
-                        "Next PGA Tour Event").slice(0, 22)}…`
-                    : (golfData?.tournament?.shortName ||
-                        golfData?.tournament?.name ||
-                        golfData?.currentEvent?.shortName ||
-                        golfData?.currentEvent?.name ||
-                        "Next PGA Tour Event")}
-                </div>
-
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {golfData?.tournament?.course ||
-                    golfData?.currentEvent?.course ||
-                    golfData?.course?.name ||
-                    golfData?.tournament?.location ||
-                    golfData?.currentEvent?.location ||
-                    ""}
+                  {golfData.currentEvent.course || "Course TBD"}
                 </div>
-
                 <div
                   style={{
+                    marginTop: 4,
                     fontSize: 9,
                     fontFamily: "var(--mono-font)",
-                    color: "rgba(255,255,255,.4)",
-                    marginTop: 4,
+                    color: "rgba(255,255,255,.75)",
+                    lineHeight: 1.35,
+                    whiteSpace: "pre-line",
                   }}
                 >
-                  Next up →
+                  {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
                 </div>
               </div>,
             ]
@@ -2948,21 +2837,19 @@ ${themeCss}
                   {f1Data.schedule.races.find((r) => r.is_next).meeting_name}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {f1Data.schedule.races.find((r) => r.is_next).location}
+                  {(() => {
+                    const nextRace = f1Data.schedule.races.find((r) => r.is_next);
+                    const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
+                    const dt = raceStart ? new Date(raceStart) : null;
+                    const when = dt
+                      ? `${dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })} ${dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })}`
+                      : "Date/Time TBD";
+                    return when;
+                  })()}
                 </div>
               </div>,
                       ]
                                     : [])])}
-</div>
-{/* Ask cards — sharp, action-oriented, colored accent bars */}
-<div className="ask-cards">
-  {dynamicHomeQuestions.map(q=>(
-    <div key={q.id} className="ask-card" onClick={()=>firePrompt(q.prompt)}>
-      <div className="ask-card-bar" style={{background:q.color}}/>
-      <div className="ask-card-text">{q.text}</div>
-      <div style={{color:"var(--muted)",fontSize:16,flexShrink:0}}>›</div>
-    </div>
-  ))}
 </div>
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
@@ -2977,7 +2864,37 @@ ${themeCss}
                   <span className="spotlight-time">{m.time}</span>
                 </div>
                 <div className="spotlight-title">{m.title}</div>
-                <div className="spotlight-edge">{m.blurb}</div>
+                {m.id?.startsWith("golf-home-leaderboard") && Array.isArray(m.topThree) && m.topThree.length > 0 ? (
+                  <div className="spotlight-edge">
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      {m.topThree.map((row) => (
+                        <div key={`${m.id}-${row.rank}-${row.name}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+                          <span style={{fontSize:12,color:"var(--soft)"}}>
+                            {row.rank}. {row.name}
+                            {row.thru && row.thru !== "—" && row.thru !== "-" ? ` (${row.thru})` : ""}
+                          </span>
+                          <span style={{fontFamily:"var(--mono-font)",fontSize:12,color:golfScoreColor(row.score)}}>
+                            {row.score}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{marginTop:8,fontSize:11,color:"var(--muted)"}}>
+                      {m.sourceLine || m.blurb}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="spotlight-edge"
+                    style={
+                      m.id?.startsWith("golf-home-leaderboard") || m.id === "ur-home-tracker"
+                        ? { whiteSpace: "pre-line" }
+                        : undefined
+                    }
+                  >
+                    {m.blurb}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -2987,7 +2904,7 @@ ${themeCss}
 
         {/* ══ TENNIS ══ */}
         {screen==="tennis"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="tour-banner">
               <div className="banner-title">{tennisBoardHeadline}</div>
               <div className="banner-sub">{tennisBoardSubline}</div>
@@ -3063,7 +2980,7 @@ ${themeCss}
 
         {/* ══ NFL ══ */}
         {screen==="nfl"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nfl-banner">
               <div className="banner-title">{nflSeasonMode?"NFL In-Season Board":"NFL Futures Board"}</div>
               <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
@@ -3081,13 +2998,12 @@ ${themeCss}
             )}
             <ChatThread msgs={nflMsgs}/>
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
-            {NFL_PROP_GUIDE.map(prop=>(
-              <div key={`${prop.player}-${prop.propType}`} className="nfl-prop-card" onClick={()=>submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)}>
-                <div className="nfl-prop-top"><div className="nfl-prop-player">{prop.player}</div><div className="nfl-prop-type">{prop.propType}</div></div>
-                <div className="nfl-prop-line">Line: {prop.line} · Floor {prop.floor} / Ceil {prop.ceil}</div>
-                <div className={`nfl-prop-lean ${prop.leanClass}`}>{prop.lean}</div>
-              </div>
-            ))}
+            <NflPropGuideSection
+              guide={NFL_PROP_GUIDE}
+              onSelectProp={(prop) =>
+                submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)
+              }
+            />
             <div className="section-divider">Player Database</div>
             <div className="pos-tabs">{NFL_POSITIONS.map(pos=><button key={pos} className={`pos-tab${nflPosFilter===pos?" active":""}`} onClick={()=>setNflPosFilter(pos)}>{pos}</button>)}</div>
             {filteredNflPlayers.map(([name,player])=><NflPlayerCard key={name} name={name} player={player}/>)}
@@ -3097,7 +3013,7 @@ ${themeCss}
 
         {/* ══ NFL PLAYER DETAIL ══ */}
         {screen==="nflplayer"&&nflPd&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <button className="detail-back" onClick={()=>{setScreen("nfl");setSelectedNflPlayer(null);}}>← BACK</button>
             <div className="detail-card">
               <div className="nfl-detail-head"><div className="nfl-detail-pos">{nflPd.pos} · {nflPd.team} · {nflPd.tier}</div><div className="nfl-detail-name">{selectedNflPlayer}</div><div className="nfl-detail-sub">{nflPd.ydsPg} yds/g · {nflPd.rec2025.g} games played</div></div>
@@ -3126,7 +3042,7 @@ ${themeCss}
 
         {/* ══ F1 ══ */}
         {screen==="f1"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="f1-banner">
               <div className="banner-title">Formula 1 — 2026</div>
               <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
@@ -3170,8 +3086,9 @@ ${themeCss}
                 {f1Data?.schedule?.races?.length > 0 && (
                   <>
                     <div className="section-divider">Race Calendar</div>
-                    {f1Data.schedule.races.filter(r => r.is_next || new Date(r.date_end) >= new Date(Date.now() - 7*86400000)).slice(0,10).map(race => {
-                      const d = race.date_start ? new Date(race.date_start) : null;
+                    {f1Data.schedule.races.filter(r => r.is_next || new Date(r.race_date || r.date_end) >= new Date(Date.now() - 7*86400000)).slice(0,10).map(race => {
+                      const raceStart = resolveF1RaceStart(race, f1Data?.sessions || []);
+                      const d = raceStart ? new Date(raceStart) : null;
                       const dateStr = d ? d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
                       return (
                         <div key={race.meeting_key} className={`f1-race-card${race.is_next?" next-race":""}`}>
@@ -3196,7 +3113,7 @@ ${themeCss}
 
         {/* ══ NBA ══ */}
         {screen==="nba"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nba-banner">
               <div className="banner-title">NBA</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
@@ -3277,7 +3194,7 @@ ${themeCss}
 
         {/* ══ MLB ══ */}
         {screen==="mlb"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
@@ -3381,7 +3298,7 @@ ${themeCss}
 
         {/* ══ GOLF ══ */}
         {screen==="golf"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="golf-banner">
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{golfData?.currentEvent?.name||"PGA TOUR"}</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>OUTRIGHTS / PROPS / MATCHUP EDGES</div>
@@ -3397,7 +3314,7 @@ ${themeCss}
             {golfMsgs.length===0&&(
               <div className="golf-ask-shell" ref={golfBarRef}>
                 <div className="golf-ask-label">Ask Anything — Golf</div>
-                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?" btnColor="#FFFFFF" {...askBarCommon}/>
+                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?" btnColor="#DCE6F2" {...askBarCommon}/>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
                   {["Best outright value?","Safest make-cut play?","Best top-10 play?","Best matchup H2H?"].map(q=>(
                     <button key={q} className="quick-btn" onClick={()=>submitGolf(q)} style={{fontSize:11}}>{q}</button>
@@ -3470,7 +3387,7 @@ ${themeCss}
 
         {/* ══ PRO ══ */}
         {screen==="pro"&&(
-  <main className="screen" style={{padding:"0 0 80px"}}>
+  <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"0 0 calc(96px + env(safe-area-inset-bottom))"}}>
 
     {/* Already unlocked banner */}
     {(accessTier==="owner"||accessTier==="friend")&&!proSuccess&&(
@@ -3492,31 +3409,140 @@ ${themeCss}
       </div>
     )}
 
-    {/* Hero — logo centered */}
-    <div style={{textAlign:"center",padding:"36px 20px 24px",borderBottom:"1px solid rgba(255,255,255,.05)"}}>
-  <div style={{display:"inline-flex",flexDirection:"column",alignItems:"center",marginBottom:14,cursor:"default"}}>
-    <span className="logo-review" style={{fontSize:44,letterSpacing:0}}>UnderReview</span>
-    <span style={{
-      fontFamily:"var(--display-font)",
-      fontSize:34,
-      letterSpacing:6,
-      background:"linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
-      backgroundSize:"200% auto",
-      WebkitBackgroundClip:"text",
-      WebkitTextFillColor:"transparent",
-      backgroundClip:"text",
-      animation:"gleam 3s linear infinite",
-      display:"block",
-      marginTop:4,
-    }}>PRO</span>
-  </div>
-  <div style={{fontSize:28,fontWeight:800,lineHeight:1.12,marginBottom:10,letterSpacing:-0.3}}>
-    The <span style={{color:"var(--cyan-bright)"}}>sharpest</span> bettors<br/>don't guess. They <span style={{color:"var(--magenta)"}}>know.</span>
-  </div>
-  <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.7,maxWidth:320,margin:"0 auto"}}>
-    Real data. Real edges. Every sport. For less than one bad bet a month.
-  </div>
-</div>
+    {/* Performance panel */}
+    <div style={{margin:"12px 16px 0",background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.08)",borderRadius:14,padding:"14px 14px 12px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
+        <div>
+          <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,textTransform:"uppercase"}}>Under Review Record</div>
+          <div style={{fontSize:12,color:"var(--muted)"}}>Auto-graded from completed games when market type is supported.</div>
+        </div>
+        <button
+          className="quick-btn"
+          onClick={()=>loadPerformanceSnapshot()}
+          style={{fontSize:10,padding:"7px 10px"}}
+          disabled={performanceLoading}
+        >
+          {performanceLoading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+
+      {!userEmail ? (
+        <div style={{fontSize:12,color:"var(--muted)"}}>Set your email to enable tracked performance history.</div>
+      ) : performanceError ? (
+        <div style={{fontSize:12,color:"#FF6B6B"}}>{performanceError}</div>
+      ) : !performanceData ? (
+        <div style={{fontSize:12,color:"var(--muted)"}}>{performanceLoading ? "Loading performance..." : "No performance data yet."}</div>
+      ) : (
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:8,marginBottom:10}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Settled</div>
+              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.settled || 0}</div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Win Rate</div>
+              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{Math.round((performanceData.summary?.winRate || 0) * 100)}%</div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>ROI</div>
+              <div style={{fontSize:16,fontWeight:700,color:(performanceData.summary?.roiUnits || 0) >= 0 ? "#00E676" : "#FF6B6B"}}>
+                {(performanceData.summary?.roiUnits || 0) > 0 ? "+" : ""}{performanceData.summary?.roiUnits || 0}u
+              </div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Wins</div>
+              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.wins || 0}</div>
+            </div>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 8px"}}>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:"var(--muted)",letterSpacing:1,textTransform:"uppercase"}}>Losses</div>
+              <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.losses || 0}</div>
+            </div>
+          </div>
+
+          <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)",marginBottom:6,textTransform:"uppercase"}}>
+            Recent Takes
+          </div>
+          <div style={{display:"grid",gap:6}}>
+            {(performanceData.recent || []).slice(0, 6).map((take) => (
+              <div key={take.id} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 10px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
+                  <div style={{fontSize:12,color:"var(--text)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{take.playLine || "Take recorded"}</div>
+                  <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:take.status==="settled"?(take.result==="win"?"#00E676":take.result==="loss"?"#FF6B6B":"#FFD166"):"var(--muted)",letterSpacing:1,textTransform:"uppercase",flexShrink:0}}>
+                    {take.status==="settled" ? take.result : take.status}
+                  </div>
+                </div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:3}}>
+                  {(take.sport || "GENERIC").toUpperCase()} · {take.confidence || "Unspecified"}{take.gradingNote ? ` · ${take.gradingNote}` : ""}
+                </div>
+              </div>
+            ))}
+            {(!performanceData.recent || performanceData.recent.length === 0) && (
+              <div style={{fontSize:12,color:"var(--muted)"}}>No takes logged yet. Ask for a play and it will appear here.</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+
+    {/* Pro header — same surface language as record panel (tool, not landing) */}
+    <div
+      style={{
+        margin: "12px 16px 0",
+        padding: "12px 14px 14px",
+        background: "rgba(255,255,255,.02)",
+        border: "1px solid rgba(255,255,255,.08)",
+        borderRadius: 14,
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <div style={{ fontFamily: "var(--mono-font)", fontSize: 9, letterSpacing: 2, color: "var(--muted)", textTransform: "uppercase" }}>
+          Subscription
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <span className="logo-review" style={{ fontSize: 17, letterSpacing: 0 }}>
+            UnderReview
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--display-font)",
+              fontSize: 22,
+              letterSpacing: 4,
+              background: "linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
+              backgroundSize: "200% auto",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              animation: "gleam 3s linear infinite",
+            }}
+          >
+            PRO
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
+          Full database access, every sport, same data-dense take style as the rest of the app.
+        </div>
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--mono-font)",
+          fontSize: 10,
+          color: "rgba(0,245,233,.5)",
+          letterSpacing: 1.2,
+          lineHeight: 1.5,
+          textAlign: "right",
+          maxWidth: 200,
+        }}
+      >
+        $9.99/mo · 3-day trial
+        <br />
+        <span style={{ color: "var(--muted)" }}>Cancel anytime</span>
+      </div>
+    </div>
 
     {/* Price + CTA */}
     <div style={{padding:"24px 20px 0",textAlign:"center"}}>
@@ -3541,9 +3567,11 @@ ${themeCss}
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:"rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
       <button className="pro-cta-btn" onClick={async()=>{
         try{
-          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+          const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
+          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
           const data=await res.json();
           if(data.url) window.location.href=data.url;
+          else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
           else alert("Could not start checkout. Try again.");
         }catch{alert("Something went wrong. Try again.");}
       }}>START FREE TRIAL</button>
@@ -3571,7 +3599,7 @@ ${themeCss}
         {color:"#1DB954",name:"MLB — Pitcher K Props",desc:"Park-adjusted, platoon-split, barrel rate. Know before the line moves."},
         {color:"#FF6B00",name:"NBA — PRA Calibration",desc:"Pace-adjusted floors and ceilings. Live injury replacement plays in real time."},
         {color:"#4A90D9",name:"NFL — QB, RB, WR & TE Database",desc:"TD rates, prop floors + ceilings for every QB, RB, WR, and TE that matters."},
-        {color:"#E10600",name:"F1 — Race & Qualifying Angles",desc:"Full 2026 driver grid. Circuit-specific edges the market hasn't priced yet."},
+        {color:"#E10600",name:"F1 — Race-Day Angles",desc:"Full 2026 driver grid. Race-day edges the market hasn't priced yet."},
         {color:"#FFFFFF",name:"Golf — Course Fit & Matchup H2Hs",desc:"PGA SG profiles, make-cut plays, and outright value the market underprices weekly."},
       ].map((f,i,arr)=>(
         <div key={f.name} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 14px",background:"rgba(255,255,255,.025)",borderRadius:i===0?"12px 12px 0 0":i===arr.length-1?"0 0 12px 12px":0,borderTop:i>0?"1px solid rgba(255,255,255,.04)":"none"}}>
@@ -3590,50 +3618,51 @@ ${themeCss}
       <div style={{fontSize:13,color:"#8A95A3",lineHeight:1.75,fontStyle:"italic",marginBottom:6}}>"Feels like having a sharp friend who actually does the homework. I finally stopped throwing money at expensive pick services."</div>
       <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:2,color:"#3A4050",textTransform:"uppercase"}}>Under Review Pro Member</div>
     </div>
-{isUnlimited && (
-  <div style={{margin:"24px 20px 0",paddingTop:18,borderTop:"1px solid rgba(255,255,255,.07)"}}>
+{isUnlimited && (() => {
+      const dm = getDisplayModeChrome(activeTheme);
+      const lightChrome = isProLightTheme(activeTheme);
+      return (
+  <div style={{
+    margin:"24px 20px 0",
+    paddingTop:18,
+    borderTop: lightChrome
+      ? (activeTheme === "crisp" ? "1px solid #94A3B8" : "1px solid rgba(26,20,16,.15)")
+      : "1px solid rgba(255,255,255,.07)",
+  }}>
     <div
       style={{
         fontFamily:"var(--mono-font)",
         fontSize:9,
         letterSpacing:3,
-        color: activeTheme === "broadsheet" ? "#8A7A6A" : "rgba(255,255,255,.3)",
+        color: dm.sectionLabel,
         textTransform:"uppercase",
-        marginBottom:12
+        marginBottom:4
       }}
     >
-      Display Mode
+      Display mode
+    </div>
+    <div style={{ fontSize:10, color: dm.subtitle, fontFamily:"var(--mono-font)", letterSpacing:0.4, marginBottom:12, lineHeight:1.45 }}>
+      {canUseProThemes(accessTier)
+        ? accessTier === "owner"
+          ? "Owner access: Broadsheet or Crisp Sport light themes. Authority dark stays default."
+          : "Pro: Broadsheet (newsprint) or Crisp Sport (slate). Everyone else stays on Authority dark."
+        : "Light editions unlock with Pro or an owner access code."}
     </div>
 
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {Object.values(THEMES)
-        .filter(theme => !theme.proOnly || accessTier === "pro")
-        .map(theme => {
+        .filter((theme) => !theme.proOnly || canUseProThemes(accessTier))
+        .map((theme) => {
           const isActive = activeTheme === theme.id;
-          const isBroadsheet = theme.id === "broadsheet";
 
           return (
             <button
               key={theme.id}
+              type="button"
               onClick={() => setActiveTheme(theme.id)}
               style={{
-                background:
-                  isActive
-                    ? (activeTheme === "broadsheet"
-                        ? "rgba(26,20,16,.06)"
-                        : "rgba(0,245,233,.06)")
-                    : (activeTheme === "broadsheet"
-                        ? "#fff"
-                        : "rgba(255,255,255,.03)"),
-                border: `1px solid ${
-                  isActive
-                    ? (activeTheme === "broadsheet"
-                        ? "rgba(26,20,16,.18)"
-                        : "rgba(0,245,233,.3)")
-                    : (activeTheme === "broadsheet"
-                        ? "rgba(216,206,192,1)"
-                        : "rgba(255,255,255,.08)")
-                }`,
+                background: isActive ? dm.activeBg : dm.inactiveBg,
+                border: `1px solid ${isActive ? dm.activeBorder : dm.inactiveBorder}`,
                 borderRadius: 12,
                 padding: "12px 14px",
                 cursor: "pointer",
@@ -3641,7 +3670,7 @@ ${themeCss}
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                color: activeTheme === "broadsheet" ? "#1A1410" : "#fff"
+                color: dm.rowText,
               }}
             >
               <div>
@@ -3650,15 +3679,12 @@ ${themeCss}
                     fontFamily:"var(--body-font)",
                     fontSize:13,
                     fontWeight:700,
-                    color:
-                      activeTheme === "broadsheet"
-                        ? "#1A1410"
-                        : (isActive ? "#fff" : "rgba(255,255,255,.65)"),
+                    color: lightChrome ? dm.rowText : (isActive ? dm.titleActive : dm.titleInactive),
                     marginBottom:2
                   }}
                 >
                   {theme.name}
-                  {isBroadsheet && (
+                  {theme.proOnly && (
                     <span
                       style={{
                         marginLeft:8,
@@ -3676,10 +3702,7 @@ ${themeCss}
                 <div
                   style={{
                     fontSize:10,
-                    color:
-                      activeTheme === "broadsheet"
-                        ? "#8A7A6A"
-                        : "rgba(255,255,255,.35)",
+                    color: dm.subtitle,
                     fontFamily:"var(--mono-font)",
                     letterSpacing:.5
                   }}
@@ -3694,7 +3717,7 @@ ${themeCss}
                     width:8,
                     height:8,
                     borderRadius:"50%",
-                    background: activeTheme === "broadsheet" ? "#1A1410" : "#00F5E9",
+                    background: dm.dot,
                     flexShrink:0,
                     marginLeft:12
                   }}
@@ -3705,7 +3728,8 @@ ${themeCss}
         })}
     </div>
   </div>
-)}
+      );
+    })()}
     {/* Bottom */}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
       <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
@@ -3718,7 +3742,7 @@ ${themeCss}
 
     {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <button className="detail-back" onClick={()=>{setSelectedMatchup(null);setScreen(selectedMatchup?.league?.includes("NFL")?"nfl":"tennis");}}>← BACK</button>
             <div className="detail-card">
               <div className="detail-head"><div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div><div className="detail-title">{selectedMatchup.title}</div><div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div></div>
@@ -3733,7 +3757,7 @@ ${themeCss}
 
         {/* ══ TENNIS PLAYER DETAIL ══ */}
         {screen==="player"&&pd&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <button className="detail-back" onClick={()=>setScreen("tennis")}>← BACK</button>
             <div className="detail-card">
               <div className="detail-head"><div className="detail-league" style={{color:"var(--cyan-bright)"}}>TENNIS PLAYER PROFILE</div><div className="detail-title">{selectedPlayer}</div><div className="detail-sub">{Array.isArray(pd.style)?pd.style.join(", ").replaceAll("_"," "):pd.style} · Elo {pd.elo}</div></div>
@@ -3751,12 +3775,12 @@ ${themeCss}
 
         {/* ══ ASK ══ */}
         {screen==="ask"&&(
-          <main className="screen">
+          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="What do you want to know?" {...askBarCommon}/>
             <div ref={askBarBottomRef} style={{height:1}}/>
             {askMsgs.length===0?(
-              <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
+              <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
             ):(
               <ChatThread msgs={askMsgs}/>
             )}
@@ -3797,7 +3821,7 @@ ${themeCss}
         {screen==="golf"&&golfMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(255,255,255,.2)"}}>
             <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
-            <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#FFFFFF" {...askBarCommon}/>
+            <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#DCE6F2" {...askBarCommon}/>
           </div>
         )}
         {screen==="ask"&&askMsgs.length>0&&(
@@ -3821,7 +3845,7 @@ ${themeCss}
                 value={gateEmail}
                 onChange={e=>setGateEmail(e.target.value)}
                 onKeyDown={e=>{ if(e.key==="Enter"&&gateEmail.includes("@")){ localStorage.setItem("ur_email",gateEmail); setUserEmail(gateEmail); setShowEmailGate(false); fetch("/api/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"register",email:gateEmail})}).catch(()=>{}); } }}
-                style={{width:"100%",background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:14,fontFamily:"var(--body-font)",outline:"none",marginBottom:12}}
+                style={{width:"100%",background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:16,fontFamily:"var(--body-font)",outline:"none",marginBottom:12}}
                 autoFocus
               />
               <button
@@ -3830,6 +3854,31 @@ ${themeCss}
                 style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:gateEmail.includes("@")?"var(--cyan-bright)":"var(--border)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:gateEmail.includes("@")?"pointer":"not-allowed",marginBottom:12}}
               >UNLOCK FREE ACCESS</button>
               <div style={{fontSize:11,color:"var(--muted)"}}>Already have a code? <button onClick={()=>{setShowEmailGate(false);setShowCodeEntry(true);}} style={{background:"none",border:"none",color:"var(--cyan-bright)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)"}}>Enter it here →</button></div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ UPGRADE MODAL (LIMIT HIT) ══ */}
+        {showUpgradeModal&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:101,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:24,maxWidth:380,width:"100%",textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>🔒</div>
+              <div style={{fontFamily:"var(--display-font)",fontSize:26,letterSpacing:1,marginBottom:6}}>FREE LIMIT REACHED</div>
+              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:18}}>
+                You used your {FREE_LIMIT} free questions for this week. Upgrade now for unlimited asks and full Pro access.
+              </div>
+              <button
+                onClick={() => { setShowUpgradeModal(false); goPro(); }}
+                style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:"var(--cyan-bright)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:"pointer",marginBottom:10}}
+              >
+                GO PRO
+              </button>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:12,fontFamily:"var(--body-font)"}}
+              >
+                Not now
+              </button>
             </div>
           </div>
         )}
@@ -3846,7 +3895,7 @@ ${themeCss}
                 value={codeInput}
                 onChange={e=>{setCodeInput(e.target.value);setCodeError("");}}
                 onKeyDown={e=>{ if(e.key==="Enter") redeemCode(); }}
-                style={{width:"100%",background:"var(--surface-2)",border:`1px solid ${codeError?"var(--red)":"var(--border-2)"}`,borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:14,fontFamily:"var(--mono-font)",letterSpacing:2,outline:"none",marginBottom:codeError?6:12,textTransform:"uppercase"}}
+                style={{width:"100%",background:"var(--surface-2)",border:`1px solid ${codeError?"var(--red)":"var(--border-2)"}`,borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:16,fontFamily:"var(--mono-font)",letterSpacing:2,outline:"none",marginBottom:codeError?6:12,textTransform:"uppercase"}}
                 autoFocus
               />
               {codeError&&<div style={{fontSize:11,color:"var(--red)",marginBottom:12,textAlign:"left"}}>{codeError}</div>}
@@ -3862,7 +3911,7 @@ ${themeCss}
 
         {/* ══ QUERY COUNTER — shows when not unlimited ══ */}
         {!isUnlimited&&userEmail&&weeklyUsed>0&&(
-          <div style={{position:"fixed",top:52,right:10,zIndex:20,background:"rgba(8,10,12,.85)",border:"1px solid var(--border)",borderRadius:999,padding:"3px 10px",fontFamily:"var(--mono-font)",fontSize:9,color:weeklyUsed>=FREE_LIMIT?"var(--red)":weeklyUsed>=FREE_LIMIT-1?"var(--gold)":"var(--muted)",letterSpacing:1,backdropFilter:"blur(8px)",cursor:"pointer"}} onClick={weeklyUsed>=FREE_LIMIT?goPro:undefined}>
+          <div style={{position:"fixed",top:52,right:10,zIndex:20,background:"rgba(8,10,12,.85)",border:"1px solid var(--border)",borderRadius:999,padding:"3px 10px",fontFamily:"var(--mono-font)",fontSize:9,color:weeklyUsed>=FREE_LIMIT?"var(--red)":weeklyUsed>=FREE_LIMIT-1?"var(--gold)":"var(--muted)",letterSpacing:1,backdropFilter:"blur(8px)",cursor:"pointer"}} onClick={weeklyUsed>=FREE_LIMIT?()=>setShowUpgradeModal(true):undefined}>
             {weeklyUsed>=FREE_LIMIT?"LIMIT REACHED — GO PRO":`${FREE_LIMIT-weeklyUsed} FREE LEFT THIS WEEK`}
           </div>
         )}

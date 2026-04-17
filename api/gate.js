@@ -5,36 +5,18 @@
 // No user accounts. Identity = email stored in localStorage.
 
 import { applyCors } from "./_cors.js";
-import crypto from "crypto";
+import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
-// ── In-memory fallback (works without KV, resets on cold start) ──────────────
-const memStore = new Map();
-
-function getStore() {
-  // Try Vercel KV first (if configured), else use memory
-  // KV integration: npm install @vercel/kv then uncomment below
-  // import { kv } from "@vercel/kv";
-  // return kv;
-  return null; // memory fallback
-}
+const GATE_TTL_SECONDS = 60 * 60 * 24 * 8; // 8 days
 
 async function getRecord(email) {
   const key = "gate:" + email.toLowerCase().trim();
-  const store = getStore();
-  if (store) {
-    return await store.get(key);
-  }
-  return memStore.get(key) || null;
+  return await getDurableJson(key);
 }
 
 async function setRecord(email, record) {
   const key = "gate:" + email.toLowerCase().trim();
-  const store = getStore();
-  if (store) {
-    await store.set(key, record, { ex: 60 * 60 * 24 * 8 }); // 8 day TTL
-  } else {
-    memStore.set(key, record);
-  }
+  await setDurableJson(key, record, { ttlSeconds: GATE_TTL_SECONDS });
 }
 
 const FREE_QUERIES_PER_WEEK = 5;

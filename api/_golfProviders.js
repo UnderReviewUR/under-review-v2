@@ -28,6 +28,123 @@ function slugify(value) {
   return normalizeString(value).replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+const BDL_TOURNAMENT_ALIASES = [
+  {
+    match: "cadillac championship",
+    canonicalName: "RBC Heritage",
+    canonicalShortName: "RBC Heritage",
+    canonicalCourseName: "Harbour Town Golf Links",
+    canonicalCity: "Hilton Head Island",
+    canonicalState: "South Carolina",
+    canonicalCountry: "United States of America",
+  },
+];
+
+function getBdlTournamentAlias(rawName) {
+  const n = slugify(rawName || "");
+  return BDL_TOURNAMENT_ALIASES.find((a) => n.includes(a.match)) || null;
+}
+
+function parseMonthDayWithSeason(text, season) {
+  if (!text) return null;
+  const parsed = Date.parse(`${text} ${season}`);
+  if (Number.isNaN(parsed)) return null;
+  return parsed;
+}
+
+function parseBdlStartTs(value, season) {
+  const parsed = Date.parse(value || "");
+  if (!Number.isNaN(parsed)) {
+    const year = new Date(parsed).getUTCFullYear();
+    if (year >= season - 1 && year <= season + 1) return parsed;
+  }
+
+  const raw = String(value || "");
+  const match = raw.match(/([A-Za-z]{3,9}\s+\d{1,2})/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  const fallback = parseMonthDayWithSeason(match[1], season);
+  return fallback == null ? Number.MAX_SAFE_INTEGER : fallback;
+}
+
+function parseBdlEndTs(value, season, startTs) {
+  const parsed = Date.parse(value || "");
+  if (!Number.isNaN(parsed)) {
+    const year = new Date(parsed).getUTCFullYear();
+    if (year >= season - 1 && year <= season + 1 && parsed >= startTs) return parsed;
+  }
+
+  const raw = String(value || "");
+  const all = [...raw.matchAll(/([A-Za-z]{3,9}\s+\d{1,2})/g)].map((m) => m[1]);
+  const endText = all.length > 1 ? all[1] : all[0];
+  const fallback = parseMonthDayWithSeason(endText, season);
+  if (fallback != null && fallback >= startTs) return fallback;
+
+  // PGA events are typically 4 rounds over 4 days.
+  return startTs + 4 * 24 * 60 * 60 * 1000;
+}
+
+/** RBC Heritage / Harbour Town — primary field event; never treat Zurich team week as this. */
+function eventNameMatchesRbcHeritage(name, shortName) {
+  const n = slugify(`${name || ""} ${shortName || ""}`);
+  if (n.includes("zurich")) return false;
+  if (n.includes("canadian")) return false;
+  return (
+    n.includes("heritage") ||
+    n.includes("harbour town") ||
+    n.includes("hilton head") ||
+    n.includes("sea pines") ||
+    (n.includes("rbc") &&
+      (n.includes("heritage") || n.includes("hilton") || n.includes("harbour")))
+  );
+}
+
+function eventNameLooksZurichOrTeamFormat(name, shortName) {
+  const n = slugify(`${name || ""} ${shortName || ""}`);
+  if (n.includes("zurich")) return true;
+  if (n.includes("new orleans") && n.includes("classic")) return true;
+  if (n.includes("two man") || n.includes("two-man")) return true;
+  return false;
+}
+
+/** Prefer flagship / full-field events when ESPN returns multiple tournaments (e.g. RBC vs Zurich). */
+function scorePgaEspnEvent(e) {
+  const state = e?.status?.type?.state;
+  let score = 0;
+  if (state === "in") score += 4000;
+  else if (state === "pre") score += 2000;
+  else score += 0;
+
+  const n = slugify(e?.name || e?.shortName || "");
+  if (n.includes("zurich")) score -= 2500;
+  if (n.includes("new orleans")) score -= 800;
+  if (n.includes("two man") || n.includes("two-man") || n.includes("team")) score -= 500;
+
+  if (eventNameMatchesRbcHeritage(e?.name, e?.shortName)) score += 3500;
+  else if (n.includes("heritage") || n.includes("hilton head") || n.includes("harbour town"))
+    score += 800;
+  if (n.includes("invitational")) score += 250;
+  if (n.includes("memorial")) score += 400;
+  if (n.includes("players championship") || n.includes("the players")) score += 400;
+
+  const compCount = e?.competitions?.[0]?.competitors?.length || 0;
+  if (compCount > 0) score += Math.min(compCount, 220);
+
+  return score;
+}
+
+function isMeaningfulEspnCompetitor(c) {
+  const position = String(c?.status?.position?.displayText || "").trim();
+  const score = String(c?.score?.displayValue || "").trim();
+  const today = String(c?.status?.today?.displayValue || "").trim();
+  const thru = String(c?.status?.thru || "").trim();
+
+  if (position && position !== "-" && position !== "--") return true;
+  if (thru && thru !== "-" && thru !== "--") return true;
+  if (today && today !== "-" && today !== "--") return true;
+  if (score && score !== "-" && score !== "--" && score.toUpperCase() !== "E") return true;
+  return false;
+}
+
 function safeTimeoutSignal(ms) {
   if (
     typeof AbortSignal !== "undefined" &&
@@ -79,8 +196,66 @@ async function safeFetchJson(url, options = {}) {
   }
 }
 
+async function safeFetchText(url, options = {}) {
+  try {
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: safeTimeoutSignal(options.timeoutMs || 7000),
+      headers: options.headers || {},
+    });
+
+    if (!res.ok) {
+      let body = null;
+      try {
+        body = await res.text();
+      } catch {
+        body = null;
+      }
+
+      return {
+        ok: false,
+        status: res.status,
+        text: "",
+        error: body || `HTTP ${res.status}`,
+      };
+    }
+
+    const text = await res.text();
+    return {
+      ok: true,
+      status: res.status,
+      text,
+      error: null,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      text: "",
+      error: err.message || "Network error",
+    };
+  }
+}
+
 async function safeBdlFetch(path, params = {}) {
   return bdlFetch(`/pga/v1${path}`, params);
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#x27;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ");
+}
+
+function stripHtml(value) {
+  return decodeHtmlEntities(String(value || "").replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatDisplayDate(dateStr) {
@@ -140,31 +315,42 @@ function cleanTournamentStatus(status) {
 function normalizeBdlTournament(tournament) {
   if (!tournament) return null;
 
+  const alias = getBdlTournamentAlias(tournament.name);
   const primaryCourse =
     Array.isArray(tournament.courses) && tournament.courses.length > 0
       ? tournament.courses[0]?.course || null
       : null;
 
+  const city = alias?.canonicalCity || tournament.city || "";
+  const state = alias?.canonicalState || tournament.state || "";
+  const country = alias?.canonicalCountry || tournament.country || "";
+  const name = alias?.canonicalName || tournament.name || "PGA Tour Event";
+  const shortName =
+    alias?.canonicalShortName || tournament.short_name || tournament.name || "PGA Tour Event";
+  const courseName =
+    alias?.canonicalCourseName || tournament.course_name || primaryCourse?.name || null;
+
   return {
     id: tournament.id || null,
     season: tournament.season || null,
-    name: tournament.name || "PGA Tour Event",
-    shortName: tournament.name || "PGA Tour Event",
+    name,
+    shortName,
     startDate: tournament.start_date || null,
     endDate: tournament.end_date || null,
     displayDate: formatDateRange(tournament.start_date, tournament.end_date),
-    city: tournament.city || "",
-    state: tournament.state || "",
-    country: tournament.country || "",
-    location: [tournament.city, tournament.state || tournament.country]
+    city,
+    state,
+    country,
+    location: [city, state || country]
       .filter(Boolean)
       .join(", "),
     purse: tournament.purse || null,
     status: cleanTournamentStatus(tournament.status),
     rawStatus: tournament.status || null,
-    courseName: tournament.course_name || primaryCourse?.name || null,
+    courseName,
     courseId: primaryCourse?.id || null,
     champion: tournament.champion?.display_name || null,
+    aliasApplied: alias?.canonicalName || null,
     raw: tournament,
   };
 }
@@ -202,6 +388,97 @@ function normalizeTournamentResultRow(row) {
   };
 }
 
+function buildBdlLeaderboard(results) {
+  if (!Array.isArray(results) || results.length === 0) return [];
+
+  return results
+    .map((row, idx) => {
+      const rawPos = String(row?.position || "").trim();
+      const position = rawPos || String(idx + 1);
+      const rawScore = row?.score;
+      let score = "E";
+      if (rawScore != null && rawScore !== "") {
+        const n = Number(rawScore);
+        if (!Number.isNaN(n)) {
+          score = n === 0 ? "E" : n > 0 ? `+${n}` : `${n}`;
+        } else {
+          score = String(rawScore);
+        }
+      }
+
+      return {
+        position,
+        name: row?.player || "",
+        country: row?.country || "",
+        score,
+        today: "—",
+        thru: "—",
+        round1: "—",
+        round2: "—",
+        round3: "—",
+        round4: "—",
+      };
+    })
+    .filter((r) => r.name)
+    .slice(0, 30);
+}
+
+function hasMeaningfulLeaderboardRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return false;
+  return rows.some((r) => {
+    const pos = String(r?.position || "").trim();
+    const score = String(r?.score || "").trim().toUpperCase();
+    const thru = String(r?.thru || "").trim();
+    return (
+      (pos && pos !== "-" && pos !== "--") ||
+      (thru && thru !== "-" && thru !== "--") ||
+      (score && score !== "-" && score !== "--")
+    );
+  });
+}
+
+function parseEspnLeaderboardFromHtml(html) {
+  if (!html) return [];
+
+  const rows = [];
+  const seenNames = new Set();
+  const rowMatches = html.matchAll(
+    /<tr[^>]*class="[^"]*PlayerRow__Overview[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi
+  );
+
+  for (const match of rowMatches) {
+    const rowHtml = match?.[1] || "";
+    const cells = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) =>
+      stripHtml(m?.[1] || "")
+    );
+    if (cells.length < 7) continue;
+
+    const nameMatch = rowHtml.match(
+      /leaderboard_player_name[^>]*>([\s\S]*?)<\/a>/i
+    );
+    const name = stripHtml(nameMatch?.[1] || cells[3] || "");
+    if (!name) continue;
+    if (seenNames.has(name.toLowerCase())) continue;
+
+    const countryMatch = rowHtml.match(/class="flag[^"]*"[^>]*alt="([^"]+)"/i);
+    rows.push({
+      position: cells[1] || "—",
+      name,
+      country: stripHtml(countryMatch?.[1] || ""),
+      score: cells[4] || "E",
+      today: cells[5] || "—",
+      thru: cells[6] || "—",
+      round1: cells[7] || "—",
+      round2: cells[8] || "—",
+      round3: cells[9] || "—",
+      round4: cells[10] || "—",
+    });
+    seenNames.add(name.toLowerCase());
+  }
+
+  return rows.slice(0, 30);
+}
+
 function summarizeCourseStats(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return [];
 
@@ -227,7 +504,7 @@ function summarizeCourseStats(rows) {
 }
 
 async function getEspnCurrentEvent() {
-  const cacheKey = "espn_current_event";
+  const cacheKey = "espn_current_event_v5";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -247,10 +524,30 @@ async function getEspnCurrentEvent() {
     return null;
   }
 
-  const selectedEvent =
-    events.find((e) => e?.status?.type?.state === "in") ||
-    events.find((e) => e?.status?.type?.state === "pre") ||
-    null;
+  const activePool = events.filter((e) => {
+    const st = e?.status?.type?.state;
+    return st === "in" || st === "pre";
+  });
+
+  const heritagePick = activePool.find((e) =>
+    eventNameMatchesRbcHeritage(e?.name, e?.shortName)
+  );
+
+  let selectedEvent = heritagePick || null;
+
+  if (!selectedEvent && activePool.length > 0) {
+    const sansZurich = activePool.filter(
+      (e) => !eventNameLooksZurichOrTeamFormat(e?.name, e?.shortName)
+    );
+    const pool = sansZurich.length ? sansZurich : activePool;
+    selectedEvent = [...pool].sort(
+      (a, b) => scorePgaEspnEvent(b) - scorePgaEspnEvent(a)
+    )[0];
+  }
+
+  if (!selectedEvent) {
+    selectedEvent = events[0] || null;
+  }
 
   if (!selectedEvent) {
     setCache(cacheKey, null, 60 * 1000);
@@ -262,8 +559,11 @@ async function getEspnCurrentEvent() {
   const status = selectedEvent?.status?.type || {};
   const competitors = comp?.competitors || [];
 
-  const leaderboard = competitors
+  const hasMeaningfulApiLeaderboard = competitors.some(isMeaningfulEspnCompetitor);
+
+  const apiLeaderboard = competitors
     .filter((c) => c?.athlete)
+    .filter((c) => (hasMeaningfulApiLeaderboard ? isMeaningfulEspnCompetitor(c) : false))
     .map((c) => {
       const stats = c.statistics || [];
       const score = c.score || {};
@@ -282,6 +582,29 @@ async function getEspnCurrentEvent() {
     })
     .slice(0, 30);
 
+  let leaderboard = apiLeaderboard;
+  let leaderboardSource = hasMeaningfulApiLeaderboard ? "espn_api" : "none";
+
+  if (!hasMeaningfulApiLeaderboard && selectedEvent?.id) {
+    const htmlRes = await safeFetchText(
+      `https://www.espn.com/golf/leaderboard/_/tournamentId/${selectedEvent.id}`,
+      { timeoutMs: 9000 }
+    );
+
+    if (htmlRes.ok) {
+      const htmlLeaderboard = parseEspnLeaderboardFromHtml(htmlRes.text);
+      if (hasMeaningfulLeaderboardRows(htmlLeaderboard)) {
+        leaderboard = htmlLeaderboard;
+        leaderboardSource = "espn_html";
+      }
+    }
+  }
+
+  const hasMeaningfulLeaderboard = hasMeaningfulLeaderboardRows(leaderboard);
+
+  const rawState = String(status?.state || "pre").toLowerCase();
+  const adjustedState = rawState === "in" && !hasMeaningfulLeaderboard ? "pre" : rawState;
+
   const payload = {
     id: selectedEvent?.id || null,
     name: selectedEvent?.name || selectedEvent?.shortName || "PGA Tour Event",
@@ -291,12 +614,13 @@ async function getEspnCurrentEvent() {
     location: [venue?.city, venue?.state || venue?.country]
       .filter(Boolean)
       .join(", "),
-    round: cleanTournamentStatus(status?.state || status?.description),
-    state: status?.state || "pre",
+    round: cleanTournamentStatus(adjustedState || status?.description),
+    state: adjustedState || "pre",
     par: comp?.format?.par || null,
     startDate: selectedEvent?.date || null,
     displayDate: formatDisplayDate(selectedEvent?.date),
     leaderboard,
+    leaderboardSource,
     raw: selectedEvent,
   };
 
@@ -427,7 +751,7 @@ async function getOddsBoard(oddsApiKey) {
 }
 
 async function getBdlTournamentBundle() {
-  const cacheKey = "bdl_tournament_bundle";
+  const cacheKey = "bdl_tournament_bundle_v6";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -444,16 +768,44 @@ async function getBdlTournamentBundle() {
   const normalized = allTournaments
     .map((t) => ({
       ...t,
-      _startTs: t?.start_date
-        ? new Date(t.start_date).getTime()
-        : Number.MAX_SAFE_INTEGER,
-      _endTs: t?.end_date
-        ? new Date(t.end_date).getTime()
-        : Number.MAX_SAFE_INTEGER,
+      _startTs: parseBdlStartTs(t?.start_date, season),
+      _endTs: parseBdlEndTs(
+        t?.end_date,
+        season,
+        parseBdlStartTs(t?.start_date, season)
+      ),
     }))
     .sort((a, b) => a._startTs - b._startTs);
 
+  const inRange = normalized.filter((t) => t._startTs <= now && now <= t._endTs);
+  const upcoming = normalized.filter((t) => t._startTs > now);
+  const pool = inRange.length > 0 ? inRange : upcoming;
+
+  const isTeamOrZurichWeek = (t) => {
+    const n = normalizeString(t?.name || "");
+    return (
+      n.includes("zurich") ||
+      n.includes("two-man") ||
+      n.includes("two man") ||
+      n.includes("team championship")
+    );
+  };
+
+  const preferredFromPool = (() => {
+    const rbcHeritage = pool.find((t) =>
+      eventNameMatchesRbcHeritage(t?.name, t?.short_name)
+    );
+    if (rbcHeritage) return rbcHeritage;
+
+    const nonTeam = pool.filter((t) => !isTeamOrZurichWeek(t));
+    const ordered = [...(nonTeam.length ? nonTeam : pool)].sort(
+      (a, b) => Number(b?.purse || 0) - Number(a?.purse || 0)
+    );
+    return ordered[0] || null;
+  })();
+
   const picked =
+    preferredFromPool ||
     normalized.find((t) => t._startTs <= now && now <= t._endTs) ||
     normalized.find((t) => t._startTs > now) ||
     null;
@@ -511,6 +863,7 @@ async function getBdlTournamentBundle() {
     tournament: normalizedTournament,
     course: normalizeBdlCourse(matchedCourse),
     results,
+    leaderboard: buildBdlLeaderboard(results),
     courseStats,
     bdlAvailable: tournamentsRes.ok,
   };
@@ -522,6 +875,10 @@ async function getBdlTournamentBundle() {
 function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const tournament = bdlBundle?.tournament || null;
   const course = bdlBundle?.course || null;
+  const bdlLeaderboard = Array.isArray(bdlBundle?.leaderboard)
+    ? bdlBundle.leaderboard
+    : [];
+  const bdlHasLeaderboard = hasMeaningfulLeaderboardRows(bdlLeaderboard);
 
   const espnHasLeaderboard =
     Array.isArray(espnEvent?.leaderboard) && espnEvent.leaderboard.length > 0;
@@ -531,6 +888,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 
   const espnSlug = slugify(espnEvent?.name);
   const tournamentSlug = slugify(tournament?.name);
+  const bdlSlug = tournamentSlug;
 
   const sameEvent =
     tournament &&
@@ -540,41 +898,127 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       tournamentSlug.includes(espnSlug)
     );
 
+  const bdlLooksTeamOrZurich =
+    bdlSlug.includes("zurich") ||
+    bdlSlug.includes("two man") ||
+    bdlSlug.includes("two-man") ||
+    bdlSlug.includes("team championship");
+
+  const espnIsRbcHeritage = eventNameMatchesRbcHeritage(
+    espnEvent?.name,
+    espnEvent?.shortName
+  );
+  const bdlIsRbcHeritage = tournament
+    ? eventNameMatchesRbcHeritage(tournament?.name, tournament?.shortName)
+    : false;
+
   const shouldUseEspnLeaderboard =
-    sameEvent && espnHasLeaderboard && !espnLooksFinished;
+    !bdlHasLeaderboard &&
+    espnHasLeaderboard &&
+    !espnLooksFinished &&
+    (sameEvent ||
+      !tournament ||
+      bdlLooksTeamOrZurich ||
+      (espnIsRbcHeritage && !bdlIsRbcHeritage));
+
+  const preferEspnDisplay =
+    (shouldUseEspnLeaderboard &&
+      (!sameEvent || bdlLooksTeamOrZurich || (espnIsRbcHeritage && !bdlIsRbcHeritage))) ||
+    (espnIsRbcHeritage && !bdlIsRbcHeritage);
+  const bdlEventMismatch = preferEspnDisplay && !sameEvent;
+  const oddsTopThree = Array.isArray(odds?.outrights)
+    ? odds.outrights.slice(0, 3).map((o, idx) => ({
+        position: String(idx + 1),
+        name: o?.player || "",
+        country: "",
+        score: "MKT",
+        today: "—",
+        thru: "—",
+        round1: "—",
+        round2: "—",
+        round3: "—",
+        round4: "—",
+      })).filter((r) => r.name)
+    : [];
+  const hasOddsProxy = oddsTopThree.length > 0;
+  const useBdlLeaderboard = bdlHasLeaderboard;
+  const useEspnLeaderboard = !useBdlLeaderboard && shouldUseEspnLeaderboard;
+  const useOddsProxyLeaderboard = !useBdlLeaderboard && !useEspnLeaderboard && hasOddsProxy;
 
   const currentEvent = {
-    id: tournament?.id || espnEvent?.id || null,
-    name: tournament?.name || espnEvent?.name || "PGA Tour Event",
-    shortName:
-      tournament?.shortName ||
-      tournament?.name ||
-      espnEvent?.shortName ||
-      "PGA Tour",
-    course: tournament?.courseName || course?.name || espnEvent?.course || "TBD",
-    location:
-      tournament?.location ||
-      [course?.city, course?.state || course?.country]
-        .filter(Boolean)
-        .join(", ") ||
-      espnEvent?.location ||
-      "",
-    round: shouldUseEspnLeaderboard
-      ? espnEvent?.round || tournament?.status || "Live"
+    id: preferEspnDisplay
+      ? espnEvent?.id || tournament?.id || null
+      : tournament?.id || espnEvent?.id || null,
+    name: preferEspnDisplay
+      ? espnEvent?.name || tournament?.name || "PGA Tour Event"
+      : tournament?.name || espnEvent?.name || "PGA Tour Event",
+    shortName: preferEspnDisplay
+      ? espnEvent?.shortName || espnEvent?.name || "PGA Tour"
+      : tournament?.shortName ||
+        tournament?.name ||
+        espnEvent?.shortName ||
+        "PGA Tour",
+    course: preferEspnDisplay
+      ? espnEvent?.course ||
+        (bdlEventMismatch ? null : tournament?.courseName || course?.name) ||
+        "TBD"
+      : tournament?.courseName || course?.name || espnEvent?.course || "TBD",
+    location: preferEspnDisplay
+      ? espnEvent?.location ||
+        (bdlEventMismatch
+          ? ""
+          : tournament?.location ||
+            [course?.city, course?.state || course?.country]
+              .filter(Boolean)
+              .join(", ")) ||
+        ""
+      : tournament?.location ||
+        [course?.city, course?.state || course?.country]
+          .filter(Boolean)
+          .join(", ") ||
+        espnEvent?.location ||
+        "",
+    round: useBdlLeaderboard
+      ? tournament?.status || "Live"
+      : useEspnLeaderboard || preferEspnDisplay
+      ? espnEvent?.round || tournament?.status || "Upcoming"
+      : useOddsProxyLeaderboard
+      ? "Pre-Market"
       : tournament?.status || "Upcoming",
-    state: shouldUseEspnLeaderboard
-      ? espnEvent?.state || "in"
+    state: useBdlLeaderboard
+      ? "in"
+      : useEspnLeaderboard || preferEspnDisplay
+      ? espnEvent?.state || "pre"
+      : useOddsProxyLeaderboard
+      ? "pre"
       : tournament?.status === "Live"
       ? "in"
       : "pre",
-    par: course?.par || espnEvent?.par || null,
-    startDate: tournament?.startDate || espnEvent?.startDate || null,
-    endDate: tournament?.endDate || null,
+    par: preferEspnDisplay
+      ? espnEvent?.par || (bdlEventMismatch ? null : course?.par) || null
+      : course?.par || espnEvent?.par || null,
+    startDate: preferEspnDisplay
+      ? espnEvent?.startDate || tournament?.startDate || null
+      : tournament?.startDate || espnEvent?.startDate || null,
+    endDate:
+      (preferEspnDisplay ? (bdlEventMismatch ? null : tournament?.endDate) : tournament?.endDate) ||
+      null,
     displayDate:
-      tournament?.displayDate ||
-      espnEvent?.displayDate ||
-      formatDisplayDate(tournament?.startDate || espnEvent?.startDate),
-    leaderboard: shouldUseEspnLeaderboard ? espnEvent?.leaderboard || [] : [],
+      (preferEspnDisplay
+        ? espnEvent?.displayDate ||
+          (bdlEventMismatch ? null : tournament?.displayDate)
+        : tournament?.displayDate || espnEvent?.displayDate) ||
+      formatDisplayDate(
+        (preferEspnDisplay ? espnEvent?.startDate : tournament?.startDate) ||
+          espnEvent?.startDate
+      ),
+    leaderboard: useBdlLeaderboard
+      ? bdlLeaderboard
+      : useEspnLeaderboard
+      ? espnEvent?.leaderboard || []
+      : useOddsProxyLeaderboard
+      ? oddsTopThree
+      : [],
   };
 
   return {
@@ -595,14 +1039,22 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       ? bdlBundle.courseStats
       : [],
     sourceMeta: {
-      board: shouldUseEspnLeaderboard
-        ? "balldontlie_event_with_espn_leaderboard"
-        : "balldontlie",
+      board: useBdlLeaderboard
+        ? "balldontlie_live_standings"
+        : useEspnLeaderboard
+        ? (sameEvent ? "bdl_espn_aligned" : "espn_leaderboard_fallback")
+        : useOddsProxyLeaderboard
+        ? "odds_market_fallback"
+        : preferEspnDisplay
+        ? "espn_event_meta_primary"
+        : "balldontlie_only",
       tournament: tournament ? "balldontlie" : "none",
       course: course ? "balldontlie" : "none",
       odds: odds?.outrights?.length ? "odds_api" : "none",
-      usedFallbackLeaderboard: !shouldUseEspnLeaderboard,
+      usedFallbackLeaderboard: !useBdlLeaderboard,
+      bdlHadLeaderboard: bdlHasLeaderboard,
       espnHadLeaderboard: espnHasLeaderboard,
+      espnLeaderboardSource: espnEvent?.leaderboardSource || "none",
       espnLooksFinished,
       fetchedAt: new Date().toISOString(),
     },
@@ -610,7 +1062,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v2";
+  const cacheKey = "unified_golf_board_v9";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 

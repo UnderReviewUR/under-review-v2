@@ -34,6 +34,9 @@ function getCodeRegistry() {
     registry[code.toLowerCase()] = { tier: "friend", expiresAt };
   }
 
+  // Built-in owner — applied last so it cannot be shadowed by friend codes.
+  registry["123battlecaptain123"] = { tier: "owner", expiresAt: null };
+
   return registry;
 }
 
