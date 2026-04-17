@@ -2028,6 +2028,21 @@ ${themeCss}
   }, [mlbData, mlbGames]);
 
     const homeGolfCards = useMemo(() => {
+    if (golfData === null && golfLoading) {
+      return [{
+        id: "golf-home-loading",
+        league: "GOLF",
+        leagueColor: "#FFFFFF",
+        title: "PGA Tour board",
+        time: "Loading…",
+        network: "Live data",
+        blurb: "Fetching tournament, odds, and leaderboard context.",
+        whatMatters: "Run npm run dev:local so /api/golf can load (Vite proxies to the local API server).",
+        quickHitters: ["Best outright value?", "Best top-10 play?", "Who should I fade?"],
+        confirmed: true,
+      }];
+    }
+
     const currentEvent = golfData?.currentEvent || null;
     const tournament = golfData?.tournament || null;
     const outrights = golfData?.odds?.outrights || [];
@@ -2150,24 +2165,24 @@ ${themeCss}
     }
 
     return [];
-  }, [golfData]);
+  }, [golfData, golfLoading]);
     const homeCards = useMemo(
     () =>
       [
         ...homeTennisCards,
+        ...homeGolfCards,
         ...homeNflCards,
         ...homeF1Cards,
         ...homeNbaCards,
         ...homeMlbCards,
-        ...homeGolfCards,
       ].filter(Boolean),
     [
       homeTennisCards,
+      homeGolfCards,
       homeNflCards,
       homeF1Cards,
       homeNbaCards,
       homeMlbCards,
-      homeGolfCards,
     ]
   );
   
