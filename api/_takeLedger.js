@@ -70,7 +70,15 @@ export function extractTakeFromResponse({ responseText, sport, intent, question 
     extractSectionValue(responseText, "CONFIDENCE") || "Unspecified";
   const timingLine = extractSectionValue(responseText, "TIMING");
 
-  const parsed = parseTeamMoneyline(playLine);
+  let parsed = parseTeamMoneyline(playLine);
+  const sportLower = String(sport || "").toLowerCase();
+  if (parsed && sportLower === "tennis") {
+    parsed = {
+      marketType: "tennis_match_winner",
+      player: parsed.team,
+      oddsAmerican: parsed.oddsAmerican,
+    };
+  }
 
   return {
     id: makeTakeId(),
@@ -195,6 +203,66 @@ async function fetchRecentFinalGames() {
   return all;
 }
 
+/** Completed ATP/WTA fixtures from API-Tennis (same feed as tennis-results). Newest first. */
+async function fetchRecentTennisResults() {
+  const API_KEY = process.env.API_TENNIS_KEY;
+  if (!API_KEY) return [];
+
+  try {
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 21);
+    const formatDate = (d) => d.toISOString().split("T")[0];
+
+    const url =
+      "https://api.api-tennis.com/tennis/?method=get_fixtures" +
+      "&APIkey=" +
+      encodeURIComponent(API_KEY) +
+      "&date_start=" +
+      formatDate(start) +
+      "&date_stop=" +
+      formatDate(today);
+
+    const tennisRes = await fetch(url);
+    if (!tennisRes.ok) return [];
+    const data = await tennisRes.json();
+    const results = Array.isArray(data?.result) ? data.result : [];
+
+    const finished = results.filter((match) => {
+      const code = String(match.event_winner || "").trim();
+      if (code !== "1" && code !== "2") return false;
+      const status = String(match.event_status || "").toLowerCase();
+      const hasScore = match.event_final_result && match.event_final_result !== "-";
+      return (
+        (status.includes("finished") || status.includes("final") || status.includes("ended")) &&
+        hasScore
+      );
+    });
+
+    finished.sort((a, b) => {
+      const da = new Date(`${a.event_date}T${a.event_time || "00:00"}:00`);
+      const db = new Date(`${b.event_date}T${b.event_time || "00:00"}:00`);
+      return db.getTime() - da.getTime();
+    });
+
+    return finished.map((match) => {
+      const p1 = match.event_first_player || "Player 1";
+      const p2 = match.event_second_player || "Player 2";
+      const winnerCode = String(match.event_winner || "").trim();
+      const winner = winnerCode === "2" ? p2 : p1;
+      const loser = winner === p1 ? p2 : p1;
+      return {
+        winner,
+        loser,
+        score: match.event_final_result || "",
+        date: match.event_date || "",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 function pickMatchesTeam(teamPick, game) {
   const pick = normalizeText(teamPick);
   if (!pick) return false;
@@ -233,31 +301,104 @@ function settleMoneylineTake(take, game) {
   };
 }
 
+function tennisNameMatchesPick(pick, name) {
+  const a = normalizeText(pick);
+  const b = normalizeText(name);
+  if (!a || !b) return false;
+  return a === b || b.includes(a) || a.includes(b);
+}
+
+function isTennisWinnerPendingTake(take) {
+  if (String(take?.sport || "").toLowerCase() !== "tennis") return false;
+  if (take?.status !== "pending") return false;
+  const pb = take?.parsedBet;
+  const name = pb?.player || pb?.team;
+  if (!name) return false;
+  if (pb?.marketType === "tennis_match_winner") return true;
+  if (pb?.marketType === "team_moneyline") return true;
+  return false;
+}
+
+function settleTennisAgainstMatch(take, match) {
+  const pickRaw = take?.parsedBet?.player || take?.parsedBet?.team || "";
+  const w = match.winner;
+  const l = match.loser;
+
+  const tookWinner = tennisNameMatchesPick(pickRaw, w);
+  const tookLoser = tennisNameMatchesPick(pickRaw, l);
+
+  if (tookWinner && tookLoser) return null;
+  if (!tookWinner && !tookLoser) return null;
+
+  const note = [w, "def", l, match.score || ""].filter(Boolean).join(" ").trim();
+
+  if (tookWinner) return { result: "win", note };
+  return { result: "loss", note };
+}
+
+function findSettlementForTennisTake(take, matches) {
+  for (const m of matches) {
+    const settled = settleTennisAgainstMatch(take, m);
+    if (settled) return settled;
+  }
+  return null;
+}
+
 export async function gradeAndGetTakesForUser(email) {
   const cleanEmail = normalizeEmail(email);
   if (!cleanEmail) return [];
 
   const bundle = await getUserTakeBundle(cleanEmail);
   const takes = Array.isArray(bundle.takes) ? bundle.takes : [];
-  const pending = takes.filter((t) => t?.status === "pending" && t?.parsedBet?.marketType === "team_moneyline");
-  if (!pending.length) return takes;
 
-  const games = await fetchRecentFinalGames();
-  if (!games.length) return takes;
+  const needsNbaMlb = takes.some(
+    (t) =>
+      t?.status === "pending" &&
+      t?.parsedBet?.marketType === "team_moneyline" &&
+      (t.sport === "nba" || t.sport === "mlb")
+  );
+  const needsTennis = takes.some(isTennisWinnerPendingTake);
+
+  if (!needsNbaMlb && !needsTennis) return takes;
+
+  const games = needsNbaMlb ? await fetchRecentFinalGames() : [];
+  const tennisMatches = needsTennis ? await fetchRecentTennisResults() : [];
 
   const updated = takes.map((take) => {
-    if (!(take?.status === "pending" && take?.parsedBet?.marketType === "team_moneyline")) return take;
-    const game = games.find((g) => g.sport === take.sport && pickMatchesTeam(take?.parsedBet?.team, g));
-    if (!game) return take;
+    if (take?.status !== "pending") return take;
 
-    const settled = settleMoneylineTake(take, game);
-    return {
-      ...take,
-      status: "settled",
-      result: settled.result,
-      gradingNote: settled.note,
-      settledAt: new Date().toISOString(),
-    };
+    if (
+      take?.parsedBet?.marketType === "team_moneyline" &&
+      (take.sport === "nba" || take.sport === "mlb")
+    ) {
+      if (!games.length) return take;
+      const game = games.find((g) => g.sport === take.sport && pickMatchesTeam(take?.parsedBet?.team, g));
+      if (!game) return take;
+
+      const settled = settleMoneylineTake(take, game);
+      return {
+        ...take,
+        status: "settled",
+        result: settled.result,
+        gradingNote: settled.note,
+        settledAt: new Date().toISOString(),
+      };
+    }
+
+    if (isTennisWinnerPendingTake(take)) {
+      if (!tennisMatches.length) return take;
+      const settled = findSettlementForTennisTake(take, tennisMatches);
+      if (!settled) return take;
+      return {
+        ...take,
+        status: "settled",
+        result: settled.result,
+        gradingNote: settled.note,
+        settledAt: new Date().toISOString(),
+      };
+    }
+
+    return take;
   });
 
   await saveUserTakeBundle(cleanEmail, { takes: clipTakes(updated) });

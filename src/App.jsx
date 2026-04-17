@@ -3443,7 +3443,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
             Takes are captured from chat answers (the THE PLAY section). No manual logging — supported outcomes settle automatically after finals post.
           </div>
           <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginTop:6,opacity:.93}}>
-            Auto-grading covers NBA and MLB team moneylines against ESPN finals today. Player props, tennis, F1, golf, and other plays are still tracked but often stay pending or ungraded — we&apos;re extending graders sport by sport.
+            Auto-grading covers NBA and MLB team moneylines (ESPN finals) and tennis match-winner lines parsed from THE PLAY (player + ML / to win) vs API-Tennis finals. Props, spreads, F1, golf, and many other markets stay pending or ungraded until we expand parsers.
           </div>
         </div>
         <button
