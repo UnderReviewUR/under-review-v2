@@ -529,10 +529,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const espnState = String(espnEvent?.state || "").toLowerCase();
   const espnLooksFinished = espnState === "post" || espnState === "final";
 
-  const sameEvent =
-    tournament &&
-    espnEvent &&
-      const espnSlug = slugify(espnEvent?.name);
+  const espnSlug = slugify(espnEvent?.name);
   const tournamentSlug = slugify(tournament?.name);
 
   const sameEvent =

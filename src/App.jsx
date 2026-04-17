@@ -2028,44 +2028,122 @@ ${themeCss}
   }, [mlbData, mlbGames]);
 
     const homeGolfCards = useMemo(() => {
-    const currentEvent = golfData?.currentEvent;
+    const currentEvent = golfData?.currentEvent || null;
+    const tournament = golfData?.tournament || null;
     const outrights = golfData?.odds?.outrights || [];
+    const rankings = golfData?.rankings || [];
 
-    if (currentEvent?.name) {
+    const readName = (entry) =>
+      String(entry?.player || entry?.name || entry?.fullName || "").trim();
+
+    const shortName = (fullName) => {
+      const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : fullName;
+    };
+
+    const formatScore = (value) => {
+      const raw = String(value ?? "").trim();
+      if (!raw || raw === "—") return "E";
+      if (raw === "E") return raw;
+      if (/^[+-]/.test(raw)) return raw;
+      const numeric = Number(raw);
+      if (Number.isNaN(numeric)) return raw;
+      if (numeric === 0) return "E";
+      return numeric > 0 ? `+${numeric}` : `${numeric}`;
+    };
+
+    const topThree = Array.isArray(currentEvent?.leaderboard)
+      ? currentEvent.leaderboard.slice(0, 3)
+      : [];
+
+    const eventState = String(currentEvent?.state || "").toLowerCase();
+    const roundLabel = String(currentEvent?.round || "");
+    const hasLiveLeaderboard = topThree.length > 0;
+    const looksLiveRound = /live|round|r\d/i.test(roundLabel);
+    const isLiveTournament =
+      hasLiveLeaderboard && (eventState === "in" || looksLiveRound);
+
+    if (isLiveTournament) {
+      const leaderboardLine = topThree
+        .map((p, i) => `${i + 1}. ${shortName(readName(p))} ${formatScore(p?.score)}`)
+        .join(" · ");
+
       return [{
-        id: "golf-home-1",
-        league: "GOLF",
+        id: "golf-home-live",
+        league: "GOLF LIVE",
         leagueColor: "#FFFFFF",
-        title: currentEvent.name,
-        time: currentEvent.round || currentEvent.displayDate || "This Week",
-        network: currentEvent.course || "PGA Tour",
-        blurb: currentEvent.course
-          ? `${currentEvent.course}${currentEvent.location ? ` · ${currentEvent.location}` : ""}`
-          : "Current PGA Tour event loaded from live golf data.",
-        whatMatters: "Ask for the best outright, top-10, make-cut, or matchup angle.",
+        title: currentEvent?.shortName || currentEvent?.name || "PGA Tour Live",
+        time: currentEvent?.round || "Live Leaderboard",
+        network: currentEvent?.course || "PGA Tour",
+        blurb: leaderboardLine || "Live leaderboard is active now.",
+        whatMatters: "Back current form or fade players with unstable scoring splits.",
         quickHitters: [
-          "Best outright value?",
-          "Best top-10 play?",
-          "Safest make-cut?",
+          "Best live golf angle?",
+          "Who to back from top 3?",
+          "Who should I fade live?",
         ],
         confirmed: true,
       }];
     }
 
-    if (outrights.length > 0) {
+    const successNames = outrights
+      .slice(0, 2)
+      .map(readName)
+      .filter(Boolean);
+
+    if (successNames.length < 2) {
+      const rankFallback = rankings
+        .slice(0, 4)
+        .map(readName)
+        .filter(Boolean);
+      for (const candidate of rankFallback) {
+        if (!successNames.includes(candidate)) successNames.push(candidate);
+        if (successNames.length >= 2) break;
+      }
+    }
+
+    const fadeCandidates = outrights
+      .slice(6, 16)
+      .map(readName)
+      .filter(Boolean);
+    const fadeName =
+      fadeCandidates.find((name) => !successNames.includes(name)) ||
+      outrights.slice(2).map(readName).find(Boolean) ||
+      rankings.slice(5).map(readName).find(Boolean) ||
+      "";
+
+    const nextEventName =
+      tournament?.shortName ||
+      tournament?.name ||
+      currentEvent?.shortName ||
+      currentEvent?.name ||
+      "Next PGA Tour Event";
+
+    if (nextEventName) {
+      const previewBits = [];
+      if (successNames[0]) previewBits.push(`Succeed: ${shortName(successNames[0])}`);
+      if (successNames[1]) previewBits.push(`Also like: ${shortName(successNames[1])}`);
+      if (fadeName) previewBits.push(`Fade: ${shortName(fadeName)}`);
+
       return [{
-        id: "golf-home-2",
+        id: "golf-home-next",
         league: "GOLF",
         leagueColor: "#FFFFFF",
-        title: "Best golf card this week",
-        time: "Odds Board",
-        network: "PGA Tour",
-        blurb: "Outrights are loaded. Ask for the best top-10, matchup, or make-cut value.",
-        whatMatters: "Ask for the sharpest golf angle on the current board.",
+        title: nextEventName,
+        time: tournament?.displayDate || currentEvent?.displayDate || "Upcoming",
+        network:
+          tournament?.course ||
+          currentEvent?.course ||
+          golfData?.course?.name ||
+          "PGA Tour",
+        blurb:
+          previewBits.join(" · ") ||
+          "No live tournament right now. Ask for next-event succeed/fade picks.",
+        whatMatters: "Target course-fit winners and fade overpriced names before tee-off.",
         quickHitters: [
-          "Best outright value?",
-          "Best matchup?",
-          "Who should I fade?",
+          "Who should succeed this week?",
+          "Who should I fade this week?",
+          "Best pre-tourney value?",
         ],
         confirmed: true,
       }];
@@ -2859,7 +2937,7 @@ ${themeCss}
                 </div>
               </div>,
                       ]
-                                    : [])}
+                                    : [])])}
 </div>
 {/* Ask cards — sharp, action-oriented, colored accent bars */}
 <div className="ask-cards">
