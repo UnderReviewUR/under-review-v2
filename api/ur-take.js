@@ -71,76 +71,59 @@ function buildTourShortlist(playersByTour, surfaceKey, limit = 8) {
   return ranked;
 }
 
-function buildTennisContextSummary({ players, context, liveMatches }) {
-  const surfaceKey = pickSurfaceKey(context);
-  const atpTop = buildTourShortlist(players?.atp, surfaceKey, 8);
-  const wtaTop = buildTourShortlist(players?.wta, surfaceKey, 8);
-  const tournament = context?.currentTournament || null;
+/** Ranked snapshot lines for prompt injection (surface-weighted). */
+function buildTennisPlayerSnapshot(playerDb, surfaceKey, limit = 30) {
+  const ranked = buildTourShortlist(playerDb, surfaceKey, limit);
+  return ranked
+    .map(({ name }) => {
+      const p = playerDb?.[name];
+      if (!p) return `${name} | (no row in DB)`;
 
-  return {
-    mode: Array.isArray(liveMatches) && liveMatches.length > 0 ? "live_board" : "data_only",
-    surfaceFocus: surfaceKey,
-    tournament: tournament
-      ? {
-          name: tournament.name || null,
-          surface: tournament.surface || null,
-          speed: tournament.speed || null,
-          location: tournament.location || null,
-          atp_favorite: tournament.atp_favorite || null,
-          wta_favorite: tournament.wta_favorite || null,
-        }
-      : null,
-    liveMatchCount: Array.isArray(liveMatches) ? liveMatches.length : 0,
-    atpTop,
-    wtaTop,
-  };
-}
+      const cElo = Number.isFinite(Number(p.cElo)) ? `cElo ${p.cElo}` : null;
+      const hold =
+        typeof p.serveStats === "string"
+          ? p.serveStats.split(",")[0]?.trim()
+          : p.serveStats?.holdPct != null
+            ? `${p.serveStats.holdPct}% hold`
+            : null;
+      let dr = null;
+      if (typeof p.overallStats === "string") {
+        const m = p.overallStats.match(/Dominance Ratio\s+([\d.]+)/i);
+        if (m) dr = `DR ${m[1]}`;
+      } else if (p.overallStats?.dominanceRatio != null) {
+        dr = `DR ${p.overallStats.dominanceRatio}`;
+      }
 
-function buildTennisDataOnlyFallback({ question, summary, confidence }) {
-  const q = normalizeText(question);
-  const preferWta = q.includes("wta") || q.includes("women");
-  const tournament = summary?.tournament || {};
-  const atpTop = summary?.atpTop || [];
-  const wtaTop = summary?.wtaTop || [];
-  const candidateList = preferWta ? wtaTop : atpTop;
-  const favoriteName = preferWta
-    ? tournament?.wta_favorite
-    : tournament?.atp_favorite;
+      const surf =
+        p.surfaceNote?.[surfaceKey] ||
+        (surfaceKey === "clay" ? p.surfaceNote?.clay : null) ||
+        (surfaceKey === "hard" ? p.surfaceNote?.hard : null) ||
+        (surfaceKey === "grass" ? p.surfaceNote?.grass : null);
 
-  const fallbackName =
-    favoriteName ||
-    candidateList?.[0]?.name ||
-    (!preferWta ? wtaTop?.[0]?.name : atpTop?.[0]?.name) ||
-    "top surface-rated player";
+      const surfaces = surf
+        ? `${surfaceKey}: ${String(surf).slice(0, 140)}`
+        : [
+            p.surfaceNote?.clay ? `clay: ${String(p.surfaceNote.clay).slice(0, 90)}` : null,
+            p.surfaceNote?.hard ? `hard: ${String(p.surfaceNote.hard).slice(0, 90)}` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
 
-  const surface = tournament?.surface || summary?.surfaceFocus || "current surface";
-  const eventName = tournament?.name || "current tournament board";
+      const form = p.record2026 || p.miamiNote || "";
+      const note = p.fullNote ? String(p.fullNote).slice(0, 120) : "";
 
-  return `Live match feed is unavailable, so the edge comes from your loaded player/surface model and tournament context.
-
-THE PLAY
-${fallbackName} tournament future — only at plus money (or implied probability <= 45%)
-
-MARKET MISTAKE
-Market prices brand/name momentum more than surface-fit and hold/break profile stability.
-
-WHY MISPRICED
-In data-only mode, the strongest signal is surface-adjusted player strength plus tournament fit, not single-match noise.
-
-TIMING EDGE
-Pre-round placement/futures window before live feed-driven narrative reprices the board.
-
-WHY IT FITS
-${eventName} on ${surface} favors profile consistency from the loaded dataset, and ${fallbackName} sits in the top tier for that profile.
-
-FADE
-Fade blind same-day match bets without confirmed live board and line context.
-
-CONFIDENCE
-${confidence === "High" ? "Medium" : confidence}
-
-TIMING
-Use this as a pre-match/futures angle now; switch to matchup-specific calls once live board returns.`;
+      const signals = [cElo, hold, dr].filter(Boolean).join(" · ");
+      const bits = [
+        `${name}`,
+        p.style ? String(p.style) : "",
+        signals,
+        surfaces || "",
+        form ? String(form).slice(0, 80) : "",
+        note ? note : "",
+      ].filter(Boolean);
+      return bits.join(" | ");
+    })
+    .join("\n");
 }
 
 function extractNflPlayersFromContext(nflContext) {
@@ -529,7 +512,40 @@ export default async function handler(req, res) {
     });
   }
 
-  const systemPrompt = `You are Under Review -- a sharp sports betting intelligence tool.
+  const hasImage = !!image?.base64;
+
+  const intent = detectIntent(question, hasImage);
+
+  const sportHint = resolveSportHint({
+    incomingSportHint,
+    question,
+    matchupContext,
+    hasImage,
+  });
+
+  const contextQuality = getContextQuality({
+    sportHint,
+    players,
+    context,
+    liveMatches,
+    golfContext,
+    nbaContext,
+    mlbContext,
+    nflContext,
+    f1Context,
+    matchupContext,
+  });
+
+  const derivedConfidence = deriveConfidenceLabel({
+    intent,
+    sportHint,
+    hasImage,
+    matchupContext,
+    question,
+    contextQuality,
+  });
+
+  const baseSystemPrompt = `You are Under Review -- a sharp sports betting intelligence tool.
 
 TODAY
 ${getTodayStr()}
@@ -584,80 +600,15 @@ Do not put multiple labels on one line.
 Keep each section short.
 Plain text only.`;
 
-  const hasImage = !!image?.base64;
+  const tennisSystemPromptExtra = `
 
-  const intent = detectIntent(question, hasImage);
+TENNIS MODE (mandatory)
+- Never tell the user the live feed is missing or that you are in "data-only mode". Execute from the player database and tournament context in the user message when the board is empty.
+- If BREAKING NEWS appears in the user message, it overrides static tournament favorites and all other priors. Do not recommend a withdrawn or injured-out player as an active bet. Reprice the field and name who benefits.
+- Use only statistics and names that appear in the provided player rows. Do not invent numbers.`;
 
-  const sportHint = resolveSportHint({
-    incomingSportHint,
-    question,
-    matchupContext,
-    hasImage,
-  });
-
-  const contextQuality = getContextQuality({
-    sportHint,
-    players,
-    context,
-    liveMatches,
-    golfContext,
-    nbaContext,
-    mlbContext,
-    nflContext,
-    f1Context,
-    matchupContext,
-  });
-
-  const derivedConfidence = deriveConfidenceLabel({
-    intent,
-    sportHint,
-    hasImage,
-    matchupContext,
-    question,
-    contextQuality,
-  });
-
-  if (
-    sportHint === "tennis" &&
-    (!Array.isArray(liveMatches) || liveMatches.length === 0) &&
-    players
-  ) {
-    const tennisSummary = buildTennisContextSummary({
-      players,
-      context,
-      liveMatches,
-    });
-    const fallbackResponse = buildTennisDataOnlyFallback({
-      question,
-      summary: tennisSummary,
-      confidence: derivedConfidence,
-    });
-
-    const takeRecord = extractTakeFromResponse({
-      responseText: fallbackResponse,
-      sport: sportHint || "generic",
-      intent,
-      question,
-    });
-
-    if (userEmail) {
-      appendTakeForUser(userEmail, takeRecord).catch((e) => {
-        console.warn("take logging failed:", e?.message || e);
-      });
-    }
-
-    return res.status(200).json({
-      response: fallbackResponse,
-      sport: sportHint || "generic",
-      intent,
-      take: {
-        id: takeRecord.id,
-        playLine: takeRecord.playLine,
-        confidence: takeRecord.confidence,
-        status: takeRecord.status,
-      },
-    });
-  }
+  const systemPrompt =
+    sportHint === "tennis" ? baseSystemPrompt + tennisSystemPromptExtra : baseSystemPrompt;
 
   let userPrompt = question;
 
@@ -673,51 +624,132 @@ Plain text only.`;
       derivedConfidence,
     });
   } else if (sportHint === "tennis") {
-    const tennisSummary = buildTennisContextSummary({
-      players,
-      context,
-      liveMatches,
-    });
+    const surfaceKey = pickSurfaceKey(context);
+    const atpSnapshot = buildTennisPlayerSnapshot(players?.atp, surfaceKey, 30);
+    const wtaSnapshot = buildTennisPlayerSnapshot(players?.wta, surfaceKey, 30);
 
-    userPrompt = `You are answering a tennis betting question.
+    const liveBoard = (liveMatches || [])
+      .slice(0, 15)
+      .map((m) => {
+        const score =
+          m.raw?.score && m.raw.score !== "-" ? ` | Score: ${m.raw.score}` : "";
+        const live = String(m.raw?.live || "0") === "1" ? " [LIVE]" : "";
+        return `${m.title}${live} | ${m.network || ""}${m.raw?.round ? ` | ${m.raw.round}` : ""}${score}`;
+      })
+      .join("\n");
 
-Question:
+    const tournamentName = context?.currentTournament?.name || "Current Tournament";
+    const tournamentSurface = context?.currentTournament?.surface || "Unknown";
+    const tournamentContext = context?.currentTournament?.context || "";
+    const tournamentSpeed = context?.currentTournament?.speed || "";
+    const breakingNews = String(context?.breaking || "").trim();
+
+    const hasLiveBoard = liveBoard.trim().length > 0;
+
+    userPrompt = `You are answering a tennis betting question as Under Review.
+
+TODAY
+${getTodayStr()}
+
+QUESTION
 ${question}
 
-Tennis context:
-${JSON.stringify(
-  {
-    currentTournament: context?.currentTournament || null,
-    tournaments: context?.tournaments || null,
-    liveMatches: (liveMatches || []).slice(0, 16),
-    playersLoaded: players
-      ? {
-          atpCount: Object.keys(players?.atp || {}).length,
-          wtaCount: Object.keys(players?.wta || {}).length,
-        }
-      : null,
-  },
-  null,
-  2
-)}
+${breakingNews ? `BREAKING NEWS — READ FIRST AND ADJUST ALL ANSWERS ACCORDINGLY
+${breakingNews}
 
-Tennis model summary (use this heavily):
-${JSON.stringify(tennisSummary, null, 2)}
+` : ""}TOURNAMENT CONTEXT
+Name: ${tournamentName}
+Surface: ${tournamentSurface}
+Speed: ${tournamentSpeed}
+Context: ${tournamentContext}
 
-Confidence guidance:
-- Default confidence should be ${derivedConfidence}.
-- Only go above that if the input strongly justifies it.
+${hasLiveBoard ? `LIVE MATCH BOARD
+${liveBoard}
 
-Rules:
-- Answer only as a tennis analyst.
-- Do not mention NFL, NBA, MLB, F1, or golf.
-- You already have tournament + live board context above. Use it directly.
-- Do not ask the user for tournament/match details already present in context.
-- If context is missing for a specific requested match, say exactly what is missing in one line.
-- Do not invent players, rounds, scores, or market movement.
-- If mode is "data_only" (no live matches), still provide one concrete tennis angle using named players from atpTop/wtaTop and tournament info.
-- In data_only mode, prefer futures/placement/style angles (not fake tonight matchup edges).
-- If no market line is provided, state the play with price discipline language (example: "only at plus money" or "only if line <= X"), never invent a specific book line.`;
+` : ""}ATP PLAYER DATABASE (surface-ranked snapshot — cite only these stats)
+${atpSnapshot || "Not loaded"}
+
+WTA PLAYER DATABASE (surface-ranked snapshot — cite only these stats)
+${wtaSnapshot || "Not loaded"}
+
+ACE PROPS CONTEXT
+${context?.ace_props ? JSON.stringify(context.ace_props, null, 2) : "Not available"}
+
+CONFIDENCE GUIDANCE
+Default confidence: ${derivedConfidence}
+Only go above that if the data strongly justifies it.
+
+EXECUTION RULES — READ CAREFULLY
+1. Never open with a limitation, disclaimer, or explanation of what data you have.
+   Lead immediately with the take. The first sentence must be a concrete claim.
+
+2. Never say "in data-only mode", "live feed unavailable", "based on available data",
+   or any variation. The user does not care about your data pipeline. They want a call.
+
+3. If breaking news is present above, it overrides everything else. Adjust the entire
+   response to account for it — withdrawals, injuries, scheduling changes. Do not
+   recommend a player who has withdrawn. Do not ignore news that changes the board.
+
+4. Name specific players. Use the player database above.
+   Do not give generic archetype-only answers — "clay specialist" is not a play unless tied to a named player and threshold.
+
+5. Use the stats in the database rows: cElo, serve/hold hints, DR, surface notes, form strings.
+   Reference them in WHY MISPRICED. Do not invent statistics.
+
+6. Price discipline is mandatory on every answer.
+   Every play must include a price threshold: "only at +150 or better",
+   "only if implied probability is under 40%", "value entry under -120".
+   Never recommend a play without a price anchor (bands are OK — do not invent a precise book quote).
+
+7. If the live board has matches, use them.
+   Name the players, round context, and what the board implies.
+
+8. If no live board is shown, execute from the player database snapshot.
+   Surface + cElo + serve/hold + surface notes + form = a specific, justified play.
+
+9. For match bets: name player, market, price threshold, and one key statistical reason from the snapshot.
+   For futures: name player, market (outright / top-4 / top-8), price threshold,
+   why the surface profile justifies it, and one player or price to fade with reasoning.
+
+10. For withdrawal or injury questions: immediately redirect to who benefits most.
+    Reprice the field. Name the new favorite and the value plays that opened up.
+
+11. Confidence must cite what data it rests on in CONFIDENCE line.
+    High = specific snapshot stats + surface match + price discipline.
+    Medium = surface model without live board confirmation.
+    Speculative = thin data.
+    Never call something High without citing the specific signals that justify it.
+
+REQUIRED RESPONSE FORMAT
+Plain text only. No markdown. No bold. No asterisks.
+
+One sharp opening sentence that is the call itself.
+
+Then:
+
+THE PLAY
+[specific player + market + price threshold — one line]
+
+MARKET MISTAKE
+[what the book is mispricing and why — one to two lines]
+
+WHY MISPRICED
+[cite specific stats from the snapshot rows — one to two lines]
+
+TIMING EDGE
+[when to bet and why — one line]
+
+WHY IT FITS
+[surface + tournament fit + player profile — one to two lines]
+
+FADE
+[one explicit player or market to avoid, with one-line reason]
+
+CONFIDENCE
+[High / Medium / Speculative — followed by one phrase citing what data this rests on]
+
+TIMING
+[one line: bet now / wait for price / live trigger]`;
   } else if (sportHint === "golf") {
     userPrompt = `You are answering a golf betting question.
 

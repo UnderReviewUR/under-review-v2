@@ -164,6 +164,9 @@ function getActiveTournamentKey() {
 
 import { applyCors } from "./_cors.js";
 
+/** Update when major news breaks (withdrawals, etc.). Clear when stale. Injected into UR TAKE tennis prompts. */
+const TENNIS_BREAKING = "";
+
 export default function handler(req, res) {
   if (!applyCors(req, res)) return;
 
@@ -180,5 +183,9 @@ export default function handler(req, res) {
     tournaments: TOURNAMENTS,
     matchups: MATCHUP_CONTEXT,
     ace_props: ACE_PROPS,
+    breaking:
+      typeof process.env.TENNIS_BREAKING === "string"
+        ? process.env.TENNIS_BREAKING
+        : TENNIS_BREAKING,
   });
 }
