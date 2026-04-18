@@ -4,31 +4,6 @@
  */
 import { bdlFetch } from "./_balldontlie.js";
 
-/** BDL sometimes omits `full_name`; OpenAPI exposes nullable full_name plus first/last. */
-function bdlPlayerFullName(player) {
-  if (!player || typeof player !== "object") return "";
-  const direct = String(player.full_name || "").trim();
-  if (direct) return direct;
-  const first = String(player.first_name || "").trim();
-  const last = String(player.last_name || "").trim();
-  return [first, last].filter(Boolean).join(" ").trim();
-}
-
-/** Prefer documented field; fall back if BDL adds aliases (schema varies by release). */
-function bdlScheduledRaw(m) {
-  if (!m || typeof m !== "object") return null;
-  const raw = m.scheduled_time ?? m.scheduled_at ?? m.start_time;
-  if (raw == null || raw === "") return null;
-  return raw;
-}
-
-function bdlScheduledDate(m) {
-  const raw = bdlScheduledRaw(m);
-  if (!raw) return null;
-  const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function isFinishedBdl(match) {
   const s = String(match?.match_status || "").toLowerCase();
   return (
@@ -43,10 +18,10 @@ function isFinishedBdl(match) {
 
 /** Map BDL match → shared fixture shape consumed by api/tennis.js */
 export function bdlMatchToFixtureShape(m, options = {}) {
-  const p1 = bdlPlayerFullName(m.player1);
-  const p2 = bdlPlayerFullName(m.player2);
-  const schedule = bdlScheduledDate(m);
-  const valid = !!schedule;
+  const p1 = String(m.player1?.full_name || "").trim();
+  const p2 = String(m.player2?.full_name || "").trim();
+  const schedule = m.scheduled_time ? new Date(m.scheduled_time) : null;
+  const valid = schedule && !Number.isNaN(schedule.getTime());
 
   /** Masters draws often ship before `scheduled_time` is populated — anchor so /api/tennis + UI can sort and show cards. */
   const fallbackDay =
@@ -80,8 +55,8 @@ export function bdlMatchToFixtureShape(m, options = {}) {
     bdl_match_id: m.id,
     bdl_tournament_surface: m.tournament?.surface || "",
     bdl_tournament_category: m.tournament?.category || "",
-    bdl_scheduled_time: bdlScheduledRaw(m) || syntheticCommence,
-    commence_iso: bdlScheduledRaw(m) || syntheticCommence,
+    bdl_scheduled_time: m.scheduled_time || syntheticCommence,
+    commence_iso: m.scheduled_time || syntheticCommence,
   };
 }
 
@@ -91,7 +66,7 @@ export function bdlMatchToFixtureShape(m, options = {}) {
  */
 export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
   if (m.is_live) return true;
-  const t = bdlScheduledDate(m)?.getTime() ?? NaN;
+  const t = m.scheduled_time ? new Date(m.scheduled_time).getTime() : NaN;
   if (!Number.isFinite(t)) return !isFinishedBdl(m);
 
   const now = Date.now();
@@ -141,7 +116,7 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
 
   const ingest = (batch) => {
     for (const m of batch) {
-      if (!bdlPlayerFullName(m.player1) || !bdlPlayerFullName(m.player2)) continue;
+      if (!m?.player1?.full_name || !m?.player2?.full_name) continue;
       if (!bdlMatchInBoardWindow(m, windowStartMs, windowEndMs)) continue;
       byId.set(m.id, m);
     }
