@@ -65,7 +65,7 @@ Costs are **usage-shaped**, not one fixed number. Use this to estimate:
 | **Anthropic (UR TAKE)** | Almost always the **dominant variable cost**. Each question hits `/api/ur-take` → Claude. Approximate monthly AI spend ≈ *(questions per month)* × *(average tokens in + out per question)* × *(price per million tokens for your chosen model)*. Check [Anthropic pricing](https://www.anthropic.com/pricing) and your model (`ANTHROPIC_MODEL`). Example: if average ~3k input + ~800 output tokens per ask and list pricing is on the order of **single‑digit dollars per million tokens**, light personal use is typically **tens of dollars/month**; heavy traffic or longer prompts can reach **hundreds+**. Use the Anthropic dashboard for ground truth. |
 | **Stripe** | No monthly fee from Stripe itself for standard Checkout; you pay **fees as a percent + fixed fee** on successful subscription charges (plus dispute fees if any). |
 | **Vercel KV** | Included or metered depending on plan; typically small versus AI at moderate scale. |
-| **Third‑party sport APIs** | Tennis (`API_TENNIS_KEY`), Odds (`ODDS_API_KEY`), BallDontLie (`BALLDONTLIE_API_KEY`), etc. — whatever your vendor charges (often tiered subscriptions). |
+| **Third‑party sport APIs** | Ball Dont Lie ATP (`BALLDONTLIE_API_KEY`), Odds (`ODDS_API_KEY`), ESPN (no key), etc. — Tennis board WTA spots use built-in datasets + tournament calendar. |
 
 **Bottom line:** For a modest user base, **hosted app + KV + miscellaneous APIs** are usually **noise** compared to **LLM inference** unless you aggressively cache or trim prompts. Instrument Anthropic usage first; everything else second.
 

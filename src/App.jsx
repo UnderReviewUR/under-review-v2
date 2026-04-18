@@ -25,6 +25,7 @@ import {
   getDrValue,
   getHoldValue,
   getTbValue,
+  buildFallbackTennisMatches,
   getTournamentFetchParam,
   isNflInSeason,
   isNflRampMode,
@@ -84,6 +85,8 @@ ${themeCss}
 
   const [isAsking, setIsAsking]         = useState(false);
   const [players, setPlayers]           = useState(null);
+  const playersRef                       = useRef(null);
+  const contextRef                     = useRef(null);
   const [context, setContext]           = useState(null);
   const [liveMatches, setLiveMatches]   = useState([]);
   const [tennisLoading, setTennisLoading] = useState(false);
@@ -103,7 +106,6 @@ ${themeCss}
   // Separate inputRef per screen — critical for AskBar memo optimization
   const homeInputRef      = useRef(null);
   const askInputRef       = useRef(null);
-  const askBarBottomRef   = useRef(null);
   const tennisInputRef    = useRef(null);
   const nflInputRef       = useRef(null);
   const f1InputRef        = useRef(null);
@@ -111,6 +113,19 @@ ${themeCss}
   const mlbInputRef       = useRef(null);
   const golfInputRef      = useRef(null);
   const golfBarRef        = useRef(null);
+  const tennisBarRef      = useRef(null);
+  const nflBarRef         = useRef(null);
+  const f1BarRef          = useRef(null);
+  const nbaBarRef         = useRef(null);
+  const mlbBarRef         = useRef(null);
+  const askScreenRef      = useRef(null);
+  const tennisScreenRef   = useRef(null);
+  const nflScreenRef      = useRef(null);
+  const f1ScreenRef       = useRef(null);
+  const nbaScreenRef      = useRef(null);
+  const mlbScreenRef      = useRef(null);
+  const golfScreenRef     = useRef(null);
+  const matchupScreenRef  = useRef(null);
   const matchupInputRef   = useRef(null);
   const playerInputRef    = useRef(null);
   const nflPlayerInputRef = useRef(null);
@@ -234,23 +249,39 @@ ${themeCss}
   }, [isUnlimited, userEmail]);
 
   // ── Tennis fetch ───────────────────────────────────────────────────────────
-  const fetchTennisBoard = useCallback(async (activeContext=null) => {
-    const tournamentParam = getTournamentFetchParam(activeContext);
-    const [atpRes, wtaRes] = await Promise.all([
-      fetch(`/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`),
-      fetch(`/api/tennis?tour=wta&activeTournament=${encodeURIComponent(tournamentParam)}`),
-    ]);
-    const [atpData, wtaData] = await Promise.all([atpRes.json(), wtaRes.json()]);
+  const fetchTennisBoard = useCallback(async (activeContext=null, playersPayload=null) => {
+    let atpData = [];
+    let wtaData = [];
+    try {
+      const tournamentParam = getTournamentFetchParam(activeContext);
+      const [atpRes, wtaRes] = await Promise.all([
+        fetch(`/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`),
+        fetch(`/api/tennis?tour=wta&activeTournament=${encodeURIComponent(tournamentParam)}`),
+      ]);
+      const parseBoard = async (res) => {
+        try {
+          const data = await res.json();
+          return res.ok && Array.isArray(data) ? data : [];
+        } catch {
+          return [];
+        }
+      };
+      [atpData, wtaData] = await Promise.all([parseBoard(atpRes), parseBoard(wtaRes)]);
+    } catch {
+      atpData = [];
+      wtaData = [];
+    }
+
     const merged = [
-      ...(Array.isArray(atpData)?atpData.map(m=>normalizeTennisMatch(m,"ATP",activeContext)):[]),
-      ...(Array.isArray(wtaData)?wtaData.map(m=>normalizeTennisMatch(m,"WTA",activeContext)):[]),
+      ...(atpData.map((m)=>normalizeTennisMatch(m,"ATP",activeContext))),
+      ...(wtaData.map((m)=>normalizeTennisMatch(m,"WTA",activeContext))),
     ].filter(Boolean);
     const seen=new Set(); const deduped=[];
     for (const m of merged) {
       const key=[normalizeText(m.league),normalizeText(m.raw?.home),normalizeText(m.raw?.away),normalizeText(m.network),normalizeText(m.raw?.round),normalizeText(m.raw?.event_date)].join("|");
       if (!seen.has(key)) { seen.add(key); deduped.push(m); }
     }
-    return deduped.sort((a,b) => {
+    let sorted = deduped.sort((a,b) => {
       const aLive=String(a?.raw?.live||"0")==="1"?1:0;
       const bLive=String(b?.raw?.live||"0")==="1"?1:0;
       if (aLive!==bLive) return bLive-aLive;
@@ -261,7 +292,20 @@ ${themeCss}
       const bTime=Number.isFinite(b.commenceTs)?b.commenceTs:Number.MAX_SAFE_INTEGER;
       return aTime-bTime;
     });
+
+    if (sorted.length === 0 && playersPayload && (playersPayload.atp || playersPayload.wta)) {
+      sorted = buildFallbackTennisMatches(playersPayload, activeContext);
+    }
+    return sorted;
   }, []);
+
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
+  useEffect(() => {
+    contextRef.current = context;
+  }, [context]);
 
   useEffect(() => {
     let active=true; let pollId=null;
@@ -272,15 +316,20 @@ ${themeCss}
         const [p,c] = await Promise.all([pRes.json(),cRes.json()]);
         if (!active) return;
         setPlayers(p); setContext(c);
-        const board = await fetchTennisBoard(c);
+        playersRef.current = p;
+        const board = await fetchTennisBoard(c, p);
         if (!active) return;
         setLiveMatches(board);
-      } catch { if(active) setLiveMatches([]); }
+      } catch {
+        if (!active) return;
+        const fb = buildFallbackTennisMatches(playersRef.current, contextRef.current);
+        setLiveMatches(fb && fb.length ? fb : []);
+      }
       finally { if(active) setTennisLoading(false); }
     }
     loadAll();
     pollId = window.setInterval(() => {
-      fetchTennisBoard(context).then(b=>{ if(active) setLiveMatches(b); }).catch(()=>{});
+      fetchTennisBoard(contextRef.current, playersRef.current).then((b)=>{ if(active) setLiveMatches(b); }).catch(()=>{});
     }, 60000);
     return () => { active=false; if(pollId) window.clearInterval(pollId); };
   }, [fetchTennisBoard]);
@@ -328,9 +377,9 @@ ${themeCss}
   useEffect(() => {
     if (!context) return;
     let cancelled=false;
-    fetchTennisBoard(context).then(b=>{ if(!cancelled) setLiveMatches(b); }).catch(()=>{});
+    fetchTennisBoard(context, players).then((b)=>{ if(!cancelled) setLiveMatches(b); }).catch(()=>{});
     return () => { cancelled=true; };
-  }, [context, fetchTennisBoard]);
+  }, [context, players, fetchTennisBoard]);
 
   // ── F1 data fetch ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1247,23 +1296,28 @@ ${themeCss}
   askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint });
 }, [askUrTake]);
 
+  const scheduleChatScroll = useCallback((screenRef) => {
+    const scroll = () => {
+      const el = screenRef?.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+    scroll();
+    setTimeout(scroll, 100);
+    setTimeout(scroll, 800);
+  }, []);
+
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
-  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); setTimeout(()=>{ askBarBottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askInput,askUrTake,isAsking,askBarBottomRef]);
-  const tennisBarRef  = useRef(null);
-  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); setTimeout(()=>{ tennisBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,tennisInput]);
-  const nflBarRef     = useRef(null);
-  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); setTimeout(()=>{ nflBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,nflInput]);
-  const f1BarRef      = useRef(null);
-  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); setTimeout(()=>{ f1BarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,f1Input]);
-  const nbaBarRef     = useRef(null);
-  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); setTimeout(()=>{ nbaBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,nbaInput]);
-  const mlbBarRef     = useRef(null);
-  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); setTimeout(()=>{ mlbBarRef.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,mlbInput]);
+  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,scheduleChatScroll]);
+  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
+  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,nflInput,scheduleChatScroll]);
+  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,f1Input,scheduleChatScroll]);
+  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,nbaInput,scheduleChatScroll]);
+  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,mlbInput,scheduleChatScroll]);
 
   const golfBarRefLocal = golfBarRef;
-  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); setTimeout(()=>{ golfBarRefLocal.current?.scrollIntoView({behavior:"smooth",block:"end"}); },100); },[askUrTake,isAsking,golfInput,golfBarRefLocal]);
-const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); },[askUrTake,isAsking,matchupInput,selectedMatchup]);
+  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,golfInput,scheduleChatScroll]);
+  const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   // ── Sub-components ─────────────────────────────────────────────────────────
   function TennisPlayerCard({ name, idx, tour }) {
@@ -2063,7 +2117,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ TENNIS ══ */}
         {screen==="tennis"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={tennisScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="tour-banner">
               <div className="banner-title">{tennisBoardHeadline}</div>
               <div className="banner-sub">{tennisBoardSubline}</div>
@@ -2082,7 +2136,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
               </div>
             )}
 
-            <ChatThread msgs={tennisMsgs}/>
+            <ChatThread msgs={tennisMsgs} scrollContainerRef={tennisScreenRef}/>
 
             <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} Board`:"Live + Upcoming Matches"}</div>
 
@@ -2139,7 +2193,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ NFL ══ */}
         {screen==="nfl"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={nflScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nfl-banner">
               <div className="banner-title">{nflSeasonMode?"NFL In-Season Board":"NFL Futures Board"}</div>
               <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
@@ -2155,7 +2209,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
               </div>
               </div>
             )}
-            <ChatThread msgs={nflMsgs}/>
+            <ChatThread msgs={nflMsgs} scrollContainerRef={nflScreenRef}/>
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
             <NflPropGuideSection
               guide={NFL_PROP_GUIDE}
@@ -2201,7 +2255,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ F1 ══ */}
         {screen==="f1"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={f1ScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="f1-banner">
               <div className="banner-title">Formula 1 — 2026</div>
               <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
@@ -2219,7 +2273,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
                 </div>
               </div>
             )}
-            <ChatThread msgs={f1Msgs}/>
+            <ChatThread msgs={f1Msgs} scrollContainerRef={f1ScreenRef}/>
 
             {f1Loading ? (
               <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>
@@ -2272,7 +2326,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ NBA ══ */}
         {screen==="nba"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={nbaScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nba-banner">
               <div className="banner-title">NBA</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
@@ -2294,7 +2348,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
               </div>
             )}
 
-            <ChatThread msgs={nbaMsgs}/>
+            <ChatThread msgs={nbaMsgs} scrollContainerRef={nbaScreenRef}/>
 
             {nbaLoading ? (
               <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
@@ -2353,7 +2407,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ MLB ══ */}
         {screen==="mlb"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={mlbScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
@@ -2374,7 +2428,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
               </div>
             )}
 
-            <ChatThread msgs={mlbMsgs}/>
+            <ChatThread msgs={mlbMsgs} scrollContainerRef={mlbScreenRef}/>
 
             {mlbLoading && mlbGames.length === 0 ? (
               <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
@@ -2457,7 +2511,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ GOLF ══ */}
         {screen==="golf"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="golf-banner">
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{golfData?.currentEvent?.name||"PGA TOUR"}</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>OUTRIGHTS / PROPS / MATCHUP EDGES</div>
@@ -2482,7 +2536,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
               </div>
             )}
 
-            <ChatThread msgs={golfMsgs}/>
+            <ChatThread msgs={golfMsgs} scrollContainerRef={golfScreenRef}/>
 
             {/* Live leaderboard — full field (scroll); same list is sent to /api/ur-take as golfContext */}
             {golfData?.currentEvent?.leaderboard?.length > 0 && (
@@ -2951,7 +3005,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
     {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={matchupScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <button className="detail-back" onClick={()=>{setSelectedMatchup(null);setScreen(selectedMatchup?.league?.includes("NFL")?"nfl":"tennis");}}>← BACK</button>
             <div className="detail-card">
               <div className="detail-head"><div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div><div className="detail-title">{selectedMatchup.title}</div><div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div></div>
@@ -2959,7 +3013,7 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
             </div>
-            <ChatThread msgs={matchupMsgs}/>
+            <ChatThread msgs={matchupMsgs} scrollContainerRef={matchupScreenRef}/>
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
         )}
@@ -2984,14 +3038,13 @@ const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(
 
         {/* ══ ASK ══ */}
         {screen==="ask"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="What do you want to know?" {...askBarCommon}/>
-            <div ref={askBarBottomRef} style={{height:1}}/>
             {askMsgs.length===0?(
               <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
             ):(
-              <ChatThread msgs={askMsgs}/>
+              <ChatThread msgs={askMsgs} scrollContainerRef={askScreenRef}/>
             )}
           </main>
         )}

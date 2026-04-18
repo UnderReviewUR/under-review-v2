@@ -152,9 +152,9 @@ export const baseCss = `
     white-space:nowrap;
   }
 
-  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom));}
-  .screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + 170px + env(safe-area-inset-bottom));}
-  .docked-bar{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));z-index:25;backdrop-filter:blur(12px);}
+  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom));scroll-behavior:smooth;-webkit-overflow-scrolling:touch;}
+  .screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + 140px + env(safe-area-inset-bottom));}
+  .docked-bar{position:fixed;left:0;right:0;bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px 8px;z-index:25;backdrop-filter:blur(12px);}
   .docked-bar .ask-wrap{margin:0;}
   .docked-bar .ask-hint{padding-bottom:4px;}
   .docked-bar-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;opacity:.7;}

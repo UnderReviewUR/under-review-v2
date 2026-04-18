@@ -210,64 +210,9 @@ async function fetchRecentFinalGames() {
   return all;
 }
 
-/** Completed ATP/WTA fixtures from API-Tennis (same feed as tennis-results). Newest first. */
+/** Tennis score settlement — external fixtures feed removed; ledger relies on NBA/MLB ESPN for auto-settle. */
 async function fetchRecentTennisResults() {
-  const API_KEY = process.env.API_TENNIS_KEY;
-  if (!API_KEY) return [];
-
-  try {
-    const today = new Date();
-    const start = new Date();
-    start.setDate(today.getDate() - 21);
-    const formatDate = (d) => d.toISOString().split("T")[0];
-
-    const url =
-      "https://api.api-tennis.com/tennis/?method=get_fixtures" +
-      "&APIkey=" +
-      encodeURIComponent(API_KEY) +
-      "&date_start=" +
-      formatDate(start) +
-      "&date_stop=" +
-      formatDate(today);
-
-    const tennisRes = await fetch(url);
-    if (!tennisRes.ok) return [];
-    const data = await tennisRes.json();
-    const results = Array.isArray(data?.result) ? data.result : [];
-
-    const finished = results.filter((match) => {
-      const code = String(match.event_winner || "").trim();
-      if (code !== "1" && code !== "2") return false;
-      const status = String(match.event_status || "").toLowerCase();
-      const hasScore = match.event_final_result && match.event_final_result !== "-";
-      return (
-        (status.includes("finished") || status.includes("final") || status.includes("ended")) &&
-        hasScore
-      );
-    });
-
-    finished.sort((a, b) => {
-      const da = new Date(`${a.event_date}T${a.event_time || "00:00"}:00`);
-      const db = new Date(`${b.event_date}T${b.event_time || "00:00"}:00`);
-      return db.getTime() - da.getTime();
-    });
-
-    return finished.map((match) => {
-      const p1 = match.event_first_player || "Player 1";
-      const p2 = match.event_second_player || "Player 2";
-      const winnerCode = String(match.event_winner || "").trim();
-      const winner = winnerCode === "2" ? p2 : p1;
-      const loser = winner === p1 ? p2 : p1;
-      return {
-        winner,
-        loser,
-        score: match.event_final_result || "",
-        date: match.event_date || "",
-      };
-    });
-  } catch {
-    return [];
-  }
+  return [];
 }
 
 function pickMatchesTeam(teamPick, game) {

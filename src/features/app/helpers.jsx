@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 export function normalizeText(v) {
   return String(v || "").trim().toLowerCase();
 }
@@ -44,6 +46,26 @@ export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTourname
   const eventTime = String(match.event_time || "").trim();
   const commenceTime = match.commence_time || (eventDate && eventTime ? `${eventDate}T${eventTime}:00` : eventDate ? `${eventDate}T00:00:00` : null);
 
+  const surf = String(match.bdl_tournament_surface || "").trim();
+  const staticWta =
+    String(match.source || "").includes("ur_static_wta") ||
+    !!match.ur_static_snapshot ||
+    String(match.source || "").includes("client_db_snapshot");
+
+  const quickHitters = staticWta
+    ? [
+        surf ? `${surf} — misprice vs your surface Elo?` : "Misprice vs database Elo?",
+        "Games / handicap vs implied vol?",
+        "Only play if price clears your threshold — snapshot is not a schedule.",
+      ]
+    : surf
+      ? [
+          `${surf} — who benefits more?`,
+          "Moneyline vs games/total — best edge?",
+          "Live spot or pre-match price?",
+        ]
+      : ["Best angle here?", "Moneyline or total?", "Any live edge?"];
+
   return {
     id: match.id || match.event_key || `${home}-${away}-${league}-${eventDate || tournament}`,
     league,
@@ -51,9 +73,9 @@ export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTourname
     title: `${home} vs ${away}`,
     time: status,
     network: tournament,
-    blurb: `${home} vs ${away}${match.round ? ` · ${match.round}` : ""}${match.score && match.score !== "-" ? ` · ${match.score}` : ""}`,
+    blurb: `${home} vs ${away}${match.round ? ` · ${match.round}` : ""}${match.score && match.score !== "-" ? ` · ${match.score}` : ""}${surf ? ` · ${surf}` : ""}`,
     whatMatters: "Ask for the side, total, props, or live angle.",
-    quickHitters: ["Best angle here?", "Moneyline or total?", "Any live edge?"],
+    quickHitters,
     confirmed: true,
     commenceTime,
     commenceTs: commenceTime ? new Date(commenceTime).getTime() : Number.MAX_SAFE_INTEGER,
@@ -75,6 +97,73 @@ export function preferredTournamentScore(match, context) {
   if (nameSlug && nameSlug.includes(tournamentSlug)) return 4;
   if (keySlug && keySlug.includes(tournamentSlug)) return 4;
   return 0;
+}
+
+/**
+ * When /api/tennis is unreachable or returns nothing, build matchup cards from the
+ * same player JSON the app already loaded — keeps the board populated (local dev + outages).
+ */
+export function buildFallbackTennisMatches(playersPayload, activeContext = null) {
+  if (!playersPayload || typeof playersPayload !== "object") return [];
+
+  const tournamentName = activeContext?.currentTournament?.name || "Tour";
+  const surface = String(activeContext?.currentTournament?.surface || "").trim();
+  const isoDay = new Date().toISOString().slice(0, 10);
+  const isoCommence = `${isoDay}T17:00:00`;
+
+  const cards = [];
+
+  const addPairs = (merged, fallbackTour, leagueName, eventType) => {
+    if (!merged || typeof merged !== "object") return;
+    const ranked = Object.entries(merged)
+      .map(([name, row]) => ({ name, rank: Number(row?.eloRank), row }))
+      .filter((x) => Number.isFinite(x.rank))
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 16);
+
+    for (let i = 0; i + 1 < ranked.length && cards.length < 14; i += 2) {
+      const row = normalizeTennisMatch(
+        {
+          id: `db-${fallbackTour}-${slugify(ranked[i].name)}-${slugify(ranked[i + 1].name)}`,
+          home_team: ranked[i].name,
+          away_team: ranked[i + 1].name,
+          tournament: tournamentName,
+          round: "Database snapshot · live feed unavailable",
+          event_date: isoDay,
+          event_time: "17:00",
+          event_status: "scheduled",
+          live: "0",
+          league_name: leagueName,
+          event_type_type: eventType,
+          score: "-",
+          commence_time: isoCommence,
+          source: "client_db_snapshot",
+          ur_static_snapshot: true,
+          bdl_tournament_surface: surface,
+        },
+        fallbackTour,
+        activeContext,
+      );
+      if (row) cards.push(row);
+    }
+  };
+
+  addPairs(playersPayload.atp, "ATP", "ATP", "ATP Singles");
+  addPairs(playersPayload.wta, "WTA", "WTA", "WTA Singles");
+
+  cards.sort((a, b) => {
+    const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
+    const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
+    if (aLive !== bLive) return bLive - aLive;
+    const aPref = preferredTournamentScore(a, activeContext);
+    const bPref = preferredTournamentScore(b, activeContext);
+    if (aPref !== bPref) return bPref - aPref;
+    const aTime = Number.isFinite(a.commenceTs) ? a.commenceTs : Number.MAX_SAFE_INTEGER;
+    const bTime = Number.isFinite(b.commenceTs) ? b.commenceTs : Number.MAX_SAFE_INTEGER;
+    return aTime - bTime;
+  });
+
+  return cards;
 }
 
 export function getTournamentFetchParam(context) {
@@ -257,7 +346,16 @@ export function LoadingBubble({ sport }) {
   );
 }
 
-export function ChatThread({ msgs }) {
+export function ChatThread({ msgs, scrollContainerRef }) {
+  useEffect(() => {
+    if (!msgs?.length) return;
+    const t = setTimeout(() => {
+      const el = scrollContainerRef?.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }, 50);
+    return () => clearTimeout(t);
+  }, [msgs, scrollContainerRef]);
+
   if (!msgs || msgs.length === 0) return null;
   return (
     <div className="chat-thread" style={{ marginBottom: 20 }}>

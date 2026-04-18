@@ -178,6 +178,66 @@ function buildTennisPlayerSnapshot(playerDb, surfaceKey, limit = 30) {
     .join("\n");
 }
 
+function findPlayerRowLoose(name, tourObj) {
+  if (!name || !tourObj || typeof tourObj !== "object") return null;
+  const n = normalizeText(name);
+  if (!n) return null;
+  if (tourObj[name]) return tourObj[name];
+  for (const [k, v] of Object.entries(tourObj)) {
+    const kn = normalizeText(k);
+    if (kn === n || kn.includes(n) || n.includes(kn)) return v;
+  }
+  return null;
+}
+
+function buildMatchupTennisDigest(homeName, awayName, players, surfaceKey) {
+  const rowH =
+    findPlayerRowLoose(homeName, players?.atp) ||
+    findPlayerRowLoose(homeName, players?.wta);
+  const rowA =
+    findPlayerRowLoose(awayName, players?.atp) ||
+    findPlayerRowLoose(awayName, players?.wta);
+
+  const one = (label, row) => {
+    if (!row || typeof row !== "object") {
+      return `${label}: (no dedicated UR profile row for this name — do not invent stats; use matchup + tour context only.)`;
+    }
+    const eloTag = snapshotEloLabel(row, surfaceKey);
+    const hold = snapshotHoldHint(row);
+    const dr = snapshotDrHint(row);
+    const surf =
+      surfaceKey === "clay"
+        ? row.surfaceNote?.clay
+        : surfaceKey === "grass"
+          ? row.surfaceNote?.grass
+          : row.surfaceNote?.hard;
+    const surfaces = surf ? `${surfaceKey}: ${String(surf).slice(0, 130)}` : "";
+
+    const form =
+      row.record2026 ||
+      row.surfaceRecord2026 ||
+      row.record ||
+      row.miamiNote ||
+      "";
+    const note = row.fullNote ? String(row.fullNote).slice(0, 110) : "";
+
+    const signals = [eloTag, hold, dr].filter(Boolean).join(" · ");
+    const bits = [
+      `${label}`,
+      row.style ? String(row.style) : "",
+      signals || "partial signals — cite cautiously",
+      surfaces || "",
+      form ? String(form).slice(0, 72) : "",
+      note ? note : "",
+    ].filter(Boolean);
+
+    return bits.join(" | ");
+  };
+
+  return `${one(String(homeName || "").trim() || "Player A", rowH)}
+${one(String(awayName || "").trim() || "Player B", rowA)}`;
+}
+
 function extractNflPlayersFromContext(nflContext) {
   const text =
     typeof nflContext === "string"
@@ -655,6 +715,8 @@ Plain text only.`;
   const tennisSystemPromptExtra = `
 
 TENNIS MODE (mandatory)
+- ATP: live and upcoming draws from BallDontLie when configured; player rows from the ATP database.
+- WTA: same player-database depth; the match board may show "Elo snapshot" pairings tied to the active tournament — those are analytical lenses for pricing, not confirmed draw times. Never treat them as verified schedule.
 - Never tell the user the live feed is missing or that you are in "data-only mode". Execute from the player database and tournament context in the user message when the board is empty.
 - If BREAKING NEWS appears in the user message, it overrides static tournament favorites and all other priors. Do not recommend a withdrawn or injured-out player as an active bet. Reprice the field and name who benefits.
 - Use only statistics and names that appear in the provided player rows. Do not invent numbers.`;
@@ -676,9 +738,32 @@ TENNIS MODE (mandatory)
       derivedConfidence,
     });
   } else if (sportHint === "tennis") {
-    const surfaceKey = pickSurfaceKey(context);
+    const leagueStr = normalizeText(matchupContext?.league || "");
+    const isWtaLeague =
+      leagueStr.includes("wta") ||
+      (leagueStr.includes("women") && leagueStr.includes("tennis"));
+
+    const rawMx = matchupContext?.raw || {};
+    const mxHome = String(rawMx.home || "").trim();
+    const mxAway = String(rawMx.away || "").trim();
+    const boardSurfaceHint =
+      String(rawMx.bdl_tournament_surface || "").trim() ||
+      context?.currentTournament?.surface ||
+      "";
+
+    const surfaceKey = pickSurfaceKey({
+      currentTournament: {
+        surface: boardSurfaceHint || context?.currentTournament?.surface,
+      },
+    });
+
     const atpSnapshot = buildTennisPlayerSnapshot(players?.atp, surfaceKey, 30);
     const wtaSnapshot = buildTennisPlayerSnapshot(players?.wta, surfaceKey, 30);
+
+    const matchupDigest =
+      mxHome && mxAway
+        ? buildMatchupTennisDigest(mxHome, mxAway, players, surfaceKey)
+        : "";
 
     const liveBoard = (liveMatches || [])
       .slice(0, 15)
@@ -686,12 +771,20 @@ TENNIS MODE (mandatory)
         const score =
           m.raw?.score && m.raw.score !== "-" ? ` | Score: ${m.raw.score}` : "";
         const live = String(m.raw?.live || "0") === "1" ? " [LIVE]" : "";
-        return `${m.title}${live} | ${m.network || ""}${m.raw?.round ? ` | ${m.raw.round}` : ""}${score}`;
+        const surfRaw = String(m.raw?.bdl_tournament_surface || "").trim();
+        const surf =
+          surfRaw.length > 0 ? ` | Surface: ${surfRaw}` : "";
+        const snap =
+          m.raw?.ur_static_snapshot || String(m.raw?.source || "").includes("ur_static_wta")
+            ? " [WTA profile snapshot — not a confirmed draw time]"
+            : "";
+        return `${m.title}${live}${snap} | ${m.network || ""}${surf}${m.raw?.round ? ` | ${m.raw.round}` : ""}${score}`;
       })
       .join("\n");
 
     const tournamentName = context?.currentTournament?.name || "Current Tournament";
-    const tournamentSurface = context?.currentTournament?.surface || "Unknown";
+    const tournamentSurface =
+      boardSurfaceHint || context?.currentTournament?.surface || "Unknown";
     const tournamentContext = context?.currentTournament?.context || "";
     const tournamentSpeed = context?.currentTournament?.speed || "";
     const breakingNews = String(context?.breaking || "").trim();
@@ -715,7 +808,11 @@ Surface: ${tournamentSurface}
 Speed: ${tournamentSpeed}
 Context: ${tournamentContext}
 
-${hasLiveBoard ? `LIVE MATCH BOARD
+${matchupDigest ? `MATCHUP CARD — PLAYER DIGEST (use in WHY MISPRICED / WHY IT FITS — cite only these signals; do not invent stats)
+Official event surface on card (ATP feed): ${boardSurfaceHint || "not on card — use tournament context above"}
+${matchupDigest}
+
+` : ""}${hasLiveBoard ? `LIVE MATCH BOARD
 ${liveBoard}
 
 ` : ""}ATP PLAYER DATABASE (surface-ranked snapshot — cite only these stats)
@@ -801,7 +898,14 @@ CONFIDENCE
 [High / Medium / Speculative — followed by one phrase citing what data this rests on]
 
 TIMING
-[one line: bet now / wait for price / live trigger]`;
+[one line: bet now / wait for price / live trigger]${
+      isWtaLeague
+        ? `
+
+SCOPE (mandatory extra line — WTA matchup or card)
+SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level profiles and live card context — confirm prices before sizing.`
+        : ""
+    }`;
   } else if (sportHint === "golf") {
     userPrompt = `You are answering a golf betting question.
 

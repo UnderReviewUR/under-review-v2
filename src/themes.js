@@ -423,7 +423,7 @@ export const THEMES = {
 
       .theme-epilogue .ask-bar {
         font-family: 'Epilogue', sans-serif;
-        font-size: 15px;
+        font-size: 16px;
         color: rgba(255,255,255,.92);
       }
 
