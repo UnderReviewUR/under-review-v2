@@ -1,7 +1,6 @@
-/** Global layout + shell styles; injected with theme CSS in App. */
+/** Global layout + shell styles; injected with theme CSS in App.
+ *  Fonts load from index.html (single request, trimmed weights) — no @import here. */
 export const baseCss = `
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:ital,wght@0,400;0,500;1,400&family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Epilogue:wght@400;500;700;800;900&family=Geist+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;0,900;1,400&display=swap');
-
   @keyframes pulse{
     0%,100%{opacity:1;}
     50%{opacity:0.4;}
