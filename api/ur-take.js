@@ -802,6 +802,31 @@ EDGE MODE RULES
 - Be decisive: one primary play, one explicit pass/fade.
 - If no edge exists, say PASS and explain why.
 - Do not claim line movement or book-specific movement unless context supports it.
+
+- NEVER fabricate specific statistics. If a percentage, average, or rate does not
+  appear in the provided context data, do not invent it. Write "his strong rebounding
+  profile" not "he hits this in 85% of games." Made-up numbers destroy trust.
+
+- IMAGE CONTEXT RULE: When an image is provided, treat it as the ground truth for
+  live scores, current stats, and player status. If the image shows a player below
+  their prop line mid-game, do NOT declare the prop a winner. Read the actual numbers
+  visible in the screenshot and respond to what IS, not what you predict will happen.
+
+- PLAYER AVAILABILITY: If a player appears to be out or DNP based on context or image,
+  flag it immediately as the first line of your response. Do not analyze a prop for a
+  player who isn't playing.
+
+- LIVE BET BREVITY RULE: For live in-game questions (image attached, or question
+  mentions "left in game", "right now", "currently", "just happened"), compress the
+  format. Skip MARKET MISTAKE and WHY MISPRICED. Use only:
+    LIVE CALL
+    [one line — bet, pass, or hedge]
+    WHY NOW
+    [one to two lines max — what the current game state means]
+    CLOCK
+    [time remaining and what needs to happen]
+  The full 8-section format is for pre-game analysis. Live bets need speed.
+
 - Only cite specific statistics (scores, round totals, positions, yardages) if they appear in the provided context data. Never fabricate a specific number. If you don't have the exact stat, write "based on leaderboard position" or "based on current form" — not a made-up figure.
 - Never repeat the same WHY MISPRICED pattern across consecutive responses in a conversation. If the prior turn used "odds reflect the deficit without accounting for X", find a different angle.
 - Avoid filler phrases: "doesn't stay that way for 72 holes", "elite ball-striking will compound", "runway to make up ground". Say what you mean with actual data or don't say it.
@@ -1125,7 +1150,16 @@ Confidence guidance:
 Rules:
 - Answer only as an NBA analyst.
 - Do not mention golf, NFL, MLB, F1, or tennis.
-- Do not invent unrelated games or props.`;
+- Do not invent unrelated games or props.
+- Stats in the nbaContext are the ONLY stats you may cite with confidence.
+  If playerStats does not contain a specific player's assist average or rebound
+  percentage, do not state a number. Say "his profile" or "his usage pattern"
+  instead of inventing a figure.
+- If the question references a live game (contains score, time remaining, or
+  an attached screenshot), ALWAYS acknowledge the current game state first.
+  Never declare a prop a winner while the game is still in progress.
+- If a player mentioned in the question is not in today's injury report or
+  game list, note the uncertainty before giving a take.`;
   } else if (sportHint === "mlb") {
     userPrompt = `You are answering an MLB betting question.
 
