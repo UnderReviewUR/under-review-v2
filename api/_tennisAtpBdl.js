@@ -1,9 +1,26 @@
 /**
- * BallDontLie ATP API — DIAGNOSTIC VERSION
- * Logs raw BDL responses to Vercel console so we can see why fixtures aren't ingesting.
- * Replace with normal version once we identify the issue.
+ * BallDontLie ATP API — men's singles only (ALL-STAR+ tier).
+ * See https://www.balldontlie.io/openapi/atp.yml
+ *
+ * Strategy: filter on BDL's side with `start_date_after` so we never page
+ * through hundreds of completed early-season matches.
+ *
+ * Previous problem: BDL returns matches in ascending date order. Page 1
+ * returned January matches (long completed). At ~100 matches per ATP week,
+ * skipping Jan-Apr would take 30+ pages — eating Vercel's function budget.
+ *
+ * Fix: anchor each request 4 days before today using BDL's start_date_after
+ * filter. That returns only currently-relevant matches: live, in-progress
+ * tournament, and upcoming events. Common case: 1 page covers the whole board.
+ *
+ * Request budget: max 3 BDL round-trips, ~6s per request.
+ *   Wave 1 (parallel): live + recent/upcoming page 1
+ *   Wave 2 (rare):     page 2 if first page filled to per_page max
+ *   Wave 3 (fallback): no date filter, in case start_date_after is unsupported
  */
 import { bdlFetch } from "./_balldontlie.js";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function isFinishedBdl(match) {
   const s = String(match?.match_status || "").toLowerCase();
@@ -32,6 +49,13 @@ function bdlPlayerFullName(player) {
 function bdlScheduledTime(m) {
   return m.scheduled_time || m.scheduled_at || m.start_time || null;
 }
+
+/** Format a Date as YYYY-MM-DD for BDL date-filter params. */
+function isoDateOnly(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+// ─── Public: fixture shape ───────────────────────────────────────────────────
 
 export function bdlMatchToFixtureShape(m, options = {}) {
   const p1 = bdlPlayerFullName(m.player1);
@@ -81,89 +105,75 @@ export function bdlMatchToFixtureShape(m, options = {}) {
   };
 }
 
+// ─── Public: window filter ───────────────────────────────────────────────────
+
+/**
+ * Keep matches relevant to a betting board. Live always passes. Otherwise:
+ * - If match has a schedule, must fall in window OR be a recent unfinished match
+ * - If no schedule, keep when the parent tournament is currently running
+ */
 export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
   if (m.is_live) return true;
 
   const rawSchedule = bdlScheduledTime(m);
   const t = rawSchedule ? new Date(rawSchedule).getTime() : NaN;
 
-  if (!Number.isFinite(t)) return !isFinishedBdl(m);
+  if (Number.isFinite(t)) {
+    const now = Date.now();
+    const lookaheadMs = 62 * 24 * 60 * 60 * 1000;
+    const recentPastMs = 72 * 60 * 60 * 1000;
 
-  const now = Date.now();
-  const lookaheadMs = 62 * 24 * 60 * 60 * 1000;
-  const recentPastMs = 72 * 60 * 60 * 1000;
+    if (t >= windowStartMs && t <= windowEndMs) return true;
+    if (!isFinishedBdl(m) && t >= now - recentPastMs && t <= now + lookaheadMs)
+      return true;
 
-  if (t >= windowStartMs && t <= windowEndMs) return true;
-  if (!isFinishedBdl(m) && t >= now - recentPastMs && t <= now + lookaheadMs)
-    return true;
+    return false;
+  }
 
-  return false;
+  // No scheduled_time — keep if the tournament itself is current
+  if (isFinishedBdl(m)) return false;
+
+  const tStart = m.tournament?.start_date
+    ? new Date(m.tournament.start_date).getTime()
+    : NaN;
+  const tEnd = m.tournament?.end_date
+    ? new Date(m.tournament.end_date).getTime()
+    : NaN;
+
+  if (Number.isFinite(tStart) && Number.isFinite(tEnd)) {
+    const now = Date.now();
+    return now >= tStart - 7 * 24 * 60 * 60 * 1000 && now <= tEnd + 24 * 60 * 60 * 1000;
+  }
+
+  return true;
 }
+
+// ─── Public: main board fetch ────────────────────────────────────────────────
 
 export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const apiKey = process.env.BALLDONTLIE_API_KEY;
   if (!apiKey) {
-    console.log("[BDL DIAG] No API key");
     return { ok: false, fixtures: [], reason: "no_bdl_key" };
   }
 
   const windowStartMs = windowStart.getTime();
   const windowEndMs = windowEnd.getTime();
   const byId = new Map();
-  const currentYear = new Date().getFullYear();
 
-  console.log("[BDL DIAG] Window:", {
-    start: windowStart.toISOString(),
-    end: windowEnd.toISOString(),
-    currentYear,
-  });
+  // Anchor BDL's start_date_after at 3 days before the window opens — gives us
+  // matches that started recently or are upcoming, skips months of completed history.
+  const dateAnchor = new Date(windowStart);
+  dateAnchor.setDate(dateAnchor.getDate() - 3);
+  const startDateAfter = isoDateOnly(dateAnchor);
 
-  // Diagnostic counters
-  const stats = {
-    totalRowsReceived: 0,
-    rejectedNoPlayerNames: 0,
-    rejectedOutOfWindow: 0,
-    accepted: 0,
-    sampleRows: [],
-  };
-
-  const ingest = (batch, source) => {
-    if (!Array.isArray(batch)) {
-      console.log(`[BDL DIAG] ${source}: batch is not array`, typeof batch);
-      return;
-    }
-    console.log(`[BDL DIAG] ${source}: received ${batch.length} rows`);
-    stats.totalRowsReceived += batch.length;
-
+  const ingest = (batch) => {
+    if (!Array.isArray(batch)) return;
     for (const m of batch) {
-      // Capture first 3 raw rows for inspection
-      if (stats.sampleRows.length < 3) {
-        stats.sampleRows.push({
-          id: m.id,
-          player1: m.player1,
-          player2: m.player2,
-          scheduled_time: m.scheduled_time,
-          scheduled_at: m.scheduled_at,
-          start_time: m.start_time,
-          is_live: m.is_live,
-          match_status: m.match_status,
-          tournament: m.tournament,
-          round: m.round,
-        });
-      }
-
       const p1 = bdlPlayerFullName(m.player1);
       const p2 = bdlPlayerFullName(m.player2);
-      if (!p1 || !p2) {
-        stats.rejectedNoPlayerNames++;
-        continue;
-      }
-      if (!bdlMatchInBoardWindow(m, windowStartMs, windowEndMs)) {
-        stats.rejectedOutOfWindow++;
-        continue;
-      }
+      if (!p1 || !p2) continue;
+      if (!bdlMatchInBoardWindow(m, windowStartMs, windowEndMs)) continue;
       byId.set(m.id, m);
-      stats.accepted++;
     }
   };
 
@@ -173,50 +183,49 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   let anyOk = false;
   let lastError = null;
 
-  const handle = (res, label) => {
+  const handle = (res) => {
     if (res.ok) {
       anyOk = true;
-      ingest(res.data?.data, label);
+      ingest(res.data?.data);
     } else {
-      console.log(`[BDL DIAG] ${label} FAILED:`, res.status, res.error);
       lastError = { reason: res.error || "bdl_request_failed", status: res.status };
     }
     return res;
   };
 
-  // Wave 1
+  // ── Wave 1: parallel live + date-anchored page 1 ─────────────────────────
   const [liveRes, page1Res] = await Promise.all([
-    fetchPage({ per_page: 100, is_live: true, season: currentYear }),
-    fetchPage({ per_page: 100, season: currentYear }),
+    fetchPage({ per_page: 100, is_live: true }),
+    fetchPage({ per_page: 100, start_date_after: startDateAfter }),
   ]);
 
-  handle(liveRes, "WAVE1_LIVE");
-  handle(page1Res, "WAVE1_PAGE1");
+  handle(liveRes);
+  handle(page1Res);
 
   const page1Cursor = page1Res.ok
     ? (page1Res.data?.meta?.next_cursor ?? null)
     : null;
 
-  // Wave 2
-  if (byId.size < 30 && page1Cursor) {
+  // ── Wave 2: page 2 if board still building ──────────────────────────────
+  // With start_date_after, page 1 usually has everything. Only page 2 if it filled.
+  const page1Full =
+    page1Res.ok && Array.isArray(page1Res.data?.data) &&
+    page1Res.data.data.length >= 100;
+
+  if (page1Full && page1Cursor && byId.size < 50) {
     const page2Res = await fetchPage({
       per_page: 100,
-      season: currentYear,
+      start_date_after: startDateAfter,
       cursor: page1Cursor,
     });
-    handle(page2Res, "WAVE2_PAGE2");
+    handle(page2Res);
   }
 
-  // Wave 3
+  // ── Wave 3: fallback if start_date_after isn't supported by BDL ────────
   if (byId.size === 0) {
-    console.log("[BDL DIAG] Empty board after waves 1+2, trying unscoped fallback");
     const fallbackRes = await fetchPage({ per_page: 100 });
-    handle(fallbackRes, "WAVE3_UNSCOPED");
+    handle(fallbackRes);
   }
-
-  // Final diagnostic dump
-  console.log("[BDL DIAG] FINAL STATS:", JSON.stringify(stats, null, 2));
-  console.log("[BDL DIAG] Final byId.size:", byId.size);
 
   if (byId.size === 0 && !anyOk && lastError) {
     return {
