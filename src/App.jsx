@@ -77,6 +77,8 @@ ${themeCss}
 
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home");
+  /** Stack of { screen, tab } snapshots for header back + swipe-back. */
+  const [navHistory, setNavHistory] = useState([]);
   const [selectedMatchup, setSelectedMatchup] = useState(null);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedNflPlayer, setSelectedNflPlayer] = useState(null);
@@ -122,6 +124,7 @@ ${themeCss}
   const [golfLoading, setGolfLoading]   = useState(false);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
+  const swipeTouchStartRef = useRef(null);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const askInputRef       = useRef(null);
@@ -1384,16 +1387,113 @@ ${themeCss}
   );
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  const goHome   = useCallback(()=>{ setTab("home");  setScreen("home");  setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const goTennis = useCallback(()=>{ setTab("tennis");setScreen("tennis");setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const goNfl    = useCallback(()=>{ setTab("nfl");   setScreen("nfl");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const goF1     = useCallback(()=>{ setTab("f1");    setScreen("f1");    setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const goNba    = useCallback(()=>{ setTab("nba");   setScreen("nba");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const goMlb    = useCallback(()=>{ setTab("mlb");   setScreen("mlb");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
-  const goAsk    = useCallback(()=>{ setTab("ask");   setScreen("ask");   setSelectedMatchup(null); },[]);
-  const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
+  const goBack = useCallback(() => {
+    setNavHistory((prevStack) => {
+      if (prevStack.length === 0) return prevStack;
+      const entry = prevStack[prevStack.length - 1];
+      setTab(entry.tab);
+      setScreen(entry.screen);
+      setSelectedMatchup(null);
+      setSelectedPlayer(null);
+      setSelectedNflPlayer(null);
+      return prevStack.slice(0, -1);
+    });
+  }, []);
 
-  const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
+  const goHome = useCallback(() => {
+    setNavHistory([]);
+    setTab("home");
+    setScreen("home");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, []);
+
+  const goTennis = useCallback(() => {
+    if (screen !== "tennis" || tab !== "tennis") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("tennis");
+    setScreen("tennis");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goNfl = useCallback(() => {
+    if (screen !== "nfl" || tab !== "nfl") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("nfl");
+    setScreen("nfl");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goF1 = useCallback(() => {
+    if (screen !== "f1" || tab !== "f1") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("f1");
+    setScreen("f1");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goNba = useCallback(() => {
+    if (screen !== "nba" || tab !== "nba") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("nba");
+    setScreen("nba");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goMlb = useCallback(() => {
+    if (screen !== "mlb" || tab !== "mlb") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("mlb");
+    setScreen("mlb");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goAsk = useCallback(() => {
+    if (screen !== "ask" || tab !== "ask") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("ask");
+    setScreen("ask");
+    setSelectedMatchup(null);
+  }, [screen, tab]);
+
+  const goPro = useCallback(() => {
+    if (screen !== "pro" || tab !== "pro") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("pro");
+    setScreen("pro");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goGolf = useCallback(() => {
+    if (screen !== "golf" || tab !== "golf") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("golf");
+    setScreen("golf");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
 
   const tickerNbaGames = useMemo(
     () => (nbaGames.length > 0 ? nbaGames : nbaData?.todaysGames || []),
@@ -1496,56 +1596,78 @@ ${themeCss}
     [tennisTickerMatches, goTennis],
   );
 
- const openMatchup = useCallback((m) => {
-  if (!m?.title || !m?.network) return;
+  const openMatchup = useCallback(
+    (m) => {
+      if (!m?.title || !m?.network) return;
 
-  if (
-    m?.id === "tennis-atp-schedule-board" ||
-    m?.id === "tennis-atp-feed-loading" ||
-    m?.id === "tennis-atp-feed-empty"
-  ) {
-    setTab("tennis");
-    setScreen("tennis");
-    setSelectedMatchup(null);
-    return;
-  }
+      if (
+        m?.id === "tennis-atp-schedule-board" ||
+        m?.id === "tennis-atp-feed-loading" ||
+        m?.id === "tennis-atp-feed-empty"
+      ) {
+        if (screen !== "tennis" || tab !== "tennis") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("tennis");
+        setScreen("tennis");
+        setSelectedMatchup(null);
+        return;
+      }
 
-  if (m?.id === "ur-home-tracker") {
-    setTab("pro");
-    setScreen("pro");
-    return;
-  }
+      if (m?.id === "ur-home-tracker") {
+        if (screen !== "pro" || tab !== "pro") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("pro");
+        setScreen("pro");
+        return;
+      }
 
-  if ((m.league || "").includes("GOLF")) {
-    setTab("golf");
-    setScreen("golf");
-    return;
-  }
+      if ((m.league || "").includes("GOLF")) {
+        if (screen !== "golf" || tab !== "golf") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("golf");
+        setScreen("golf");
+        return;
+      }
 
-  if ((m.league || "").includes("NBA")) {
-    setTab("nba");
-    setScreen("nba");
-    return;
-  }
+      if ((m.league || "").includes("NBA")) {
+        if (screen !== "nba" || tab !== "nba") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("nba");
+        setScreen("nba");
+        return;
+      }
 
-  if ((m.league || "").includes("MLB")) {
-    setTab("mlb");
-    setScreen("mlb");
-    return;
-  }
+      if ((m.league || "").includes("MLB")) {
+        if (screen !== "mlb" || tab !== "mlb") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("mlb");
+        setScreen("mlb");
+        return;
+      }
 
-  if ((m.league || "").includes("F1")) {
-    setTab("f1");
-    setScreen("f1");
-    return;
-  }
+      if ((m.league || "").includes("F1")) {
+        if (screen !== "f1" || tab !== "f1") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("f1");
+        setScreen("f1");
+        return;
+      }
 
-  setSelectedMatchup(m);
-  setMatchupMsgs([]);
-  setMatchupInput("");
-  setScreen("matchup");
-  setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
-}, []);
+      setNavHistory((h) => [...h, { screen, tab }]);
+      setSelectedMatchup(m);
+      setMatchupMsgs([]);
+      setMatchupInput("");
+      setScreen("matchup");
+      setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
+    },
+    [screen, tab],
+  );
 
   const scheduleChatScroll = useCallback((screenRef) => {
     const scroll = () => {
@@ -1563,17 +1685,24 @@ ${themeCss}
   }, []);
 
   const openPlayer = useCallback((name) => {
+    setNavHistory((h) => [...h, { screen, tab }]);
     setSelectedPlayer(name);
     setScreen("player");
     setTab("tennis");
-  }, []);
+  }, [screen, tab]);
+
   const openNflPlayer = useCallback((name) => {
+    setNavHistory((h) => [...h, { screen, tab }]);
     setSelectedNflPlayer(name);
     setScreen("nflplayer");
     setTab("nfl");
-  }, []);
+  }, [screen, tab]);
+
   const firePrompt = useCallback(
     (prompt, sportHint = null) => {
+      if (screen !== "ask" || tab !== "ask") {
+        setNavHistory((h) => [...h, { screen, tab }]);
+      }
       setTab("ask");
       setScreen("ask");
       setAskInput("");
@@ -1583,11 +1712,25 @@ ${themeCss}
         setTimeout(() => scheduleChatScroll(askScreenRef), 120);
       });
     },
-    [askUrTake, scheduleChatScroll],
+    [askUrTake, scheduleChatScroll, screen, tab],
   );
 
   // ── Submit handlers ────────────────────────────────────────────────────────
-  const submitHome    = useCallback(()=>{ const t=askInput.trim();    if(!t||isAsking)return; setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); requestAnimationFrame(()=>{ scheduleChatScroll(askScreenRef); setTimeout(()=>scheduleChatScroll(askScreenRef),120); }); },[askUrTake,askInput,isAsking,scheduleChatScroll]);
+  const submitHome = useCallback(() => {
+    const t = askInput.trim();
+    if (!t || isAsking) return;
+    if (screen !== "ask" || tab !== "ask") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setAskInput("");
+    setTab("ask");
+    setScreen("ask");
+    askUrTake({ text: t, setMsgs: setAskMsgs });
+    requestAnimationFrame(() => {
+      scheduleChatScroll(askScreenRef);
+      setTimeout(() => scheduleChatScroll(askScreenRef), 120);
+    });
+  }, [askUrTake, askInput, isAsking, scheduleChatScroll, screen, tab]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,scheduleChatScroll]);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
   const submitWta = useCallback(
@@ -1780,6 +1923,39 @@ ${themeCss}
     return stats.slice(0, 20);
   }, [nbaData]);
 
+  const backNavTarget = navHistory.length > 0 ? navHistory[navHistory.length - 1] : null;
+  const backNavLabel =
+    backNavTarget &&
+    `‹ ${
+      backNavTarget.screen === "home"
+        ? "HOME"
+        : backNavTarget.screen === "player"
+          ? "TENNIS"
+          : backNavTarget.screen === "nflplayer"
+            ? "NFL"
+            : String(backNavTarget.screen || "").toUpperCase()
+    }`;
+
+  const onAppTouchStart = useCallback((e) => {
+    const t = e.touches?.[0];
+    if (!t) return;
+    swipeTouchStartRef.current = { x: t.clientX, y: t.clientY };
+  }, []);
+
+  const onAppTouchEnd = useCallback(
+    (e) => {
+      const start = swipeTouchStartRef.current;
+      swipeTouchStartRef.current = null;
+      if (!start) return;
+      const t = e.changedTouches?.[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = Math.abs(t.clientY - start.y);
+      if (dx > 60 && dy < 40) goBack();
+    },
+    [goBack],
+  );
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
@@ -1795,14 +1971,45 @@ ${themeCss}
             ? "#0F172A"
             : "var(--text)",
     }}
+    onTouchStart={onAppTouchStart}
+    onTouchEnd={onAppTouchEnd}
   >
 
         <header className="hdr">
-  <div className="wordmark" onClick={goHome}>
-    <span className="logo-review">UnderReview</span>
-  </div>
-  <div className="header-right">{headerPill}</div>
-</header>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {navHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={goBack}
+                style={{
+                  flexShrink: 0,
+                  border: "none",
+                  background: "none",
+                  padding: "4px 2px",
+                  cursor: "pointer",
+                  fontFamily: "var(--mono-font)",
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  color: "#00F5E9",
+                }}
+              >
+                {backNavLabel}
+              </button>
+            )}
+            <div className="wordmark" onClick={goHome}>
+              <span className="logo-review">UnderReview</span>
+            </div>
+          </div>
+          <div className="header-right">{headerPill}</div>
+        </header>
 
         {/* ══ HOME ══ */}
         {screen==="home"&&(
@@ -2680,7 +2887,19 @@ ${themeCss}
         {/* ══ NFL PLAYER DETAIL ══ */}
         {screen==="nflplayer"&&nflPd&&(
           <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <button className="detail-back" onClick={()=>{setScreen("nfl");setSelectedNflPlayer(null);}}>← BACK</button>
+            <button
+              className="detail-back"
+              type="button"
+              onClick={() => {
+                if (navHistory.length > 0) goBack();
+                else {
+                  setScreen("nfl");
+                  setSelectedNflPlayer(null);
+                }
+              }}
+            >
+              ← BACK
+            </button>
             <div className="detail-card">
               <div className="nfl-detail-head"><div className="nfl-detail-pos">{nflPd.pos} · {nflPd.team} · {nflPd.tier}</div><div className="nfl-detail-name">{selectedNflPlayer}</div><div className="nfl-detail-sub">{nflPd.ydsPg} yds/g · {nflPd.rec2025.g} games played</div></div>
               <div className="nfl-detail-grid">
@@ -3459,7 +3678,19 @@ ${themeCss}
     {/* ══ MATCHUP DETAIL ══ */}
         {screen==="matchup"&&selectedMatchup&&(
           <main ref={matchupScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <button className="detail-back" onClick={()=>{setSelectedMatchup(null);setScreen(selectedMatchup?.league?.includes("NFL")?"nfl":"tennis");}}>← BACK</button>
+            <button
+              className="detail-back"
+              type="button"
+              onClick={() => {
+                if (navHistory.length > 0) goBack();
+                else {
+                  setSelectedMatchup(null);
+                  setScreen(selectedMatchup?.league?.includes("NFL") ? "nfl" : "tennis");
+                }
+              }}
+            >
+              ← BACK
+            </button>
             <div className="detail-card">
               <div className="detail-head"><div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div><div className="detail-title">{selectedMatchup.title}</div><div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div></div>
               <div className="what-matters"><div className="wm-label">Match Snapshot</div><div className="wm-text">{selectedMatchup.whatMatters||"Ask for the side, total, props, or live angle."}</div></div>
@@ -3474,7 +3705,16 @@ ${themeCss}
         {/* ══ TENNIS PLAYER DETAIL ══ */}
         {screen==="player"&&pd&&(
           <main className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <button className="detail-back" onClick={()=>setScreen("tennis")}>← BACK</button>
+            <button
+              className="detail-back"
+              type="button"
+              onClick={() => {
+                if (navHistory.length > 0) goBack();
+                else setScreen("tennis");
+              }}
+            >
+              ← BACK
+            </button>
             <div className="detail-card">
               <div className="detail-head"><div className="detail-league" style={{color:"var(--cyan-bright)"}}>TENNIS PLAYER PROFILE</div><div className="detail-title">{selectedPlayer}</div><div className="detail-sub">{Array.isArray(pd.style)?pd.style.join(", ").replaceAll("_"," "):pd.style} · Elo {pd.elo}</div></div>
               <div className="what-matters"><div className="wm-label">Surface Notes</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:8}}><div className="mini-stat"><div className="mini-label">HARD</div><div className="mini-value" style={{color:"var(--cyan-bright)"}}>•</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.hard||"—"}</div></div><div className="mini-stat"><div className="mini-label">CLAY</div><div className="mini-value" style={{color:"var(--gold)"}}>•</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.clay||"—"}</div></div><div className="mini-stat"><div className="mini-label">GRASS</div><div className="mini-value" style={{color:"var(--green)"}}>•</div><div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{pd.surfaceNote?.grass||"—"}</div></div></div></div>
