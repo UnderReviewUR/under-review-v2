@@ -680,6 +680,9 @@ ${themeCss}
       lastNightStats:  nbaData?.lastNightStats|| [],
       liveStats:       nbaData?.liveStats     || [],
       playerStats:     nbaData?.playerStats   || [],
+      /** Pre-rendered lines for LLM — team sourced from game box when statsSource is game_box */
+      playerStatsText: nbaData?.playerStatsText || "",
+      statsSource:     nbaData?.statsSource || "",
       propLines:       nbaData?.propLines     || [],
       injuries:        nbaData?.injuries      || [],
       recentForm:      nbaData?.recentForm    || "",

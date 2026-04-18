@@ -160,7 +160,7 @@ async function getNbaPropLines(oddsKey) {
   }
 }
 
-/** Odds API prop lines list which game each player is priced for — usually fresher than BDL team after trades. */
+/** Odds API prop lines list which game each player is priced for — merge with BDL game rows. */
 function attachTonightGamesFromProps(playerStats, propLines) {
   const gameByPlayer = {};
   for (const pl of propLines || []) {
@@ -179,34 +179,170 @@ function attachTonightGamesFromProps(playerStats, propLines) {
   });
 }
 
-async function getCurrentPlayerStats(bdlKey) {
-  const season = new Date().getFullYear();
-  const cacheKey = `nba_player_stats_${season}`;
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
-  if (!bdlKey) return [];
+function bdlHeaders(bdlKey) {
+  return { Accept: "application/json", Authorization: bdlKey };
+}
 
+function abbrevFromTeamObj(t) {
+  if (!t || typeof t !== "object") return "?";
+  if (t.abbreviation) return t.abbreviation;
+  if (t.full_name) return normalizeTeamAbbr(t.full_name);
+  return "?";
+}
+
+/** Visitor @ Home using BDL game object (supports visitor_team/home_team naming). */
+function matchupLabelFromGame(g) {
+  if (!g) return "";
+  const vis = g.visitor_team || g.visitorTeam;
+  const hom = g.home_team || g.homeTeam;
+  const va = abbrevFromTeamObj(vis);
+  const ha = abbrevFromTeamObj(hom);
+  return `${va} @ ${ha}`;
+}
+
+function buildGameLabelMap(games) {
+  const m = new Map();
+  for (const g of games || []) {
+    if (g?.id != null) m.set(g.id, matchupLabelFromGame(g));
+  }
+  return m;
+}
+
+async function fetchJsonOrNull(url, bdlKey) {
   try {
-    const res = await fetch(`https://api.balldontlie.io/v1/season_averages?season=${season}`, {
-      headers: { Accept:"application/json", Authorization: bdlKey },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const rows = Array.isArray(data?.data) ? data.data : [];
+    const res = await fetch(url, { headers: bdlHeaders(bdlKey) });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
 
-    const playerIds = rows.map(r => r.player_id).filter(Boolean).slice(0, 250);
-    const players = [];
-    for (let i = 0; i < playerIds.length; i += 25) {
-      const chunk = playerIds.slice(i, i + 25);
-      const qs = chunk.map(id => `player_ids[]=${encodeURIComponent(id)}`).join("&");
-      const pRes = await fetch(`https://api.balldontlie.io/v1/players?${qs}`, { headers:{ Accept:"application/json", Authorization:bdlKey } });
-      if (!pRes.ok) continue;
-      const pData = await pRes.json();
-      if (Array.isArray(pData?.data)) players.push(...pData.data);
+/** Paginated BDL games for one calendar date (ET). Tries /nba/v1/games then /v1/games. */
+async function fetchBdlGamesForDate(bdlKey, dateIso) {
+  const bases = [
+    "https://api.balldontlie.io/nba/v1/games",
+    "https://api.balldontlie.io/v1/games",
+  ];
+  for (const base of bases) {
+    const all = [];
+    let cursor = null;
+    let pages = 0;
+    let firstOk = false;
+    while (pages < 30) {
+      const qs = new URLSearchParams();
+      qs.append("dates[]", dateIso);
+      qs.append("per_page", "100");
+      if (cursor != null && cursor !== "") qs.append("cursor", String(cursor));
+      const data = await fetchJsonOrNull(`${base}?${qs.toString()}`, bdlKey);
+      if (!data || !Array.isArray(data.data)) break;
+      firstOk = true;
+      all.push(...data.data);
+      const next = data.meta?.next_cursor;
+      if (next == null || next === "" || data.data.length === 0) break;
+      cursor = next;
+      pages += 1;
     }
+    if (firstOk) return all;
+  }
+  return [];
+}
 
-    const playerMap = new Map(players.map(p => [p.id, p]));
-    const normalized = rows.map(r => {
+/** Paginated stats for a batch of game IDs. Tries /nba/v1/stats then /v1/stats. */
+async function fetchBdlStatsForGameIds(bdlKey, gameIds) {
+  if (!gameIds.length) return [];
+  const bases = [
+    "https://api.balldontlie.io/nba/v1/stats",
+    "https://api.balldontlie.io/v1/stats",
+  ];
+  const chunkSize = 12;
+  const out = [];
+  for (let i = 0; i < gameIds.length; i += chunkSize) {
+    const chunk = gameIds.slice(i, i + chunkSize);
+    const idQs = chunk.map((id) => `game_ids[]=${encodeURIComponent(id)}`).join("&");
+    for (const base of bases) {
+      const rows = [];
+      let cursor = null;
+      let pages = 0;
+      while (pages < 40) {
+        let url = `${base}?${idQs}&per_page=100`;
+        if (cursor != null && cursor !== "") url += `&cursor=${encodeURIComponent(cursor)}`;
+        const data = await fetchJsonOrNull(url, bdlKey);
+        if (!data || !Array.isArray(data.data)) break;
+        rows.push(...data.data);
+        const next = data.meta?.next_cursor;
+        if (next == null || next === "" || data.data.length === 0) break;
+        cursor = next;
+        pages += 1;
+      }
+      if (rows.length > 0) {
+        out.push(...rows);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+function statRowsToPlayers(statRows, gameLabelMap) {
+  const byPlayer = new Map();
+  for (const row of statRows) {
+    const p = row.player;
+    if (!p?.id) continue;
+    const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+    const team = row.team?.abbreviation || "UNK";
+    const gid = row.game?.id;
+    let tonightGame = gid != null ? gameLabelMap.get(gid) : null;
+    if (!tonightGame && row.game) tonightGame = matchupLabelFromGame(row.game);
+    const o = {
+      playerId: p.id,
+      name,
+      team,
+      pts: row.pts,
+      reb: row.reb,
+      ast: row.ast,
+      stl: row.stl,
+      blk: row.blk,
+      min: row.min,
+      fg_pct: row.fg_pct,
+      fg3_pct: row.fg3_pct,
+      ft_pct: row.ft_pct,
+      games_played: 1,
+      season: row.game?.season ?? new Date().getFullYear(),
+      source: "game_box",
+      tonightGame: tonightGame || undefined,
+      gameId: gid,
+    };
+    byPlayer.set(p.id, o);
+  }
+  return [...byPlayer.values()].sort((a, b) => (b.pts || 0) - (a.pts || 0));
+}
+
+/** Season averages + /v1/players lookup — team can lag trades; used only as fallback. */
+async function fetchSeasonAveragePlayerStats(bdlKey, season) {
+  const res = await fetch(`https://api.balldontlie.io/v1/season_averages?season=${season}`, {
+    headers: bdlHeaders(bdlKey),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const rows = Array.isArray(data?.data) ? data.data : [];
+
+  const playerIds = rows.map((r) => r.player_id).filter(Boolean).slice(0, 250);
+  const players = [];
+  for (let j = 0; j < playerIds.length; j += 25) {
+    const chunk = playerIds.slice(j, j + 25);
+    const qs = chunk.map((id) => `player_ids[]=${encodeURIComponent(id)}`).join("&");
+    const pRes = await fetch(`https://api.balldontlie.io/v1/players?${qs}`, {
+      headers: bdlHeaders(bdlKey),
+    });
+    if (!pRes.ok) continue;
+    const pData = await pRes.json();
+    if (Array.isArray(pData?.data)) players.push(...pData.data);
+  }
+
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+  return rows
+    .map((r) => {
       const p = playerMap.get(r.player_id);
       if (!p) return null;
       const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
@@ -226,14 +362,83 @@ async function getCurrentPlayerStats(bdlKey) {
         ft_pct: r.ft_pct,
         games_played: r.games_played,
         season,
+        source: "season_average",
+        statsNote:
+          "Season averages — team field is from BDL player record and may lag mid-season trades. Prefer game_box rows or tonightGame when present.",
       };
-    }).filter(Boolean).sort((a, b) => (b.pts||0) - (a.pts||0));
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b.pts || 0) - (a.pts || 0));
+}
 
-    setCached(cacheKey, normalized);
-    return normalized;
+function buildPlayerStatsSummaryLines(players, statsSource) {
+  const header =
+    statsSource === "game_box"
+      ? "PLAYER SNAPSHOT (from today's game box scores — team = who they played for in that game)"
+      : "PLAYER SNAPSHOT (season averages — NOT live roster; team may lag trades. Cross-check tonightGame / props.)";
+  const lines = (players || []).slice(0, 120).map((p) => {
+    const pts = p.pts != null ? `${Number(p.pts)}` : "?";
+    const reb = p.reb != null ? `${Number(p.reb)}` : "?";
+    const ast = p.ast != null ? `${Number(p.ast)}` : "?";
+    const tg = p.tonightGame ? ` | Tonight: ${p.tonightGame}` : "";
+    const tag = p.source === "season_average" ? " [season avg]" : "";
+    return `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${tg}${tag}`;
+  });
+  return [header, "", ...lines].join("\n");
+}
+
+/**
+ * Prefer today's BDL game stats (correct team per game). Fall back to season averages
+ * when there is no slate or no box score yet.
+ */
+async function getNbaPlayerStatsBundle(bdlKey) {
+  const todayIso = getTodayEtDateString();
+  const cacheKey = `nba_player_bundle_${todayIso}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+  if (!bdlKey) {
+    const empty = { playerStats: [], playerStatsText: "", statsSource: "none" };
+    return empty;
+  }
+
+  const season = new Date().getFullYear();
+
+  try {
+    const games = await fetchBdlGamesForDate(bdlKey, todayIso);
+    const gameIds = [...new Set(games.map((g) => g.id).filter(Boolean))];
+
+    let statRows = [];
+    if (gameIds.length > 0) {
+      statRows = await fetchBdlStatsForGameIds(bdlKey, gameIds);
+    }
+
+    let playerStats = [];
+    let statsSource = "season_average";
+
+    if (statRows.length > 0) {
+      const gameLabelMap = buildGameLabelMap(games);
+      playerStats = statRowsToPlayers(statRows, gameLabelMap);
+      statsSource = "game_box";
+    } else {
+      playerStats = await fetchSeasonAveragePlayerStats(bdlKey, season);
+      statsSource = "season_average";
+    }
+
+    const playerStatsText = buildPlayerStatsSummaryLines(playerStats, statsSource);
+
+    const bundle = { playerStats, playerStatsText, statsSource };
+    setCached(cacheKey, bundle);
+    return bundle;
   } catch (err) {
-    console.warn("getCurrentPlayerStats error:", err.message);
-    return [];
+    console.warn("getNbaPlayerStatsBundle error:", err.message);
+    const fallback = await fetchSeasonAveragePlayerStats(bdlKey, season);
+    const bundle = {
+      playerStats: fallback,
+      playerStatsText: buildPlayerStatsSummaryLines(fallback, "season_average"),
+      statsSource: "season_average",
+    };
+    setCached(cacheKey, bundle);
+    return bundle;
   }
 }
 
@@ -304,22 +509,32 @@ export default async function handler(req, res) {
       const boardCached = getCached(boardCacheKey);
       if (boardCached) return res.status(200).json(boardCached);
 
-      const [todaysGames, propLines, playerStats, playoffSeries] = await Promise.all([
+      const [todaysGames, propLines, statsBundle, playoffSeries] = await Promise.all([
         getTodaysGames(ODDS_KEY),
         getNbaPropLines(ODDS_KEY),
-        getCurrentPlayerStats(BDL_KEY),
+        getNbaPlayerStatsBundle(BDL_KEY),
         getNbaPlayoffSeries(),
       ]);
 
       const injuries = await getNbaInjuries(propLines, todaysGames);
 
-      const playerStatsWithTonight = attachTonightGamesFromProps(playerStats, propLines);
+      const playerStatsWithTonight = attachTonightGamesFromProps(
+        statsBundle.playerStats || [],
+        propLines,
+      );
+
+      const playerStatsTextMerged = buildPlayerStatsSummaryLines(
+        playerStatsWithTonight,
+        statsBundle.statsSource || "season_average",
+      );
 
       const board = {
         seasonContext: getNbaSeasonContext(),
         todaysGames,
         lastNight: [], lastNightStats: [], liveStats: [],
         playerStats: playerStatsWithTonight.slice(0, 120),
+        playerStatsText: playerStatsTextMerged,
+        statsSource: statsBundle.statsSource || "unknown",
         propLines:   propLines.slice(0, 120),
         injuries,
         playoffSeries,         recentForm: "", h2hSplits: [],
@@ -327,7 +542,12 @@ export default async function handler(req, res) {
         fetchedAt: new Date().toISOString(),
       };
 
-      if (todaysGames.length > 0 || propLines.length > 0 || injuries.length > 0 || playerStats.length > 0) {
+      if (
+        todaysGames.length > 0 ||
+        propLines.length > 0 ||
+        injuries.length > 0 ||
+        (statsBundle.playerStats || []).length > 0
+      ) {
         setCached(boardCacheKey, board);
       }
       return res.status(200).json(board);

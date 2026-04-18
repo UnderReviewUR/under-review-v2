@@ -1160,7 +1160,8 @@ Rules:
   Never declare a prop a winner while the game is still in progress.
 - If a player mentioned in the question is not in today's injury report or
   game list, note the uncertainty before giving a take.
-- When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.`;
+- When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.
+- When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.`;
   } else if (sportHint === "mlb") {
     userPrompt = `You are answering an MLB betting question.
 
