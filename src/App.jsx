@@ -89,9 +89,8 @@ ${themeCss}
   const contextRef                     = useRef(null);
   const [context, setContext]           = useState(null);
   const [liveMatches, setLiveMatches]   = useState([]);
-  /** Raw ATP rows from Ball Dont Lie — Home spotlight is built from this, not from empty-board fallbacks. */
-  const [homeAtpRaw, setHomeAtpRaw] = useState(null);
-  const [tennisLoading, setTennisLoading] = useState(false);
+  /** Starts true — Home ATP spotlight waits for same fetch path as Tennis tab (`liveMatches`). */
+  const [tennisLoading, setTennisLoading] = useState(true);
   const [pastedImage, setPastedImage]   = useState(null);
   const [f1Data, setF1Data]             = useState(null);
   const [f1Loading, setF1Loading]       = useState(false);
@@ -328,33 +327,6 @@ ${themeCss}
     }, 60000);
     return () => { active=false; if(pollId) window.clearInterval(pollId); };
   }, [fetchTennisBoard]);
-
-  useEffect(() => {
-    let active = true;
-    let intervalId = null;
-    async function loadHomeAtp() {
-      const c = contextRef.current;
-      const tournamentParam = getTournamentFetchParam(c);
-      try {
-        const res = await fetch(
-          `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`,
-        );
-        const data = await res.json();
-        if (!active) return;
-        if (res.ok && Array.isArray(data)) {
-          setHomeAtpRaw(data.filter(isBallDontLieAtpFixture));
-        } else setHomeAtpRaw([]);
-      } catch {
-        if (active) setHomeAtpRaw([]);
-      }
-    }
-    loadHomeAtp();
-    intervalId = window.setInterval(loadHomeAtp, 90000);
-    return () => {
-      active = false;
-      if (intervalId) window.clearInterval(intervalId);
-    };
-  }, [context]);
 
   useEffect(() => {
   if (userEmail && !isUnlimited) {
@@ -902,7 +874,8 @@ ${themeCss}
   }, [activeTournamentMatches.length,context]);
 
   const homeAtpSpotlightCards = useMemo(() => {
-    if (homeAtpRaw === null) {
+    const atp = liveMatches.filter((m) => m.league === "ATP");
+    if (tennisLoading && atp.length === 0) {
       return [
         {
           id: "tennis-atp-feed-loading",
@@ -919,11 +892,7 @@ ${themeCss}
         },
       ];
     }
-    const atp = homeAtpRaw
-      .map((row) => normalizeTennisMatch(row, "ATP", context))
-      .filter(Boolean)
-      .filter((m) => m.league === "ATP");
-    if (!atp.length) {
+    if (!tennisLoading && !atp.length) {
       return [
         {
           id: "tennis-atp-feed-empty",
@@ -963,7 +932,7 @@ ${themeCss}
         confirmed: true,
       },
     ];
-  }, [homeAtpRaw, context]);
+  }, [liveMatches, tennisLoading, context]);
 
   const homeNflCards = useMemo(() => {
     if (nflSeasonMode) return [
