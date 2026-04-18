@@ -1,8 +1,24 @@
 /**
  * BallDontLie ATP API — men's singles only (ALL-STAR+: matches, race, etc.).
  * See https://www.balldontlie.io/openapi/atp.yml
+ *
+ * Fetch strategy: parallel-first, timeout-safe.
+ *
+ * Request budget: max 3 BDL round-trips.
+ *   Wave 1 (parallel): live + upcoming page 1    — one wall-clock hop, ~1-2s
+ *   Wave 2 (if thin):  upcoming page 2           — only when byId.size < 30
+ *   Wave 3 (fallback): unscoped, no season param — only when byId.size === 0
+ *
+ * Per-request timeout: 6000ms. Total wall-clock common case: ~2-4s.
+ * Worst case (all slow + fallback): ~18s — fits Vercel Pro default (60s)
+ * and is far more consistent than the previous 35-page sequential design.
+ *
+ * Optional: add { maxDuration: 30 } to vercel.json for the /api/tennis route
+ * if you want extra headroom on Pro.
  */
 import { bdlFetch } from "./_balldontlie.js";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function isFinishedBdl(match) {
   const s = String(match?.match_status || "").toLowerCase();
@@ -16,23 +32,57 @@ function isFinishedBdl(match) {
   );
 }
 
+/**
+ * BDL payloads vary — full_name may be missing; fall back through known fields.
+ */
+function bdlPlayerFullName(player) {
+  if (!player) return "";
+  return String(
+    player.full_name ||
+    (player.first_name && player.last_name
+      ? `${player.first_name} ${player.last_name}`
+      : "") ||
+    player.name ||
+    ""
+  ).trim();
+}
+
+/**
+ * BDL has used scheduled_time, scheduled_at, and start_time across versions.
+ * Return whichever is present, or null.
+ */
+function bdlScheduledTime(m) {
+  return m.scheduled_time || m.scheduled_at || m.start_time || null;
+}
+
+// ─── Public: fixture shape ───────────────────────────────────────────────────
+
 /** Map BDL match → shared fixture shape consumed by api/tennis.js */
 export function bdlMatchToFixtureShape(m, options = {}) {
-  const p1 = String(m.player1?.full_name || "").trim();
-  const p2 = String(m.player2?.full_name || "").trim();
-  const schedule = m.scheduled_time ? new Date(m.scheduled_time) : null;
+  const p1 = bdlPlayerFullName(m.player1);
+  const p2 = bdlPlayerFullName(m.player2);
+
+  const rawSchedule = bdlScheduledTime(m);
+  const schedule = rawSchedule ? new Date(rawSchedule) : null;
   const valid = schedule && !Number.isNaN(schedule.getTime());
 
-  /** Masters draws often ship before `scheduled_time` is populated — anchor so /api/tennis + UI can sort and show cards. */
+  /**
+   * Masters draws often ship before scheduled_time is populated — anchor with
+   * a synthetic time so the UI can sort and render cards.
+   */
   const fallbackDay =
-    options.fallbackDay instanceof Date && !Number.isNaN(options.fallbackDay.getTime())
+    options.fallbackDay instanceof Date &&
+    !Number.isNaN(options.fallbackDay.getTime())
       ? options.fallbackDay
       : new Date();
+
   const syntheticNeeded = !valid && !isFinishedBdl(m);
   const isoDay = syntheticNeeded ? fallbackDay.toISOString().slice(0, 10) : "";
   const event_date = valid ? schedule.toISOString().slice(0, 10) : isoDay;
   const pad = (n) => String(n).padStart(2, "0");
-  const event_time = valid ? `${pad(schedule.getUTCHours())}:${pad(schedule.getUTCMinutes())}` : "15:00";
+  const event_time = valid
+    ? `${pad(schedule.getUTCHours())}:${pad(schedule.getUTCMinutes())}`
+    : "15:00";
   const syntheticCommence =
     syntheticNeeded && event_date ? `${event_date}T15:00:00.000Z` : null;
 
@@ -55,55 +105,39 @@ export function bdlMatchToFixtureShape(m, options = {}) {
     bdl_match_id: m.id,
     bdl_tournament_surface: m.tournament?.surface || "",
     bdl_tournament_category: m.tournament?.category || "",
-    bdl_scheduled_time: m.scheduled_time || syntheticCommence,
-    commence_iso: m.scheduled_time || syntheticCommence,
+    bdl_scheduled_time: rawSchedule || syntheticCommence,
+    commence_iso: rawSchedule || syntheticCommence,
   };
 }
 
+// ─── Public: window filter ───────────────────────────────────────────────────
+
 /**
- * Keep matches relevant to a betting board: live, or upcoming in window, or very recent unfinished.
- * Includes a generous future lookahead so Masters / Slam draws still appear.
+ * Keep matches relevant to a betting board: live, upcoming in window,
+ * or very recent unfinished. Generous lookahead so Masters/Slam draws appear.
  */
 export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
   if (m.is_live) return true;
-  const t = m.scheduled_time ? new Date(m.scheduled_time).getTime() : NaN;
+
+  const rawSchedule = bdlScheduledTime(m);
+  const t = rawSchedule ? new Date(rawSchedule).getTime() : NaN;
+
+  // No schedule + not finished → keep (draw announced, time TBD)
   if (!Number.isFinite(t)) return !isFinishedBdl(m);
 
   const now = Date.now();
-  const lookaheadMs = 62 * 24 * 60 * 60 * 1000;
-  const recentPastMs = 72 * 60 * 60 * 1000;
+  const lookaheadMs = 62 * 24 * 60 * 60 * 1000;  // 62 days
+  const recentPastMs = 72 * 60 * 60 * 1000;        // 72 hours
 
   if (t >= windowStartMs && t <= windowEndMs) return true;
-
-  if (!isFinishedBdl(m) && t >= now - recentPastMs && t <= now + lookaheadMs) return true;
+  if (!isFinishedBdl(m) && t >= now - recentPastMs && t <= now + lookaheadMs)
+    return true;
 
   return false;
 }
 
-function candidateSeasonYears(windowStart, windowEnd) {
-  const y0 = windowStart.getFullYear();
-  const y1 = windowEnd.getFullYear();
-  const yNow = new Date().getFullYear();
-  const lo = Math.min(y0, y1, yNow);
-  const hi = Math.max(y0, y1, yNow);
-  const out = new Set();
-  for (let y = lo - 1; y <= hi + 1; y++) out.add(y);
-  return [...out].sort((a, b) => a - b);
-}
+// ─── Public: main board fetch ────────────────────────────────────────────────
 
-/** Query current year first — fastest path; expand only if the board is still thin. */
-function seasonsQueryOrder(windowStart, windowEnd) {
-  const years = candidateSeasonYears(windowStart, windowEnd);
-  const yNow = new Date().getFullYear();
-  const primary = years.includes(yNow) ? yNow : years[Math.floor(years.length / 2)];
-  const rest = years.filter((y) => y !== primary);
-  return [primary, ...rest];
-}
-
-/**
- * Paginate /atp/v1/matches — tries multiple season years + unscoped fallback.
- * BDL's `season` filter can omit rows if their season field differs from the calendar year we guess.
- */
 export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const apiKey = process.env.BALLDONTLIE_API_KEY;
   if (!apiKey) {
@@ -113,74 +147,66 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const windowStartMs = windowStart.getTime();
   const windowEndMs = windowEnd.getTime();
   const byId = new Map();
+  const currentYear = new Date().getFullYear();
 
   const ingest = (batch) => {
+    if (!Array.isArray(batch)) return;
     for (const m of batch) {
-      if (!m?.player1?.full_name || !m?.player2?.full_name) continue;
+      const p1 = bdlPlayerFullName(m.player1);
+      const p2 = bdlPlayerFullName(m.player2);
+      if (!p1 || !p2) continue;
       if (!bdlMatchInBoardWindow(m, windowStartMs, windowEndMs)) continue;
       byId.set(m.id, m);
     }
   };
 
-  const fetchPage = async (params) =>
-    bdlFetch(`/atp/v1/matches`, params, { timeoutMs: 20000 });
+  const fetchPage = (params) =>
+    bdlFetch(`/atp/v1/matches`, params, { timeoutMs: 6000 });
 
+  let anyOk = false;
   let lastError = null;
 
-  const runLiveForSeason = async (season) => {
-    const params = { per_page: 100, is_live: true };
-    if (season != null) params.season = season;
-    const liveRes = await fetchPage(params);
-    if (!liveRes.ok) {
-      lastError = { reason: liveRes.error || "bdl_live_failed", status: liveRes.status };
-      return;
+  const handle = (res) => {
+    if (res.ok) {
+      anyOk = true;
+      ingest(res.data?.data);
+    } else {
+      lastError = { reason: res.error || "bdl_request_failed", status: res.status };
     }
-    if (Array.isArray(liveRes.data?.data)) ingest(liveRes.data.data);
+    return res;
   };
 
-  const paginateSeason = async (season, maxPages) => {
-    let cursor = null;
-    for (let page = 0; page < maxPages; page++) {
-      const params = { per_page: 100 };
-      if (season != null) params.season = season;
-      if (cursor != null) params.cursor = cursor;
+  // ── Wave 1: parallel live + upcoming page 1 (one wall-clock hop) ─────────
+  const [liveRes, page1Res] = await Promise.all([
+    fetchPage({ per_page: 100, is_live: true, season: currentYear }),
+    fetchPage({ per_page: 100, season: currentYear }),
+  ]);
 
-      const res = await fetchPage(params);
+  handle(liveRes);
+  handle(page1Res);
 
-      if (!res.ok) {
-        lastError = { reason: res.error || "bdl_matches_failed", status: res.status };
-        break;
-      }
+  const page1Cursor = page1Res.ok
+    ? (page1Res.data?.meta?.next_cursor ?? null)
+    : null;
 
-      const batch = Array.isArray(res.data?.data) ? res.data.data : [];
-      const meta = res.data?.meta || {};
-
-      ingest(batch);
-
-      const next = meta.next_cursor;
-      if (!next || batch.length === 0) break;
-      cursor = next;
-
-      if (byId.size >= 160) break;
-    }
-  };
-
-  const seasons = seasonsQueryOrder(windowStart, windowEnd);
-
-  for (const season of seasons) {
-    await runLiveForSeason(season);
-    await paginateSeason(season, 35);
-    if (byId.size >= 140) break;
+  // ── Wave 2: page 2 if board is thin ──────────────────────────────────────
+  if (byId.size < 30 && page1Cursor) {
+    const page2Res = await fetchPage({
+      per_page: 100,
+      season: currentYear,
+      cursor: page1Cursor,
+    });
+    handle(page2Res);
   }
 
-  // Last resort: omit `season` so BDL returns the full cursor stream (still capped).
+  // ── Wave 3: unscoped fallback if board is still empty ────────────────────
   if (byId.size === 0) {
-    lastError = null;
-    await runLiveForSeason(undefined);
-    await paginateSeason(undefined, 30);
+    const fallbackRes = await fetchPage({ per_page: 100 });
+    handle(fallbackRes);
   }
 
-  if (byId.size === 0 && lastError) {
+  // Return ok:false only when every request failed (BDL error, not empty window)
+  if (byId.size === 0 && !anyOk && lastError) {
     return {
       ok: false,
       fixtures: [],
