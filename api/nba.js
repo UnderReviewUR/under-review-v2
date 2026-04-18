@@ -160,14 +160,33 @@ async function getNbaPropLines(oddsKey) {
   }
 }
 
+/** Odds API prop lines list which game each player is priced for — usually fresher than BDL team after trades. */
+function attachTonightGamesFromProps(playerStats, propLines) {
+  const gameByPlayer = {};
+  for (const pl of propLines || []) {
+    const k = String(pl.player || "")
+      .trim()
+      .toLowerCase();
+    if (!k || !pl.game) continue;
+    if (!gameByPlayer[k]) gameByPlayer[k] = pl.game;
+  }
+  return (playerStats || []).map((p) => {
+    const k = String(p.name || "")
+      .trim()
+      .toLowerCase();
+    const tonightGame = gameByPlayer[k];
+    return tonightGame ? { ...p, tonightGame } : { ...p };
+  });
+}
+
 async function getCurrentPlayerStats(bdlKey) {
-  const cacheKey = "nba_player_stats";
+  const season = new Date().getFullYear();
+  const cacheKey = `nba_player_stats_${season}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
   if (!bdlKey) return [];
 
   try {
-    const season = 2025;
     const res = await fetch(`https://api.balldontlie.io/v1/season_averages?season=${season}`, {
       headers: { Accept:"application/json", Authorization: bdlKey },
     });
@@ -192,7 +211,22 @@ async function getCurrentPlayerStats(bdlKey) {
       if (!p) return null;
       const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
       const team = p.team?.abbreviation || p.team?.full_name || "UNK";
-      return { playerId:r.player_id, name, team, pts:r.pts, reb:r.reb, ast:r.ast, stl:r.stl, blk:r.blk, min:r.min, fg_pct:r.fg_pct, fg3_pct:r.fg3_pct, ft_pct:r.ft_pct, games_played:r.games_played };
+      return {
+        playerId: r.player_id,
+        name,
+        team,
+        pts: r.pts,
+        reb: r.reb,
+        ast: r.ast,
+        stl: r.stl,
+        blk: r.blk,
+        min: r.min,
+        fg_pct: r.fg_pct,
+        fg3_pct: r.fg3_pct,
+        ft_pct: r.ft_pct,
+        games_played: r.games_played,
+        season,
+      };
     }).filter(Boolean).sort((a, b) => (b.pts||0) - (a.pts||0));
 
     setCached(cacheKey, normalized);
@@ -266,22 +300,26 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const boardCached = getCached("board");
+      const boardCacheKey = `nba_board_${new Date().getFullYear()}`;
+      const boardCached = getCached(boardCacheKey);
       if (boardCached) return res.status(200).json(boardCached);
 
       const [todaysGames, propLines, playerStats, playoffSeries] = await Promise.all([
         getTodaysGames(ODDS_KEY),
         getNbaPropLines(ODDS_KEY),
-        getCurrentPlayerStats(BDL_KEY),         getNbaPlayoffSeries(),
+        getCurrentPlayerStats(BDL_KEY),
+        getNbaPlayoffSeries(),
       ]);
 
       const injuries = await getNbaInjuries(propLines, todaysGames);
+
+      const playerStatsWithTonight = attachTonightGamesFromProps(playerStats, propLines);
 
       const board = {
         seasonContext: getNbaSeasonContext(),
         todaysGames,
         lastNight: [], lastNightStats: [], liveStats: [],
-        playerStats: playerStats.slice(0, 120),
+        playerStats: playerStatsWithTonight.slice(0, 120),
         propLines:   propLines.slice(0, 120),
         injuries,
         playoffSeries,         recentForm: "", h2hSplits: [],
@@ -290,7 +328,7 @@ export default async function handler(req, res) {
       };
 
       if (todaysGames.length > 0 || propLines.length > 0 || injuries.length > 0 || playerStats.length > 0) {
-        setCached("board", board);
+        setCached(boardCacheKey, board);
       }
       return res.status(200).json(board);
     }

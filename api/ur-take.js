@@ -1159,7 +1159,8 @@ Rules:
   an attached screenshot), ALWAYS acknowledge the current game state first.
   Never declare a prop a winner while the game is still in progress.
 - If a player mentioned in the question is not in today's injury report or
-  game list, note the uncertainty before giving a take.`;
+  game list, note the uncertainty before giving a take.
+- When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.`;
   } else if (sportHint === "mlb") {
     userPrompt = `You are answering an MLB betting question.
 
