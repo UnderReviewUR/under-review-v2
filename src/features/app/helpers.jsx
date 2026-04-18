@@ -4,6 +4,20 @@ export function normalizeText(v) {
   return String(v || "").trim().toLowerCase();
 }
 
+/** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
+export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
+  if (!Array.isArray(msgs)) return [];
+  const cleaned = [];
+  for (const m of msgs) {
+    if (!m || m.loading) continue;
+    const role = m.role === "ai" ? "assistant" : m.role === "user" ? "user" : null;
+    const content = String(m.text ?? m.content ?? "").trim();
+    if (!role || !content || /^ANALYZING/i.test(content)) continue;
+    cleaned.push({ role, content: content.slice(0, 3500) });
+  }
+  return cleaned.slice(-maxMessages);
+}
+
 export function slugify(v) {
   return String(v || "")
     .trim()
@@ -59,7 +73,8 @@ export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTourname
   if (!tournament) return null;
 
   const rawLive = String(match.live ?? match.event_live ?? "0");
-  const isLive = rawLive === "1";
+  const statusProbe = normalizeText(match.status || match.event_status || "");
+  const isLive = rawLive === "1" || statusProbe.includes("in_progress");
   let status = String(match.status || match.event_status || "Scheduled").trim();
   if (isLive) status = "Live";
 
@@ -99,7 +114,16 @@ export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTourname
     confirmed: true,
     commenceTime,
     commenceTs: commenceTime ? new Date(commenceTime).getTime() : Number.MAX_SAFE_INTEGER,
-    raw: { ...match, live: rawLive, status, home, away, tournament, event_date: eventDate, event_time: eventTime },
+    raw: {
+      ...match,
+      live: isLive ? "1" : "0",
+      status,
+      home,
+      away,
+      tournament,
+      event_date: eventDate,
+      event_time: eventTime,
+    },
   };
 }
 

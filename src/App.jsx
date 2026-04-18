@@ -29,16 +29,33 @@ import {
   isBallDontLieAtpFixture,
   isNflInSeason,
   isNflRampMode,
+  chatHistoryForApi,
   normalizeTennisMatch,
   normalizeText,
   preferredTournamentScore,
   slugify,
 } from "./features/app/helpers.jsx";
-import { ATP_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./features/app/constants.js";
+import { ATP_PLAYERS, WTA_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./features/app/constants.js";
 
 import { baseCss } from "./styles/appBaseCss.js";
 import { NFL_PLAYERS } from "./features/app/embedGolfNflData.js";
 
+function formatTennisScore(rawScore) {
+  if (!rawScore || rawScore === "-") return "";
+  const s = String(rawScore).trim();
+  const sets = s.split(/[\s,]+/).filter(Boolean);
+  if (sets.length === 0) return "";
+  return sets.join(", ");
+}
+
+function buildTennisMatchupSubline(m) {
+  const parts = [];
+  const round = m.raw?.round ? String(m.raw.round).trim() : "";
+  const surface = String(m.raw?.bdl_tournament_surface || "").trim();
+  if (round) parts.push(round);
+  if (surface) parts.push(surface);
+  return parts.join(" · ");
+}
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -68,6 +85,8 @@ ${themeCss}
   const [homeInput, setHomeInput]       = useState("");
   const [askInput, setAskInput]         = useState("");
   const [tennisInput, setTennisInput]   = useState("");
+  const [wtaInput, setWtaInput]         = useState("");
+  const [wtaSectionOpen, setWtaSectionOpen] = useState(false);
   const [nflInput, setNflInput]         = useState("");
   const [f1Input, setF1Input]           = useState("");
   const [nbaInput, setNbaInput]         = useState("");
@@ -108,6 +127,7 @@ ${themeCss}
   const homeInputRef      = useRef(null);
   const askInputRef       = useRef(null);
   const tennisInputRef    = useRef(null);
+  const wtaInputRef       = useRef(null);
   const nflInputRef       = useRef(null);
   const f1InputRef        = useRef(null);
   const nbaInputRef       = useRef(null);
@@ -726,11 +746,20 @@ ${themeCss}
   setIsAsking(true);
   const imgToSend = pastedImage;
 
-  setMsgs(prev => [
-    ...prev,
-    { role: "user", text, image: imgToSend?.previewUrl || null },
-    { role: "ai", text: "ANALYZING...", loading: true, sport: sportHint }
-  ]);
+  let historyPayload = [];
+  setMsgs(prev => {
+    historyPayload = chatHistoryForApi(prev);
+    return [
+      ...prev,
+      { role: "user", text, image: imgToSend?.previewUrl || null },
+      {
+        role: "ai",
+        text: "ANALYZING...",
+        loading: true,
+        sport: sportHint === "tennis_wta_profile" ? "tennis" : sportHint,
+      },
+    ];
+  });
 
     clearImage();
 
@@ -738,13 +767,16 @@ ${themeCss}
     const body = {
       question: text,
       userEmail: userEmail || null,
-      history: [],
+      history: historyPayload,
       sportHint: sportHint || null,
       matchupContext: matchup || null,
       image: null,
     };
 
-    if (sportHint === "tennis") {
+    if (sportHint === "tennis_wta_profile") {
+      body.players = players || null;
+      body.context = context || null;
+    } else if (sportHint === "tennis") {
       body.players = players || null;
       body.context = context || null;
       body.liveMatches = (liveMatches || []).slice(0, 12);
@@ -988,91 +1020,123 @@ ${themeCss}
 
   const homeNbaCards = useMemo(() => {
     const games = nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []);
-    const upcoming = games.filter(g => g.state === "pre").slice(0, 2);
-    const cards = upcoming.map((g, i) => {
+
+    const live = games.filter((g) => g.state === "in");
+    const upcoming = games.filter((g) => g.state === "pre");
+    const recent = games.filter((g) => g.state === "post").slice(0, 1);
+
+    const pool = [...live, ...upcoming, ...recent].slice(0, 2);
+
+    if (!pool.length) {
+      return [
+        {
+          id: "nba-default",
+          league: "NBA PLAYOFFS",
+          leagueColor: "#FF6B00",
+          title: "No NBA games today",
+          time: "Off-day",
+          network: "Series board",
+          blurb: "Check back tomorrow for the next playoff slate.",
+          whatMatters: "Ask for series leverage, futures, or matchup angles.",
+          quickHitters: ["Best playoff future?", "Series leverage spot?", "Best player prop tomorrow?"],
+          confirmed: true,
+        },
+      ];
+    }
+
+    return pool.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
       const series = getSeriesLabel(away, home);
+      const isLive = g.state === "in";
+      const isFinal = g.state === "post";
+      const awayScore = g.awayTeam?.score ?? null;
+      const homeScore = g.homeTeam?.score ?? null;
+      const hasScore = awayScore !== null && homeScore !== null;
+
+      const liveLabel = isLive ? "🔴 LIVE" : isFinal ? "FINAL" : g.status || "Tonight";
+      const blurb = hasScore
+        ? `${away} ${awayScore} — ${home} ${homeScore}${isLive && g.period ? ` · Q${g.period}` : ""}`
+        : `${series || "Playoff matchup"} · Tipoff ${g.status || "TBD"}`;
+
       return {
-        id: `nba-upcoming-${i + 1}`,
-        league: "NBA PLAYOFFS",
-        leagueColor: "#FF6B00",
+        id: `nba-card-${i + 1}`,
+        league: isLive ? "NBA LIVE" : "NBA PLAYOFFS",
+        leagueColor: isLive ? "#FF5252" : "#FF6B00",
         title: `${away} vs ${home}`,
-        time: g.status || "Upcoming",
+        time: liveLabel,
         network: series || "Playoff matchup",
-        blurb: `${series || "Series info pending"} · Tipoff ${g.status || "TBD"}`,
-        whatMatters: "Ask for matchup edge, game total, and series leverage spots.",
-        quickHitters: ["Best playoff prop?", "Who covers this game?", "Best total angle?"],
-        confirmed: true
+        blurb,
+        whatMatters: isLive
+          ? "Ask for live edge, second-half props, or in-game adjustment angles."
+          : "Ask for matchup edge, game total, and series leverage spots.",
+        quickHitters: isLive
+          ? ["Best live prop?", "Second-half edge?", "Game total angle?"]
+          : ["Best playoff prop?", "Who covers?", "Best total angle?"],
+        confirmed: true,
       };
     });
-    if (cards.length) return cards;
-    return [{
-      id: "nba-default",
-      league: "NBA PLAYOFFS",
-      leagueColor: "#FF6B00",
-      title: "Upcoming playoff games",
-      time: "Loading slate",
-      network: "Series board",
-      blurb: "Loading upcoming playoff matchups and series state.",
-      whatMatters: "Ask for playoff props and spread edges.",
-      quickHitters: ["Best playoff prop?", "Best spread tonight?", "Best game total?"],
-      confirmed: true
-    }];
-  }, [nbaData, nbaGames]);
+  }, [nbaData, nbaGames, getSeriesLabel]);
 
   const homeMlbCards = useMemo(() => {
-    const games = mlbData?.games || [];
-    const pool = games.filter((g) => g.state === "in" || g.state === "pre").slice(0, 3);
+    const games = mlbGames.length > 0 ? mlbGames : (mlbData?.games || []);
+
+    const live = games.filter((g) => g.state === "in");
+    const upcoming = games.filter((g) => g.state === "pre");
+    const recent = games.filter((g) => g.state === "post").slice(0, 1);
+
+    const pool = [...live, ...upcoming, ...recent].slice(0, 3);
+
     if (!pool.length) {
-      return [{
-        id: "mlb-default",
-        league: "MLB",
-        leagueColor: "#1DB954",
-        title: "MLB slate loading",
-        time: "Active",
-        network: "Daily board",
-        blurb: "Loading up to three MLB games.",
-        whatMatters: "Ask for pitcher props, totals, and batter value.",
-        quickHitters: ["Best K prop?", "Best batter prop?", "Best game total?"],
-        confirmed: true
-      }];
+      return [
+        {
+          id: "mlb-default",
+          league: "MLB",
+          leagueColor: "#1DB954",
+          title: "No MLB games today",
+          time: "Off-day",
+          network: "Daily board",
+          blurb: "Check back tomorrow for the next slate.",
+          whatMatters: "Ask for tomorrow's pitcher props or futures angles.",
+          quickHitters: ["Best K prop tomorrow?", "Best futures angle?", "Top pitcher edge?"],
+          confirmed: true,
+        },
+      ];
     }
 
-    const cards = pool.map((g, i) => {
+    return pool.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
       const isLive = g.state === "in";
+      const isFinal = g.state === "post";
+      const awayScore = g.awayTeam?.score ?? null;
+      const homeScore = g.homeTeam?.score ?? null;
+      const hasScore = awayScore !== null && homeScore !== null;
+      const inning = g.inning ? `${g.inningHalf === "top" ? "T" : "B"}${g.inning}` : "";
+
+      const liveLabel = isLive ? `🔴 LIVE${inning ? ` · ${inning}` : ""}` : isFinal ? "FINAL" : g.status || "Today";
+
+      const homeP = g.homeTeam?.pitcher;
+      const awayP = g.awayTeam?.pitcher;
+      const pitchers = homeP && awayP ? `${awayP} vs ${homeP}` : "";
+
+      const blurb = hasScore ? `${away} ${awayScore} — ${home} ${homeScore}` : pitchers || `${away} @ ${home} · Probables TBD`;
+
       return {
-        id: `mlb-home-${i + 1}`,
-        league: isLive ? "MLB LIVE" : "MLB",
-        leagueColor: "#1DB954",
+        id: `mlb-card-${i + 1}`,
+        league: isLive ? "MLB LIVE" : isFinal ? "MLB · FINAL" : "MLB",
+        leagueColor: isLive ? "#FF5252" : "#1DB954",
         title: `${away} @ ${home}`,
-        time: isLive ? "LIVE" : (g.status || "Upcoming"),
-        network: isLive
-          ? `${g.awayTeam?.score || 0} — ${g.homeTeam?.score || 0}`
-          : "Today's slate",
-        blurb: isLive
-          ? "Live board — ask for in-game angle."
-          : "Upcoming matchup — ask for best total/prop.",
-        whatMatters: "Pitcher props, game totals, and matchup context.",
-        quickHitters: ["Best K prop?", "Best game total?", "Best batter play?"],
-        confirmed: true
+        time: liveLabel,
+        network: pitchers || "Daily slate",
+        blurb,
+        whatMatters: isLive
+          ? "Ask for live total, run-line live, or batter NRFI props."
+          : "Ask for K props, totals, and best batter value.",
+        quickHitters: isLive ? ["Live total angle?", "Best live prop?", "Run-line live?"] : ["Best K prop?", "Best batter prop?", "Best game total?"],
+        confirmed: true,
       };
     });
-    cards.push({
-      id: "mlb-home-more",
-      league: "MLB",
-      leagueColor: "#1DB954",
-      title: "Click here for more MLB",
-      time: "Open full tab",
-      network: "More games",
-      blurb: "View full MLB board and all matchups.",
-      whatMatters: "Tap to open MLB tab.",
-      quickHitters: ["Open MLB tab"],
-      confirmed: true
-    });
-    return cards;
   }, [mlbData, mlbGames]);
 
   const homeGolfCards = useMemo(() => {
@@ -1282,6 +1346,108 @@ ${themeCss}
   const goPro    = useCallback(()=>{ setTab("pro");   setScreen("pro");   setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
 
   const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
+
+  const tickerNbaGames = useMemo(
+    () => (nbaGames.length > 0 ? nbaGames : nbaData?.todaysGames || []),
+    [nbaGames, nbaData],
+  );
+
+  const tennisTickerMatches = useMemo(() => {
+    const tier = (m) => {
+      if (String(m?.raw?.live || "0") === "1") return 0;
+      const st = normalizeText(m?.raw?.status || "");
+      const sc = String(m?.raw?.score || "").trim();
+      const hasScore = sc && sc !== "-";
+      if (
+        hasScore &&
+        (st.includes("final") ||
+          st.includes("finished") ||
+          st.includes("walkover") ||
+          st.includes("retired") ||
+          st.includes("complete"))
+      ) {
+        return 1;
+      }
+      return 2;
+    };
+    const ts = (m) =>
+      Number.isFinite(m.commenceTs) ? m.commenceTs : Number.MAX_SAFE_INTEGER;
+    return [...liveMatches]
+      .sort((a, b) => {
+        const ta = tier(a);
+        const tb = tier(b);
+        if (ta !== tb) return ta - tb;
+        if (ta === 1) return ts(b) - ts(a);
+        return ts(a) - ts(b);
+      })
+      .slice(0, 4);
+  }, [liveMatches]);
+
+  const liveTickerTennisCards = useMemo(
+    () =>
+      tennisTickerMatches.map((m, i) => {
+        const awayFull = String(m.raw?.away || (m.title || "").split(" vs ")[0] || "").trim() || "Away";
+        const homeFull = String(m.raw?.home || (m.title || "").split(" vs ")[1] || "").trim() || "Home";
+        const away = awayFull.split(" ").pop();
+        const home = homeFull.split(" ").pop();
+        const scoreLine = formatTennisScore(m.raw?.score);
+        const isLiveCard = String(m?.raw?.live || "0") === "1";
+        const st = normalizeText(m?.raw?.status || "");
+        const hasFinalScore =
+          scoreLine &&
+          (st.includes("final") ||
+            st.includes("finished") ||
+            st.includes("walkover") ||
+            st.includes("retired") ||
+            st.includes("complete"));
+        const pillLabel = isLiveCard ? "● LIVE" : hasFinalScore ? "FINAL" : "NEXT";
+        const pillColor = isLiveCard ? "#22D3EE" : hasFinalScore ? "#A78BFA" : "#94A3B8";
+        return (
+          <div
+            key={`tennis-ticker-${m.id || i}`}
+            onClick={goTennis}
+            style={{
+              flexShrink: 0,
+              background: "var(--surface)",
+              border: "1px solid rgba(34,211,238,.28)",
+              borderRadius: 10,
+              padding: "8px 11px",
+              cursor: "pointer",
+              minWidth: 112,
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 7,
+                letterSpacing: 1.5,
+                color: pillColor,
+                marginBottom: 3,
+                textTransform: "uppercase",
+              }}
+            >
+              🎾 {pillLabel}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>{away}</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
+            {scoreLine ? (
+              <div
+                style={{
+                  fontFamily: "var(--mono-font)",
+                  fontSize: 11,
+                  color: "var(--soft)",
+                  marginTop: 2,
+                }}
+              >
+                {scoreLine}
+              </div>
+            ) : null}
+          </div>
+        );
+      }),
+    [tennisTickerMatches, goTennis],
+  );
+
  const openMatchup = useCallback((m) => {
   if (!m?.title || !m?.network) return;
 
@@ -1293,12 +1459,6 @@ ${themeCss}
     setTab("tennis");
     setScreen("tennis");
     setSelectedMatchup(null);
-    return;
-  }
-
-  if (m?.id === "mlb-home-more") {
-    setTab("mlb");
-    setScreen("mlb");
     return;
   }
 
@@ -1361,6 +1521,16 @@ ${themeCss}
   const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,scheduleChatScroll]);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
+  const submitWta = useCallback(
+    (forced) => {
+      const t = (forced ?? wtaInput).trim();
+      if (!t || isAsking) return;
+      if (!forced) setWtaInput("");
+      askUrTake({ text: t, setMsgs: setTennisMsgs, sportHint: "tennis_wta_profile" });
+      scheduleChatScroll(tennisScreenRef);
+    },
+    [askUrTake, isAsking, wtaInput, scheduleChatScroll],
+  );
   const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,nflInput,scheduleChatScroll]);
   const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,f1Input,scheduleChatScroll]);
   const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,nbaInput,scheduleChatScroll]);
@@ -1388,6 +1558,88 @@ ${themeCss}
           <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
           <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{color:"var(--cyan-bright)"}}>{getDrValue(p)}</div></div>
           <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
+        </div>
+      </div>
+    );
+  }
+
+  function AtpMatchupCard({ m }) {
+    const isLive = String(m?.raw?.live || "0") === "1";
+    const score = formatTennisScore(m.raw?.score);
+    const subline = buildTennisMatchupSubline(m);
+    const statusLabel = String(m.raw?.status || "").toLowerCase();
+    const looksFinal =
+      statusLabel.includes("final") ||
+      statusLabel.includes("finished") ||
+      statusLabel.includes("complete");
+    return (
+      <div className="matchup-card" onClick={() => openMatchup(m)}>
+        <div className="matchup-top">
+          <div className="matchup-league" style={{ color: m.leagueColor }}>
+            {m.league}
+          </div>
+          {isLive ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                background: "rgba(239,68,68,0.15)",
+                border: "1px solid rgba(239,68,68,0.5)",
+                padding: "2px 7px",
+                borderRadius: 10,
+                fontFamily: "var(--mono-font)",
+                fontSize: 9,
+                color: "#FF5252",
+                letterSpacing: 1.5,
+                fontWeight: 700,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#FF5252",
+                  animation: "pulse 1.5s ease-in-out infinite",
+                }}
+              />
+              LIVE
+            </div>
+          ) : (
+            <div className="matchup-time">{m.raw?.status || m.time}</div>
+          )}
+        </div>
+        <div className="matchup-body">
+          <div className="matchup-title">{m.title}</div>
+          <div className="matchup-meta">
+            {m.network}
+            {subline ? ` · ${subline}` : ""}
+          </div>
+          {isLive && score ? (
+            <div
+              style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#FFE082",
+                marginTop: 4,
+                letterSpacing: 0.5,
+              }}
+            >
+              {score}
+            </div>
+          ) : score && looksFinal ? (
+            <div className="matchup-blurb" style={{ fontFamily: "var(--mono-font)", fontSize: 12 }}>
+              Final: {score}
+            </div>
+          ) : score && !isLive ? (
+            <div className="matchup-blurb" style={{ fontFamily: "var(--mono-font)", fontSize: 12 }}>
+              {score}
+            </div>
+          ) : (
+            <div className="matchup-blurb">{m.blurb}</div>
+          )}
         </div>
       </div>
     );
@@ -1555,7 +1807,7 @@ ${themeCss}
           <div style={{ fontSize: 10, color: "var(--muted)" }}>Live board →</div>
         </div>,
 
-        ...nbaGames
+        ...tickerNbaGames
           .filter((g) => g.state === "in")
           .slice(0, 2)
           .map((g, i) => {
@@ -1625,6 +1877,8 @@ ${themeCss}
               </div>
             );
           }),
+
+        ...liveTickerTennisCards,
 
         ...(golfData?.currentEvent?.leaderboard?.length
           ? [
@@ -1814,7 +2068,7 @@ ${themeCss}
           })
       ]
     : [
-        ...[...nbaGames.filter((g) => g.state === "in"), ...nbaGames.filter((g) => g.state === "pre").slice(0, 2)]
+        ...[...tickerNbaGames.filter((g) => g.state === "in"), ...tickerNbaGames.filter((g) => g.state === "pre").slice(0, 2)]
           .slice(0, 3)
           .map((g, i) => {
             const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
@@ -1883,6 +2137,8 @@ ${themeCss}
               </div>
             );
           }),
+
+        ...liveTickerTennisCards,
 
         ...(golfData?.currentEvent?.leaderboard?.length
           ? [
@@ -2195,21 +2451,17 @@ ${themeCss}
               <div className="loading-state"><div className="loading-text">LOADING TENNIS BOARD...</div></div>
             ):liveMatches.length>0?(
               <div className="matchup-list">
-                {(activeTournamentMatches.length>0?activeTournamentMatches:liveMatches).map(m=>(
-                  <div key={m.id} className="matchup-card" onClick={()=>openMatchup(m)}>
-                    <div className="matchup-top"><div className="matchup-league" style={{color:m.leagueColor}}>{m.league}</div><div className="matchup-time">{String(m?.raw?.live||"0")==="1"?"LIVE":(m.raw?.status||m.time)}</div></div>
-                    <div className="matchup-body"><div className="matchup-title">{m.title}</div><div className="matchup-meta">{m.network}{m.raw?.round?` · ${m.raw.round}`:""}</div><div className="matchup-blurb">{m.raw?.score&&m.raw.score!=="-"?`Score: ${m.raw.score}. `:""}{m.blurb}</div></div>
-                  </div>
+                {(activeTournamentMatches.length > 0 ? activeTournamentMatches : liveMatches).map((m) => (
+                  <AtpMatchupCard key={m.id} m={m} />
                 ))}
-                {activeTournamentMatches.length>0&&liveMatches.length>activeTournamentMatches.length&&(
+                {activeTournamentMatches.length > 0 && liveMatches.length > activeTournamentMatches.length && (
                   <>
                     <div className="section-divider">Other ATP Tour Matches</div>
-                    {liveMatches.filter(m=>!activeTournamentMatches.some(x=>x.id===m.id)).map(m=>(
-                      <div key={m.id} className="matchup-card" onClick={()=>openMatchup(m)}>
-                        <div className="matchup-top"><div className="matchup-league" style={{color:m.leagueColor}}>{m.league}</div><div className="matchup-time">{String(m?.raw?.live||"0")==="1"?"LIVE":(m.raw?.status||m.time)}</div></div>
-                        <div className="matchup-body"><div className="matchup-title">{m.title}</div><div className="matchup-meta">{m.network}{m.raw?.round?` · ${m.raw.round}`:""}</div><div className="matchup-blurb">{m.raw?.score&&m.raw.score!=="-"?`Score: ${m.raw.score}. `:""}{m.blurb}</div></div>
-                      </div>
-                    ))}
+                    {liveMatches
+                      .filter((m) => !activeTournamentMatches.some((x) => x.id === m.id))
+                      .map((m) => (
+                        <AtpMatchupCard key={m.id} m={m} />
+                      ))}
                   </>
                 )}
               </div>
@@ -2230,10 +2482,93 @@ ${themeCss}
               </>
             )}
 
-            {players&&(
+            {players && (
               <>
                 <div className="section-divider">ATP Top 25</div>
-                {ATP_PLAYERS.map((name,idx)=><TennisPlayerCard key={name} name={name} idx={idx} tour="atp"/>)}
+                {ATP_PLAYERS.map((name, idx) => (
+                  <TennisPlayerCard key={name} name={name} idx={idx} tour="atp" />
+                ))}
+
+                <div
+                  className="section-divider"
+                  style={{
+                    cursor: "pointer",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginTop: 24,
+                  }}
+                  onClick={() => setWtaSectionOpen((o) => !o)}
+                >
+                  <span>WTA · Profile-Based Analysis</span>
+                  <span
+                    style={{
+                      fontFamily: "var(--mono-font)",
+                      fontSize: 10,
+                      color: "var(--muted)",
+                      letterSpacing: 1,
+                    }}
+                  >
+                    {wtaSectionOpen ? "▼ HIDE" : "▶ SHOW"}
+                  </span>
+                </div>
+
+                {wtaSectionOpen && (
+                  <>
+                    <div
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 12,
+                        padding: "10px 12px",
+                        marginBottom: 10,
+                        fontSize: 11,
+                        color: "var(--muted)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      No live WTA fixtures feed — answers are powered by the Under Review WTA player database
+                      (rally profiles, surface splits, serve/return stats, tiebreak rates). Best for player
+                      breakdowns and head-to-head matchup questions.
+                    </div>
+
+                    <AskBar
+                      inputRef={wtaInputRef}
+                      value={wtaInput}
+                      onChange={setWtaInput}
+                      onSubmit={() => submitWta()}
+                      placeholder="Sabalenka vs Gauff on clay? Best matchup angle?"
+                      btnColor="#FF2D6B"
+                      {...askBarCommon}
+                    />
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        marginTop: 8,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {[
+                        "Sabalenka vs Gauff on clay?",
+                        "Muchova vs Rybakina — who wins?",
+                        "Best WTA tiebreak fade?",
+                        "Most underrated WTA on clay?",
+                      ].map((q) => (
+                        <button key={q} type="button" className="quick-btn" onClick={() => submitWta(q)} style={{ fontSize: 11 }}>
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="section-divider">WTA Top 24</div>
+                    {WTA_PLAYERS.map((name, idx) => (
+                      <TennisPlayerCard key={name} name={name} idx={idx} tour="wta" />
+                    ))}
+                  </>
+                )}
               </>
             )}
             <div className="page-spacer"/>

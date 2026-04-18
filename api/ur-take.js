@@ -401,6 +401,13 @@ function getContextQuality({
 }) {
   if (matchupContext) return "high";
 
+  if (
+    sportHint === "tennis_wta_profile" &&
+    players?.wta &&
+    Object.keys(players.wta).length > 0
+  )
+    return "medium";
+
   if (sportHint === "tennis" && (context?.currentTournament || (liveMatches || []).length || players)) return "high";
   if (sportHint === "golf" && golfContext?.currentEvent) return "high";
   if (sportHint === "nba" && (nbaContext?.todaysGames?.length || nbaContext?.playerStats?.length)) return "high";
@@ -579,6 +586,60 @@ async function callAnthropic({
   }
 }
 
+function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const h of raw) {
+    const role =
+      h.role === "assistant" || h.role === "ai"
+        ? "assistant"
+        : h.role === "user"
+          ? "user"
+          : null;
+    const content = String(h.content ?? h.text ?? "").trim();
+    if (!role || !content || /^ANALYZING/i.test(content)) continue;
+    out.push({ role, content: content.slice(0, 8000) });
+  }
+  const merged = [];
+  for (const m of out) {
+    if (!merged.length && m.role === "assistant") continue;
+    const last = merged[merged.length - 1];
+    if (last && last.role === m.role) {
+      last.content += `\n\n${m.content}`;
+      continue;
+    }
+    merged.push({ role: m.role, content: m.content });
+  }
+  return merged.slice(-maxMessages);
+}
+
+function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, image }) {
+  const prior = intent === "slip_review" ? [] : normalizeIncomingChatHistory(history);
+
+  if (hasImage) {
+    const content = [];
+    let textBlock = userPrompt;
+    if (prior.length) {
+      const transcript = prior
+        .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+        .join("\n\n");
+      textBlock = `Prior conversation (most recent last):\n${transcript}\n\n---\n\nCurrent message:\n${userPrompt}`;
+    }
+    content.push({ type: "text", text: textBlock });
+    content.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: image.mediaType,
+        data: image.base64,
+      },
+    });
+    return [{ role: "user", content }];
+  }
+
+  return [...prior, { role: "user", content: userPrompt }];
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
@@ -615,6 +676,7 @@ export default async function handler(req, res) {
     nflContext,
     matchupContext,
     image,
+    history: incomingHistory,
   } = req.body || {};
 
   if (!question || !String(question).trim()) {
@@ -661,6 +723,9 @@ export default async function handler(req, res) {
 
 TODAY
 ${getTodayStr()}
+
+FOLLOW-UPS
+When the user message is a short follow-up, use the prior user/assistant turns in this request to resolve names, "they", and "both" before answering.
 
 IDENTITY
 Lead with the take.
@@ -722,7 +787,9 @@ TENNIS MODE (mandatory)
 - Use only statistics and names that appear in the provided player rows. Do not invent numbers.`;
 
   const systemPrompt =
-    sportHint === "tennis" ? baseSystemPrompt + tennisSystemPromptExtra : baseSystemPrompt;
+    sportHint === "tennis" || sportHint === "tennis_wta_profile"
+      ? baseSystemPrompt + tennisSystemPromptExtra
+      : baseSystemPrompt;
 
   let userPrompt = question;
 
@@ -737,6 +804,84 @@ TENNIS MODE (mandatory)
       f1Context,
       derivedConfidence,
     });
+  } else if (sportHint === "tennis_wta_profile") {
+    const surfaceKey = pickSurfaceKey({
+      currentTournament: { surface: context?.currentTournament?.surface },
+    });
+
+    const wtaSnapshot = buildTennisPlayerSnapshot(players?.wta, surfaceKey, 40);
+
+    const wtaPlayerNames = Object.keys(players?.wta || {});
+    const questionLower = normalizeText(question);
+
+    const mentionedPlayers = wtaPlayerNames.filter((name) => {
+      const lower = normalizeText(name);
+      if (!lower) return false;
+      if (questionLower.includes(lower)) return true;
+      const parts = lower.split(/\s+/).filter(Boolean);
+      const lastName = parts[parts.length - 1];
+      return lastName.length > 3 && questionLower.includes(lastName);
+    });
+
+    let matchupDigest = "";
+    if (mentionedPlayers.length >= 2) {
+      matchupDigest = buildMatchupTennisDigest(
+        mentionedPlayers[0],
+        mentionedPlayers[1],
+        players,
+        surfaceKey,
+      );
+    }
+
+    userPrompt = `You are answering a WTA tennis question as Under Review.
+
+TODAY
+${getTodayStr()}
+
+QUESTION
+${question}
+
+MODE
+This is a profile-based WTA analysis. There is NO live fixtures feed for WTA.
+Answer using ONLY the player database below. Do not invent live odds, scheduled
+matches, or current draws. The user knows there is no live board — they want a
+sharp, data-driven take based on the players' rally profiles, serve/return splits,
+surface records, and tiebreak rates.
+
+${matchupDigest ? `MATCHUP DIGEST (use this for head-to-head questions)
+${matchupDigest}
+
+` : ""}WTA PLAYER DATABASE (cite only these stats — do not fabricate)
+${wtaSnapshot || "Not loaded"}
+
+CONFIDENCE GUIDANCE
+Default confidence: ${derivedConfidence}
+WTA mode is profile-based — confidence should generally be Medium or Speculative
+unless the surface/style mismatch is truly obvious from the data.
+
+EXECUTION RULES — READ CAREFULLY
+1. Lead with the take. First sentence is a concrete claim about a specific player
+   or matchup using actual data from above.
+
+2. NEVER say "no live data" or "feed unavailable" or anything about data limitations.
+   Just answer the question with the profiles you have.
+
+3. Cite specific stats from the database when justifying a take — rally splits,
+   tiebreak rate, surface record, serve/return numbers. If a player isn't in the
+   database, say so directly and pivot to who IS analyzable.
+
+4. For head-to-head questions, identify the surface/style edge:
+   - Who has the better rally profile for this surface?
+   - Who has the tiebreak edge if it goes to a deciding set?
+   - Who has the serve dominance on this surface?
+   - Cite the actual numbers, not generic "X is better on clay."
+
+5. Use the standard format (THE PLAY, MARKET MISTAKE, WHY MISPRICED, etc.) but
+   for pure analytical questions ("who wins?"), THE PLAY can be the player you'd
+   back if a price were available.
+
+6. Add this exact line at the end of CONFIDENCE:
+   SCOPE — WTA profile-based read; confirm live odds before sizing any bet.`;
   } else if (sportHint === "tennis") {
     const leagueStr = normalizeText(matchupContext?.league || "");
     const isWtaLeague =
@@ -1108,24 +1253,13 @@ Rules:
 - Do not make up games, players, or props that are not supported by the prompt.`;
   }
 
-  const messages = hasImage
-    ? [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userPrompt },
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: image.mediaType,
-                data: image.base64,
-              },
-            },
-          ],
-        },
-      ]
-    : [{ role: "user", content: userPrompt }];
+  const messages = buildMessagesForAnthropic({
+    userPrompt,
+    history: incomingHistory,
+    intent,
+    hasImage,
+    image,
+  });
 
   try {
     const result = await callAnthropic({

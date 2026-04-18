@@ -114,7 +114,11 @@ function normalizeTennisBoardResponse({
     );
   };
 
-  const isLiveMatch = (match) => String(match.event_live || "0") === "1";
+  const isLiveMatch = (match) => {
+    if (String(match.event_live || "0") === "1") return true;
+    const st = normalize(match.event_status);
+    return st.includes("in_progress");
+  };
 
   const isWtaMatch = (match) => {
     const combined = [
@@ -183,6 +187,19 @@ function normalizeTennisBoardResponse({
     return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
   };
 
+  /** Keep recently finished ATP rows so the board shows same-day finals, not only live + future. */
+  const isRecentFinishedBoardMatch = (match, commence_time) => {
+    if (!isFinishedStatus(match.event_status)) return false;
+    let ts = commence_time ? new Date(commence_time).getTime() : NaN;
+    if (!Number.isFinite(ts)) {
+      const d = String(match.event_date || "").trim();
+      if (d) ts = new Date(`${d}T22:30:00Z`).getTime();
+    }
+    if (!Number.isFinite(ts)) return false;
+    const ageMs = Date.now() - ts;
+    return ageMs >= 0 && ageMs < 54 * 60 * 60 * 1000;
+  };
+
   const preferredTournamentTerms = String(activeTournament || "")
     .split(",")
     .map((term) => normalize(term))
@@ -238,9 +255,11 @@ function normalizeTennisBoardResponse({
     if (!hasRealPlayers(match)) return false;
     if (!hasUsefulTournament(match)) return false;
 
+    const commenceEarly = parseCommenceTime(match);
     const live = isLiveMatch(match);
     const finished = isFinishedStatus(match.event_status);
     if (live || isClearlyUpcomingOrLive(match)) return true;
+    if (isRecentFinishedBoardMatch(match, commenceEarly)) return true;
 
     return !finished;
   });
@@ -250,6 +269,9 @@ function normalizeTennisBoardResponse({
     const commenceTs = getTimestamp(commence_time);
     const live = isLiveMatch(match);
     const priority = tournamentPriority(match);
+    const finished = isFinishedStatus(match.event_status);
+    const recentResult =
+      !!finished && isRecentFinishedBoardMatch(match, commence_time);
 
     return {
       raw: match,
@@ -257,11 +279,15 @@ function normalizeTennisBoardResponse({
       commenceTs,
       live,
       priority,
+      recentResult,
     };
   });
 
   enriched.sort((a, b) => {
     if (a.live !== b.live) return a.live ? -1 : 1;
+
+    if (!!a.recentResult !== !!b.recentResult)
+      return a.recentResult ? -1 : 1;
 
     if (a.priority !== b.priority) return b.priority - a.priority;
 
