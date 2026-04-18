@@ -12,9 +12,23 @@ export function slugify(v) {
     .replace(/^_+|_+$/g, "");
 }
 
-/** Only Ball Dont Lie ATP fixtures may appear on the ATP board (`/api/tennis?tour=atp`). */
+/**
+ * Only real Ball Dont Lie ATP fixtures — rejects legacy client DB snapshots (`db-*` ids,
+ * "Database snapshot…" rounds) and any row missing a numeric BDL match id.
+ */
 export function isBallDontLieAtpFixture(row) {
-  return !!row && typeof row === "object" && String(row.source || "").trim() === "balldontlie_atp";
+  if (!row || typeof row !== "object") return false;
+  if (String(row.source || "").trim() !== "balldontlie_atp") return false;
+  const roundStr = String(row.round || "");
+  if (roundStr.includes("Database snapshot")) return false;
+
+  const bid = row.bdl_match_id ?? row.id;
+  if (bid == null || bid === "") return false;
+  const sid = String(bid).trim();
+  if (sid.startsWith("db-")) return false;
+
+  const num = Number(sid);
+  return Number.isFinite(num) && num > 0;
 }
 
 export function isNflInSeason() {

@@ -301,6 +301,11 @@ function normalizeTennisBoardResponse({
           match.bdl_match_id ||
           match.event_key ||
           `${home}-${away}-${eventDate || "date"}-${round || "round"}`,
+        /** Present on real BDL rows; client uses this to reject synthetic/db fallback cards. */
+        bdl_match_id:
+          match.bdl_match_id != null && match.bdl_match_id !== ""
+            ? match.bdl_match_id
+            : null,
         commence_time,
         home_team: home,
         away_team: away,
