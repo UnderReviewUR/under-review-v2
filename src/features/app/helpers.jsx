@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 
 export function normalizeText(v) {
   return String(v || "").trim().toLowerCase();
@@ -349,13 +349,16 @@ export function LoadingBubble({ sport }) {
 }
 
 export function ChatThread({ msgs, scrollContainerRef }) {
-  useEffect(() => {
+  /** Sync scroll after DOM updates — feels tight like iMessage (no visible lag). */
+  useLayoutEffect(() => {
     if (!msgs?.length) return;
-    const t = setTimeout(() => {
-      const el = scrollContainerRef?.current;
-      if (el) el.scrollTop = el.scrollHeight;
-    }, 50);
-    return () => clearTimeout(t);
+    const el = scrollContainerRef?.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    const id = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
   }, [msgs, scrollContainerRef]);
 
   if (!msgs || msgs.length === 0) return null;

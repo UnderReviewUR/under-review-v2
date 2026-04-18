@@ -770,6 +770,11 @@ ${themeCss}
     clearImage();
 
   try {
+    /** Let React paint user bubble + loading row before heavy JSON work / network — feels instant like iMessage. */
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+
     const body = {
       question: buildContextualQuestion(text, { priorMessages: priorSnapshot }),
       userEmail: userEmail || null,
@@ -880,7 +885,8 @@ ${themeCss}
   canAsk,
   recordQuery,
   userEmail,
-  loadPerformanceSnapshot
+    loadPerformanceSnapshot,
+    buildContextualQuestion,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -1514,14 +1520,6 @@ ${themeCss}
   setScreen("matchup");
   setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
 }, []);
-  const openPlayer    = useCallback(name=>{ setSelectedPlayer(name); setScreen("player"); setTab("tennis"); },[]);
-  const openNflPlayer = useCallback(name=>{ setSelectedNflPlayer(name); setScreen("nflplayer"); setTab("nfl"); },[]);
-  const firePrompt = useCallback((prompt, sportHint = null) => {
-  setTab("ask");
-  setScreen("ask");
-  setAskInput("");
-  askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint });
-}, [askUrTake]);
 
   const scheduleChatScroll = useCallback((screenRef) => {
     const scroll = () => {
@@ -1529,12 +1527,41 @@ ${themeCss}
       if (el) el.scrollTop = el.scrollHeight;
     };
     scroll();
-    setTimeout(scroll, 100);
-    setTimeout(scroll, 800);
+    requestAnimationFrame(() => {
+      scroll();
+      requestAnimationFrame(scroll);
+    });
+    setTimeout(scroll, 48);
+    setTimeout(scroll, 240);
+    setTimeout(scroll, 720);
   }, []);
 
+  const openPlayer = useCallback((name) => {
+    setSelectedPlayer(name);
+    setScreen("player");
+    setTab("tennis");
+  }, []);
+  const openNflPlayer = useCallback((name) => {
+    setSelectedNflPlayer(name);
+    setScreen("nflplayer");
+    setTab("nfl");
+  }, []);
+  const firePrompt = useCallback(
+    (prompt, sportHint = null) => {
+      setTab("ask");
+      setScreen("ask");
+      setAskInput("");
+      askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint });
+      requestAnimationFrame(() => {
+        scheduleChatScroll(askScreenRef);
+        setTimeout(() => scheduleChatScroll(askScreenRef), 120);
+      });
+    },
+    [askUrTake, scheduleChatScroll],
+  );
+
   // ── Submit handlers ────────────────────────────────────────────────────────
-  const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); },[askUrTake,homeInput,isAsking]);
+  const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); requestAnimationFrame(()=>{ scheduleChatScroll(askScreenRef); setTimeout(()=>scheduleChatScroll(askScreenRef),120); }); },[askUrTake,homeInput,isAsking,scheduleChatScroll]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,scheduleChatScroll]);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
   const submitWta = useCallback(
