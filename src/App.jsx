@@ -3896,7 +3896,12 @@ ${themeCss}
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
-          <button className={`nav-btn pro-active`} onClick={goPro}><span>Pro</span></button>
+          <button
+            className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
+            onClick={goPro}
+          >
+            <span>Pro</span>
+          </button>
         </nav>
 
       </div>

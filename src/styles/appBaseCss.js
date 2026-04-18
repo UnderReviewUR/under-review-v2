@@ -33,7 +33,7 @@ export const baseCss = `
     --body-font:'DM Sans',sans-serif;
     --mono-font:'DM Mono',monospace;
     --display-font:'Bebas Neue',sans-serif;
-    --bottom-nav-height:84px;
+    --bottom-nav-height:96px;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -358,8 +358,9 @@ export const baseCss = `
   .nfl-ask-shell{background:var(--surface);border:1px solid rgba(255,107,53,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .nfl-ask-label{font-family:var(--mono-font);font-size:10px;color:var(--nfl);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
 
-  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,auto);row-gap:2px;column-gap:2px;padding:4px 4px max(6px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
-  .nav-btn{background:none;border:none;color:rgba(255,255,255,.88);font-family:var(--mono-font);font-size:9px;letter-spacing:0.35px;cursor:pointer;padding:5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;opacity:1;text-transform:uppercase;min-height:34px;line-height:1.05;}
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav-bg);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,auto);row-gap:4px;column-gap:2px;padding:6px 4px max(8px,env(safe-area-inset-bottom));z-index:30;backdrop-filter:blur(10px);}
+  .nav-btn{position:relative;background:none;border:none;color:rgba(255,255,255,.4);font-family:var(--display-font,'Bebas Neue',sans-serif);font-size:15px;font-weight:700;letter-spacing:1.5px;cursor:pointer;padding:8px 2px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:1;text-transform:uppercase;min-height:40px;line-height:1;}
+  .nav-btn span{display:block;}
   .nav-btn.active{color:var(--cyan-bright);}
   .nav-btn.tennis-active{color:#F5C842;}
   .nav-btn.nfl-active{color:#4A90D9;}
@@ -367,6 +368,24 @@ export const baseCss = `
   .nav-btn.nba-active{color:#FF6B00;}
   .nav-btn.mlb-active{color:#1DB954;}
   .nav-btn.pro-active{color:#F5C842;}
+  .nav-btn.active::after,
+  .nav-btn.tennis-active::after,
+  .nav-btn.nfl-active::after,
+  .nav-btn.f1-active::after,
+  .nav-btn.nba-active::after,
+  .nav-btn.mlb-active::after,
+  .nav-btn.golf-active::after,
+  .nav-btn.nav-pro-on::after{
+    content:"";
+    position:absolute;
+    bottom:6px;
+    left:50%;
+    transform:translateX(-50%);
+    width:4px;
+    height:4px;
+    border-radius:50%;
+    background:#00F5E9;
+  }
 
   .pro-banner{border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid rgba(245,200,66,.3);background:linear-gradient(135deg,rgba(245,200,66,.08),rgba(255,45,107,.04));text-align:center;}
   .pro-feature{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;}

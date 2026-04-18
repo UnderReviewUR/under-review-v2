@@ -505,14 +505,33 @@ export const THEMES = {
       }
 
       .theme-epilogue .nav-btn {
-        font-size: 10px;
-        font-weight: 600;
-        letter-spacing: .5px;
-        color: rgba(255,255,255,.88);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: rgba(255,255,255,.4);
       }
 
       .theme-epilogue .nav-btn.active {
         color: #FF2D6B;
+      }
+
+      .theme-epilogue .nav-btn.tennis-active {
+        color: #f5c842;
+      }
+      .theme-epilogue .nav-btn.nfl-active {
+        color: #4a90d9;
+      }
+      .theme-epilogue .nav-btn.f1-active {
+        color: #e10600;
+      }
+      .theme-epilogue .nav-btn.nba-active {
+        color: #ff6b00;
+      }
+      .theme-epilogue .nav-btn.mlb-active {
+        color: #1db954;
+      }
+      .theme-epilogue .nav-btn.golf-active {
+        color: #ffffff;
       }
 
       .theme-epilogue .nav-btn.pro-active {
@@ -723,12 +742,33 @@ export const THEMES = {
       }
 
       .theme-broadsheet .nav-btn {
-        color: #6b6054;
-        font-size: 8px;
+        color: rgba(107, 96, 84, 0.55);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
       }
 
       .theme-broadsheet .nav-btn.active {
         color: #C9A84C;
+      }
+
+      .theme-broadsheet .nav-btn.tennis-active {
+        color: #e8d5a8;
+      }
+      .theme-broadsheet .nav-btn.nfl-active {
+        color: #9ec5e8;
+      }
+      .theme-broadsheet .nav-btn.f1-active {
+        color: #f0a8a0;
+      }
+      .theme-broadsheet .nav-btn.nba-active {
+        color: #ffc090;
+      }
+      .theme-broadsheet .nav-btn.mlb-active {
+        color: #8fdfb0;
+      }
+      .theme-broadsheet .nav-btn.golf-active {
+        color: #f7f4ee;
       }
 
       .theme-broadsheet .nav-btn.pro-active {
@@ -948,12 +988,33 @@ export const THEMES = {
       }
 
       .theme-crisp .nav-btn {
-        color: #475569;
-        font-size: 8px;
+        color: rgba(71, 85, 105, 0.65);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
       }
 
       .theme-crisp .nav-btn.active {
         color: #38BDF8;
+      }
+
+      .theme-crisp .nav-btn.tennis-active {
+        color: #fbbf24;
+      }
+      .theme-crisp .nav-btn.nfl-active {
+        color: #60a5fa;
+      }
+      .theme-crisp .nav-btn.f1-active {
+        color: #f87171;
+      }
+      .theme-crisp .nav-btn.nba-active {
+        color: #fb923c;
+      }
+      .theme-crisp .nav-btn.mlb-active {
+        color: #4ade80;
+      }
+      .theme-crisp .nav-btn.golf-active {
+        color: #f8fafc;
       }
 
       .theme-crisp .nav-btn.pro-active {
