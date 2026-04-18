@@ -33,7 +33,7 @@ import {
   normalizeTennisMatch,
   normalizeText,
   preferredTournamentScore,
-  slugify,
+  buildContextualQuestion,
 } from "./features/app/helpers.jsx";
 import { ATP_PLAYERS, WTA_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./features/app/constants.js";
 
@@ -769,7 +769,7 @@ ${themeCss}
 
   try {
     const body = {
-      question: text,
+      question: buildContextualQuestion(text, sportHint),
       userEmail: userEmail || null,
       history: historyPayload,
       sportHint: sportHint || null,

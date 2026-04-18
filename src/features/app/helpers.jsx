@@ -26,6 +26,11 @@ export function slugify(v) {
     .replace(/^_+|_+$/g, "");
 }
 
+/** Question text sent to `/api/ur-take`; hook for optional sport-aware prefixes later. */
+export function buildContextualQuestion(text, _sportHint = null) {
+  return String(text ?? "").trim();
+}
+
 /**
  * Only real Ball Dont Lie ATP fixtures — rejects legacy client DB snapshots (`db-*` ids,
  * "Database snapshot…" rounds) and any row missing a numeric BDL match id.
