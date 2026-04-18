@@ -1,4 +1,4 @@
-import { applyCors } from "./_cors.js";
+import { applyApiNoStoreHeaders, applyCors } from "./_cors.js";
 import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
 import { buildStaticWtaBoardRows } from "./_staticWtaBoard.js";
 
@@ -6,8 +6,11 @@ export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
 
   if (req.method !== "GET") {
+    applyApiNoStoreHeaders(res);
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  applyApiNoStoreHeaders(res);
 
   try {
     const BDL_KEY = process.env.BALLDONTLIE_API_KEY;

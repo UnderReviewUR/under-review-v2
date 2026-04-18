@@ -1,4 +1,15 @@
 {
+  "headers": [
+    {
+      "source": "/api/tennis",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, no-cache, must-revalidate, max-age=0"
+        }
+      ]
+    }
+  ],
   "functions": {
     "api/ur-take.js": {
       "maxDuration": 60

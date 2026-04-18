@@ -30,6 +30,15 @@ export function getAllowedOrigin(req) {
   return false;
 }
 
+/** Use on dynamic JSON APIs so browsers/CDNs never serve stale bodies (fixes empty tennis board after deploy). */
+export function applyApiNoStoreHeaders(res) {
+  res.setHeader(
+    "Cache-Control",
+    "private, no-store, no-cache, must-revalidate, max-age=0",
+  );
+  res.setHeader("Pragma", "no-cache");
+}
+
 export function applyCors(req, res, { methods = "GET, OPTIONS" } = {}) {
   const allowedOrigin = getAllowedOrigin(req);
 

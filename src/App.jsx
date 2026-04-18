@@ -276,6 +276,7 @@ ${themeCss}
       const tournamentParam = getTournamentFetchParam(activeContext);
       const atpRes = await fetch(
         `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`,
+        { cache: "no-store" },
       );
       const parseBoard = async (res) => {
         try {
@@ -327,7 +328,10 @@ ${themeCss}
     async function loadAll() {
       setTennisLoading(true);
       try {
-        const [pRes,cRes] = await Promise.all([fetch("/api/tennis-players"),fetch("/api/tennis-context")]);
+        const [pRes,cRes] = await Promise.all([
+          fetch("/api/tennis-players", { cache: "no-store" }),
+          fetch("/api/tennis-context", { cache: "no-store" }),
+        ]);
         const [p,c] = await Promise.all([pRes.json(),cRes.json()]);
         if (!active) return;
         setPlayers(p); setContext(c);
