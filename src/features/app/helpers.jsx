@@ -5,6 +5,18 @@ export function normalizeText(v) {
 }
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
+/** Prefer explicit sport on stored AI bubbles (follow-up routing). */
+export function inferUrTakeSportFromMessages(msgs) {
+  if (!Array.isArray(msgs)) return null;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (!m || m.loading || m.role !== "ai") continue;
+    const s = String(m.sport || "").trim().toLowerCase();
+    if (s && s !== "generic") return s;
+  }
+  return null;
+}
+
 export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
   if (!Array.isArray(msgs)) return [];
   const cleaned = [];

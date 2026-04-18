@@ -12,6 +12,8 @@ const AskBar = memo(function AskBar({
   clearImage,
   isAsking,
   processImageFile,
+  /** When false, skip the "PASTE IMAGE…" subline (e.g. hero copy already covers it). */
+  showPasteHint = true,
 }) {
   const handleKeyDown = useCallback(
     (e) => {
@@ -60,7 +62,9 @@ const AskBar = memo(function AskBar({
             disabled={isAsking}
           />
 
-          {!pastedImage && <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>}
+          {!pastedImage && showPasteHint && (
+            <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>
+          )}
         </div>
 
         <button

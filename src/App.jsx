@@ -34,6 +34,7 @@ import {
   normalizeText,
   preferredTournamentScore,
   buildContextualQuestion,
+  inferUrTakeSportFromMessages,
 } from "./features/app/helpers.jsx";
 import { ATP_PLAYERS, WTA_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./features/app/constants.js";
 
@@ -82,7 +83,6 @@ ${themeCss}
   const [nflPosFilter, setNflPosFilter] = useState("ALL");
 
   // Per-screen inputs — never shared — prevents 1-char typing bug
-  const [homeInput, setHomeInput]       = useState("");
   const [askInput, setAskInput]         = useState("");
   const [tennisInput, setTennisInput]   = useState("");
   const [wtaInput, setWtaInput]         = useState("");
@@ -124,8 +124,9 @@ ${themeCss}
   const [golfMsgs, setGolfMsgs]         = useState([]);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
-  const homeInputRef      = useRef(null);
   const askInputRef       = useRef(null);
+  /** Remember last resolved sport from UR TAKE so generic Ask follow-ups still send NBA/golf/etc. context. */
+  const lastUrTakeSportRef = useRef(null);
   const tennisInputRef    = useRef(null);
   const wtaInputRef       = useRef(null);
   const nflInputRef       = useRef(null);
@@ -752,8 +753,22 @@ ${themeCss}
 
   let historyPayload = [];
   let priorSnapshot = [];
+  /** Resolved after reading prior thread state inside setMsgs (sport memory for follow-ups). */
+  let effectiveSportHint = null;
+
   setMsgs(prev => {
     priorSnapshot = [...prev];
+    const explicitHint =
+      typeof sportHint === "string" && sportHint.trim() !== "" ? sportHint.trim() : null;
+    effectiveSportHint =
+      explicitHint ??
+      lastUrTakeSportRef.current ??
+      inferUrTakeSportFromMessages(priorSnapshot) ??
+      null;
+
+    const loadingSport =
+      effectiveSportHint === "tennis_wta_profile" ? "tennis" : effectiveSportHint;
+
     historyPayload = chatHistoryForApi(prev);
     return [
       ...prev,
@@ -762,7 +777,7 @@ ${themeCss}
         role: "ai",
         text: "ANALYZING...",
         loading: true,
-        sport: sportHint === "tennis_wta_profile" ? "tennis" : sportHint,
+        sport: loadingSport,
       },
     ];
   });
@@ -779,41 +794,41 @@ ${themeCss}
       question: buildContextualQuestion(text, { priorMessages: priorSnapshot }),
       userEmail: userEmail || null,
       history: historyPayload,
-      sportHint: sportHint || null,
+      sportHint: effectiveSportHint,
       matchupContext: matchup || null,
       image: null,
     };
 
-    if (sportHint === "tennis_wta_profile") {
+    if (effectiveSportHint === "tennis_wta_profile") {
       body.players = players || null;
       body.context = context || null;
-    } else if (sportHint === "tennis") {
+    } else if (effectiveSportHint === "tennis") {
       body.players = players || null;
       body.context = context || null;
       body.liveMatches = (liveMatches || []).slice(0, 12);
     }
 
-    if (sportHint === "nfl") {
+    if (effectiveSportHint === "nfl") {
       body.nflContext = nflContextData?.promptContext || buildNflContext(nflPlayersForUi);
     }
 
-    if (sportHint === "f1") {
+    if (effectiveSportHint === "f1") {
       body.f1Context = buildF1Context();
     }
 
-    if (sportHint === "nba") {
+    if (effectiveSportHint === "nba") {
       body.nbaContext = buildNbaContext(text);
     }
 
-    if (sportHint === "mlb") {
+    if (effectiveSportHint === "mlb") {
       body.mlbContext = buildMlbContext(text);
     }
 
-    if (sportHint === "golf") {
+    if (effectiveSportHint === "golf") {
       body.golfContext = buildGolfContext(text);
     }
 
-    if (!sportHint) {
+    if (!effectiveSportHint) {
       body.context = context || null;
       body.liveMatches = (liveMatches || []).slice(0, 8);
     }
@@ -853,10 +868,21 @@ ${themeCss}
       throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
     }
 
+    const resolvedSport = String(data.sport || "").trim();
+    const sportForBubble =
+      resolvedSport && resolvedSport !== "generic"
+        ? resolvedSport
+        : effectiveSportHint || null;
+
     setMsgs(prev => [
       ...prev.filter(m => !m.loading),
-      { role: "ai", text: data.response || "Couldn't get a response — try again." }
+      {
+        role: "ai",
+        text: data.response || "Couldn't get a response — try again.",
+        sport: sportForBubble || undefined,
+      },
     ]);
+    lastUrTakeSportRef.current = sportForBubble;
     if (userEmail) {
       loadPerformanceSnapshot().catch(() => {});
     }
@@ -1561,7 +1587,7 @@ ${themeCss}
   );
 
   // ── Submit handlers ────────────────────────────────────────────────────────
-  const submitHome    = useCallback(()=>{ const t=homeInput.trim();    if(!t||isAsking)return; setHomeInput(""); setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); requestAnimationFrame(()=>{ scheduleChatScroll(askScreenRef); setTimeout(()=>scheduleChatScroll(askScreenRef),120); }); },[askUrTake,homeInput,isAsking,scheduleChatScroll]);
+  const submitHome    = useCallback(()=>{ const t=askInput.trim();    if(!t||isAsking)return; setAskInput(""); setTab("ask"); setScreen("ask"); askUrTake({text:t,setMsgs:setAskMsgs}); requestAnimationFrame(()=>{ scheduleChatScroll(askScreenRef); setTimeout(()=>scheduleChatScroll(askScreenRef),120); }); },[askUrTake,askInput,isAsking,scheduleChatScroll]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,scheduleChatScroll]);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
   const submitWta = useCallback(
@@ -1782,8 +1808,8 @@ ${themeCss}
         {screen==="home"&&(
           <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"8px 12px calc(96px + env(safe-area-inset-bottom))"}}>
 
-            {/* Ask bar — leads immediately, no hero copy */}
-            <AskBar inputRef={homeInputRef} value={homeInput} onChange={setHomeInput} onSubmit={submitHome} placeholder="Ask about any player, game, or bet..." {...askBarCommon} />
+            {/* Same UR TAKE input as Ask tab — one bar, shared state */}
+            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitHome} placeholder="Ask about any player, game, or bet..." {...askBarCommon} />
 
             {/* Sport pill rail — horizontal scroll, feels like tabs */}
             <div className="sport-rail">
@@ -3466,12 +3492,25 @@ ${themeCss}
         {/* ══ ASK ══ */}
         {screen==="ask"&&(
           <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
-            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="What do you want to know?" {...askBarCommon}/>
-            {askMsgs.length===0?(
-              <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
-            ):(
-              <ChatThread msgs={askMsgs} scrollContainerRef={askScreenRef}/>
+            {askMsgs.length === 0 ? (
+              <>
+                <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
+                <AskBar
+                  inputRef={askInputRef}
+                  value={askInput}
+                  onChange={setAskInput}
+                  onSubmit={submitAsk}
+                  placeholder="What do you want to know?"
+                  showPasteHint={false}
+                  {...askBarCommon}
+                />
+                <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 10, fontFamily: "var(--mono-font)", letterSpacing: 2, color: "var(--muted)", padding: "6px 2px 10px", textTransform: "uppercase" }}>UR TAKE · conversation</div>
+                <ChatThread msgs={askMsgs} scrollContainerRef={askScreenRef}/>
+              </>
             )}
           </main>
         )}

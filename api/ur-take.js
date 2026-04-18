@@ -341,8 +341,17 @@ function detectIntent(question, hasImage) {
   return "general";
 }
 
-function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage }) {
+function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage, golfContext }) {
   if (incomingSportHint) return incomingSportHint;
+
+  if (
+    golfContext &&
+    (golfContext.currentEvent?.name ||
+      (Array.isArray(golfContext.currentEvent?.leaderboard) &&
+        golfContext.currentEvent.leaderboard.length > 0))
+  ) {
+    return "golf";
+  }
 
   const q = normalizeText(question);
 
@@ -696,6 +705,7 @@ export default async function handler(req, res) {
     question,
     matchupContext,
     hasImage,
+    golfContext,
   });
 
   const contextQuality = getContextQuality({
@@ -1070,6 +1080,7 @@ Rules:
 - Do not mention NBA, NFL, MLB, F1, or tennis.
 - Use the tournament, odds, rankings, and player names in the provided golf context.
 - currentEvent.leaderboard is the full tournament field when the data feed provides it — find any golfer's position and scores there before claiming they are missing from the board.
+- Short follow-ups ("any sleepers?", "who else?", "best value longshot?") still apply to this same Golf context JSON — use the leaderboard and odds here; never tell the user to re-paste a screenshot or resend the board when this payload includes field data.
 - If data is limited, still stay within golf and give the best golf lean from the available board.
 - Always name at least one specific golfer from the provided context.
 - For outright questions, THE PLAY must begin with one specific golfer name and market (example: "Collin Morikawa outright +2200").
