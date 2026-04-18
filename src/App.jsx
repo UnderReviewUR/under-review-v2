@@ -251,13 +251,11 @@ ${themeCss}
   // ── Tennis fetch ───────────────────────────────────────────────────────────
   const fetchTennisBoard = useCallback(async (activeContext=null, playersPayload=null) => {
     let atpData = [];
-    let wtaData = [];
     try {
       const tournamentParam = getTournamentFetchParam(activeContext);
-      const [atpRes, wtaRes] = await Promise.all([
-        fetch(`/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`),
-        fetch(`/api/tennis?tour=wta&activeTournament=${encodeURIComponent(tournamentParam)}`),
-      ]);
+      const atpRes = await fetch(
+        `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`,
+      );
       const parseBoard = async (res) => {
         try {
           const data = await res.json();
@@ -266,16 +264,14 @@ ${themeCss}
           return [];
         }
       };
-      [atpData, wtaData] = await Promise.all([parseBoard(atpRes), parseBoard(wtaRes)]);
+      atpData = await parseBoard(atpRes);
     } catch {
       atpData = [];
-      wtaData = [];
     }
 
-    const merged = [
-      ...(atpData.map((m)=>normalizeTennisMatch(m,"ATP",activeContext))),
-      ...(wtaData.map((m)=>normalizeTennisMatch(m,"WTA",activeContext))),
-    ].filter(Boolean);
+    const merged = [...atpData.map((m) => normalizeTennisMatch(m, "ATP", activeContext))].filter(
+      Boolean,
+    );
     const seen=new Set(); const deduped=[];
     for (const m of merged) {
       const key=[normalizeText(m.league),normalizeText(m.raw?.home),normalizeText(m.raw?.away),normalizeText(m.network),normalizeText(m.raw?.round),normalizeText(m.raw?.event_date)].join("|");
@@ -293,8 +289,8 @@ ${themeCss}
       return aTime-bTime;
     });
 
-    if (sorted.length === 0 && playersPayload && (playersPayload.atp || playersPayload.wta)) {
-      sorted = buildFallbackTennisMatches(playersPayload, activeContext);
+    if (sorted.length === 0 && playersPayload?.atp) {
+      sorted = buildFallbackTennisMatches(playersPayload, activeContext, { includeWta: false });
     }
     return sorted;
   }, []);
@@ -322,7 +318,9 @@ ${themeCss}
         setLiveMatches(board);
       } catch {
         if (!active) return;
-        const fb = buildFallbackTennisMatches(playersRef.current, contextRef.current);
+        const fb = buildFallbackTennisMatches(playersRef.current, contextRef.current, {
+          includeWta: false,
+        });
         setLiveMatches(fb && fb.length ? fb : []);
       }
       finally { if(active) setTennisLoading(false); }
@@ -859,42 +857,68 @@ ${themeCss}
   // ── Tennis derived state ───────────────────────────────────────────────────
   const tennisLiveMatches     = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")==="1"),[liveMatches]);
   const tennisUpcomingMatches = useMemo(()=>liveMatches.filter(m=>String(m?.raw?.live||"0")!=="1"),[liveMatches]);
-  const activeTournamentMatches = useMemo(()=>liveMatches.filter(m=>preferredTournamentScore(m,context)>0),[liveMatches,context]);
+  const activeTournamentMatches = useMemo(
+    () =>
+      liveMatches.filter(
+        (m) => m.league === "ATP" && preferredTournamentScore(m, context) > 0,
+      ),
+    [liveMatches, context],
+  );
 
   const tennisBoardHeadline = useMemo(() => {
     const n=context?.currentTournament?.name;
-    if (activeTournamentMatches.length>0&&n) return n;
-    return "Tennis Board";
+    if (activeTournamentMatches.length>0&&n) return `${n}`;
+    return "ATP · Tennis Board";
   }, [activeTournamentMatches.length,context]);
 
   const tennisBoardSubline = useMemo(() => {
     const n=context?.currentTournament?.name;
-    if (activeTournamentMatches.length>0&&n) return `${n.toUpperCase()} · LIVE + UPCOMING`;
-    return "CURRENT + UPCOMING TOUR MATCHES";
+    if (activeTournamentMatches.length>0&&n) return `${n.toUpperCase()} · ATP LIVE + UPCOMING`;
+    return "ATP · LIVE + UPCOMING (CONFIRMED FEED)";
   }, [activeTournamentMatches.length,context]);
 
-  // ── Home cards ─────────────────────────────────────────────────────────────
-  const homeTennisCards = useMemo(() => {
-    const source = activeTournamentMatches.length>0 ? activeTournamentMatches : liveMatches;
-    const liveCards = source.filter(m=>String(m?.raw?.live||"0")==="1");
-    const upcomingCards = source.filter(m=>String(m?.raw?.live||"0")!=="1");
-    const cards=[];
-    if(liveCards[0]) cards.push({...liveCards[0],homeCategory:"Live Tennis"});
-    if(upcomingCards[0]) cards.push({...upcomingCards[0],homeCategory:"Upcoming Tennis"});
-    if(!cards.length&&liveMatches[0]) cards.push({...liveMatches[0],homeCategory:String(liveMatches[0]?.raw?.live||"0")==="1"?"Live Tennis":"Upcoming Tennis"});
-    if(!cards.length) {
-      cards.push({
-        id:"tennis-ctx-1", league:"TENNIS", leagueColor:"#0891B2",
-        title:context?.currentTournament?.name?`Best angle at ${context.currentTournament.name}`:"Tennis Futures — Value Plays",
-        time:"Current Market", network:context?.currentTournament?.surface||"Tour Futures",
-        blurb:context?.currentTournament?.context?context.currentTournament.context:"Player database, surface Elo, and futures context are loaded.",
-        whatMatters:"Ask for the best current tennis future, matchup angle, or surface edge.",
-        quickHitters:["Best tennis future right now?","Best clay angle?","Who has the best current value?"],
-        confirmed:true,
-      });
+  const homeAtpSpotlightCards = useMemo(() => {
+    const atp = liveMatches.filter((m) => m.league === "ATP");
+    if (!atp.length) {
+      return [
+        {
+          id: "tennis-atp-feed-loading",
+          league: "ATP",
+          leagueColor: "#0891B2",
+          homeCategory: "ATP",
+          title: "ATP matchups loading…",
+          time: "Feed",
+          network: context?.currentTournament?.name || "Ball Dont Lie",
+          blurb: "Pulling confirmed ATP draws from the live feed.",
+          whatMatters: "Open Tennis for the full ATP board.",
+          quickHitters: ["Open Tennis tab"],
+          confirmed: true,
+        },
+      ];
     }
-    return cards.slice(0,2);
-  }, [activeTournamentMatches,liveMatches,context]);
+    const focus = atp.filter((m) => preferredTournamentScore(m, context) > 0);
+    const pool = focus.length ? focus : atp;
+    const head = pool.slice(0, 6);
+    const liveN = pool.filter((m) => String(m?.raw?.live || "0") === "1").length;
+    const upcomingN = pool.length - liveN;
+    const summary = head.map((m) => m.title).join(" · ");
+    const tName = context?.currentTournament?.name || "ATP Tour";
+    return [
+      {
+        id: "tennis-atp-schedule-board",
+        league: "ATP",
+        leagueColor: "#0891B2",
+        homeCategory: "ATP · SCHEDULE",
+        title: `${tName} — next ATP matchups`,
+        time: `${liveN} live · ${upcomingN} upcoming`,
+        network: `${atp.length} confirmed on ATP board`,
+        blurb: summary,
+        whatMatters: "Tap to open Tennis — primary board is ATP (WTA is rankings snapshot below).",
+        quickHitters: ["Best ATP misprice today?", "Who benefits on this surface?"],
+        confirmed: true,
+      },
+    ];
+  }, [liveMatches, context]);
 
   const homeNflCards = useMemo(() => {
     if (nflSeasonMode) return [
@@ -1200,6 +1224,7 @@ ${themeCss}
   const homeCards = useMemo(
     () =>
       [
+        ...homeAtpSpotlightCards,
         ...homeTrackerCards,
         ...homeGolfCards,
         ...homeNbaCards,
@@ -1207,6 +1232,7 @@ ${themeCss}
         ...homeF1Cards,
       ].filter(Boolean),
     [
+      homeAtpSpotlightCards,
       homeTrackerCards,
       homeGolfCards,
       homeNbaCards,
@@ -1244,6 +1270,13 @@ ${themeCss}
   const goGolf   = useCallback(()=>{ setTab("golf");  setScreen("golf"); setSelectedMatchup(null); setSelectedPlayer(null); setSelectedNflPlayer(null); },[]);
  const openMatchup = useCallback((m) => {
   if (!m?.title || !m?.network) return;
+
+  if (m?.id === "tennis-atp-schedule-board" || m?.id === "tennis-atp-feed-loading") {
+    setTab("tennis");
+    setScreen("tennis");
+    setSelectedMatchup(null);
+    return;
+  }
 
   if (m?.id === "mlb-home-more") {
     setTab("mlb");
@@ -2121,7 +2154,7 @@ ${themeCss}
             <div className="tour-banner">
               <div className="banner-title">{tennisBoardHeadline}</div>
               <div className="banner-sub">{tennisBoardSubline}</div>
-              <div className="banner-note">{liveMatches.length>0?`${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in active tournament focus`:""}`:"No current matches loaded right now."}</div>
+              <div className="banner-note">{liveMatches.length>0?`ATP · ${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in tournament focus`:""}`:"No ATP matches loaded right now."}</div>
             </div>
 
             {tennisMsgs.length===0&&(
@@ -2138,7 +2171,7 @@ ${themeCss}
 
             <ChatThread msgs={tennisMsgs} scrollContainerRef={tennisScreenRef}/>
 
-            <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} Board`:"Live + Upcoming Matches"}</div>
+            <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>
 
             {tennisLoading?(
               <div className="loading-state"><div className="loading-text">LOADING TENNIS BOARD...</div></div>
@@ -2152,7 +2185,7 @@ ${themeCss}
                 ))}
                 {activeTournamentMatches.length>0&&liveMatches.length>activeTournamentMatches.length&&(
                   <>
-                    <div className="section-divider">Other Tour Matches</div>
+                    <div className="section-divider">Other ATP Tour Matches</div>
                     {liveMatches.filter(m=>!activeTournamentMatches.some(x=>x.id===m.id)).map(m=>(
                       <div key={m.id} className="matchup-card" onClick={()=>openMatchup(m)}>
                         <div className="matchup-top"><div className="matchup-league" style={{color:m.leagueColor}}>{m.league}</div><div className="matchup-time">{String(m?.raw?.live||"0")==="1"?"LIVE":(m.raw?.status||m.time)}</div></div>
@@ -2163,7 +2196,7 @@ ${themeCss}
                 )}
               </div>
             ):(
-              <div className="loading-state"><div className="loading-text">NO CONFIRMED TENNIS MATCHES FOUND</div></div>
+              <div className="loading-state"><div className="loading-text">NO CONFIRMED ATP MATCHUPS LOADED</div></div>
             )}
 
             {context?.ace_props&&(
@@ -2178,6 +2211,24 @@ ${themeCss}
                 </div>
               </>
             )}
+
+            <div className="section-divider">Top WTA players</div>
+            <div style={{fontSize:11,color:"var(--muted)",marginBottom:10,maxWidth:720}}>
+              Highlighted names from our database — order is editorial, not official tour ranking or live schedule.
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
+              {WTA_PLAYERS.slice(0,10).map((name)=>(
+                <button
+                  key={name}
+                  type="button"
+                  className="quick-btn"
+                  style={{fontSize:11}}
+                  onClick={()=>openPlayer(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
 
             {players&&(
               <>
