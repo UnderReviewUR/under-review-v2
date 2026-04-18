@@ -60,6 +60,29 @@ function bdlScheduledDate(m) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function ymdStartUtcMs(ymd) {
+  if (!ymd || typeof ymd !== "string") return NaN;
+  const d = new Date(`${ymd.trim().slice(0, 10)}T00:00:00.000Z`);
+  const t = d.getTime();
+  return Number.isFinite(t) ? t : NaN;
+}
+
+function ymdEndUtcMs(ymd) {
+  if (!ymd || typeof ymd !== "string") return NaN;
+  const d = new Date(`${ymd.trim().slice(0, 10)}T23:59:59.999Z`);
+  const t = d.getTime();
+  return Number.isFinite(t) ? t : NaN;
+}
+
+/** True when tournament calendar overlaps the board window (e.g. Munich week inside Apr–Jun pull). */
+function tournamentRowOverlaps(row, windowStartMs, windowEndMs) {
+  if (!row || typeof row !== "object") return false;
+  const sd = ymdStartUtcMs(row.start_date);
+  const ed = ymdEndUtcMs(row.end_date);
+  if (!Number.isFinite(sd) || !Number.isFinite(ed)) return false;
+  return sd <= windowEndMs && ed >= windowStartMs;
+}
+
 /** Map BDL match → shared fixture shape consumed by api/tennis.js */
 export function bdlMatchToFixtureShape(m, options = {}) {
   const p1 = bdlPlayerFullName(m.player1);
@@ -125,6 +148,20 @@ export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
   const st = String(m.match_status || "").toLowerCase();
   if (m.is_live || st === "in_progress") return true;
 
+  const tr = m.tournament;
+  if (tr && tournamentRowOverlaps(tr, windowStartMs, windowEndMs)) {
+    if (!isFinishedBdl(m)) return true;
+    const mt = bdlScheduledDate(m)?.getTime();
+    if (
+      Number.isFinite(mt) &&
+      mt >= windowStartMs - 10 * 24 * 60 * 60 * 1000 &&
+      mt <= windowEndMs + 24 * 60 * 60 * 1000
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   const t = bdlScheduledDate(m)?.getTime() ?? NaN;
 
   if (!Number.isFinite(t)) return !isFinishedBdl(m);
@@ -139,9 +176,18 @@ export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
   return false;
 }
 
-const BDL_MATCH_REQ_MS = 6000;
+const BDL_MATCH_REQ_MS = 8000;
+
+/** Ball Dont Lie typically paginates ATP matches oldest-first; first pages are January junk for an April board. */
+const TARGET_INGEST_COUNT = 52;
+const MAX_CURSOR_PAGES_PER_STREAM = 18;
+const MAX_TOURNAMENT_IDS_PER_REQUEST = 15;
+/** Stop follow-up pagination so /api/tennis stays inside Vercel maxDuration. */
+const WALL_BUDGET_MS = 38000;
 
 export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
+  const wallStart = Date.now();
+  const overWall = () => Date.now() - wallStart > WALL_BUDGET_MS;
   const apiKey = process.env.BALLDONTLIE_API_KEY;
   if (!apiKey) {
     return { ok: false, fixtures: [], reason: "no_bdl_key" };
@@ -177,36 +223,74 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
     return res;
   };
 
+  const drainCursorChain = async (firstCursor, baseParams) => {
+    let cursor = firstCursor;
+    let pages = 0;
+    while (
+      cursor &&
+      byId.size < TARGET_INGEST_COUNT &&
+      pages < MAX_CURSOR_PAGES_PER_STREAM &&
+      !overWall()
+    ) {
+      const res = await fetchPage({ ...baseParams, cursor });
+      handle(res);
+      if (!res.ok) break;
+      cursor = res.data?.meta?.next_cursor ?? null;
+      pages += 1;
+    }
+    return pages;
+  };
+
   const prevYear = currentYear - 1;
 
   /**
    * Live feed: do NOT scope by season — ATP rows can carry the prior calendar year deep into Q1.
    * Schedule pages: pull both years so early-season tournaments are never missing from the board.
    */
-  const [liveRes, page1Res, page1PrevRes] = await Promise.all([
+  const [liveRes, page1Res, page1PrevRes, tournamentsRes] = await Promise.all([
     fetchPage({ per_page: 100, is_live: true }),
     fetchPage({ per_page: 100, season: currentYear }),
     fetchPage({ per_page: 100, season: prevYear }),
+    bdlFetch(
+      `/atp/v1/tournaments`,
+      { season: currentYear, per_page: 100 },
+      { timeoutMs: BDL_MATCH_REQ_MS },
+    ),
   ]);
 
   handle(liveRes);
   handle(page1Res);
   handle(page1PrevRes);
 
-  const page1Cursor = page1Res.ok ? (page1Res.data?.meta?.next_cursor ?? null) : null;
+  if (tournamentsRes.ok && Array.isArray(tournamentsRes.data?.data)) {
+    const ids = tournamentsRes.data.data
+      .filter((row) => tournamentRowOverlaps(row, windowStartMs, windowEndMs))
+      .map((row) => row.id)
+      .filter((id) => id != null);
 
-  if (byId.size < 30 && page1Cursor) {
-    const page2Res = await fetchPage({
-      per_page: 100,
-      season: currentYear,
-      cursor: page1Cursor,
-    });
-    handle(page2Res);
+    for (let i = 0; i < ids.length && byId.size < TARGET_INGEST_COUNT && !overWall(); i += MAX_TOURNAMENT_IDS_PER_REQUEST) {
+      const chunk = ids.slice(i, i + MAX_TOURNAMENT_IDS_PER_REQUEST);
+      const tr = await fetchPage({
+        per_page: 100,
+        tournament_ids: chunk,
+      });
+      handle(tr);
+    }
+  }
+
+  const page1Cursor = page1Res.ok ? (page1Res.data?.meta?.next_cursor ?? null) : null;
+  await drainCursorChain(page1Cursor, { per_page: 100, season: currentYear });
+
+  const prevCursor = page1PrevRes.ok ? (page1PrevRes.data?.meta?.next_cursor ?? null) : null;
+  if (byId.size < TARGET_INGEST_COUNT && prevCursor) {
+    await drainCursorChain(prevCursor, { per_page: 100, season: prevYear });
   }
 
   if (byId.size === 0) {
     const fallbackRes = await fetchPage({ per_page: 100 });
     handle(fallbackRes);
+    const fbCur = fallbackRes.ok ? (fallbackRes.data?.meta?.next_cursor ?? null) : null;
+    await drainCursorChain(fbCur, { per_page: 100 });
   }
 
   if (byId.size === 0 && !anyOk && lastError) {

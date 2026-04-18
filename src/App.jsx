@@ -814,11 +814,20 @@ ${themeCss}
       };
     }
 
-    const res = await fetch("/api/ur-take", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const ctrl = new AbortController();
+    const abortTimer = window.setTimeout(() => ctrl.abort(), 75000);
+
+    let res;
+    try {
+      res = await fetch("/api/ur-take", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+    } finally {
+      window.clearTimeout(abortTimer);
+    }
 
     const raw = await res.text();
 
@@ -841,10 +850,11 @@ ${themeCss}
       loadPerformanceSnapshot().catch(() => {});
     }
   } catch (err) {
-    setMsgs(prev => [
-      ...prev.filter(m => !m.loading),
-      { role: "ai", text: err?.message || "Something went wrong — try again." }
-    ]);
+    const fallback =
+      err?.name === "AbortError"
+        ? "Request timed out — try again."
+        : err?.message || "Something went wrong — try again.";
+    setMsgs(prev => [...prev.filter(m => !m.loading), { role: "ai", text: fallback }]);
   } finally {
     setIsAsking(false);
   }

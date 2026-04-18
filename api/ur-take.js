@@ -548,7 +548,8 @@ async function callAnthropic({
   max_tokens = 800,
 }) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  /** Allow slow Claude completions when the host permits long functions (see vercel.json maxDuration). */
+  const timeout = setTimeout(() => controller.abort(), 52000);
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {

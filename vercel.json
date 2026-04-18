@@ -1,4 +1,12 @@
 {
+  "functions": {
+    "api/ur-take.js": {
+      "maxDuration": 60
+    },
+    "api/tennis.js": {
+      "maxDuration": 45
+    }
+  },
   "crons": [
     {
       "path": "/api/nfl-depth-update",
