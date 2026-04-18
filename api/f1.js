@@ -217,6 +217,26 @@ function applyRaceStartToSchedule(schedule, meetingKey, raceStart) {
   };
 }
 
+/** F1.com lists Miami GP race at 20:00 track time (America/New_York). OpenF1 session times can drift; fix display. */
+const MIAMI_GP_2026_RACE_START = "2026-05-03T20:00:00-04:00";
+
+function patchKnownGrandPrixStartTimes(schedule) {
+  if (!schedule?.races || !Array.isArray(schedule.races)) return schedule;
+
+  const patchRace = (r) => {
+    if (String(r?.meeting_name || "") !== "Miami Grand Prix") return r;
+    return { ...r, race_start: MIAMI_GP_2026_RACE_START };
+  };
+
+  return {
+    ...schedule,
+    races: schedule.races.map(patchRace),
+    upcoming: Array.isArray(schedule.upcoming) ? schedule.upcoming.map(patchRace) : schedule.upcoming,
+    past: Array.isArray(schedule.past) ? schedule.past.map(patchRace) : schedule.past,
+    current: Array.isArray(schedule.current) ? schedule.current.map(patchRace) : schedule.current,
+  };
+}
+
 function buildStandings(drivers) {
   if (!Array.isArray(drivers) || drivers.length === 0) {
     return FALLBACK_STANDINGS;
@@ -241,7 +261,7 @@ function buildStandings(drivers) {
 }
 
 async function getScheduleData() {
-  const cached = getCached("f1_schedule_v3");
+  const cached = getCached("f1_schedule_v4");
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
@@ -258,7 +278,9 @@ async function getScheduleData() {
     data = applyRaceStartToSchedule(data, data.next_meeting_key, raceStart);
   }
 
-  setCached("f1_schedule_v3", data, CACHE_TTL.schedule);
+  data = patchKnownGrandPrixStartTimes(data);
+
+  setCached("f1_schedule_v4", data, CACHE_TTL.schedule);
   return data;
 }
 
@@ -357,7 +379,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const cached = getCached("f1_board_v3");
+      const cached = getCached("f1_board_v4");
       if (cached) {
         res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json(cached);
@@ -380,7 +402,7 @@ export default async function handler(req, res) {
           !!sessionPayload.usingFallbackSession,
       };
 
-      setCached("f1_board_v3", body, CACHE_TTL.board);
+      setCached("f1_board_v4", body, CACHE_TTL.board);
       res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
       return res.status(200).json(body);
     }
