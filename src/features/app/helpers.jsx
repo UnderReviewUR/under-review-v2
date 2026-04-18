@@ -316,6 +316,36 @@ export function renderMessage(text) {
       );
     }
 
+    if (
+      i === 0 &&
+      lines.length === 1 &&
+      lines[0].trimStart().startsWith(">>")
+    ) {
+      const opener = lines[0].trimStart().replace(/^>>\s*/, "").trim();
+      return (
+        <div
+          key={i}
+          style={{
+            fontFamily: "var(--display-font, 'Bebas Neue', sans-serif)",
+            fontSize: 26,
+            fontWeight: 700,
+            lineHeight: 1.15,
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            marginBottom: 16,
+            paddingBottom: 12,
+            borderBottom: "1px solid rgba(0, 245, 233, 0.15)",
+            background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          {opener}
+        </div>
+      );
+    }
+
     return (
       <div key={i} style={{ lineHeight: 1.7, marginBottom: 10 }}>
         {lines.map((line, j) => (
