@@ -726,19 +726,27 @@ ${themeCss}
   setIsAsking(true);
   const imgToSend = pastedImage;
 
-  setMsgs(prev => [
-    ...prev,
-    { role: "user", text, image: imgToSend?.previewUrl || null },
-    { role: "ai", text: "ANALYZING...", loading: true, sport: sportHint }
-  ]);
+  // Capture prior conversation BEFORE adding the new turn
+  let priorMessages = [];
+  setMsgs(prev => {
+    priorMessages = [...prev];
+    return [
+      ...prev,
+      { role: "user", text, image: imgToSend?.previewUrl || null },
+      { role: "ai", text: "ANALYZING...", loading: true, sport: sportHint }
+    ];
+  });
 
     clearImage();
 
+  // Glue prior Q&A into the question text — context travels inside the question itself
+  const contextualText = buildContextualQuestion(text, priorMessages);
+  console.log("[UR TAKE] Sending question with", priorMessages.length, "prior messages of context");
+
   try {
     const body = {
-      question: text,
+      question: contextualText,
       userEmail: userEmail || null,
-      history: [],
       sportHint: sportHint || null,
       matchupContext: matchup || null,
       image: null,
