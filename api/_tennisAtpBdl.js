@@ -1,21 +1,21 @@
 /**
- * BallDontLie ATP API — men's singles only (ALL-STAR+: matches, race, etc.).
+ * Ball Dont Lie ATP API — men's singles only (ALL-STAR+ tier).
  * See https://www.balldontlie.io/openapi/atp.yml
  *
- * Fetch strategy: parallel-first, timeout-safe.
- *
- * Request budget: max 3 wall-clock waves, up to 4 HTTP calls total.
- *   Wave 1 (parallel): live + upcoming page 1 — one wall-clock hop
- *   Wave 2 (if thin):  upcoming page 2 — only when byId.size < 30
- *   Wave 3 (fallback): unscoped, no season param — only when byId.size === 0
- *
- * Per-request timeout: 6000ms. Common case ~2–4s wall-clock.
- * Worst case sequential waves: ~18s — OK for Vercel Pro defaults; Hobby (10s) may
- * still edge-case timeout if every hop is slow — consider maxDuration or shorter REQ_MS.
- *
- * Optional: add { maxDuration: 30 } to vercel.json for /api/tennis on Pro.
+ * Strategy (combined):
+ * - `start_date_after` filters on BDL's side so we skip months of stale completed rows.
+ * - Parallel `is_live` + anchored schedule + tournament list; pull matches by overlapping
+ *   tournament IDs (direct draw access).
+ * - Cursor drains stay anchored with `start_date_after` (not unbounded season scans).
+ * - Wall-clock budget keeps /api/tennis inside Vercel maxDuration.
  */
 import { bdlFetch } from "./_balldontlie.js";
+
+const BDL_MATCH_REQ_MS = 8000;
+const TARGET_INGEST_COUNT = 52;
+const MAX_CURSOR_PAGES_PER_STREAM = 18;
+const MAX_TOURNAMENT_IDS_PER_REQUEST = 15;
+const WALL_BUDGET_MS = 38000;
 
 function isFinishedBdl(match) {
   const s = String(match?.match_status || "").toLowerCase();
@@ -29,9 +29,6 @@ function isFinishedBdl(match) {
   );
 }
 
-/**
- * BDL payloads vary — full_name may be missing; fall back through known fields.
- */
 function bdlPlayerFullName(player) {
   if (!player || typeof player !== "object") return "";
   const direct = String(player.full_name || "").trim();
@@ -43,9 +40,6 @@ function bdlPlayerFullName(player) {
   return String(player.name || "").trim();
 }
 
-/**
- * BDL has used scheduled_time, scheduled_at, and start_time across versions.
- */
 function bdlScheduledTime(m) {
   if (!m || typeof m !== "object") return null;
   const raw = m.scheduled_time ?? m.scheduled_at ?? m.start_time;
@@ -58,6 +52,10 @@ function bdlScheduledDate(m) {
   if (!raw) return null;
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isoDateOnly(d) {
+  return d.toISOString().slice(0, 10);
 }
 
 function ymdStartUtcMs(ymd) {
@@ -74,7 +72,6 @@ function ymdEndUtcMs(ymd) {
   return Number.isFinite(t) ? t : NaN;
 }
 
-/** True when tournament calendar overlaps the board window (e.g. Munich week inside Apr–Jun pull). */
 function tournamentRowOverlaps(row, windowStartMs, windowEndMs) {
   if (!row || typeof row !== "object") return false;
   const sd = ymdStartUtcMs(row.start_date);
@@ -83,7 +80,6 @@ function tournamentRowOverlaps(row, windowStartMs, windowEndMs) {
   return sd <= windowEndMs && ed >= windowStartMs;
 }
 
-/** Map BDL match → shared fixture shape consumed by api/tennis.js */
 export function bdlMatchToFixtureShape(m, options = {}) {
   const p1 = bdlPlayerFullName(m.player1);
   const p2 = bdlPlayerFullName(m.player2);
@@ -91,10 +87,6 @@ export function bdlMatchToFixtureShape(m, options = {}) {
   const schedule = bdlScheduledDate(m);
   const valid = !!schedule;
 
-  /**
-   * Masters draws often ship before scheduled_time is populated — anchor so
-   * /api/tennis + UI can sort and show cards.
-   */
   const fallbackDay =
     options.fallbackDay instanceof Date && !Number.isNaN(options.fallbackDay.getTime())
       ? options.fallbackDay
@@ -140,10 +132,6 @@ export function bdlMatchToFixtureShape(m, options = {}) {
   };
 }
 
-/**
- * Keep matches relevant to a betting board: live, upcoming in window,
- * or very recent unfinished. Generous lookahead so Masters / Slam draws appear.
- */
 export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
   const st = String(m.match_status || "").toLowerCase();
   if (m.is_live || st === "in_progress") return true;
@@ -164,30 +152,42 @@ export function bdlMatchInBoardWindow(m, windowStartMs, windowEndMs) {
 
   const t = bdlScheduledDate(m)?.getTime() ?? NaN;
 
-  if (!Number.isFinite(t)) return !isFinishedBdl(m);
+  if (Number.isFinite(t)) {
+    const now = Date.now();
+    const lookaheadMs = 62 * 24 * 60 * 60 * 1000;
+    const recentPastMs = 72 * 60 * 60 * 1000;
 
-  const now = Date.now();
-  const lookaheadMs = 62 * 24 * 60 * 60 * 1000;
-  const recentPastMs = 72 * 60 * 60 * 1000;
+    if (t >= windowStartMs && t <= windowEndMs) return true;
+    if (!isFinishedBdl(m) && t >= now - recentPastMs && t <= now + lookaheadMs)
+      return true;
 
-  if (t >= windowStartMs && t <= windowEndMs) return true;
-  if (!isFinishedBdl(m) && t >= now - recentPastMs && t <= now + lookaheadMs) return true;
+    return false;
+  }
 
-  return false;
+  if (isFinishedBdl(m)) return false;
+
+  const tStart = m.tournament?.start_date
+    ? new Date(m.tournament.start_date).getTime()
+    : NaN;
+  const tEnd = m.tournament?.end_date
+    ? new Date(m.tournament.end_date).getTime()
+    : NaN;
+
+  if (Number.isFinite(tStart) && Number.isFinite(tEnd)) {
+    const now = Date.now();
+    return (
+      now >= tStart - 7 * 24 * 60 * 60 * 1000 &&
+      now <= tEnd + 24 * 60 * 60 * 1000
+    );
+  }
+
+  return true;
 }
-
-const BDL_MATCH_REQ_MS = 8000;
-
-/** Ball Dont Lie typically paginates ATP matches oldest-first; first pages are January junk for an April board. */
-const TARGET_INGEST_COUNT = 52;
-const MAX_CURSOR_PAGES_PER_STREAM = 18;
-const MAX_TOURNAMENT_IDS_PER_REQUEST = 15;
-/** Stop follow-up pagination so /api/tennis stays inside Vercel maxDuration. */
-const WALL_BUDGET_MS = 38000;
 
 export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const wallStart = Date.now();
   const overWall = () => Date.now() - wallStart > WALL_BUDGET_MS;
+
   const apiKey = process.env.BALLDONTLIE_API_KEY;
   if (!apiKey) {
     return { ok: false, fixtures: [], reason: "no_bdl_key" };
@@ -197,6 +197,10 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const windowEndMs = windowEnd.getTime();
   const byId = new Map();
   const currentYear = new Date().getFullYear();
+
+  const dateAnchor = new Date(windowStart);
+  dateAnchor.setDate(dateAnchor.getDate() - 3);
+  const startDateAfter = isoDateOnly(dateAnchor);
 
   const ingest = (batch) => {
     if (!Array.isArray(batch)) return;
@@ -241,16 +245,9 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
     return pages;
   };
 
-  const prevYear = currentYear - 1;
-
-  /**
-   * Live feed: do NOT scope by season — ATP rows can carry the prior calendar year deep into Q1.
-   * Schedule pages: pull both years so early-season tournaments are never missing from the board.
-   */
-  const [liveRes, page1Res, page1PrevRes, tournamentsRes] = await Promise.all([
+  const [liveRes, page1Res, tournamentsRes] = await Promise.all([
     fetchPage({ per_page: 100, is_live: true }),
-    fetchPage({ per_page: 100, season: currentYear }),
-    fetchPage({ per_page: 100, season: prevYear }),
+    fetchPage({ per_page: 100, start_date_after: startDateAfter }),
     bdlFetch(
       `/atp/v1/tournaments`,
       { season: currentYear, per_page: 100 },
@@ -260,7 +257,6 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
 
   handle(liveRes);
   handle(page1Res);
-  handle(page1PrevRes);
 
   if (tournamentsRes.ok && Array.isArray(tournamentsRes.data?.data)) {
     const ids = tournamentsRes.data.data
@@ -268,7 +264,11 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
       .map((row) => row.id)
       .filter((id) => id != null);
 
-    for (let i = 0; i < ids.length && byId.size < TARGET_INGEST_COUNT && !overWall(); i += MAX_TOURNAMENT_IDS_PER_REQUEST) {
+    for (
+      let i = 0;
+      i < ids.length && byId.size < TARGET_INGEST_COUNT && !overWall();
+      i += MAX_TOURNAMENT_IDS_PER_REQUEST
+    ) {
       const chunk = ids.slice(i, i + MAX_TOURNAMENT_IDS_PER_REQUEST);
       const tr = await fetchPage({
         per_page: 100,
@@ -279,11 +279,29 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   }
 
   const page1Cursor = page1Res.ok ? (page1Res.data?.meta?.next_cursor ?? null) : null;
-  await drainCursorChain(page1Cursor, { per_page: 100, season: currentYear });
 
-  const prevCursor = page1PrevRes.ok ? (page1PrevRes.data?.meta?.next_cursor ?? null) : null;
-  if (byId.size < TARGET_INGEST_COUNT && prevCursor) {
-    await drainCursorChain(prevCursor, { per_page: 100, season: prevYear });
+  const page1Full =
+    page1Res.ok &&
+    Array.isArray(page1Res.data?.data) &&
+    page1Res.data.data.length >= 100;
+
+  if (page1Full && page1Cursor && byId.size < TARGET_INGEST_COUNT && !overWall()) {
+    const page2Res = await fetchPage({
+      per_page: 100,
+      start_date_after: startDateAfter,
+      cursor: page1Cursor,
+    });
+    handle(page2Res);
+    const nextCur = page2Res.ok ? (page2Res.data?.meta?.next_cursor ?? null) : null;
+    await drainCursorChain(nextCur, {
+      per_page: 100,
+      start_date_after: startDateAfter,
+    });
+  } else {
+    await drainCursorChain(page1Cursor, {
+      per_page: 100,
+      start_date_after: startDateAfter,
+    });
   }
 
   if (byId.size === 0) {

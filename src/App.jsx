@@ -751,7 +751,9 @@ ${themeCss}
   const imgToSend = pastedImage;
 
   let historyPayload = [];
+  let priorSnapshot = [];
   setMsgs(prev => {
+    priorSnapshot = [...prev];
     historyPayload = chatHistoryForApi(prev);
     return [
       ...prev,
@@ -769,7 +771,7 @@ ${themeCss}
 
   try {
     const body = {
-      question: buildContextualQuestion(text, sportHint),
+      question: buildContextualQuestion(text, { priorMessages: priorSnapshot }),
       userEmail: userEmail || null,
       history: historyPayload,
       sportHint: sportHint || null,

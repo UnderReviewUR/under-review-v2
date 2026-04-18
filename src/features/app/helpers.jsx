@@ -26,9 +26,29 @@ export function slugify(v) {
     .replace(/^_+|_+$/g, "");
 }
 
-/** Question text sent to `/api/ur-take`; hook for optional sport-aware prefixes later. */
-export function buildContextualQuestion(text, _sportHint = null) {
-  return String(text ?? "").trim();
+/**
+ * Question sent to `/api/ur-take`.
+ * Optionally prepends a short recap of raw prior UI messages when `priorMessages` is passed.
+ */
+export function buildContextualQuestion(text, opts = {}) {
+  const cleaned = String(text ?? "").trim();
+  const priorMessages = opts.priorMessages;
+  if (!Array.isArray(priorMessages) || priorMessages.length === 0) return cleaned;
+
+  const snippets = priorMessages
+    .filter((m) => m && !m.loading && (m.role === "user" || m.role === "ai"))
+    .slice(-8)
+    .map((m) => {
+      const content = String(m.text ?? m.content ?? "").trim();
+      if (!content || /^ANALYZING/i.test(content)) return null;
+      const who = m.role === "ai" ? "Assistant" : "User";
+      return `${who}: ${content.slice(0, 1400)}`;
+    })
+    .filter(Boolean);
+
+  if (!snippets.length) return cleaned;
+
+  return `${snippets.join("\n")}\n\nFollow-up:\n${cleaned}`;
 }
 
 /**
