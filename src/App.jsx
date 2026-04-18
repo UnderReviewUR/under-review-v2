@@ -25,8 +25,8 @@ import {
   getDrValue,
   getHoldValue,
   getTbValue,
-  buildFallbackTennisMatches,
   getTournamentFetchParam,
+  isBallDontLieAtpFixture,
   isNflInSeason,
   isNflRampMode,
   normalizeTennisMatch,
@@ -34,7 +34,7 @@ import {
   preferredTournamentScore,
   slugify,
 } from "./features/app/helpers.jsx";
-import { ATP_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE, WTA_PLAYERS } from "./features/app/constants.js";
+import { ATP_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./features/app/constants.js";
 
 import { baseCss } from "./styles/appBaseCss.js";
 import { NFL_PLAYERS } from "./features/app/embedGolfNflData.js";
@@ -89,6 +89,8 @@ ${themeCss}
   const contextRef                     = useRef(null);
   const [context, setContext]           = useState(null);
   const [liveMatches, setLiveMatches]   = useState([]);
+  /** Raw ATP rows from Ball Dont Lie — Home spotlight is built from this, not from empty-board fallbacks. */
+  const [homeAtpRaw, setHomeAtpRaw] = useState(null);
   const [tennisLoading, setTennisLoading] = useState(false);
   const [pastedImage, setPastedImage]   = useState(null);
   const [f1Data, setF1Data]             = useState(null);
@@ -249,7 +251,7 @@ ${themeCss}
   }, [isUnlimited, userEmail]);
 
   // ── Tennis fetch ───────────────────────────────────────────────────────────
-  const fetchTennisBoard = useCallback(async (activeContext=null, playersPayload=null) => {
+  const fetchTennisBoard = useCallback(async (activeContext = null) => {
     let atpData = [];
     try {
       const tournamentParam = getTournamentFetchParam(activeContext);
@@ -269,9 +271,10 @@ ${themeCss}
       atpData = [];
     }
 
-    const merged = [...atpData.map((m) => normalizeTennisMatch(m, "ATP", activeContext))].filter(
-      Boolean,
-    );
+    const bdlOnly = atpData.filter(isBallDontLieAtpFixture);
+    const merged = [
+      ...bdlOnly.map((m) => normalizeTennisMatch(m, "ATP", activeContext)),
+    ].filter(Boolean);
     const seen=new Set(); const deduped=[];
     for (const m of merged) {
       const key=[normalizeText(m.league),normalizeText(m.raw?.home),normalizeText(m.raw?.away),normalizeText(m.network),normalizeText(m.raw?.round),normalizeText(m.raw?.event_date)].join("|");
@@ -289,9 +292,6 @@ ${themeCss}
       return aTime-bTime;
     });
 
-    if (sorted.length === 0 && playersPayload?.atp) {
-      sorted = buildFallbackTennisMatches(playersPayload, activeContext, { includeWta: false });
-    }
     return sorted;
   }, []);
 
@@ -313,24 +313,48 @@ ${themeCss}
         if (!active) return;
         setPlayers(p); setContext(c);
         playersRef.current = p;
-        const board = await fetchTennisBoard(c, p);
+        const board = await fetchTennisBoard(c);
         if (!active) return;
         setLiveMatches(board);
       } catch {
         if (!active) return;
-        const fb = buildFallbackTennisMatches(playersRef.current, contextRef.current, {
-          includeWta: false,
-        });
-        setLiveMatches(fb && fb.length ? fb : []);
+        setLiveMatches([]);
       }
       finally { if(active) setTennisLoading(false); }
     }
     loadAll();
     pollId = window.setInterval(() => {
-      fetchTennisBoard(contextRef.current, playersRef.current).then((b)=>{ if(active) setLiveMatches(b); }).catch(()=>{});
+      fetchTennisBoard(contextRef.current).then((b) => { if (active) setLiveMatches(b); }).catch(() => {});
     }, 60000);
     return () => { active=false; if(pollId) window.clearInterval(pollId); };
   }, [fetchTennisBoard]);
+
+  useEffect(() => {
+    let active = true;
+    let intervalId = null;
+    async function loadHomeAtp() {
+      const c = contextRef.current;
+      const tournamentParam = getTournamentFetchParam(c);
+      try {
+        const res = await fetch(
+          `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`,
+        );
+        const data = await res.json();
+        if (!active) return;
+        if (res.ok && Array.isArray(data)) {
+          setHomeAtpRaw(data.filter(isBallDontLieAtpFixture));
+        } else setHomeAtpRaw([]);
+      } catch {
+        if (active) setHomeAtpRaw([]);
+      }
+    }
+    loadHomeAtp();
+    intervalId = window.setInterval(loadHomeAtp, 90000);
+    return () => {
+      active = false;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [context]);
 
   useEffect(() => {
   if (userEmail && !isUnlimited) {
@@ -375,9 +399,9 @@ ${themeCss}
   useEffect(() => {
     if (!context) return;
     let cancelled=false;
-    fetchTennisBoard(context, players).then((b)=>{ if(!cancelled) setLiveMatches(b); }).catch(()=>{});
-    return () => { cancelled=true; };
-  }, [context, players, fetchTennisBoard]);
+    fetchTennisBoard(context).then((b) => { if (!cancelled) setLiveMatches(b); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [context, fetchTennisBoard]);
 
   // ── F1 data fetch ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -878,8 +902,7 @@ ${themeCss}
   }, [activeTournamentMatches.length,context]);
 
   const homeAtpSpotlightCards = useMemo(() => {
-    const atp = liveMatches.filter((m) => m.league === "ATP");
-    if (!atp.length) {
+    if (homeAtpRaw === null) {
       return [
         {
           id: "tennis-atp-feed-loading",
@@ -889,8 +912,30 @@ ${themeCss}
           title: "ATP matchups loading…",
           time: "Feed",
           network: context?.currentTournament?.name || "Ball Dont Lie",
-          blurb: "Pulling confirmed ATP draws from the live feed.",
+          blurb: "Pulling confirmed ATP draws from Ball Dont Lie.",
           whatMatters: "Open Tennis for the full ATP board.",
+          quickHitters: ["Open Tennis tab"],
+          confirmed: true,
+        },
+      ];
+    }
+    const atp = homeAtpRaw
+      .map((row) => normalizeTennisMatch(row, "ATP", context))
+      .filter(Boolean)
+      .filter((m) => m.league === "ATP");
+    if (!atp.length) {
+      return [
+        {
+          id: "tennis-atp-feed-empty",
+          league: "ATP",
+          leagueColor: "#0891B2",
+          homeCategory: "ATP",
+          title: "No confirmed ATP matchups in feed",
+          time: "Ball Dont Lie",
+          network: context?.currentTournament?.name || "ATP",
+          blurb:
+            "The API returned no ATP fixtures for this window. Confirm BALLDONTLIE_API_KEY and plan include tennis, then refresh.",
+          whatMatters: "Open Tennis to retry the full board pull.",
           quickHitters: ["Open Tennis tab"],
           confirmed: true,
         },
@@ -913,12 +958,12 @@ ${themeCss}
         time: `${liveN} live · ${upcomingN} upcoming`,
         network: `${atp.length} confirmed on ATP board`,
         blurb: summary,
-        whatMatters: "Tap to open Tennis — primary board is ATP (WTA is rankings snapshot below).",
+        whatMatters: "Tap to open Tennis — confirmed ATP draws from Ball Dont Lie.",
         quickHitters: ["Best ATP misprice today?", "Who benefits on this surface?"],
         confirmed: true,
       },
     ];
-  }, [liveMatches, context]);
+  }, [homeAtpRaw, context]);
 
   const homeNflCards = useMemo(() => {
     if (nflSeasonMode) return [
@@ -1271,7 +1316,11 @@ ${themeCss}
  const openMatchup = useCallback((m) => {
   if (!m?.title || !m?.network) return;
 
-  if (m?.id === "tennis-atp-schedule-board" || m?.id === "tennis-atp-feed-loading") {
+  if (
+    m?.id === "tennis-atp-schedule-board" ||
+    m?.id === "tennis-atp-feed-loading" ||
+    m?.id === "tennis-atp-feed-empty"
+  ) {
     setTab("tennis");
     setScreen("tennis");
     setSelectedMatchup(null);
@@ -2212,30 +2261,10 @@ ${themeCss}
               </>
             )}
 
-            <div className="section-divider">Top WTA players</div>
-            <div style={{fontSize:11,color:"var(--muted)",marginBottom:10,maxWidth:720}}>
-              Highlighted names from our database — order is editorial, not official tour ranking or live schedule.
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:20}}>
-              {WTA_PLAYERS.slice(0,10).map((name)=>(
-                <button
-                  key={name}
-                  type="button"
-                  className="quick-btn"
-                  style={{fontSize:11}}
-                  onClick={()=>openPlayer(name)}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-
             {players&&(
               <>
                 <div className="section-divider">ATP Top 25</div>
                 {ATP_PLAYERS.map((name,idx)=><TennisPlayerCard key={name} name={name} idx={idx} tour="atp"/>)}
-                <div className="section-divider">WTA Top 24</div>
-                {WTA_PLAYERS.map((name,idx)=><TennisPlayerCard key={name} name={name} idx={idx} tour="wta"/>)}
               </>
             )}
             <div className="page-spacer"/>

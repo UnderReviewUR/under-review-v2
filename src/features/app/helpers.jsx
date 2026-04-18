@@ -12,6 +12,11 @@ export function slugify(v) {
     .replace(/^_+|_+$/g, "");
 }
 
+/** Only Ball Dont Lie ATP fixtures may appear on the ATP board (`/api/tennis?tour=atp`). */
+export function isBallDontLieAtpFixture(row) {
+  return !!row && typeof row === "object" && String(row.source || "").trim() === "balldontlie_atp";
+}
+
 export function isNflInSeason() {
   const m = new Date().getMonth();
   return m >= 8 || m <= 1;
@@ -24,6 +29,8 @@ export function isNflRampMode() {
 
 export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTournament = null) {
   if (!match) return null;
+
+  if (fallbackTour === "ATP" && !isBallDontLieAtpFixture(match)) return null;
 
   const league = match.league || (normalizeText(match.league_name).includes("wta") || normalizeText(match.event_type_type).includes("women") ? "WTA" : fallbackTour);
   const home = String(match.home_team || match.event_first_player || "").trim();
@@ -49,8 +56,7 @@ export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTourname
   const surf = String(match.bdl_tournament_surface || "").trim();
   const staticWta =
     String(match.source || "").includes("ur_static_wta") ||
-    !!match.ur_static_snapshot ||
-    String(match.source || "").includes("client_db_snapshot");
+    !!match.ur_static_snapshot;
 
   const quickHitters = staticWta
     ? [
@@ -97,73 +103,6 @@ export function preferredTournamentScore(match, context) {
   if (nameSlug && nameSlug.includes(tournamentSlug)) return 4;
   if (keySlug && keySlug.includes(tournamentSlug)) return 4;
   return 0;
-}
-
-/**
- * When /api/tennis is unreachable or returns nothing, build matchup cards from the
- * same player JSON the app already loaded — keeps the board populated (local dev + outages).
- */
-export function buildFallbackTennisMatches(playersPayload, activeContext = null) {
-  if (!playersPayload || typeof playersPayload !== "object") return [];
-
-  const tournamentName = activeContext?.currentTournament?.name || "Tour";
-  const surface = String(activeContext?.currentTournament?.surface || "").trim();
-  const isoDay = new Date().toISOString().slice(0, 10);
-  const isoCommence = `${isoDay}T17:00:00`;
-
-  const cards = [];
-
-  const addPairs = (merged, fallbackTour, leagueName, eventType) => {
-    if (!merged || typeof merged !== "object") return;
-    const ranked = Object.entries(merged)
-      .map(([name, row]) => ({ name, rank: Number(row?.eloRank), row }))
-      .filter((x) => Number.isFinite(x.rank))
-      .sort((a, b) => a.rank - b.rank)
-      .slice(0, 16);
-
-    for (let i = 0; i + 1 < ranked.length && cards.length < 14; i += 2) {
-      const row = normalizeTennisMatch(
-        {
-          id: `db-${fallbackTour}-${slugify(ranked[i].name)}-${slugify(ranked[i + 1].name)}`,
-          home_team: ranked[i].name,
-          away_team: ranked[i + 1].name,
-          tournament: tournamentName,
-          round: "Database snapshot · live feed unavailable",
-          event_date: isoDay,
-          event_time: "17:00",
-          event_status: "scheduled",
-          live: "0",
-          league_name: leagueName,
-          event_type_type: eventType,
-          score: "-",
-          commence_time: isoCommence,
-          source: "client_db_snapshot",
-          ur_static_snapshot: true,
-          bdl_tournament_surface: surface,
-        },
-        fallbackTour,
-        activeContext,
-      );
-      if (row) cards.push(row);
-    }
-  };
-
-  addPairs(playersPayload.atp, "ATP", "ATP", "ATP Singles");
-  addPairs(playersPayload.wta, "WTA", "WTA", "WTA Singles");
-
-  cards.sort((a, b) => {
-    const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
-    const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
-    if (aLive !== bLive) return bLive - aLive;
-    const aPref = preferredTournamentScore(a, activeContext);
-    const bPref = preferredTournamentScore(b, activeContext);
-    if (aPref !== bPref) return bPref - aPref;
-    const aTime = Number.isFinite(a.commenceTs) ? a.commenceTs : Number.MAX_SAFE_INTEGER;
-    const bTime = Number.isFinite(b.commenceTs) ? b.commenceTs : Number.MAX_SAFE_INTEGER;
-    return aTime - bTime;
-  });
-
-  return cards;
 }
 
 export function getTournamentFetchParam(context) {
