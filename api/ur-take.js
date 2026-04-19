@@ -481,6 +481,9 @@ ${JSON.stringify({
   recentForm: nbaContext?.recentForm || "",
   gameTotals: nbaContext?.gameTotals || {},
   playerStats: (nbaContext?.playerStats || []).slice(0, 60),
+  rosterGrounding: nbaContext?.rosterGrounding || null,
+  todaysGamesSlateMeta: nbaContext?.todaysGamesSlateMeta || null,
+  todaysGamesSlateNote: nbaContext?.todaysGamesSlateNote || null,
 }, null, 2)}`;
   } else if (sportHint === "nfl") {
     relevantContext = `NFL context:
@@ -1162,8 +1165,14 @@ Rules:
   Never declare a prop a winner while the game is still in progress.
 - If a player mentioned in the question is not in today's injury report or
   game list, note the uncertainty before giving a take.
+- ROSTER / TEAMMATE NAMES (critical): Follow rosterGrounding.rule and rosterGrounding.playersByTeamAbbrev.
+  You must NOT name any NBA player as a member of a team, or as a teammate of another named player,
+  unless that player's full name appears under that team's abbreviation in rosterGrounding.playersByTeamAbbrev.
+  Do not combine stars from memory (e.g. famous duos) unless both names are listed for that team.
+  If the list is empty or a name is missing, speak generically ("Lakers' other rotation pieces") — never invent names.
 - When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.
-- When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.`;
+- When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.
+- If todaysGamesSlateNote is set, todaysGames is empty for the reason given (e.g. BallDontLie returned no games for that ET date). Trust that note instead of guessing a pipeline failure.`;
   } else if (sportHint === "mlb") {
     userPrompt = `You are answering an MLB betting question.
 

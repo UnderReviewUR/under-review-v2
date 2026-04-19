@@ -9,7 +9,6 @@ import {
   canUseProThemes,
   getProMarketingTokens,
 } from "./themes.js";
-import { NBA_PLAYERS } from "./components/data/nba/players.js";
 import AskBar from "./components/AskBar.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
@@ -673,9 +672,16 @@ ${themeCss}
 }, [f1Data]);
 
   const buildNbaContext = useCallback((questionText) => {
+    const mergedTodaysGames =
+      nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []);
+    const slateMeta = nbaData?.todaysGamesSlateMeta || null;
     return {
       seasonContext:   nbaData?.seasonContext || {},
-      todaysGames:     nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []),
+      todaysGames:     mergedTodaysGames,
+      /** When the slate is empty but BDL responded OK — tells UR Take it is a real off day vs. pipeline failure */
+      todaysGamesSlateMeta: slateMeta,
+      todaysGamesSlateNote:
+        mergedTodaysGames.length === 0 && slateMeta?.note ? slateMeta.note : null,
       lastNight:       nbaData?.lastNight     || [],
       lastNightStats:  nbaData?.lastNightStats|| [],
       liveStats:       nbaData?.liveStats     || [],
@@ -688,7 +694,8 @@ ${themeCss}
       recentForm:      nbaData?.recentForm    || "",
       h2hSplits:       nbaData?.h2hSplits     || [],
       gameTotals:      nbaData?.gameTotals     || {},
-      playerDb: NBA_PLAYERS,
+      /** API-derived per-team names only — do not use static player DB for NBA rosters */
+      rosterGrounding: nbaData?.rosterGrounding || null,
       question:        questionText || "",
     };
   }, [nbaData, nbaGames]);

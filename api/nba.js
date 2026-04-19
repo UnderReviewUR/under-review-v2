@@ -16,13 +16,18 @@ function getNbaSeasonContext() {
   const now = new Date();
   const month = now.getMonth() + 1;
   const day = now.getDate();
-  if (month >= 10 || month === 1) return { phase: "Regular Season (early)", season: 2025 };
-  if (month === 2 || (month === 3 && day < 10)) return { phase: "Regular Season (mid)", season: 2025 };
-  if ((month === 3 && day >= 10) || (month === 4 && day < 20)) return { phase: "Regular Season — final stretch", season: 2025 };
-  if (month === 4 && day >= 20) return { phase: "NBA Playoffs — First Round", season: 2025 };
-  if (month === 5) return { phase: "NBA Playoffs — Conference Semifinals", season: 2025 };
-  if (month === 6) return { phase: "NBA Finals", season: 2025 };
-  return { phase: "NBA Offseason", season: 2025 };
+  const season = 2025;
+
+  /** Playoff window: treat tone as postseason (series, home court) — Apr 14–Jun 19. */
+  if ((month === 4 && day >= 14) || month === 5 || (month === 6 && day <= 19)) {
+    return { phase: "playoffs", postseason: true, season };
+  }
+
+  if (month >= 10 || month === 1) return { phase: "Regular Season (early)", season, postseason: false };
+  if (month === 2 || (month === 3 && day < 10)) return { phase: "Regular Season (mid)", season, postseason: false };
+  if ((month === 3 && day >= 10) || (month === 4 && day < 14)) return { phase: "Regular Season — final stretch", season, postseason: false };
+  if (month === 6 && day > 19) return { phase: "NBA Finals", season, postseason: true };
+  return { phase: "NBA Offseason", season, postseason: false };
 }
 
 function getTodayEtDateString() {
@@ -54,12 +59,78 @@ function normalizeTeamAbbr(name) {
   return map[name] || name.split(" ").pop().slice(0, 3).toUpperCase();
 }
 
-async function getTodaysGames(oddsKey) {
-  const cacheKey = "games_today";
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
-  if (!oddsKey) return [];
+function formatNbaStartTimeEt(isoDate) {
+  if (!isoDate) return "TBD";
+  try {
+    const d = new Date(isoDate);
+    if (Number.isNaN(d.getTime())) return "TBD";
+    return (
+      d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+      }) + " ET"
+    );
+  } catch {
+    return "TBD";
+  }
+}
 
+/** Map a BallDontLie /games row to the same shape as Odds API games (UI + prompts). */
+function mapBdlGameRowToAppGame(g) {
+  const home = g.home_team || g.homeTeam;
+  const away = g.visitor_team || g.visitorTeam;
+  const homeName = home?.full_name || home?.name || "";
+  const awayName = away?.full_name || away?.name || "";
+  const homeAbbr = home?.abbreviation || (home?.full_name ? normalizeTeamAbbr(home.full_name) : "?");
+  const awayAbbr = away?.abbreviation || (away?.full_name ? normalizeTeamAbbr(away.full_name) : "?");
+
+  const hs = g.home_team_score != null ? Number(g.home_team_score) : null;
+  const vs = g.visitor_team_score != null ? Number(g.visitor_team_score) : null;
+  const stRaw = String(g.status || "").trim();
+  const stLower = stRaw.toLowerCase();
+  const period = Number(g.period) || 0;
+
+  let state;
+  let status;
+  let statusCode;
+
+  if (stLower === "final") {
+    state = "post";
+    status = "Final";
+    statusCode = 3;
+  } else if (period > 0 && stLower !== "final") {
+    state = "in";
+    status = stRaw || "Live";
+    statusCode = 2;
+  } else {
+    state = "pre";
+    status = /qtr|half|ot/i.test(stRaw) ? stRaw : formatNbaStartTimeEt(g.date) || stRaw || "TBD";
+    statusCode = 1;
+  }
+
+  return {
+    id: g.id,
+    status,
+    state,
+    statusCode,
+    homeTeam: {
+      name: homeName,
+      abbr: homeAbbr,
+      score: Number.isFinite(hs) ? hs : null,
+    },
+    awayTeam: {
+      name: awayName,
+      abbr: awayAbbr,
+      score: Number.isFinite(vs) ? vs : null,
+    },
+    postseason: !!g.postseason,
+  };
+}
+
+/** Odds API only — used when BDL returns no rows or is unavailable. */
+async function getTodaysGamesFromOddsApi(oddsKey, todayET) {
+  if (!oddsKey) return [];
   try {
     const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${oddsKey}&daysFrom=2`;
     const res = await fetch(url);
@@ -67,43 +138,73 @@ async function getTodaysGames(oddsKey) {
     const data = await res.json();
     if (!Array.isArray(data)) return [];
 
-    const todayET = getTodayEtDateString();
-    const games = data
-      .filter(g => toEtDateString(g.commence_time) === todayET || (!g.completed && Array.isArray(g.scores) && g.scores.length > 0))
-      .map(g => {
-        const scores  = g.scores || [];
-        const homePts = scores.find(s => s.name === g.home_team)?.score;
-        const awayPts = scores.find(s => s.name === g.away_team)?.score;
-        const isLive  = !g.completed && scores.length > 0;
+    let games = data
+      .filter(
+        (g) =>
+          toEtDateString(g.commence_time) === todayET ||
+          (!g.completed && Array.isArray(g.scores) && g.scores.length > 0),
+      )
+      .map((g) => {
+        const scores = g.scores || [];
+        const homePts = scores.find((s) => s.name === g.home_team)?.score;
+        const awayPts = scores.find((s) => s.name === g.away_team)?.score;
+        const isLive = !g.completed && scores.length > 0;
         const isFinal = g.completed;
-        const gameTime = new Date(g.commence_time).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET";
+        const gameTime =
+          new Date(g.commence_time).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            timeZone: "America/New_York",
+          }) + " ET";
         return {
           id: g.id,
           status: isFinal ? "Final" : isLive ? "Live" : gameTime,
           state: isFinal ? "post" : isLive ? "in" : "pre",
           statusCode: isFinal ? 3 : isLive ? 2 : 1,
-          homeTeam: { name:g.home_team, abbr:normalizeTeamAbbr(g.home_team), score:homePts != null ? parseInt(homePts,10) : null },
-          awayTeam: { name:g.away_team, abbr:normalizeTeamAbbr(g.away_team), score:awayPts != null ? parseInt(awayPts,10) : null },
+          homeTeam: {
+            name: g.home_team,
+            abbr: normalizeTeamAbbr(g.home_team),
+            score: homePts != null ? parseInt(homePts, 10) : null,
+          },
+          awayTeam: {
+            name: g.away_team,
+            abbr: normalizeTeamAbbr(g.away_team),
+            score: awayPts != null ? parseInt(awayPts, 10) : null,
+          },
         };
       });
 
     if (games.length === 0) {
-      // fallback to odds endpoint
       try {
-        const oddsRes = await fetch(`https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`);
+        const oddsRes = await fetch(
+          `https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`,
+        );
         if (oddsRes.ok) {
           const oddsData = await oddsRes.json();
           if (Array.isArray(oddsData)) {
-            const oddsGames = oddsData
-              .filter(g => toEtDateString(g.commence_time) === todayET)
-              .map(g => ({
+            games = oddsData
+              .filter((g) => toEtDateString(g.commence_time) === todayET)
+              .map((g) => ({
                 id: g.id,
-                status: new Date(g.commence_time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZone:"America/New_York"}) + " ET",
-                state: "pre", statusCode: 1,
-                homeTeam:{name:g.home_team,abbr:normalizeTeamAbbr(g.home_team),score:null},
-                awayTeam:{name:g.away_team,abbr:normalizeTeamAbbr(g.away_team),score:null},
+                status:
+                  new Date(g.commence_time).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZone: "America/New_York",
+                  }) + " ET",
+                state: "pre",
+                statusCode: 1,
+                homeTeam: {
+                  name: g.home_team,
+                  abbr: normalizeTeamAbbr(g.home_team),
+                  score: null,
+                },
+                awayTeam: {
+                  name: g.away_team,
+                  abbr: normalizeTeamAbbr(g.away_team),
+                  score: null,
+                },
               }));
-            if (oddsGames.length > 0) { setCached(cacheKey, oddsGames); return oddsGames; }
           }
         }
       } catch {
@@ -111,12 +212,88 @@ async function getTodaysGames(oddsKey) {
       }
     }
 
-    if (games.length > 0) setCached(cacheKey, games);
     return games;
   } catch (err) {
-    console.error("getTodaysGames error:", err.message);
+    console.error("getTodaysGamesFromOddsApi error:", err.message);
     return [];
   }
+}
+
+const GAMES_TODAY_CACHE_KEY = "games_today_bdl_primary";
+
+/**
+ * Primary: BallDontLie games for today (ET). Fallback: Odds API scores → odds list.
+ * Returns { games, slateMeta } for prompts when the slate is empty but BDL responded OK.
+ */
+async function getTodaysGames(oddsKey, bdlKey) {
+  const cached = getCached(GAMES_TODAY_CACHE_KEY);
+  if (cached) {
+    if (Array.isArray(cached)) {
+      return {
+        games: cached,
+        slateMeta: {
+          primarySource: "odds",
+          bdlQueriedOk: false,
+          bdlGameCount: 0,
+          etDate: getTodayEtDateString(),
+          note: null,
+        },
+      };
+    }
+    if (cached.games && cached.slateMeta) return cached;
+  }
+
+  const todayET = getTodayEtDateString();
+  const slateMeta = {
+    primarySource: "none",
+    bdlQueriedOk: false,
+    bdlGameCount: 0,
+    etDate: todayET,
+    note: null,
+  };
+
+  if (bdlKey) {
+    try {
+      const bdlRows = await fetchBdlGamesForDate(bdlKey, todayET);
+      slateMeta.bdlQueriedOk = true;
+      slateMeta.bdlGameCount = bdlRows.length;
+      if (bdlRows.length > 0) {
+        const games = bdlRows.map(mapBdlGameRowToAppGame);
+        slateMeta.primarySource = "bdl";
+        const payload = { games, slateMeta };
+        setCached(GAMES_TODAY_CACHE_KEY, payload);
+        return payload;
+      }
+    } catch (err) {
+      console.warn("BDL games fetch failed, falling back to Odds API:", err.message);
+      slateMeta.bdlQueriedOk = false;
+    }
+  }
+
+  const games = await getTodaysGamesFromOddsApi(oddsKey, todayET);
+  if (games.length > 0) {
+    slateMeta.primarySource = "odds";
+    const payload = { games, slateMeta };
+    setCached(GAMES_TODAY_CACHE_KEY, payload);
+    return payload;
+  }
+
+  slateMeta.primarySource = slateMeta.bdlQueriedOk ? "bdl" : "none";
+  if (slateMeta.bdlQueriedOk && slateMeta.bdlGameCount === 0) {
+    slateMeta.note = `BallDontLie returned no games for ${todayET} (ET).`;
+    if (oddsKey) slateMeta.note += " Odds API also returned no slate for today.";
+    else slateMeta.note += " Odds API was not queried (no key).";
+  } else if (!bdlKey) {
+    slateMeta.note = "No BallDontLie API key; Odds API returned no games for today.";
+  } else if (!slateMeta.bdlQueriedOk) {
+    slateMeta.note = "BallDontLie games request failed; Odds API returned no games for today.";
+  } else {
+    slateMeta.note = "No games returned for today.";
+  }
+
+  const payload = { games: [], slateMeta };
+  setCached(GAMES_TODAY_CACHE_KEY, payload);
+  return payload;
 }
 
 async function getNbaPropLines(oddsKey) {
@@ -177,6 +354,60 @@ function attachTonightGamesFromProps(playerStats, propLines) {
     const tonightGame = gameByPlayer[k];
     return tonightGame ? { ...p, tonightGame } : { ...p };
   });
+}
+
+const ROSTER_GROUNDING_MAX_NAMES_PER_TEAM = 45;
+
+/**
+ * Per-team player names derived only from API payloads (box stats, injuries, prop↔stats match).
+ * UR Take uses this to block hallucinated teammate pairings — never trust static training rosters.
+ */
+function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource) {
+  const playersByTeamAbbrev = {};
+  const add = (abbr, name) => {
+    const a = String(abbr || "").toUpperCase();
+    const n = String(name || "").trim();
+    if (!a || a === "UNK" || !n) return;
+    if (!playersByTeamAbbrev[a]) playersByTeamAbbrev[a] = [];
+    const list = playersByTeamAbbrev[a];
+    if (!list.includes(n) && list.length < ROSTER_GROUNDING_MAX_NAMES_PER_TEAM) list.push(n);
+  };
+
+  for (const p of playerStats || []) {
+    if (p?.team && p?.name) add(p.team, p.name);
+  }
+
+  for (const inj of injuries || []) {
+    if (inj?.team && inj?.player) add(inj.team, inj.player);
+  }
+
+  const teamByPropPlayerLower = new Map();
+  for (const p of playerStats || []) {
+    const k = String(p.name || "")
+      .trim()
+      .toLowerCase();
+    if (!k || !p.team || p.team === "UNK") continue;
+    if (!teamByPropPlayerLower.has(k)) teamByPropPlayerLower.set(k, p.team);
+  }
+  for (const pl of propLines || []) {
+    const pname = pl?.player;
+    if (!pname) continue;
+    const k = String(pname).trim().toLowerCase();
+    const t = teamByPropPlayerLower.get(k);
+    if (t) add(t, pname);
+  }
+
+  const trustNote =
+    statsSource === "game_box"
+      ? "Team keys in playersByTeamAbbrev come from today's game box scores — use for who played for which team in those games."
+      : "statsSource is season_average — team keys may lag mid-season trades. Prefer tonightGame + props; never invent teammates.";
+
+  return {
+    playersByTeamAbbrev,
+    trustNote,
+    rule:
+      "ROSTER GROUNDING: When naming NBA players as on a team, teammates, or primary/secondary options FOR that team, ONLY use full names listed under that team's abbreviation in playersByTeamAbbrev. Do not name any other NBA player as on that team (no memory/training rosters). If you need to refer to others, say 'other rotation players' or 'the rest of the bench' without inventing names.",
+  };
 }
 
 function bdlHeaders(bdlKey) {
@@ -501,7 +732,8 @@ export default async function handler(req, res) {
 
   try {
     if (view === "games") {
-      return res.status(200).json(await getTodaysGames(ODDS_KEY));
+      const tg = await getTodaysGames(ODDS_KEY, BDL_KEY);
+      return res.status(200).json(tg.games);
     }
 
     if (view === "board") {
@@ -509,12 +741,14 @@ export default async function handler(req, res) {
       const boardCached = getCached(boardCacheKey);
       if (boardCached) return res.status(200).json(boardCached);
 
-      const [todaysGames, propLines, statsBundle, playoffSeries] = await Promise.all([
-        getTodaysGames(ODDS_KEY),
+      const [tgRes, propLines, statsBundle, playoffSeries] = await Promise.all([
+        getTodaysGames(ODDS_KEY, BDL_KEY),
         getNbaPropLines(ODDS_KEY),
         getNbaPlayerStatsBundle(BDL_KEY),
         getNbaPlayoffSeries(),
       ]);
+      const todaysGames = tgRes.games;
+      const todaysGamesSlateMeta = tgRes.slateMeta;
 
       const injuries = await getNbaInjuries(propLines, todaysGames);
 
@@ -531,10 +765,17 @@ export default async function handler(req, res) {
       const board = {
         seasonContext: getNbaSeasonContext(),
         todaysGames,
+        todaysGamesSlateMeta,
         lastNight: [], lastNightStats: [], liveStats: [],
         playerStats: playerStatsWithTonight.slice(0, 120),
         playerStatsText: playerStatsTextMerged,
         statsSource: statsBundle.statsSource || "unknown",
+        rosterGrounding: buildNbaRosterGrounding(
+          playerStatsWithTonight,
+          propLines,
+          injuries,
+          statsBundle.statsSource || "unknown",
+        ),
         propLines:   propLines.slice(0, 120),
         injuries,
         playoffSeries,         recentForm: "", h2hSplits: [],
