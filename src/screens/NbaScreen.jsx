@@ -1,0 +1,96 @@
+import AskBar from "../components/AskBar.jsx";
+import { ChatThread } from "../features/app/helpers.jsx";
+
+export default function NbaScreen({
+  nbaScreenRef,
+  hasDockedBar,
+  nbaGames,
+  nbaMsgs,
+  nbaBarRef,
+  nbaInputRef,
+  nbaInput,
+  setNbaInput,
+  submitNba,
+  askBarCommon,
+  nbaLoading,
+}) {
+  return (
+          <main ref={nbaScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+            <div className="nba-banner">
+              <div className="banner-title">NBA</div>
+              <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
+              <div className="banner-note">
+                {nbaGames.length > 0
+                  ? `${nbaGames.filter(g=>g.state==="in").length > 0 ? nbaGames.filter(g=>g.state==="in").length + " live · " : ""}${nbaGames.length} games today`
+                  : nbaLoading ? "Loading..." : "Ask anything about NBA props"}
+              </div>
+            </div>
+
+            {nbaMsgs.length===0&&(
+              <div className="nba-ask-shell" ref={nbaBarRef}>
+              <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Jokic PRA over tonight? Best prop this slate?" btnColor="var(--nba)" {...askBarCommon} />
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["Best prop on tonight's slate?","Safest PRA bet tonight?","Who has a usage spike today?","Best game total play?"].map(q=>(
+                  <button key={q} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{q}</button>
+                ))}
+              </div>
+              </div>
+            )}
+
+            <ChatThread msgs={nbaMsgs} scrollContainerRef={nbaScreenRef}/>
+
+            {nbaLoading ? (
+              <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
+            ) : (
+              <>
+                {nbaGames.length > 0 && (
+                  <>
+                    <div className="section-divider">
+                      {nbaGames.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
+                    </div>
+                    {nbaGames.map((g,i) => {
+                      const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+                      const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+                      const isLive = g.state === "in";
+                      const isFinal = g.state === "post";
+                      return (
+                        <div key={g.id||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${away} vs ${home} tonight?`)}>
+                          <div className="nba-game-top">
+                            <div className="nba-game-teams">{away} vs {home}</div>
+                            <div>{isLive ? <span className="nba-live-badge">● LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
+                          </div>
+                          {(isLive || isFinal) && g.awayTeam?.score != null && (
+                            <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
+                <div className="section-divider">Quick Prop Angles</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+                  {[
+                    ["Best PRA bet tonight?", "Who has the highest floor PRA on tonight's slate? Give me floor, ceiling, and lean."],
+                    ["Best 3PM prop?", "Who should I bet OVER on 3-pointers made tonight? Give me the play with volume and efficiency context."],
+                    ["Injury replacement edge?", "Who has a usage spike tonight due to injury? Find the replacement play with the best prop value."],
+                    ["Best game total?", "Which game total on tonight's slate has the sharpest OVER or UNDER? Give me the pace matchup and lean."],
+                    ["Safest prop tonight?", "What is the single safest, highest-confidence NBA prop on tonight's slate? One play, full reasoning."],
+                    ["Best points prop?", "Who has the best points OVER tonight? Give me the matchup, defensive ranking they're facing, and lean."],
+                  ].map(([label, q]) => (
+                    <button key={label} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{label}</button>
+                  ))}
+                </div>
+
+                <div className="section-divider">Ask About Any Player</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+                  {["Jokic","SGA","Luka","Tatum","Giannis","Wembanyama","Brunson","Edwards","KAT","Curry","Haliburton","Mitchell","KD","Booker","Ja Morant"].map(name => (
+                    <button key={name} className="quick-btn" onClick={()=>submitNba(`Best prop angle for ${name} tonight? PRA line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="page-spacer"/>
+          </main>
+  );
+}
