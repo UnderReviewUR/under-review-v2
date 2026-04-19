@@ -21,15 +21,9 @@ import {
   formatReturnStats,
   formatServeStats,
   golfScoreColor,
-  getDrValue,
-  getHoldValue,
-  getTbValue,
-  getTournamentFetchParam,
-  isBallDontLieAtpFixture,
   isNflInSeason,
   isNflRampMode,
   chatHistoryForApi,
-  normalizeTennisMatch,
   normalizeText,
   preferredTournamentScore,
   buildContextualQuestion,
@@ -39,23 +33,17 @@ import { ATP_PLAYERS, WTA_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./featu
 
 import { baseCss } from "./styles/appBaseCss.js";
 import { NFL_PLAYERS } from "./features/app/embedGolfNflData.js";
-
-function formatTennisScore(rawScore) {
-  if (!rawScore || rawScore === "-") return "";
-  const s = String(rawScore).trim();
-  const sets = s.split(/[\s,]+/).filter(Boolean);
-  if (sets.length === 0) return "";
-  return sets.join(", ");
-}
-
-function buildTennisMatchupSubline(m) {
-  const parts = [];
-  const round = m.raw?.round ? String(m.raw.round).trim() : "";
-  const surface = String(m.raw?.bdl_tournament_surface || "").trim();
-  if (round) parts.push(round);
-  if (surface) parts.push(surface);
-  return parts.join(" · ");
-}
+import { useTennisData } from "./hooks/useTennisData.js";
+import { useF1Data } from "./hooks/useF1Data.js";
+import { useNbaData } from "./hooks/useNbaData.js";
+import { useMlbData } from "./hooks/useMlbData.js";
+import { useGolfData } from "./hooks/useGolfData.js";
+import { useNflData } from "./hooks/useNflData.js";
+import { usePerformance } from "./hooks/usePerformance.js";
+import { formatTennisScore } from "./features/tennis/tennisFormatters.js";
+import { TennisPlayerCard } from "./components/cards/TennisPlayerCard.jsx";
+import { AtpMatchupCard } from "./components/cards/AtpMatchupCard.jsx";
+import { NflPlayerCard } from "./components/cards/NflPlayerCard.jsx";
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -104,23 +92,7 @@ ${themeCss}
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
   const [isAsking, setIsAsking]         = useState(false);
-  const [players, setPlayers]           = useState(null);
-  const playersRef                       = useRef(null);
-  const contextRef                     = useRef(null);
-  const [context, setContext]           = useState(null);
-  const [liveMatches, setLiveMatches]   = useState([]);
-  /** Starts true — Home ATP spotlight waits for same fetch path as Tennis tab (`liveMatches`). */
-  const [tennisLoading, setTennisLoading] = useState(true);
   const [pastedImage, setPastedImage]   = useState(null);
-  const [f1Data, setF1Data]             = useState(null);
-  const [f1Loading, setF1Loading]       = useState(false);
-  const [nflContextData, setNflContextData] = useState(null);
-  const [nbaData, setNbaData]           = useState(null);
-  const [nbaLoading, setNbaLoading]     = useState(false);
-  const [mlbData, setMlbData]           = useState(null);
-  const [mlbLoading, setMlbLoading]     = useState(false);
-  const [golfData, setGolfData]         = useState(null);
-  const [golfLoading, setGolfLoading]   = useState(false);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
   const swipeTouchStartRef = useRef(null);
@@ -196,6 +168,20 @@ ${themeCss}
   const [userEmail, setUserEmail] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("ur_email") || "" : ""
   );
+
+  const { players, context, liveMatches, tennisLoading } = useTennisData();
+  const { f1Data, f1Loading } = useF1Data();
+  const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData();
+  const { mlbData, mlbLoading, mlbGames } = useMlbData();
+  const { golfData, golfLoading } = useGolfData();
+  const { nflContextData } = useNflData();
+  const {
+    performanceData,
+    performanceLoading,
+    performanceError,
+    loadPerformanceSnapshot,
+  } = usePerformance(userEmail);
+
   const [weeklyUsed, setWeeklyUsed]     = useState(0);
   const [showEmailGate, setShowEmailGate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -204,10 +190,6 @@ ${themeCss}
   const [codeInput, setCodeInput]         = useState("");
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
-  const [performanceData, setPerformanceData] = useState(null);
-  const [performanceLoading, setPerformanceLoading] = useState(false);
-  const [performanceError, setPerformanceError] = useState("");
-
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT  = 5;
 
@@ -272,89 +254,6 @@ ${themeCss}
     }
   }, [isUnlimited, userEmail]);
 
-  // ── Tennis fetch ───────────────────────────────────────────────────────────
-  const fetchTennisBoard = useCallback(async (activeContext = null) => {
-    let atpData = [];
-    try {
-      const tournamentParam = getTournamentFetchParam(activeContext);
-      const atpRes = await fetch(
-        `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`,
-        { cache: "no-store" },
-      );
-      const parseBoard = async (res) => {
-        try {
-          const data = await res.json();
-          return res.ok && Array.isArray(data) ? data : [];
-        } catch {
-          return [];
-        }
-      };
-      atpData = await parseBoard(atpRes);
-    } catch {
-      atpData = [];
-    }
-
-    const bdlOnly = atpData.filter(isBallDontLieAtpFixture);
-    const merged = [
-      ...bdlOnly.map((m) => normalizeTennisMatch(m, "ATP", activeContext)),
-    ].filter(Boolean);
-    const seen=new Set(); const deduped=[];
-    for (const m of merged) {
-      const key=[normalizeText(m.league),normalizeText(m.raw?.home),normalizeText(m.raw?.away),normalizeText(m.network),normalizeText(m.raw?.round),normalizeText(m.raw?.event_date)].join("|");
-      if (!seen.has(key)) { seen.add(key); deduped.push(m); }
-    }
-    let sorted = deduped.sort((a,b) => {
-      const aLive=String(a?.raw?.live||"0")==="1"?1:0;
-      const bLive=String(b?.raw?.live||"0")==="1"?1:0;
-      if (aLive!==bLive) return bLive-aLive;
-      const aPref=preferredTournamentScore(a,activeContext);
-      const bPref=preferredTournamentScore(b,activeContext);
-      if (aPref!==bPref) return bPref-aPref;
-      const aTime=Number.isFinite(a.commenceTs)?a.commenceTs:Number.MAX_SAFE_INTEGER;
-      const bTime=Number.isFinite(b.commenceTs)?b.commenceTs:Number.MAX_SAFE_INTEGER;
-      return aTime-bTime;
-    });
-
-    return sorted;
-  }, []);
-
-  useEffect(() => {
-    playersRef.current = players;
-  }, [players]);
-
-  useEffect(() => {
-    contextRef.current = context;
-  }, [context]);
-
-  useEffect(() => {
-    let active=true; let pollId=null;
-    async function loadAll() {
-      setTennisLoading(true);
-      try {
-        const [pRes,cRes] = await Promise.all([
-          fetch("/api/tennis-players", { cache: "no-store" }),
-          fetch("/api/tennis-context", { cache: "no-store" }),
-        ]);
-        const [p,c] = await Promise.all([pRes.json(),cRes.json()]);
-        if (!active) return;
-        setPlayers(p); setContext(c);
-        playersRef.current = p;
-        const board = await fetchTennisBoard(c);
-        if (!active) return;
-        setLiveMatches(board);
-      } catch {
-        if (!active) return;
-        setLiveMatches([]);
-      }
-      finally { if(active) setTennisLoading(false); }
-    }
-    loadAll();
-    pollId = window.setInterval(() => {
-      fetchTennisBoard(contextRef.current).then((b) => { if (active) setLiveMatches(b); }).catch(() => {});
-    }, 60000);
-    return () => { active=false; if(pollId) window.clearInterval(pollId); };
-  }, [fetchTennisBoard]);
-
   useEffect(() => {
   if (userEmail && !isUnlimited) {
     fetch(`/api/pro-status?email=${encodeURIComponent(userEmail)}`)
@@ -369,278 +268,6 @@ ${themeCss}
       .catch(() => {});
   }
 }, [userEmail]);
-
-  const loadPerformanceSnapshot = useCallback(async () => {
-    const email = String(userEmail || "").trim();
-    if (!email) {
-      setPerformanceData(null);
-      return;
-    }
-    setPerformanceLoading(true);
-    setPerformanceError("");
-    try {
-      const res = await fetch(`/api/performance?email=${encodeURIComponent(email)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to load performance");
-      setPerformanceData(data);
-    } catch (err) {
-      setPerformanceError(err?.message || "Failed to load performance");
-    } finally {
-      setPerformanceLoading(false);
-    }
-  }, [userEmail]);
-
-  useEffect(() => {
-    if (!userEmail) return;
-    loadPerformanceSnapshot();
-  }, [loadPerformanceSnapshot, userEmail]);
-
-  useEffect(() => {
-    if (!context) return;
-    let cancelled=false;
-    fetchTennisBoard(context).then((b) => { if (!cancelled) setLiveMatches(b); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [context, fetchTennisBoard]);
-
-  // ── F1 data fetch ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    let active=true;
-    async function loadF1() {
-      setF1Loading(true);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch("/api/f1", { signal: controller.signal });
-        clearTimeout(timeout);
-        const data = await res.json();
-        if (active) setF1Data(data);
-      } catch { if (active) setF1Data(null); }
-      finally { if (active) setF1Loading(false); }
-    }
-    loadF1();
-    const poll = window.setInterval(() => {
-      fetch("/api/f1").then(r=>r.json()).then(d=>{ if(active) setF1Data(d); }).catch(()=>{});
-    }, 120000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-
-  // ── Canonical NFL context fetch (RB/WR-TE/QB merged) ──────────────────────
-  useEffect(() => {
-    let active = true;
-    async function loadNflContext() {
-      try {
-        const res = await fetch("/api/nfl-context");
-        if (!res.ok) throw new Error(`NFL context ${res.status}`);
-        const data = await res.json();
-        if (active) setNflContextData(data);
-      } catch {
-        if (active) setNflContextData(null);
-      }
-    }
-    loadNflContext();
-    const poll = window.setInterval(loadNflContext, 15 * 60 * 1000);
-    return () => { active = false; window.clearInterval(poll); };
-  }, []);
-
-  // ── NBA data fetch ─────────────────────────────────────────────────────────
-  const [nbaGames, setNbaGames] = useState([]);
-
-  // NBA Playoff series tracker — update manually each round or wire to API
-  const NBA_PLAYOFF_SERIES = {
-    // Format: "AWAY_ABBR vs HOME_ABBR" or "HOME_ABBR vs AWAY_ABBR" → series state
-    // Update after each game. gameNum = total games played in series.
-    // leader = abbr of team leading, or null if tied
-  };
-
-  function getSeriesLabel(awayAbbr, homeAbbr) {
-    const key1 = `${awayAbbr} vs ${homeAbbr}`;
-    const key2 = `${homeAbbr} vs ${awayAbbr}`;
-    const series = NBA_PLAYOFF_SERIES[key1] || NBA_PLAYOFF_SERIES[key2];
-    if (!series) return null;
-    const { gameNum, leader, awayWins, homeWins } = series;
-    if (gameNum === 0 || !gameNum) return "Game 1";
-    if (!leader) return `Game ${gameNum + 1} · Series tied ${awayWins}-${homeWins}`;
-    return `Game ${gameNum + 1} · ${leader} lead ${Math.max(awayWins,homeWins)}-${Math.min(awayWins,homeWins)}`;
-  }
-
-  useEffect(() => {
-    let active = true;
-    async function loadNba() {
-      setNbaLoading(true);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch("/api/nba?view=board", { signal: controller.signal });
-        clearTimeout(timeout);
-        const data = await res.json();
-        if (active) setNbaData(data);
-      } catch { if (active) setNbaData(null); }
-      finally { if (active) setNbaLoading(false); }
-    }
-    loadNba();
-    const poll = window.setInterval(() => {
-      fetch("/api/nba?view=board").then(r=>r.json()).then(d=>{ if(active) setNbaData(d); }).catch(()=>{});
-    }, 300000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-
-  // Fetch NBA games — browser-side ESPN fetch, no auth needed
-  useEffect(() => {
-    let active = true;
-    async function loadGames() {
-      try {
-        const res = await fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
-          { cache: "no-store" }
-        );
-        if (!res.ok) throw new Error("ESPN " + res.status);
-        const data = await res.json();
-        const events = data?.events || [];
-
-        // Get today's date in ET
-        const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-        const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
-
-        const games = events
-          .filter(e => {
-            // ESPN date is UTC — convert to ET date for comparison
-            const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
-            const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
-            return gStr === todayStr;
-          })
-          .map(e => {
-            const comp = e.competitions?.[0];
-            const home = comp?.competitors?.find(c => c.homeAway === "home");
-            const away = comp?.competitors?.find(c => c.homeAway === "away");
-            const status = e.status?.type;
-            return {
-              id: e.id,
-              status: status?.shortDetail || status?.description || "Scheduled",
-              state: status?.state || "pre",
-              period: e.status?.period || 0,
-              homeTeam: { name: home?.team?.shortDisplayName, abbr: home?.team?.abbreviation, score: parseInt(home?.score || "0") },
-              awayTeam: { name: away?.team?.shortDisplayName, abbr: away?.team?.abbreviation, score: parseInt(away?.score || "0") },
-            };
-          });
-
-        if (active && games.length > 0) {
-          setNbaGames(games);
-          return;
-        }
-
-        // If ESPN returned nothing for today, try NBA CDN
-        const cdn = await fetch("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json", { cache: "no-store" });
-        if (!cdn.ok) throw new Error("CDN " + cdn.status);
-        const cdnData = await cdn.json();
-        const cdnGames = (cdnData?.scoreboard?.games || []).map(g => ({
-          id: g.gameId,
-          status: g.gameStatusText,
-          state: g.gameStatus === 2 ? "in" : g.gameStatus === 3 ? "post" : "pre",
-          period: g.period,
-          homeTeam: { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
-          awayTeam: { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
-        }));
-        if (active && cdnGames.length > 0) setNbaGames(cdnGames);
-
-      } catch(err) {
-        console.log("Games fetch failed:", err.message);
-      }
-    }
-    loadGames();
-    const poll = window.setInterval(loadGames, 60000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-
-  // ── MLB data fetch ────────────────────────────────────────────────────────
-  const [mlbGames, setMlbGames] = useState([]);
-
-  useEffect(() => {
-    let active = true;
-    async function loadMlb() {
-      setMlbLoading(true);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch("/api/mlb?view=board", { signal: controller.signal });
-        clearTimeout(timeout);
-        const data = await res.json();
-        if (active) setMlbData(data);
-      } catch { if (active) setMlbData(null); }
-      finally { if (active) setMlbLoading(false); }
-    }
-    loadMlb();
-    const poll = window.setInterval(() => {
-      fetch("/api/mlb?view=board").then(r=>r.json()).then(d=>{ if(active) setMlbData(d); }).catch(()=>{});
-    }, 180000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-
-  // ── MLB games — browser-side ESPN fetch (bypasses server cache) ────────────
-  useEffect(() => {
-    let active = true;
-    async function loadMlbGames() {
-      try {
-        const res = await fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
-          { cache: "no-store" }
-        );
-        if (!res.ok) throw new Error("ESPN MLB " + res.status);
-        const data = await res.json();
-        const events = data?.events || [];
-        const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-        const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
-        const games = events
-          .filter(e => {
-            const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
-            const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
-            return gStr === todayStr;
-          })
-          .map(e => {
-            const comp   = e.competitions?.[0];
-            const home   = comp?.competitors?.find(c => c.homeAway === "home");
-            const away   = comp?.competitors?.find(c => c.homeAway === "away");
-            const status = e.status?.type;
-            const isLive = status?.state === "in";
-            const isFinal = status?.state === "post";
-            const gameTime = e.date
-              ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
-              : "TBD";
-            return {
-              id:       e.id,
-              status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
-              state:    isFinal ? "post" : isLive ? "in" : "pre",
-              homeTeam: { name: home?.team?.displayName, abbr: home?.team?.abbreviation, score: isFinal||isLive ? parseInt(home?.score||"0") : null },
-              awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
-            };
-          });
-        if (active && games.length > 0) setMlbGames(games);
-      } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
-    }
-    loadMlbGames();
-    const poll = window.setInterval(loadMlbGames, 60000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
-
-
-  // ── Golf data fetch ────────────────────────────────────────────────────────
-  useEffect(() => {
-    let active = true;
-    async function loadGolf() {
-      setGolfLoading(true);
-      try {
-        const res = await fetch("/api/golf?view=board");
-        if (!res.ok) throw new Error("Golf " + res.status);
-        const data = await res.json();
-        if (active) setGolfData(data);
-      } catch { if (active) setGolfData(null); }
-      finally { if (active) setGolfLoading(false); }
-    }
-    loadGolf();
-    const poll = window.setInterval(() => {
-      fetch("/api/golf?view=board").then(r=>r.json()).then(d=>{ if(active) setGolfData(d); }).catch(()=>{});
-    }, 8 * 60 * 1000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
 
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
@@ -1762,128 +1389,6 @@ ${themeCss}
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,golfInput,scheduleChatScroll]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,matchupInput,selectedMatchup,scheduleChatScroll]);
 
-  // ── Sub-components ─────────────────────────────────────────────────────────
-  function TennisPlayerCard({ name, idx, tour }) {
-    const p=getPlayer(name,tour); if(!p)return null;
-    return (
-      <div className="player-card" onClick={()=>openPlayer(name)}>
-        <div className="player-top">
-          <div className="player-rank">#{idx+1}</div>
-          <div className="player-info">
-            <div className="player-name">{name}</div>
-            <div className="player-style">{Array.isArray(p.style)?p.style.join(", ").replaceAll("_"," "):p.style}</div>
-            <div className="surface-pills">{p.surfaceNote?.hard&&<span className="surface-pill surface-hard">HARD</span>}{p.surfaceNote?.clay&&<span className="surface-pill surface-clay">CLAY</span>}{p.surfaceNote?.grass&&<span className="surface-pill surface-grass">GRASS</span>}</div>
-          </div>
-          <div className="player-elo"><span className="player-elo-num">{p.elo}</span><span className="player-elo-label">ELO</span>{p.record2026&&<div className="form-badge" style={{marginTop:4}}>2026</div>}</div>
-        </div>
-        <div className="player-stats">
-          <div className="pstat"><div className="pstat-label">HOLD</div><div className="pstat-value">{getHoldValue(p)}</div></div>
-          <div className="pstat"><div className="pstat-label">DR</div><div className="pstat-value" style={{color:"var(--cyan-bright)"}}>{getDrValue(p)}</div></div>
-          <div className="pstat"><div className="pstat-label">TB%</div><div className="pstat-value">{getTbValue(p)}</div></div>
-        </div>
-      </div>
-    );
-  }
-
-  function AtpMatchupCard({ m }) {
-    const isLive = String(m?.raw?.live || "0") === "1";
-    const score = formatTennisScore(m.raw?.score);
-    const subline = buildTennisMatchupSubline(m);
-    const statusLabel = String(m.raw?.status || "").toLowerCase();
-    const looksFinal =
-      statusLabel.includes("final") ||
-      statusLabel.includes("finished") ||
-      statusLabel.includes("complete");
-    return (
-      <div className="matchup-card" onClick={() => openMatchup(m)}>
-        <div className="matchup-top">
-          <div className="matchup-league" style={{ color: m.leagueColor }}>
-            {m.league}
-          </div>
-          {isLive ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                background: "rgba(239,68,68,0.15)",
-                border: "1px solid rgba(239,68,68,0.5)",
-                padding: "2px 7px",
-                borderRadius: 10,
-                fontFamily: "var(--mono-font)",
-                fontSize: 9,
-                color: "#FF5252",
-                letterSpacing: 1.5,
-                fontWeight: 700,
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: "#FF5252",
-                  animation: "pulse 1.5s ease-in-out infinite",
-                }}
-              />
-              LIVE
-            </div>
-          ) : (
-            <div className="matchup-time">{m.raw?.status || m.time}</div>
-          )}
-        </div>
-        <div className="matchup-body">
-          <div className="matchup-title">{m.title}</div>
-          <div className="matchup-meta">
-            {m.network}
-            {subline ? ` · ${subline}` : ""}
-          </div>
-          {isLive && score ? (
-            <div
-              style={{
-                fontFamily: "var(--mono-font)",
-                fontSize: 13,
-                fontWeight: 700,
-                color: "#FFE082",
-                marginTop: 4,
-                letterSpacing: 0.5,
-              }}
-            >
-              {score}
-            </div>
-          ) : score && looksFinal ? (
-            <div className="matchup-blurb" style={{ fontFamily: "var(--mono-font)", fontSize: 12 }}>
-              Final: {score}
-            </div>
-          ) : score && !isLive ? (
-            <div className="matchup-blurb" style={{ fontFamily: "var(--mono-font)", fontSize: 12 }}>
-              {score}
-            </div>
-          ) : (
-            <div className="matchup-blurb">{m.blurb}</div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  function NflPlayerCard({ name, player }) {
-    return (
-      <div className="nfl-player-card" onClick={()=>openNflPlayer(name)}>
-        <div className="nfl-player-top">
-          <div className="nfl-player-left"><div className="nfl-rank">{player.pos}</div><div className="nfl-player-info"><div className="nfl-player-name">{name}</div><div className="nfl-player-meta">{player.team} · {player.tier}</div></div></div>
-          <div className="nfl-player-right"><span className="nfl-yds-pg">{player.ydsPg}</span><span className="nfl-yds-label">YDS/G</span></div>
-        </div>
-        <div className="nfl-player-stats">
-          <div className="nfl-stat"><div className="nfl-stat-label">GAMES</div><div className="nfl-stat-value">{player.rec2025.g}</div></div>
-          <div className="nfl-stat"><div className="nfl-stat-label">TDs</div><div className="nfl-stat-value" style={{color:"var(--nfl)"}}>{player.rec2025.td}</div></div>
-          {player.rec2025.tgt?<div className="nfl-stat"><div className="nfl-stat-label">TGT</div><div className="nfl-stat-value">{player.rec2025.tgt}</div></div>:<div className="nfl-stat"><div className="nfl-stat-label">REC/G</div><div className="nfl-stat-value">{player.rec2025.recPg??"—"}</div></div>}
-          <div className="nfl-stat"><div className="nfl-stat-label">YPR</div><div className="nfl-stat-value">{player.rec2025.ypr}</div></div>
-        </div>
-      </div>
-    );
-  }
-
   const askBarCommon = { fileInputRef, pastedImage, clearImage, isAsking, processImageFile };
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||
@@ -2738,7 +2243,7 @@ ${themeCss}
             ):liveMatches.length>0?(
               <div className="matchup-list">
                 {(activeTournamentMatches.length > 0 ? activeTournamentMatches : liveMatches).map((m) => (
-                  <AtpMatchupCard key={m.id} m={m} />
+                  <AtpMatchupCard key={m.id} m={m} onOpen={openMatchup} />
                 ))}
                 {activeTournamentMatches.length > 0 && liveMatches.length > activeTournamentMatches.length && (
                   <>
@@ -2746,7 +2251,7 @@ ${themeCss}
                     {liveMatches
                       .filter((m) => !activeTournamentMatches.some((x) => x.id === m.id))
                       .map((m) => (
-                        <AtpMatchupCard key={m.id} m={m} />
+                        <AtpMatchupCard key={m.id} m={m} onOpen={openMatchup} />
                       ))}
                   </>
                 )}
@@ -2772,7 +2277,7 @@ ${themeCss}
               <>
                 <div className="section-divider">ATP Top 25</div>
                 {ATP_PLAYERS.map((name, idx) => (
-                  <TennisPlayerCard key={name} name={name} idx={idx} tour="atp" />
+                  <TennisPlayerCard key={name} name={name} idx={idx} tour="atp" players={players} onOpen={openPlayer} />
                 ))}
 
                 <div
@@ -2851,7 +2356,7 @@ ${themeCss}
 
                     <div className="section-divider">WTA Top 24</div>
                     {WTA_PLAYERS.map((name, idx) => (
-                      <TennisPlayerCard key={name} name={name} idx={idx} tour="wta" />
+                      <TennisPlayerCard key={name} name={name} idx={idx} tour="wta" players={players} onOpen={openPlayer} />
                     ))}
                   </>
                 )}
@@ -2889,7 +2394,7 @@ ${themeCss}
             />
             <div className="section-divider">Player Database</div>
             <div className="pos-tabs">{NFL_POSITIONS.map(pos=><button key={pos} className={`pos-tab${nflPosFilter===pos?" active":""}`} onClick={()=>setNflPosFilter(pos)}>{pos}</button>)}</div>
-            {filteredNflPlayers.map(([name,player])=><NflPlayerCard key={name} name={name} player={player}/>)}
+            {filteredNflPlayers.map(([name,player])=><NflPlayerCard key={name} name={name} player={player} onOpen={openNflPlayer} />)}
             <div className="page-spacer"/>
           </main>
         )}
