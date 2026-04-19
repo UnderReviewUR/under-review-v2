@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { PerformanceContext } from "./context/PerformanceContext.jsx";
+import UrTakeRecordPanel from "./components/UrTakeRecordPanel.jsx";
 import {
   THEMES,
   DEFAULT_THEME,
@@ -13,7 +15,6 @@ import AskBar from "./components/AskBar.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
-import NflPropGuideSection from "./features/nfl/NflPropGuideSection.jsx";
 import {
   ChatThread,
   buildNflContext,
@@ -29,7 +30,6 @@ import {
   buildContextualQuestion,
   inferUrTakeSportFromMessages,
 } from "./features/app/helpers.jsx";
-import { ATP_PLAYERS, WTA_PLAYERS, NFL_POSITIONS, NFL_PROP_GUIDE } from "./features/app/constants.js";
 
 import { baseCss } from "./styles/appBaseCss.js";
 import { NFL_PLAYERS } from "./features/app/embedGolfNflData.js";
@@ -41,9 +41,14 @@ import { useGolfData } from "./hooks/useGolfData.js";
 import { useNflData } from "./hooks/useNflData.js";
 import { usePerformance } from "./hooks/usePerformance.js";
 import { formatTennisScore } from "./features/tennis/tennisFormatters.js";
-import { TennisPlayerCard } from "./components/cards/TennisPlayerCard.jsx";
-import { AtpMatchupCard } from "./components/cards/AtpMatchupCard.jsx";
-import { NflPlayerCard } from "./components/cards/NflPlayerCard.jsx";
+import HomeScreen from "./screens/HomeScreen.jsx";
+import TennisScreen from "./screens/TennisScreen.jsx";
+import NflScreen from "./screens/NflScreen.jsx";
+import F1Screen from "./screens/F1Screen.jsx";
+import NbaScreen from "./screens/NbaScreen.jsx";
+import MlbScreen from "./screens/MlbScreen.jsx";
+import GolfScreen from "./screens/GolfScreen.jsx";
+import AskScreen from "./screens/AskScreen.jsx";
 
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
@@ -520,6 +525,7 @@ ${themeCss}
         role: "ai",
         text: data.response || "Couldn't get a response — try again.",
         sport: sportForBubble || undefined,
+        takeMeta: data.take ? { confidence: data.take.confidence } : null,
       },
     ]);
     lastUrTakeSportRef.current = sportForBubble;
@@ -1471,8 +1477,19 @@ ${themeCss}
     [goBack],
   );
 
+  const performanceContextValue = useMemo(
+    () => ({
+      performanceData,
+      performanceLoading,
+      performanceError,
+      loadPerformanceSnapshot,
+    }),
+    [performanceData, performanceLoading, performanceError, loadPerformanceSnapshot],
+  );
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
+    <PerformanceContext.Provider value={performanceContextValue}>
     <>
   <style>{css}</style>
   <div
@@ -1528,876 +1545,94 @@ ${themeCss}
 
         {/* ══ HOME ══ */}
         {screen==="home"&&(
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"8px 12px calc(96px + env(safe-area-inset-bottom))"}}>
-
-            {/* Same UR TAKE input as Ask tab — one bar, shared state */}
-            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitHome} placeholder="Ask about any player, game, or bet..." {...askBarCommon} />
-
-            {/* Sport pill rail — horizontal scroll, feels like tabs */}
-            <div className="sport-rail">
-              <button className="sport-pill sport-pill-tennis" onClick={goTennis}>TENNIS</button>
-              <button className="sport-pill sport-pill-nfl" onClick={goNfl}>NFL</button>
-              <button className="sport-pill sport-pill-f1" onClick={goF1}>F1</button>
-              <button className="sport-pill sport-pill-nba" onClick={goNba}>NBA</button>
-              <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
-              <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"rgba(255,255,255,.5)"}} onClick={goGolf}>GOLF</button>
-            </div>
-
-            {/* Prompts first — actionable before the live snapshot strip */}
-            <div className="ask-cards">
-              {dynamicHomeQuestions.map((q) => (
-                <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null)}>
-                  <div className="ask-card-bar" style={{ background: q.color }} />
-                  <div className="ask-card-text">{q.text}</div>
-                  <div style={{ color: "var(--muted)", fontSize: 16, flexShrink: 0 }}>›</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="home-live-label">Live snapshot</div>
-{/* Top ticker rail */}
-<div
-  style={{
-    display: "flex",
-    gap: 8,
-    overflowX: "auto",
-    scrollbarWidth: "none",
-    marginBottom: 12,
-    alignItems: "stretch",
-  }}
->
-  {(isNflInSeason()
-    ? [
-        <div
-          key="nfl-live"
-          onClick={goNfl}
-          style={{
-            flexShrink: 0,
-            background: "rgba(74,144,217,.08)",
-            border: "1px solid rgba(74,144,217,.25)",
-            borderRadius: 10,
-            padding: "8px 11px",
-            cursor: "pointer",
-            minWidth: 120,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--mono-font)",
-              fontSize: 7,
-              letterSpacing: 1.5,
-              color: "#4A90D9",
-              marginBottom: 3,
-            }}
-          >
-            🏈 NFL
-          </div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
-            Weekly Props
-          </div>
-          <div style={{ fontSize: 10, color: "var(--muted)" }}>Live board →</div>
-        </div>,
-
-        ...tickerNbaGames
-          .filter((g) => g.state === "in")
-          .slice(0, 2)
-          .map((g, i) => {
-            const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
-            const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
-            const isLive = g.state === "in";
-            const seriesLabel = getSeriesLabel(away, home);
-
-            return (
-              <div
-                key={`nba-${i}`}
-                onClick={goNba}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 110,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: isLive ? "#00E676" : "#FF6B00",
-                    marginBottom: 3,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  🏀 {isLive ? "● LIVE" : g.status}
-                </div>
-
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
-                  {away}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
-
-                {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
-                    {g.awayTeam.score}-{g.homeTeam.score}
-                  </div>
-                )}
-
-                {seriesLabel && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 8,
-                      color: "#FF6B00",
-                      marginTop: 3,
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {seriesLabel}
-                  </div>
-                )}
-              </div>
-            );
-          }),
-
-        ...liveTickerTennisCards,
-
-        ...(golfData?.currentEvent?.leaderboard?.length
-          ? [
-              <div
-                key="golf-ticker"
-                onClick={goGolf}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 165,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: "rgba(255,255,255,.7)",
-                    marginBottom: 4,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
-                </div>
-
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 8,
-                    color: "var(--muted)",
-                    marginBottom: 5,
-                    letterSpacing: 1,
-                  }}
-                >
-                  {golfData.currentEvent.round || "IN PROGRESS"}
-                </div>
-
-                {golfData.currentEvent.leaderboard.slice(0, 3).map((p, i) => (
-                  <div
-                    key={`${p.name}-${i}`}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontSize: 11,
-                      lineHeight: 1.5,
-                      color: i === 0 ? "var(--text)" : "var(--muted)",
-                    }}
-                  >
-                    <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--mono-font)",
-                          fontSize: 9,
-                          color: "var(--muted)",
-                          minWidth: 14,
-                        }}
-                      >
-                        {p.position || i + 1}
-                      </span>
-                      <span style={{ fontWeight: i === 0 ? 700 : 500 }}>
-                        {String(p.name || "").split(" ").pop()}
-                      </span>
-                    </span>
-
-                    <span
-                      style={{
-                        fontFamily: "var(--mono-font)",
-                        color:
-                          p.score && String(p.score).startsWith("-")
-                            ? "#00E676"
-                            : p.score === "E"
-                            ? "var(--text)"
-                            : "#FF4444",
-                      }}
-                    >
-                      {p.score || "—"}
-                    </span>
-                  </div>
-                ))}
-              </div>,
-            ]
-          : golfData?.currentEvent
-          ? [
-              <div
-                key="golf-ticker"
-                onClick={goGolf}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 170,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: "rgba(255,255,255,.7)",
-                    marginBottom: 4,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
-                </div>
-                <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {golfData.currentEvent.course || "Course TBD"}
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 9,
-                    fontFamily: "var(--mono-font)",
-                    color: "rgba(255,255,255,.75)",
-                    lineHeight: 1.35,
-                    whiteSpace: "pre-line",
-                  }}
-                >
-                  {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
-                </div>
-              </div>,
-            ]
-          : []),
-
-        ...(mlbGames.length > 0 ? mlbGames : (mlbData?.games || []))
-          .filter((g) => g.state === "in")
-          .slice(0, 1)
-          .map((g, i) => {
-            const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
-            const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
-            const isLive = g.state === "in";
-
-            return (
-              <div
-                key={`mlb-${i}`}
-                onClick={goMlb}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 110,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: isLive ? "#00E676" : "#1DB954",
-                    marginBottom: 3,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  ⚾ {isLive ? "● LIVE" : g.status}
-                </div>
-
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
-                  {away}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
-
-                {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
-                    {g.awayTeam.score}-{g.homeTeam.score}
-                  </div>
-                )}
-              </div>
-            );
-          })
-      ]
-    : [
-        ...[...tickerNbaGames.filter((g) => g.state === "in"), ...tickerNbaGames.filter((g) => g.state === "pre").slice(0, 2)]
-          .slice(0, 3)
-          .map((g, i) => {
-            const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
-            const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
-            const isLive = g.state === "in";
-            const seriesLabel = getSeriesLabel(away, home);
-
-            return (
-              <div
-                key={`nba-${i}`}
-                onClick={goNba}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 110,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: isLive ? "#00E676" : "#FF6B00",
-                    marginBottom: 3,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  🏀 {isLive ? "● LIVE" : g.status}
-                </div>
-
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
-                  {away}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
-
-                {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
-                    {g.awayTeam.score}-{g.homeTeam.score}
-                  </div>
-                )}
-
-                {seriesLabel && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 8,
-                      color: "#FF6B00",
-                      marginTop: 3,
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {seriesLabel}
-                  </div>
-                )}
-              </div>
-            );
-          }),
-
-        ...liveTickerTennisCards,
-
-        ...(golfData?.currentEvent?.leaderboard?.length
-          ? [
-              <div
-                key="golf-ticker"
-                onClick={goGolf}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 165,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: "rgba(255,255,255,.7)",
-                    marginBottom: 4,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
-                </div>
-
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 8,
-                    color: "var(--muted)",
-                    marginBottom: 5,
-                    letterSpacing: 1,
-                  }}
-                >
-                  {golfData.currentEvent.round || "IN PROGRESS"}
-                </div>
-
-                {golfData.currentEvent.leaderboard.slice(0, 3).map((p, i) => (
-                  <div
-                    key={`${p.name}-${i}`}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontSize: 11,
-                      lineHeight: 1.5,
-                      color: i === 0 ? "var(--text)" : "var(--muted)",
-                    }}
-                  >
-                    <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--mono-font)",
-                          fontSize: 9,
-                          color: "var(--muted)",
-                          minWidth: 14,
-                        }}
-                      >
-                        {p.position || i + 1}
-                      </span>
-                      <span style={{ fontWeight: i === 0 ? 700 : 500 }}>
-                        {String(p.name || "").split(" ").pop()}
-                      </span>
-                    </span>
-
-                    <span
-                      style={{
-                        fontFamily: "var(--mono-font)",
-                        color:
-                          p.score && String(p.score).startsWith("-")
-                            ? "#00E676"
-                            : p.score === "E"
-                            ? "var(--text)"
-                            : "#FF4444",
-                      }}
-                    >
-                      {p.score || "—"}
-                    </span>
-                  </div>
-                ))}
-              </div>,
-            ]
-          : golfData?.currentEvent
-          ? [
-              <div
-                key="golf-ticker"
-                onClick={goGolf}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 170,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: "rgba(255,255,255,.7)",
-                    marginBottom: 4,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
-                </div>
-                <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {golfData.currentEvent.course || "Course TBD"}
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 9,
-                    fontFamily: "var(--mono-font)",
-                    color: "rgba(255,255,255,.75)",
-                    lineHeight: 1.35,
-                    whiteSpace: "pre-line",
-                  }}
-                >
-                  {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
-                </div>
-              </div>,
-            ]
-          : []),
-
-        ...(mlbGames.length > 0 ? mlbGames : (mlbData?.games || []))
-          .filter((g) => g.state === "in" || g.state === "pre")
-          .slice(0, 2)
-          .map((g, i) => {
-            const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
-            const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
-            const isLive = g.state === "in";
-
-            return (
-              <div
-                key={`mlb-${i}`}
-                onClick={goMlb}
-                style={{
-                  flexShrink: 0,
-                  background: "var(--surface)",
-                  border: `1px solid ${isLive ? "rgba(0,230,118,.3)" : "var(--border)"}`,
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 110,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: isLive ? "#00E676" : "#1DB954",
-                    marginBottom: 3,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  ⚾ {isLive ? "● LIVE" : g.status}
-                </div>
-
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
-                  {away}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
-
-                {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
-                    {g.awayTeam.score}-{g.homeTeam.score}
-                  </div>
-                )}
-              </div>
-            );
-          }),
-
-                                ...(f1Data?.schedule?.races?.find((r) => r.is_next)
-          ? [
-              <div
-                key="f1-ticker"
-                onClick={goF1}
-                style={{
-                  flexShrink: 0,
-                  background: "rgba(225,6,0,.06)",
-                  border: "1px solid rgba(225,6,0,.2)",
-                  borderRadius: 10,
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  minWidth: 110,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 7,
-                    letterSpacing: 1.5,
-                    color: "#E10600",
-                    marginBottom: 3,
-                  }}
-                >
-                  🏎️ F1 NEXT
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
-                  {f1Data.schedule.races.find((r) => r.is_next).meeting_name}
-                </div>
-                <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {(() => {
-                    const nextRace = f1Data.schedule.races.find((r) => r.is_next);
-                    const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
-                    const dt = raceStart ? new Date(raceStart) : null;
-                    const when = dt
-                      ? `${dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })} ${dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })}`
-                      : "Date/Time TBD";
-                    return when;
-                  })()}
-                </div>
-              </div>,
-                      ]
-                                    : [])])}
-</div>
-
-            {/* Spotlight cards — tight, sport-colored, edge-focused */}
-            {homeCards.map(m=>(
-  <div
-    key={m.id}
-    className="spotlight-card"
-    onClick={() => openMatchup(m)}
-  >
-                <div className="spotlight-top">
-                  <span className="spotlight-sport" style={{color:m.leagueColor}}>{m.homeCategory||m.league}</span>
-                  <span className="spotlight-time">{m.time}</span>
-                </div>
-                <div className="spotlight-title">{m.title}</div>
-                {m.id?.startsWith("golf-home-leaderboard") && Array.isArray(m.topThree) && m.topThree.length > 0 ? (
-                  <div className="spotlight-edge">
-                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                      {m.topThree.map((row) => (
-                        <div key={`${m.id}-${row.rank}-${row.name}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
-                          <span style={{fontSize:12,color:"var(--soft)"}}>
-                            {row.rank}. {row.name}
-                            {row.thru && row.thru !== "—" && row.thru !== "-" ? ` (${row.thru})` : ""}
-                          </span>
-                          <span style={{fontFamily:"var(--mono-font)",fontSize:12,color:golfScoreColor(row.score)}}>
-                            {row.score}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{marginTop:8,fontSize:11,color:"var(--muted)"}}>
-                      {m.sourceLine || m.blurb}
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="spotlight-edge"
-                    style={
-                      m.id?.startsWith("golf-home-leaderboard") || m.id === "ur-home-tracker"
-                        ? { whiteSpace: "pre-line" }
-                        : undefined
-                    }
-                  >
-                    {m.blurb}
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <div className="page-spacer"/>
-          </main>
+          <HomeScreen
+            hasDockedBar={hasDockedBar}
+            askInput={askInput}
+            setAskInput={setAskInput}
+            submitHome={submitHome}
+            askInputRef={askInputRef}
+            askBarCommon={askBarCommon}
+            goTennis={goTennis}
+            goNfl={goNfl}
+            goF1={goF1}
+            goNba={goNba}
+            goMlb={goMlb}
+            goGolf={goGolf}
+            dynamicHomeQuestions={dynamicHomeQuestions}
+            firePrompt={firePrompt}
+            isNflInSeason={isNflInSeason}
+            tickerNbaGames={tickerNbaGames}
+            getSeriesLabel={getSeriesLabel}
+            liveTickerTennisCards={liveTickerTennisCards}
+            golfData={golfData}
+            mlbGames={mlbGames}
+            mlbData={mlbData}
+            f1Data={f1Data}
+            homeCards={homeCards}
+            openMatchup={openMatchup}
+            golfScoreColor={golfScoreColor}
+            userEmail={userEmail}
+            performanceData={performanceData}
+            performanceLoading={performanceLoading}
+            performanceError={performanceError}
+            loadPerformanceSnapshot={loadPerformanceSnapshot}
+          />
         )}
+
 
         {/* ══ TENNIS ══ */}
         {screen==="tennis"&&(
-          <main ref={tennisScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="tour-banner">
-              <div className="banner-title">{tennisBoardHeadline}</div>
-              <div className="banner-sub">{tennisBoardSubline}</div>
-              <div className="banner-note">{liveMatches.length>0?`ATP · ${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in tournament focus`:""}`:"No ATP matches loaded right now."}</div>
-            </div>
-
-            {tennisMsgs.length===0&&(
-              <div ref={tennisBarRef} style={{background:"var(--surface)",border:"1px solid rgba(255,230,0,.2)",borderRadius:14,padding:14,marginBottom:16}}>
-                <div style={{fontSize:10,color:"#FFE600",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
-                <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet? Which match is mispriced?" {...askBarCommon} />
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {["Best tennis bet tonight?","Which match is mispriced?","Best live angle?","Best futures value?"].map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitTennis(q)} style={{fontSize:11}}>{q}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <ChatThread msgs={tennisMsgs} scrollContainerRef={tennisScreenRef}/>
-
-            <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>
-
-            {tennisLoading?(
-              <div className="loading-state"><div className="loading-text">LOADING TENNIS BOARD...</div></div>
-            ):liveMatches.length>0?(
-              <div className="matchup-list">
-                {(activeTournamentMatches.length > 0 ? activeTournamentMatches : liveMatches).map((m) => (
-                  <AtpMatchupCard key={m.id} m={m} onOpen={openMatchup} />
-                ))}
-                {activeTournamentMatches.length > 0 && liveMatches.length > activeTournamentMatches.length && (
-                  <>
-                    <div className="section-divider">Other ATP Tour Matches</div>
-                    {liveMatches
-                      .filter((m) => !activeTournamentMatches.some((x) => x.id === m.id))
-                      .map((m) => (
-                        <AtpMatchupCard key={m.id} m={m} onOpen={openMatchup} />
-                      ))}
-                  </>
-                )}
-              </div>
-            ):(
-              <div className="loading-state"><div className="loading-text">NO CONFIRMED ATP MATCHUPS LOADED</div></div>
-            )}
-
-            {context?.ace_props&&(
-              <>
-                <div className="section-divider">Prop Guide</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                  {Object.entries(context.ace_props).map(([name,data])=>(
-                    <div key={name} className="matchup-card" onClick={()=>submitTennis(`Tell me about ${name} ace props right now`)}>
-                      <div className="matchup-body"><div className="matchup-title" style={{fontSize:15}}>{name}</div><div className="matchup-meta">ACES</div><div className="matchup-blurb">{data.avg_aces_hard} avg · {data.ace_rate}</div><div className="matchup-blurb" style={{marginTop:6}}>{data.note||""}</div></div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {players && (
-              <>
-                <div className="section-divider">ATP Top 25</div>
-                {ATP_PLAYERS.map((name, idx) => (
-                  <TennisPlayerCard key={name} name={name} idx={idx} tour="atp" players={players} onOpen={openPlayer} />
-                ))}
-
-                <div
-                  className="section-divider"
-                  style={{
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginTop: 24,
-                  }}
-                  onClick={() => setWtaSectionOpen((o) => !o)}
-                >
-                  <span>WTA · Profile-Based Analysis</span>
-                  <span
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 10,
-                      color: "var(--muted)",
-                      letterSpacing: 1,
-                    }}
-                  >
-                    {wtaSectionOpen ? "▼ HIDE" : "▶ SHOW"}
-                  </span>
-                </div>
-
-                {wtaSectionOpen && (
-                  <>
-                    <div
-                      style={{
-                        background: "var(--surface)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 12,
-                        padding: "10px 12px",
-                        marginBottom: 10,
-                        fontSize: 11,
-                        color: "var(--muted)",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      No live WTA fixtures feed — answers are powered by the Under Review WTA player database
-                      (rally profiles, surface splits, serve/return stats, tiebreak rates). Best for player
-                      breakdowns and head-to-head matchup questions.
-                    </div>
-
-                    <AskBar
-                      inputRef={wtaInputRef}
-                      value={wtaInput}
-                      onChange={setWtaInput}
-                      onSubmit={() => submitWta()}
-                      placeholder="Sabalenka vs Gauff on clay? Best matchup angle?"
-                      btnColor="#FF2D6B"
-                      {...askBarCommon}
-                    />
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        marginTop: 8,
-                        marginBottom: 12,
-                      }}
-                    >
-                      {[
-                        "Sabalenka vs Gauff on clay?",
-                        "Muchova vs Rybakina — who wins?",
-                        "Best WTA tiebreak fade?",
-                        "Most underrated WTA on clay?",
-                      ].map((q) => (
-                        <button key={q} type="button" className="quick-btn" onClick={() => submitWta(q)} style={{ fontSize: 11 }}>
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="section-divider">WTA Top 24</div>
-                    {WTA_PLAYERS.map((name, idx) => (
-                      <TennisPlayerCard key={name} name={name} idx={idx} tour="wta" players={players} onOpen={openPlayer} />
-                    ))}
-                  </>
-                )}
-              </>
-            )}
-            <div className="page-spacer"/>
-          </main>
+          <TennisScreen
+            tennisScreenRef={tennisScreenRef}
+            hasDockedBar={hasDockedBar}
+            tennisBoardHeadline={tennisBoardHeadline}
+            tennisBoardSubline={tennisBoardSubline}
+            liveMatches={liveMatches}
+            tennisLiveMatches={tennisLiveMatches}
+            tennisUpcomingMatches={tennisUpcomingMatches}
+            activeTournamentMatches={activeTournamentMatches}
+            tennisMsgs={tennisMsgs}
+            tennisBarRef={tennisBarRef}
+            tennisInputRef={tennisInputRef}
+            tennisInput={tennisInput}
+            setTennisInput={setTennisInput}
+            submitTennis={submitTennis}
+            askBarCommon={askBarCommon}
+            context={context}
+            tennisLoading={tennisLoading}
+            openMatchup={openMatchup}
+            players={players}
+            wtaSectionOpen={wtaSectionOpen}
+            setWtaSectionOpen={setWtaSectionOpen}
+            wtaInputRef={wtaInputRef}
+            wtaInput={wtaInput}
+            setWtaInput={setWtaInput}
+            submitWta={submitWta}
+            openPlayer={openPlayer}
+          />
         )}
+
 
         {/* ══ NFL ══ */}
         {screen==="nfl"&&(
-          <main ref={nflScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="nfl-banner">
-              <div className="banner-title">{nflSeasonMode?"NFL In-Season Board":"NFL Futures Board"}</div>
-              <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
-              <div className="banner-note">{nflSeasonMode?"Current weekly props, role changes, usage shifts, and market edges.":"Skill positions database with per-game stats, TD rates, prop floors and ceilings."}</div>
-            </div>
-            {nflMsgs.length===0&&(
-              <div className="nfl-ask-shell" ref={nflBarRef}>
-              <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder={nflSeasonMode?"Best WR prop this week? Biggest role change?":"Which RB leads TDs in 2026? Best future?"} btnColor="#4A90D9" {...askBarCommon} />
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {(nflSeasonMode?["Best WR props this week?","Biggest usage jump?","Best TD scorer angle?","Which line is stale?"]:["Best WR future?","Top TE by volume?","Fade or take Kelce?","Best RB rushing future?"]).map(q=>(
-                  <button key={q} className="quick-btn" onClick={()=>submitNfl(q)} style={{fontSize:11}}>{q}</button>
-                ))}
-              </div>
-              </div>
-            )}
-            <ChatThread msgs={nflMsgs} scrollContainerRef={nflScreenRef}/>
-            <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
-            <NflPropGuideSection
-              guide={NFL_PROP_GUIDE}
-              onSelectProp={(prop) =>
-                submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)
-              }
-            />
-            <div className="section-divider">Player Database</div>
-            <div className="pos-tabs">{NFL_POSITIONS.map(pos=><button key={pos} className={`pos-tab${nflPosFilter===pos?" active":""}`} onClick={()=>setNflPosFilter(pos)}>{pos}</button>)}</div>
-            {filteredNflPlayers.map(([name,player])=><NflPlayerCard key={name} name={name} player={player} onOpen={openNflPlayer} />)}
-            <div className="page-spacer"/>
-          </main>
+          <NflScreen
+            nflScreenRef={nflScreenRef}
+            hasDockedBar={hasDockedBar}
+            nflSeasonMode={nflSeasonMode}
+            nflMsgs={nflMsgs}
+            nflBarRef={nflBarRef}
+            nflInputRef={nflInputRef}
+            nflInput={nflInput}
+            setNflInput={setNflInput}
+            submitNfl={submitNfl}
+            askBarCommon={askBarCommon}
+            nflPosFilter={nflPosFilter}
+            setNflPosFilter={setNflPosFilter}
+            filteredNflPlayers={filteredNflPlayers}
+            openNflPlayer={openNflPlayer}
+          />
         )}
+
 
         {/* ══ NFL PLAYER DETAIL ══ */}
         {screen==="nflplayer"&&nflPd&&(
@@ -2442,355 +1677,77 @@ ${themeCss}
 
         {/* ══ F1 ══ */}
         {screen==="f1"&&(
-          <main ref={f1ScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="f1-banner">
-              <div className="banner-title">Formula 1 — 2026</div>
-              <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
-              <div className="banner-note">{f1Data?.standings?.length ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}</div>
-            </div>
-
-            {f1Msgs.length===0&&(
-              <div className="f1-ask-shell" ref={f1BarRef}>
-                <div className="f1-ask-label">Ask Anything — F1</div>
-                <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {["Who wins the next Grand Prix?","Best F1 future right now?","Is Antonelli for real?","Hamilton podium value?"].map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitF1(q)} style={{fontSize:11}}>{q}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <ChatThread msgs={f1Msgs} scrollContainerRef={f1ScreenRef}/>
-
-            {f1Loading ? (
-              <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>
-            ) : (
-              <>
-                {f1Data?.standings?.length > 0 && (
-                  <>
-                    <div className="section-divider">Driver Standings</div>
-                    {f1Data.standings.map((d,i) => (
-                      <div key={d.driver_number||i} className="f1-standing-card" onClick={()=>submitF1(`Tell me about ${d.full_name||d.name_acronym} — form, pace, and best betting angle`)}>
-                        <div className="f1-pos">P{d.position||i+1}</div>
-                        <div style={{width:4,height:30,borderRadius:2,background:`#${d.team_colour||'666'}`,flexShrink:0}}/>
-                        <div className="f1-driver-info">
-                          <div className="f1-driver-name">{d.full_name||d.name_acronym||`#${d.driver_number}`}</div>
-                          <div className="f1-driver-team">{d.team_name||"—"}</div>
-                        </div>
-                        <div className="f1-pts"><span className="f1-pts-num">{d.points ?? "—"}</span><span className="f1-pts-label">PTS</span></div>
-                      </div>
-                    ))}
-                  </>
-                )}
-
-                {f1Data?.schedule?.races?.length > 0 && (
-                  <>
-                    <div className="section-divider">Race Calendar</div>
-                    {f1Data.schedule.races.filter(r => r.is_next || new Date(r.race_date || r.date_end) >= new Date(Date.now() - 7*86400000)).slice(0,10).map(race => {
-                      const raceStart = resolveF1RaceStart(race, f1Data?.sessions || []);
-                      const d = raceStart ? new Date(raceStart) : null;
-                      const dateStr = d ? d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
-                      return (
-                        <div key={race.meeting_key} className={`f1-race-card${race.is_next?" next-race":""}`}>
-                          <div className="f1-race-top">
-                            <div className="f1-race-name">{race.meeting_name}</div>
-                            <div>{race.is_next && <span className="f1-race-badge">NEXT</span>}</div>
-                          </div>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                            <div className="f1-race-location">{race.location} · {race.circuit_short_name}</div>
-                            <div className="f1-race-date">{dateStr}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-              </>
-            )}
-            <div className="page-spacer"/>
-          </main>
+          <F1Screen
+            f1ScreenRef={f1ScreenRef}
+            hasDockedBar={hasDockedBar}
+            f1Msgs={f1Msgs}
+            f1BarRef={f1BarRef}
+            f1InputRef={f1InputRef}
+            f1Input={f1Input}
+            setF1Input={setF1Input}
+            submitF1={submitF1}
+            askBarCommon={askBarCommon}
+            f1Loading={f1Loading}
+            f1Data={f1Data}
+          />
         )}
+
 
         {/* ══ NBA ══ */}
         {screen==="nba"&&(
-          <main ref={nbaScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="nba-banner">
-              <div className="banner-title">NBA</div>
-              <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
-              <div className="banner-note">
-                {nbaGames.length > 0
-                  ? `${nbaGames.filter(g=>g.state==="in").length > 0 ? nbaGames.filter(g=>g.state==="in").length + " live · " : ""}${nbaGames.length} games today`
-                  : nbaLoading ? "Loading..." : "Ask anything about NBA props"}
-              </div>
-            </div>
-
-            {nbaMsgs.length===0&&(
-              <div className="nba-ask-shell" ref={nbaBarRef}>
-              <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Jokic PRA over tonight? Best prop this slate?" btnColor="var(--nba)" {...askBarCommon} />
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {["Best prop on tonight's slate?","Safest PRA bet tonight?","Who has a usage spike today?","Best game total play?"].map(q=>(
-                  <button key={q} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{q}</button>
-                ))}
-              </div>
-              </div>
-            )}
-
-            <ChatThread msgs={nbaMsgs} scrollContainerRef={nbaScreenRef}/>
-
-            {nbaLoading ? (
-              <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
-            ) : (
-              <>
-                {nbaGames.length > 0 && (
-                  <>
-                    <div className="section-divider">
-                      {nbaGames.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
-                    </div>
-                    {nbaGames.map((g,i) => {
-                      const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
-                      const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
-                      const isLive = g.state === "in";
-                      const isFinal = g.state === "post";
-                      return (
-                        <div key={g.id||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${away} vs ${home} tonight?`)}>
-                          <div className="nba-game-top">
-                            <div className="nba-game-teams">{away} vs {home}</div>
-                            <div>{isLive ? <span className="nba-live-badge">● LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
-                          </div>
-                          {(isLive || isFinal) && g.awayTeam?.score != null && (
-                            <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-
-                <div className="section-divider">Quick Prop Angles</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
-                  {[
-                    ["Best PRA bet tonight?", "Who has the highest floor PRA on tonight's slate? Give me floor, ceiling, and lean."],
-                    ["Best 3PM prop?", "Who should I bet OVER on 3-pointers made tonight? Give me the play with volume and efficiency context."],
-                    ["Injury replacement edge?", "Who has a usage spike tonight due to injury? Find the replacement play with the best prop value."],
-                    ["Best game total?", "Which game total on tonight's slate has the sharpest OVER or UNDER? Give me the pace matchup and lean."],
-                    ["Safest prop tonight?", "What is the single safest, highest-confidence NBA prop on tonight's slate? One play, full reasoning."],
-                    ["Best points prop?", "Who has the best points OVER tonight? Give me the matchup, defensive ranking they're facing, and lean."],
-                  ].map(([label, q]) => (
-                    <button key={label} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{label}</button>
-                  ))}
-                </div>
-
-                <div className="section-divider">Ask About Any Player</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
-                  {["Jokic","SGA","Luka","Tatum","Giannis","Wembanyama","Brunson","Edwards","KAT","Curry","Haliburton","Mitchell","KD","Booker","Ja Morant"].map(name => (
-                    <button key={name} className="quick-btn" onClick={()=>submitNba(`Best prop angle for ${name} tonight? PRA line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="page-spacer"/>
-          </main>
+          <NbaScreen
+            nbaScreenRef={nbaScreenRef}
+            hasDockedBar={hasDockedBar}
+            nbaGames={nbaGames}
+            nbaMsgs={nbaMsgs}
+            nbaBarRef={nbaBarRef}
+            nbaInputRef={nbaInputRef}
+            nbaInput={nbaInput}
+            setNbaInput={setNbaInput}
+            submitNba={submitNba}
+            askBarCommon={askBarCommon}
+            nbaLoading={nbaLoading}
+          />
         )}
+
 
         {/* ══ MLB ══ */}
         {screen==="mlb"&&(
-          <main ref={mlbScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
-              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
-              <div style={{fontSize:12,color:"var(--soft)"}}>
-                {mlbLoading ? "Loading..." : mlbGames.length > 0 ? `${mlbGames.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
-              </div>
-            </div>
-
-            {mlbMsgs.length===0&&(
-              <div style={{background:"var(--surface)",border:"1px solid rgba(29,185,84,.2)",borderRadius:14,padding:14,marginBottom:16}} ref={mlbBarRef}>
-                <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"#1DB954",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything -- MLB</div>
-                <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="#1DB954" {...askBarCommon}/>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-                  {["Best pitcher K prop?","Best batter hits prop?","Best game total?","Best home run prop?"].map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <ChatThread msgs={mlbMsgs} scrollContainerRef={mlbScreenRef}/>
-
-            {mlbLoading && mlbGames.length === 0 ? (
-              <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
-            ) : (
-              <>
-                {(mlbGames.length > 0 || mlbData?.games?.length > 0) && (
-                  <>
-                    {(()=>{
-                      const src = mlbGames.length > 0 ? mlbGames : (mlbData?.games||[]);
-                      const liveCount = src.filter(g=>g.state==="in").length;
-                      const finalCount = src.filter(g=>g.state==="post").length;
-                      const preCount = src.filter(g=>g.state==="pre").length;
-                      return <div className="section-divider">{liveCount>0?`${liveCount} Live`:""}{liveCount>0&&(finalCount+preCount>0)?" · ":""}{finalCount>0?`${finalCount} Final`:""}{preCount>0&&(liveCount+finalCount>0)?" · ":""}{preCount>0?`${preCount} Upcoming`:""}</div>;
-                    })()}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
-                    {(mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).map((g,i) => {
-                      const away = g.awayTeam;
-                      const home = g.homeTeam;
-                      const isLive = g.state === "in";
-                      const isFinal = g.state === "post";
-                      const isPre = g.state === "pre";
-                      const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
-                      return (
-                        <div key={g.id||i} style={{
-                          background:"var(--surface)",
-                          border:`1px solid ${isLive?"rgba(0,230,118,.3)":"var(--border)"}`,
-                          borderRadius:10,padding:"9px 10px",cursor:"pointer",transition:"border-color .15s",
-                        }} onClick={()=>submitMlb(`Best prop angle for ${matchupStr} today? Give me the sharpest K prop, game total lean, and best batter play.`)}>
-                          <div style={{fontFamily:"var(--mono-font)",fontSize:7,letterSpacing:1.5,marginBottom:4,
-                            color:isLive?"#00E676":isFinal?"var(--muted)":"#1DB954"}}>
-                            {isLive?"● LIVE":isFinal?"FINAL":g.status?.replace(" ET","ET")||""}
-                          </div>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                            <div>
-                              <div style={{fontSize:13,fontWeight:700,color:"var(--text)",lineHeight:1.15}}>{away.abbr||away.name}</div>
-                              <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.15}}>@ {home.abbr||home.name}</div>
-                            </div>
-                            {(isLive||isFinal) && away.score!=null ? (
-                              <div style={{fontFamily:"var(--mono-font)",textAlign:"right"}}>
-                                <div style={{fontSize:14,fontWeight:700,color:isLive?"var(--text)":"var(--soft)",lineHeight:1.15}}>{away.score}</div>
-                                <div style={{fontSize:14,fontWeight:700,color:isLive?"var(--text)":"var(--soft)",lineHeight:1.15}}>{home.score}</div>
-                              </div>
-                            ) : (
-                              <div style={{fontSize:9,fontFamily:"var(--mono-font)",color:"var(--muted)",textAlign:"right",lineHeight:1.4}}>
-                                TAP<br/>ANGLE
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    </div>
-                  </>
-                )}
-                <div className="section-divider">Quick Prop Angles</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
-                  {[
-                    ["Best K prop?","Who is the best pitcher strikeout OVER tonight? K/9, opposing lineup, confidence."],
-                    ["Best hits prop?","Best batter hits OVER tonight? Batting average, pitcher ERA, park factor."],
-                    ["Best game total?","Which MLB game total has the sharpest angle tonight? Run environment and lean."],
-                    ["Best HR prop?","Best home run prop tonight? Barrel rate, launch angle, pitcher HR/FB rate."],
-                    ["Park factor edge?","Which game tonight has the biggest park factor edge? Coors, Petco, extreme parks."],
-                    ["Best SGP?","Build the sharpest MLB same game parlay tonight. Pitcher K over + batter prop."],
-                  ].map(([label,q]) => (
-                    <button key={label} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{label}</button>
-                  ))}
-                </div>
-                <div className="section-divider">Ask About Any Player</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
-                  {["Ohtani","Judge","Freeman","Betts","Acuna","Lindor","Seager","Harper","Guerrero","Ramirez","J. Rodriguez","Carroll","Henderson","Pete Alonso","Corbin Burnes","Zack Wheeler","Paul Skenes","Hunter Greene"].map(name => (
-                    <button key={name} className="quick-btn" onClick={()=>submitMlb(`Best prop angle for ${name} today? Line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="page-spacer"/>
-          </main>
+          <MlbScreen
+            mlbScreenRef={mlbScreenRef}
+            hasDockedBar={hasDockedBar}
+            mlbMsgs={mlbMsgs}
+            mlbBarRef={mlbBarRef}
+            mlbInputRef={mlbInputRef}
+            mlbInput={mlbInput}
+            setMlbInput={setMlbInput}
+            submitMlb={submitMlb}
+            askBarCommon={askBarCommon}
+            mlbLoading={mlbLoading}
+            mlbGames={mlbGames}
+            mlbData={mlbData}
+          />
         )}
+
 
 
         {/* ══ GOLF ══ */}
         {screen==="golf"&&(
-          <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="golf-banner">
-              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{golfData?.currentEvent?.name||"PGA TOUR"}</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>OUTRIGHTS / PROPS / MATCHUP EDGES</div>
-              <div style={{fontSize:12,color:"var(--soft)"}}>
-                {golfLoading
-  ? "Loading..."
-  : golfData?.currentEvent?.course
-    ? `${golfData.currentEvent.course} — ${golfData.currentEvent.round || "Live"}`
-    : "Ask about any player, tournament, or prop"}
-              </div>
-            </div>
-
-            {golfMsgs.length===0&&(
-              <div className="golf-ask-shell" ref={golfBarRef}>
-                <div className="golf-ask-label">Ask Anything — Golf</div>
-                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Scheffler top 5? Best make-cut play? Matchup angle?" btnColor="#DCE6F2" {...askBarCommon}/>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-                  {["Best outright value?","Safest make-cut play?","Best top-10 play?","Best matchup H2H?"].map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitGolf(q)} style={{fontSize:11}}>{q}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <ChatThread msgs={golfMsgs} scrollContainerRef={golfScreenRef}/>
-
-            {/* Live leaderboard — full field (scroll); same list is sent to /api/ur-take as golfContext */}
-            {golfData?.currentEvent?.leaderboard?.length > 0 && (
-              <>
-                <div className="section-divider">
-                  {golfData.currentEvent.name} — {golfData.currentEvent.round}
-                  <span style={{ fontFamily: "var(--mono-font)", fontSize: 9, color: "var(--muted)", marginLeft: 8 }}>
-                    {golfData.currentEvent.leaderboard.length} players
-                  </span>
-                </div>
-                <div style={{ maxHeight: "min(70vh, 520px)", overflowY: "auto", WebkitOverflowScrolling: "touch", paddingRight: 4 }}>
-                  {golfData.currentEvent.leaderboard.map((player, i) => (
-                    <div key={`${player.name}-${i}`} className="golf-leaderboard-card" onClick={()=>submitGolf(`Best betting angle on ${player.name} right now? Outright, top-10, or matchup?`)}>
-                      <div className="golf-pos">{player.position||i+1}</div>
-                      <div className="golf-player-info">
-                        <div className="golf-player-name">{player.name}</div>
-                        <div className="golf-player-country">{player.country}</div>
-                      </div>
-                      <div className="golf-score">
-                        <span className="golf-score-num" style={{color:player.score&&player.score.startsWith("-")?"#00E676":player.score==="E"?"var(--text)":"#FF4444"}}>{player.score||"—"}</span>
-                        <span className="golf-score-label">{player.thru&&player.thru!=="—"?`THRU ${player.thru}`:""}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Outright odds */}
-            {golfData?.odds?.outrights?.length > 0 && (
-              <>
-                <div className="section-divider">Outright Odds — This Week</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
-                  {golfData.odds.outrights.slice(0,20).map((o,i)=>(
-                    <div key={i} className="golf-odds-card" onClick={()=>submitGolf(`Best angle on ${o.player}? Outright, top 10, or matchup — give me the sharpest play.`)}>
-                      <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>{o.player}</div>
-                      <div className="golf-player-odds">{o.odds>0?"+":""}{o.odds}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <div className="section-divider">Quick Angles</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
-              {[
-                ["Best outright value?","Who has the best outright value at this week's PGA Tour event? Consider field strength, course fit, and SG profile."],
-                ["Best top-10 play?","Who is the best top-10 bet at this week's PGA Tour event? Give me the highest-confidence play with reasoning."],
-                ["Safest make-cut?","Who is the safest make-cut bet at this week's event? Prioritize players with 80%+ cut-making history and good current form."],
-                ["Best matchup H2H?","Build the sharpest head-to-head matchup play at this week's event. Consider SG splits and course fit."],
-                ["Best FRL play?","Who is the best first round leader bet? Consider power players, morning draws, and current form."],
-                ["Who to fade?","Who should I fade this week? Tell me the player overpriced relative to their SG profile and course fit."],
-              ].map(([label,prompt])=>(
-                <button key={label} className="quick-btn" onClick={()=>submitGolf(prompt)} style={{fontSize:11}}>{label}</button>
-              ))}
-            </div>
-
-            <div className="section-divider">Ask About Any Player</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
-              {["Scheffler","Rory","Schauffele","Morikawa","Hovland","Cantlay","Rahm","Ludvig Aberg","Tom Kim","Spieth","JT","Fleetwood","Fitzpatrick","Hatton","Lowry","Matsuyama","Brian Harman","Cameron Young","Wyndham Clark","Sahith Theegala"].map(name=>(
-                <button key={name} className="quick-btn" onClick={()=>submitGolf(`Best betting angle for ${name} this week? Top 10, matchup, outright, or make cut?`)} style={{fontSize:11}}>{name}</button>
-              ))}
-            </div>
-
-            <div className="page-spacer"/>
-          </main>
+          <GolfScreen
+            golfScreenRef={golfScreenRef}
+            hasDockedBar={hasDockedBar}
+            golfData={golfData}
+            golfLoading={golfLoading}
+            golfMsgs={golfMsgs}
+            golfBarRef={golfBarRef}
+            golfInputRef={golfInputRef}
+            golfInput={golfInput}
+            setGolfInput={setGolfInput}
+            submitGolf={submitGolf}
+            askBarCommon={askBarCommon}
+          />
         )}
+
 
         {/* ══ PRO ══ */}
         {screen==="pro"&&(
@@ -2831,120 +1788,21 @@ ${themeCss}
       </div>
     )}
 
-    {/* Performance panel */}
+    {/* Performance panel — shared layout with Home */}
     <div style={proMarketing.perfPanel}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
-        <div>
-          <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"var(--cyan-bright)",letterSpacing:2,textTransform:"uppercase"}}>Under Review Record</div>
-          <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.45}}>
-            What UR TAKE told you — and how it aged. Takes are saved from each answer&apos;s THE PLAY line; no manual logging.
-          </div>
-          <div style={{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginTop:6,opacity:.93}}>
-            <strong style={{fontWeight:600,color:"var(--soft)"}}>Waiting</strong> = saved play, waiting for a result we can grade.&nbsp;
-            <strong style={{fontWeight:600,color:"var(--soft)"}}>Tracked</strong> = saved for your history; auto-grading isn&apos;t wired for that market yet.&nbsp;
-            NBA/MLB team ML and tennis match winners (parsed from THE PLAY) settle automatically when finals data is available.
-          </div>
-        </div>
-        <button
-          className="quick-btn"
-          onClick={()=>loadPerformanceSnapshot()}
-          style={{fontSize:10,padding:"7px 10px"}}
-          disabled={performanceLoading}
-        >
-          {performanceLoading ? "Refreshing..." : "Refresh"}
-        </button>
+      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45, marginBottom: 10 }}>
+        What UR TAKE told you — and how it aged. Takes are saved from each answer&apos;s THE PLAY line; no manual logging.
+        {" "}
+        <strong style={{ fontWeight: 600, color: "var(--soft)" }}>Waiting</strong> = awaiting a gradable result;{" "}
+        <strong style={{ fontWeight: 600, color: "var(--soft)" }}>Tracked</strong> = saved; auto-grading where wired (NBA/MLB ML, tennis match winners).
       </div>
-
-      {!userEmail ? (
-        <div style={{fontSize:12,color:"var(--muted)"}}>Set your email to enable tracked performance history.</div>
-      ) : performanceError ? (
-        <div style={{fontSize:12,color:"#FF6B6B"}}>{performanceError}</div>
-      ) : !performanceData ? (
-        <div style={{fontSize:12,color:"var(--muted)"}}>{performanceLoading ? "Loading performance..." : "No performance data yet."}</div>
-      ) : (
-        <>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginBottom:10}}>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Settled</div>
-              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.settled || 0}</div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Waiting</div>
-              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.pending || 0}</div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Tracked</div>
-              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.tracked ?? performanceData.summary?.ungraded ?? 0}</div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Win %</div>
-              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{Math.round((performanceData.summary?.winRate || 0) * 100)}%</div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>ROI</div>
-              <div style={{fontSize:15,fontWeight:700,color:(performanceData.summary?.roiUnits || 0) >= 0 ? "#00E676" : "#FF6B6B"}}>
-                {(performanceData.summary?.roiUnits || 0) > 0 ? "+" : ""}{performanceData.summary?.roiUnits || 0}u
-              </div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Wins</div>
-              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.wins || 0}</div>
-            </div>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 6px"}}>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:7,color:"var(--muted)",letterSpacing:0.5,textTransform:"uppercase"}}>Losses</div>
-              <div style={{fontSize:15,fontWeight:700,color:"var(--text)"}}>{performanceData.summary?.losses || 0}</div>
-            </div>
-          </div>
-
-          <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)",marginBottom:6,textTransform:"uppercase"}}>
-            Recent Takes
-          </div>
-          <div style={{display:"grid",gap:6}}>
-            {(performanceData.recent || []).slice(0, 6).map((take) => {
-              const st = take.status === "ungraded" ? "tracked" : take.status;
-              const badge =
-                st === "settled"
-                  ? String(take.result || "settled").toUpperCase()
-                  : st === "pending"
-                    ? "WAITING"
-                    : "TRACKED";
-              const badgeColor =
-                st === "settled"
-                  ? take.result === "win"
-                    ? "#00E676"
-                    : take.result === "loss"
-                      ? "#FF6B6B"
-                      : "#FFD166"
-                  : st === "pending"
-                    ? "var(--cyan-bright)"
-                    : "var(--muted)";
-              const metaLine =
-                st === "settled"
-                  ? [take.gradingNote].filter(Boolean).join("")
-                  : st === "pending"
-                    ? "Waiting for final result."
-                    : take.gradingNote || "Saved — grading not enabled for this market yet.";
-              return (
-              <div key={take.id} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 10px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
-                  <div style={{fontSize:12,color:"var(--text)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{take.playLine || "Take recorded"}</div>
-                  <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:badgeColor,letterSpacing:1,textTransform:"uppercase",flexShrink:0}}>
-                    {badge}
-                  </div>
-                </div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:3,lineHeight:1.35}}>
-                  {(take.sport || "GENERIC").toUpperCase()} · {take.confidence || "Unspecified"}
-                  {metaLine ? ` · ${metaLine}` : ""}
-                </div>
-              </div>
-            );
-            })}
-            {(!performanceData.recent || performanceData.recent.length === 0) && (
-              <div style={{fontSize:12,color:"var(--muted)"}}>No takes logged yet. Ask for a play and it will appear here.</div>
-            )}
-          </div>
-        </>
-      )}
+      <UrTakeRecordPanel
+        userEmail={userEmail}
+        performanceData={performanceData}
+        performanceLoading={performanceLoading}
+        performanceError={performanceError}
+        onRefresh={loadPerformanceSnapshot}
+      />
     </div>
 
     {/* Pro header — same surface language as record panel (tool, not landing) */}
@@ -3246,29 +2104,20 @@ ${themeCss}
 
         {/* ══ ASK ══ */}
         {screen==="ask"&&(
-          <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            {askMsgs.length === 0 ? (
-              <>
-                <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
-                <AskBar
-                  inputRef={askInputRef}
-                  value={askInput}
-                  onChange={setAskInput}
-                  onSubmit={submitAsk}
-                  placeholder="What do you want to know?"
-                  showPasteHint={false}
-                  {...askBarCommon}
-                />
-                <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 10, fontFamily: "var(--mono-font)", letterSpacing: 2, color: "var(--muted)", padding: "6px 2px 10px", textTransform: "uppercase" }}>UR TAKE · conversation</div>
-                <ChatThread msgs={askMsgs} scrollContainerRef={askScreenRef}/>
-              </>
-            )}
-          </main>
+          <AskScreen
+            askScreenRef={askScreenRef}
+            hasDockedBar={hasDockedBar}
+            askMsgs={askMsgs}
+            askInputRef={askInputRef}
+            askInput={askInput}
+            setAskInput={setAskInput}
+            submitAsk={submitAsk}
+            askBarCommon={askBarCommon}
+            dynamicHomeQuestions={dynamicHomeQuestions}
+            firePrompt={firePrompt}
+          />
         )}
+
 
         {/* ══ DOCKED INPUT BARS ══ */}
         {screen==="tennis"&&tennisMsgs.length>0&&(
@@ -3418,5 +2267,6 @@ ${themeCss}
 
       </div>
     </>
+    </PerformanceContext.Provider>
   );
 }

@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect, useContext } from "react";
+import { PerformanceContext } from "../../context/PerformanceContext.jsx";
+import {
+  normalizeConfidenceTier,
+  mergeTierSnapshots,
+  last30DaysTierSnapshot,
+  formatRecordUnits,
+  displayConfidenceLabel,
+} from "../../lib/urTakePerformance.js";
 
 export function normalizeText(v) {
   return String(v || "").trim().toLowerCase();
@@ -390,7 +398,49 @@ export function LoadingBubble({ sport }) {
   );
 }
 
+function UrTakeAiBubble({ m, performanceData }) {
+  const tier = m.takeMeta ? normalizeConfidenceTier(m.takeMeta.confidence) : null;
+  const tierSnapshots = performanceData ? mergeTierSnapshots(performanceData.byConfidence) : null;
+  const histSnap = tier && tierSnapshots ? tierSnapshots[tier] : null;
+  const histLine = formatRecordUnits(
+    histSnap || { settled: 0, wins: 0, losses: 0, pushes: 0, roiUnits: 0 },
+  );
+  const last30 = tier && performanceData ? last30DaysTierSnapshot(performanceData, tier) : null;
+  const last30Line = formatRecordUnits(
+    last30 || { settled: 0, wins: 0, losses: 0, pushes: 0, roiUnits: 0 },
+  );
+  const label = displayConfidenceLabel(tier, m.takeMeta?.confidence);
+  return (
+    <>
+      {m.image && <img src={m.image} alt="" className="bubble-img" />}
+      {m.takeMeta && (
+        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, lineHeight: 1.45 }}>
+          This is a {label} confidence take. Tier historical record: {histLine}.
+        </div>
+      )}
+      {renderMessage(m.text)}
+      {m.takeMeta && tier ? (
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--muted)",
+            marginTop: 10,
+            lineHeight: 1.45,
+            borderTop: "1px solid var(--border)",
+            paddingTop: 8,
+          }}
+        >
+          Last 30 days on this confidence tier: {last30Line}.
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function ChatThread({ msgs, scrollContainerRef }) {
+  const perfCtx = useContext(PerformanceContext);
+  const performanceData = perfCtx?.performanceData;
+
   /** Sync scroll after DOM updates — feels tight like iMessage (no visible lag). */
   useLayoutEffect(() => {
     if (!msgs?.length) return;
@@ -411,8 +461,14 @@ export function ChatThread({ msgs, scrollContainerRef }) {
           <LoadingBubble key={i} sport={m.sport} />
         ) : (
           <div key={i} className={`bubble ${m.role}`}>
-            {m.image && <img src={m.image} alt="" className="bubble-img" />}
-            {renderMessage(m.text)}
+            {m.role === "ai" && m.takeMeta ? (
+              <UrTakeAiBubble m={m} performanceData={performanceData} />
+            ) : (
+              <>
+                {m.image && <img src={m.image} alt="" className="bubble-img" />}
+                {renderMessage(m.text)}
+              </>
+            )}
           </div>
         )
       )}
