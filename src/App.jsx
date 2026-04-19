@@ -15,6 +15,7 @@ import AskBar from "./components/AskBar.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
+import { isGolfEventFinished } from "./lib/golfEventStatus.js";
 import {
   ChatThread,
   buildNflContext,
@@ -651,10 +652,10 @@ ${themeCss}
     }
     const focus = atp.filter((m) => preferredTournamentScore(m, context) > 0);
     const pool = focus.length ? focus : atp;
-    const head = pool.slice(0, 6);
+    const previewCap = 8;
+    const head = pool.slice(0, previewCap);
     const liveN = pool.filter((m) => String(m?.raw?.live || "0") === "1").length;
     const upcomingN = pool.length - liveN;
-    const summary = head.map((m) => m.title).join(" · ");
     const tName = context?.currentTournament?.name || "ATP Tour";
     return [
       {
@@ -665,7 +666,9 @@ ${themeCss}
         title: `${tName} — next ATP matchups`,
         time: `${liveN} live · ${upcomingN} upcoming`,
         network: `${atp.length} confirmed on ATP board`,
-        blurb: summary,
+        blurb: head.map((m) => m.title).join(" · "),
+        matchupLines: head.map((m) => m.title),
+        moreMatchupsCount: Math.max(0, pool.length - head.length),
         whatMatters: "Tap to open Tennis — confirmed ATP draws from Ball Dont Lie.",
         quickHitters: ["Best ATP misprice today?", "Who benefits on this surface?"],
         confirmed: true,
@@ -888,6 +891,7 @@ ${themeCss}
       : [];
 
     const eventState = String(currentEvent?.state || "").toLowerCase();
+    const isGolfFinal = isGolfEventFinished(golfData);
     const roundLabel = String(currentEvent?.round || "");
     const looksLiveRound = /live|round|r\d/i.test(roundLabel);
     const looksInProgress = eventState === "in" || looksLiveRound;
@@ -927,10 +931,10 @@ ${themeCss}
 
       return [{
         id: "golf-home-leaderboard",
-        league: looksInProgress ? "GOLF LIVE" : "GOLF",
+        league: isGolfFinal ? "GOLF · FINAL" : looksInProgress ? "GOLF LIVE" : "GOLF",
         leagueColor: "#FFFFFF",
         title: currentEvent?.shortName || currentEvent?.name || "PGA Tour",
-        time: currentEvent?.round || (looksInProgress ? "Live" : "Leaderboard"),
+        time: isGolfFinal ? "Final" : currentEvent?.round || (looksInProgress ? "Live" : "Leaderboard"),
         network: currentEvent?.course || "PGA Tour",
         blurb: `${leaderboardLine}\n${sourceLabel} · ${freshnessLabel}`,
         topThree: topThree.map((p, i) => ({
@@ -940,12 +944,16 @@ ${themeCss}
           thru: String(p?.thru || "").trim(),
         })),
         sourceLine: `${sourceLabel} · ${freshnessLabel}`,
-        whatMatters: looksInProgress
-          ? "Back current form or fade players with unstable scoring splits."
-          : "Top of the board right now — ask for course-fit leans before the next wave.",
-        quickHitters: looksInProgress
-          ? ["Best live golf angle?", "Who to back from top 3?", "Who should I fade live?"]
-          : ["Best angle on the leader?", "Who chases from the pack?", "Best top-10 play?"],
+        whatMatters: isGolfFinal
+          ? "Event complete — live betting prompts are turned off. Open Golf for results recap."
+          : looksInProgress
+            ? "Back current form or fade players with unstable scoring splits."
+            : "Top of the board right now — ask for course-fit leans before the next wave.",
+        quickHitters: isGolfFinal
+          ? []
+          : looksInProgress
+            ? ["Best live golf angle?", "Who to back from top 3?", "Who should I fade live?"]
+            : ["Best angle on the leader?", "Who chases from the pack?", "Best top-10 play?"],
         confirmed: true,
       }];
     }

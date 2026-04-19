@@ -1520,7 +1520,31 @@ SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level 
   } else if (sportHint === "golf") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    userPrompt = `You are answering a golf betting question.
+    const golfState = String(golfContext?.currentEvent?.state || "").toLowerCase();
+    const golfIsFinal = golfState === "post" || golfState === "final";
+
+    if (golfIsFinal) {
+      userPrompt = `You are answering a golf question after the tournament has FINISHED.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${question}
+
+Golf context:
+${JSON.stringify(golfContext || {}, null, 2)}
+
+TOURNAMENT STATUS: FINAL (currentEvent.state is post/final)
+- Do NOT frame this as live betting, pre-market, or "wait for lines / tee times."
+- Do NOT tell the user the event has not started or is scheduled for a future date.
+- Answer from currentEvent.leaderboard and recentResults (if present) only — cite winner, final scores, and narrative of how the event unfolded.
+- If the user asked for a "live" or "best bet" angle, reframe: there is no live market edge after the final putt; give a concise results recap and what the board says about who won and why.
+- Name specific golfers from the leaderboard rows. Never invent a golfer not on the board.
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+
+Use the standard Under Review sections (THE PLAY can be PASS or a retrospective note — not a new bet recommendation).`;
+    } else {
+      userPrompt = `You are answering a golf betting question.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
@@ -1568,6 +1592,7 @@ Instead, do ALL of the following:
 5. End with a live trigger: what hole range or round split would flip the lean.
 
 Never open with "no lines posted." Give monitoring hooks and named golfers.`;
+    }
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.

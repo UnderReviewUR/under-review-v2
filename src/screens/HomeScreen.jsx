@@ -116,6 +116,25 @@ export default function HomeScreen({
                       {m.sourceLine || m.blurb}
                     </div>
                   </div>
+                ) : m.id === "tennis-atp-schedule-board" &&
+                  Array.isArray(m.matchupLines) &&
+                  m.matchupLines.length > 0 ? (
+                  <div className="spotlight-edge">
+                    <div className="spotlight-atp-matchups-wrap">
+                      <ul className="spotlight-atp-matchups">
+                        {m.matchupLines.map((line, i) => (
+                          <li key={`${m.id}-m-${i}`}>{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    {m.moreMatchupsCount > 0 ? (
+                      <div className="spotlight-atp-foot">
+                        +{m.moreMatchupsCount} more matchup
+                        {m.moreMatchupsCount === 1 ? "" : "s"} on the board
+                      </div>
+                    ) : null}
+                    <div className="spotlight-atp-foot">{m.network}</div>
+                  </div>
                 ) : (
                   <div
                     className="spotlight-edge"

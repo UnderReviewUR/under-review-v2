@@ -1,4 +1,5 @@
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
+import { isGolfEventFinished } from "../lib/golfEventStatus.js";
 
 export default function TickerRail({
   isNflInSeason,
@@ -15,6 +16,12 @@ export default function TickerRail({
   mlbData,
   f1Data,
 }) {
+  const golfTickerRound =
+    golfData?.currentEvent &&
+    (isGolfEventFinished(golfData)
+      ? "FINAL"
+      : golfData.currentEvent.round || "IN PROGRESS");
+
   return (
     <>
             <div className="home-live-label">Live snapshot</div>
@@ -171,7 +178,7 @@ export default function TickerRail({
                     letterSpacing: 1,
                   }}
                 >
-                  {golfData.currentEvent.round || "IN PROGRESS"}
+                  {golfTickerRound}
                 </div>
 
                 {golfData.currentEvent.leaderboard.slice(0, 3).map((p, i) => (
@@ -431,7 +438,7 @@ export default function TickerRail({
                     letterSpacing: 1,
                   }}
                 >
-                  {golfData.currentEvent.round || "IN PROGRESS"}
+                  {golfTickerRound}
                 </div>
 
                 {golfData.currentEvent.leaderboard.slice(0, 3).map((p, i) => (

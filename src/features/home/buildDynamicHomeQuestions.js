@@ -1,3 +1,9 @@
+import { isGolfEventFinished } from "../../lib/golfEventStatus.js";
+import {
+  getF1NextRaceForHomePrompts,
+  isTennisMatchFinished,
+} from "../../lib/homePromptEligibility.js";
+
 function getDaypartLabel() {
   const h = new Date().getHours();
   if (h < 12) return "today";
@@ -36,12 +42,20 @@ export function buildDynamicHomeQuestions({
     prompts.push(item);
   };
 
+  const tournamentActionable = (activeTournamentMatches || []).filter(
+    (m) => !isTennisMatchFinished(m),
+  );
+  const livePool = (tennisLiveMatches || []).filter((m) => !isTennisMatchFinished(m));
+  const upcomingPool = (tennisUpcomingMatches || []).filter(
+    (m) => !isTennisMatchFinished(m),
+  );
+
   const prefLive =
-    activeTournamentMatches.find((m) => String(m?.raw?.live || "0") === "1") ||
-    tennisLiveMatches[0];
+    tournamentActionable.find((m) => String(m?.raw?.live || "0") === "1") ||
+    livePool[0];
   const prefUpcoming =
-    activeTournamentMatches.find((m) => String(m?.raw?.live || "0") !== "1") ||
-    tennisUpcomingMatches[0];
+    tournamentActionable.find((m) => String(m?.raw?.live || "0") !== "1") ||
+    upcomingPool[0];
 
   if (prefLive) {
     const label = `${prefLive.raw?.home || ""} vs ${prefLive.raw?.away || ""}`;
@@ -105,7 +119,8 @@ export function buildDynamicHomeQuestions({
     golfData?.tournament?.shortName ||
     golfData?.tournament?.name ||
     null;
-  if (golfLeader || golfEventName) {
+  /** No live/pre-market golf prompts once the event is final — avoids bad model behavior without live markets. */
+  if (!isGolfEventFinished(golfData) && (golfLeader || golfEventName)) {
     const leaderName = String(golfLeader?.name || "the current leader").trim();
     const label = golfEventName || "PGA Tour board";
     const golfPrompt = rotate(
@@ -126,11 +141,13 @@ export function buildDynamicHomeQuestions({
 
   const nbaLive = (nbaGames || []).filter((g) => g?.state === "in");
   const nbaUpcoming = (nbaGames || []).filter((g) => g?.state === "pre");
-  const nbaTarget = nbaLive[0] || nbaUpcoming[0] || null;
-  if (nbaTarget) {
-    const away = nbaTarget.awayTeam?.abbr || nbaTarget.awayTeam?.name || "Away";
-    const home = nbaTarget.homeTeam?.abbr || nbaTarget.homeTeam?.name || "Home";
-    const nbaPrompt = rotate(
+  const nbaLiveGame = nbaLive[0] || null;
+  const nbaUpcomingGame = nbaUpcoming[0] || null;
+
+  if (nbaLiveGame) {
+    const away = nbaLiveGame.awayTeam?.abbr || nbaLiveGame.awayTeam?.name || "Away";
+    const home = nbaLiveGame.homeTeam?.abbr || nbaLiveGame.homeTeam?.name || "Home";
+    const nbaLivePrompt = rotate(
       [
         {
           text: `Best NBA prop for ${away} vs ${home}?`,
@@ -143,10 +160,31 @@ export function buildDynamicHomeQuestions({
       ],
       5
     );
-    push({ id: "q4", color: "#FF6B00", sportHint: "nba", ...nbaPrompt });
+    push({ id: "q4a", color: "#FF6B00", sportHint: "nba", ...nbaLivePrompt });
   }
 
-  const nextRace = f1Data?.schedule?.races?.find((r) => r?.is_next);
+  if (nbaUpcomingGame) {
+    const away =
+      nbaUpcomingGame.awayTeam?.abbr || nbaUpcomingGame.awayTeam?.name || "Away";
+    const home =
+      nbaUpcomingGame.homeTeam?.abbr || nbaUpcomingGame.homeTeam?.name || "Home";
+    const nbaPrePrompt = rotate(
+      [
+        {
+          text: `Best pre-game edge: ${away} @ ${home}?`,
+          prompt: `Before tip for ${away} @ ${home}, what is the strongest pre-game edge (side, total, or prop) and what would change it live?`,
+        },
+        {
+          text: `Top matchup read: ${away} vs ${home}?`,
+          prompt: `For the upcoming ${away} vs ${home} game, where is the market most likely wrong pre-tip — and what stat would you watch first?`,
+        },
+      ],
+      54
+    );
+    push({ id: "q4b", color: "#FF6B00", sportHint: "nba", ...nbaPrePrompt });
+  }
+
+  const nextRace = getF1NextRaceForHomePrompts(f1Data);
   if (nextRace) {
     const raceName = nextRace.meeting_name || "next Grand Prix";
     const f1Prompt = rotate(
@@ -197,5 +235,5 @@ export function buildDynamicHomeQuestions({
     push({ id: "q6", color: "#E11D48", sportHint: "nfl", ...nflFuturePrompt });
   }
 
-  return prompts.slice(0, 5);
+  return prompts.slice(0, 7);
 }
