@@ -3,6 +3,7 @@
 // Called when user clicks "START FREE TRIAL" in App.jsx.
 
 import { applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 import Stripe from "stripe";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
@@ -28,8 +29,8 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-  const STRIPE_PRICE_ID   = process.env.STRIPE_PRICE_ID;
+  const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY");
+  const STRIPE_PRICE_ID   = getEnv("STRIPE_PRICE_ID");
 
   if (!STRIPE_SECRET_KEY) return res.status(500).json({ error: "Missing STRIPE_SECRET_KEY" });
   if (!STRIPE_PRICE_ID)   return res.status(500).json({ error: "Missing STRIPE_PRICE_ID" });

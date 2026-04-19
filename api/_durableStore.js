@@ -1,12 +1,14 @@
+import { getEnv } from "./_env.js";
+
 const memStore = new Map();
 
 const KV_URL =
-  process.env.KV_REST_API_URL ||
-  process.env.VERCEL_KV_REST_API_URL ||
+  getEnv("KV_REST_API_URL") ||
+  getEnv("VERCEL_KV_REST_API_URL") ||
   "";
 const KV_TOKEN =
-  process.env.KV_REST_API_TOKEN ||
-  process.env.VERCEL_KV_REST_API_TOKEN ||
+  getEnv("KV_REST_API_TOKEN") ||
+  getEnv("VERCEL_KV_REST_API_TOKEN") ||
   "";
 
 function hasKvConfig() {

@@ -1,4 +1,5 @@
 import { applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -304,7 +305,7 @@ export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") return res.status(405).json({ error:"Method not allowed" });
 
-  const ODDS_KEY = process.env.ODDS_API_KEY;
+  const ODDS_KEY = getEnv("ODDS_API_KEY");
   const view = String(req.query.view || "board").toLowerCase();
 
   try {

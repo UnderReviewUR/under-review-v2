@@ -1,5 +1,7 @@
 // api/_balldontlie.js
 
+import { getEnv } from "./_env.js";
+
 const BDL_BASE = "https://api.balldontlie.io";
 
 function buildQueryString(params = {}) {
@@ -22,7 +24,7 @@ function buildQueryString(params = {}) {
 }
 
 export async function bdlFetch(endpoint, params = {}, options = {}) {
-  const apiKey = options.apiKey || process.env.BALLDONTLIE_API_KEY || "";
+  const apiKey = options.apiKey || getEnv("BALLDONTLIE_API_KEY") || "";
   const timeoutMs = options.timeoutMs || 8000;
 
   if (!apiKey) {

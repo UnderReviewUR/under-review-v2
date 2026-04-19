@@ -16,9 +16,10 @@ export const config = {
 };
 
 import Stripe from "stripe";
+import { getEnv } from "./_env.js";
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY");
+const STRIPE_WEBHOOK_SECRET = getEnv("STRIPE_WEBHOOK_SECRET");
 
 // ── Read raw body from Vercel serverless ─────────────────────────────────────
 async function getRawBody(req) {

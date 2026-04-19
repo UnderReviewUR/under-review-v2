@@ -1,9 +1,11 @@
+import { getEnv } from "./_env.js";
+
 const CORE_ORIGINS = [
   "https://under-review.app",
   "https://www.under-review.app",
 ];
 
-const EXTRA_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+const EXTRA_ORIGINS = (getEnv("ALLOWED_ORIGINS") || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);

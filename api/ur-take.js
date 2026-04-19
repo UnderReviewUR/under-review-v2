@@ -1,6 +1,7 @@
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 import { applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
 
@@ -682,8 +683,8 @@ export default async function handler(req, res) {
     });
   }
 
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+  const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
+  const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
 
   if (!ANTHROPIC_API_KEY) {
     return res.status(500).json({

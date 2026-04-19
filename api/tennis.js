@@ -1,4 +1,5 @@
 import { applyApiNoStoreHeaders, applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
 import { buildStaticWtaBoardRows } from "./_staticWtaBoard.js";
 
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
   applyApiNoStoreHeaders(res);
 
   try {
-    const BDL_KEY = process.env.BALLDONTLIE_API_KEY;
+    const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
 
     const { tour = "atp", activeTournament = "" } = req.query;
 

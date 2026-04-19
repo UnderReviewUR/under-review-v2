@@ -4,11 +4,12 @@
 // Covers: match winner odds, player aces, player double faults, total games
 
 import { applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
 
-  const API_KEY = process.env.ODDS_API_KEY;
+  const API_KEY = getEnv("ODDS_API_KEY");
   if (!API_KEY) {
     return res.status(500).json({ error: "Missing ODDS_API_KEY" });
   }

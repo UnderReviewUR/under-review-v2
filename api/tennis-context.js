@@ -3,6 +3,7 @@ import {
   getActiveTournamentKey,
 } from "../data/tennis/tournamentMeta.js";
 import { applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -51,6 +52,8 @@ export default function handler(req, res) {
   const currentTournament = TOURNAMENTS[activeKey];
   const primaryElo = SURFACE_ELO_MAP[currentTournament?.surface] || "hElo";
 
+  const breakingOverride = getEnv("TENNIS_BREAKING", { treatEmptyAsMissing: false });
+
   res.status(200).json({
     currentTournament: {
       ...currentTournament,
@@ -60,9 +63,6 @@ export default function handler(req, res) {
     tournaments: TOURNAMENTS,
     matchups: MATCHUP_CONTEXT,
     ace_props: ACE_PROPS,
-    breaking:
-      typeof process.env.TENNIS_BREAKING === "string"
-        ? process.env.TENNIS_BREAKING
-        : TENNIS_BREAKING,
+    breaking: breakingOverride !== undefined ? breakingOverride : TENNIS_BREAKING,
   });
 }

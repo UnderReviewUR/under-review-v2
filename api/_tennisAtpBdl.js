@@ -10,6 +10,7 @@
  * - Wall-clock budget keeps /api/tennis inside Vercel maxDuration.
  */
 import { bdlFetch } from "./_balldontlie.js";
+import { getEnv } from "./_env.js";
 
 const BDL_MATCH_REQ_MS = 8000;
 const TARGET_INGEST_COUNT = 52;
@@ -188,7 +189,7 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const wallStart = Date.now();
   const overWall = () => Date.now() - wallStart > WALL_BUDGET_MS;
 
-  const apiKey = process.env.BALLDONTLIE_API_KEY;
+  const apiKey = getEnv("BALLDONTLIE_API_KEY");
   if (!apiKey) {
     return { ok: false, fixtures: [], reason: "no_bdl_key" };
   }

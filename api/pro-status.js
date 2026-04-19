@@ -10,12 +10,11 @@
 import { applyCors } from "./_cors.js";
 import Stripe from "stripe";
 import crypto from "crypto";
+import { getEnv, resolveAccessTokenSecretForHandler } from "./_env.js";
 
-const TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "ur-dev-secret-changeme";
-
-function signToken(payload) {
+function signToken(payload, secret) {
   const data = JSON.stringify(payload);
-  const sig  = crypto.createHmac("sha256", TOKEN_SECRET).update(data).digest("hex");
+  const sig  = crypto.createHmac("sha256", secret).update(data).digest("hex");
   return Buffer.from(data).toString("base64") + "." + sig;
 }
 
@@ -23,7 +22,10 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+  const tokenSecret = resolveAccessTokenSecretForHandler(res);
+  if (tokenSecret === null) return;
+
+  const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY");
   if (!STRIPE_SECRET_KEY) return res.status(500).json({ error: "Missing STRIPE_SECRET_KEY" });
 
   const { email } = req.query;
@@ -66,7 +68,7 @@ export default async function handler(req, res) {
       expiresAt,
     };
 
-    const token = signToken(payload);
+    const token = signToken(payload, tokenSecret);
 
     return res.status(200).json({
       pro:       true,

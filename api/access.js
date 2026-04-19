@@ -6,12 +6,16 @@
 
 import { applyCors } from "./_cors.js";
 import crypto from "crypto";
-
-const TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "ur-dev-secret-changeme";
+import {
+  getEnv,
+  resolveAccessTokenSecretForHandler,
+  resolveOwnerCodeForRegistry,
+} from "./_env.js";
 
 // ── Code registry ─────────────────────────────────────────────────────────────
 // Set these in Vercel environment variables — never hardcode in production.
 // OWNER_CODE=yourprivatecode
+// OWNER_CODE_DEV=... (non-production fallback only)
 // FRIEND_CODES=code1:2026-08-13,code2:2026-08-13,code3:2026-08-13
 // (format: code:YYYY-MM-DD expiry date)
 // Leaving the date blank means the code never expires.
@@ -19,14 +23,12 @@ const TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "ur-dev-secret-changeme"
 function getCodeRegistry() {
   const registry = {};
 
-  // Owner — permanent
-  const ownerCode = process.env.OWNER_CODE;
+  const ownerCode = resolveOwnerCodeForRegistry();
   if (ownerCode) {
     registry[ownerCode.toLowerCase()] = { tier: "owner", expiresAt: null };
   }
 
-  // Friends — parse "code:YYYY-MM-DD,code:YYYY-MM-DD" from env
-  const friendCodes = process.env.FRIEND_CODES || "";
+  const friendCodes = getEnv("FRIEND_CODES") || "";
   for (const entry of friendCodes.split(",")) {
     const [code, expiry] = entry.trim().split(":");
     if (!code) continue;
@@ -34,24 +36,21 @@ function getCodeRegistry() {
     registry[code.toLowerCase()] = { tier: "friend", expiresAt };
   }
 
-  // Built-in owner — applied last so it cannot be shadowed by friend codes.
-  registry["123battlecaptain123"] = { tier: "owner", expiresAt: null };
-
   return registry;
 }
 
-// ── Token signing (simple HMAC — no JWT library needed) ──────────────────────
-function signToken(payload) {
+// ── Token signing (simple HMAC — no JWT library needed) ─────────────────────
+function signToken(payload, secret) {
   const data = JSON.stringify(payload);
-  const sig = crypto.createHmac("sha256", TOKEN_SECRET).update(data).digest("hex");
+  const sig = crypto.createHmac("sha256", secret).update(data).digest("hex");
   return Buffer.from(data).toString("base64") + "." + sig;
 }
 
-function verifyToken(token) {
+function verifyToken(token, secret) {
   try {
     const [b64, sig] = token.split(".");
     const data = Buffer.from(b64, "base64").toString();
-    const expected = crypto.createHmac("sha256", TOKEN_SECRET).update(data).digest("hex");
+    const expected = crypto.createHmac("sha256", secret).update(data).digest("hex");
     if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
     return JSON.parse(data);
   } catch {
@@ -63,11 +62,14 @@ function verifyToken(token) {
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, GET, OPTIONS" })) return;
 
+  const tokenSecret = resolveAccessTokenSecretForHandler(res);
+  if (tokenSecret === null) return;
+
   // GET /api/access?token=xxx — verify an existing token
   if (req.method === "GET") {
     const token = req.query.token;
     if (!token) return res.status(400).json({ valid: false });
-    const payload = verifyToken(token);
+    const payload = verifyToken(token, tokenSecret);
     if (!payload) return res.status(200).json({ valid: false });
     if (payload.expiresAt && new Date() > new Date(payload.expiresAt)) {
       return res.status(200).json({ valid: false, reason: "expired" });
@@ -100,7 +102,7 @@ export default async function handler(req, res) {
       expiresAt: entry.expiresAt,
     };
 
-    const token = signToken(payload);
+    const token = signToken(payload, tokenSecret);
     return res.status(200).json({ valid: true, tier: entry.tier, token, expiresAt: entry.expiresAt });
   }
 
