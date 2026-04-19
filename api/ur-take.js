@@ -329,6 +329,44 @@ function isSettledFactQuestion(question) {
   return patterns.some((p) => p.test(q));
 }
 
+function detectLiveGameSignals(question, hasImage) {
+  const q = normalizeText(question);
+  const liveKeywords = [
+    "left in",
+    "minutes left",
+    "seconds left",
+    "time left",
+    "right now",
+    "currently",
+    "just happened",
+    "live",
+    "this quarter",
+    "this inning",
+    "this half",
+    "this set",
+    "bottom of",
+    "top of",
+    "end of",
+    "q1",
+    "q2",
+    "q3",
+    "q4",
+    "1st half",
+    "2nd half",
+    "overtime",
+    "ot",
+    "needs",
+    "has to",
+    "on pace",
+  ];
+  const hasLiveKeyword = liveKeywords.some((kw) => q.includes(kw));
+  return {
+    isLive: hasImage || hasLiveKeyword,
+    hasImage,
+    hasLiveKeyword,
+  };
+}
+
 function detectIntent(question, hasImage) {
   const q = normalizeText(question);
 
@@ -452,6 +490,7 @@ function deriveConfidenceLabel({
   matchupContext,
   question,
   contextQuality = "medium",
+  isLive = false,
 }) {
   const q = normalizeText(question);
   let score = 0;
@@ -472,9 +511,13 @@ function deriveConfidenceLabel({
     score += 1;
   }
 
-  if (score >= 6) return "High";
-  if (score >= 3) return "Medium";
-  return "Low";
+  let label;
+  if (score >= 6) label = "High";
+  else if (score >= 3) label = "Medium";
+  else label = "Low";
+
+  if (isLive && label === "High") return "Medium";
+  return label;
 }
 
 function buildSlipReviewPrompt({
@@ -720,6 +763,7 @@ export default async function handler(req, res) {
   const hasImage = !!image?.base64;
 
   const intent = detectIntent(question, hasImage);
+  const liveSignals = detectLiveGameSignals(question, hasImage);
 
   const sportHint = resolveSportHint({
     incomingSportHint,
@@ -749,6 +793,7 @@ export default async function handler(req, res) {
     matchupContext,
     question,
     contextQuality,
+    isLive: liveSignals.isLive,
   });
 
   const baseSystemPrompt = `You are Under Review -- a sharp sports betting intelligence tool.
@@ -833,9 +878,9 @@ response only — no >> line, no THE PLAY / MARKET MISTAKE blocks.
 TIER 2 — LIVE IN-GAME
 Question references current game state (score, time left, live screenshot,
 "right now", "just happened", "what now").
-Response: Use the compressed live format already defined (LIVE CALL / WHY NOW
-/ CLOCK / WATCH FOR). Do the math on scores and clock time explicitly when
-numbers are visible in the context or image.
+Response: Follow LIVE GAME MATH ENGINE below — compressed format: LIVE CALL,
+THE MATH, WHY NOW, CLOCK, WATCH FOR. Show arithmetic explicitly (points needed,
+pace, time remaining) when numbers are visible; never vague "a few more."
 
 TIER 3 — FULL BETTING DECISION
 Questions like: "Best prop tonight?" "Should I take this parlay?"
@@ -917,18 +962,57 @@ non-negotiable.
   flag it immediately as the first line of your response. Do not analyze a prop for a
   player who isn't playing.
 
-- LIVE BET BREVITY RULE: For live in-game questions (image attached, or question
-  mentions "left in game", "right now", "currently", "just happened"), compress the
-  format. Skip MARKET MISTAKE and WHY MISPRICED. Use only:
-    LIVE CALL
-    [one line — bet, pass, or hedge]
-    WHY NOW
-    [one to two lines max — what the current game state means]
-    CLOCK
-    [time remaining and what needs to happen]
-    WATCH FOR
-    [one specific trigger that tells the user exactly when to come back — name a player, a score threshold, or a game event. Examples: "Come back if Brunson picks up his 3rd foul" or "Ask again at halftime if ATL is within 5". Even on PASS, never dead-end: give a hook so the user knows when to re-open UR Take.]
-  The full 8-section format is for pre-game analysis. Live bets need speed.
+- LIVE GAME MATH ENGINE (mandatory for Tier 2 live responses)
+
+When the question is live (image attached, or keywords like "left in game",
+"right now", "currently", "needs"), you MUST do explicit arithmetic before
+responding. Follow this exact process:
+
+STEP 1 — Extract the state:
+- Current score (home and away)
+- Time remaining (specific — "7:32 in Q3" not "third quarter")
+- Player's current stat line if a prop is in question
+- The prop line and current price if visible
+
+STEP 2 — Do the math visibly:
+- For a points prop: [line] - [current points] = points needed
+- Divide by time remaining to get required pace
+- Compare to the player's per-minute average if available in playerStats
+- State the pace gap explicitly
+
+STEP 3 — Make the call using the math:
+- "Needs 8.5 points in 11 minutes. That's 0.77 PPM. He's averaging 0.62 PPM
+  this game. Math says live under."
+- "Needs 4 rebounds in 14 minutes. He has 6 in 22 minutes so far (0.27 RPG/min).
+  Required pace is 0.29. Basically on pace — coin flip. Pass."
+
+STEP 4 — Response format (compressed live):
+LIVE CALL
+[bet / pass / hedge — one line]
+
+THE MATH
+[show the arithmetic explicitly — current vs needed vs pace]
+
+WHY NOW
+[one to two lines on what the current game state means]
+
+CLOCK
+[time remaining and what triggers action]
+
+WATCH FOR
+[one specific trigger — name a player, score threshold, or event that tells
+the user exactly when to come back. Even on PASS, give a hook.]
+
+If you cannot extract specific numbers from the image or question, say so
+directly ("I can't read the clock clearly — what's the time left?") and do
+NOT fabricate the math. Asking for missing numbers is better than inventing
+them.
+
+IMPORTANT: The math must be visible in the response. Users are paying for
+the calculation being done FOR them, not hidden in reasoning.
+
+Skip MARKET MISTAKE and WHY MISPRICED for live. The full 8-section format is
+for pre-game analysis (Tier 3). Live bets use this compressed shape with THE MATH.
 
 - Only cite specific statistics (scores, round totals, positions, yardages) if they appear in the provided context data. Never fabricate a specific number. If you don't have the exact stat, write "based on leaderboard position" or "based on current form" — not a made-up figure.
 - Never repeat the same WHY MISPRICED pattern across consecutive responses in a conversation. If the prior turn used "odds reflect the deficit without accounting for X", find a different angle.
