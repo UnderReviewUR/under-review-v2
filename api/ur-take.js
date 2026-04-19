@@ -711,6 +711,118 @@ acknowledge it explicitly. If the new question is unrelated, ignore the
 prior takes — don't force a connection.`;
 }
 
+function detectChaseSignals(question, history) {
+  const q = normalizeText(question);
+
+  // Explicit chase language
+  const chasePhrases = [
+    "i need this",
+    "need this to hit",
+    "have to win",
+    "already bet",
+    "i already took",
+    "just tell me",
+    "are you sure",
+    "promise me",
+    "guarantee",
+    "can't lose this one",
+    "please say",
+    "tell me yes",
+    "tell me it's",
+    "this has to",
+  ];
+  const hasChaseLanguage = chasePhrases.some((p) => q.includes(p));
+
+  // Repeated subject detection — pull last 5 user turns
+  const priorUserTurns = Array.isArray(history)
+    ? history
+        .filter((h) => h.role === "user")
+        .slice(-5)
+        .map((h) => normalizeText(h.content || h.text || ""))
+    : [];
+
+  // Extract nouns/names roughly — look for capitalized-ish tokens in current question
+  const currentTokens = q.split(/\s+/).filter((t) => t.length >= 4);
+  const repeatedTokens = currentTokens.filter((token) =>
+    priorUserTurns.some((priorQ) => priorQ.includes(token)),
+  );
+
+  // If >= 3 substantive tokens overlap with prior turns, likely same topic
+  const sameTopicCount = priorUserTurns.filter((priorQ) => {
+    const overlap = currentTokens.filter((t) => priorQ.includes(t));
+    return overlap.length >= 3;
+  }).length;
+
+  const hasHedgingPanicLanguage =
+    (q.includes("already bet") || q.includes("already took")) &&
+    (q.includes("other side") ||
+      /\bover\b/.test(q) ||
+      /\bunder\b/.test(q) ||
+      q.includes("is this safe") ||
+      q.includes("is it safe"));
+
+  return {
+    hasChaseLanguage,
+    sameTopicCount,
+    hasHedgingPanicLanguage,
+    repeatedTokenOverlap: repeatedTokens.length,
+    isChase: hasChaseLanguage || sameTopicCount >= 2 || hasHedgingPanicLanguage,
+  };
+}
+
+function buildSystemPrompt(sportHint, chaseSignals, baseSystemPrompt, tennisSystemPromptExtra) {
+  let prompt =
+    sportHint === "tennis" || sportHint === "tennis_wta_profile"
+      ? baseSystemPrompt + tennisSystemPromptExtra
+      : baseSystemPrompt;
+
+  if (!chaseSignals?.isChase) return prompt;
+
+  const repeatN =
+    chaseSignals.sameTopicCount >= 2 ? chaseSignals.sameTopicCount + 1 : null;
+
+  prompt += `
+
+CHASE DETECTED — MANDATORY OVERRIDE
+The user has shown signs of chasing: either they used chase language
+("I need this", "are you sure", "just tell me"), or they've asked about
+the same topic 3+ times in this session.
+
+You MUST call it out. Do not give a normal take. Use this exact tone:
+
+"Sounds like you're trying to talk yourself into this. My take hasn't
+changed. Take the L on this one or trust your own read — I'm not going
+to co-sign a chase."
+`;
+
+  if (repeatN != null) {
+    prompt += `
+If they asked the same question 3+ times, add:
+"You've asked about this ${repeatN} times tonight. That's chase behavior. Step
+away from the screen."
+`;
+  }
+
+  if (chaseSignals.hasHedgingPanicLanguage) {
+    prompt += `
+If they used "I already bet the other side" language, add:
+"Already bet the other side? Then let it play out. I'm not here to
+validate hedging panic."
+`;
+  }
+
+  prompt += `
+Do NOT soften. Do NOT give a normal take after this response. The whole
+response is the chase callout. This overrides every other format rule —
+no THE PLAY, no sections, just the callout.
+
+Sport-specific context still applies for follow-ups, but this response
+itself is about calling out the pattern, not answering the question.
+`;
+
+  return prompt;
+}
+
 function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
   if (!Array.isArray(raw)) return [];
   const out = [];
@@ -814,6 +926,20 @@ export default async function handler(req, res) {
   const hasImage = !!image?.base64;
 
   const intent = detectIntent(question, hasImage);
+  const chaseSignals = detectChaseSignals(question, incomingHistory);
+  if (chaseSignals.isChase) {
+    console.log(
+      JSON.stringify({
+        event: "chase_detected",
+        userEmail: userEmail || "anonymous",
+        sameTopicCount: chaseSignals.sameTopicCount,
+        hasChaseLanguage: chaseSignals.hasChaseLanguage,
+        hasHedgingPanicLanguage: chaseSignals.hasHedgingPanicLanguage,
+        question: String(question).slice(0, 200),
+        ts: new Date().toISOString(),
+      }),
+    );
+  }
   const liveSignals = detectLiveGameSignals(question, hasImage);
 
   const sportHint = resolveSportHint({
@@ -1088,10 +1214,12 @@ TENNIS MODE (mandatory)
 - If BREAKING NEWS appears in the user message, it overrides static tournament favorites and all other priors. Do not recommend a withdrawn or injured-out player as an active bet. Reprice the field and name who benefits.
 - Use only statistics and names that appear in the provided player rows. Do not invent numbers.`;
 
-  const systemPrompt =
-    sportHint === "tennis" || sportHint === "tennis_wta_profile"
-      ? baseSystemPrompt + tennisSystemPromptExtra
-      : baseSystemPrompt;
+  const systemPrompt = buildSystemPrompt(
+    sportHint,
+    chaseSignals,
+    baseSystemPrompt,
+    tennisSystemPromptExtra,
+  );
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
 
