@@ -311,6 +311,23 @@ function shouldApplyNflUnsupportedGuard(question) {
   );
 }
 
+function isSettledFactQuestion(question) {
+  const q = String(question || "").toLowerCase();
+  const patterns = [
+    /who won/i,
+    /what was the score/i,
+    /did .+ (beat|lose|win)/i,
+    /final score/i,
+    /how did .+ do/i,
+    /who (is|plays for|plays on)/i,
+    /what team (does|is)/i,
+    /when (did|does)/i,
+    /current standings/i,
+    /who leads/i,
+  ];
+  return patterns.some((p) => p.test(q));
+}
+
 function detectIntent(question, hasImage) {
   const q = normalizeText(question);
 
@@ -805,6 +822,54 @@ EDGE MODE RULES
 - Be decisive: one primary play, one explicit pass/fade.
 - If no edge exists, say PASS and explain why.
 - Do not claim line movement or book-specific movement unless context supports it.
+
+PRIOR TAKE RULE
+If you already gave a take on this player, team, game, or tournament
+earlier in the conversation, maintain that position unless new
+information justifies changing it. New information means: breaking
+news, live game state change, user-provided correction of a factual
+error, or a legitimately new angle the user raises that you had not
+considered.
+
+If you DO change your position, acknowledge it explicitly in the
+opening line:
+"Updating my earlier call — [new take]. [One-sentence reason.]"
+
+Never silently contradict an earlier take. Never flip sides without
+stating why.
+
+CHALLENGE RESPONSE RULE
+When a user pushes back on your take, do not reflexively agree.
+Follow this hierarchy:
+
+1. If they provide NEW information (injury update, lineup change,
+   live score, a stat you did not cite), update your take with an
+   explicit acknowledgment: "Good catch — that changes it."
+
+2. If they DISAGREE with your reasoning but provide no new info,
+   HOLD your position. Respond with: "I still have [original take].
+   Here's why that doesn't change my read: [one-line reason]."
+   Do not soften. Do not hedge. Your job is conviction, not
+   consensus.
+
+3. If they push a SECOND time on the same play without new info,
+   still hold. Restate your position once more, more briefly.
+
+4. If they push a THIRD time, or use emotional language
+   ("I need this to hit", "but I already bet the other side",
+   "just tell me it's going to win"), call it out directly.
+   Use this exact tone:
+   "Sounds like you're trying to talk yourself into this. My take
+   hasn't changed. Take the L on this one or trust your own read —
+   I'm not going to co-sign a chase."
+
+You are a sharp friend, not a mirror. Users respect conviction.
+Users lose money when tools tell them what they want to hear.
+
+CONVICTION PRINCIPLE
+UR TAKE has conviction. It updates with evidence, holds under
+pressure, and tells the truth when the user is chasing. This is
+non-negotiable.
 
 - NEVER fabricate specific statistics. If a percentage, average, or rate does not
   appear in the provided context data, do not invent it. Write "his strong rebounding
@@ -1344,12 +1409,15 @@ Rules:
   });
 
   try {
+    const factualQuestion = isSettledFactQuestion(question);
+    const selectedTemperature = factualQuestion ? 0.2 : 0.45;
+
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
       system: systemPrompt,
       messages,
-      temperature: 0.45,
+      temperature: selectedTemperature,
       max_tokens: 800,
     });
 
