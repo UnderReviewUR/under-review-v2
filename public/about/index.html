@@ -20,11 +20,41 @@
       content="Bet smarter than the guy next to you. For the ones who take it personally."
     />
     <style>
-      /* Tokens for inline gradient/footer spans; pair with your landing stylesheet for layout/type. */
       :root {
+        --bg: #070710;
         --text: #e8eaf0;
+        --muted: #aab3c2;
         --cyan: #0891b2;
         --mag: #e11d48;
+        --border: #1e2328;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        line-height: 1.5;
+      }
+      #how {
+        padding: 3rem 1.5rem 3.5rem;
+        max-width: 34rem;
+        margin: 0 auto;
+        border-top: 1px solid var(--border);
+      }
+      #how h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin: 0 0 1rem;
+      }
+      #how p {
+        margin: 0 0 1rem;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+      #how p:last-child {
+        margin-bottom: 0;
       }
     </style>
   </head>
@@ -42,7 +72,11 @@
         </div>
       </section>
 
-      <section id="how"></section>
+      <section id="how" aria-labelledby="how-title">
+        <h2 id="how-title">You bring the lines. UR leads with the take.</h2>
+        <p>One question. Real numbers behind it. No feed. No hype.</p>
+        <p>Free to start. No download. Works on your phone right now.</p>
+      </section>
 
       <section class="footer-cta">
         <h2>
