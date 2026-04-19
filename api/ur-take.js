@@ -529,6 +529,7 @@ function buildSlipReviewPrompt({
   golfContext,
   f1Context,
   derivedConfidence,
+  priorTakesSummary,
 }) {
   let relevantContext = "";
 
@@ -562,7 +563,7 @@ ${JSON.stringify(f1Context || {}, null, 2)}`;
 
   return `You are reviewing a betting slip or pick entry.
 
-User request:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}User request:
 ${question}
 
 Sport:
@@ -658,6 +659,56 @@ async function callAnthropic({
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function summarizePriorTakes(history) {
+  if (!Array.isArray(history) || history.length === 0) return "";
+
+  const assistantTurns = history.filter((h) => h.role === "assistant" || h.role === "ai");
+  if (assistantTurns.length === 0) return "";
+
+  const priorTakes = [];
+  for (const turn of assistantTurns) {
+    const text = String(turn.content || turn.text || "");
+
+    // Extract THE PLAY line
+    const playMatch = text.match(/THE PLAY\s*\n([^\n]+)/i);
+    const confidenceMatch = text.match(/CONFIDENCE\s*\n([^\n]+)/i);
+    const liveCallMatch = text.match(/LIVE CALL\s*\n([^\n]+)/i);
+
+    const play = playMatch?.[1]?.trim() || liveCallMatch?.[1]?.trim();
+    const confidence = confidenceMatch?.[1]?.trim() || "";
+
+    if (play) {
+      priorTakes.push({
+        play: play.slice(0, 160),
+        confidence,
+      });
+    }
+  }
+
+  if (priorTakes.length === 0) return "";
+
+  const lines = priorTakes
+    .slice(-5) // last 5 takes in session
+    .map((t, i) => `${i + 1}. ${t.play}${t.confidence ? ` (${t.confidence})` : ""}`)
+    .join("\n");
+
+  return `PRIOR TAKES THIS SESSION (most recent last)
+${lines}
+
+When the current question relates to any of these — same player, same team,
+same game, same market, or a correlated bet — reference the prior take
+explicitly. Examples:
+"Related to my Cade under call — if he's under 22.5, Pistons team total
+likely under 108 too."
+"Same game as the Cade take above. If you're already on Cade, the Pistons
+ML adds correlated risk — size accordingly."
+"This is the third time you've asked about this player tonight."
+
+Never silently contradict a prior take. If you're changing your read,
+acknowledge it explicitly. If the new question is unrelated, ignore the
+prior takes — don't force a connection.`;
 }
 
 function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
@@ -916,6 +967,11 @@ opening line:
 Never silently contradict an earlier take. Never flip sides without
 stating why.
 
+When PRIOR TAKES THIS SESSION appears in the user message, treat it as
+authoritative context about your own prior positions. Cross-reference
+actively — correlated bets, same-game stacks, repeated player questions,
+and contradictions are all signals the user needs to hear.
+
 CHALLENGE RESPONSE RULE
 When a user pushes back on your take, do not reflexively agree.
 Follow this hierarchy:
@@ -1037,6 +1093,8 @@ TENNIS MODE (mandatory)
       ? baseSystemPrompt + tennisSystemPromptExtra
       : baseSystemPrompt;
 
+  const priorTakesSummary = summarizePriorTakes(incomingHistory);
+
   let userPrompt = question;
 
   if (intent === "slip_review") {
@@ -1049,6 +1107,7 @@ TENNIS MODE (mandatory)
       golfContext,
       f1Context,
       derivedConfidence,
+      priorTakesSummary,
     });
   } else if (sportHint === "tennis_wta_profile") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
@@ -1086,7 +1145,7 @@ TENNIS MODE (mandatory)
 TODAY
 ${getTodayStr()}
 
-QUESTION
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}QUESTION
 ${question}
 
 MODE
@@ -1193,7 +1252,7 @@ EXECUTION RULES — READ CAREFULLY
 TODAY
 ${getTodayStr()}
 
-QUESTION
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}QUESTION
 ${question}
 
 ${breakingNews ? `BREAKING NEWS — READ FIRST AND ADJUST ALL ANSWERS ACCORDINGLY
@@ -1335,7 +1394,7 @@ SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level 
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a golf betting question.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Golf context:
@@ -1386,7 +1445,7 @@ Never open with "no lines posted." Give monitoring hooks and named golfers.`;
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering an NBA betting question.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 NBA context:
@@ -1462,7 +1521,7 @@ the primary answer. Give them something to monitor RIGHT NOW.`;
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering an MLB betting question.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 MLB context:
@@ -1509,7 +1568,7 @@ Never open with "lines aren't up." Never send the user away empty-handed.`;
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a Formula 1 betting question.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 F1 context:
@@ -1630,7 +1689,7 @@ No bet now; re-run once verified player context is loaded.`;
 
     userPrompt = `You are answering an NFL betting question.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 DATA FRESHNESS — READ FIRST
@@ -1682,7 +1741,7 @@ Never open with "props aren't out." Give named players and monitoring hooks.`;
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a betting question about this matchup.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Matchup context:
@@ -1701,7 +1760,7 @@ Rules:
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a sports betting question.
 
-Question:
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Available context:
