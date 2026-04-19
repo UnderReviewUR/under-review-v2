@@ -215,18 +215,22 @@ ${themeCss}
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
 
   useEffect(() => {
-    setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
+    queueMicrotask(() => {
+      setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
+    });
   }, [accessTier]);
 
   // Load weekly usage on mount
   useEffect(() => {
     if (isUnlimited) return;
-    const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
-    const now  = Date.now();
-    const week = 7 * 24 * 60 * 60 * 1000;
-    const recent = used.filter(t => now - t < week);
-    setWeeklyUsed(recent.length);
-    localStorage.setItem("ur_queries", JSON.stringify(recent));
+    queueMicrotask(() => {
+      const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
+      const now = Date.now();
+      const week = 7 * 24 * 60 * 60 * 1000;
+      const recent = used.filter((t) => now - t < week);
+      setWeeklyUsed(recent.length);
+      localStorage.setItem("ur_queries", JSON.stringify(recent));
+    });
   }, [isUnlimited]);
 
   // Redeem access code
@@ -910,15 +914,15 @@ ${themeCss}
         : "Source: PGA feed";
 
     const fetchedTs = Date.parse(String(golfData?.sourceMeta?.fetchedAt || ""));
-    const freshnessLabel = Number.isNaN(fetchedTs)
-      ? "Updated recently"
-      : (() => {
-          const ageMin = Math.max(0, Math.round((Date.now() - fetchedTs) / 60000));
-          if (ageMin <= 1) return "Updated just now";
-          if (ageMin < 60) return `Updated ${ageMin}m ago`;
-          const ageHours = Math.round(ageMin / 60);
-          return `Updated ${ageHours}h ago`;
-        })();
+    let freshnessLabel = "Updated recently";
+    if (!Number.isNaN(fetchedTs)) {
+      /* eslint-disable react-hooks/purity -- label is wall-clock age vs server fetchedAt */
+      const ageMin = Math.max(0, Math.round((Date.now() - fetchedTs) / 60000));
+      /* eslint-enable react-hooks/purity */
+      if (ageMin <= 1) freshnessLabel = "Updated just now";
+      else if (ageMin < 60) freshnessLabel = `Updated ${ageMin}m ago`;
+      else freshnessLabel = `Updated ${Math.round(ageMin / 60)}h ago`;
+    }
 
     if (topThree.length > 0) {
       const leaderboardLine = topThree

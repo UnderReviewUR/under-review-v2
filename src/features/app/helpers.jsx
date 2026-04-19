@@ -444,12 +444,15 @@ export function ChatThread({ msgs, scrollContainerRef }) {
   /** Sync scroll after DOM updates — feels tight like iMessage (no visible lag). */
   useLayoutEffect(() => {
     if (!msgs?.length) return;
-    const el = scrollContainerRef?.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    const scrollParent = scrollContainerRef?.current;
+    if (!scrollParent) return;
+    const maxScroll = scrollParent.scrollHeight;
+    /* eslint-disable react-hooks/immutability -- mutating scrollTop on a DOM node from ref, not React props */
+    scrollParent.scrollTop = maxScroll;
     const id = requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
+      scrollParent.scrollTop = scrollParent.scrollHeight;
     });
+    /* eslint-enable react-hooks/immutability */
     return () => cancelAnimationFrame(id);
   }, [msgs, scrollContainerRef]);
 

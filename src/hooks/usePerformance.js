@@ -27,7 +27,9 @@ export function usePerformance(userEmail) {
 
   useEffect(() => {
     if (!userEmail) return;
-    loadPerformanceSnapshot();
+    queueMicrotask(() => {
+      void loadPerformanceSnapshot();
+    });
   }, [loadPerformanceSnapshot, userEmail]);
 
   return {

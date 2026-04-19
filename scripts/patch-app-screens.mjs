@@ -6,14 +6,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appPath = path.join(__dirname, "../src/App.jsx");
 const raw = fs.readFileSync(appPath, "utf8");
 
-const homeBlock = /        \{\/\* ══ HOME ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ TENNIS ══ \*\/\})/;
-const tennisBlock = /        \{\/\* ══ TENNIS ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ NFL ══ \*\/\})/;
-const nflBlock = /        \{\/\* ══ NFL ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ NFL PLAYER DETAIL ══ \*\/\})/;
-const f1Block = /        \{\/\* ══ F1 ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ NBA ══ \*\/\})/;
-const nbaBlock = /        \{\/\* ══ NBA ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ MLB ══ \*\/\})/;
-const mlbBlock = /        \{\/\* ══ MLB ══ \*\/\}\s*\n[\s\S]*?(?=\n\n        \{\/\* ══ GOLF ══ \*\/\})/;
-const golfBlock = /        \{\/\* ══ GOLF ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ PRO ══ \*\/\})/;
-const askBlock = /        \{\/\* ══ ASK ══ \*\/\}\s*\n[\s\S]*?(?=\n        \{\/\* ══ DOCKED INPUT BARS ══ \*\/\})/;
+const INDENT_8 = " {8}";
+const homeBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ HOME ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ TENNIS ══ \\*/\\})`,
+);
+const tennisBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ TENNIS ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ NFL ══ \\*/\\})`,
+);
+const nflBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ NFL ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ NFL PLAYER DETAIL ══ \\*/\\})`,
+);
+const f1Block = new RegExp(
+  `${INDENT_8}\\{/\\* ══ F1 ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ NBA ══ \\*/\\})`,
+);
+const nbaBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ NBA ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ MLB ══ \\*/\\})`,
+);
+const mlbBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ MLB ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n\\n${INDENT_8}\\{/\\* ══ GOLF ══ \\*/\\})`,
+);
+const golfBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ GOLF ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ PRO ══ \\*/\\})`,
+);
+const askBlock = new RegExp(
+  `${INDENT_8}\\{/\\* ══ ASK ══ \\*/\\}\\s*\\n[\\s\\S]*?(?=\\n${INDENT_8}\\{/\\* ══ DOCKED INPUT BARS ══ \\*/\\})`,
+);
 
 let patched = raw;
 

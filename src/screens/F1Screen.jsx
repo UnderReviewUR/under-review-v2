@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
@@ -15,6 +16,21 @@ export default function F1Screen({
   f1Loading,
   f1Data,
 }) {
+  const calendarRaces = useMemo(() => {
+    const races = f1Data?.schedule?.races;
+    if (!races?.length) return [];
+    /* eslint-disable react-hooks/purity -- calendar window is anchored to current time */
+    const weekAgoMs = Date.now() - 7 * 86400000;
+    /* eslint-enable react-hooks/purity */
+    return races
+      .filter(
+        (r) =>
+          r.is_next ||
+          new Date(r.race_date || r.date_end).getTime() >= weekAgoMs,
+      )
+      .slice(0, 10);
+  }, [f1Data?.schedule?.races]);
+
   return (
           <main ref={f1ScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="f1-banner">
@@ -57,10 +73,10 @@ export default function F1Screen({
                   </>
                 )}
 
-                {f1Data?.schedule?.races?.length > 0 && (
+                {calendarRaces.length > 0 && (
                   <>
                     <div className="section-divider">Race Calendar</div>
-                    {f1Data.schedule.races.filter(r => r.is_next || new Date(r.race_date || r.date_end) >= new Date(Date.now() - 7*86400000)).slice(0,10).map(race => {
+                    {calendarRaces.map((race) => {
                       const raceStart = resolveF1RaceStart(race, f1Data?.sessions || []);
                       const d = raceStart ? new Date(raceStart) : null;
                       const dateStr = d ? d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
