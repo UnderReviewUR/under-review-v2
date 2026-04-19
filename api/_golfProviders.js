@@ -528,9 +528,14 @@ async function getEspnCurrentEvent() {
     return st === "in" || st === "pre";
   });
 
-  const heritagePick = activePool.find((e) =>
-    eventNameMatchesRbcHeritage(e?.name, e?.shortName)
-  );
+  /** Just-finished events (e.g. RBC Heritage) are `post` and excluded from activePool — still need final leaderboard for UR Take. */
+  const heritagePick =
+    activePool.find((e) => eventNameMatchesRbcHeritage(e?.name, e?.shortName)) ||
+    events.find(
+      (e) =>
+        e?.status?.type?.state === "post" &&
+        eventNameMatchesRbcHeritage(e?.name, e?.shortName),
+    );
 
   let selectedEvent = heritagePick || null;
 

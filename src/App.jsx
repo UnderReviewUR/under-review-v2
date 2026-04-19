@@ -32,6 +32,19 @@ import {
 } from "./features/app/helpers.jsx";
 
 import { baseCss } from "./styles/appBaseCss.js";
+
+/** Match api/ur-take resolveSportHint golf keywords — Home tab often has no sportHint; still send golfContext. */
+function questionSuggestsGolf(text) {
+  const q = String(text || "").toLowerCase();
+  return (
+    q.includes("golf") ||
+    q.includes("outright") ||
+    q.includes("harbour town") ||
+    q.includes("rbc heritage") ||
+    q.includes("masters") ||
+    q.includes("pga")
+  );
+}
 import { NFL_PLAYERS } from "./features/app/embedGolfNflData.js";
 import { useTennisData } from "./hooks/useTennisData.js";
 import { useF1Data } from "./hooks/useF1Data.js";
@@ -469,7 +482,7 @@ ${themeCss}
       body.mlbContext = buildMlbContext(text);
     }
 
-    if (effectiveSportHint === "golf") {
+    if (effectiveSportHint === "golf" || questionSuggestsGolf(text)) {
       body.golfContext = buildGolfContext(text);
     }
 
