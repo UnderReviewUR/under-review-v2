@@ -915,14 +915,20 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     ? eventNameMatchesRbcHeritage(tournament?.name, tournament?.shortName)
     : false;
 
+  /**
+   * Finished tournaments (post/final) must still surface ESPN's final leaderboard when BDL
+   * has no standings row — otherwise currentEvent.leaderboard is empty and UR Take invents dates.
+   * Live events: keep alignment rules (same event / RBC vs Zurich, etc.).
+   */
   const shouldUseEspnLeaderboard =
     !bdlHasLeaderboard &&
     espnHasLeaderboard &&
-    !espnLooksFinished &&
-    (sameEvent ||
-      !tournament ||
-      bdlLooksTeamOrZurich ||
-      (espnIsRbcHeritage && !bdlIsRbcHeritage));
+    (espnLooksFinished ||
+      (!espnLooksFinished &&
+        (sameEvent ||
+          !tournament ||
+          bdlLooksTeamOrZurich ||
+          (espnIsRbcHeritage && !bdlIsRbcHeritage))));
 
   const preferEspnDisplay =
     (shouldUseEspnLeaderboard &&
@@ -1065,7 +1071,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v9";
+  const cacheKey = "unified_golf_board_v10";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
