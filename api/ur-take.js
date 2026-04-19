@@ -1323,8 +1323,15 @@ Rules:
 - When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.
 - When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.
 - If todaysGamesSlateNote is set, todaysGames is empty for the reason given (e.g. BallDontLie returned no games for that ET date). Trust that note instead of guessing a pipeline failure.
+- PROP BOARD HYGIENE: propLines are filtered server-side to drop games that are
+  already final (Odds event.completed and/or todaysGames.state === "post").
+  Never use a prop row for a matchup that is Final in todaysGames as a "tonight"
+  lean — treat those as stale. If propLines still looks populated but only
+  reflects completed games (e.g. name mismatch let a row through), ignore those
+  rows and apply the NO-MARKET FALLBACK below.
 
-NO-MARKET FALLBACK RULE (mandatory when propLines is empty or missing the asked-about game)
+NO-MARKET FALLBACK RULE (mandatory when propLines is empty after excluding finals,
+or when there is no prop row for an upcoming/live game the user cares about)
 
 You are NOT allowed to respond with "wait for lines" or "come back later" as
 the primary answer. The user is on the app right now because tip is close.

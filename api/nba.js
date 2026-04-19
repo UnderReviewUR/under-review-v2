@@ -299,7 +299,7 @@ async function getTodaysGames(oddsKey, bdlKey) {
 
 async function getNbaPropLines(oddsKey) {
   if (!oddsKey) return [];
-  const cacheKey = "nba_props";
+  const cacheKey = "nba_props_v2";
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -322,9 +322,23 @@ async function getNbaPropLines(oddsKey) {
         const bookmakers = propData.bookmakers || [];
         const preferred = bookmakers.find(b => ["draftkings","fanduel","betmgm"].includes(b.key)) || bookmakers[0];
         if (!preferred) continue;
+        const awayAbbr = normalizeTeamAbbr(event.away_team);
+        const homeAbbr = normalizeTeamAbbr(event.home_team);
         for (const market of preferred.markets || []) {
           for (const outcome of market.outcomes || []) {
-            propLines.push({ game:`${event.away_team} @ ${event.home_team}`, player:outcome.description||outcome.name, prop:market.key.replace("player_","").replace(/_/g," "), line:outcome.point, side:outcome.name, odds:outcome.price, book:preferred.key, eventId:event.id });
+            propLines.push({
+              game: `${event.away_team} @ ${event.home_team}`,
+              awayAbbr,
+              homeAbbr,
+              eventCompleted: Boolean(event.completed),
+              player: outcome.description || outcome.name,
+              prop: market.key.replace("player_", "").replace(/_/g, " "),
+              line: outcome.point,
+              side: outcome.name,
+              odds: outcome.price,
+              book: preferred.key,
+              eventId: event.id,
+            });
           }
         }
       } catch { continue; }
@@ -336,6 +350,50 @@ async function getNbaPropLines(oddsKey) {
     console.error("NBA props error:", err.message);
     return [];
   }
+}
+
+function normalizeNbaGameLabel(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function gameLabelFromAppGame(g) {
+  const a = String(g.awayTeam?.name || "").trim();
+  const h = String(g.homeTeam?.name || "").trim();
+  if (!a || !h) return "";
+  return normalizeNbaGameLabel(`${a} @ ${h}`);
+}
+
+/**
+ * Remove player props for games that are already over so prompts don't treat
+ * finished slates as "tonight." Uses Odds `event.completed` when present and
+ * BallDontLie / Odds slate rows with state === "post".
+ */
+function filterPropLinesForActiveSlate(propLines, todaysGames) {
+  const finalAbbrPairs = new Set();
+  const finalLabels = new Set();
+  for (const g of todaysGames || []) {
+    if (g.state !== "post") continue;
+    const aa = String(g.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g.homeTeam?.abbr || "").toUpperCase();
+    if (aa && ha && aa !== "?" && ha !== "?") {
+      finalAbbrPairs.add(`${aa}@${ha}`);
+    }
+    const lbl = gameLabelFromAppGame(g);
+    if (lbl) finalLabels.add(lbl);
+  }
+
+  return (propLines || []).filter((pl) => {
+    if (pl.eventCompleted) return false;
+    const aa = String(pl.awayAbbr || "").toUpperCase();
+    const ha = String(pl.homeAbbr || "").toUpperCase();
+    if (aa && ha && finalAbbrPairs.has(`${aa}@${ha}`)) return false;
+    const lbl = normalizeNbaGameLabel(pl.game);
+    if (lbl && finalLabels.has(lbl)) return false;
+    return true;
+  });
 }
 
 /** Odds API prop lines list which game each player is priced for — merge with BDL game rows. */
@@ -742,7 +800,7 @@ export default async function handler(req, res) {
       const boardCached = getCached(boardCacheKey);
       if (boardCached) return res.status(200).json(boardCached);
 
-      const [tgRes, propLines, statsBundle, playoffSeries] = await Promise.all([
+      const [tgRes, rawPropLines, statsBundle, playoffSeries] = await Promise.all([
         getTodaysGames(ODDS_KEY, BDL_KEY),
         getNbaPropLines(ODDS_KEY),
         getNbaPlayerStatsBundle(BDL_KEY),
@@ -750,6 +808,8 @@ export default async function handler(req, res) {
       ]);
       const todaysGames = tgRes.games;
       const todaysGamesSlateMeta = tgRes.slateMeta;
+
+      const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
 
       const injuries = await getNbaInjuries(propLines, todaysGames);
 
