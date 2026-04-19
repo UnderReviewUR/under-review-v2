@@ -2,6 +2,7 @@
 // NFL Player Database for UR TAKE
 // QB data: 2024 PFR stats as baseline, 2025/2026 roster situations from Ourlads (March 2026)
 // Auto-updated weekly via api/nfl-sync.js
+// Aggregate staleness for prompts: see dataFreshness on buildCanonicalNflContext() in api/_nflContext.js
 
 import { applyCors } from "./_cors.js";
 

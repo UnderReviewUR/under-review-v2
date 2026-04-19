@@ -254,5 +254,12 @@ export default async function handler(req, res) {
     note: "Use defTeam + offPos + propType to cross-reference with player database for defense-adjusted prop lean. Specific matchups in the matchups array override generic tier adjustments when available.",
     updated_at: "2026-03-30",
     season: 2025,
+    dataFreshness: {
+      generatedFor: "2025 season",
+      lastVerified: "2026-03-30",
+      isCurrentSeason: false,
+      stalenessWarning:
+        "Matchup tier adjustments are derived from 2025 season data. Do not cite as current-week performance.",
+    },
   });
 }

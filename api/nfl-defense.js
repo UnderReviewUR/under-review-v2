@@ -652,5 +652,16 @@ export default async function handler(req, res) {
     },
   };
 
-  return res.status(200).json({ defenses, updated_at: "2026-03-30", season: 2025 });
+  return res.status(200).json({
+    defenses,
+    updated_at: "2026-03-30",
+    season: 2025,
+    dataFreshness: {
+      generatedFor: "2025 season",
+      lastVerified: "2026-03-30",
+      isCurrentSeason: false,
+      stalenessWarning:
+        "Defense tiers and DVOA values are offseason snapshots from the 2025 season. Not live 2026 data. Treat tier assignments as directional, not current-week gospel.",
+    },
+  });
 }

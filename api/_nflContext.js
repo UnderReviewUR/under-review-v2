@@ -141,5 +141,14 @@ export function buildCanonicalNflContext() {
       qbCount: qbEntries.length,
       generatedAt: new Date().toISOString(),
     },
+    dataFreshness: {
+      qbDataSeason: "2024",
+      rbDataSeason: "2025",
+      wrTeDataSeason: "2025",
+      lastVerified: "2026-03-30",
+      isCurrentSeason: false,
+      warning:
+        "QB baseline stats are 2024. Roster situations reflect March 2026 Ourlads. 2026 in-season data not yet integrated.",
+    },
   };
 }

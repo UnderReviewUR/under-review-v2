@@ -1051,6 +1051,8 @@ TENNIS MODE (mandatory)
       derivedConfidence,
     });
   } else if (sportHint === "tennis_wta_profile") {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     const surfaceKey = pickSurfaceKey({
       currentTournament: { surface: context?.currentTournament?.surface },
     });
@@ -1129,6 +1131,8 @@ EXECUTION RULES — READ CAREFULLY
 6. Add this exact line at the end of CONFIDENCE:
    SCOPE — WTA profile-based read; confirm live odds before sizing any bet.`;
   } else if (sportHint === "tennis") {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     const leagueStr = normalizeText(matchupContext?.league || "");
     const isWtaLeague =
       leagueStr.includes("wta") ||
@@ -1182,6 +1186,8 @@ EXECUTION RULES — READ CAREFULLY
 
     const hasLiveBoard = liveBoard.trim().length > 0;
 
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a tennis betting question as Under Review.
 
 TODAY
@@ -1325,6 +1331,8 @@ SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level 
         : ""
     }`;
   } else if (sportHint === "golf") {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a golf betting question.
 
 Question:
@@ -1374,6 +1382,8 @@ Instead, do ALL of the following:
 
 Never open with "no lines posted." Give monitoring hooks and named golfers.`;
   } else if (sportHint === "nba") {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering an NBA betting question.
 
 Question:
@@ -1448,6 +1458,8 @@ THE PLAY in this scenario takes the form:
 Never open with "no lines yet." Never suggest the user come back later as
 the primary answer. Give them something to monitor RIGHT NOW.`;
   } else if (sportHint === "mlb") {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering an MLB betting question.
 
 Question:
@@ -1493,6 +1505,8 @@ Instead, do ALL of the following:
 
 Never open with "lines aren't up." Never send the user away empty-handed.`;
   } else if (sportHint === "f1") {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a Formula 1 betting question.
 
 Question:
@@ -1542,6 +1556,14 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       nflContext && String(nflContext).trim()
         ? nflContext
         : canonicalNfl.promptContext;
+
+    const nflDataFreshness =
+      typeof nflContext === "object" &&
+      nflContext !== null &&
+      !Array.isArray(nflContext) &&
+      nflContext.dataFreshness
+        ? nflContext.dataFreshness
+        : canonicalNfl.dataFreshness;
 
     const availableNflPlayers = extractNflPlayersFromContext(nflContextEffective);
     const subject = extractNflQuestionSubject(question);
@@ -1611,6 +1633,9 @@ No bet now; re-run once verified player context is loaded.`;
 Question:
 ${question}
 
+DATA FRESHNESS — READ FIRST
+${nflDataFreshness != null ? JSON.stringify(nflDataFreshness, null, 2) : "Staleness metadata not available"}
+
 NFL context:
 ${typeof nflContextEffective === "string" ? nflContextEffective : JSON.stringify(nflContextEffective || {}, null, 2)}
 
@@ -1624,6 +1649,8 @@ Rules:
 - Use only players/teams/roles that exist in the provided NFL context.
 - If the asked player is not in provided context, return PASS and explain missing context in one line.
 - Do not invent unrelated games, props, role changes, or target-share claims.
+
+- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation. Place it after the CONFIDENCE section and before the TIMING section (Under Review structured format). Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
 
 NO-MARKET FALLBACK RULE (mandatory when prop boards or weekly lines are empty in context but games or usage data imply an upcoming slate)
 
@@ -1651,6 +1678,8 @@ Instead, do ALL of the following:
 
 Never open with "props aren't out." Give named players and monitoring hooks.`;
   } else if (matchupContext) {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a betting question about this matchup.
 
 Question:
@@ -1668,6 +1697,8 @@ Rules:
 - Do not drift into unrelated sports.
 - Do not invent unrelated teams, players, or props.`;
   } else {
+    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
+    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     userPrompt = `You are answering a sports betting question.
 
 Question:
