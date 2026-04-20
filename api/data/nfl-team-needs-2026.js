@@ -1,0 +1,38 @@
+/**
+ * Curated offseason need tags per franchise — refresh each draft cycle (Apr–Jun).
+ * Used for GM-style predictions; not a live API.
+ */
+export const TEAM_NEEDS_2026 = {
+  "Arizona Cardinals": { headline: "OL, EDGE, CB depth", tags: ["OT", "IOL", "EDGE", "CB"] },
+  "Atlanta Falcons": { headline: "EDGE, WR2, LB", tags: ["EDGE", "WR", "LB"] },
+  "Baltimore Ravens": { headline: "EDGE, IOL, CB", tags: ["EDGE", "IOL", "CB"] },
+  "Buffalo Bills": { headline: "WR, DT, CB", tags: ["WR", "DT", "CB"] },
+  "Carolina Panthers": { headline: "OT, WR, EDGE", tags: ["OT", "WR", "EDGE"] },
+  "Chicago Bears": { headline: "OT, EDGE, WR", tags: ["OT", "EDGE", "WR"] },
+  "Cincinnati Bengals": { headline: "DL, CB, TE", tags: ["IDL", "CB", "TE"] },
+  "Cleveland Browns": { headline: "OT, WR, LB", tags: ["OT", "WR", "LB"] },
+  "Dallas Cowboys": { headline: "DL/EDGE, IOL, LB", tags: ["EDGE", "IDL", "IOL", "LB"] },
+  "Denver Broncos": { headline: "IOL, EDGE, CB", tags: ["IOL", "EDGE", "CB"] },
+  "Detroit Lions": { headline: "EDGE, CB, DL", tags: ["EDGE", "CB", "IDL"] },
+  "Green Bay Packers": { headline: "IDL, S, WR", tags: ["IDL", "S", "WR"] },
+  "Houston Texans": { headline: "IOL, CB, EDGE", tags: ["IOL", "CB", "EDGE"] },
+  "Indianapolis Colts": { headline: "EDGE, WR, CB", tags: ["EDGE", "WR", "CB"] },
+  "Jacksonville Jaguars": { headline: "OT, CB, EDGE", tags: ["OT", "CB", "EDGE"] },
+  "Kansas City Chiefs": { headline: "OT, WR, EDGE", tags: ["OT", "WR", "EDGE"] },
+  "Las Vegas Raiders": { headline: "QB, EDGE, CB", tags: ["QB", "EDGE", "CB"] },
+  "Los Angeles Chargers": { headline: "OT, IDL, LB", tags: ["OT", "IDL", "LB"] },
+  "Los Angeles Rams": { headline: "EDGE, CB, IOL", tags: ["EDGE", "CB", "IOL"] },
+  "Miami Dolphins": { headline: "OT, EDGE, LB", tags: ["OT", "EDGE", "LB"] },
+  "Minnesota Vikings": { headline: "IOL, EDGE, CB", tags: ["IOL", "EDGE", "CB"] },
+  "New England Patriots": { headline: "WR, OT, EDGE", tags: ["WR", "OT", "EDGE"] },
+  "New Orleans Saints": { headline: "OT, EDGE, WR", tags: ["OT", "EDGE", "WR"] },
+  "New York Giants": { headline: "QB, EDGE, WR", tags: ["QB", "EDGE", "WR"] },
+  "New York Jets": { headline: "OT, WR, EDGE", tags: ["OT", "WR", "EDGE"] },
+  "Philadelphia Eagles": { headline: "CB, LB, IOL", tags: ["CB", "LB", "IOL"] },
+  "Pittsburgh Steelers": { headline: "QB, OL, CB", tags: ["QB", "OL", "CB"] },
+  "San Francisco 49ers": { headline: "OT, EDGE, CB", tags: ["OT", "EDGE", "CB"] },
+  "Seattle Seahawks": { headline: "IOL, EDGE, WR", tags: ["IOL", "EDGE", "WR"] },
+  "Tampa Bay Buccaneers": { headline: "EDGE, DL, CB", tags: ["EDGE", "IDL", "CB"] },
+  "Tennessee Titans": { headline: "OT, EDGE, WR", tags: ["OT", "EDGE", "WR"] },
+  "Washington Commanders": { headline: "OT, EDGE, LB", tags: ["OT", "EDGE", "LB"] },
+};

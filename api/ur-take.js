@@ -12,6 +12,11 @@ import {
 } from "./_rateLimitUrTake.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
+import {
+  buildTeamDraftFocusBlock,
+  getActiveDraftBundle,
+  resolveNflTeamFromQuestion,
+} from "./nfl-draft-season.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
@@ -377,6 +382,22 @@ function isNflDraftAngleQuestion(question) {
     "draft board",
     "kiper",
     "mcshay",
+    "predict",
+    "prediction",
+    "pick by pick",
+    "pick-by-pick",
+    "each pick",
+    "every pick",
+    "every round",
+    "all seven",
+    "seven round",
+    "seven rounds",
+    "full mock",
+    "who will we pick",
+    "who we pick",
+    "who we take",
+    "our picks",
+    "my picks",
   ];
   if (
     /\bgm\b/.test(q) &&
@@ -2001,6 +2022,17 @@ No bet now; re-run once verified player context is loaded.`;
     }
 
     const nflDraftAngle = isNflDraftAngleQuestion(question);
+    const draftBundleForPrompt = getActiveDraftBundle();
+    const focusTeam = resolveNflTeamFromQuestion(question);
+    const teamCapitalBlock =
+      nflDraftAngle && focusTeam
+        ? buildTeamDraftFocusBlock(focusTeam, draftBundleForPrompt)
+        : "";
+    const nflContextForPrompt =
+      (typeof nflContextEffective === "string"
+        ? nflContextEffective
+        : JSON.stringify(nflContextEffective || {}, null, 2)) +
+      (teamCapitalBlock ? `\n\n---\n\n${teamCapitalBlock}` : "");
 
     userPrompt = `You are answering an NFL betting question.
 
@@ -2011,7 +2043,7 @@ DATA FRESHNESS — READ FIRST
 ${nflDataFreshness != null ? JSON.stringify(nflDataFreshness, null, 2) : "Staleness metadata not available"}
 
 NFL context:
-${typeof nflContextEffective === "string" ? nflContextEffective : JSON.stringify(nflContextEffective || {}, null, 2)}
+${nflContextForPrompt}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
@@ -2032,6 +2064,16 @@ ${
 - Pre-draft / during-draft: cite Round 1 **pick # and team on the clock** exactly from NFL DRAFT BOARD; use the printed trade notes for capital context. Tie roster holes + scheme fit to target **archetypes**; if you name a prospect, frame as a lean or fit argument, not a leaked selection unless OFFICIAL ROUND 1 PICKS already lists that pick.
 - Post-draft: if OFFICIAL ROUND 1 PICKS lists players in context, give a synthesized class grade (fit, value vs slot, balance, one risk) **using only that list** plus the board. If that section says results are not loaded, say so once and invite the user to paste their team's haul for a tailored verdict — never invent selections.
 - If they name a favorite team, speak in "your board / your capital / your risk" language.`
+    : ""
+}
+
+${
+  teamCapitalBlock
+    ? `TEAM PICK-BY-PICK SIMULATION (elite — probability + board law, not clairvoyance):
+- Anchored team: ${focusTeam}. The TEAM DRAFT CAPITAL section lists **every** current slot for that franchise — use those rows **in order** when the user wants per-pick / per-round predictions.
+- For **each** slot row: (1) primary archetype vs NEED TAGS, (2) 2–3 prospect **examples** as probability bands (say high / medium / low in plain English), (3) one pivot if the board falls wrong way, (4) optional trade-up / trade-back **only** as a labeled simulation tied to the TRADE DIGEST capital story.
+- Never present a name as a locked-in league selection pre-draft; post-draft use OFFICIAL ROUND 1 PICKS when populated.
+- If DATA FRESHNESS / Meta shows a bundleWarning about provisional year, acknowledge once in-flow (one short clause).`
     : ""
 }
 
