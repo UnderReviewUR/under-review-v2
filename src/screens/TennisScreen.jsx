@@ -82,11 +82,22 @@ export default function TennisScreen({
               <>
                 <div className="section-divider">Prop Guide</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-                  {Object.entries(context.ace_props).map(([name,data])=>(
+                  {Object.entries(context.ace_props).map(([name,data])=> {
+                    const claySurface = /clay/i.test(String(context?.currentTournament?.surface || ""));
+                    const clayAces =
+                      claySurface &&
+                      data?.avg_aces_clay != null &&
+                      data?.avg_aces_clay !== "" &&
+                      Number.isFinite(Number(data.avg_aces_clay));
+                    const aceLine = clayAces
+                      ? `${data.avg_aces_clay} clay avg · ${data.ace_rate} · ${data.avg_aces_hard} hard avg`
+                      : `${data.avg_aces_hard} avg · ${data.ace_rate}`;
+                    return (
                     <div key={name} className="matchup-card" onClick={()=>submitTennis(`Tell me about ${name} ace props right now`)}>
-                      <div className="matchup-body"><div className="matchup-title" style={{fontSize:15}}>{name}</div><div className="matchup-meta">ACES</div><div className="matchup-blurb">{data.avg_aces_hard} avg · {data.ace_rate}</div><div className="matchup-blurb" style={{marginTop:6}}>{data.note||""}</div></div>
+                      <div className="matchup-body"><div className="matchup-title" style={{fontSize:15}}>{name}</div><div className="matchup-meta">ACES</div><div className="matchup-blurb">{aceLine}</div><div className="matchup-blurb" style={{marginTop:6}}>{data.note||""}</div></div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

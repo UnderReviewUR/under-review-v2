@@ -247,6 +247,34 @@ function buildMatchupTennisDigest(homeName, awayName, players, surfaceKey) {
 ${one(String(awayName || "").trim() || "Player B", rowA)}`;
 }
 
+/**
+ * Ace prop lines aligned with the app Prop Guide (TennisScreen).
+ * Clay events foreground avg_aces_clay, then ace_rate, then hard proxy — same contract as UI.
+ */
+function buildAcePropsDigest(aceProps, tournamentSurface) {
+  if (!aceProps || typeof aceProps !== "object") return "Not available";
+  const keys = Object.keys(aceProps);
+  if (keys.length === 0) return "Not available";
+  const surf = normalizeText(tournamentSurface);
+  const clayEvent = surf.includes("clay");
+  const lines = [];
+  for (const [key, row] of Object.entries(aceProps)) {
+    if (!row || typeof row !== "object") continue;
+    const name = String(key || "").trim() || "unknown";
+    const acePct = row.ace_rate != null ? String(row.ace_rate) : "—";
+    const hard = row.avg_aces_hard;
+    const clay = row.avg_aces_clay;
+    if (clayEvent && clay != null && clay !== "" && Number.isFinite(Number(clay))) {
+      lines.push(
+        `${name}: ${clay} clay aces/gm · ${acePct} tour ace% · ${hard} hard aces/gm (proxy — matches app Prop Guide on clay)`,
+      );
+    } else {
+      lines.push(`${name}: ${hard} aces/gm (hard proxy) · ${acePct} tour ace% (app Prop Guide line)`);
+    }
+  }
+  return lines.join("\n");
+}
+
 function extractNflPlayersFromContext(nflContext) {
   const text =
     typeof nflContext === "string"
@@ -1297,7 +1325,8 @@ TENNIS MODE (mandatory)
 - WTA: same player-database depth; the match board may show "Elo snapshot" pairings tied to the active tournament — those are analytical lenses for pricing, not confirmed draw times. Never treat them as verified schedule.
 - Never tell the user the live feed is missing or that you are in "data-only mode". Execute from the player database and tournament context in the user message when the board is empty.
 - If BREAKING NEWS appears in the user message, it overrides static tournament favorites and all other priors. Do not recommend a withdrawn or injured-out player as an active bet. Reprice the field and name who benefits.
-- Use only statistics and names that appear in the provided player rows. Do not invent numbers.`;
+- Use only statistics and names that appear in the provided player rows. Do not invent numbers.
+- ACE PROPS / SERVE VOLUME: The PROP GUIDE DIGEST block matches the in-app Prop Guide. Cite ONLY those printed values (or the verbatim ace_props JSON under it). Do not cite a different per-match ace average, "clay-only" figure, or percentage unless that exact token appears in PROP GUIDE DIGEST or ace_props JSON. If you need a clay number, it must be the avg_aces_clay field shown there on clay events — never a rounded guess.`;
 
   const systemPrompt = buildSystemPrompt(
     sportHint,
@@ -1490,8 +1519,11 @@ ${atpSnapshot || "Not loaded"}
 WTA PLAYER DATABASE (surface-ranked snapshot — cite only these stats)
 ${wtaSnapshot || "Not loaded"}
 
-ACE PROPS CONTEXT
-${context?.ace_props ? JSON.stringify(context.ace_props, null, 2) : "Not available"}
+PROP GUIDE DIGEST — ACE / SERVE VOLUME (canonical; must match app Prop Guide card text)
+${buildAcePropsDigest(context?.ace_props, tournamentSurface)}
+
+ACE_PROPS_JSON (verbatim — same source as digest; use for field-level checks only)
+${context?.ace_props ? JSON.stringify(context.ace_props, null, 2) : "{}"}
 
 CONFIDENCE GUIDANCE
 Default confidence: ${derivedConfidence}
@@ -1557,8 +1589,11 @@ Instead, do ALL of the following:
    - A threshold in words ("only playable if implied favorite is under 65%")
    - Reasoning from surface Elo, serve/hold hints, DR, form strings, or round context on the board
 
-4. When ACE PROPS CONTEXT is present, tie ace overs/unders to named players and
-   the ace_props rows. When liveMatches lists rounds or live flags, reference them explicitly.
+4. When PROP GUIDE DIGEST / ace_props is present, tie ace overs/unders to named players using
+   ONLY the numbers printed in PROP GUIDE DIGEST (or verbatim in ACE_PROPS_JSON). When the
+   tournament surface is clay, the digest foregrounds avg_aces_clay — cite that value with label
+   "clay aces/gm" exactly as shown. Do not substitute a different per-game ace average from memory.
+   When liveMatches lists rounds or live flags, reference them explicitly.
 
 5. End with a live trigger: set, break, or stat pace that would confirm or break the lean.
 
