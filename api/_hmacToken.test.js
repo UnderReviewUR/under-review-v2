@@ -21,3 +21,20 @@ test("verifyToken rejects wrong secret", () => {
   const tok = signToken({ x: 1 }, "s1");
   assert.equal(verifyToken(tok, "s2"), null);
 });
+
+test("verifyToken returns null for malformed token (no dot)", () => {
+  assert.equal(verifyToken("not-a-valid-token-format", "secret"), null);
+});
+
+test("verifyToken returns null for odd-length hex signature", () => {
+  const secret = "secret";
+  const payload = { a: 1 };
+  const data = Buffer.from(JSON.stringify(payload)).toString("base64");
+  const badSig = "abc";
+  assert.equal(verifyToken(`${data}.${badSig}`, secret), null);
+});
+
+test("verifyToken returns null for garbage after dot", () => {
+  const data = Buffer.from(JSON.stringify({ x: 1 })).toString("base64");
+  assert.equal(verifyToken(`${data}.nothexnothex`, "secret"), null);
+});

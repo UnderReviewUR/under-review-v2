@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
@@ -16,12 +16,11 @@ export default function F1Screen({
   f1Loading,
   f1Data,
 }) {
+  const [weekAgoMs] = useState(() => Date.now() - 7 * 86400000);
+
   const calendarRaces = useMemo(() => {
     const races = f1Data?.schedule?.races;
     if (!races?.length) return [];
-    /* eslint-disable react-hooks/purity -- calendar window is anchored to current time */
-    const weekAgoMs = Date.now() - 7 * 86400000;
-    /* eslint-enable react-hooks/purity */
     return races
       .filter(
         (r) =>
@@ -29,7 +28,7 @@ export default function F1Screen({
           new Date(r.race_date || r.date_end).getTime() >= weekAgoMs,
       )
       .slice(0, 10);
-  }, [f1Data?.schedule?.races]);
+  }, [f1Data?.schedule?.races, weekAgoMs]);
 
   return (
           <main ref={f1ScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
@@ -50,7 +49,7 @@ export default function F1Screen({
                 </div>
               </div>
             )}
-            <ChatThread msgs={f1Msgs} scrollContainerRef={f1ScreenRef}/>
+            <ChatThread msgs={f1Msgs} />
 
             {f1Loading ? (
               <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>

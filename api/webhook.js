@@ -10,6 +10,11 @@
 //
 // Vercel requirement: bodyParser MUST be disabled for Stripe signature verification.
 // Stripe sends a raw body; if Vercel parses it first, signature check always fails.
+//
+// Note: `export const config` is a Vercel serverless convention. The local Express
+// dev server (`dev-api-server.mjs`) does not read it; it uses express.raw() for this
+// route. Production webhooks typically hit the deployed URL; local testing uses Stripe
+// CLI forwarding or a tunnel, not the JSON body limit from `config`.
 
 export const config = {
   api: { bodyParser: false },

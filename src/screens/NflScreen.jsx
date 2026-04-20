@@ -37,7 +37,7 @@ export default function NflScreen({
               </div>
               </div>
             )}
-            <ChatThread msgs={nflMsgs} scrollContainerRef={nflScreenRef}/>
+            <ChatThread msgs={nflMsgs} />
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
             <NflPropGuideSection
               guide={NFL_PROP_GUIDE}

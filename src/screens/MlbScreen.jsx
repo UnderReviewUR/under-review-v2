@@ -37,7 +37,7 @@ export default function MlbScreen({
               </div>
             )}
 
-            <ChatThread msgs={mlbMsgs} scrollContainerRef={mlbScreenRef}/>
+            <ChatThread msgs={mlbMsgs} />
 
             {mlbLoading && mlbGames.length === 0 ? (
               <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
@@ -58,7 +58,6 @@ export default function MlbScreen({
                       const home = g.homeTeam;
                       const isLive = g.state === "in";
                       const isFinal = g.state === "post";
-                      const isPre = g.state === "pre";
                       const matchupStr = `${away.abbr||away.name} @ ${home.abbr||home.name}`;
                       return (
                         <div key={g.id||i} style={{

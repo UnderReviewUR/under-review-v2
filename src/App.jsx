@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from "react";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import UrTakeRecordPanel from "./components/UrTakeRecordPanel.jsx";
 import {
@@ -24,7 +24,6 @@ import {
   formatServeStats,
   golfScoreColor,
   isNflInSeason,
-  isNflRampMode,
   chatHistoryForApi,
   normalizeText,
   preferredTournamentScore,
@@ -147,11 +146,10 @@ ${themeCss}
   const nflPlayerInputRef = useRef(null);
   const fileInputRef      = useRef(null);
 
-  const nflRampMode   = useMemo(() => isNflRampMode(), []);
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
   // Detect Stripe redirect back to app
-  const [proSuccess, setProSuccess] = useState(() => {
+  const [proSuccess] = useState(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("pro");
       if (p === "success") {
@@ -180,7 +178,7 @@ ${themeCss}
     }
     return "free";
   });
-  const [accessToken, setAccessToken] = useState(() =>
+  const [, setAccessToken] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : ""
   );
 
@@ -218,7 +216,7 @@ ${themeCss}
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
 
   useEffect(() => {
-    queueMicrotask(() => {
+    startTransition(() => {
       setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
     });
   }, [accessTier]);
@@ -226,7 +224,7 @@ ${themeCss}
   // Load weekly usage on mount
   useEffect(() => {
     if (isUnlimited) return;
-    queueMicrotask(() => {
+    startTransition(() => {
       const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
       const now = Date.now();
       const week = 7 * 24 * 60 * 60 * 1000;
@@ -242,7 +240,19 @@ ${themeCss}
     setCodeLoading(true); setCodeError("");
     try {
       const res  = await fetch("/api/access", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ code: codeInput.trim() }) });
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        setCodeError("Invalid response from server.");
+        setCodeLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setCodeError(data.message || data.error || "Could not verify code.");
+        setCodeLoading(false);
+        return;
+      }
       if (data.valid) {
         localStorage.setItem("ur_access_token", data.token);
         setAccessToken(data.token);
@@ -281,19 +291,19 @@ ${themeCss}
   }, [isUnlimited, userEmail]);
 
   useEffect(() => {
-  if (userEmail && !isUnlimited) {
-    fetch(`/api/pro-status?email=${encodeURIComponent(userEmail)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.pro && data.token) {
-          localStorage.setItem("ur_access_token", data.token);
-          setAccessToken(data.token);
-          setAccessTier("pro");
-        }
-      })
-      .catch(() => {});
-  }
-}, [userEmail]);
+    if (userEmail && !isUnlimited) {
+      fetch(`/api/pro-status?email=${encodeURIComponent(userEmail)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.pro && data.token) {
+            localStorage.setItem("ur_access_token", data.token);
+            setAccessToken(data.token);
+            setAccessTier("pro");
+          }
+        })
+        .catch(() => {});
+    }
+  }, [userEmail, isUnlimited]);
 
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
@@ -581,12 +591,10 @@ ${themeCss}
   recordQuery,
   userEmail,
     loadPerformanceSnapshot,
-    buildContextualQuestion,
-  getTakeAuthHeaders,
+    getTakeAuthHeaders,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
-  const getPlayer    = useCallback((name,tour="atp") => { if(!players)return null; return(tour==="atp"?players.atp:players.wta)?.[name]||null; }, [players]);
   const getPlayerAny = useCallback(name => { if(!players)return null; return players.atp?.[name]||players.wta?.[name]||null; }, [players]);
 
   const pd    = screen==="player"    && selectedPlayer    ? getPlayerAny(selectedPlayer)   : null;
@@ -685,17 +693,6 @@ ${themeCss}
       },
     ];
   }, [liveMatches, tennisLoading, context]);
-
-  const homeNflCards = useMemo(() => {
-    if (nflSeasonMode) return [
-      {id:"nfl-season-1",league:"NFL IN-SEASON",leagueColor:"#D97706",title:"Best weekly NFL prop board",time:"Weekly Market",network:"Weekly Props",blurb:"Usage, role changes, and current mispricing.",whatMatters:"Ask for the best current weekly NFL edge.",quickHitters:["Best prop this week?","Biggest role shift?","Best TD angle?"],confirmed:true},
-      {id:"nfl-season-2",league:"NFL IN-SEASON",leagueColor:"#D97706",title:"Most mispriced in-season usage spot",time:"Weekly Market",network:"Role + Volume",blurb:"Where the market is lagging behind current role and usage.",whatMatters:"Ask for the cleanest role-driven edge.",quickHitters:["Which line is stale?","Best volume play?","Best role-based edge?"],confirmed:true},
-    ];
-    return [
-      {id:"nfl-future-1",league:"NFL FUTURE",leagueColor:"#D97706",title:"Puka Nacua 2026 outlook",time:nflRampMode?"Season Approaching":"Futures Window",network:"Season Futures",blurb:"Led NFL in receptions 2025 with 129 catches. Zero TDs. Elite volume profile for futures.",whatMatters:"Yards and catches props are the play. TD regression is the variable.",quickHitters:["Best Puka future?","Yards or catches?","Is price fair yet?"],confirmed:true},
-      {id:"nfl-future-2",league:"NFL FUTURE",leagueColor:"#D97706",title:"Derrick Henry TD future",time:nflRampMode?"Season Approaching":"Futures Window",network:"Season Futures",blurb:"15 TDs in 2025 at 0.94 per game. Most reliable TD-scorer profile in football.",whatMatters:"Ask whether the price still has value.",quickHitters:["Henry TD over?","Best RB TD future?","Most reliable scorer profile?"],confirmed:true},
-    ];
-  }, [nflSeasonMode, nflRampMode]);
 
   const homeF1Cards = useMemo(() => {
     const nextRace = f1Data?.schedule?.races?.find(r => r.is_next);
@@ -1138,15 +1135,6 @@ ${themeCss}
     setSelectedNflPlayer(null);
   }, [screen, tab]);
 
-  const goAsk = useCallback(() => {
-    if (screen !== "ask" || tab !== "ask") {
-      setNavHistory((h) => [...h, { screen, tab }]);
-    }
-    setTab("ask");
-    setScreen("ask");
-    setSelectedMatchup(null);
-  }, [screen, tab]);
-
   const goPro = useCallback(() => {
     if (screen !== "pro" || tab !== "pro") {
       setNavHistory((h) => [...h, { screen, tab }]);
@@ -1422,7 +1410,6 @@ ${themeCss}
   const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,nbaInput,scheduleChatScroll]);
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,mlbInput,scheduleChatScroll]);
 
-  const golfBarRefLocal = golfBarRef;
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,golfInput,scheduleChatScroll]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,matchupInput,selectedMatchup,scheduleChatScroll]);
 
@@ -1468,12 +1455,6 @@ ${themeCss}
       {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
     </>
   );
-
-  // ── NBA top players from live stats (sorted by pts) ────────────────────────
-  const nbaTopPlayers = useMemo(() => {
-    const stats = nbaData?.playerStats || [];
-    return stats.slice(0, 20);
-  }, [nbaData]);
 
   const backNavTarget = navHistory.length > 0 ? navHistory[navHistory.length - 1] : null;
   const backNavLabel =
@@ -2101,7 +2082,7 @@ ${themeCss}
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
             </div>
-            <ChatThread msgs={matchupMsgs} scrollContainerRef={matchupScreenRef}/>
+            <ChatThread msgs={matchupMsgs} />
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
         )}

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useContext } from "react";
+import { useLayoutEffect, useContext, useRef } from "react";
 import { PerformanceContext } from "../../context/PerformanceContext.jsx";
 import {
   normalizeConfidenceTier,
@@ -100,7 +100,7 @@ export function isNflRampMode() {
   return m >= 6 && m <= 7;
 }
 
-export function normalizeTennisMatch(match, fallbackTour = "ATP", activeTournament = null) {
+export function normalizeTennisMatch(match, fallbackTour = "ATP", _activeTournament = null) {
   if (!match) return null;
 
   if (fallbackTour === "ATP" && !isBallDontLieAtpFixture(match)) return null;
@@ -437,24 +437,16 @@ function UrTakeAiBubble({ m, performanceData }) {
   );
 }
 
-export function ChatThread({ msgs, scrollContainerRef }) {
+export function ChatThread({ msgs }) {
   const perfCtx = useContext(PerformanceContext);
   const performanceData = perfCtx?.performanceData;
+  const bottomRef = useRef(null);
 
-  /** Sync scroll after DOM updates — feels tight like iMessage (no visible lag). */
+  /** Scroll the nearest scrollport (screen main) to the latest bubble — avoids mutating scrollTop (eslint). */
   useLayoutEffect(() => {
     if (!msgs?.length) return;
-    const scrollParent = scrollContainerRef?.current;
-    if (!scrollParent) return;
-    const maxScroll = scrollParent.scrollHeight;
-    /* eslint-disable react-hooks/immutability -- mutating scrollTop on a DOM node from ref, not React props */
-    scrollParent.scrollTop = maxScroll;
-    const id = requestAnimationFrame(() => {
-      scrollParent.scrollTop = scrollParent.scrollHeight;
-    });
-    /* eslint-enable react-hooks/immutability */
-    return () => cancelAnimationFrame(id);
-  }, [msgs, scrollContainerRef]);
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+  }, [msgs]);
 
   if (!msgs || msgs.length === 0) return null;
   return (
@@ -475,6 +467,7 @@ export function ChatThread({ msgs, scrollContainerRef }) {
           </div>
         )
       )}
+      <div ref={bottomRef} style={{ height: 1, width: "100%", overflow: "hidden" }} aria-hidden />
     </div>
   );
 }

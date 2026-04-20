@@ -1,7 +1,7 @@
 export const config = { api: { bodyParser: { sizeLimit: "2mb" } } };
 
 import { applyCors } from "./_cors.js";
-import { getEnv } from "./_env.js";
+import { ACCESS_TOKEN_SECRET_MISSING_MESSAGE, getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
 import {
@@ -910,6 +910,12 @@ export default async function handler(req, res) {
   if (shouldRequireUrTakeAuth()) {
     urAuth = verifyBearerForUrTake(req.headers.authorization);
     if (!urAuth.ok) {
+      if (urAuth.reason === "server_misconfigured") {
+        return res.status(503).json({
+          error: "server_misconfigured",
+          response: ACCESS_TOKEN_SECRET_MISSING_MESSAGE,
+        });
+      }
       return res.status(401).json({
         error: urAuth.reason || "unauthorized",
         response:

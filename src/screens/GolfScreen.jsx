@@ -79,7 +79,7 @@ export default function GolfScreen({
               </div>
             )}
 
-            <ChatThread msgs={golfMsgs} scrollContainerRef={golfScreenRef}/>
+            <ChatThread msgs={golfMsgs} />
 
             {/* Leaderboard — full field (scroll); same list is sent to /api/ur-take as golfContext */}
             {golfData?.currentEvent?.leaderboard?.length > 0 && (

@@ -37,7 +37,7 @@ export default function NbaScreen({
               </div>
             )}
 
-            <ChatThread msgs={nbaMsgs} scrollContainerRef={nbaScreenRef}/>
+            <ChatThread msgs={nbaMsgs} />
 
             {nbaLoading ? (
               <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>

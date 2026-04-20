@@ -7,7 +7,10 @@
 import { applyCors } from "./_cors.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { signToken, verifyToken } from "./_hmacToken.js";
-import { getAccessTokenSecretSync } from "./_env.js";
+import {
+  getAccessTokenSecretSync,
+  sendAccessTokenSecretMissingError,
+} from "./_env.js";
 
 const GATE_TTL_SECONDS = 60 * 60 * 24 * 8; // 8 days
 
@@ -40,7 +43,8 @@ export default async function handler(req, res) {
   if (action === "issue_take_token") {
     const secret = getAccessTokenSecretSync();
     if (!secret) {
-      return res.status(500).json({ error: "Server misconfigured" });
+      sendAccessTokenSecretMissingError(res);
+      return;
     }
 
     const normalizedEmail = String(email || "")

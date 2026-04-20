@@ -52,7 +52,7 @@ export default function TennisScreen({
               </div>
             )}
 
-            <ChatThread msgs={tennisMsgs} scrollContainerRef={tennisScreenRef}/>
+            <ChatThread msgs={tennisMsgs} />
 
             <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>
 

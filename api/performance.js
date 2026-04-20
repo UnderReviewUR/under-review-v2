@@ -1,4 +1,5 @@
 import { applyCors } from "./_cors.js";
+import { ACCESS_TOKEN_SECRET_MISSING_MESSAGE } from "./_env.js";
 import {
   buildPerformanceSnapshot,
   gradeAndGetTakesForUser,
@@ -30,6 +31,12 @@ export default async function handler(req, res) {
   if (shouldRequireUrTakeAuth()) {
     const auth = verifyBearerForUrTake(req.headers.authorization);
     if (!auth.ok) {
+      if (auth.reason === "server_misconfigured") {
+        return res.status(503).json({
+          error: "server_misconfigured",
+          response: ACCESS_TOKEN_SECRET_MISSING_MESSAGE,
+        });
+      }
       return res.status(401).json({ error: auth.reason || "unauthorized" });
     }
     if (auth.email && auth.email !== email) {

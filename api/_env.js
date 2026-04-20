@@ -30,6 +30,10 @@ export function isProduction() {
   return getEnv("VERCEL_ENV") === "production";
 }
 
+/** Shown in API responses when production is missing ACCESS_TOKEN_SECRET (also use in Vercel dashboard). */
+export const ACCESS_TOKEN_SECRET_MISSING_MESSAGE =
+  "Server misconfiguration: ACCESS_TOKEN_SECRET is not set. In Vercel open this project → Settings → Environment Variables → add ACCESS_TOKEN_SECRET (a long random string) for Production, then Redeploy.";
+
 // ── ACCESS_TOKEN_SECRET (dev fallback is unstable by design) ─────────────────
 let devAccessTokenSecretCache = null;
 
@@ -39,6 +43,21 @@ function getDevAccessTokenSecretFallback() {
       "DO_NOT_USE_IN_PROD_" + crypto.randomBytes(12).toString("hex");
   }
   return devAccessTokenSecretCache;
+}
+
+/**
+ * Respond with 500 when ACCESS_TOKEN_SECRET is missing in production (used by gate.js too).
+ *
+ * @param {import("http").ServerResponse} res
+ */
+export function sendAccessTokenSecretMissingError(res) {
+  console.error(
+    "[env] ACCESS_TOKEN_SECRET is required in production — refusing to sign or verify tokens",
+  );
+  res.status(500).json({
+    error: "server_misconfigured",
+    message: ACCESS_TOKEN_SECRET_MISSING_MESSAGE,
+  });
 }
 
 /**
@@ -54,10 +73,7 @@ export function resolveAccessTokenSecretForHandler(res) {
   if (secret) return secret;
 
   if (isProduction()) {
-    console.error(
-      "[env] ACCESS_TOKEN_SECRET is required in production — refusing to sign or verify tokens",
-    );
-    res.status(500).json({ error: "Server misconfigured" });
+    sendAccessTokenSecretMissingError(res);
     return null;
   }
 

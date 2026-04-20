@@ -31,6 +31,7 @@ export default [
       ...reactHooks.configs.recommended.rules,
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",
+      "react/jsx-uses-vars": "warn",
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
     settings: { react: { version: "detect" } },

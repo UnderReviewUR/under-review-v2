@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, startTransition } from "react";
 
 /**
  * @param {string} userEmail
@@ -39,7 +39,7 @@ export function usePerformance(userEmail, getTakeAuthHeaders) {
 
   useEffect(() => {
     if (!userEmail) return;
-    queueMicrotask(() => {
+    startTransition(() => {
       void loadPerformanceSnapshot();
     });
   }, [loadPerformanceSnapshot, userEmail]);

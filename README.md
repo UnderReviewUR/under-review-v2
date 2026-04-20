@@ -45,7 +45,9 @@ Clear the line after the event so stale news does not affect unrelated tournamen
 
 ### Access codes
 
-Configure `OWNER_CODE`, `FRIEND_CODES`, and `ACCESS_TOKEN_SECRET` in Vercel — never rely on demo defaults in production (`api/access.js`, `api/pro-status.js`).
+Configure `OWNER_CODE`, `FRIEND_CODES`, and **`ACCESS_TOKEN_SECRET`** in Vercel — never rely on demo defaults in production (`api/access.js`, `api/pro-status.js`).
+
+**If users see “server misconfigured” or UR TAKE returns `server_misconfigured`:** Production is almost certainly missing **`ACCESS_TOKEN_SECRET`**. In Vercel → your project → **Settings → Environment Variables**, add `ACCESS_TOKEN_SECRET` for **Production** (a long random string, e.g. `openssl rand -hex 32`), then **Redeploy**. Without it, the API cannot sign or verify access tokens, so unlock codes and bearer auth will fail.
 
 ### UR TAKE API security
 
