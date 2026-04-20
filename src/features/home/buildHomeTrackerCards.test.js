@@ -15,7 +15,13 @@ test("shows draft predictor card during pre-draft window", () => {
       fullOrderCount: 257,
     },
   });
-  assert.ok(cards.some((c) => c.id === "nfl-draft-predictor"));
+  const draftCard = cards.find((c) => c.id === "nfl-draft-predictor");
+  assert.ok(draftCard);
+  assert.equal(draftCard.defaultPrompt, "Simulate my team's first 3 rounds");
+  assert.equal(
+    draftCard.quickHitters?.[1],
+    "Which team has the most interesting draft situation?",
+  );
 });
 
 test("shows draft predictor during pre-draft even when nflSeasonMode is off", () => {

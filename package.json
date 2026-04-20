@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src api scripts",
-    "test": "node --test api/_hmacToken.test.js api/_sanitizeUrTakeBody.test.js api/_gateQuota.test.js api/nfl-draft-season.test.js src/lib/detectSportFromQuestion.test.js",
+    "test": "node --test api/_hmacToken.test.js api/_sanitizeUrTakeBody.test.js api/_gateQuota.test.js api/nfl-draft-season.test.js api/nfl-draft-engine.test.js src/lib/detectSportFromQuestion.test.js src/features/home/buildHomeTrackerCards.test.js src/features/home/buildDynamicHomeQuestions.test.js",
     "format": "prettier --write \"src/**/*.{js,jsx}\" \"api/**/*.js\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx}\" \"api/**/*.js\"",
     "refresh:tennis-form": "node refresh-tennis-form.mjs"

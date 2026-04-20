@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectSportFromQuestion, detectWtaFromQuestion } from "./detectSportFromQuestion.js";
+import {
+  detectNflTeamHint,
+  detectSportFromQuestion,
+  detectWtaFromQuestion,
+} from "./detectSportFromQuestion.js";
 
 test("tab nba forces nba regardless of question", () => {
   assert.equal(detectSportFromQuestion("best Yankees prop", "nba"), "nba");
@@ -79,4 +83,9 @@ test("Giants from home → mlb before nfl keyword overlap", () => {
 
 test("detectWtaFromQuestion true for explicit wta", () => {
   assert.equal(detectWtaFromQuestion("WTA Rome"), true);
+});
+
+test("detectNflTeamHint captures city/team names for draft asks", () => {
+  assert.equal(detectNflTeamHint("Simulate Eagles first 3 rounds"), "PHI");
+  assert.equal(detectNflTeamHint("Most chaotic realistic scenario for Chiefs"), "KC");
 });

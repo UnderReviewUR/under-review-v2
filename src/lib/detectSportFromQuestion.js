@@ -207,6 +207,41 @@ const F1_TERMS = [
   "red bull",
 ];
 
+const NFL_TEAM_HINTS = [
+  { abbr: "ARI", aliases: ["arizona", "cardinals"] },
+  { abbr: "ATL", aliases: ["atlanta", "falcons"] },
+  { abbr: "BAL", aliases: ["baltimore", "ravens"] },
+  { abbr: "BUF", aliases: ["buffalo", "bills"] },
+  { abbr: "CAR", aliases: ["carolina", "panthers"] },
+  { abbr: "CHI", aliases: ["chicago", "bears"] },
+  { abbr: "CIN", aliases: ["cincinnati", "bengals"] },
+  { abbr: "CLE", aliases: ["cleveland", "browns"] },
+  { abbr: "DAL", aliases: ["dallas", "cowboys"] },
+  { abbr: "DEN", aliases: ["denver", "broncos"] },
+  { abbr: "DET", aliases: ["detroit", "lions"] },
+  { abbr: "GB", aliases: ["green bay", "packers"] },
+  { abbr: "HOU", aliases: ["houston", "texans"] },
+  { abbr: "IND", aliases: ["indianapolis", "colts"] },
+  { abbr: "JAX", aliases: ["jacksonville", "jaguars"] },
+  { abbr: "KC", aliases: ["kansas city", "chiefs"] },
+  { abbr: "LV", aliases: ["las vegas", "raiders"] },
+  { abbr: "LAC", aliases: ["los angeles chargers", "chargers"] },
+  { abbr: "LAR", aliases: ["los angeles rams", "la rams", "rams"] },
+  { abbr: "MIA", aliases: ["miami", "dolphins"] },
+  { abbr: "MIN", aliases: ["minnesota", "vikings"] },
+  { abbr: "NE", aliases: ["new england", "patriots"] },
+  { abbr: "NO", aliases: ["new orleans", "saints"] },
+  { abbr: "NYG", aliases: ["new york giants", "nyg", "giants"] },
+  { abbr: "NYJ", aliases: ["new york jets", "nyj", "jets"] },
+  { abbr: "PHI", aliases: ["philadelphia", "eagles"] },
+  { abbr: "PIT", aliases: ["pittsburgh", "steelers"] },
+  { abbr: "SF", aliases: ["san francisco", "49ers", "niners"] },
+  { abbr: "SEA", aliases: ["seattle", "seahawks"] },
+  { abbr: "TB", aliases: ["tampa bay", "buccaneers", "bucs"] },
+  { abbr: "TEN", aliases: ["tennessee", "titans"] },
+  { abbr: "WAS", aliases: ["washington", "commanders"] },
+];
+
 function containsAny(hay, needles) {
   const h = normalizeText(hay);
   for (const n of needles) {
@@ -219,6 +254,17 @@ export function detectWtaFromQuestion(question) {
   const q = normalizeText(question);
   if (q.includes("wta")) return true;
   return containsAny(q, WTA_NAMES);
+}
+
+export function detectNflTeamHint(question) {
+  const q = normalizeText(question);
+  if (!q) return null;
+  for (const entry of NFL_TEAM_HINTS) {
+    if (entry.aliases.some((alias) => q.includes(normalizeText(alias)))) {
+      return entry.abbr;
+    }
+  }
+  return null;
 }
 
 /**

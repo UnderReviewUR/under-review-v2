@@ -5,6 +5,7 @@ const ALLOWED_KEYS = new Set([
   "question",
   "userEmail",
   "sportHint",
+  "teamHint",
   "players",
   "context",
   "liveMatches",
@@ -52,6 +53,10 @@ function sanitizeValue(key, val, depth, limits) {
 
   if (key === "sportHint") {
     return typeof val === "string" ? val.slice(0, 64) : val;
+  }
+
+  if (key === "teamHint") {
+    return typeof val === "string" ? val.slice(0, 8).toUpperCase() : null;
   }
 
   if (key === "history") {

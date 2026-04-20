@@ -155,7 +155,11 @@ export function buildHomeTrackerCards({
       isDraft: true,
       sportHint: "nfl",
       draftPhase,
-      defaultPrompt: "Show me the sharpest Round 1 path for the Cowboys",
+      defaultPrompt: "Simulate my team's first 3 rounds",
+      quickHitters: [
+        "Simulate my team's first 3 rounds",
+        "Which team has the most interesting draft situation?",
+      ],
       confirmed: true,
     });
   }

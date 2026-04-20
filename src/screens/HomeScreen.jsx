@@ -138,6 +138,32 @@ export default function HomeScreen({
                     ) : null}
                     <div className="spotlight-atp-foot">{m.network}</div>
                   </div>
+                ) : m.isDraft ? (
+                  <>
+                    <div className="spotlight-edge">{m.blurb}</div>
+                    {Array.isArray(m.quickHitters) && m.quickHitters.length > 1 ? (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ marginTop: 10, paddingLeft: 2 }}
+                      >
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
+                          Other prompts
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          {m.quickHitters.slice(1).map((q) => (
+                            <button
+                              key={q}
+                              type="button"
+                              className="quick-btn"
+                              onClick={() => firePrompt(q, "nfl")}
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   <div
                     className="spotlight-edge"

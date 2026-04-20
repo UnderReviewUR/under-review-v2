@@ -15,8 +15,12 @@ import { buildCanonicalNflContext } from "./_nflContext.js";
 import {
   buildTeamDraftFocusBlock,
   getActiveDraftBundle,
+  getNflTeamAbbrFromName,
+  getNflDraftPhase,
+  getNflTeamNameFromAbbr,
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
+import { simulateDraftRounds } from "./nfl-draft-engine.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
@@ -1353,13 +1357,21 @@ function buildNflDraftProspectBlock(draftBundle) {
 If a user asks for a non-board name, label it "simulation-only (UDFA-range)" and do not present it as an official slot outcome.`;
   }
   const lines = prospects.map((p) => {
-    const status = p?.boardStatus === "boarded" ? "boarded" : "simulation-only";
-    const stats = p?.keyStats && typeof p.keyStats === "object"
-      ? Object.entries(p.keyStats)
-          .slice(0, 3)
-          .map(([k, v]) => `${k}:${v}`)
-          .join(" | ")
-      : "stats: n/a";
+    const status =
+      p?.boardStatus === "verified_pool"
+        ? "verified_pool"
+        : p?.boardStatus === "boarded"
+          ? "boarded"
+          : "simulation-only";
+    let stats = "stats: n/a";
+    if (typeof p?.nflGrade === "number" && Number.isFinite(p.nflGrade)) {
+      stats = `NFL grade: ${p.nflGrade}`;
+    } else if (p?.keyStats && typeof p.keyStats === "object") {
+      stats = Object.entries(p.keyStats)
+        .slice(0, 3)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(" | ");
+    }
     return `- ${p.name} (${p.position}, ${p.school}) [${status}] — ${stats}`;
   });
   return `VERIFIED 2026 DRAFT PROSPECT ANCHORS:
@@ -1368,6 +1380,29 @@ ${lines.join("\n")}
 Roster-grounding rule for draft names:
 - If a requested prospect is NOT in this list, you must label them exactly as "simulation-only (UDFA-range)".
 - You may discuss fit hypotheticals, but you must not present them as locked pick outcomes in official board language.`;
+}
+
+function buildDraftProspectsByPositionBlock(draftBundle) {
+  const prospects = Array.isArray(draftBundle?.prospects)
+    ? draftBundle.prospects.filter((p) => Number(p?.projectedRound || 9) <= 4)
+    : [];
+  if (!prospects.length) return "(verified rounds 1-4 pool unavailable)";
+  const grouped = {};
+  for (const p of prospects) {
+    const pos = String(p.position || "UNK").toUpperCase();
+    if (!grouped[pos]) grouped[pos] = [];
+    grouped[pos].push(p);
+  }
+  const lines = [];
+  for (const pos of Object.keys(grouped).sort()) {
+    const row = grouped[pos]
+      .sort((a, b) => Number(a.overallRank || 999) - Number(b.overallRank || 999))
+      .slice(0, 10)
+      .map((p) => `${p.name} (${p.school}) #${p.overallRank}`)
+      .join(", ");
+    lines.push(`${pos}: ${row}`);
+  }
+  return lines.join("\n");
 }
 
 function collectTennisVerifiedNames(players, liveMatches) {
@@ -1545,6 +1580,7 @@ export default async function handler(req, res) {
     question,
     userEmail,
     sportHint: incomingSportHint,
+    teamHint,
     players,
     context,
     liveMatches,
@@ -2692,8 +2728,30 @@ No bet now; re-run once verified player context is loaded.`;
 
     const nflDraftAngle = isNflDraftAngleQuestion(question);
     const draftBundleForPrompt = getActiveDraftBundle();
+    const draftPhase = getNflDraftPhase(new Date(), draftBundleForPrompt);
+    const draftSimulationMode = nflDraftAngle && (draftPhase === "pre_draft" || draftPhase === "during_draft");
     const draftProspectBlock = buildNflDraftProspectBlock(draftBundleForPrompt);
-    const focusTeam = resolveNflTeamFromQuestion(question);
+    const focusTeam =
+      resolveNflTeamFromQuestion(question) || getNflTeamNameFromAbbr(teamHint);
+    const focusTeamAbbr = focusTeam
+      ? getNflTeamAbbrFromName(focusTeam)
+      : String(teamHint || "").toUpperCase() || null;
+    const teamState = focusTeamAbbr ? draftBundleForPrompt?.teams?.[focusTeamAbbr] : null;
+    const teamPickList = (teamState?.picks || [])
+      .filter((p) => Number(p?.round || 9) <= 3)
+      .sort((a, b) => Number(a.overall || 0) - Number(b.overall || 0))
+      .map((p) => `R${p.round} #${p.overall}`)
+      .join(", ");
+    const teamNeedPriority = (teamState?.needPriority || teamState?.needs || []).join(", ") || "best-player-available";
+    const sensibleSimulation =
+      draftSimulationMode && focusTeamAbbr
+        ? simulateDraftRounds({ teamAbbr: focusTeamAbbr, rounds: 3, chaosMode: false })
+        : null;
+    const chaosSimulation =
+      draftSimulationMode && focusTeamAbbr
+        ? simulateDraftRounds({ teamAbbr: focusTeamAbbr, rounds: 3, chaosMode: true })
+        : null;
+    const prospectsFormattedByPosition = buildDraftProspectsByPositionBlock(draftBundleForPrompt);
     const teamCapitalBlock =
       nflDraftAngle && focusTeam
         ? buildTeamDraftFocusBlock(focusTeam, draftBundleForPrompt)
@@ -2724,6 +2782,33 @@ ${nflVerifiedBlock}
 
 ${draftProspectBlock}
 
+${
+  draftSimulationMode
+    ? `NFL DRAFT 2026 — SIMULATION MODE
+
+Team: ${focusTeamAbbr || "UNKNOWN"}
+Picks: ${teamPickList || "No rounds 1-3 picks found in active state"}
+Priority needs: ${teamNeedPriority}
+Draft location: ${draftBundleForPrompt?.event?.location || "Pittsburgh, PA"}
+
+VERIFIED PROSPECT POOL (rounds 1-4 only — do not name prospects outside this list):
+${prospectsFormattedByPosition}
+
+SIMULATION BASELINE (engine output)
+SENSIBLE: ${sensibleSimulation ? JSON.stringify(sensibleSimulation, null, 2) : "Team not detected — request team first."}
+CHAOS: ${chaosSimulation ? JSON.stringify(chaosSimulation, null, 2) : "Team not detected — request team first."}
+
+SIMULATION RULES:
+1. Run a SENSIBLE SCENARIO first — best available at highest need, realistic board flow.
+2. Run a CHAOS BRANCH second — one plausible disruptive event changes the board, show adaptation.
+3. Never label the simulation as impossible to predict upfront.
+4. For prospects not in the verified pool: label "Day 3 / UDFA range" and avoid specific round projection.
+5. For each pick, explain WHY in one line — roster fit + positional value + board context.
+6. Chaos branch must be plausible (trade-up, faller, trade-back, rival reach), never absurd.
+7. If user names a fabricated/unknown prospect, explicitly say: "not in the verified 2026 draft pool" and pivot to valid names.`
+    : ""
+}
+
 Rules:
 - Answer only as an NFL analyst.
 - Do not mention golf, NBA, MLB, F1, or tennis.
@@ -2735,38 +2820,40 @@ Rules:
 - Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation. Place it after the CONFIDENCE section and before the TIMING section (Under Review structured format). Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
 
 ${
-  nflDraftAngle
-    ? `NFL DRAFT / GM MODE (user should feel like the GM of their team — decisive, board-aware, candid about risk):
-- Pre-draft / during-draft: cite Round 1 **pick # and team on the clock** exactly from NFL DRAFT BOARD; use the printed trade notes for capital context. Tie roster holes + scheme fit to target **archetypes**; if you name a prospect, frame as a lean or fit argument, not a leaked selection unless OFFICIAL ROUND 1 PICKS already lists that pick.
-- Prefer names from VERIFIED 2026 DRAFT PROSPECT ANCHORS before introducing simulation-only names.
-- Post-draft: if OFFICIAL ROUND 1 PICKS lists players in context, give a synthesized class grade (fit, value vs slot, balance, one risk) **using only that list** plus the board. If that section says results are not loaded, say so once and invite the user to paste their team's haul for a tailored verdict — never invent selections.
-- If they name a favorite team, speak in "your board / your capital / your risk" language.`
-    : ""
-}
+  draftSimulationMode
+    ? `RESPONSE FORMAT (mandatory):
+SENSIBLE SCENARIO
+Round 1, Pick [N]: [Player], [Position], [School]
+Why: [one line — fit + board reason]
 
-${
-  nflDraftAngle
-    ? `DRAFT ANSWER STYLE (mandatory):
-- Keep it clean and board-first: no "I can't predict the draft" preamble.
-- For team-specific questions, output exactly 5 short sections in this order:
-  1) ROUND 1 BOARD TRUTH
-  2) MOST LIKELY AT FIRST PICK
-  3) MOST LIKELY AT SECOND PICK (if team has one; otherwise "N/A")
-  4) PIVOT IF BOARD BREAKS DIFFERENTLY
-  5) LIVE TRIGGER TO WATCH
-- Use concise bullets under each section and include 1-2 names max per pick lane.
-- Avoid filler, avoid generic betting copy, and do not mention tier labels inside the body.`
-    : ""
-}
+Round 2, Pick [N]: [Player], [Position], [School]
+Why: [one line]
 
-${
-  teamCapitalBlock
-    ? `TEAM PICK-BY-PICK SIMULATION (elite — probability + board law, not clairvoyance):
-- Anchored team: ${focusTeam}. The TEAM DRAFT CAPITAL section lists **every** current slot for that franchise — use those rows **in order** when the user wants per-pick / per-round predictions.
-- For **each** slot row: (1) primary archetype vs NEED TAGS, (2) 2–3 prospect **examples** as probability bands (say high / medium / low in plain English), (3) one pivot if the board falls wrong way, (4) optional trade-up / trade-back **only** as a labeled simulation tied to the TRADE DIGEST capital story.
-- Never present a name as a locked-in league selection pre-draft; post-draft use OFFICIAL ROUND 1 PICKS when populated.
-- If DATA FRESHNESS / Meta shows a bundleWarning about provisional year, acknowledge once in-flow (one short clause).`
-    : ""
+Round 3, Pick [N]: [Player], [Position], [School]
+Why: [one line]
+
+---
+
+CHAOS BRANCH
+[One sentence describing the disruptive event]
+
+Round 1, Pick [N]: [Player], [Position], [School]
+Why it still works: [one line]
+
+Round 2, Pick [N]: [Player], [Position], [School]
+Round 3, Pick [N]: [Player], [Position], [School]
+
+---
+
+BOARD WATCH
+[Two or three names that can alter this team's board value before draft day]
+
+No uncertainty disclaimer preamble. Open directly with simulation output.`
+    : teamCapitalBlock
+      ? `TEAM PICK-BY-PICK SIMULATION:
+- Anchored team: ${focusTeam}. Use TEAM DRAFT CAPITAL rows in order when user asks for pick-by-pick outcomes.
+- Never present a name as a locked-in league selection pre-draft; frame as likely paths.`
+      : ""
 }
 
 ${

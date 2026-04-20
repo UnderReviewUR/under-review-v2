@@ -16,7 +16,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isGolfEventFinished } from "./lib/golfEventStatus.js";
-import { detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
+import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
   ChatThread,
@@ -584,6 +584,7 @@ ${themeCss}
       userEmail: userEmail || null,
       history: historyPayload,
       sportHint: effectiveSportHint,
+      teamHint: detectNflTeamHint(text),
       matchupContext: matchup || null,
       image: null,
     };
@@ -1402,7 +1403,7 @@ ${themeCss}
     (m) => {
       if (m?.isDraft) {
         const prompt = String(
-          m?.defaultPrompt || "Show me the sharpest Round 1 path for the Cowboys",
+          m?.defaultPrompt || "Simulate my team's first 3 rounds",
         ).trim();
         if (!prompt || isAsking || prefetchingUrTakeContext) return;
         if (screen !== "ask" || tab !== "ask") {

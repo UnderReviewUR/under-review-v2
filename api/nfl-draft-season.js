@@ -1,26 +1,10 @@
-/**
- * NFL draft season — year-aware bundle + full 257-pick order + team capital.
- *
- * Annual refresh:
- * 1. Add/regenerate api/data/nfl-draft-order-{YEAR}.json (see api/scripts/build-nfl-order-2026.mjs).
- * 2. Copy api/data/nfl-team-needs-2026.js → nfl-team-needs-{YEAR}.js and tune tags.
- * 3. Wire year in getActiveDraftBundle() and draftWindow* UTC for that class.
- * 4. Optional: NFL_DRAFT_CLASS_YEAR=2027 in env to pin the active class.
- */
-
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import {
+  DRAFT_META_2026,
+  DRAFT_ORDER_2026,
+  PROSPECTS_2026,
+  TEAM_DRAFT_STATE_2026,
+} from "./data/nfl-draft-2026.js";
 import { TEAM_NEEDS_2026 } from "./data/nfl-team-needs-2026.js";
-import { NFL_PROSPECTS_2026 } from "./data/nfl-prospects-2026.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-/** Maintainer: paste Round 1 official results after the draft (pick, team, player, pos). */
-export const OFFICIAL_ROUND_ONE = [];
-
-/** ISO date when OFFICIAL_ROUND_ONE was last verified against a primary source. */
-export const OFFICIAL_ROUND_ONE_LAST_VERIFIED = null;
 
 const ROUND_ONE_TRADE_NOTES = new Map([
   [10, "Giants — slot acquired from Cincinnati (pre-draft)."],
@@ -39,104 +23,99 @@ const TRADE_DIGEST_2026 = [
   "Treat trades as capital context; hypothetical new trades must be labeled as simulations.",
 ].join("\n");
 
-let _order2026 = null;
+const FULL_TO_ABBR = {
+  "Arizona Cardinals": "ARI",
+  "Atlanta Falcons": "ATL",
+  "Baltimore Ravens": "BAL",
+  "Buffalo Bills": "BUF",
+  "Carolina Panthers": "CAR",
+  "Chicago Bears": "CHI",
+  "Cincinnati Bengals": "CIN",
+  "Cleveland Browns": "CLE",
+  "Dallas Cowboys": "DAL",
+  "Denver Broncos": "DEN",
+  "Detroit Lions": "DET",
+  "Green Bay Packers": "GB",
+  "Houston Texans": "HOU",
+  "Indianapolis Colts": "IND",
+  "Jacksonville Jaguars": "JAX",
+  "Kansas City Chiefs": "KC",
+  "Las Vegas Raiders": "LV",
+  "Los Angeles Chargers": "LAC",
+  "Los Angeles Rams": "LAR",
+  "Miami Dolphins": "MIA",
+  "Minnesota Vikings": "MIN",
+  "New England Patriots": "NE",
+  "New Orleans Saints": "NO",
+  "New York Giants": "NYG",
+  "New York Jets": "NYJ",
+  "Philadelphia Eagles": "PHI",
+  "Pittsburgh Steelers": "PIT",
+  "San Francisco 49ers": "SF",
+  "Seattle Seahawks": "SEA",
+  "Tampa Bay Buccaneers": "TB",
+  "Tennessee Titans": "TEN",
+  "Washington Commanders": "WAS",
+};
 
-function readOrder2026() {
-  if (_order2026) return _order2026;
-  const p = join(__dirname, "data", "nfl-draft-order-2026.json");
-  _order2026 = JSON.parse(fs.readFileSync(p, "utf8"));
-  return _order2026;
-}
+const ABBR_TO_FULL = Object.fromEntries(Object.entries(FULL_TO_ABBR).map(([k, v]) => [v, k]));
 
-/** Active draft class year (April draft in calendar year Y = class Y until next cycle). */
 export function inferActiveDraftClassYear(now = new Date()) {
   const env = process.env.NFL_DRAFT_CLASS_YEAR;
   if (env && /^\d{4}$/.test(String(env).trim())) return Number(String(env).trim());
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth() + 1;
-  if (m >= 6) return y + 1;
-  return y;
+  return m >= 6 ? y + 1 : y;
 }
 
-function build2026Bundle({ inferredYear, bundleWarning }) {
-  const order = readOrder2026();
-  const orderProspectSet = new Set(
-    order
-      .map((row) => String(row?.player || "").trim())
-      .filter(Boolean),
-  );
-  const anchoredProspects = NFL_PROSPECTS_2026.map((prospect) => ({
-    ...prospect,
-    boardStatus: orderProspectSet.has(prospect.name)
-      ? "boarded"
-      : "simulation_only",
+function getProspectArray() {
+  return Object.entries(PROSPECTS_2026).map(([name, p]) => ({
+    name,
+    ...p,
+    boardStatus: "verified_pool",
   }));
-
-  return {
-    year: 2026,
-    inferredYear,
-    bundleWarning,
-    draftWindowStartUtc: "2026-04-23T00:00:00.000Z",
-    draftWindowEndUtc: "2026-04-26T08:00:00.000Z",
-    event: {
-      label: "2026 NFL Draft",
-      location: "Pittsburgh, PA",
-      round1LocalDate: "2026-04-23",
-      rounds234: "2026-04-24 — 2026-04-25",
-    },
-    fullOrder: order,
-    teamNeeds: TEAM_NEEDS_2026,
-    prospects: anchoredProspects,
-    boardSourceAttribution:
-      "257-pick league slot order (pre–live draft). Regenerate JSON after NFL Operations / club transactions update slots.",
-    tradeDigest: TRADE_DIGEST_2026,
-    officialRoundOne: OFFICIAL_ROUND_ONE,
-    officialRoundOneLastVerified: OFFICIAL_ROUND_ONE_LAST_VERIFIED,
-  };
 }
 
-function tryLoadOrder(year) {
-  const p = join(__dirname, "data", `nfl-draft-order-${year}.json`);
-  if (!fs.existsSync(p)) return null;
-  return JSON.parse(fs.readFileSync(p, "utf8"));
+export function getNflTeamNameFromAbbr(abbr) {
+  return ABBR_TO_FULL[String(abbr || "").toUpperCase()] || null;
 }
 
-/** Bundle for UR Take / nfl-context. Falls back to 2026 order with warning until new JSON lands. */
+export function getNflTeamAbbrFromName(name) {
+  return FULL_TO_ABBR[String(name || "").trim()] || null;
+}
+
 export function getActiveDraftBundle(now = new Date()) {
   const inferred = inferActiveDraftClassYear(now);
-  if (inferred === 2026) {
-    return build2026Bundle({ inferredYear: 2026, bundleWarning: null });
-  }
-  const order = tryLoadOrder(inferred);
-  if (order?.length) {
-    return {
-      year: inferred,
-      inferredYear: inferred,
-      bundleWarning: null,
-      draftWindowStartUtc: `${inferred}-04-22T04:00:00.000Z`,
-      draftWindowEndUtc: `${inferred}-04-26T08:00:00.000Z`,
-      event: {
-        label: `${inferred} NFL Draft`,
-        location: "TBD — update nfl-draft-season.js",
-        round1LocalDate: `${inferred}-04-24`,
-        rounds234: "—",
-      },
-      fullOrder: order,
-      teamNeeds: TEAM_NEEDS_2026,
-      prospects: NFL_PROSPECTS_2026.map((prospect) => ({
-        ...prospect,
-        boardStatus: "simulation_only",
-      })),
-      boardSourceAttribution: `Slot order file nfl-draft-order-${inferred}.json — refresh team needs file for ${inferred}.`,
-      tradeDigest: "Update TRADE_DIGEST for this class in nfl-draft-season.js.",
-      officialRoundOne: [],
-      officialRoundOneLastVerified: null,
-    };
-  }
-  return build2026Bundle({
+  const classYear = inferred === 2026 ? 2026 : 2026;
+  const bundleWarning =
+    inferred !== 2026
+      ? `No verified ${inferred} draft dataset loaded yet — using 2026 verified pool and order as fallback.`
+      : null;
+
+  return {
+    year: classYear,
     inferredYear: inferred,
-    bundleWarning: `No api/data/nfl-draft-order-${inferred}.json yet — using 2026 slot order as provisional.`,
-  });
+    bundleWarning,
+    draftWindowStartUtc: `${classYear}-04-23T00:00:00.000Z`,
+    draftWindowEndUtc: `${classYear}-04-26T08:00:00.000Z`,
+    event: {
+      label: `${classYear} NFL Draft`,
+      location: DRAFT_META_2026.location,
+      round1LocalDate: DRAFT_META_2026.dates.round1,
+      rounds234: `${DRAFT_META_2026.dates.rounds2to3} — ${DRAFT_META_2026.dates.rounds4to7}`,
+    },
+    fullOrder: DRAFT_ORDER_2026,
+    teams: TEAM_DRAFT_STATE_2026,
+    teamNeeds: TEAM_NEEDS_2026,
+    prospects: getProspectArray(),
+    meta: { ...DRAFT_META_2026, phase: DRAFT_META_2026.phase },
+    phase: DRAFT_META_2026.phase,
+    boardSourceAttribution:
+      "NFL.com prospect tracker + OTC order/cap framing + ESPN/Ringer contextual board validation.",
+    tradeDigest: TRADE_DIGEST_2026,
+    officialRoundOne: [],
+    officialRoundOneLastVerified: null,
+  };
 }
 
 function normalizeProspectName(name) {
@@ -157,10 +136,13 @@ export function getNflDraftPhase(now = new Date(), bundle = getActiveDraftBundle
   const t = now.getTime();
   const start = Date.parse(bundle.draftWindowStartUtc);
   const end = Date.parse(bundle.draftWindowEndUtc);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return "pre_draft";
-  if (t < start) return "pre_draft";
-  if (t < end) return "during_draft";
-  return "post_draft";
+  if (Number.isFinite(start) && Number.isFinite(end)) {
+    if (t < start) return "pre_draft";
+    if (t < end) return "during_draft";
+    return "post_draft";
+  }
+  if (bundle?.meta?.phase) return bundle.meta.phase;
+  return "pre_draft";
 }
 
 export function getNflDraftMeta(now = new Date(), bundle = getActiveDraftBundle(now)) {
@@ -174,6 +156,8 @@ export function getNflDraftMeta(now = new Date(), bundle = getActiveDraftBundle(
     officialRoundOneLastVerified: bundle.officialRoundOneLastVerified,
     draftWindowUtc: { start: bundle.draftWindowStartUtc, end: bundle.draftWindowEndUtc },
     bundleWarning: bundle.bundleWarning || null,
+    fullOrderCount: Array.isArray(bundle?.fullOrder) ? bundle.fullOrder.length : 0,
+    teamNeeds: bundle?.teamNeeds || {},
   };
 }
 
@@ -232,6 +216,7 @@ export function buildNflDraftBoardBlock(meta = getNflDraftMeta(), bundle = getAc
     })}`,
     "ROUND 1 SLOT ORDER (cite overall # + team exactly):",
     formatRoundOneFromBundle(bundle),
+    `VERIFIED PROSPECT POOL: ${Array.isArray(bundle.prospects) ? bundle.prospects.length : 0} players (rounds 1-4 focus).`,
     `FULL DRAFT LENGTH: ${bundle.fullOrder.length} slots (Rounds 1–7 incl. comp/JC2A flags in JSON).`,
     "PRE-DRAFT TRADE DIGEST (capital levers — not future picks):",
     bundle.tradeDigest,
@@ -287,9 +272,12 @@ export function resolveNflTeamFromQuestion(question) {
 
 export function buildTeamDraftFocusBlock(team, bundle = getActiveDraftBundle()) {
   if (!team) return "";
-  const picks = bundle.fullOrder.filter((p) => p.team === team).sort((a, b) => a.overall - b.overall);
+  const teamAbbr = getNflTeamAbbrFromName(team);
+  const picks = teamAbbr
+    ? bundle.fullOrder.filter((p) => getNflTeamAbbrFromName(p.team) === teamAbbr).sort((a, b) => a.overall - b.overall)
+    : bundle.fullOrder.filter((p) => p.team === team).sort((a, b) => a.overall - b.overall);
   if (!picks.length) return "";
-  const needs = bundle.teamNeeds?.[team];
+  const needs = bundle.teamNeeds?.[team] || null;
   const lines = picks.map((p) => {
     const flag = p.slotNote ? ` [${p.slotNote}]` : "";
     return `Round ${p.round} pick ${p.pickInRound} — Overall ${p.overall}${flag}`;

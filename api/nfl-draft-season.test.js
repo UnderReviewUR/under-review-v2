@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildTeamDraftFocusBlock,
   getActiveDraftBundle,
+  getNflDraftPhase,
   isKnownDraftProspect,
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
@@ -31,11 +32,18 @@ test("draft bundle includes anchored prospects and simulation-only status", () =
   const prospects = bundle.prospects || [];
   const mendoza = prospects.find((p) => p.name === "Fernando Mendoza");
   assert.ok(mendoza);
-  assert.equal(mendoza.boardStatus, "simulation_only");
+  assert.equal(mendoza.boardStatus, "verified_pool");
 });
 
 test("unknown prospect labels as simulation-only candidate", () => {
   const bundle = getActiveDraftBundle(new Date("2026-04-01T12:00:00Z"));
   assert.equal(isKnownDraftProspect("Fernando Mendoza", bundle), true);
   assert.equal(isKnownDraftProspect("Madeup Rookie Name", bundle), false);
+});
+
+test("getNflDraftPhase follows draft window UTC bounds", () => {
+  const bundle = getActiveDraftBundle(new Date("2026-04-01T12:00:00Z"));
+  assert.equal(getNflDraftPhase(new Date("2026-04-01T12:00:00Z"), bundle), "pre_draft");
+  assert.equal(getNflDraftPhase(new Date("2026-04-24T12:00:00Z"), bundle), "during_draft");
+  assert.equal(getNflDraftPhase(new Date("2026-05-01T12:00:00Z"), bundle), "post_draft");
 });
