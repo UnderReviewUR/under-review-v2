@@ -9,8 +9,13 @@ export function resolveF1RaceStart(race, sessions = []) {
           s?.meeting_key == null ||
           String(s.meeting_key) === String(race.meeting_key);
         if (!sameMeeting) return false;
-        const name = String(s?.session_name || "").toLowerCase();
-        return name === "race" || name.includes("grand prix");
+        const name = String(s?.session_name || "").trim().toLowerCase();
+        if (name !== "race") return false;
+        const banned = ["sprint", "practice", "qualifying", "qualy", "shakedown"];
+        for (const b of banned) {
+          if (name.includes(b)) return false;
+        }
+        return true;
       })
     : [];
 

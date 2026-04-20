@@ -16,6 +16,9 @@
     },
     "api/tennis.js": {
       "maxDuration": 45
+    },
+    "api/today-slate.js": {
+      "maxDuration": 60
     }
   },
   "crons": [

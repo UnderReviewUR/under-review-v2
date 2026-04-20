@@ -954,6 +954,148 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
   return merged.slice(-maxMessages);
 }
 
+function tryParseJsonObject(text) {
+  const raw = String(text || "").trim();
+  const parse = (s) => {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return null;
+    }
+  };
+  let o = parse(raw);
+  if (o) return o;
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) {
+    o = parse(fence[1].trim());
+    if (o) return o;
+  }
+  const m = raw.match(/\{[\s\S]*\}\s*$/);
+  if (m) return parse(m[0]);
+  return null;
+}
+
+function isTier1InformationalQuestion(question) {
+  const q = normalizeText(question);
+  if (
+    q.includes("who wins") ||
+    q.includes(" vs ") ||
+    q.includes(" v ") ||
+    q.includes("prop") ||
+    q.includes("spread") ||
+    q.includes("total") ||
+    q.includes("cover") ||
+    q.includes("k prop") ||
+    q.includes("strikeout") ||
+    q.includes("pitcher")
+  ) {
+    return false;
+  }
+  if (/\b(is|are|will|does)\s+.+\s+(playing|play|start|starting|active|available|dress)\b/.test(q)) return true;
+  if (/\b(what time|when does|where is the game)\b/.test(q)) return true;
+  return false;
+}
+
+function shouldUseTier25WithDeep({ question, matchupContext, sportHint }) {
+  if (matchupContext) return true;
+  const q = normalizeText(question);
+  if (q.includes("who wins") || q.includes(" who wins")) return true;
+  if (q.includes(" vs ") || q.includes(" v ") || q.includes(" @ ")) return true;
+  if (q.includes("prop")) return true;
+  if (q.includes("cover") || q.includes("spread") || q.includes("total")) return true;
+  if (q.includes("strikeout") || q.includes("k prop") || (q.includes("pitcher") && q.includes("tonight"))) return true;
+  const s = String(sportHint || "").toLowerCase();
+  if (s && s !== "generic" && s !== "image_review") {
+    if (/\b(best|lean|edge|angle|fade|lock|pick|bet)\b/.test(q)) return true;
+  }
+  return false;
+}
+
+function resolveOutputJsonMode({
+  chaseSignals,
+  intent,
+  hasImage,
+  liveSignals,
+  question,
+  matchupContext,
+  sportHint,
+}) {
+  if (chaseSignals?.isChase) return "plain";
+  if (intent === "slip_review") return "plain";
+  if (hasImage && liveSignals?.isLive) return "tier2_live_json";
+  if (isTier1InformationalQuestion(question)) return "tier1_json";
+  if (
+    isSettledFactQuestion(question) &&
+    !shouldUseTier25WithDeep({ question, matchupContext, sportHint })
+  ) {
+    return "tier1_json";
+  }
+  if (shouldUseTier25WithDeep({ question, matchupContext, sportHint })) return "tier2_5_json";
+  return "plain";
+}
+
+function buildJsonOutputContract(mode, sportHint) {
+  const sport = String(sportHint || "generic").toLowerCase();
+
+  const tier25Spec = `TIER 2.5 — DEFAULT MATCHUP / PROP / SIDE RESPONSE (summary field)
+
+summary must use this exact shape (plain text inside the JSON string, no markdown):
+
+[OPENING LINE — one confident sentence]
+
+MATCH READ
+- [bullet 1 — concrete edge for the favored side — stats or sequences, not "good form"]
+- [bullet 2 — opponent weakness or friction]
+- [bullet 3 — surface / park / venue / matchup factor]
+
+PROP PROJECTIONS
+[3–6 lines minimum when data allows; project STATS not book prices — "project ~7" not "over 6.5 -110"]
+Sport-specific projection lines (pick what fits ${sport}):
+- Tennis: match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.
+- NBA: points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.
+- MLB: SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.
+- NFL: QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.
+- Golf: top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.
+- F1: podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.
+
+CONFIDENCE
+[High / Medium / Speculative] — [one-line justification]
+
+CRITICAL
+- Never say "limited profile", "held back", or apologize for thin data — put uncertainty only in CONFIDENCE.
+- Never invent book lines; estimate stats only.
+- Never include the phrase "See full breakdown" in any field (UI handles that).
+- If you can only produce 1–2 projection lines, confidence must be Speculative.
+
+deep field (same JSON object)
+- Must contain the FULL legacy Tier-3 answer: >> opener line then THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING sections exactly as in the base system prompt.
+- Plain text inside the JSON string, no markdown.`;
+
+  if (mode === "tier1_json") {
+    return `OUTPUT CONTRACT — TIER 1 (mandatory)
+Return ONLY valid JSON on a single line or pretty-printed:
+{"summary":"<1–3 plain sentences factual answer — no sections, no >> line>"}
+No other keys. No markdown.`;
+  }
+
+  if (mode === "tier2_live_json") {
+    return `OUTPUT CONTRACT — TIER 2 LIVE (mandatory)
+Return ONLY valid JSON:
+{"summary":"<full compressed live response: LIVE CALL, THE MATH, WHY NOW, CLOCK, WATCH FOR — show arithmetic explicitly>"}
+No other keys. No markdown.`;
+  }
+
+  if (mode === "tier2_5_json") {
+    return `OUTPUT CONTRACT — TIER 2.5 + DEEP (mandatory)
+Return ONLY valid JSON with exactly these keys:
+{"summary":"...","deep":"..."}
+
+${tier25Spec}`;
+  }
+
+  return "";
+}
+
 function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, image }) {
   const prior = intent === "slip_review" ? [] : normalizeIncomingChatHistory(history);
 
@@ -1402,6 +1544,29 @@ TENNIS MODE (mandatory)
     baseSystemPrompt,
     tennisSystemPromptExtra,
   );
+
+  const outputJsonMode = resolveOutputJsonMode({
+    chaseSignals,
+    intent,
+    hasImage,
+    liveSignals,
+    question,
+    matchupContext,
+    sportHint,
+  });
+  const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint);
+  const systemPromptForModel =
+    outputJsonMode !== "plain" && jsonContract
+      ? `${systemPrompt}
+
+JSON RESPONSE MODE (overrides conflicting FORMATTING / DEFAULT RESPONSE FORMAT rules above for this turn only)
+For matchup, player prop, and "who wins" style questions when this contract applies, return JSON with summary (Tier 2.5) and deep (Tier 3 full format).
+For factual Tier-1 questions, return JSON with only summary as a short string.
+For live in-game Tier-2 questions, return JSON with only summary in the compressed live format.
+For all other questions where no contract is attached, use plain text as already specified.
+
+${jsonContract}`
+      : systemPrompt;
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
 
@@ -2217,13 +2382,22 @@ Rules:
     const factualQuestion = isSettledFactQuestion(question);
     const selectedTemperature = factualQuestion ? 0.2 : 0.45;
 
+    const tokenBudget =
+      outputJsonMode === "tier2_5_json"
+        ? 4200
+        : outputJsonMode === "tier2_live_json"
+          ? 2200
+          : outputJsonMode === "tier1_json"
+            ? 700
+            : 800;
+
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
-      system: systemPrompt,
+      system: systemPromptForModel,
       messages,
       temperature: selectedTemperature,
-      max_tokens: 800,
+      max_tokens: tokenBudget,
     });
 
     if (!result.ok) {
@@ -2261,8 +2435,21 @@ Rules:
       });
     }
 
+    let responseText = text;
+    let responseDeep = null;
+    let responseFormat = "plain";
+    if (outputJsonMode !== "plain") {
+      const parsed = tryParseJsonObject(text);
+      if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
+        responseText = parsed.summary.trim();
+        responseDeep =
+          typeof parsed.deep === "string" && parsed.deep.trim() ? parsed.deep.trim() : null;
+        responseFormat = outputJsonMode;
+      }
+    }
+
     const takeRecord = extractTakeFromResponse({
-      responseText: text,
+      responseText,
       sport: sportHint || "generic",
       intent,
       question,
@@ -2276,7 +2463,9 @@ Rules:
     }
 
     return res.status(200).json({
-      response: text,
+      response: responseText,
+      responseDeep,
+      responseFormat,
       sport: sportHint || "generic",
       intent,
       take: {

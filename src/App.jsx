@@ -630,6 +630,7 @@ ${themeCss}
         text: data.response || "Couldn't get a response — try again.",
         sport: sportForBubble || undefined,
         takeMeta: data.take ? { confidence: data.take.confidence } : null,
+        deepText: data.responseDeep || null,
       },
     ]);
     lastUrTakeSportRef.current = sportForBubble;
@@ -1317,14 +1318,15 @@ ${themeCss}
             >
               🎾 {pillLabel}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>{away}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffff", lineHeight: 1.2 }}>{away}</div>
             <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
             {scoreLine ? (
               <div
                 style={{
                   fontFamily: "var(--mono-font)",
                   fontSize: 11,
-                  color: "var(--soft)",
+                  color: "#ffffff",
+                  fontWeight: 600,
                   marginTop: 2,
                 }}
               >

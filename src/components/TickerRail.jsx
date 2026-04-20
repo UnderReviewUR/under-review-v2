@@ -1,6 +1,16 @@
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
 import { isGolfEventFinished } from "../lib/golfEventStatus.js";
 
+/** Live Snapshot — primary scores/names pop on dark cards; metadata stays dim. */
+const SNAP_PRI = { color: "#ffffff", fontWeight: 600 };
+const SNAP_SCORE = {
+  fontFamily: "var(--mono-font)",
+  fontSize: 11,
+  color: "#ffffff",
+  fontWeight: 600,
+  marginTop: 2,
+};
+
 export default function TickerRail({
   isNflInSeason,
   goNfl,
@@ -62,7 +72,7 @@ export default function TickerRail({
           >
             🏈 NFL
           </div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
+          <div style={{ fontSize: 12, ...SNAP_PRI }}>
             Weekly Props
           </div>
           <div style={{ fontSize: 10, color: "var(--muted)" }}>Live board →</div>
@@ -104,20 +114,13 @@ export default function TickerRail({
                   🏀 {isLive ? "● LIVE" : g.status}
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
+                <div style={{ fontSize: 12, lineHeight: 1.2, ...SNAP_PRI }}>
                   {away}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
 
                 {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
+                  <div style={SNAP_SCORE}>
                     {g.awayTeam.score}-{g.homeTeam.score}
                   </div>
                 )}
@@ -173,7 +176,8 @@ export default function TickerRail({
                   style={{
                     fontFamily: "var(--mono-font)",
                     fontSize: 8,
-                    color: "var(--muted)",
+                    color: "#ffffff",
+                    fontWeight: 600,
                     marginBottom: 5,
                     letterSpacing: 1,
                   }}
@@ -190,7 +194,8 @@ export default function TickerRail({
                       alignItems: "center",
                       fontSize: 11,
                       lineHeight: 1.5,
-                      color: i === 0 ? "var(--text)" : "var(--muted)",
+                      color: "#ffffff",
+                      fontWeight: i === 0 ? 600 : 500,
                     }}
                   >
                     <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -204,7 +209,7 @@ export default function TickerRail({
                       >
                         {p.position || i + 1}
                       </span>
-                      <span style={{ fontWeight: i === 0 ? 700 : 500 }}>
+                      <span style={{ fontWeight: i === 0 ? 600 : 500, color: "#ffffff" }}>
                         {String(p.name || "").split(" ").pop()}
                       </span>
                     </span>
@@ -212,11 +217,12 @@ export default function TickerRail({
                     <span
                       style={{
                         fontFamily: "var(--mono-font)",
+                        fontWeight: 600,
                         color:
                           p.score && String(p.score).startsWith("-")
                             ? "#00E676"
                             : p.score === "E"
-                            ? "var(--text)"
+                            ? "#ffffff"
                             : "#FF4444",
                       }}
                     >
@@ -307,20 +313,13 @@ export default function TickerRail({
                   ⚾ {isLive ? "● LIVE" : g.status}
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
+                <div style={{ fontSize: 12, lineHeight: 1.2, ...SNAP_PRI }}>
                   {away}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
 
                 {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
+                  <div style={SNAP_SCORE}>
                     {g.awayTeam.score}-{g.homeTeam.score}
                   </div>
                 )}
@@ -364,20 +363,13 @@ export default function TickerRail({
                   🏀 {isLive ? "● LIVE" : g.status}
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
+                <div style={{ fontSize: 12, lineHeight: 1.2, ...SNAP_PRI }}>
                   {away}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
 
                 {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
+                  <div style={SNAP_SCORE}>
                     {g.awayTeam.score}-{g.homeTeam.score}
                   </div>
                 )}
@@ -433,7 +425,8 @@ export default function TickerRail({
                   style={{
                     fontFamily: "var(--mono-font)",
                     fontSize: 8,
-                    color: "var(--muted)",
+                    color: "#ffffff",
+                    fontWeight: 600,
                     marginBottom: 5,
                     letterSpacing: 1,
                   }}
@@ -450,7 +443,8 @@ export default function TickerRail({
                       alignItems: "center",
                       fontSize: 11,
                       lineHeight: 1.5,
-                      color: i === 0 ? "var(--text)" : "var(--muted)",
+                      color: "#ffffff",
+                      fontWeight: i === 0 ? 600 : 500,
                     }}
                   >
                     <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -464,7 +458,7 @@ export default function TickerRail({
                       >
                         {p.position || i + 1}
                       </span>
-                      <span style={{ fontWeight: i === 0 ? 700 : 500 }}>
+                      <span style={{ fontWeight: i === 0 ? 600 : 500, color: "#ffffff" }}>
                         {String(p.name || "").split(" ").pop()}
                       </span>
                     </span>
@@ -472,11 +466,12 @@ export default function TickerRail({
                     <span
                       style={{
                         fontFamily: "var(--mono-font)",
+                        fontWeight: 600,
                         color:
                           p.score && String(p.score).startsWith("-")
                             ? "#00E676"
                             : p.score === "E"
-                            ? "var(--text)"
+                            ? "#ffffff"
                             : "#FF4444",
                       }}
                     >
@@ -567,20 +562,13 @@ export default function TickerRail({
                   ⚾ {isLive ? "● LIVE" : g.status}
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", lineHeight: 1.2 }}>
+                <div style={{ fontSize: 12, lineHeight: 1.2, ...SNAP_PRI }}>
                   {away}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
 
                 {isLive && g.awayTeam?.score != null && (
-                  <div
-                    style={{
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 11,
-                      color: "var(--soft)",
-                      marginTop: 2,
-                    }}
-                  >
+                  <div style={SNAP_SCORE}>
                     {g.awayTeam.score}-{g.homeTeam.score}
                   </div>
                 )}
@@ -614,7 +602,7 @@ export default function TickerRail({
                 >
                   🏎️ F1 NEXT
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                <div style={{ fontSize: 11, lineHeight: 1.3, ...SNAP_PRI }}>
                   {f1Data.schedule.races.find((r) => r.is_next).meeting_name}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>

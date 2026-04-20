@@ -72,7 +72,19 @@ export function migrateTakeStatuses(take) {
 }
 
 export function extractTakeFromResponse({ responseText, sport, intent, question }) {
-  const playLine = extractSectionValue(responseText, "THE PLAY");
+  let playLine = extractSectionValue(responseText, "THE PLAY");
+  if (!playLine) {
+    playLine = extractSectionValue(responseText, "OPENING LINE");
+  }
+  if (!playLine) {
+    const lines = String(responseText || "")
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const skip = /^(MATCH READ|PROP PROJECTIONS|LIVE CALL|THE MATH)\b/i;
+    const first = lines.find((l) => l.length > 0 && !skip.test(l));
+    if (first && first.length < 240) playLine = first;
+  }
   const confidenceLine =
     extractSectionValue(responseText, "CONFIDENCE") || "Unspecified";
   const timingLine = extractSectionValue(responseText, "TIMING");

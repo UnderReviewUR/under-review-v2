@@ -1,4 +1,4 @@
-import { useLayoutEffect, useContext, useRef } from "react";
+import { useLayoutEffect, useContext, useRef, useState } from "react";
 import { PerformanceContext } from "../../context/PerformanceContext.jsx";
 import {
   normalizeConfidenceTier,
@@ -398,6 +398,7 @@ export function LoadingBubble({ sport }) {
 }
 
 function UrTakeAiBubble({ m, performanceData }) {
+  const [deepOpen, setDeepOpen] = useState(false);
   const tier = m.takeMeta ? normalizeConfidenceTier(m.takeMeta.confidence) : null;
   const tierSnapshots = performanceData ? mergeTierSnapshots(performanceData.byConfidence) : null;
   const histSnap = tier && tierSnapshots ? tierSnapshots[tier] : null;
@@ -418,6 +419,31 @@ function UrTakeAiBubble({ m, performanceData }) {
         </div>
       )}
       {renderMessage(m.text)}
+      {m.deepText ? (
+        <div style={{ marginTop: 12 }}>
+          {!deepOpen ? (
+            <button type="button" className="quick-btn" onClick={() => setDeepOpen(true)} style={{ fontSize: 11 }}>
+              See full breakdown
+            </button>
+          ) : (
+            <>
+              <div
+                style={{
+                  fontFamily: "var(--mono-font)",
+                  fontSize: 10,
+                  letterSpacing: 1.2,
+                  color: "var(--muted)",
+                  margin: "12px 0 8px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Full breakdown
+              </div>
+              {renderMessage(m.deepText)}
+            </>
+          )}
+        </div>
+      ) : null}
       {m.takeMeta && tier ? (
         <div
           style={{
@@ -455,7 +481,7 @@ export function ChatThread({ msgs }) {
           <LoadingBubble key={i} sport={m.sport} />
         ) : (
           <div key={i} className={`bubble ${m.role}`}>
-            {m.role === "ai" && m.takeMeta ? (
+            {m.role === "ai" && (m.takeMeta || m.deepText) ? (
               <UrTakeAiBubble m={m} performanceData={performanceData} />
             ) : (
               <>

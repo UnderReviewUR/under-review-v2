@@ -188,49 +188,40 @@ function buildSchedule(meetings) {
   };
 }
 
+/**
+ * OpenF1: use the Grand Prix session only — session_name must be exactly "Race"
+ * (case-insensitive). Ignore practice, qualifying, sprint, shakedown, etc.
+ */
 function extractRaceSessionStart(sessions) {
   if (!Array.isArray(sessions) || sessions.length === 0) return null;
+  const excluded = ["sprint", "practice", "qualifying", "qualy", "shakedown"];
   const raceSessions = sessions.filter((s) => {
-    const name = String(s?.session_name || "").toLowerCase();
-    if (!name) return false;
-    if (name.includes("sprint")) return false;
-    return name === "race" || name.includes("grand prix");
+    const raw = String(s?.session_name || "").trim();
+    const name = raw.toLowerCase();
+    if (name !== "race") return false;
+    for (const ex of excluded) {
+      if (name.includes(ex)) return false;
+    }
+    return true;
   });
   if (!raceSessions.length) return null;
   raceSessions.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
   return raceSessions[0]?.date_start || null;
 }
 
-function applyRaceStartToSchedule(schedule, meetingKey, raceStart) {
-  if (!schedule || !meetingKey || !raceStart) return schedule;
-  const patchRace = (r) =>
-    String(r?.meeting_key || "") === String(meetingKey)
-      ? { ...r, race_start: raceStart }
-      : r;
+/** Apply OpenF1 race session starts per meeting_key (null = leave race_start unchanged). */
+function applyRaceStartsMapToSchedule(schedule, startByMeeting) {
+  if (!schedule || !(startByMeeting instanceof Map) || startByMeeting.size === 0) return schedule;
+  const patchRace = (r) => {
+    const mk = r?.meeting_key;
+    if (mk == null) return r;
+    const st = startByMeeting.get(mk);
+    return st ? { ...r, race_start: st } : r;
+  };
 
   return {
     ...schedule,
     races: Array.isArray(schedule.races) ? schedule.races.map(patchRace) : [],
-    upcoming: Array.isArray(schedule.upcoming) ? schedule.upcoming.map(patchRace) : [],
-    past: Array.isArray(schedule.past) ? schedule.past.map(patchRace) : [],
-    current: Array.isArray(schedule.current) ? schedule.current.map(patchRace) : [],
-  };
-}
-
-/** F1.com lists Miami GP race at 20:00 track time (America/New_York). OpenF1 session times can drift; fix display. */
-const MIAMI_GP_2026_RACE_START = "2026-05-03T20:00:00-04:00";
-
-function patchKnownGrandPrixStartTimes(schedule) {
-  if (!schedule?.races || !Array.isArray(schedule.races)) return schedule;
-
-  const patchRace = (r) => {
-    if (String(r?.meeting_name || "") !== "Miami Grand Prix") return r;
-    return { ...r, race_start: MIAMI_GP_2026_RACE_START };
-  };
-
-  return {
-    ...schedule,
-    races: schedule.races.map(patchRace),
     upcoming: Array.isArray(schedule.upcoming) ? schedule.upcoming.map(patchRace) : schedule.upcoming,
     past: Array.isArray(schedule.past) ? schedule.past.map(patchRace) : schedule.past,
     current: Array.isArray(schedule.current) ? schedule.current.map(patchRace) : schedule.current,
@@ -267,18 +258,28 @@ async function getScheduleData() {
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
   let data = buildSchedule(result.ok ? result.data : null);
 
-  // Enrich next race with actual race session start time.
-  if (data?.next_meeting_key) {
-    const sessionsRes = await safeFetch(`/sessions?meeting_key=${data.next_meeting_key}`, {
-      timeoutMs: 5000,
-    });
-    const raceStart = extractRaceSessionStart(
-      sessionsRes.ok && Array.isArray(sessionsRes.data) ? sessionsRes.data : []
-    );
-    data = applyRaceStartToSchedule(data, data.next_meeting_key, raceStart);
-  }
+  const rows = [
+    ...(Array.isArray(data?.upcoming) ? data.upcoming : []),
+    ...(Array.isArray(data?.current) ? data.current : []),
+  ];
+  const meetingKeys = [...new Set(rows.map((r) => r?.meeting_key).filter((k) => k != null))].slice(0, 18);
 
-  data = patchKnownGrandPrixStartTimes(data);
+  const startByMeeting = new Map();
+  await Promise.all(
+    meetingKeys.map(async (mk) => {
+      const sessionsRes = await safeFetch(`/sessions?meeting_key=${mk}`, { timeoutMs: 5000 });
+      const raceStart = extractRaceSessionStart(
+        sessionsRes.ok && Array.isArray(sessionsRes.data) ? sessionsRes.data : [],
+      );
+      if (!raceStart) {
+        console.warn(`[f1] No OpenF1 session with session_name "Race" for meeting_key=${mk}`);
+      } else {
+        startByMeeting.set(mk, raceStart);
+      }
+    }),
+  );
+
+  data = applyRaceStartsMapToSchedule(data, startByMeeting);
 
   setCached("f1_schedule_v4", data, CACHE_TTL.schedule);
   return data;

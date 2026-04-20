@@ -1,5 +1,6 @@
 import AskBar from "../components/AskBar.jsx";
 import TickerRail from "../components/TickerRail.jsx";
+import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 import UrTakeRecordPanel from "../components/UrTakeRecordPanel.jsx";
 
 export default function HomeScreen({
@@ -84,6 +85,8 @@ export default function HomeScreen({
               mlbData={mlbData}
               f1Data={f1Data}
             />
+
+            <TodaySlatePanel />
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
             {homeCards.map(m=>(
