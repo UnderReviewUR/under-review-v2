@@ -417,12 +417,36 @@ function attachTonightGamesFromProps(playerStats, propLines) {
 
 const ROSTER_GROUNDING_MAX_NAMES_PER_TEAM = 45;
 
+function parseTonightGameAbbrs(tonightGame) {
+  const s = String(tonightGame || "").trim();
+  const m = s.match(/^([A-Z0-9]{2,4})\s*@\s*([A-Z0-9]{2,4})$/i);
+  if (!m) return null;
+  const away = m[1].toUpperCase();
+  const home = m[2].toUpperCase();
+  if (!away || !home || away === "?" || home === "?") return null;
+  return { away, home };
+}
+
+function collectTonightTeamAbbrevs(todaysGames) {
+  const set = new Set();
+  for (const g of todaysGames || []) {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa && aa !== "?") set.add(aa);
+    if (ha && ha !== "?") set.add(ha);
+  }
+  return set;
+}
+
 /**
- * Per-team player names derived only from API payloads (box stats, injuries, prop↔stats match).
+ * Per-team player names derived only from API payloads (box stats, injuries, prop↔stats match,
+ * plus tonightGame + todaysGames for verified slate team keys).
  * UR Take uses this to block hallucinated teammate pairings — never trust static training rosters.
  */
-function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource) {
+function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource, todaysGames) {
   const playersByTeamAbbrev = {};
+  const tonightTeams = collectTonightTeamAbbrevs(todaysGames);
+
   const add = (abbr, name) => {
     const a = String(abbr || "").toUpperCase();
     const n = String(name || "").trim();
@@ -432,14 +456,6 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource) 
     if (!list.includes(n) && list.length < ROSTER_GROUNDING_MAX_NAMES_PER_TEAM) list.push(n);
   };
 
-  for (const p of playerStats || []) {
-    if (p?.team && p?.name) add(p.team, p.name);
-  }
-
-  for (const inj of injuries || []) {
-    if (inj?.team && inj?.player) add(inj.team, inj.player);
-  }
-
   const teamByPropPlayerLower = new Map();
   for (const p of playerStats || []) {
     const k = String(p.name || "")
@@ -448,12 +464,57 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource) 
     if (!k || !p.team || p.team === "UNK") continue;
     if (!teamByPropPlayerLower.has(k)) teamByPropPlayerLower.set(k, p.team);
   }
+
+  for (const p of playerStats || []) {
+    const name = String(p?.name || "").trim();
+    if (!name || !p?.team) continue;
+
+    const tg = parseTonightGameAbbrs(p.tonightGame);
+    if (tg) {
+      const tu = String(p.team || "").toUpperCase();
+      let resolved = tu === tg.away || tu === tg.home ? tu : "";
+      if (!resolved) {
+        const fromProp = String(teamByPropPlayerLower.get(name.toLowerCase()) || "").toUpperCase();
+        if (fromProp === tg.away || fromProp === tg.home) resolved = fromProp;
+      }
+      if (resolved) add(resolved, name);
+      continue;
+    }
+
+    if (statsSource === "game_box") {
+      add(p.team, name);
+    } else if (tonightTeams.size === 0 || tonightTeams.has(String(p.team || "").toUpperCase())) {
+      add(p.team, name);
+    }
+  }
+
+  for (const inj of injuries || []) {
+    if (inj?.team && inj?.player) add(inj.team, inj.player);
+  }
+
   for (const pl of propLines || []) {
     const pname = pl?.player;
     if (!pname) continue;
     const k = String(pname).trim().toLowerCase();
     const t = teamByPropPlayerLower.get(k);
     if (t) add(t, pname);
+  }
+
+  let rosterGroundingQuality;
+  if (statsSource === "season_average" && tonightTeams.size > 0) {
+    const thinTeams = [];
+    for (const abbr of tonightTeams) {
+      const n = (playersByTeamAbbrev[abbr] || []).length;
+      if (n < 3) thinTeams.push(`${abbr}:${n}`);
+    }
+    if (thinTeams.length > 0) {
+      rosterGroundingQuality = "thin";
+      console.warn(
+        `[nba] rosterGroundingQuality=thin (season_average). Teams with <3 verified names: ${thinTeams.join(
+          ", ",
+        )}`,
+      );
+    }
   }
 
   const trustNote =
@@ -464,8 +525,9 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource) 
   return {
     playersByTeamAbbrev,
     trustNote,
+    rosterGroundingQuality,
     rule:
-      "ROSTER GROUNDING: When naming NBA players as on a team, teammates, or primary/secondary options FOR that team, ONLY use full names listed under that team's abbreviation in playersByTeamAbbrev. Do not name any other NBA player as on that team (no memory/training rosters). If you need to refer to others, say 'other rotation players' or 'the rest of the bench' without inventing names.",
+      "Authoritative list is playersByTeamAbbrev (API + tonight slate). Follow UR Take ROSTER ENFORCEMENT block; never use training memory for player-team assignments.",
   };
 }
 
@@ -836,6 +898,7 @@ export default async function handler(req, res) {
           propLines,
           injuries,
           statsBundle.statsSource || "unknown",
+          todaysGames,
         ),
         propLines:   propLines.slice(0, 120),
         injuries,
