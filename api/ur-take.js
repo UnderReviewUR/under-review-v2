@@ -2242,6 +2242,37 @@ The VERIFIED PLAYERS list above overrides playerStatsText for team assignments.
 If a name appears in playerStatsText but not in the verified list for their
 listed team, do not cite them as being on that team tonight.
 
+TEAM-LEVEL READ REQUIREMENTS (mandatory when named players are unavailable)
+
+When you cannot name specific players, you MUST anchor the response to
+verifiable team-level data from the provided nbaContext. Specifically:
+
+1. Series context from playoffSeries — what is the current series record?
+   Who has home court? What were the scores of prior games in this series?
+   This is MORE useful than player names for series betting.
+
+2. Pace and scoring from gameTotals — what is the total line for this game?
+   Is this a high-pace or low-pace matchup based on available data?
+
+3. Injury context from injuries array — are any key players listed as out
+   or doubtful? This directly affects every prop on the slate.
+
+4. Season context from seasonContext — are we in playoffs? What phase?
+   Playoff basketball has specific patterns that change prop values.
+
+Generic statements like "bench guys either explode or vanish" or "home
+court helps the home team" are FORBIDDEN when specific series data,
+injury reports, or game totals are available in the context.
+
+If the injuries array shows a star player is out, LEAD WITH THAT.
+If the series is 3-0, LEAD WITH THAT — series pressure changes everything.
+If the game total is 215.5, that tells you something specific about pace
+expectations. USE IT.
+
+The goal: a user reading this response should learn something specific
+about ATL vs NYK tonight that they couldn't get from a generic sports
+column. If the response could apply to any two playoff teams, rewrite it.
+
 ${ROSTER_ENFORCEMENT_NBA}
 
 Rules:
