@@ -25,6 +25,7 @@ export const baseCss = `
     --border-2:#2A3040;
     --text:#E8EAF0;
     --muted:#AAB3C2;
+    --ask-placeholder:#C8D0DE;
     --soft:#D6DCE6;
     --header-bg:rgba(8,10,12,.97);
     --nav-bg:rgba(8,10,12,.98);
@@ -212,8 +213,8 @@ export const baseCss = `
   .ask-img-remove{background:rgba(255,45,107,.15);border:1px solid rgba(255,45,107,.3);color:var(--magenta);border-radius:6px;padding:3px 8px;font-family:var(--mono-font);font-size:10px;cursor:pointer;}
   /* 16px+ prevents iOS Safari from force-zooming the viewport on input focus */
   .ask-bar{width:100%;border:none;background:transparent;padding:10px 14px;color:var(--text);font-size:16px;line-height:1.35;outline:none;font-family:var(--body-font);-webkit-text-size-adjust:100%;}
-  .ask-bar::placeholder{color:var(--muted);}
-  .ask-hint{font-family:var(--mono-font);font-size:9px;color:var(--muted);letter-spacing:1px;padding:0 14px 8px;opacity:.65;}
+  .ask-bar::placeholder{color:var(--ask-placeholder);opacity:1;}
+  .ask-hint{font-family:var(--mono-font);font-size:9px;color:var(--ask-placeholder);letter-spacing:1px;padding:0 14px 8px;opacity:.78;}
   .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan-bright);color:#080A0C;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
   .send-btn:hover{background:var(--magenta);}
   .send-btn:disabled{background:var(--border);cursor:not-allowed;color:var(--muted);}

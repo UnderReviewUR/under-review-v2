@@ -428,7 +428,8 @@ export const THEMES = {
       }
 
       .theme-epilogue .ask-bar::placeholder {
-        color: rgba(255,255,255,.28);
+        color: rgba(255,255,255,.52);
+        opacity: 1;
       }
 
       .theme-epilogue .send-btn {
@@ -661,6 +662,7 @@ export const THEMES = {
 
       .theme-broadsheet .ask-bar::placeholder {
         color: #8a7a6a;
+        opacity: 1;
       }
 
       .theme-broadsheet .send-btn {
@@ -901,6 +903,7 @@ export const THEMES = {
 
       .theme-crisp .ask-bar::placeholder {
         color: #94A3B8;
+        opacity: 1;
       }
 
       .theme-crisp .send-btn {
