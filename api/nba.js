@@ -500,21 +500,43 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource, 
     if (t) add(t, pname);
   }
 
+  /** Reconcile each slate game: tonightGame must match that game's away@home abbrs. */
+  for (const g of todaysGames || []) {
+    const away = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const home = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (!away || !home || away === "?" || home === "?") continue;
+    for (const p of playerStats || []) {
+      const parsed = parseTonightGameAbbrs(p.tonightGame);
+      if (!parsed || parsed.away !== away || parsed.home !== home) continue;
+      const name = String(p?.name || "").trim();
+      if (!name) continue;
+      const tu = String(p.team || "").toUpperCase();
+      if (tu === away || tu === home) {
+        add(tu, name);
+      } else {
+        const fromProp = String(teamByPropPlayerLower.get(name.toLowerCase()) || "").toUpperCase();
+        if (fromProp === away || fromProp === home) add(fromProp, name);
+      }
+    }
+  }
+
   let rosterGroundingQuality;
-  if (statsSource === "season_average" && tonightTeams.size > 0) {
-    const thinTeams = [];
+  if (tonightTeams.size > 0) {
+    let anyZero = false;
+    let anyUnderFour = false;
     for (const abbr of tonightTeams) {
       const n = (playersByTeamAbbrev[abbr] || []).length;
-      if (n < 3) thinTeams.push(`${abbr}:${n}`);
+      if (n === 0) anyZero = true;
+      if (n < 4) anyUnderFour = true;
     }
-    if (thinTeams.length > 0) {
+    if (anyZero) {
       rosterGroundingQuality = "thin";
-      console.warn(
-        `[nba] rosterGroundingQuality=thin (season_average). Teams with <3 verified names: ${thinTeams.join(
-          ", ",
-        )}`,
-      );
+    } else if (anyUnderFour) {
+      rosterGroundingQuality = "partial";
+    } else {
+      rosterGroundingQuality = "full";
     }
+    console.log(`[nba] rosterGroundingQuality=${rosterGroundingQuality} (tonightTeams=${tonightTeams.size})`);
   }
 
   const trustNote =
@@ -525,7 +547,7 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource, 
   return {
     playersByTeamAbbrev,
     trustNote,
-    rosterGroundingQuality,
+    ...(rosterGroundingQuality ? { rosterGroundingQuality } : {}),
     rule:
       "Authoritative list is playersByTeamAbbrev (API + tonight slate). Follow UR Take ROSTER ENFORCEMENT block; never use training memory for player-team assignments.",
   };

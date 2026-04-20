@@ -1109,13 +1109,45 @@ function collectNbaVerifiedPlayerNamesFromGrounding(nbaContext) {
   return verifiedPlayerNames;
 }
 
-function buildNbaRosterListBlock(nbaContext) {
-  const verifiedPlayerNames = collectNbaVerifiedPlayerNamesFromGrounding(nbaContext);
-  if (verifiedPlayerNames.size > 0) {
-    return `VERIFIED PLAYERS ON TONIGHT'S SLATE:\n${[...verifiedPlayerNames].sort().join(", ")}\n\nDo not name any player not on this list as playing tonight.`;
+function buildNbaRosterListInner(nbaContext) {
+  const q = nbaContext?.rosterGrounding?.rosterGroundingQuality;
+  const names = [...collectNbaVerifiedPlayerNamesFromGrounding(nbaContext)].sort();
+
+  const thinOrAbsentBody = `NO VERIFIED ROSTER DATA FOR TONIGHT'S TEAMS.
+Do not name any specific players for these teams.
+Give team-level analysis only — pace, scheme, series context, matchup profile.
+This is a hard constraint. Inventing player names here destroys user trust.`;
+
+  if (names.length === 0 || q == null || q === "thin") {
+    return thinOrAbsentBody;
   }
-  return `NO VERIFIED ROSTER DATA FOR TONIGHT. Do not name any specific players. Give team-level analysis only.`;
+  if (q === "partial") {
+    return `PARTIAL ROSTER DATA — VERIFIED PLAYERS ONLY:
+${names.join(", ")}
+
+You may ONLY name players on this list. For teams with zero verified players,
+give team-level analysis only. Do not supplement with training memory.`;
+  }
+  if (q === "full") {
+    return `VERIFIED PLAYERS ON TONIGHT'S SLATE:
+${names.join(", ")}
+
+Name only these players when discussing tonight's games.`;
+  }
+  return thinOrAbsentBody;
 }
+
+function buildNbaRosterProminentInjection(nbaContext) {
+  return `════════════════════════════════════════
+${buildNbaRosterListInner(nbaContext)}
+════════════════════════════════════════`;
+}
+
+const NO_MARKET_VERIFIED_PLAYER_STEP_2 = `2. Name at least TWO specific players from the VERIFIED player list only.
+If the verified list has fewer than two players for the teams in question,
+do NOT invent names. Give a team-level read instead with:
+"Lines aren't up yet and roster data is still loading — here's the
+matchup read while we wait: [team-level analysis]."`;
 
 const ROSTER_ENFORCEMENT_NBA = `ROSTER ENFORCEMENT — THIS IS A HARD RULE WITH NO EXCEPTIONS
 
@@ -1146,7 +1178,7 @@ YOU MUST FOLLOW THESE RULES EXACTLY:
    players destroy user trust and make this product worthless. There
    is no acceptable scenario where you invent a player name.
 
-5. When rosterGroundingQuality is "thin", open your response with:
+5. When rosterGroundingQuality is "partial" or "thin", open your response with:
    "Working from partial roster data tonight — " then give the take
    using only the players you CAN verify. This is honest and sharp.
    Do NOT fill thin data with invented names.
@@ -1156,32 +1188,48 @@ every player name you plan to mention → does it appear in
 playersByTeamAbbrev under the correct team? If no → remove it.`;
 
 function buildMlbVerifiedPlayerListBlock(mlbContext) {
-  const names = new Set();
+  const pitchers = [];
+  const propListed = [];
+  const pitSeen = new Set();
+  const propSeen = new Set();
+  const matchupLabels = [];
   for (const g of mlbContext?.games || []) {
+    const hn = String(g?.homeTeam?.name || "").trim();
+    const an = String(g?.awayTeam?.name || "").trim();
+    if (hn || an) matchupLabels.push(`${an || "?"} @ ${hn || "?"}`);
     for (const side of ["homeTeam", "awayTeam"]) {
       const pit = g?.[side]?.pitcher;
-      if (pit != null) {
-        const n = String(pit).trim();
-        if (n) names.add(n);
+      if (pit == null) continue;
+      const n = String(pit).trim();
+      if (n && !pitSeen.has(n)) {
+        pitSeen.add(n);
+        pitchers.push(n);
       }
     }
   }
+  pitchers.sort();
   for (const pl of mlbContext?.propLines || []) {
-    if (pl?.player) names.add(String(pl.player).trim());
+    if (!pl?.player) continue;
+    const n = String(pl.player).trim();
+    if (n && !propSeen.has(n)) {
+      propSeen.add(n);
+      propListed.push(n);
+    }
   }
-  const sorted = [...names].filter(Boolean).sort();
-  if (sorted.length === 0) {
-    return `NO VERIFIED MLB PLAYER NAMES IN THIS PAYLOAD. Do not invent pitchers or batters. Use team-level or park-level analysis only unless games[].homeTeam/awayTeam.pitcher or propLines[].player rows exist in the JSON above.`;
-  }
-  return `VERIFIED MLB NAMES (games probable pitchers + propLines players):\n${sorted.join(", ")}\n\nBefore naming a pitcher or batter, the name must appear in this list OR match exactly games[].homeTeam/awayTeam.pitcher OR propLines[].player in the JSON.`;
+  propListed.sort();
+  const slate =
+    matchupLabels.length > 0
+      ? `Tonight's games (team names from board): ${matchupLabels.join(" | ")}\n\n`
+      : "";
+  return `${slate}VERIFIED MLB PLAYERS TONIGHT:
+Pitchers: ${pitchers.length ? pitchers.join(", ") : "(none in games array)"}
+Prop-listed players: ${propListed.length ? propListed.join(", ") : "(none)"}
+
+Do not name any batter or pitcher not on this list as playing tonight.`;
 }
 
 function buildNflVerifiedPlayerListBlock(nflContextEffective) {
   const set = new Set();
-  for (const n of extractNflPlayersFromContext(nflContextEffective)) {
-    const t = String(n || "").trim();
-    if (t) set.add(t);
-  }
   if (nflContextEffective && typeof nflContextEffective === "object" && !Array.isArray(nflContextEffective)) {
     const ui = nflContextEffective.uiPlayers;
     if (ui && typeof ui === "object") {
@@ -1192,10 +1240,19 @@ function buildNflVerifiedPlayerListBlock(nflContextEffective) {
     }
   }
   const sorted = [...set].sort();
+  const staleNote =
+    "This list is from the offseason knowledge base — treat as directional, not live-verified.";
   if (sorted.length === 0) {
-    return `NO VERIFIED NFL PLAYER NAMES IN THIS PAYLOAD. Do not invent players. Use team- or scheme-level analysis only.`;
+    return `NO VERIFIED NFL PLAYERS (empty uiPlayers keys in context).
+
+${staleNote}`;
   }
-  return `VERIFIED NFL PLAYERS (board context):\n${sorted.join(", ")}\n\nDo not name any NFL player not on this list as active on this slate unless they appear verbatim in the same NFL context JSON.`;
+  return `VERIFIED NFL PLAYERS (uiPlayers keys):
+${sorted.join(", ")}
+
+${staleNote}
+
+Do not name any NFL player not on this list as active on this slate.`;
 }
 
 function collectTennisVerifiedNames(players, liveMatches) {
@@ -1210,8 +1267,8 @@ function collectTennisVerifiedNames(players, liveMatches) {
     }
   }
   for (const m of liveMatches || []) {
-    const h = String(m.raw?.home || "").trim();
-    const a = String(m.raw?.away || "").trim();
+    const h = String(m?.home_team || m?.raw?.home_team || m?.raw?.home || "").trim();
+    const a = String(m?.away_team || m?.raw?.away_team || m?.raw?.away || "").trim();
     if (h) set.add(h);
     if (a) set.add(a);
   }
@@ -1222,9 +1279,12 @@ function buildTennisVerifiedPlayerListBlock(players, liveMatches) {
   const set = collectTennisVerifiedNames(players, liveMatches);
   const sorted = [...set].sort();
   if (sorted.length === 0) {
-    return `NO VERIFIED TENNIS PLAYER NAMES IN THIS PAYLOAD. Do not invent tour players. Use tournament- or card-level framing only.`;
+    return `NO VERIFIED TENNIS PLAYERS in liveMatches (home_team/away_team) or ATP/WTA database keys. Do not invent players.`;
   }
-  return `VERIFIED TENNIS NAMES (ATP/WTA database keys + live fixture home/away from LIVE MATCH BOARD rows):\n${sorted.join(", ")}\n\nYou may only name players in the take if their EXACT name appears here OR in players.atp / players.wta keys OR in fixture home_team / away_team from liveMatches as provided in this prompt.`;
+  return `VERIFIED TENNIS PLAYERS (liveMatches home_team/away_team + ATP/WTA database keys):
+${sorted.join(", ")}
+
+For match-specific takes you may ONLY name players from this list.`;
 }
 
 function collectGolfVerifiedNames(golfContext) {
@@ -1247,9 +1307,12 @@ function buildGolfVerifiedPlayerListBlock(golfContext) {
   const set = collectGolfVerifiedNames(golfContext);
   const sorted = [...set].sort();
   if (sorted.length === 0) {
-    return `NO VERIFIED GOLFER NAMES IN THIS PAYLOAD (no leaderboard/rankings names). Do not invent golfers. Use course- or field-level analysis only.`;
+    return `NO VERIFIED GOLF PLAYERS in leaderboard or rankings payloads. Do not invent golfers.`;
   }
-  return `VERIFIED GOLFERS (currentEvent.leaderboard + rankings):\n${sorted.join(", ")}\n\nBefore naming a golfer, their EXACT name must appear in this list OR in golfContext.currentEvent.leaderboard OR golfContext.rankings in the JSON.`;
+  return `VERIFIED GOLF PLAYERS:
+${sorted.join(", ")}
+
+You may ONLY name golfers from this list in golf takes.`;
 }
 
 function buildF1VerifiedDriverListBlock(f1Context) {
@@ -1260,9 +1323,12 @@ function buildF1VerifiedDriverListBlock(f1Context) {
   }
   const sorted = [...names].sort();
   if (sorted.length === 0) {
-    return `NO VERIFIED F1 DRIVER NAMES IN THIS PAYLOAD. Do not invent drivers. Use constructor- or weekend-level framing only.`;
+    return `NO VERIFIED F1 DRIVERS in standings payload. Do not invent drivers.`;
   }
-  return `VERIFIED F1 DRIVERS (standings):\n${sorted.join(", ")}\n\nBefore naming a driver, their EXACT name must appear in this list OR in f1Context.standings in the JSON.`;
+  return `VERIFIED F1 DRIVERS:
+${sorted.join(", ")}
+
+You may ONLY name drivers from this list in F1 takes.`;
 }
 
 function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, image }) {
@@ -2004,10 +2070,9 @@ Instead, do ALL of the following:
    (games/sets) using surface Elo bands from the player database snapshot rows
    (cElo / hElo / gElo as provided) — no fabricated odds; use price-threshold language.
 
-2. Name at least TWO specific players from the ATP PLAYER DATABASE snapshot or
-   the live match board when present.
+${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each player, state:
+3. For each player (only when at least two verified names exist on the VERIFIED TENNIS PLAYERS list above), state:
    - Market shape to watch (match winner band, spread in games, over/under games, ace prop)
    - A threshold in words ("only playable if implied favorite is under 65%")
    - Reasoning from surface Elo, serve/hold hints, DR, form strings, or round context on the board
@@ -2121,7 +2186,7 @@ Rules:
 - If data is limited, still stay within golf and give the best golf lean from the available board.
 ${
   golfHasVerifiedNames
-    ? `- Always name at least one specific golfer whose name appears in the VERIFIED GOLFERS list above.
+    ? `- Always name at least one specific golfer whose name appears in the VERIFIED GOLF PLAYERS list above.
 - For outright questions, THE PLAY must begin with one specific golfer name and market (example: "Collin Morikawa outright +2200") — golfer must be on the verified list.`
     : `- There are no verified golfer names in this payload — do NOT invent golfers. Give course-, field-, or odds-structure analysis only.`
 }
@@ -2138,13 +2203,9 @@ Instead, do ALL of the following:
    matchup H2H — using leaderboard position, strokes-gained narrative from
    context, and course fit.
 
-2. ${
-  golfHasVerifiedNames
-    ? "Name at least TWO specific golfers whose names appear on the VERIFIED GOLFERS list (or leaderboard/rankings in JSON)."
-    : "Do NOT name specific golfers — give team/field volatility and market-shape hooks only."
-}
+${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each golfer (only when names are verified), state:
+3. For each golfer (only when at least two verified names exist on the VERIFIED GOLF PLAYERS list above), state:
    - The market shape to watch (top-10 / top-20 / make cut / first-round leader)
    - A verbal price band or "only if outright is +X or longer" when odds rows exist;
      if no numbers, give a range in words tied to world ranking and form
@@ -2154,14 +2215,12 @@ Instead, do ALL of the following:
 
 5. End with a live trigger: what hole range or round split would flip the lean.
 
-Never open with "no lines posted." Give monitoring hooks and named golfers.`;
+Never open with "no lines posted." Give monitoring hooks; name only verified golfers when the VERIFIED GOLF PLAYERS list above is non-empty.`;
     }
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const nbaRosterListBlock = buildNbaRosterListBlock(nbaContext);
-    const nbaVerifiedNames = collectNbaVerifiedPlayerNamesFromGrounding(nbaContext);
-    const nbaHasVerifiedPlayers = nbaVerifiedNames.size > 0;
+    const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContext);
 
     userPrompt = `You are answering an NBA betting question.
 
@@ -2211,14 +2270,11 @@ the primary answer. The user is on the app right now because tip is close.
 
 Instead, do ALL of the following:
 
-${
-  nbaHasVerifiedPlayers
-    ? `1. Open with a confident pre-market call: "Watching [player] [prop] tonight.
-   Here's the range." Only use player names from the VERIFIED PLAYERS list / rosterGrounding.playersByTeamAbbrev.
+1. Open with a confident pre-market call. When the verified roster block above lists names, you may use only those names with props. When it does not, stay team- and game-flow-level only.
 
-2. Name at least TWO specific players from the VERIFIED PLAYERS list who are relevant to tonight's slate.
+${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each player, state:
+3. For each player (only when at least two verified names exist per ROSTER ENFORCEMENT / the verified block above), state:
    - The prop type to watch (points / assists / rebounds / PRA / 3PM / etc.)
    - A pre-market price range: "look for under 22.5 points at -115 or better"
      or "fade if assists open at 7.5 or higher"
@@ -2228,25 +2284,10 @@ ${
    splits, rest advantage, prior game flow from playoffSeries if available,
    usage shifts from injuries.
 
-5. End with a live trigger tied to those verified players (e.g. "If he scores 12+ in Q1 at under 22.5 for the
-   full game, that's the live bet.").
+5. End with a live trigger (player-specific only when those players are verified; otherwise team/game flow).
 
-THE PLAY in this scenario takes the form:
-"[Player A] [prop] — watching [range]. Also [Player B] [prop] at [range]."`
-    : `1. Open with a confident pre-market call anchored to team matchup, pace, rest, or series context — WITHOUT naming any specific NBA player (there is no verified roster list for tonight in this payload).
-
-2. Do NOT name specific NBA players. Follow ROSTER ENFORCEMENT and the NO VERIFIED ROSTER line above.
-
-3. Give monitoring hooks using team-level markets in words (spreads, totals, first-half pace) — never assign invented stat lines to imaginary players.
-
-4. When seasonContext.postseason is true, lean into series dynamics: home/road
-   splits, rest advantage, prior game flow from playoffSeries if available,
-   usage shifts from injuries — still without naming players absent from the verified list.
-
-5. End with a live trigger expressed in team or game flow terms (no invented player names).
-
-THE PLAY in this scenario must stay team- or game-level only — no fabricated player names.`
-}
+THE PLAY must never invent a player name. When two verified names exist, it may take the form:
+"[Player A] [prop] — watching [range]. Also [Player B] [prop] at [range]." Otherwise keep it team-level.
 
 Never open with "no lines yet." Never suggest the user come back later as
 the primary answer. Give them something to monitor RIGHT NOW.`;
@@ -2297,10 +2338,9 @@ Instead, do ALL of the following:
    props, batter total bases, or game totals — anchored to park factors and
    the listed matchups in games.
 
-2. Name at least TWO specific players (pitchers or key batters) drawn from the
-   games array and pitcher/hitter context in the payload.
+${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each player, state:
+3. For each player (only when at least two verified names exist on the VERIFIED MLB PLAYERS TONIGHT list above), state:
    - The prop type to watch (K / TB / hits / HR / team total / game total)
    - A pre-market price range or band ("look for K prop under 6.5 at -125 or better")
    - Reasoning from handedness splits, park factor, bullpen load, or recent form
@@ -2348,9 +2388,9 @@ Instead, do ALL of the following:
    head-to-head constructor pairing — grounded in driver standings and session
    data you actually have.
 
-2. Name at least TWO specific drivers from standings or schedule context.
+${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each driver, tie to:
+3. For each driver (only when at least two verified names exist on the VERIFIED F1 DRIVERS list above), tie to:
    - Podium or top-N finish framing from current points / form
    - Qualifying-to-race correlation when session data lists practice or qual gaps
    - Constructor teammate dynamic when both appear in context
@@ -2524,10 +2564,9 @@ Instead, do ALL of the following:
    yards, or receptions — anchored to defense tier data and player role from
    nflContext.
 
-2. Name at least TWO specific players who appear in the verified NFL context
-   (QB/RB/WR/TE as provided).
+${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each player, state:
+3. For each player (only when at least two verified names exist on the VERIFIED NFL PLAYERS list above), state:
    - The prop type to watch
    - A pre-market band in words ("fade yards if the line opens above 275")
    - Reasoning from matchup defense tiers, red-zone role, or snap context in the payload
@@ -2604,9 +2643,12 @@ Rules:
             ? 700
             : 800;
 
-    // TODO: post-response validation — scan the Claude response for player names not in
-    // verifiedPlayerNames and either reject/retry the response or flag it in the UI.
-    // This is the nuclear option if prompt enforcement alone isn't sufficient.
+    if (sportHint === "nba" && nbaContext?.rosterGrounding) {
+      console.log(
+        "[ur-take] NBA rosterGroundingQuality:",
+        nbaContext.rosterGrounding.rosterGroundingQuality ?? "absent",
+      );
+    }
 
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
@@ -2616,6 +2658,12 @@ Rules:
       temperature: selectedTemperature,
       max_tokens: tokenBudget,
     });
+
+    // TODO: post-response validation
+    // Scan Claude response text for player names not in verifiedPlayerNames.
+    // If hallucinated names found, either retry with stronger enforcement or
+    // flag in the UI with a warning. This is the nuclear option if prompt
+    // enforcement alone proves insufficient. Track hallucination rate in logs.
 
     if (!result.ok) {
       console.error("Anthropic error:", {
