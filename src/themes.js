@@ -428,7 +428,7 @@ export const THEMES = {
       }
 
       .theme-epilogue .ask-bar::placeholder {
-        color: rgba(255,255,255,.52);
+        color: rgba(255,255,255,.78);
         opacity: 1;
       }
 
