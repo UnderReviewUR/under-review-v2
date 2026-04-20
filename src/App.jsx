@@ -16,6 +16,8 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isGolfEventFinished } from "./lib/golfEventStatus.js";
+import { detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
+import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
   ChatThread,
   buildNflContext,
@@ -111,6 +113,7 @@ ${themeCss}
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
   const [isAsking, setIsAsking]         = useState(false);
+  const [prefetchingUrTakeContext, setPrefetchingUrTakeContext] = useState(false);
   const [pastedImage, setPastedImage]   = useState(null);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
@@ -322,49 +325,52 @@ ${themeCss}
   }, [processImageFile]);
 
   // ── Context builders ───────────────────────────────────────────────────────
-  const buildF1Context = useCallback(() => {
-  if (!f1Data) return null;
+  const buildF1Context = useCallback((f1SrcOverride = null) => {
+  const f1Src = f1SrcOverride ?? f1Data;
+  if (!f1Src) return null;
 
   return {
-    standings: Array.isArray(f1Data.standings) ? f1Data.standings : [],
-    schedule: f1Data.schedule || { races: [], upcoming: [], past: [], current: [], usingFallback: true },
-    session: f1Data.session || null,
-    sessions: Array.isArray(f1Data.sessions) ? f1Data.sessions : [],
-    usingFallback: !!f1Data.usingFallback,
+    standings: Array.isArray(f1Src.standings) ? f1Src.standings : [],
+    schedule: f1Src.schedule || { races: [], upcoming: [], past: [], current: [], usingFallback: true },
+    session: f1Src.session || null,
+    sessions: Array.isArray(f1Src.sessions) ? f1Src.sessions : [],
+    usingFallback: !!f1Src.usingFallback,
   };
 }, [f1Data]);
 
-  const buildNbaContext = useCallback((questionText) => {
+  const buildNbaContext = useCallback((questionText, nbaDataOverride = null) => {
+    const src = nbaDataOverride ?? nbaData;
     const mergedTodaysGames =
-      nbaGames.length > 0 ? nbaGames : (nbaData?.todaysGames || []);
-    const slateMeta = nbaData?.todaysGamesSlateMeta || null;
+      nbaGames.length > 0 ? nbaGames : (src?.todaysGames || []);
+    const slateMeta = src?.todaysGamesSlateMeta || null;
     return {
-      seasonContext:   nbaData?.seasonContext || {},
+      seasonContext:   src?.seasonContext || {},
       todaysGames:     mergedTodaysGames,
       /** When the slate is empty but BDL responded OK — tells UR Take it is a real off day vs. pipeline failure */
       todaysGamesSlateMeta: slateMeta,
       todaysGamesSlateNote:
         mergedTodaysGames.length === 0 && slateMeta?.note ? slateMeta.note : null,
-      lastNight:       nbaData?.lastNight     || [],
-      lastNightStats:  nbaData?.lastNightStats|| [],
-      liveStats:       nbaData?.liveStats     || [],
-      playerStats:     nbaData?.playerStats   || [],
+      lastNight:       src?.lastNight     || [],
+      lastNightStats:  src?.lastNightStats|| [],
+      liveStats:       src?.liveStats     || [],
+      playerStats:     src?.playerStats   || [],
       /** Pre-rendered lines for LLM — team sourced from game box when statsSource is game_box */
-      playerStatsText: nbaData?.playerStatsText || "",
-      statsSource:     nbaData?.statsSource || "",
-      propLines:       nbaData?.propLines     || [],
-      injuries:        nbaData?.injuries      || [],
-      recentForm:      nbaData?.recentForm    || "",
-      h2hSplits:       nbaData?.h2hSplits     || [],
-      gameTotals:      nbaData?.gameTotals     || {},
+      playerStatsText: src?.playerStatsText || "",
+      statsSource:     src?.statsSource || "",
+      propLines:       src?.propLines     || [],
+      injuries:        src?.injuries      || [],
+      recentForm:      src?.recentForm    || "",
+      h2hSplits:       src?.h2hSplits     || [],
+      gameTotals:      src?.gameTotals     || {},
       /** API-derived per-team names only — do not use static player DB for NBA rosters */
-      rosterGrounding: nbaData?.rosterGrounding || null,
+      rosterGrounding: src?.rosterGrounding || null,
       question:        questionText || "",
     };
   }, [nbaData, nbaGames]);
 
-  const buildMlbContext = useCallback((questionText) => {
-    const allGames = mlbGames.length > 0 ? mlbGames : (mlbData?.games || []);
+  const buildMlbContext = useCallback((questionText, mlbDataOverride = null) => {
+    const src = mlbDataOverride ?? mlbData;
+    const allGames = mlbGames.length > 0 ? mlbGames : (src?.games || []);
     // Trim each game to essentials only — avoid oversized payload
     const trimmedGames = allGames.map(g => ({
       id: g.id,
@@ -376,38 +382,39 @@ ${themeCss}
       awayTeam: { abbr: g.awayTeam?.abbr, name: g.awayTeam?.name, score: g.awayTeam?.score ?? null, pitcher: g.awayTeam?.pitcher || null },
     }));
     return {
-      seasonContext: mlbData?.seasonContext || {},
+      seasonContext: src?.seasonContext || {},
       games:         trimmedGames,
-      propLines:     (mlbData?.propLines || []).slice(0, 12),
-      gameTotals:    mlbData?.gameTotals   || {},
+      propLines:     (src?.propLines || []).slice(0, 12),
+      gameTotals:    src?.gameTotals   || {},
       question:      questionText || "",
     };
   }, [mlbData, mlbGames]);
 
 
-    const buildGolfContext = useCallback((questionText) => {
+    const buildGolfContext = useCallback((questionText, golfDataOverride = null) => {
+  const g = golfDataOverride ?? golfData;
   return {
-    currentEvent: golfData?.currentEvent
+    currentEvent: g?.currentEvent
       ? {
-          name: golfData.currentEvent.name || null,
-          shortName: golfData.currentEvent.shortName || null,
-          course: golfData.currentEvent.course || null,
-          location: golfData.currentEvent.location || null,
-          round: golfData.currentEvent.round || null,
-          state: golfData.currentEvent.state || null,
-          leaderboard: golfData.currentEvent.leaderboard || [],
+          name: g.currentEvent.name || null,
+          shortName: g.currentEvent.shortName || null,
+          course: g.currentEvent.course || null,
+          location: g.currentEvent.location || null,
+          round: g.currentEvent.round || null,
+          state: g.currentEvent.state || null,
+          leaderboard: g.currentEvent.leaderboard || [],
         }
       : null,
-    tournament: golfData?.tournament || null,
-    course: golfData?.course || null,
-    rankings: (golfData?.rankings || []).slice(0, 12),
+    tournament: g?.tournament || null,
+    course: g?.course || null,
+    rankings: (g?.rankings || []).slice(0, 12),
     odds: {
-      outrights: (golfData?.odds?.outrights || []).slice(0, 16),
-      topFinish: golfData?.odds?.topFinish || {},
-      makeCut: golfData?.odds?.makeCut || {},
+      outrights: (g?.odds?.outrights || []).slice(0, 16),
+      topFinish: g?.odds?.topFinish || {},
+      makeCut: g?.odds?.makeCut || {},
     },
-    recentResults: (golfData?.recentResults || []).slice(0, 10),
-    courseStats: (golfData?.courseStats || []).slice(0, 8),
+    recentResults: (g?.recentResults || []).slice(0, 10),
+    courseStats: (g?.courseStats || []).slice(0, 8),
     question: questionText || "",
   };
 }, [golfData]);
@@ -420,51 +427,101 @@ ${themeCss}
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
-  if (!text || isAsking) return;
+  if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
   recordQuery();
 
-  setIsAsking(true);
   const imgToSend = pastedImage;
 
-  let historyPayload = [];
   let priorSnapshot = [];
-  /** Resolved after reading prior thread state inside setMsgs (sport memory for follow-ups). */
-  let effectiveSportHint = null;
-
-  setMsgs(prev => {
+  setMsgs((prev) => {
     priorSnapshot = [...prev];
+    return [
+      ...prev,
+      { role: "user", text, image: imgToSend?.previewUrl || null },
+    ];
+  });
+
+  clearImage();
+
+  try {
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+
     const explicitHint =
       typeof sportHint === "string" && sportHint.trim() !== "" ? sportHint.trim() : null;
-    effectiveSportHint =
+    let detected = detectSportFromQuestion(text, tab);
+    if (detected === "generic") detected = null;
+
+    let effectiveSportHint =
       explicitHint ??
       lastUrTakeSportRef.current ??
       inferUrTakeSportFromMessages(priorSnapshot) ??
+      detected ??
       null;
+
+    if (effectiveSportHint === "generic") effectiveSportHint = null;
+
+    let hintForEnsure = effectiveSportHint;
+    if (!hintForEnsure && questionSuggestsGolf(text)) hintForEnsure = "golf";
+
+    setPrefetchingUrTakeContext(true);
+    const ensureStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const ensured = await ensureUrTakeSportContext(hintForEnsure || "generic", {
+      nbaData,
+      mlbData,
+      golfData,
+      f1Data,
+      nflContextData,
+      players,
+      context,
+      liveMatches,
+    });
+    const ensureMs = Math.round(
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) - ensureStart,
+    );
+    setPrefetchingUrTakeContext(false);
+
+    if (hintForEnsure && hintForEnsure !== "generic") {
+      console.log(
+        JSON.stringify({
+          event: "sport_context_auto_attached",
+          sport: hintForEnsure,
+          cacheHit: ensured.cacheHit,
+          fetchMs: ensureMs,
+        }),
+      );
+    }
+
+    const historyPayload = chatHistoryForApi(priorSnapshot);
+
+    const ov = ensured.overrides || {};
+    const f1DataUse = ov.f1Data ?? f1Data;
+    const nflBundle = ov.nflContextData ?? nflContextData;
+    const playersUse = ov.tennisPlayers ?? players;
+    const contextUse = ov.tennisContext ?? context;
+    const liveMatchesUse = ov.tennisLiveMatches ?? liveMatches;
+
+    const nflPlayersResolved =
+      nflBundle?.uiPlayers && Object.keys(nflBundle.uiPlayers).length
+        ? nflBundle.uiPlayers
+        : nflPlayersForUi;
+
+    setIsAsking(true);
 
     const loadingSport =
       effectiveSportHint === "tennis_wta_profile" ? "tennis" : effectiveSportHint;
 
-    historyPayload = chatHistoryForApi(prev);
-    return [
+    setMsgs((prev) => [
       ...prev,
-      { role: "user", text, image: imgToSend?.previewUrl || null },
       {
         role: "ai",
         text: "ANALYZING...",
         loading: true,
         sport: loadingSport,
       },
-    ];
-  });
-
-    clearImage();
-
-  try {
-    /** Let React paint user bubble + loading row before heavy JSON work / network — feels instant like iMessage. */
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
+    ]);
 
     const body = {
       question: buildContextualQuestion(text, { priorMessages: priorSnapshot }),
@@ -476,37 +533,38 @@ ${themeCss}
     };
 
     if (effectiveSportHint === "tennis_wta_profile") {
-      body.players = players || null;
-      body.context = context || null;
+      body.players = playersUse || null;
+      body.context = contextUse || null;
     } else if (effectiveSportHint === "tennis") {
-      body.players = players || null;
-      body.context = context || null;
-      body.liveMatches = (liveMatches || []).slice(0, 12);
+      body.players = playersUse || null;
+      body.context = contextUse || null;
+      body.liveMatches = (liveMatchesUse || []).slice(0, 12);
     }
 
     if (effectiveSportHint === "nfl") {
-      body.nflContext = nflContextData?.promptContext || buildNflContext(nflPlayersForUi);
+      body.nflContext =
+        nflBundle?.promptContext || buildNflContext(nflPlayersResolved);
     }
 
     if (effectiveSportHint === "f1") {
-      body.f1Context = buildF1Context();
+      body.f1Context = buildF1Context(f1DataUse);
     }
 
     if (effectiveSportHint === "nba") {
-      body.nbaContext = buildNbaContext(text);
+      body.nbaContext = buildNbaContext(text, ov.nbaData ?? null);
     }
 
     if (effectiveSportHint === "mlb") {
-      body.mlbContext = buildMlbContext(text);
+      body.mlbContext = buildMlbContext(text, ov.mlbData ?? null);
     }
 
     if (effectiveSportHint === "golf" || questionSuggestsGolf(text)) {
-      body.golfContext = buildGolfContext(text);
+      body.golfContext = buildGolfContext(text, ov.golfData ?? null);
     }
 
     if (!effectiveSportHint) {
-      body.context = context || null;
-      body.liveMatches = (liveMatches || []).slice(0, 8);
+      body.context = contextUse || null;
+      body.liveMatches = (liveMatchesUse || []).slice(0, 8);
     }
 
     if (imgToSend) {
@@ -552,8 +610,8 @@ ${themeCss}
         ? resolvedSport
         : effectiveSportHint || null;
 
-    setMsgs(prev => [
-      ...prev.filter(m => !m.loading),
+    setMsgs((prev) => [
+      ...prev.filter((m) => !m.loading),
       {
         role: "ai",
         text: data.response || "Couldn't get a response — try again.",
@@ -566,11 +624,12 @@ ${themeCss}
       loadPerformanceSnapshot().catch(() => {});
     }
   } catch (err) {
+    setPrefetchingUrTakeContext(false);
     const fallback =
       err?.name === "AbortError"
         ? "Request timed out — try again."
         : err?.message || "Something went wrong — try again.";
-    setMsgs(prev => [...prev.filter(m => !m.loading), { role: "ai", text: fallback }]);
+    setMsgs((prev) => [...prev.filter((m) => !m.loading), { role: "ai", text: fallback }]);
   } finally {
     setIsAsking(false);
   }
@@ -578,9 +637,15 @@ ${themeCss}
   clearImage,
   context,
   isAsking,
+  prefetchingUrTakeContext,
   liveMatches,
   pastedImage,
   players,
+  tab,
+  nbaData,
+  mlbData,
+  golfData,
+  f1Data,
   buildF1Context,
   buildNbaContext,
   buildMlbContext,
@@ -590,8 +655,8 @@ ${themeCss}
   canAsk,
   recordQuery,
   userEmail,
-    loadPerformanceSnapshot,
-    getTakeAuthHeaders,
+  loadPerformanceSnapshot,
+  getTakeAuthHeaders,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -1362,6 +1427,7 @@ ${themeCss}
 
   const firePrompt = useCallback(
     (prompt, sportHint = null) => {
+      if (isAsking || prefetchingUrTakeContext) return;
       if (screen !== "ask" || tab !== "ask") {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
@@ -1374,13 +1440,13 @@ ${themeCss}
         setTimeout(() => scheduleChatScroll(askScreenRef), 120);
       });
     },
-    [askUrTake, scheduleChatScroll, screen, tab],
+    [askUrTake, scheduleChatScroll, screen, tab, isAsking, prefetchingUrTakeContext],
   );
 
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome = useCallback(() => {
     const t = askInput.trim();
-    if (!t || isAsking) return;
+    if (!t || isAsking || prefetchingUrTakeContext) return;
     if (screen !== "ask" || tab !== "ask") {
       setNavHistory((h) => [...h, { screen, tab }]);
     }
@@ -1392,28 +1458,35 @@ ${themeCss}
       scheduleChatScroll(askScreenRef);
       setTimeout(() => scheduleChatScroll(askScreenRef), 120);
     });
-  }, [askUrTake, askInput, isAsking, scheduleChatScroll, screen, tab]);
-  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,scheduleChatScroll]);
-  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
+  }, [askUrTake, askInput, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab]);
+  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking||prefetchingUrTakeContext)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,prefetchingUrTakeContext,scheduleChatScroll]);
+  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,tennisInput,scheduleChatScroll]);
   const submitWta = useCallback(
     (forced) => {
       const t = (forced ?? wtaInput).trim();
-      if (!t || isAsking) return;
+      if (!t || isAsking || prefetchingUrTakeContext) return;
       if (!forced) setWtaInput("");
       askUrTake({ text: t, setMsgs: setTennisMsgs, sportHint: "tennis_wta_profile" });
       scheduleChatScroll(tennisScreenRef);
     },
-    [askUrTake, isAsking, wtaInput, scheduleChatScroll],
+    [askUrTake, isAsking, prefetchingUrTakeContext, wtaInput, scheduleChatScroll],
   );
-  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,nflInput,scheduleChatScroll]);
-  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,f1Input,scheduleChatScroll]);
-  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,nbaInput,scheduleChatScroll]);
-  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,mlbInput,scheduleChatScroll]);
+  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,nflInput,scheduleChatScroll]);
+  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,f1Input,scheduleChatScroll]);
+  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,nbaInput,scheduleChatScroll]);
+  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,mlbInput,scheduleChatScroll]);
 
-  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,golfInput,scheduleChatScroll]);
-  const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,matchupInput,selectedMatchup,scheduleChatScroll]);
+  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,golfInput,scheduleChatScroll]);
+  const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
 
-  const askBarCommon = { fileInputRef, pastedImage, clearImage, isAsking, processImageFile };
+  const askBarCommon = {
+    fileInputRef,
+    pastedImage,
+    clearImage,
+    isAsking,
+    prefetchingContext: prefetchingUrTakeContext,
+    processImageFile,
+  };
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||
     (screen === "nfl" && nflMsgs.length > 0) ||

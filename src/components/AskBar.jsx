@@ -11,10 +11,13 @@ const AskBar = memo(function AskBar({
   pastedImage,
   clearImage,
   isAsking,
+  prefetchingContext = false,
   processImageFile,
   /** When false, skip the "PASTE IMAGE…" subline (e.g. hero copy already covers it). */
   showPasteHint = true,
 }) {
+  const busy = isAsking || prefetchingContext;
+
   const handleKeyDown = useCallback(
     (e) => {
       if (e.key === "Enter") onSubmit();
@@ -59,7 +62,7 @@ const AskBar = memo(function AskBar({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={pastedImage ? "Ask about this image..." : placeholder}
-            disabled={isAsking}
+            disabled={busy}
           />
 
           {!pastedImage && showPasteHint && (
@@ -79,10 +82,11 @@ const AskBar = memo(function AskBar({
           className="send-btn"
           style={btnColor ? { background: btnColor, color: "#080A0C" } : undefined}
           onClick={onSubmit}
-          disabled={isAsking}
+          disabled={busy}
+          title={prefetchingContext ? "Loading context…" : undefined}
           type="button"
         >
-          ➤
+          {prefetchingContext ? "…" : "➤"}
         </button>
       </div>
     </div>
