@@ -1069,6 +1069,31 @@ function normalizeSummaryDeepPayload(summary, deep) {
   };
 }
 
+/** Drops leading roster/data-disclosure paragraphs models still emit despite prompt bans. */
+function stripNbaLeadInDisclosure(text) {
+  let s = String(text || "").trim();
+  if (!s) return s;
+  const bannedLead =
+    /\b(?:I don't have tonight's confirmed roster|beyond the verified names in the system|Working from partial roster data|working from partial roster data|verified names in the system|partial roster data|roster data is still loading|combined API \+ product UI|clientUiAugmented)\b/i;
+  const cantConfirm =
+    /^I can't confirm[^\n]*(roster|lineup|availability|names|data)[^\n]*$/im;
+  for (let i = 0; i < 4; i += 1) {
+    const paras = s.split(/\n\n+/);
+    if (!paras.length) break;
+    const head = paras[0].trim();
+    if (!head) {
+      s = paras.slice(1).join("\n\n").trim();
+      continue;
+    }
+    if (bannedLead.test(head) || cantConfirm.test(head)) {
+      s = paras.slice(1).join("\n\n").trim();
+      continue;
+    }
+    break;
+  }
+  return s.trim();
+}
+
 function isTier1InformationalQuestion(question) {
   const q = normalizeText(question);
   if (
@@ -1132,11 +1157,20 @@ function resolveOutputJsonMode({
 function buildJsonOutputContract(mode, sportHint) {
   const sport = String(sportHint || "generic").toLowerCase();
 
+  const nbaTier25Lead =
+    sport === "nba"
+      ? `
+NBA (mandatory when sport is NBA): The summary string MUST begin with >> as the first non-whitespace characters, then one sharp take sentence (same voice as Tier-3 >> opener). Do not put roster, verification, loading, or data-thinness sentences before >>. Never use banned phrases listed in the user-message ABSOLUTE PROHIBITION block.
+`
+      : "";
+
   const tier25Spec = `TIER 2.5 — DEFAULT MATCHUP / PROP / SIDE RESPONSE (summary field)
 
 summary must use this exact shape (plain text inside the JSON string, no markdown):
 
-[OPENING LINE — one confident sentence]
+>> [OPENING LINE — one confident sentence — first printable characters of summary MUST be >> plus a space]
+
+[blank line]
 
 MATCH READ
 - [bullet 1 — concrete edge for the favored side — stats or sequences, not "good form"]
@@ -1155,7 +1189,7 @@ Sport-specific projection lines (pick what fits ${sport}):
 
 CONFIDENCE
 [High / Medium / Speculative] — [one-line justification]
-
+${nbaTier25Lead}
 CRITICAL
 - Never say "limited profile", "held back", or apologize for thin data — put uncertainty only in CONFIDENCE.
 - Never invent book lines; estimate stats only.
@@ -1280,11 +1314,10 @@ ${buildNbaRosterListInner(nbaContext, rosterOpts)}
 ════════════════════════════════════════`;
 }
 
-const NO_MARKET_VERIFIED_PLAYER_STEP_2 = `2. Name at least TWO specific players from the VERIFIED player list only.
-If the verified list has fewer than two players for the teams in question,
-do NOT invent names. Give a team-level read instead with:
-"Lines aren't up yet and roster data is still loading — here's the
-matchup read while we wait: [team-level analysis]."`;
+const NO_MARKET_VERIFIED_PLAYER_STEP_2 = `2. Name at least TWO specific players from the AUTHORIZED player list only.
+If fewer than two authorized names exist for the matchup, do NOT invent names.
+Give a sharp team-level read anchored to matchup context — never mention missing lines,
+loading pipelines, or roster completeness.`;
 
 const PROP_PROJECTION_MODE_BLOCK = `PROP PROJECTION MODE — MANDATORY
 
@@ -2576,6 +2609,28 @@ column. If the response could apply to any two playoff teams, rewrite it.
 
 ${ROSTER_ENFORCEMENT_NBA}
 
+════════════════════════════════════════
+ABSOLUTE PROHIBITION — DATA DISCLOSURE
+
+The following phrases are BANNED from every NBA response regardless
+of data quality, roster completeness, or context:
+
+- "I don't have tonight's confirmed roster"
+- "working from partial roster data"
+- "verified names in the system"
+- "roster data is still loading"
+- "data is thin"
+- "[team] roster data"
+- Any sentence that opens with "I don't have" or "I can't confirm"
+  when describing data availability
+
+These phrases destroy user trust. The confidence line is where
+data quality lives. The response body is where the take lives.
+Never mix them.
+
+The response must open with the take. Always.
+════════════════════════════════════════
+
 Rules:
 - Answer only as an NBA analyst.
 - Do not mention golf, NFL, MLB, F1, or tennis.
@@ -2588,7 +2643,7 @@ Rules:
   an attached screenshot), ALWAYS acknowledge the current game state first.
   Never declare a prop a winner while the game is still in progress.
 - If a player mentioned in the question is not in today's injury report or
-  game list, note the uncertainty before giving a take.
+  game list, reflect uncertainty only in CONFIDENCE — never lead the answer with data-availability throat-clearing.
 - When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.
 - When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.
 - If todaysGamesSlateNote is set, todaysGames is empty for the reason given (e.g. BallDontLie returned no games for that ET date). Trust that note instead of guessing a pipeline failure.
@@ -2632,8 +2687,8 @@ Max 2 sentences. Tie opinions to matchup scheme, pace data, injuries, or series 
 
 [Paragraph 3 — live trigger: one concrete thing to watch when lines drop — name a player, a number, or an event. Max 2 sentences. Cut filler like "rosters shift fast."]
 
-When the verified roster block lists credible names for both sides of the matchup, prefer weaving in one player per team across the answer when it fits naturally — not a hard rule. Never invent a player name.
-Use only players who appear in the verified roster block above.
+When the INTERNAL authorized-name block lists names for both sides of the matchup, prefer weaving in one player per team across the answer when it fits naturally — not a hard rule. Never invent a player name.
+Use only players who appear in that authorized-name block above (unless Question/image authorizes otherwise).
 
 LEAD WITH THE EDGE, NOT THE SETUP.
 
@@ -3260,6 +3315,11 @@ Rules:
         responseText = normalized.summary || text;
         responseDeep = normalized.deep;
       }
+    }
+
+    if (sportHint === "nba") {
+      responseText = stripNbaLeadInDisclosure(responseText);
+      if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
     }
 
     const takeRecord = extractTakeFromResponse({
