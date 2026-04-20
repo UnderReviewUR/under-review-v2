@@ -11,6 +11,12 @@ function getDaypartLabel() {
   return "tonight";
 }
 
+function isLikelyDraftWindow(now = new Date()) {
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  return month === 4 && day >= 18 && day <= 28;
+}
+
 export function buildDynamicHomeQuestions({
   activeTournamentMatches,
   tennisLiveMatches,
@@ -38,7 +44,10 @@ export function buildDynamicHomeQuestions({
   const rotate = (arr, offset = 0) =>
     Array.isArray(arr) && arr.length > 0 ? arr[(daySeed + offset) % arr.length] : null;
   const draftPhase = String(nflDraftMeta?.phase || "").toLowerCase();
-  const isDraftMode = nflSeasonMode && (draftPhase === "pre_draft" || draftPhase === "during_draft");
+  const isDraftMode =
+    draftPhase === "pre_draft" ||
+    draftPhase === "during_draft" ||
+    (!draftPhase && isLikelyDraftWindow(etNow));
   const teamNeeds = nflDraftMeta?.teamNeeds && typeof nflDraftMeta.teamNeeds === "object"
     ? nflDraftMeta.teamNeeds
     : {};

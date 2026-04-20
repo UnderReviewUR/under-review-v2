@@ -2745,6 +2745,21 @@ ${
 }
 
 ${
+  nflDraftAngle
+    ? `DRAFT ANSWER STYLE (mandatory):
+- Keep it clean and board-first: no "I can't predict the draft" preamble.
+- For team-specific questions, output exactly 5 short sections in this order:
+  1) ROUND 1 BOARD TRUTH
+  2) MOST LIKELY AT FIRST PICK
+  3) MOST LIKELY AT SECOND PICK (if team has one; otherwise "N/A")
+  4) PIVOT IF BOARD BREAKS DIFFERENTLY
+  5) LIVE TRIGGER TO WATCH
+- Use concise bullets under each section and include 1-2 names max per pick lane.
+- Avoid filler, avoid generic betting copy, and do not mention tier labels inside the body.`
+    : ""
+}
+
+${
   teamCapitalBlock
     ? `TEAM PICK-BY-PICK SIMULATION (elite — probability + board law, not clairvoyance):
 - Anchored team: ${focusTeam}. The TEAM DRAFT CAPITAL section lists **every** current slot for that franchise — use those rows **in order** when the user wants per-pick / per-round predictions.

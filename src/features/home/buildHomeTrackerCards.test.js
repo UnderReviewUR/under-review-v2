@@ -9,7 +9,23 @@ test("shows draft predictor card during pre-draft window", () => {
     mlbData: { games: [] },
     golfData: null,
     f1Data: null,
-    nflSeasonMode: true,
+    nflDraftMeta: {
+      phase: "pre_draft",
+      boardLocation: "Pittsburgh, PA",
+      fullOrderCount: 257,
+    },
+  });
+  assert.ok(cards.some((c) => c.id === "nfl-draft-predictor"));
+});
+
+test("shows draft predictor during pre-draft even when nflSeasonMode is off", () => {
+  const cards = buildHomeTrackerCards({
+    performanceData: { summary: { settled: 10, roiUnits: 1.2, winRate: 0.56 } },
+    nbaGames: [],
+    mlbData: { games: [] },
+    golfData: null,
+    f1Data: null,
+    nflSeasonMode: false,
     nflDraftMeta: {
       phase: "pre_draft",
       boardLocation: "Pittsburgh, PA",
@@ -26,7 +42,6 @@ test("hides draft predictor card after draft window", () => {
     mlbData: { games: [] },
     golfData: null,
     f1Data: null,
-    nflSeasonMode: true,
     nflDraftMeta: {
       phase: "post_draft",
       boardLocation: "Pittsburgh, PA",

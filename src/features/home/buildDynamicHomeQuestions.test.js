@@ -8,12 +8,12 @@ const TEAM_NEEDS = {
   "New York Jets": { headline: "OT, WR, EDGE", tags: ["OT", "WR", "EDGE"] },
 };
 
-function buildDraftPromptSet(userCity = "") {
+function buildDraftPromptSet(userCity = "", nflSeasonMode = false) {
   return buildDynamicHomeQuestions({
     activeTournamentMatches: [],
     tennisLiveMatches: [],
     tennisUpcomingMatches: [],
-    nflSeasonMode: true,
+    nflSeasonMode,
     nflDraftMeta: { phase: "pre_draft", teamNeeds: TEAM_NEEDS },
     userCity,
     context: null,
@@ -36,4 +36,10 @@ test("Dallas location hint prioritizes Cowboys simulation prompt", () => {
   const simulationPrompt = prompts.find((p) => p.text.includes("Simulate the first 3 rounds"));
   assert.ok(simulationPrompt);
   assert.match(simulationPrompt.text, /Dallas Cowboys/);
+});
+
+test("draft prompts do not require nfl in-season mode", () => {
+  const prompts = buildDraftPromptSet("", false);
+  const texts = prompts.map((p) => p.text);
+  assert.ok(texts.includes("Who are the biggest sleepers in the 2026 Draft class?"));
 });

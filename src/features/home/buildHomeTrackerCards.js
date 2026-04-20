@@ -4,6 +4,12 @@ function formatScore(value) {
   return `${n > 0 ? "+" : ""}${n.toFixed(1)}u`;
 }
 
+function isLikelyDraftWindow(now = new Date()) {
+  const month = now.getUTCMonth() + 1;
+  const day = now.getUTCDate();
+  return month === 4 && day >= 18 && day <= 28;
+}
+
 export function buildHomeTrackerCards({
   performanceData,
   nbaGames,
@@ -11,7 +17,6 @@ export function buildHomeTrackerCards({
   golfData,
   f1Data,
   nflDraftMeta,
-  nflSeasonMode = false,
 }) {
   const summary = performanceData?.summary || null;
   const settled = Number(summary?.settled || 0);
@@ -32,8 +37,9 @@ export function buildHomeTrackerCards({
   const golfLeaders = golfData?.currentEvent?.leaderboard || [];
   const nextF1Race = f1Data?.schedule?.races?.find((r) => r?.is_next);
   const draftPhase = String(nflDraftMeta?.phase || "").toLowerCase();
+  const hasDraftPhase = draftPhase === "pre_draft" || draftPhase === "during_draft";
   const shouldShowDraftPredictor =
-    nflSeasonMode && (draftPhase === "pre_draft" || draftPhase === "during_draft");
+    hasDraftPhase || (!draftPhase && isLikelyDraftWindow());
 
   if (nbaUpcoming[0]) {
     const g = nbaUpcoming[0];
