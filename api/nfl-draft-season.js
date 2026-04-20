@@ -111,7 +111,7 @@ export function getActiveDraftBundle(now = new Date()) {
     meta: { ...DRAFT_META_2026, phase: DRAFT_META_2026.phase },
     phase: DRAFT_META_2026.phase,
     boardSourceAttribution:
-      "NFL.com prospect tracker + OTC order/cap framing + ESPN/Ringer contextual board validation.",
+      "NFL.com prospect tracker + CBS Round 1 mock ordinals/bands + ESPN intel + OTC order framing (PFF ordinals paywalled).",
     tradeDigest: TRADE_DIGEST_2026,
     officialRoundOne: [],
     officialRoundOneLastVerified: null,

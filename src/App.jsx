@@ -1431,7 +1431,8 @@ ${themeCss}
     (m) => {
       if (m?.isDraft) {
         const prompt = String(
-          m?.defaultPrompt || "Simulate my team's first 3 rounds",
+          m?.defaultPrompt ||
+            "Which team has the most interesting draft situation?",
         ).trim();
         if (!prompt || isAsking || prefetchingUrTakeContext) return;
         if (screen !== "ask" || tab !== "ask") {

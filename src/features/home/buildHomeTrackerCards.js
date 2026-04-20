@@ -140,25 +140,24 @@ export function buildHomeTrackerCards({
 
   if (shouldShowDraftPredictor) {
     const orderCount = Number(nflDraftMeta?.fullOrderCount || 257);
-    const location = nflDraftMeta?.boardLocation || "Pittsburgh, PA";
     cards.push({
       id: "nfl-draft-predictor",
       league: "NFL DRAFT",
       leagueColor: "#E11D48",
       title: "2026 Draft Predictor",
-      time: `${location} · ${orderCount}-pick order`,
+      time: `${orderCount}-pick board`,
       network: "Round 1 board + team needs",
       reliability: 0.98,
-      text: "2026 Draft Predictor: Round 1 order + Team Needs are live for Pittsburgh. Ask for a 7-round mock.",
-      blurb:
-        "2026 Draft Predictor: Round 1 order + Team Needs are live for Pittsburgh. Ask for a 7-round mock.",
+      text: "Ask about your team's picks, needs, and Round 1 board.",
+      blurb: "Ask about your team's picks, needs, and Round 1 board.",
       isDraft: true,
       sportHint: "nfl",
       draftPhase,
-      defaultPrompt: "Simulate my team's first 3 rounds",
+      defaultPrompt: "Which team has the most interesting draft situation?",
       quickHitters: [
-        "Simulate my team's first 3 rounds",
         "Which team has the most interesting draft situation?",
+        "Simulate Cowboys rounds 1-3",
+        "Who are the best EDGE prospects?",
       ],
       confirmed: true,
     });

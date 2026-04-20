@@ -19,10 +19,31 @@ const NEED_POSITION_MAP = {
   OT: ["OT"],
 };
 
-function rangeUpperBound(projectedRange) {
+export function parseProjectedRange(projectedRange) {
   const m = String(projectedRange || "").match(/(\d+)\s*-\s*(\d+)/);
-  if (!m) return 999;
-  return Number(m[2]);
+  if (!m) return [1, 999];
+  return [Number(m[1]), Number(m[2])];
+}
+
+/** Pick must fall within consensus window with controlled early reach / late slide slack. */
+export function isProspectRealisticAtPick(candidate, pickOverall, chaosMode = false) {
+  const [lo, hi] = parseProjectedRange(candidate.projectedRange);
+  const lateCap = hi + (chaosMode ? 14 : 10);
+  const earlyFloor = lo - (chaosMode ? 3 : 0);
+  if (pickOverall > lateCap) return false;
+  if (pickOverall < earlyFloor) return false;
+  return true;
+}
+
+function placementStretchNote(candidate, pickOverall, chaosMode) {
+  const [lo, hi] = parseProjectedRange(candidate.projectedRange);
+  if (pickOverall < lo) {
+    return ` Consensus typically slots ${candidate.name} closer to ${lo}-${hi}${chaosMode ? "" : " — taking him here is a reach"}; fit still urgent at ${pickOverall}.`;
+  }
+  if (pickOverall > hi) {
+    return ` Board slide vs ${lo}-${hi} band — value at ${pickOverall}.`;
+  }
+  return "";
 }
 
 function toProspectRows(bundle) {
@@ -32,16 +53,22 @@ function toProspectRows(bundle) {
       position: p.position,
       school: p.school,
       overallRank: Number(p.overallRank || 999),
+      consensusRank: Number(p.consensusRank ?? p.overallRank ?? 999),
       positionalRank: Number(p.positionalRank || 999),
       projectedRange: p.projectedRange || "103-140",
       projectedRound: Number(p.projectedRound || 4),
     }))
-    .sort((a, b) => a.overallRank - b.overallRank);
+    .sort((a, b) => a.consensusRank - b.consensusRank);
 }
 
-function availableAtPick(candidate, pickOverall) {
-  const upper = rangeUpperBound(candidate.projectedRange);
-  return upper + 8 >= pickOverall;
+function availableAtPick(candidate, pickOverall, chaosMode) {
+  return isProspectRealisticAtPick(candidate, pickOverall, chaosMode);
+}
+
+function candidatesAtPick(pool, pickOverall, chaosMode) {
+  let c = pool.filter((p) => availableAtPick(p, pickOverall, chaosMode));
+  if (!c.length) c = pool.filter((p) => availableAtPick(p, pickOverall, true));
+  return c;
 }
 
 function bestForNeed(available, need) {
@@ -101,16 +128,15 @@ function applyChaosEvent({ chaosEvent, pick, pool, need, teamName }) {
 }
 
 function chooseProspectForPick({ pool, pick, needs, chaosMode, chaosEvent, teamName }) {
-  const available = pool.filter((p) => availableAtPick(p, pick.overall));
-  if (!available.length) return null;
-
   const primaryNeed = needs[0] || null;
   let chaosText = null;
   if (chaosMode && chaosEvent && pick.round === 1) {
     chaosText = applyChaosEvent({ chaosEvent, pick, pool, need: primaryNeed, teamName });
   }
 
-  const refreshedAvailable = pool.filter((p) => availableAtPick(p, pick.overall));
+  let refreshedAvailable = candidatesAtPick(pool, pick.overall, chaosMode);
+  if (!refreshedAvailable.length) return null;
+
   const needPool = needs
     .map((need) => ({ need, candidate: bestForNeed(refreshedAvailable, need) }))
     .filter((r) => r.candidate);
@@ -118,13 +144,14 @@ function chooseProspectForPick({ pool, pick, needs, chaosMode, chaosEvent, teamN
   if (!selected) return null;
 
   removeFromPool(pool, selected.name);
+  const stretch = placementStretchNote(selected, pick.overall, chaosMode);
   return {
     round: pick.round,
     overall: pick.overall,
     player: selected.name,
     position: selected.position,
     school: selected.school,
-    why: `${selected.position} fills ${needs.join("/")} pressure with board value at ${pick.overall}.`,
+    why: `${selected.position} fills ${needs.join("/")} lane at slot ${pick.overall}.${stretch}`,
     chaosText,
   };
 }

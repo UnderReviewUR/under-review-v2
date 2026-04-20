@@ -2,18 +2,51 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { TEAM_NEEDS_2026 } from "./nfl-team-needs-2026.js";
+import { applyConsensusMetadata, CONSENSUS_BOARD_NOTE } from "./nfl-draft-consensus-overrides.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE_UPDATED_AT = "2026-04-20";
 
 /**
  * Source notes:
- * - NFL.com tracker pages are the primary verified source for names, positions, schools, and grades.
- * - ESPN rounds page verified dates/location framing.
- * - The Ringer big board page exposed a small set of comparable notes for top names.
- * - OTC draft page used for positional value framing and cap/value context language.
+ * - NFL.com tracker: primary verified names, positions, schools, grades (pool depth).
+ * - CBS Round 1 "What I would do" (Ryan Wilson): pick numbers + CBS PROSPECT RNK — consensus ordering + ranges.
+ * - CBS seven-round team mocks + ESPN Schefter intel: situational notes / conflicts (no full ordinals).
+ * - PFF draft hub: subscriber wall blocked numbered big-board export at ingest.
  * - PFR 2026 draft URL returned 403 at ingest time.
  */
+
+/** Optional narrative fields for top names (simulation + prompt grounding). */
+const PROSPECT_NARRATIVE = {
+  "Arvell Reese": {
+    keyStrengths: ["elite bend", "first-step quickness", "pass-rush arsenal"],
+    concerns: ["run-defense consistency"],
+  },
+  "David Bailey": {
+    keyStrengths: ["motor", "power rush", "production"],
+    concerns: ["athleticism ceiling", "late declare context"],
+  },
+  "Fernando Mendoza": {
+    keyStrengths: ["pocket management", "arm talent flashes", "trajectory"],
+    concerns: ["one-year spike vs long track record"],
+  },
+  "Jeremiyah Love": {
+    keyStrengths: ["burst", "contact balance", "breakaway speed"],
+    concerns: ["pass-pro sample", "volume role"],
+  },
+  "Rueben Bain Jr.": {
+    keyStrengths: ["hands", "first-step", "versatile alignment"],
+    concerns: ["frame length vs NFL OTs"],
+  },
+  "Sonny Styles": {
+    keyStrengths: ["range", "hit power", "coverage upside"],
+    concerns: ["pure fit: off-ball vs hybrid usage"],
+  },
+  "Ty Simpson": {
+    keyStrengths: ["arm strength", "athletic upside", "program tools"],
+    concerns: ["starter sample", "decision consistency"],
+  },
+};
 const RAW_PROSPECTS_2026 = [
   ["Arvell Reese", "EDGE", "Ohio State", 7.04],
   ["David Bailey", "EDGE", "Texas Tech", 6.78],
@@ -134,7 +167,7 @@ const SOURCE_PRIORITY = {
 function projectedRoundFromRank(rank) {
   if (rank <= 32) return 1;
   if (rank <= 64) return 2;
-  if (rank <= 102) return 3;
+  if (rank <= 96) return 3;
   return 4;
 }
 
@@ -145,18 +178,20 @@ function projectedRangeFromRank(rank) {
   if (rank <= 50) return "33-50";
   if (rank <= 64) return "51-64";
   if (rank <= 85) return "65-85";
-  if (rank <= 102) return "86-102";
-  return "103-140";
+  if (rank <= 96) return "86-96";
+  return "97-140";
 }
 
 function buildProspectPool() {
-  const ranked = RAW_PROSPECTS_2026.map(([name, position, school, nflGrade]) => ({
+  let ranked = RAW_PROSPECTS_2026.map(([name, position, school, nflGrade]) => ({
     name,
     position,
     school,
     nflGrade,
     sourceUpdatedAt: SOURCE_UPDATED_AT,
-  })).sort((a, b) => b.nflGrade - a.nflGrade);
+  }));
+
+  ranked = applyConsensusMetadata(ranked);
 
   const byPositionCounters = new Map();
 
@@ -166,20 +201,26 @@ function buildProspectPool() {
     byPositionCounters.set(p.position, nextPosRank);
     p.overallRank = i + 1;
     p.positionalRank = nextPosRank;
-    p.projectedRound = projectedRoundFromRank(p.overallRank);
-    p.projectedRange = projectedRangeFromRank(p.overallRank);
-    p.sources = ["nflTracker"];
+    const rankBasis = Number(p.consensusRank ?? p.overallRank);
+    p.projectedRound = projectedRoundFromRank(rankBasis);
+    if (!p.projectedRange) {
+      p.projectedRange = projectedRangeFromRank(rankBasis);
+    }
+    const src = new Set(p.sources || ["nflTracker"]);
+    src.add("nflTracker");
+    p.sources = Array.from(src);
     if (RINGER_COMPS[p.name]) {
       p.sources.push("ringer");
       p.comparablePlayer = RINGER_COMPS[p.name];
     }
     p.sources.sort((a, b) => SOURCE_PRIORITY[a] - SOURCE_PRIORITY[b]);
+    const nar = PROSPECT_NARRATIVE[p.name];
+    if (nar) Object.assign(p, nar);
   }
 
   return Object.fromEntries(
-    ranked.map((p) => [
-      p.name,
-      {
+    ranked.map((p) => {
+      const row = {
         position: p.position,
         school: p.school,
         nflGrade: p.nflGrade,
@@ -187,11 +228,17 @@ function buildProspectPool() {
         projectedRange: p.projectedRange,
         positionalRank: p.positionalRank,
         overallRank: p.overallRank,
+        consensusRank: p.consensusRank ?? p.overallRank,
         comparablePlayer: p.comparablePlayer,
         sourceUpdatedAt: p.sourceUpdatedAt,
         sources: p.sources,
-      },
-    ]),
+      };
+      if (p.sourceRanges) row.sourceRanges = p.sourceRanges;
+      if (p.draftNote) row.draftNote = p.draftNote;
+      if (p.keyStrengths) row.keyStrengths = p.keyStrengths;
+      if (p.concerns) row.concerns = p.concerns;
+      return [p.name, row];
+    }),
   );
 }
 
@@ -294,8 +341,13 @@ export const DRAFT_META_2026 = {
   tradeHistory: [],
   phase: "pre_draft",
   sourceUpdatedAt: SOURCE_UPDATED_AT,
+  consensusNote: CONSENSUS_BOARD_NOTE,
   sourceCoverage: {
-    nflTracker: "verified",
+    nflTracker: "verified_pool",
+    cbsWilsonRound1Mock: "ingested_apr2026",
+    cbsSevenRoundMocks: "supplemental_team_fits",
+    espnSchefterIntel: "narrative_only",
+    pffBigBoardOrdinals: "paywalled",
     espnRounds: "verified",
     ringerGuide: "partial_verified",
     overTheCap: "verified",
@@ -332,5 +384,5 @@ export const DRAFT_ORDER_2026 = ORDER_2026.map((row) => ({
 export function getProspectsAsArray() {
   return Object.entries(PROSPECTS_2026)
     .map(([name, p]) => ({ name, ...p }))
-    .sort((a, b) => a.overallRank - b.overallRank);
+    .sort((a, b) => Number(a.consensusRank ?? a.overallRank) - Number(b.consensusRank ?? b.overallRank));
 }

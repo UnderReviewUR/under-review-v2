@@ -1420,7 +1420,9 @@ If a user asks for a non-board name, label it "simulation-only (UDFA-range)" and
         .map(([k, v]) => `${k}:${v}`)
         .join(" | ");
     }
-    return `- ${p.name} (${p.position}, ${p.school}) [${status}] — ${stats}`;
+    const band = p?.projectedRange ? `slot band ${p.projectedRange}` : "slot band n/a";
+    const cr = p?.consensusRank != null ? `consensus #${p.consensusRank}` : "";
+    return `- ${p.name} (${p.position}, ${p.school}) [${status}] — ${band}${cr ? `; ${cr}` : ""} — ${stats}`;
   });
   return `VERIFIED 2026 DRAFT PROSPECT ANCHORS:
 ${lines.join("\n")}
@@ -1444,9 +1446,13 @@ function buildDraftProspectsByPositionBlock(draftBundle) {
   const lines = [];
   for (const pos of Object.keys(grouped).sort()) {
     const row = grouped[pos]
-      .sort((a, b) => Number(a.overallRank || 999) - Number(b.overallRank || 999))
+      .sort(
+        (a, b) =>
+          Number((a.consensusRank ?? a.overallRank) || 999) -
+          Number((b.consensusRank ?? b.overallRank) || 999),
+      )
       .slice(0, 10)
-      .map((p) => `${p.name} (${p.school}) #${p.overallRank}`)
+      .map((p) => `${p.name} (${p.school}) #${p.consensusRank ?? p.overallRank}`)
       .join(", ");
     lines.push(`${pos}: ${row}`);
   }
@@ -2858,9 +2864,19 @@ SIMULATION RULES (mandatory):
 5. For prospects not in the verified pool: label "Day 3 / UDFA range" — do not invent names.
 6. If user names a fabricated prospect: say "not in the verified 2026 draft pool" and pivot.
 
+TEAM CLARIFICATION RULE (mandatory — no menus):
+If the question references "my team" or "our team" without naming a specific NFL franchise, do NOT reply with A/B/C options or ask what kind of simulation they mean (fantasy/betting/board). Assume NFL draft simulation from this card. Respond with exactly one line:
+
+Which team are we simulating? Drop your franchise and I'll run the board — sensible scenario plus a chaos branch.
+
+Then stop (no bullet menus).
+
+OPEN QUESTION RULE:
+If the question asks which NFL team has the most interesting draft situation (or similarly open ranking), answer with ONE specific franchise and substantive reasoning — do not respond with clarification questions unless the prompt is truly empty.
+
 PROSPECT SLOT VALIDATION (mandatory before finalizing any simulation):
 - Each named prospect must appear in VERIFIED 2026 DRAFT PROSPECT ANCHORS / pool above.
-- Before placing a prospect at a pick, check their overallRank and projectedRound in the pool. Do not slot them rounds above their profile (e.g. a Round 3–4 overallRank player is not a top-11 pick).
+- Before placing a prospect at a pick, check projectedRange, consensusRank, and projectedRound in the pool. Do not slot a prospect multiple rounds above their projectedRange cluster (e.g. David Bailey is not a top-12 profile on this board).
 - Respect POSITION_VALUE_MAP and common draft economics: RBs rarely go Round 1 unless truly elite board; developmental QBs rarely go top 10–12 without extreme context. Do not place mid-round developmental QBs or Day 2–3 RBs in the top 11 "for board flow."
 - Examples (non-negotiable for mock consistency): Jadarian Price — Day 2–3 RB range, not top 15. Ty Simpson — developmental mid-round QB profile, not top 11.
 - If a need has no verified prospect that fits at that slot, write: "[Position] need unaddressed here — board didn't cooperate. [Team] pivots to [next need] and circles back to [position] in round [N+1]." Do not invent a prospect to plug the hole.

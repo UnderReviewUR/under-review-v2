@@ -17,11 +17,11 @@ test("shows draft predictor card during pre-draft window", () => {
   });
   const draftCard = cards.find((c) => c.id === "nfl-draft-predictor");
   assert.ok(draftCard);
-  assert.equal(draftCard.defaultPrompt, "Simulate my team's first 3 rounds");
-  assert.equal(
-    draftCard.quickHitters?.[1],
-    "Which team has the most interesting draft situation?",
-  );
+  assert.equal(draftCard.defaultPrompt, "Which team has the most interesting draft situation?");
+  assert.equal(draftCard.quickHitters?.[0], "Which team has the most interesting draft situation?");
+  assert.equal(draftCard.quickHitters?.[1], "Simulate Cowboys rounds 1-3");
+  assert.equal(draftCard.quickHitters?.[2], "Who are the best EDGE prospects?");
+  assert.ok(String(draftCard.blurb || "").includes("Ask about your team's picks"));
 });
 
 test("shows draft predictor during pre-draft even when nflSeasonMode is off", () => {
