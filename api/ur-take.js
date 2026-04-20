@@ -2829,18 +2829,26 @@ Draft location: ${draftBundleForPrompt?.event?.location || "Pittsburgh, PA"}
 VERIFIED PROSPECT POOL (rounds 1-4 only — do not name prospects outside this list):
 ${prospectsFormattedByPosition}
 
-SIMULATION BASELINE (engine output)
+SIMULATION BASELINE (engine output — align your narrative with this; validate slot realism before overriding)
 SENSIBLE: ${sensibleSimulation ? JSON.stringify(sensibleSimulation, null, 2) : "Team not detected — request team first."}
 CHAOS: ${chaosSimulation ? JSON.stringify(chaosSimulation, null, 2) : "Team not detected — request team first."}
 
-SIMULATION RULES:
-1. Run a SENSIBLE SCENARIO first — best available at highest need, realistic board flow.
-2. Run a CHAOS BRANCH second — one plausible disruptive event changes the board, show adaptation.
-3. Never label the simulation as impossible to predict upfront.
-4. For prospects not in the verified pool: label "Day 3 / UDFA range" and avoid specific round projection.
-5. For each pick, explain WHY in one line — roster fit + positional value + board context.
-6. Chaos branch must be plausible (trade-up, faller, trade-back, rival reach), never absurd.
-7. If user names a fabricated/unknown prospect, explicitly say: "not in the verified 2026 draft pool" and pivot to valid names.`
+SIMULATION RULES (mandatory):
+1. Target under 400 words total. Sharp and skimmable — no essays.
+2. Never open with "I can't", "without live war-room intel", or similar hedges. Open directly with the simulation header.
+3. No "board flow" paragraphs listing who goes at picks 1–11 or earlier picks across the league. The user asked about THIS team — only list picks for the team being simulated (use their real slot numbers from Picks above).
+4. Do not narrate the entire first round. At most one short clause of league context per pick in the "why" line if essential — never a wall of names.
+5. For prospects not in the verified pool: label "Day 3 / UDFA range" — do not invent names.
+6. If user names a fabricated prospect: say "not in the verified 2026 draft pool" and pivot.
+
+PROSPECT SLOT VALIDATION (mandatory before finalizing any simulation):
+- Each named prospect must appear in VERIFIED 2026 DRAFT PROSPECT ANCHORS / pool above.
+- Before placing a prospect at a pick, check their overallRank and projectedRound in the pool. Do not slot them rounds above their profile (e.g. a Round 3–4 overallRank player is not a top-11 pick).
+- Respect POSITION_VALUE_MAP and common draft economics: RBs rarely go Round 1 unless truly elite board; developmental QBs rarely go top 10–12 without extreme context. Do not place mid-round developmental QBs or Day 2–3 RBs in the top 11 "for board flow."
+- Examples (non-negotiable for mock consistency): Jadarian Price — Day 2–3 RB range, not top 15. Ty Simpson — developmental mid-round QB profile, not top 11.
+- If a need has no verified prospect that fits at that slot, write: "[Position] need unaddressed here — board didn't cooperate. [Team] pivots to [next need] and circles back to [position] in round [N+1]." Do not invent a prospect to plug the hole.
+
+FOCUS TEAM: Use only ${focusTeam || focusTeamAbbr || "the team named in the question"}'s pick slots and needs — never another franchise's capital unless the question names them.`
     : ""
 }
 
@@ -2852,38 +2860,61 @@ Rules:
 - Draft identity enforcement: for draft-centric questions, any prospect name outside VERIFIED 2026 DRAFT PROSPECT ANCHORS must be labeled "simulation-only (UDFA-range)" before analysis.
 - Do not invent unrelated games, props, role changes, or target-share claims.
 
-- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation. Place it after the CONFIDENCE section and before the TIMING section (Under Review structured format). Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
+- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation — **except in NFL DRAFT SIMULATION MODE (see below)**, where staleness belongs only in the single CONFIDENCE block at the end. Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
 
 ${
   draftSimulationMode
-    ? `RESPONSE FORMAT (mandatory):
-SENSIBLE SCENARIO
-Round 1, Pick [N]: [Player], [Position], [School]
-Why: [one line — fit + board reason]
+    ? `NFL DRAFT SIMULATION — RESPONSE FORMAT (mandatory)
 
-Round 2, Pick [N]: [Player], [Position], [School]
-Why: [one line]
+CRITICAL RULES BEFORE WRITING ANYTHING:
 
-Round 3, Pick [N]: [Player], [Position], [School]
-Why: [one line]
+1. Do not open with "I can't" or "without live war-room intel" or any hedge. Everyone knows mocks are speculation. Skip that entirely. Open directly with the simulation.
+
+2. No board-flow paragraphs. Do not list who goes at picks 1–11 in a wall of text. The user asked about their team, not the entire draft. The only prospect names you list in depth are the picks for the team being simulated.
+
+3. Board context belongs in ONE line per pick maximum (under the pick line). Not a separate "BOARD FLOW" section.
+
+4. The CHAOS BRANCH must be:
+   - ONE sentence describing the disruptive event (specific, plausible — trade-up, medical flag, run at a position, rival reach).
+   - Then 2–3 lines showing how the team adapts and why it still works.
+   - Chaos means the board shifts — not absurd reaches or profiles that violate PROSPECT SLOT VALIDATION.
+
+5. BOARD WATCH BEFORE THURSDAY is 2–3 specific pre-draft storylines that directly affect THIS team's picks — not generic draft advice.
+
+6. CONFIDENCE: ONE appearance only, at the end. Do not repeat simulation disclaimers elsewhere. No duplicate "offseason snapshot" lines outside CONFIDENCE.
+
+7. Only name prospects from the verified 2026 draft pool. Honor PROSPECT SLOT VALIDATION above.
+
+REQUIRED FORMAT — use this structure (replace brackets with real picks/slots for the requested rounds):
+
+[TEAM] DRAFT SIMULATION — 2026
+
+SENSIBLE BOARD
+
+Pick [overall #]: [Player], [Position], [School]
+[One line — why this pick at this slot]
+
+Pick [overall #]: [Player], [Position], [School]
+[One line — why]
+
+(add lines for each pick the user asked for — must match this team's actual slots from Picks above)
 
 ---
 
 CHAOS BRANCH
-[One sentence describing the disruptive event]
 
-Round 1, Pick [N]: [Player], [Position], [School]
-Why it still works: [one line]
-
-Round 2, Pick [N]: [Player], [Position], [School]
-Round 3, Pick [N]: [Player], [Position], [School]
+[One sentence: the disruptive event]
+[2–3 lines: how the team adapts and why it still works — may reference different prospect names if slots change, still validated]
 
 ---
 
-BOARD WATCH
-[Two or three names that can alter this team's board value before draft day]
+BOARD WATCH BEFORE THURSDAY
+• [Specific storyline — direct impact on this team's board]
+• [Another specific storyline]
+• [Optional third]
 
-No uncertainty disclaimer preamble. Open directly with simulation output.`
+CONFIDENCE
+Simulation. Pre-draft consensus board + verified prospect pool. Accuracy sharpens once live trades and day-of decisions are known.[If DATA FRESHNESS requires it, append one short staleness clause here only — nowhere else.]`
     : teamCapitalBlock
       ? `TEAM PICK-BY-PICK SIMULATION:
 - Anchored team: ${focusTeam}. Use TEAM DRAFT CAPITAL rows in order when user asks for pick-by-pick outcomes.
@@ -2892,7 +2923,9 @@ No uncertainty disclaimer preamble. Open directly with simulation output.`
 }
 
 ${
-  nflDraftAngle
+  draftSimulationMode
+    ? ""
+    : nflDraftAngle
     ? `NO-MARKET / DRAFT ANGLE (when the question is draft-centric, not a priced prop):
 You are NOT allowed to stall with "wait until the draft" as the whole answer.
 
