@@ -1229,8 +1229,8 @@ function buildNbaRosterListInner(nbaContext, rosterOpts = {}) {
 
   if (userGrounded) {
     const apiLine = names.length
-      ? `API roster snapshot (may be incomplete): ${names.join(", ")}`
-      : "API roster snapshot for tonight's slate is thin or still loading.";
+      ? `Reference names from context: ${names.join(", ")}`
+      : "Use image and Question text as the name source when the slate list is empty.";
     return `USER-SUPPLIED GROUNDING — OVERRIDES “NO NAMES” ROSTER MODE
 ${hasImage ? "- An image is attached: read visible player names, prop lines, prices, and stat rows from the screenshot as primary evidence.\n" : ""}${namedInQuestion ? "- The Question targets a specific player by name — discuss that player directly.\n" : ""}- ${apiLine}
 
@@ -1238,38 +1238,37 @@ You MUST use names and numbers from the image and/or the Question.
 Do not refuse to name a player who is visible in the image or clearly named in the Question solely because playersByTeamAbbrev is empty or incomplete.`;
   }
 
-  const thinOrAbsentBody = `NO VERIFIED ROSTER DATA FOR TONIGHT'S TEAMS.
-Do not name any specific players for these teams.
-Give team-level analysis only — pace, scheme, series context, matchup profile.
-This is a hard constraint. Inventing player names here destroys user trust.`;
+  const thinOrAbsentBody = `INTERNAL ROSTER LIST: no authorized names in payload for these teams.
+Do not name specific players for those sides unless the Question or an attached image names them.
+Give team-level analysis only — pace, scheme, series context, matchup profile, injuries from context.
+Inventing player names destroys trust.`;
 
   if (names.length === 0) {
     return thinOrAbsentBody;
   }
 
   if (rosterQuality === "full") {
-    return `VERIFIED PLAYERS ON TONIGHT'S SLATE:
+    return `INTERNAL — AUTHORIZED NAMES FOR TONIGHT (do not describe this list or its completeness to the user):
 ${names.join(", ")}
 
-Name only these players when discussing tonight's games.`;
+Name only these players when discussing tonight's games (unless Question/image authorizes another name per rules below).`;
   }
 
   if (rosterQuality === "partial") {
-    return `PARTIAL ROSTER DATA — VERIFIED PLAYERS ONLY:
+    return `INTERNAL — AUTHORIZED NAMES FOR TONIGHT (do not describe this list or its completeness to the user):
 ${names.join(", ")}
 
-You may ONLY name players on this list. For teams with zero verified players,
-give team-level analysis only. Do not supplement with training memory.`;
+You may ONLY name players on this list for team-specific assignments. For any team with no names in playersByTeamAbbrev, use team-level analysis only — do not supplement with training memory.`;
   }
 
   if (rosterQuality === "thin") {
-    return `VERIFIED PLAYERS (combined API + client UI slate — rosterGroundingQuality is "thin" because some tonight teams lack full API rows, but the names below are still authorized):
+    return `INTERNAL — AUTHORIZED NAMES FOR TONIGHT (do not describe this list or its completeness to the user):
 ${names.join(", ")}
 
-You may name anyone on this list. If a user or the product UI targets a team with no names in this list, use team-level read for that side only — do not claim you "cannot verify" a name that appears on this list.`;
+You may name anyone on this list. For a team with no names under playersByTeamAbbrev, use team-level read for that side only.`;
   }
 
-  return `VERIFIED PLAYERS (slate):
+  return `INTERNAL — AUTHORIZED NAMES FOR TONIGHT (do not describe this list or its completeness to the user):
 ${names.join(", ")}
 
 Name only these players when discussing player-specific props unless the image or question authorizes another name.`;
@@ -1313,8 +1312,8 @@ In Tier 2.5 summary, PROP PROJECTIONS must contain at least 4 specific lines.`;
 const ROSTER_ENFORCEMENT_NBA = `ROSTER ENFORCEMENT — THIS IS A HARD RULE WITH NO EXCEPTIONS
 
 playersByTeamAbbrev in rosterGrounding lists the ONLY players you are
-allowed to name as members of each team. This list comes from verified
-API data — real player names, real team assignments for tonight.
+allowed to name as members of each team. Use this for internal checks only —
+never narrate roster completeness, verification status, or data pipelines to the user.
 
 YOU MUST FOLLOW THESE RULES EXACTLY:
 
@@ -1323,11 +1322,11 @@ YOU MUST FOLLOW THESE RULES EXACTLY:
    rosterGrounding.playersByTeamAbbrev. If it does not appear, you
    CANNOT name them as being on that team. Period.
 
-2. If playersByTeamAbbrev is empty or has fewer than 3 players for a
-   team you need to discuss, you MUST say: "I don't have tonight's
-   confirmed roster for [TEAM]. I'll give you the matchup read without
-   naming specific players." Then give the take using team-level
-   analysis only. Do NOT invent player names.
+2. If playersByTeamAbbrev is empty or thin for a team you need to discuss,
+   give team-level analysis (pace, scheme, series, totals, injuries from context)
+   without inventing players. Do NOT tell the user the roster is missing,
+   unconfirmed, partial, or loading — if coverage is weak, reflect that only
+   through CONFIDENCE (High / Medium / Speculative), not a prose disclaimer.
 
 3. Your training data about NBA rosters is STALE and WRONG. Trades,
    injuries, and roster moves happen constantly. A player you "know"
@@ -1345,10 +1344,14 @@ YOU MUST FOLLOW THESE RULES EXACTLY:
    Do not reply with “I can't cite [that player] without verification.” The user
    supplied the source. Use API roster lists only as a supplement.
 
-6. When rosterGroundingQuality is "partial" or "thin", open your response with:
-   "Working from partial roster data tonight — " then give the take
-   using only the players you CAN verify. This is honest and sharp.
-   Do NOT fill thin data with invented names.
+ROSTER DISCLOSURE RULE:
+Never tell the user which players are verified, partial, or loading.
+Never say "working from partial roster data."
+Never say "data is still loading" or any variation.
+Never say which team's roster is confirmed vs thin.
+Never mention client UI, API merge, rosterGroundingQuality, or "combined" data sources.
+The confidence line reflects data quality. That is the only place uncertainty
+about data completeness belongs. Nowhere else.
 
 ENFORCEMENT CHECK: Before generating your response, mentally verify each player name:
 If the name appears in the Question or attached image → allowed.
@@ -2532,9 +2535,13 @@ ${nbaRosterListBlock}
 
 IMPORTANT: playerStatsText may contain season-average rows with stale team
 assignments. A player listed as ATL in playerStatsText may have been traded.
-The VERIFIED PLAYERS list above overrides playerStatsText for team assignments.
-If a name appears in playerStatsText but not in the verified list for their
-listed team, do not cite them as being on that team tonight.
+The INTERNAL authorized-name roster block above overrides playerStatsText for team assignments.
+If a name appears in playerStatsText but not under that team in playersByTeamAbbrev / the authorized list,
+do not cite them as being on that team tonight.
+
+When using the Tier-3 format (>> opener plus THE PLAY and following sections),
+the response must START with the >> line as the very first characters — no preamble,
+no roster disclaimer, no source caveat, nothing before >>.
 
 TEAM-LEVEL READ REQUIREMENTS (mandatory when named players are unavailable)
 
@@ -2598,6 +2605,8 @@ or when there is no prop row for an upcoming/live game the user cares about)
 Do not treat missing lines as an excuse for thin analysis. The user is here because tip is close.
 
 NO-MARKET FALLBACK FORMAT (mandatory when prop lines aren't posted):
+
+Same ROSTER DISCLOSURE RULE as above — never mention partial rosters, loading, or which names are "verified."
 
 Do NOT use "Watch for:" as a section header.
 Do NOT use player names as headers (no "JALEN BRUNSON —").
