@@ -16,6 +16,8 @@ export function buildDynamicHomeQuestions({
   tennisLiveMatches,
   tennisUpcomingMatches,
   nflSeasonMode,
+  nflDraftMeta,
+  userCity,
   context,
   golfData,
   nbaGames,
@@ -35,6 +37,14 @@ export function buildDynamicHomeQuestions({
 
   const rotate = (arr, offset = 0) =>
     Array.isArray(arr) && arr.length > 0 ? arr[(daySeed + offset) % arr.length] : null;
+  const draftPhase = String(nflDraftMeta?.phase || "").toLowerCase();
+  const isDraftMode = nflSeasonMode && (draftPhase === "pre_draft" || draftPhase === "during_draft");
+  const teamNeeds = nflDraftMeta?.teamNeeds && typeof nflDraftMeta.teamNeeds === "object"
+    ? nflDraftMeta.teamNeeds
+    : {};
+  const teamEntries = Object.entries(teamNeeds).filter(([, v]) => v?.headline);
+  const cityHint = String(userCity || "").toLowerCase();
+  const dallasPriority = cityHint.includes("dallas");
 
   const push = (item) => {
     if (!item || used.has(item.text)) return;
@@ -203,7 +213,39 @@ export function buildDynamicHomeQuestions({
     push({ id: "q5", color: "#E10600", sportHint: "f1", ...f1Prompt });
   }
 
-  if (nflSeasonMode) {
+  if (isDraftMode) {
+    const featuredTeam = dallasPriority
+      ? "Dallas Cowboys"
+      : rotate(teamEntries.map(([team]) => team), 9) || "Dallas Cowboys";
+    const featuredHeadline = teamNeeds?.[featuredTeam]?.headline || "OL, EDGE, secondary";
+    const topNeedTeams = teamEntries.slice(0, 5).map(([team, needs]) => {
+      const short = team.replace("New York ", "NY ").replace("Los Angeles ", "LA ");
+      return `${short} (${needs.headline})`;
+    });
+
+    push({
+      id: "q6a",
+      color: "#E11D48",
+      sportHint: "nfl",
+      text: "Who are the biggest sleepers in the 2026 Draft class?",
+      prompt:
+        "Who are the biggest sleepers in the 2026 Draft class? Use team-needs fit and round-value tiers, not just consensus ranking.",
+    });
+    push({
+      id: "q6b",
+      color: "#E11D48",
+      sportHint: "nfl",
+      text: `Simulate the first 3 rounds for the ${featuredTeam} (${featuredHeadline}).`,
+      prompt: `Simulate the first 3 rounds for the ${featuredTeam} based on their needs (${featuredHeadline}). Use realistic board flow and one contingency branch.`,
+    });
+    push({
+      id: "q6c",
+      color: "#E11D48",
+      sportHint: "nfl",
+      text: "Which teams are most likely to trade up into the Top 5?",
+      prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}.`,
+    });
+  } else if (nflSeasonMode) {
     const nflSeasonPrompt = rotate(
       [
         {

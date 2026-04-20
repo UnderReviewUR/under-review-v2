@@ -461,6 +461,15 @@ ${themeCss}
     if (remote && Object.keys(remote).length) return remote;
     return NFL_PLAYERS;
   }, [nflContextData]);
+  const nflDraftMeta = nflContextData?.draft || null;
+  const userCityHint = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const fromStorage =
+      localStorage.getItem("ur_user_city") || localStorage.getItem("ur_city") || "";
+    if (fromStorage) return fromStorage;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    return tz.includes("Chicago") ? "Dallas" : "";
+  }, []);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
@@ -1132,8 +1141,10 @@ ${themeCss}
         mlbData,
         golfData,
         f1Data,
+        nflDraftMeta,
+        nflSeasonMode,
       }),
-    [performanceData, nbaGames, mlbData, golfData, f1Data]
+    [performanceData, nbaGames, mlbData, golfData, f1Data, nflDraftMeta, nflSeasonMode]
   );
 
   const homeCards = useMemo(
@@ -1164,12 +1175,25 @@ ${themeCss}
         tennisLiveMatches,
         tennisUpcomingMatches,
         nflSeasonMode,
+        nflDraftMeta,
+        userCity: userCityHint,
         context,
         golfData,
         nbaGames,
         f1Data,
       }),
-    [activeTournamentMatches, tennisLiveMatches, tennisUpcomingMatches, nflSeasonMode, context, golfData, nbaGames, f1Data]
+    [
+      activeTournamentMatches,
+      tennisLiveMatches,
+      tennisUpcomingMatches,
+      nflSeasonMode,
+      nflDraftMeta,
+      userCityHint,
+      context,
+      golfData,
+      nbaGames,
+      f1Data,
+    ]
   );
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -1376,6 +1400,21 @@ ${themeCss}
 
   const openMatchup = useCallback(
     (m) => {
+      if (m?.isDraft) {
+        const prompt = String(
+          m?.defaultPrompt || "Show me the sharpest Round 1 path for the Cowboys",
+        ).trim();
+        if (!prompt || isAsking || prefetchingUrTakeContext) return;
+        if (screen !== "ask" || tab !== "ask") {
+          setNavHistory((h) => [...h, { screen, tab }]);
+        }
+        setTab("ask");
+        setScreen("ask");
+        setAskInput(prompt);
+        askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint: "nfl" });
+        return;
+      }
+
       if (!m?.title || !m?.network) return;
 
       if (
@@ -1444,7 +1483,7 @@ ${themeCss}
       setScreen("matchup");
       setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
     },
-    [screen, tab],
+    [screen, tab, askUrTake, isAsking, prefetchingUrTakeContext],
   );
 
   const scheduleChatScroll = useCallback((screenRef) => {

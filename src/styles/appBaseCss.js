@@ -194,6 +194,24 @@ export const baseCss = `
 
   .spotlight-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;margin-bottom:8px;transition:border-color .15s;}
   .spotlight-card:active{opacity:.85;}
+  .draft-gold-pulse{
+    border-color:rgba(245,200,66,.58);
+    box-shadow:0 0 0 1px rgba(245,200,66,.22),0 0 24px rgba(245,200,66,.14);
+    animation:draftGoldPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes draftGoldPulse{
+    0%,100%{
+      box-shadow:0 0 0 1px rgba(245,200,66,.16),0 0 16px rgba(245,200,66,.10);
+      transform:translateY(0);
+    }
+    50%{
+      box-shadow:0 0 0 1px rgba(245,200,66,.35),0 0 28px rgba(245,200,66,.20);
+      transform:translateY(-1px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .draft-gold-pulse{animation:none;}
+  }
   .spotlight-top{padding:10px 14px 0;display:flex;align-items:center;justify-content:space-between;}
   .spotlight-sport{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;font-weight:500;}
   .spotlight-time{font-family:var(--mono-font);font-size:9px;color:var(--muted);}

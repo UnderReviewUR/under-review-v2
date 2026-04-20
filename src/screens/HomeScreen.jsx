@@ -92,7 +92,7 @@ export default function HomeScreen({
             {homeCards.map(m=>(
   <div
     key={m.id}
-    className="spotlight-card"
+    className={`spotlight-card${m.isDraft ? " draft-gold-pulse" : ""}`}
     onClick={() => openMatchup(m)}
   >
                 <div className="spotlight-top">

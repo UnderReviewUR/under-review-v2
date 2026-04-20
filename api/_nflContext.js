@@ -138,7 +138,14 @@ export function buildCanonicalNflContext() {
   return {
     uiPlayers,
     promptContext,
-    draft: { ...draftMeta, bundleYear: draftBundle.year },
+    draft: {
+      ...draftMeta,
+      bundleYear: draftBundle.year,
+      fullOrderCount: Array.isArray(draftBundle.fullOrder) ? draftBundle.fullOrder.length : 0,
+      teamNeeds: draftBundle.teamNeeds || {},
+      prospects: Array.isArray(draftBundle.prospects) ? draftBundle.prospects : [],
+      boardLocation: draftBundle?.event?.location || null,
+    },
     meta: {
       totalPlayers: Object.keys(uiPlayers).length,
       wrteCount: wrteEntries.length,

@@ -10,6 +10,8 @@ export function buildHomeTrackerCards({
   mlbData,
   golfData,
   f1Data,
+  nflDraftMeta,
+  nflSeasonMode = false,
 }) {
   const summary = performanceData?.summary || null;
   const settled = Number(summary?.settled || 0);
@@ -29,6 +31,9 @@ export function buildHomeTrackerCards({
   const mlbUpcoming = (mlbData?.games || []).filter((g) => g?.state === "pre");
   const golfLeaders = golfData?.currentEvent?.leaderboard || [];
   const nextF1Race = f1Data?.schedule?.races?.find((r) => r?.is_next);
+  const draftPhase = String(nflDraftMeta?.phase || "").toLowerCase();
+  const shouldShowDraftPredictor =
+    nflSeasonMode && (draftPhase === "pre_draft" || draftPhase === "during_draft");
 
   if (nbaUpcoming[0]) {
     const g = nbaUpcoming[0];
@@ -125,8 +130,31 @@ export function buildHomeTrackerCards({
         "2. Player prop anchor will appear with the next live board update.",
       ];
 
-  return [
-    {
+  const cards = [];
+
+  if (shouldShowDraftPredictor) {
+    const orderCount = Number(nflDraftMeta?.fullOrderCount || 257);
+    const location = nflDraftMeta?.boardLocation || "Pittsburgh, PA";
+    cards.push({
+      id: "nfl-draft-predictor",
+      league: "NFL DRAFT",
+      leagueColor: "#E11D48",
+      title: "2026 Draft Predictor",
+      time: `${location} · ${orderCount}-pick order`,
+      network: "Round 1 board + team needs",
+      reliability: 0.98,
+      text: "2026 Draft Predictor: Round 1 order + Team Needs are live for Pittsburgh. Ask for a 7-round mock.",
+      blurb:
+        "2026 Draft Predictor: Round 1 order + Team Needs are live for Pittsburgh. Ask for a 7-round mock.",
+      isDraft: true,
+      sportHint: "nfl",
+      draftPhase,
+      defaultPrompt: "Show me the sharpest Round 1 path for the Cowboys",
+      confirmed: true,
+    });
+  }
+
+  cards.push({
       id: "ur-home-tracker",
       league: "UR TRACKER",
       leagueColor: "#00F5E9",
@@ -142,6 +170,7 @@ export function buildHomeTrackerCards({
         "Show my full tracked record",
       ],
       confirmed: true,
-    },
-  ];
+    });
+
+  return cards;
 }

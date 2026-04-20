@@ -12,6 +12,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { TEAM_NEEDS_2026 } from "./data/nfl-team-needs-2026.js";
+import { NFL_PROSPECTS_2026 } from "./data/nfl-prospects-2026.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -58,6 +59,19 @@ export function inferActiveDraftClassYear(now = new Date()) {
 }
 
 function build2026Bundle({ inferredYear, bundleWarning }) {
+  const order = readOrder2026();
+  const orderProspectSet = new Set(
+    order
+      .map((row) => String(row?.player || "").trim())
+      .filter(Boolean),
+  );
+  const anchoredProspects = NFL_PROSPECTS_2026.map((prospect) => ({
+    ...prospect,
+    boardStatus: orderProspectSet.has(prospect.name)
+      ? "boarded"
+      : "simulation_only",
+  }));
+
   return {
     year: 2026,
     inferredYear,
@@ -70,8 +84,9 @@ function build2026Bundle({ inferredYear, bundleWarning }) {
       round1LocalDate: "2026-04-23",
       rounds234: "2026-04-24 — 2026-04-25",
     },
-    fullOrder: readOrder2026(),
+    fullOrder: order,
     teamNeeds: TEAM_NEEDS_2026,
+    prospects: anchoredProspects,
     boardSourceAttribution:
       "257-pick league slot order (pre–live draft). Regenerate JSON after NFL Operations / club transactions update slots.",
     tradeDigest: TRADE_DIGEST_2026,
@@ -108,6 +123,10 @@ export function getActiveDraftBundle(now = new Date()) {
       },
       fullOrder: order,
       teamNeeds: TEAM_NEEDS_2026,
+      prospects: NFL_PROSPECTS_2026.map((prospect) => ({
+        ...prospect,
+        boardStatus: "simulation_only",
+      })),
       boardSourceAttribution: `Slot order file nfl-draft-order-${inferred}.json — refresh team needs file for ${inferred}.`,
       tradeDigest: "Update TRADE_DIGEST for this class in nfl-draft-season.js.",
       officialRoundOne: [],
@@ -118,6 +137,20 @@ export function getActiveDraftBundle(now = new Date()) {
     inferredYear: inferred,
     bundleWarning: `No api/data/nfl-draft-order-${inferred}.json yet — using 2026 slot order as provisional.`,
   });
+}
+
+function normalizeProspectName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function isKnownDraftProspect(name, bundle = getActiveDraftBundle()) {
+  const target = normalizeProspectName(name);
+  if (!target) return false;
+  const prospectList = Array.isArray(bundle?.prospects) ? bundle.prospects : [];
+  return prospectList.some((p) => normalizeProspectName(p?.name) === target);
 }
 
 export function getNflDraftPhase(now = new Date(), bundle = getActiveDraftBundle(now)) {

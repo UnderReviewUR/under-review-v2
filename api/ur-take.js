@@ -1346,6 +1346,30 @@ ${staleNote}
 Do not name any NFL player not on this list as active on this slate.`;
 }
 
+function buildNflDraftProspectBlock(draftBundle) {
+  const prospects = Array.isArray(draftBundle?.prospects) ? draftBundle.prospects : [];
+  if (!prospects.length) {
+    return `DRAFT PROSPECT ANCHORS: unavailable in active bundle.
+If a user asks for a non-board name, label it "simulation-only (UDFA-range)" and do not present it as an official slot outcome.`;
+  }
+  const lines = prospects.map((p) => {
+    const status = p?.boardStatus === "boarded" ? "boarded" : "simulation-only";
+    const stats = p?.keyStats && typeof p.keyStats === "object"
+      ? Object.entries(p.keyStats)
+          .slice(0, 3)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(" | ")
+      : "stats: n/a";
+    return `- ${p.name} (${p.position}, ${p.school}) [${status}] — ${stats}`;
+  });
+  return `VERIFIED 2026 DRAFT PROSPECT ANCHORS:
+${lines.join("\n")}
+
+Roster-grounding rule for draft names:
+- If a requested prospect is NOT in this list, you must label them exactly as "simulation-only (UDFA-range)".
+- You may discuss fit hypotheticals, but you must not present them as locked pick outcomes in official board language.`;
+}
+
 function collectTennisVerifiedNames(players, liveMatches) {
   const set = new Set();
   for (const tour of ["atp", "wta"]) {
@@ -2668,6 +2692,7 @@ No bet now; re-run once verified player context is loaded.`;
 
     const nflDraftAngle = isNflDraftAngleQuestion(question);
     const draftBundleForPrompt = getActiveDraftBundle();
+    const draftProspectBlock = buildNflDraftProspectBlock(draftBundleForPrompt);
     const focusTeam = resolveNflTeamFromQuestion(question);
     const teamCapitalBlock =
       nflDraftAngle && focusTeam
@@ -2697,11 +2722,14 @@ Confidence guidance:
 
 ${nflVerifiedBlock}
 
+${draftProspectBlock}
+
 Rules:
 - Answer only as an NFL analyst.
 - Do not mention golf, NBA, MLB, F1, or tennis.
 - Use only players/teams/roles that exist in the provided NFL context — **except** the "NFL DRAFT BOARD" section: Round 1 pick numbers, team slot holders, trade notes on those slots, and OFFICIAL ROUND 1 PICKS (when populated) are authoritative for draft questions.
 - If the asked player is not in provided context, return PASS and explain missing context in one line — **unless** the question is draft-centric (see DRAFT / GM MODE below); then you may discuss well-known prospects qualitatively but must not fabricate who was selected at which slot.
+- Draft identity enforcement: for draft-centric questions, any prospect name outside VERIFIED 2026 DRAFT PROSPECT ANCHORS must be labeled "simulation-only (UDFA-range)" before analysis.
 - Do not invent unrelated games, props, role changes, or target-share claims.
 
 - Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation. Place it after the CONFIDENCE section and before the TIMING section (Under Review structured format). Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
@@ -2710,6 +2738,7 @@ ${
   nflDraftAngle
     ? `NFL DRAFT / GM MODE (user should feel like the GM of their team — decisive, board-aware, candid about risk):
 - Pre-draft / during-draft: cite Round 1 **pick # and team on the clock** exactly from NFL DRAFT BOARD; use the printed trade notes for capital context. Tie roster holes + scheme fit to target **archetypes**; if you name a prospect, frame as a lean or fit argument, not a leaked selection unless OFFICIAL ROUND 1 PICKS already lists that pick.
+- Prefer names from VERIFIED 2026 DRAFT PROSPECT ANCHORS before introducing simulation-only names.
 - Post-draft: if OFFICIAL ROUND 1 PICKS lists players in context, give a synthesized class grade (fit, value vs slot, balance, one risk) **using only that list** plus the board. If that section says results are not loaded, say so once and invite the user to paste their team's haul for a tailored verdict — never invent selections.
 - If they name a favorite team, speak in "your board / your capital / your risk" language.`
     : ""

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildTeamDraftFocusBlock,
   getActiveDraftBundle,
+  isKnownDraftProspect,
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
 
@@ -23,4 +24,18 @@ test("buildTeamDraftFocusBlock lists Dallas slots", () => {
   assert.match(block, /Overall 12/);
   assert.match(block, /Overall 20/);
   assert.ok(block.includes("Total picks in bundle:"));
+});
+
+test("draft bundle includes anchored prospects and simulation-only status", () => {
+  const bundle = getActiveDraftBundle(new Date("2026-04-01T12:00:00Z"));
+  const prospects = bundle.prospects || [];
+  const mendoza = prospects.find((p) => p.name === "Fernando Mendoza");
+  assert.ok(mendoza);
+  assert.equal(mendoza.boardStatus, "simulation_only");
+});
+
+test("unknown prospect labels as simulation-only candidate", () => {
+  const bundle = getActiveDraftBundle(new Date("2026-04-01T12:00:00Z"));
+  assert.equal(isKnownDraftProspect("Fernando Mendoza", bundle), true);
+  assert.equal(isKnownDraftProspect("Madeup Rookie Name", bundle), false);
 });
