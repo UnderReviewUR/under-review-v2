@@ -121,6 +121,8 @@ const MLB_TERMS = [
 
 const NFL_TERMS = [
   "nfl",
+  "nfl draft",
+  "mock draft",
   "football",
   "receiving yards",
   "rushing yards",

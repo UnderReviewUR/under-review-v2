@@ -1,6 +1,7 @@
 import RBs from "./nfl-rb.js";
 import WRsAndTEs from "./nfl-wr-te.js";
 import { QBs } from "./nfl-players.js";
+import { buildNflDraftBoardBlock, getNflDraftMeta } from "./nfl-draft-context.js";
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -129,17 +130,21 @@ export function buildCanonicalNflContext() {
   );
 
   const uiPlayers = Object.fromEntries([...wrteEntries, ...rbEntries, ...qbEntries]);
-  const promptContext = buildPromptContext(uiPlayers);
+  const draftMeta = getNflDraftMeta();
+  const draftBlock = buildNflDraftBoardBlock(draftMeta);
+  const promptContext = [buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
 
   return {
     uiPlayers,
     promptContext,
+    draft: draftMeta,
     meta: {
       totalPlayers: Object.keys(uiPlayers).length,
       wrteCount: wrteEntries.length,
       rbCount: rbEntries.length,
       qbCount: qbEntries.length,
       generatedAt: new Date().toISOString(),
+      nflDraftPhase: draftMeta.phase,
     },
     dataFreshness: {
       qbDataSeason: "2024",
@@ -149,6 +154,11 @@ export function buildCanonicalNflContext() {
       isCurrentSeason: false,
       warning:
         "QB baseline stats are 2024. Roster situations reflect March 2026 Ourlads. 2026 in-season data not yet integrated.",
+      nflDraft: {
+        phase: draftMeta.phase,
+        roundOneBoardSource: draftMeta.roundOneBoardSource,
+        officialRoundOnePicksLoaded: draftMeta.officialRoundOneCount > 0,
+      },
     },
   };
 }

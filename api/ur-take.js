@@ -348,6 +348,45 @@ function shouldApplyNflUnsupportedGuard(question) {
   );
 }
 
+/** Draft / GM / capital questions — different guardrails than in-season prop board. */
+function isNflDraftAngleQuestion(question) {
+  const q = normalizeText(question);
+  const needles = [
+    "draft",
+    "nfl draft",
+    "first round",
+    "round 1",
+    "round one",
+    "combine",
+    "mock draft",
+    "war room",
+    "general manager",
+    "front office",
+    "trade up",
+    "trade back",
+    "on the clock",
+    "pittsburgh",
+    "overall pick",
+    "top pick",
+    "prospect",
+    "draft capital",
+    "comp pick",
+    "compensatory",
+    "draft order",
+    "draft slot",
+    "draft board",
+    "kiper",
+    "mcshay",
+  ];
+  if (
+    /\bgm\b/.test(q) &&
+    (q.includes("draft") || q.includes("war room") || q.includes("front office"))
+  ) {
+    return true;
+  }
+  return needles.some((n) => q.includes(n));
+}
+
 function isSettledFactQuestion(question) {
   const q = String(question || "").toLowerCase();
   const patterns = [
@@ -1906,6 +1945,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
     // absent from verified context. Golf / NBA / MLB / F1 always reach callAnthropic.
     if (
       shouldApplyNflUnsupportedGuard(question) &&
+      !isNflDraftAngleQuestion(question) &&
       subject &&
       availableNflPlayers.length > 0 &&
       !matchedPlayer
@@ -1960,6 +2000,8 @@ No bet now; re-run once verified player context is loaded.`;
       });
     }
 
+    const nflDraftAngle = isNflDraftAngleQuestion(question);
+
     userPrompt = `You are answering an NFL betting question.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
@@ -1978,13 +2020,34 @@ Confidence guidance:
 Rules:
 - Answer only as an NFL analyst.
 - Do not mention golf, NBA, MLB, F1, or tennis.
-- Use only players/teams/roles that exist in the provided NFL context.
-- If the asked player is not in provided context, return PASS and explain missing context in one line.
+- Use only players/teams/roles that exist in the provided NFL context — **except** the "NFL DRAFT BOARD" section: Round 1 pick numbers, team slot holders, trade notes on those slots, and OFFICIAL ROUND 1 PICKS (when populated) are authoritative for draft questions.
+- If the asked player is not in provided context, return PASS and explain missing context in one line — **unless** the question is draft-centric (see DRAFT / GM MODE below); then you may discuss well-known prospects qualitatively but must not fabricate who was selected at which slot.
 - Do not invent unrelated games, props, role changes, or target-share claims.
 
 - Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation. Place it after the CONFIDENCE section and before the TIMING section (Under Review structured format). Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
 
-NO-MARKET FALLBACK RULE (mandatory when prop boards or weekly lines are empty in context but games or usage data imply an upcoming slate)
+${
+  nflDraftAngle
+    ? `NFL DRAFT / GM MODE (user should feel like the GM of their team — decisive, board-aware, candid about risk):
+- Pre-draft / during-draft: cite Round 1 **pick # and team on the clock** exactly from NFL DRAFT BOARD; use the printed trade notes for capital context. Tie roster holes + scheme fit to target **archetypes**; if you name a prospect, frame as a lean or fit argument, not a leaked selection unless OFFICIAL ROUND 1 PICKS already lists that pick.
+- Post-draft: if OFFICIAL ROUND 1 PICKS lists players in context, give a synthesized class grade (fit, value vs slot, balance, one risk) **using only that list** plus the board. If that section says results are not loaded, say so once and invite the user to paste their team's haul for a tailored verdict — never invent selections.
+- If they name a favorite team, speak in "your board / your capital / your risk" language.`
+    : ""
+}
+
+${
+  nflDraftAngle
+    ? `NO-MARKET / DRAFT ANGLE (when the question is draft-centric, not a priced prop):
+You are NOT allowed to stall with "wait until the draft" as the whole answer.
+
+Instead:
+1. Open with board truth: their Round 1 slot(s) from NFL DRAFT BOARD and any trade-note capital.
+2. Map roster need → 2–3 realistic target buckets (position/archetype), without claiming a player "will" go at a specific pick unless clearly hypothetical.
+3. Name one trade-up or trade-back lever that fits their slot + needs.
+4. End with a live trigger: what combine / medical / pro-day / smoke-screen signal would flip the lean.
+
+Skip the generic "two active NFL players from the prop board" requirement when this block applies.`
+    : `NO-MARKET FALLBACK RULE (mandatory when prop boards or weekly lines are empty in context but games or usage data imply an upcoming slate)
 
 You are NOT allowed to respond with "wait for lines" or "come back when props drop"
 as the primary answer.
@@ -2008,7 +2071,8 @@ Instead, do ALL of the following:
 5. End with a live trigger: quarter or script cue that would confirm the lean
    (e.g. "If they're trailing early, check live pass attempts over").
 
-Never open with "props aren't out." Give named players and monitoring hooks.`;
+Never open with "props aren't out." Give named players and monitoring hooks.`
+}`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
