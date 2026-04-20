@@ -30,9 +30,30 @@ export function isProduction() {
   return getEnv("VERCEL_ENV") === "production";
 }
 
+/** Primary and alternate env keys (trimmed; whitespace-only counts as unset). */
+const ACCESS_TOKEN_SECRET_KEYS = ["ACCESS_TOKEN_SECRET", "UR_ACCESS_TOKEN_SECRET"];
+
+/**
+ * Resolved HMAC secret for access / UR TAKE tokens. Tries alternate names; trims whitespace.
+ * @returns {string | undefined}
+ */
+export function getResolvedAccessTokenSecret() {
+  for (const key of ACCESS_TOKEN_SECRET_KEYS) {
+    const raw = process.env[key];
+    if (raw === undefined || raw === "") continue;
+    const trimmed = String(raw).trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
+}
+
+export function isAccessTokenSecretConfigured() {
+  return Boolean(getResolvedAccessTokenSecret());
+}
+
 /** Shown in API responses when production is missing ACCESS_TOKEN_SECRET (also use in Vercel dashboard). */
 export const ACCESS_TOKEN_SECRET_MISSING_MESSAGE =
-  "Server misconfiguration: ACCESS_TOKEN_SECRET is not set. In Vercel open this project → Settings → Environment Variables → add ACCESS_TOKEN_SECRET (a long random string) for Production, then Redeploy.";
+  "Server misconfiguration: ACCESS_TOKEN_SECRET is not set for this deployment. In Vercel → Settings → Environment Variables: add ACCESS_TOKEN_SECRET (long random string), enable it for Production (and Preview if you test on *.vercel.app), save, then Redeploy. Check GET /api/health — accessTokenSecretConfigured should be true.";
 
 // ── ACCESS_TOKEN_SECRET (dev fallback is unstable by design) ─────────────────
 let devAccessTokenSecretCache = null;
@@ -53,6 +74,11 @@ function getDevAccessTokenSecretFallback() {
 export function sendAccessTokenSecretMissingError(res) {
   console.error(
     "[env] ACCESS_TOKEN_SECRET is required in production — refusing to sign or verify tokens",
+    {
+      vercelEnv: process.env.VERCEL_ENV,
+      has_ACCESS_TOKEN_SECRET: Boolean(process.env.ACCESS_TOKEN_SECRET),
+      has_UR_ACCESS_TOKEN_SECRET: Boolean(process.env.UR_ACCESS_TOKEN_SECRET),
+    },
   );
   res.status(500).json({
     error: "server_misconfigured",
@@ -69,7 +95,7 @@ export function sendAccessTokenSecretMissingError(res) {
  * @returns {string | null}
  */
 export function resolveAccessTokenSecretForHandler(res) {
-  const secret = getEnv("ACCESS_TOKEN_SECRET");
+  const secret = getResolvedAccessTokenSecret();
   if (secret) return secret;
 
   if (isProduction()) {
@@ -87,7 +113,7 @@ export function resolveAccessTokenSecretForHandler(res) {
  * @returns {string | null}
  */
 export function getAccessTokenSecretSync() {
-  const secret = getEnv("ACCESS_TOKEN_SECRET");
+  const secret = getResolvedAccessTokenSecret();
   if (secret) return secret;
   if (isProduction()) return null;
   return getDevAccessTokenSecretFallback();

@@ -47,7 +47,13 @@ Clear the line after the event so stale news does not affect unrelated tournamen
 
 Configure `OWNER_CODE`, `FRIEND_CODES`, and **`ACCESS_TOKEN_SECRET`** in Vercel — never rely on demo defaults in production (`api/access.js`, `api/pro-status.js`).
 
-**If users see “server misconfigured” or UR TAKE returns `server_misconfigured`:** Production is almost certainly missing **`ACCESS_TOKEN_SECRET`**. In Vercel → your project → **Settings → Environment Variables**, add `ACCESS_TOKEN_SECRET` for **Production** (a long random string, e.g. `openssl rand -hex 32`), then **Redeploy**. Without it, the API cannot sign or verify access tokens, so unlock codes and bearer auth will fail.
+**If users see “server misconfigured” or UR TAKE returns `server_misconfigured`:** The **`ACCESS_TOKEN_SECRET`** is not visible to **this** deployment. Fix it in Vercel:
+
+1. **Settings → Environment Variables** → add **`ACCESS_TOKEN_SECRET`** (long random string, e.g. `openssl rand -hex 32`).
+2. Under **Environments**, enable **Production** (and **Preview** too if you test on `*.vercel.app` branch URLs — Preview does **not** read Production-only vars).
+3. **Save**, then **Deployments → Redeploy** the latest deployment (or push a commit).
+
+Verify after deploy: open **`https://your-domain.com/api/health`** — `accessTokenSecretConfigured` must be **`true`**. If it is `false`, the variable is still not attached to that environment or project.
 
 ### UR TAKE API security
 
