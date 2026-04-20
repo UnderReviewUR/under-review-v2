@@ -856,7 +856,91 @@ async function getNbaInjuries(propLines, todaysGames) {
   }
 }
 
-async function getNbaPlayoffSeries() {   const cacheKey = "nba_playoff_series";   const cached = getCached(cacheKey);   if (cached) return cached;   try {     const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?groups=playoff", { cache: "no-store" });     if (!res.ok) {       const res2 = await fetch("https://site.api.espn.com/apis/v2/sports/basketball/nba/playoff?season=2025", { cache: "no-store" });       if (!res2.ok) return [];       const d2 = await res2.json();       const brackets = d2?.bracket?.series || d2?.rounds?.flatMap(r => r.series || []) || [];       const series = brackets.map(s => ({         round: s.round?.displayName || s.displayName || "",         home: s.competitors?.find(c => c.homeAway === "home")?.team?.abbreviation || "",         away: s.competitors?.find(c => c.homeAway === "away")?.team?.abbreviation || "",         homeWins: parseInt(s.competitors?.find(c => c.homeAway === "home")?.wins || 0),         awayWins: parseInt(s.competitors?.find(c => c.homeAway === "away")?.wins || 0),         status: s.status?.type?.description || s.statusText || "",       })).filter(s => s.home || s.away);       if (series.length) setCached(cacheKey, series);       return series;     }     const data = await res.json();     const events = data?.events || [];     const seriesMap = {};     for (const ev of events) {       const sid = ev.series?.id || ev.uid;       if (!sid) continue;       if (!seriesMap[sid]) {         const comps = ev.competitions?.[0]?.competitors || [];         const home = comps.find(c => c.homeAway === "home");         const away = comps.find(c => c.homeAway === "away");         seriesMap[sid] = {           round: ev.series?.type?.text || ev.seriesStatus?.displayName || "",           home: home?.team?.abbreviation || "",           away: away?.team?.abbreviation || "",           homeWins: parseInt(home?.wins || ev.seriesStatus?.homeTeamWins || 0),           awayWins: parseInt(away?.wins || ev.seriesStatus?.awayTeamWins || 0),           status: ev.seriesStatus?.summary || ev.status?.type?.description || "",         };       }     }     const series = Object.values(seriesMap).filter(s => s.home || s.away);     if (series.length) setCached(cacheKey, series);     return series;   } catch (err) {     console.warn("getNbaPlayoffSeries error:", err.message);     return [];   } } function buildGameTotalsFromProps(propLines) {
+function shouldShowSeriesScore(item) {
+  const hw = Number(item?.homeWins || 0);
+  const aw = Number(item?.awayWins || 0);
+  return Number.isFinite(hw) && Number.isFinite(aw) && hw + aw > 0;
+}
+
+async function getNbaPlayoffSeries() {
+  const cacheKey = "nba_playoff_series";
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  const fromPlayoffEndpoint = async () => {
+    const res = await fetch("https://site.api.espn.com/apis/v2/sports/basketball/nba/playoff?season=2025", {
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const d2 = await res.json();
+    const brackets = d2?.bracket?.series || d2?.rounds?.flatMap((r) => r.series || []) || [];
+    const rows = brackets
+      .map((s) => {
+        const home = s.competitors?.find((c) => c.homeAway === "home");
+        const away = s.competitors?.find((c) => c.homeAway === "away");
+        return {
+          round: s.round?.displayName || s.displayName || "",
+          home: home?.team?.abbreviation || "",
+          away: away?.team?.abbreviation || "",
+          homeWins: parseInt(home?.wins || 0, 10) || 0,
+          awayWins: parseInt(away?.wins || 0, 10) || 0,
+          status: s.status?.type?.description || s.statusText || "",
+        };
+      })
+      .filter((s) => s.home || s.away);
+    return rows;
+  };
+
+  const fromScoreboardEndpoint = async () => {
+    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?groups=playoff", {
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const events = data?.events || [];
+    const seriesMap = {};
+
+    for (const ev of events) {
+      const sid = ev.series?.id || ev.uid;
+      if (!sid || seriesMap[sid]) continue;
+      const comps = ev.competitions?.[0]?.competitors || [];
+      const home = comps.find((c) => c.homeAway === "home");
+      const away = comps.find((c) => c.homeAway === "away");
+      seriesMap[sid] = {
+        round: ev.series?.type?.text || ev.seriesStatus?.displayName || "",
+        home: home?.team?.abbreviation || "",
+        away: away?.team?.abbreviation || "",
+        homeWins: parseInt(home?.wins || ev.seriesStatus?.homeTeamWins || 0, 10) || 0,
+        awayWins: parseInt(away?.wins || ev.seriesStatus?.awayTeamWins || 0, 10) || 0,
+        status: ev.seriesStatus?.summary || ev.status?.type?.description || "",
+      };
+    }
+
+    return Object.values(seriesMap).filter((s) => s.home || s.away);
+  };
+
+  try {
+    const [playoffRows, scoreboardRows] = await Promise.allSettled([
+      fromPlayoffEndpoint(),
+      fromScoreboardEndpoint(),
+    ]);
+    const playoffSeries = playoffRows.status === "fulfilled" ? playoffRows.value : [];
+    const scoreboardSeries = scoreboardRows.status === "fulfilled" ? scoreboardRows.value : [];
+
+    const preferred = playoffSeries.length > 0 ? playoffSeries : scoreboardSeries;
+    const filtered = preferred.filter(shouldShowSeriesScore);
+    if (filtered.length > 0) {
+      setCached(cacheKey, filtered);
+      return filtered;
+    }
+    return [];
+  } catch (err) {
+    console.warn("getNbaPlayoffSeries error:", err.message);
+    return [];
+  }
+}
+
+function buildGameTotalsFromProps(propLines) {
   const totals = {};
   for (const line of propLines||[]) {
     if (!line.game) continue;

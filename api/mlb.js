@@ -99,6 +99,43 @@ function getTomorrowEtDateString() {
 }
 
 // ── Fetch games with probable pitchers from ESPN ──────────────────────────────
+function firstString(values = []) {
+  for (const v of values) {
+    const s = typeof v === "string" ? v.trim() : "";
+    if (s) return s;
+  }
+  return null;
+}
+
+function extractPitcherFromCompetitor(competitor) {
+  if (!competitor || typeof competitor !== "object") return null;
+  return firstString([
+    competitor?.probablePitcher?.athlete?.shortName,
+    competitor?.probablePitcher?.athlete?.displayName,
+    competitor?.probablePitcher?.displayName,
+    competitor?.startingPitcher?.athlete?.shortName,
+    competitor?.startingPitcher?.athlete?.displayName,
+    competitor?.startingPitcher?.displayName,
+    competitor?.starter?.athlete?.shortName,
+    competitor?.starter?.athlete?.displayName,
+    competitor?.pitcher?.athlete?.shortName,
+    competitor?.pitcher?.athlete?.displayName,
+    competitor?.pitcher?.displayName,
+  ]);
+}
+
+function extractLivePitcherHint(comp, event, homeAway) {
+  const sideKey = homeAway === "home" ? "home" : "away";
+  return firstString([
+    comp?.situation?.[`${sideKey}Pitcher`]?.athlete?.shortName,
+    comp?.situation?.[`${sideKey}Pitcher`]?.athlete?.displayName,
+    comp?.situation?.[`${sideKey}Pitcher`]?.displayName,
+    event?.situation?.[`${sideKey}Pitcher`]?.athlete?.shortName,
+    event?.situation?.[`${sideKey}Pitcher`]?.athlete?.displayName,
+    event?.situation?.[`${sideKey}Pitcher`]?.displayName,
+  ]);
+}
+
 async function getMlbGamesWithPitchers() {
   const cacheKey = "mlb_games";
   const cached = getCached(cacheKey);
@@ -130,10 +167,16 @@ async function getMlbGamesWithPitchers() {
           ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
           : "TBD";
 
-        // Extract probable pitchers from probables array
+        // Extract probable pitchers from probables array, then fallback competitor fields.
         const probables = comp?.probables || [];
-        const homePitcher = probables.find(p => p.homeAway === "home")?.athlete?.shortName || null;
-        const awayPitcher = probables.find(p => p.homeAway === "away")?.athlete?.shortName || null;
+        let homePitcher = probables.find(p => p.homeAway === "home")?.athlete?.shortName || null;
+        let awayPitcher = probables.find(p => p.homeAway === "away")?.athlete?.shortName || null;
+        if (!homePitcher) homePitcher = extractPitcherFromCompetitor(home);
+        if (!awayPitcher) awayPitcher = extractPitcherFromCompetitor(away);
+
+        // Live fallback hint: some ESPN payloads expose current pitcher under situation.
+        if (isLive && !homePitcher) homePitcher = extractLivePitcherHint(comp, e, "home");
+        if (isLive && !awayPitcher) awayPitcher = extractLivePitcherHint(comp, e, "away");
 
         // Park factor for home team
         const homeTeamFull = home?.team?.displayName || home?.team?.name || "";

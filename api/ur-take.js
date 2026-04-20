@@ -488,6 +488,21 @@ function detectIntent(question, hasImage) {
   if (q.includes("fade")) return "fade";
   if (q.includes("sleeper")) return "sleeper";
   if (q.includes("outright")) return "outright";
+  if (
+    q.includes("best props") ||
+    q.includes("what props") ||
+    q.includes("prop for") ||
+    q.includes("aces") ||
+    q.includes("double faults") ||
+    q.includes("games played") ||
+    q.includes("scoreline") ||
+    q.includes("predict") ||
+    q.includes("projection") ||
+    q.includes("what will") ||
+    q.includes("how many")
+  ) {
+    return "prop_projection";
+  }
   if (q.includes("prop")) return "prop";
 
   return "general";
@@ -1022,6 +1037,7 @@ function resolveOutputJsonMode({
 }) {
   if (chaseSignals?.isChase) return "plain";
   if (intent === "slip_review") return "plain";
+  if (intent === "prop_projection") return "tier2_5_json";
   if (hasImage && liveSignals?.isLive) return "tier2_live_json";
   if (isTier1InformationalQuestion(question)) return "tier1_json";
   if (
@@ -1149,6 +1165,29 @@ do NOT invent names. Give a team-level read instead with:
 "Lines aren't up yet and roster data is still loading — here's the
 matchup read while we wait: [team-level analysis]."`;
 
+const PROP_PROJECTION_MODE_BLOCK = `PROP PROJECTION MODE — MANDATORY
+
+The user is explicitly asking for prop projections. You MUST deliver:
+
+For tennis:
+- Match winner lean with price threshold
+- Total games: OVER/UNDER with specific number
+- Aces for each player: "project ~N per set, ~N total"
+- Double faults for each player: "project ~N"
+- Break points saved: "~N% for each player"
+- Scoreline prediction: "[winner] in [sets], [X-X X-X] range"
+
+For NBA: points, rebounds, assists for each named player with ranges.
+For MLB: K total for each pitcher, total bases for key hitters.
+For golf: finishing position probability ranges for named golfers.
+For F1: podium probability for named drivers.
+
+If the player database has limited data for a player, use surface/venue
+baselines and tour averages. ALWAYS produce projections. Never say
+"cannot project without more data." Confidence reflects data quality.
+
+In Tier 2.5 summary, PROP PROJECTIONS must contain at least 4 specific lines.`;
+
 const ROSTER_ENFORCEMENT_NBA = `ROSTER ENFORCEMENT — THIS IS A HARD RULE WITH NO EXCEPTIONS
 
 playersByTeamAbbrev in rosterGrounding lists the ONLY players you are
@@ -1192,11 +1231,14 @@ function buildMlbVerifiedPlayerListBlock(mlbContext) {
   const propListed = [];
   const pitSeen = new Set();
   const propSeen = new Set();
-  const matchupLabels = [];
+  const pitcherListLines = [];
   for (const g of mlbContext?.games || []) {
-    const hn = String(g?.homeTeam?.name || "").trim();
-    const an = String(g?.awayTeam?.name || "").trim();
-    if (hn || an) matchupLabels.push(`${an || "?"} @ ${hn || "?"}`);
+    const homeAbbr = String(g?.homeTeam?.abbr || "?").trim();
+    const awayAbbr = String(g?.awayTeam?.abbr || "?").trim();
+    const homePitcher = String(g?.homeTeam?.pitcher || "").trim() || "TBD";
+    const awayPitcher = String(g?.awayTeam?.pitcher || "").trim() || "TBD";
+    pitcherListLines.push(`${awayAbbr} @ ${homeAbbr}: ${awayPitcher} (away) vs ${homePitcher} (home)`);
+
     for (const side of ["homeTeam", "awayTeam"]) {
       const pit = g?.[side]?.pitcher;
       if (pit == null) continue;
@@ -1217,15 +1259,18 @@ function buildMlbVerifiedPlayerListBlock(mlbContext) {
     }
   }
   propListed.sort();
-  const slate =
-    matchupLabels.length > 0
-      ? `Tonight's games (team names from board): ${matchupLabels.join(" | ")}\n\n`
-      : "";
-  return `${slate}VERIFIED MLB PLAYERS TONIGHT:
+  const pitcherList = pitcherListLines.length > 0 ? pitcherListLines.join("\n") : "(no games in payload)";
+
+  return `VERIFIED MLB PLAYERS TONIGHT:
+Pitcher matchups:
+${pitcherList}
+
 Pitchers: ${pitchers.length ? pitchers.join(", ") : "(none in games array)"}
 Prop-listed players: ${propListed.length ? propListed.join(", ") : "(none)"}
 
-Do not name any batter or pitcher not on this list as playing tonight.`;
+Do not name any batter or pitcher not on this list as playing tonight.
+When a pitcher shows as "TBD", you MUST say: "starter TBD for [team] — Coors Field park factor analysis applies regardless"
+for that team context, then give a venue-based read without inventing pitcher names.`;
 }
 
 function buildNflVerifiedPlayerListBlock(nflContextEffective) {
@@ -1790,6 +1835,7 @@ TENNIS MODE (mandatory)
     sportHint,
   });
   const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint);
+  const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
   const systemPromptForModel =
     outputJsonMode !== "plain" && jsonContract
       ? `${systemPrompt}
@@ -1800,8 +1846,8 @@ For factual Tier-1 questions, return JSON with only summary as a short string.
 For live in-game Tier-2 questions, return JSON with only summary in the compressed live format.
 For all other questions where no contract is attached, use plain text as already specified.
 
-${jsonContract}`
-      : systemPrompt;
+${jsonContract}${propProjectionModeBlock}`
+      : `${systemPrompt}${propProjectionModeBlock}`;
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
 
@@ -1968,6 +2014,43 @@ EXECUTION RULES — READ CAREFULLY
 
     const hasLiveBoard = liveBoard.trim().length > 0;
     const tennisVerifiedBlock = buildTennisVerifiedPlayerListBlock(players, liveMatches);
+    const fixtureHome = mxHome || "HOME_PLAYER";
+    const fixtureAway = mxAway || "AWAY_PLAYER";
+    const matchFocusBlock =
+      mxHome && mxAway
+        ? `MATCH FOCUS — THIS OVERRIDES EVERYTHING ELSE
+
+A specific match is on the card: ${fixtureHome} vs ${fixtureAway}
+
+YOUR ENTIRE RESPONSE IS ABOUT THIS MATCH ONLY.
+
+Rules:
+1. Every section (THE PLAY, MATCH READ, PROP PROJECTIONS, FADE) must
+   reference ${fixtureHome} or ${fixtureAway} by name. No exceptions.
+
+2. Do NOT give tournament-level takes in place of match-level takes.
+   "Alcaraz benefits most at Madrid" is NOT an answer to a question
+   about ${fixtureHome} vs ${fixtureAway}.
+
+3. Tournament context (surface, altitude, speed) is background only.
+   It informs HOW you analyze this match. It is not the answer itself.
+
+4. If the user asks "Clay — who benefits more?", answer: which of
+   ${fixtureHome} or ${fixtureAway} benefits more from this surface, and why,
+   using their specific stats from the player database.
+
+5. If the user asks "what are the best props?", deliver prop projections
+   for ${fixtureHome} and ${fixtureAway} specifically — aces, double faults,
+   games, break points, scoreline. Not tournament outright recommendations.
+
+6. The only time you may mention a player not named ${fixtureHome} or
+   ${fixtureAway} is in the FADE section to establish relative value context,
+   and only briefly.
+
+VIOLATION: Responding about Alcaraz, Zverev, Swiatek, or any other
+player when the question is about ${fixtureHome} vs ${fixtureAway} is a
+critical failure. Do not do this under any circumstances.`
+        : "";
 
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -1979,7 +2062,7 @@ ${getTodayStr()}
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}QUESTION
 ${question}
 
-${breakingNews ? `BREAKING NEWS — READ FIRST AND ADJUST ALL ANSWERS ACCORDINGLY
+${matchFocusBlock ? `${matchFocusBlock}\n\n` : ""}${breakingNews ? `BREAKING NEWS — READ FIRST AND ADJUST ALL ANSWERS ACCORDINGLY
 ${breakingNews}
 
 ` : ""}TOURNAMENT CONTEXT

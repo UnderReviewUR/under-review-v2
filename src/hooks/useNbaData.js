@@ -18,9 +18,13 @@ export function useNbaData() {
     const series = NBA_PLAYOFF_SERIES[key1] || NBA_PLAYOFF_SERIES[key2];
     if (!series) return null;
     const { gameNum, leader, awayWins, homeWins } = series;
+    const aw = Number(awayWins || 0);
+    const hw = Number(homeWins || 0);
+    const seriesLabel = aw + hw > 0 ? `Series: ${awayAbbr} ${aw} - ${homeAbbr} ${hw}` : null;
+    if (!seriesLabel) return null;
     if (gameNum === 0 || !gameNum) return "Game 1";
-    if (!leader) return `Game ${gameNum + 1} · Series tied ${awayWins}-${homeWins}`;
-    return `Game ${gameNum + 1} · ${leader} lead ${Math.max(awayWins,homeWins)}-${Math.min(awayWins,homeWins)}`;
+    if (!leader) return `Game ${gameNum + 1} · ${seriesLabel}`;
+    return `Game ${gameNum + 1} · ${leader} lead ${Math.max(aw, hw)}-${Math.min(aw, hw)}`;
   }, []);
 
   useEffect(() => {
