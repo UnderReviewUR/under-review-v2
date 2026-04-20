@@ -990,6 +990,50 @@ function tryParseJsonObject(text) {
   return null;
 }
 
+function tryExtractSummaryDeepFromLooseText(text) {
+  const raw = String(text || "").trim();
+  const start = raw.indexOf('{"summary"');
+  const end = raw.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      const candidate = JSON.parse(raw.slice(start, end + 1));
+      if (candidate && typeof candidate.summary === "string") return candidate;
+    } catch {
+      // fall through
+    }
+  }
+
+  const block = raw.match(/"summary"\s*:\s*"([\s\S]*?)"\s*,\s*"deep"\s*:\s*"([\s\S]*?)"/);
+  if (block) {
+    const unescape = (s) =>
+      String(s || "")
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, "\\");
+    return { summary: unescape(block[1]), deep: unescape(block[2]) };
+  }
+  return null;
+}
+
+function normalizeSummaryDeepPayload(summary, deep) {
+  let outSummary = String(summary || "").trim();
+  let outDeep = typeof deep === "string" ? deep.trim() : null;
+
+  const nested = tryParseJsonObject(outSummary) || tryExtractSummaryDeepFromLooseText(outSummary);
+  if (nested && typeof nested.summary === "string" && nested.summary.trim()) {
+    outSummary = nested.summary.trim();
+    outDeep =
+      typeof nested.deep === "string" && nested.deep.trim()
+        ? nested.deep.trim()
+        : outDeep;
+  }
+
+  return {
+    summary: outSummary,
+    deep: outDeep,
+  };
+}
+
 function isTier1InformationalQuestion(question) {
   const q = normalizeText(question);
   if (
@@ -1082,6 +1126,8 @@ CRITICAL
 - Never invent book lines; estimate stats only.
 - Never include the phrase "See full breakdown" in any field (UI handles that).
 - If you can only produce 1–2 projection lines, confidence must be Speculative.
+- summary MUST NOT include legacy headers like THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE.
+- Those legacy sections belong in deep only.
 
 deep field (same JSON object)
 - Must contain the FULL legacy Tier-3 answer: >> opener line then THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING sections exactly as in the base system prompt.
@@ -2051,6 +2097,20 @@ VIOLATION: Responding about Alcaraz, Zverev, Swiatek, or any other
 player when the question is about ${fixtureHome} vs ${fixtureAway} is a
 critical failure. Do not do this under any circumstances.`
         : "";
+    const tennisPropProjectionUserBlock =
+      intent === "prop_projection" && mxHome && mxAway
+        ? `DIRECT PROP REQUEST — MANDATORY OUTPUT FOR THIS MATCH
+
+The user asked for props on ${fixtureHome} and ${fixtureAway}. Your summary must include:
+- Match winner lean with threshold
+- Total games projection (OVER/UNDER + number)
+- Aces projection for ${fixtureHome} and ${fixtureAway} (per set and total)
+- Double-fault projection for ${fixtureHome} and ${fixtureAway}
+- Break points saved projection for each
+- Scoreline projection
+
+If data is thin, use tour/surface baselines, but still produce all projections.`
+        : "";
 
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -2072,6 +2132,8 @@ Speed: ${tournamentSpeed}
 Context: ${tournamentContext}
 
 ${tennisVerifiedBlock}
+
+${tennisPropProjectionUserBlock ? `${tennisPropProjectionUserBlock}\n` : ""}
 
 FIXTURE vs FILTER (mandatory)
 TOURNAMENT CONTEXT applies to the CURRENT FIXTURE on the card, not the app's active tournament filter alone.
@@ -2824,12 +2886,18 @@ Rules:
     let responseDeep = null;
     let responseFormat = "plain";
     if (outputJsonMode !== "plain") {
-      const parsed = tryParseJsonObject(text);
+      const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
       if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
-        responseText = parsed.summary.trim();
-        responseDeep =
-          typeof parsed.deep === "string" && parsed.deep.trim() ? parsed.deep.trim() : null;
+        const normalized = normalizeSummaryDeepPayload(parsed.summary, parsed.deep);
+        responseText = normalized.summary;
+        responseDeep = normalized.deep;
         responseFormat = outputJsonMode;
+      } else if (outputJsonMode === "tier2_5_json") {
+        // Fallback normalization for malformed / embedded JSON turns:
+        // keep response usable instead of dumping raw pseudo-JSON into UI.
+        const normalized = normalizeSummaryDeepPayload(text, null);
+        responseText = normalized.summary || text;
+        responseDeep = normalized.deep;
       }
     }
 

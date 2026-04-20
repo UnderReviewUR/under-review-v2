@@ -66,6 +66,40 @@ import MlbScreen from "./screens/MlbScreen.jsx";
 import GolfScreen from "./screens/GolfScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
 
+function normalizeUrTakeDisplay(data) {
+  const parseMaybe = (raw) => {
+    const s = String(raw || "").trim();
+    if (!s) return null;
+    try {
+      return JSON.parse(s);
+    } catch {
+      const m = s.match(/\{[\s\S]*\}\s*$/);
+      if (!m) return null;
+      try {
+        return JSON.parse(m[0]);
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  let response = String(data?.response || "").trim();
+  let responseDeep = typeof data?.responseDeep === "string" ? data.responseDeep.trim() : null;
+
+  const nested = parseMaybe(response);
+  if (nested && typeof nested.summary === "string" && nested.summary.trim()) {
+    response = nested.summary.trim();
+    if (!responseDeep && typeof nested.deep === "string" && nested.deep.trim()) {
+      responseDeep = nested.deep.trim();
+    }
+  }
+
+  return {
+    response: response || "Couldn't get a response — try again.",
+    responseDeep,
+  };
+}
+
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeTheme, setActiveTheme] = useState(resolveInitialTheme);
@@ -622,15 +656,16 @@ ${themeCss}
       resolvedSport && resolvedSport !== "generic"
         ? resolvedSport
         : effectiveSportHint || null;
+    const normalizedDisplay = normalizeUrTakeDisplay(data);
 
     setMsgs((prev) => [
       ...prev.filter((m) => !m.loading),
       {
         role: "ai",
-        text: data.response || "Couldn't get a response — try again.",
+        text: normalizedDisplay.response,
         sport: sportForBubble || undefined,
         takeMeta: data.take ? { confidence: data.take.confidence } : null,
-        deepText: data.responseDeep || null,
+        deepText: normalizedDisplay.responseDeep,
       },
     ]);
     lastUrTakeSportRef.current = sportForBubble;

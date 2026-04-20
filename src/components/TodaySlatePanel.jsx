@@ -72,9 +72,17 @@ export default function TodaySlatePanel() {
         const raw = await res.text();
         if (!res.ok) throw new Error(raw.slice(0, 200) || res.statusText);
         const j = JSON.parse(raw);
+        if (j?.error) throw new Error(String(j.error));
         if (!cancelled) setData(j);
       } catch (e) {
-        if (!cancelled) setErr(e?.message || "Failed to load");
+        if (!cancelled) {
+          const msg = String(e?.message || "Failed to load");
+          if (msg.includes("bad_model_json") || msg.includes("upstream_error")) {
+            setErr("Slate engine refreshing — showing fallback angles shortly.");
+          } else {
+            setErr(msg);
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -47,6 +47,92 @@ function safeParseSlateJson(text) {
   return null;
 }
 
+function summarizeNba(nba) {
+  const games = Array.isArray(nba?.todaysGames) ? nba.todaysGames : [];
+  const pre = games.find((g) => g?.state === "pre") || games[0];
+  if (!pre) return null;
+  const away = pre?.awayTeam?.abbr || pre?.awayTeam?.name || "AWAY";
+  const home = pre?.homeTeam?.abbr || pre?.homeTeam?.name || "HOME";
+  return `${away} @ ${home}`;
+}
+
+function summarizeMlb(mlb) {
+  const games = Array.isArray(mlb?.games) ? mlb.games : [];
+  const pre = games.find((g) => g?.state === "pre") || games[0];
+  if (!pre) return null;
+  const away = pre?.awayTeam?.abbr || pre?.awayTeam?.name || "AWAY";
+  const home = pre?.homeTeam?.abbr || pre?.homeTeam?.name || "HOME";
+  const parkName = String(pre?.park?.name || pre?.venue || "").trim();
+  return {
+    label: `${away} @ ${home}`,
+    parkName,
+    parkFactor: Number(pre?.park?.pf || 0) || null,
+  };
+}
+
+function summarizeF1(f1) {
+  const nextRace =
+    (Array.isArray(f1?.schedule?.upcoming) && f1.schedule.upcoming[0]) ||
+    (Array.isArray(f1?.schedule?.races) && f1.schedule.races.find((r) => r?.is_next)) ||
+    null;
+  if (!nextRace) return null;
+  return String(nextRace?.meeting_name || nextRace?.name || "Next Grand Prix");
+}
+
+function buildFallbackSlate(bundle, reason = "fallback") {
+  const generatedAt = new Date().toISOString();
+  const nbaGame = summarizeNba(bundle?.nba);
+  const mlb = summarizeMlb(bundle?.mlb);
+  const f1Race = summarizeF1(bundle?.f1);
+
+  const safeLean = mlb
+    ? {
+        sport: "mlb",
+        game: mlb.label,
+        angle: "Venue-first total read",
+        why:
+          mlb.parkFactor && mlb.parkFactor >= 105
+            ? `${mlb.parkName || "This park"} boosts run environment (PF ${mlb.parkFactor}) — lean over/early offense when starters are TBD.`
+            : `${mlb.parkName || "Venue context"} + confirmed slate row gives the cleanest low-volatility angle right now.`,
+      }
+    : {
+        sport: "nba",
+        game: nbaGame || "Tonight's board",
+        angle: "Game-flow read",
+        why: "Use posted matchup/series context from board rows and avoid unsupported player-name assumptions.",
+      };
+
+  const sharpAngle = nbaGame
+    ? {
+        sport: "nba",
+        event: nbaGame,
+        angle: "Series/game-total context over narrative",
+        why: "Prioritize playoffSeries + gameTotals + injuries before any player-level assumptions.",
+      }
+    : {
+        sport: "golf",
+        event: String(bundle?.golf?.currentEvent?.shortName || bundle?.golf?.currentEvent?.name || "Current event"),
+        angle: "Placement over outrights",
+        why: "Leaderboard context is usually more stable than volatile outright pricing.",
+      };
+
+  const contrarian = f1Race
+    ? {
+        sport: "f1",
+        match: f1Race,
+        angle: "Qualifying gap fade setup",
+        why: "If market overreacts to one-session pace, look for H2H/value on race-pace regression.",
+      }
+    : {
+        sport: "tennis",
+        match: "ATP card",
+        angle: "Serve-volume prop over outrights",
+        why: "Ace/double-fault profile edges can price cleaner than broad match-winner narratives.",
+      };
+
+  return { generatedAt, safeLean, sharpAngle, contrarian, _fallbackReason: reason };
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") {
@@ -137,17 +223,20 @@ RULES
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error("today-slate Anthropic error:", response.status, data);
-      return res.status(502).json({
-        error: "upstream_error",
-        message: data?.error?.message || "Claude request failed",
-      });
+      const fb = buildFallbackSlate(bundle, `upstream_error_${response.status}`);
+      await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
+      res.setHeader("Cache-Control", "private, max-age=60");
+      return res.status(200).json(fb);
     }
 
     const text = extractAnthropicText(data);
     const parsed = safeParseSlateJson(text);
     if (!parsed || typeof parsed !== "object") {
       console.error("today-slate: unparseable model output", text?.slice(0, 400));
-      return res.status(502).json({ error: "bad_model_json" });
+      const fb = buildFallbackSlate(bundle, "bad_model_json");
+      await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
+      res.setHeader("Cache-Control", "private, max-age=60");
+      return res.status(200).json(fb);
     }
 
     const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt : new Date().toISOString();
@@ -163,6 +252,29 @@ RULES
     return res.status(200).json(out);
   } catch (err) {
     console.error("today-slate handler error:", err);
-    return res.status(500).json({ error: "server_error", message: err?.message || "unknown" });
+    try {
+      const base = originFromReq(req);
+      const [nba, mlb, golf, tennis, f1] = await Promise.all([
+        fetchBoardJson(base, "/api/nba?view=board"),
+        fetchBoardJson(base, "/api/mlb?view=board"),
+        fetchBoardJson(base, "/api/golf?view=board"),
+        fetchBoardJson(base, "/api/tennis?tour=atp"),
+        fetchBoardJson(base, "/api/f1?view=board"),
+      ]);
+      const bundle = {
+        fetchedAt: new Date().toISOString(),
+        nba: nba.ok ? nba.data : null,
+        mlb: mlb.ok ? mlb.data : null,
+        golf: golf.ok ? golf.data : null,
+        tennis: tennis.ok ? tennis.data : null,
+        f1: f1.ok ? f1.data : null,
+      };
+      const fb = buildFallbackSlate(bundle, "server_error");
+      await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
+      res.setHeader("Cache-Control", "private, max-age=60");
+      return res.status(200).json(fb);
+    } catch {
+      return res.status(500).json({ error: "server_error", message: "today-slate unavailable" });
+    }
   }
 }
