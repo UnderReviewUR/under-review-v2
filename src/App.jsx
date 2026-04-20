@@ -651,7 +651,16 @@ ${themeCss}
     const raw = await res.text();
 
     if (!res.ok) {
-      throw new Error(`/api/ur-take ${res.status}: ${raw}`);
+      let msg = `/api/ur-take ${res.status}: ${raw.slice(0, 600)}`;
+      try {
+        const j = JSON.parse(raw);
+        const human = String(j.response || j.error || "").trim();
+        const tag = j.code ? ` (${j.code})` : "";
+        if (human) msg = `${human}${tag}`;
+      } catch {
+        /* keep msg */
+      }
+      throw new Error(msg);
     }
 
     let data;

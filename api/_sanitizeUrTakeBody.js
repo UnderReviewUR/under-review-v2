@@ -37,6 +37,18 @@ function truncateString(s, max) {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+function jsonByteLengthWithoutImageBase64(out) {
+  try {
+    const clone = JSON.parse(JSON.stringify(out));
+    if (clone.image && typeof clone.image === "object") {
+      clone.image = { ...clone.image, base64: "" };
+    }
+    return JSON.stringify(clone).length;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
 function sanitizeValue(key, val, depth, limits) {
   if (depth > 8) return "[depth exceeded]";
 
@@ -122,11 +134,11 @@ function sanitizeValue(key, val, depth, limits) {
 
 /**
  * @param {unknown} body
- * @returns {{ ok: true, body: object } | { ok: false, error: string }}
+ * @returns {{ ok: true, body: object } | { ok: false, error: string, code?: string }}
  */
 export function sanitizeUrTakeBody(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return { ok: false, error: "Body must be a JSON object" };
+    return { ok: false, error: "Body must be a JSON object", code: "invalid_body" };
   }
 
   const limits = {
@@ -144,12 +156,40 @@ export function sanitizeUrTakeBody(body) {
   }
 
   try {
-    const serialized = JSON.stringify(out);
-    if (serialized.length > limits.maxJsonChars + 50000) {
-      return { ok: false, error: "Payload too large after sanitization" };
+    const imageB64Len =
+      typeof out.image?.base64 === "string" ? out.image.base64.length : 0;
+    if (imageB64Len > limits.maxImageB64) {
+      return {
+        ok: false,
+        error: "Image attachment exceeds server size limit — try a smaller screenshot or crop.",
+        code: "image_too_large",
+      };
+    }
+
+    const nonImageLen = jsonByteLengthWithoutImageBase64(out);
+    if (!Number.isFinite(nonImageLen)) {
+      return { ok: false, error: "Payload could not be serialized", code: "serialize_failed" };
+    }
+    if (nonImageLen > limits.maxJsonChars) {
+      return {
+        ok: false,
+        error:
+          "Context payload too large — shorten the question or drop heavy context fields.",
+        code: "context_too_large",
+      };
+    }
+
+    const maxTotal = limits.maxJsonChars + limits.maxImageB64;
+    if (nonImageLen + imageB64Len > maxTotal) {
+      return {
+        ok: false,
+        error:
+          "Combined request too large — try a smaller screenshot, fewer chat history rows, or type the player line instead of a huge image.",
+        code: "payload_too_large",
+      };
     }
   } catch {
-    return { ok: false, error: "Payload could not be serialized" };
+    return { ok: false, error: "Payload could not be serialized", code: "serialize_failed" };
   }
 
   return { ok: true, body: out };

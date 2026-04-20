@@ -1175,26 +1175,50 @@ function collectNbaVerifiedPlayerNamesFromGrounding(nbaContext) {
   return verifiedPlayerNames;
 }
 
-function buildNbaRosterListInner(nbaContext) {
-  const q = nbaContext?.rosterGrounding?.rosterGroundingQuality;
+function questionExplicitlyNamesPlayerCue(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  const fullName = /\b(?:about|for)\s+[A-Z][a-z]+\s+[A-Z][a-z]+\b/;
+  const surnameCue = /\bfor\s+[A-Z][a-z]{2,}(?:'s)?\b/;
+  const possessivePlayer = /\b[A-Z][a-z]{2,}'s\s+(?:PRA|line|prop)/;
+  return fullName.test(q) || surnameCue.test(q) || possessivePlayer.test(q);
+}
+
+function buildNbaRosterListInner(nbaContext, rosterOpts = {}) {
+  const { hasImage = false, question = "" } = rosterOpts;
+  const rosterQuality = nbaContext?.rosterGrounding?.rosterGroundingQuality;
   const names = [...collectNbaVerifiedPlayerNamesFromGrounding(nbaContext)].sort();
+
+  const namedInQuestion = questionExplicitlyNamesPlayerCue(question);
+  const userGrounded = hasImage || namedInQuestion;
+
+  if (userGrounded) {
+    const apiLine = names.length
+      ? `API roster snapshot (may be incomplete): ${names.join(", ")}`
+      : "API roster snapshot for tonight's slate is thin or still loading.";
+    return `USER-SUPPLIED GROUNDING — OVERRIDES “NO NAMES” ROSTER MODE
+${hasImage ? "- An image is attached: read visible player names, prop lines, prices, and stat rows from the screenshot as primary evidence.\n" : ""}${namedInQuestion ? "- The Question targets a specific player by name — discuss that player directly.\n" : ""}- ${apiLine}
+
+You MUST use names and numbers from the image and/or the Question.
+Do not refuse to name a player who is visible in the image or clearly named in the Question solely because playersByTeamAbbrev is empty or incomplete.`;
+  }
 
   const thinOrAbsentBody = `NO VERIFIED ROSTER DATA FOR TONIGHT'S TEAMS.
 Do not name any specific players for these teams.
 Give team-level analysis only — pace, scheme, series context, matchup profile.
 This is a hard constraint. Inventing player names here destroys user trust.`;
 
-  if (names.length === 0 || q == null || q === "thin") {
+  if (names.length === 0 || rosterQuality == null || rosterQuality === "thin") {
     return thinOrAbsentBody;
   }
-  if (q === "partial") {
+  if (rosterQuality === "partial") {
     return `PARTIAL ROSTER DATA — VERIFIED PLAYERS ONLY:
 ${names.join(", ")}
 
 You may ONLY name players on this list. For teams with zero verified players,
 give team-level analysis only. Do not supplement with training memory.`;
   }
-  if (q === "full") {
+  if (rosterQuality === "full") {
     return `VERIFIED PLAYERS ON TONIGHT'S SLATE:
 ${names.join(", ")}
 
@@ -1203,9 +1227,9 @@ Name only these players when discussing tonight's games.`;
   return thinOrAbsentBody;
 }
 
-function buildNbaRosterProminentInjection(nbaContext) {
+function buildNbaRosterProminentInjection(nbaContext, rosterOpts = {}) {
   return `════════════════════════════════════════
-${buildNbaRosterListInner(nbaContext)}
+${buildNbaRosterListInner(nbaContext, rosterOpts)}
 ════════════════════════════════════════`;
 }
 
@@ -1267,14 +1291,21 @@ YOU MUST FOLLOW THESE RULES EXACTLY:
    players destroy user trust and make this product worthless. There
    is no acceptable scenario where you invent a player name.
 
-5. When rosterGroundingQuality is "partial" or "thin", open your response with:
+5. EXCEPTION — IMAGE OR USER-NAMED PLAYER: When an image is attached OR the
+   Question explicitly names a player (or shows their line card), that name and
+   any stats visible in the screenshot or stated in the Question are AUTHORIZED.
+   Do not reply with “I can't cite [that player] without verification.” The user
+   supplied the source. Use API roster lists only as a supplement.
+
+6. When rosterGroundingQuality is "partial" or "thin", open your response with:
    "Working from partial roster data tonight — " then give the take
    using only the players you CAN verify. This is honest and sharp.
    Do NOT fill thin data with invented names.
 
-ENFORCEMENT CHECK: Before generating your response, mentally verify:
-every player name you plan to mention → does it appear in
-playersByTeamAbbrev under the correct team? If no → remove it.`;
+ENFORCEMENT CHECK: Before generating your response, mentally verify each player name:
+If the name appears in the Question or attached image → allowed.
+Otherwise, for roster membership → must appear under the correct team in
+playersByTeamAbbrev or remove it.`;
 
 function buildMlbVerifiedPlayerListBlock(mlbContext) {
   const pitchers = [];
@@ -1558,6 +1589,7 @@ export default async function handler(req, res) {
     return res.status(400).json({
       error: sanitized.error,
       response: sanitized.error,
+      code: sanitized.code ?? "bad_request",
     });
   }
   req.body = sanitized.body;
@@ -2425,7 +2457,10 @@ Never open with "no lines posted." Give monitoring hooks; name only verified gol
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContext);
+    const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContext, {
+      hasImage,
+      question,
+    });
 
     userPrompt = `You are answering an NBA betting question.
 

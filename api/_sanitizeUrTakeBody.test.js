@@ -32,3 +32,14 @@ test("sanitizeUrTakeBody golden snapshot for minimal ask", () => {
     userEmail: "a@b.com",
   });
 });
+
+test("sanitizeUrTakeBody allows large base64 image without counting it toward JSON context cap", () => {
+  const bigImage = "x".repeat(900_000);
+  const { ok, body } = sanitizeUrTakeBody({
+    question: "Brunson PRA — read the slip",
+    sportHint: "nba",
+    image: { base64: bigImage, mediaType: "image/jpeg" },
+  });
+  assert.equal(ok, true);
+  assert.equal(body.image.base64.length, 900_000);
+});

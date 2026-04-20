@@ -11,7 +11,8 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 const app = express();
 const port = Number(process.env.API_PORT || 3001);
 
-app.use(express.json({ limit: "2mb" }));
+/* Screenshots as base64 expand ~4/3 — keep headroom for nbaContext + history. */
+app.use(express.json({ limit: "25mb" }));
 
 async function loadHandler(routeName) {
   const filePath = path.join(__dirname, "api", `${routeName}.js`);
