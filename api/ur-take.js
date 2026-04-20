@@ -412,6 +412,37 @@ function isNflDraftAngleQuestion(question) {
   return needles.some((n) => q.includes(n));
 }
 
+/**
+ * Routes draft questions so league-wide and prospect-profile asks are not forced into team simulation.
+ * @returns {"TYPE_A"|"TYPE_B"|"TYPE_C"}
+ */
+function getNflDraftQuestionRoute(question, focusTeamAbbr) {
+  const lower = String(question || "").toLowerCase();
+  const hasTeam = !!focusTeamAbbr;
+
+  const leagueWide =
+    /\bsleeper|\bsleepers\b|biggest sleeper|best value picks?|who falls|who rises|\bwhole class\b|league[- ]wide|across the (draft|class|league)|who goes top|\btop\s*5\b|wins the draft|which team wins|\bwin the draft\b|best players available|most interesting (draft )?situation|best prospect at\b|\bbest (edge|quarterback|qb|receiver|wr|running back|rb|tackle|corner|corners|te|tight end|safety|safeties|idl|iol|guard|center|linebacker|lb)\b.*\b(in this class|this year|the class)\b/i.test(
+      lower,
+    ) || /\bwho (has|have) the (most|best) interesting\b/i.test(lower);
+
+  if (leagueWide) return "TYPE_B";
+
+  const profile =
+    /\bgrade on\b|\b(valuation|value) on\b|\bdraft stock\b|\bprojected range\b|\bpositional rank\b/i.test(lower) ||
+    /\bwhere (does|will)\b[\s\S]{0,120}\b(go|land|come off the board)\b/i.test(lower);
+
+  if (profile) return "TYPE_C";
+
+  const teamSim =
+    /\bsimulate\b|\bmock draft\b|\bfull mock\b|\b(my|our) team'?s\b|\bwar room\b|\brounds?\s*1\s*[-–]\s*3\b|\bpick[\s-]by[\s-]pick\b|\beach pick\b|\bevery round\b|\ball seven\b|\bseven round/i.test(lower) ||
+    (hasTeam &&
+      /\bdraft\b|\bmock\b|\bpicks?\b|\bneeds?\b|\bcapital\b|\bwho will\b|\bwhat will\b|\bwho (does|do)\b/i.test(lower));
+
+  if (teamSim) return "TYPE_A";
+
+  return "TYPE_B";
+}
+
 function isSettledFactQuestion(question) {
   const q = String(question || "").toLowerCase();
   const patterns = [
@@ -2808,13 +2839,24 @@ No bet now; re-run once verified player context is loaded.`;
     const nflDraftAngle = isNflDraftAngleQuestion(question);
     const draftBundleForPrompt = getActiveDraftBundle();
     const draftPhase = getNflDraftPhase(new Date(), draftBundleForPrompt);
-    const draftSimulationMode = nflDraftAngle && (draftPhase === "pre_draft" || draftPhase === "during_draft");
+    const nflDraftWindowActive =
+      nflDraftAngle && (draftPhase === "pre_draft" || draftPhase === "during_draft");
     const draftProspectBlock = buildNflDraftProspectBlock(draftBundleForPrompt);
+    const focusTeamFromQuestion = resolveNflTeamFromQuestion(question);
     const focusTeam =
-      resolveNflTeamFromQuestion(question) || getNflTeamNameFromAbbr(teamHint);
+      focusTeamFromQuestion || getNflTeamNameFromAbbr(teamHint);
     const focusTeamAbbr = focusTeam
       ? getNflTeamAbbrFromName(focusTeam)
       : String(teamHint || "").toUpperCase() || null;
+    /** Question text only — avoids mis-routing league-wide asks when the UI tab carries a team hint. */
+    const focusTeamAbbrForRoute = focusTeamFromQuestion
+      ? getNflTeamAbbrFromName(focusTeamFromQuestion)
+      : null;
+    const nflDraftRoute = nflDraftWindowActive
+      ? getNflDraftQuestionRoute(question, focusTeamAbbrForRoute)
+      : null;
+    const draftTeamSimulationInject =
+      nflDraftWindowActive && nflDraftRoute === "TYPE_A";
     const teamState = focusTeamAbbr ? draftBundleForPrompt?.teams?.[focusTeamAbbr] : null;
     const teamPickList = (teamState?.picks || [])
       .filter((p) => Number(p?.round || 9) <= 3)
@@ -2823,11 +2865,11 @@ No bet now; re-run once verified player context is loaded.`;
       .join(", ");
     const teamNeedPriority = (teamState?.needPriority || teamState?.needs || []).join(", ") || "best-player-available";
     const sensibleSimulation =
-      draftSimulationMode && focusTeamAbbr
+      draftTeamSimulationInject && focusTeamAbbr
         ? simulateDraftRounds({ teamAbbr: focusTeamAbbr, rounds: 3, chaosMode: false })
         : null;
     const chaosSimulation =
-      draftSimulationMode && focusTeamAbbr
+      draftTeamSimulationInject && focusTeamAbbr
         ? simulateDraftRounds({ teamAbbr: focusTeamAbbr, rounds: 3, chaosMode: true })
         : null;
     const prospectsFormattedByPosition = buildDraftProspectsByPositionBlock(draftBundleForPrompt);
@@ -2862,8 +2904,64 @@ ${nflVerifiedBlock}
 ${draftProspectBlock}
 
 ${
-  draftSimulationMode
-    ? `NFL DRAFT 2026 — SIMULATION MODE
+  nflDraftWindowActive
+    ? `DRAFT QUESTION CLASSIFICATION — read the question and pick exactly one route (THIS REQUEST: ${nflDraftRoute}):
+
+TYPE A — TEAM SIMULATION
+Signals: "simulate [team]", "Cowboys draft", "what will [team] do", "[team] mock",
+"[team] rounds 1-3", "my team's picks", "pick by pick", "mock draft"
+Response: Run sensible board + chaos branch only when a franchise is resolved below.
+Never ask for a team when the question is Type B or Type C.
+
+TYPE B — LEAGUE-WIDE DRAFT ANALYSIS
+Signals: "biggest sleepers", "best value picks", "who falls", "who rises",
+"best prospect at [position]", "most interesting situation", "who goes top 5",
+"best players available", "which team wins the draft"
+Response: Answer directly from the VERIFIED prospect pool above. No team required.
+Never ask which team the user means. Never route this to simulation.
+
+TYPE C — PROSPECT PROFILE
+Signals: player + "draft", "where does [player] go", "grade on [player]",
+"[player] fit", draft stock/range/projection questions
+Response: projectedRange, positionalRank/EDGE (or position rank), strengths/concerns if in pool, and 2–3 best-fit teams grounded in TEAM DRAFT CAPITAL needs when context exists.
+
+RULE: Never ask for a franchise when the route is TYPE B or TYPE_C.
+RULE: Never use numbered clarification lists ("1. Give me...", "2. Tell me...").
+RULE — DRAFT TONE (Types A/B/C): Never open with what you need ("I need...", "Give me:",
+"Once you X I'll Y"). Lead with insight; if you genuinely lack one fact, ask in one neutral sentence — never transactional or bossy.
+
+`
+    : ""
+}${
+  nflDraftWindowActive && !draftTeamSimulationInject
+    ? `NFL DRAFT — ANALYSIS MODE (${nflDraftRoute}, not team simulation):
+Answer the user's question outright. Pull every prospect name from VERIFIED anchors / pool rows only — cite projectedRange, consensusRank, nflGrade there and compare to positional value tiers.
+Do NOT append team-mock simulations unless they asked for a team's picks.
+
+TYPE B — OPEN / LEAGUE QUESTIONS:
+If which team wins the draft / most interesting capital / league-wide sleeper questions: answer with concrete teams or prospects plus reasoning — zero clarification interrogatives.
+
+TYPE B — SLEEPERS ("sleepers", "best value vs ADP/board", falls):
+Use this layout (titles optional; keep tight):
+
+DRAFT SLEEPERS — 2026
+
+[Player], [Position], [School] — one line tying undervaluation to likely draft slot vs where their traits say they belong (use pool ranges).
+[repeat for 5–7 names drawn from verified pool rows — not memorized scouting]
+
+ROUND VALUE NOTE
+One sentence naming which round clusters have the richest mispriced traits this year based on POOL tiers (example pattern only: Round 3 interior depth depressing Day 2 IOL valuations).
+
+Define sleeper using POOL cues: consensus/projected band clearly later than traits suggest, multi-team fits underpriced versus consensus landing spot, medical/character noise — always cite pool fields instead of invented hype.
+
+TYPE C — PROSPECT PROFILE:
+Structured answer: positional rank vs class, projectedRange + source bands in pool, strengths/concerns arrays when present, then 2–3 teams whose TEAMS needs + picks map cleanly.
+
+`
+    : ""
+}${
+  draftTeamSimulationInject
+    ? `NFL DRAFT 2026 — TEAM SIMULATION MODE ONLY (TYPE_A)
 
 Team: ${focusTeamAbbr || "UNKNOWN"}
 Picks: ${teamPickList || "No rounds 1-3 picks found in active state"}
@@ -2873,36 +2971,33 @@ Draft location: ${draftBundleForPrompt?.event?.location || "Pittsburgh, PA"}
 VERIFIED PROSPECT POOL (rounds 1-4 only — do not name prospects outside this list):
 ${prospectsFormattedByPosition}
 
-SIMULATION BASELINE (engine output — align your narrative with this; validate slot realism before overriding)
-SENSIBLE: ${sensibleSimulation ? JSON.stringify(sensibleSimulation, null, 2) : "Team not detected — request team first."}
-CHAOS: ${chaosSimulation ? JSON.stringify(chaosSimulation, null, 2) : "Team not detected — request team first."}
+SIMULATION BASELINE (engine output — align narrative; validate slot realism — only when Team is NOT UNKNOWN below)
+SENSIBLE: ${sensibleSimulation ? JSON.stringify(sensibleSimulation, null, 2) : "(no franchise resolved — skip baseline)"}
+CHAOS: ${chaosSimulation ? JSON.stringify(chaosSimulation, null, 2) : "(no franchise resolved — skip baseline)"}
 
-SIMULATION RULES (mandatory):
-1. Target under 400 words total. Sharp and skimmable — no essays.
-2. Never open with "I can't", "without live war-room intel", or similar hedges. Open directly with the simulation header.
-3. No "board flow" paragraphs listing who goes at picks 1–11 or earlier picks across the league. The user asked about THIS team — only list picks for the team being simulated (use their real slot numbers from Picks above).
-4. Do not narrate the entire first round. At most one short clause of league context per pick in the "why" line if essential — never a wall of names.
-5. For prospects not in the verified pool: label "Day 3 / UDFA range" — do not invent names.
-6. If user names a fabricated prospect: say "not in the verified 2026 draft pool" and pivot.
+SIMULATION RULES (mandatory — TYPE A team resolved only):
+1. Target under 400 words total.
+2. Never open with inability hedges — open directly with the simulation header.
+3. Only detail picks for the anchored team — use slot numbers under Picks.
+4. No league-wide mock of picks 1–11 unless one short clause ties to YOUR pick.
+5. Labels for missing pool names: "Day 3 / UDFA range" — never invent prospects.
 
-TEAM CLARIFICATION RULE (mandatory — no menus):
-If the question references "my team" or "our team" without naming a specific NFL franchise, do NOT reply with A/B/C options or ask what kind of simulation they mean (fantasy/betting/board). Assume NFL draft simulation from this card. Respond with exactly one line:
+TYPE A — TEAM UNKNOWN (mandatory stop):
+If Team shows UNKNOWN OR no NFL franchise was resolved AND the route is TYPE_A, respond with ONLY this exact sentence — nothing before or after, no apologies, no lists:
 
-Which team are we simulating? Drop your franchise and I'll run the board — sensible scenario plus a chaos branch.
+Which team? Drop the franchise and I'll run the board — sensible scenario plus a chaos branch.
 
-Then stop (no bullet menus).
+MY TEAM wording with no franchise also maps here — identical single-line reply.
 
-OPEN QUESTION RULE:
-If the question asks which NFL team has the most interesting draft situation (or similarly open ranking), answer with ONE specific franchise and substantive reasoning — do not respond with clarification questions unless the prompt is truly empty.
+TYPE A — TEAM RESOLVED:
+Use baseline JSON only if SENSIBLE/CHAOS rows exist above; otherwise synthesize obeying slot validation.
 
 PROSPECT SLOT VALIDATION (mandatory before finalizing any simulation):
-- Each named prospect must appear in VERIFIED 2026 DRAFT PROSPECT ANCHORS / pool above.
-- Before placing a prospect at a pick, check projectedRange, consensusRank, and projectedRound in the pool. Do not slot a prospect multiple rounds above their projectedRange cluster (e.g. David Bailey is not a top-12 profile on this board).
-- Respect POSITION_VALUE_MAP and common draft economics: RBs rarely go Round 1 unless truly elite board; developmental QBs rarely go top 10–12 without extreme context. Do not place mid-round developmental QBs or Day 2–3 RBs in the top 11 "for board flow."
-- Examples (non-negotiable for mock consistency): Jadarian Price — Day 2–3 RB range, not top 15. Ty Simpson — developmental mid-round QB profile, not top 11.
-- If a need has no verified prospect that fits at that slot, write: "[Position] need unaddressed here — board didn't cooperate. [Team] pivots to [next need] and circles back to [position] in round [N+1]." Do not invent a prospect to plug the hole.
+- Each prospect must appear in VERIFIED anchors / pool.
+- Respect projectedRange + consensusRank + projectedRound — no absurd reaches vs bands (David Bailey ≠ top 12 profile on this board).
+- POSITION_VALUE_MAP & economics still apply.
 
-FOCUS TEAM: Use only ${focusTeam || focusTeamAbbr || "the team named in the question"}'s pick slots and needs — never another franchise's capital unless the question names them.`
+FOCUS TEAM: Only ${focusTeam || focusTeamAbbr || "[named team]"} slots/needs unless question names another trade partner.`
     : ""
 }
 
@@ -2914,11 +3009,11 @@ Rules:
 - Draft identity enforcement: for draft-centric questions, any prospect name outside VERIFIED 2026 DRAFT PROSPECT ANCHORS must be labeled "simulation-only (UDFA-range)" before analysis.
 - Do not invent unrelated games, props, role changes, or target-share claims.
 
-- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation — **except in NFL DRAFT SIMULATION MODE (see below)**, where staleness belongs only in the single CONFIDENCE block at the end. Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
+- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation — **except in NFL DRAFT TEAM SIMULATION (see below)**, where staleness belongs only in the single CONFIDENCE block at the end. Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
 
 ${
-  draftSimulationMode
-    ? `NFL DRAFT SIMULATION — RESPONSE FORMAT (mandatory)
+  draftTeamSimulationInject
+    ? `NFL DRAFT SIMULATION — RESPONSE FORMAT (mandatory; omit fully if you already returned the single-line franchise prompt for UNKNOWN team)
 
 CRITICAL RULES BEFORE WRITING ANYTHING:
 
@@ -2977,10 +3072,12 @@ Simulation. Pre-draft consensus board + verified prospect pool. Accuracy sharpen
 }
 
 ${
-  draftSimulationMode
+  draftTeamSimulationInject
+    ? ""
+    : nflDraftAngle && nflDraftWindowActive
     ? ""
     : nflDraftAngle
-    ? `NO-MARKET / DRAFT ANGLE (when the question is draft-centric, not a priced prop):
+    ? `NO-MARKET / DRAFT ANGLE (when the question is draft-centric, not a priced prop, and you are outside the pre/during-draft windowed analysis above):
 You are NOT allowed to stall with "wait until the draft" as the whole answer.
 
 Instead:
