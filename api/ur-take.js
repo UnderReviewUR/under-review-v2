@@ -2236,6 +2236,12 @@ Confidence guidance:
 
 ${nbaRosterListBlock}
 
+IMPORTANT: playerStatsText may contain season-average rows with stale team
+assignments. A player listed as ATL in playerStatsText may have been traded.
+The VERIFIED PLAYERS list above overrides playerStatsText for team assignments.
+If a name appears in playerStatsText but not in the verified list for their
+listed team, do not cite them as being on that team tonight.
+
 ${ROSTER_ENFORCEMENT_NBA}
 
 Rules:
