@@ -26,11 +26,23 @@ export function inferUrTakeSportFromMessages(msgs) {
 
 export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
   if (!Array.isArray(msgs)) return [];
+  const sanitizeForModel = (input) => {
+    let s = String(input || "").trim();
+    if (!s) return "";
+    s = s
+      .replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "")
+      .replace(/^WRONG SPORT\.[^\n]*\n?/im, "")
+      .replace(/^I'm locked into [^\n]*\n?/im, "")
+      .replace(/^For tennis prop analysis[^\n]*\n?/im, "")
+      .replace(/^What NBA game or player props[^\n]*\n?/im, "")
+      .trim();
+    return s;
+  };
   const cleaned = [];
   for (const m of msgs) {
     if (!m || m.loading) continue;
     const role = m.role === "ai" ? "assistant" : m.role === "user" ? "user" : null;
-    const content = String(m.text ?? m.content ?? "").trim();
+    const content = sanitizeForModel(m.text ?? m.content ?? "");
     if (!role || !content || /^ANALYZING/i.test(content)) continue;
     cleaned.push({ role, content: content.slice(0, 3500) });
   }
@@ -54,13 +66,26 @@ export function buildContextualQuestion(text, opts = {}) {
   const priorMessages = opts.priorMessages;
   if (!Array.isArray(priorMessages) || priorMessages.length === 0) return cleaned;
 
+  const sanitizeForModel = (input) => {
+    let s = String(input || "").trim();
+    if (!s) return "";
+    s = s
+      .replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "")
+      .replace(/^WRONG SPORT\.[^\n]*\n?/im, "")
+      .replace(/^I'm locked into [^\n]*\n?/im, "")
+      .replace(/^For tennis prop analysis[^\n]*\n?/im, "")
+      .replace(/^What NBA game or player props[^\n]*\n?/im, "")
+      .trim();
+    return s;
+  };
+
   const snippets = priorMessages
-    .filter((m) => m && !m.loading && (m.role === "user" || m.role === "ai"))
+    .filter((m) => m && !m.loading && m.role === "user")
     .slice(-8)
     .map((m) => {
-      const content = String(m.text ?? m.content ?? "").trim();
+      const content = sanitizeForModel(m.text ?? m.content ?? "");
       if (!content || /^ANALYZING/i.test(content)) return null;
-      const who = m.role === "ai" ? "Assistant" : "User";
+      const who = "User";
       return `${who}: ${content.slice(0, 1400)}`;
     })
     .filter(Boolean);

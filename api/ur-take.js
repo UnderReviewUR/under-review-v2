@@ -2534,7 +2534,9 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
    through the order (e.g. "If he's through 4 scoreless at under 5.5 Ks, that's
    the live add").
 
-Never open with "lines aren't up." Never send the user away empty-handed.`;
+Never open with "lines aren't up." Never send the user away empty-handed.
+Do NOT answer with PASS when a specific matchup is provided. If starters are TBD,
+give the venue + market setup and trigger conditions anyway.`;
   } else if (sportHint === "f1") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.

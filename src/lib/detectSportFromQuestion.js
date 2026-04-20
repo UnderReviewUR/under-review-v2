@@ -245,6 +245,10 @@ export function detectSportFromQuestion(question, currentTab) {
   if (
     q.includes("tennis") ||
     q.includes("atp") ||
+    q.includes("aces") ||
+    q.includes("double faults") ||
+    q.includes("break points") ||
+    q.includes("scoreline") ||
     q.includes("match winner") ||
     containsAny(q, ATP_HINT_NAMES)
   ) {

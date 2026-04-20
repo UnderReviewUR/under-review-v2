@@ -501,10 +501,10 @@ ${themeCss}
 
     let effectiveSportHint =
       explicitHint ??
-      lastUrTakeSportRef.current ??
-      inferUrTakeSportFromMessages(priorSnapshot) ??
       detected ??
       screenSport ??
+      lastUrTakeSportRef.current ??
+      inferUrTakeSportFromMessages(priorSnapshot) ??
       null;
 
     if (effectiveSportHint === "generic") effectiveSportHint = null;
