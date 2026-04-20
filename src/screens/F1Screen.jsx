@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
+import { deriveF1EventState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
 export default function F1Screen({
   f1ScreenRef,
@@ -30,6 +31,8 @@ export default function F1Screen({
       .slice(0, 10);
   }, [f1Data?.schedule?.races, weekAgoMs]);
 
+  const f1QuickPrompts = getQuickPromptsForState("f1", deriveF1EventState(f1Data));
+
   return (
           <main ref={f1ScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="f1-banner">
@@ -43,8 +46,15 @@ export default function F1Screen({
                 <div className="f1-ask-label">Ask Anything — F1</div>
                 <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {["Who wins the next Grand Prix?","Best F1 future right now?","Is Antonelli for real?","Hamilton podium value?"].map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitF1(q)} style={{fontSize:11}}>{q}</button>
+                  {(f1QuickPrompts.length ? f1QuickPrompts : [
+                    "Who wins the next Grand Prix?",
+                    "Best F1 future right now?",
+                    "Is Antonelli for real?",
+                    "Hamilton podium value?",
+                  ]).map((q) => (
+                    <button key={q} className="quick-btn" onClick={() => submitF1(q)} style={{ fontSize: 11 }}>
+                      {q}
+                    </button>
                   ))}
                 </div>
               </div>

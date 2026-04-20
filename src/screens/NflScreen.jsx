@@ -1,5 +1,6 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
+import { getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import NflPropGuideSection from "../features/nfl/NflPropGuideSection.jsx";
 import { NFL_POSITIONS, NFL_PROP_GUIDE } from "../features/app/constants.js";
 import { NflPlayerCard } from "../components/cards/NflPlayerCard.jsx";
@@ -20,6 +21,8 @@ export default function NflScreen({
   filteredNflPlayers,
   openNflPlayer,
 }) {
+  const nflQuickPrompts = getQuickPromptsForState("nfl", nflSeasonMode);
+
   return (
           <main ref={nflScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nfl-banner">
@@ -31,8 +34,13 @@ export default function NflScreen({
               <div className="nfl-ask-shell" ref={nflBarRef}>
               <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder={nflSeasonMode?"Best WR prop this week? Biggest role change?":"Which RB leads TDs in 2026? Best future?"} btnColor="#4A90D9" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {(nflSeasonMode?["Best WR props this week?","Biggest usage jump?","Best TD scorer angle?","Which line is stale?"]:["Best WR future?","Top TE by volume?","Fade or take Kelce?","Best RB rushing future?"]).map(q=>(
-                  <button key={q} className="quick-btn" onClick={()=>submitNfl(q)} style={{fontSize:11}}>{q}</button>
+                {(nflQuickPrompts.length ? nflQuickPrompts : nflSeasonMode
+                  ? ["Best WR props this week?", "Biggest usage jump?", "Best TD scorer angle?", "Which line is stale?"]
+                  : ["Best WR future?", "Top TE by volume?", "Fade or take Kelce?", "Best RB rushing future?"]
+                ).map((q) => (
+                  <button key={q} className="quick-btn" onClick={() => submitNfl(q)} style={{ fontSize: 11 }}>
+                    {q}
+                  </button>
                 ))}
               </div>
               </div>

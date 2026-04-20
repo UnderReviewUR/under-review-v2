@@ -1,10 +1,12 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
+import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
 export default function NbaScreen({
   nbaScreenRef,
   hasDockedBar,
   nbaGames,
+  nbaData,
   nbaMsgs,
   nbaBarRef,
   nbaInputRef,
@@ -14,6 +16,14 @@ export default function NbaScreen({
   askBarCommon,
   nbaLoading,
 }) {
+  const gamesForState =
+    Array.isArray(nbaGames) && nbaGames.length > 0
+      ? nbaGames
+      : Array.isArray(nbaData?.todaysGames)
+        ? nbaData.todaysGames
+        : [];
+  const nbaQuickPrompts = getQuickPromptsForState("nba", deriveDominantGameState(gamesForState));
+
   return (
           <main ref={nbaScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nba-banner">
@@ -30,7 +40,12 @@ export default function NbaScreen({
               <div className="nba-ask-shell" ref={nbaBarRef}>
               <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Jokic PRA over tonight? Best prop this slate?" btnColor="var(--nba)" {...askBarCommon} />
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {["Best prop on tonight's slate?","Safest PRA bet tonight?","Who has a usage spike today?","Best game total play?"].map(q=>(
+                {(nbaQuickPrompts.length ? nbaQuickPrompts : [
+                  "Best prop on tonight's slate?",
+                  "Safest PRA bet tonight?",
+                  "Who has a usage spike today?",
+                  "Best game total play?",
+                ]).map((q) => (
                   <button key={q} className="quick-btn" onClick={()=>submitNba(q)} style={{fontSize:11}}>{q}</button>
                 ))}
               </div>

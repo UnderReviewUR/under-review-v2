@@ -12,6 +12,37 @@ const FETCH_TIMEOUT_MS = 5000;
 /** @type {Map<string, { payload: unknown; ts: number }>} */
 const memory = new Map();
 
+/**
+ * Empty MLB/NBA board payloads are not cached — otherwise a midnight empty slate
+ * can stick for CACHE_TTL_MS and block fresh games/props after hooks refresh.
+ * @param {string} sport
+ * @param {unknown} payload
+ */
+function isEmptySportPayload(sport, payload) {
+  if (payload == null || typeof payload !== "object") return true;
+  if (sport === "mlb") {
+    const o = /** @type {{ games?: unknown[]; propLines?: unknown[] }} */ (payload);
+    const g = o.games;
+    const p = o.propLines;
+    const hasGames = Array.isArray(g) && g.length > 0;
+    const hasProps = Array.isArray(p) && p.length > 0;
+    return !hasGames && !hasProps;
+  }
+  if (sport === "nba") {
+    const p = /** @type {Record<string, unknown>} */ (payload);
+    const g = p.todaysGames;
+    const pl = p.propLines;
+    const stats = p.playerStats;
+    const meta = p.todaysGamesSlateMeta;
+    const hasGames = Array.isArray(g) && g.length > 0;
+    const hasProps = Array.isArray(pl) && pl.length > 0;
+    const hasStats = Array.isArray(stats) && stats.length > 0;
+    const hasSlateNote = !!(meta && String(meta.note || "").trim());
+    return !hasGames && !hasProps && !hasStats && !hasSlateNote;
+  }
+  return false;
+}
+
 function fetchWithTimeout(url, init = {}) {
   const c = new AbortController();
   const id = window.setTimeout(() => c.abort(), FETCH_TIMEOUT_MS);
@@ -104,8 +135,16 @@ function packTennisAtp(players, context, liveMatches) {
  * @returns {unknown | null}
  */
 function payloadFromHooks(sport, hooks) {
-  if (sport === "nba") return hooks.nbaData || null;
-  if (sport === "mlb") return hooks.mlbData || null;
+  if (sport === "nba") {
+    const p = hooks.nbaData || null;
+    if (!p) return null;
+    return isEmptySportPayload("nba", p) ? null : p;
+  }
+  if (sport === "mlb") {
+    const p = hooks.mlbData || null;
+    if (!p) return null;
+    return isEmptySportPayload("mlb", p) ? null : p;
+  }
   if (sport === "golf") return hooks.golfData || null;
   if (sport === "f1") return hooks.f1Data || null;
   if (sport === "nfl") return hooks.nflContextData || null;
@@ -179,16 +218,22 @@ export async function ensureUrTakeSportContext(sportHint, hooks) {
 
   const cached = readCache(sport);
   if (cached != null) {
-    return {
-      cacheHit: true,
-      fetchMs: 0,
-      overrides: overridesFromPayload(sport, cached),
-    };
+    if (isEmptySportPayload(sport, cached)) {
+      memory.delete(sport);
+    } else {
+      return {
+        cacheHit: true,
+        fetchMs: 0,
+        overrides: overridesFromPayload(sport, cached),
+      };
+    }
   }
 
   const hookPayload = payloadFromHooks(sport, hooks);
   if (hookPayload != null) {
-    writeCache(sport, hookPayload);
+    if (!isEmptySportPayload(sport, hookPayload)) {
+      writeCache(sport, hookPayload);
+    }
     return {
       cacheHit: true,
       fetchMs: Math.round(nowMs() - t0),
@@ -198,7 +243,9 @@ export async function ensureUrTakeSportContext(sportHint, hooks) {
 
   try {
     const fetched = await fetchPayloadForSport(sport);
-    if (fetched != null) writeCache(sport, fetched);
+    if (fetched != null && !isEmptySportPayload(sport, fetched)) {
+      writeCache(sport, fetched);
+    }
     return {
       cacheHit: false,
       fetchMs: Math.round(nowMs() - t0),

@@ -529,7 +529,15 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
   }
 
   if (q.includes("nba") || q.includes("points") || q.includes("pra")) return "nba";
-  if (q.includes("mlb") || q.includes("strikeout") || q.includes("home run")) return "mlb";
+  if (
+    q.includes("mlb") ||
+    q.includes("strikeout") ||
+    q.includes("home run") ||
+    q.includes("k prop") ||
+    (q.includes("pitcher") && q.includes("prop"))
+  ) {
+    return "mlb";
+  }
   if (q.includes("nfl") || q.includes("receiving") || q.includes("rushing")) return "nfl";
   if (q.includes("f1") || q.includes("grand prix")) return "f1";
   if (q.includes("tennis")) return "tennis";
@@ -1538,10 +1546,23 @@ EXECUTION RULES — READ CAREFULLY
       })
       .join("\n");
 
-    const tournamentName = context?.currentTournament?.name || "Current Tournament";
+    const cardTournamentName = String(rawMx.tournament_name || "").trim();
+    const globalTournamentName = String(context?.currentTournament?.name || "").trim();
+    const tournamentMismatch =
+      !!cardTournamentName &&
+      !!globalTournamentName &&
+      normalizeText(cardTournamentName) !== normalizeText(globalTournamentName);
+
+    const tournamentName =
+      cardTournamentName || context?.currentTournament?.name || "Current Tournament";
     const tournamentSurface =
       boardSurfaceHint || context?.currentTournament?.surface || "Unknown";
-    const tournamentContext = context?.currentTournament?.context || "";
+    let tournamentContext = context?.currentTournament?.context || "";
+    if (tournamentMismatch) {
+      tournamentContext =
+        `App active tournament filter is "${globalTournamentName}" but this MATCHUP CARD fixture is "${cardTournamentName}" — use the CARD tournament for venue, surface, altitude, and conditions. ` +
+        tournamentContext;
+    }
     const tournamentSpeed = context?.currentTournament?.speed || "";
     const breakingNews = String(context?.breaking || "").trim();
 
@@ -1565,6 +1586,11 @@ Name: ${tournamentName}
 Surface: ${tournamentSurface}
 Speed: ${tournamentSpeed}
 Context: ${tournamentContext}
+
+FIXTURE vs FILTER (mandatory)
+TOURNAMENT CONTEXT applies to the CURRENT FIXTURE on the card, not the app's active tournament filter alone.
+If the match card shows a different tournament than the global filter, use the MATCH tournament and its surface.
+Example: Munich BMW Open (ATP 250) is medium clay at low altitude; Madrid Mutua Madrid Open (Masters 1000) is medium-slower clay at altitude — they play very differently. Never mix them.
 
 ${matchupDigest ? `MATCHUP CARD — PLAYER DIGEST (use in WHY MISPRICED / WHY IT FITS — cite only these signals; do not invent stats)
 Official event surface on card (ATP feed): ${boardSurfaceHint || "not on card — use tournament context above"}
@@ -1719,6 +1745,13 @@ TOURNAMENT STATUS: FINAL (currentEvent.state is post/final)
 - If the user asked for a "live" or "best bet" angle, reframe: there is no live market edge after the final putt; give a concise results recap and what the board says about who won and why.
 - Name specific golfers from the leaderboard rows. Never invent a golfer not on the board.
 
+FINAL RECAP — BETTING INTELLIGENCE (mandatory; narrative alone is incomplete)
+When the tournament status is Final, the recap MUST include all of the following that the JSON can support (skip a bullet only if that slice is truly absent):
+1) Which pre-tournament outright prices in odds.outrights would have CASHED versus the final leaderboard (name golfer + printed price from context only).
+2) Which top-5 / top-10 / top-20 style prices in odds.topFinish (or related slices) would have cashed — cite the structure present in JSON.
+3) Which make-cut prices in odds.makeCut cashed or lost for named golfers — only if those rows exist.
+4) One concrete lesson for handicapping a future event at this course (field / setup / volatility) tied to what the final board showed.
+
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 
@@ -1852,6 +1885,10 @@ the primary answer. Give them something to monitor RIGHT NOW.`;
   } else if (sportHint === "mlb") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
+    const mlbGamesArr = Array.isArray(mlbContext?.games) ? mlbContext.games : [];
+    const mlbPropsArr = Array.isArray(mlbContext?.propLines) ? mlbContext.propLines : [];
+    const mlbEmptyBoard = mlbGamesArr.length === 0 && mlbPropsArr.length === 0;
+
     userPrompt = `You are answering an MLB betting question.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
@@ -1860,6 +1897,15 @@ ${question}
 MLB context:
 ${JSON.stringify(mlbContext || {}, null, 2)}
 
+${
+  mlbEmptyBoard
+    ? `EMPTY MLB BOARD (no games and no prop lines in this payload — may be a real off-hour / pre-slate ET window):
+- Say so plainly once, then pivot helpfully: typical next first-pitch window for the ET calendar day (describe as "check board after morning refresh" without inventing exact times unless seasonContext or games carry scheduled times).
+- If propLines from a prior response is not in this JSON, do NOT invent lines — instead name 2-3 plausible starting pitchers or matchup angles to monitor when the slate posts, grounded only on seasonContext or any non-empty arrays still present.
+- Never claim a pipeline failure unless mlbContext explicitly signals an error field; treat empty as "no slate in payload yet."
+`
+    : ""
+}
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.

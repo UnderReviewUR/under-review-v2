@@ -1,17 +1,24 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { isGolfEventFinished } from "../lib/golfEventStatus.js";
+import { deriveGolfEventState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
-const LIVE_SHELL_QUICKS = ["Best outright value?", "Safest make-cut play?", "Best top-10 play?", "Best matchup H2H?"];
-const FINAL_SHELL_QUICKS = ["Summarize final results", "Who won and why?", "Biggest surprises on the board?"];
-
-const LIVE_QUICK_ANGLES = [
+const LIVE_QUICK_PRE = [
   ["Best outright value?", "Who has the best outright value at this week's PGA Tour event? Consider field strength, course fit, and SG profile."],
   ["Best top-10 play?", "Who is the best top-10 bet at this week's PGA Tour event? Give me the highest-confidence play with reasoning."],
   ["Safest make-cut?", "Who is the safest make-cut bet at this week's event? Prioritize players with 80%+ cut-making history and good current form."],
   ["Best matchup H2H?", "Build the sharpest head-to-head matchup play at this week's event. Consider SG splits and course fit."],
   ["Best FRL play?", "Who is the best first round leader bet? Consider power players, morning draws, and current form."],
   ["Who to fade?", "Who should I fade this week? Tell me the player overpriced relative to their SG profile and course fit."],
+];
+
+const LIVE_QUICK_LIVE = [
+  ["Live top-5 angle?", "Who is the best live top-5 angle given the current leaderboard and volatility?"],
+  ["Cut line watch?", "Who is on the cut bubble and what is the sharpest live make-cut or miss-cut read?"],
+  ["Top underdog still in?", "Which longshot still in contention is the best live add for top-10 or outright?"],
+  ["Round leader angle?", "Who is the best live bet for low round or back-nine charge based on the board?"],
+  ["Live outright?", "Given current positions, who still offers the best live outright value?"],
+  ["Fade the chalk?", "Who is the live fade among the leaders based on volatility and course fit?"],
 ];
 
 export default function GolfScreen({
@@ -28,6 +35,9 @@ export default function GolfScreen({
   askBarCommon,
 }) {
   const eventFinished = isGolfEventFinished(golfData);
+  const golfPhase = deriveGolfEventState(golfData);
+  const shellPrompts = getQuickPromptsForState("golf", eventFinished ? "final" : golfPhase);
+  const quickAngles = !eventFinished && golfPhase === "live" ? LIVE_QUICK_LIVE : LIVE_QUICK_PRE;
 
   return (
           <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
@@ -47,35 +57,18 @@ export default function GolfScreen({
               <div className="golf-ask-shell" ref={golfBarRef}>
                 <div className="golf-ask-label">{eventFinished ? "Recap — Golf" : "Ask Anything — Golf"}</div>
                 <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder={eventFinished ? "How did the tournament finish? Biggest surprise?" : "Scheffler top 5? Best make-cut play? Matchup angle?"} btnColor="#DCE6F2" {...askBarCommon}/>
-                {!eventFinished && (
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-                  {LIVE_SHELL_QUICKS.map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitGolf(q)} style={{fontSize:11}}>{q}</button>
-                  ))}
-                </div>
-                )}
-                {eventFinished && (
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-                  {FINAL_SHELL_QUICKS.map((q) => (
-                    <button
-                      key={q}
-                      className="quick-btn"
-                      onClick={() =>
-                        submitGolf(
-                          q === "Summarize final results"
-                            ? "Summarize the final tournament results from the leaderboard: winner, winning score, and one narrative line on how they got it done."
-                            : q === "Who won and why?"
-                              ? "Who won this tournament and why did their game fit the course — cite the leaderboard in context."
-                              : "What were the biggest surprises versus the pre-tournament narrative? Use the final board only."
-                        )
-                      }
-                      style={{fontSize:11}}
-                    >
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                  {(shellPrompts.length ? shellPrompts : [
+                    "Best outright?",
+                    "Top-10 value?",
+                    "Course fit sleeper?",
+                    "Fade favorites?",
+                  ]).map((q) => (
+                    <button key={q} className="quick-btn" onClick={() => submitGolf(q)} style={{ fontSize: 11 }}>
                       {q}
                     </button>
                   ))}
                 </div>
-                )}
               </div>
             )}
 
@@ -127,8 +120,10 @@ export default function GolfScreen({
             <>
             <div className="section-divider">Quick Angles</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
-              {LIVE_QUICK_ANGLES.map(([label,prompt])=>(
-                <button key={label} className="quick-btn" onClick={()=>submitGolf(prompt)} style={{fontSize:11}}>{label}</button>
+              {quickAngles.map(([label, prompt]) => (
+                <button key={label} className="quick-btn" onClick={() => submitGolf(prompt)} style={{ fontSize: 11 }}>
+                  {label}
+                </button>
               ))}
             </div>
 

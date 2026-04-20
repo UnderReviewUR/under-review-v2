@@ -340,8 +340,9 @@ ${themeCss}
 
   const buildNbaContext = useCallback((questionText, nbaDataOverride = null) => {
     const src = nbaDataOverride ?? nbaData;
-    const mergedTodaysGames =
-      nbaGames.length > 0 ? nbaGames : (src?.todaysGames || []);
+    const fromSrc = Array.isArray(src?.todaysGames) ? src.todaysGames : [];
+    const fromLocal = Array.isArray(nbaGames) ? nbaGames : [];
+    const mergedTodaysGames = fromSrc.length > 0 ? fromSrc : fromLocal;
     const slateMeta = src?.todaysGamesSlateMeta || null;
     return {
       seasonContext:   src?.seasonContext || {},
@@ -370,7 +371,9 @@ ${themeCss}
 
   const buildMlbContext = useCallback((questionText, mlbDataOverride = null) => {
     const src = mlbDataOverride ?? mlbData;
-    const allGames = mlbGames.length > 0 ? mlbGames : (src?.games || []);
+    const fromSrc = Array.isArray(src?.games) ? src.games : [];
+    const fromLocal = Array.isArray(mlbGames) ? mlbGames : [];
+    const allGames = fromSrc.length > 0 ? fromSrc : fromLocal;
     // Trim each game to essentials only — avoid oversized payload
     const trimmedGames = allGames.map(g => ({
       id: g.id,
@@ -454,17 +457,27 @@ ${themeCss}
     let detected = detectSportFromQuestion(text, tab);
     if (detected === "generic") detected = null;
 
+    const scr = String(screen || "").toLowerCase();
+    const screenSport =
+      scr === "nfl" || scr === "nflplayer"
+        ? "nfl"
+        : scr === "mlb" || scr === "nba" || scr === "golf" || scr === "tennis" || scr === "f1"
+          ? scr
+          : null;
+
     let effectiveSportHint =
       explicitHint ??
       lastUrTakeSportRef.current ??
       inferUrTakeSportFromMessages(priorSnapshot) ??
       detected ??
+      screenSport ??
       null;
 
     if (effectiveSportHint === "generic") effectiveSportHint = null;
 
     let hintForEnsure = effectiveSportHint;
     if (!hintForEnsure && questionSuggestsGolf(text)) hintForEnsure = "golf";
+    if (!hintForEnsure && screenSport) hintForEnsure = screenSport;
 
     setPrefetchingUrTakeContext(true);
     const ensureStart = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -657,6 +670,7 @@ ${themeCss}
   userEmail,
   loadPerformanceSnapshot,
   getTakeAuthHeaders,
+  screen,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -1784,6 +1798,7 @@ ${themeCss}
             nbaScreenRef={nbaScreenRef}
             hasDockedBar={hasDockedBar}
             nbaGames={nbaGames}
+            nbaData={nbaData}
             nbaMsgs={nbaMsgs}
             nbaBarRef={nbaBarRef}
             nbaInputRef={nbaInputRef}

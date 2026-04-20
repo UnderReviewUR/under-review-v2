@@ -1,5 +1,6 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
+import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
 export default function MlbScreen({
   mlbScreenRef,
@@ -15,6 +16,14 @@ export default function MlbScreen({
   mlbGames,
   mlbData,
 }) {
+  const gamesForState =
+    Array.isArray(mlbGames) && mlbGames.length > 0
+      ? mlbGames
+      : Array.isArray(mlbData?.games)
+        ? mlbData.games
+        : [];
+  const mlbQuickPrompts = getQuickPromptsForState("mlb", deriveDominantGameState(gamesForState));
+
   return (
           <main ref={mlbScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
@@ -30,7 +39,12 @@ export default function MlbScreen({
                 <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"#1DB954",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything -- MLB</div>
                 <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="#1DB954" {...askBarCommon}/>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-                  {["Best pitcher K prop?","Best batter hits prop?","Best game total?","Best home run prop?"].map(q=>(
+                  {(mlbQuickPrompts.length ? mlbQuickPrompts : [
+                    "Best pitcher K prop?",
+                    "Best batter hits prop?",
+                    "Best game total?",
+                    "Best home run prop?",
+                  ]).map((q) => (
                     <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
                   ))}
                 </div>

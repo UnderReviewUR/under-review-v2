@@ -1,5 +1,6 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
+import { deriveTennisBoardState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import { ATP_PLAYERS, WTA_PLAYERS } from "../features/app/constants.js";
 import { AtpMatchupCard } from "../components/cards/AtpMatchupCard.jsx";
 import { TennisPlayerCard } from "../components/cards/TennisPlayerCard.jsx";
@@ -32,6 +33,8 @@ export default function TennisScreen({
   submitWta,
   openPlayer,
 }) {
+  const tennisQuickPrompts = getQuickPromptsForState("tennis", deriveTennisBoardState(liveMatches));
+
   return (
           <main ref={tennisScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="tour-banner">
@@ -45,8 +48,15 @@ export default function TennisScreen({
                 <div style={{fontSize:10,color:"#FFE600",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
                 <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet? Which match is mispriced?" {...askBarCommon} />
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {["Best tennis bet tonight?","Which match is mispriced?","Best live angle?","Best futures value?"].map(q=>(
-                    <button key={q} className="quick-btn" onClick={()=>submitTennis(q)} style={{fontSize:11}}>{q}</button>
+                  {(tennisQuickPrompts.length ? tennisQuickPrompts : [
+                    "Best tennis bet tonight?",
+                    "Which match is mispriced?",
+                    "Best live angle?",
+                    "Best futures value?",
+                  ]).map((q) => (
+                    <button key={q} className="quick-btn" onClick={() => submitTennis(q)} style={{ fontSize: 11 }}>
+                      {q}
+                    </button>
                   ))}
                 </div>
               </div>
