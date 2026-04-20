@@ -2,9 +2,9 @@ import {
   getTournamentFetchParam,
   isBallDontLieAtpFixture,
   normalizeTennisMatch,
-  normalizeText,
   preferredTournamentScore,
 } from "../features/app/helpers.jsx";
+import { normalizeText } from "./normalizeText.js";
 
 const CACHE_TTL_MS = 90_000;
 const FETCH_TIMEOUT_MS = 5000;

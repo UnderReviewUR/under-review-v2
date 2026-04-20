@@ -8,9 +8,8 @@ import {
   displayConfidenceLabel,
 } from "../../lib/urTakePerformance.js";
 
-export function normalizeText(v) {
-  return String(v || "").trim().toLowerCase();
-}
+import { normalizeText } from "../../lib/normalizeText.js";
+export { normalizeText };
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
 /** Prefer explicit sport on stored AI bubbles (follow-up routing). */

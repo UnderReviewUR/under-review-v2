@@ -1,4 +1,4 @@
-import { normalizeText } from "../features/app/helpers.jsx";
+import { normalizeText } from "./normalizeText.js";
 
 const SPORT_TABS = new Set(["nba", "mlb", "nfl", "golf", "tennis", "f1"]);
 

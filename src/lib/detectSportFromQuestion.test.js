@@ -1,0 +1,71 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { detectSportFromQuestion, detectWtaFromQuestion } from "./detectSportFromQuestion.js";
+
+test("tab nba forces nba regardless of question", () => {
+  assert.equal(detectSportFromQuestion("best Yankees prop", "nba"), "nba");
+});
+
+test("tab mlb forces mlb", () => {
+  assert.equal(detectSportFromQuestion("random words", "mlb"), "mlb");
+});
+
+test("home + Spurs question → nba (primary regression)", () => {
+  assert.equal(
+    detectSportFromQuestion("Best Spurs player prop tonight?", "home"),
+    "nba",
+  );
+});
+
+test("home + generic weather → generic", () => {
+  assert.equal(detectSportFromQuestion("what's the weather today?", "home"), "generic");
+});
+
+test("home + strikeout prop → mlb", () => {
+  assert.equal(
+    detectSportFromQuestion("Best MLB strikeout prop tonight?", "home"),
+    "mlb",
+  );
+});
+
+test("home + Cowboys → nfl", () => {
+  assert.equal(detectSportFromQuestion("Best Cowboys play this weekend?", "home"), "nfl");
+});
+
+test("home + RBC Heritage → golf", () => {
+  assert.equal(detectSportFromQuestion("Who's the best RBC Heritage outright?", "home"), "golf");
+});
+
+test("home + F1 podium → f1", () => {
+  assert.equal(detectSportFromQuestion("Best F1 podium bet this weekend?", "home"), "f1");
+});
+
+test("home + ATP match → tennis", () => {
+  assert.equal(detectSportFromQuestion("Best ATP match tonight?", "home"), "tennis");
+});
+
+test("home + Sabalenka vs Gauff → tennis_wta_profile", () => {
+  assert.equal(
+    detectSportFromQuestion("Who wins Sabalenka vs Gauff on clay?", "home"),
+    "tennis_wta_profile",
+  );
+});
+
+test("tab tennis + WTA names → tennis_wta_profile", () => {
+  assert.equal(
+    detectSportFromQuestion("Sabalenka form this week?", "tennis"),
+    "tennis_wta_profile",
+  );
+});
+
+test("tab tennis + ATP-only → tennis", () => {
+  assert.equal(detectSportFromQuestion("Best Sinner value?", "tennis"), "tennis");
+});
+
+test("Giants from home → mlb before nfl keyword overlap", () => {
+  assert.equal(detectSportFromQuestion("best Giants play tonight?", "home"), "mlb");
+});
+
+test("detectWtaFromQuestion true for explicit wta", () => {
+  assert.equal(detectWtaFromQuestion("WTA Rome"), true);
+});
