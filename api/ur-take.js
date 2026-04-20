@@ -1,7 +1,15 @@
-export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
+export const config = { api: { bodyParser: { sizeLimit: "2mb" } } };
 
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
+import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
+import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
+import {
+  allowRateLimit,
+  emailLimit,
+  getClientIp,
+  ipLimit,
+} from "./_rateLimitUrTake.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
 
@@ -887,6 +895,46 @@ export default async function handler(req, res) {
       error: "Method not allowed",
       response: "Only POST is supported.",
     });
+  }
+
+  const clientIp = getClientIp(req);
+  if (!allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
+    return res.status(429).json({
+      error: "rate_limited",
+      response: "Too many requests from this network — try again shortly.",
+    });
+  }
+
+  /** @type {{ ok: true, email: string | null, tier: string } | { ok: false, reason: string } | null} */
+  let urAuth = null;
+  if (shouldRequireUrTakeAuth()) {
+    urAuth = verifyBearerForUrTake(req.headers.authorization);
+    if (!urAuth.ok) {
+      return res.status(401).json({
+        error: urAuth.reason || "unauthorized",
+        response:
+          "Authorization required. Refresh the page or re-enter your email / access code.",
+      });
+    }
+    if (urAuth.email && !allowRateLimit(`urtake:email:${urAuth.email}`, emailLimit())) {
+      return res.status(429).json({
+        error: "rate_limited",
+        response: "Too many requests for this account — try again shortly.",
+      });
+    }
+  }
+
+  const sanitized = sanitizeUrTakeBody(req.body);
+  if (!sanitized.ok) {
+    return res.status(400).json({
+      error: sanitized.error,
+      response: sanitized.error,
+    });
+  }
+  req.body = sanitized.body;
+
+  if (urAuth?.ok && urAuth.email) {
+    req.body.userEmail = urAuth.email;
   }
 
   const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");

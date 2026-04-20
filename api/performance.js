@@ -3,14 +3,45 @@ import {
   buildPerformanceSnapshot,
   gradeAndGetTakesForUser,
 } from "./_takeLedger.js";
+import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 
 export default async function handler(req, res) {
-  if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
 
-  const email = String(req.query.email || "").trim().toLowerCase();
+  if (req.method === "GET") {
+    return res.status(405).json({
+      error: "Method not allowed",
+      hint:
+        'Use POST /api/performance with JSON body { "email": "..." } and Authorization: Bearer token.',
+    });
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const email = String(req.body?.email || "")
+    .trim()
+    .toLowerCase();
   if (!email || !email.includes("@")) {
     return res.status(400).json({ error: "Missing or invalid email" });
+  }
+
+  if (shouldRequireUrTakeAuth()) {
+    const auth = verifyBearerForUrTake(req.headers.authorization);
+    if (!auth.ok) {
+      return res.status(401).json({ error: auth.reason || "unauthorized" });
+    }
+    if (auth.email && auth.email !== email) {
+      return res.status(403).json({ error: "Email does not match token" });
+    }
+    if (
+      !auth.email &&
+      auth.tier !== "owner" &&
+      auth.tier !== "friend"
+    ) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
   }
 
   try {

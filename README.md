@@ -21,6 +21,7 @@ cp .env.example .env
 | `npm run lint` | ESLint (`src`, `api`, `scripts`). |
 | `npm run format` | Prettier write for `src`, `api`, `scripts`. |
 | `npm run format:check` | Prettier check only (CI-friendly). |
+| `npm test` | Node built-in test runner (`api/*.test.js`). |
 
 Internal maintenance (only if you edit inlined blocks again — normally **do not run** blindly):
 
@@ -29,7 +30,7 @@ Internal maintenance (only if you edit inlined blocks again — normally **do no
 
 ## CI
 
-GitHub Actions runs `npm ci`, `npm run build`, and `npm run lint` on pushes and PRs to `main` (`.github/workflows/ci.yml`).
+GitHub Actions runs `npm ci`, `npm run build`, `npm run lint`, and `npm test` on pushes and PRs to `main` (`.github/workflows/ci.yml`).
 
 ## Operations
 
@@ -46,12 +47,19 @@ Clear the line after the event so stale news does not affect unrelated tournamen
 
 Configure `OWNER_CODE`, `FRIEND_CODES`, and `ACCESS_TOKEN_SECRET` in Vercel — never rely on demo defaults in production (`api/access.js`, `api/pro-status.js`).
 
+### UR TAKE API security
+
+- **`/api/ur-take`** and **`/api/performance`** require a valid **`Authorization: Bearer`** token by default (`UR_TAKE_REQUIRE_AUTH` unset or not `false`). Tokens are the same HMAC format as access / Pro (`ACCESS_TOKEN_SECRET`).
+- The app obtains a **short-lived “take” token** via **`POST /api/gate`** with `{ "action": "issue_take_token", "email": "..." }` when the user has no long-lived `ur_access_token` (free tier within quota). Pro / owner / friend sessions continue to use `ur_access_token` from access or Pro status.
+- Request bodies are **allowlisted and size-capped** server-side (`api/_sanitizeUrTakeBody.js`). **IP** and **per-email** rate limits apply to UR TAKE (`api/_rateLimitUrTake.js`).
+- **`/api/performance`** is **POST** only with JSON `{ "email": "..." }` and the same bearer header (avoids email in query strings).
+
 ## Environment variables
 
 See **`.env.example`** for the full list. Production requires at minimum:
 
 - **UR TAKE:** `ANTHROPIC_API_KEY`
-- **Access / Pro tokens:** `ACCESS_TOKEN_SECRET`
+- **Access / Pro tokens + UR TAKE auth:** `ACCESS_TOKEN_SECRET` (optional `UR_TAKE_REQUIRE_AUTH=false` for local debugging only)
 - **Stripe (if using Pro):** `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, and for webhooks `STRIPE_WEBHOOK_SECRET`
 - **KV (recommended on Vercel for durable gate + takes):** `KV_REST_API_URL`, `KV_REST_API_TOKEN`
 

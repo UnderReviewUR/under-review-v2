@@ -64,6 +64,19 @@ export function resolveAccessTokenSecretForHandler(res) {
   return getDevAccessTokenSecretFallback();
 }
 
+/**
+ * Same secret as resolveAccessTokenSecretForHandler, without needing `res`.
+ * Production: ACCESS_TOKEN_SECRET only (no random fallback).
+ * Non-production: dev per-process fallback when unset.
+ * @returns {string | null}
+ */
+export function getAccessTokenSecretSync() {
+  const secret = getEnv("ACCESS_TOKEN_SECRET");
+  if (secret) return secret;
+  if (isProduction()) return null;
+  return getDevAccessTokenSecretFallback();
+}
+
 // ── Owner code (production: OWNER_CODE only; dev: OWNER_CODE_DEV fallback) ─
 let warnedOwnerCodeMissingInProd = false;
 

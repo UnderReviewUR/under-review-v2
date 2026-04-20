@@ -54,6 +54,7 @@ import { useMlbData } from "./hooks/useMlbData.js";
 import { useGolfData } from "./hooks/useGolfData.js";
 import { useNflData } from "./hooks/useNflData.js";
 import { usePerformance } from "./hooks/usePerformance.js";
+import { useTakeAuthHeaders } from "./hooks/useTakeAuthHeaders.js";
 import { formatTennisScore } from "./features/tennis/tennisFormatters.js";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import TennisScreen from "./screens/TennisScreen.jsx";
@@ -188,6 +189,8 @@ ${themeCss}
     typeof window !== "undefined" ? localStorage.getItem("ur_email") || "" : ""
   );
 
+  const getTakeAuthHeaders = useTakeAuthHeaders();
+
   const { players, context, liveMatches, tennisLoading } = useTennisData();
   const { f1Data, f1Loading } = useF1Data();
   const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData();
@@ -199,7 +202,7 @@ ${themeCss}
     performanceLoading,
     performanceError,
     loadPerformanceSnapshot,
-  } = usePerformance(userEmail);
+  } = usePerformance(userEmail, getTakeAuthHeaders);
 
   const [weeklyUsed, setWeeklyUsed]     = useState(0);
   const [showEmailGate, setShowEmailGate] = useState(false);
@@ -506,11 +509,13 @@ ${themeCss}
     const ctrl = new AbortController();
     const abortTimer = window.setTimeout(() => ctrl.abort(), 75000);
 
+    const authHeaders = await getTakeAuthHeaders();
+
     let res;
     try {
       res = await fetch("/api/ur-take", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });
@@ -577,6 +582,7 @@ ${themeCss}
   userEmail,
     loadPerformanceSnapshot,
     buildContextualQuestion,
+  getTakeAuthHeaders,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────

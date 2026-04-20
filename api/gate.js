@@ -6,6 +6,8 @@
 
 import { applyCors } from "./_cors.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { signToken, verifyToken } from "./_hmacToken.js";
+import { getAccessTokenSecretSync } from "./_env.js";
 
 const GATE_TTL_SECONDS = 60 * 60 * 24 * 8; // 8 days
 
@@ -21,6 +23,7 @@ async function setRecord(email, record) {
 
 const FREE_QUERIES_PER_WEEK = 5;
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TAKE_TOKEN_TTL_MS = 10 * 60 * 1000;
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -31,7 +34,83 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { action, email, fingerprint: _fingerprint } = req.body || {};
+  const { action, email, accessToken, fingerprint: _fingerprint } = req.body || {};
+
+  // ── action: "issue_take_token" — short-lived HMAC for /api/ur-take + /api/performance ──
+  if (action === "issue_take_token") {
+    const secret = getAccessTokenSecretSync();
+    if (!secret) {
+      return res.status(500).json({ error: "Server misconfigured" });
+    }
+
+    const normalizedEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+
+    if (accessToken) {
+      const payload = verifyToken(String(accessToken).trim(), secret);
+      if (!payload || (payload.expiresAt && new Date(payload.expiresAt) < new Date())) {
+        return res.status(401).json({ error: "Invalid or expired access token" });
+      }
+      if (
+        payload.tier === "pro" ||
+        payload.tier === "owner" ||
+        payload.tier === "friend"
+      ) {
+        const expiresAt = new Date(Date.now() + TAKE_TOKEN_TTL_MS).toISOString();
+        const emailForToken =
+          payload.email ||
+          (normalizedEmail && isValidEmail(normalizedEmail) ? normalizedEmail : null);
+        const takeToken = signToken(
+          {
+            purpose: "ur-take",
+            email: emailForToken,
+            tier: payload.tier,
+            expiresAt,
+          },
+          secret,
+        );
+        return res.status(200).json({
+          takeToken,
+          expiresInSeconds: Math.floor(TAKE_TOKEN_TTL_MS / 1000),
+        });
+      }
+      return res.status(401).json({ error: "Unsupported access token" });
+    }
+
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ error: "Valid email required" });
+    }
+
+    const record = (await getRecord(email)) || { queries: [], emailVerified: true };
+    const now = Date.now();
+    const windowStart = now - WINDOW_MS;
+    const recentQueries = (record.queries || []).filter((t) => t > windowStart);
+
+    if (recentQueries.length >= FREE_QUERIES_PER_WEEK) {
+      return res.status(200).json({
+        ok: false,
+        reason: "limit_reached",
+        used: recentQueries.length,
+        limit: FREE_QUERIES_PER_WEEK,
+      });
+    }
+
+    const expiresAt = new Date(now + TAKE_TOKEN_TTL_MS).toISOString();
+    const takeToken = signToken(
+      {
+        purpose: "ur-take",
+        email: normalizedEmail,
+        tier: "free",
+        expiresAt,
+      },
+      secret,
+    );
+    return res.status(200).json({
+      takeToken,
+      expiresInSeconds: Math.floor(TAKE_TOKEN_TTL_MS / 1000),
+    });
+  }
 
   // ── action: "check" — can this user ask a question? ──────────────────────
   if (action === "check") {

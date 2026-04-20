@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 
-export function usePerformance(userEmail) {
+/**
+ * @param {string} userEmail
+ * @param {() => Promise<Record<string, string>>} [getTakeAuthHeaders]
+ */
+export function usePerformance(userEmail, getTakeAuthHeaders) {
   const [performanceData, setPerformanceData] = useState(null);
   const [performanceLoading, setPerformanceLoading] = useState(false);
   const [performanceError, setPerformanceError] = useState("");
@@ -14,7 +18,15 @@ export function usePerformance(userEmail) {
     setPerformanceLoading(true);
     setPerformanceError("");
     try {
-      const res = await fetch(`/api/performance?email=${encodeURIComponent(email)}`);
+      const headers = { "Content-Type": "application/json" };
+      if (typeof getTakeAuthHeaders === "function") {
+        Object.assign(headers, await getTakeAuthHeaders());
+      }
+      const res = await fetch("/api/performance", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to load performance");
       setPerformanceData(data);
@@ -23,7 +35,7 @@ export function usePerformance(userEmail) {
     } finally {
       setPerformanceLoading(false);
     }
-  }, [userEmail]);
+  }, [userEmail, getTakeAuthHeaders]);
 
   useEffect(() => {
     if (!userEmail) return;

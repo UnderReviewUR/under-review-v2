@@ -60,4 +60,12 @@ export default [
       sourceType: "module",
     },
   },
+  {
+    files: ["api/**/*.test.js"],
+    languageOptions: {
+      globals: globals.node,
+      ecmaVersion: 2022,
+      sourceType: "module",
+    },
+  },
 ];

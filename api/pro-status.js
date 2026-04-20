@@ -9,14 +9,8 @@
 
 import { applyCors } from "./_cors.js";
 import Stripe from "stripe";
-import crypto from "crypto";
+import { signToken } from "./_hmacToken.js";
 import { getEnv, resolveAccessTokenSecretForHandler } from "./_env.js";
-
-function signToken(payload, secret) {
-  const data = JSON.stringify(payload);
-  const sig  = crypto.createHmac("sha256", secret).update(data).digest("hex");
-  return Buffer.from(data).toString("base64") + "." + sig;
-}
 
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;

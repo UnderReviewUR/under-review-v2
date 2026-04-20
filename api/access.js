@@ -5,7 +5,7 @@
 // Returns a signed token stored in localStorage — no login, no account.
 
 import { applyCors } from "./_cors.js";
-import crypto from "crypto";
+import { signToken, verifyToken } from "./_hmacToken.js";
 import {
   getEnv,
   resolveAccessTokenSecretForHandler,
@@ -37,25 +37,6 @@ function getCodeRegistry() {
   }
 
   return registry;
-}
-
-// ── Token signing (simple HMAC — no JWT library needed) ─────────────────────
-function signToken(payload, secret) {
-  const data = JSON.stringify(payload);
-  const sig = crypto.createHmac("sha256", secret).update(data).digest("hex");
-  return Buffer.from(data).toString("base64") + "." + sig;
-}
-
-function verifyToken(token, secret) {
-  try {
-    const [b64, sig] = token.split(".");
-    const data = Buffer.from(b64, "base64").toString();
-    const expected = crypto.createHmac("sha256", secret).update(data).digest("hex");
-    if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
