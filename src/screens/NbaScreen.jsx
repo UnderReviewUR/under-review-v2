@@ -1,6 +1,7 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
+import { NBA_UI_PLAYER_CHIPS } from "../lib/nbaUiSurface.js";
 
 export default function NbaScreen({
   nbaScreenRef,
@@ -99,8 +100,8 @@ export default function NbaScreen({
 
                 <div className="section-divider">Ask About Any Player</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
-                  {["Jokic","SGA","Luka","Tatum","Giannis","Wembanyama","Brunson","Edwards","KAT","Curry","Haliburton","Mitchell","KD","Booker","Ja Morant"].map(name => (
-                    <button key={name} className="quick-btn" onClick={()=>submitNba(`Best prop angle for ${name} tonight? PRA line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{name}</button>
+                  {NBA_UI_PLAYER_CHIPS.map(({ chip }) => (
+                    <button key={chip} className="quick-btn" onClick={()=>submitNba(`Best prop angle for ${chip} tonight? PRA line, floor, ceiling, and lean.`)} style={{fontSize:11}}>{chip}</button>
                   ))}
                 </div>
               </>

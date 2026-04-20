@@ -19,6 +19,11 @@ import { isGolfEventFinished } from "./lib/golfEventStatus.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
+  augmentNbaRosterGroundingWithUi,
+  mergeNbaTodaysGames,
+  NBA_UI_PLAYER_CHIPS,
+} from "./lib/nbaUiSurface.js";
+import {
   ChatThread,
   buildNflContext,
   formatOverallStats,
@@ -376,8 +381,12 @@ ${themeCss}
     const src = nbaDataOverride ?? nbaData;
     const fromSrc = Array.isArray(src?.todaysGames) ? src.todaysGames : [];
     const fromLocal = Array.isArray(nbaGames) ? nbaGames : [];
-    const mergedTodaysGames = fromSrc.length > 0 ? fromSrc : fromLocal;
+    const mergedTodaysGames = mergeNbaTodaysGames(fromSrc, fromLocal);
     const slateMeta = src?.todaysGamesSlateMeta || null;
+    const rosterGroundingMerged = augmentNbaRosterGroundingWithUi(
+      src?.rosterGrounding || null,
+      mergedTodaysGames,
+    );
     return {
       seasonContext:   src?.seasonContext || {},
       todaysGames:     mergedTodaysGames,
@@ -397,8 +406,18 @@ ${themeCss}
       recentForm:      src?.recentForm    || "",
       h2hSplits:       src?.h2hSplits     || [],
       gameTotals:      src?.gameTotals     || {},
-      /** API-derived per-team names only — do not use static player DB for NBA rosters */
-      rosterGrounding: src?.rosterGrounding || null,
+      /** API roster + same featured names / teams as NBA tab UI chips */
+      rosterGrounding: rosterGroundingMerged,
+      /** Mirrors product UI — must stay aligned with src/lib/nbaUiSurface.js */
+      clientUiSurface: {
+        source: "nba_tab_chips_and_scoreboard",
+        featuredPlayersFullNames: NBA_UI_PLAYER_CHIPS.map((p) => p.fullName),
+        chipToFullName: Object.fromEntries(
+          NBA_UI_PLAYER_CHIPS.map((p) => [p.chip, p.fullName]),
+        ),
+        note:
+          "These names match the 'Ask About Any Player' chips on the NBA screen. todaysGames merges /api/nba board games with the live scoreboard feed used for Today’s Games cards.",
+      },
       question:        questionText || "",
     };
   }, [nbaData, nbaGames]);

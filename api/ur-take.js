@@ -1172,6 +1172,10 @@ function collectNbaVerifiedPlayerNamesFromGrounding(nbaContext) {
       if (n) verifiedPlayerNames.add(n);
     }
   }
+  for (const raw of nbaContext?.clientUiSurface?.featuredPlayersFullNames || []) {
+    const n = String(raw || "").trim();
+    if (n) verifiedPlayerNames.add(n);
+  }
   return verifiedPlayerNames;
 }
 
@@ -1208,9 +1212,17 @@ Do not name any specific players for these teams.
 Give team-level analysis only — pace, scheme, series context, matchup profile.
 This is a hard constraint. Inventing player names here destroys user trust.`;
 
-  if (names.length === 0 || rosterQuality == null || rosterQuality === "thin") {
+  if (names.length === 0) {
     return thinOrAbsentBody;
   }
+
+  if (rosterQuality === "full") {
+    return `VERIFIED PLAYERS ON TONIGHT'S SLATE:
+${names.join(", ")}
+
+Name only these players when discussing tonight's games.`;
+  }
+
   if (rosterQuality === "partial") {
     return `PARTIAL ROSTER DATA — VERIFIED PLAYERS ONLY:
 ${names.join(", ")}
@@ -1218,13 +1230,18 @@ ${names.join(", ")}
 You may ONLY name players on this list. For teams with zero verified players,
 give team-level analysis only. Do not supplement with training memory.`;
   }
-  if (rosterQuality === "full") {
-    return `VERIFIED PLAYERS ON TONIGHT'S SLATE:
+
+  if (rosterQuality === "thin") {
+    return `VERIFIED PLAYERS (combined API + client UI slate — rosterGroundingQuality is "thin" because some tonight teams lack full API rows, but the names below are still authorized):
 ${names.join(", ")}
 
-Name only these players when discussing tonight's games.`;
+You may name anyone on this list. If a user or the product UI targets a team with no names in this list, use team-level read for that side only — do not claim you "cannot verify" a name that appears on this list.`;
   }
-  return thinOrAbsentBody;
+
+  return `VERIFIED PLAYERS (slate):
+${names.join(", ")}
+
+Name only these players when discussing player-specific props unless the image or question authorizes another name.`;
 }
 
 function buildNbaRosterProminentInjection(nbaContext, rosterOpts = {}) {
