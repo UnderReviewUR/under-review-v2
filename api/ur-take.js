@@ -2564,33 +2564,54 @@ Rules:
 NO-MARKET FALLBACK RULE (mandatory when propLines is empty after excluding finals,
 or when there is no prop row for an upcoming/live game the user cares about)
 
-You are NOT allowed to respond with "wait for lines" or "come back later" as
-the primary answer. The user is on the app right now because tip is close.
-"No lines posted" is a cop-out, not a take.
+Do not treat missing lines as an excuse for thin analysis. The user is here because tip is close.
 
-Instead, do ALL of the following:
+NO-MARKET FALLBACK FORMAT (mandatory when prop lines aren't posted):
 
-1. Open with a confident pre-market call. When the verified roster block above lists names, you may use only those names with props. When it does not, stay team- and game-flow-level only.
+Do NOT use "Watch for:" as a section header.
+Do NOT use player names as headers (no "JALEN BRUNSON —").
+Do NOT open with a limitation sentence (no "no prop lines posted yet," "roster data is thin,"
+"lines aren't up," or similar throat-clearing).
+Do NOT close with "come back when lines post," "bring me the line card," or any ask for the user to leave and return later.
 
-${NO_MARKET_VERIFIED_PLAYER_STEP_2}
+Instead: lead with the sharpest observation you have, then 2–3 tight paragraphs — one angle per paragraph.
+No bullet points. No numbered lists. No ALL-CAPS line headers. Prose only.
 
-3. For each player (only when at least two verified names exist per ROSTER ENFORCEMENT / the verified block above), state:
-   - The prop type to watch (points / assists / rebounds / PRA / 3PM / etc.)
-   - A pre-market price range: "look for under 22.5 points at -115 or better"
-     or "fade if assists open at 7.5 or higher"
-   - The reasoning from stats, injuries, pace, or playoff series context
+Hard cap: keep the entire answer under 200 words.
 
-4. When seasonContext.postseason is true, lean into series dynamics: home/road
-   splits, rest advantage, prior game flow from playoffSeries if available,
-   usage shifts from injuries.
+Internal structure (do not print these labels):
 
-5. End with a live trigger (player-specific only when those players are verified; otherwise team/game flow).
+[Opening line — one sentence, sharpest observation, no hedging]
 
-THE PLAY must never invent a player name. When two verified names exist, it may take the form:
-"[Player A] [prop] — watching [range]. Also [Player B] [prop] at [range]." Otherwise keep it team-level.
+[Paragraph 1 — primary player prop angle. LEAD WITH THE EDGE, then reasoning.
+Put the price or threshold band in the final sentence of this paragraph. Max 3 sentences.]
 
-Never open with "no lines yet." Never suggest the user come back later as
-the primary answer. Give them something to monitor RIGHT NOW.`;
+[Paragraph 2 — secondary angle OR game total. Specific numeric thresholds only.
+No generic playoff commentary ("playoff intensity," "everyone raises their game").
+Max 2 sentences. Tie opinions to matchup scheme, pace data, injuries, or series facts from context when you explain why.]
+
+[Paragraph 3 — live trigger: one concrete thing to watch when lines drop — name a player, a number, or an event. Max 2 sentences. Cut filler like "rosters shift fast."]
+
+When the verified roster block lists credible names for both sides of the matchup, prefer weaving in one player per team across the answer when it fits naturally — not a hard rule. Never invent a player name.
+Use only players who appear in the verified roster block above.
+
+LEAD WITH THE EDGE, NOT THE SETUP.
+
+Every paragraph must start with the conclusion, not the context.
+
+Wrong: "Brunson in playoff home games typically runs high usage. Look for his line in the 24–28 range and lean under if it opens at 27.5."
+
+Right: "Brunson under is the lean if his line opens 27.5 or higher — Knicks depth means he doesn't need to carry at home."
+
+The edge comes first. The reason comes second. Always.
+
+Example shape (ATL vs NYK — adapt names and numbers to verified context only):
+
+Brunson under is the lean if his line opens 27.5 or higher — Knicks depth means he doesn't need to carry at home in the playoffs.
+
+KAT's 3PM line is the other read. Atlanta's perimeter scheme runs him off the arc in high-leverage possessions — under 3.5 is the play if it posts at even money or better.
+
+Game total tells you everything when it drops. Under 215 signals both sides expect a grind — lift unders across the board. Over 220 means pace runs hot and player totals get a bump. Check the opener before anything else.`;
   } else if (sportHint === "mlb") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
