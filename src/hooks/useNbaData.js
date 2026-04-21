@@ -44,7 +44,12 @@ export function useNbaData() {
         const res = await fetch("/api/nba?view=board", { signal: controller.signal });
         clearTimeout(timeout);
         const data = await res.json();
-        if (active) setNbaData(data);
+        if (active) {
+          setNbaData(data);
+          if (Array.isArray(data?.todaysGames) && data.todaysGames.length > 0) {
+            setNbaGames(data.todaysGames);
+          }
+        }
       } catch { if (active) setNbaData(null); }
       finally { if (active) setNbaLoading(false); }
     }
@@ -73,8 +78,17 @@ export function useNbaData() {
           timeZone: "America/New_York",
         });
 
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toLocaleDateString("en-CA", {
+          timeZone: "America/New_York",
+        });
+
         const games = events
-          .filter((e) => toEtDateString(e.date) === todayStr)
+          .filter((e) => {
+            const et = toEtDateString(e.date);
+            return et === todayStr || et === tomorrowStr;
+          })
           .map(e => {
             const comp = e.competitions?.[0];
             const home = comp?.competitors?.find(c => c.homeAway === "home");
@@ -95,7 +109,17 @@ export function useNbaData() {
           return;
         }
 
-        // If ESPN returned nothing for today, try NBA CDN
+        // If ESPN returned nothing for today/tomorrow ET, try same-origin API fallback first
+        const apiGamesRes = await fetch("/api/nba?view=games", { cache: "no-store" });
+        if (apiGamesRes.ok) {
+          const apiGames = await apiGamesRes.json();
+          if (active && Array.isArray(apiGames) && apiGames.length > 0) {
+            setNbaGames(apiGames);
+            return;
+          }
+        }
+
+        // If no API fallback slate, try NBA CDN
         const cdn = await fetch("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json", { cache: "no-store" });
         if (!cdn.ok) throw new Error("CDN " + cdn.status);
         const cdnData = await cdn.json();

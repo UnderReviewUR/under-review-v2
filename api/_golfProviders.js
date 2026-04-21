@@ -528,18 +528,9 @@ async function getEspnCurrentEvent() {
     return st === "in" || st === "pre";
   });
 
-  /** Just-finished events (e.g. RBC Heritage) are `post` and excluded from activePool — still need final leaderboard for UR Take. */
-  const heritagePick =
-    activePool.find((e) => eventNameMatchesRbcHeritage(e?.name, e?.shortName)) ||
-    events.find(
-      (e) =>
-        e?.status?.type?.state === "post" &&
-        eventNameMatchesRbcHeritage(e?.name, e?.shortName),
-    );
+  let selectedEvent = null;
 
-  let selectedEvent = heritagePick || null;
-
-  if (!selectedEvent && activePool.length > 0) {
+  if (activePool.length > 0) {
     const sansZurich = activePool.filter(
       (e) => !eventNameLooksZurichOrTeamFormat(e?.name, e?.shortName)
     );
@@ -547,6 +538,19 @@ async function getEspnCurrentEvent() {
     selectedEvent = [...pool].sort(
       (a, b) => scorePgaEspnEvent(b) - scorePgaEspnEvent(a)
     )[0];
+  }
+
+  if (!selectedEvent) {
+    const upcomingOnly = events.filter((e) => e?.status?.type?.state === "pre");
+    if (upcomingOnly.length > 0) {
+      const sansZurichUpcoming = upcomingOnly.filter(
+        (e) => !eventNameLooksZurichOrTeamFormat(e?.name, e?.shortName)
+      );
+      const pool = sansZurichUpcoming.length ? sansZurichUpcoming : upcomingOnly;
+      selectedEvent = [...pool].sort(
+        (a, b) => scorePgaEspnEvent(b) - scorePgaEspnEvent(a)
+      )[0];
+    }
   }
 
   if (!selectedEvent) {

@@ -133,7 +133,7 @@ function mapBdlGameRowToAppGame(g) {
 }
 
 /** Odds API only — used when BDL returns no rows or is unavailable. */
-async function getTodaysGamesFromOddsApi(oddsKey, todayET) {
+async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
   if (!oddsKey) return [];
   try {
     const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${oddsKey}&daysFrom=2`;
@@ -146,6 +146,7 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET) {
       .filter(
         (g) =>
           toEtDateString(g.commence_time) === todayET ||
+          toEtDateString(g.commence_time) === tomorrowET ||
           (!g.completed && Array.isArray(g.scores) && g.scores.length > 0),
       )
       .map((g) => {
@@ -187,7 +188,10 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET) {
           const oddsData = await oddsRes.json();
           if (Array.isArray(oddsData)) {
             games = oddsData
-              .filter((g) => toEtDateString(g.commence_time) === todayET)
+              .filter((g) => {
+                const et = toEtDateString(g.commence_time);
+                return et === todayET || et === tomorrowET;
+              })
               .map((g) => ({
                 id: g.id,
                 status:
@@ -248,21 +252,33 @@ async function getTodaysGames(oddsKey, bdlKey) {
   }
 
   const todayET = getTodayEtDateString();
+  const tomorrowET = getTomorrowEtDateString();
   const slateMeta = {
     primarySource: "none",
     bdlQueriedOk: false,
     bdlGameCount: 0,
     etDate: todayET,
+    etDateWindow: [todayET, tomorrowET],
     note: null,
   };
 
   if (bdlKey) {
     try {
-      const bdlRows = await fetchBdlGamesForDate(bdlKey, todayET);
+      const [todayRows, tomorrowRows] = await Promise.all([
+        fetchBdlGamesForDate(bdlKey, todayET),
+        fetchBdlGamesForDate(bdlKey, tomorrowET),
+      ]);
+      const bdlRows = [...todayRows, ...tomorrowRows];
+      const byId = new Map();
+      for (const row of bdlRows) {
+        const id = row?.id ?? `${row?.date || ""}_${row?.home_team?.id || ""}_${row?.visitor_team?.id || ""}`;
+        if (!byId.has(id)) byId.set(id, row);
+      }
+      const mergedRows = [...byId.values()];
       slateMeta.bdlQueriedOk = true;
-      slateMeta.bdlGameCount = bdlRows.length;
-      if (bdlRows.length > 0) {
-        const games = bdlRows.map(mapBdlGameRowToAppGame);
+      slateMeta.bdlGameCount = mergedRows.length;
+      if (mergedRows.length > 0) {
+        const games = mergedRows.map(mapBdlGameRowToAppGame);
         slateMeta.primarySource = "bdl";
         const payload = { games, slateMeta };
         setCached(GAMES_TODAY_CACHE_KEY, payload);
@@ -274,7 +290,7 @@ async function getTodaysGames(oddsKey, bdlKey) {
     }
   }
 
-  const games = await getTodaysGamesFromOddsApi(oddsKey, todayET);
+  const games = await getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET);
   if (games.length > 0) {
     slateMeta.primarySource = "odds";
     const payload = { games, slateMeta };
