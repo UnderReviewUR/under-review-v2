@@ -1,12 +1,4 @@
-import { useLayoutEffect, useContext, useRef, useState } from "react";
-import { PerformanceContext } from "../../context/PerformanceContext.jsx";
-import {
-  normalizeConfidenceTier,
-  mergeTierSnapshots,
-  last30DaysTierSnapshot,
-  formatRecordUnits,
-  displayConfidenceLabel,
-} from "../../lib/urTakePerformance.js";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { normalizeText } from "../../lib/normalizeText.js";
 export { normalizeText };
@@ -422,27 +414,11 @@ export function LoadingBubble({ sport }) {
   );
 }
 
-function UrTakeAiBubble({ m, performanceData }) {
+function UrTakeAiBubble({ m }) {
   const [deepOpen, setDeepOpen] = useState(false);
-  const tier = m.takeMeta ? normalizeConfidenceTier(m.takeMeta.confidence) : null;
-  const tierSnapshots = performanceData ? mergeTierSnapshots(performanceData.byConfidence) : null;
-  const histSnap = tier && tierSnapshots ? tierSnapshots[tier] : null;
-  const histLine = formatRecordUnits(
-    histSnap || { settled: 0, wins: 0, losses: 0, pushes: 0, roiUnits: 0 },
-  );
-  const last30 = tier && performanceData ? last30DaysTierSnapshot(performanceData, tier) : null;
-  const last30Line = formatRecordUnits(
-    last30 || { settled: 0, wins: 0, losses: 0, pushes: 0, roiUnits: 0 },
-  );
-  const label = displayConfidenceLabel(tier, m.takeMeta?.confidence);
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      {m.takeMeta && (
-        <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, lineHeight: 1.45 }}>
-          Confidence: {label} · Tier record: {histLine}.
-        </div>
-      )}
       {renderMessage(m.text)}
       {m.deepText ? (
         <div style={{ marginTop: 12 }}>
@@ -469,27 +445,11 @@ function UrTakeAiBubble({ m, performanceData }) {
           )}
         </div>
       ) : null}
-      {m.takeMeta && tier ? (
-        <div
-          style={{
-            fontSize: 10,
-            color: "var(--muted)",
-            marginTop: 10,
-            lineHeight: 1.45,
-            borderTop: "1px solid var(--border)",
-            paddingTop: 8,
-          }}
-        >
-          Last 30 days (same confidence tier): {last30Line}.
-        </div>
-      ) : null}
     </>
   );
 }
 
 export function ChatThread({ msgs }) {
-  const perfCtx = useContext(PerformanceContext);
-  const performanceData = perfCtx?.performanceData;
   const bottomRef = useRef(null);
 
   /** Scroll the nearest scrollport (screen main) to the latest bubble — avoids mutating scrollTop (eslint). */
@@ -507,7 +467,7 @@ export function ChatThread({ msgs }) {
         ) : (
           <div key={i} className={`bubble ${m.role}`}>
             {m.role === "ai" && (m.takeMeta || m.deepText) ? (
-              <UrTakeAiBubble m={m} performanceData={performanceData} />
+              <UrTakeAiBubble m={m} />
             ) : (
               <>
                 {m.image && <img src={m.image} alt="" className="bubble-img" />}

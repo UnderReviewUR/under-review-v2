@@ -1,7 +1,6 @@
 import AskBar from "../components/AskBar.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
-import UrTakeRecordPanel from "../components/UrTakeRecordPanel.jsx";
 
 export default function HomeScreen({
   hasDockedBar,
@@ -29,11 +28,6 @@ export default function HomeScreen({
   homeCards,
   openMatchup,
   golfScoreColor,
-  userEmail,
-  performanceData,
-  performanceLoading,
-  performanceError,
-  loadPerformanceSnapshot,
 }) {
   return (
           <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"8px 12px calc(96px + env(safe-area-inset-bottom))"}}>
@@ -50,14 +44,6 @@ export default function HomeScreen({
               <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
               <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"rgba(255,255,255,.5)"}} onClick={goGolf}>GOLF</button>
             </div>
-
-            <UrTakeRecordPanel
-              userEmail={userEmail}
-              performanceData={performanceData}
-              performanceLoading={performanceLoading}
-              performanceError={performanceError}
-              onRefresh={loadPerformanceSnapshot}
-            />
 
             {/* Prompts first — actionable before the live snapshot strip */}
             <div className="ask-cards">
@@ -89,7 +75,7 @@ export default function HomeScreen({
             <TodaySlatePanel />
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
-            {homeCards.map(m=>(
+            {homeCards.filter((m) => m.id !== "ur-home-tracker").map(m=>(
   <div
     key={m.id}
     className={`spotlight-card${m.isDraft ? " draft-gold-pulse" : ""}`}

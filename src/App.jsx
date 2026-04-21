@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from "react";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
-import UrTakeRecordPanel from "./components/UrTakeRecordPanel.jsx";
 import {
   THEMES,
   DEFAULT_THEME,
@@ -1993,23 +1992,6 @@ ${themeCss}
         <div style={{fontSize:13,color: proMarketing.successBanner?.sub ?? "var(--soft)"}}>Welcome to Under Review Pro. Every edge is unlocked.</div>
       </div>
     )}
-
-    {/* Performance panel — shared layout with Home */}
-    <div style={proMarketing.perfPanel}>
-      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.45, marginBottom: 10 }}>
-        What UR TAKE told you — and how it aged. Takes are saved from each answer&apos;s THE PLAY line; no manual logging.
-        {" "}
-        <strong style={{ fontWeight: 600, color: "var(--soft)" }}>Waiting</strong> = awaiting a gradable result;{" "}
-        <strong style={{ fontWeight: 600, color: "var(--soft)" }}>Tracked</strong> = saved; auto-grading where wired (NBA/MLB ML, tennis match winners).
-      </div>
-      <UrTakeRecordPanel
-        userEmail={userEmail}
-        performanceData={performanceData}
-        performanceLoading={performanceLoading}
-        performanceError={performanceError}
-        onRefresh={loadPerformanceSnapshot}
-      />
-    </div>
 
     {/* Pro header — same surface language as record panel (tool, not landing) */}
     <div style={proMarketing.subscriptionCard}>
