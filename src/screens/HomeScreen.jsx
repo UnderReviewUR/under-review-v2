@@ -29,6 +29,8 @@ export default function HomeScreen({
   openMatchup,
   golfScoreColor,
 }) {
+  const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
+
   return (
           <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"8px 12px calc(96px + env(safe-area-inset-bottom))"}}>
 
@@ -63,7 +65,7 @@ export default function HomeScreen({
               goGolf={goGolf}
               goMlb={goMlb}
               goF1={goF1}
-              tickerNbaGames={tickerNbaGames}
+              tickerNbaGames={homeNbaGames}
               getSeriesLabel={getSeriesLabel}
               liveTickerTennisCards={liveTickerTennisCards}
               golfData={golfData}

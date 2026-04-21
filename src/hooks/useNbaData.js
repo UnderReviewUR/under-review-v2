@@ -44,103 +44,27 @@ export function useNbaData() {
         const res = await fetch("/api/nba?view=board", { signal: controller.signal });
         clearTimeout(timeout);
         const data = await res.json();
-        if (active) {
-          setNbaData(data);
-          if (Array.isArray(data?.todaysGames) && data.todaysGames.length > 0) {
-            setNbaGames(data.todaysGames);
-          }
-        }
+        if (!active) return;
+        const games = Array.isArray(data?.todaysGames) ? data.todaysGames : [];
+        setNbaData(data);
+        setNbaGames(games);
       } catch { if (active) setNbaData(null); }
       finally { if (active) setNbaLoading(false); }
     }
     loadNba();
     const poll = window.setInterval(() => {
-      fetch("/api/nba?view=board").then(r=>r.json()).then(d=>{ if(active) setNbaData(d); }).catch(()=>{});
-    }, 300000);
+      fetch("/api/nba?view=board")
+        .then((r) => r.json())
+        .then((d) => {
+          if (!active) return;
+          const games = Array.isArray(d?.todaysGames) ? d.todaysGames : [];
+          setNbaData(d);
+          setNbaGames(games);
+        })
+        .catch(() => {});
+    }, 60000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
-
-  // Fetch NBA games — browser-side ESPN fetch, no auth needed
-  useEffect(() => {
-    let active = true;
-    async function loadGames() {
-      try {
-        const res = await fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard",
-          { cache: "no-store" }
-        );
-        if (!res.ok) throw new Error("ESPN " + res.status);
-        const data = await res.json();
-        const events = data?.events || [];
-
-        // Get today's date in ET
-        const todayStr = new Date().toLocaleDateString("en-CA", {
-          timeZone: "America/New_York",
-        });
-
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toLocaleDateString("en-CA", {
-          timeZone: "America/New_York",
-        });
-
-        const games = events
-          .filter((e) => {
-            const et = toEtDateString(e.date);
-            return et === todayStr || et === tomorrowStr;
-          })
-          .map(e => {
-            const comp = e.competitions?.[0];
-            const home = comp?.competitors?.find(c => c.homeAway === "home");
-            const away = comp?.competitors?.find(c => c.homeAway === "away");
-            const status = e.status?.type;
-            return {
-              id: e.id,
-              status: status?.shortDetail || status?.description || "Scheduled",
-              state: status?.state || "pre",
-              period: e.status?.period || 0,
-              homeTeam: { name: home?.team?.shortDisplayName, abbr: home?.team?.abbreviation, score: parseInt(home?.score || "0") },
-              awayTeam: { name: away?.team?.shortDisplayName, abbr: away?.team?.abbreviation, score: parseInt(away?.score || "0") },
-            };
-          });
-
-        if (active && games.length > 0) {
-          setNbaGames(games);
-          return;
-        }
-
-        // If ESPN returned nothing for today/tomorrow ET, try same-origin API fallback first
-        const apiGamesRes = await fetch("/api/nba?view=games", { cache: "no-store" });
-        if (apiGamesRes.ok) {
-          const apiGames = await apiGamesRes.json();
-          if (active && Array.isArray(apiGames) && apiGames.length > 0) {
-            setNbaGames(apiGames);
-            return;
-          }
-        }
-
-        // If no API fallback slate, try NBA CDN
-        const cdn = await fetch("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json", { cache: "no-store" });
-        if (!cdn.ok) throw new Error("CDN " + cdn.status);
-        const cdnData = await cdn.json();
-        const cdnGames = (cdnData?.scoreboard?.games || []).map(g => ({
-          id: g.gameId,
-          status: g.gameStatusText,
-          state: g.gameStatus === 2 ? "in" : g.gameStatus === 3 ? "post" : "pre",
-          period: g.period,
-          homeTeam: { name: g.homeTeam?.teamName, abbr: g.homeTeam?.teamTricode, score: g.homeTeam?.score },
-          awayTeam: { name: g.awayTeam?.teamName, abbr: g.awayTeam?.teamTricode, score: g.awayTeam?.score },
-        }));
-        if (active && cdnGames.length > 0) setNbaGames(cdnGames);
-
-      } catch(err) {
-        console.log("Games fetch failed:", err.message);
-      }
-    }
-    loadGames();
-    const poll = window.setInterval(loadGames, 60000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, [toEtDateString]);
 
   return { nbaData, nbaLoading, nbaGames, getSeriesLabel };
 }
