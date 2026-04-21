@@ -22,6 +22,8 @@ import {
 } from "./nfl-draft-season.js";
 import { simulateDraftRounds } from "./nfl-draft-engine.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
+import { buildNbaUrTakeBoard, extractNbaTeamAbbrevsFromQuestion } from "./nba.js";
+import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
@@ -1095,6 +1097,68 @@ function stripNbaLeadInDisclosure(text) {
   return s.trim();
 }
 
+function hasNbaNoMarketHardFail(text) {
+  const s = String(text || "");
+  return /\bno edge here\b/i.test(s) ||
+    /\bcome back (?:when|later)\b/i.test(s) ||
+    /\bwait for lines\b/i.test(s) ||
+    /\bpropLines are empty\b/i.test(s) ||
+    /\bno confirmed lines\b/i.test(s);
+}
+
+function isNbaNoMarketUpcomingSlate(nbaContext) {
+  const props = Array.isArray(nbaContext?.propLines) ? nbaContext.propLines : [];
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  const hasUpcoming = games.some((g) => {
+    const state = String(g?.state || "").toLowerCase();
+    return state !== "post";
+  });
+  return props.length === 0 && hasUpcoming;
+}
+
+function buildNbaNoMarketHardFallback(question, nbaContext) {
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  const qTeams = extractNbaTeamAbbrevsFromQuestion(question);
+
+  const gameForQuestion = games.find((g) => {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    return qTeams.length >= 2
+      ? qTeams.includes(aa) && qTeams.includes(ha)
+      : qTeams.length === 1
+        ? qTeams.includes(aa) || qTeams.includes(ha)
+        : false;
+  }) || games.find((g) => String(g?.state || "").toLowerCase() !== "post") || games[0] || null;
+
+  const away = String(gameForQuestion?.awayTeam?.abbr || qTeams[0] || "AWAY").toUpperCase();
+  const home = String(gameForQuestion?.homeTeam?.abbr || qTeams[1] || "HOME").toUpperCase();
+  const title = `${away} @ ${home}`;
+
+  const pbt = nbaContext?.rosterGrounding?.playersByTeamAbbrev || {};
+  const awayName = Array.isArray(pbt?.[away]) ? pbt[away][0] : null;
+  const homeName = Array.isArray(pbt?.[home]) ? pbt[home][0] : null;
+
+  const totalKeys = Object.keys(nbaContext?.gameTotals || {});
+  const maybeTotal = totalKeys.length > 0 ? nbaContext.gameTotals[totalKeys[0]]?.total : null;
+  const lowBand = Number.isFinite(Number(maybeTotal)) ? Math.max(208.5, Number(maybeTotal) - 5) : 214.5;
+  const highBand = Number.isFinite(Number(maybeTotal)) ? Number(maybeTotal) + 1.5 : 221.5;
+
+  const p1 = awayName
+    ? `${awayName} volume is the first prop angle: lean over points if his opener lands in a fair band, and fade only if it opens materially above role baseline.`
+    : `${away} shot-creation volume is the first prop angle: lean overs on lead usage if books hang conservative numbers.`;
+  const p2 = homeName
+    ? `${homeName} creation counters that: look assists/points depending on coverage, and avoid extremes unless the opener is clearly mispriced.`
+    : `${home} primary initiator creation is the counter-angle: target assists or points based on coverage, not guesswork.`;
+
+  return `${title} pregame edge is the number, not the delay.
+
+${p1} ${p2}
+
+Game total framework: under is the lean if the opener is ${highBand.toFixed(1)} or higher; over only becomes playable if it opens ${lowBand.toFixed(1)} or lower. In the middle band, stay selective and price-sensitive.
+
+Live trigger: if the first 6 minutes produce 8+ combined free throws or repeated early-clock paint attacks, pivot to live over; if both teams are walking it up and living late-clock, stay with under angles.`;
+}
+
 function isTier1InformationalQuestion(question) {
   const q = normalizeText(question);
   if (
@@ -1708,7 +1772,7 @@ export default async function handler(req, res) {
     context,
     liveMatches,
     golfContext,
-    nbaContext,
+    nbaContext: nbaContextFromClient,
     mlbContext,
     f1Context,
     nflContext,
@@ -1750,6 +1814,26 @@ export default async function handler(req, res) {
     hasImage,
     golfContext,
   });
+
+  /** Server-authoritative slate for NBA — client payload can be stale (poll interval) or omit games. */
+  let nbaContext = nbaContextFromClient;
+  if (sportHint === "nba") {
+    try {
+      const fresh = await buildNbaUrTakeBoard(String(question || ""));
+      nbaContext = {
+        ...fresh,
+        question: String(question || ""),
+        clientUiSurface: nbaContextFromClient?.clientUiSurface ?? fresh.clientUiSurface,
+      };
+      nbaContext.rosterGrounding = augmentNbaRosterGroundingWithUi(
+        nbaContext.rosterGrounding,
+        nbaContext.todaysGames || [],
+      );
+    } catch (err) {
+      console.warn("[ur-take] buildNbaUrTakeBoard failed:", err?.message || err);
+      nbaContext = nbaContextFromClient;
+    }
+  }
 
   const contextQuality = getContextQuality({
     sportHint,
@@ -2614,25 +2698,31 @@ column. If the response could apply to any two playoff teams, rewrite it.
 ${ROSTER_ENFORCEMENT_NBA}
 
 ════════════════════════════════════════
-ABSOLUTE PROHIBITION — DATA DISCLOSURE
+ABSOLUTE OPENER RULE — NO EXCEPTIONS
 
-The following phrases are BANNED from every NBA response regardless
-of data quality, roster completeness, or context:
+The first sentence of every NBA response must be about the game,
+the players, or the bet. Never about data availability.
 
-- "I don't have tonight's confirmed roster"
-- "working from partial roster data"
-- "verified names in the system"
-- "roster data is still loading"
-- "data is thin"
-- "[team] roster data"
-- Any sentence that opens with "I don't have" or "I can't confirm"
-  when describing data availability
+These opener PATTERNS are permanently banned:
+- Any sentence starting with "I don't have"
+- Any sentence starting with "I can't"
+- Any sentence starting with "No edge"
+- Any sentence starting with "Without"
+- Any sentence starting with "The context provided"
+- Any sentence starting with "The data provided"
+- Any sentence describing what information is missing
 
-These phrases destroy user trust. The confidence line is where
-data quality lives. The response body is where the take lives.
-Never mix them.
+If you find yourself about to write any of these, delete it and
+start with the first piece of actual analysis instead.
 
-The response must open with the take. Always.
+The response above starting with "I don't have actionable pre-game
+data for MIN @ DEN" should have started with:
+
+"Jokic assist line is the primary play when it posts — his
+playmaking in playoff games is the most stable prop on this slate."
+
+That's the opener. The data availability sentence gets deleted
+entirely. It adds nothing the user needs.
 ════════════════════════════════════════
 
 Rules:
@@ -3354,6 +3444,11 @@ Rules:
     if (sportHint === "nba") {
       responseText = stripNbaLeadInDisclosure(responseText);
       if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
+      if (isNbaNoMarketUpcomingSlate(nbaContext) && hasNbaNoMarketHardFail(responseText)) {
+        responseText = buildNbaNoMarketHardFallback(question, nbaContext);
+        responseDeep = null;
+        responseFormat = "plain";
+      }
     }
 
     const takeRecord = extractTakeFromResponse({
