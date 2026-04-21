@@ -35,15 +35,17 @@ function getTodayEtDateString() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 function getTomorrowEtDateString() {
-  return new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toLocaleDateString("en-CA", {
     timeZone: "America/New_York",
   });
 }
 function toEtDateString(isoString) {
   if (!isoString) return "";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return new Date(isoString).toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
 }
 
 function normalizeTeamAbbr(name) {
@@ -418,6 +420,24 @@ async function getNbaPropLines(oddsKey) {
       }),
     );
 
+    console.log(JSON.stringify({
+      event: "nba_props_pipeline",
+      todayET: getTodayEtDateString(),
+      tomorrowET: getTomorrowEtDateString(),
+      eventsFromApi: Array.isArray(events) ? events.length : 0,
+      eventsPassingFilter: targetEvents?.length || 0,
+      eventDates: (events || []).slice(0, 6).map(e => ({
+        id: String(e.id || "").slice(0, 8),
+        home: e.home_team,
+        et: toEtDateString(e.commence_time),
+        passes: toEtDateString(e.commence_time) === getTodayEtDateString()
+          || toEtDateString(e.commence_time) === getTomorrowEtDateString(),
+      })),
+      propsReturned: propLines.length,
+      ts: new Date().toISOString(),
+    }));
+
+    // Only cache when props actually exist
     if (propLines.length > 0) {
       setCached(cacheKey, propLines);
     }
@@ -821,11 +841,147 @@ async function fetchSeasonAveragePlayerStats(bdlKey, season) {
     .sort((a, b) => (b.pts || 0) - (a.pts || 0));
 }
 
+/**
+ * When the slate is mixed, BDL only returns game_box players for games with box data.
+ * Pregame matchups (e.g. MIN @ DEN at 9:30) have no box yet — add those teams' season
+ * rows so UR Take can still reason about Jokic, Edwards, etc.
+ */
+function mergeGameBoxWithPregameSeasonAverages(gameBoxPlayers, todaysGames, seasonPlayers) {
+  if (!Array.isArray(todaysGames) || todaysGames.length === 0 || !Array.isArray(seasonPlayers) || !seasonPlayers.length) {
+    return {
+      players: gameBoxPlayers,
+      statsSource: gameBoxPlayers.length ? "game_box" : "season_average",
+    };
+  }
+
+  const preTeams = new Set();
+  for (const g of todaysGames) {
+    const state = String(g?.state || "").toLowerCase();
+    /** Finished or live games already have box paths; empty/unknown often means scheduled (pregame). */
+    if (state === "post" || state === "in") continue;
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa && aa !== "?") preTeams.add(aa);
+    if (ha && ha !== "?") preTeams.add(ha);
+  }
+
+  if (preTeams.size === 0) {
+    return {
+      players: gameBoxPlayers,
+      statsSource: gameBoxPlayers.length ? "game_box" : "season_average",
+    };
+  }
+
+  const seen = new Set((gameBoxPlayers || []).map((p) => p.playerId).filter(Boolean));
+  const supplemental = [];
+  for (const p of seasonPlayers) {
+    if (!p?.playerId || seen.has(p.playerId)) continue;
+    const team = String(p.team || "").toUpperCase();
+    if (!preTeams.has(team)) continue;
+    supplemental.push({
+      ...p,
+      statsNote: `${p.statsNote || ""} [Pregame: season average — game not started yet.]`.trim(),
+    });
+    seen.add(p.playerId);
+  }
+
+  const merged = [...(gameBoxPlayers || []), ...supplemental].sort(
+    (a, b) => (b.pts || 0) - (a.pts || 0),
+  );
+  const added = supplemental.length;
+  const statsSource =
+    (gameBoxPlayers || []).length && added > 0
+      ? "hybrid_game_box_plus_pregame_season"
+      : (gameBoxPlayers || []).length
+        ? "game_box"
+        : "season_average";
+
+  return { players: merged, statsSource };
+}
+
+const NBA_QUERY_TEAM_ALIASES = {
+  "timberwolves": "MIN",
+  "wolves": "MIN",
+  nuggets: "DEN",
+  nugget: "DEN",
+  lakers: "LAL",
+  warriors: "GSW",
+  "trail blazers": "POR",
+  blazers: "POR",
+  mavericks: "DAL",
+  mavs: "DAL",
+  grizzlies: "MEM",
+  hornets: "CHA",
+  thunder: "OKC",
+  jazz: "UTA",
+  pelicans: "NOP",
+  bucks: "MIL",
+  pistons: "DET",
+  kings: "SAC",
+  suns: "PHX",
+  rockets: "HOU",
+  spurs: "SAS",
+  clippers: "LAC",
+};
+
+/** Pull team abbreviations from user text so Odds prop fetch + board sorting hit the asked matchup first. */
+export function extractNbaTeamAbbrevsFromQuestion(question) {
+  const q = String(question || "");
+  const out = new Set();
+  const re =
+    /\b(ATL|BOS|BKN|CHA|CHI|CLE|DAL|DEN|DET|GSW|HOU|IND|LAC|LAL|MEM|MIA|MIL|MIN|NOP|NYK|OKC|ORL|PHI|PHX|POR|SAC|SAS|TOR|UTA|WAS)\b/gi;
+  let m;
+  while ((m = re.exec(q)) !== null) out.add(m[1].toUpperCase());
+
+  const ql = q.toLowerCase();
+  for (const [nick, abbr] of Object.entries(NBA_QUERY_TEAM_ALIASES)) {
+    if (ql.includes(nick)) out.add(abbr);
+  }
+  return [...out];
+}
+
+function prioritizeNbaBoardForQuestion(board, abbrevs) {
+  const ab = new Set((abbrevs || []).map((a) => String(a || "").toUpperCase()).filter(Boolean));
+  if (ab.size === 0) return board;
+
+  const gameMatches = (g) => {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    return (aa && ab.has(aa)) || (ha && ab.has(ha));
+  };
+
+  const propMatches = (p) => {
+    const aa = String(p?.awayAbbr || "").toUpperCase();
+    const ha = String(p?.homeAbbr || "").toUpperCase();
+    return (aa && ab.has(aa)) || (ha && ab.has(ha));
+  };
+
+  const playerTeamMatches = (p) => ab.has(String(p?.team || "").toUpperCase());
+
+  return {
+    ...board,
+    todaysGames: [...(board.todaysGames || [])].sort(
+      (a, b) => Number(gameMatches(b)) - Number(gameMatches(a)),
+    ),
+    propLines: [...(board.propLines || [])].sort(
+      (a, b) => Number(propMatches(b)) - Number(propMatches(a)),
+    ),
+    playerStats: [...(board.playerStats || [])].sort((a, b) => {
+      const pa = playerTeamMatches(a) ? 1 : 0;
+      const pb = playerTeamMatches(b) ? 1 : 0;
+      if (pb !== pa) return pb - pa;
+      return (b.pts || 0) - (a.pts || 0);
+    }),
+  };
+}
+
 function buildPlayerStatsSummaryLines(players, statsSource) {
   const header =
     statsSource === "game_box"
       ? "PLAYER SNAPSHOT (from today's game box scores — team = who they played for in that game)"
-      : "PLAYER SNAPSHOT (season averages — NOT live roster; team may lag trades. Cross-check tonightGame / props.)";
+      : statsSource === "hybrid_game_box_plus_pregame_season"
+        ? "PLAYER SNAPSHOT (today's box scores PLUS season averages for teams whose games have not tipped yet — prefer tonightGame / props for matchup)"
+        : "PLAYER SNAPSHOT (season averages — NOT live roster; team may lag trades. Cross-check tonightGame / props.)";
   const lines = (players || []).slice(0, 120).map((p) => {
     const pts = p.pts != null ? `${Number(p.pts)}` : "?";
     const reb = p.reb != null ? `${Number(p.reb)}` : "?";
@@ -838,14 +994,14 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
 }
 
 /**
- * Prefer today's BDL game stats (correct team per game). Fall back to season averages
- * when there is no slate or no box score yet.
+ * Prefer today's BDL game stats (correct team per game); merge pregame teams' season-average
+ * rows when the slate mixes finished/live games with games not yet tipped.
+ *
+ * @param {string} bdlKey
+ * @param {object[]} [todaysGames] — merged scoreboard/API games (ET today). Used to attach
+ *   season-average rows for teams in pregame games when game_box rows only cover tipped games.
  */
-async function getNbaPlayerStatsBundle(bdlKey) {
-  const todayIso = getTodayEtDateString();
-  const cacheKey = `nba_player_bundle_${todayIso}`;
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
+async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
   if (!bdlKey) {
     const empty = { playerStats: [], playerStatsText: "", statsSource: "none" };
     return empty;
@@ -854,6 +1010,7 @@ async function getNbaPlayerStatsBundle(bdlKey) {
   const season = new Date().getFullYear();
 
   try {
+    const todayIso = getTodayEtDateString();
     const games = await fetchBdlGamesForDate(bdlKey, todayIso);
     const gameIds = [...new Set(games.map((g) => g.id).filter(Boolean))];
 
@@ -869,6 +1026,10 @@ async function getNbaPlayerStatsBundle(bdlKey) {
       const gameLabelMap = buildGameLabelMap(games);
       playerStats = statRowsToPlayers(statRows, gameLabelMap);
       statsSource = "game_box";
+      const seasonAvg = await fetchSeasonAveragePlayerStats(bdlKey, season);
+      const merged = mergeGameBoxWithPregameSeasonAverages(playerStats, todaysGames, seasonAvg);
+      playerStats = merged.players;
+      statsSource = merged.statsSource;
     } else {
       playerStats = await fetchSeasonAveragePlayerStats(bdlKey, season);
       statsSource = "season_average";
@@ -876,19 +1037,15 @@ async function getNbaPlayerStatsBundle(bdlKey) {
 
     const playerStatsText = buildPlayerStatsSummaryLines(playerStats, statsSource);
 
-    const bundle = { playerStats, playerStatsText, statsSource };
-    setCached(cacheKey, bundle);
-    return bundle;
+    return { playerStats, playerStatsText, statsSource };
   } catch (err) {
     console.warn("getNbaPlayerStatsBundle error:", err.message);
     const fallback = await fetchSeasonAveragePlayerStats(bdlKey, season);
-    const bundle = {
+    return {
       playerStats: fallback,
       playerStatsText: buildPlayerStatsSummaryLines(fallback, "season_average"),
       statsSource: "season_average",
     };
-    setCached(cacheKey, bundle);
-    return bundle;
   }
 }
 
@@ -1025,6 +1182,74 @@ function buildGameTotalsFromProps(propLines) {
   return totals;
 }
 
+/**
+ * Fresh NBA payload for UR Take — **do not rely on the browser-cached board**.
+ * Prioritizes Odds prop pulls + stat rows for teams named in the question (e.g. MIN @ DEN).
+ */
+export async function buildNbaUrTakeBoard(question = "") {
+  const ODDS_KEY = getEnv("ODDS_API_KEY");
+  const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
+  const boost = extractNbaTeamAbbrevsFromQuestion(String(question || ""));
+
+  const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
+  const todaysGames = tgRes.games || [];
+  const todaysGamesSlateMeta = tgRes.slateMeta;
+
+  const [rawPropLines, statsBundle, playoffSeries] = await Promise.all([
+    getNbaPropLines(ODDS_KEY, { priorityAbbrevs: boost, maxEvents: 18 }),
+    getNbaPlayerStatsBundle(BDL_KEY, todaysGames),
+    getNbaPlayoffSeries(),
+  ]);
+
+  const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
+  const injuries = await getNbaInjuries(propLines, todaysGames);
+  const playerStatsWithTonight = attachTonightGamesFromProps(
+    statsBundle.playerStats || [],
+    propLines,
+  );
+  const playerStatsTextMerged = buildPlayerStatsSummaryLines(
+    playerStatsWithTonight,
+    statsBundle.statsSource || "season_average",
+  );
+
+  let board = {
+    seasonContext: getNbaSeasonContext(),
+    todaysGames,
+    todaysGamesSlateMeta,
+    todaysGamesSlateNote:
+      todaysGames.length === 0 && todaysGamesSlateMeta?.note ? todaysGamesSlateMeta.note : null,
+    lastNight: [],
+    lastNightStats: [],
+    liveStats: [],
+    playerStats: playerStatsWithTonight.slice(0, 120),
+    playerStatsText: playerStatsTextMerged,
+    statsSource: statsBundle.statsSource || "unknown",
+    rosterGrounding: buildNbaRosterGrounding(
+      playerStatsWithTonight,
+      propLines,
+      injuries,
+      statsBundle.statsSource || "unknown",
+      todaysGames,
+    ),
+    propLines: propLines.slice(0, 120),
+    injuries,
+    playoffSeries,
+    recentForm: "",
+    h2hSplits: [],
+    gameTotals: buildGameTotalsFromProps(propLines),
+    fetchedAt: new Date().toISOString(),
+    urTakeParsing: {
+      boostedTeamAbbrevsFromQuestion: boost,
+      note: boost.length
+        ? `Question referenced teams: ${boost.join(", ")} — props and player rows are ordered for this matchup first.`
+        : "",
+    },
+  };
+
+  board = prioritizeNbaBoardForQuestion(board, boost);
+  return board;
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") return res.status(405).json({ error:"Method not allowed" });
@@ -1044,10 +1269,10 @@ export default async function handler(req, res) {
       const boardCached = getCached(boardCacheKey);
       if (boardCached) return res.status(200).json(boardCached);
 
-      const [tgRes, rawPropLines, statsBundle, playoffSeries] = await Promise.all([
-        getTodaysGames(ODDS_KEY, BDL_KEY),
+      const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
+      const [rawPropLines, statsBundle, playoffSeries] = await Promise.all([
         getNbaPropLines(ODDS_KEY),
-        getNbaPlayerStatsBundle(BDL_KEY),
+        getNbaPlayerStatsBundle(BDL_KEY, tgRes.games || []),
         getNbaPlayoffSeries(),
       ]);
       const todaysGames = tgRes.games;

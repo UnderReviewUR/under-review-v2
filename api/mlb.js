@@ -86,15 +86,17 @@ function getMlbSeasonContext() {
 
 function toEtDateString(isoString) {
   if (!isoString) return "";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return new Date(isoString).toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
 }
 function getTodayEtDateString() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 function getTomorrowEtDateString() {
-  return new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toLocaleDateString("en-CA", {
     timeZone: "America/New_York",
   });
 }
