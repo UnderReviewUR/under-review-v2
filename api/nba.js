@@ -2,8 +2,6 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
-/** Odds API player props — longer TTL; lines move slowly pre-game. */
-const NBA_PROPS_CACHE_TTL = 20 * 60 * 1000;
 const cache = new Map();
 
 function getCached(key) {
@@ -311,35 +309,77 @@ async function getNbaPropLines(oddsKey) {
     const events = await eventsRes.json();
     if (!Array.isArray(events) || !events.length) return [];
 
-    const propMarkets = "player_points,player_rebounds,player_assists,player_points_rebounds_assists";
-    const propLines = [];
     const todayET = getTodayEtDateString();
     const tomorrowET = getTomorrowEtDateString();
+
+    console.log(
+      JSON.stringify({
+        event: "nba_props_events",
+        oddsKeyPresent: !!oddsKey,
+        eventsFound: Array.isArray(events) ? events.length : 0,
+        todayET,
+        tomorrowET,
+        eventDates: (events || []).slice(0, 6).map((e) => ({
+          id: e.id,
+          home: e.home_team,
+          away: e.away_team,
+          commence_utc: e.commence_time,
+          commence_et: toEtDateString(e.commence_time),
+          passes:
+            toEtDateString(e.commence_time) === todayET ||
+            toEtDateString(e.commence_time) === tomorrowET,
+        })),
+      }),
+    );
+
+    const propMarkets =
+      "player_points,player_rebounds,player_assists,player_points_rebounds_assists";
+    const propLines = [];
 
     const targetEvents = events
       .filter((e) => {
         const d = toEtDateString(e.commence_time);
         return d === todayET || d === tomorrowET;
       })
-      .slice(0, 3);
+      .slice(0, 6);
 
     console.log(
       JSON.stringify({
-        event: "odds_api_props_call",
-        sport: "nba",
-        eventsQueried: targetEvents.length,
-        ts: new Date().toISOString(),
+        event: "nba_props_filtered",
+        todayEventsCount: targetEvents.length,
+        targetEventIds: targetEvents.map((e) => e.id),
       }),
     );
 
     for (const event of targetEvents) {
       try {
-        const propRes = await fetch(`https://api.the-odds-api.com/v4/sports/basketball_nba/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`);
-        if (!propRes.ok) continue;
-        const propData = await propRes.json();
+        const propRes = await fetch(
+          `https://api.the-odds-api.com/v4/sports/basketball_nba/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`,
+        );
+        const propData = propRes.ok ? await propRes.json() : {};
         const bookmakers = propData.bookmakers || [];
-        const preferred = bookmakers.find(b => ["draftkings","fanduel","betmgm"].includes(b.key)) || bookmakers[0];
-        if (!preferred) continue;
+        const preferred =
+          bookmakers.find((b) => ["draftkings", "fanduel", "betmgm"].includes(b.key)) ||
+          bookmakers[0];
+
+        console.log(
+          JSON.stringify({
+            event: "nba_props_per_event",
+            eventId: event.id,
+            home: event.home_team,
+            away: event.away_team,
+            propResOk: propRes.ok,
+            propResStatus: propRes.status,
+            bookmakerCount: bookmakers.length,
+            bookmakerKeys: bookmakers.map((b) => b.key),
+            preferredKey: preferred?.key || "none",
+            marketCount: preferred?.markets?.length || 0,
+            marketsFound: (preferred?.markets || []).map((m) => m.key),
+          }),
+        );
+
+        if (!propRes.ok || !preferred) continue;
+
         const awayAbbr = normalizeTeamAbbr(event.away_team);
         const homeAbbr = normalizeTeamAbbr(event.home_team);
         for (const market of preferred.markets || []) {
@@ -359,10 +399,27 @@ async function getNbaPropLines(oddsKey) {
             });
           }
         }
-      } catch { continue; }
+      } catch {
+        continue;
+      }
     }
 
-    setCached(cacheKey, propLines, NBA_PROPS_CACHE_TTL);
+    console.log(
+      JSON.stringify({
+        event: "nba_props_complete",
+        totalPropsReturned: propLines.length,
+        sampleProps: propLines.slice(0, 3).map((p) => ({
+          player: p.player,
+          prop: p.prop,
+          line: p.line,
+          game: p.game,
+        })),
+      }),
+    );
+
+    if (propLines.length > 0) {
+      setCached(cacheKey, propLines);
+    }
     return propLines;
   } catch (err) {
     console.error("NBA props error:", err.message);

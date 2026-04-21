@@ -2,8 +2,6 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
-/** Odds API player props — longer TTL; lines move slowly pre-game. */
-const MLB_PROPS_CACHE_TTL = 20 * 60 * 1000;
 const cache = new Map();
 
 function getCached(key) {
@@ -239,7 +237,7 @@ async function getMlbPropLines(oddsKey) {
     // Filter to today/tomorrow
     const targetEvents = events
       .filter(e => { const d = toEtDateString(e.commence_time); return d === todayET || d === tomorrowET; })
-      .slice(0, 4); // Max 4 games to save API credits
+      .slice(0, 8); // Max 8 games to save API credits
 
     // Step 2: Fetch player props per event
     // MLB prop markets — pitcher strikeouts is the money market
@@ -292,7 +290,7 @@ async function getMlbPropLines(oddsKey) {
     }
 
     console.log(`MLB props fetched: ${propLines.length} lines`);
-    if (propLines.length > 0) setCached(cacheKey, propLines, MLB_PROPS_CACHE_TTL);
+    if (propLines.length > 0) setCached(cacheKey, propLines);
     return propLines;
   } catch (err) {
     console.error("getMlbPropLines error:", err.message);
