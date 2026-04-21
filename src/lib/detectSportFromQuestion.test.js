@@ -89,3 +89,10 @@ test("detectNflTeamHint captures city/team names for draft asks", () => {
   assert.equal(detectNflTeamHint("Simulate Eagles first 3 rounds"), "PHI");
   assert.equal(detectNflTeamHint("Most chaotic realistic scenario for Chiefs"), "KC");
 });
+
+test("detectNflTeamHint resolves cowboys / punctuation / simulate phrasing", () => {
+  assert.equal(detectNflTeamHint("simulate the cowboys draft"), "DAL");
+  assert.equal(detectNflTeamHint("Cowboys."), "DAL");
+  assert.equal(detectNflTeamHint("dallas draft board"), "DAL");
+  assert.equal(detectNflTeamHint("What about Dallas in round 2?"), "DAL");
+});

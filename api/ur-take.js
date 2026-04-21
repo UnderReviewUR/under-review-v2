@@ -21,6 +21,7 @@ import {
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
 import { simulateDraftRounds } from "./nfl-draft-engine.js";
+import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
@@ -1811,7 +1812,7 @@ The opening line should feel like a text from a sharp friend. Rules for the open
   "Pass. Hall's TD prop is a trap."
   "Zverev in straights. Easy."
   "Fade the Fitzpatrick outright. Take him top-5 instead."
-  "No edge here."
+  "Brunson under makes sense if the opener lands 27.5+ — Knicks depth eats usage at home."
 
 After the opening line, leave ONE blank line, then use exactly this structured format with blank lines between sections:
 
@@ -1875,7 +1876,7 @@ EDGE MODE RULES
 - Frame every answer as a market inefficiency, not a generic "best play".
 - Explicitly reference price quality (fair / stale / inflated / discounted) when context supports it.
 - Be decisive: one primary play, one explicit pass/fade.
-- If no edge exists, say PASS and explain why.
+- When verified props are missing from context but upcoming games plus playerStats / rosterGrounding / injuries / playoffSeries / gameTotals exist, your matchup read plus season-average prop angles, total framework with numeric thresholds, and live triggers ARE the deliverable — lead with those; do not dismiss the slate. Reserve PASS only when nothing in context anchors a matchup at all.
 - Do not claim line movement or book-specific movement unless context supports it.
 
 PRIOR TAKE RULE
@@ -1978,8 +1979,10 @@ Example of what TO do:
 alternate line at 28.5+ or his 2H points over 10.5. Live triggers only."
 
 If no prop lines are posted yet and the game is already in progress, cite
-the current stat line explicitly and recommend what to watch for when lines
-appear — not a full-game number that's already baked.
+the current stat line explicitly, then pivot immediately to live-action paths
+(second-half props, quarter markets, alternate thresholds, live team totals) —
+never defer the answer waiting for books to post full-game numbers that are
+already mathematically closed.
 
 STEP 1 — Extract the state:
 - Current score (home and away)
@@ -2013,8 +2016,9 @@ CLOCK
 [time remaining and what triggers action]
 
 WATCH FOR
-[one specific trigger — name a player, score threshold, or event that tells
-the user exactly when to come back. Even on PASS, give a hook.]
+[one specific trigger — name a player, score threshold, stat clip, or clock
+window that changes the bet. Even on PASS, give an actionable hook — never a
+"dismiss and return later" ending.]
 
 If you cannot extract specific numbers from the image or question, say so
 directly ("I can't read the clock clearly — what's the time left?") and do
@@ -2659,33 +2663,38 @@ or when there is no prop row for an upcoming/live game the user cares about)
 
 Do not treat missing lines as an excuse for thin analysis. The user is here because tip is close.
 
-NO-MARKET FALLBACK FORMAT (mandatory when prop lines aren't posted):
+NO-MARKET FALLBACK FORMAT (mandatory when propLines is empty but todaysGames still
+has upcoming games — or props are missing for a matchup you can see in context):
 
 Same ROSTER DISCLOSURE RULE as above — never mention partial rosters, loading, or which names are "verified."
 
+Open with the sharpest matchup observation you can ground in playerStats, rosterGrounding,
+injuries, playoffSeries, or gameTotals — not a dismissal.
+
+Then deliver, in prose (no bullets): (1) primary player-prop angle from season averages
+plus matchup; (2) game-total framework with explicit numeric thresholds when gameTotals or
+season pace context supports it; (3) one live trigger tied to pace, foul trouble, rotation,
+or a stat clip — this IS the edge; deliver it now, not as homework for later.
+
 Do NOT use "Watch for:" as a section header.
 Do NOT use player names as headers (no "JALEN BRUNSON —").
-Do NOT open with a limitation sentence (no "no prop lines posted yet," "roster data is thin,"
-"lines aren't up," or similar throat-clearing).
-Do NOT close with "come back when lines post," "bring me the line card," or any ask for the user to leave and return later.
-
-Instead: lead with the sharpest observation you have, then 2–3 tight paragraphs — one angle per paragraph.
-No bullet points. No numbered lists. No ALL-CAPS line headers. Prose only.
+Do NOT open with empty-slate throat-clearing about data availability ("nothing yet," "lines aren't up").
+Do NOT close by sending the user away until books post — the framework above is the full answer.
 
 Hard cap: keep the entire answer under 200 words.
 
 Internal structure (do not print these labels):
 
-[Opening line — one sentence, sharpest observation, no hedging]
+[Opening line — one sentence, sharpest matchup observation you can defend from context]
 
-[Paragraph 1 — primary player prop angle. LEAD WITH THE EDGE, then reasoning.
-Put the price or threshold band in the final sentence of this paragraph. Max 3 sentences.]
+[Paragraph 1 — primary player prop angle from averages vs this matchup. LEAD WITH THE EDGE,
+then reasoning. Put numeric threshold bands in this paragraph. Max 3 sentences.]
 
-[Paragraph 2 — secondary angle OR game total. Specific numeric thresholds only.
-No generic playoff commentary ("playoff intensity," "everyone raises their game").
-Max 2 sentences. Tie opinions to matchup scheme, pace data, injuries, or series facts from context when you explain why.]
+[Paragraph 2 — game total / pace framework with specific thresholds from context when available.
+Max 2 sentences. Tie opinions to scheme, pace data, injuries, or series facts from context when you explain why.]
 
-[Paragraph 3 — live trigger: one concrete thing to watch when lines drop — name a player, a number, or an event. Max 2 sentences. Cut filler like "rosters shift fast."]
+[Paragraph 3 — live trigger: one concrete thing that changes the lean during the game or at
+posting — name a player, a number, or an event. Max 2 sentences. Cut filler like "rosters shift fast."]
 
 When the INTERNAL authorized-name block lists names for both sides of the matchup, prefer weaving in one player per team across the answer when it fits naturally — not a hard rule. Never invent a player name.
 Use only players who appear in that authorized-name block above (unless Question/image authorizes otherwise).
@@ -2706,7 +2715,7 @@ Brunson under is the lean if his line opens 27.5 or higher — Knicks depth mean
 
 KAT's 3PM line is the other read. Atlanta's perimeter scheme runs him off the arc in high-leverage possessions — under 3.5 is the play if it posts at even money or better.
 
-Game total tells you everything when it drops. Under 215 signals both sides expect a grind — lift unders across the board. Over 220 means pace runs hot and player totals get a bump. Check the opener before anything else.`;
+If gameTotals in context shows 214.5, that band is the pace read: a line that low usually means both sides expect a grind — lean under on big player overs. If the same block shows 222+, plan for a track meet and nudge player overs. Use the number in the JSON, not a wait for the book.`;
   } else if (sportHint === "mlb") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -2907,15 +2916,30 @@ No bet now; re-run once verified player context is loaded.`;
       nflDraftAngle && (draftPhase === "pre_draft" || draftPhase === "during_draft");
     const draftProspectBlock = buildNflDraftProspectBlock(draftBundleForPrompt);
     const focusTeamFromQuestion = resolveNflTeamFromQuestion(question);
+    const nflTeamAbbrFromQuestionMap = detectNflTeamHint(question);
     const focusTeam =
-      focusTeamFromQuestion || getNflTeamNameFromAbbr(teamHint);
+      focusTeamFromQuestion ||
+      (nflTeamAbbrFromQuestionMap
+        ? getNflTeamNameFromAbbr(nflTeamAbbrFromQuestionMap)
+        : null) ||
+      getNflTeamNameFromAbbr(teamHint);
     const focusTeamAbbr = focusTeam
       ? getNflTeamAbbrFromName(focusTeam)
       : String(teamHint || "").toUpperCase() || null;
-    /** Question text only — avoids mis-routing league-wide asks when the UI tab carries a team hint. */
-    const focusTeamAbbrForRoute = focusTeamFromQuestion
+    const focusTeamAbbrFromResolvedName = focusTeamFromQuestion
       ? getNflTeamAbbrFromName(focusTeamFromQuestion)
       : null;
+    const teamHintAbbrRaw = String(teamHint || "").trim().toUpperCase();
+    const focusTeamAbbrFromClient =
+      teamHintAbbrRaw && getNflTeamNameFromAbbr(teamHintAbbrRaw)
+        ? teamHintAbbrRaw
+        : null;
+    /** Regex-extracted franchise name → abbr; else nickname/city map on question text; else validated client tab hint. TYPE_B league-wide wins inside route() before TYPE_A. */
+    const focusTeamAbbrForRoute =
+      focusTeamAbbrFromResolvedName ||
+      nflTeamAbbrFromQuestionMap ||
+      focusTeamAbbrFromClient ||
+      null;
     const nflDraftRoute = nflDraftWindowActive
       ? getNflDraftQuestionRoute(question, focusTeamAbbrForRoute)
       : null;
@@ -2970,6 +2994,16 @@ ${draftProspectBlock}
 ${
   nflDraftWindowActive
     ? `DRAFT QUESTION CLASSIFICATION — read the question and pick exactly one route (THIS REQUEST: ${nflDraftRoute}):
+
+TEAM NAME EXTRACTION (mandatory before asking for clarification):
+
+Before responding "Which team?", scan the user's question for NFL team nicknames and cities (cowboys, eagles, chiefs, patriots, ravens, kansas city, green bay, etc.).
+
+Server-resolved team abbreviation for this request: ${focusTeamAbbrForRoute || "NONE"}.
+
+Examples: "simulate the cowboys draft" → teamHint DAL → Dallas simulation; "what should the chiefs do?" → KC; "jets mock draft" → NYJ.
+
+Only ask "Which team?" if NO team name or city appears anywhere in the question AND the resolved abbreviation above is NONE. If ANY team reference exists in the question OR the server resolved an abbreviation, run the simulation immediately — no clarification interrogatives.
 
 TYPE A — TEAM SIMULATION
 Signals: "simulate [team]", "Cowboys draft", "what will [team] do", "[team] mock",

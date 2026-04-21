@@ -32,17 +32,18 @@ function getNbaSeasonContext() {
 }
 
 function getTodayEtDateString() {
-  const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  return etNow.toISOString().split("T")[0];
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 function getTomorrowEtDateString() {
-  const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  etNow.setDate(etNow.getDate() + 1);
-  return etNow.toISOString().split("T")[0];
+  return new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
 }
 function toEtDateString(isoString) {
-  const local = new Date(new Date(isoString).toLocaleString("en-US", { timeZone: "America/New_York" }));
-  return local.toISOString().split("T")[0];
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
 function normalizeTeamAbbr(name) {
