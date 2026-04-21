@@ -2,6 +2,8 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
+/** Odds API player props — longer TTL; lines move slowly pre-game. */
+const NBA_PROPS_CACHE_TTL = 20 * 60 * 1000;
 const cache = new Map();
 
 function getCached(key) {
@@ -9,8 +11,8 @@ function getCached(key) {
   if (!e || Date.now() > e.expires) return null;
   return e.payload;
 }
-function setCached(key, payload) {
-  cache.set(key, { expires: Date.now() + CACHE_TTL, payload });
+function setCached(key, payload, ttl = CACHE_TTL) {
+  cache.set(key, { expires: Date.now() + ttl, payload });
 }
 
 function getNbaSeasonContext() {
@@ -314,7 +316,23 @@ async function getNbaPropLines(oddsKey) {
     const todayET = getTodayEtDateString();
     const tomorrowET = getTomorrowEtDateString();
 
-    for (const event of events.filter(e => { const d = toEtDateString(e.commence_time); return d === todayET || d === tomorrowET; }).slice(0, 6)) {
+    const targetEvents = events
+      .filter((e) => {
+        const d = toEtDateString(e.commence_time);
+        return d === todayET || d === tomorrowET;
+      })
+      .slice(0, 3);
+
+    console.log(
+      JSON.stringify({
+        event: "odds_api_props_call",
+        sport: "nba",
+        eventsQueried: targetEvents.length,
+        ts: new Date().toISOString(),
+      }),
+    );
+
+    for (const event of targetEvents) {
       try {
         const propRes = await fetch(`https://api.the-odds-api.com/v4/sports/basketball_nba/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`);
         if (!propRes.ok) continue;
@@ -344,7 +362,7 @@ async function getNbaPropLines(oddsKey) {
       } catch { continue; }
     }
 
-    setCached(cacheKey, propLines);
+    setCached(cacheKey, propLines, NBA_PROPS_CACHE_TTL);
     return propLines;
   } catch (err) {
     console.error("NBA props error:", err.message);
