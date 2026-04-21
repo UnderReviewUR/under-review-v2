@@ -1098,6 +1098,26 @@ function stripBannedDataAvailabilityOpener(text) {
   return s.trim();
 }
 
+/**
+ * Global body sanitizer: remove legacy performance-tracker strings from any line
+ * in the model output (summary or deep), not just the opener.
+ */
+function stripBannedPerformanceTrackerLines(text) {
+  const s = String(text || "");
+  if (!s.trim()) return s.trim();
+  const bannedLineMatchers = [
+    /historical record/i,
+    /\b0-0-0\b/i,
+    /\b0\.0u\b/i,
+    /last 30 days on this confidence tier/i,
+    /tier historical record/i,
+  ];
+  const kept = s
+    .split(/\r?\n/)
+    .filter((line) => !bannedLineMatchers.some((re) => re.test(line)));
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** Drops leading roster/data-disclosure paragraphs models still emit despite prompt bans. */
 function stripNbaLeadInDisclosure(text) {
   let s = String(text || "").trim();
@@ -2017,6 +2037,11 @@ FINAL RESPONSE PRIORITY (overrides conflicting wording elsewhere):
 3. Actionable now: tell user exactly what to do or what trigger to watch.
 4. Consistent tone: sharp, concise, no pipeline/data-availability commentary.
 5. Trustworthy: if data is thin, keep uncertainty in CONFIDENCE only.
+
+PERFORMANCE TRACKER OUTPUT IS FORBIDDEN IN BODY TEXT:
+- Never output lines containing "historical record", "Tier historical record",
+  "Last 30 days on this confidence tier", "0-0-0", or "0.0u".
+- Never include confidence-tier performance summaries in response prose.
 
 PRIOR TAKE RULE
 If you already gave a take on this player, team, game, or tournament
@@ -3586,6 +3611,8 @@ Rules:
 
     responseText = stripBannedDataAvailabilityOpener(responseText);
     if (responseDeep) responseDeep = stripBannedDataAvailabilityOpener(responseDeep);
+    responseText = stripBannedPerformanceTrackerLines(responseText);
+    if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
 
     const takeRecord = extractTakeFromResponse({
       responseText,
