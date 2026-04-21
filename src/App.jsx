@@ -494,7 +494,6 @@ ${themeCss}
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
-  recordQuery();
 
   const imgToSend = pastedImage;
 
@@ -695,6 +694,7 @@ ${themeCss}
         ? resolvedSport
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
+    recordQuery();
 
     setMsgs((prev) => [
       ...prev.filter((m) => !m.loading),

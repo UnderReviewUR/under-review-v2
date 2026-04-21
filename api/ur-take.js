@@ -1072,6 +1072,32 @@ function normalizeSummaryDeepPayload(summary, deep) {
   };
 }
 
+/**
+ * Global opener sanitizer: remove lead-in paragraphs that describe missing data
+ * instead of giving analysis. Keeps the rest of the answer intact.
+ */
+function stripBannedDataAvailabilityOpener(text) {
+  let s = String(text || "").trim();
+  if (!s) return s;
+  const bannedLead =
+    /^(?:no edge(?: here)?\.?|no prop lines posted yet\b|i don't have\b|i can'?t\b|without\b|the context provided\b|the data provided\b|come back when\b|when lines post\b|props aren'?t fully posted yet\b)/i;
+  for (let i = 0; i < 4; i += 1) {
+    const paras = s.split(/\n\n+/);
+    if (!paras.length) break;
+    const head = String(paras[0] || "").trim();
+    if (!head) {
+      s = paras.slice(1).join("\n\n").trim();
+      continue;
+    }
+    if (bannedLead.test(head)) {
+      s = paras.slice(1).join("\n\n").trim();
+      continue;
+    }
+    break;
+  }
+  return s.trim();
+}
+
 /** Drops leading roster/data-disclosure paragraphs models still emit despite prompt bans. */
 function stripNbaLeadInDisclosure(text) {
   let s = String(text || "").trim();
@@ -1984,6 +2010,13 @@ BANNED OPENERS — these phrases may never start a response:
 
 If you find yourself about to write any of these as an opener,
 delete it and start with the first piece of actual analysis instead.
+
+FINAL RESPONSE PRIORITY (overrides conflicting wording elsewhere):
+1. Fast: open with the take in the first sentence.
+2. Specific: name player/team/market and threshold when possible.
+3. Actionable now: tell user exactly what to do or what trigger to watch.
+4. Consistent tone: sharp, concise, no pipeline/data-availability commentary.
+5. Trustworthy: if data is thin, keep uncertainty in CONFIDENCE only.
 
 PRIOR TAKE RULE
 If you already gave a take on this player, team, game, or tournament
@@ -3550,6 +3583,9 @@ Rules:
         responseFormat = "plain";
       }
     }
+
+    responseText = stripBannedDataAvailabilityOpener(responseText);
+    if (responseDeep) responseDeep = stripBannedDataAvailabilityOpener(responseDeep);
 
     const takeRecord = extractTakeFromResponse({
       responseText,

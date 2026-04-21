@@ -440,7 +440,7 @@ function UrTakeAiBubble({ m, performanceData }) {
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
       {m.takeMeta && (
         <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, lineHeight: 1.45 }}>
-          This is a {label} confidence take. Tier historical record: {histLine}.
+          Confidence: {label} · Tier record: {histLine}.
         </div>
       )}
       {renderMessage(m.text)}
@@ -480,7 +480,7 @@ function UrTakeAiBubble({ m, performanceData }) {
             paddingTop: 8,
           }}
         >
-          Last 30 days on this confidence tier: {last30Line}.
+          Last 30 days (same confidence tier): {last30Line}.
         </div>
       ) : null}
     </>
