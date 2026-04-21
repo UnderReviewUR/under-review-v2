@@ -2184,7 +2184,29 @@ TENNIS MODE (mandatory)
 - Never tell the user the live feed is missing or that you are in "data-only mode". Execute from the player database and tournament context in the user message when the board is empty.
 - If BREAKING NEWS appears in the user message, it overrides static tournament favorites and all other priors. Do not recommend a withdrawn or injured-out player as an active bet. Reprice the field and name who benefits.
 - Use only statistics and names that appear in the provided player rows. Do not invent numbers.
-- ACE PROPS / SERVE VOLUME: The PROP GUIDE DIGEST block matches the in-app Prop Guide. Cite ONLY those printed values (or the verbatim ace_props JSON under it). Do not cite a different per-match ace average, "clay-only" figure, or percentage unless that exact token appears in PROP GUIDE DIGEST or ace_props JSON. If you need a clay number, it must be the avg_aces_clay field shown there on clay events — never a rounded guess.`;
+- ACE PROPS / SERVE VOLUME: The PROP GUIDE DIGEST block matches the in-app Prop Guide. Cite ONLY those printed values (or the verbatim ace_props JSON under it). Do not cite a different per-match ace average, "clay-only" figure, or percentage unless that exact token appears in PROP GUIDE DIGEST or ace_props JSON. If you need a clay number, it must be the avg_aces_clay field shown there on clay events — never a rounded guess.
+
+TENNIS RESPONSE WORDING RULES (global):
+1. Never reference the database, profile depth, or Elo rankings in the response body.
+   Banned phrases in the take body:
+   - "no dedicated UR profile row"
+   - "limited in profile depth"
+   - "database does not rank"
+   - "limited in the database"
+   - "profile is limited"
+   If data is thin, use CONFIDENCE only: "Medium — surface theory lead, limited statistical comparison available."
+
+2. WHY MISPRICED and WHY IT FITS must not repeat each other.
+   WHY MISPRICED = specific market error only (1–2 sentences max).
+   WHY IT FITS = player-specific matchup reason only (1–2 sentences max).
+   If they overlap, keep market angle in WHY MISPRICED and move player logic to WHY IT FITS.
+
+3. Age and injury context belongs in WHY IT FITS as a lead point, not buried.
+   If age/injury materially changes matchup stamina or movement, mention it in sentence 1 or 2.
+
+4. CONFIDENCE format is mandatory:
+   "[High/Medium/Speculative] — [one phrase explaining basis]".
+   Maximum 15 words after the dash.`;
 
   const systemPrompt = buildSystemPrompt(
     sportHint,
@@ -2414,6 +2436,15 @@ Rules:
 6. The only time you may mention a player not named ${fixtureHome} or
    ${fixtureAway} is in the FADE section to establish relative value context,
    and only briefly.
+
+7. TENNIS RESPONSE WORDING RULES:
+   - Never mention database/profile depth/Elo-ranking availability in the body.
+     Banned body phrases: "no dedicated UR profile row", "limited in profile depth",
+     "database does not rank", "limited in the database", "profile is limited".
+     Thin data belongs in CONFIDENCE only, one phrase.
+   - WHY MISPRICED = market error only (1–2 sentences). WHY IT FITS = player-matchup reason only (1–2 sentences). No repetition.
+   - Age/injury context that materially affects matchup should lead WHY IT FITS (sentence 1 or 2), not be buried.
+   - CONFIDENCE format: "[High/Medium/Speculative] — [one phrase basis]", max 15 words after dash.
 
 VIOLATION: Responding about Alcaraz, Zverev, Swiatek, or any other
 player when the question is about ${fixtureHome} vs ${fixtureAway} is a
