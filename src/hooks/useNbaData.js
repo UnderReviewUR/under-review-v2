@@ -27,6 +27,13 @@ export function useNbaData() {
     return `Game ${gameNum + 1} · ${leader} lead ${Math.max(aw, hw)}-${Math.min(aw, hw)}`;
   }, []);
 
+  const toEtDateString = useCallback((isoString) => {
+    if (!isoString) return "";
+    return new Date(isoString).toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
+  }, []);
+
   useEffect(() => {
     let active = true;
     async function loadNba() {
@@ -62,16 +69,12 @@ export function useNbaData() {
         const events = data?.events || [];
 
         // Get today's date in ET
-        const nowET = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-        const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth()+1).padStart(2,"0")}-${String(nowET.getDate()).padStart(2,"0")}`;
+        const todayStr = new Date().toLocaleDateString("en-CA", {
+          timeZone: "America/New_York",
+        });
 
         const games = events
-          .filter(e => {
-            // ESPN date is UTC — convert to ET date for comparison
-            const gET = new Date(new Date(e.date).toLocaleString("en-US", { timeZone: "America/New_York" }));
-            const gStr = `${gET.getFullYear()}-${String(gET.getMonth()+1).padStart(2,"0")}-${String(gET.getDate()).padStart(2,"0")}`;
-            return gStr === todayStr;
-          })
+          .filter((e) => toEtDateString(e.date) === todayStr)
           .map(e => {
             const comp = e.competitions?.[0];
             const home = comp?.competitors?.find(c => c.homeAway === "home");
@@ -113,7 +116,7 @@ export function useNbaData() {
     loadGames();
     const poll = window.setInterval(loadGames, 60000);
     return () => { active=false; window.clearInterval(poll); };
-  }, []);
+  }, [toEtDateString]);
 
   return { nbaData, nbaLoading, nbaGames, getSeriesLabel };
 }

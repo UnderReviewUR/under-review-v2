@@ -1102,8 +1102,11 @@ function hasNbaNoMarketHardFail(text) {
   return /\bno edge here\b/i.test(s) ||
     /\bcome back (?:when|later)\b/i.test(s) ||
     /\bwait for lines\b/i.test(s) ||
+    /^\s*no prop lines posted yet\b/i.test(s) ||
+    /\bprops aren't fully posted yet\b/i.test(s) ||
+    /\bno confirmed lines\b/i.test(s) ||
     /\bpropLines are empty\b/i.test(s) ||
-    /\bno confirmed lines\b/i.test(s);
+    /^\s*no lines posted\b/i.test(s);
 }
 
 function isNbaNoMarketUpcomingSlate(nbaContext) {
@@ -1150,7 +1153,9 @@ function buildNbaNoMarketHardFallback(question, nbaContext) {
     ? `${homeName} creation counters that: look assists/points depending on coverage, and avoid extremes unless the opener is clearly mispriced.`
     : `${home} primary initiator creation is the counter-angle: target assists or points based on coverage, not guesswork.`;
 
-  return `${title} pregame edge is the number, not the delay.
+  return `Check your books now, then lean into the strongest pregame angle.
+
+${title} pregame edge is the number, not the delay.
 
 ${p1} ${p2}
 

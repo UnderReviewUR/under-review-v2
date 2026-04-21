@@ -1166,14 +1166,14 @@ ${themeCss}
     () =>
       buildHomeTrackerCards({
         performanceData,
-        nbaGames,
+        nbaGames: nbaGames.length > 0 ? nbaGames : nbaData?.todaysGames || [],
         mlbData,
         golfData,
         f1Data,
         nflDraftMeta,
         nflSeasonMode,
       }),
-    [performanceData, nbaGames, mlbData, golfData, f1Data, nflDraftMeta, nflSeasonMode]
+    [performanceData, nbaGames, nbaData, mlbData, golfData, f1Data, nflDraftMeta, nflSeasonMode]
   );
 
   const homeCards = useMemo(

@@ -31,8 +31,8 @@ export default function NbaScreen({
               <div className="banner-title">NBA</div>
               <div className="banner-sub">PLAYER PROPS · GAME TOTALS · BETTING ANGLES</div>
               <div className="banner-note">
-                {nbaGames.length > 0
-                  ? `${nbaGames.filter(g=>g.state==="in").length > 0 ? nbaGames.filter(g=>g.state==="in").length + " live · " : ""}${nbaGames.length} games today`
+                {gamesForState.length > 0
+                  ? `${gamesForState.filter((g) => g.state === "in").length > 0 ? gamesForState.filter((g) => g.state === "in").length + " live · " : ""}${gamesForState.filter((g) => g.state === "pre").length > 0 ? gamesForState.filter((g) => g.state === "pre").length + " upcoming · " : ""}${gamesForState.length} games today`
                   : nbaLoading ? "Loading..." : "Ask anything about NBA props"}
               </div>
             </div>
@@ -59,12 +59,23 @@ export default function NbaScreen({
               <div className="loading-state"><div className="loading-text">LOADING NBA DATA...</div></div>
             ) : (
               <>
-                {nbaGames.length > 0 && (
+                {gamesForState.length > 0 && (
                   <>
-                    <div className="section-divider">
-                      {nbaGames.filter(g=>g.state==="in").length > 0 ? "🔴 Live Games" : "Today's Games"}
-                    </div>
-                    {nbaGames.map((g,i) => {
+                    {(() => {
+                      const liveCount = gamesForState.filter((g) => g.state === "in").length;
+                      const finalCount = gamesForState.filter((g) => g.state === "post").length;
+                      const preCount = gamesForState.filter((g) => g.state === "pre").length;
+                      return (
+                        <div className="section-divider">
+                          {liveCount > 0 ? `${liveCount} Live` : ""}
+                          {liveCount > 0 && finalCount + preCount > 0 ? " · " : ""}
+                          {finalCount > 0 ? `${finalCount} Final` : ""}
+                          {preCount > 0 && liveCount + finalCount > 0 ? " · " : ""}
+                          {preCount > 0 ? `${preCount} Upcoming` : ""}
+                        </div>
+                      );
+                    })()}
+                    {gamesForState.map((g,i) => {
                       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
                       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
                       const isLive = g.state === "in";
