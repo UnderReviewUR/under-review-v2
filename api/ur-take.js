@@ -2534,9 +2534,14 @@ export default async function handler(req, res) {
         })
       : { label: baseDerivedConfidence, reason: "" };
   const derivedConfidence = nbaConfidenceModifier.label;
-  const nbaMatchup = null;
-  const nbaMatchupPool = null;
-  const nbaMatchupGroundingBlock = "";
+  const nbaMatchup =
+    sportHint === "nba" ? resolveNbaMatchupFromQuestion(question, nbaContext || {}) : null;
+  const nbaMatchupPool =
+    sportHint === "nba" && nbaMatchup
+      ? buildAllowedMatchupPlayerPool(nbaMatchup, nbaContext || {})
+      : null;
+  const nbaMatchupGroundingBlock =
+    sportHint === "nba" ? injectMatchupGroundingBlock(nbaMatchup, nbaMatchupPool) : "";
 
   const baseSystemPrompt = `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
 Every single response must follow these five steps in order. No exceptions.
