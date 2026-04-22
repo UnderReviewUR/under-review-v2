@@ -1143,6 +1143,38 @@ function stripNbaLeadInDisclosure(text) {
   return s.trim();
 }
 
+function isTruthyFlag(v) {
+  const s = String(v || "").trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "on";
+}
+
+function buildNbaObservabilityMeta({
+  decisionMode,
+  sport,
+  matchupGroundingApplied,
+  postValidationChecked,
+  postValidationTriggered,
+  fallbackOrRepairUsed,
+}) {
+  return {
+    decisionMode: String(decisionMode || "none"),
+    sport: String(sport || "nba"),
+    matchupGroundingApplied: Boolean(matchupGroundingApplied),
+    postValidationChecked: Boolean(postValidationChecked),
+    postValidationTriggered: Boolean(postValidationTriggered),
+    fallbackOrRepairUsed: Boolean(fallbackOrRepairUsed),
+  };
+}
+
+function logNbaObservability(meta) {
+  console.log(
+    JSON.stringify({
+      event: "ur_take_nba_observability",
+      ...meta,
+    }),
+  );
+}
+
 /** Removes internal control markers from user-visible prose. */
 function stripNbaInternalControlLabels(text) {
   const s = String(text || "");
@@ -2540,6 +2572,7 @@ export default async function handler(req, res) {
     hasImage,
     golfContext,
   });
+  const nbaDebugEnabled = isTruthyFlag(getEnv("UR_TAKE_NBA_DEBUG"));
 
   /** Server-authoritative slate for NBA — client payload can be stale (poll interval) or omit games. */
   let nbaContext = nbaContextFromClient;
@@ -2623,6 +2656,7 @@ export default async function handler(req, res) {
       : null;
   const nbaMatchupGroundingBlock =
     sportHint === "nba" ? injectMatchupGroundingBlock(nbaMatchup, nbaMatchupPool) : "";
+  const nbaMatchupGroundingApplied = sportHint === "nba" && Boolean(nbaMatchupGroundingBlock);
 
   const baseSystemPrompt = `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
 Every single response must follow these five steps in order. No exceptions.
@@ -2718,6 +2752,9 @@ ${jsonContract}${propProjectionModeBlock}`
           newsImpact: nbaNewsImpact,
         })
       : null;
+  let nbaPostValidationChecked = false;
+  let nbaPostValidationTriggered = false;
+  let nbaFallbackOrRepairUsed = false;
 
   if (
     sportHint === "nba" &&
@@ -2748,12 +2785,22 @@ ${jsonContract}${propProjectionModeBlock}`
         console.warn("take logging failed:", e?.message || e);
       });
     }
+    const nbaMeta = buildNbaObservabilityMeta({
+      decisionMode: nbaDecisionMode,
+      sport: "nba",
+      matchupGroundingApplied: nbaMatchupGroundingApplied,
+      postValidationChecked: false,
+      postValidationTriggered: false,
+      fallbackOrRepairUsed: false,
+    });
+    logNbaObservability(nbaMeta);
     return res.status(200).json({
       response: availabilityPayload.response,
       responseDeep: null,
       responseFormat: "plain",
       statusShift: availabilityPayload.statusShift,
       decisionMode: nbaDecisionMode,
+      ...(nbaDebugEnabled ? { nbaDebug: nbaMeta } : {}),
       sport: "nba",
       intent,
       take: {
@@ -2814,12 +2861,22 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
         console.warn("take logging failed:", e?.message || e);
       });
     }
+    const nbaMeta = buildNbaObservabilityMeta({
+      decisionMode: nbaDecisionMode,
+      sport: "nba",
+      matchupGroundingApplied: nbaMatchupGroundingApplied,
+      postValidationChecked: false,
+      postValidationTriggered: false,
+      fallbackOrRepairUsed: false,
+    });
+    logNbaObservability(nbaMeta);
     return res.status(200).json({
       response: blockedResponse,
       responseDeep: null,
       responseFormat: "plain",
       statusShift: blockedStatusShift,
       decisionMode: nbaDecisionMode,
+      ...(nbaDebugEnabled ? { nbaDebug: nbaMeta } : {}),
       sport: "nba",
       intent,
       take: {
@@ -4160,6 +4217,7 @@ Rules:
         responseText = buildNbaNoMarketHardFallback(question, nbaContext);
         responseDeep = null;
         responseFormat = "plain";
+        nbaFallbackOrRepairUsed = true;
       }
       if (nbaInvalidation.requiresStatusAcknowledgement && !responseStatusShift && nbaStatusShiftLine) {
         responseStatusShift = nbaStatusShiftLine;
@@ -4168,6 +4226,7 @@ Rules:
         responseText = `Status is unresolved. Wait for final availability before locking a prop.\n\n${responseText}`;
       }
       if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
+        nbaPostValidationChecked = true;
         const allowedTeamSet = new Set(
           nbaMatchupPool.allowedTeams.map((t) => String(t || "").toUpperCase()),
         );
@@ -4191,6 +4250,8 @@ Rules:
             ) === i,
         );
         if (invalidAll.length > 0) {
+          nbaPostValidationTriggered = true;
+          nbaFallbackOrRepairUsed = true;
           responseText = repairOrRegenerateInvalidMatchupOutput({
             matchup: nbaMatchup,
             pool: nbaMatchupPool,
@@ -4222,6 +4283,18 @@ Rules:
         confidenceModifier: nbaConfidenceModifier,
       });
     }
+    const nbaMeta =
+      sportHint === "nba"
+        ? buildNbaObservabilityMeta({
+            decisionMode: nbaDecisionMode,
+            sport: "nba",
+            matchupGroundingApplied: nbaMatchupGroundingApplied,
+            postValidationChecked: nbaPostValidationChecked,
+            postValidationTriggered: nbaPostValidationTriggered,
+            fallbackOrRepairUsed: nbaFallbackOrRepairUsed,
+          })
+        : null;
+    if (nbaMeta) logNbaObservability(nbaMeta);
 
     // Non-critical side effect: never fail the response if take logging fails.
     if (userEmail) {
@@ -4236,6 +4309,7 @@ Rules:
       responseFormat,
       statusShift: responseStatusShift,
       decisionMode: sportHint === "nba" ? nbaDecisionMode : null,
+      ...(nbaDebugEnabled && nbaMeta ? { nbaDebug: nbaMeta } : {}),
       sport: sportHint || "generic",
       intent,
       take: {
