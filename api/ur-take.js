@@ -1143,6 +1143,62 @@ function stripNbaLeadInDisclosure(text) {
   return s.trim();
 }
 
+/** Removes internal control markers from user-visible prose. */
+function stripNbaInternalControlLabels(text) {
+  const s = String(text || "");
+  if (!s.trim()) return s.trim();
+  return s
+    .split(/\r?\n/)
+    .filter((line) => {
+      const l = String(line || "").trim();
+      if (!l) return true;
+      if (/^DECISION MODE:\s*/i.test(l)) return false;
+      if (/NBA SERVER DECISION MODE/i.test(l)) return false;
+      if (/CONDITIONAL_WAIT MODE/i.test(l)) return false;
+      return true;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function ensureNbaTakeConfidenceConsistency({
+  takeRecord,
+  decisionMode,
+  derivedConfidence,
+  confidenceModifier,
+}) {
+  if (!takeRecord || typeof takeRecord !== "object") return takeRecord;
+  const current = String(takeRecord.confidence || "").trim();
+  const isMissing = !current || /^unspecified$/i.test(current);
+  if (!isMissing) return takeRecord;
+
+  const base = String(derivedConfidence || "Low").trim() || "Low";
+  const reason = String(confidenceModifier?.reason || "").trim();
+
+  if (
+    decisionMode === "blocked_unavailable" ||
+    decisionMode === "blocked_unlisted_market" ||
+    decisionMode === "status_only" ||
+    decisionMode === "status_plus_consequence"
+  ) {
+    return {
+      ...takeRecord,
+      confidence: reason ? `${base} — ${reason}` : base,
+    };
+  }
+  if (decisionMode === "conditional_wait") {
+    return {
+      ...takeRecord,
+      confidence: "Low — Status unresolved; wait for final availability.",
+    };
+  }
+  return {
+    ...takeRecord,
+    confidence: base,
+  };
+}
+
 function hasNbaNoMarketHardFail(text) {
   const s = String(text || "");
   return /\bno edge here\b/i.test(s) ||
@@ -1550,7 +1606,7 @@ function detectNbaAvailabilityIntent(question) {
   };
 }
 
-function resolveNbaDecisionMode({
+export function resolveNbaDecisionMode({
   sportHint,
   availabilityIntent,
   directPropAsk,
@@ -1568,7 +1624,7 @@ function resolveNbaDecisionMode({
   return "actionable";
 }
 
-function buildNbaConditionalPayload({ invalidation, nbaContext, newsImpact }) {
+export function buildNbaConditionalPayload({ invalidation, nbaContext, newsImpact }) {
   const player = invalidation?.targetedPlayer || "targeted player";
   const status = invalidation?.statusDisplay || invalidation?.statusClass || "questionable";
   const lines = (nbaContext?.propLines || [])
@@ -1729,7 +1785,7 @@ MATCHUP ENFORCEMENT
 - If grounded player pool is thin, use team-level analysis and do NOT guess player names.`;
 }
 
-function extractMentionedPlayersFromOutput(output, knownPlayerToTeam) {
+export function extractMentionedPlayersFromOutput(output, knownPlayerToTeam) {
   const text = String(output || "");
   if (!text || !knownPlayerToTeam || knownPlayerToTeam.size === 0) return [];
   const names = [...knownPlayerToTeam.keys()]
@@ -1749,7 +1805,7 @@ function extractMentionedPlayersFromOutput(output, knownPlayerToTeam) {
   return [...new Set(hits)];
 }
 
-function validatePlayersAgainstMatchup(mentionedPlayers, allowedTeamSet, playerToTeamMap) {
+export function validatePlayersAgainstMatchup(mentionedPlayers, allowedTeamSet, playerToTeamMap) {
   const invalid = [];
   for (const p of mentionedPlayers || []) {
     const team = String(playerToTeamMap?.get(p) || "").toUpperCase();
@@ -2675,11 +2731,17 @@ ${jsonContract}${propProjectionModeBlock}`
       nbaConfidenceModifier,
       decisionMode: nbaDecisionMode,
     });
-    const takeRecord = extractTakeFromResponse({
+    let takeRecord = extractTakeFromResponse({
       responseText: availabilityPayload.response,
       sport: "nba",
       intent,
       question,
+    });
+    takeRecord = ensureNbaTakeConfidenceConsistency({
+      takeRecord,
+      decisionMode: nbaDecisionMode,
+      derivedConfidence,
+      confidenceModifier: nbaConfidenceModifier,
     });
     if (userEmail) {
       appendTakeForUser(userEmail, takeRecord).catch((e) => {
@@ -2735,11 +2797,17 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
     const blockedStatusShift =
       nbaInvalidation.blockedReason === "unlisted_market" ? null : nbaStatusShiftLine || null;
 
-    const takeRecord = extractTakeFromResponse({
+    let takeRecord = extractTakeFromResponse({
       responseText: blockedResponse,
       sport: "nba",
       intent,
       question,
+    });
+    takeRecord = ensureNbaTakeConfidenceConsistency({
+      takeRecord,
+      decisionMode: nbaDecisionMode,
+      derivedConfidence,
+      confidenceModifier: nbaConfidenceModifier,
     });
     if (userEmail) {
       appendTakeForUser(userEmail, takeRecord).catch((e) => {
@@ -3253,11 +3321,12 @@ Never open with "no lines posted." Give monitoring hooks; name only verified gol
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${nbaQuestionForModel}
 
-${sportHint === "nba" ? `NBA SERVER DECISION MODE (AUTHORITATIVE)
+${sportHint === "nba" ? `INTERNAL NBA CONTROL (DO NOT QUOTE OR REPEAT VERBATIM)
 - decisionMode: ${nbaDecisionMode}
-- You must express this exact mode in your response and stay inside it.
+- Follow this mode behavior in substance.
+- Never print internal labels, control headers, or mode names to the user.
 
-` : ""}${nbaConditionalPayload ? `CONDITIONAL PAYLOAD (SERVER-OWNED)
+` : ""}${nbaConditionalPayload ? `INTERNAL CONDITIONAL PAYLOAD (DO NOT QUOTE OR REPEAT VERBATIM)
 - targetPlayer: ${nbaConditionalPayload.player}
 - currentStatus: ${nbaConditionalPayload.status}
 - listedMarket: ${nbaConditionalPayload.listedMarkets}
@@ -4085,6 +4154,8 @@ Rules:
     if (sportHint === "nba") {
       responseText = stripNbaLeadInDisclosure(responseText);
       if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
+      responseText = stripNbaInternalControlLabels(responseText);
+      if (responseDeep) responseDeep = stripNbaInternalControlLabels(responseDeep);
       if (isNbaNoMarketUpcomingSlate(nbaContext) && hasNbaNoMarketHardFail(responseText)) {
         responseText = buildNbaNoMarketHardFallback(question, nbaContext);
         responseDeep = null;
@@ -4093,13 +4164,8 @@ Rules:
       if (nbaInvalidation.requiresStatusAcknowledgement && !responseStatusShift && nbaStatusShiftLine) {
         responseStatusShift = nbaStatusShiftLine;
       }
-      if (
-        nbaDecisionMode === "conditional_wait" &&
-        !/\bconditional_wait\b/i.test(responseText)
-      ) {
-        responseText = `DECISION MODE: conditional_wait
-
-${responseText}`;
+      if (nbaDecisionMode === "conditional_wait" && !/\b(wait|contingen|status|confirm)\b/i.test(responseText)) {
+        responseText = `Status is unresolved. Wait for final availability before locking a prop.\n\n${responseText}`;
       }
       if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
         const allowedTeamSet = new Set(
@@ -4142,12 +4208,20 @@ ${responseText}`;
     responseText = stripBannedPerformanceTrackerLines(responseText);
     if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
 
-    const takeRecord = extractTakeFromResponse({
+    let takeRecord = extractTakeFromResponse({
       responseText,
       sport: sportHint || "generic",
       intent,
       question,
     });
+    if (sportHint === "nba") {
+      takeRecord = ensureNbaTakeConfidenceConsistency({
+        takeRecord,
+        decisionMode: nbaDecisionMode,
+        derivedConfidence,
+        confidenceModifier: nbaConfidenceModifier,
+      });
+    }
 
     // Non-critical side effect: never fail the response if take logging fails.
     if (userEmail) {
