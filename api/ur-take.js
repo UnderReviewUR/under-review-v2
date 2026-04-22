@@ -1564,11 +1564,36 @@ function resolveNbaDecisionMode({
   }
   if (invalidation?.blockedReason === "unavailable") return "blocked_unavailable";
   if (invalidation?.blockedReason === "unlisted_market") return "blocked_unlisted_market";
+  if (invalidation?.unresolved && invalidation?.hasTargetPlayerMarket) return "conditional_wait";
   return "actionable";
 }
 
 function buildNbaConditionalPayload({ invalidation, nbaContext, newsImpact }) {
-  return null;
+  const player = invalidation?.targetedPlayer || "targeted player";
+  const status = invalidation?.statusDisplay || invalidation?.statusClass || "questionable";
+  const lines = (nbaContext?.propLines || [])
+    .filter((pl) => String(pl?.player || "").trim().toLowerCase() === String(player).toLowerCase())
+    .slice(0, 3)
+    .map((pl) => `${pl.prop} ${pl.line}`)
+    .join(" | ");
+  const teamImpact = (newsImpact?.affectedTeams || []).find(
+    (t) => String(t?.team || "").toUpperCase() === String(invalidation?.team || "").toUpperCase(),
+  );
+  const pivots = (teamImpact?.beneficiaries || [])
+    .slice(0, 2)
+    .map((b) => `${b.player} (${(b.markets || []).join("/")})`)
+    .join("; ");
+  return {
+    player,
+    status,
+    listedMarkets: lines || "listed market present",
+    ifActive:
+      "convert to actionable with one primary angle at posted number and clear threshold.",
+    ifOut:
+      `hard block direct props for ${player}${pivots ? `; pivot watchlist: ${pivots}` : ""}.`,
+    ifUnresolved:
+      "keep conditional_wait; no full-size commitment before final availability.",
+  };
 }
 
 function nbaTeamSignals(team) {
@@ -2666,6 +2691,7 @@ ${jsonContract}${propProjectionModeBlock}`
       responseDeep: null,
       responseFormat: "plain",
       statusShift: availabilityPayload.statusShift,
+      decisionMode: nbaDecisionMode,
       sport: "nba",
       intent,
       take: {
@@ -2725,6 +2751,7 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       responseDeep: null,
       responseFormat: "plain",
       statusShift: blockedStatusShift,
+      decisionMode: nbaDecisionMode,
       sport: "nba",
       intent,
       take: {
@@ -3226,7 +3253,19 @@ Never open with "no lines posted." Give monitoring hooks; name only verified gol
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${nbaQuestionForModel}
 
-${nbaImpactSummary ? `HIGH-PRIORITY NBA NEWS IMPACT (SERVER-COMPUTED — READ FIRST)
+${sportHint === "nba" ? `NBA SERVER DECISION MODE (AUTHORITATIVE)
+- decisionMode: ${nbaDecisionMode}
+- You must express this exact mode in your response and stay inside it.
+
+` : ""}${nbaConditionalPayload ? `CONDITIONAL PAYLOAD (SERVER-OWNED)
+- targetPlayer: ${nbaConditionalPayload.player}
+- currentStatus: ${nbaConditionalPayload.status}
+- listedMarket: ${nbaConditionalPayload.listedMarkets}
+- IF ACTIVE: ${nbaConditionalPayload.ifActive}
+- IF OUT: ${nbaConditionalPayload.ifOut}
+- IF UNRESOLVED: ${nbaConditionalPayload.ifUnresolved}
+
+` : ""}${nbaImpactSummary ? `HIGH-PRIORITY NBA NEWS IMPACT (SERVER-COMPUTED — READ FIRST)
 ${nbaImpactSummary}
 
 ` : ""}${nbaInvalidation.unresolved && nbaInvalidation.targetedPlayer ? `UNRESOLVED AVAILABILITY FLAG
@@ -4054,6 +4093,14 @@ Rules:
       if (nbaInvalidation.requiresStatusAcknowledgement && !responseStatusShift && nbaStatusShiftLine) {
         responseStatusShift = nbaStatusShiftLine;
       }
+      if (
+        nbaDecisionMode === "conditional_wait" &&
+        !/\bconditional_wait\b/i.test(responseText)
+      ) {
+        responseText = `DECISION MODE: conditional_wait
+
+${responseText}`;
+      }
       if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
         const allowedTeamSet = new Set(
           nbaMatchupPool.allowedTeams.map((t) => String(t || "").toUpperCase()),
@@ -4114,6 +4161,7 @@ Rules:
       responseDeep,
       responseFormat,
       statusShift: responseStatusShift,
+      decisionMode: sportHint === "nba" ? nbaDecisionMode : null,
       sport: sportHint || "generic",
       intent,
       take: {
