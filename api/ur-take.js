@@ -1499,9 +1499,39 @@ export function applyNbaConfidenceModifiers({
   invalidation,
   nbaContext,
 }) {
+  const directBlockedUnavailable = invalidation?.blockedReason === "unavailable";
+  const directBlockedNoMarket = invalidation?.blockedReason === "unlisted_market";
+  if (directBlockedUnavailable) {
+    return {
+      label: "Low",
+      reason: "Player unavailable — direct prop projection is blocked.",
+    };
+  }
+  if (directBlockedNoMarket) {
+    return {
+      label: "Low",
+      reason: "No active listed market — avoid speculative confidence inflation.",
+    };
+  }
+
+  let rank = confidenceLabelToRank(baseConfidence);
+  const reasons = [];
+  if (invalidation?.unresolved) {
+    rank = Math.max(1, rank - 1);
+    reasons.push("Unresolved central status lowers certainty.");
+  }
+  if (invalidation?.materialRelevantImpact) {
+    rank = Math.min(rank, 2);
+    reasons.push("Material injury/news impact increases volatility.");
+  }
+  if (!Array.isArray(nbaContext?.todaysGames) || nbaContext.todaysGames.length === 0) {
+    rank = Math.min(rank, 2);
+    reasons.push("Slate context is thin for game-specific conviction.");
+  }
+
   return {
-    label: String(baseConfidence || "Low"),
-    reason: "",
+    label: confidenceRankToLabel(rank),
+    reason: reasons.join(" "),
   };
 }
 
