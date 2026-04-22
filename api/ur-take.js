@@ -1536,9 +1536,17 @@ export function applyNbaConfidenceModifiers({
 }
 
 function detectNbaAvailabilityIntent(question) {
+  const q = String(question || "").toLowerCase();
+  const asksStatus =
+    /\b(is|are|will|did)\b[\s\S]{0,80}\b(play|playing|active|available|out|inactive|status|questionable|doubtful)\b/i.test(q) ||
+    /\bstatus\b/.test(q) ||
+    /\bplaying tonight\b/.test(q) ||
+    /\bout tonight\b/.test(q);
+  const asksBettingConsequence =
+    /\b(impact|benefit|benefits|beneficiary|what does that mean|what happens|angle|bet|prop|play)\b/i.test(q);
   return {
-    isAvailabilityQuestion: false,
-    asksBettingConsequence: false,
+    isAvailabilityQuestion: asksStatus,
+    asksBettingConsequence,
   };
 }
 
@@ -1549,6 +1557,11 @@ function resolveNbaDecisionMode({
   invalidation,
 }) {
   if (sportHint !== "nba") return "none";
+  if (availabilityIntent?.isAvailabilityQuestion && !directPropAsk) {
+    return availabilityIntent.asksBettingConsequence
+      ? "status_plus_consequence"
+      : "status_only";
+  }
   if (invalidation?.blockedReason === "unavailable") return "blocked_unavailable";
   if (invalidation?.blockedReason === "unlisted_market") return "blocked_unlisted_market";
   return "actionable";
