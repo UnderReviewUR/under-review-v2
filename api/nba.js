@@ -1065,7 +1065,18 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
   }
 }
 
-async function getNbaInjuries(propLines, todaysGames) {
+function questionMentionsPlayer(question, playerName) {
+  const q = String(question || "").toLowerCase();
+  const full = String(playerName || "").trim().toLowerCase();
+  if (!q || !full) return false;
+  if (q.includes(full)) return true;
+  const parts = full.split(/\s+/).filter(Boolean);
+  const last = parts[parts.length - 1] || "";
+  if (last.length >= 4 && new RegExp(`\\b${last}(?:'s)?\\b`, "i").test(q)) return true;
+  return false;
+}
+
+async function getNbaInjuries(propLines, todaysGames, question = "") {
   const cacheKey = "nba_injuries";
   const cached = getCached(cacheKey);
   if (cached) return cached;
@@ -1094,7 +1105,11 @@ async function getNbaInjuries(propLines, todaysGames) {
       return { player:name, team:teamAbbr, status:availability, detail };
     }).filter(i => i.player).filter(i => {
       const lower = i.player.toLowerCase();
-      return propPlayers.has(lower) || gameTeams.has(i.team);
+      return (
+        propPlayers.has(lower) ||
+        gameTeams.has(i.team) ||
+        questionMentionsPlayer(question, i.player)
+      );
     });
 
     setCached(cacheKey, injuries);
@@ -1103,6 +1118,244 @@ async function getNbaInjuries(propLines, todaysGames) {
     console.warn("getNbaInjuries error:", err.message);
     return [];
   }
+}
+
+function normalizeInjuryStatus(status, detail) {
+  const s = `${String(status || "").toLowerCase()} ${String(detail || "").toLowerCase()}`;
+  if (
+    /\b(out|inactive|dnp|did not play|ruled out|available:\s*out|suspended|not with team)\b/.test(s)
+  ) {
+    return "out";
+  }
+  if (/\b(doubtful)\b/.test(s)) return "doubtful";
+  if (/\b(questionable|game[- ]time decision|gtd|probable)\b/.test(s)) return "questionable";
+  return "unknown";
+}
+
+function inferPlayerRoleFromStats(playerStatsRow) {
+  const ast = Number(playerStatsRow?.ast || 0);
+  const reb = Number(playerStatsRow?.reb || 0);
+  const pts = Number(playerStatsRow?.pts || 0);
+  const fg3 = Number(playerStatsRow?.fg3_pct || 0);
+
+  if (ast >= 5 || (ast >= reb && ast >= 4)) return "guard";
+  if (reb >= 8 || (reb >= ast && reb >= 7)) return "big";
+  if (pts >= 18 && fg3 >= 0.33) return "wing";
+  if (reb >= ast) return "big";
+  if (ast > reb) return "guard";
+  return "wing";
+}
+
+function inferPlayerCentrality(playerStatsRow, propLines, playerName) {
+  const nameKey = String(playerName || "").trim().toLowerCase();
+  const propCount = (propLines || []).filter(
+    (pl) => String(pl?.player || "").trim().toLowerCase() === nameKey,
+  ).length;
+  const hasPra = (propLines || []).some(
+    (pl) =>
+      String(pl?.player || "").trim().toLowerCase() === nameKey &&
+      String(pl?.prop || "").toLowerCase().includes("points rebounds assists"),
+  );
+  const pts = Number(playerStatsRow?.pts || 0);
+  const ast = Number(playerStatsRow?.ast || 0);
+  const reb = Number(playerStatsRow?.reb || 0);
+  if (hasPra || propCount >= 3) return "high";
+  if (pts >= 22 || ast >= 7 || reb >= 10) return "high";
+  if (pts >= 16 || ast >= 5 || reb >= 8 || propCount >= 2) return "medium";
+  return "low";
+}
+
+function rankTeamCandidates(playerStats, teamAbbr, excludedNames, sortKeys) {
+  const excluded = new Set(
+    (excludedNames || []).map((n) => String(n || "").trim().toLowerCase()).filter(Boolean),
+  );
+  const rows = (playerStats || []).filter((p) => {
+    const team = String(p?.team || "").toUpperCase();
+    const nameKey = String(p?.name || "").trim().toLowerCase();
+    return team === teamAbbr && nameKey && !excluded.has(nameKey);
+  });
+  rows.sort((a, b) => {
+    for (const key of sortKeys) {
+      const da = Number(a?.[key] || 0);
+      const db = Number(b?.[key] || 0);
+      if (db !== da) return db - da;
+    }
+    return String(a?.name || "").localeCompare(String(b?.name || ""));
+  });
+  return rows.slice(0, 3);
+}
+
+function buildBeneficiariesForRole({ role, teamAbbr, playerStats, excludedNames }) {
+  if (role === "guard") {
+    return rankTeamCandidates(playerStats, teamAbbr, excludedNames, ["ast", "pts"]).slice(0, 2).map((p) => ({
+      player: p.name,
+      markets: ["points", "assists"],
+      reason: "primary on-ball creation increase",
+    }));
+  }
+  if (role === "big") {
+    return rankTeamCandidates(playerStats, teamAbbr, excludedNames, ["reb", "pts"]).slice(0, 2).map((p) => ({
+      player: p.name,
+      markets: ["rebounds", "pra"],
+      reason: "frontcourt rebound and interior share increase",
+    }));
+  }
+  return rankTeamCandidates(playerStats, teamAbbr, excludedNames, ["pts", "fg3_pct"]).slice(0, 2).map((p) => ({
+    player: p.name,
+    markets: ["points", "threes"],
+    reason: "perimeter scoring volume redistribution",
+  }));
+}
+
+function dedupeBeneficiaries(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows || []) {
+    const name = String(row?.player || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out.slice(0, 4);
+}
+
+export function buildNbaNewsImpact(board = {}) {
+  const injuries = Array.isArray(board?.injuries) ? board.injuries : [];
+  const playerStats = Array.isArray(board?.playerStats) ? board.playerStats : [];
+  const propLines = Array.isArray(board?.propLines) ? board.propLines : [];
+  const teamBuckets = new Map();
+  const globalFlags = ["Never project props for OUT or DNP players"];
+
+  const getTeamBucket = (team) => {
+    const t = String(team || "").toUpperCase();
+    if (!t || t === "UNK") return null;
+    if (!teamBuckets.has(t)) {
+      teamBuckets.set(t, {
+        team: t,
+        priority: "low",
+        outs: [],
+        doubtful: [],
+        questionable: [],
+        beneficiaries: [],
+        invalidMarkets: [],
+        notes: [],
+      });
+    }
+    return teamBuckets.get(t);
+  };
+
+  const statsByName = new Map(
+    playerStats
+      .filter((p) => p?.name)
+      .map((p) => [String(p.name).trim().toLowerCase(), p]),
+  );
+
+  for (const row of injuries) {
+    const team = String(row?.team || "").toUpperCase();
+    const player = String(row?.player || "").trim();
+    if (!team || !player) continue;
+    const bucket = getTeamBucket(team);
+    if (!bucket) continue;
+
+    const statusClass = normalizeInjuryStatus(row?.status, row?.detail);
+    if (statusClass === "unknown") continue;
+
+    if (statusClass === "out") bucket.outs.push(player);
+    else if (statusClass === "doubtful") bucket.doubtful.push(player);
+    else if (statusClass === "questionable") bucket.questionable.push(player);
+
+    const statsRow = statsByName.get(player.toLowerCase());
+    const role = inferPlayerRoleFromStats(statsRow);
+    const centrality = inferPlayerCentrality(statsRow, propLines, player);
+
+    if (statusClass === "out") {
+      bucket.invalidMarkets.push({
+        player,
+        markets: ["points", "rebounds", "assists", "pra"],
+        reason: "player out",
+      });
+      const beneficiaries = buildBeneficiariesForRole({
+        role,
+        teamAbbr: team,
+        playerStats,
+        excludedNames: [...bucket.outs, ...bucket.doubtful],
+      });
+      bucket.beneficiaries.push(...beneficiaries);
+      if (centrality === "high") {
+        bucket.priority = "high";
+        bucket.notes.push("Primary usage vacated");
+      } else if (bucket.priority !== "high") {
+        bucket.priority = "medium";
+      }
+      if (role === "big") bucket.notes.push("Frontcourt rebound share redistributed");
+      if (role === "guard") bucket.notes.push("Lead creation role likely expands");
+      if (role === "wing") bucket.notes.push("Perimeter volume reallocated");
+      continue;
+    }
+
+    if (statusClass === "doubtful") {
+      if (centrality === "high") bucket.priority = "high";
+      else if (bucket.priority !== "high") bucket.priority = "medium";
+      bucket.notes.push(`${player} status unresolved pre-tip`);
+      const likely = buildBeneficiariesForRole({
+        role,
+        teamAbbr: team,
+        playerStats,
+        excludedNames: [...bucket.outs, ...bucket.doubtful, player],
+      }).map((b) => ({
+        ...b,
+        reason: `conditional: ${b.reason}`,
+      }));
+      bucket.beneficiaries.push(...likely);
+      continue;
+    }
+
+    if (statusClass === "questionable") {
+      if (centrality === "high" && bucket.priority !== "high") bucket.priority = "medium";
+      bucket.notes.push(`${player} questionable — monitor final status`);
+      const likely = buildBeneficiariesForRole({
+        role,
+        teamAbbr: team,
+        playerStats,
+        excludedNames: [...bucket.outs, ...bucket.questionable, player],
+      })
+        .slice(0, 1)
+        .map((b) => ({
+          ...b,
+          reason: `conditional: ${b.reason}`,
+        }));
+      bucket.beneficiaries.push(...likely);
+    }
+  }
+
+  const affectedTeams = [...teamBuckets.values()]
+    .map((bucket) => ({
+      ...bucket,
+      outs: [...new Set(bucket.outs)],
+      doubtful: [...new Set(bucket.doubtful)],
+      questionable: [...new Set(bucket.questionable)],
+      beneficiaries: dedupeBeneficiaries(bucket.beneficiaries),
+      invalidMarkets: bucket.invalidMarkets.slice(0, 6),
+      notes: [...new Set(bucket.notes)].slice(0, 4),
+    }))
+    .filter(
+      (bucket) =>
+        bucket.outs.length > 0 ||
+        bucket.doubtful.length > 0 ||
+        bucket.questionable.length > 0,
+    )
+    .sort((a, b) => {
+      const rank = (p) => (p === "high" ? 2 : p === "medium" ? 1 : 0);
+      return rank(b.priority) - rank(a.priority);
+    });
+
+  return {
+    generatedAt: new Date().toISOString(),
+    affectedTeams,
+    globalFlags,
+  };
 }
 
 function shouldShowSeriesScore(item) {
@@ -1218,7 +1471,7 @@ export async function buildNbaUrTakeBoard(question = "") {
   ]);
 
   const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
-  const injuries = await getNbaInjuries(propLines, todaysGames);
+  const injuries = await getNbaInjuries(propLines, todaysGames, question);
   const playerStatsWithTonight = attachTonightGamesFromProps(
     statsBundle.playerStats || [],
     propLines,
@@ -1262,6 +1515,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     },
   };
 
+  board.newsImpact = buildNbaNewsImpact(board);
   board = prioritizeNbaBoardForQuestion(board, boost);
   return board;
 }
@@ -1296,7 +1550,7 @@ export default async function handler(req, res) {
 
       const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
 
-      const injuries = await getNbaInjuries(propLines, todaysGames);
+      const injuries = await getNbaInjuries(propLines, todaysGames, "");
 
       const playerStatsWithTonight = attachTonightGamesFromProps(
         statsBundle.playerStats || [],
@@ -1329,6 +1583,7 @@ export default async function handler(req, res) {
         gameTotals: buildGameTotalsFromProps(propLines),
         fetchedAt: new Date().toISOString(),
       };
+      board.newsImpact = buildNbaNewsImpact(board);
 
       if (
         todaysGames.length > 0 ||

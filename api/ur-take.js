@@ -22,7 +22,7 @@ import {
 } from "./nfl-draft-season.js";
 import { simulateDraftRounds } from "./nfl-draft-engine.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
-import { buildNbaUrTakeBoard, extractNbaTeamAbbrevsFromQuestion } from "./nba.js";
+import { buildNbaUrTakeBoard, buildNbaNewsImpact, extractNbaTeamAbbrevsFromQuestion } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
@@ -1210,6 +1210,556 @@ Game total framework: under is the lean if the opener is ${highBand.toFixed(1)} 
 Live trigger: if the first 6 minutes produce 8+ combined free throws or repeated early-clock paint attacks, pivot to live over; if both teams are walking it up and living late-clock, stay with under angles.`;
 }
 
+function escapeRegExp(v) {
+  return String(v || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeNbaAvailabilityClass(status, detail = "") {
+  const s = `${String(status || "").toLowerCase()} ${String(detail || "").toLowerCase()}`;
+  if (
+    /\b(out|inactive|dnp|did not play|ruled out|available:\s*out|suspended|not with team)\b/.test(s)
+  ) {
+    return "out";
+  }
+  if (/\b(doubtful)\b/.test(s)) return "doubtful";
+  if (/\b(questionable|game[- ]time decision|gtd|probable)\b/.test(s)) return "questionable";
+  return "unknown";
+}
+
+function hasMaterialNbaNewsImpact(newsImpact) {
+  const teams = Array.isArray(newsImpact?.affectedTeams) ? newsImpact.affectedTeams : [];
+  return teams.some((t) => (t?.outs || []).length > 0 || (t?.doubtful || []).length > 0);
+}
+
+function getNbaInjuryIndex(nbaContext) {
+  const map = new Map();
+  for (const row of nbaContext?.injuries || []) {
+    const name = String(row?.player || "").trim();
+    if (!name) continue;
+    map.set(name.toLowerCase(), {
+      player: name,
+      team: String(row?.team || "").toUpperCase(),
+      statusRaw: String(row?.status || "").trim(),
+      detail: String(row?.detail || "").trim(),
+      statusClass: normalizeNbaAvailabilityClass(row?.status, row?.detail),
+    });
+  }
+  return map;
+}
+
+function buildNbaPlayerUniverse(nbaContext) {
+  const set = new Set();
+  for (const row of nbaContext?.playerStats || []) {
+    const name = String(row?.name || "").trim();
+    if (name) set.add(name);
+  }
+  for (const row of nbaContext?.propLines || []) {
+    const name = String(row?.player || "").trim();
+    if (name) set.add(name);
+  }
+  for (const row of nbaContext?.injuries || []) {
+    const name = String(row?.player || "").trim();
+    if (name) set.add(name);
+  }
+  return [...set];
+}
+
+function resolveQuestionNbaPlayer(question, nbaContext) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  const players = buildNbaPlayerUniverse(nbaContext);
+  const sorted = players
+    .map((name) => String(name || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+
+  for (const name of sorted) {
+    const re = new RegExp(`\\b${escapeRegExp(name)}\\b`, "i");
+    if (re.test(q)) return name;
+  }
+
+  const surnameToFull = new Map();
+  for (const name of sorted) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    const last = String(parts[parts.length - 1] || "").toLowerCase();
+    if (!last || last.length < 4) continue;
+    if (!surnameToFull.has(last)) surnameToFull.set(last, new Set());
+    surnameToFull.get(last).add(name);
+  }
+  const qLower = q.toLowerCase();
+  for (const [surname, fullSet] of surnameToFull.entries()) {
+    if (fullSet.size !== 1) continue;
+    const re = new RegExp(`\\b${escapeRegExp(surname)}(?:'s)?\\b`, "i");
+    if (re.test(qLower)) return [...fullSet][0];
+  }
+
+  // Fallback when slate context is empty: infer from direct prop phrasing.
+  const direct = q.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:over|under)\b/);
+  if (direct?.[1]) return direct[1].trim();
+  const statAsk = q.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:points?|rebounds?|assists?|pra)\b/i);
+  if (statAsk?.[1]) return statAsk[1].trim();
+  const possessive = q.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'s\s+(?:line|prop|points|rebounds|assists|pra)\b/);
+  if (possessive?.[1]) return possessive[1].trim();
+
+  return null;
+}
+
+function resolveNbaPlayerTeam(playerName, nbaContext) {
+  const key = String(playerName || "").trim().toLowerCase();
+  if (!key) return "";
+  const statsHit = (nbaContext?.playerStats || []).find(
+    (p) => String(p?.name || "").trim().toLowerCase() === key,
+  );
+  if (statsHit?.team) return String(statsHit.team).toUpperCase();
+  const injuryHit = (nbaContext?.injuries || []).find(
+    (i) => String(i?.player || "").trim().toLowerCase() === key,
+  );
+  if (injuryHit?.team) return String(injuryHit.team).toUpperCase();
+  return "";
+}
+
+function sanitizeNbaQuestionForGeneration(question, nbaContext) {
+  const raw = String(question || "").trim();
+  if (!raw) return raw;
+  const targeted = resolveQuestionNbaPlayer(raw, nbaContext);
+  if (!targeted) return raw;
+  const targetedTeam = resolveNbaPlayerTeam(targeted, nbaContext);
+  const hasTargetedTeam = Boolean(targetedTeam);
+
+  let sanitized = raw;
+  const pattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+is\s+(out|doubtful|questionable)\b/gi;
+  let m;
+  while ((m = pattern.exec(raw)) !== null) {
+    const mention = String(m[1] || "").trim();
+    if (!mention || mention.toLowerCase() === targeted.toLowerCase()) continue;
+    const mentionFull = resolveQuestionNbaPlayer(mention, nbaContext) || mention;
+    const mentionTeam = resolveNbaPlayerTeam(mentionFull, nbaContext);
+    const sameTeam = hasTargetedTeam && mentionTeam && mentionTeam === targetedTeam;
+    if (!sameTeam) {
+      sanitized = sanitized.replace(m[0], "").replace(/\s{2,}/g, " ").trim();
+    }
+  }
+
+  return sanitized || raw;
+}
+
+function inferNbaPlayerCentrality(playerName, nbaContext, injuryMeta = null) {
+  const key = String(playerName || "").trim().toLowerCase();
+  if (!key) return "low";
+  const props = (nbaContext?.propLines || []).filter(
+    (pl) => String(pl?.player || "").trim().toLowerCase() === key,
+  );
+  const hasPra = props.some((pl) =>
+    String(pl?.prop || "").toLowerCase().includes("points rebounds assists"),
+  );
+  const stats = (nbaContext?.playerStats || []).find(
+    (p) => String(p?.name || "").trim().toLowerCase() === key,
+  );
+  const pts = Number(stats?.pts || 0);
+  const ast = Number(stats?.ast || 0);
+  const reb = Number(stats?.reb || 0);
+  if (hasPra || props.length >= 3) return "high";
+  if (pts >= 22 || ast >= 7 || reb >= 10) return "high";
+  if (props.length >= 2 || pts >= 16 || ast >= 5 || reb >= 8) return "medium";
+  if (injuryMeta?.statusClass === "out") return "medium";
+  return "low";
+}
+
+export function summarizeNbaNewsImpact(newsImpact) {
+  const teams = Array.isArray(newsImpact?.affectedTeams) ? newsImpact.affectedTeams : [];
+  const material = teams.filter(
+    (t) => (t?.outs || []).length > 0 || (t?.doubtful || []).length > 0,
+  );
+  if (material.length === 0) return "";
+  const lines = [];
+  for (const t of material.slice(0, 2)) {
+    const outLine = (t.outs || []).length ? `OUT: ${(t.outs || []).join(", ")}` : null;
+    const doubtLine =
+      (t.doubtful || []).length ? `DOUBTFUL: ${(t.doubtful || []).join(", ")}` : null;
+    const benefit = (t.beneficiaries || [])
+      .slice(0, 2)
+      .map((b) => `${b.player} (${(b.markets || []).join("/")})`)
+      .join("; ");
+    const parts = [outLine, doubtLine].filter(Boolean).join(" | ");
+    const benefPart = benefit ? ` | BENEFICIARIES: ${benefit}` : "";
+    lines.push(`${t.team} [${t.priority || "low"}] ${parts}${benefPart}`.trim());
+  }
+  return lines.join("\n");
+}
+
+export function buildNbaStatusShiftSection(newsImpact, invalidation) {
+  if (invalidation?.blocked && invalidation?.targetedPlayer) {
+    if (invalidation?.blockedReason === "unlisted_market") {
+      return "";
+    }
+    return `${invalidation.targetedPlayer} is ${invalidation.statusDisplay || invalidation.statusClass}. Direct prop projection is invalid at this status.`;
+  }
+  if (invalidation?.unresolved && invalidation?.targetedPlayer) {
+    return `${invalidation.targetedPlayer} status is unresolved (${invalidation.statusDisplay || invalidation.statusClass}). Treat any lean as contingent on final availability.`;
+  }
+  const teams = Array.isArray(newsImpact?.affectedTeams) ? newsImpact.affectedTeams : [];
+  const first = teams.find((t) => (t?.outs || []).length > 0 || (t?.doubtful || []).length > 0);
+  if (!first) return "";
+  const changed = [...(first.outs || []), ...(first.doubtful || [])].slice(0, 2).join(", ");
+  return `${first.team} rotation shifted by ${changed}. Price production through role reallocation, not baseline averages.`;
+}
+
+function isDirectNbaPropAsk(question) {
+  const qText = String(question || "");
+  return (
+    (/\b(over|under)\b/i.test(qText) && /\b\d{1,3}(?:\.\d+)?\b/.test(qText)) ||
+    (/\b(points?|rebounds?|assists?|pra)\b/i.test(qText) &&
+      /\b(tonight|live|now|game)\b/i.test(qText))
+  );
+}
+
+export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
+  const targetedPlayer = resolveQuestionNbaPlayer(question, board);
+  const injuriesByPlayer = getNbaInjuryIndex(board);
+  const injuryMeta = targetedPlayer
+    ? injuriesByPlayer.get(String(targetedPlayer).toLowerCase()) || null
+    : null;
+  const statusClass = injuryMeta?.statusClass || "unknown";
+  const centrality = targetedPlayer
+    ? inferNbaPlayerCentrality(targetedPlayer, board, injuryMeta)
+    : "low";
+  const unresolvedCentral =
+    (statusClass === "questionable" || statusClass === "doubtful") && centrality !== "low";
+  const blocked = statusClass === "out";
+  const affectedTeams = new Set(
+    (newsImpact?.affectedTeams || [])
+      .filter((t) => (t?.outs || []).length > 0 || (t?.doubtful || []).length > 0)
+      .map((t) => String(t?.team || "").toUpperCase())
+      .filter(Boolean),
+  );
+  const statsRow = targetedPlayer
+    ? (board?.playerStats || []).find(
+        (p) =>
+          String(p?.name || "").trim().toLowerCase() ===
+          String(targetedPlayer).trim().toLowerCase(),
+      )
+    : null;
+  const targetedTeam = String(injuryMeta?.team || statsRow?.team || "").toUpperCase();
+  const materialRelevantImpact =
+    hasMaterialNbaNewsImpact(newsImpact) &&
+    (!targetedPlayer || (targetedTeam && affectedTeams.has(targetedTeam)));
+  const directPropAsk = isDirectNbaPropAsk(question);
+  const hasTargetPlayerMarket =
+    targetedPlayer &&
+    (board?.propLines || []).some(
+      (pl) =>
+        String(pl?.player || "").trim().toLowerCase() ===
+        String(targetedPlayer).trim().toLowerCase(),
+    );
+  // STAGE 1 SAFETY BASELINE (do not relax without explicit Stage 2 routing):
+  // For direct NBA player-prop asks, if there is no active listed market for the targeted player,
+  // return terminal MARKET AVAILABILITY blocking instead of model prose.
+  const blockedNoMarket = Boolean(
+    targetedPlayer && directPropAsk && !hasTargetPlayerMarket,
+  );
+  const requiresStatusAcknowledgement =
+    blocked || unresolvedCentral || materialRelevantImpact;
+  return {
+    decisionMode: blocked
+      ? "blocked_unavailable"
+      : blockedNoMarket
+        ? "blocked_unlisted_market"
+      : unresolvedCentral
+        ? "unresolved_status"
+        : "normal",
+    blocked: blocked || blockedNoMarket,
+    blockedReason: blocked ? "unavailable" : blockedNoMarket ? "unlisted_market" : null,
+    unresolved: unresolvedCentral,
+    targetedPlayer,
+    statusClass,
+    statusDisplay: injuryMeta?.statusRaw || injuryMeta?.detail || statusClass,
+    team: injuryMeta?.team || null,
+    materialRelevantImpact,
+    requiresStatusAcknowledgement,
+    hasTargetPlayerMarket,
+    directPropAsk,
+  };
+}
+
+function confidenceLabelToRank(label) {
+  const normalized = String(label || "").toLowerCase();
+  if (normalized === "high") return 3;
+  if (normalized === "medium") return 2;
+  return 1;
+}
+
+function confidenceRankToLabel(rank) {
+  if (rank >= 3) return "High";
+  if (rank >= 2) return "Medium";
+  return "Low";
+}
+
+export function applyNbaConfidenceModifiers({
+  baseConfidence,
+  invalidation,
+  nbaContext,
+}) {
+  return {
+    label: String(baseConfidence || "Low"),
+    reason: "",
+  };
+}
+
+function detectNbaAvailabilityIntent(question) {
+  return {
+    isAvailabilityQuestion: false,
+    asksBettingConsequence: false,
+  };
+}
+
+function resolveNbaDecisionMode({
+  sportHint,
+  availabilityIntent,
+  directPropAsk,
+  invalidation,
+}) {
+  if (sportHint !== "nba") return "none";
+  if (invalidation?.blockedReason === "unavailable") return "blocked_unavailable";
+  if (invalidation?.blockedReason === "unlisted_market") return "blocked_unlisted_market";
+  return "actionable";
+}
+
+function buildNbaConditionalPayload({ invalidation, nbaContext, newsImpact }) {
+  return null;
+}
+
+function nbaTeamSignals(team) {
+  const out = new Set();
+  const abbr = String(team?.abbr || "").toUpperCase();
+  const name = String(team?.name || "").toLowerCase();
+  if (abbr) out.add(abbr.toLowerCase());
+  if (name) out.add(name);
+  const cleaned = name.replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (cleaned) {
+    out.add(cleaned);
+    const tokens = cleaned.split(" ").filter(Boolean);
+    const last = tokens[tokens.length - 1];
+    if (last && last.length >= 4) out.add(last);
+  }
+  return out;
+}
+
+export function resolveNbaMatchupFromQuestion(question, nbaContext) {
+  const q = normalizeText(question);
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  if (!q || games.length === 0) return null;
+
+  const abbrs = extractNbaTeamAbbrevsFromQuestion(question);
+  if (abbrs.length >= 2) {
+    const exact = games.find((g) => {
+      const away = String(g?.awayTeam?.abbr || "").toUpperCase();
+      const home = String(g?.homeTeam?.abbr || "").toUpperCase();
+      return abbrs.includes(away) && abbrs.includes(home);
+    });
+    if (exact) {
+      return {
+        awayAbbr: String(exact?.awayTeam?.abbr || "").toUpperCase(),
+        homeAbbr: String(exact?.homeTeam?.abbr || "").toUpperCase(),
+        label: `${String(exact?.awayTeam?.abbr || "").toUpperCase()} at ${String(exact?.homeTeam?.abbr || "").toUpperCase()}`,
+      };
+    }
+  }
+
+  for (const g of games) {
+    const awaySignals = nbaTeamSignals(g?.awayTeam);
+    const homeSignals = nbaTeamSignals(g?.homeTeam);
+    const awayHit = [...awaySignals].some((s) => q.includes(s));
+    const homeHit = [...homeSignals].some((s) => q.includes(s));
+    if (awayHit && homeHit) {
+      const awayAbbr = String(g?.awayTeam?.abbr || "").toUpperCase();
+      const homeAbbr = String(g?.homeTeam?.abbr || "").toUpperCase();
+      if (!awayAbbr || !homeAbbr) continue;
+      return {
+        awayAbbr,
+        homeAbbr,
+        label: `${awayAbbr} at ${homeAbbr}`,
+      };
+    }
+  }
+
+  return null;
+}
+
+export function buildAllowedMatchupPlayerPool(matchup, nbaContext) {
+  const allowedTeams = matchup ? [matchup.awayAbbr, matchup.homeAbbr].filter(Boolean) : [];
+  const teamSet = new Set(allowedTeams.map((t) => String(t || "").toUpperCase()));
+  const playersByTeamAbbrev = nbaContext?.rosterGrounding?.playersByTeamAbbrev || {};
+  const byTeam = {};
+  const playerToTeam = new Map();
+
+  for (const team of teamSet) {
+    byTeam[team] = [];
+    for (const n of playersByTeamAbbrev?.[team] || []) {
+      const name = String(n || "").trim();
+      if (!name) continue;
+      if (!byTeam[team].includes(name)) byTeam[team].push(name);
+      if (!playerToTeam.has(name.toLowerCase())) playerToTeam.set(name.toLowerCase(), team);
+    }
+  }
+
+  for (const row of nbaContext?.playerStats || []) {
+    const team = String(row?.team || "").toUpperCase();
+    const name = String(row?.name || "").trim();
+    if (!teamSet.has(team) || !name) continue;
+    if (!byTeam[team]) byTeam[team] = [];
+    if (!byTeam[team].includes(name)) byTeam[team].push(name);
+    if (!playerToTeam.has(name.toLowerCase())) playerToTeam.set(name.toLowerCase(), team);
+  }
+
+  const knownPlayerToTeam = new Map(playerToTeam);
+  for (const row of nbaContext?.playerStats || []) {
+    const name = String(row?.name || "").trim();
+    const team = String(row?.team || "").toUpperCase();
+    if (name && team && !knownPlayerToTeam.has(name.toLowerCase())) {
+      knownPlayerToTeam.set(name.toLowerCase(), team);
+    }
+  }
+  for (const row of nbaContext?.injuries || []) {
+    const name = String(row?.player || "").trim();
+    const team = String(row?.team || "").toUpperCase();
+    if (name && team && !knownPlayerToTeam.has(name.toLowerCase())) {
+      knownPlayerToTeam.set(name.toLowerCase(), team);
+    }
+  }
+
+  for (const team of Object.keys(byTeam)) byTeam[team].sort();
+  const allowedPlayers = [...playerToTeam.keys()].map((k) => {
+    for (const [team, names] of Object.entries(byTeam)) {
+      const found = names.find((n) => n.toLowerCase() === k);
+      if (found) return found;
+    }
+    return k;
+  });
+
+  return {
+    allowedTeams,
+    allowedPlayers,
+    byTeam,
+    playerToTeam,
+    knownPlayerToTeam,
+  };
+}
+
+function injectMatchupGroundingBlock(matchup, pool) {
+  if (!matchup || !pool || pool.allowedTeams.length !== 2) return "";
+  const awayList = (pool.byTeam[matchup.awayAbbr] || []).slice(0, 12).join(", ") || "(none grounded)";
+  const homeList = (pool.byTeam[matchup.homeAbbr] || []).slice(0, 12).join(", ") || "(none grounded)";
+  return `VALID MATCHUP
+- ${matchup.label}
+VALID PLAYER POOL
+- ${matchup.awayAbbr}: ${awayList}
+- ${matchup.homeAbbr}: ${homeList}
+
+MATCHUP ENFORCEMENT
+- If you mention any player-specific prop or take, player must be from ${matchup.awayAbbr} or ${matchup.homeAbbr}.
+- Do not mention players from other games/teams.
+- If grounded player pool is thin, use team-level analysis and do NOT guess player names.`;
+}
+
+function extractMentionedPlayersFromOutput(output, knownPlayerToTeam) {
+  const text = String(output || "");
+  if (!text || !knownPlayerToTeam || knownPlayerToTeam.size === 0) return [];
+  const names = [...knownPlayerToTeam.keys()]
+    .map((k) => {
+      const pretty = k
+        .split(" ")
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(" ");
+      return { key: k, pretty };
+    })
+    .sort((a, b) => b.pretty.length - a.pretty.length);
+  const hits = [];
+  for (const n of names) {
+    const re = new RegExp(`\\b${escapeRegExp(n.pretty)}\\b`, "i");
+    if (re.test(text)) hits.push(n.key);
+  }
+  return [...new Set(hits)];
+}
+
+function validatePlayersAgainstMatchup(mentionedPlayers, allowedTeamSet, playerToTeamMap) {
+  const invalid = [];
+  for (const p of mentionedPlayers || []) {
+    const team = String(playerToTeamMap?.get(p) || "").toUpperCase();
+    if (!team) continue;
+    if (!allowedTeamSet.has(team)) {
+      invalid.push({
+        player: p
+          .split(" ")
+          .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+          .join(" "),
+        team,
+      });
+    }
+  }
+  return invalid;
+}
+
+function repairOrRegenerateInvalidMatchupOutput({ matchup, pool, invalidPlayers }) {
+  const away = matchup?.awayAbbr || "AWAY";
+  const home = matchup?.homeAbbr || "HOME";
+  const awayPlayers = (pool?.byTeam?.[away] || []).slice(0, 5).join(", ") || "(none grounded)";
+  const homePlayers = (pool?.byTeam?.[home] || []).slice(0, 5).join(", ") || "(none grounded)";
+  const invalidLine = (invalidPlayers || []).map((x) => `${x.player} (${x.team})`).join(", ");
+  return `MATCHUP GROUNDING\nValid matchup: ${away} at ${home}.\nCross-game player mentions were removed: ${invalidLine}.\n\nVALID PLAYER POOL\n${away}: ${awayPlayers}\n${home}: ${homePlayers}\n\nNEXT ACTION\nUse only players from ${away} or ${home}. If you want player props, pick names from the valid pool above.`;
+}
+
+function buildNbaAvailabilityResponse({
+  question,
+  nbaContext,
+  nbaInvalidation,
+  derivedConfidence,
+  nbaConfidenceModifier,
+  decisionMode,
+}) {
+  const targetedPlayer = nbaInvalidation?.targetedPlayer || resolveQuestionNbaPlayer(question, nbaContext) || "Target player";
+  const injuriesByPlayer = getNbaInjuryIndex(nbaContext || {});
+  const injuryMeta = injuriesByPlayer.get(String(targetedPlayer).toLowerCase()) || null;
+  const statusClass = injuryMeta?.statusClass || "unknown";
+  const statusDisplay = injuryMeta?.statusRaw || injuryMeta?.detail || (statusClass === "unknown" ? "No injury designation in current context" : statusClass);
+  const intent = detectNbaAvailabilityIntent(question);
+  const includeConsequence =
+    decisionMode === "status_plus_consequence" || intent.asksBettingConsequence;
+
+  const firstLine =
+    statusClass === "unknown"
+      ? `STATUS\n${targetedPlayer} — ${statusDisplay}.`
+      : `STATUS\n${targetedPlayer} — ${statusDisplay}.`;
+
+  const confidenceLine = `CONFIDENCE\n${derivedConfidence}${nbaConfidenceModifier?.reason ? ` — ${nbaConfidenceModifier.reason}` : ""}`;
+  let consequenceBlock = "";
+  if (includeConsequence) {
+    if (statusClass === "out") {
+      const teamImpact = (nbaContext?.newsImpact?.affectedTeams || []).find(
+        (t) => String(t?.team || "").toUpperCase() === String(injuryMeta?.team || "").toUpperCase(),
+      );
+      const beneficiaryLine = (teamImpact?.beneficiaries || [])
+        .slice(0, 2)
+        .map((b) => `${b.player} (${(b.markets || []).join("/")})`)
+        .join("; ");
+      consequenceBlock = `\n\nBETTING CONSEQUENCE\nDo not play ${targetedPlayer} direct props while this status holds.${beneficiaryLine ? ` Pivot watchlist: ${beneficiaryLine}.` : ""}`;
+    } else if (statusClass === "questionable" || statusClass === "doubtful") {
+      consequenceBlock = `\n\nBETTING CONSEQUENCE\nTreat ${targetedPlayer} props as contingent until final availability confirms. Avoid full-size exposure before status lock.`;
+    } else {
+      consequenceBlock = `\n\nBETTING CONSEQUENCE\nNo explicit injury downgrade in current context. Use listed markets and matchup structure for any sizing decision.`;
+    }
+  }
+
+  const statusShift =
+    statusClass === "out" || statusClass === "questionable" || statusClass === "doubtful"
+      ? `${targetedPlayer} status is ${statusDisplay}. Availability should be acknowledged before prop recommendations.`
+      : null;
+
+  return {
+    response: `${firstLine}${consequenceBlock}\n\n${confidenceLine}`,
+    statusShift,
+  };
+}
+
 function isTier1InformationalQuestion(question) {
   const q = normalizeText(question);
   if (
@@ -1270,13 +1820,14 @@ function resolveOutputJsonMode({
   return "plain";
 }
 
-function buildJsonOutputContract(mode, sportHint) {
+function buildJsonOutputContract(mode, sportHint, { requireStatusShift = false } = {}) {
   const sport = String(sportHint || "generic").toLowerCase();
 
   const nbaTier25Lead =
     sport === "nba"
       ? `
 NBA (mandatory when sport is NBA): The summary string MUST begin with >> as the first non-whitespace characters, then one sharp take sentence (same voice as Tier-3 >> opener). Do not put roster, verification, loading, or data-thinness sentences before >>. Never use banned phrases listed in the user-message ABSOLUTE PROHIBITION block.
+${requireStatusShift ? 'NBA STATUS SHIFT (mandatory): include "statusShift" in the JSON response with one decisive sentence naming the key availability shift and what it invalidates or unlocks.' : ""}
 `
       : "";
 
@@ -1335,7 +1886,7 @@ No other keys. No markdown.`;
   if (mode === "tier2_5_json") {
     return `OUTPUT CONTRACT — TIER 2.5 + DEEP (mandatory)
 Return ONLY valid JSON with exactly these keys:
-{"summary":"...","deep":"..."}
+${sport === "nba" && requireStatusShift ? '{"summary":"...","deep":"...","statusShift":"..."}' : '{"summary":"...","deep":"..."}'}
 
 ${tier25Spec}`;
   }
@@ -1886,6 +2437,29 @@ export default async function handler(req, res) {
     }
   }
 
+  if (sportHint === "nba" && nbaContext && !nbaContext.newsImpact) {
+    nbaContext.newsImpact = buildNbaNewsImpact(nbaContext);
+  }
+
+  const nbaNewsImpact = sportHint === "nba" ? nbaContext?.newsImpact || null : null;
+  const nbaInvalidation =
+    sportHint === "nba"
+      ? applyNbaMarketInvalidation({
+          question,
+          board: nbaContext || {},
+          newsImpact: nbaNewsImpact,
+        })
+      : {
+          decisionMode: "normal",
+          blocked: false,
+          unresolved: false,
+          targetedPlayer: null,
+          statusClass: "unknown",
+          statusDisplay: "",
+          team: null,
+          requiresStatusAcknowledgement: false,
+        };
+
   const contextQuality = getContextQuality({
     sportHint,
     players,
@@ -1899,7 +2473,7 @@ export default async function handler(req, res) {
     matchupContext,
   });
 
-  const derivedConfidence = deriveConfidenceLabel({
+  const baseDerivedConfidence = deriveConfidenceLabel({
     intent,
     sportHint,
     hasImage,
@@ -1908,380 +2482,52 @@ export default async function handler(req, res) {
     contextQuality,
     isLive: liveSignals.isLive,
   });
-
-  const baseSystemPrompt = `You are Under Review -- a sharp sports betting intelligence tool.
-
-TODAY
-${getTodayStr()}
-
-FOLLOW-UPS
-When the user message is a short follow-up, use the prior user/assistant turns in this request to resolve names, "they", and "both" before answering.
-
-IDENTITY
-Lead with the take.
-Never hedge.
-Never open with a limitation.
-Talk like a sharp friend texting a group chat, not like a research report.
-Plain text only.
-
-FORMATTING
-NEVER use markdown.
-Plain text only.
-
-DEFAULT RESPONSE FORMAT
-
-The first line must be an OPENING LINE — a single short, confident statement.
-Format it exactly like this, with no label, just the line itself on the very first line of the response:
-
->> [opening line]
-
-The opening line should feel like a text from a sharp friend. Rules for the opener:
-- Maximum 10 words.
-- Name the player or team when possible.
-- Use period breaks for punch ("Fitzpatrick. Lock it in." or "Pass. Cobolli's a trap.").
-- No hedging words: "probably", "maybe", "seems like", "I think".
-- No disclaimers, no questions, no generic phrases like "solid play" or "good value".
-- Tone examples:
-  "Fitzpatrick. Lock it in."
-  "Back Sabalenka. Gauff can't handle the power on clay."
-  "Pass. Hall's TD prop is a trap."
-  "Zverev in straights. Easy."
-  "Fade the Fitzpatrick outright. Take him top-5 instead."
-  "Brunson under makes sense if the opener lands 27.5+ — Knicks depth eats usage at home."
-
-After the opening line, leave ONE blank line, then use exactly this structured format with blank lines between sections:
-
-THE PLAY
-[one line]
-
-MARKET MISTAKE
-[one line]
-
-WHY MISPRICED
-[one to two lines focused on price/probability gap]
-
-TIMING EDGE
-[one line: bet now / wait / live trigger]
-
-WHY IT FITS
-[one to two lines]
-
-FADE
-[one explicit pass/fade line]
-
-CONFIDENCE
-[High / Medium / Speculative]
-
-TIMING
-[one line]
-
-RESPONSE FORMAT TIERS — PICK THE RIGHT SHAPE
-
-Before responding, classify the question into one of three tiers:
-
-TIER 1 — FACTUAL / INFORMATIONAL
-Questions like: "Is Jokic playing?" "What's the spread?" "Who won last night?"
-"When does the game start?" "Is Surtain active?"
-Response: One to three sentences. No sections. No format. Direct answer.
-If relevant, add one sharp observation ("Yes, starting. He's been a fade at
-home this series though.") but do not force the full take format.
-TIER 1 OVERRIDES the >> opening line rule and the 8-section structure for this
-response only — no >> line, no THE PLAY / MARKET MISTAKE blocks.
-
-TIER 2 — LIVE IN-GAME
-Question references current game state (score, time left, live screenshot,
-"right now", "just happened", "what now").
-Response: Follow LIVE GAME MATH ENGINE below — compressed format: LIVE CALL,
-THE MATH, WHY NOW, CLOCK, WATCH FOR. Show arithmetic explicitly (points needed,
-pace, time remaining) when numbers are visible; never vague "a few more."
-
-TIER 3 — FULL BETTING DECISION
-Questions like: "Best prop tonight?" "Should I take this parlay?"
-"Who wins and why?" "Give me a play on this game."
-Response: Full 8-section format (THE PLAY / MARKET MISTAKE / WHY MISPRICED /
-TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING), with the >> opening
-line as already specified above.
-
-Do not apologize for picking a shorter format. Do not say "here's a quick
-answer" — just answer. The user will feel the right shape immediately.
-
-If a question is ambiguous, default to Tier 3.
-
-EDGE MODE RULES
-Frame every answer as a market inefficiency, not a generic "best play".
-Explicitly reference price quality when context supports it.
-Be decisive: one primary play, one explicit pass/fade.
-
-If no clear edge exists with posted lines, deliver the pre-game
-read using available context — player season averages, matchup
-dynamics, playoff series context, pace expectations.
-The pre-game read IS the edge. Deliver it as the answer.
-
-BANNED OPENERS — these phrases may never start a response:
-"No edge here"
-"No edge"
-"I don't have"
-"I can't"
-"Without [data]"
-"The context provided"
-"The data provided"
-"Come back when"
-"When lines post"
-
-If you find yourself about to write any of these as an opener,
-delete it and start with the first piece of actual analysis instead.
-
-FINAL RESPONSE PRIORITY (overrides conflicting wording elsewhere):
-1. Fast: open with the take in the first sentence.
-2. Specific: name player/team/market and threshold when possible.
-3. Actionable now: tell user exactly what to do or what trigger to watch.
-4. Consistent tone: sharp, concise, no pipeline/data-availability commentary.
-5. Trustworthy: if data is thin, keep uncertainty in CONFIDENCE only.
-
-PERFORMANCE TRACKER OUTPUT IS FORBIDDEN IN BODY TEXT:
-- Never output lines containing "historical record", "Tier historical record",
-  "Last 30 days on this confidence tier", "0-0-0", or "0.0u".
-- Never include confidence-tier performance summaries in response prose.
-
-PRIOR TAKE RULE
-If you already gave a take on this player, team, game, or tournament
-earlier in the conversation, maintain that position unless new
-information justifies changing it. New information means: breaking
-news, live game state change, user-provided correction of a factual
-error, or a legitimately new angle the user raises that you had not
-considered.
-
-If you DO change your position, acknowledge it explicitly in the
-opening line:
-"Updating my earlier call — [new take]. [One-sentence reason.]"
-
-Never silently contradict an earlier take. Never flip sides without
-stating why.
-
-When PRIOR TAKES THIS SESSION appears in the user message, treat it as
-authoritative context about your own prior positions. Cross-reference
-actively — correlated bets, same-game stacks, repeated player questions,
-and contradictions are all signals the user needs to hear.
-
-CHALLENGE RESPONSE RULE
-When a user pushes back on your take, do not reflexively agree.
-Follow this hierarchy:
-
-1. If they provide NEW information (injury update, lineup change,
-   live score, a stat you did not cite), update your take with an
-   explicit acknowledgment: "Good catch — that changes it."
-
-2. If they DISAGREE with your reasoning but provide no new info,
-   HOLD your position. Respond with: "I still have [original take].
-   Here's why that doesn't change my read: [one-line reason]."
-   Do not soften. Do not hedge. Your job is conviction, not
-   consensus.
-
-3. If they push a SECOND time on the same play without new info,
-   still hold. Restate your position once more, more briefly.
-
-4. If they push a THIRD time, or use emotional language
-   ("I need this to hit", "but I already bet the other side",
-   "just tell me it's going to win"), call it out directly.
-   Use this exact tone:
-   "Sounds like you're trying to talk yourself into this. My take
-   hasn't changed. Take the L on this one or trust your own read —
-   I'm not going to co-sign a chase."
-
-You are a sharp friend, not a mirror. Users respect conviction.
-Users lose money when tools tell them what they want to hear.
-
-CONVICTION PRINCIPLE
-UR TAKE has conviction. It updates with evidence, holds under
-pressure, and tells the truth when the user is chasing. This is
-non-negotiable.
-
-- NEVER fabricate specific statistics. If a percentage, average, or rate does not
-  appear in the provided context data, do not invent it. Write "his strong rebounding
-  profile" not "he hits this in 85% of games." Made-up numbers destroy trust.
-
-- IMAGE CONTEXT RULE: When an image is provided, treat it as the ground truth for
-  live scores, current stats, and player status. If the image shows a player below
-  their prop line mid-game, do NOT declare the prop a winner. Read the actual numbers
-  visible in the screenshot and respond to what IS, not what you predict will happen.
-
-- PLAYER AVAILABILITY: If a player appears to be out or DNP based on context or image,
-  flag it immediately as the first line of your response. Do not analyze a prop for a
-  player who isn't playing.
-
-- LIVE GAME MATH ENGINE (mandatory for Tier 2 live responses)
-
-When the question is live (image attached, or keywords like "left in game",
-"right now", "currently", "needs"), you MUST do explicit arithmetic before
-responding. Follow this exact process:
-
-PROP INTEGRITY CHECK (mandatory before recommending any full-game prop)
-
-When the context or image shows a game is in progress (any score present, any
-time remaining, "halftime", "Q3", etc.), you MUST verify that any full-game
-prop you recommend has NOT already been cleared by the player's current stat
-line. This applies to Tier 2 and Tier 3 whenever the game is live or in progress.
-
-Process:
-1. Before recommending a full-game over/under, check: does the player's
-   current stat already exceed (for over) or already fall below impossible-
-   to-hit thresholds (for under) given time remaining?
-2. If yes, the prop is DEAD. Books will not post it. Do not recommend it.
-3. Instead, pivot to:
-   - Second-half props (2H points, 2H assists)
-   - Quarter-specific props (Q3 points)
-   - Alternate lines at higher thresholds (if he has 19 at half, recommend
-     the 30.5 or 32.5 alternate)
-   - Team-based live props (live spread, live total)
-
-Example of what NOT to do:
-"Avdija over 16.5 points — he has 19 at half, great value." — WRONG.
-That prop is already decided. You cannot bet it.
-
-Example of what TO do:
-"Avdija already has 19 at half. Full-game over 16.5 is dead. Look at his
-alternate line at 28.5+ or his 2H points over 10.5. Live triggers only."
-
-If no prop lines are posted yet and the game is already in progress, cite
-the current stat line explicitly, then pivot immediately to live-action paths
-(second-half props, quarter markets, alternate thresholds, live team totals) —
-never defer the answer waiting for books to post full-game numbers that are
-already mathematically closed.
-
-STEP 1 — Extract the state:
-- Current score (home and away)
-- Time remaining (specific — "7:32 in Q3" not "third quarter")
-- Player's current stat line if a prop is in question
-- The prop line and current price if visible
-
-CLOCK INTERPRETATION — READ THIS BEFORE ANY MATH
-
-NBA and NFL game clocks count DOWN not up.
-
-"2:53 in Q1" = 2:53 REMAINING = 9:07 ELAPSED in Q1
-
-Formula:
-- NBA quarter = 12 minutes total
-- Time elapsed in quarter = 12:00 minus clock time
-- Total game elapsed = (completed quarters × 12) + elapsed in current quarter
-- Time remaining in game = 48:00 minus total elapsed
-
-For pace extrapolation:
-1. Calculate elapsed correctly using the formula above
-2. Rate = combined score ÷ elapsed minutes
-3. Projected total = rate × 48
-4. Compare to posted total
-
-Example:
-MIN 18, DEN 31 at 2:53 in Q1
-Elapsed = 12:00 - 2:53 = 9:07 = 9.12 minutes
-Combined = 49 points
-Rate = 49 ÷ 9.12 = 5.37 points per minute
-Projected = 5.37 × 48 = 258 points
-vs total 230.5 → pace says OVER
-
-Always show the elapsed calculation explicitly.
-Never say "X minutes of play" when the clock shows time remaining.
-Never extrapolate from the wrong direction.
-
-STEP 2 — Do the math visibly:
-- For a points prop: [line] - [current points] = points needed
-- Divide by time remaining to get required pace
-- Compare to the player's per-minute average if available in playerStats
-- State the pace gap explicitly
-
-STEP 3 — Make the call using the math:
-- "Needs 8.5 points in 11 minutes. That's 0.77 PPM. He's averaging 0.62 PPM
-  this game. Math says live under."
-- "Needs 4 rebounds in 14 minutes. He has 6 in 22 minutes so far (0.27 RPG/min).
-  Required pace is 0.29. Basically on pace — coin flip. Pass."
-
-STEP 4 — Response format (compressed live):
-LIVE CALL
-[bet / pass / hedge — one line]
-
-THE MATH
-[show the arithmetic explicitly — current vs needed vs pace]
-
-WHY NOW
-[one to two lines on what the current game state means]
-
-CLOCK
-[time remaining and what triggers action]
-
-WATCH FOR
-[one specific trigger — name a player, score threshold, stat clip, or clock
-window that changes the bet. Even on PASS, give an actionable hook — never a
-"dismiss and return later" ending.]
-
-INTERNAL CONSISTENCY CHECK — mandatory before finalizing any live response
-
-Before writing the response, verify:
-1. Does the math support the conclusion? If extrapolation suggests OVER,
-   don't conclude UNDER without explicitly explaining why you're
-   overriding the math.
-2. Does the narrative match the game state? "Signals a grind" and
-   "Denver up 13 in Q1" cannot both be true simultaneously.
-   Pick one and explain it.
-3. If you catch a contradiction between your math and your conclusion,
-   state the contradiction explicitly: "The pace extrapolation suggests
-   OVER but the blowout trajectory suppresses second-half volume —
-   these signals conflict. Here's how I'm resolving it: [reasoning]"
-
-Never present contradictory signals as a unified take without
-acknowledging the conflict.
-
-If you cannot extract specific numbers from the image or question, say so
-directly ("I can't read the clock clearly — what's the time left?") and do
-NOT fabricate the math. Asking for missing numbers is better than inventing
-them.
-
-IMPORTANT: The math must be visible in the response. Users are paying for
-the calculation being done FOR them, not hidden in reasoning.
-
-Skip MARKET MISTAKE and WHY MISPRICED for live. The full 8-section format is
-for pre-game analysis (Tier 3). Live bets use this compressed shape with THE MATH.
-
-- Only cite specific statistics (scores, round totals, positions, yardages) if they appear in the provided context data. Never fabricate a specific number. If you don't have the exact stat, write "based on leaderboard position" or "based on current form" — not a made-up figure.
-- Never repeat the same WHY MISPRICED pattern across consecutive responses in a conversation. If the prior turn used "odds reflect the deficit without accounting for X", find a different angle.
-- Avoid filler phrases: "doesn't stay that way for 72 holes", "elite ball-striking will compound", "runway to make up ground". Say what you mean with actual data or don't say it.
-- The FADE must be a specific named player or market with a specific reason. "X is already baked in" is not a reason — state what the actual mispricing is.
-
-Do not put multiple labels on one line.
-Keep each section short.
-Plain text only.`;
-
-  const tennisSystemPromptExtra = `
-
-TENNIS MODE (mandatory)
-- ATP: live and upcoming draws from BallDontLie when configured; player rows from the ATP database.
-- WTA: same player-database depth; the match board may show "Elo snapshot" pairings tied to the active tournament — those are analytical lenses for pricing, not confirmed draw times. Never treat them as verified schedule.
-- Never tell the user the live feed is missing or that you are in "data-only mode". Execute from the player database and tournament context in the user message when the board is empty.
-- If BREAKING NEWS appears in the user message, it overrides static tournament favorites and all other priors. Do not recommend a withdrawn or injured-out player as an active bet. Reprice the field and name who benefits.
-- Use only statistics and names that appear in the provided player rows. Do not invent numbers.
-- ACE PROPS / SERVE VOLUME: The PROP GUIDE DIGEST block matches the in-app Prop Guide. Cite ONLY those printed values (or the verbatim ace_props JSON under it). Do not cite a different per-match ace average, "clay-only" figure, or percentage unless that exact token appears in PROP GUIDE DIGEST or ace_props JSON. If you need a clay number, it must be the avg_aces_clay field shown there on clay events — never a rounded guess.
-
-TENNIS RESPONSE WORDING RULES (global):
-1. Never reference the database, profile depth, or Elo rankings in the response body.
-   Banned phrases in the take body:
-   - "no dedicated UR profile row"
-   - "limited in profile depth"
-   - "database does not rank"
-   - "limited in the database"
-   - "profile is limited"
-   If data is thin, use CONFIDENCE only: "Medium — surface theory lead, limited statistical comparison available."
-
-2. WHY MISPRICED and WHY IT FITS must not repeat each other.
-   WHY MISPRICED = specific market error only (1–2 sentences max).
-   WHY IT FITS = player-specific matchup reason only (1–2 sentences max).
-   If they overlap, keep market angle in WHY MISPRICED and move player logic to WHY IT FITS.
-
-3. Age and injury context belongs in WHY IT FITS as a lead point, not buried.
-   If age/injury materially changes matchup stamina or movement, mention it in sentence 1 or 2.
-
-4. CONFIDENCE format is mandatory:
-   "[High/Medium/Speculative] — [one phrase explaining basis]".
-   Maximum 15 words after the dash.`;
+  const nbaConfidenceModifier =
+    sportHint === "nba"
+      ? applyNbaConfidenceModifiers({
+          baseConfidence: baseDerivedConfidence,
+          invalidation: nbaInvalidation,
+          nbaContext,
+        })
+      : { label: baseDerivedConfidence, reason: "" };
+  const derivedConfidence = nbaConfidenceModifier.label;
+  const nbaMatchup = null;
+  const nbaMatchupPool = null;
+  const nbaMatchupGroundingBlock = "";
+
+  const baseSystemPrompt = `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
+Every single response must follow these five steps in order. No exceptions.
+Step 1 — State the trigger condition, not the pick
+Open with WHEN to act, not what to do. The first line is always a condition: a line threshold, a minute marker, an injury status, a game script. Never open with a player name or a direction. Open with the situation that creates the edge.
+Step 2 — Acknowledge what the market and casual bettors see
+State the obvious read clearly and fairly. Do not strawman it. If the pace projects an over, say so. If the line looks right on the surface, say so. Users need to feel like you understand the other side before you dismantle it.
+Step 3 — Identify the fragile assumption behind the obvious read
+This is the entire product. Every market price rests on an assumption. Name it explicitly. "That projection assumes full Q4 minutes." "That line prices in continuation that the matchup doesn't support." "Books are treating this as a pace game when it's actually a rotation game." One sentence. Make it surgical.
+Step 4 — Anchor the edge in something structural, not statistical
+The bet lives in minutes, rotations, matchup architecture, game script, or foul trouble — not raw pace extrapolation. Pace is what everyone sees. Structure is what creates the edge. Reference at least one structural factor per pick.
+Step 5 — Close with one decisive sentence. No hedging.
+Short. Active voice. No qualifiers. "Under." "Fade at this number." "Over is clean if the line holds." The confidence tier does the hedging work. The closing line is conviction only.
+
+THE GOLDEN RULE — MANDATORY
+Never argue against a projection without explicitly naming the assumption you are fading. If the math says over and you are calling under, you must say: "That projection assumes X — and X is fragile because Y." This is non-negotiable. Any response that contradicts its own math without this explanation is a failed response.
+
+CONFIDENCE TIERS — REQUIRED ON EVERY PICK
+Tier 1 — STRONG EDGE: Clear mispricing with multiple aligned structural factors. Book it.
+Tier 2 — LEAN: Edge exists but depends on one or two assumptions holding. Price-dependent.
+Tier 3 — WATCH: Not a bet yet. Waiting on line movement, injury confirmation, or game script. Keeps the user engaged without forcing a bad spot.
+
+TONE RULES — ALWAYS / NEVER
+Always: Sound decisive. Explain why the market is wrong, not just what you think. Short punchy sentences after the logic lands.
+Never: Say "should hit" or "easy over." Over-extrapolate small samples without discounting them. Contradict your own projection without invoking the Golden Rule.
+
+RESPONSE STRUCTURE — EVERY TIME
+Market Snapshot: What's open, what's live, what's not posted yet.
+Live Angles: Two to four picks maximum. Each gets player, line trigger, tier, three to five lines of reasoning following the five steps, and a one-line close.
+Watchlist: Conditional plays waiting on news, line, or confirmation.
+News Edge: Where injury or lineup news creates immediate usage shifts before markets adjust.
+Closing Line: One branded sentence. Rotate from the approved list or generate a variant in the same voice. Examples: "Lines price production. Edges come from minutes." "Books price averages. Edges live in deviations." "Production is not sustainability."`;
+
+  const tennisSystemPromptExtra = ``;
 
   const systemPrompt = buildSystemPrompt(
     sportHint,
@@ -2299,7 +2545,10 @@ TENNIS RESPONSE WORDING RULES (global):
     matchupContext,
     sportHint,
   });
-  const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint);
+  const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint, {
+    requireStatusShift:
+      sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
+  });
   const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
   const systemPromptForModel =
     outputJsonMode !== "plain" && jsonContract
@@ -2315,6 +2564,129 @@ ${jsonContract}${propProjectionModeBlock}`
       : `${systemPrompt}${propProjectionModeBlock}`;
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
+  const nbaImpactSummary =
+    sportHint === "nba" ? summarizeNbaNewsImpact(nbaNewsImpact) : "";
+  const nbaStatusShiftLine =
+    sportHint === "nba"
+      ? buildNbaStatusShiftSection(nbaNewsImpact, nbaInvalidation)
+      : "";
+  const nbaAvailabilityIntent =
+    sportHint === "nba"
+      ? detectNbaAvailabilityIntent(question)
+      : { isAvailabilityQuestion: false, asksBettingConsequence: false };
+  const nbaDirectPropAsk = sportHint === "nba" ? isDirectNbaPropAsk(question) : false;
+  const nbaDecisionMode = resolveNbaDecisionMode({
+    sportHint,
+    availabilityIntent: nbaAvailabilityIntent,
+    directPropAsk: nbaDirectPropAsk,
+    invalidation: nbaInvalidation,
+  });
+  const nbaConditionalPayload =
+    sportHint === "nba" && nbaDecisionMode === "conditional_wait"
+      ? buildNbaConditionalPayload({
+          invalidation: nbaInvalidation,
+          nbaContext,
+          newsImpact: nbaNewsImpact,
+        })
+      : null;
+
+  if (
+    sportHint === "nba" &&
+    (nbaDecisionMode === "status_only" || nbaDecisionMode === "status_plus_consequence")
+  ) {
+    const availabilityPayload = buildNbaAvailabilityResponse({
+      question,
+      nbaContext,
+      nbaInvalidation,
+      derivedConfidence,
+      nbaConfidenceModifier,
+      decisionMode: nbaDecisionMode,
+    });
+    const takeRecord = extractTakeFromResponse({
+      responseText: availabilityPayload.response,
+      sport: "nba",
+      intent,
+      question,
+    });
+    if (userEmail) {
+      appendTakeForUser(userEmail, takeRecord).catch((e) => {
+        console.warn("take logging failed:", e?.message || e);
+      });
+    }
+    return res.status(200).json({
+      response: availabilityPayload.response,
+      responseDeep: null,
+      responseFormat: "plain",
+      statusShift: availabilityPayload.statusShift,
+      sport: "nba",
+      intent,
+      take: {
+        id: takeRecord.id,
+        playLine: takeRecord.playLine,
+        confidence: takeRecord.confidence,
+        status: takeRecord.status,
+      },
+    });
+  }
+
+  if (
+    sportHint === "nba" &&
+    (nbaDecisionMode === "blocked_unavailable" || nbaDecisionMode === "blocked_unlisted_market") &&
+    nbaInvalidation.targetedPlayer
+  ) {
+    const affected = (nbaNewsImpact?.affectedTeams || []).find(
+      (t) => String(t?.team || "").toUpperCase() === String(nbaInvalidation.team || "").toUpperCase(),
+    );
+    const beneficiaryLine = (affected?.beneficiaries || [])
+      .slice(0, 2)
+      .map((b) => `${b.player} (${(b.markets || []).join("/")})`)
+      .join("; ");
+    const blockedLead =
+      nbaInvalidation.blockedReason === "unlisted_market"
+        ? `${nbaInvalidation.targetedPlayer} is not on an active posted NBA slate right now. Direct prop projection is invalid until books list a live market.`
+        : `${nbaInvalidation.targetedPlayer} is ${nbaInvalidation.statusDisplay || "out"}. Direct prop projection is invalid.`;
+    const blockedHeader =
+      nbaInvalidation.blockedReason === "unlisted_market"
+        ? "MARKET AVAILABILITY"
+        : "STATUS SHIFT";
+    const blockedResponse = `${blockedHeader}
+${blockedLead}
+
+AVAILABILITY FIRST
+Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.
+${beneficiaryLine ? `If you need action now, pivot to likely role gainers: ${beneficiaryLine}.` : "If you need action now, pivot to teammates with expanded role, not the inactive player's market."}
+
+CONFIDENCE
+${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifier.reason}` : ""}`;
+    const blockedStatusShift =
+      nbaInvalidation.blockedReason === "unlisted_market" ? null : nbaStatusShiftLine || null;
+
+    const takeRecord = extractTakeFromResponse({
+      responseText: blockedResponse,
+      sport: "nba",
+      intent,
+      question,
+    });
+    if (userEmail) {
+      appendTakeForUser(userEmail, takeRecord).catch((e) => {
+        console.warn("take logging failed:", e?.message || e);
+      });
+    }
+    return res.status(200).json({
+      response: blockedResponse,
+      responseDeep: null,
+      responseFormat: "plain",
+      statusShift: blockedStatusShift,
+      sport: "nba",
+      intent,
+      take: {
+        id: takeRecord.id,
+        playLine: takeRecord.playLine,
+        confidence: takeRecord.confidence,
+        status: takeRecord.status,
+      },
+    });
+  }
 
   let userPrompt = question;
 
@@ -2749,6 +3121,7 @@ ${golfVerifiedBlock}
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
+${nbaConfidenceModifier.reason ? `- Confidence modifier: ${nbaConfidenceModifier.reason}` : ""}
 
 Rules:
 - Answer only as a golf analyst.
@@ -2798,12 +3171,22 @@ Never open with "no lines posted." Give monitoring hooks; name only verified gol
       question,
     });
 
+    const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);
+
     userPrompt = `You are answering an NBA betting question.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
-${question}
+${nbaQuestionForModel}
 
-NBA context:
+${nbaImpactSummary ? `HIGH-PRIORITY NBA NEWS IMPACT (SERVER-COMPUTED — READ FIRST)
+${nbaImpactSummary}
+
+` : ""}${nbaInvalidation.unresolved && nbaInvalidation.targetedPlayer ? `UNRESOLVED AVAILABILITY FLAG
+Target player: ${nbaInvalidation.targetedPlayer}
+Status: ${nbaInvalidation.statusDisplay || nbaInvalidation.statusClass}
+Rule: Do not give false certainty. Keep any take contingent on confirmed status.
+
+` : ""}${nbaMatchupGroundingBlock ? `${nbaMatchupGroundingBlock}\n\n` : ""}NBA context:
 ${JSON.stringify(nbaContext || {}, null, 2)}
 
 Confidence guidance:
@@ -2848,6 +3231,13 @@ If the injuries array shows a star player is out, LEAD WITH THAT.
 If the series is 3-0, LEAD WITH THAT — series pressure changes everything.
 If the game total is 215.5, that tells you something specific about pace
 expectations. USE IT.
+
+${nbaInvalidation.requiresStatusAcknowledgement && nbaStatusShiftLine ? `STATUS SHIFT ACKNOWLEDGMENT — MANDATORY
+You must explicitly acknowledge this status shift in the response:
+${nbaStatusShiftLine}
+If output is JSON Tier 2.5, include this in "statusShift" and keep it decisive.
+
+` : ""}
 
 The goal: a user reading this response should learn something specific
 about ATL vs NYK tonight that they couldn't get from a generic sports
@@ -2928,6 +3318,8 @@ Do NOT use "Watch for:" as a section header.
 Do NOT use player names as headers (no "JALEN BRUNSON —").
 Do NOT open with empty-slate throat-clearing about data availability ("nothing yet," "lines aren't up").
 Do NOT close by sending the user away until books post — the framework above is the full answer.
+
+Ignore unrelated injury callouts from the raw user text when they do not match the targeted player/team in this take.
 
 Hard cap: keep the entire answer under 200 words.
 
@@ -3583,12 +3975,16 @@ Rules:
     let responseText = text;
     let responseDeep = null;
     let responseFormat = "plain";
+    let responseStatusShift = null;
     if (outputJsonMode !== "plain") {
       const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
       if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
         const normalized = normalizeSummaryDeepPayload(parsed.summary, parsed.deep);
         responseText = normalized.summary;
         responseDeep = normalized.deep;
+        if (typeof parsed.statusShift === "string" && parsed.statusShift.trim()) {
+          responseStatusShift = parsed.statusShift.trim();
+        }
         responseFormat = outputJsonMode;
       } else if (outputJsonMode === "tier2_5_json") {
         // Fallback normalization for malformed / embedded JSON turns:
@@ -3606,6 +4002,43 @@ Rules:
         responseText = buildNbaNoMarketHardFallback(question, nbaContext);
         responseDeep = null;
         responseFormat = "plain";
+      }
+      if (nbaInvalidation.requiresStatusAcknowledgement && !responseStatusShift && nbaStatusShiftLine) {
+        responseStatusShift = nbaStatusShiftLine;
+      }
+      if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
+        const allowedTeamSet = new Set(
+          nbaMatchupPool.allowedTeams.map((t) => String(t || "").toUpperCase()),
+        );
+        const knownMap = nbaMatchupPool.knownPlayerToTeam;
+        const mentionsSummary = extractMentionedPlayersFromOutput(responseText, knownMap);
+        const mentionsDeep = extractMentionedPlayersFromOutput(responseDeep || "", knownMap);
+        const invalidSummary = validatePlayersAgainstMatchup(
+          mentionsSummary,
+          allowedTeamSet,
+          knownMap,
+        );
+        const invalidDeep = validatePlayersAgainstMatchup(
+          mentionsDeep,
+          allowedTeamSet,
+          knownMap,
+        );
+        const invalidAll = [...invalidSummary, ...invalidDeep].filter(
+          (v, i, arr) =>
+            arr.findIndex(
+              (x) => x.player.toLowerCase() === v.player.toLowerCase() && x.team === v.team,
+            ) === i,
+        );
+        if (invalidAll.length > 0) {
+          responseText = repairOrRegenerateInvalidMatchupOutput({
+            matchup: nbaMatchup,
+            pool: nbaMatchupPool,
+            invalidPlayers: invalidAll,
+          });
+          responseDeep = null;
+          responseFormat = "plain";
+          responseStatusShift = null;
+        }
       }
     }
 
@@ -3632,6 +4065,7 @@ Rules:
       response: responseText,
       responseDeep,
       responseFormat,
+      statusShift: responseStatusShift,
       sport: sportHint || "generic",
       intent,
       take: {
