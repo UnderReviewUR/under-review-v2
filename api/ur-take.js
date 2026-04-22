@@ -1817,6 +1817,31 @@ MATCHUP ENFORCEMENT
 - If grounded player pool is thin, use team-level analysis and do NOT guess player names.`;
 }
 
+function buildOffMatchupPromptAcknowledgement(question, matchup, pool) {
+  if (!matchup || !pool || pool.allowedTeams.length !== 2) return "";
+  const knownMap = pool.knownPlayerToTeam;
+  if (!knownMap || knownMap.size === 0) return "";
+  const allowedTeamSet = new Set(pool.allowedTeams.map((t) => String(t || "").toUpperCase()));
+  const mentioned = extractMentionedPlayersFromOutput(question, knownMap);
+  if (!mentioned.length) return "";
+  const offMatchup = mentioned
+    .map((key) => {
+      const team = String(knownMap.get(key) || "").toUpperCase();
+      if (!team || allowedTeamSet.has(team)) return null;
+      return key
+        .split(" ")
+        .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+        .join(" ");
+    })
+    .filter(Boolean);
+  if (!offMatchup.length) return "";
+  const teamLabel = `${matchup.awayAbbr}/${matchup.homeAbbr}`;
+  if (offMatchup.length === 1) {
+    return `Limiting to ${teamLabel} players — ${offMatchup[0]} is not part of this matchup.`;
+  }
+  return `Limiting to ${teamLabel} players — ${offMatchup.join(", ")} are not part of this matchup.`;
+}
+
 export function extractMentionedPlayersFromOutput(output, knownPlayerToTeam) {
   const text = String(output || "");
   if (!text || !knownPlayerToTeam || knownPlayerToTeam.size === 0) return [];
@@ -2657,6 +2682,8 @@ export default async function handler(req, res) {
   const nbaMatchupGroundingBlock =
     sportHint === "nba" ? injectMatchupGroundingBlock(nbaMatchup, nbaMatchupPool) : "";
   const nbaMatchupGroundingApplied = sportHint === "nba" && Boolean(nbaMatchupGroundingBlock);
+  const nbaOffMatchupPromptAcknowledgement =
+    sportHint === "nba" ? buildOffMatchupPromptAcknowledgement(question, nbaMatchup, nbaMatchupPool) : "";
 
   const baseSystemPrompt = `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
 Every single response must follow these five steps in order. No exceptions.
@@ -2836,7 +2863,9 @@ ${jsonContract}${propProjectionModeBlock}`
 ${blockedLead}
 
 AVAILABILITY FIRST
-Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.
+${nbaInvalidation.blockedReason === "unlisted_market"
+  ? `Do not play ${nbaInvalidation.targetedPlayer} props until books post a live market.`
+  : `Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.`}
 ${beneficiaryLine ? `If you need action now, pivot to likely role gainers: ${beneficiaryLine}.` : "If you need action now, pivot to teammates with expanded role, not the inactive player's market."}
 
 CONFIDENCE
@@ -4224,6 +4253,13 @@ Rules:
       }
       if (nbaDecisionMode === "conditional_wait" && !/\b(wait|contingen|status|confirm)\b/i.test(responseText)) {
         responseText = `Status is unresolved. Wait for final availability before locking a prop.\n\n${responseText}`;
+      }
+      if (
+        nbaMatchupGroundingApplied &&
+        nbaOffMatchupPromptAcknowledgement &&
+        !responseText.includes(nbaOffMatchupPromptAcknowledgement)
+      ) {
+        responseText = `${nbaOffMatchupPromptAcknowledgement}\n\n${responseText}`;
       }
       if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
         nbaPostValidationChecked = true;
