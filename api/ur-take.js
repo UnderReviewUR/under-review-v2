@@ -1412,12 +1412,13 @@ function getNbaInjuryIndex(nbaContext) {
 
 function buildNbaPlayerUniverse(nbaContext) {
   const set = new Set();
+  const grounded = nbaContext?.bdlGrounding?.bdlGroundedPlayers || {};
+  for (const name of Object.keys(grounded)) {
+    const normalized = String(name || "").trim();
+    if (normalized) set.add(normalized);
+  }
   for (const row of nbaContext?.playerStats || []) {
     const name = String(row?.name || "").trim();
-    if (name) set.add(name);
-  }
-  for (const row of nbaContext?.propLines || []) {
-    const name = String(row?.player || "").trim();
     if (name) set.add(name);
   }
   for (const row of nbaContext?.injuries || []) {
@@ -1427,18 +1428,42 @@ function buildNbaPlayerUniverse(nbaContext) {
   return [...set];
 }
 
-function resolveQuestionNbaPlayer(question, nbaContext) {
+export function resolveQuestionNbaPlayers(question, nbaContext) {
   const q = String(question || "").trim();
-  if (!q) return null;
+  if (!q) return [];
   const players = buildNbaPlayerUniverse(nbaContext);
   const sorted = players
     .map((name) => String(name || "").trim())
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
+  const hits = [];
+  const seen = new Set();
+  const expandCandidateName = (candidate) => {
+    const raw = String(candidate || "").trim();
+    if (!raw) return "";
+    const normalized = normalizeNbaMarketPlayerKey(raw);
+    const exact = sorted.find((name) => normalizeNbaMarketPlayerKey(name) === normalized);
+    if (exact) return exact;
+    const firstToken = normalized.split(" ")[0];
+    if (!firstToken) return raw;
+    const tokenMatches = sorted.filter((name) => {
+      const key = normalizeNbaMarketPlayerKey(name);
+      const start = key.split(" ")[0];
+      return start === firstToken;
+    });
+    return tokenMatches.length === 1 ? tokenMatches[0] : raw;
+  };
+  const pushHit = (name) => {
+    const n = expandCandidateName(name);
+    const k = n.toLowerCase();
+    if (!n || seen.has(k)) return;
+    seen.add(k);
+    hits.push(n);
+  };
 
   for (const name of sorted) {
     const re = new RegExp(`\\b${escapeRegExp(name)}\\b`, "i");
-    if (re.test(q)) return name;
+    if (re.test(q)) pushHit(name);
   }
 
   const surnameToFull = new Map();
@@ -1453,23 +1478,38 @@ function resolveQuestionNbaPlayer(question, nbaContext) {
   for (const [surname, fullSet] of surnameToFull.entries()) {
     if (fullSet.size !== 1) continue;
     const re = new RegExp(`\\b${escapeRegExp(surname)}(?:'s)?\\b`, "i");
-    if (re.test(qLower)) return [...fullSet][0];
+    if (re.test(qLower)) pushHit([...fullSet][0]);
   }
 
-  // Fallback when slate context is empty: infer from direct prop phrasing.
-  const direct = q.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:over|under)\b/);
-  if (direct?.[1]) return direct[1].trim();
-  const statAsk = q.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:points?|rebounds?|assists?|pra)\b/i);
-  if (statAsk?.[1]) return statAsk[1].trim();
-  const possessive = q.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'s\s+(?:line|prop|points|rebounds|assists|pra)\b/);
-  if (possessive?.[1]) return possessive[1].trim();
+  // Fallback when slate context is empty: infer 1-2 names from prop phrasing.
+  const patterns = [
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:over|under)\b/g,
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:points?|rebounds?|assists?|pra)\b/gi,
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'s\s+(?:line|prop|points|rebounds|assists|pra)\b/g,
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(q)) !== null) {
+      pushHit(String(m[1] || "").trim());
+    }
+  }
 
-  return null;
+  return hits;
+}
+
+function resolveQuestionNbaPlayer(question, nbaContext) {
+  return resolveQuestionNbaPlayers(question, nbaContext)[0] || null;
 }
 
 function resolveNbaPlayerTeam(playerName, nbaContext) {
   const key = String(playerName || "").trim().toLowerCase();
   if (!key) return "";
+  const grounded = nbaContext?.bdlGrounding?.bdlGroundedPlayers || {};
+  for (const [name, meta] of Object.entries(grounded)) {
+    if (String(name || "").trim().toLowerCase() === key) {
+      return String(meta?.team || "").toUpperCase();
+    }
+  }
   const statsHit = (nbaContext?.playerStats || []).find(
     (p) => String(p?.name || "").trim().toLowerCase() === key,
   );
@@ -1513,6 +1553,18 @@ export function normalizeNbaMarketPlayerKey(name) {
     .toLowerCase()
     .replace(/\./g, "")
     .replace(/\s+/g, " ");
+}
+
+function parseNbaRequestedMarket(question) {
+  const q = String(question || "").toLowerCase();
+  const lineMatch = q.match(/\b(\d{1,3}(?:\.\d+)?)\b/);
+  const requestedLine = lineMatch ? Number(lineMatch[1]) : null;
+  let market = null;
+  if (/\bpra\b|\bpoints?\s+rebounds?\s+assists?\b/.test(q)) market = "points rebounds assists";
+  else if (/\bassists?\b/.test(q)) market = "assists";
+  else if (/\brebounds?\b/.test(q)) market = "rebounds";
+  else if (/\bpoints?\b/.test(q)) market = "points";
+  return { market, line: Number.isFinite(requestedLine) ? requestedLine : null };
 }
 
 function propLineMatchesTargetedPlayer(pl, targetedPlayer) {
@@ -1595,8 +1647,27 @@ function isDirectNbaPropAsk(question) {
 }
 
 export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
-  const targetedPlayer = resolveQuestionNbaPlayer(question, board);
+  const targetedPlayers = resolveQuestionNbaPlayers(question, board);
+  const targetedPlayer = targetedPlayers[0] || null;
+  const requestedMarket = parseNbaRequestedMarket(question);
   const injuriesByPlayer = getNbaInjuryIndex(board);
+  const grounded = board?.bdlGrounding?.bdlGroundedPlayers || {};
+  // NBA roster truth contract: only BDL grounding can authorize player/team/slate truth.
+  const groundedPlayers = targetedPlayers
+    .map((name) => {
+      const key = String(name || "").trim().toLowerCase();
+      const entry = Object.entries(grounded).find(
+        ([n]) => String(n || "").trim().toLowerCase() === key,
+      );
+      if (!entry) return null;
+      const [resolvedName, meta] = entry;
+      return { name: resolvedName, team: String(meta?.team || "").toUpperCase(), onSlate: meta?.onSlate !== false };
+    })
+    .filter(Boolean);
+  const unresolvedPlayers = targetedPlayers.filter((name) => {
+    const key = String(name || "").trim().toLowerCase();
+    return !groundedPlayers.some((p) => String(p.name || "").toLowerCase() === key);
+  });
   const injuryMeta = targetedPlayer
     ? injuriesByPlayer.get(String(targetedPlayer).toLowerCase()) || null
     : null;
@@ -1626,22 +1697,41 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
     (!targetedPlayer || (targetedTeam && affectedTeams.has(targetedTeam)));
   const directPropAsk = isDirectNbaPropAsk(question);
   const activeSlatePropCount = Array.isArray(board?.propLines) ? board.propLines.length : 0;
-  const hasTargetPlayerMarket =
-    targetedPlayer &&
-    (board?.propLines || []).some((pl) => propLineMatchesTargetedPlayer(pl, targetedPlayer));
+  const hasTargetPlayerMarket = targetedPlayer
+    ? (board?.propLines || []).some((pl) => propLineMatchesTargetedPlayer(pl, targetedPlayer))
+    : false;
+  const verifyPlayerMarket = (playerName) => {
+    const rows = (board?.propLines || []).filter((pl) => propLineMatchesTargetedPlayer(pl, playerName));
+    if (!rows.length) return false;
+    if (!requestedMarket.market) return true;
+    const rowsByMarket = rows.filter((pl) =>
+      String(pl?.prop || "").toLowerCase().includes(requestedMarket.market),
+    );
+    if (!rowsByMarket.length) return false;
+    if (!Number.isFinite(requestedMarket.line)) return true;
+    return rowsByMarket.some((pl) => Number(pl?.line) === Number(requestedMarket.line));
+  };
+  const marketVerification = targetedPlayers.map((name) => ({
+    player: name,
+    grounded: groundedPlayers.some((p) => String(p.name || "").toLowerCase() === String(name || "").toLowerCase()),
+    verified: verifyPlayerMarket(name),
+  }));
+  const hasAnyRequestedMarket = marketVerification.some((m) => m.verified);
+  const allRequestedMarketsMissing =
+    targetedPlayers.length > 0 && marketVerification.every((m) => !m.verified);
   // Player-level "no line" only when the feed already shows at least one active listed prop elsewhere.
   // Empty slate snapshot (ingestion/key/API) → odds_feed_unavailable; do not blame books/cover timing.
   const blockedPlayerLevelNoListedMarket = Boolean(
-    targetedPlayer &&
+    targetedPlayers.length > 0 &&
       directPropAsk &&
-      !hasTargetPlayerMarket &&
+      allRequestedMarketsMissing &&
       activeSlatePropCount > 0 &&
       !blocked,
   );
   const blockedOddsFeedSnapshot = Boolean(
-    targetedPlayer &&
+    targetedPlayers.length > 0 &&
       directPropAsk &&
-      !hasTargetPlayerMarket &&
+      allRequestedMarketsMissing &&
       activeSlatePropCount === 0 &&
       !blocked,
   );
@@ -1658,7 +1748,7 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
           : unresolvedCentral
             ? "unresolved_status"
             : "normal",
-    blocked: blocked || blockedNoMarket,
+    blocked,
     blockedReason: blocked
       ? "unavailable"
       : blockedPlayerLevelNoListedMarket
@@ -1675,6 +1765,12 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
     requiresStatusAcknowledgement,
     hasTargetPlayerMarket,
     directPropAsk,
+    requestedMarket,
+    targetedPlayers,
+    unresolvedPlayers,
+    playerGrounding: groundedPlayers,
+    marketVerification,
+    hasAnyRequestedMarket,
   };
 }
 
@@ -1800,6 +1896,20 @@ export function buildNbaConditionalPayload({ invalidation, nbaContext, newsImpac
     ifUnresolved:
       "keep conditional_wait; no full-size commitment before final availability.",
   };
+}
+
+function buildNbaPlayerResolutionBlock(invalidation) {
+  const targeted = Array.isArray(invalidation?.targetedPlayers) ? invalidation.targetedPlayers : [];
+  if (!targeted.length) return "";
+  const rows = targeted.map((name) => {
+    const verification = (invalidation?.marketVerification || []).find(
+      (v) => String(v?.player || "").toLowerCase() === String(name || "").toLowerCase(),
+    );
+    const grounded = verification?.grounded ? "grounded" : "not_grounded";
+    const market = verification?.verified ? "verified_market" : "unverified_market";
+    return `${name}: ${grounded}, ${market}`;
+  });
+  return `NBA NAMED PLAYER RESOLUTION (BDL + Odds)\n${rows.join("\n")}`;
 }
 
 function nbaTeamSignals(team) {
@@ -3258,6 +3368,8 @@ ${jsonContract}${propProjectionModeBlock}`
           newsImpact: nbaNewsImpact,
         })
       : null;
+  const nbaPlayerResolutionBlock =
+    sportHint === "nba" ? buildNbaPlayerResolutionBlock(nbaInvalidation) : "";
   const mlbDecisionMode =
     sportHint === "mlb" ? resolveMlbDecisionMode(mlbContext || {}, String(question || "")) : null;
   let nbaPostValidationChecked = false;
@@ -3332,36 +3444,18 @@ ${jsonContract}${propProjectionModeBlock}`
       .slice(0, 2)
       .map((b) => `${b.player} (${(b.markets || []).join("/")})`)
       .join("; ");
-    const blockedLead =
-      nbaInvalidation.blockedReason === "unlisted_market"
-        ? `${nbaInvalidation.targetedPlayer} is not on an active posted NBA slate right now. Direct prop projection is invalid until books list a live market.`
-        : nbaInvalidation.blockedReason === "odds_feed_unavailable"
-          ? `NBA player prop pricing from our odds provider is unavailable in this snapshot — not a timing signal about books. Direct projection for ${nbaInvalidation.targetedPlayer} is paused until verified lines load.`
-          : `${nbaInvalidation.targetedPlayer} is ${nbaInvalidation.statusDisplay || "out"}. Direct prop projection is invalid.`;
-    const blockedHeader =
-      nbaInvalidation.blockedReason === "unlisted_market"
-        ? "MARKET AVAILABILITY"
-        : nbaInvalidation.blockedReason === "odds_feed_unavailable"
-          ? "ODDS FEED UNAVAILABLE"
-          : "STATUS SHIFT";
+    const blockedLead = `${nbaInvalidation.targetedPlayer} is ${nbaInvalidation.statusDisplay || "out"}. Direct prop projection is invalid.`;
+    const blockedHeader = "STATUS SHIFT";
     const blockedResponse = `${blockedHeader}
 ${blockedLead}
 
 AVAILABILITY FIRST
-${nbaInvalidation.blockedReason === "unlisted_market"
-  ? `Do not play ${nbaInvalidation.targetedPlayer} props until books post a live market.`
-  : nbaInvalidation.blockedReason === "odds_feed_unavailable"
-    ? `Do not treat this as confirmation that markets are closed — retry after the odds feed returns an active slate.`
-    : `Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.`}
+Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.
 ${beneficiaryLine ? `If you need action now, pivot to likely role gainers: ${beneficiaryLine}.` : "If you need action now, pivot to teammates with expanded role, not the inactive player's market."}
 
 CONFIDENCE
 ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifier.reason}` : ""}`;
-    const blockedStatusShift =
-      nbaInvalidation.blockedReason === "unlisted_market" ||
-      nbaInvalidation.blockedReason === "odds_feed_unavailable"
-        ? null
-        : nbaStatusShiftLine || null;
+    const blockedStatusShift = nbaStatusShiftLine || null;
 
     let takeRecord = extractTakeFromResponse({
       responseText: blockedResponse,
@@ -3935,6 +4029,8 @@ ${sportHint === "nba" ? `INTERNAL NBA CONTROL (DO NOT QUOTE OR REPEAT VERBATIM)
 - Never print internal labels, control headers, or mode names to the user.
 
 ` : ""}${sportHint === "nba" && nbaGameStateGate ? `${buildNbaGameStateAuthorityBlock(nbaGameStateGate)}
+
+` : ""}${sportHint === "nba" && nbaPlayerResolutionBlock ? `${nbaPlayerResolutionBlock}
 
 ` : ""}${nbaConditionalPayload ? `INTERNAL CONDITIONAL PAYLOAD (DO NOT QUOTE OR REPEAT VERBATIM)
 - targetPlayer: ${nbaConditionalPayload.player}
@@ -4740,6 +4836,25 @@ ${continuationRule}`;
       if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
       responseText = stripNbaInternalControlLabels(responseText);
       if (responseDeep) responseDeep = stripNbaInternalControlLabels(responseDeep);
+      if (
+        nbaDecisionMode === "blocked_unlisted_market" &&
+        !/\bunverified\b|\bnot verified\b|\bmarket not listed\b/i.test(responseText)
+      ) {
+        responseText = `Unverified market for the named player(s): exact requested line is not listed in the current odds feed.\n\n${responseText}`;
+      }
+      if (
+        nbaDecisionMode === "blocked_odds_feed_unavailable" &&
+        !/\bodds feed\b|\bunverified\b|\bnot verified\b/i.test(responseText)
+      ) {
+        responseText = `Unverified market snapshot: odds feed is unavailable right now, so this is an analytical lean without line verification.\n\n${responseText}`;
+      }
+      if (
+        Array.isArray(nbaInvalidation?.unresolvedPlayers) &&
+        nbaInvalidation.unresolvedPlayers.length > 0 &&
+        !/\bBDL\b|\bBallDontLie\b|\bcould not ground\b/i.test(responseText)
+      ) {
+        responseText = `BDL grounding note: could not cleanly match ${nbaInvalidation.unresolvedPlayers.join(", ")} to BallDontLie roster/slate data in this snapshot, so those names are treated as unverified.\n\n${responseText}`;
+      }
       if (isNbaNoMarketUpcomingSlate(nbaContext) && hasNbaNoMarketHardFail(responseText)) {
         responseText = buildNbaNoMarketHardFallback(question, nbaContext);
         responseDeep = null;

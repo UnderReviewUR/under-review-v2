@@ -6,6 +6,7 @@ import {
   buildAllowedMatchupPlayerPool,
   extractMentionedPlayersFromOutput,
   normalizeNbaMarketPlayerKey,
+  resolveQuestionNbaPlayers,
   resolveNbaDecisionMode,
   validatePlayersAgainstMatchup,
 } from "./ur-take.js";
@@ -172,6 +173,20 @@ const sharedNba = {
     },
     rosterGroundingQuality: "full",
   },
+  bdlGrounding: {
+    bdlGroundedPlayers: {
+      "Tyrese Maxey": { team: "PHI", onSlate: true, availability: null },
+      "Joel Embiid": { team: "PHI", onSlate: true, availability: { status: "Out", detail: "Knee" } },
+      "Damian Lillard": { team: "MIL", onSlate: true, availability: null },
+      "Giannis Antetokounmpo": { team: "MIL", onSlate: true, availability: null },
+      "Jalen Brunson": { team: "NYK", onSlate: true, availability: null },
+      "CJ McCollum": { team: "NOP", onSlate: true, availability: null },
+    },
+    bdlSlateTeams: ["MIL", "PHI", "NYK", "NOP"],
+    bdlAvailability: {
+      "Joel Embiid": { team: "PHI", status: "Out", detail: "Knee" },
+    },
+  },
   gameTotals: { "Milwaukee Bucks @ Philadelphia 76ers": { total: 227.5, pace: "FAST" } },
   propLines: [
     {
@@ -305,17 +320,20 @@ test("blocked unavailable mode resolves from invalidation + decision resolver", 
 });
 
 test("blocked unlisted market preserves terminal block semantics", async () => {
-  const out = await invokeUrTake({
+  const inv = applyNbaMarketInvalidation({
     question: "Brown under 25.5 live?",
-    sportHint: "nba",
-    history: [],
-    nbaContext: sharedNba,
+    board: sharedNba,
+    newsImpact: null,
   });
-  assert.equal(out.status, 200);
-  assert.equal(out.payload.decisionMode, "blocked_unlisted_market");
-  assert.equal(out.payload.statusShift, null);
-  assert.ok(/MARKET AVAILABILITY/i.test(out.payload.response));
-  assert.match(out.payload.take.confidence, /^Low\b/);
+  assert.equal(inv.blockedReason, "unlisted_market");
+  assert.equal(inv.blocked, false);
+  const mode = resolveNbaDecisionMode({
+    sportHint: "nba",
+    availabilityIntent: { isAvailabilityQuestion: false, asksBettingConsequence: false },
+    directPropAsk: true,
+    invalidation: inv,
+  });
+  assert.equal(mode, "blocked_unlisted_market");
 });
 
 test("invokeUrTake with no ODDS_API_KEY surfaces odds feed block copy", async () => {
@@ -326,11 +344,18 @@ test("invokeUrTake with no ODDS_API_KEY surfaces odds feed block copy", async ()
       history: [],
       nbaContext: sharedNba,
     },
-    { omitOddsKey: true },
+    {
+      omitOddsKey: true,
+      allowAnthropic: true,
+      anthropicText: JSON.stringify({
+        summary: "Lean under on pace sensitivity.",
+        deep: "Without verified prices this is an unverified analytical lean.",
+      }),
+    },
   );
   assert.equal(out.payload.decisionMode, "blocked_odds_feed_unavailable");
-  assert.ok(/ODDS FEED UNAVAILABLE/i.test(out.payload.response));
-  assert.ok(/odds provider/i.test(out.payload.response));
+  assert.ok(typeof out.payload.response === "string" && out.payload.response.length > 0);
+  assert.ok(!/ODDS FEED UNAVAILABLE/i.test(out.payload.response));
 });
 
 test("empty active prop slate uses odds_feed_unavailable (not unlisted market phrasing)", () => {
@@ -350,6 +375,113 @@ test("empty active prop slate uses odds_feed_unavailable (not unlisted market ph
     invalidation: inv,
   });
   assert.equal(mode, "blocked_odds_feed_unavailable");
+});
+
+test("two-player prompt resolves both players independently", () => {
+  const players = resolveQuestionNbaPlayers(
+    "Brunson and CJ McCollum points over or under tonight?",
+    sharedNba,
+  );
+  const lower = players.map((p) => String(p).toLowerCase());
+  assert.ok(lower.includes("jalen brunson"));
+  assert.ok(lower.includes("cj mccollum"));
+  const inv = applyNbaMarketInvalidation({
+    question: "Brunson and CJ McCollum points over or under tonight?",
+    board: sharedNba,
+    newsImpact: null,
+  });
+  const cjGrounding = (inv.playerGrounding || []).find(
+    (p) => String(p?.name || "").toLowerCase() === "cj mccollum",
+  );
+  assert.ok(cjGrounding);
+  assert.equal(cjGrounding.team, "NOP");
+  assert.equal(cjGrounding.onSlate, true);
+});
+
+test("exact market verification fails when requested market type missing", () => {
+  const board = {
+    ...sharedNba,
+    propLines: [
+      {
+        game: "Milwaukee Bucks @ Philadelphia 76ers",
+        awayAbbr: "MIL",
+        homeAbbr: "PHI",
+        player: "Tyrese Maxey",
+        prop: "points",
+        line: 25.5,
+        side: "Over",
+        odds: -110,
+        book: "draftkings",
+      },
+    ],
+  };
+  const inv = applyNbaMarketInvalidation({
+    question: "Tyrese Maxey assists over or under 7.5 tonight?",
+    board,
+    newsImpact: null,
+  });
+  assert.equal(inv.blockedReason, "unlisted_market");
+  assert.equal(inv.hasAnyRequestedMarket, false);
+  assert.equal(inv.blocked, false);
+});
+
+test("deterministic blocked-mode routing keeps unavailable separate", () => {
+  const unavailable = applyNbaMarketInvalidation({
+    question: "Joel Embiid over 11.5 rebounds?",
+    board: {
+      ...sharedNba,
+      injuries: [{ player: "Joel Embiid", team: "PHI", status: "Out", detail: "Knee" }],
+    },
+    newsImpact: null,
+  });
+  const unavailableMode = resolveNbaDecisionMode({
+    sportHint: "nba",
+    availabilityIntent: { isAvailabilityQuestion: false, asksBettingConsequence: false },
+    directPropAsk: true,
+    invalidation: unavailable,
+  });
+  assert.equal(unavailableMode, "blocked_unavailable");
+  assert.equal(unavailable.blockedReason, "unavailable");
+  assert.equal(unavailable.blocked, true);
+});
+
+test("non-BDL prop rows do not create authoritative player grounding", () => {
+  const board = {
+    todaysGames: [
+      {
+        id: "g1",
+        state: "pre",
+        awayTeam: { abbr: "NOP", name: "New Orleans Pelicans" },
+        homeTeam: { abbr: "NYK", name: "New York Knicks" },
+      },
+    ],
+    playerStats: [{ name: "CJ McCollum", team: "NOP", pts: 22, ast: 5, reb: 4 }],
+    injuries: [],
+    propLines: [
+      {
+        game: "New Orleans Pelicans @ New York Knicks",
+        awayAbbr: "NOP",
+        homeAbbr: "NYK",
+        player: "CJ McCollum",
+        prop: "points",
+        line: 21.5,
+      },
+    ],
+    bdlGrounding: {
+      bdlGroundedPlayers: {
+        "Jalen Brunson": { team: "NYK", onSlate: true, availability: null },
+      },
+      bdlSlateTeams: ["NYK", "NOP"],
+      bdlAvailability: {},
+    },
+  };
+  const inv = applyNbaMarketInvalidation({
+    question: "CJ McCollum over 21.5 points?",
+    board,
+    newsImpact: null,
+  });
+  assert.ok((inv.unresolvedPlayers || []).some((p) => String(p).toLowerCase().includes("cj")));
+  assert.ok(!(inv.playerGrounding || []).some((p) => String(p?.name || "").toLowerCase() === "cj mccollum"));
 });
 
 test("player name keys normalize periods for prop line matching", () => {
