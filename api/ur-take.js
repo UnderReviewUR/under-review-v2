@@ -1211,6 +1211,7 @@ function ensureNbaTakeConfidenceConsistency({
   if (
     decisionMode === "blocked_unavailable" ||
     decisionMode === "blocked_unlisted_market" ||
+    decisionMode === "blocked_odds_feed_unavailable" ||
     decisionMode === "status_only" ||
     decisionMode === "status_plus_consequence"
   ) {
@@ -1431,11 +1432,26 @@ function sanitizeNbaQuestionForGeneration(question, nbaContext) {
   return sanitized || raw;
 }
 
+/** Minimal normalization for matching Odds API outcome names to roster/stats names. */
+export function normalizeNbaMarketPlayerKey(name) {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ");
+}
+
+function propLineMatchesTargetedPlayer(pl, targetedPlayer) {
+  const k = normalizeNbaMarketPlayerKey(pl?.player);
+  const t = normalizeNbaMarketPlayerKey(targetedPlayer);
+  return Boolean(k && t && k === t);
+}
+
 function inferNbaPlayerCentrality(playerName, nbaContext, injuryMeta = null) {
   const key = String(playerName || "").trim().toLowerCase();
   if (!key) return "low";
-  const props = (nbaContext?.propLines || []).filter(
-    (pl) => String(pl?.player || "").trim().toLowerCase() === key,
+  const props = (nbaContext?.propLines || []).filter((pl) =>
+    propLineMatchesTargetedPlayer(pl, playerName),
   );
   const hasPra = props.some((pl) =>
     String(pl?.prop || "").toLowerCase().includes("points rebounds assists"),
@@ -1477,7 +1493,10 @@ export function summarizeNbaNewsImpact(newsImpact) {
 
 export function buildNbaStatusShiftSection(newsImpact, invalidation) {
   if (invalidation?.blocked && invalidation?.targetedPlayer) {
-    if (invalidation?.blockedReason === "unlisted_market") {
+    if (
+      invalidation?.blockedReason === "unlisted_market" ||
+      invalidation?.blockedReason === "odds_feed_unavailable"
+    ) {
       return "";
     }
     return `${invalidation.targetedPlayer} is ${invalidation.statusDisplay || invalidation.statusClass}. Direct prop projection is invalid at this status.`;
@@ -1532,31 +1551,47 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
     hasMaterialNbaNewsImpact(newsImpact) &&
     (!targetedPlayer || (targetedTeam && affectedTeams.has(targetedTeam)));
   const directPropAsk = isDirectNbaPropAsk(question);
+  const activeSlatePropCount = Array.isArray(board?.propLines) ? board.propLines.length : 0;
   const hasTargetPlayerMarket =
     targetedPlayer &&
-    (board?.propLines || []).some(
-      (pl) =>
-        String(pl?.player || "").trim().toLowerCase() ===
-        String(targetedPlayer).trim().toLowerCase(),
-    );
-  // STAGE 1 SAFETY BASELINE (do not relax without explicit Stage 2 routing):
-  // For direct NBA player-prop asks, if there is no active listed market for the targeted player,
-  // return terminal MARKET AVAILABILITY blocking instead of model prose.
-  const blockedNoMarket = Boolean(
-    targetedPlayer && directPropAsk && !hasTargetPlayerMarket,
+    (board?.propLines || []).some((pl) => propLineMatchesTargetedPlayer(pl, targetedPlayer));
+  // Player-level "no line" only when the feed already shows at least one active listed prop elsewhere.
+  // Empty slate snapshot (ingestion/key/API) → odds_feed_unavailable; do not blame books/cover timing.
+  const blockedPlayerLevelNoListedMarket = Boolean(
+    targetedPlayer &&
+      directPropAsk &&
+      !hasTargetPlayerMarket &&
+      activeSlatePropCount > 0 &&
+      !blocked,
   );
+  const blockedOddsFeedSnapshot = Boolean(
+    targetedPlayer &&
+      directPropAsk &&
+      !hasTargetPlayerMarket &&
+      activeSlatePropCount === 0 &&
+      !blocked,
+  );
+  const blockedNoMarket = Boolean(blockedPlayerLevelNoListedMarket || blockedOddsFeedSnapshot);
   const requiresStatusAcknowledgement =
     blocked || unresolvedCentral || materialRelevantImpact;
   return {
     decisionMode: blocked
       ? "blocked_unavailable"
-      : blockedNoMarket
+      : blockedPlayerLevelNoListedMarket
         ? "blocked_unlisted_market"
-      : unresolvedCentral
-        ? "unresolved_status"
-        : "normal",
+        : blockedOddsFeedSnapshot
+          ? "blocked_odds_feed_unavailable"
+          : unresolvedCentral
+            ? "unresolved_status"
+            : "normal",
     blocked: blocked || blockedNoMarket,
-    blockedReason: blocked ? "unavailable" : blockedNoMarket ? "unlisted_market" : null,
+    blockedReason: blocked
+      ? "unavailable"
+      : blockedPlayerLevelNoListedMarket
+        ? "unlisted_market"
+        : blockedOddsFeedSnapshot
+          ? "odds_feed_unavailable"
+          : null,
     unresolved: unresolvedCentral,
     targetedPlayer,
     statusClass,
@@ -1589,10 +1624,17 @@ export function applyNbaConfidenceModifiers({
 }) {
   const directBlockedUnavailable = invalidation?.blockedReason === "unavailable";
   const directBlockedNoMarket = invalidation?.blockedReason === "unlisted_market";
+  const directBlockedOddsFeed = invalidation?.blockedReason === "odds_feed_unavailable";
   if (directBlockedUnavailable) {
     return {
       label: "Low",
       reason: "Player unavailable — direct prop projection is blocked.",
+    };
+  }
+  if (directBlockedOddsFeed) {
+    return {
+      label: "Low",
+      reason: "Odds provider snapshot unavailable — named player props cannot be verified.",
     };
   }
   if (directBlockedNoMarket) {
@@ -1651,6 +1693,8 @@ export function resolveNbaDecisionMode({
       : "status_only";
   }
   if (invalidation?.blockedReason === "unavailable") return "blocked_unavailable";
+  if (invalidation?.blockedReason === "odds_feed_unavailable")
+    return "blocked_odds_feed_unavailable";
   if (invalidation?.blockedReason === "unlisted_market") return "blocked_unlisted_market";
   if (invalidation?.unresolved && invalidation?.hasTargetPlayerMarket) return "conditional_wait";
   return "actionable";
@@ -1660,7 +1704,7 @@ export function buildNbaConditionalPayload({ invalidation, nbaContext, newsImpac
   const player = invalidation?.targetedPlayer || "targeted player";
   const status = invalidation?.statusDisplay || invalidation?.statusClass || "questionable";
   const lines = (nbaContext?.propLines || [])
-    .filter((pl) => String(pl?.player || "").trim().toLowerCase() === String(player).toLowerCase())
+    .filter((pl) => propLineMatchesTargetedPlayer(pl, player))
     .slice(0, 3)
     .map((pl) => `${pl.prop} ${pl.line}`)
     .join(" | ");
@@ -2239,6 +2283,340 @@ If the name appears in the Question or attached image → allowed.
 Otherwise, for roster membership → must appear under the correct team in
 playersByTeamAbbrev or remove it.`;
 
+function extractMlbMarketHints(qRaw) {
+  const q = String(qRaw || "").toLowerCase();
+  const hints = new Set();
+  if (/\b(strikeout|strikeouts|\bk\b|\bks\b|\bso\b|punchies)\b/i.test(q)) hints.add("strikeouts");
+  if (/\b(total\s+bases|\btb\b)\b/i.test(q)) hints.add("total_bases");
+  if (/\b(home\s*run|homer|\bhr\b|\bhrs\b)\b/i.test(q)) hints.add("home_runs");
+  if (/\bhits\b/i.test(q)) hints.add("hits");
+  if (/\brbi(s)?\b/i.test(q)) hints.add("rbis");
+  if (
+    /\b(game\s+total|team\s+total|runs\s+total|total\s+runs|over[/\s-]+under|ou\s*\d)/i.test(q)
+  ) {
+    hints.add("game_total");
+  }
+  return hints;
+}
+
+function mlbPropMatchesMarketHints(pl, hints) {
+  if (!hints || hints.size === 0) return true;
+  const raw = `${pl?.propRaw || ""} ${pl?.prop || ""}`.toLowerCase();
+  for (const h of hints) {
+    if (h === "game_total") continue;
+    if (
+      h === "strikeouts" &&
+      (raw.includes("strikeout") || raw.includes("pitcher_strikeout"))
+    )
+      return true;
+    if (h === "total_bases" && (raw.includes("total_base") || raw.includes("total bases")))
+      return true;
+    if (h === "home_runs" && raw.includes("home_run")) return true;
+    if (h === "hits" && raw.includes("batter_hits")) return true;
+    if (h === "rbis" && raw.includes("batter_rbis")) return true;
+  }
+  return false;
+}
+
+function collectMlbRosterNames(mlbContext) {
+  const names = [];
+  const seen = new Set();
+  for (const pl of mlbContext?.propLines || []) {
+    const n = String(pl?.player || "").trim();
+    if (!n || seen.has(n.toLowerCase())) continue;
+    seen.add(n.toLowerCase());
+    names.push(n);
+  }
+  for (const g of mlbContext?.games || []) {
+    for (const side of ["homeTeam", "awayTeam"]) {
+      const pit = g?.[side]?.pitcher;
+      const n = String(pit || "").trim();
+      if (!n || /^tbd$/i.test(n) || seen.has(n.toLowerCase())) continue;
+      seen.add(n.toLowerCase());
+      names.push(n);
+    }
+  }
+  return names;
+}
+
+function findMlbPlayerReference(question, mlbContext) {
+  const q = normalizeText(question);
+  if (!q) return { matched: false };
+  const candidates = [];
+  for (const fullName of collectMlbRosterNames(mlbContext)) {
+    const lower = fullName.toLowerCase();
+    const parts = lower.split(/\s+/).filter(Boolean);
+    const last = parts[parts.length - 1];
+    if (q.includes(lower)) {
+      candidates.push({ fullName, score: 100 });
+      continue;
+    }
+    if (last && last.length >= 4 && new RegExp(`\\b${escapeRegExp(last)}\\b`, "i").test(q)) {
+      candidates.push({ fullName, score: last.length });
+    }
+  }
+  if (candidates.length === 0) return { matched: false };
+  candidates.sort((a, b) => b.score - a.score);
+  const topScore = candidates[0].score;
+  const tied = candidates.filter((c) => c.score === topScore);
+  if (tied.length > 1) return { matched: false, ambiguous: true };
+  return { matched: true, canonicalName: tied[0].fullName };
+}
+
+function playerNamesAlign(a, b) {
+  const na = String(a || "")
+    .trim()
+    .toLowerCase();
+  const nb = String(b || "")
+    .trim()
+    .toLowerCase();
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const la = na.split(/\s+/).pop();
+  const lb = nb.split(/\s+/).pop();
+  return Boolean(la && lb && la === lb && la.length >= 4);
+}
+
+function scoreMlbGameMatch(question, g) {
+  const ql = normalizeText(question);
+  let s = 0;
+  for (const t of [g?.awayTeam, g?.homeTeam]) {
+    const ab = String(t?.abbr || "").toLowerCase();
+    const nm = String(t?.name || "");
+    const nml = nm.toLowerCase();
+    if (ab && ql.includes(ab)) s += 3;
+    if (nm.length > 4 && ql.includes(nml)) s += 4;
+    const last = nm.split(" ").pop();
+    if (last && last.length >= 4 && ql.includes(last.toLowerCase())) s += 2;
+    if (nml.includes("red sox") && ql.includes("red sox")) s += 4;
+    if (nml.includes("white sox") && ql.includes("white sox")) s += 4;
+  }
+  return s;
+}
+
+function findMlbGameReference(question, games) {
+  if (!Array.isArray(games) || games.length === 0) return { matched: false };
+  const scored = games
+    .map((g) => ({ g, s: scoreMlbGameMatch(question, g) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s);
+  if (scored.length === 0) return { matched: false };
+  if (scored[0].s >= 4) return { matched: true, game: scored[0].g };
+  if (scored[0].s >= 3 && (scored.length === 1 || scored[0].s > scored[1].s)) {
+    return { matched: true, game: scored[0].g };
+  }
+  if (scored[0].s >= 2 && scored.length === 1) return { matched: true, game: scored[0].g };
+  return { matched: false };
+}
+
+function gameRowMatchesPropGame(plGame, g) {
+  if (!plGame || !g) return false;
+  const parts = String(plGame)
+    .split("@")
+    .map((s) => s.trim().toLowerCase());
+  if (parts.length !== 2) return false;
+  const [pa, ph] = parts;
+  const ga = String(g.awayTeam?.name || "").toLowerCase();
+  const gh = String(g.homeTeam?.name || "").toLowerCase();
+  const rough = (a, b) =>
+    Boolean(a && b && (a.includes(b) || b.includes(a) || a.split(/\s+/).pop() === b.split(/\s+/).pop()));
+  return (
+    (rough(pa, ga) && rough(ph, gh)) || (rough(pa, gh) && rough(ph, ga))
+  );
+}
+
+function findGameTotalsKeyForGame(gameTotals, g) {
+  if (!g || !gameTotals || typeof gameTotals !== "object") return null;
+  for (const key of Object.keys(gameTotals)) {
+    if (gameRowMatchesPropGame(key, g)) return key;
+  }
+  return null;
+}
+
+/**
+ * MLB server decision mode (MLB only — aligns conditional analysis with missing-market guardrails).
+ * - no_data: nothing usable in payload (no games, props, or gameTotals keys).
+ * - actionable: posted data in propLines/gameTotals matches this question's player/game/market scope.
+ * - pre_market_framework: incomplete or not question-relevant — no fabricated prop lines or K projections.
+ *
+ * Known limitations (baseline — keep question-aware routing lean; refine deliberately):
+ * - Player detection uses names from propLines plus probable/listed pitchers on games[] only — not full batting rosters.
+ * - Game/prop/totals matching can fall back to pre_market_framework when ESPN vs Odds API team strings diverge.
+ * - If the question implies a player but extractMlbMarketHints finds no market keywords, any prop row for that player still qualifies as actionable (narrow by prompts later if needed).
+ */
+export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
+  const games = Array.isArray(mlbContext?.games) ? mlbContext.games : [];
+  const propLines = Array.isArray(mlbContext?.propLines) ? mlbContext.propLines : [];
+  const gameTotals =
+    mlbContext?.gameTotals &&
+    typeof mlbContext.gameTotals === "object" &&
+    !Array.isArray(mlbContext.gameTotals)
+      ? mlbContext.gameTotals
+      : {};
+
+  const hasGames = games.length > 0;
+  const hasProps = propLines.length > 0;
+  const hasTotals = Object.keys(gameTotals).length > 0;
+
+  if (!hasGames && !hasProps && !hasTotals) {
+    return "no_data";
+  }
+
+  const marketHints = extractMlbMarketHints(question);
+  const wantsGameTotal = marketHints.has("game_total");
+  const playerRef = findMlbPlayerReference(question, mlbContext);
+  const gameRef = findMlbGameReference(question, games);
+
+  const propsForPlayer = playerRef.matched
+    ? propLines.filter((pl) => playerNamesAlign(pl?.player, playerRef.canonicalName))
+    : [];
+
+  if (playerRef.matched) {
+    if (propsForPlayer.length === 0) return "pre_market_framework";
+    const hintsNoTotal = new Set(marketHints);
+    hintsNoTotal.delete("game_total");
+    if (hintsNoTotal.size === 0) {
+      return "actionable";
+    }
+    const ok = propsForPlayer.some((pl) => mlbPropMatchesMarketHints(pl, hintsNoTotal));
+    return ok ? "actionable" : "pre_market_framework";
+  }
+
+  if (gameRef.matched) {
+    const forGame = propLines.filter((pl) => gameRowMatchesPropGame(pl.game, gameRef.game));
+    const totalsKey = findGameTotalsKeyForGame(gameTotals, gameRef.game);
+    if (wantsGameTotal) {
+      if (totalsKey) return "actionable";
+      return forGame.length > 0 ? "actionable" : "pre_market_framework";
+    }
+    const hintsNoTotal = new Set(marketHints);
+    hintsNoTotal.delete("game_total");
+    if (hintsNoTotal.size === 0) {
+      return forGame.length > 0 ? "actionable" : "pre_market_framework";
+    }
+    const ok = forGame.some((pl) => mlbPropMatchesMarketHints(pl, hintsNoTotal));
+    return ok ? "actionable" : "pre_market_framework";
+  }
+
+  return "pre_market_framework";
+}
+
+function buildMlbNoDataTerminalResponse({ derivedConfidence }) {
+  return `MLB SNAPSHOT — NO BOARD DATA
+
+There are no games, prop lines, or listed totals in this payload yet.
+
+WHAT TO DO
+Refresh after the slate and odds sync. Do not assume pitchers, lines, or totals until they appear on your board.
+
+WATCH FOR
+Schedule release, probable pitchers, and first props drop — then re-run your ask.
+
+CONFIDENCE
+Low — conditional on data loading (${derivedConfidence}).`;
+}
+
+function buildMlbPreMarketUserPrompt({
+  question,
+  mlbContext,
+  derivedConfidence,
+  priorTakesSummary,
+  mlbVerifiedBlock,
+}) {
+  const gameTotals =
+    mlbContext?.gameTotals &&
+    typeof mlbContext.gameTotals === "object" &&
+    !Array.isArray(mlbContext.gameTotals)
+      ? mlbContext.gameTotals
+      : {};
+  const totalsKeys = Object.keys(gameTotals);
+  const totalsPreview =
+    totalsKeys.length > 0
+      ? JSON.stringify(
+          Object.fromEntries(totalsKeys.slice(0, 12).map((k) => [k, gameTotals[k]])),
+          null,
+          2,
+        )
+      : null;
+
+  const totalsNote = totalsPreview
+    ? `Listed game totals from payload only — cite these numbers verbatim when referencing a total:\n${totalsPreview}`
+    : "No gameTotals in this payload — do not state a game total number.";
+
+  return `You are answering an MLB betting question in PRE_MARKET_FRAMEWORK mode.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${question}
+
+MLB context (JSON — authoritative for what exists; absence means unknown):
+${JSON.stringify(mlbContext || {}, null, 2)}
+
+${mlbVerifiedBlock}
+
+${totalsNote}
+
+SERVER MODE — PRE_MARKET_FRAMEWORK (mandatory)
+- Do NOT invent prop numbers, K totals, strikeout lines, hitter lines, juice, or price quotes.
+- Do NOT say or imply "expect K props at X", "books will price", "likely opens at", "look for under 6.5", or any fabricated numeric projection unless that exact number appears in propLines or gameTotals in the JSON above.
+- Do NOT assume books are pricing anything until propLines lists the market.
+- You MAY describe park factors and venue using games[].park (and named pitchers only when printed on that side — never invent a starter name).
+- You MAY cite a game total ONLY from gameTotals in the JSON (exact number).
+
+Answer structure:
+1. Market Snapshot — honestly state what is missing vs confirmed (props, starters, totals).
+
+2. Structural angles — park/run environment and matchup framing without fake prop numbers.
+
+3. What to watch — categories only (e.g., K props, TB, game total) when lines post — no numeric guesses.
+
+4. Live triggers — inning/order cues that would change the read once verified markets exist — without inventing thresholds.
+
+5. Close — explicitly instruct the user to wait for posted lines before sizing props.
+
+CONFIDENCE — cap at Medium; align tone with ${derivedConfidence}.
+
+Rules:
+- Answer only as an MLB analyst.
+- Do not mention NBA, NFL, golf, F1, or tennis.
+`;
+}
+
+function buildMlbActionableUserPrompt({
+  question,
+  mlbContext,
+  derivedConfidence,
+  priorTakesSummary,
+  mlbVerifiedBlock,
+}) {
+  return `You are answering an MLB betting question.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${question}
+
+MLB context:
+${JSON.stringify(mlbContext || {}, null, 2)}
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Only go above that if the input strongly justifies it.
+
+${mlbVerifiedBlock}
+
+SERVER MODE — ACTIONABLE (propLines present in payload)
+- You MAY cite specific prop lines ONLY when they appear in propLines (player, prop type, line, book/sportsbook field as given).
+- You MAY cite game total numbers ONLY from gameTotals in the JSON.
+- Do NOT invent props, K totals, or juice not shown in propLines or gameTotals.
+- Do NOT claim books "will" open or price at a level without a listed line in propLines.
+
+Rules:
+- Answer only as an MLB analyst.
+- Do not mention golf, NBA, NFL, F1, or tennis.
+- Do not invent unrelated games or props.
+
+Lead with the strongest grounded angle using verified lines from propLines. If a starter is still TBD in games[], say so and keep the lean conditional on confirmation.
+`;
+}
+
 function buildMlbVerifiedPlayerListBlock(mlbContext) {
   const pitchers = [];
   const propListed = [];
@@ -2779,6 +3157,8 @@ ${jsonContract}${propProjectionModeBlock}`
           newsImpact: nbaNewsImpact,
         })
       : null;
+  const mlbDecisionMode =
+    sportHint === "mlb" ? resolveMlbDecisionMode(mlbContext || {}, String(question || "")) : null;
   let nbaPostValidationChecked = false;
   let nbaPostValidationTriggered = false;
   let nbaFallbackOrRepairUsed = false;
@@ -2841,7 +3221,9 @@ ${jsonContract}${propProjectionModeBlock}`
 
   if (
     sportHint === "nba" &&
-    (nbaDecisionMode === "blocked_unavailable" || nbaDecisionMode === "blocked_unlisted_market") &&
+    (nbaDecisionMode === "blocked_unavailable" ||
+      nbaDecisionMode === "blocked_unlisted_market" ||
+      nbaDecisionMode === "blocked_odds_feed_unavailable") &&
     nbaInvalidation.targetedPlayer
   ) {
     const affected = (nbaNewsImpact?.affectedTeams || []).find(
@@ -2854,24 +3236,33 @@ ${jsonContract}${propProjectionModeBlock}`
     const blockedLead =
       nbaInvalidation.blockedReason === "unlisted_market"
         ? `${nbaInvalidation.targetedPlayer} is not on an active posted NBA slate right now. Direct prop projection is invalid until books list a live market.`
-        : `${nbaInvalidation.targetedPlayer} is ${nbaInvalidation.statusDisplay || "out"}. Direct prop projection is invalid.`;
+        : nbaInvalidation.blockedReason === "odds_feed_unavailable"
+          ? `NBA player prop pricing from our odds provider is unavailable in this snapshot — not a timing signal about books. Direct projection for ${nbaInvalidation.targetedPlayer} is paused until verified lines load.`
+          : `${nbaInvalidation.targetedPlayer} is ${nbaInvalidation.statusDisplay || "out"}. Direct prop projection is invalid.`;
     const blockedHeader =
       nbaInvalidation.blockedReason === "unlisted_market"
         ? "MARKET AVAILABILITY"
-        : "STATUS SHIFT";
+        : nbaInvalidation.blockedReason === "odds_feed_unavailable"
+          ? "ODDS FEED UNAVAILABLE"
+          : "STATUS SHIFT";
     const blockedResponse = `${blockedHeader}
 ${blockedLead}
 
 AVAILABILITY FIRST
 ${nbaInvalidation.blockedReason === "unlisted_market"
   ? `Do not play ${nbaInvalidation.targetedPlayer} props until books post a live market.`
-  : `Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.`}
+  : nbaInvalidation.blockedReason === "odds_feed_unavailable"
+    ? `Do not treat this as confirmation that markets are closed — retry after the odds feed returns an active slate.`
+    : `Do not play ${nbaInvalidation.targetedPlayer} props until active status returns.`}
 ${beneficiaryLine ? `If you need action now, pivot to likely role gainers: ${beneficiaryLine}.` : "If you need action now, pivot to teammates with expanded role, not the inactive player's market."}
 
 CONFIDENCE
 ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifier.reason}` : ""}`;
     const blockedStatusShift =
-      nbaInvalidation.blockedReason === "unlisted_market" ? null : nbaStatusShiftLine || null;
+      nbaInvalidation.blockedReason === "unlisted_market" ||
+      nbaInvalidation.blockedReason === "odds_feed_unavailable"
+        ? null
+        : nbaStatusShiftLine || null;
 
     let takeRecord = extractTakeFromResponse({
       responseText: blockedResponse,
@@ -2907,6 +3298,36 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       decisionMode: nbaDecisionMode,
       ...(nbaDebugEnabled ? { nbaDebug: nbaMeta } : {}),
       sport: "nba",
+      intent,
+      take: {
+        id: takeRecord.id,
+        playLine: takeRecord.playLine,
+        confidence: takeRecord.confidence,
+        status: takeRecord.status,
+      },
+    });
+  }
+
+  if (sportHint === "mlb" && mlbDecisionMode === "no_data") {
+    const responseText = buildMlbNoDataTerminalResponse({ derivedConfidence });
+    let takeRecord = extractTakeFromResponse({
+      responseText,
+      sport: "mlb",
+      intent,
+      question,
+    });
+    if (userEmail) {
+      appendTakeForUser(userEmail, takeRecord).catch((e) => {
+        console.warn("take logging failed:", e?.message || e);
+      });
+    }
+    return res.status(200).json({
+      response: responseText,
+      responseDeep: null,
+      responseFormat: "plain",
+      statusShift: null,
+      decisionMode: "no_data",
+      sport: "mlb",
       intent,
       take: {
         id: takeRecord.id,
@@ -3601,67 +4022,24 @@ If gameTotals in context shows 214.5, that band is the pace read: a line that lo
   } else if (sportHint === "mlb") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const mlbGamesArr = Array.isArray(mlbContext?.games) ? mlbContext.games : [];
-    const mlbPropsArr = Array.isArray(mlbContext?.propLines) ? mlbContext.propLines : [];
-    const mlbEmptyBoard = mlbGamesArr.length === 0 && mlbPropsArr.length === 0;
     const mlbVerifiedBlock = buildMlbVerifiedPlayerListBlock(mlbContext);
 
-    userPrompt = `You are answering an MLB betting question.
-
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
-${question}
-
-MLB context:
-${JSON.stringify(mlbContext || {}, null, 2)}
-
-${
-  mlbEmptyBoard
-    ? `EMPTY MLB BOARD (no games and no prop lines in this payload — may be a real off-hour / pre-slate ET window):
-- Say so plainly once, then pivot helpfully: typical next first-pitch window for the ET calendar day (describe as "check board after morning refresh" without inventing exact times unless seasonContext or games carry scheduled times).
-- If propLines from a prior response is not in this JSON, do NOT invent lines or pitcher names — give park-, schedule-, and seasonContext-level hooks until the slate posts with verified names.
-- Never claim a pipeline failure unless mlbContext explicitly signals an error field; treat empty as "no slate in payload yet."
-`
-    : ""
-}
-Confidence guidance:
-- Default confidence should be ${derivedConfidence}.
-- Only go above that if the input strongly justifies it.
-
-${mlbVerifiedBlock}
-
-Rules:
-- Answer only as an MLB analyst.
-- Do not mention golf, NBA, NFL, F1, or tennis.
-- Do not invent unrelated games or props.
-
-NO-MARKET FALLBACK RULE (mandatory when propLines is empty or games lack posted lines for the asked matchup)
-
-You are NOT allowed to respond with "wait for lines" or "come back later" as
-the primary answer. The user is here because first pitch is close.
-
-Instead, do ALL of the following:
-
-1. Open with a confident pre-market call: watching specific pitcher strikeout
-   props, batter total bases, or game totals — anchored to park factors and
-   the listed matchups in games.
-
-${NO_MARKET_VERIFIED_PLAYER_STEP_2}
-
-3. For each player (only when at least two verified names exist on the VERIFIED MLB PLAYERS TONIGHT list above), state:
-   - The prop type to watch (K / TB / hits / HR / team total / game total)
-   - A pre-market price range or band ("look for K prop under 6.5 at -125 or better")
-   - Reasoning from handedness splits, park factor, bullpen load, or recent form
-
-4. Cite pitcher matchups and park factors from games — use home/away and
-   starting pitcher rows when present.
-
-5. End with a live trigger: what to monitor in the first inning or first trip
-   through the order (e.g. "If he's through 4 scoreless at under 5.5 Ks, that's
-   the live add").
-
-Never open with "lines aren't up." Never send the user away empty-handed.
-Do NOT answer with PASS when a specific matchup is provided. If starters are TBD,
-give the venue + market setup and trigger conditions anyway.`;
+    userPrompt =
+      mlbDecisionMode === "pre_market_framework"
+        ? buildMlbPreMarketUserPrompt({
+            question,
+            mlbContext,
+            derivedConfidence,
+            priorTakesSummary,
+            mlbVerifiedBlock,
+          })
+        : buildMlbActionableUserPrompt({
+            question,
+            mlbContext,
+            derivedConfidence,
+            priorTakesSummary,
+            mlbVerifiedBlock,
+          });
   } else if (sportHint === "f1") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -4344,7 +4722,12 @@ Rules:
       responseDeep,
       responseFormat,
       statusShift: responseStatusShift,
-      decisionMode: sportHint === "nba" ? nbaDecisionMode : null,
+      decisionMode:
+        sportHint === "nba"
+          ? nbaDecisionMode
+          : sportHint === "mlb"
+            ? mlbDecisionMode
+            : null,
       ...(nbaDebugEnabled && nbaMeta ? { nbaDebug: nbaMeta } : {}),
       sport: sportHint || "generic",
       intent,
