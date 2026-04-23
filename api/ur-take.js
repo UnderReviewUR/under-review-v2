@@ -22,7 +22,13 @@ import {
 } from "./nfl-draft-season.js";
 import { simulateDraftRounds } from "./nfl-draft-engine.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
-import { buildNbaUrTakeBoard, buildNbaNewsImpact, extractNbaTeamAbbrevsFromQuestion } from "./nba.js";
+import {
+  buildNbaUrTakeBoard,
+  buildNbaNewsImpact,
+  extractNbaTeamAbbrevsFromQuestion,
+  classifyNbaBoardGamePhase,
+  nbaGameHasVerifiedBoxScore,
+} from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
@@ -501,25 +507,41 @@ function detectLiveGameSignals(question, hasImage) {
   };
 }
 
+function hasRecentLiveScreenshotContext(history) {
+  if (!Array.isArray(history) || history.length === 0) return false;
+  const recent = history.slice(-6);
+  const livePattern =
+    /\b(live|q[1-4]|quarter|halftime|1st q|2nd q|3rd q|4th q|clock|odds|draftkings|fanduel|scoreboard|@\s*[A-Z]{2,4}|\b\d{1,3}\s*[-:]\s*\d{1,3}\b)\b/i;
+  return recent.some((msg) => livePattern.test(String(msg?.content ?? msg?.text ?? "")));
+}
+
+function isShortMarketFollowUp(question) {
+  const q = normalizeText(question);
+  const compact = q.replace(/\s+/g, " ").trim();
+  if (!compact) return false;
+  if (compact.length > 40) return false;
+  return (
+    /^(total|total over under|over|under|side|best bet)\??$/.test(compact) ||
+    /^(over under|o\/u|ou)\??$/.test(compact) ||
+    /^(over\??|under\??|side\??|best bet\??)$/.test(compact)
+  );
+}
+
 function detectIntent(question, hasImage) {
   const q = normalizeText(question);
 
-  if (
-    hasImage &&
-    (
-      q.includes("thoughts") ||
-      q.includes("what do you think") ||
-      q.includes("analyze") ||
-      q.includes("analysis") ||
-      q.includes("slip") ||
-      q.includes("parlay") ||
-      q.includes("entry") ||
-      q.includes("pick em") ||
-      q.includes("pick'em") ||
-      q.includes("picks") ||
-      q.includes("ticket")
-    )
-  ) {
+  const hasExplicitSlipLanguage =
+    q.includes("slip") ||
+    q.includes("parlay") ||
+    q.includes("entry") ||
+    q.includes("ticket") ||
+    q.includes("pick em") ||
+    q.includes("pick'em") ||
+    q.includes("bet slip") ||
+    q.includes("my slip") ||
+    q.includes("my ticket");
+
+  if (hasImage && hasExplicitSlipLanguage) {
     return "slip_review";
   }
 
@@ -1187,12 +1209,64 @@ function stripNbaInternalControlLabels(text) {
       if (/^DECISION MODE:\s*/i.test(l)) return false;
       if (/NBA SERVER DECISION MODE/i.test(l)) return false;
       if (/CONDITIONAL_WAIT MODE/i.test(l)) return false;
+      if (/^NBA GAME-STATE AUTHORITY\b/i.test(l)) return false;
       return true;
     })
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+
+function findFocusedNbaGameFromBoard(nbaContext, matchup) {
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  if (!games.length) return null;
+  if (matchup?.awayAbbr && matchup?.homeAbbr) {
+    const aa = String(matchup.awayAbbr).toUpperCase();
+    const ha = String(matchup.homeAbbr).toUpperCase();
+    const hit = games.find(
+      (g) =>
+        String(g?.awayTeam?.abbr || "").toUpperCase() === aa &&
+        String(g?.homeTeam?.abbr || "").toUpperCase() === ha,
+    );
+    if (hit) return hit;
+  }
+  if (games.length === 1) return games[0];
+  return null;
+}
+
+function buildNbaGameStateGateSnapshot(nbaContext, matchup) {
+  const focusedGame = findFocusedNbaGameFromBoard(nbaContext, matchup);
+  const phase = classifyNbaBoardGamePhase(focusedGame);
+  const verifiedBoxScore = nbaGameHasVerifiedBoxScore(focusedGame);
+  const allowsLiveNarrative =
+    verifiedBoxScore && (phase === "live" || phase === "halftime" || phase === "final");
+  return { focusedGame, phase, verifiedBoxScore, allowsLiveNarrative };
+}
+
+function buildNbaGameStateAuthorityBlock(gate) {
+  if (!gate || typeof gate !== "object") return "";
+  const { phase, verifiedBoxScore, allowsLiveNarrative } = gate;
+  const phaseLabel = String(phase || "unknown");
+
+  let rules =
+    "- Phase comes ONLY from `todaysGames[]` rows (state, status, scores, period, clock). Never infer score or quarter from user wording alone.\n";
+  if (!allowsLiveNarrative) {
+    rules +=
+      "- STRICT: Do not state or imply current in-game score, quarter, clock, halftime, live momentum, or pace math from invented game state.\n";
+    rules += `- Board-classified phase for this matchup: **${phaseLabel}**. Use pregame-safe reasoning (posted lines, injuries, matchup structure). If live numbers are absent from JSON, say we only have premarket context.\n`;
+  } else {
+    rules +=
+      "- Live/halftime/final numbers may appear ONLY when copied from JSON for this game (scores/status). Never invent clocks or quarters.\n";
+  }
+
+  return `NBA GAME-STATE AUTHORITY (SERVER — obey; never quote this header)
+Focused matchup phase (board-derived): ${phaseLabel}. Verified box scores on focused row: ${verifiedBoxScore ? "yes" : "no"}.
+${rules}`;
+}
+
+/* Post-generation live-state repair (regex replace of model output) intentionally not shipped yet.
+   Rely on data gate + NBA GAME-STATE AUTHORITY prompt block first; add repair only if production
+   shows the model still hallucinates scores/times after that. */
 
 function ensureNbaTakeConfidenceConsistency({
   takeRecord,
@@ -2502,18 +2576,15 @@ export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
 }
 
 function buildMlbNoDataTerminalResponse({ derivedConfidence }) {
-  return `MLB SNAPSHOT — NO BOARD DATA
+  return `Lean: broad and low-confidence until a game is pinned.
 
-There are no games, prop lines, or listed totals in this payload yet.
+Without a specific matchup, the safest MLB default is role-first: trust confirmed starters, bullpen depth, and run-environment context over hot streak narratives.
 
-WHAT TO DO
-Refresh after the slate and odds sync. Do not assume pitchers, lines, or totals until they appear on your board.
+Where it breaks: once park/weather, lineups, or pitcher confirmation changes the run environment, this generic lean can flip quickly.
 
-WATCH FOR
-Schedule release, probable pitchers, and first props drop — then re-run your ask.
+Drop the exact matchup (or player + market) and I’ll tighten this into a concrete over/under-style take.
 
-CONFIDENCE
-Low — conditional on data loading (${derivedConfidence}).`;
+Confidence: Low (${derivedConfidence}) — this is a no-context opinion, not a verified market read.`;
 }
 
 function buildMlbPreMarketUserPrompt({
@@ -2563,15 +2634,13 @@ SERVER MODE — PRE_MARKET_FRAMEWORK (mandatory)
 - You MAY cite a game total ONLY from gameTotals in the JSON (exact number).
 
 Answer structure:
-1. Market Snapshot — honestly state what is missing vs confirmed (props, starters, totals).
+1. Lean first — give a clear take (over/under/side/slight lean/close) even when market verification is missing.
 
-2. Structural angles — park/run environment and matchup framing without fake prop numbers.
+2. Structural angles — park/run environment, role, matchup, and game-script framing without fake prop numbers.
 
-3. What to watch — categories only (e.g., K props, TB, game total) when lines post — no numeric guesses.
+3. What breaks the lean — one concrete condition that would invalidate or flip it.
 
-4. Live triggers — inning/order cues that would change the read once verified markets exist — without inventing thresholds.
-
-5. Close — explicitly instruct the user to wait for posted lines before sizing props.
+4. Optional clarifier — ask for one compact missing market detail (exact line / market scope) to tighten the recommendation.
 
 CONFIDENCE — cap at Medium; align tone with ${derivedConfidence}.
 
@@ -2953,6 +3022,8 @@ export default async function handler(req, res) {
 
   const intent = detectIntent(question, hasImage);
   const chaseSignals = detectChaseSignals(question, incomingHistory);
+  const shortMarketFollowUp = isShortMarketFollowUp(question);
+  const hasLiveTranscriptContext = hasRecentLiveScreenshotContext(incomingHistory);
   if (chaseSignals.isChase) {
     console.log(
       JSON.stringify({
@@ -3062,6 +3133,9 @@ export default async function handler(req, res) {
   const nbaMatchupGroundingApplied = sportHint === "nba" && Boolean(nbaMatchupGroundingBlock);
   const nbaOffMatchupPromptAcknowledgement =
     sportHint === "nba" ? buildOffMatchupPromptAcknowledgement(question, nbaMatchup, nbaMatchupPool) : "";
+
+  const nbaGameStateGate =
+    sportHint === "nba" ? buildNbaGameStateGateSnapshot(nbaContext || {}, nbaMatchup) : null;
 
   const baseSystemPrompt = `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
 Every single response must follow these five steps in order. No exceptions.
@@ -3221,9 +3295,7 @@ ${jsonContract}${propProjectionModeBlock}`
 
   if (
     sportHint === "nba" &&
-    (nbaDecisionMode === "blocked_unavailable" ||
-      nbaDecisionMode === "blocked_unlisted_market" ||
-      nbaDecisionMode === "blocked_odds_feed_unavailable") &&
+    nbaDecisionMode === "blocked_unavailable" &&
     nbaInvalidation.targetedPlayer
   ) {
     const affected = (nbaNewsImpact?.affectedTeams || []).find(
@@ -3339,6 +3411,8 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
   }
 
   let userPrompt = question;
+  /** Scoped for Anthropic token budget — NFL TYPE_A draft simulation uses a higher max_tokens ceiling. */
+  let draftTeamSimulationInject = false;
 
   if (intent === "slip_review") {
     userPrompt = buildSlipReviewPrompt({
@@ -3833,6 +3907,8 @@ ${sportHint === "nba" ? `INTERNAL NBA CONTROL (DO NOT QUOTE OR REPEAT VERBATIM)
 - Follow this mode behavior in substance.
 - Never print internal labels, control headers, or mode names to the user.
 
+` : ""}${sportHint === "nba" && nbaGameStateGate ? `${buildNbaGameStateAuthorityBlock(nbaGameStateGate)}
+
 ` : ""}${nbaConditionalPayload ? `INTERNAL CONDITIONAL PAYLOAD (DO NOT QUOTE OR REPEAT VERBATIM)
 - targetPlayer: ${nbaConditionalPayload.player}
 - currentStatus: ${nbaConditionalPayload.status}
@@ -4203,7 +4279,7 @@ No bet now; re-run once verified player context is loaded.`;
     const nflDraftRoute = nflDraftWindowActive
       ? getNflDraftQuestionRoute(question, focusTeamAbbrForRoute)
       : null;
-    const draftTeamSimulationInject =
+    draftTeamSimulationInject =
       nflDraftWindowActive && nflDraftRoute === "TYPE_A";
     const teamState = focusTeamAbbr ? draftBundleForPrompt?.teams?.[focusTeamAbbr] : null;
     const teamPickList = (teamState?.picks || [])
@@ -4330,8 +4406,8 @@ VERIFIED PROSPECT POOL (rounds 1-4 only — do not name prospects outside this l
 ${prospectsFormattedByPosition}
 
 SIMULATION BASELINE (engine output — align narrative; validate slot realism — only when Team is NOT UNKNOWN below)
-SENSIBLE: ${sensibleSimulation ? JSON.stringify(sensibleSimulation, null, 2) : "(no franchise resolved — skip baseline)"}
-CHAOS: ${chaosSimulation ? JSON.stringify(chaosSimulation, null, 2) : "(no franchise resolved — skip baseline)"}
+SENSIBLE: ${sensibleSimulation ? JSON.stringify(sensibleSimulation) : "(no franchise resolved — skip baseline)"}
+CHAOS: ${chaosSimulation ? JSON.stringify(chaosSimulation) : "(no franchise resolved — skip baseline)"}
 
 SIMULATION RULES (mandatory — TYPE A team resolved only):
 1. Target under 400 words total.
@@ -4492,6 +4568,18 @@ Rules:
   } else {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
+    const continuationRule =
+      shortMarketFollowUp && hasLiveTranscriptContext
+        ? `
+CONTINUATION RULE — SHORT LIVE FOLLOW-UP
+- Recent transcript includes live/screenshot game context. Reuse that game context instead of cold-starting.
+- Give a provisional conditional lean now (not a locked bet): "Lean X if number/scope condition holds."
+- Ask exactly ONE compact clarifier for the decision-critical missing input (usually exact live number + full game vs 1H).
+- Acknowledge uncertainty once, then move to analysis. Do not repeat cannot-assess phrasing and do not output long missing-input checklists.
+- Do not fabricate an exact live total/line and do not imply certainty when price/scope is missing.
+`
+        : "";
+
     userPrompt = `You are answering a sports betting question.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
@@ -4502,6 +4590,8 @@ ${JSON.stringify({
   sportHint,
   matchupContext: matchupContext || null,
   hasImage,
+  shortMarketFollowUp,
+  hasLiveTranscriptContext,
 }, null, 2)}
 
 Confidence guidance:
@@ -4511,7 +4601,8 @@ Confidence guidance:
 Rules:
 - Stay within the sport most clearly implied by the question.
 - If the sport is ambiguous, answer conservatively and do not invent specifics.
-- Do not make up games, players, or props that are not supported by the prompt.`;
+- Do not make up games, players, or props that are not supported by the prompt.
+${continuationRule}`;
   }
 
   const messages = buildMessagesForAnthropic({
@@ -4527,13 +4618,15 @@ Rules:
     const selectedTemperature = factualQuestion ? 0.2 : 0.45;
 
     const tokenBudget =
-      outputJsonMode === "tier2_5_json"
-        ? 4200
-        : outputJsonMode === "tier2_live_json"
-          ? 2200
-          : outputJsonMode === "tier1_json"
-            ? 700
-            : 800;
+      draftTeamSimulationInject
+        ? 2600
+        : outputJsonMode === "tier2_5_json"
+          ? 4200
+          : outputJsonMode === "tier2_live_json"
+            ? 2200
+            : outputJsonMode === "tier1_json"
+              ? 700
+              : 800;
 
     if (sportHint === "nba" && nbaContext?.rosterGrounding) {
       console.log(
