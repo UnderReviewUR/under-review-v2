@@ -230,7 +230,14 @@ ${themeCss}
 
   const getTakeAuthHeaders = useTakeAuthHeaders();
 
-  const { players, context, liveMatches, tennisLoading } = useTennisData();
+  const {
+    players,
+    context,
+    liveMatches,
+    tennisLoading,
+    hasStaticTennisIntel,
+    staticIntelFetchFailed,
+  } = useTennisData();
   const { f1Data, f1Loading } = useF1Data();
   const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData();
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
@@ -802,7 +809,28 @@ ${themeCss}
         },
       ];
     }
-    if (!tennisLoading && !atp.length) {
+    if (!tennisLoading && !atp.length && (hasStaticTennisIntel || staticIntelFetchFailed)) {
+      return [
+        {
+          id: "tennis-atp-profile-backed",
+          league: "ATP",
+          leagueColor: "#0891B2",
+          homeCategory: "ATP",
+          title: "ATP · waiting on confirmed Ball Dont Lie draws",
+          time: "Profile intel",
+          network: context?.currentTournament?.name || "ATP Tour",
+          blurb:
+            hasStaticTennisIntel
+              ? "No ATP fixtures came back from the live feed for this window — that is normal between draw posts. Tennis still has surface, field, and player intel from your static board (not live matchups). Open the Tennis tab for full context."
+              : "No ATP fixtures came back from the live feed and static profile intel is temporarily unavailable in this refresh window. Open Tennis to retry.",
+          whatMatters: "Use Tennis for player/surface angles while the confirmed schedule populates.",
+          quickHitters: ["Open Tennis tab"],
+          confirmed: false,
+          tennisSpotlightState: "profile_backed_tennis_available",
+        },
+      ];
+    }
+    if (!tennisLoading && !atp.length && !staticIntelFetchFailed) {
       return [
         {
           id: "tennis-atp-feed-empty",
@@ -844,22 +872,28 @@ ${themeCss}
         confirmed: true,
       },
     ];
-  }, [liveMatches, tennisLoading, context]);
+  }, [liveMatches, tennisLoading, context, hasStaticTennisIntel, staticIntelFetchFailed]);
 
   const homeF1Cards = useMemo(() => {
     const nextRace = f1Data?.schedule?.races?.find(r => r.is_next);
     if (nextRace) {
       const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
       const dt = raceStart ? new Date(raceStart) : null;
+      const fallbackDate = nextRace?.race_date ? new Date(nextRace.race_date) : null;
+      const hasConfirmedRaceStart = Boolean(dt);
       const dateStr = dt
         ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
+        : fallbackDate
+          ? fallbackDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
         : "TBD";
       const fullDateStr = dt
         ? dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })
+        : fallbackDate
+          ? fallbackDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })
         : "Date TBD";
       const timeStr = dt
         ? dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })
-        : "";
+        : "Time unconfirmed";
       return [{
         id: "f1-next-1",
         league: "F1",
@@ -867,7 +901,7 @@ ${themeCss}
         title: nextRace.meeting_name || "Next Grand Prix",
         time: dateStr,
         network: nextRace.circuit_short_name || nextRace.location || "",
-        blurb: `${nextRace.location || "Track TBD"} · ${fullDateStr}${timeStr ? ` at ${timeStr}` : ""}`,
+        blurb: `${nextRace.location || "Track TBD"} · ${fullDateStr}${hasConfirmedRaceStart ? ` at ${timeStr}` : ` · ${timeStr}`}`,
         whatMatters: "Ask for race winner, podium, or race-day matchup edges.",
         quickHitters: ["Best F1 race-day bet?", "Best podium value?", "Best race matchup?"],
         confirmed: true
@@ -1118,13 +1152,15 @@ ${themeCss}
     }
 
     const nextEventName =
-      tournament?.shortName ||
-      tournament?.name ||
-      currentEvent?.shortName ||
-      currentEvent?.name ||
-      "Next PGA Tour Event";
+      [
+        tournament?.shortName,
+        tournament?.name,
+        currentEvent?.shortName,
+        currentEvent?.name,
+      ].find((v) => String(v || "").trim().length > 0) || null;
+    const hasValidEventIdentity = Boolean(nextEventName) && Boolean(tournament?.id || currentEvent?.id);
 
-    if (nextEventName) {
+    if (hasValidEventIdentity) {
       return [{
         id: "golf-home-next",
         league: "GOLF",
@@ -1136,7 +1172,7 @@ ${themeCss}
           currentEvent?.course ||
           golfData?.course?.name ||
           "PGA Tour",
-        blurb: `Live top-3 scoring is not posted yet. Check back as soon as tee times go live.\n${sourceLabel} · ${freshnessLabel}`,
+        blurb: `Upcoming event context is loaded. Check back when live scoring opens.\n${sourceLabel} · ${freshnessLabel}`,
         whatMatters: "Target course-fit winners and fade overpriced names before tee-off.",
         quickHitters: [
           "When does live scoring start?",

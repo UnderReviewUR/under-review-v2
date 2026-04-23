@@ -329,6 +329,9 @@ function normalizeBdlTournament(tournament) {
     alias?.canonicalShortName || tournament.short_name || tournament.name || "PGA Tour Event";
   const courseName =
     alias?.canonicalCourseName || tournament.course_name || primaryCourse?.name || null;
+  const seasonGuess = Number(tournament.season || new Date().getFullYear());
+  const startTs = parseBdlStartTs(tournament.start_date, seasonGuess);
+  const endTs = parseBdlEndTs(tournament.end_date, seasonGuess, startTs);
 
   return {
     id: tournament.id || null,
@@ -351,6 +354,8 @@ function normalizeBdlTournament(tournament) {
     courseId: primaryCourse?.id || null,
     champion: tournament.champion?.display_name || null,
     aliasApplied: alias?.canonicalName || null,
+    startTs: Number.isFinite(startTs) ? startTs : null,
+    endTs: Number.isFinite(endTs) ? endTs : null,
     raw: tournament,
   };
 }
@@ -434,6 +439,116 @@ function hasMeaningfulLeaderboardRows(rows) {
       (score && score !== "-" && score !== "--")
     );
   });
+}
+
+/** Past finished events stay in ESPN lists; suppress pseudo-current boards after this grace past inferred end. */
+const GOLF_SCHEDULE_END_GRACE_MS = 48 * 60 * 60 * 1000;
+
+function parseScheduleMs(value) {
+  if (!value) return NaN;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? NaN : ms;
+}
+
+function inferPgaTourEndMsFromStart(startMs) {
+  if (!Number.isFinite(startMs)) return NaN;
+  // PGA events are generally Thu-Sun (4 days). Keep stale suppression aligned to that window.
+  return startMs + 4 * 24 * 60 * 60 * 1000;
+}
+
+/** True when tournament row from BDL is clearly over (outside active scoring window). */
+function isBdlTournamentScheduleStale(normalizedTournament, nowMs = Date.now()) {
+  if (!normalizedTournament) return false;
+  const startMs =
+    Number.isFinite(normalizedTournament.startTs) && normalizedTournament.startTs > 0
+      ? normalizedTournament.startTs
+      : parseScheduleMs(normalizedTournament.startDate);
+  let endMs =
+    Number.isFinite(normalizedTournament.endTs) && normalizedTournament.endTs > 0
+      ? normalizedTournament.endTs
+      : parseScheduleMs(normalizedTournament.endDate);
+  if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
+    endMs = inferPgaTourEndMsFromStart(startMs);
+  }
+  if (Number.isFinite(endMs) && nowMs > endMs + GOLF_SCHEDULE_END_GRACE_MS) return true;
+  const status = String(normalizedTournament.status || "").toLowerCase();
+  if (
+    status.includes("final") &&
+    Number.isFinite(startMs) &&
+    nowMs > startMs + 8 * 24 * 60 * 60 * 1000
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Suppress merged currentEvent when ESPN/merge points at a finished week (stale scoreboard fallback).
+ */
+function shouldSuppressStaleMergedEvent({
+  espnEvent,
+  tournament,
+  mergedCurrentEvent,
+  espnLooksFinished,
+}) {
+  const nowMs = Date.now();
+  const tournamentStartMs =
+    Number.isFinite(tournament?.startTs) && tournament.startTs > 0
+      ? tournament.startTs
+      : parseScheduleMs(tournament?.startDate);
+  const tournamentEndMs =
+    Number.isFinite(tournament?.endTs) && tournament.endTs > 0
+      ? tournament.endTs
+      : parseScheduleMs(tournament?.endDate);
+  const startMs =
+    parseScheduleMs(mergedCurrentEvent?.startDate) ||
+    tournamentStartMs ||
+    parseScheduleMs(espnEvent?.startDate) ||
+    NaN;
+  let endMs =
+    parseScheduleMs(mergedCurrentEvent?.endDate) || tournamentEndMs;
+  if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
+    endMs = inferPgaTourEndMsFromStart(startMs);
+  }
+  if (Number.isFinite(endMs) && nowMs > endMs + GOLF_SCHEDULE_END_GRACE_MS) {
+    return true;
+  }
+
+  const mergedState = String(mergedCurrentEvent?.state || "").toLowerCase();
+  const espnState = String(espnEvent?.state || "").toLowerCase();
+  const looksFinished =
+    espnLooksFinished ||
+    mergedState === "post" ||
+    mergedState === "final" ||
+    espnState === "post" ||
+    espnState === "final";
+
+  if (
+    looksFinished &&
+    Number.isFinite(startMs) &&
+    nowMs > startMs + 7 * 24 * 60 * 60 * 1000
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/** ESPN fallback can return last week's event as events[0]; skip those for current-event picks. */
+function espnScoreboardEventLooksStale(event) {
+  if (!event) return true;
+  const st = event?.status?.type?.state;
+  const dateStr = event?.date || event?.end?.date || null;
+  const startMs = parseScheduleMs(dateStr);
+  const endMs = inferPgaTourEndMsFromStart(startMs);
+  const nowMs = Date.now();
+  if (Number.isFinite(endMs) && nowMs > endMs + GOLF_SCHEDULE_END_GRACE_MS) {
+    return true;
+  }
+  if ((st === "post" || st === "final") && Number.isFinite(endMs)) {
+    return nowMs > endMs + GOLF_SCHEDULE_END_GRACE_MS;
+  }
+  return false;
 }
 
 function parseEspnLeaderboardFromHtml(html) {
@@ -522,8 +637,13 @@ async function getEspnCurrentEvent() {
     setCache(cacheKey, null, 60 * 1000);
     return null;
   }
+  const validEvents = events.filter((e) => !espnScoreboardEventLooksStale(e));
+  if (!validEvents.length) {
+    setCache(cacheKey, null, 60 * 1000);
+    return null;
+  }
 
-  const activePool = events.filter((e) => {
+  const activePool = validEvents.filter((e) => {
     const st = e?.status?.type?.state;
     return st === "in" || st === "pre";
   });
@@ -541,7 +661,7 @@ async function getEspnCurrentEvent() {
   }
 
   if (!selectedEvent) {
-    const upcomingOnly = events.filter((e) => e?.status?.type?.state === "pre");
+    const upcomingOnly = validEvents.filter((e) => e?.status?.type?.state === "pre");
     if (upcomingOnly.length > 0) {
       const sansZurichUpcoming = upcomingOnly.filter(
         (e) => !eventNameLooksZurichOrTeamFormat(e?.name, e?.shortName)
@@ -554,7 +674,8 @@ async function getEspnCurrentEvent() {
   }
 
   if (!selectedEvent) {
-    selectedEvent = events[0] || null;
+    const nonStaleFallback = validEvents;
+    selectedEvent = nonStaleFallback[0] || null;
   }
 
   if (!selectedEvent) {
@@ -1034,9 +1155,23 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       : [],
   };
 
+  const suppressCurrent = shouldSuppressStaleMergedEvent({
+    espnEvent,
+    tournament,
+    mergedCurrentEvent: currentEvent,
+    espnLooksFinished,
+  });
+
+  let outTournament = tournament;
+  if (outTournament && isBdlTournamentScheduleStale(outTournament)) {
+    outTournament = null;
+  }
+
+  const outCurrent = suppressCurrent ? null : currentEvent;
+
   return {
-    currentEvent,
-    leaderboard: currentEvent.leaderboard,
+    currentEvent: outCurrent,
+    leaderboard: outCurrent?.leaderboard ?? [],
     rankings: Array.isArray(rankings) ? rankings : [],
     odds: odds || {
       outrights: [],
@@ -1045,7 +1180,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       eventName: null,
       marketStatus: "hidden",
     },
-    tournament,
+    tournament: outTournament,
     course,
     recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
     courseStats: Array.isArray(bdlBundle?.courseStats)
@@ -1070,12 +1205,14 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       espnLeaderboardSource: espnEvent?.leaderboardSource || "none",
       espnLooksFinished,
       fetchedAt: new Date().toISOString(),
+      scheduleStaleSuppressed: suppressCurrent || undefined,
+      bdlTournamentStaleDropped: tournament && !outTournament ? true : undefined,
     },
   };
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v10";
+  const cacheKey = "unified_golf_board_v11";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
