@@ -1,5 +1,7 @@
 export function resolveF1RaceStart(race, sessions = []) {
   if (!race) return null;
+  // Only return a precise race-start timestamp. Meeting-level dates are not reliable
+  // race start times and should not be shown as exact start clock times.
   if (race?.race_start) return race.race_start;
 
   const raceSessions = Array.isArray(sessions)
@@ -24,5 +26,5 @@ export function resolveF1RaceStart(race, sessions = []) {
     if (raceSessions[0]?.date_start) return raceSessions[0].date_start;
   }
 
-  return race?.race_date || race?.date_end || race?.date_start || null;
+  return null;
 }

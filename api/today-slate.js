@@ -1,6 +1,15 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import {
+  classifyF1Race,
+  classifyGolfEvent,
+  classifyMlbGame,
+  classifyNbaGame,
+  classifyTennisMatch,
+  getDisplayableF1NextRace,
+  isDisplayableValidity,
+} from "../shared/eventValidity.js";
 
 const CACHE_KEY = "today-slate:daily";
 const CACHE_TTL_SECONDS = 15 * 60;
@@ -71,12 +80,51 @@ function summarizeMlb(mlb) {
 }
 
 function summarizeF1(f1) {
-  const nextRace =
-    (Array.isArray(f1?.schedule?.upcoming) && f1.schedule.upcoming[0]) ||
-    (Array.isArray(f1?.schedule?.races) && f1.schedule.races.find((r) => r?.is_next)) ||
-    null;
+  const nextRace = getDisplayableF1NextRace(f1);
   if (!nextRace) return null;
   return String(nextRace?.meeting_name || nextRace?.name || "Next Grand Prix");
+}
+
+function sanitizeNbaBoard(nba) {
+  if (!nba || typeof nba !== "object") return null;
+  const todaysGames = (Array.isArray(nba.todaysGames) ? nba.todaysGames : []).filter((g) =>
+    isDisplayableValidity(classifyNbaGame(g)),
+  );
+  return { ...nba, todaysGames };
+}
+
+function sanitizeMlbBoard(mlb) {
+  if (!mlb || typeof mlb !== "object") return null;
+  const games = (Array.isArray(mlb.games) ? mlb.games : []).filter((g) =>
+    isDisplayableValidity(classifyMlbGame(g)),
+  );
+  return { ...mlb, games };
+}
+
+function sanitizeGolfBoard(golf) {
+  if (!golf || typeof golf !== "object") return null;
+  if (!isDisplayableValidity(classifyGolfEvent(golf.currentEvent || null))) return null;
+  return golf;
+}
+
+function sanitizeTennisBoard(tennis) {
+  if (!Array.isArray(tennis)) return null;
+  return tennis.filter((m) => isDisplayableValidity(classifyTennisMatch(m)));
+}
+
+function sanitizeF1Board(f1) {
+  if (!f1 || typeof f1 !== "object") return null;
+  const races = Array.isArray(f1?.schedule?.races) ? f1.schedule.races : [];
+  const validRaces = races.filter((r) => isDisplayableValidity(classifyF1Race(r)));
+  const nextRace = getDisplayableF1NextRace({ ...f1, schedule: { ...(f1.schedule || {}), races: validRaces } });
+  if (!nextRace) return null;
+  return {
+    ...f1,
+    schedule: {
+      ...(f1.schedule || {}),
+      races: validRaces.map((r) => ({ ...r, is_next: r === nextRace })),
+    },
+  };
 }
 
 function buildFallbackSlate(bundle, reason = "fallback") {
@@ -109,11 +157,18 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         angle: "Series/game-total context over narrative",
         why: "Prioritize playoffSeries + gameTotals + injuries before any player-level assumptions.",
       }
-    : {
+    : bundle?.golf?.currentEvent
+    ? {
         sport: "golf",
         event: String(bundle?.golf?.currentEvent?.shortName || bundle?.golf?.currentEvent?.name || "Current event"),
         angle: "Placement over outrights",
         why: "Leaderboard context is usually more stable than volatile outright pricing.",
+      }
+    : {
+        sport: "tennis",
+        event: "ATP card",
+        angle: "Return-game pressure over highlight bias",
+        why: "Hold/break profile usually carries more signal than recent highlight outcomes.",
       };
 
   const contrarian = f1Race
@@ -131,6 +186,34 @@ function buildFallbackSlate(bundle, reason = "fallback") {
       };
 
   return { generatedAt, safeLean, sharpAngle, contrarian, _fallbackReason: reason };
+}
+
+function sportHasValidData(bundle, sport) {
+  const s = String(sport || "").toLowerCase();
+  if (s === "nba") return Array.isArray(bundle?.nba?.todaysGames) && bundle.nba.todaysGames.length > 0;
+  if (s === "mlb") return Array.isArray(bundle?.mlb?.games) && bundle.mlb.games.length > 0;
+  if (s === "golf") return Boolean(bundle?.golf?.currentEvent);
+  if (s === "tennis") return Array.isArray(bundle?.tennis) && bundle.tennis.length > 0;
+  if (s === "f1") return Boolean(summarizeF1(bundle?.f1));
+  return false;
+}
+
+function sanitizeSlateOutput(parsed, bundle) {
+  const fallback = buildFallbackSlate(bundle, "sport_guard");
+  const sanitizeRow = (row, fallbackRow) => {
+    if (!row || typeof row !== "object") return fallbackRow || null;
+    const sport = String(row.sport || "").toLowerCase();
+    if (!sportHasValidData(bundle, sport)) return fallbackRow || null;
+    return row;
+  };
+
+  return {
+    generatedAt:
+      typeof parsed.generatedAt === "string" ? parsed.generatedAt : new Date().toISOString(),
+    safeLean: sanitizeRow(parsed.safeLean, fallback.safeLean),
+    sharpAngle: sanitizeRow(parsed.sharpAngle, fallback.sharpAngle),
+    contrarian: sanitizeRow(parsed.contrarian, fallback.contrarian),
+  };
 }
 
 export default async function handler(req, res) {
@@ -167,11 +250,11 @@ export default async function handler(req, res) {
 
     const bundle = {
       fetchedAt: new Date().toISOString(),
-      nba: nba.ok ? nba.data : null,
-      mlb: mlb.ok ? mlb.data : null,
-      golf: golf.ok ? golf.data : null,
-      tennis: tennis.ok ? tennis.data : null,
-      f1: f1.ok ? f1.data : null,
+      nba: nba.ok ? sanitizeNbaBoard(nba.data) : null,
+      mlb: mlb.ok ? sanitizeMlbBoard(mlb.data) : null,
+      golf: golf.ok ? sanitizeGolfBoard(golf.data) : null,
+      tennis: tennis.ok ? sanitizeTennisBoard(tennis.data) : null,
+      f1: f1.ok ? sanitizeF1Board(f1.data) : null,
     };
 
     const userPrompt = `You are Under Review's cross-sport slate editor.
@@ -239,13 +322,7 @@ RULES
       return res.status(200).json(fb);
     }
 
-    const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt : new Date().toISOString();
-    const out = {
-      generatedAt,
-      safeLean: parsed.safeLean || null,
-      sharpAngle: parsed.sharpAngle || null,
-      contrarian: parsed.contrarian || null,
-    };
+    const out = sanitizeSlateOutput(parsed, bundle);
 
     await setDurableJson(CACHE_KEY, out, { ttlSeconds: CACHE_TTL_SECONDS });
     res.setHeader("Cache-Control", "private, max-age=60");
@@ -263,11 +340,11 @@ RULES
       ]);
       const bundle = {
         fetchedAt: new Date().toISOString(),
-        nba: nba.ok ? nba.data : null,
-        mlb: mlb.ok ? mlb.data : null,
-        golf: golf.ok ? golf.data : null,
-        tennis: tennis.ok ? tennis.data : null,
-        f1: f1.ok ? f1.data : null,
+        nba: nba.ok ? sanitizeNbaBoard(nba.data) : null,
+        mlb: mlb.ok ? sanitizeMlbBoard(mlb.data) : null,
+        golf: golf.ok ? sanitizeGolfBoard(golf.data) : null,
+        tennis: tennis.ok ? sanitizeTennisBoard(tennis.data) : null,
+        f1: f1.ok ? sanitizeF1Board(f1.data) : null,
       };
       const fb = buildFallbackSlate(bundle, "server_error");
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });

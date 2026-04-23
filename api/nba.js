@@ -113,11 +113,16 @@ function mapBdlGameRowToAppGame(g) {
     statusCode = 1;
   }
 
+  const periodNum = Number(g.period);
+  const clockRaw = g.time != null ? String(g.time).trim() : "";
+
   return {
     id: g.id,
     status,
     state,
     statusCode,
+    period: Number.isFinite(periodNum) ? periodNum : null,
+    clock: clockRaw || null,
     homeTeam: {
       name: homeName,
       abbr: homeAbbr,
@@ -130,6 +135,48 @@ function mapBdlGameRowToAppGame(g) {
     },
     postseason: !!g.postseason,
   };
+}
+
+/** Box score numbers present on the board row (server-trust gate for live/halftime reads). */
+export function nbaGameHasVerifiedBoxScore(game) {
+  if (!game || typeof game !== "object") return false;
+  const hs = game.homeTeam?.score;
+  const vs = game.awayTeam?.score;
+  if (hs == null || vs == null) return false;
+  return Number.isFinite(Number(hs)) && Number.isFinite(Number(vs));
+}
+
+/**
+ * Classify game phase from API-shaped rows only (no inference from user text).
+ * Returns: pregame | live | halftime | final | unknown
+ */
+export function classifyNbaBoardGamePhase(game) {
+  if (!game || typeof game !== "object") return "unknown";
+  const state = String(game.state || "").toLowerCase();
+  const statusRaw = String(game.status || "");
+  const statusLower = statusRaw.toLowerCase();
+
+  if (state === "post" || statusLower.includes("final")) return "final";
+
+  if (state === "pre") return "pregame";
+
+  if (state === "in") {
+    if (!nbaGameHasVerifiedBoxScore(game)) return "unknown";
+
+    if (/\bhalftime\b/i.test(statusRaw) || /\bhalf\s*time\b/i.test(statusLower)) {
+      return "halftime";
+    }
+
+    const period = Number(game.period);
+    if (Number.isFinite(period) && period >= 1) {
+      return "live";
+    }
+
+    // Odds live rows may omit period but still carry scores while state is "in"
+    return "live";
+  }
+
+  return "unknown";
 }
 
 /** Odds API only — used when BDL returns no rows or is unavailable. */
@@ -166,6 +213,8 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
           status: isFinal ? "Final" : isLive ? "Live" : gameTime,
           state: isFinal ? "post" : isLive ? "in" : "pre",
           statusCode: isFinal ? 3 : isLive ? 2 : 1,
+          period: null,
+          clock: null,
           homeTeam: {
             name: g.home_team,
             abbr: normalizeTeamAbbr(g.home_team),
@@ -202,6 +251,8 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
                   }) + " ET",
                 state: "pre",
                 statusCode: 1,
+                period: null,
+                clock: null,
                 homeTeam: {
                   name: g.home_team,
                   abbr: normalizeTeamAbbr(g.home_team),
@@ -316,17 +367,102 @@ async function getTodaysGames(oddsKey, bdlKey) {
   return payload;
 }
 
-async function getNbaPropLines(oddsKey) {
-  if (!oddsKey) return [];
-  const cacheKey = "nba_props_v2";
+const DEFAULT_NBA_PROP_FETCH_OPTIONS = {
+  priorityAbbrevs: [],
+  maxEvents: 18,
+};
+
+function scoreNbaEventBoost(event, boostSet) {
+  if (!boostSet.size) return 0;
+  const away = String(normalizeTeamAbbr(event.away_team) || "").toUpperCase();
+  const home = String(normalizeTeamAbbr(event.home_team) || "").toUpperCase();
+  let s = 0;
+  if (away && away !== "UNK" && boostSet.has(away)) s++;
+  if (home && home !== "UNK" && boostSet.has(home)) s++;
+  return s;
+}
+
+/**
+ * Pull NBA player props from The Odds API (per-event markets).
+ * @returns {{ propLines: object[], feedMeta: object }}
+ */
+async function getNbaPropLines(oddsKey, options = {}) {
+  const { priorityAbbrevs = [], maxEvents = DEFAULT_NBA_PROP_FETCH_OPTIONS.maxEvents } = {
+    ...DEFAULT_NBA_PROP_FETCH_OPTIONS,
+    ...options,
+  };
+  const boostSorted = [...priorityAbbrevs].map((a) => String(a || "").toUpperCase()).sort().join(",");
+  const cacheKey = `nba_props_v4_${maxEvents}_${boostSorted}`;
+  const boostSet = new Set(
+    priorityAbbrevs.map((a) => String(a || "").toUpperCase()).filter(Boolean),
+  );
+
+  const logFeed = (feedMeta) =>
+    console.log(
+      JSON.stringify({
+        event: "nba_props_feed",
+        oddsKeyPresent: Boolean(oddsKey),
+        maxEvents,
+        priorityBoost: boostSorted || null,
+        ...feedMeta,
+      }),
+    );
+
+  const fail = (feedMeta) => {
+    logFeed(feedMeta);
+    return { propLines: [], feedMeta };
+  };
+
+  if (!oddsKey) {
+    return fail({
+      emptyReason: "missing_key",
+      eventsFetchOk: false,
+      eventsFetchStatus: null,
+      matchingEventCount: 0,
+      eventsProcessed: 0,
+      propsIngestionRows: 0,
+      propFetchFailures: 0,
+      missingPreferredBookmaker: 0,
+    });
+  }
+
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
   try {
-    const eventsRes = await fetch(`https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`);
-    if (!eventsRes.ok) return [];
+    const eventsRes = await fetch(
+      `https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`,
+    );
+    const eventsFetchOk = eventsRes.ok;
+    const eventsFetchStatus = eventsRes.status;
+
+    if (!eventsFetchOk) {
+      const out = fail({
+        emptyReason: "events_fetch_failed",
+        eventsFetchOk: false,
+        eventsFetchStatus,
+        matchingEventCount: 0,
+        eventsProcessed: 0,
+        propsIngestionRows: 0,
+        propFetchFailures: 0,
+        missingPreferredBookmaker: 0,
+      });
+      return out;
+    }
+
     const events = await eventsRes.json();
-    if (!Array.isArray(events) || !events.length) return [];
+    if (!Array.isArray(events) || !events.length) {
+      return fail({
+        emptyReason: "zero_events_payload",
+        eventsFetchOk: true,
+        eventsFetchStatus,
+        matchingEventCount: 0,
+        eventsProcessed: 0,
+        propsIngestionRows: 0,
+        propFetchFailures: 0,
+        missingPreferredBookmaker: 0,
+      });
+    }
 
     const todayET = getTodayEtDateString();
     const tomorrowET = getTomorrowEtDateString();
@@ -335,14 +471,15 @@ async function getNbaPropLines(oddsKey) {
       JSON.stringify({
         event: "nba_props_events",
         oddsKeyPresent: !!oddsKey,
-        eventsFound: Array.isArray(events) ? events.length : 0,
+        maxEvents,
+        priorityBoost: boostSorted || null,
+        eventsFound: events.length,
         todayET,
         tomorrowET,
-        eventDates: (events || []).slice(0, 6).map((e) => ({
+        eventDates: events.slice(0, 8).map((e) => ({
           id: e.id,
           home: e.home_team,
           away: e.away_team,
-          commence_utc: e.commence_time,
           commence_et: toEtDateString(e.commence_time),
           passes:
             toEtDateString(e.commence_time) === todayET ||
@@ -355,20 +492,38 @@ async function getNbaPropLines(oddsKey) {
       "player_points,player_rebounds,player_assists,player_points_rebounds_assists";
     const propLines = [];
 
-    const targetEvents = events
-      .filter((e) => {
-        const d = toEtDateString(e.commence_time);
-        return d === todayET || d === tomorrowET;
-      })
-      .slice(0, 6);
+    const etFiltered = events.filter((e) => {
+      const d = toEtDateString(e.commence_time);
+      return d === todayET || d === tomorrowET;
+    });
+
+    const prioritized = [...etFiltered].sort((a, b) => {
+      const sb = scoreNbaEventBoost(b, boostSet);
+      const sa = scoreNbaEventBoost(a, boostSet);
+      if (sb !== sa) return sb - sa;
+      const ta = new Date(a.commence_time || 0).getTime();
+      const tb = new Date(b.commence_time || 0).getTime();
+      return ta - tb;
+    });
+
+    const targetEvents = prioritized.slice(0, Math.max(1, Math.min(maxEvents, 40)));
 
     console.log(
       JSON.stringify({
         event: "nba_props_filtered",
-        todayEventsCount: targetEvents.length,
-        targetEventIds: targetEvents.map((e) => e.id),
+        matchingEventCount: etFiltered.length,
+        prioritizedSample: targetEvents.slice(0, 4).map((e) => ({
+          id: e.id,
+          away: e.away_team,
+          home: e.home_team,
+          boost: scoreNbaEventBoost(e, boostSet),
+        })),
+        targetEventCount: targetEvents.length,
       }),
     );
+
+    let propFetchFailures = 0;
+    let missingPreferredBookmaker = 0;
 
     for (const event of targetEvents) {
       try {
@@ -381,6 +536,15 @@ async function getNbaPropLines(oddsKey) {
           bookmakers.find((b) => ["draftkings", "fanduel", "betmgm"].includes(b.key)) ||
           bookmakers[0];
 
+        if (!propRes.ok) {
+          propFetchFailures++;
+          continue;
+        }
+        if (!preferred) {
+          missingPreferredBookmaker++;
+          continue;
+        }
+
         console.log(
           JSON.stringify({
             event: "nba_props_per_event",
@@ -390,14 +554,10 @@ async function getNbaPropLines(oddsKey) {
             propResOk: propRes.ok,
             propResStatus: propRes.status,
             bookmakerCount: bookmakers.length,
-            bookmakerKeys: bookmakers.map((b) => b.key),
             preferredKey: preferred?.key || "none",
             marketCount: preferred?.markets?.length || 0,
-            marketsFound: (preferred?.markets || []).map((m) => m.key),
           }),
         );
-
-        if (!propRes.ok || !preferred) continue;
 
         const awayAbbr = normalizeTeamAbbr(event.away_team);
         const homeAbbr = normalizeTeamAbbr(event.home_team);
@@ -419,9 +579,30 @@ async function getNbaPropLines(oddsKey) {
           }
         }
       } catch {
+        propFetchFailures++;
         continue;
       }
     }
+
+    const propsIngestionRows = propLines.length;
+    let emptyReason = null;
+    if (propsIngestionRows === 0) {
+      if (etFiltered.length === 0) emptyReason = "zero_matching_events";
+      else emptyReason = "zero_props_returned";
+    }
+
+    const feedMeta = {
+      emptyReason,
+      eventsFetchOk: true,
+      eventsFetchStatus,
+      matchingEventCount: etFiltered.length,
+      eventsProcessed: targetEvents.length,
+      propsIngestionRows,
+      propFetchFailures,
+      missingPreferredBookmaker,
+    };
+
+    logFeed(feedMeta);
 
     console.log(
       JSON.stringify({
@@ -436,31 +617,26 @@ async function getNbaPropLines(oddsKey) {
       }),
     );
 
-    console.log(JSON.stringify({
-      event: "nba_props_pipeline",
-      todayET: getTodayEtDateString(),
-      tomorrowET: getTomorrowEtDateString(),
-      eventsFromApi: Array.isArray(events) ? events.length : 0,
-      eventsPassingFilter: targetEvents?.length || 0,
-      eventDates: (events || []).slice(0, 6).map(e => ({
-        id: String(e.id || "").slice(0, 8),
-        home: e.home_team,
-        et: toEtDateString(e.commence_time),
-        passes: toEtDateString(e.commence_time) === getTodayEtDateString()
-          || toEtDateString(e.commence_time) === getTomorrowEtDateString(),
-      })),
-      propsReturned: propLines.length,
-      ts: new Date().toISOString(),
-    }));
+    const result = { propLines, feedMeta };
 
-    // Only cache when props actually exist
     if (propLines.length > 0) {
-      setCached(cacheKey, propLines);
+      setCached(cacheKey, result);
     }
-    return propLines;
+    return result;
   } catch (err) {
     console.error("NBA props error:", err.message);
-    return [];
+    const fm = {
+      emptyReason: "exception",
+      eventsFetchOk: false,
+      eventsFetchStatus: null,
+      matchingEventCount: 0,
+      eventsProcessed: 0,
+      propsIngestionRows: 0,
+      propFetchFailures: 0,
+      missingPreferredBookmaker: 0,
+    };
+    logFeed(fm);
+    return { propLines: [], feedMeta: fm };
   }
 }
 
@@ -1464,13 +1640,18 @@ export async function buildNbaUrTakeBoard(question = "") {
   const todaysGames = tgRes.games || [];
   const todaysGamesSlateMeta = tgRes.slateMeta;
 
-  const [rawPropLines, statsBundle, playoffSeries] = await Promise.all([
+  const [rawBundle, statsBundle, playoffSeries] = await Promise.all([
     getNbaPropLines(ODDS_KEY, { priorityAbbrevs: boost, maxEvents: 18 }),
     getNbaPlayerStatsBundle(BDL_KEY, todaysGames),
     getNbaPlayoffSeries(),
   ]);
-
+  const rawPropLines = rawBundle.propLines || [];
   const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
+  const propFeedMeta = {
+    ...rawBundle.feedMeta,
+    propsReturnedBeforeSlateFilter: rawPropLines.length,
+    propsActiveSlateCount: propLines.length,
+  };
   const injuries = await getNbaInjuries(propLines, todaysGames, question);
   const playerStatsWithTonight = attachTonightGamesFromProps(
     statsBundle.playerStats || [],
@@ -1507,6 +1688,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     h2hSplits: [],
     gameTotals: buildGameTotalsFromProps(propLines),
     fetchedAt: new Date().toISOString(),
+    propFeedMeta,
     urTakeParsing: {
       boostedTeamAbbrevsFromQuestion: boost,
       note: boost.length
@@ -1540,15 +1722,21 @@ export default async function handler(req, res) {
       if (boardCached) return res.status(200).json(boardCached);
 
       const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
-      const [rawPropLines, statsBundle, playoffSeries] = await Promise.all([
-        getNbaPropLines(ODDS_KEY),
+      const [rawBundle, statsBundle, playoffSeries] = await Promise.all([
+        getNbaPropLines(ODDS_KEY, {}),
         getNbaPlayerStatsBundle(BDL_KEY, tgRes.games || []),
         getNbaPlayoffSeries(),
       ]);
+      const rawPropLines = rawBundle.propLines || [];
       const todaysGames = tgRes.games;
       const todaysGamesSlateMeta = tgRes.slateMeta;
 
       const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
+      const propFeedMeta = {
+        ...rawBundle.feedMeta,
+        propsReturnedBeforeSlateFilter: rawPropLines.length,
+        propsActiveSlateCount: propLines.length,
+      };
 
       const injuries = await getNbaInjuries(propLines, todaysGames, "");
 
@@ -1582,6 +1770,7 @@ export default async function handler(req, res) {
         playoffSeries,         recentForm: "", h2hSplits: [],
         gameTotals: buildGameTotalsFromProps(propLines),
         fetchedAt: new Date().toISOString(),
+        propFeedMeta,
       };
       board.newsImpact = buildNbaNewsImpact(board);
 

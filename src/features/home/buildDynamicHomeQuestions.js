@@ -1,8 +1,13 @@
-import { isGolfEventFinished } from "../../lib/golfEventStatus.js";
 import {
   getF1NextRaceForHomePrompts,
   isTennisMatchFinished,
 } from "../../lib/homePromptEligibility.js";
+import {
+  classifyGolfEvent,
+  classifyNbaGame,
+  EVENT_VALIDITY,
+  isDisplayableValidity,
+} from "../../../shared/eventValidity.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -130,6 +135,7 @@ export function buildDynamicHomeQuestions({
     });
   }
 
+  const golfState = classifyGolfEvent(golfData?.currentEvent || null);
   const golfLeaders = golfData?.currentEvent?.leaderboard || [];
   const golfLeader = golfLeaders[0];
   const golfEventName =
@@ -139,7 +145,7 @@ export function buildDynamicHomeQuestions({
     golfData?.tournament?.name ||
     null;
   /** No live/pre-market golf prompts once the event is final — avoids bad model behavior without live markets. */
-  if (!isGolfEventFinished(golfData) && (golfLeader || golfEventName)) {
+  if (isDisplayableValidity(golfState) && golfState !== EVENT_VALIDITY.UPCOMING && (golfLeader || golfEventName)) {
     const leaderName = String(golfLeader?.name || "the current leader").trim();
     const label = golfEventName || "PGA Tour board";
     const golfPrompt = rotate(
@@ -158,8 +164,11 @@ export function buildDynamicHomeQuestions({
     push({ id: "q3", color: "#FFFFFF", sportHint: "golf", ...golfPrompt });
   }
 
-  const nbaLive = (nbaGames || []).filter((g) => g?.state === "in");
-  const nbaUpcoming = (nbaGames || []).filter((g) => g?.state === "pre");
+  const validNbaGames = (nbaGames || []).filter((g) =>
+    isDisplayableValidity(classifyNbaGame(g)),
+  );
+  const nbaLive = validNbaGames.filter((g) => g?.state === "in");
+  const nbaUpcoming = validNbaGames.filter((g) => g?.state === "pre");
   const nbaLiveGame = nbaLive[0] || null;
   const nbaUpcomingGame = nbaUpcoming[0] || null;
 

@@ -1,3 +1,11 @@
+import { getGolfHomeValidity } from "../../lib/golfEventStatus.js";
+import {
+  classifyMlbGame,
+  classifyNbaGame,
+  getDisplayableF1NextRace,
+  isDisplayableValidity,
+} from "../../../shared/eventValidity.js";
+
 function formatScore(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return "0.0u";
@@ -32,10 +40,15 @@ export function buildHomeTrackerCards({
       : `YTD hit rate: ${winRatePct}% · ROI ${roiLabel} · ${settled} settled`;
 
   const candidates = [];
-  const nbaUpcoming = (nbaGames || []).filter((g) => g?.state === "pre");
-  const mlbUpcoming = (mlbData?.games || []).filter((g) => g?.state === "pre");
+  const nbaUpcoming = (nbaGames || [])
+    .filter((g) => isDisplayableValidity(classifyNbaGame(g)))
+    .filter((g) => g?.state === "pre");
+  const mlbUpcoming = (mlbData?.games || [])
+    .filter((g) => isDisplayableValidity(classifyMlbGame(g)))
+    .filter((g) => g?.state === "pre");
   const golfLeaders = golfData?.currentEvent?.leaderboard || [];
-  const nextF1Race = f1Data?.schedule?.races?.find((r) => r?.is_next);
+  const golfHomeValidity = getGolfHomeValidity(golfData);
+  const nextF1Race = getDisplayableF1NextRace(f1Data);
   const draftPhase = String(nflDraftMeta?.phase || "").toLowerCase();
   const hasDraftPhase = draftPhase === "pre_draft" || draftPhase === "during_draft";
   const shouldShowDraftPredictor =
@@ -77,7 +90,7 @@ export function buildHomeTrackerCards({
     });
   }
 
-  if (golfLeaders[0]) {
+  if (golfHomeValidity.isActive && golfHomeValidity.hasLeaderboard && golfLeaders[0]) {
     const leader = String(golfLeaders[0]?.name || "Current leader").trim();
     const eventName = golfData?.currentEvent?.shortName || "PGA board";
     candidates.push({

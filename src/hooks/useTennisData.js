@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   getTournamentFetchParam,
   isBallDontLieAtpFixture,
@@ -6,6 +6,24 @@ import {
   normalizeText,
   preferredTournamentScore,
 } from "../features/app/helpers.jsx";
+
+function normalizePlayersPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const atp =
+    payload.atp && typeof payload.atp === "object" && !Array.isArray(payload.atp)
+      ? payload.atp
+      : null;
+  const wta =
+    payload.wta && typeof payload.wta === "object" && !Array.isArray(payload.wta)
+      ? payload.wta
+      : null;
+  if (!atp && !wta) return null;
+  return {
+    ...payload,
+    atp: atp || {},
+    wta: wta || {},
+  };
+}
 
 export function useTennisData() {
   const [players, setPlayers] = useState(null);
@@ -15,6 +33,7 @@ export function useTennisData() {
   const [liveMatches, setLiveMatches] = useState([]);
   /** Starts true — Home ATP spotlight waits for same fetch path as Tennis tab (`liveMatches`). */
   const [tennisLoading, setTennisLoading] = useState(true);
+  const [staticIntelFetchFailed, setStaticIntelFetchFailed] = useState(false);
 
   const fetchTennisBoard = useCallback(async (activeContext = null) => {
     let atpData = [];
@@ -78,15 +97,27 @@ export function useTennisData() {
           fetch("/api/tennis-players", { cache: "no-store" }),
           fetch("/api/tennis-context", { cache: "no-store" }),
         ]);
-        const [p,c] = await Promise.all([pRes.json(),cRes.json()]);
+        const c = await cRes.json();
+        let parsedPlayers = null;
+        if (pRes.ok) {
+          try {
+            parsedPlayers = normalizePlayersPayload(await pRes.json());
+          } catch {
+            parsedPlayers = null;
+          }
+        }
         if (!active) return;
-        setPlayers(p); setContext(c);
-        playersRef.current = p;
+        const nextPlayers = parsedPlayers || playersRef.current || null;
+        setPlayers(nextPlayers);
+        setStaticIntelFetchFailed(!parsedPlayers);
+        setContext(c);
+        playersRef.current = nextPlayers;
         const board = await fetchTennisBoard(c);
         if (!active) return;
         setLiveMatches(board);
       } catch {
         if (!active) return;
+        setStaticIntelFetchFailed(true);
         setLiveMatches([]);
       }
       finally { if(active) setTennisLoading(false); }
@@ -105,10 +136,19 @@ export function useTennisData() {
     return () => { cancelled = true; };
   }, [context, fetchTennisBoard]);
 
+  const hasStaticTennisIntel = useMemo(() => {
+    if (!players || typeof players !== "object") return false;
+    const atpKeys = players.atp && typeof players.atp === "object" ? Object.keys(players.atp).length : 0;
+    const wtaKeys = players.wta && typeof players.wta === "object" ? Object.keys(players.wta).length : 0;
+    return atpKeys > 0 || wtaKeys > 0;
+  }, [players]);
+
   return {
     players,
     context,
     liveMatches,
     tennisLoading,
+    hasStaticTennisIntel,
+    staticIntelFetchFailed,
   };
 }

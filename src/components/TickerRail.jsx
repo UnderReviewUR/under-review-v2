@@ -1,5 +1,11 @@
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
-import { isGolfEventFinished } from "../lib/golfEventStatus.js";
+import { getGolfHomeValidity, isGolfEventFinished } from "../lib/golfEventStatus.js";
+import {
+  classifyMlbGame,
+  classifyNbaGame,
+  getDisplayableF1NextRace,
+  isDisplayableValidity,
+} from "../../shared/eventValidity.js";
 
 /** Live Snapshot — primary scores/names pop on dark cards; metadata stays dim. */
 const SNAP_PRI = { color: "#ffffff", fontWeight: 600 };
@@ -31,6 +37,14 @@ export default function TickerRail({
     (isGolfEventFinished(golfData)
       ? "FINAL"
       : golfData.currentEvent.round || "IN PROGRESS");
+  const golfHomeValidity = getGolfHomeValidity(golfData);
+  const validNbaGames = (tickerNbaGames || []).filter((g) =>
+    isDisplayableValidity(classifyNbaGame(g)),
+  );
+  const validMlbGames = (mlbGames.length > 0 ? mlbGames : (mlbData?.games || [])).filter((g) =>
+    isDisplayableValidity(classifyMlbGame(g)),
+  );
+  const nextF1Race = getDisplayableF1NextRace(f1Data);
 
   return (
     <>
@@ -78,7 +92,7 @@ export default function TickerRail({
           <div style={{ fontSize: 10, color: "var(--muted)" }}>Live board →</div>
         </div>,
 
-        ...tickerNbaGames
+        ...validNbaGames
           .filter((g) => g.state === "in")
           .slice(0, 2)
           .map((g, i) => {
@@ -144,7 +158,7 @@ export default function TickerRail({
 
         ...liveTickerTennisCards,
 
-        ...(golfData?.currentEvent?.leaderboard?.length
+        ...(golfHomeValidity.isActive && golfHomeValidity.hasLeaderboard
           ? [
               <div
                 key="golf-ticker"
@@ -232,7 +246,7 @@ export default function TickerRail({
                 ))}
               </div>,
             ]
-          : golfData?.currentEvent
+          : golfHomeValidity.isUpcoming
           ? [
               <div
                 key="golf-ticker"
@@ -272,13 +286,13 @@ export default function TickerRail({
                     whiteSpace: "pre-line",
                   }}
                 >
-                  {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
+                  {"Upcoming tournament\nLeaderboard posts when round goes live"}
                 </div>
               </div>,
             ]
           : []),
 
-        ...(mlbGames.length > 0 ? mlbGames : (mlbData?.games || []))
+        ...validMlbGames
           .filter((g) => g.state === "in")
           .slice(0, 1)
           .map((g, i) => {
@@ -328,7 +342,7 @@ export default function TickerRail({
           })
       ]
     : [
-        ...[...tickerNbaGames.filter((g) => g.state === "in"), ...tickerNbaGames.filter((g) => g.state === "pre").slice(0, 2)]
+        ...[...validNbaGames.filter((g) => g.state === "in"), ...validNbaGames.filter((g) => g.state === "pre").slice(0, 2)]
           .slice(0, 3)
           .map((g, i) => {
             const away = g.awayTeam?.abbr || g.awayTeam?.name || "AWAY";
@@ -393,7 +407,7 @@ export default function TickerRail({
 
         ...liveTickerTennisCards,
 
-        ...(golfData?.currentEvent?.leaderboard?.length
+        ...(golfHomeValidity.isActive && golfHomeValidity.hasLeaderboard
           ? [
               <div
                 key="golf-ticker"
@@ -481,7 +495,7 @@ export default function TickerRail({
                 ))}
               </div>,
             ]
-          : golfData?.currentEvent
+          : golfHomeValidity.isUpcoming
           ? [
               <div
                 key="golf-ticker"
@@ -521,13 +535,13 @@ export default function TickerRail({
                     whiteSpace: "pre-line",
                   }}
                 >
-                  {"Top 3 live scores pending\nFeed has not posted leaderboard yet"}
+                  {"Upcoming tournament\nLeaderboard posts when round goes live"}
                 </div>
               </div>,
             ]
           : []),
 
-        ...(mlbGames.length > 0 ? mlbGames : (mlbData?.games || []))
+        ...validMlbGames
           .filter((g) => g.state === "in" || g.state === "pre")
           .slice(0, 2)
           .map((g, i) => {
@@ -576,7 +590,7 @@ export default function TickerRail({
             );
           }),
 
-                                ...(f1Data?.schedule?.races?.find((r) => r.is_next)
+                                ...(nextF1Race
           ? [
               <div
                 key="f1-ticker"
@@ -603,12 +617,11 @@ export default function TickerRail({
                   🏎️ F1 NEXT
                 </div>
                 <div style={{ fontSize: 11, lineHeight: 1.3, ...SNAP_PRI }}>
-                  {f1Data.schedule.races.find((r) => r.is_next).meeting_name}
+                  {nextF1Race.meeting_name}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>
                   {(() => {
-                    const nextRace = f1Data.schedule.races.find((r) => r.is_next);
-                    const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
+                    const raceStart = resolveF1RaceStart(nextF1Race, f1Data?.sessions || []);
                     const dt = raceStart ? new Date(raceStart) : null;
                     const when = dt
                       ? `${dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })} ${dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })}`

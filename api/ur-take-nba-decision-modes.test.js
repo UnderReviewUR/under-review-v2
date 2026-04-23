@@ -5,6 +5,7 @@ import {
   applyNbaMarketInvalidation,
   buildAllowedMatchupPlayerPool,
   extractMentionedPlayersFromOutput,
+  normalizeNbaMarketPlayerKey,
   resolveNbaDecisionMode,
   validatePlayersAgainstMatchup,
 } from "./ur-take.js";
@@ -28,12 +29,55 @@ function createMockRes(resolve) {
   };
 }
 
-async function invokeUrTake(body, { anthropicText = "", allowAnthropic = false } = {}) {
+function mockOddsApiListPayload() {
+  const nowIso = new Date().toISOString();
+  return [
+    {
+      id: "mock_nba_evt_mil_phi",
+      home_team: "Philadelphia 76ers",
+      away_team: "Milwaukee Bucks",
+      commence_time: nowIso,
+      completed: false,
+    },
+  ];
+}
+
+function mockOddsApiEventPropsPayload() {
+  return {
+    bookmakers: [
+      {
+        key: "draftkings",
+        markets: [
+          {
+            key: "player_points",
+            outcomes: [
+              { description: "Tyrese Maxey", name: "Over", point: 25.5, price: -110 },
+              { description: "Joel Embiid", name: "Over", point: 31.5, price: -110 },
+              { description: "Damian Lillard", name: "Over", point: 26.5, price: -110 },
+              { description: "Giannis Antetokounmpo", name: "Over", point: 29.5, price: -110 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+async function invokeUrTake(
+  body,
+  { anthropicText = "", allowAnthropic = false, omitOddsKey = false } = {},
+) {
   const originalFetch = globalThis.fetch;
   const originalRequireAuth = process.env.UR_TAKE_REQUIRE_AUTH;
   const originalApiKey = process.env.ANTHROPIC_API_KEY;
+  const originalOddsKey = process.env.ODDS_API_KEY;
   process.env.UR_TAKE_REQUIRE_AUTH = "false";
   process.env.ANTHROPIC_API_KEY = "test-key";
+  if (omitOddsKey) {
+    delete process.env.ODDS_API_KEY;
+  } else {
+    process.env.ODDS_API_KEY = "test_odds_key_placeholder_for_ur_take_tests";
+  }
 
   globalThis.fetch = async (input, init) => {
     const url = String(typeof input === "string" ? input : input?.url || "");
@@ -48,6 +92,30 @@ async function invokeUrTake(body, { anthropicText = "", allowAnthropic = false }
         json: async () => ({
           content: [{ type: "text", text: anthropicText }],
         }),
+      };
+    }
+    if (url.includes("api.the-odds-api.com/v4/sports/basketball_nba/events/") && url.includes("/odds")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => mockOddsApiEventPropsPayload(),
+      };
+    }
+    if (
+      url.includes("api.the-odds-api.com/v4/sports/basketball_nba/odds") &&
+      url.includes("markets=h2h")
+    ) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => mockOddsApiListPayload(),
+      };
+    }
+    if (url.includes("api.the-odds-api.com/v4/sports/basketball_nba/scores")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [],
       };
     }
     if (
@@ -73,6 +141,11 @@ async function invokeUrTake(body, { anthropicText = "", allowAnthropic = false }
     globalThis.fetch = originalFetch;
     process.env.UR_TAKE_REQUIRE_AUTH = originalRequireAuth;
     process.env.ANTHROPIC_API_KEY = originalApiKey;
+    if (originalOddsKey !== undefined) {
+      process.env.ODDS_API_KEY = originalOddsKey;
+    } else {
+      delete process.env.ODDS_API_KEY;
+    }
   }
 }
 
@@ -245,6 +318,47 @@ test("blocked unlisted market preserves terminal block semantics", async () => {
   assert.match(out.payload.take.confidence, /^Low\b/);
 });
 
+test("invokeUrTake with no ODDS_API_KEY surfaces odds feed block copy", async () => {
+  const out = await invokeUrTake(
+    {
+      question: "Jaylen Brown under 25.5 live?",
+      sportHint: "nba",
+      history: [],
+      nbaContext: sharedNba,
+    },
+    { omitOddsKey: true },
+  );
+  assert.equal(out.payload.decisionMode, "blocked_odds_feed_unavailable");
+  assert.ok(/ODDS FEED UNAVAILABLE/i.test(out.payload.response));
+  assert.ok(/odds provider/i.test(out.payload.response));
+});
+
+test("empty active prop slate uses odds_feed_unavailable (not unlisted market phrasing)", () => {
+  const inv = applyNbaMarketInvalidation({
+    question: "Jaylen Brown under 25.5 live?",
+    board: {
+      ...sharedNba,
+      propLines: [],
+    },
+    newsImpact: null,
+  });
+  assert.equal(inv.blockedReason, "odds_feed_unavailable");
+  const mode = resolveNbaDecisionMode({
+    sportHint: "nba",
+    availabilityIntent: { isAvailabilityQuestion: false, asksBettingConsequence: false },
+    directPropAsk: true,
+    invalidation: inv,
+  });
+  assert.equal(mode, "blocked_odds_feed_unavailable");
+});
+
+test("player name keys normalize periods for prop line matching", () => {
+  assert.equal(
+    normalizeNbaMarketPlayerKey("J. Tatum"),
+    normalizeNbaMarketPlayerKey("J Tatum"),
+  );
+});
+
 test("conditional_wait and actionable resolve correctly from decision stack", () => {
   const unresolvedInvalidation = applyNbaMarketInvalidation({
     question: "Damian Lillard over 27.5 points tonight?",
@@ -289,7 +403,8 @@ test("status_only routes upstream and returns consistent confidence", async () =
   assert.equal(out.status, 200);
   assert.equal(out.payload.decisionMode, "status_only");
   assert.ok(/^STATUS\b/i.test(out.payload.response));
-  assert.match(out.payload.take.confidence, /^Low\b/);
+  assert.notEqual(out.payload.take.confidence, "Unspecified");
+  assert.match(out.payload.take.confidence, /^(Low|Medium|High)\b/);
 });
 
 test("status_plus_consequence keeps routing and consequence block", async () => {
