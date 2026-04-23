@@ -1,8 +1,10 @@
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "../lib/golfEventStatus.js";
 import {
+  classifyGolfEvent,
   classifyMlbGame,
   classifyNbaGame,
+  EVENT_VALIDITY,
   getDisplayableF1NextRace,
   isDisplayableValidity,
 } from "../../shared/eventValidity.js";
@@ -38,6 +40,28 @@ export default function TickerRail({
       ? "FINAL"
       : golfData.currentEvent.round || "IN PROGRESS");
   const golfHomeValidity = getGolfHomeValidity(golfData);
+  const golfUpcomingFromTournament =
+    classifyGolfEvent(golfData?.tournament || null) === EVENT_VALIDITY.UPCOMING
+      ? golfData?.tournament
+      : null;
+  const golfUpcomingFromCurrent = golfHomeValidity.isUpcoming ? golfData?.currentEvent : null;
+  const golfUpcomingEvent = golfUpcomingFromTournament || golfUpcomingFromCurrent || null;
+  const golfUpcomingStartLabel = (() => {
+    if (!golfUpcomingEvent) return "Start time TBD";
+    const rawStart = String(golfUpcomingEvent.startDate || "").trim();
+    if (rawStart) {
+      const start = new Date(rawStart);
+      if (!Number.isNaN(start.getTime())) {
+        return `Starts ${start.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          timeZone: "America/Chicago",
+        })}`;
+      }
+    }
+    const display = String(golfUpcomingEvent.displayDate || "").trim();
+    return display ? `Starts ${display}` : "Start time TBD";
+  })();
   const validNbaGames = (tickerNbaGames || []).filter((g) =>
     isDisplayableValidity(classifyNbaGame(g)),
   );
@@ -246,7 +270,7 @@ export default function TickerRail({
                 ))}
               </div>,
             ]
-          : golfHomeValidity.isUpcoming
+          : golfUpcomingEvent
           ? [
               <div
                 key="golf-ticker"
@@ -271,10 +295,10 @@ export default function TickerRail({
                     textTransform: "uppercase",
                   }}
                 >
-                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                  ⛳ {golfUpcomingEvent.shortName || golfUpcomingEvent.name || "PGA TOUR"}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {golfData.currentEvent.course || "Course TBD"}
+                  {golfUpcomingEvent.course || golfUpcomingEvent.courseName || "Course TBD"}
                 </div>
                 <div
                   style={{
@@ -286,7 +310,7 @@ export default function TickerRail({
                     whiteSpace: "pre-line",
                   }}
                 >
-                  {"Upcoming tournament\nLeaderboard posts when round goes live"}
+                  {`Upcoming tournament\n${golfUpcomingStartLabel}`}
                 </div>
               </div>,
             ]
@@ -495,7 +519,7 @@ export default function TickerRail({
                 ))}
               </div>,
             ]
-          : golfHomeValidity.isUpcoming
+          : golfUpcomingEvent
           ? [
               <div
                 key="golf-ticker"
@@ -520,10 +544,10 @@ export default function TickerRail({
                     textTransform: "uppercase",
                   }}
                 >
-                  ⛳ {golfData.currentEvent.shortName || golfData.currentEvent.name || "PGA TOUR"}
+                  ⛳ {golfUpcomingEvent.shortName || golfUpcomingEvent.name || "PGA TOUR"}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--muted)" }}>
-                  {golfData.currentEvent.course || "Course TBD"}
+                  {golfUpcomingEvent.course || golfUpcomingEvent.courseName || "Course TBD"}
                 </div>
                 <div
                   style={{
@@ -535,7 +559,7 @@ export default function TickerRail({
                     whiteSpace: "pre-line",
                   }}
                 >
-                  {"Upcoming tournament\nLeaderboard posts when round goes live"}
+                  {`Upcoming tournament\n${golfUpcomingStartLabel}`}
                 </div>
               </div>,
             ]
