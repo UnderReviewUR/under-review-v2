@@ -30,17 +30,19 @@ export function useTennisData() {
   const playersRef = useRef(null);
   const contextRef = useRef(null);
   const [context, setContext] = useState(null);
-  const [liveMatches, setLiveMatches] = useState([]);
-  /** Starts true — Home ATP spotlight waits for same fetch path as Tennis tab (`liveMatches`). */
+  /** Full board + ~54h finals — Tennis tab, UR Take context */
+  const [liveMatchesBoard, setLiveMatchesBoard] = useState([]);
+  /** intent=home — upcoming/live only for Home pipeline / spotlight trust contract */
+  const [liveMatchesHome, setLiveMatchesHome] = useState([]);
   const [tennisLoading, setTennisLoading] = useState(true);
   const [staticIntelFetchFailed, setStaticIntelFetchFailed] = useState(false);
 
-  const fetchTennisBoard = useCallback(async (activeContext = null) => {
+  const fetchTennisBoard = useCallback(async (activeContext = null, intent = "board") => {
     let atpData = [];
     try {
       const tournamentParam = getTournamentFetchParam(activeContext);
       const atpRes = await fetch(
-        `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}`,
+        `/api/tennis?tour=atp&activeTournament=${encodeURIComponent(tournamentParam)}&intent=${encodeURIComponent(intent)}`,
         { cache: "no-store" },
       );
       const parseBoard = async (res) => {
@@ -60,21 +62,32 @@ export function useTennisData() {
     const merged = [
       ...confirmedAtp.map((m) => normalizeTennisMatch(m, "ATP", activeContext)),
     ].filter(Boolean);
-    const seen=new Set(); const deduped=[];
+    const seen = new Set();
+    const deduped = [];
     for (const m of merged) {
-      const key=[normalizeText(m.league),normalizeText(m.raw?.home),normalizeText(m.raw?.away),normalizeText(m.network),normalizeText(m.raw?.round),normalizeText(m.raw?.event_date)].join("|");
-      if (!seen.has(key)) { seen.add(key); deduped.push(m); }
+      const key = [
+        normalizeText(m.league),
+        normalizeText(m.raw?.home),
+        normalizeText(m.raw?.away),
+        normalizeText(m.network),
+        normalizeText(m.raw?.round),
+        normalizeText(m.raw?.event_date),
+      ].join("|");
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(m);
+      }
     }
-    let sorted = deduped.sort((a,b) => {
-      const aLive=String(a?.raw?.live||"0")==="1"?1:0;
-      const bLive=String(b?.raw?.live||"0")==="1"?1:0;
-      if (aLive!==bLive) return bLive-aLive;
-      const aPref=preferredTournamentScore(a,activeContext);
-      const bPref=preferredTournamentScore(b,activeContext);
-      if (aPref!==bPref) return bPref-aPref;
-      const aTime=Number.isFinite(a.commenceTs)?a.commenceTs:Number.MAX_SAFE_INTEGER;
-      const bTime=Number.isFinite(b.commenceTs)?b.commenceTs:Number.MAX_SAFE_INTEGER;
-      return aTime-bTime;
+    const sorted = deduped.sort((a, b) => {
+      const aLive = String(a?.raw?.live || "0") === "1" ? 1 : 0;
+      const bLive = String(b?.raw?.live || "0") === "1" ? 1 : 0;
+      if (aLive !== bLive) return bLive - aLive;
+      const aPref = preferredTournamentScore(a, activeContext);
+      const bPref = preferredTournamentScore(b, activeContext);
+      if (aPref !== bPref) return bPref - aPref;
+      const aTime = Number.isFinite(a.commenceTs) ? a.commenceTs : Number.MAX_SAFE_INTEGER;
+      const bTime = Number.isFinite(b.commenceTs) ? b.commenceTs : Number.MAX_SAFE_INTEGER;
+      return aTime - bTime;
     });
 
     return sorted;
@@ -89,11 +102,12 @@ export function useTennisData() {
   }, [context]);
 
   useEffect(() => {
-    let active=true; let pollId=null;
+    let active = true;
+    let pollId = null;
     async function loadAll() {
       setTennisLoading(true);
       try {
-        const [pRes,cRes] = await Promise.all([
+        const [pRes, cRes] = await Promise.all([
           fetch("/api/tennis-players", { cache: "no-store" }),
           fetch("/api/tennis-context", { cache: "no-store" }),
         ]);
@@ -112,28 +126,56 @@ export function useTennisData() {
         setStaticIntelFetchFailed(!parsedPlayers);
         setContext(c);
         playersRef.current = nextPlayers;
-        const board = await fetchTennisBoard(c);
+        const [board, home] = await Promise.all([
+          fetchTennisBoard(c, "board"),
+          fetchTennisBoard(c, "home"),
+        ]);
         if (!active) return;
-        setLiveMatches(board);
+        setLiveMatchesBoard(board);
+        setLiveMatchesHome(home);
       } catch {
         if (!active) return;
         setStaticIntelFetchFailed(true);
-        setLiveMatches([]);
+        setLiveMatchesBoard([]);
+        setLiveMatchesHome([]);
+      } finally {
+        if (active) setTennisLoading(false);
       }
-      finally { if(active) setTennisLoading(false); }
     }
     loadAll();
     pollId = window.setInterval(() => {
-      fetchTennisBoard(contextRef.current).then((b) => { if (active) setLiveMatches(b); }).catch(() => {});
+      Promise.all([
+        fetchTennisBoard(contextRef.current, "board"),
+        fetchTennisBoard(contextRef.current, "home"),
+      ])
+        .then(([b, h]) => {
+          if (active) {
+            setLiveMatchesBoard(b);
+            setLiveMatchesHome(h);
+          }
+        })
+        .catch(() => {});
     }, 60000);
-    return () => { active=false; if(pollId) window.clearInterval(pollId); };
+    return () => {
+      active = false;
+      if (pollId) window.clearInterval(pollId);
+    };
   }, [fetchTennisBoard]);
 
   useEffect(() => {
     if (!context) return;
-    let cancelled=false;
-    fetchTennisBoard(context).then((b) => { if (!cancelled) setLiveMatches(b); }).catch(() => {});
-    return () => { cancelled = true; };
+    let cancelled = false;
+    Promise.all([fetchTennisBoard(context, "board"), fetchTennisBoard(context, "home")])
+      .then(([b, h]) => {
+        if (!cancelled) {
+          setLiveMatchesBoard(b);
+          setLiveMatchesHome(h);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [context, fetchTennisBoard]);
 
   const hasStaticTennisIntel = useMemo(() => {
@@ -146,7 +188,10 @@ export function useTennisData() {
   return {
     players,
     context,
-    liveMatches,
+    /** @deprecated use liveMatchesBoard — alias for Tennis tab */
+    liveMatches: liveMatchesBoard,
+    liveMatchesBoard,
+    liveMatchesHome,
     tennisLoading,
     hasStaticTennisIntel,
     staticIntelFetchFailed,

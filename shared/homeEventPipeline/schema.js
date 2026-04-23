@@ -1,6 +1,6 @@
 /**
- * Canonical home-screen event contract.
- * All home modules must derive from {@link buildHomeEventPipeline}; no independent validity/time rules.
+ * Normalized event shape for **home ingestion** (`buildHomeEventPipeline`).
+ * Today’s Slate and other APIs may still use separate shaping — see `shared/HOME_CONTRACT.md`.
  */
 
 /** @typedef {'upcoming'|'active'} PipelineEventState */

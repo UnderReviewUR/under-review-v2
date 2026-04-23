@@ -1,6 +1,6 @@
 /**
- * Single source for Live Snapshot tile order: NBA > MLB > Others (NFL, F1, tennis, golf).
- * Max {@link MAX_LIVE_SNAPSHOT_TILES}; duplicate keys skipped.
+ * Live Snapshot strip ordering (horizontal ticker, max tiles) — **not** the same as
+ * `HOME_SURFACE_STACK_ORDER` (card stack). See `shared/HOME_CONTRACT.md`.
  */
 
 import {

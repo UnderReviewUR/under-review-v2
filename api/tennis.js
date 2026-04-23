@@ -3,6 +3,7 @@ import { getEnv } from "./_env.js";
 import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
 import { fetchOddsAtpFixturesForBoard } from "./_tennisOddsAtpFallback.js";
 import { buildStaticWtaBoardRows } from "./_staticWtaBoard.js";
+import { shouldRetainRecentFinishedTennisFinals } from "../shared/tennisIntent.js";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
     const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
     const ODDS_KEY = getEnv("ODDS_API_KEY");
 
-    const { tour = "atp", activeTournament = "" } = req.query;
+    const { tour = "atp", activeTournament = "", intent = "board" } = req.query;
 
     const now = new Date();
 
@@ -65,6 +66,7 @@ export default async function handler(req, res) {
           source,
           tour,
           activeTournament,
+          intent: String(intent || "board").toLowerCase(),
         }),
       );
     }
@@ -79,6 +81,7 @@ export default async function handler(req, res) {
           source,
           tour,
           activeTournament,
+          intent: String(intent || "board").toLowerCase(),
         }),
       );
     }
@@ -98,6 +101,7 @@ function normalizeTennisBoardResponse({
   source,
   tour,
   activeTournament,
+  intent = "board",
 }) {
   const normalize = (value) => String(value || "").trim().toLowerCase();
 
@@ -267,6 +271,10 @@ function normalizeTennisBoardResponse({
     return !isWtaMatch(match);
   });
 
+  /** Board/history surfaces may retain ~54h finals; home ingestion must not. */
+  const allowRecentFinishedRetention =
+    shouldRetainRecentFinishedTennisFinals(intent);
+
   const cleaned = matchesByTour.filter((match) => {
     if (!hasRealPlayers(match)) return false;
     if (!hasUsefulTournament(match)) return false;
@@ -275,7 +283,12 @@ function normalizeTennisBoardResponse({
     const live = isLiveMatch(match);
     const finished = isFinishedStatus(match.event_status);
     if (live || isClearlyUpcomingOrLive(match)) return true;
-    if (isRecentFinishedBoardMatch(match, commenceEarly)) return true;
+    if (
+      allowRecentFinishedRetention &&
+      isRecentFinishedBoardMatch(match, commenceEarly)
+    ) {
+      return true;
+    }
 
     return !finished;
   });
@@ -338,6 +351,14 @@ function normalizeTennisBoardResponse({
       if (seen.has(dedupeKey)) return null;
       seen.add(dedupeKey);
 
+      const truth_layer = match.bdl_match_id
+        ? "bdl_fixture"
+        : match.odds_event_id || source === "odds_atp"
+          ? "odds_market_fallback"
+          : source === "balldontlie_atp"
+            ? "bdl_fixture"
+            : "other";
+
       return {
         id:
           match.bdl_match_id ||
@@ -353,6 +374,8 @@ function normalizeTennisBoardResponse({
           match.odds_event_id != null && match.odds_event_id !== ""
             ? match.odds_event_id
             : null,
+        /** UI + pipeline: schedule truth vs market-only rows (see shared/tennisTruthPolicy.js). */
+        truth_layer,
         commence_time,
         home_team: home,
         away_team: away,

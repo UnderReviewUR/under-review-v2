@@ -9,11 +9,14 @@ export function formatNbaTipoffLocal(startTimeUtc) {
   });
 }
 
+/**
+ * Pre/scheduled games must never render with a missing or unparseable start instant.
+ * When true, consumers should bust-cache refetch NBA board data (see useNbaData).
+ */
 export function isNbaTimeMismatch(game) {
   if (!game || typeof game !== "object") return false;
   const state = String(game.state || "").toLowerCase();
   if (state !== "pre" && state !== "scheduled") return false;
-  if (String(game.startTimeSource || "").toLowerCase() !== "bdl_start_time") return false;
   const raw = String(game.startTimeUtc || "").trim();
   if (!raw) return true;
   const dt = new Date(raw);

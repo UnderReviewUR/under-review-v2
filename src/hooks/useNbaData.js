@@ -60,6 +60,7 @@ export function useNbaData() {
         if (!active) return;
         let games = Array.isArray(data?.todaysGames) ? data.todaysGames : [];
         let nextData = data;
+        /* Missing/unparseable pre-game start → bust CDN + refetch so bad times cannot persist */
         if (games.some(isNbaTimeMismatch)) {
           const refetched = await fetchBoard({ bust: true }).catch(() => null);
           if (refetched && active) {

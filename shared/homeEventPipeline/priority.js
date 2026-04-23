@@ -1,6 +1,9 @@
 /**
  * Global home priority (highest score wins ordering + dedup tie-break).
  * 1 NBA Playoffs → 2 NBA → 3 MLB live emphasis → 4 NFL major → 5 Tennis → 6 F1 → 7 Golf
+ *
+ * Playoff weight is owned here (`nbaPriorityScore`). Home **card stack** order is owned by
+ * `presentationOrder.js` (`HOME_SURFACE_STACK_ORDER`). Do not add a third ordering rule in UI.
  */
 
 export const PRIORITY_BASE = Object.freeze({

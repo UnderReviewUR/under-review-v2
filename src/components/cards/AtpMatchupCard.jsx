@@ -2,6 +2,10 @@ import {
   buildTennisMatchupSubline,
   formatTennisScore,
 } from "../../features/tennis/tennisFormatters.js";
+import {
+  getTennisTruthLayer,
+  TENNIS_TRUTH_LAYER,
+} from "../../../shared/tennisTruthPolicy.js";
 
 export function AtpMatchupCard({ m, onOpen }) {
   const isLive = String(m?.raw?.live || "0") === "1";
@@ -12,11 +16,26 @@ export function AtpMatchupCard({ m, onOpen }) {
     statusLabel.includes("final") ||
     statusLabel.includes("finished") ||
     statusLabel.includes("complete");
+  const truth = getTennisTruthLayer(m);
+  const oddsScheduleOnly = truth === TENNIS_TRUTH_LAYER.ODDS_MARKET_FALLBACK;
   return (
     <div className="matchup-card" onClick={() => onOpen(m)}>
       <div className="matchup-top">
         <div className="matchup-league" style={{ color: m.leagueColor }}>
           {m.league}
+          {oddsScheduleOnly ? (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 8,
+                fontFamily: "var(--mono-font)",
+                color: "var(--muted)",
+                letterSpacing: 0.8,
+              }}
+            >
+              · market schedule
+            </span>
+          ) : null}
         </div>
         {isLive ? (
           <div

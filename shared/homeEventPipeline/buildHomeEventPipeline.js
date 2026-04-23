@@ -1,5 +1,6 @@
 /**
- * Single normalized event pipeline for the home screen.
+ * Home ingestion pipeline (partial centralization): normalizes feeds that power Home tab + Live Snapshot.
+ * Today's Slate API still shapes its own bundle — see HOME_CONTRACT.md.
  */
 
 import { collectLiveSnapshotEventKeysCore } from "../liveSnapshotPlan.js";
@@ -12,6 +13,7 @@ import {
   normalizeTennisMatch,
 } from "./normalize.js";
 import { emptyPipelineResult } from "./schema.js";
+import { mergeTennisNormalizedByPairDate } from "./tennisMerge.js";
 
 function dedupeByEventId(events) {
   const best = new Map();
@@ -64,10 +66,12 @@ export function buildHomeEventPipeline(input) {
     .map((g) => normalizeMlbGame(g, nowMs))
     .filter(Boolean)
     .sort((a, b) => b.priority_score - a.priority_score);
-  const tennisNorm = (input.tennisMatches || [])
+  let tennisNorm = (input.tennisMatches || [])
     .map((m) => normalizeTennisMatch(m, nowMs))
-    .filter(Boolean)
-    .sort((a, b) => b.priority_score - a.priority_score);
+    .filter(Boolean);
+  tennisNorm = mergeTennisNormalizedByPairDate(tennisNorm).sort(
+    (a, b) => b.priority_score - a.priority_score,
+  );
 
   const f1Ev = getNormalizedF1FromBundle(input.f1Data, nowMs);
   const golfEv = normalizeGolfTournament(input.golfData, nowMs);
@@ -102,9 +106,11 @@ export function buildHomeEventPipeline(input) {
   });
 
   base.meta = {
-    hasAtpFromOdds: base.tennisMatchesForHome.some(
-      (m) => String(m?.raw?.source || "").includes("odds"),
-    ),
+    hasAtpFromOdds: base.tennisMatchesForHome.some((m) => {
+      const tl = String(m?.raw?.truth_layer || "");
+      const src = String(m?.raw?.source || "");
+      return tl === "odds_market_fallback" || src.includes("odds");
+    }),
     nbaPlayoffContext: Boolean(ctx.postseason),
   };
 
