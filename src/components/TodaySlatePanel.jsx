@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const SPORT_COLOR = {
   nba: "#FF6B00",
@@ -57,10 +57,19 @@ function SlateRow({ label, item }) {
   );
 }
 
-export default function TodaySlatePanel() {
+const SLATE_ROW_KEYS = ["safeLean", "sharpAngle", "contrarian"];
+const SLATE_ROW_LABEL = {
+  safeLean: "Safe lean",
+  sharpAngle: "Sharp angle",
+  contrarian: "Contrarian",
+};
+
+export default function TodaySlatePanel({ excludeEventKeys = [], onDisplayedEventKeysChange }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const excludeSet = useMemo(() => new Set(excludeEventKeys || []), [excludeEventKeys]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +100,30 @@ export default function TodaySlatePanel() {
       cancelled = true;
     };
   }, []);
+
+  const visibleRowKeys = useMemo(() => {
+    if (!data) return SLATE_ROW_KEYS;
+    const order =
+      Array.isArray(data._slateRowOrder) && data._slateRowOrder.length === SLATE_ROW_KEYS.length
+        ? data._slateRowOrder
+        : SLATE_ROW_KEYS;
+    return order.filter((rowKey) => {
+      const item = data[rowKey];
+      const ek = Array.isArray(item?._eventKeys) ? item._eventKeys : [];
+      if (ek.length === 0) return true;
+      return !ek.some((k) => excludeSet.has(k));
+    });
+  }, [data, excludeSet]);
+
+  useEffect(() => {
+    if (!onDisplayedEventKeysChange || !data) return;
+    const keys = new Set();
+    visibleRowKeys.forEach((rk) => {
+      const item = data[rk];
+      (Array.isArray(item?._eventKeys) ? item._eventKeys : []).forEach((k) => keys.add(k));
+    });
+    onDisplayedEventKeysChange(Array.from(keys));
+  }, [data, visibleRowKeys, onDisplayedEventKeysChange]);
 
   return (
     <div
@@ -123,9 +156,9 @@ export default function TodaySlatePanel() {
       )}
       {!loading && !err && data && (
         <>
-          <SlateRow label="Safe lean" item={data.safeLean} />
-          <SlateRow label="Sharp angle" item={data.sharpAngle} />
-          <SlateRow label="Contrarian" item={data.contrarian} />
+          {visibleRowKeys.map((key) => (
+            <SlateRow key={key} label={SLATE_ROW_LABEL[key] || key} item={data[key]} />
+          ))}
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
             {formatUpdatedLabel(data.generatedAt)}
           </div>

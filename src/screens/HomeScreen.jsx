@@ -17,10 +17,10 @@ export default function HomeScreen({
   goGolf,
   dynamicHomeQuestions,
   firePrompt,
-  isNflInSeason,
+  isNflSlateActive,
   tickerNbaGames,
   getSeriesLabel,
-  liveTickerTennisCards,
+  tennisTickerMatches,
   golfData,
   mlbGames,
   mlbData,
@@ -28,6 +28,8 @@ export default function HomeScreen({
   homeCards,
   openMatchup,
   golfScoreColor,
+  liveSnapshotEventKeys,
+  onTodaySlateDisplayedKeys,
 }) {
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
@@ -59,22 +61,26 @@ export default function HomeScreen({
             </div>
 
             <TickerRail
-              isNflInSeason={isNflInSeason}
+              isNflSlateActive={isNflSlateActive}
               goNfl={goNfl}
               goNba={goNba}
               goGolf={goGolf}
               goMlb={goMlb}
               goF1={goF1}
+              goTennis={goTennis}
               tickerNbaGames={homeNbaGames}
               getSeriesLabel={getSeriesLabel}
-              liveTickerTennisCards={liveTickerTennisCards}
+              tennisTickerMatches={tennisTickerMatches}
               golfData={golfData}
               mlbGames={mlbGames}
               mlbData={mlbData}
               f1Data={f1Data}
             />
 
-            <TodaySlatePanel />
+            <TodaySlatePanel
+              excludeEventKeys={liveSnapshotEventKeys}
+              onDisplayedEventKeysChange={onTodaySlateDisplayedKeys}
+            />
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
             {homeCards.filter((m) => m.id !== "ur-home-tracker").map(m=>(

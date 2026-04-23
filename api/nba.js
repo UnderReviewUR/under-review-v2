@@ -63,23 +63,6 @@ function normalizeTeamAbbr(name) {
   return map[name] || name.split(" ").pop().slice(0, 3).toUpperCase();
 }
 
-function formatNbaStartTimeEt(isoDate) {
-  if (!isoDate) return "TBD";
-  try {
-    const d = new Date(isoDate);
-    if (Number.isNaN(d.getTime())) return "TBD";
-    return (
-      d.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: "America/New_York",
-      }) + " ET"
-    );
-  } catch {
-    return "TBD";
-  }
-}
-
 /** Map a BallDontLie /games row to the same shape as Odds API games (UI + prompts). */
 function mapBdlGameRowToAppGame(g) {
   const home = g.home_team || g.homeTeam;
@@ -109,7 +92,7 @@ function mapBdlGameRowToAppGame(g) {
     statusCode = 2;
   } else {
     state = "pre";
-    status = /qtr|half|ot/i.test(stRaw) ? stRaw : formatNbaStartTimeEt(g.date) || stRaw || "TBD";
+    status = /qtr|half|ot/i.test(stRaw) ? stRaw : "Scheduled";
     statusCode = 1;
   }
 
@@ -133,6 +116,8 @@ function mapBdlGameRowToAppGame(g) {
       abbr: awayAbbr,
       score: Number.isFinite(vs) ? vs : null,
     },
+    startTimeUtc: String(g.start_time || "").trim() || null,
+    startTimeSource: "bdl_start_time",
     postseason: !!g.postseason,
   };
 }
@@ -225,6 +210,8 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
             abbr: normalizeTeamAbbr(g.away_team),
             score: awayPts != null ? parseInt(awayPts, 10) : null,
           },
+          startTimeUtc: null,
+          startTimeSource: "odds_fallback",
         };
       });
 
@@ -263,6 +250,8 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
                   abbr: normalizeTeamAbbr(g.away_team),
                   score: null,
                 },
+                startTimeUtc: null,
+                startTimeSource: "odds_fallback",
               }));
           }
         }
@@ -278,13 +267,14 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
   }
 }
 
-const GAMES_TODAY_CACHE_KEY = "games_today_bdl_primary";
-
 /**
  * Primary: BallDontLie games for today (ET). Fallback: Odds API scores → odds list.
  * Returns { games, slateMeta } for prompts when the slate is empty but BDL responded OK.
  */
 async function getTodaysGames(oddsKey, bdlKey) {
+  const todayET = getTodayEtDateString();
+  const tomorrowET = getTomorrowEtDateString();
+  const GAMES_TODAY_CACHE_KEY = `games_today_bdl_primary_${todayET}_${tomorrowET}`;
   const cached = getCached(GAMES_TODAY_CACHE_KEY);
   if (cached) {
     if (Array.isArray(cached)) {
@@ -302,8 +292,6 @@ async function getTodaysGames(oddsKey, bdlKey) {
     if (cached.games && cached.slateMeta) return cached;
   }
 
-  const todayET = getTodayEtDateString();
-  const tomorrowET = getTomorrowEtDateString();
   const slateMeta = {
     primarySource: "none",
     bdlQueriedOk: false,

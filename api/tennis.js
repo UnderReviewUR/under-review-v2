@@ -1,6 +1,7 @@
 import { applyApiNoStoreHeaders, applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
+import { fetchOddsAtpFixturesForBoard } from "./_tennisOddsAtpFallback.js";
 import { buildStaticWtaBoardRows } from "./_staticWtaBoard.js";
 
 export default async function handler(req, res) {
@@ -15,6 +16,7 @@ export default async function handler(req, res) {
 
   try {
     const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
+    const ODDS_KEY = getEnv("ODDS_API_KEY");
 
     const { tour = "atp", activeTournament = "" } = req.query;
 
@@ -30,21 +32,31 @@ export default async function handler(req, res) {
     let source = "none";
 
     if (tour === "atp") {
-      if (!BDL_KEY) {
-        return res.status(500).json({
-          error:
-            "Missing BALLDONTLIE_API_KEY. ATP live board requires BallDontLie.",
+      if (BDL_KEY) {
+        const bdl = await fetchBdlAtpFixturesForBoard({
+          windowStart: start,
+          windowEnd: end,
         });
+
+        if (bdl.ok && bdl.fixtures.length > 0) {
+          results = bdl.fixtures;
+          source = "balldontlie_atp";
+        }
       }
 
-      const bdl = await fetchBdlAtpFixturesForBoard({
-        windowStart: start,
-        windowEnd: end,
-      });
+      if (results.length === 0 && ODDS_KEY) {
+        const odds = await fetchOddsAtpFixturesForBoard();
+        if (odds.ok && odds.fixtures.length > 0) {
+          results = odds.fixtures;
+          source = "odds_atp";
+        }
+      }
 
-      if (bdl.ok && bdl.fixtures.length > 0) {
-        results = bdl.fixtures;
-        source = "balldontlie_atp";
+      if (results.length === 0 && !BDL_KEY && !ODDS_KEY) {
+        return res.status(500).json({
+          error:
+            "No tennis feed keys configured. Set BALLDONTLIE_API_KEY (ATP draws) and/or ODDS_API_KEY (confirmed pricing matchups).",
+        });
       }
 
       return res.status(200).json(
@@ -329,12 +341,17 @@ function normalizeTennisBoardResponse({
       return {
         id:
           match.bdl_match_id ||
+          match.odds_event_id ||
           match.event_key ||
           `${home}-${away}-${eventDate || "date"}-${round || "round"}`,
         /** Present on real BDL rows; client uses this to reject synthetic/db fallback cards. */
         bdl_match_id:
           match.bdl_match_id != null && match.bdl_match_id !== ""
             ? match.bdl_match_id
+            : null,
+        odds_event_id:
+          match.odds_event_id != null && match.odds_event_id !== ""
+            ? match.odds_event_id
             : null,
         commence_time,
         home_team: home,

@@ -1,6 +1,6 @@
 import {
   getTournamentFetchParam,
-  isBallDontLieAtpFixture,
+  isConfirmedAtpBoardFixture,
   normalizeTennisMatch,
   preferredTournamentScore,
 } from "../features/app/helpers.jsx";
@@ -70,8 +70,8 @@ async function buildAtpLiveMatches(activeContext) {
     atpData = [];
   }
 
-  const bdlOnly = atpData.filter(isBallDontLieAtpFixture);
-  const merged = bdlOnly
+  const confirmedAtp = atpData.filter(isConfirmedAtpBoardFixture);
+  const merged = confirmedAtp
     .map((m) => normalizeTennisMatch(m, "ATP", activeContext))
     .filter(Boolean);
   const seen = new Set();

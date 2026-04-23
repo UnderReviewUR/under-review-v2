@@ -10,6 +10,8 @@ import {
   getDisplayableF1NextRace,
   isDisplayableValidity,
 } from "../shared/eventValidity.js";
+import { compareSlateRowsBySport, isNflSlateActiveFromBundle } from "../shared/slateModulePriority.js";
+import { attachSlateRowEventKeys } from "../shared/slateRowEventKeys.js";
 
 const CACHE_KEY = "today-slate:daily";
 const CACHE_TTL_SECONDS = 15 * 60;
@@ -103,8 +105,23 @@ function sanitizeMlbBoard(mlb) {
 
 function sanitizeGolfBoard(golf) {
   if (!golf || typeof golf !== "object") return null;
-  if (!isDisplayableValidity(classifyGolfEvent(golf.currentEvent || null))) return null;
-  return golf;
+  const nowMs = Date.now();
+  const currentState = classifyGolfEvent(golf.currentEvent || null, nowMs);
+  if (currentState === "active") return golf;
+
+  const tournament = golf.tournament || null;
+  const tournamentState = classifyGolfEvent(tournament, nowMs);
+  const startMs = Date.parse(String(tournament?.startDate || ""));
+  const within72h =
+    Number.isFinite(startMs) && startMs >= nowMs && startMs - nowMs <= 72 * 60 * 60 * 1000;
+  if (tournamentState === "upcoming" && within72h) {
+    return {
+      ...golf,
+      currentEvent: null,
+      tournament,
+    };
+  }
+  return null;
 }
 
 function sanitizeTennisBoard(tennis) {
@@ -185,17 +202,44 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         why: "Ace/double-fault profile edges can price cleaner than broad match-winner narratives.",
       };
 
-  return { generatedAt, safeLean, sharpAngle, contrarian, _fallbackReason: reason };
+  return attachSlateOutputEventKeys(
+    { generatedAt, safeLean, sharpAngle, contrarian, _fallbackReason: reason },
+    bundle,
+  );
 }
 
 function sportHasValidData(bundle, sport) {
   const s = String(sport || "").toLowerCase();
   if (s === "nba") return Array.isArray(bundle?.nba?.todaysGames) && bundle.nba.todaysGames.length > 0;
+  if (s === "nfl") return isNflSlateActiveFromBundle(bundle);
   if (s === "mlb") return Array.isArray(bundle?.mlb?.games) && bundle.mlb.games.length > 0;
   if (s === "golf") return Boolean(bundle?.golf?.currentEvent);
   if (s === "tennis") return Array.isArray(bundle?.tennis) && bundle.tennis.length > 0;
   if (s === "f1") return Boolean(summarizeF1(bundle?.f1));
   return false;
+}
+
+function applySlateRowOrder(out, bundle) {
+  const rows = [
+    { key: "safeLean", item: out.safeLean },
+    { key: "sharpAngle", item: out.sharpAngle },
+    { key: "contrarian", item: out.contrarian },
+  ];
+  rows.sort((a, b) => compareSlateRowsBySport(a, b, bundle));
+  return {
+    ...out,
+    _slateRowOrder: rows.map((r) => r.key),
+  };
+}
+
+function attachSlateOutputEventKeys(out, bundle) {
+  const base = applySlateRowOrder(out, bundle);
+  return {
+    ...base,
+    safeLean: attachSlateRowEventKeys(base.safeLean, bundle),
+    sharpAngle: attachSlateRowEventKeys(base.sharpAngle, bundle),
+    contrarian: attachSlateRowEventKeys(base.contrarian, bundle),
+  };
 }
 
 function sanitizeSlateOutput(parsed, bundle) {
@@ -207,13 +251,14 @@ function sanitizeSlateOutput(parsed, bundle) {
     return row;
   };
 
-  return {
+  const merged = {
     generatedAt:
       typeof parsed.generatedAt === "string" ? parsed.generatedAt : new Date().toISOString(),
     safeLean: sanitizeRow(parsed.safeLean, fallback.safeLean),
     sharpAngle: sanitizeRow(parsed.sharpAngle, fallback.sharpAngle),
     contrarian: sanitizeRow(parsed.contrarian, fallback.contrarian),
   };
+  return attachSlateOutputEventKeys(merged, bundle);
 }
 
 export default async function handler(req, res) {
@@ -240,12 +285,13 @@ export default async function handler(req, res) {
 
     const base = originFromReq(req);
 
-    const [nba, mlb, golf, tennis, f1] = await Promise.all([
+    const [nba, mlb, golf, tennis, f1, nfl] = await Promise.all([
       fetchBoardJson(base, "/api/nba?view=board"),
       fetchBoardJson(base, "/api/mlb?view=board"),
       fetchBoardJson(base, "/api/golf?view=board"),
       fetchBoardJson(base, "/api/tennis?tour=atp"),
       fetchBoardJson(base, "/api/f1?view=board"),
+      fetchBoardJson(base, "/api/nfl-context"),
     ]);
 
     const bundle = {
@@ -255,11 +301,18 @@ export default async function handler(req, res) {
       golf: golf.ok ? sanitizeGolfBoard(golf.data) : null,
       tennis: tennis.ok ? sanitizeTennisBoard(tennis.data) : null,
       f1: f1.ok ? sanitizeF1Board(f1.data) : null,
+      nfl:
+        nfl.ok && nfl.data
+          ? {
+              draftPhase: nfl.data?.draft?.phase ?? nfl.data?.meta?.nflDraftPhase ?? null,
+              meta: nfl.data?.meta ? { nflDraftPhase: nfl.data.meta.nflDraftPhase } : null,
+            }
+          : null,
     };
 
     const userPrompt = `You are Under Review's cross-sport slate editor.
 
-Below is JSON with live-ish board snapshots from NBA, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports).
+Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports).
 
 DATA
 ${JSON.stringify(bundle, null, 2)}
@@ -269,12 +322,14 @@ Return ONLY a single JSON object (no markdown, no prose outside JSON) with exact
 
 {
   "generatedAt": "<ISO-8601 UTC timestamp for when you authored this>",
-  "safeLean": { "sport": "nba|mlb|golf|tennis|f1", "game": "AWAY @ HOME or event label", "angle": "short label", "why": "one sentence" },
+  "safeLean": { "sport": "nba|nfl|mlb|golf|tennis|f1", "game": "AWAY @ HOME or event label", "angle": "short label", "why": "one sentence" },
   "sharpAngle": { "sport": "...", "event": "tournament or slate label", "angle": "...", "why": "one sentence" },
   "contrarian": { "sport": "...", "match": "optional — player or matchup string", "angle": "...", "why": "one sentence" }
 }
 
 RULES
+- Ordering priority for which sport to lead with (when multiple sports have real rows): (1) NBA during playoffs if today has games in the payload, (2) NFL when in-season or draft is live, (3) MLB with a live game, (4) tennis with matchups, (5) F1 on race weekend, (6) golf when active/upcoming is valid.
+- If NBA playoffs with games exist, the first row you want users to read must be NBA (set safeLean to NBA in that case unless data clearly favors another sport — default to NBA first).
 - safeLean: the most reliable edge on tonight's slate across all sports (pick the strongest single lean grounded in the data).
 - sharpAngle: a non-obvious but data-supported angle most casual users would miss.
 - contrarian: an angle nobody's talking about — fade of chalk, live trigger, or correlated underpriced situation.
@@ -331,12 +386,13 @@ RULES
     console.error("today-slate handler error:", err);
     try {
       const base = originFromReq(req);
-      const [nba, mlb, golf, tennis, f1] = await Promise.all([
+      const [nba, mlb, golf, tennis, f1, nfl] = await Promise.all([
         fetchBoardJson(base, "/api/nba?view=board"),
         fetchBoardJson(base, "/api/mlb?view=board"),
         fetchBoardJson(base, "/api/golf?view=board"),
         fetchBoardJson(base, "/api/tennis?tour=atp"),
         fetchBoardJson(base, "/api/f1?view=board"),
+        fetchBoardJson(base, "/api/nfl-context"),
       ]);
       const bundle = {
         fetchedAt: new Date().toISOString(),
@@ -345,6 +401,13 @@ RULES
         golf: golf.ok ? sanitizeGolfBoard(golf.data) : null,
         tennis: tennis.ok ? sanitizeTennisBoard(tennis.data) : null,
         f1: f1.ok ? sanitizeF1Board(f1.data) : null,
+        nfl:
+          nfl.ok && nfl.data
+            ? {
+                draftPhase: nfl.data?.draft?.phase ?? nfl.data?.meta?.nflDraftPhase ?? null,
+                meta: nfl.data?.meta ? { nflDraftPhase: nfl.data.meta.nflDraftPhase } : null,
+              }
+            : null,
       };
       const fb = buildFallbackSlate(bundle, "server_error");
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });

@@ -27,6 +27,10 @@ function parseMs(value) {
   return Number.isNaN(ms) ? NaN : ms;
 }
 
+function hasEndedByEndDate(endMs, nowMs) {
+  return Number.isFinite(endMs) && nowMs > endMs;
+}
+
 function hasFinishedKeyword(value) {
   const s = String(value || "").trim().toLowerCase();
   return s ? FINISHED_KEYWORDS.some((k) => s.includes(k)) : false;
@@ -51,26 +55,19 @@ export function classifyGolfEvent(event, nowMs = Date.now()) {
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 4 * 24 * 60 * 60 * 1000;
   }
-
-  if (Number.isFinite(endMs) && nowMs > endMs + 48 * 60 * 60 * 1000) {
-    return EVENT_VALIDITY.STALE;
-  }
+  if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
   if (state === "pre") {
     if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
-    return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.STALE;
+    return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.FINISHED;
   }
   if (Number.isFinite(startMs) && nowMs < startMs) {
     return EVENT_VALIDITY.UPCOMING;
   }
-  if (
-    Number.isFinite(startMs) &&
-    Number.isFinite(endMs) &&
-    nowMs >= startMs &&
-    nowMs <= endMs + 48 * 60 * 60 * 1000
-  ) {
+  if (Number.isFinite(startMs) && Number.isFinite(endMs) && nowMs >= startMs && nowMs <= endMs) {
     return EVENT_VALIDITY.ACTIVE;
   }
+  if (Number.isFinite(startMs) && nowMs > startMs) return EVENT_VALIDITY.FINISHED;
   return EVENT_VALIDITY.UNKNOWN;
 }
 
@@ -96,10 +93,9 @@ export function classifyTennisMatch(match, nowMs = Date.now()) {
   if (Number.isFinite(startMs)) {
     if (nowMs < startMs) return EVENT_VALIDITY.UPCOMING;
     if (nowMs <= startMs + 6 * 60 * 60 * 1000) return EVENT_VALIDITY.ACTIVE;
-    return EVENT_VALIDITY.STALE;
+    return EVENT_VALIDITY.FINISHED;
   }
-
-  return EVENT_VALIDITY.UPCOMING;
+  return EVENT_VALIDITY.UNKNOWN;
 }
 
 function classifyGameState({ game, nowMs, durationMs }) {
@@ -112,13 +108,20 @@ function classifyGameState({ game, nowMs, durationMs }) {
   if (!hasIdentity) return EVENT_VALIDITY.UNKNOWN;
   if (state === "post" || state === "final") return EVENT_VALIDITY.FINISHED;
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
-  if (state === "pre" || state === "scheduled") return EVENT_VALIDITY.UPCOMING;
 
   const startMs = parseMs(game.date || game.startTime || game.commenceTime || game.commenceDate);
+  const endMs =
+    parseMs(game.endDate || game.date_end) ||
+    (Number.isFinite(startMs) ? startMs + durationMs : NaN);
+  if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
+  if (state === "pre" || state === "scheduled") {
+    if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
+    return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.STALE;
+  }
   if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
   if (nowMs < startMs) return EVENT_VALIDITY.UPCOMING;
   if (nowMs <= startMs + durationMs) return EVENT_VALIDITY.ACTIVE;
-  if (nowMs > startMs + durationMs + 12 * 60 * 60 * 1000) return EVENT_VALIDITY.STALE;
+  if (nowMs > startMs + durationMs) return EVENT_VALIDITY.FINISHED;
   return EVENT_VALIDITY.UNKNOWN;
 }
 
@@ -145,15 +148,14 @@ export function classifyF1Race(race, nowMs = Date.now()) {
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 3 * 60 * 60 * 1000;
   }
-  if (Number.isFinite(endMs) && nowMs > endMs + 24 * 60 * 60 * 1000) {
-    return EVENT_VALIDITY.STALE;
-  }
+  if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
   if (Number.isFinite(startMs)) {
     if (nowMs < startMs) return EVENT_VALIDITY.UPCOMING;
-    if (Number.isFinite(endMs) && nowMs <= endMs + 2 * 60 * 60 * 1000) {
+    if (Number.isFinite(endMs) && nowMs <= endMs) {
       return EVENT_VALIDITY.ACTIVE;
     }
+    if (nowMs > startMs) return EVENT_VALIDITY.FINISHED;
   }
   if (race.is_next) return EVENT_VALIDITY.UPCOMING;
   return EVENT_VALIDITY.UNKNOWN;

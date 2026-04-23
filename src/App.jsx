@@ -15,6 +15,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
+import { formatNbaTipoffLocal } from "./lib/nbaTime.js";
 import {
   classifyMlbGame,
   classifyNbaGame,
@@ -22,6 +23,14 @@ import {
   getDisplayableF1NextRace,
   isDisplayableValidity,
 } from "../shared/eventValidity.js";
+import {
+  nbaEventKey,
+  mlbEventKey,
+  tennisEventKeyFromNormalized,
+  f1EventKey,
+} from "../shared/homeEventDedup.js";
+import { golfKeyForLiveSnapshot } from "./lib/liveSnapshotEventKeys.js";
+import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
@@ -35,6 +44,7 @@ import {
   formatOverallStats,
   formatReturnStats,
   formatServeStats,
+  formatAtpHomeSpotlightLine,
   golfScoreColor,
   isNflInSeason,
   chatHistoryForApi,
@@ -67,7 +77,6 @@ import { useGolfData } from "./hooks/useGolfData.js";
 import { useNflData } from "./hooks/useNflData.js";
 import { usePerformance } from "./hooks/usePerformance.js";
 import { useTakeAuthHeaders } from "./hooks/useTakeAuthHeaders.js";
-import { formatTennisScore } from "./features/tennis/tennisFormatters.js";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import TennisScreen from "./screens/TennisScreen.jsx";
 import NflScreen from "./screens/NflScreen.jsx";
@@ -787,19 +796,21 @@ ${themeCss}
     () => validTennisMatches.filter((m) => String(m?.raw?.live || "0") !== "1"),
     [validTennisMatches],
   );
-  const validNbaGames = useMemo(
-    () =>
-      (nbaGames.length > 0 ? nbaGames : nbaData?.todaysGames || []).filter((g) =>
-        isDisplayableValidity(classifyNbaGame(g)),
-      ),
+  const nbaGamesRaw = useMemo(
+    () => (nbaGames.length > 0 ? nbaGames : nbaData?.todaysGames || []),
     [nbaGames, nbaData],
   );
-  const validMlbGames = useMemo(
-    () =>
-      (mlbGames.length > 0 ? mlbGames : mlbData?.games || []).filter((g) =>
-        isDisplayableValidity(classifyMlbGame(g)),
-      ),
+  const mlbGamesRaw = useMemo(
+    () => (mlbGames.length > 0 ? mlbGames : mlbData?.games || []),
     [mlbGames, mlbData],
+  );
+  const validNbaGames = useMemo(
+    () => nbaGamesRaw.filter((g) => isDisplayableValidity(classifyNbaGame(g))),
+    [nbaGamesRaw],
+  );
+  const validMlbGames = useMemo(
+    () => mlbGamesRaw.filter((g) => isDisplayableValidity(classifyMlbGame(g))),
+    [mlbGamesRaw],
   );
   const displayableF1NextRace = useMemo(
     () => getDisplayableF1NextRace(f1Data),
@@ -813,6 +824,78 @@ ${themeCss}
     [validTennisMatches, context],
   );
 
+  const isNflSlateActive = useMemo(
+    () => isNflInSeason() || nflDraftMeta?.phase === "during_draft",
+    [nflDraftMeta?.phase],
+  );
+
+  /** Single home-screen pipeline: validity, times, priority, dedupe, Live Snapshot keys */
+  const homePipeline = useMemo(
+    () =>
+      buildHomeEventPipeline({
+        nbaGames: nbaGamesRaw,
+        nbaSeasonContext: nbaData?.seasonContext,
+        mlbGames: mlbGamesRaw,
+        tennisMatches: validTennisMatches,
+        f1Data,
+        golfData,
+        isNflSlateActive,
+        mlbData,
+        golfSnapshotKeyFn: () => golfKeyForLiveSnapshot(golfData),
+      }),
+    [
+      nbaGamesRaw,
+      nbaData?.seasonContext,
+      mlbGamesRaw,
+      validTennisMatches,
+      f1Data,
+      golfData,
+      isNflSlateActive,
+      mlbData,
+    ],
+  );
+
+  const tickerNbaGames = homePipeline.nbaGamesForHome;
+  const liveSnapshotKeys = homePipeline.liveSnapshotKeys;
+
+  const tennisTickerMatches = useMemo(() => {
+    const tier = (m) => {
+      if (String(m?.raw?.live || "0") === "1") return 0;
+      const st = normalizeText(m?.raw?.status || "");
+      const sc = String(m?.raw?.score || "").trim();
+      const hasScore = sc && sc !== "-";
+      if (
+        hasScore &&
+        (st.includes("final") ||
+          st.includes("finished") ||
+          st.includes("walkover") ||
+          st.includes("retired") ||
+          st.includes("complete"))
+      ) {
+        return 1;
+      }
+      return 2;
+    };
+    const ts = (m) =>
+      Number.isFinite(m.commenceTs) ? m.commenceTs : Number.MAX_SAFE_INTEGER;
+    return [...homePipeline.tennisMatchesForHome]
+      .sort((a, b) => {
+        const ta = tier(a);
+        const tb = tier(b);
+        if (ta !== tb) return ta - tb;
+        if (ta === 1) return ts(b) - ts(a);
+        return ts(a) - ts(b);
+      })
+      .slice(0, 4);
+  }, [homePipeline.tennisMatchesForHome]);
+
+  const [slateDisplayedEventKeys, setSlateDisplayedEventKeys] = useState([]);
+
+  const cardExcludeSet = useMemo(
+    () => new Set([...liveSnapshotKeys, ...slateDisplayedEventKeys]),
+    [liveSnapshotKeys, slateDisplayedEventKeys],
+  );
+
   const tennisBoardHeadline = useMemo(() => {
     const n=context?.currentTournament?.name;
     if (activeTournamentMatches.length>0&&n) return `${n}`;
@@ -822,27 +905,38 @@ ${themeCss}
   const tennisBoardSubline = useMemo(() => {
     const n=context?.currentTournament?.name;
     if (activeTournamentMatches.length>0&&n) return `${n.toUpperCase()} · ATP LIVE + UPCOMING`;
-    return "ATP · LIVE + UPCOMING (CONFIRMED FEED)";
+    return "ATP · Live & upcoming";
   }, [activeTournamentMatches.length,context]);
 
   const homeAtpSpotlightCards = useMemo(() => {
-    const atp = validTennisMatches.filter((m) => m.league === "ATP");
-    if (tennisLoading && atp.length === 0) {
+    const atpRaw = validTennisMatches.filter((m) => m.league === "ATP");
+    const atpPipeline = homePipeline.tennisMatchesForHome.filter((m) => m.league === "ATP");
+    const atp = atpPipeline.filter((m) => {
+      const k = tennisEventKeyFromNormalized(m);
+      return !(k && cardExcludeSet.has(k));
+    });
+    if (tennisLoading && atpRaw.length === 0) {
       return [
         {
           id: "tennis-atp-feed-loading",
           league: "ATP",
           leagueColor: "#0891B2",
           homeCategory: "ATP",
-          title: "ATP matchups loading…",
-          time: "Feed",
-          network: context?.currentTournament?.name || "Ball Dont Lie",
-          blurb: "Pulling confirmed ATP draws from Ball Dont Lie.",
-          whatMatters: "Open Tennis for the full ATP board.",
+          title: "Loading matchups…",
+          time: "Schedule",
+          network: context?.currentTournament?.name || "ATP",
+          blurb: "",
+          whatMatters: "Open Tennis for the full board.",
           quickHitters: ["Open Tennis tab"],
           confirmed: true,
         },
       ];
+    }
+    if (!tennisLoading && !atp.length && atpRaw.length > 0) {
+      return [];
+    }
+    if (!tennisLoading && !atp.length && atpPipeline.length > 0) {
+      return [];
     }
     if (!tennisLoading && !atp.length && (hasStaticTennisIntel || staticIntelFetchFailed)) {
       return [
@@ -851,14 +945,14 @@ ${themeCss}
           league: "ATP",
           leagueColor: "#0891B2",
           homeCategory: "ATP",
-          title: "ATP · waiting on confirmed Ball Dont Lie draws",
-          time: "Profile intel",
+          title: "Live draws updating — confirmed ATP matchups below",
+          time: "Profiles",
           network: context?.currentTournament?.name || "ATP Tour",
           blurb:
             hasStaticTennisIntel
-              ? "No ATP fixtures came back from the live feed for this window — that is normal between draw posts. Tennis still has surface, field, and player intel from your static board (not live matchups). Open the Tennis tab for full context."
-              : "No ATP fixtures came back from the live feed and static profile intel is temporarily unavailable in this refresh window. Open Tennis to retry.",
-          whatMatters: "Use Tennis for player/surface angles while the confirmed schedule populates.",
+              ? "Player and surface intel is available on the Tennis tab."
+              : "Open Tennis to load the full board.",
+          whatMatters: "Open Tennis for matchups and pricing context.",
           quickHitters: ["Open Tennis tab"],
           confirmed: false,
           tennisSpotlightState: "profile_backed_tennis_available",
@@ -872,12 +966,11 @@ ${themeCss}
           league: "ATP",
           leagueColor: "#0891B2",
           homeCategory: "ATP",
-          title: "No confirmed ATP matchups in feed",
-          time: "Ball Dont Lie",
+          title: "No matchups in this window",
+          time: "Schedule",
           network: context?.currentTournament?.name || "ATP",
-          blurb:
-            "The API returned no ATP fixtures for this window. Confirm BALLDONTLIE_API_KEY and plan include tennis, then refresh.",
-          whatMatters: "Open Tennis to retry the full board pull.",
+          blurb: "Open Tennis to refresh the board.",
+          whatMatters: "Open Tennis to retry.",
           quickHitters: ["Open Tennis tab"],
           confirmed: true,
         },
@@ -890,6 +983,7 @@ ${themeCss}
     const liveN = pool.filter((m) => String(m?.raw?.live || "0") === "1").length;
     const upcomingN = pool.length - liveN;
     const tName = context?.currentTournament?.name || "ATP Tour";
+    const oddsBacked = homePipeline.meta.hasAtpFromOdds;
     return [
       {
         id: "tennis-atp-schedule-board",
@@ -898,20 +992,37 @@ ${themeCss}
         homeCategory: "ATP · SCHEDULE",
         title: `${tName} — next ATP matchups`,
         time: `${liveN} live · ${upcomingN} upcoming`,
-        network: `${atp.length} confirmed on ATP board`,
-        blurb: head.map((m) => m.title).join(" · "),
-        matchupLines: head.map((m) => m.title),
+        network: oddsBacked
+          ? "Live draws updating — confirmed ATP matchups below"
+          : `${atp.length} on the ATP board`,
+        blurb: head.map((m) => formatAtpHomeSpotlightLine(m)).join(" · "),
+        matchupLines: head.map((m) => formatAtpHomeSpotlightLine(m)),
         moreMatchupsCount: Math.max(0, pool.length - head.length),
-        whatMatters: "Tap to open Tennis — confirmed ATP draws from Ball Dont Lie.",
+        whatMatters: oddsBacked
+          ? "Confirmed ATP matchups — open Tennis for full detail."
+          : "Tap Tennis for draws and lines.",
         quickHitters: ["Best ATP misprice today?", "Who benefits on this surface?"],
         confirmed: true,
       },
     ];
-  }, [validTennisMatches, tennisLoading, context, hasStaticTennisIntel, staticIntelFetchFailed]);
+  }, [
+    validTennisMatches,
+    homePipeline.tennisMatchesForHome,
+    homePipeline.meta,
+    tennisLoading,
+    context,
+    hasStaticTennisIntel,
+    staticIntelFetchFailed,
+    cardExcludeSet,
+  ]);
 
   const homeF1Cards = useMemo(() => {
     const nextRace = displayableF1NextRace;
     if (nextRace) {
+      const fk = f1EventKey(nextRace);
+      if (fk && cardExcludeSet.has(fk)) {
+        return [];
+      }
       const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
       const dt = raceStart ? new Date(raceStart) : null;
       const fallbackDate = nextRace?.race_date ? new Date(nextRace.race_date) : null;
@@ -954,14 +1065,18 @@ ${themeCss}
       quickHitters: ["Best F1 future?", "Who wins the WDC?", "Best value bet?"],
       confirmed: true
     }];
-  }, [f1Data, displayableF1NextRace]);
+  }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
   const homeNbaCards = useMemo(() => {
-    const live = validNbaGames.filter((g) => g.state === "in");
-    const upcoming = validNbaGames.filter((g) => g.state === "pre");
-    const pool = [...live, ...upcoming].slice(0, 2);
+    const live = homePipeline.nbaGamesForHome.filter((g) => g.state === "in");
+    const upcoming = homePipeline.nbaGamesForHome.filter((g) => g.state === "pre");
+    const poolRaw = [...live, ...upcoming].slice(0, 2);
+    const pool = poolRaw.filter((g) => {
+      const k = nbaEventKey(g);
+      return !(k && cardExcludeSet.has(k));
+    });
 
-    if (!pool.length) {
+    if (!pool.length && !homePipeline.nbaGamesForHome.length) {
       return [
         {
           id: "nba-default",
@@ -978,6 +1093,10 @@ ${themeCss}
       ];
     }
 
+    if (!pool.length) {
+      return [];
+    }
+
     return pool.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
@@ -988,10 +1107,11 @@ ${themeCss}
       const homeScore = g.homeTeam?.score ?? null;
       const hasScore = awayScore !== null && homeScore !== null;
 
-      const liveLabel = isLive ? "🔴 LIVE" : isFinal ? "FINAL" : g.status || "Tonight";
+      const tipoffLocal = formatNbaTipoffLocal(g.startTimeUtc);
+      const liveLabel = isLive ? "🔴 LIVE" : isFinal ? "FINAL" : tipoffLocal;
       const blurb = hasScore
         ? `${away} ${awayScore} — ${home} ${homeScore}${isLive && g.period ? ` · Q${g.period}` : ""}`
-        : `${series || "Playoff matchup"} · Tipoff ${g.status || "TBD"}`;
+        : `${series || "Playoff matchup"} · Tipoff ${tipoffLocal}`;
 
       return {
         id: `nba-card-${i + 1}`,
@@ -1010,14 +1130,18 @@ ${themeCss}
         confirmed: true,
       };
     });
-  }, [validNbaGames, getSeriesLabel]);
+  }, [homePipeline.nbaGamesForHome, getSeriesLabel, cardExcludeSet]);
 
   const homeMlbCards = useMemo(() => {
-    const live = validMlbGames.filter((g) => g.state === "in");
-    const upcoming = validMlbGames.filter((g) => g.state === "pre");
-    const pool = [...live, ...upcoming].slice(0, 3);
+    const live = homePipeline.mlbGamesForHome.filter((g) => g.state === "in");
+    const upcoming = homePipeline.mlbGamesForHome.filter((g) => g.state === "pre");
+    const poolRaw = [...live, ...upcoming].slice(0, 3);
+    const pool = poolRaw.filter((g) => {
+      const k = mlbEventKey(g);
+      return !(k && cardExcludeSet.has(k));
+    });
 
-    if (!pool.length) {
+    if (!pool.length && !homePipeline.mlbGamesForHome.length) {
       return [
         {
           id: "mlb-default",
@@ -1032,6 +1156,10 @@ ${themeCss}
           confirmed: true,
         },
       ];
+    }
+
+    if (!pool.length) {
+      return [];
     }
 
     return pool.map((g, i) => {
@@ -1067,9 +1195,15 @@ ${themeCss}
         confirmed: true,
       };
     });
-  }, [validMlbGames]);
+  }, [homePipeline.mlbGamesForHome, cardExcludeSet]);
 
   const homeGolfCards = useMemo(() => {
+    if (golfData && !golfLoading && isGolfEventFinished(golfData)) {
+      return [];
+    }
+    if (golfData && !golfLoading && !homePipeline.golfVisibleOnHome) {
+      return [];
+    }
     if (golfData === null && golfLoading) {
       return [{
         id: "golf-home-loading",
@@ -1086,8 +1220,8 @@ ${themeCss}
     }
 
     const currentEvent = golfData?.currentEvent || null;
-    const tournament = golfData?.tournament || null;
     const golfHomeValidity = getGolfHomeValidity(golfData);
+    const upcomingEvent = golfHomeValidity.upcomingEvent || null;
     const readName = (entry) =>
       String(entry?.player || entry?.name || entry?.fullName || "").trim();
 
@@ -1142,6 +1276,10 @@ ${themeCss}
     }
 
     if (golfHomeValidity.isActive && topThree.length > 0) {
+      const gkLb = golfKeyForLiveSnapshot(golfData);
+      if (gkLb && cardExcludeSet.has(gkLb)) {
+        /* Leaderboard tile already on Live Snapshot */
+      } else {
       const leaderboardLine = topThree
         .map((p, i) => {
           const thru = String(p?.thru || "").trim();
@@ -1178,26 +1316,27 @@ ${themeCss}
         confirmed: true,
       }];
     }
+    }
 
     const nextEventName =
-      [
-        tournament?.shortName,
-        tournament?.name,
-        currentEvent?.shortName,
-        currentEvent?.name,
-      ].find((v) => String(v || "").trim().length > 0) || null;
-    const hasValidEventIdentity = Boolean(nextEventName) && Boolean(tournament?.id || currentEvent?.id);
+      [upcomingEvent?.shortName, upcomingEvent?.name].find(
+        (v) => String(v || "").trim().length > 0,
+      ) || null;
+    const hasValidEventIdentity = Boolean(nextEventName) && Boolean(upcomingEvent?.id);
 
     if (golfHomeValidity.isUpcoming && hasValidEventIdentity) {
+      const gkUp = golfKeyForLiveSnapshot(golfData);
+      if (gkUp && cardExcludeSet.has(gkUp)) {
+        return [];
+      }
       return [{
         id: "golf-home-next",
         league: "GOLF",
         leagueColor: "#FFFFFF",
         title: nextEventName,
-        time: tournament?.displayDate || currentEvent?.displayDate || "Upcoming",
+        time: upcomingEvent?.displayDate || "Upcoming",
         network:
-          tournament?.course ||
-          currentEvent?.course ||
+          upcomingEvent?.course ||
           golfData?.course?.name ||
           "PGA Tour",
         blurb: `Upcoming event context is loaded. Check back when live scoring opens.\n${sourceLabel} · ${freshnessLabel}`,
@@ -1212,34 +1351,34 @@ ${themeCss}
     }
 
     return [];
-  }, [golfData, golfLoading]);
+  }, [golfData, golfLoading, cardExcludeSet, homePipeline.golfVisibleOnHome]);
 
   const homeTrackerCards = useMemo(
     () =>
       buildHomeTrackerCards({
         performanceData,
-        nbaGames: validNbaGames,
+        nbaGames: homePipeline.nbaGamesForHome,
         mlbData: {
           ...(mlbData || {}),
-          games: validMlbGames,
+          games: homePipeline.mlbGamesForHome,
         },
         golfData,
         f1Data,
         nflDraftMeta,
-        nflSeasonMode,
+        excludeEventKeys: cardExcludeSet,
       }),
-    [performanceData, validNbaGames, mlbData, validMlbGames, golfData, f1Data, nflDraftMeta, nflSeasonMode]
+    [performanceData, homePipeline.nbaGamesForHome, homePipeline.mlbGamesForHome, mlbData, golfData, f1Data, nflDraftMeta, cardExcludeSet]
   );
 
   const homeCards = useMemo(
     () =>
       [
-        ...homeAtpSpotlightCards,
-        ...homeTrackerCards,
-        ...homeGolfCards,
         ...homeNbaCards,
         ...homeMlbCards,
+        ...homeTrackerCards,
+        ...homeAtpSpotlightCards,
         ...homeF1Cards,
+        ...homeGolfCards,
       ].filter(Boolean),
     [
       homeAtpSpotlightCards,
@@ -1379,108 +1518,6 @@ ${themeCss}
     setSelectedPlayer(null);
     setSelectedNflPlayer(null);
   }, [screen, tab]);
-
-  const tickerNbaGames = useMemo(
-    () => validNbaGames,
-    [validNbaGames],
-  );
-
-  const tennisTickerMatches = useMemo(() => {
-    const tier = (m) => {
-      if (String(m?.raw?.live || "0") === "1") return 0;
-      const st = normalizeText(m?.raw?.status || "");
-      const sc = String(m?.raw?.score || "").trim();
-      const hasScore = sc && sc !== "-";
-      if (
-        hasScore &&
-        (st.includes("final") ||
-          st.includes("finished") ||
-          st.includes("walkover") ||
-          st.includes("retired") ||
-          st.includes("complete"))
-      ) {
-        return 1;
-      }
-      return 2;
-    };
-    const ts = (m) =>
-      Number.isFinite(m.commenceTs) ? m.commenceTs : Number.MAX_SAFE_INTEGER;
-    return [...validTennisMatches]
-      .sort((a, b) => {
-        const ta = tier(a);
-        const tb = tier(b);
-        if (ta !== tb) return ta - tb;
-        if (ta === 1) return ts(b) - ts(a);
-        return ts(a) - ts(b);
-      })
-      .slice(0, 4);
-  }, [validTennisMatches]);
-
-  const liveTickerTennisCards = useMemo(
-    () =>
-      tennisTickerMatches.map((m, i) => {
-        const awayFull = String(m.raw?.away || (m.title || "").split(" vs ")[0] || "").trim() || "Away";
-        const homeFull = String(m.raw?.home || (m.title || "").split(" vs ")[1] || "").trim() || "Home";
-        const away = awayFull.split(" ").pop();
-        const home = homeFull.split(" ").pop();
-        const scoreLine = formatTennisScore(m.raw?.score);
-        const isLiveCard = String(m?.raw?.live || "0") === "1";
-        const st = normalizeText(m?.raw?.status || "");
-        const hasFinalScore =
-          scoreLine &&
-          (st.includes("final") ||
-            st.includes("finished") ||
-            st.includes("walkover") ||
-            st.includes("retired") ||
-            st.includes("complete"));
-        const pillLabel = isLiveCard ? "● LIVE" : hasFinalScore ? "FINAL" : "NEXT";
-        const pillColor = isLiveCard ? "#22D3EE" : hasFinalScore ? "#A78BFA" : "#94A3B8";
-        return (
-          <div
-            key={`tennis-ticker-${m.id || i}`}
-            onClick={goTennis}
-            style={{
-              flexShrink: 0,
-              background: "var(--surface)",
-              border: "1px solid rgba(34,211,238,.28)",
-              borderRadius: 10,
-              padding: "8px 11px",
-              cursor: "pointer",
-              minWidth: 112,
-            }}
-          >
-            <div
-              style={{
-                fontFamily: "var(--mono-font)",
-                fontSize: 7,
-                letterSpacing: 1.5,
-                color: pillColor,
-                marginBottom: 3,
-                textTransform: "uppercase",
-              }}
-            >
-              🎾 {pillLabel}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffff", lineHeight: 1.2 }}>{away}</div>
-            <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
-            {scoreLine ? (
-              <div
-                style={{
-                  fontFamily: "var(--mono-font)",
-                  fontSize: 11,
-                  color: "#ffffff",
-                  fontWeight: 600,
-                  marginTop: 2,
-                }}
-              >
-                {scoreLine}
-              </div>
-            ) : null}
-          </div>
-        );
-      }),
-    [tennisTickerMatches, goTennis],
-  );
 
   const openMatchup = useCallback(
     (m) => {
@@ -1820,12 +1857,12 @@ ${themeCss}
             goGolf={goGolf}
             dynamicHomeQuestions={dynamicHomeQuestions}
             firePrompt={firePrompt}
-            isNflInSeason={isNflInSeason}
+            isNflSlateActive={isNflSlateActive}
             tickerNbaGames={tickerNbaGames}
             getSeriesLabel={getSeriesLabel}
-            liveTickerTennisCards={liveTickerTennisCards}
+            tennisTickerMatches={tennisTickerMatches}
             golfData={golfData}
-            mlbGames={validMlbGames}
+            mlbGames={homePipeline.mlbGamesForHome}
             mlbData={mlbData}
             f1Data={f1Data}
             homeCards={homeCards}
@@ -1836,6 +1873,8 @@ ${themeCss}
             performanceLoading={performanceLoading}
             performanceError={performanceError}
             loadPerformanceSnapshot={loadPerformanceSnapshot}
+            liveSnapshotEventKeys={liveSnapshotKeys}
+            onTodaySlateDisplayedKeys={setSlateDisplayedEventKeys}
           />
         )}
 

@@ -106,6 +106,52 @@ export function isBallDontLieAtpFixture(row) {
   return Number.isFinite(num) && num > 0;
 }
 
+/** BallDontLie ATP and Odds API fallback rows — never empty the board when either feed has matchups. */
+export function isConfirmedAtpBoardFixture(row) {
+  if (!row || typeof row !== "object") return false;
+  const src = String(row.source || "").trim();
+  if (src === "balldontlie_atp") return isBallDontLieAtpFixture(row);
+  if (src === "odds_atp") {
+    const roundStr = String(row.round || "");
+    if (roundStr.includes("Database snapshot")) return false;
+    const oid = row.odds_event_id ?? row.id;
+    if (oid == null || oid === "") return false;
+    const sid = String(oid).trim();
+    if (sid.startsWith("db-")) return false;
+    const home = String(row.home_team || row.event_first_player || "").trim();
+    const away = String(row.away_team || row.event_second_player || "").trim();
+    return !!(home && away);
+  }
+  return false;
+}
+
+/** One line for Home ATP spotlight list: matchup · surface · round · start (when known). */
+export function formatAtpHomeSpotlightLine(match) {
+  if (!match || typeof match !== "object") return "";
+  const vs = String(match.title || "").trim();
+  const surf = String(match.raw?.bdl_tournament_surface || "").trim();
+  const round = String(match.raw?.round || "").trim();
+  const ct = match.commenceTime || match.raw?.commence_iso || match.raw?.bdl_scheduled_time;
+  let timePart = "";
+  if (ct) {
+    const d = new Date(ct);
+    if (!Number.isNaN(d.getTime())) {
+      timePart = d.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+      });
+    }
+  }
+  const parts = [vs];
+  if (surf) parts.push(surf);
+  if (round) parts.push(round);
+  if (timePart) parts.push(timePart);
+  return parts.join(" · ");
+}
+
 export function isNflInSeason() {
   const m = new Date().getMonth();
   return m >= 8 || m <= 1;
@@ -119,7 +165,7 @@ export function isNflRampMode() {
 export function normalizeTennisMatch(match, fallbackTour = "ATP", _activeTournament = null) {
   if (!match) return null;
 
-  if (fallbackTour === "ATP" && !isBallDontLieAtpFixture(match)) return null;
+  if (fallbackTour === "ATP" && !isConfirmedAtpBoardFixture(match)) return null;
 
   const league = match.league || (normalizeText(match.league_name).includes("wta") || normalizeText(match.event_type_type).includes("women") ? "WTA" : fallbackTour);
   const home = String(match.home_team || match.event_first_player || "").trim();
@@ -130,8 +176,7 @@ export function normalizeTennisMatch(match, fallbackTour = "ATP", _activeTournam
   if (blocked.has(home.toLowerCase()) || blocked.has(away.toLowerCase())) return null;
   if (home.toLowerCase() === away.toLowerCase()) return null;
 
-  const tournament = String(match.tournament || match.tournament_name || "").trim();
-  if (!tournament) return null;
+  const tournament = String(match.tournament || match.tournament_name || "").trim() || "ATP Tour";
 
   const rawLive = String(match.live ?? match.event_live ?? "0");
   const statusProbe = normalizeText(match.status || match.event_status || "");

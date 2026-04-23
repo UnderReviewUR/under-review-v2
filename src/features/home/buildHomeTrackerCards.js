@@ -5,6 +5,12 @@ import {
   getDisplayableF1NextRace,
   isDisplayableValidity,
 } from "../../../shared/eventValidity.js";
+import {
+  nbaEventKey,
+  mlbEventKey,
+  f1EventKey,
+  golfSnapshotKey,
+} from "../../../shared/homeEventDedup.js";
 
 function formatScore(value) {
   const n = Number(value || 0);
@@ -25,7 +31,10 @@ export function buildHomeTrackerCards({
   golfData,
   f1Data,
   nflDraftMeta,
+  excludeEventKeys = null,
 }) {
+  const excluded =
+    excludeEventKeys instanceof Set ? excludeEventKeys : new Set(excludeEventKeys || []);
   const summary = performanceData?.summary || null;
   const settled = Number(summary?.settled || 0);
   const roiUnits = Number(summary?.roiUnits || 0);
@@ -56,6 +65,10 @@ export function buildHomeTrackerCards({
 
   if (nbaUpcoming[0]) {
     const g = nbaUpcoming[0];
+    const nk = nbaEventKey(g);
+    if (nk && excluded.has(nk)) {
+      /* skip — surfaced higher in Live Snapshot / Today's Slate */
+    } else {
     const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";
     const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
     candidates.push({
@@ -72,10 +85,15 @@ export function buildHomeTrackerCards({
       text: `${away} vs ${home} — anchor one ball-handler PRA/assists player prop.`,
       isPlayerProp: true,
     });
+    }
   }
 
   if (mlbUpcoming[0]) {
     const g = mlbUpcoming[0];
+    const mk = mlbEventKey(g);
+    if (mk && excluded.has(mk)) {
+      /* skip */
+    } else {
     const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";
     const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
     const homeP = g?.homeTeam?.pitcher
@@ -88,28 +106,35 @@ export function buildHomeTrackerCards({
       text: `${away} @ ${home} — ${homeP} K-prop angle over volatile HR markets.`,
       isPlayerProp: true,
     });
+    }
   }
 
   if (golfHomeValidity.isActive && golfHomeValidity.hasLeaderboard && golfLeaders[0]) {
-    const leader = String(golfLeaders[0]?.name || "Current leader").trim();
-    const eventName = golfData?.currentEvent?.shortName || "PGA board";
-    candidates.push({
-      league: "GOLF",
-      family: "placement",
-      reliability: 0.84,
-      text: `${eventName} — ${leader} placement market (top-10/top-20) over outrights.`,
-      isPlayerProp: true,
-    });
+    const gk = golfSnapshotKey(golfData);
+    if (!gk || !excluded.has(gk)) {
+      const leader = String(golfLeaders[0]?.name || "Current leader").trim();
+      const eventName = golfData?.currentEvent?.shortName || "PGA board";
+      candidates.push({
+        league: "GOLF",
+        family: "placement",
+        reliability: 0.84,
+        text: `${eventName} — ${leader} placement market (top-10/top-20) over outrights.`,
+        isPlayerProp: true,
+      });
+    }
   }
 
   if (nextF1Race) {
-    candidates.push({
-      league: "F1",
-      family: "h2h",
-      reliability: 0.8,
-      text: `${nextF1Race.meeting_name || "Next Grand Prix"} — driver H2H > outright volatility.`,
-      isPlayerProp: false,
-    });
+    const fk = f1EventKey(nextF1Race);
+    if (!fk || !excluded.has(fk)) {
+      candidates.push({
+        league: "F1",
+        family: "h2h",
+        reliability: 0.8,
+        text: `${nextF1Race.meeting_name || "Next Grand Prix"} — driver H2H > outright volatility.`,
+        isPlayerProp: false,
+      });
+    }
   }
 
   const selected = [];

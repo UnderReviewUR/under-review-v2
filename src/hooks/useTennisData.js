@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   getTournamentFetchParam,
-  isBallDontLieAtpFixture,
+  isConfirmedAtpBoardFixture,
   normalizeTennisMatch,
   normalizeText,
   preferredTournamentScore,
@@ -56,9 +56,9 @@ export function useTennisData() {
       atpData = [];
     }
 
-    const bdlOnly = atpData.filter(isBallDontLieAtpFixture);
+    const confirmedAtp = atpData.filter(isConfirmedAtpBoardFixture);
     const merged = [
-      ...bdlOnly.map((m) => normalizeTennisMatch(m, "ATP", activeContext)),
+      ...confirmedAtp.map((m) => normalizeTennisMatch(m, "ATP", activeContext)),
     ].filter(Boolean);
     const seen=new Set(); const deduped=[];
     for (const m of merged) {

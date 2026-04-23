@@ -2,6 +2,7 @@ import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import { NBA_UI_PLAYER_CHIPS } from "../lib/nbaUiSurface.js";
+import { formatNbaTipoffLocal } from "../lib/nbaTime.js";
 
 export default function NbaScreen({
   nbaScreenRef,
@@ -84,7 +85,7 @@ export default function NbaScreen({
                         <div key={g.id||i} className="nba-game-card" onClick={()=>submitNba(`Best prop angle for ${away} vs ${home} tonight?`)}>
                           <div className="nba-game-top">
                             <div className="nba-game-teams">{away} vs {home}</div>
-                            <div>{isLive ? <span className="nba-live-badge">● LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : g.status}</span>}</div>
+                            <div>{isLive ? <span className="nba-live-badge">● LIVE</span> : <span className="nba-game-status">{isFinal ? "FINAL" : formatNbaTipoffLocal(g.startTimeUtc)}</span>}</div>
                           </div>
                           {(isLive || isFinal) && g.awayTeam?.score != null && (
                             <div className="nba-game-score">{g.awayTeam.score} — {g.homeTeam.score}</div>
