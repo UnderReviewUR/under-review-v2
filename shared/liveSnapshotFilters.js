@@ -20,7 +20,8 @@ export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now(), sport =
   if (state === "in" || state === "live") return true;
   if (state === "pre" || state === "scheduled") {
     const startMs = getNbaMlbStartMs(game, sport);
-    if (!Number.isFinite(startMs)) return false;
+    // No precise tip time (BDL date-only source): include the game — it's today's slate.
+    if (!Number.isFinite(startMs)) return true;
     const delta = startMs - nowMs;
     return delta >= 0 && delta <= LIVE_SNAPSHOT_PRE_WINDOW_MS;
   }
