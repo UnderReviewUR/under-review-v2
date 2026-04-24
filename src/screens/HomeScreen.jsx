@@ -34,10 +34,18 @@ export default function HomeScreen({
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
   return (
-          <main className={`screen${hasDockedBar ? " has-msgs" : ""}`} style={{padding:"8px 12px calc(96px + env(safe-area-inset-bottom))"}}>
+          <main className={`screen home-surface-premium${hasDockedBar ? " has-msgs" : ""}`}>
 
             {/* Same UR TAKE input as Ask tab — one bar, shared state */}
-            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitHome} placeholder="Ask about any player, game, or bet..." {...askBarCommon} />
+            <AskBar
+              inputRef={askInputRef}
+              value={askInput}
+              onChange={setAskInput}
+              onSubmit={submitHome}
+              placeholder="One sharp line — player, game, or price you care about…"
+              {...askBarCommon}
+            />
+            <p className="home-micro-hint">Tap a sport to lock context, or fire a starter prompt below.</p>
 
             {/* Sport pill rail — horizontal scroll, feels like tabs */}
             <div className="sport-rail">
@@ -141,7 +149,7 @@ export default function HomeScreen({
                         style={{ marginTop: 10, paddingLeft: 2 }}
                       >
                         <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
-                          Other prompts
+                          More angles
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {m.quickHitters.slice(1).map((q) => (

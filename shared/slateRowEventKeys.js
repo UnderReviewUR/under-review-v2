@@ -8,6 +8,7 @@ import {
   parseAwayHomeFromLabel,
 } from "./homeEventDedup.js";
 import { getDisplayableF1NextRace } from "./eventValidity.js";
+import { normalizeNbaSideToken, normalizeTeamAbbr } from "./nbaTeamAbbrev.js";
 
 function normalizeTeamToken(s) {
   return String(s || "")
@@ -16,12 +17,25 @@ function normalizeTeamToken(s) {
     .toUpperCase();
 }
 
+/** Align slate copy tokens with `normalizeNbaSideToken` (abbr vs full city name). */
+function normalizeSlateNbaLabelToken(label) {
+  const s = String(label || "").trim();
+  if (!s) return "";
+  if (/\s/.test(s)) {
+    return String(normalizeTeamAbbr(s) || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\./g, "");
+  }
+  return normalizeTeamToken(s);
+}
+
 function nbaGameMatchesLabel(g, awayLabel, homeLabel) {
   if (!awayLabel || !homeLabel) return false;
-  const a = normalizeTeamToken(g?.awayTeam?.abbr || g?.awayTeam?.name || "");
-  const h = normalizeTeamToken(g?.homeTeam?.abbr || g?.homeTeam?.name || "");
-  const la = normalizeTeamToken(awayLabel);
-  const lh = normalizeTeamToken(homeLabel);
+  const a = normalizeNbaSideToken(g?.awayTeam);
+  const h = normalizeNbaSideToken(g?.homeTeam);
+  const la = normalizeSlateNbaLabelToken(awayLabel);
+  const lh = normalizeSlateNbaLabelToken(homeLabel);
   if (a && h && la && lh) {
     return (
       (a.includes(la) || la.includes(a)) &&

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   applyNbaMarketInvalidation,
   buildAllowedMatchupPlayerPool,
+  buildNbaUrTakeDecisionModeSpine,
   extractMentionedPlayersFromOutput,
   normalizeNbaMarketPlayerKey,
   resolveQuestionNbaPlayers,
@@ -584,6 +585,13 @@ test("matchup grounding validation flags off-game players", () => {
   );
   const invalid = validatePlayersAgainstMatchup(mentions, allowedTeamSet, pool.knownPlayerToTeam);
   assert.ok(invalid.some((p) => p.player === "Jayson Tatum" && p.team === "BOS"));
+});
+
+test("buildNbaUrTakeDecisionModeSpine emits mode-specific system routing", () => {
+  assert.match(buildNbaUrTakeDecisionModeSpine("actionable"), /NBA DECISION MODE SPINE — actionable/);
+  assert.match(buildNbaUrTakeDecisionModeSpine("blocked_unavailable"), /unavailable/);
+  assert.match(buildNbaUrTakeDecisionModeSpine("conditional_wait"), /conditional wait/i);
+  assert.equal(buildNbaUrTakeDecisionModeSpine("none"), "");
 });
 
 test("non-NBA control remains unaffected and decisionMode stays null", async () => {

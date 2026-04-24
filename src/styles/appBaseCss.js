@@ -222,6 +222,61 @@ export const baseCss = `
   .spotlight-atp-matchups li{margin:0;padding:2px 0 2px 11px;border-left:2px solid rgba(8,145,178,.4);font-size:12px;line-height:1.38;color:var(--soft);}
   .spotlight-atp-foot{margin-top:10px;font-size:11px;color:var(--muted);line-height:1.35;}
 
+  /* P-PR4 — Home premium pass (scoped: Home main + ticker + slate + prompt rail + spotlights only) */
+  .home-surface-premium.screen{padding:8px 14px 0;padding-bottom:calc(96px + env(safe-area-inset-bottom));}
+  .home-surface-premium.screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + 140px + env(safe-area-inset-bottom));}
+  .home-surface-premium .ask-wrap{margin:8px 0 16px;}
+  .home-surface-premium .sport-rail{margin-bottom:12px;}
+  .home-surface-premium .sport-pill{background:rgba(0,0,0,.14);backdrop-filter:blur(8px);}
+  .home-surface-premium .ask-cards{gap:8px;margin-bottom:14px;}
+  .home-surface-premium .ask-card{
+    border-color:rgba(255,255,255,.1);
+    background:linear-gradient(145deg, rgba(255,255,255,.04), var(--surface));
+    box-shadow:0 2px 14px rgba(0,0,0,.12);
+  }
+  .home-surface-premium .ask-card:hover{border-color:rgba(0,245,233,.32);}
+  .home-surface-premium .ask-card-text{color:var(--text);}
+  .home-surface-premium .spotlight-card{
+    border-color:rgba(255,255,255,.1);
+    box-shadow:0 3px 18px rgba(0,0,0,.18);
+  }
+  .home-surface-premium .spotlight-card:hover{border-color:rgba(255,255,255,.16);}
+  .home-surface-premium .home-live-label{color:rgba(255,255,255,.4);margin-bottom:8px;}
+  .home-surface-premium .home-ticker-premium > div{box-shadow:0 2px 14px rgba(0,0,0,.2);}
+  .home-surface-premium .today-slate-panel{box-shadow:0 4px 22px rgba(0,245,233,.07);}
+  .home-surface-premium .today-slate-loading{letter-spacing:0.2px;opacity:.92;}
+  .home-surface-premium .today-slate-error{max-width:100%;line-height:1.45;}
+  .home-micro-hint{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.4px;
+    color:rgba(255,255,255,.45);
+    margin:-4px 0 10px;
+    line-height:1.4;
+    max-width:36rem;
+  }
+  .home-ticker-quiet{
+    min-height:52px;
+    align-items:center;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px dashed rgba(255,255,255,.14);
+    background:rgba(0,0,0,.12);
+  }
+  .home-ticker-quiet-copy{
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.45;
+    max-width:40ch;
+  }
+  .today-slate-empty{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:8px;
+    line-height:1.45;
+    max-width:40ch;
+  }
+
   .ask-wrap{margin:12px 0 18px;}
   .ask-row{display:flex;gap:8px;align-items:flex-end;}
   .ask-col{flex:1;border:1px solid var(--border-2);background:var(--surface-2);border-radius:18px;overflow:hidden;transition:border-color .15s ease;}

@@ -11,9 +11,17 @@ import {
 
 function getDaypartLabel() {
   const h = new Date().getHours();
-  if (h < 12) return "today";
+  if (h < 12) return "this morning";
   if (h < 18) return "this afternoon";
   return "tonight";
+}
+
+function promptDedupeKey(prompt) {
+  return String(prompt || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 96);
 }
 
 function isLikelyDraftWindow(now = new Date()) {
@@ -35,7 +43,8 @@ export function buildDynamicHomeQuestions({
   f1Data,
 }) {
   const prompts = [];
-  const used = new Set();
+  const usedCardText = new Set();
+  const usedPromptKeys = new Set();
   const daypart = getDaypartLabel();
   const etNow = new Date(
     new Date().toLocaleString("en-US", { timeZone: "America/New_York" })
@@ -61,8 +70,12 @@ export function buildDynamicHomeQuestions({
   const dallasPriority = cityHint.includes("dallas");
 
   const push = (item) => {
-    if (!item || used.has(item.text)) return;
-    used.add(item.text);
+    if (!item || !item.text || !item.prompt) return;
+    if (usedCardText.has(item.text)) return;
+    const pk = promptDedupeKey(item.prompt);
+    if (pk && usedPromptKeys.has(pk)) return;
+    usedCardText.add(item.text);
+    if (pk) usedPromptKeys.add(pk);
     prompts.push(item);
   };
 
@@ -86,12 +99,12 @@ export function buildDynamicHomeQuestions({
     const tennisLivePrompt = rotate(
       [
         {
-          text: `Best live angle for ${label}?`,
-          prompt: `What is the sharpest live betting angle for ${label} right now? Give me one edge plus the biggest risk.`,
+          text: `Live edge — ${label}?`,
+          prompt: `For ${label} in-play, what is the single sharpest live angle right now? Name one edge and the main way it dies.`,
         },
         {
-          text: `Live read on ${label}?`,
-          prompt: `For ${label} live, where is the market most wrong right now? Give me side/total and timing.`,
+          text: `Where is ${label} mispriced live?`,
+          prompt: `For ${label} live, where is the book most wrong on side or total — and what score or script flips your read?`,
         },
       ],
       1
@@ -109,12 +122,12 @@ export function buildDynamicHomeQuestions({
     const tennisUpcomingPrompt = rotate(
       [
         {
-          text: `Best pre-match edge in ${label} ${daypart}?`,
-          prompt: `What is the best pre-match edge in ${label} ${daypart}? One strongest play and one pass/fade.`,
+          text: `Pre-match lean — ${label} (${daypart})?`,
+          prompt: `Before ${label} goes live ${daypart}, what is the strongest pre-match edge — one play to back and one market to avoid?`,
         },
         {
-          text: `Best futures/read for ${label}?`,
-          prompt: `For ${label}, what is the cleanest pre-match inefficiency right now and why has it not corrected yet?`,
+          text: `Misprice watch: ${label}?`,
+          prompt: `For ${label} pre-match, where is pricing still stale vs what the matchup shape implies?`,
         },
       ],
       2
@@ -130,8 +143,8 @@ export function buildDynamicHomeQuestions({
       id: "q2b",
       color: "#0891B2",
       sportHint: "tennis",
-      text: `Best future around ${context.currentTournament.name} today?`,
-      prompt: `What is the best current futures or tournament-value angle connected to ${context.currentTournament.name}?`,
+      text: `Tournament value — ${context.currentTournament.name}?`,
+      prompt: `Around ${context.currentTournament.name}, where is the best futures or outright value on the board right now?`,
     });
   }
 
@@ -151,12 +164,12 @@ export function buildDynamicHomeQuestions({
     const golfPrompt = rotate(
       [
         {
-          text: `Best live golf angle for ${label}?`,
-          prompt: `For ${label}, what is the sharpest live golf betting angle right now? One best play and one avoid.`,
+          text: `Live board — best angle on ${label}?`,
+          prompt: `On ${label} with live scoring moving, what is the one best live golf angle and what stat would make you bail?`,
         },
         {
-          text: `How should I price ${leaderName} right now?`,
-          prompt: `Given current leaderboard context, is ${leaderName} over- or under-priced in live golf markets?`,
+          text: `Is ${leaderName} priced right?`,
+          prompt: `Against the live ${label} board, is ${leaderName} still mispriced in placement or matchup markets?`,
         },
       ],
       3
@@ -178,12 +191,12 @@ export function buildDynamicHomeQuestions({
     const nbaLivePrompt = rotate(
       [
         {
-          text: `Best NBA prop for ${away} vs ${home}?`,
-          prompt: `For ${away} vs ${home}, what is the strongest NBA player-prop edge on the current slate?`,
+          text: `Best prop live — ${away} vs ${home}?`,
+          prompt: `In ${away} vs ${home} right now, what is the strongest in-game player prop edge and what script kills it?`,
         },
         {
-          text: `Top NBA edge in ${away} @ ${home}?`,
-          prompt: `Where is the cleanest NBA market inefficiency in ${away} @ ${home} right now?`,
+          text: `Market wrong spot — ${away} @ ${home}?`,
+          prompt: `Where is the book most off in ${away} @ ${home} live — side, total, or prop — and what are you watching next?`,
         },
       ],
       5
@@ -199,12 +212,12 @@ export function buildDynamicHomeQuestions({
     const nbaPrePrompt = rotate(
       [
         {
-          text: `Best pre-game edge: ${away} @ ${home}?`,
-          prompt: `Before tip for ${away} @ ${home}, what is the strongest pre-game edge (side, total, or prop) and what would change it live?`,
+          text: `Pre-tip edge — ${away} @ ${home}?`,
+          prompt: `Before tip between ${away} and ${home}, what is the strongest pre-game edge on side, total, or prop — and what injury or line move flips it?`,
         },
         {
-          text: `Top matchup read: ${away} vs ${home}?`,
-          prompt: `For the upcoming ${away} vs ${home} game, where is the market most likely wrong pre-tip — and what stat would you watch first?`,
+          text: `Misprice before tip — ${away} vs ${home}?`,
+          prompt: `Pre-tip for ${away} vs ${home}, where is pricing laziest vs rotation and pace reality?`,
         },
       ],
       54
@@ -218,12 +231,12 @@ export function buildDynamicHomeQuestions({
     const f1Prompt = rotate(
       [
         {
-          text: `Best F1 edge for ${raceName}?`,
-          prompt: `For ${raceName}, what is the best race-day betting angle (race market only, no quali/practice)?`,
+          text: `Race-day sharp play — ${raceName}?`,
+          prompt: `For ${raceName} on Sunday, what is the best race-only betting angle (no quali or practice markets)?`,
         },
         {
-          text: `Best race-day play for ${raceName}?`,
-          prompt: `What is the sharpest race-day edge for ${raceName}? Include price sensitivity and timing.`,
+          text: `Podium or H2H — ${raceName}?`,
+          prompt: `At ${raceName}, is the cleaner edge on podium structure or a driver H2H — and where is the market too confident?`,
         },
       ],
       6
@@ -245,9 +258,9 @@ export function buildDynamicHomeQuestions({
       id: "q6a",
       color: "#E11D48",
       sportHint: "nfl",
-      text: "Who are the biggest sleepers in the 2026 Draft class?",
+      text: "2026 draft — biggest sleepers vs the board?",
       prompt:
-        "Who are the biggest sleepers in the 2026 Draft class? Use team-needs fit and round-value tiers, not just consensus ranking.",
+        "Who are the biggest sleepers in the 2026 draft class relative to consensus? Tie answers to team needs and realistic round ranges.",
     });
     push({
       id: "q6b",
@@ -267,12 +280,12 @@ export function buildDynamicHomeQuestions({
     const nflSeasonPrompt = rotate(
       [
         {
-          text: "Which NFL weekly prop is most mispriced?",
-          prompt: "Which NFL weekly player prop looks most mispriced right now based on current usage and role?",
+          text: "Which weekly prop is the clearest misprice?",
+          prompt: "Which NFL weekly player prop is most mispriced vs current usage, role, and opponent tendency?",
         },
         {
-          text: "Best NFL role-shift edge this week?",
-          prompt: "Where is the biggest NFL role-shift mismatch vs market pricing this week?",
+          text: "Biggest role-shift edge this week?",
+          prompt: "Where is the biggest NFL role or snap-shift not yet priced into the weekly markets?",
         },
       ],
       7
@@ -282,12 +295,12 @@ export function buildDynamicHomeQuestions({
     const nflFuturePrompt = rotate(
       [
         {
-          text: "Which NFL future looks most mispriced?",
-          prompt: "Which NFL future is most mispriced right now based on player profile and team context?",
+          text: "Which NFL future is still sleeping?",
+          prompt: "Which NFL futures market looks most mispriced today when you weigh roster path and schedule leverage?",
         },
         {
-          text: "Best NFL future value spot today?",
-          prompt: "What is the best NFL futures value spot today, and why is market sentiment lagging?",
+          text: "Best futures value on the board now?",
+          prompt: "What is the best NFL futures value on the board right now, and why is public money still wrong?",
         },
       ],
       8

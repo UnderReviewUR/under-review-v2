@@ -1,6 +1,6 @@
 /**
  * Home ingestion pipeline (partial centralization): normalizes feeds that power Home tab + Live Snapshot.
- * Today's Slate API still shapes its own bundle — see HOME_CONTRACT.md.
+ * Today's Slate board filtering is aligned via `shared/todaySlateInputBundle.js` (same classify gates; golf uses `normalizeGolfTournament`).
  */
 
 import { collectLiveSnapshotEventKeysCore } from "../liveSnapshotPlan.js";

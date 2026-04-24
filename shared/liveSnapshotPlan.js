@@ -54,8 +54,8 @@ export function planLiveSnapshot(input) {
     input.validMlbGames ||
     gamesSrc.filter((g) => isDisplayableValidity(classifyMlbGame(g, nowMs)));
 
-  const nbaOrdered = filterAndOrderNbaMlbGames(validNba, nowMs);
-  const mlbOrdered = filterAndOrderNbaMlbGames(validMlb, nowMs);
+  const nbaOrdered = filterAndOrderNbaMlbGames(validNba, nowMs, "nba");
+  const mlbOrdered = filterAndOrderNbaMlbGames(validMlb, nowMs, "mlb");
   const tennisFiltered = filterTennisMatchesForSnapshot(
     input.tennisMatchesForTicker || [],
     nowMs,

@@ -3,6 +3,11 @@
  */
 
 import {
+  canonicalMlbStartUtcMs,
+  canonicalNbaStartUtcMs,
+  parseEventStartMs,
+} from "../eventStartTime.js";
+import {
   classifyF1Race,
   classifyGolfEvent,
   classifyMlbGame,
@@ -30,12 +35,6 @@ import {
 } from "./priority.js";
 import { PIPELINE_STATE } from "./schema.js";
 
-function parseMs(value) {
-  if (Number.isFinite(value)) return Number(value);
-  const ms = Date.parse(String(value || ""));
-  return Number.isNaN(ms) ? NaN : ms;
-}
-
 function formatLocalShort(ms) {
   if (!Number.isFinite(ms)) return "TBD";
   return new Date(ms).toLocaleString(undefined, {
@@ -46,17 +45,8 @@ function formatLocalShort(ms) {
   });
 }
 
-/** BallDontLie primary: startTimeUtc when startTimeSource is bdl_start_time; else first parseable UTC field. */
-export function canonicalNbaStartUtc(game) {
-  if (!game || typeof game !== "object") return NaN;
-  const src = String(game.startTimeSource || "").toLowerCase();
-  const primary = String(game.startTimeUtc || "").trim();
-  if (primary && (src === "bdl_start_time" || src === "")) {
-    const ms = Date.parse(primary);
-    if (!Number.isNaN(ms)) return ms;
-  }
-  return parseMs(game.startTimeUtc || game.date || game.commenceTime || game.commenceDate);
-}
+/** Re-export name used by `homeEventPipeline` index — same as `canonicalNbaStartUtcMs`. */
+export const canonicalNbaStartUtc = canonicalNbaStartUtcMs;
 
 function matchupNbaMlb(game) {
   const away = String(game?.awayTeam?.abbr || game?.awayTeam?.name || "").trim() || "Away";
@@ -64,9 +54,10 @@ function matchupNbaMlb(game) {
   return `${away} @ ${home}`;
 }
 
-function endMsForTeamGame(game, durationMs, nowMs) {
-  const startMs = parseMs(game.date || game.startTime || game.startTimeUtc || game.commenceTime);
-  const explicit = parseMs(game.endDate || game.date_end);
+function endMsForTeamGame(game, durationMs, sport) {
+  const startMs =
+    sport === "mlb" ? canonicalMlbStartUtcMs(game) : canonicalNbaStartUtcMs(game);
+  const explicit = parseEventStartMs(game.endDate || game.date_end);
   if (Number.isFinite(explicit)) return explicit;
   if (Number.isFinite(startMs)) return startMs + durationMs;
   return NaN;
@@ -79,8 +70,8 @@ export function normalizeNbaGame(game, ctx, nowMs = Date.now()) {
   if (!game) return null;
   const v = classifyNbaGame(game, nowMs);
   if (!isDisplayableValidity(v)) return null;
-  const startMs = canonicalNbaStartUtc(game);
-  const endMs = endMsForTeamGame(game, 4 * 60 * 60 * 1000, nowMs);
+  const startMs = canonicalNbaStartUtcMs(game);
+  const endMs = endMsForTeamGame(game, 4 * 60 * 60 * 1000, "nba");
   if (Number.isFinite(endMs) && endMs <= nowMs) return null;
 
   const isPlayoff = Boolean(ctx?.postseason);
@@ -117,8 +108,8 @@ export function normalizeMlbGame(game, nowMs = Date.now()) {
   if (!game) return null;
   const v = classifyMlbGame(game, nowMs);
   if (!isDisplayableValidity(v)) return null;
-  const startMs = parseMs(game.date || game.startTime || game.commenceTime);
-  const endMs = endMsForTeamGame(game, 6 * 60 * 60 * 1000, nowMs);
+  const startMs = canonicalMlbStartUtcMs(game);
+  const endMs = endMsForTeamGame(game, 6 * 60 * 60 * 1000, "mlb");
   if (Number.isFinite(endMs) && endMs <= nowMs) return null;
 
   const stateStr = String(game.state || "").toLowerCase();
@@ -186,8 +177,8 @@ export function normalizeF1Race(race, f1Data, nowMs = Date.now()) {
   if (!isDisplayableValidity(v)) return null;
   if (!isF1RaceWeekendWindow(f1Data, f1Data?.sessions || [])) return null;
 
-  const startMs = parseMs(race.race_start || race.race_date || race.date_start);
-  let endMs = parseMs(race.date_end);
+  const startMs = parseEventStartMs(race.race_start || race.race_date || race.date_start);
+  let endMs = parseEventStartMs(race.date_end);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 3 * 60 * 60 * 1000;
   }
@@ -224,8 +215,8 @@ export function normalizeGolfTournament(golfData, nowMs = Date.now()) {
   const id = golfSnapshotKey(golfData);
   if (!id) return null;
 
-  const startMs = parseMs(ev.startDate || ev.date);
-  let endMs = parseMs(ev.endDate);
+  const startMs = parseEventStartMs(ev.startDate || ev.date);
+  let endMs = parseEventStartMs(ev.endDate);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 4 * 24 * 60 * 60 * 1000;
   }

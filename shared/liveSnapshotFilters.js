@@ -2,29 +2,24 @@
  * Live Snapshot inclusion: live games, starts within 2h, next major (F1/NFL handled in plan).
  */
 
+import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs } from "./eventStartTime.js";
+
 export const LIVE_SNAPSHOT_PRE_WINDOW_MS = 2 * 60 * 60 * 1000;
 export const MAX_LIVE_SNAPSHOT_TILES = 5;
 
-function parseMs(value) {
-  if (Number.isFinite(value)) return Number(value);
-  const ms = Date.parse(String(value || ""));
-  return Number.isNaN(ms) ? NaN : ms;
-}
-
-export function getNbaMlbStartMs(game) {
+/** @param {"nba"|"mlb"} sport */
+export function getNbaMlbStartMs(game, sport = "nba") {
   if (!game || typeof game !== "object") return NaN;
-  return parseMs(
-    game.startTimeUtc || game.date || game.startTime || game.commenceTime || game.commenceDate,
-  );
+  return sport === "mlb" ? canonicalMlbStartUtcMs(game) : canonicalNbaStartUtcMs(game);
 }
 
 /** NBA/MLB: live, or pre/scheduled with kickoff/first pitch within the snapshot window. */
-export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now()) {
+export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now(), sport = "nba") {
   if (!game || typeof game !== "object") return false;
   const state = String(game.state || "").toLowerCase();
   if (state === "in" || state === "live") return true;
   if (state === "pre" || state === "scheduled") {
-    const startMs = getNbaMlbStartMs(game);
+    const startMs = getNbaMlbStartMs(game, sport);
     if (!Number.isFinite(startMs)) return false;
     const delta = startMs - nowMs;
     return delta >= 0 && delta <= LIVE_SNAPSHOT_PRE_WINDOW_MS;
@@ -32,8 +27,9 @@ export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now()) {
   return false;
 }
 
-export function filterAndOrderNbaMlbGames(games, nowMs = Date.now()) {
-  const eligible = (games || []).filter((g) => isNbaMlbIncludedInLiveSnapshot(g, nowMs));
+/** @param {"nba"|"mlb"} sport */
+export function filterAndOrderNbaMlbGames(games, nowMs = Date.now(), sport = "nba") {
+  const eligible = (games || []).filter((g) => isNbaMlbIncludedInLiveSnapshot(g, nowMs, sport));
   const live = eligible.filter((g) => {
     const s = String(g.state || "").toLowerCase();
     return s === "in" || s === "live";
@@ -43,7 +39,7 @@ export function filterAndOrderNbaMlbGames(games, nowMs = Date.now()) {
       const s = String(g.state || "").toLowerCase();
       return s === "pre" || s === "scheduled";
     })
-    .sort((a, b) => getNbaMlbStartMs(a) - getNbaMlbStartMs(b));
+    .sort((a, b) => getNbaMlbStartMs(a, sport) - getNbaMlbStartMs(b, sport));
   return [...live, ...pre];
 }
 

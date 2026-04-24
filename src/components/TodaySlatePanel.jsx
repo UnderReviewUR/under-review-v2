@@ -87,9 +87,9 @@ export default function TodaySlatePanel({ excludeEventKeys = [], onDisplayedEven
         if (!cancelled) {
           const msg = String(e?.message || "Failed to load");
           if (msg.includes("bad_model_json") || msg.includes("upstream_error")) {
-            setErr("Slate engine refreshing — showing fallback angles shortly.");
+            setErr("Slate is reconnecting — try again in a minute.");
           } else {
-            setErr(msg);
+            setErr(`Couldn't load Today's slate — ${msg.slice(0, 120)}`);
           }
         }
       } finally {
@@ -125,8 +125,24 @@ export default function TodaySlatePanel({ excludeEventKeys = [], onDisplayedEven
     onDisplayedEventKeysChange(Array.from(keys));
   }, [data, visibleRowKeys, onDisplayedEventKeysChange]);
 
+  const slateRowRenderable = (key) => {
+    const item = data?.[key];
+    if (!item || typeof item !== "object") return false;
+    return Boolean(
+      (item.angle && String(item.angle).trim()) ||
+        (item.why && String(item.why).trim()) ||
+        item.game ||
+        item.event ||
+        item.match,
+    );
+  };
+
+  const hasRenderableSlateRows =
+    Boolean(data) && visibleRowKeys.some((k) => slateRowRenderable(k));
+
   return (
     <div
+      className="today-slate-panel"
       style={{
         marginTop: 10,
         marginBottom: 10,
@@ -149,16 +165,26 @@ export default function TodaySlatePanel({ excludeEventKeys = [], onDisplayedEven
         {"Today's slate"}
       </div>
       {loading && (
-        <div style={{ fontSize: 12, color: "var(--muted)" }}>Loading cross-sport angles…</div>
+        <div className="today-slate-loading" style={{ fontSize: 12, color: "var(--muted)" }}>
+          Pulling sharp angles across sports…
+        </div>
       )}
       {err && !loading && (
-        <div style={{ fontSize: 12, color: "#FF6B6B" }}>{err}</div>
+        <div className="today-slate-error" style={{ fontSize: 12, color: "#FF6B6B" }}>
+          {err}
+        </div>
       )}
       {!loading && !err && data && (
         <>
           {visibleRowKeys.map((key) => (
             <SlateRow key={key} label={SLATE_ROW_LABEL[key] || key} item={data[key]} />
           ))}
+          {!hasRenderableSlateRows ? (
+            <div className="today-slate-empty">
+              No slate rows in this pass — either boards are thin or everything here is already in Live
+              Snapshot. Ask UR Take on a specific game for a sharper read.
+            </div>
+          ) : null}
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
             {formatUpdatedLabel(data.generatedAt)}
           </div>

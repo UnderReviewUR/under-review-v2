@@ -326,6 +326,18 @@ export function golfScoreColor(score) {
   return "var(--text)";
 }
 
+/** Display-time only: aligns first visible line with take.trust chips (same patterns as chatHistoryForApi). */
+export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
+  return String(raw || "")
+    .replace(/^This is a .*? confidence take\.[^\n]*\n+/i, "")
+    .replace(/^This is a .*? confidence take\.[^\n]*$/im, "")
+    .replace(/^WRONG SPORT\.[^\n]*\n+/im, "")
+    .replace(/^I'm locked into [^\n]*\n+/im, "")
+    .replace(/^For tennis prop analysis[^\n]*\n+/im, "")
+    .replace(/^What NBA game or player props[^\n]*\n+/im, "")
+    .trimStart();
+}
+
 export function renderMessage(text) {
   if (!text) return null;
 
@@ -459,12 +471,49 @@ export function LoadingBubble({ sport }) {
   );
 }
 
+function UrTakeTrustChips({ trust }) {
+  if (!trust || typeof trust !== "object") return null;
+  const show = trust.tier !== "standard" || trust.contextQuality === "low";
+  if (!show) return null;
+
+  const chipStyle = {
+    fontFamily: "var(--mono-font)",
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: "var(--muted)",
+    border: "1px solid var(--border-2)",
+    borderRadius: 8,
+    padding: "4px 8px",
+    lineHeight: 1.25,
+  };
+
+  const items = [`CTX·${trust.contextQuality}`];
+  if (trust.sparseQuestion) items.push("Sparse Q");
+  if (trust.thinEvidence) items.push("Thin evidence");
+
+  return (
+    <div
+      role="group"
+      aria-label="Take trust metadata"
+      style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}
+    >
+      {items.map((label) => (
+        <span key={label} style={chipStyle}>
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function UrTakeAiBubble({ m }) {
   const [deepOpen, setDeepOpen] = useState(false);
+  const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      {renderMessage(m.text)}
+      {renderMessage(summaryText)}
+      {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
       {m.deepText ? (
         <div style={{ marginTop: 12 }}>
           {!deepOpen ? (
@@ -485,7 +534,7 @@ function UrTakeAiBubble({ m }) {
               >
                 Full breakdown
               </div>
-              {renderMessage(m.deepText)}
+              {renderMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}
             </>
           )}
         </div>

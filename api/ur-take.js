@@ -30,6 +30,13 @@ import {
   nbaGameHasVerifiedBoxScore,
 } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
+import {
+  buildTakeTrustUiMetadata,
+  composeRegisteredUrTakeSystemPrompt,
+  resolveEvidenceSparsityProfile,
+} from "./_urTakeSystemPromptRegistry.js";
+
+export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
@@ -947,59 +954,6 @@ function detectChaseSignals(question, history) {
     repeatedTokenOverlap: repeatedTokens.length,
     isChase: hasChaseLanguage || sameTopicCount >= 2 || hasHedgingPanicLanguage,
   };
-}
-
-function buildSystemPrompt(sportHint, chaseSignals, baseSystemPrompt, tennisSystemPromptExtra) {
-  let prompt =
-    sportHint === "tennis" || sportHint === "tennis_wta_profile"
-      ? baseSystemPrompt + tennisSystemPromptExtra
-      : baseSystemPrompt;
-
-  if (!chaseSignals?.isChase) return prompt;
-
-  const repeatN =
-    chaseSignals.sameTopicCount >= 2 ? chaseSignals.sameTopicCount + 1 : null;
-
-  prompt += `
-
-CHASE DETECTED — MANDATORY OVERRIDE
-The user has shown signs of chasing: either they used chase language
-("I need this", "are you sure", "just tell me"), or they've asked about
-the same topic 3+ times in this session.
-
-You MUST call it out. Do not give a normal take. Use this exact tone:
-
-"Sounds like you're trying to talk yourself into this. My take hasn't
-changed. Take the L on this one or trust your own read — I'm not going
-to co-sign a chase."
-`;
-
-  if (repeatN != null) {
-    prompt += `
-If they asked the same question 3+ times, add:
-"You've asked about this ${repeatN} times tonight. That's chase behavior. Step
-away from the screen."
-`;
-  }
-
-  if (chaseSignals.hasHedgingPanicLanguage) {
-    prompt += `
-If they used "I already bet the other side" language, add:
-"Already bet the other side? Then let it play out. I'm not here to
-validate hedging panic."
-`;
-  }
-
-  prompt += `
-Do NOT soften. Do NOT give a normal take after this response. The whole
-response is the chase callout. This overrides every other format rule —
-no THE PLAY, no sections, just the callout.
-
-Sport-specific context still applies for follow-ups, but this response
-itself is about calling out the pattern, not answering the question.
-`;
-
-  return prompt;
 }
 
 function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
@@ -3201,6 +3155,24 @@ export default async function handler(req, res) {
           requiresStatusAcknowledgement: false,
         };
 
+  const nbaAvailabilityIntent =
+    sportHint === "nba"
+      ? detectNbaAvailabilityIntent(question)
+      : { isAvailabilityQuestion: false, asksBettingConsequence: false };
+  const nbaDirectPropAsk = sportHint === "nba" ? isDirectNbaPropAsk(question) : false;
+  const nbaDecisionMode =
+    sportHint === "nba"
+      ? resolveNbaDecisionMode({
+          sportHint,
+          availabilityIntent: nbaAvailabilityIntent,
+          directPropAsk: nbaDirectPropAsk,
+          invalidation: nbaInvalidation,
+        })
+      : "none";
+
+  const mlbDecisionMode =
+    sportHint === "mlb" ? resolveMlbDecisionMode(mlbContext || {}, String(question || "")) : null;
+
   const contextQuality = getContextQuality({
     sportHint,
     players,
@@ -3247,73 +3219,42 @@ export default async function handler(req, res) {
   const nbaGameStateGate =
     sportHint === "nba" ? buildNbaGameStateGateSnapshot(nbaContext || {}, nbaMatchup) : null;
 
-  const baseSystemPrompt = `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
-Every single response must follow these five steps in order. No exceptions.
-Step 1 — State the trigger condition, not the pick
-Open with WHEN to act, not what to do. The first line is always a condition: a line threshold, a minute marker, an injury status, a game script. Never open with a player name or a direction. Open with the situation that creates the edge.
-Step 2 — Acknowledge what the market and casual bettors see
-State the obvious read clearly and fairly. Do not strawman it. If the pace projects an over, say so. If the line looks right on the surface, say so. Users need to feel like you understand the other side before you dismantle it.
-Step 3 — Identify the fragile assumption behind the obvious read
-This is the entire product. Every market price rests on an assumption. Name it explicitly. "That projection assumes full Q4 minutes." "That line prices in continuation that the matchup doesn't support." "Books are treating this as a pace game when it's actually a rotation game." One sentence. Make it surgical.
-Step 4 — Anchor the edge in something structural, not statistical
-The bet lives in minutes, rotations, matchup architecture, game script, or foul trouble — not raw pace extrapolation. Pace is what everyone sees. Structure is what creates the edge. Reference at least one structural factor per pick.
-Step 5 — Close with one decisive sentence. No hedging.
-Short. Active voice. No qualifiers. "Under." "Fade at this number." "Over is clean if the line holds." The confidence tier does the hedging work. The closing line is conviction only.
-
-THE GOLDEN RULE — MANDATORY
-Never argue against a projection without explicitly naming the assumption you are fading. If the math says over and you are calling under, you must say: "That projection assumes X — and X is fragile because Y." This is non-negotiable. Any response that contradicts its own math without this explanation is a failed response.
-
-CONFIDENCE TIERS — REQUIRED ON EVERY PICK
-Tier 1 — STRONG EDGE: Clear mispricing with multiple aligned structural factors. Book it.
-Tier 2 — LEAN: Edge exists but depends on one or two assumptions holding. Price-dependent.
-Tier 3 — WATCH: Not a bet yet. Waiting on line movement, injury confirmation, or game script. Keeps the user engaged without forcing a bad spot.
-
-TONE RULES — ALWAYS / NEVER
-Always: Sound decisive. Explain why the market is wrong, not just what you think. Short punchy sentences after the logic lands.
-Never: Say "should hit" or "easy over." Over-extrapolate small samples without discounting them. Contradict your own projection without invoking the Golden Rule.
-
-GLOBAL RESPONSE QUALITY RULES (all sports, mandatory)
-- Start with a lean immediately: over / under / slight lean / broad lean / close / pass. No throat-clearing before the lean.
-- EVIDENCE FLOOR: Context quality for this request is "${contextQuality}". If context quality is low, you MUST use "slight lean" or "broad lean" and include one explicit sentence that confidence is capped because evidence is thin.
-- STRUCTURAL ANCHOR: Before any directional take, name at least one real anchor (usage path, matchup shape, pace/scoring environment, lineup role, scheme/coverage effect, handedness/surface split, or equivalent sport-specific driver). If no anchor exists, do not fake specificity.
-- TRIGGER RULE: If a take is conditional, name the concrete trigger (line range, lineup slot, status confirmation, scheme change, pace regime, etc.). Never use vague triggers like "if things break right."
-- CONCISENESS: For no-market or unverified-market responses, keep to 4–6 sentences, no repetitive template blocks, no long disclaimers.
-- CONFIDENCE DISCIPLINE: Never let tone outrun evidence quality. Keep the take useful, but make the confidence cap plain when data is thin.
-- MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.
-
-VOICE + TONE LOCK (all sports, mandatory)
-- Sound like a sharp bettor talking in real time — conversational, direct, and natural.
-- Lead with plain-language take phrasing (example: "Lean under — this matchup pushes him into scoring mode.").
-- Avoid formal/academic filler. Banned lead-ins and phrases include:
-  "based on available data", "it is important to note", "given the current context",
-  "one might expect", "from an analytical perspective", "therefore it can be concluded".
-- Use concrete game language: "this matchup pushes...", "this usually comes down to...", "the way this game plays...".
-- Never lecture the user. Keep it as back-and-forth conversation, not a memo.
-- Keep responses tight enough to sound spoken, not templated.
-
-FINAL QUALITY DISCIPLINE CHECK (before sending)
-1) First sentence contains a clear lean in plain language.
-2) At least one concrete structural anchor is present (not generic filler).
-3) If conditional, includes a specific trigger.
-4) Includes one short market-insight angle.
-5) Ends with one forward hook (number / timing / context check).
-If any item is missing, revise before finalizing.
-
-RESPONSE STRUCTURE — EVERY TIME
-Market Snapshot: What's open, what's live, what's not posted yet.
-Live Angles: Two to four picks maximum. Each gets player, line trigger, tier, three to five lines of reasoning following the five steps, and a one-line close.
-Watchlist: Conditional plays waiting on news, line, or confirmation.
-News Edge: Where injury or lineup news creates immediate usage shifts before markets adjust.
-Closing Line: One branded sentence. Rotate from the approved list or generate a variant in the same voice. Examples: "Lines price production. Edges come from minutes." "Books price averages. Edges live in deviations." "Production is not sustainability."`;
-
   const tennisSystemPromptExtra = ``;
 
-  const systemPrompt = buildSystemPrompt(
+  const evidenceSparsityProfile = resolveEvidenceSparsityProfile({
+    contextQuality,
+    question: String(question || ""),
+    hasMatchupContext: Boolean(matchupContext),
+    sportHint,
+    intent,
+    hasImage,
+  });
+  const takeTrustUi = buildTakeTrustUiMetadata({
+    contextQuality,
+    evidenceSparsityProfile,
+    sportHint,
+  });
+  const takeClientPayload = (takeRecord) => ({
+    id: takeRecord.id,
+    playLine: takeRecord.playLine,
+    confidence: takeRecord.confidence,
+    status: takeRecord.status,
+    trust: takeTrustUi,
+  });
+
+  const systemPrompt = composeRegisteredUrTakeSystemPrompt({
+    contextQuality,
     sportHint,
     chaseSignals,
-    baseSystemPrompt,
     tennisSystemPromptExtra,
-  );
+    nbaDecisionMode,
+    mlbDecisionMode,
+    question: String(question || ""),
+    intent,
+    hasImage,
+    hasMatchupContext: Boolean(matchupContext),
+    evidenceSparsityProfile,
+  });
 
   const outputJsonMode = resolveOutputJsonMode({
     chaseSignals,
@@ -3349,17 +3290,6 @@ ${jsonContract}${propProjectionModeBlock}`
     sportHint === "nba"
       ? buildNbaStatusShiftSection(nbaNewsImpact, nbaInvalidation)
       : "";
-  const nbaAvailabilityIntent =
-    sportHint === "nba"
-      ? detectNbaAvailabilityIntent(question)
-      : { isAvailabilityQuestion: false, asksBettingConsequence: false };
-  const nbaDirectPropAsk = sportHint === "nba" ? isDirectNbaPropAsk(question) : false;
-  const nbaDecisionMode = resolveNbaDecisionMode({
-    sportHint,
-    availabilityIntent: nbaAvailabilityIntent,
-    directPropAsk: nbaDirectPropAsk,
-    invalidation: nbaInvalidation,
-  });
   const nbaConditionalPayload =
     sportHint === "nba" && nbaDecisionMode === "conditional_wait"
       ? buildNbaConditionalPayload({
@@ -3370,8 +3300,6 @@ ${jsonContract}${propProjectionModeBlock}`
       : null;
   const nbaPlayerResolutionBlock =
     sportHint === "nba" ? buildNbaPlayerResolutionBlock(nbaInvalidation) : "";
-  const mlbDecisionMode =
-    sportHint === "mlb" ? resolveMlbDecisionMode(mlbContext || {}, String(question || "")) : null;
   let nbaPostValidationChecked = false;
   let nbaPostValidationTriggered = false;
   let nbaFallbackOrRepairUsed = false;
@@ -3423,12 +3351,7 @@ ${jsonContract}${propProjectionModeBlock}`
       ...(nbaDebugEnabled ? { nbaDebug: nbaMeta } : {}),
       sport: "nba",
       intent,
-      take: {
-        id: takeRecord.id,
-        playLine: takeRecord.playLine,
-        confidence: takeRecord.confidence,
-        status: takeRecord.status,
-      },
+      take: takeClientPayload(takeRecord),
     });
   }
 
@@ -3492,12 +3415,7 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       ...(nbaDebugEnabled ? { nbaDebug: nbaMeta } : {}),
       sport: "nba",
       intent,
-      take: {
-        id: takeRecord.id,
-        playLine: takeRecord.playLine,
-        confidence: takeRecord.confidence,
-        status: takeRecord.status,
-      },
+      take: takeClientPayload(takeRecord),
     });
   }
 
@@ -3522,12 +3440,7 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       decisionMode: "no_data",
       sport: "mlb",
       intent,
-      take: {
-        id: takeRecord.id,
-        playLine: takeRecord.playLine,
-        confidence: takeRecord.confidence,
-        status: takeRecord.status,
-      },
+      take: takeClientPayload(takeRecord),
     });
   }
 
@@ -4025,7 +3938,7 @@ ${nbaQuestionForModel}
 
 ${sportHint === "nba" ? `INTERNAL NBA CONTROL (DO NOT QUOTE OR REPEAT VERBATIM)
 - decisionMode: ${nbaDecisionMode}
-- Follow this mode behavior in substance.
+- Obey the NBA DECISION MODE SPINE appended to the system prompt for this mode (substance + avoidance). User prompt rules below still apply where they do not conflict.
 - Never print internal labels, control headers, or mode names to the user.
 
 ` : ""}${sportHint === "nba" && nbaGameStateGate ? `${buildNbaGameStateAuthorityBlock(nbaGameStateGate)}
@@ -4359,12 +4272,7 @@ No bet now; re-run once verified player context is loaded.`;
         response: unsupportedResponse,
         sport: sportHint || "generic",
         intent,
-        take: {
-          id: takeRecord.id,
-          playLine: takeRecord.playLine,
-          confidence: takeRecord.confidence,
-          status: takeRecord.status,
-        },
+        take: takeClientPayload(takeRecord),
       });
     }
 
@@ -4966,12 +4874,7 @@ ${continuationRule}`;
       ...(nbaDebugEnabled && nbaMeta ? { nbaDebug: nbaMeta } : {}),
       sport: sportHint || "generic",
       intent,
-      take: {
-        id: takeRecord.id,
-        playLine: takeRecord.playLine,
-        confidence: takeRecord.confidence,
-        status: takeRecord.status,
-      },
+      take: takeClientPayload(takeRecord),
     });
   } catch (err) {
     console.error("UR TAKE error:", err);

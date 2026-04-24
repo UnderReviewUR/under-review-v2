@@ -727,7 +727,9 @@ ${themeCss}
         role: "ai",
         text: normalizedDisplay.response,
         sport: sportForBubble || undefined,
-        takeMeta: data.take ? { confidence: data.take.confidence } : null,
+        takeMeta: data.take
+          ? { confidence: data.take.confidence, trust: data.take.trust ?? null }
+          : null,
         deepText: normalizedDisplay.responseDeep,
       },
     ]);
@@ -933,8 +935,8 @@ ${themeCss}
           time: "Schedule",
           network: context?.currentTournament?.name || "ATP",
           blurb: "",
-          whatMatters: "Open Tennis for the full board.",
-          quickHitters: ["Open Tennis tab"],
+          whatMatters: "Full draws and prices load on the Tennis tab first.",
+          quickHitters: ["Open Tennis — full board & lines"],
           confirmed: true,
         },
       ];
@@ -957,10 +959,10 @@ ${themeCss}
           network: context?.currentTournament?.name || "ATP Tour",
           blurb:
             hasStaticTennisIntel
-              ? "Player and surface intel is available on the Tennis tab."
-              : "Open Tennis to load the full board.",
-          whatMatters: "Open Tennis for matchups and pricing context.",
-          quickHitters: ["Open Tennis tab"],
+              ? "Surface and player intel is on Tennis — wire it to a matchup ask."
+              : "Open Tennis to hydrate the board before pricing.",
+          whatMatters: "Use Tennis for live draws; bring one matchup back here to ask UR Take.",
+          quickHitters: ["Open Tennis — draws & pricing"],
           confirmed: false,
           tennisSpotlightState: "profile_backed_tennis_available",
         },
@@ -976,9 +978,9 @@ ${themeCss}
           title: "No matchups in this window",
           time: "Schedule",
           network: context?.currentTournament?.name || "ATP",
-          blurb: "Open Tennis to refresh the board.",
-          whatMatters: "Open Tennis to retry.",
-          quickHitters: ["Open Tennis tab"],
+          blurb: "Nothing confirmed in this Home window — refresh Tennis to pull the latest BDL-backed rows.",
+          whatMatters: "Narrow with a named matchup ask once the board is back.",
+          quickHitters: ["Open Tennis to refresh"],
           confirmed: true,
         },
       ];
@@ -1000,15 +1002,15 @@ ${themeCss}
         title: `${tName} — next ATP matchups`,
         time: `${liveN} live · ${upcomingN} upcoming`,
         network: oddsBacked
-          ? "Live draws updating — confirmed ATP matchups below"
-          : `${atp.length} on the ATP board`,
+          ? "Odds-backed rows — full detail on Tennis"
+          : `${atp.length} matchup${atp.length === 1 ? "" : "s"} on the ATP board`,
         blurb: head.map((m) => formatAtpHomeSpotlightLine(m)).join(" · "),
         matchupLines: head.map((m) => formatAtpHomeSpotlightLine(m)),
         moreMatchupsCount: Math.max(0, pool.length - head.length),
         whatMatters: oddsBacked
-          ? "Confirmed ATP matchups — open Tennis for full detail."
-          : "Tap Tennis for draws and lines.",
-        quickHitters: ["Best ATP misprice today?", "Who benefits on this surface?"],
+          ? "Confirmed matchups here — open Tennis for pricing depth and alt markets."
+          : "Preview only — Tennis tab carries draws, injuries, and posted numbers.",
+        quickHitters: ["Best ATP misprice on this slate?", "Surface edge nobody is talking about?"],
         confirmed: true,
       },
     ];
@@ -1055,8 +1057,8 @@ ${themeCss}
         time: dateStr,
         network: nextRace.circuit_short_name || nextRace.location || "",
         blurb: `${nextRace.location || "Track TBD"} · ${fullDateStr}${hasConfirmedRaceStart ? ` at ${timeStr}` : ` · ${timeStr}`}`,
-        whatMatters: "Ask for race winner, podium, or race-day matchup edges.",
-        quickHitters: ["Best F1 race-day bet?", "Best podium value?", "Best race matchup?"],
+        whatMatters: "Race Sunday only — winner, podium structure, or head-to-head reads.",
+        quickHitters: ["Race winner vs field?", "Podium stack you trust?", "Best driver H2H?"],
         confirmed: true
       }];
     }
@@ -1067,9 +1069,9 @@ ${themeCss}
       title: "Formula 1",
       time: "Schedule pending",
       network: "Grand Prix Racing",
-      blurb: "Next race details are loading.",
-      whatMatters: "Ask about race winners, championship futures, or driver matchups.",
-      quickHitters: ["Best F1 future?", "Who wins the WDC?", "Best value bet?"],
+      blurb: "Next race card is still wiring — check back after schedule publish.",
+      whatMatters: "When the next GP locks, ask for race-only edges (no practice markets).",
+      quickHitters: ["Best WDC value right now?", "Next GP winner lean?", "Constructor vs driver gap?"],
       confirmed: true
     }];
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
@@ -1092,9 +1094,9 @@ ${themeCss}
           title: "No NBA games today",
           time: "Off-day",
           network: "Series board",
-          blurb: "Check back tomorrow for the next playoff slate.",
-          whatMatters: "Ask for series leverage, futures, or matchup angles.",
-          quickHitters: ["Best playoff future?", "Series leverage spot?", "Best player prop tomorrow?"],
+          blurb: "Quiet night on the hardwood — futures and series reads still move.",
+          whatMatters: "Use the off night for futures, series prices, or tomorrow's prop board.",
+          quickHitters: ["Playoff series price check?", "Tomorrow's prop board?", "Futures misprice watch?"],
           confirmed: true,
         },
       ];
@@ -1129,11 +1131,11 @@ ${themeCss}
         network: series || "Playoff matchup",
         blurb,
         whatMatters: isLive
-          ? "Ask for live edge, second-half props, or in-game adjustment angles."
-          : "Ask for matchup edge, game total, and series leverage spots.",
+          ? "Live: chase second-half props, totals that lag pace, and matchup pivots."
+          : "Pre-game: lean on matchup math, rotation edges, and series leverage before the number moves.",
         quickHitters: isLive
-          ? ["Best live prop?", "Second-half edge?", "Game total angle?"]
-          : ["Best playoff prop?", "Who covers?", "Best total angle?"],
+          ? ["Best live prop?", "Halftime total adjustment?", "Who gets the clutch minutes?"]
+          : ["Best side or total?", "Series leverage price?", "Underrated prop tomorrow?"],
         confirmed: true,
       };
     });
@@ -1157,9 +1159,9 @@ ${themeCss}
           title: "No MLB games today",
           time: "Off-day",
           network: "Daily board",
-          blurb: "Check back tomorrow for the next slate.",
-          whatMatters: "Ask for tomorrow's pitcher props or futures angles.",
-          quickHitters: ["Best K prop tomorrow?", "Best futures angle?", "Top pitcher edge?"],
+          blurb: "Off night — park factors and probables still set tomorrow's script.",
+          whatMatters: "Prep tomorrow's K props, totals, and futures while lines are stale.",
+          quickHitters: ["Tomorrow's ace K prop?", "Park/total setup?", "Futures value on a contender?"],
           confirmed: true,
         },
       ];
@@ -1196,9 +1198,11 @@ ${themeCss}
         network: pitchers || "Daily slate",
         blurb,
         whatMatters: isLive
-          ? "Ask for live total, run-line live, or batter NRFI props."
-          : "Ask for K props, totals, and best batter value.",
-        quickHitters: isLive ? ["Live total angle?", "Best live prop?", "Run-line live?"] : ["Best K prop?", "Best batter prop?", "Best game total?"],
+          ? "Live: totals that lag inning leverage, NRFI/YRFI swings, and bullpen bridges."
+          : "Pre-game: starter K props, park-shaped totals, and platoon batter spots.",
+        quickHitters: isLive
+          ? ["Live total read?", "Best batter prop in this inning?", "Run line live?"]
+          : ["Best K prop on the card?", "YRFI vs wind?", "Undervalued batter spot?"],
         confirmed: true,
       };
     });
@@ -1220,7 +1224,8 @@ ${themeCss}
         time: "Loading…",
         network: "Live data",
         blurb: "Fetching tournament, odds, and leaderboard context.",
-        whatMatters: "Run npm run dev:local so /api/golf can load (Vite proxies to the local API server).",
+        whatMatters:
+          "Leaderboard and pricing hydrate here first — open Golf for the full field when it lands.",
         quickHitters: ["Best outright value?", "Best top-10 play?", "Who should I fade?"],
         confirmed: true,
       }];
@@ -1311,15 +1316,15 @@ ${themeCss}
         })),
         sourceLine: `${sourceLabel} · ${freshnessLabel}`,
         whatMatters: isGolfFinal
-          ? "Event complete — live betting prompts are turned off. Open Golf for results recap."
+          ? "Tournament closed — recap angles and grading live on Golf."
           : looksInProgress
-            ? "Back current form or fade players with unstable scoring splits."
-            : "Top of the board right now — ask for course-fit leans before the next wave.",
+            ? "Live: ride form that matches the course card, fade volatility without a floor."
+            : "Pre-wave: attack course-fit vs market chalk before the next leaderboard jump.",
         quickHitters: isGolfFinal
           ? []
           : looksInProgress
-            ? ["Best live golf angle?", "Who to back from top 3?", "Who should I fade live?"]
-            : ["Best angle on the leader?", "Who chases from the pack?", "Best top-10 play?"],
+            ? ["Best live placement?", "Fade volatile chalk?", "Who has the cleanest ball-striking?"]
+            : ["Leader mispriced vs field?", "Best top-10 before the move?", "Who is the live chaser?"],
         confirmed: true,
       }];
     }
@@ -1346,12 +1351,12 @@ ${themeCss}
           upcomingEvent?.course ||
           golfData?.course?.name ||
           "PGA Tour",
-        blurb: `Upcoming event context is loaded. Check back when live scoring opens.\n${sourceLabel} · ${freshnessLabel}`,
-        whatMatters: "Target course-fit winners and fade overpriced names before tee-off.",
+        blurb: `Tee sheet is staged — live scoring opens closer to gun.\n${sourceLabel} · ${freshnessLabel}`,
+        whatMatters: "Pre-tourney: map course fit, weather, and ownership before numbers tighten.",
         quickHitters: [
           "When does live scoring start?",
-          "Best pre-tourney value?",
-          "Best top-10 before tee-off?",
+          "Best pre-tourney outright?",
+          "Top-10 before the crush?",
         ],
         confirmed: true,
       }];

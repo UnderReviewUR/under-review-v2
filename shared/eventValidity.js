@@ -1,3 +1,9 @@
+import {
+  canonicalMlbStartUtcMs,
+  canonicalNbaStartUtcMs,
+  parseEventStartMs,
+} from "./eventStartTime.js";
+
 export const EVENT_VALIDITY = Object.freeze({
   UPCOMING: "upcoming",
   ACTIVE: "active",
@@ -20,12 +26,6 @@ const FINISHED_KEYWORDS = [
   "abandoned",
   "complete",
 ];
-
-function parseMs(value) {
-  if (Number.isFinite(value)) return Number(value);
-  const ms = Date.parse(String(value || ""));
-  return Number.isNaN(ms) ? NaN : ms;
-}
 
 function hasEndedByEndDate(endMs, nowMs) {
   return Number.isFinite(endMs) && nowMs > endMs;
@@ -50,8 +50,8 @@ export function classifyGolfEvent(event, nowMs = Date.now()) {
     Boolean(String(event.name || event.shortName || "").trim());
   if (!hasIdentity) return EVENT_VALIDITY.UNKNOWN;
 
-  const startMs = parseMs(event.startDate);
-  let endMs = parseMs(event.endDate);
+  const startMs = parseEventStartMs(event.startDate);
+  let endMs = parseEventStartMs(event.endDate);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 4 * 24 * 60 * 60 * 1000;
   }
@@ -88,7 +88,7 @@ export function classifyTennisMatch(match, nowMs = Date.now()) {
   const commenceTs = Number(match?.commenceTs);
   const startMs = Number.isFinite(commenceTs)
     ? commenceTs
-    : parseMs(match?.raw?.event_date || match?.raw?.date);
+    : parseEventStartMs(match?.raw?.event_date || match?.raw?.date);
 
   if (Number.isFinite(startMs)) {
     if (nowMs < startMs) return EVENT_VALIDITY.UPCOMING;
@@ -98,7 +98,7 @@ export function classifyTennisMatch(match, nowMs = Date.now()) {
   return EVENT_VALIDITY.UNKNOWN;
 }
 
-function classifyGameState({ game, nowMs, durationMs }) {
+function classifyGameState({ game, nowMs, durationMs, sport }) {
   if (!game || typeof game !== "object") return EVENT_VALIDITY.UNKNOWN;
   const state = String(game.state || "").toLowerCase();
   const hasIdentity =
@@ -109,9 +109,10 @@ function classifyGameState({ game, nowMs, durationMs }) {
   if (state === "post" || state === "final") return EVENT_VALIDITY.FINISHED;
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
 
-  const startMs = parseMs(game.date || game.startTime || game.commenceTime || game.commenceDate);
+  const startMs =
+    sport === "mlb" ? canonicalMlbStartUtcMs(game) : canonicalNbaStartUtcMs(game);
   const endMs =
-    parseMs(game.endDate || game.date_end) ||
+    parseEventStartMs(game.endDate || game.date_end) ||
     (Number.isFinite(startMs) ? startMs + durationMs : NaN);
   if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "pre" || state === "scheduled") {
@@ -143,8 +144,8 @@ export function classifyF1Race(race, nowMs = Date.now()) {
   const hasIdentity = Boolean(String(race.meeting_key || race.meeting_name || race.name || "").trim());
   if (!hasIdentity) return EVENT_VALIDITY.UNKNOWN;
 
-  const startMs = parseMs(race.race_start || race.race_date || race.date_start);
-  let endMs = parseMs(race.date_end);
+  const startMs = parseEventStartMs(race.race_start || race.race_date || race.date_start);
+  let endMs = parseEventStartMs(race.date_end);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 3 * 60 * 60 * 1000;
   }

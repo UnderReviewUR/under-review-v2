@@ -26,9 +26,9 @@ function buildDraftPromptSet(userCity = "", nflSeasonMode = false) {
 test("draft mode includes three high-intent NFL draft prompts", () => {
   const prompts = buildDraftPromptSet();
   const texts = prompts.map((p) => p.text);
-  assert.ok(texts.includes("Who are the biggest sleepers in the 2026 Draft class?"));
+  assert.ok(texts.some((t) => /sleepers/i.test(t) && /2026 draft/i.test(t)));
   assert.ok(texts.some((t) => t.includes("Simulate the first 3 rounds")));
-  assert.ok(texts.includes("Which teams are most likely to trade up into the Top 5?"));
+  assert.ok(texts.some((t) => /Top 5/i.test(t) && /trade/i.test(t)));
 });
 
 test("Dallas location hint prioritizes Cowboys simulation prompt", () => {
@@ -41,5 +41,6 @@ test("Dallas location hint prioritizes Cowboys simulation prompt", () => {
 test("draft prompts do not require nfl in-season mode", () => {
   const prompts = buildDraftPromptSet("", false);
   const texts = prompts.map((p) => p.text);
-  assert.ok(texts.includes("Who are the biggest sleepers in the 2026 Draft class?"));
+  assert.ok(texts.some((t) => /sleepers/i.test(t) && /2026 draft/i.test(t)));
 });
+

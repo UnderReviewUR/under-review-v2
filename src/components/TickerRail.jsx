@@ -372,42 +372,47 @@ export default function TickerRail({
       </div>
     ) : null;
 
-  const tiles = plan.items.map((item) => {
-    let inner = null;
-    switch (item.kind) {
-      case "nba":
-        inner = renderNbaTile(item.nbaGame, 0);
-        break;
-      case "mlb":
-        inner = renderMlbTile(item.mlbGame, 0);
-        break;
-      case "nfl":
-        inner = nflTile;
-        break;
-      case "f1":
-        inner = renderF1Tile(item.f1Race);
-        break;
-      case "tennis":
-        inner = renderTennisTile(item.tennisMatch, 0);
-        break;
-      case "golf":
-        inner = golfLeaderTile;
-        break;
-      default:
-        inner = null;
-    }
-    if (!inner) return null;
-    return (
-      <Fragment key={item.key}>
-        {inner}
-      </Fragment>
-    );
-  });
+  const tiles = plan.items
+    .map((item) => {
+      let inner = null;
+      switch (item.kind) {
+        case "nba":
+          inner = renderNbaTile(item.nbaGame, 0);
+          break;
+        case "mlb":
+          inner = renderMlbTile(item.mlbGame, 0);
+          break;
+        case "nfl":
+          inner = nflTile;
+          break;
+        case "f1":
+          inner = renderF1Tile(item.f1Race);
+          break;
+        case "tennis":
+          inner = renderTennisTile(item.tennisMatch, 0);
+          break;
+        case "golf":
+          inner = golfLeaderTile;
+          break;
+        default:
+          inner = null;
+      }
+      if (!inner) return null;
+      return (
+        <Fragment key={item.key}>
+          {inner}
+        </Fragment>
+      );
+    })
+    .filter(Boolean);
+
+  const tickerQuiet = tiles.length === 0;
 
   return (
     <>
       <div className="home-live-label">Live snapshot</div>
       <div
+        className={`game-ticker home-ticker-premium${tickerQuiet ? " home-ticker-quiet" : ""}`}
         style={{
           display: "flex",
           gap: 8,
@@ -417,7 +422,14 @@ export default function TickerRail({
           alignItems: "stretch",
         }}
       >
-        {tiles}
+        {tickerQuiet ? (
+          <div className="home-ticker-quiet-copy">
+            Snapshot is quiet — nothing in the Home window right now. Use the sport pills above or ask UR Take on a
+            specific matchup; boards refresh on their own cadence.
+          </div>
+        ) : (
+          tiles
+        )}
       </div>
     </>
   );

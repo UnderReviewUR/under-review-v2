@@ -56,3 +56,20 @@ test("hides draft predictor card after draft window", () => {
   });
   assert.equal(cards.some((c) => c.id === "nfl-draft-predictor"), false);
 });
+
+test("home tracker card carries P-PR4b thesis copy", () => {
+  const cards = buildHomeTrackerCards({
+    performanceData: { summary: { settled: 12, roiUnits: 2.1, winRate: 0.55 } },
+    nbaGames: [],
+    mlbData: { games: [] },
+    golfData: null,
+    f1Data: null,
+    nflDraftMeta: { phase: "post_draft", fullOrderCount: 257 },
+    excludeEventKeys: new Set(),
+  });
+  const tracker = cards.find((c) => c.id === "ur-home-tracker");
+  assert.ok(tracker);
+  assert.equal(tracker.title, "Today's edges + verified record");
+  assert.match(String(tracker.whatMatters || ""), /Three different market types/);
+  assert.match(String(tracker.blurb || ""), /VERIFIED RECORD/);
+});

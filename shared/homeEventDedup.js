@@ -2,14 +2,27 @@
  * Canonical event keys for cross-module dedup (Live Snapshot → sport cards → Today's Slate).
  * Format: `sport:stableId`
  */
+import { mlbDedupeCalendarToken, nbaDedupeCalendarToken } from "./eventStartTime.js";
+import { normalizeNbaSideToken } from "./nbaTeamAbbrev.js";
+
+function useStableNumericBdlPrimaryKey(idStr, startTimeSource) {
+  if (!idStr || !/^\d+$/.test(idStr)) return false;
+  const src = String(startTimeSource || "").toLowerCase();
+  return src === "bdl_start_time" || src === "";
+}
+
 export function nbaEventKey(g) {
   if (!g || typeof g !== "object") return null;
-  const id = g.id ?? g.game_id ?? g.event_id ?? g.gameId;
-  if (id != null && String(id).trim()) return `nba:${String(id).trim()}`;
-  const away = String(g?.awayTeam?.abbr || g?.awayTeam?.name || "").trim();
-  const home = String(g?.homeTeam?.abbr || g?.homeTeam?.name || "").trim();
-  const d = String(g?.startTimeUtc || g?.date || g?.commence_time || "").slice(0, 10);
-  if (away && home) return `nba:${away}|${home}|${d || "nodate"}`;
+  const rawId = g.id ?? g.game_id ?? g.event_id ?? g.gameId;
+  const idStr = rawId != null && String(rawId).trim() ? String(rawId).trim() : "";
+  if (useStableNumericBdlPrimaryKey(idStr, g.startTimeSource)) {
+    return `nba:${idStr}`;
+  }
+  const awayTok = normalizeNbaSideToken(g?.awayTeam);
+  const homeTok = normalizeNbaSideToken(g?.homeTeam);
+  const d = nbaDedupeCalendarToken(g);
+  if (awayTok && homeTok) return `nba:${awayTok}|${homeTok}|${d || "nodate"}`;
+  if (idStr) return `nba:${idStr}`;
   return null;
 }
 
@@ -19,7 +32,7 @@ export function mlbEventKey(g) {
   if (id != null && String(id).trim()) return `mlb:${String(id).trim()}`;
   const away = String(g?.awayTeam?.abbr || g?.awayTeam?.name || "").trim();
   const home = String(g?.homeTeam?.abbr || g?.homeTeam?.name || "").trim();
-  const d = String(g?.date || g?.startTimeUtc || "").slice(0, 10);
+  const d = mlbDedupeCalendarToken(g);
   if (away && home) return `mlb:${away}|${home}|${d || "nodate"}`;
   return null;
 }

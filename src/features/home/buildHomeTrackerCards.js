@@ -43,10 +43,10 @@ export function buildHomeTrackerCards({
   const roiLabel = formatScore(roiUnits);
   const trackerLine =
     settled < 40
-      ? `YTD: ${settled} settled · ROI ${roiLabel} · sample still building`
+      ? `YTD · ${settled} settled · ROI ${roiLabel} · sample still building`
       : winRatePct < 40 || winRatePct > 70
-      ? `YTD: ${settled} settled · ROI ${roiLabel} · hit rate stabilizing`
-      : `YTD hit rate: ${winRatePct}% · ROI ${roiLabel} · ${settled} settled`;
+      ? `YTD · ${settled} settled · ROI ${roiLabel} · hit rate still finding level`
+      : `YTD · ${winRatePct}% hit rate · ROI ${roiLabel} · ${settled} settled`;
 
   const candidates = [];
   const nbaUpcoming = (nbaGames || [])
@@ -161,7 +161,7 @@ export function buildHomeTrackerCards({
         league: "MULTI",
         family: "player_prop",
         reliability: 0.79,
-        text: "Player prop focus: prioritize one high-usage prop over long-shot markets.",
+        text: "Player prop anchor: one high-usage market beats chasing long-shot chaos.",
         isPlayerProp: true,
       });
     }
@@ -170,8 +170,8 @@ export function buildHomeTrackerCards({
   const predictionLines = selected.length
     ? selected.map((c, i) => `${i + 1}. ${c.text}`)
     : [
-        "1. Building slate... stable markets will post as boards refresh.",
-        "2. Player prop anchor will appear with the next live board update.",
+        "1. Boards are between refresh cycles — best edges sharpen when lines repost.",
+        "2. Live Snapshot above shows what's in-window; ask UR Take on a named game for depth.",
       ];
 
   const cards = [];
@@ -187,7 +187,7 @@ export function buildHomeTrackerCards({
       network: "Round 1 board + team needs",
       reliability: 0.98,
       text: "Ask about your team's picks, needs, and Round 1 board.",
-      blurb: "Ask about your team's picks, needs, and Round 1 board.",
+      blurb: "Round 1 board, team needs, simulations — Ask about your team's picks, trade-ups, or sleepers.",
       isDraft: true,
       sportHint: "nfl",
       draftPhase,
@@ -205,15 +205,15 @@ export function buildHomeTrackerCards({
       id: "ur-home-tracker",
       league: "UR TRACKER",
       leagueColor: "#00F5E9",
-      title: "Today's slate + verified record",
+      title: "Today's edges + verified record",
       time: "Daily brief",
-      network: "Most predictable markets first",
+      network: "Higher-signal picks first",
       blurb: `TODAY'S SLATE\n${predictionLines.join("\n")}\n\nVERIFIED RECORD\n${trackerLine}`,
       whatMatters:
-        "Card enforces market-type variety and favors higher predictability picks over volatile longshots.",
+        "Three different market types when we can — props and placements over pure chaos when boards allow.",
       quickHitters: [
-        "Best NBA angle today?",
-        "Best stable MLB prop right now?",
+        "Best NBA edge on this slate?",
+        "Stable MLB prop worth a look?",
         "Show my full tracked record",
       ],
       confirmed: true,

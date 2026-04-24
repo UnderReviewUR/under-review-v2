@@ -2,16 +2,20 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import {
-  classifyF1Race,
-  classifyGolfEvent,
   classifyMlbGame,
   classifyNbaGame,
-  classifyTennisMatch,
   getDisplayableF1NextRace,
   isDisplayableValidity,
 } from "../shared/eventValidity.js";
 import { compareSlateRowsBySport, isNflSlateActiveFromBundle } from "../shared/slateModulePriority.js";
 import { attachSlateRowEventKeys } from "../shared/slateRowEventKeys.js";
+import {
+  sanitizeF1Board,
+  sanitizeGolfBoard,
+  sanitizeMlbBoard,
+  sanitizeNbaBoard,
+  sanitizeTennisBoard,
+} from "../shared/todaySlateInputBundle.js";
 
 const CACHE_KEY = "today-slate:daily";
 const CACHE_TTL_SECONDS = 15 * 60;
@@ -59,7 +63,9 @@ function safeParseSlateJson(text) {
 }
 
 function summarizeNba(nba) {
-  const games = Array.isArray(nba?.todaysGames) ? nba.todaysGames : [];
+  const games = (Array.isArray(nba?.todaysGames) ? nba.todaysGames : []).filter((g) =>
+    isDisplayableValidity(classifyNbaGame(g)),
+  );
   const pre = games.find((g) => g?.state === "pre") || games[0];
   if (!pre) return null;
   const away = pre?.awayTeam?.abbr || pre?.awayTeam?.name || "AWAY";
@@ -68,7 +74,9 @@ function summarizeNba(nba) {
 }
 
 function summarizeMlb(mlb) {
-  const games = Array.isArray(mlb?.games) ? mlb.games : [];
+  const games = (Array.isArray(mlb?.games) ? mlb.games : []).filter((g) =>
+    isDisplayableValidity(classifyMlbGame(g)),
+  );
   const pre = games.find((g) => g?.state === "pre") || games[0];
   if (!pre) return null;
   const away = pre?.awayTeam?.abbr || pre?.awayTeam?.name || "AWAY";
@@ -85,63 +93,6 @@ function summarizeF1(f1) {
   const nextRace = getDisplayableF1NextRace(f1);
   if (!nextRace) return null;
   return String(nextRace?.meeting_name || nextRace?.name || "Next Grand Prix");
-}
-
-function sanitizeNbaBoard(nba) {
-  if (!nba || typeof nba !== "object") return null;
-  const todaysGames = (Array.isArray(nba.todaysGames) ? nba.todaysGames : []).filter((g) =>
-    isDisplayableValidity(classifyNbaGame(g)),
-  );
-  return { ...nba, todaysGames };
-}
-
-function sanitizeMlbBoard(mlb) {
-  if (!mlb || typeof mlb !== "object") return null;
-  const games = (Array.isArray(mlb.games) ? mlb.games : []).filter((g) =>
-    isDisplayableValidity(classifyMlbGame(g)),
-  );
-  return { ...mlb, games };
-}
-
-function sanitizeGolfBoard(golf) {
-  if (!golf || typeof golf !== "object") return null;
-  const nowMs = Date.now();
-  const currentState = classifyGolfEvent(golf.currentEvent || null, nowMs);
-  if (currentState === "active") return golf;
-
-  const tournament = golf.tournament || null;
-  const tournamentState = classifyGolfEvent(tournament, nowMs);
-  const startMs = Date.parse(String(tournament?.startDate || ""));
-  const within72h =
-    Number.isFinite(startMs) && startMs >= nowMs && startMs - nowMs <= 72 * 60 * 60 * 1000;
-  if (tournamentState === "upcoming" && within72h) {
-    return {
-      ...golf,
-      currentEvent: null,
-      tournament,
-    };
-  }
-  return null;
-}
-
-function sanitizeTennisBoard(tennis) {
-  if (!Array.isArray(tennis)) return null;
-  return tennis.filter((m) => isDisplayableValidity(classifyTennisMatch(m)));
-}
-
-function sanitizeF1Board(f1) {
-  if (!f1 || typeof f1 !== "object") return null;
-  const races = Array.isArray(f1?.schedule?.races) ? f1.schedule.races : [];
-  const validRaces = races.filter((r) => isDisplayableValidity(classifyF1Race(r)));
-  const nextRace = getDisplayableF1NextRace({ ...f1, schedule: { ...(f1.schedule || {}), races: validRaces } });
-  if (!nextRace) return null;
-  return {
-    ...f1,
-    schedule: {
-      ...(f1.schedule || {}),
-      races: validRaces.map((r) => ({ ...r, is_next: r === nextRace })),
-    },
-  };
 }
 
 function buildFallbackSlate(bundle, reason = "fallback") {
@@ -174,10 +125,16 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         angle: "Series/game-total context over narrative",
         why: "Prioritize playoffSeries + gameTotals + injuries before any player-level assumptions.",
       }
-    : bundle?.golf?.currentEvent
+    : bundle?.golf
     ? {
         sport: "golf",
-        event: String(bundle?.golf?.currentEvent?.shortName || bundle?.golf?.currentEvent?.name || "Current event"),
+        event: String(
+          bundle?.golf?.currentEvent?.shortName ||
+            bundle?.golf?.currentEvent?.name ||
+            bundle?.golf?.tournament?.shortName ||
+            bundle?.golf?.tournament?.name ||
+            "Current event",
+        ),
         angle: "Placement over outrights",
         why: "Leaderboard context is usually more stable than volatile outright pricing.",
       }
@@ -213,7 +170,7 @@ function sportHasValidData(bundle, sport) {
   if (s === "nba") return Array.isArray(bundle?.nba?.todaysGames) && bundle.nba.todaysGames.length > 0;
   if (s === "nfl") return isNflSlateActiveFromBundle(bundle);
   if (s === "mlb") return Array.isArray(bundle?.mlb?.games) && bundle.mlb.games.length > 0;
-  if (s === "golf") return Boolean(bundle?.golf?.currentEvent);
+  if (s === "golf") return Boolean(bundle?.golf);
   if (s === "tennis") return Array.isArray(bundle?.tennis) && bundle.tennis.length > 0;
   if (s === "f1") return Boolean(summarizeF1(bundle?.f1));
   return false;

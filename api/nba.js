@@ -1,5 +1,6 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
+import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -46,21 +47,6 @@ function toEtDateString(isoString) {
   return new Date(isoString).toLocaleDateString("en-CA", {
     timeZone: "America/New_York",
   });
-}
-
-function normalizeTeamAbbr(name) {
-  const map = {
-    "Atlanta Hawks":"ATL","Boston Celtics":"BOS","Brooklyn Nets":"BKN","Charlotte Hornets":"CHA",
-    "Chicago Bulls":"CHI","Cleveland Cavaliers":"CLE","Dallas Mavericks":"DAL","Denver Nuggets":"DEN",
-    "Detroit Pistons":"DET","Golden State Warriors":"GSW","Houston Rockets":"HOU","Indiana Pacers":"IND",
-    "LA Clippers":"LAC","Los Angeles Clippers":"LAC","Los Angeles Lakers":"LAL","Memphis Grizzlies":"MEM",
-    "Miami Heat":"MIA","Milwaukee Bucks":"MIL","Minnesota Timberwolves":"MIN","New Orleans Pelicans":"NOP",
-    "New York Knicks":"NYK","Oklahoma City Thunder":"OKC","Orlando Magic":"ORL","Philadelphia 76ers":"PHI",
-    "Phoenix Suns":"PHX","Portland Trail Blazers":"POR","Sacramento Kings":"SAC","San Antonio Spurs":"SAS",
-    "Toronto Raptors":"TOR","Utah Jazz":"UTA","Washington Wizards":"WAS",
-  };
-  if (!name) return "UNK";
-  return map[name] || name.split(" ").pop().slice(0, 3).toUpperCase();
 }
 
 /** Map a BallDontLie /games row to the same shape as Odds API games (UI + prompts). */
@@ -210,6 +196,7 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
             abbr: normalizeTeamAbbr(g.away_team),
             score: awayPts != null ? parseInt(awayPts, 10) : null,
           },
+          commenceTime: g.commence_time,
           startTimeUtc: null,
           startTimeSource: "odds_fallback",
         };
@@ -250,6 +237,7 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
                   abbr: normalizeTeamAbbr(g.away_team),
                   score: null,
                 },
+                commenceTime: g.commence_time,
                 startTimeUtc: null,
                 startTimeSource: "odds_fallback",
               }));
