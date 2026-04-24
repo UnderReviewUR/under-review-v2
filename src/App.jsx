@@ -220,25 +220,9 @@ ${themeCss}
 
   // ── Access tier ─────────────────────────────────────────────────────────────
   // tier: "free" | "friend" | "owner" | "pro"
-  const [accessTier, setAccessTier] = useState(() => {
-    if (typeof window === "undefined") return "free";
-    try {
-      const token = localStorage.getItem("ur_access_token");
-      if (token) {
-        const b64 = token.split(".")[0];
-        const payload = JSON.parse(atob(b64));
-        if (!payload.expiresAt || new Date() < new Date(payload.expiresAt)) {
-          return payload.tier || "free";
-        }
-      }
-    } catch {
-      /* malformed access token */
-    }
-    return "free";
-  });
-  const [, setAccessToken] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : ""
-  );
+  // Starts at "free"; verified server-side on mount via /api/access?token=...
+  const [accessTier, setAccessTier] = useState("free");
+  const [, setAccessToken] = useState("");
 
   // ── Email gate ──────────────────────────────────────────────────────────────
   const [userEmail, setUserEmail] = useState(() =>
@@ -288,6 +272,26 @@ ${themeCss}
       setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
     });
   }, [accessTier]);
+
+  // Verify stored access token server-side on mount
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("ur_access_token") : null;
+    if (!stored) return;
+    fetch(`/api/access?token=${encodeURIComponent(stored)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.valid) {
+          setAccessTier(data.tier || "free");
+        } else {
+          localStorage.removeItem("ur_access_token");
+          setAccessToken("");
+          setAccessTier("free");
+        }
+      })
+      .catch(() => {
+        // Network error on verify: leave tier as-is, will retry next mount
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load weekly usage on mount
   useEffect(() => {
