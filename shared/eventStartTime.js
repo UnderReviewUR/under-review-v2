@@ -21,6 +21,8 @@ export function parseEventStartMs(value) {
 export function canonicalNbaStartUtcMs(game) {
   if (!game || typeof game !== "object") return NaN;
   const src = String(game.startTimeSource || "").toLowerCase();
+  // bdl_date_only = midnight UTC placeholder, not a real tip time — treat as unknown
+  if (src === "bdl_date_only") return NaN;
   const primary = String(game.startTimeUtc || "").trim();
   if (primary && (src === "bdl_start_time" || src === "")) {
     const ms = Date.parse(primary);

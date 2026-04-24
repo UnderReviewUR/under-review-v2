@@ -116,7 +116,8 @@ function classifyGameState({ game, nowMs, durationMs, sport }) {
     (Number.isFinite(startMs) ? startMs + durationMs : NaN);
   if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "pre" || state === "scheduled") {
-    if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
+    // No parseable start time (e.g. BDL date-only): trust the state field
+    if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UPCOMING;
     return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.STALE;
   }
   if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;

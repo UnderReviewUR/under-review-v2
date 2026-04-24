@@ -85,6 +85,12 @@ function mapBdlGameRowToAppGame(g) {
   const periodNum = Number(g.period);
   const clockRaw = g.time != null ? String(g.time).trim() : "";
 
+  const startRaw = String(g.start_time || "").trim();
+  // BDL returns date-only midnight UTC (e.g. "2026-04-24T00:00:00.000Z") when no tip time is
+  // available. Treat these as date-only so the classifier doesn't use them as real start times.
+  const isMidnightUtc =
+    /T00:00:00(\.000)?Z$/.test(startRaw) || /^\d{4}-\d{2}-\d{2}$/.test(startRaw);
+
   return {
     id: g.id,
     status,
@@ -102,8 +108,8 @@ function mapBdlGameRowToAppGame(g) {
       abbr: awayAbbr,
       score: Number.isFinite(vs) ? vs : null,
     },
-    startTimeUtc: String(g.start_time || "").trim() || null,
-    startTimeSource: "bdl_start_time",
+    startTimeUtc: startRaw || null,
+    startTimeSource: isMidnightUtc ? "bdl_date_only" : "bdl_start_time",
     postseason: !!g.postseason,
   };
 }
