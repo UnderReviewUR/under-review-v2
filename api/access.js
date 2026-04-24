@@ -3,6 +3,10 @@
 // Owner code: permanent, unlimited.
 // Friend codes: expire on a fixed date you set, unlimited during window.
 // Returns a signed token stored in localStorage — no login, no account.
+//
+// Idempotency: if an email is supplied with a friend-code redemption, the same
+// token is returned for repeat calls with the same code+email pair (handles
+// network retries without issuing multiple tokens).
 
 import { applyCors } from "./_cors.js";
 import { signToken, verifyToken } from "./_hmacToken.js";
@@ -11,6 +15,9 @@ import {
   resolveAccessTokenSecretForHandler,
   resolveOwnerCodeForRegistry,
 } from "./_env.js";
+import { getDurableJson, setDurableJson } from "./_durableStore.js";
+
+const REDEMPTION_TTL_SECONDS = 180 * 24 * 60 * 60; // 180 days
 
 // ── Code registry ─────────────────────────────────────────────────────────────
 // Set these in Vercel environment variables — never hardcode in production.
@@ -39,6 +46,10 @@ function getCodeRegistry() {
   return registry;
 }
 
+function normalizeEmail(raw) {
+  return String(raw || "").trim().toLowerCase();
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, GET, OPTIONS" })) return;
@@ -60,7 +71,7 @@ export default async function handler(req, res) {
 
   // POST /api/access — redeem a code
   if (req.method === "POST") {
-    const { code } = req.body || {};
+    const { code, email } = req.body || {};
     if (!code) return res.status(400).json({ error: "No code provided" });
 
     const registry = getCodeRegistry();
@@ -76,13 +87,38 @@ export default async function handler(req, res) {
       return res.status(200).json({ valid: false, error: "This code has expired" });
     }
 
+    // Idempotency: return the same token for a given code+email pair
+    const normalizedEmailStr = normalizeEmail(email);
+    if (normalizedEmailStr && entry.tier !== "owner") {
+      const dedupKey = `redemption:${normalizedCode}:${normalizedEmailStr}`;
+      const stored = await getDurableJson(dedupKey);
+      if (stored?.token) {
+        return res.status(200).json({
+          valid: true,
+          tier: entry.tier,
+          token: stored.token,
+          expiresAt: entry.expiresAt,
+        });
+      }
+
+      const payload = {
+        tier: entry.tier,
+        code: normalizedCode,
+        issuedAt: new Date().toISOString(),
+        expiresAt: entry.expiresAt,
+      };
+      const token = signToken(payload, tokenSecret);
+      await setDurableJson(dedupKey, { token }, { ttlSeconds: REDEMPTION_TTL_SECONDS });
+      return res.status(200).json({ valid: true, tier: entry.tier, token, expiresAt: entry.expiresAt });
+    }
+
+    // No email supplied — issue a token without dedup tracking
     const payload = {
       tier: entry.tier,
       code: normalizedCode,
       issuedAt: new Date().toISOString(),
       expiresAt: entry.expiresAt,
     };
-
     const token = signToken(payload, tokenSecret);
     return res.status(200).json({ valid: true, tier: entry.tier, token, expiresAt: entry.expiresAt });
   }

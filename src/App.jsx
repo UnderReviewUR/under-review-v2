@@ -311,7 +311,7 @@ ${themeCss}
     if (!codeInput.trim()) return;
     setCodeLoading(true); setCodeError("");
     try {
-      const res  = await fetch("/api/access", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ code: codeInput.trim() }) });
+      const res  = await fetch("/api/access", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ code: codeInput.trim(), email: userEmail || undefined }) });
       let data = {};
       try {
         data = await res.json();
