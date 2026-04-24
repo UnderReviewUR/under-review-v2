@@ -6,6 +6,7 @@ import { isGolfEventFinished } from "../lib/golfEventStatus.js";
 import { formatNbaTipoffLocal } from "../lib/nbaTime.js";
 import { golfKeyForLiveSnapshot } from "../lib/liveSnapshotEventKeys.js";
 import { planLiveSnapshot } from "../../shared/liveSnapshotPlan.js";
+import { isOddsMarketFallbackRow } from "../../shared/tennisTruthPolicy.js";
 
 /** Live Snapshot — primary scores/names pop on dark cards; metadata stays dim. */
 const SNAP_PRI = { color: "#ffffff", fontWeight: 600 };
@@ -238,6 +239,7 @@ export default function TickerRail({
         st.includes("complete"));
     const pillLabel = isLiveCard ? "● LIVE" : hasFinalScore ? "FINAL" : "NEXT";
     const pillColor = isLiveCard ? "#22D3EE" : hasFinalScore ? "#A78BFA" : "#94A3B8";
+    const isOddsFallback = isOddsMarketFallbackRow(m.raw || m);
     return (
       <div
         key={`tennis-ticker-${m.id || i}`}
@@ -264,6 +266,20 @@ export default function TickerRail({
         >
           🎾 {pillLabel}
         </div>
+        {isOddsFallback && (
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 7,
+              color: "var(--muted)",
+              letterSpacing: 0.8,
+              marginBottom: 3,
+              opacity: 0.7,
+            }}
+          >
+            · market schedule
+          </div>
+        )}
         <div style={{ fontSize: 12, fontWeight: 600, color: "#ffffff", lineHeight: 1.2 }}>{away}</div>
         <div style={{ fontSize: 11, color: "var(--muted)" }}>@ {home}</div>
         {scoreLine ? (
