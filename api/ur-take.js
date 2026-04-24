@@ -2274,6 +2274,67 @@ function collectNbaVerifiedPlayerNamesFromGrounding(nbaContext) {
   return verifiedPlayerNames;
 }
 
+// Words that frequently appear capitalised in NBA analysis but are never player first names.
+const NBA_NON_PLAYER_FIRST_WORDS = new Set([
+  "los", "san", "new", "golden", "oklahoma", "salt", "las",
+  "east", "west", "north", "south", "the",
+  "nba", "mlb", "nfl", "pga",
+  "first", "second", "third", "fourth",
+  "game", "play", "prop", "odds",
+]);
+
+/**
+ * Strips proper-name pairs from text that are not present in the verified player set.
+ * Only applied to NBA responses when roster grounding data is available.
+ * Unverified names are replaced with "[unverified]" and returned in the hallucinations array.
+ *
+ * @param {string} text
+ * @param {Set<string>} verifiedNames  full names, lower-case
+ * @returns {{ cleanedText: string, hallucinations: string[] }}
+ */
+function validateNbaPlayerNames(text, verifiedNames) {
+  if (!verifiedNames || verifiedNames.size === 0) {
+    return { cleanedText: text, hallucinations: [] };
+  }
+
+  const normalizedVerified = new Set();
+  const lastNameSet = new Set();
+  for (const name of verifiedNames) {
+    const norm = String(name).toLowerCase().trim();
+    normalizedVerified.add(norm);
+    const parts = norm.split(/\s+/);
+    if (parts.length >= 2) lastNameSet.add(parts[parts.length - 1]);
+  }
+
+  // Match "First Last" pairs; apostrophes and hyphens allowed inside each word.
+  const NAME_RE = /\b([A-Z][a-zA-Z']{2,}(?:-[A-Z][a-zA-Z']+)?)\s+([A-Z][a-zA-Z']{1,}(?:-[A-Z][a-zA-Z']+)?)\b/g;
+
+  const hallucinations = [];
+  const seen = new Set();
+  let cleanedText = String(text || "");
+
+  for (const match of cleanedText.matchAll(NAME_RE)) {
+    const full = match[0];
+    if (seen.has(full)) continue;
+    seen.add(full);
+
+    const firstWord = match[1].toLowerCase();
+    const lastWord = match[2].toLowerCase();
+
+    if (NBA_NON_PLAYER_FIRST_WORDS.has(firstWord)) continue;
+
+    const normalized = `${firstWord} ${lastWord}`;
+    if (normalizedVerified.has(normalized)) continue;
+    // Last name alone matches a verified player → benefit of doubt (response used surname only)
+    if (lastNameSet.has(lastWord)) continue;
+
+    hallucinations.push(full);
+    cleanedText = cleanedText.replaceAll(full, "[unverified]");
+  }
+
+  return { cleanedText, hallucinations: [...new Set(hallucinations)] };
+}
+
 function questionExplicitlyNamesPlayerCue(question) {
   const q = String(question || "").trim();
   if (!q) return false;
@@ -4720,6 +4781,7 @@ ${continuationRule}`;
     let responseDeep = null;
     let responseFormat = "plain";
     let responseStatusShift = null;
+    let hallucinatedNames = [];
     if (outputJsonMode !== "plain") {
       const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
       if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
@@ -4740,6 +4802,27 @@ ${continuationRule}`;
     }
 
     if (sportHint === "nba") {
+      // Post-response hallucination check: strip player names absent from grounding data
+      if (nbaContext?.rosterGrounding) {
+        const verifiedNames = collectNbaVerifiedPlayerNamesFromGrounding(nbaContext);
+        if (verifiedNames.size > 0) {
+          const summaryResult = validateNbaPlayerNames(responseText, verifiedNames);
+          const deepResult = responseDeep ? validateNbaPlayerNames(responseDeep, verifiedNames) : null;
+          hallucinatedNames = [
+            ...summaryResult.hallucinations,
+            ...(deepResult?.hallucinations ?? []),
+          ];
+          if (hallucinatedNames.length > 0) {
+            console.warn("[ur-take] NBA hallucination check: unverified names stripped:", {
+              names: hallucinatedNames,
+              rosterGroundingQuality: nbaContext.rosterGrounding.rosterGroundingQuality,
+            });
+          }
+          responseText = summaryResult.cleanedText;
+          if (deepResult) responseDeep = deepResult.cleanedText;
+        }
+      }
+
       responseText = stripNbaLeadInDisclosure(responseText);
       if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
       responseText = stripNbaInternalControlLabels(responseText);
@@ -4871,6 +4954,7 @@ ${continuationRule}`;
           : sportHint === "mlb"
             ? mlbDecisionMode
             : null,
+      ...(hallucinatedNames.length > 0 ? { hallucinatedNames } : {}),
       ...(nbaDebugEnabled && nbaMeta ? { nbaDebug: nbaMeta } : {}),
       sport: sportHint || "generic",
       intent,
