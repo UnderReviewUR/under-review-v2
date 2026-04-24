@@ -277,6 +277,7 @@ ${themeCss}
   const [codeInput, setCodeInput]         = useState("");
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT  = 5;
 
@@ -2168,16 +2169,18 @@ ${themeCss}
       </div>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
       <button className="pro-cta-btn" onClick={async()=>{
+        setCheckoutError("");
         try{
           const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
           const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
           const data=await res.json();
           if(data.url) window.location.href=data.url;
-          else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
-          else alert("Could not start checkout. Try again.");
-        }catch{alert("Something went wrong. Try again.");}
+          else if (data.retryAfterSeconds) setCheckoutError(`Checkout is busy — try again in ${data.retryAfterSeconds}s.`);
+          else setCheckoutError("Could not start checkout. Try again.");
+        }catch{ setCheckoutError("Something went wrong. Try again."); }
       }}>START FREE TRIAL</button>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
+      {checkoutError&&<div style={{fontSize:11,color:"var(--red)",marginTop:8,textAlign:"center",fontFamily:"var(--body-font)"}}>{checkoutError}</div>}
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase",marginTop:checkoutError?8:0}}>Secure checkout · cancel anytime</div>
     </div>
 
     {/* Value bar */}
