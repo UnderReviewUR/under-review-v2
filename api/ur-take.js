@@ -3001,7 +3001,7 @@ export default async function handler(req, res) {
   }
 
   const clientIp = getClientIp(req);
-  if (!allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
+  if (!await allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
     return res.status(429).json({
       error: "rate_limited",
       response: "Too many requests from this network — try again shortly.",
@@ -3025,7 +3025,7 @@ export default async function handler(req, res) {
           "Authorization required. Refresh the page or re-enter your email / access code.",
       });
     }
-    if (urAuth.email && !allowRateLimit(`urtake:email:${urAuth.email}`, emailLimit())) {
+    if (urAuth.email && !await allowRateLimit(`urtake:email:${urAuth.email}`, emailLimit())) {
       return res.status(429).json({
         error: "rate_limited",
         response: "Too many requests for this account — try again shortly.",
