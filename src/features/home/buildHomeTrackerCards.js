@@ -11,6 +11,7 @@ import {
   f1EventKey,
   golfSnapshotKey,
 } from "../../../shared/homeEventDedup.js";
+import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
 
 function formatScore(value) {
   const n = Number(value || 0);
@@ -32,6 +33,7 @@ export function buildHomeTrackerCards({
   f1Data,
   nflDraftMeta,
   excludeEventKeys = null,
+  promoNowMs = Date.now(),
 }) {
   const excluded =
     excludeEventKeys instanceof Set ? excludeEventKeys : new Set(excludeEventKeys || []);
@@ -178,25 +180,53 @@ export function buildHomeTrackerCards({
 
   if (shouldShowDraftPredictor) {
     const orderCount = Number(nflDraftMeta?.fullOrderCount || 257);
+    const band = resolveNflDraftPromoBand(promoNowMs, nflDraftMeta);
+    const roundLine =
+      band.band === "rounds2_3"
+        ? "Tonight: Rounds 2–3 · capital, runs, fits"
+        : band.band === "rounds4_7"
+          ? "Today: Rounds 4–7 · depth, comps, specials"
+          : band.band === "round1"
+            ? "Tonight: Round 1 · live board + needs"
+            : `${band.roundsLabel} · ${band.headline}`;
+    const defaultPrompt =
+      band.band === "rounds2_3"
+        ? "Best Round 2–3 value that hasn't been priced into public boards?"
+        : band.band === "rounds4_7"
+          ? "Best Day 3 steal profile for a contender picking late?"
+          : "Which team has the most interesting draft situation?";
     cards.push({
       id: "nfl-draft-predictor",
       league: "NFL DRAFT",
       leagueColor: "#E11D48",
-      title: "2026 Draft Predictor",
-      time: `${orderCount}-pick board`,
-      network: "Round 1 board + team needs",
+      title: band.band === "outside" && draftPhase !== "during_draft" ? "2026 Draft Predictor" : band.headline,
+      time: roundLine,
+      network: `${orderCount}-pick verified order · ${band.roundsLabel}`,
       reliability: 0.98,
-      text: "Ask about your team's picks, needs, and Round 1 board.",
-      blurb: "Round 1 board, team needs, simulations — Ask about your team's picks, trade-ups, or sleepers.",
+      text: "Ask about your team's picks, needs, and board leverage.",
+      blurb: `${band.promptHint} Ask about your team's picks, trade-ups, or sleepers — label simulations clearly.`,
       isDraft: true,
       sportHint: "nfl",
       draftPhase,
-      defaultPrompt: "Which team has the most interesting draft situation?",
-      quickHitters: [
-        "Which team has the most interesting draft situation?",
-        "Simulate Cowboys rounds 1-3",
-        "Who are the best EDGE prospects?",
-      ],
+      defaultPrompt,
+      quickHitters:
+        band.band === "rounds2_3"
+          ? [
+              defaultPrompt,
+              "Simulate Rounds 2–3 for the Cowboys",
+              "Where does the board bend Friday night?",
+            ]
+          : band.band === "rounds4_7"
+            ? [
+                defaultPrompt,
+                "Best comp-pick targets for Dallas late",
+                "Which traits overperform on Day 3?",
+              ]
+            : [
+                defaultPrompt,
+                "Simulate Cowboys rounds 1-3",
+                "Who are the best EDGE prospects?",
+              ],
       confirmed: true,
     });
   }

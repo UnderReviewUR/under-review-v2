@@ -1,3 +1,5 @@
+import { nbaEventKey } from "../../shared/homeEventDedup.js";
+
 /**
  * Same source as NBA tab "Ask About Any Player" chips — must stay in sync with product UI.
  * fullName + teamAbbr are injected into ur-take so the model authorizes the same names the UI offers.
@@ -59,6 +61,116 @@ export function mergeNbaTodaysGames(apiGames, scoreboardGames) {
   return [...map.values()];
 }
 
+function nbaPairKey(game) {
+  const away = String(game?.awayTeam?.abbr || "").toUpperCase();
+  const home = String(game?.homeTeam?.abbr || "").toUpperCase();
+  if (away && home) return `${away}|${home}`;
+  return "";
+}
+
+/**
+ * Restrict merged API+scoreboard rows to the **verified Home pipeline slate** (order preserved).
+ * Enriches each verified row with the richest merge match when keys align.
+ * @param {object[]} mergedGames output of mergeNbaTodaysGames
+ * @param {object[]} verifiedRawGames `homePipeline.nbaGamesForHome` (already validity-filtered upstream)
+ */
+export function alignMergedGamesToVerifiedSlate(mergedGames, verifiedRawGames) {
+  const merged = Array.isArray(mergedGames) ? mergedGames : [];
+  const verified = Array.isArray(verifiedRawGames) ? verifiedRawGames : [];
+  if (verified.length === 0) return [];
+
+  const byCanon = new Map();
+  const byPair = new Map();
+  for (const g of merged) {
+    const ck = nbaEventKey(g);
+    if (ck) byCanon.set(ck, g);
+    const pk = nbaPairKey(g);
+    if (pk && !byPair.has(pk)) byPair.set(pk, g);
+  }
+
+  const out = [];
+  for (const v of verified) {
+    const ck = nbaEventKey(v);
+    let chosen = ck && byCanon.get(ck);
+    if (!chosen) {
+      const pk = nbaPairKey(v);
+      if (pk) chosen = byPair.get(pk);
+    }
+    out.push(chosen || v);
+  }
+  return out;
+}
+
+/**
+ * Keep only prop rows whose away/home abbrs match a game on the verified slate.
+ */
+export function filterPropLinesToVerifiedSlate(propLines, verifiedGames) {
+  if (!Array.isArray(verifiedGames) || verifiedGames.length === 0) return [];
+  const allowed = new Set();
+  for (const g of verifiedGames) {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa && ha) {
+      allowed.add(`${aa}|${ha}`);
+      allowed.add(`${ha}|${aa}`);
+    }
+  }
+  return (propLines || []).filter((pl) => {
+    const aa = String(pl?.awayAbbr || "").toUpperCase();
+    const ha = String(pl?.homeAbbr || "").toUpperCase();
+    if (!aa || !ha) return false;
+    return allowed.has(`${aa}|${ha}`) || allowed.has(`${ha}|${aa}`);
+  });
+}
+
+export function filterPlayerStatsToVerifiedTeams(playerStats, verifiedGames) {
+  if (!Array.isArray(verifiedGames) || verifiedGames.length === 0) return [];
+  const teams = new Set();
+  for (const g of verifiedGames) {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa) teams.add(aa);
+    if (ha) teams.add(ha);
+  }
+  return (playerStats || []).filter((p) => teams.has(String(p?.team || "").toUpperCase()));
+}
+
+export function filterNbaUiChipsForSlateAndInjuries(verifiedGames, injuries) {
+  const teams = new Set();
+  for (const g of verifiedGames || []) {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa) teams.add(aa);
+    if (ha) teams.add(ha);
+  }
+  const inj = Array.isArray(injuries) ? injuries : [];
+  const isOut = (fullName) => {
+    const want = String(fullName || "")
+      .trim()
+      .toLowerCase();
+    if (!want) return false;
+    for (const row of inj) {
+      const pn = String(row.player || "")
+        .trim()
+        .toLowerCase();
+      if (!pn || pn !== want) continue;
+      const blob = `${String(row.status || "")} ${String(row.return || "")} ${String(row.detail || "")}`.toLowerCase();
+      if (
+        /\b(out|inactive|dnp|did not play|ruled out|available:\s*out|suspended|not with team)\b/.test(blob)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return NBA_UI_PLAYER_CHIPS.filter((row) => {
+    if (teams.size === 0) return false;
+    if (!teams.has(String(row.teamAbbr || "").toUpperCase())) return false;
+    if (isOut(row.fullName)) return false;
+    return true;
+  });
+}
+
 const MAX_NAMES_PER_TEAM_UI = 48;
 
 /**
@@ -85,16 +197,18 @@ export function augmentNbaRosterGroundingWithUi(rosterGrounding, mergedGames) {
     pbt[a] = list;
   };
 
-  for (const row of NBA_UI_PLAYER_CHIPS) {
-    add(row.teamAbbr, row.fullName);
-  }
-
   const tonight = new Set();
   for (const g of mergedGames || []) {
     const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
     const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
     if (aa) tonight.add(aa);
     if (ha) tonight.add(ha);
+  }
+
+  for (const row of NBA_UI_PLAYER_CHIPS) {
+    const ab = String(row.teamAbbr || "").toUpperCase();
+    if (tonight.size > 0 && !tonight.has(ab)) continue;
+    add(row.teamAbbr, row.fullName);
   }
 
   let q = base.rosterGroundingQuality;

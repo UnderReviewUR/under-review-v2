@@ -8,6 +8,7 @@ import {
   EVENT_VALIDITY,
   isDisplayableValidity,
 } from "../../../shared/eventValidity.js";
+import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -41,6 +42,7 @@ export function buildDynamicHomeQuestions({
   golfData,
   nbaGames,
   f1Data,
+  promoNowMs = Date.now(),
 }) {
   const prompts = [];
   const usedCardText = new Set();
@@ -245,6 +247,7 @@ export function buildDynamicHomeQuestions({
   }
 
   if (isDraftMode) {
+    const band = resolveNflDraftPromoBand(promoNowMs, nflDraftMeta);
     const featuredTeam = dallasPriority
       ? "Dallas Cowboys"
       : rotate(teamEntries.map(([team]) => team), 9) || "Dallas Cowboys";
@@ -254,28 +257,76 @@ export function buildDynamicHomeQuestions({
       return `${short} (${needs.headline})`;
     });
 
-    push({
-      id: "q6a",
-      color: "#E11D48",
-      sportHint: "nfl",
-      text: "2026 draft — biggest sleepers vs the board?",
-      prompt:
-        "Who are the biggest sleepers in the 2026 draft class relative to consensus? Tie answers to team needs and realistic round ranges.",
-    });
-    push({
-      id: "q6b",
-      color: "#E11D48",
-      sportHint: "nfl",
-      text: `Simulate the first 3 rounds for the ${featuredTeam} (${featuredHeadline}).`,
-      prompt: `Simulate the first 3 rounds for the ${featuredTeam} based on their needs (${featuredHeadline}). Use realistic board flow and one contingency branch.`,
-    });
-    push({
-      id: "q6c",
-      color: "#E11D48",
-      sportHint: "nfl",
-      text: "Which teams are most likely to trade up into the Top 5?",
-      prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}.`,
-    });
+    const bandHead = band.headline;
+    const roundHint = band.promptHint;
+
+    if (band.band === "rounds2_3") {
+      push({
+        id: "q6a",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: `${bandHead} — best Day 2 fits?`,
+        prompt: `It is ${band.roundsLabel}. ${roundHint} Name three best scheme fits for Rounds 2–3 and one trade-up candidate.`,
+      });
+      push({
+        id: "q6b",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: `Simulate Rounds 2–3 for the ${featuredTeam} (${featuredHeadline}).`,
+        prompt: `Simulate Rounds 2–3 only for the ${featuredTeam} (${featuredHeadline}). Stay inside verified capital + needs; label any hypothetical trade as simulation.`,
+      });
+      push({
+        id: "q6c",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: "Where does the board bend in Rounds 2–3?",
+        prompt: `During ${band.roundsLabel}, where is the class thin vs deep, and which team is most likely to reach or trade back? ${roundHint}`,
+      });
+    } else if (band.band === "rounds4_7") {
+      push({
+        id: "q6a",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: `${bandHead} — best Day 3 steals?`,
+        prompt: `It is ${band.roundsLabel}. ${roundHint} Identify three Day 3 profiles (Rounds 4–7) with NFL-ready traits vs upside lotto tickets.`,
+      });
+      push({
+        id: "q6b",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: `Comp picks & specials for ${featuredTeam}?`,
+        prompt: `For ${featuredTeam} (${featuredHeadline}), map realistic Rounds 4–7 targets: specials, swing OL, rotational pass rush. ${roundHint}`,
+      });
+      push({
+        id: "q6c",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: "Which traits overperform on Day 3?",
+        prompt: `During ${band.roundsLabel}, which positions historically return value late in this class archetype? ${roundHint}`,
+      });
+    } else {
+      push({
+        id: "q6a",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: "2026 draft — biggest sleepers vs the board?",
+        prompt: `Context: ${band.roundsLabel} (${bandHead}). Who are the biggest sleepers in the 2026 draft class relative to consensus? ${roundHint} Tie answers to team needs and realistic round ranges.`,
+      });
+      push({
+        id: "q6b",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: `Simulate the first 3 rounds for the ${featuredTeam} (${featuredHeadline}).`,
+        prompt: `Simulate the first 3 rounds for the ${featuredTeam} based on their needs (${featuredHeadline}). Use realistic board flow and one contingency branch. ${roundHint}`,
+      });
+      push({
+        id: "q6c",
+        color: "#E11D48",
+        sportHint: "nfl",
+        text: "Which teams are most likely to trade up into the Top 5?",
+        prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}. ${roundHint}`,
+      });
+    }
   } else if (nflSeasonMode) {
     const nflSeasonPrompt = rotate(
       [
