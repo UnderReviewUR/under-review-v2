@@ -1,5 +1,6 @@
 /**
- * Live Snapshot inclusion: live games, starts within 2h, next major (F1/NFL handled in plan).
+ * Live Snapshot inclusion: NBA live/upcoming slate, MLB live or starts within 2h,
+ * next major (F1/NFL handled in plan).
  */
 
 import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs } from "./eventStartTime.js";
@@ -13,7 +14,7 @@ export function getNbaMlbStartMs(game, sport = "nba") {
   return sport === "mlb" ? canonicalMlbStartUtcMs(game) : canonicalNbaStartUtcMs(game);
 }
 
-/** NBA/MLB: live, or pre/scheduled with kickoff/first pitch within the snapshot window. */
+/** NBA: live/upcoming slate. MLB: live, or pre/scheduled within the snapshot window. */
 export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now(), sport = "nba") {
   if (!game || typeof game !== "object") return false;
   const state = String(game.state || "").toLowerCase();
@@ -22,6 +23,7 @@ export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now(), sport =
     const startMs = getNbaMlbStartMs(game, sport);
     if (!Number.isFinite(startMs)) return false;
     const delta = startMs - nowMs;
+    if (sport === "nba") return delta >= 0;
     return delta >= 0 && delta <= LIVE_SNAPSHOT_PRE_WINDOW_MS;
   }
   return false;

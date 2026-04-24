@@ -1056,7 +1056,7 @@ function stripBannedDataAvailabilityOpener(text) {
   let s = String(text || "").trim();
   if (!s) return s;
   const bannedLead =
-    /^(?:no edge(?: here)?\.?|no prop lines posted yet\b|i don't have\b|i can'?t\b|without\b|the context provided\b|the data provided\b|come back when\b|when lines post\b|props aren'?t fully posted yet\b)/i;
+    /^(?:no edge(?: here)?\.?|no\s+(?:player\s+)?prop\s+markets?\s+(?:posted|available)\b|i don't have\b|i can'?t\b|without\b|the context provided\b|the data provided\b|come back when\b|when (?:markets?|prices?) post\b|props?\s+(?:aren'?t|are not)\s+(?:fully\s+)?available\b)/i;
   for (let i = 0; i < 4; i += 1) {
     const paras = s.split(/\n\n+/);
     if (!paras.length) break;
@@ -1207,7 +1207,7 @@ function buildNbaGameStateAuthorityBlock(gate) {
   if (!allowsLiveNarrative) {
     rules +=
       "- STRICT: Do not state or imply current in-game score, quarter, clock, halftime, live momentum, or pace math from invented game state.\n";
-    rules += `- Board-classified phase for this matchup: **${phaseLabel}**. Use pregame-safe reasoning (posted lines, injuries, matchup structure). If live numbers are absent from JSON, say we only have premarket context.\n`;
+    rules += `- Board-classified phase for this matchup: **${phaseLabel}**. Use pregame-safe reasoning from injuries, matchup structure, series context, and listed markets only; do not explain missing live data to the user.\n`;
   } else {
     rules +=
       "- Live/halftime/final numbers may appear ONLY when copied from JSON for this game (scores/status). Never invent clocks or quarters.\n";
@@ -1216,6 +1216,37 @@ function buildNbaGameStateAuthorityBlock(gate) {
   return `NBA GAME-STATE AUTHORITY (SERVER — obey; never quote this header)
 Focused matchup phase (board-derived): ${phaseLabel}. Verified box scores on focused row: ${verifiedBoxScore ? "yes" : "no"}.
 ${rules}`;
+}
+
+function buildNbaLiveNoPropSystemPromptBlock(gate, nbaContext) {
+  const phase = String(gate?.phase || "").toLowerCase();
+  const isLiveGame = phase === "live" || phase === "halftime";
+  const props = Array.isArray(nbaContext?.propLines) ? nbaContext.propLines : [];
+  const focusedGame = gate?.focusedGame || null;
+  const relevantPropCount = focusedGame
+    ? props.filter((pl) => gameRowMatchesPropGame(pl?.game, focusedGame)).length
+    : props.length;
+  if (!gate?.allowsLiveNarrative || !isLiveGame || relevantPropCount > 0) return "";
+
+  return `NBA LIVE GAME RULE — PROP MARKETS UNAVAILABLE (SERVER — obey; never quote this header)
+Never surface technical errors, variable names, array names, HTTP status codes, or API details to users. Ever. No exceptions.
+When prop lines are unavailable, do not mention it. Do not apologize. Do not explain. Pivot to the strongest angle from live game state: minutes played, pace, foul trouble, rotation patterns, early stat lines, and matchup dynamics.
+Lead with the angle, not the caveat. Never open with what you don't have.
+When analyzing a live game, close the response with a one-line signature in this format: TEAM1 SCORE, TEAM2 SCORE · Q? TIME · Live. This replaces the need to announce "the game is live" in the opening.`;
+}
+
+function formatNbaLiveScoreSignature(game) {
+  if (!game || typeof game !== "object") return "";
+  const awayAbbr = String(game?.awayTeam?.abbr || "AWAY").toUpperCase();
+  const homeAbbr = String(game?.homeTeam?.abbr || "HOME").toUpperCase();
+  const awayScore = game?.awayTeam?.score;
+  const homeScore = game?.homeTeam?.score;
+  if (!Number.isFinite(Number(awayScore)) || !Number.isFinite(Number(homeScore))) return "";
+
+  const period = Number(game?.period);
+  const quarter = Number.isFinite(period) && period > 0 ? `Q${period}` : "Q?";
+  const clock = String(game?.clock || "").trim() || String(game?.status || "").trim() || "time unavailable";
+  return `${awayAbbr} ${Number(awayScore)}, ${homeAbbr} ${Number(homeScore)} · ${quarter} ${clock} · Live.`;
 }
 
 /* Post-generation live-state repair (regex replace of model output) intentionally not shipped yet.
@@ -1265,11 +1296,11 @@ function hasNbaNoMarketHardFail(text) {
   return /\bno edge here\b/i.test(s) ||
     /\bcome back (?:when|later)\b/i.test(s) ||
     /\bwait for lines\b/i.test(s) ||
-    /^\s*no prop lines posted yet\b/i.test(s) ||
-    /\bprops aren't fully posted yet\b/i.test(s) ||
-    /\bno confirmed lines\b/i.test(s) ||
-    /\bpropLines are empty\b/i.test(s) ||
-    /^\s*no lines posted\b/i.test(s);
+    /^\s*no\s+(?:player\s+)?prop\s+markets?\s+(?:posted|available)\b/i.test(s) ||
+    /\bprops?\s+(?:aren't|are not)\s+(?:fully\s+)?available\b/i.test(s) ||
+    /\bno confirmed (?:markets?|prices?)\b/i.test(s) ||
+    /\bmarket snapshot is empty\b/i.test(s) ||
+    /^\s*no (?:markets?|prices?) posted\b/i.test(s);
 }
 
 function isNbaNoMarketUpcomingSlate(nbaContext) {
@@ -1299,6 +1330,9 @@ function buildNbaNoMarketHardFallback(question, nbaContext) {
   const away = String(gameForQuestion?.awayTeam?.abbr || qTeams[0] || "AWAY").toUpperCase();
   const home = String(gameForQuestion?.homeTeam?.abbr || qTeams[1] || "HOME").toUpperCase();
   const title = `${away} @ ${home}`;
+  const phase = classifyNbaBoardGamePhase(gameForQuestion);
+  const isLiveGame = phase === "live" || phase === "halftime";
+  const liveSignature = formatNbaLiveScoreSignature(gameForQuestion);
 
   const pbt = nbaContext?.rosterGrounding?.playersByTeamAbbrev || {};
   const awayName = Array.isArray(pbt?.[away]) ? pbt[away][0] : null;
@@ -1315,6 +1349,23 @@ function buildNbaNoMarketHardFallback(question, nbaContext) {
   const p2 = homeName
     ? `${homeName} creation counters that: look assists/points depending on coverage, and avoid extremes unless the opener is clearly mispriced.`
     : `${home} primary initiator creation is the counter-angle: target assists or points based on coverage, not guesswork.`;
+
+  if (isLiveGame) {
+    const liveP1 = awayName
+      ? `${awayName}'s live role is the first angle: weigh his minutes, touches, and foul count before chasing raw scoring pace.`
+      : `${away} shot-creation is the first angle: weigh live touches and rotation shape before chasing raw scoring pace.`;
+    const liveP2 = homeName
+      ? `${homeName}'s counter is creation volume: his assists/points profile gets stronger if the defense is sending help early.`
+      : `${home} primary creation is the counter-angle: trust role, matchup pressure, and foul trouble over stale pregame assumptions.`;
+
+    return `${title} is a live-state read now: lean into the side creating cleaner possessions and avoid chasing raw pace unless minutes and rotation pattern support it.
+
+${liveP1} ${liveP2}
+
+Early stat lines matter more than pregame priors now: foul trouble, shortened rotations, and whether the lead creators are getting full run should drive the next move. If the game is producing paint touches and free throws without empty transition possessions, live overs get cleaner; if both teams are bleeding clock, stay selective.
+
+${liveSignature || `${away} ?, ${home} ? · Q? ${String(gameForQuestion?.status || "in progress").trim()} · Live.`}`;
+  }
 
   return `Check your books now, then lean into the strongest pregame angle.
 
@@ -3270,7 +3321,7 @@ export default async function handler(req, res) {
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
   });
   const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
-  const systemPromptForModel =
+  let systemPromptForModel =
     outputJsonMode !== "plain" && jsonContract
       ? `${systemPrompt}
 
@@ -3282,6 +3333,13 @@ For all other questions where no contract is attached, use plain text as already
 
 ${jsonContract}${propProjectionModeBlock}`
       : `${systemPrompt}${propProjectionModeBlock}`;
+  const nbaLiveNoPropSystemPromptBlock =
+    sportHint === "nba" ? buildNbaLiveNoPropSystemPromptBlock(nbaGameStateGate, nbaContext) : "";
+  if (nbaLiveNoPropSystemPromptBlock) {
+    systemPromptForModel = `${systemPromptForModel}
+
+${nbaLiveNoPropSystemPromptBlock}`;
+  }
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
   const nbaImpactSummary =
@@ -3919,7 +3977,7 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
 5. End with a live trigger: what hole range or round split would flip the lean.
 
-Never open with "no lines posted." Give monitoring hooks; name only verified golfers when the VERIFIED GOLF PLAYERS list above is non-empty.`;
+Never open with market-availability throat-clearing. Give monitoring hooks; name only verified golfers when the VERIFIED GOLF PLAYERS list above is non-empty.`;
     }
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
@@ -4067,17 +4125,14 @@ Rules:
 - PROP BOARD HYGIENE: propLines are filtered server-side to drop games that are
   already final (Odds event.completed and/or todaysGames.state === "post").
   Never use a prop row for a matchup that is Final in todaysGames as a "tonight"
-  lean — treat those as stale. If propLines still looks populated but only
-  reflects completed games (e.g. name mismatch let a row through), ignore those
-  rows and apply the NO-MARKET FALLBACK below.
+  lean — treat those as stale. If the market snapshot still includes completed
+  games, ignore those rows and apply the fallback below.
 
-NO-MARKET FALLBACK RULE (mandatory when propLines is empty after excluding finals,
-or when there is no prop row for an upcoming/live game the user cares about)
+FALLBACK RULE (mandatory when active player prop markets are unavailable for an upcoming/live game the user cares about)
 
-Do not treat missing lines as an excuse for thin analysis. The user is here because tip is close.
+Do not treat unavailable markets as an excuse for thin analysis. The user is here because tip is close.
 
-NO-MARKET FALLBACK FORMAT (mandatory when propLines is empty but todaysGames still
-has upcoming games — or props are missing for a matchup you can see in context):
+FALLBACK FORMAT (mandatory when markets are unavailable for a matchup you can see in context):
 
 Same ROSTER DISCLOSURE RULE as above — never mention partial rosters, loading, or which names are "verified."
 
@@ -4091,8 +4146,13 @@ or a stat clip — this IS the edge; deliver it now, not as homework for later.
 
 Do NOT use "Watch for:" as a section header.
 Do NOT use player names as headers (no "JALEN BRUNSON —").
-Do NOT open with empty-slate throat-clearing about data availability ("nothing yet," "lines aren't up").
+Do NOT open with empty-slate throat-clearing about data availability.
 Do NOT close by sending the user away until books post — the framework above is the full answer.
+
+LIVE NBA OVERRIDE: Never surface technical errors, variable names, array names, HTTP status codes, or API details to users. Ever. No exceptions.
+When prop lines are unavailable, do not mention it. Do not apologize. Do not explain. Pivot to the strongest angle from live game state: minutes played, pace, foul trouble, rotation patterns, early stat lines, and matchup dynamics.
+Lead with the angle, not the caveat. Never open with what you don't have.
+When analyzing a live game, close the response with a one-line signature in this format: TEAM1 SCORE, TEAM2 SCORE · Q? TIME · Live. This replaces the need to announce "the game is live" in the opening.
 
 Ignore unrelated injury callouts from the raw user text when they do not match the targeted player/team in this take.
 
@@ -4744,18 +4804,6 @@ ${continuationRule}`;
       if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
       responseText = stripNbaInternalControlLabels(responseText);
       if (responseDeep) responseDeep = stripNbaInternalControlLabels(responseDeep);
-      if (
-        nbaDecisionMode === "blocked_unlisted_market" &&
-        !/\bunverified\b|\bnot verified\b|\bmarket not listed\b/i.test(responseText)
-      ) {
-        responseText = `Unverified market for the named player(s): exact requested line is not listed in the current odds feed.\n\n${responseText}`;
-      }
-      if (
-        nbaDecisionMode === "blocked_odds_feed_unavailable" &&
-        !/\bodds feed\b|\bunverified\b|\bnot verified\b/i.test(responseText)
-      ) {
-        responseText = `Unverified market snapshot: odds feed is unavailable right now, so this is an analytical lean without line verification.\n\n${responseText}`;
-      }
       if (
         Array.isArray(nbaInvalidation?.unresolvedPlayers) &&
         nbaInvalidation.unresolvedPlayers.length > 0 &&

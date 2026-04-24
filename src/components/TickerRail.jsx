@@ -56,6 +56,8 @@ export default function TickerRail({
     const home = g.homeTeam?.abbr || g.homeTeam?.name || "HOME";
     const isLive = g.state === "in";
     const seriesLabel = getSeriesLabel(away, home);
+    const channel = String(g.channel || g.broadcast || "").trim();
+    const metaLine = [seriesLabel, channel].filter(Boolean).join(" · ");
     return (
       <div
         key={`nba-${g.id ?? i}`}
@@ -92,7 +94,7 @@ export default function TickerRail({
           </div>
         )}
 
-        {seriesLabel && (
+        {metaLine && (
           <div
             style={{
               fontFamily: "var(--mono-font)",
@@ -102,7 +104,7 @@ export default function TickerRail({
               letterSpacing: 0.5,
             }}
           >
-            {seriesLabel}
+            {metaLine}
           </div>
         )}
       </div>

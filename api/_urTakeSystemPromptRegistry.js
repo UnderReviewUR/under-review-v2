@@ -163,7 +163,7 @@ If any item is missing, revise before finalizing.`;
 
 export function buildResponseStructurePrompt() {
   return `RESPONSE STRUCTURE — EVERY TIME
-Market Snapshot: What's open, what's live, what's not posted yet.
+Market Snapshot: What's open and what's live.
 Live Angles: Two to four picks maximum. Each gets player, line trigger, tier, three to five lines of reasoning following the five steps, and a one-line close.
 Watchlist: Conditional plays waiting on news, line, or confirmation.
 News Edge: Where injury or lineup news creates immediate usage shifts before markets adjust.
@@ -177,8 +177,8 @@ export function buildNbaUrTakeDecisionModeSpine(mode) {
 You have a verified prop/market path or clean team-level slate. Lead with game or market substance (never data-availability). Use the five-step framework and Golden Rule. Cite only numbers and names present in context; never invent lines.`,
     blocked_unavailable: `NBA DECISION MODE SPINE — blocked (player unavailable)
 Terminal block for props on the unavailable player: do not price, imply, or recommend a bet on them. State the status fact once, crisply. Pivot only to team/game structure explicitly in context (series, totals, injuries). Confidence stays capped — no faux precision.`,
-    blocked_odds_feed_unavailable: `NBA DECISION MODE SPINE — blocked (odds feed unavailable)
-The board cannot verify live prices. Explain the gap plainly without inventing books or numbers. Offer structural watch-hooks (what to monitor when lines return) using only roster/slate facts in context.`,
+    blocked_odds_feed_unavailable: `NBA DECISION MODE SPINE — blocked (market snapshot unavailable)
+Do not expose source, system, or verification gaps. Lead with the strongest structural angle available from live state, roster/slate facts, pace, role, matchup, series, totals, or injuries. Do not invent books or numbers.`,
     blocked_unlisted_market: `NBA DECISION MODE SPINE — blocked (market not listed)
 The asked market is not on the verified board. Do not fabricate a line or book. Name what is listed instead, or pivot to the closest verified structural read (pace, role, matchup) without pretending the missing market exists.`,
     status_only: `NBA DECISION MODE SPINE — status-only availability

@@ -99,6 +99,7 @@ export default function NbaScreen({
                 const isLive = g.state === "in";
                 const isFinal = g.state === "post";
                 const rowKey = nbaEventKey(g) || `${away}-${home}-${g.id ?? ""}`;
+                const channel = String(g.channel || g.broadcast || "").trim();
                 return (
                   <div
                     key={rowKey}
@@ -124,6 +125,11 @@ export default function NbaScreen({
                         {g.awayTeam.score} — {g.homeTeam.score}
                       </div>
                     )}
+                    {channel ? (
+                      <div className="nba-game-status" style={{ marginTop: 4 }}>
+                        {channel}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

@@ -35,9 +35,12 @@ import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentati
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
+  alignMergedGamesToVerifiedSlate,
   augmentNbaRosterGroundingWithUi,
+  filterNbaUiChipsForSlateAndInjuries,
+  filterPlayerStatsToVerifiedTeams,
+  filterPropLinesToVerifiedSlate,
   mergeNbaTodaysGames,
-  NBA_UI_PLAYER_CHIPS,
 } from "./lib/nbaUiSurface.js";
 import {
   ChatThread,
@@ -155,6 +158,8 @@ ${themeCss}
   const [nflInput, setNflInput]         = useState("");
   const [f1Input, setF1Input]           = useState("");
   const [nbaInput, setNbaInput]         = useState("");
+  /** Canonical `nbaEventKey` for the Home NBA card the user last tapped — sorts UR Take `todaysGames` first. */
+  const [nbaUrTakeFocusGameKey, setNbaUrTakeFocusGameKey] = useState(null);
   const [mlbInput, setMlbInput]         = useState("");
   const [matchupInput, setMatchupInput] = useState("");
 
@@ -259,6 +264,8 @@ ${themeCss}
   } = useTennisData();
   const { f1Data, f1Loading } = useF1Data();
   const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData();
+  /** Latest verified NBA slate for UR Take — filled after `homePipeline` runs (see below). */
+  const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
   const { golfData, golfLoading } = useGolfData();
   const { nflContextData } = useNflData();
@@ -402,19 +409,47 @@ ${themeCss}
   };
 }, [f1Data]);
 
-  const buildNbaContext = useCallback((questionText, nbaDataOverride = null) => {
-    const src = nbaDataOverride ?? nbaData;
-    const fromSrc = Array.isArray(src?.todaysGames) ? src.todaysGames : [];
-    const fromLocal = Array.isArray(nbaGames) ? nbaGames : [];
-    const mergedTodaysGames = mergeNbaTodaysGames(fromSrc, fromLocal);
-    const slateMeta = src?.todaysGamesSlateMeta || null;
-    const rosterGroundingMerged = augmentNbaRosterGroundingWithUi(
-      src?.rosterGrounding || null,
-      mergedTodaysGames,
-    );
+  const buildNbaContext = useCallback(
+    (questionText, nbaDataOverride = null, verifiedSlateGames = [], focusGameKey = null) => {
+      const src = nbaDataOverride ?? nbaData;
+      const fromSrc = Array.isArray(src?.todaysGames) ? src.todaysGames : [];
+      const fromLocal = Array.isArray(nbaGames) ? nbaGames : [];
+      const mergedAll = mergeNbaTodaysGames(fromSrc, fromLocal);
+      let mergedTodaysGames = alignMergedGamesToVerifiedSlate(mergedAll, verifiedSlateGames);
+
+      if (focusGameKey && mergedTodaysGames.length > 0) {
+        mergedTodaysGames = [...mergedTodaysGames].sort((a, b) => {
+          const ak = nbaEventKey(a) === focusGameKey ? 1 : 0;
+          const bk = nbaEventKey(b) === focusGameKey ? 1 : 0;
+          return bk - ak;
+        });
+      }
+
+      const slateMeta = src?.todaysGamesSlateMeta || null;
+      const filteredProps = filterPropLinesToVerifiedSlate(src?.propLines, mergedTodaysGames);
+      const filteredStats = filterPlayerStatsToVerifiedTeams(src?.playerStats, mergedTodaysGames);
+      const teamsTonight = new Set();
+      for (const g of mergedTodaysGames) {
+        const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+        const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+        if (aa) teamsTonight.add(aa);
+        if (ha) teamsTonight.add(ha);
+      }
+      const filteredInjuries = (Array.isArray(src?.injuries) ? src.injuries : []).filter((row) =>
+        teamsTonight.has(String(row?.team || "").toUpperCase()),
+      );
+      const uiChips = filterNbaUiChipsForSlateAndInjuries(mergedTodaysGames, filteredInjuries);
+      const rosterGroundingMerged = augmentNbaRosterGroundingWithUi(
+        src?.rosterGrounding || null,
+        mergedTodaysGames,
+      );
     return {
       seasonContext:   src?.seasonContext || {},
       todaysGames:     mergedTodaysGames,
+      todaysGamesTrustNote:
+        mergedTodaysGames.length === 0
+          ? "Verified Home/NBA pipeline slate is empty — do not invent tonight matchups or props."
+          : "todaysGames is restricted to the verified displayable slate (same gates as Home). Props/stats filtered to these games.",
       /** When the slate is empty but BDL responded OK — tells UR Take it is a real off day vs. pipeline failure */
       todaysGamesSlateMeta: slateMeta,
       todaysGamesSlateNote:
@@ -422,30 +457,32 @@ ${themeCss}
       lastNight:       src?.lastNight     || [],
       lastNightStats:  src?.lastNightStats|| [],
       liveStats:       src?.liveStats     || [],
-      playerStats:     src?.playerStats   || [],
+      playerStats:     filteredStats,
       /** Pre-rendered lines for LLM — team sourced from game box when statsSource is game_box */
-      playerStatsText: src?.playerStatsText || "",
-      statsSource:     src?.statsSource || "",
-      propLines:       src?.propLines     || [],
-      injuries:        src?.injuries      || [],
+      playerStatsText: mergedTodaysGames.length === 0 ? "" : src?.playerStatsText || "",
+      statsSource:     mergedTodaysGames.length === 0 ? "" : src?.statsSource || "",
+      propLines:       filteredProps.slice(0, 120),
+      injuries:        filteredInjuries,
       recentForm:      src?.recentForm    || "",
       h2hSplits:       src?.h2hSplits     || [],
-      gameTotals:      src?.gameTotals     || {},
+      gameTotals:      mergedTodaysGames.length === 0 ? {} : src?.gameTotals     || {},
       /** API roster + same featured names / teams as NBA tab UI chips */
       rosterGrounding: rosterGroundingMerged,
       /** Mirrors product UI — must stay aligned with src/lib/nbaUiSurface.js */
       clientUiSurface: {
-        source: "nba_tab_chips_and_scoreboard",
-        featuredPlayersFullNames: NBA_UI_PLAYER_CHIPS.map((p) => p.fullName),
+        source: "verified_slate_ui_chips",
+        featuredPlayersFullNames: uiChips.map((p) => p.fullName),
         chipToFullName: Object.fromEntries(
-          NBA_UI_PLAYER_CHIPS.map((p) => [p.chip, p.fullName]),
+          uiChips.map((p) => [p.chip, p.fullName]),
         ),
         note:
-          "These names match the 'Ask About Any Player' chips on the NBA screen. todaysGames merges /api/nba board games with the live scoreboard feed used for Today’s Games cards.",
+          "Featured players mirror the NBA tab: only teams on the verified tonight slate; OUT/DNP injuries from the injuries feed are excluded.",
       },
       question:        questionText || "",
-    };
-  }, [nbaData, nbaGames]);
+      };
+    },
+    [nbaData, nbaGames],
+  );
 
   const buildMlbContext = useCallback((questionText, mlbDataOverride = null) => {
     const src = mlbDataOverride ?? mlbData;
@@ -651,7 +688,12 @@ ${themeCss}
     }
 
     if (effectiveSportHint === "nba") {
-      body.nbaContext = buildNbaContext(text, ov.nbaData ?? null);
+      body.nbaContext = buildNbaContext(
+        text,
+        ov.nbaData ?? null,
+        verifiedNbaSlateForTakeRef.current,
+        nbaUrTakeFocusGameKey,
+      );
     }
 
     if (effectiveSportHint === "mlb") {
@@ -772,6 +814,7 @@ ${themeCss}
   loadPerformanceSnapshot,
   getTakeAuthHeaders,
   screen,
+  nbaUrTakeFocusGameKey,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -842,7 +885,7 @@ ${themeCss}
   const homePipeline = useMemo(
     () =>
       buildHomeEventPipeline({
-        nbaGames: nbaGamesRaw,
+        nbaGames: validNbaGames,
         nbaSeasonContext: nbaData?.seasonContext,
         mlbGames: mlbGamesRaw,
         tennisMatches: validTennisMatchesHome,
@@ -853,7 +896,7 @@ ${themeCss}
         golfSnapshotKeyFn: () => golfKeyForLiveSnapshot(golfData),
       }),
     [
-      nbaGamesRaw,
+      validNbaGames,
       nbaData?.seasonContext,
       mlbGamesRaw,
       validTennisMatchesHome,
@@ -866,6 +909,12 @@ ${themeCss}
 
   const tickerNbaGames = homePipeline.nbaGamesForHome;
   const liveSnapshotKeys = homePipeline.liveSnapshotKeys;
+
+  verifiedNbaSlateForTakeRef.current = homePipeline.nbaGamesForHome;
+
+  useEffect(() => {
+    if (screen !== "nba") setNbaUrTakeFocusGameKey(null);
+  }, [screen]);
 
   const tennisTickerMatches = useMemo(() => {
     const tier = (m) => {
@@ -1102,6 +1151,26 @@ ${themeCss}
       ];
     }
 
+    if (!pool.length && homePipeline.nbaGamesForHome.length > 0) {
+      return [
+        {
+          id: "nba-on-ticker-slate",
+          league: "NBA",
+          leagueColor: "#FF6B00",
+          homeCategory: "NBA",
+          title: "Tonight's NBA games",
+          time: "Live Snapshot / Today's slate",
+          network: "No duplicate spotlight row",
+          blurb:
+            "Matchups are already surfaced in the Live Snapshot strip or Today's slate above — tap there to avoid double-counting, then ask UR Take from the NBA tab.",
+          whatMatters: "We suppress duplicate cards when a game is reserved for the ticker or slate.",
+          quickHitters: ["Open NBA tab with verified slate", "Best prop on a named matchup?"],
+          confirmed: true,
+          nbaEventKey: null,
+        },
+      ];
+    }
+
     if (!pool.length) {
       return [];
     }
@@ -1115,20 +1184,23 @@ ${themeCss}
       const awayScore = g.awayTeam?.score ?? null;
       const homeScore = g.homeTeam?.score ?? null;
       const hasScore = awayScore !== null && homeScore !== null;
+      const evKey = nbaEventKey(g);
+      const channel = String(g.channel || g.broadcast || "").trim();
 
       const tipoffLocal = formatNbaTipoffLocal(g.startTimeUtc);
       const liveLabel = isLive ? "🔴 LIVE" : isFinal ? "FINAL" : tipoffLocal;
       const blurb = hasScore
-        ? `${away} ${awayScore} — ${home} ${homeScore}${isLive && g.period ? ` · Q${g.period}` : ""}`
-        : `${series || "Playoff matchup"} · Tipoff ${tipoffLocal}`;
+        ? `${away} ${awayScore} — ${home} ${homeScore}${isLive && g.period ? ` · Q${g.period}` : ""}${channel ? ` · ${channel}` : ""}`
+        : `${series || "Playoff matchup"} · Tipoff ${tipoffLocal}${channel ? ` · ${channel}` : ""}`;
 
       return {
-        id: `nba-card-${i + 1}`,
+        id: evKey || `nba-card-${i + 1}`,
+        nbaEventKey: evKey,
         league: isLive ? "NBA LIVE" : "NBA PLAYOFFS",
         leagueColor: isLive ? "#FF5252" : "#FF6B00",
         title: `${away} vs ${home}`,
         time: liveLabel,
-        network: series || "Playoff matchup",
+        network: channel || series || "Playoff matchup",
         blurb,
         whatMatters: isLive
           ? "Live: chase second-half props, totals that lag pace, and matchup pivots."
@@ -1413,7 +1485,7 @@ ${themeCss}
         userCity: userCityHint,
         context,
         golfData,
-        nbaGames: validNbaGames,
+        nbaGames: homePipeline.nbaGamesForHome,
         f1Data,
       }),
     [
@@ -1425,7 +1497,7 @@ ${themeCss}
       userCityHint,
       context,
       golfData,
-      validNbaGames,
+      homePipeline.nbaGamesForHome,
       f1Data,
     ]
   );
@@ -1583,6 +1655,7 @@ ${themeCss}
       }
 
       if ((m.league || "").includes("NBA")) {
+        setNbaUrTakeFocusGameKey(m.nbaEventKey || null);
         if (screen !== "nba" || tab !== "nba") {
           setNavHistory((h) => [...h, { screen, tab }]);
         }
@@ -2008,7 +2081,7 @@ ${themeCss}
           <NbaScreen
             nbaScreenRef={nbaScreenRef}
             hasDockedBar={hasDockedBar}
-            nbaGames={nbaGames}
+            verifiedNbaGames={homePipeline.nbaGamesForHome}
             nbaData={nbaData}
             nbaMsgs={nbaMsgs}
             nbaBarRef={nbaBarRef}

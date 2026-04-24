@@ -48,6 +48,145 @@ function toEtDateString(isoString) {
     timeZone: "America/New_York",
   });
 }
+function toEspnDateToken(etDateString) {
+  return String(etDateString || "").replace(/-/g, "");
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const s = String(value || "").trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+function extractEspnBroadcastChannel(event) {
+  const broadcasts = Array.isArray(event?.competitions?.[0]?.broadcasts)
+    ? event.competitions[0].broadcasts
+    : [];
+  const names = broadcasts
+    .map((b) =>
+      firstNonEmpty(
+        b?.names?.join?.(", "),
+        b?.media?.shortName,
+        b?.media?.name,
+        b?.type?.shortName,
+        b?.type?.name,
+      ),
+    )
+    .filter(Boolean);
+  return [...new Set(names)].join(", ");
+}
+
+function mapEspnEventToAppGame(event) {
+  const competitors = event?.competitions?.[0]?.competitors || [];
+  const home = competitors.find((c) => c.homeAway === "home");
+  const away = competitors.find((c) => c.homeAway === "away");
+  if (!home?.team || !away?.team) return null;
+
+  const homeName = home.team.displayName || home.team.name || "";
+  const awayName = away.team.displayName || away.team.name || "";
+  const homeAbbr = home.team.abbreviation || normalizeTeamAbbr(homeName);
+  const awayAbbr = away.team.abbreviation || normalizeTeamAbbr(awayName);
+  const type = event?.status?.type || {};
+  const stateRaw = String(type.state || "").toLowerCase();
+  const completed = Boolean(type.completed);
+  const period = Number(event?.status?.period);
+  const displayClock = String(event?.status?.displayClock || "").trim();
+  const startTimeUtc = String(event?.date || "").trim() || null;
+
+  let state = "pre";
+  if (completed || stateRaw === "post") state = "post";
+  else if (stateRaw === "in" || stateRaw === "live") state = "in";
+  const showScore = state !== "pre";
+
+  return {
+    id: event.id,
+    status: type.shortDetail || type.detail || type.description || (state === "pre" ? "Scheduled" : "Live"),
+    state,
+    statusCode: state === "post" ? 3 : state === "in" ? 2 : 1,
+    period: Number.isFinite(period) ? period : null,
+    clock: displayClock || null,
+    homeTeam: {
+      name: homeName,
+      abbr: homeAbbr,
+      score: showScore && home.score != null && home.score !== "" ? Number(home.score) : null,
+    },
+    awayTeam: {
+      name: awayName,
+      abbr: awayAbbr,
+      score: showScore && away.score != null && away.score !== "" ? Number(away.score) : null,
+    },
+    startTimeUtc,
+    startTimeSource: "espn_scoreboard",
+    channel: extractEspnBroadcastChannel(event) || null,
+    broadcast: extractEspnBroadcastChannel(event) || null,
+    postseason: /playoff|final/i.test(String(event?.season?.slug || event?.season?.type || "")),
+  };
+}
+
+async function getNbaGamesFromEspnScoreboard(todayET, tomorrowET) {
+  const tokens = [todayET, tomorrowET].map(toEspnDateToken).filter(Boolean);
+  const byPair = new Map();
+  for (const token of tokens) {
+    try {
+      const res = await fetch(
+        `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(token)}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (const event of data?.events || []) {
+        const mapped = mapEspnEventToAppGame(event);
+        if (!mapped) continue;
+        const aa = String(mapped.awayTeam?.abbr || "").toUpperCase();
+        const ha = String(mapped.homeTeam?.abbr || "").toUpperCase();
+        if (!aa || !ha) continue;
+        byPair.set(`${aa}|${ha}`, mapped);
+      }
+    } catch (err) {
+      console.warn("ESPN NBA scoreboard fetch failed:", err.message);
+    }
+  }
+  return [...byPair.values()];
+}
+
+function enrichNbaGamesWithEspn(games, espnGames) {
+  const byPair = new Map();
+  for (const g of espnGames || []) {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa && ha) byPair.set(`${aa}|${ha}`, g);
+  }
+  return (games || []).map((g) => {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    const espn = byPair.get(`${aa}|${ha}`);
+    if (!espn) return g;
+    const espnStart = String(espn.startTimeUtc || "").trim();
+    const startTimeUtc = espnStart || g.startTimeUtc || g.commenceTime || null;
+    return {
+      ...g,
+      status: espn.status || g.status,
+      state: espn.state || g.state,
+      statusCode: espn.statusCode || g.statusCode,
+      period: espn.period ?? g.period ?? null,
+      clock: espn.clock ?? g.clock ?? null,
+      homeTeam: {
+        ...g.homeTeam,
+        score: espn.homeTeam?.score ?? g.homeTeam?.score ?? null,
+      },
+      awayTeam: {
+        ...g.awayTeam,
+        score: espn.awayTeam?.score ?? g.awayTeam?.score ?? null,
+      },
+      startTimeUtc,
+      startTimeSource: espnStart ? "espn_scoreboard" : g.startTimeSource,
+      channel: espn.channel || g.channel || null,
+      broadcast: espn.broadcast || g.broadcast || null,
+    };
+  });
+}
 
 /** Map a BallDontLie /games row to the same shape as Odds API games (UI + prompts). */
 function mapBdlGameRowToAppGame(g) {
@@ -102,7 +241,7 @@ function mapBdlGameRowToAppGame(g) {
       abbr: awayAbbr,
       score: Number.isFinite(vs) ? vs : null,
     },
-    startTimeUtc: String(g.start_time || "").trim() || null,
+    startTimeUtc: firstNonEmpty(g.start_time, g.datetime) || null,
     startTimeSource: "bdl_start_time",
     postseason: !!g.postseason,
   };
@@ -197,7 +336,7 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
             score: awayPts != null ? parseInt(awayPts, 10) : null,
           },
           commenceTime: g.commence_time,
-          startTimeUtc: null,
+          startTimeUtc: String(g.commence_time || "").trim() || null,
           startTimeSource: "odds_fallback",
         };
       });
@@ -238,7 +377,7 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
                   score: null,
                 },
                 commenceTime: g.commence_time,
-                startTimeUtc: null,
+                startTimeUtc: String(g.commence_time || "").trim() || null,
                 startTimeSource: "odds_fallback",
               }));
           }
@@ -305,8 +444,10 @@ async function getTodaysGames(oddsKey, bdlKey) {
       slateMeta.bdlQueriedOk = true;
       slateMeta.bdlGameCount = mergedRows.length;
       if (mergedRows.length > 0) {
-        const games = mergedRows.map(mapBdlGameRowToAppGame);
+        const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
+        const games = enrichNbaGamesWithEspn(mergedRows.map(mapBdlGameRowToAppGame), espnGames);
         slateMeta.primarySource = "bdl";
+        slateMeta.enrichmentSource = espnGames.length > 0 ? "espn_scoreboard" : null;
         const payload = { games, slateMeta };
         setCached(GAMES_TODAY_CACHE_KEY, payload);
         return payload;
@@ -317,9 +458,16 @@ async function getTodaysGames(oddsKey, bdlKey) {
     }
   }
 
-  const games = await getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET);
+  const [oddsGames, espnGames] = await Promise.all([
+    getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET),
+    getNbaGamesFromEspnScoreboard(todayET, tomorrowET),
+  ]);
+  const games = espnGames.length > 0
+    ? enrichNbaGamesWithEspn(oddsGames.length > 0 ? oddsGames : espnGames, espnGames)
+    : oddsGames;
   if (games.length > 0) {
-    slateMeta.primarySource = "odds";
+    slateMeta.primarySource = oddsGames.length > 0 ? "odds" : "espn";
+    slateMeta.enrichmentSource = espnGames.length > 0 ? "espn_scoreboard" : null;
     const payload = { games, slateMeta };
     setCached(GAMES_TODAY_CACHE_KEY, payload);
     return payload;
@@ -1005,6 +1153,7 @@ function statRowsToPlayers(statRows, gameLabelMap) {
       ast: row.ast,
       stl: row.stl,
       blk: row.blk,
+      pf: row.pf,
       min: row.min,
       fg_pct: row.fg_pct,
       fg3_pct: row.fg3_pct,
@@ -1218,9 +1367,11 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
     const pts = p.pts != null ? `${Number(p.pts)}` : "?";
     const reb = p.reb != null ? `${Number(p.reb)}` : "?";
     const ast = p.ast != null ? `${Number(p.ast)}` : "?";
+    const min = p.min != null ? ` ${p.min}min` : "";
+    const fouls = p.pf != null ? ` ${Number(p.pf)}pf` : "";
     const tg = p.tonightGame ? ` | Tonight: ${p.tonightGame}` : "";
     const tag = p.source === "season_average" ? " [season avg]" : "";
-    return `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${tg}${tag}`;
+    return `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${min}${fouls}${tg}${tag}`;
   });
   return [header, "", ...lines].join("\n");
 }
