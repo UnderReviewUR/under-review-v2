@@ -2374,6 +2374,10 @@ function resolveOutputJsonMode({
 
 function buildJsonOutputContract(mode, sportHint, { requireStatusShift = false } = {}) {
   const sport = String(sportHint || "generic").toLowerCase();
+  const sportLineKey =
+    sport === "tennis" || sport === "tennis_wta_profile"
+      ? "tennis"
+      : sport;
 
   const nbaTier25Lead =
     sport === "nba"
@@ -2382,6 +2386,53 @@ NBA (formatting only when sport is NBA): write the opener sentence per Step 1 of
 ${requireStatusShift ? 'NBA STATUS SHIFT (mandatory): include "statusShift" in the JSON response with one decisive sentence naming the key availability shift and what it invalidates or unlocks.' : ""}
 `
       : "";
+
+  const propProjectionLineForSport = (() => {
+    if (
+      ![
+        "nba",
+        "mlb",
+        "tennis",
+        "nfl",
+        "golf",
+        "f1",
+        "tennis_wta_profile",
+      ].includes(sport)
+    ) {
+      return `Sport-specific projection lines (pick what fits ${sport}):
+- Tennis: match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.
+- NBA: points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.
+- MLB: SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.
+- NFL: QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.
+- Golf: top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.
+- F1: podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.`;
+    }
+    if (sportLineKey === "tennis" || sport === "tennis_wta_profile") {
+      return `Sport-specific projection line (Tennis):
+- match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.`;
+    }
+    if (sportLineKey === "nba") {
+      return `Sport-specific projection line (NBA):
+- points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.`;
+    }
+    if (sportLineKey === "mlb") {
+      return `Sport-specific projection line (MLB):
+- SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.`;
+    }
+    if (sportLineKey === "nfl") {
+      return `Sport-specific projection line (NFL):
+- QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.`;
+    }
+    if (sportLineKey === "golf") {
+      return `Sport-specific projection line (Golf):
+- top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.`;
+    }
+    if (sportLineKey === "f1") {
+      return `Sport-specific projection line (F1):
+- podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.`;
+    }
+    return "";
+  })();
 
   const tier25Spec = `TIER 2.5 — DEFAULT MATCHUP / PROP / SIDE RESPONSE (summary field)
 
@@ -2398,13 +2449,7 @@ MATCH READ
 
 PROP PROJECTIONS
 [3–6 lines minimum when data allows; project STATS not book prices — "project ~7" not "over 6.5 -110"]
-Sport-specific projection lines (pick what fits ${sport}):
-- Tennis: match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.
-- NBA: points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.
-- MLB: SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.
-- NFL: QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.
-- Golf: top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.
-- F1: podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.
+${propProjectionLineForSport}
 
 CONFIDENCE
 [High / Medium / Speculative] — [one-line justification]
@@ -2557,28 +2602,76 @@ If fewer than two authorized names exist for the matchup, do NOT invent names.
 Give a sharp team-level read anchored to matchup context — never mention missing lines,
 loading pipelines, or roster completeness.`;
 
-const PROP_PROJECTION_MODE_BLOCK = `PROP PROJECTION MODE — MANDATORY
+const PROP_PROJECTION_INTRO = `PROP PROJECTION MODE — MANDATORY
 
 The user is explicitly asking for prop projections. You MUST deliver:
+`;
 
-For tennis:
+const PROP_PROJECTION_SPORT_TENNIS = `For tennis:
 - Match winner lean with price threshold
 - Total games: OVER/UNDER with specific number
 - Aces for each player: "project ~N per set, ~N total"
 - Double faults for each player: "project ~N"
 - Break points saved: "~N% for each player"
 - Scoreline prediction: "[winner] in [sets], [X-X X-X] range"
+`;
 
-For NBA: points, rebounds, assists for each named player with ranges.
-For MLB: K total for each pitcher, total bases for key hitters.
-For golf: finishing position probability ranges for named golfers.
-For F1: podium probability for named drivers.
+const PROP_PROJECTION_SPORT_NBA = `For NBA: points, rebounds, assists for each named player with ranges.`;
 
-If the player database has limited data for a player, use surface/venue
+const PROP_PROJECTION_SPORT_MLB = `For MLB: K total for each pitcher, total bases for key hitters.`;
+
+const PROP_PROJECTION_SPORT_GOLF = `For golf: finishing position probability ranges for named golfers.`;
+
+const PROP_PROJECTION_SPORT_F1 = `For F1: podium probability for named drivers.`;
+
+const PROP_PROJECTION_FOOTER = `If the player database has limited data for a player, use surface/venue
 baselines and tour averages. ALWAYS produce projections. Never say
 "cannot project without more data." Confidence reflects data quality.
 
 In Tier 2.5 summary, PROP PROJECTIONS must contain at least 4 specific lines.`;
+
+const PROP_PROJECTION_MODE_BLOCK = `${PROP_PROJECTION_INTRO}
+
+${PROP_PROJECTION_SPORT_TENNIS}
+
+${PROP_PROJECTION_SPORT_NBA}
+${PROP_PROJECTION_SPORT_MLB}
+${PROP_PROJECTION_SPORT_GOLF}
+${PROP_PROJECTION_SPORT_F1}
+
+${PROP_PROJECTION_FOOTER}`;
+
+/** Sport-scoped token trim for system prompt: same substrings as PROP_PROJECTION_MODE_BLOCK, one sport only. */
+function getPropProjectionModeBlockForSport(sportHint) {
+  const s = String(sportHint || "").toLowerCase();
+  const key =
+    s === "tennis" || s === "tennis_wta_profile"
+      ? "tennis"
+      : s === "nba"
+        ? "nba"
+        : s === "mlb"
+          ? "mlb"
+          : s === "golf"
+            ? "golf"
+            : s === "f1"
+              ? "f1"
+              : "all";
+  if (key === "all") return PROP_PROJECTION_MODE_BLOCK;
+  const block =
+    key === "tennis"
+      ? PROP_PROJECTION_SPORT_TENNIS
+      : key === "nba"
+        ? PROP_PROJECTION_SPORT_NBA
+        : key === "mlb"
+          ? PROP_PROJECTION_SPORT_MLB
+          : key === "golf"
+            ? PROP_PROJECTION_SPORT_GOLF
+            : PROP_PROJECTION_SPORT_F1;
+  return `${PROP_PROJECTION_INTRO}
+${block}
+
+${PROP_PROJECTION_FOOTER}`;
+}
 
 const ROSTER_ENFORCEMENT_NBA = `ROSTER ENFORCEMENT — THIS IS A HARD RULE WITH NO EXCEPTIONS
 
@@ -2630,6 +2723,230 @@ ENFORCEMENT CHECK: Before generating your response, mentally verify each player 
 If the name appears in the Question or attached image → allowed.
 Otherwise, for roster membership → must appear under the correct team in
 playersByTeamAbbrev or remove it.`;
+
+function _parseNbaTonightGameAbbrs(tonightGame) {
+  const s = String(tonightGame || "").trim();
+  const m = s.match(/^([A-Z0-9]{2,4})\s*@\s*([A-Z0-9]{2,4})$/i);
+  if (!m) return null;
+  return { away: m[1].toUpperCase(), home: m[2].toUpperCase() };
+}
+
+function _collectTonightNbaSlateAbbrs(todaysGames) {
+  const set = new Set();
+  for (const g of todaysGames || []) {
+    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (aa && aa !== "?") set.add(aa);
+    if (ha && ha !== "?") set.add(ha);
+  }
+  return set;
+}
+
+function _filterBdlAvailabilityToTeams(avail, allowTeams) {
+  if (!avail || typeof avail !== "object" || !allowTeams || allowTeams.size === 0) return {};
+  const out = {};
+  for (const [name, meta] of Object.entries(avail)) {
+    const t = String(meta?.team || "").toUpperCase();
+    if (t && allowTeams.has(t)) out[name] = meta;
+  }
+  return out;
+}
+
+function _buildNbaSlateRowDigest(game) {
+  const a = String(game?.awayTeam?.abbr || "").toUpperCase();
+  const h = String(game?.homeTeam?.abbr || "").toUpperCase();
+  const at = String(game?.awayTeam?.name || "").trim();
+  const ht = String(game?.homeTeam?.name || "").trim();
+  const tLabel = game?.startTimeUtc
+    ? new Date(game.startTimeUtc).toLocaleString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+      })
+    : "";
+  const when = tLabel ? `${tLabel} ET` : "time TBD";
+  return `${a} vs ${h} — ${at || a} at ${ht || h} — ${when}`;
+}
+
+/**
+ * Shallow clone via JSON, then filter what is sent to the model (Haiku) only.
+ * Fetch/cache code keeps full nbaContext server-side; call sites pass this for prompt JSON + roster block.
+ * @param {object} nbaContext
+ * @param {{ awayAbbr: string, homeAbbr: string } | null} nbaMatchup
+ */
+function buildNbaContextForModel(nbaContext, nbaMatchup) {
+  if (!nbaContext || typeof nbaContext !== "object") return nbaContext;
+  const todays = Array.isArray(nbaContext.todaysGames) ? nbaContext.todaysGames : [];
+  const tonight = _collectTonightNbaSlateAbbrs(todays);
+  const awayF = nbaMatchup ? String(nbaMatchup.awayAbbr || "").toUpperCase() : "";
+  const homeF = nbaMatchup ? String(nbaMatchup.homeAbbr || "").toUpperCase() : "";
+  const focus = awayF && homeF ? new Set([awayF, homeF]) : null;
+  const relevantTeams = focus || (tonight.size > 0 ? tonight : null);
+
+  let raw;
+  try {
+    raw = JSON.parse(JSON.stringify(nbaContext));
+  } catch {
+    return nbaContext;
+  }
+
+  if (relevantTeams == null || relevantTeams.size === 0) {
+    if (tonight.size > 0) {
+      raw.bdlAvailability = _filterBdlAvailabilityToTeams(raw.bdlAvailability, tonight);
+      if (raw.bdlGrounding && typeof raw.bdlGrounding === "object") {
+        raw.bdlGrounding = { ...raw.bdlGrounding };
+        raw.bdlGrounding.bdlAvailability = _filterBdlAvailabilityToTeams(
+          raw.bdlGrounding.bdlAvailability,
+          tonight,
+        );
+        if (raw.bdlGrounding.bdlGroundedPlayers) {
+          const gP = {};
+          for (const [k, v] of Object.entries(raw.bdlGrounding.bdlGroundedPlayers)) {
+            const t = String(v?.team || "").toUpperCase();
+            if (t && tonight.has(t)) gP[k] = v;
+          }
+          raw.bdlGrounding.bdlGroundedPlayers = gP;
+        }
+      }
+      if (Array.isArray(raw.injuries)) {
+        raw.injuries = raw.injuries.filter((r) => tonight.has(String(r?.team || "").toUpperCase()));
+      }
+    }
+    return raw;
+  }
+
+  if (tonight.size > 0) {
+    raw.bdlAvailability = _filterBdlAvailabilityToTeams(raw.bdlAvailability, tonight);
+    if (raw.bdlGrounding && typeof raw.bdlGrounding === "object") {
+      raw.bdlGrounding = { ...raw.bdlGrounding };
+      raw.bdlGrounding.bdlAvailability = _filterBdlAvailabilityToTeams(
+        raw.bdlGrounding.bdlAvailability,
+        tonight,
+      );
+      if (raw.bdlGrounding.bdlGroundedPlayers) {
+        const gP = {};
+        for (const [k, v] of Object.entries(raw.bdlGrounding.bdlGroundedPlayers)) {
+          const t = String(v?.team || "").toUpperCase();
+          if (t && tonight.has(t)) gP[k] = v;
+        }
+        raw.bdlGrounding.bdlGroundedPlayers = gP;
+      }
+    }
+  }
+
+  if (tonight.size > 0 && Array.isArray(raw.injuries)) {
+    raw.injuries = raw.injuries.filter((r) => tonight.has(String(r?.team || "").toUpperCase()));
+  }
+
+  if (Array.isArray(raw.playerStats)) {
+    raw.playerStats = raw.playerStats.filter((row) => {
+      const t = String(row?.team || "").toUpperCase();
+      if (relevantTeams.has(t)) return true;
+      if (focus) {
+        const tg = _parseNbaTonightGameAbbrs(row?.tonightGame);
+        if (tg) {
+          const a = [tg.away, tg.home].sort().join();
+          const b = [awayF, homeF].sort().join();
+          if (a && b && a === b) return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  if (raw.rosterGrounding && raw.rosterGrounding.playersByTeamAbbrev) {
+    const pbt = {};
+    for (const ab of relevantTeams) {
+      if (raw.rosterGrounding.playersByTeamAbbrev[ab]) {
+        pbt[ab] = raw.rosterGrounding.playersByTeamAbbrev[ab];
+      }
+    }
+    raw.rosterGrounding = { ...raw.rosterGrounding, playersByTeamAbbrev: pbt };
+    if (raw.rosterGrounding.qualityByTeam) {
+      const q = {};
+      for (const ab of relevantTeams) {
+        if (raw.rosterGrounding.qualityByTeam[ab] != null) {
+          q[ab] = raw.rosterGrounding.qualityByTeam[ab];
+        }
+      }
+      raw.rosterGrounding.qualityByTeam = q;
+    }
+  }
+
+  if (focus && Array.isArray(raw.propLines)) {
+    const fa = awayF;
+    const fh = homeF;
+    raw.propLines = raw.propLines.filter((pl) => {
+      const g = String(pl?.game || "");
+      if (!g) return true;
+      const gup = g.toUpperCase();
+      return gup.includes(fa) && gup.includes(fh);
+    });
+  }
+
+  if (focus && todays.length > 0) {
+    raw.todaysGames = todays.map((g) => {
+      const a = String(g?.awayTeam?.abbr || "").toUpperCase();
+      const h = String(g?.homeTeam?.abbr || "").toUpperCase();
+      const isFocus = (a === awayF && h === homeF) || (a === homeF && h === awayF);
+      if (isFocus) return g;
+      return {
+        _slimSlate: true,
+        awayTeam: { abbr: g?.awayTeam?.abbr, name: g?.awayTeam?.name, score: g?.awayTeam?.score },
+        homeTeam: { abbr: g?.homeTeam?.abbr, name: g?.homeTeam?.name, score: g?.homeTeam?.score },
+        startTimeUtc: g?.startTimeUtc,
+        startTimeSource: g?.startTimeSource,
+        state: g?.state,
+        status: g?.status,
+        period: g?.period,
+        clock: g?.clock,
+        seriesContext: g?.seriesContext,
+        digest: _buildNbaSlateRowDigest(g),
+      };
+    });
+  }
+
+  if (focus && raw.gameTotals && typeof raw.gameTotals === "object" && !Array.isArray(raw.gameTotals)) {
+    const o = {};
+    for (const [k, v] of Object.entries(raw.gameTotals)) {
+      const ku = k.toUpperCase();
+      if (ku.includes(awayF) && ku.includes(homeF)) o[k] = v;
+    }
+    if (Object.keys(o).length > 0) raw.gameTotals = o;
+  }
+
+  if (focus && Array.isArray(raw.playoffSeries)) {
+    raw.playoffSeries = raw.playoffSeries.filter((row) => {
+      const s = JSON.stringify(row || "").toUpperCase();
+      return s.includes(awayF) && s.includes(homeF);
+    });
+  }
+
+  const nameSet = new Set(
+    (raw.playerStats || [])
+      .map((r) => String(r?.name || "").trim())
+      .filter(Boolean),
+  );
+  if (nameSet.size > 0 && raw.playerStatsText) {
+    const filtered = String(raw.playerStatsText)
+      .split("\n")
+      .filter((line) => {
+        for (const n of nameSet) {
+          if (n && line.includes(n)) return true;
+        }
+        return false;
+      })
+      .join("\n");
+    if (String(filtered).trim().length > 0) {
+      raw.playerStatsText = filtered;
+    }
+  }
+
+  return raw;
+}
 
 function extractMlbMarketHints(qRaw) {
   const q = String(qRaw || "").toLowerCase();
@@ -3457,6 +3774,11 @@ export default async function handler(req, res) {
   const nbaGameStateGate =
     sportHint === "nba" ? buildNbaGameStateGateSnapshot(nbaContext || {}, nbaMatchup) : null;
 
+  const nbaContextForModel =
+    sportHint === "nba" && nbaContext && typeof nbaContext === "object"
+      ? buildNbaContextForModel(nbaContext, nbaMatchup)
+      : nbaContext;
+
   const tennisSystemPromptExtra = ``;
 
   const evidenceSparsityProfile = resolveEvidenceSparsityProfile({
@@ -3507,7 +3829,8 @@ export default async function handler(req, res) {
     requireStatusShift:
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
   });
-  const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
+  const propProjectionModeBlock =
+    intent === "prop_projection" ? `\n\n${getPropProjectionModeBlockForSport(sportHint)}` : "";
   let systemPromptForModel =
     outputJsonMode !== "plain" && jsonContract
       ? `${systemPrompt}
@@ -3711,7 +4034,7 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
     userPrompt = buildSlipReviewPrompt({
       question,
       sportHint,
-      nbaContext,
+      nbaContext: nbaContextForModel,
       nflContext,
       mlbContext,
       golfContext: golfContextEffective,
@@ -4185,7 +4508,7 @@ Never open with market-availability throat-clearing. Give monitoring hooks; name
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContext, {
+    const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContextForModel, {
       hasImage,
       question,
       matchup: nbaMatchup,
@@ -4224,7 +4547,7 @@ Status: ${nbaInvalidation.statusDisplay || nbaInvalidation.statusClass}
 Rule: Do not give false certainty. Keep any take contingent on confirmed status.
 
 ` : ""}${nbaMatchupGroundingBlock ? `${nbaMatchupGroundingBlock}\n\n` : ""}NBA context:
-${JSON.stringify(nbaContext || {}, null, 2)}
+${JSON.stringify(nbaContextForModel || {}, null, 2)}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
@@ -4905,6 +5228,11 @@ ${continuationRule}`;
         nbaContext.rosterGrounding.rosterGroundingQuality ?? "absent",
       );
     }
+    console.log(
+      `[ur-take] context: sport=${String(
+        sportHint || "unknown",
+      )} systemPromptChars=${systemPromptForModel.length} contextPayloadChars=${userPrompt.length}`,
+    );
 
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
