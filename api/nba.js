@@ -1074,38 +1074,99 @@ function bdlHeaders(bdlKey) {
   return { Accept: "application/json", Authorization: bdlKey };
 }
 
-async function fetchBdlInjuries(bdlKey) {
-  if (!bdlKey) return [];
-  const bases = [
-    "https://api.balldontlie.io/nba/v1/injuries",
-    "https://api.balldontlie.io/v1/injuries",
+const NBA_PLAYER_INJURIES_CACHE_KEY = "nba_injuries_current_v2";
+const NBA_PLAYER_INJURIES_TTL_SECONDS = 30 * 60;
+
+function normalizePlayerInjuryMapEntry(row) {
+  const playerObj = row?.player || row?.athlete || {};
+  const teamObj = row?.team || playerObj?.team || {};
+  const playerId = Number(playerObj?.id || row?.player_id || row?.athlete_id);
+  if (!Number.isFinite(playerId)) return null;
+  const player = String(
+    playerObj?.full_name ||
+      playerObj?.display_name ||
+      [playerObj?.first_name, playerObj?.last_name].filter(Boolean).join(" ") ||
+      row?.player_name ||
+      "",
+  ).trim();
+  const teamFromPayload = canonicalizeTeamAbbr(
+    teamObj?.abbreviation || normalizeTeamAbbr(teamObj?.full_name || teamObj?.name || ""),
+  );
+  const team =
+    teamFromPayload && teamFromPayload !== "UNK" && teamFromPayload !== "?"
+      ? teamFromPayload
+      : BDL_TEAM_ABBR_BY_ID[String(playerObj?.team_id || row?.team_id || "")] || "UNK";
+  const status = String(row?.status || row?.designation || row?.availability || "").trim();
+  const description = String(row?.description || row?.detail || "").trim();
+  const returnDate = String(
+    row?.return_date || row?.returnDate || row?.expected_return || row?.estimated_return || "",
+  ).trim();
+  return {
+    playerId,
+    player,
+    team,
+    status,
+    description,
+    returnDate,
+  };
+}
+
+export async function fetchPlayerInjuries(bdlKey) {
+  if (!bdlKey) return {};
+  try {
+    const cached = await getDurableJson(NBA_PLAYER_INJURIES_CACHE_KEY);
+    if (cached && typeof cached === "object" && !Array.isArray(cached)) return cached;
+  } catch {
+    // non-fatal
+  }
+
+  const endpoints = [
+    "https://api.balldontlie.io/v1/player_injuries",
+    "https://api.balldontlie.io/nba/v1/player_injuries",
   ];
-  for (const base of bases) {
+
+  for (const url of endpoints) {
     try {
-      const res = await fetch(`${base}?per_page=100`, { headers: bdlHeaders(bdlKey) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const rows = Array.isArray(data?.data) ? data.data : [];
-      if (!rows.length) continue;
-      return rows
-        .map((row) => {
-          const playerObj = row?.player || row?.athlete || {};
-          const teamObj = row?.team || playerObj?.team || {};
-          const player =
-            String(playerObj?.full_name || playerObj?.display_name || row?.player_name || "").trim();
-          const team =
-            canonicalizeTeamAbbr(teamObj?.abbreviation || normalizeTeamAbbr(teamObj?.full_name || teamObj?.name || ""));
-          const status = String(row?.status || row?.designation || row?.availability || "").trim();
-          const detail = String(row?.description || row?.detail || "").trim();
-          if (!player) return null;
-          return { player, team, status, detail };
-        })
-        .filter(Boolean);
+      const out = {};
+      let cursor = null;
+      let pages = 0;
+      let sawOk = false;
+      while (pages < 40) {
+        const qs = new URLSearchParams();
+        qs.append("per_page", "100");
+        if (cursor != null && cursor !== "") qs.append("cursor", String(cursor));
+        const res = await fetch(`${url}?${qs.toString()}`, { headers: bdlHeaders(bdlKey) });
+        if (!res.ok) break;
+        sawOk = true;
+        const payload = await res.json().catch(() => ({}));
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        for (const row of rows) {
+          const normalized = normalizePlayerInjuryMapEntry(row);
+          if (!normalized) continue;
+          out[String(normalized.playerId)] = {
+            status: normalized.status || "unknown",
+            description: normalized.description || "",
+            returnDate: normalized.returnDate || "",
+            player: normalized.player || "",
+            team: normalized.team || "",
+          };
+        }
+        const next = payload?.meta?.next_cursor;
+        if (next == null || next === "" || rows.length === 0) break;
+        cursor = next;
+        pages += 1;
+      }
+      if (!sawOk) continue;
+      await setDurableJson(NBA_PLAYER_INJURIES_CACHE_KEY, out, {
+        ttlSeconds: NBA_PLAYER_INJURIES_TTL_SECONDS,
+      });
+      return out;
     } catch {
-      // try fallback endpoint
+      // non-fatal — try next endpoint
     }
   }
-  return [];
+
+  return {};
 }
 
 function abbrevFromTeamObj(t) {
@@ -1254,6 +1315,9 @@ const BDL_TEAM_ID_BY_ABBR = {
   HOU: 11, IND: 12, LAC: 13, LAL: 14, MEM: 15, MIA: 16, MIL: 17, MIN: 18, NOP: 19, NYK: 20,
   OKC: 21, ORL: 22, PHI: 23, PHX: 24, POR: 25, SAC: 26, SAS: 27, TOR: 28, UTA: 29, WAS: 30,
 };
+const BDL_TEAM_ABBR_BY_ID = Object.fromEntries(
+  Object.entries(BDL_TEAM_ID_BY_ABBR).map(([abbr, id]) => [String(id), abbr]),
+);
 
 /** Active roster pull for one or more team IDs from BDL's /v1/players/active endpoint. */
 async function fetchActiveRosterPlayers(bdlKey, teamIds) {
@@ -1400,6 +1464,15 @@ function bdlTeamIdsForPregameTeams(todaysGames) {
     const h = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
     if (a && BDL_TEAM_ID_BY_ABBR[a]) ids.add(BDL_TEAM_ID_BY_ABBR[a]);
     if (h && BDL_TEAM_ID_BY_ABBR[h]) ids.add(BDL_TEAM_ID_BY_ABBR[h]);
+  }
+  return [...ids];
+}
+
+function bdlTeamIdsForAbbrevs(abbrevs) {
+  const ids = new Set();
+  for (const abbr of abbrevs || []) {
+    const a = canonicalizeTeamAbbr(abbr);
+    if (a && BDL_TEAM_ID_BY_ABBR[a]) ids.add(BDL_TEAM_ID_BY_ABBR[a]);
   }
   return [...ids];
 }
@@ -1566,13 +1639,14 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
  * @param {object[]} [todaysGames] — merged scoreboard/API games (ET today). Used to attach
  *   season-average rows for teams in pregame games when game_box rows only cover tipped games.
  */
-async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
+async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrevs = []) {
   if (!bdlKey) {
     const empty = { playerStats: [], playerStatsText: "", statsSource: "none" };
     return empty;
   }
 
   const season = getNbaSeasonContext().season;
+  const focusTeamIds = bdlTeamIdsForAbbrevs(focusTeamAbbrevs);
 
   try {
     const todayIso = getTodayEtDateString();
@@ -1594,7 +1668,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
       const seasonAvg = await fetchSeasonAveragePlayerStats(
         bdlKey,
         season,
-        bdlTeamIdsForPregameTeams(todaysGames),
+        focusTeamIds.length ? focusTeamIds : bdlTeamIdsForPregameTeams(todaysGames),
       );
       const merged = mergeGameBoxWithPregameSeasonAverages(playerStats, todaysGames, seasonAvg);
       playerStats = merged.players;
@@ -1603,7 +1677,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
       playerStats = await fetchSeasonAveragePlayerStats(
         bdlKey,
         season,
-        bdlTeamIdsForSlate(todaysGames),
+        focusTeamIds.length ? focusTeamIds : bdlTeamIdsForSlate(todaysGames),
       );
       statsSource = "season_average";
     }
@@ -1616,7 +1690,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
     const fallback = await fetchSeasonAveragePlayerStats(
       bdlKey,
       season,
-      bdlTeamIdsForSlate(todaysGames),
+      focusTeamIds.length ? focusTeamIds : bdlTeamIdsForSlate(todaysGames),
     );
     return {
       playerStats: fallback,
@@ -1648,7 +1722,15 @@ async function getNbaInjuries(bdlKey, todaysGames, question = "") {
   }
 
   try {
-    const rows = await fetchBdlInjuries(bdlKey);
+    const injuryMap = await fetchPlayerInjuries(bdlKey);
+    const rows = Object.entries(injuryMap || {}).map(([playerId, meta]) => ({
+      playerId: Number(playerId),
+      player: String(meta?.player || "").trim(),
+      team: String(meta?.team || "").trim().toUpperCase(),
+      status: String(meta?.status || "").trim(),
+      detail: String(meta?.description || "").trim(),
+      returnDate: String(meta?.returnDate || "").trim(),
+    }));
     const injuries = rows.filter((i) => {
       const lower = String(i.player || "").toLowerCase();
       return gameTeams.has(i.team) || questionMentionsPlayer(question, lower);
@@ -1660,6 +1742,77 @@ async function getNbaInjuries(bdlKey, todaysGames, question = "") {
     console.warn("getNbaInjuries error:", err.message);
     return [];
   }
+}
+
+function buildRecentGameLogEntry(row) {
+  const game = row?.game || {};
+  const homeAbbr = canonicalizeTeamAbbr(game?.home_team?.abbreviation || "");
+  const awayAbbr = canonicalizeTeamAbbr(game?.visitor_team?.abbreviation || "");
+  const gameDate = String(game?.date || row?.date || "").trim();
+  return {
+    gameId: game?.id ?? null,
+    date: gameDate || null,
+    matchup: awayAbbr && homeAbbr ? `${awayAbbr} @ ${homeAbbr}` : "",
+    pts: row?.pts ?? null,
+    reb: row?.reb ?? null,
+    ast: row?.ast ?? null,
+    stl: row?.stl ?? null,
+    blk: row?.blk ?? null,
+    min: row?.min ?? null,
+    fg_pct: row?.fg_pct ?? null,
+    fg3_pct: row?.fg3_pct ?? null,
+    ft_pct: row?.ft_pct ?? null,
+  };
+}
+
+async function fetchRecentGameLogs(bdlKey, playerStats, focusTeamAbbrevs) {
+  if (!bdlKey) return {};
+  const focus = new Set((focusTeamAbbrevs || []).map((a) => String(a || "").toUpperCase()).filter(Boolean));
+  if (!focus.size) return {};
+
+  const targetPlayerIds = [...new Set(
+    (playerStats || [])
+      .filter((p) => focus.has(String(p?.team || "").toUpperCase()))
+      .map((p) => Number(p?.playerId))
+      .filter(Number.isFinite),
+  )].slice(0, 40);
+  if (!targetPlayerIds.length) return {};
+
+  const byPlayer = {};
+  const chunkSize = 10;
+  for (let i = 0; i < targetPlayerIds.length; i += chunkSize) {
+    const chunk = targetPlayerIds.slice(i, i + chunkSize);
+    let cursor = null;
+    let pages = 0;
+    while (pages < 10) {
+      const qs = new URLSearchParams();
+      qs.append("per_page", "100");
+      chunk.forEach((id) => qs.append("player_ids[]", String(id)));
+      if (cursor != null && cursor !== "") qs.append("cursor", String(cursor));
+      const data = await fetchJsonOrNull(`https://api.balldontlie.io/v1/stats?${qs.toString()}`, bdlKey);
+      if (!data || !Array.isArray(data.data) || data.data.length === 0) break;
+      for (const row of data.data) {
+        const playerId = Number(row?.player?.id || row?.player_id);
+        if (!Number.isFinite(playerId)) continue;
+        if (!byPlayer[playerId]) byPlayer[playerId] = [];
+        byPlayer[playerId].push(row);
+      }
+      const next = data.meta?.next_cursor;
+      if (next == null || next === "") break;
+      cursor = next;
+      pages += 1;
+    }
+  }
+
+  const out = {};
+  for (const [playerIdStr, rows] of Object.entries(byPlayer)) {
+    const top = [...rows]
+      .sort((a, b) => Date.parse(String(b?.game?.date || "")) - Date.parse(String(a?.game?.date || "")))
+      .slice(0, 3)
+      .map(buildRecentGameLogEntry);
+    out[playerIdStr] = top;
+  }
+  return out;
 }
 
 function normalizeInjuryStatus(status, detail) {
@@ -2008,7 +2161,7 @@ export async function buildNbaUrTakeBoard(question = "") {
 
   const [rawBundle, statsBundle, playoffSeries] = await Promise.all([
     getNbaPropLines(ODDS_KEY, { priorityAbbrevs: boost, maxEvents: 18 }),
-    getNbaPlayerStatsBundle(BDL_KEY, todaysGames),
+    getNbaPlayerStatsBundle(BDL_KEY, todaysGames, boost),
     getNbaPlayoffSeries(),
   ]);
   const rawPropLines = rawBundle.propLines || [];
@@ -2023,8 +2176,20 @@ export async function buildNbaUrTakeBoard(question = "") {
     statsBundle.playerStats || [],
     propLines,
   );
-  const playerStatsTextMerged = buildPlayerStatsSummaryLines(
+  const recentGameLogsByPlayerId = await fetchRecentGameLogs(
+    BDL_KEY,
     playerStatsWithTonight,
+    boost,
+  );
+  const playerStatsWithRecent = playerStatsWithTonight.map((p) => {
+    const playerId = Number(p?.playerId);
+    const recentGames = Number.isFinite(playerId)
+      ? recentGameLogsByPlayerId[String(playerId)] || []
+      : [];
+    return { ...p, recentGames };
+  });
+  const playerStatsTextMerged = buildPlayerStatsSummaryLines(
+    playerStatsWithRecent,
     statsBundle.statsSource || "season_average",
   );
 
@@ -2037,7 +2202,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     lastNight: [],
     lastNightStats: [],
     liveStats: [],
-    playerStats: playerStatsWithTonight.slice(0, 120),
+    playerStats: playerStatsWithRecent.slice(0, 120),
     playerStatsText: playerStatsTextMerged,
     statsSource: statsBundle.statsSource || "unknown",
     rosterGrounding: buildNbaRosterGrounding(
@@ -2050,7 +2215,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     propLines: propLines.slice(0, 120),
     injuries,
     bdlGrounding: buildBdlGroundingEnvelope({
-      playerStats: playerStatsWithTonight,
+      playerStats: playerStatsWithRecent,
       todaysGames,
       injuries,
     }),
@@ -2067,6 +2232,7 @@ export async function buildNbaUrTakeBoard(question = "") {
         : "",
     },
   };
+  board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
 
   board.newsImpact = buildNbaNewsImpact(board);
   board = prioritizeNbaBoardForQuestion(board, boost);
@@ -2115,9 +2281,21 @@ export default async function handler(req, res) {
         statsBundle.playerStats || [],
         propLines,
       );
+      const recentGameLogsByPlayerId = await fetchRecentGameLogs(
+        BDL_KEY,
+        playerStatsWithTonight,
+        [],
+      );
+      const playerStatsWithRecent = playerStatsWithTonight.map((p) => {
+        const playerId = Number(p?.playerId);
+        const recentGames = Number.isFinite(playerId)
+          ? recentGameLogsByPlayerId[String(playerId)] || []
+          : [];
+        return { ...p, recentGames };
+      });
 
       const playerStatsTextMerged = buildPlayerStatsSummaryLines(
-        playerStatsWithTonight,
+        playerStatsWithRecent,
         statsBundle.statsSource || "season_average",
       );
 
@@ -2126,11 +2304,11 @@ export default async function handler(req, res) {
         todaysGames,
         todaysGamesSlateMeta,
         lastNight: [], lastNightStats: [], liveStats: [],
-        playerStats: playerStatsWithTonight.slice(0, 120),
+        playerStats: playerStatsWithRecent.slice(0, 120),
         playerStatsText: playerStatsTextMerged,
         statsSource: statsBundle.statsSource || "unknown",
         rosterGrounding: buildNbaRosterGrounding(
-          playerStatsWithTonight,
+          playerStatsWithRecent,
           propLines,
           injuries,
           statsBundle.statsSource || "unknown",
@@ -2139,7 +2317,7 @@ export default async function handler(req, res) {
         propLines:   propLines.slice(0, 120),
         injuries,
         bdlGrounding: buildBdlGroundingEnvelope({
-          playerStats: playerStatsWithTonight,
+          playerStats: playerStatsWithRecent,
           todaysGames,
           injuries,
         }),
@@ -2154,6 +2332,7 @@ export default async function handler(req, res) {
           firstDurableGetError: rosterDiag.firstDurableGetError,
         },
       };
+      board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
       board.newsImpact = buildNbaNewsImpact(board);
 
       if (
