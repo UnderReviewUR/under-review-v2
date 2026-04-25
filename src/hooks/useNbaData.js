@@ -1,32 +1,36 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { isNbaTimeMismatch } from "../lib/nbaTime.js";
-
-// NBA Playoff series tracker — update manually each round or wire to API
-const NBA_PLAYOFF_SERIES = {
-  // Format: "AWAY_ABBR vs HOME_ABBR" or "HOME_ABBR vs AWAY_ABBR" → series state
-  // Update after each game. gameNum = total games played in series.
-  // leader = abbr of team leading, or null if tied
-};
 
 export function useNbaData() {
   const [nbaData, setNbaData] = useState(null);
   const [nbaLoading, setNbaLoading] = useState(false);
   const [nbaGames, setNbaGames] = useState([]);
 
+  const playoffSeries = useMemo(
+    () => (Array.isArray(nbaData?.playoffSeries) ? nbaData.playoffSeries : []),
+    [nbaData],
+  );
+
   const getSeriesLabel = useCallback((awayAbbr, homeAbbr) => {
-    const key1 = `${awayAbbr} vs ${homeAbbr}`;
-    const key2 = `${homeAbbr} vs ${awayAbbr}`;
-    const series = NBA_PLAYOFF_SERIES[key1] || NBA_PLAYOFF_SERIES[key2];
-    if (!series) return null;
-    const { gameNum, leader, awayWins, homeWins } = series;
-    const aw = Number(awayWins || 0);
-    const hw = Number(homeWins || 0);
-    const seriesLabel = aw + hw > 0 ? `Series: ${awayAbbr} ${aw} - ${homeAbbr} ${hw}` : null;
-    if (!seriesLabel) return null;
-    if (gameNum === 0 || !gameNum) return "Game 1";
-    if (!leader) return `Game ${gameNum + 1} · ${seriesLabel}`;
-    return `Game ${gameNum + 1} · ${leader} lead ${Math.max(aw, hw)}-${Math.min(aw, hw)}`;
-  }, []);
+    const away = String(awayAbbr || "").toUpperCase();
+    const home = String(homeAbbr || "").toUpperCase();
+    if (!away || !home) return null;
+    const row = playoffSeries.find((s) => {
+      const sa = String(s?.away || "").toUpperCase();
+      const sh = String(s?.home || "").toUpperCase();
+      return (sa === away && sh === home) || (sa === home && sh === away);
+    });
+    if (!row) return null;
+    const sa = String(row?.away || "").toUpperCase();
+    const sh = String(row?.home || "").toUpperCase();
+    const rowAwayWins = Number(row?.awayWins || 0);
+    const rowHomeWins = Number(row?.homeWins || 0);
+    const awayWins = sa === away && sh === home ? rowAwayWins : rowHomeWins;
+    const homeWins = sa === away && sh === home ? rowHomeWins : rowAwayWins;
+    const played = awayWins + homeWins;
+    if (!Number.isFinite(played) || played < 0) return null;
+    return `Game ${played + 1}`;
+  }, [playoffSeries]);
 
   const toEtDateString = useCallback((isoString) => {
     if (!isoString) return "";

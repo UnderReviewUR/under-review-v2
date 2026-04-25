@@ -1125,6 +1125,13 @@ ${themeCss}
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
   const homeNbaCards = useMemo(() => {
+    const toEtDateYmd = (startTimeUtc) => {
+      const raw = String(startTimeUtc || "").trim();
+      if (!raw) return "";
+      const dt = new Date(raw);
+      if (Number.isNaN(dt.getTime())) return "";
+      return dt.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    };
     const toEtTipLabel = (startTimeUtc) => {
       const raw = String(startTimeUtc || "").trim();
       if (!raw) return "TBD ET";
@@ -1136,14 +1143,21 @@ ${themeCss}
         timeZone: "America/New_York",
       })} ET`;
     };
-    const upcoming = homePipeline.nbaGamesForHome
-      .filter((g) => g?.state === "pre")
+    const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const todayGames = homePipeline.nbaGamesForHome
+      .filter((g) => toEtDateYmd(g?.startTimeUtc) === todayEt)
+      .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
       .filter((g) => {
         const k = nbaEventKey(g);
         return !(k && cardExcludeSet.has(k));
+      })
+      .sort((a, b) => {
+        const ta = Number.isNaN(Date.parse(a?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(a?.startTimeUtc);
+        const tb = Number.isNaN(Date.parse(b?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(b?.startTimeUtc);
+        return ta - tb;
       });
 
-    if (!upcoming.length && !homePipeline.nbaGamesForHome.length) {
+    if (!todayGames.length && !homePipeline.nbaGamesForHome.length) {
       return [
         {
           id: "nba-default",
@@ -1160,11 +1174,11 @@ ${themeCss}
       ];
     }
 
-    if (!upcoming.length) {
+    if (!todayGames.length) {
       return [];
     }
 
-    const rows = upcoming.map((g, i) => {
+    const rows = todayGames.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
       const series = getSeriesLabel(away, home);
