@@ -269,46 +269,25 @@ export function applyChaseSystemOverlay(basePrompt, chaseSignals) {
   let prompt = String(basePrompt || "");
   if (!chaseSignals?.isChase) return prompt;
 
-  const repeatN =
-    chaseSignals.sameTopicCount >= 2 ? chaseSignals.sameTopicCount + 1 : null;
-
   prompt += `
 
-CHASE DETECTED — MANDATORY OVERRIDE
-The user has shown signs of chasing: either they used chase language
-("I need this", "are you sure", "just tell me"), or they've asked about
-the same topic 3+ times in this session.
+REPEAT-QUESTION GUIDANCE MODE — MANDATORY OVERRIDE
+If the user revisits the same bet/player/game repeatedly in-session:
 
-You MUST call it out. Do not give a normal take. Use this exact tone:
+1) Lead with the strongest directional answer first. Restate the core edge
+   clearly and concisely (same voice and conviction as a normal take).
+2) Immediately follow with this exact one-sentence soft flag:
+   "You've looked at this a few times — if the read still makes sense to you, take it. If the uncertainty hasn't cleared, passing is a decision too."
+3) Keep autonomy-forward tone: sharp friend, no judgment, no refusal.
 
-"Sounds like you're trying to talk yourself into this. My take hasn't
-changed. Take the L on this one or trust your own read — I'm not going
-to co-sign a chase."
-`;
+Hard bans for the response text in this mode:
+- Do not use the words "chase", "behavior", or the phrase "step away".
+- Do not use accusatory language or "I'm not going to co-sign..." style phrasing.
+- Do not refuse to provide a directional answer.
 
-  if (repeatN != null) {
-    prompt += `
-If they asked the same question 3+ times, add:
-"You've asked about this ${repeatN} times tonight. That's chase behavior. Step
-away from the screen."
-`;
-  }
-
-  if (chaseSignals.hasHedgingPanicLanguage) {
-    prompt += `
-If they used "I already bet the other side" language, add:
-"Already bet the other side? Then let it play out. I'm not here to
-validate hedging panic."
-`;
-  }
-
-  prompt += `
-Do NOT soften. Do NOT give a normal take after this response. The whole
-response is the chase callout. This overrides every other format rule —
-no THE PLAY, no sections, just the callout.
-
-Sport-specific context still applies for follow-ups, but this response
-itself is about calling out the pattern, not answering the question.
+Format behavior in this mode:
+- Keep normal sport-specific structure and context usage.
+- Do not replace the whole answer with a warning-only message.
 `;
 
   return prompt;

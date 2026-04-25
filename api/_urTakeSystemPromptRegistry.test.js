@@ -58,7 +58,7 @@ test("composeRegisteredUrTakeSystemPrompt applies chase overlay last", () => {
     nbaDecisionMode: "none",
     mlbDecisionMode: null,
   });
-  assert.match(p, /CHASE DETECTED — MANDATORY OVERRIDE/);
+  assert.match(p, /REPEAT-QUESTION GUIDANCE MODE — MANDATORY OVERRIDE/);
   assert.match(p, /NFL SURFACE SPINE/);
 });
 
