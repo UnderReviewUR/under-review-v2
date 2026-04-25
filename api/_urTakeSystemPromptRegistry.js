@@ -307,11 +307,6 @@ Format behavior in this mode:
  * @param {boolean} [input.hasMatchupContext]
  * @param {{ sparseQuestion: boolean, thinEvidence: boolean }} [input.evidenceSparsityProfile] — when set, reuse (single compute in handler)
  */
-/**
- * Assembles: shared core (framework, confidence, global quality, P-PR2, voice, structure)
- * + exactly one sport surface appendix from buildSportSurfaceRegistryAppendix
- * (NBA/MLB/Tennis/NFL/Golf/F1, or generic spine).
- */
 export function composeRegisteredUrTakeSystemPrompt(input) {
   const {
     contextQuality,

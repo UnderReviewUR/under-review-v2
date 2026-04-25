@@ -2374,10 +2374,6 @@ function resolveOutputJsonMode({
 
 function buildJsonOutputContract(mode, sportHint, { requireStatusShift = false } = {}) {
   const sport = String(sportHint || "generic").toLowerCase();
-  const sportLineKey =
-    sport === "tennis" || sport === "tennis_wta_profile"
-      ? "tennis"
-      : sport;
 
   const nbaTier25Lead =
     sport === "nba"
@@ -2386,53 +2382,6 @@ NBA (formatting only when sport is NBA): write the opener sentence per Step 1 of
 ${requireStatusShift ? 'NBA STATUS SHIFT (mandatory): include "statusShift" in the JSON response with one decisive sentence naming the key availability shift and what it invalidates or unlocks.' : ""}
 `
       : "";
-
-  const propProjectionLineForSport = (() => {
-    if (
-      ![
-        "nba",
-        "mlb",
-        "tennis",
-        "nfl",
-        "golf",
-        "f1",
-        "tennis_wta_profile",
-      ].includes(sport)
-    ) {
-      return `Sport-specific projection lines (pick what fits ${sport}):
-- Tennis: match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.
-- NBA: points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.
-- MLB: SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.
-- NFL: QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.
-- Golf: top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.
-- F1: podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.`;
-    }
-    if (sportLineKey === "tennis" || sport === "tennis_wta_profile") {
-      return `Sport-specific projection line (Tennis):
-- match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.`;
-    }
-    if (sportLineKey === "nba") {
-      return `Sport-specific projection line (NBA):
-- points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.`;
-    }
-    if (sportLineKey === "mlb") {
-      return `Sport-specific projection line (MLB):
-- SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.`;
-    }
-    if (sportLineKey === "nfl") {
-      return `Sport-specific projection line (NFL):
-- QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.`;
-    }
-    if (sportLineKey === "golf") {
-      return `Sport-specific projection line (Golf):
-- top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.`;
-    }
-    if (sportLineKey === "f1") {
-      return `Sport-specific projection line (F1):
-- podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.`;
-    }
-    return "";
-  })();
 
   const tier25Spec = `TIER 2.5 — DEFAULT MATCHUP / PROP / SIDE RESPONSE (summary field)
 
@@ -2449,7 +2398,13 @@ MATCH READ
 
 PROP PROJECTIONS
 [3–6 lines minimum when data allows; project STATS not book prices — "project ~7" not "over 6.5 -110"]
-${propProjectionLineForSport}
+Sport-specific projection lines (pick what fits ${sport}):
+- Tennis: match-winner threshold band; total games lean; aces per player ("Name: project ~N"); double faults; break points saved bands; scoreline prediction.
+- NBA: points (and rebounds/assists/PRA as role fits); threes for shooters; minutes if role unclear; game total lean.
+- MLB: SP strikeouts each; key hitter total bases; game total lean + park note; first-inning angle when useful.
+- NFL: QB yards/TDs; primary RB rush; WR1/WR2 yards; anytime TD leans for 2–3; longest play when supported.
+- Golf: top-5 / top-10 / top-20 for 2–3 names; make-cut; H2H when asked.
+- F1: podium % for 3–4 drivers; points finish mid-grid; DNF risk; margin read when dominant.
 
 CONFIDENCE
 [High / Medium / Speculative] — [one-line justification]
@@ -2602,76 +2557,28 @@ If fewer than two authorized names exist for the matchup, do NOT invent names.
 Give a sharp team-level read anchored to matchup context — never mention missing lines,
 loading pipelines, or roster completeness.`;
 
-const PROP_PROJECTION_INTRO = `PROP PROJECTION MODE — MANDATORY
+const PROP_PROJECTION_MODE_BLOCK = `PROP PROJECTION MODE — MANDATORY
 
 The user is explicitly asking for prop projections. You MUST deliver:
-`;
 
-const PROP_PROJECTION_SPORT_TENNIS = `For tennis:
+For tennis:
 - Match winner lean with price threshold
 - Total games: OVER/UNDER with specific number
 - Aces for each player: "project ~N per set, ~N total"
 - Double faults for each player: "project ~N"
 - Break points saved: "~N% for each player"
 - Scoreline prediction: "[winner] in [sets], [X-X X-X] range"
-`;
 
-const PROP_PROJECTION_SPORT_NBA = `For NBA: points, rebounds, assists for each named player with ranges.`;
+For NBA: points, rebounds, assists for each named player with ranges.
+For MLB: K total for each pitcher, total bases for key hitters.
+For golf: finishing position probability ranges for named golfers.
+For F1: podium probability for named drivers.
 
-const PROP_PROJECTION_SPORT_MLB = `For MLB: K total for each pitcher, total bases for key hitters.`;
-
-const PROP_PROJECTION_SPORT_GOLF = `For golf: finishing position probability ranges for named golfers.`;
-
-const PROP_PROJECTION_SPORT_F1 = `For F1: podium probability for named drivers.`;
-
-const PROP_PROJECTION_FOOTER = `If the player database has limited data for a player, use surface/venue
+If the player database has limited data for a player, use surface/venue
 baselines and tour averages. ALWAYS produce projections. Never say
 "cannot project without more data." Confidence reflects data quality.
 
 In Tier 2.5 summary, PROP PROJECTIONS must contain at least 4 specific lines.`;
-
-const PROP_PROJECTION_MODE_BLOCK = `${PROP_PROJECTION_INTRO}
-
-${PROP_PROJECTION_SPORT_TENNIS}
-
-${PROP_PROJECTION_SPORT_NBA}
-${PROP_PROJECTION_SPORT_MLB}
-${PROP_PROJECTION_SPORT_GOLF}
-${PROP_PROJECTION_SPORT_F1}
-
-${PROP_PROJECTION_FOOTER}`;
-
-/** Sport-scoped token trim for system prompt: same substrings as PROP_PROJECTION_MODE_BLOCK, one sport only. */
-function getPropProjectionModeBlockForSport(sportHint) {
-  const s = String(sportHint || "").toLowerCase();
-  const key =
-    s === "tennis" || s === "tennis_wta_profile"
-      ? "tennis"
-      : s === "nba"
-        ? "nba"
-        : s === "mlb"
-          ? "mlb"
-          : s === "golf"
-            ? "golf"
-            : s === "f1"
-              ? "f1"
-              : "all";
-  if (key === "all") return PROP_PROJECTION_MODE_BLOCK;
-  const block =
-    key === "tennis"
-      ? PROP_PROJECTION_SPORT_TENNIS
-      : key === "nba"
-        ? PROP_PROJECTION_SPORT_NBA
-        : key === "mlb"
-          ? PROP_PROJECTION_SPORT_MLB
-          : key === "golf"
-            ? PROP_PROJECTION_SPORT_GOLF
-            : PROP_PROJECTION_SPORT_F1;
-  return `${PROP_PROJECTION_INTRO}
-${block}
-
-${PROP_PROJECTION_FOOTER}`;
-}
 
 const ROSTER_ENFORCEMENT_NBA = `ROSTER ENFORCEMENT — THIS IS A HARD RULE WITH NO EXCEPTIONS
 
@@ -3829,8 +3736,7 @@ export default async function handler(req, res) {
     requireStatusShift:
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
   });
-  const propProjectionModeBlock =
-    intent === "prop_projection" ? `\n\n${getPropProjectionModeBlockForSport(sportHint)}` : "";
+  const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
   let systemPromptForModel =
     outputJsonMode !== "plain" && jsonContract
       ? `${systemPrompt}
