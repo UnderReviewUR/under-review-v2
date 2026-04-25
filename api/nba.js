@@ -5,6 +5,38 @@ import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
 
+/**
+ * Single-source normalization for incoming team abbreviations from BDL, ESPN,
+ * Odds API, or any external feed. Maps short/legacy/franchise-relocation tokens
+ * to the canonical 3-letter NBA abbreviation used everywhere downstream.
+ *
+ * Apply this at every external boundary (mapBdlGameRowToAppGame, mapEspnEventToAppGame,
+ * statRowsToPlayers, fetchSeasonAveragePlayerStats, getNbaInjuries, getNbaPlayoffSeries,
+ * Odds API ingestion, etc.) so internal joins never see SA/NY/GS/NO/UT variants.
+ */
+const TEAM_ABBR_NORMALIZATION_MAP = {
+  SA: "SAS",
+  NY: "NYK",
+  GS: "GSW",
+  NO: "NOP",
+  UT: "UTA",
+  WSH: "WAS",
+  NJ: "BKN",
+  BRK: "BKN",
+  NOH: "NOP",
+  NOK: "NOP",
+  CHH: "CHA",
+  CHO: "CHA",
+  PHO: "PHX",
+  SAN: "SAS",
+};
+
+export function canonicalizeTeamAbbr(raw) {
+  const cleaned = String(raw || "").trim().replace(/\./g, "").toUpperCase();
+  if (!cleaned) return "";
+  return TEAM_ABBR_NORMALIZATION_MAP[cleaned] || cleaned;
+}
+
 function getCached(key) {
   const e = cache.get(key);
   if (!e || Date.now() > e.expires) return null;
@@ -86,8 +118,8 @@ function mapEspnEventToAppGame(event) {
 
   const homeName = home.team.displayName || home.team.name || "";
   const awayName = away.team.displayName || away.team.name || "";
-  const homeAbbr = home.team.abbreviation || normalizeTeamAbbr(homeName);
-  const awayAbbr = away.team.abbreviation || normalizeTeamAbbr(awayName);
+  const homeAbbr = canonicalizeTeamAbbr(home.team.abbreviation || normalizeTeamAbbr(homeName));
+  const awayAbbr = canonicalizeTeamAbbr(away.team.abbreviation || normalizeTeamAbbr(awayName));
   const type = event?.status?.type || {};
   const stateRaw = String(type.state || "").toLowerCase();
   const completed = Boolean(type.completed);
@@ -194,8 +226,8 @@ function mapBdlGameRowToAppGame(g) {
   const away = g.visitor_team || g.visitorTeam;
   const homeName = home?.full_name || home?.name || "";
   const awayName = away?.full_name || away?.name || "";
-  const homeAbbr = home?.abbreviation || (home?.full_name ? normalizeTeamAbbr(home.full_name) : "?");
-  const awayAbbr = away?.abbreviation || (away?.full_name ? normalizeTeamAbbr(away.full_name) : "?");
+  const homeAbbr = canonicalizeTeamAbbr(home?.abbreviation || (home?.full_name ? normalizeTeamAbbr(home.full_name) : "?")) || "?";
+  const awayAbbr = canonicalizeTeamAbbr(away?.abbreviation || (away?.full_name ? normalizeTeamAbbr(away.full_name) : "?")) || "?";
 
   const hs = g.home_team_score != null ? Number(g.home_team_score) : null;
   const vs = g.visitor_team_score != null ? Number(g.visitor_team_score) : null;
@@ -327,12 +359,12 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
           clock: null,
           homeTeam: {
             name: g.home_team,
-            abbr: normalizeTeamAbbr(g.home_team),
+            abbr: canonicalizeTeamAbbr(normalizeTeamAbbr(g.home_team)),
             score: homePts != null ? parseInt(homePts, 10) : null,
           },
           awayTeam: {
             name: g.away_team,
-            abbr: normalizeTeamAbbr(g.away_team),
+            abbr: canonicalizeTeamAbbr(normalizeTeamAbbr(g.away_team)),
             score: awayPts != null ? parseInt(awayPts, 10) : null,
           },
           commenceTime: g.commence_time,
@@ -368,12 +400,12 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
                 clock: null,
                 homeTeam: {
                   name: g.home_team,
-                  abbr: normalizeTeamAbbr(g.home_team),
+                  abbr: canonicalizeTeamAbbr(normalizeTeamAbbr(g.home_team)),
                   score: null,
                 },
                 awayTeam: {
                   name: g.away_team,
-                  abbr: normalizeTeamAbbr(g.away_team),
+                  abbr: canonicalizeTeamAbbr(normalizeTeamAbbr(g.away_team)),
                   score: null,
                 },
                 commenceTime: g.commence_time,
@@ -498,8 +530,8 @@ const DEFAULT_NBA_PROP_FETCH_OPTIONS = {
 
 function scoreNbaEventBoost(event, boostSet) {
   if (!boostSet.size) return 0;
-  const away = String(normalizeTeamAbbr(event.away_team) || "").toUpperCase();
-  const home = String(normalizeTeamAbbr(event.home_team) || "").toUpperCase();
+  const away = canonicalizeTeamAbbr(normalizeTeamAbbr(event.away_team));
+  const home = canonicalizeTeamAbbr(normalizeTeamAbbr(event.home_team));
   let s = 0;
   if (away && away !== "UNK" && boostSet.has(away)) s++;
   if (home && home !== "UNK" && boostSet.has(home)) s++;
@@ -683,8 +715,8 @@ async function getNbaPropLines(oddsKey, options = {}) {
           }),
         );
 
-        const awayAbbr = normalizeTeamAbbr(event.away_team);
-        const homeAbbr = normalizeTeamAbbr(event.home_team);
+        const awayAbbr = canonicalizeTeamAbbr(normalizeTeamAbbr(event.away_team));
+        const homeAbbr = canonicalizeTeamAbbr(normalizeTeamAbbr(event.home_team));
         for (const market of preferred.markets || []) {
           for (const outcome of market.outcomes || []) {
             propLines.push({
@@ -1019,7 +1051,7 @@ async function fetchBdlInjuries(bdlKey) {
           const player =
             String(playerObj?.full_name || playerObj?.display_name || row?.player_name || "").trim();
           const team =
-            String(teamObj?.abbreviation || normalizeTeamAbbr(teamObj?.full_name || teamObj?.name || "")).toUpperCase();
+            canonicalizeTeamAbbr(teamObj?.abbreviation || normalizeTeamAbbr(teamObj?.full_name || teamObj?.name || ""));
           const status = String(row?.status || row?.designation || row?.availability || "").trim();
           const detail = String(row?.description || row?.detail || "").trim();
           if (!player) return null;
@@ -1035,8 +1067,8 @@ async function fetchBdlInjuries(bdlKey) {
 
 function abbrevFromTeamObj(t) {
   if (!t || typeof t !== "object") return "?";
-  if (t.abbreviation) return t.abbreviation;
-  if (t.full_name) return normalizeTeamAbbr(t.full_name);
+  if (t.abbreviation) return canonicalizeTeamAbbr(t.abbreviation);
+  if (t.full_name) return canonicalizeTeamAbbr(normalizeTeamAbbr(t.full_name));
   return "?";
 }
 
@@ -1140,7 +1172,7 @@ function statRowsToPlayers(statRows, gameLabelMap) {
     const p = row.player;
     if (!p?.id) continue;
     const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
-    const team = row.team?.abbreviation || "UNK";
+    const team = canonicalizeTeamAbbr(row.team?.abbreviation) || "UNK";
     const gid = row.game?.id;
     let tonightGame = gid != null ? gameLabelMap.get(gid) : null;
     if (!tonightGame && row.game) tonightGame = matchupLabelFromGame(row.game);
@@ -1169,57 +1201,131 @@ function statRowsToPlayers(statRows, gameLabelMap) {
   return [...byPlayer.values()].sort((a, b) => (b.pts || 0) - (a.pts || 0));
 }
 
-/** Season averages + /v1/players lookup — team can lag trades; used only as fallback. */
-async function fetchSeasonAveragePlayerStats(bdlKey, season) {
-  const res = await fetch(`https://api.balldontlie.io/v1/season_averages?season=${season}`, {
-    headers: bdlHeaders(bdlKey),
-  });
-  if (!res.ok) return [];
+/**
+ * BDL team_id by canonical 3-letter abbreviation. Stable values from /v1/teams.
+ * Used to translate canonicalized slate abbreviations into BDL team_ids for the
+ * /v1/players/active call.
+ */
+const BDL_TEAM_ID_BY_ABBR = {
+  ATL: 1, BOS: 2, BKN: 3, CHA: 4, CHI: 5, CLE: 6, DAL: 7, DEN: 8, DET: 9, GSW: 10,
+  HOU: 11, IND: 12, LAC: 13, LAL: 14, MEM: 15, MIA: 16, MIL: 17, MIN: 18, NOP: 19, NYK: 20,
+  OKC: 21, ORL: 22, PHI: 23, PHX: 24, POR: 25, SAC: 26, SAS: 27, TOR: 28, UTA: 29, WAS: 30,
+};
+
+/** Active roster pull for one or more team IDs from BDL's /v1/players/active endpoint. */
+async function fetchActiveRosterPlayers(bdlKey, teamIds) {
+  const ids = (teamIds || []).filter(Boolean);
+  if (!ids.length) return [];
+  const qs = ids.map((id) => `team_ids[]=${encodeURIComponent(id)}`).join("&");
+  const baseUrl = `https://api.balldontlie.io/v1/players/active?${qs}&per_page=100`;
+
+  const allRows = [];
+  let cursor = null;
+  let safety = 0;
+  do {
+    const url = cursor != null ? `${baseUrl}&cursor=${encodeURIComponent(cursor)}` : baseUrl;
+    const res = await fetch(url, { headers: bdlHeaders(bdlKey) });
+    if (!res.ok) break;
+    const data = await res.json();
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    allRows.push(...rows);
+    cursor = data?.meta?.next_cursor ?? null;
+    safety += 1;
+  } while (cursor != null && safety < 20);
+
+  return allRows.map((p) => ({
+    playerId: p.id,
+    name: [p.first_name, p.last_name].filter(Boolean).join(" ").trim(),
+    team: canonicalizeTeamAbbr(p.team?.abbreviation || p.team?.full_name) || "UNK",
+    position: p.position || "",
+  }));
+}
+
+/** Per-player season averages via the new BDL contract: ?season=YYYY&player_id=<single integer>. */
+async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
+  if (!playerId) return null;
+  const url = `https://api.balldontlie.io/v1/season_averages?season=${season}&player_id=${playerId}`;
+  const res = await fetch(url, { headers: bdlHeaders(bdlKey) });
+  if (!res.ok) return null;
   const data = await res.json();
-  const rows = Array.isArray(data?.data) ? data.data : [];
+  const row = Array.isArray(data?.data) && data.data[0] ? data.data[0] : null;
+  return row || null;
+}
 
-  const playerIds = rows.map((r) => r.player_id).filter(Boolean).slice(0, 250);
-  const players = [];
-  for (let j = 0; j < playerIds.length; j += 25) {
-    const chunk = playerIds.slice(j, j + 25);
-    const qs = chunk.map((id) => `player_ids[]=${encodeURIComponent(id)}`).join("&");
-    const pRes = await fetch(`https://api.balldontlie.io/v1/players?${qs}`, {
-      headers: bdlHeaders(bdlKey),
-    });
-    if (!pRes.ok) continue;
-    const pData = await pRes.json();
-    if (Array.isArray(pData?.data)) players.push(...pData.data);
-  }
+/**
+ * Pregame roster + per-player season averages.
+ * Step 1: pull active rosters via /v1/players/active for the supplied teamIds (1 batched call).
+ * Step 2: fetch per-player season averages via /v1/season_averages?season=YYYY&player_id=N
+ *         (parallelized with a small concurrency cap to respect BDL rate limits).
+ * Output shape stays compatible with existing consumers (statRowsToPlayers / playerStats).
+ *
+ * @param {string} bdlKey
+ * @param {number} season  - calendar year of fall tipoff (2025-26 season → 2025)
+ * @param {number[]} [teamIds]  - if omitted, returns []. Pass the BDL team_ids whose pregame players are needed.
+ */
+async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
+  const roster = await fetchActiveRosterPlayers(bdlKey, teamIds);
+  if (!roster.length) return [];
 
-  const playerMap = new Map(players.map((p) => [p.id, p]));
-  return rows
-    .map((r) => {
-      const p = playerMap.get(r.player_id);
-      if (!p) return null;
-      const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
-      const team = p.team?.abbreviation || p.team?.full_name || "UNK";
-      return {
-        playerId: r.player_id,
-        name,
-        team,
-        pts: r.pts,
-        reb: r.reb,
-        ast: r.ast,
-        stl: r.stl,
-        blk: r.blk,
-        min: r.min,
-        fg_pct: r.fg_pct,
-        fg3_pct: r.fg3_pct,
-        ft_pct: r.ft_pct,
-        games_played: r.games_played,
+  const concurrency = 6;
+  const out = new Array(roster.length).fill(null);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < roster.length) {
+      const idx = cursor++;
+      const p = roster[idx];
+      const avg = await fetchSeasonAverageForPlayer(bdlKey, season, p.playerId);
+      out[idx] = {
+        playerId: p.playerId,
+        name: p.name,
+        team: p.team,
+        pts: avg?.pts ?? null,
+        reb: avg?.reb ?? null,
+        ast: avg?.ast ?? null,
+        stl: avg?.stl ?? null,
+        blk: avg?.blk ?? null,
+        pf: avg?.pf ?? null,
+        min: avg?.min ?? null,
+        fg_pct: avg?.fg_pct ?? null,
+        fg3_pct: avg?.fg3_pct ?? null,
+        ft_pct: avg?.ft_pct ?? null,
+        games_played: avg?.games_played ?? 0,
         season,
-        source: "season_average",
-        statsNote:
-          "Season averages — team field is from BDL player record and may lag mid-season trades. Prefer game_box rows or tonightGame when present.",
+        source: avg ? "season_average" : "active_roster",
+        statsNote: avg
+          ? "Season averages — team field is from BDL player record and may lag mid-season trades. Prefer game_box rows or tonightGame when present."
+          : "Active roster only — no season averages yet (early season or rookie).",
       };
-    })
-    .filter(Boolean)
-    .sort((a, b) => (b.pts || 0) - (a.pts || 0));
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, roster.length) }, () => worker()));
+  return out.filter(Boolean).sort((a, b) => (b.pts || 0) - (a.pts || 0));
+}
+
+/** Resolve BDL team_ids for every team appearing on the supplied slate (canonicalized abbrs). */
+function bdlTeamIdsForSlate(todaysGames) {
+  const ids = new Set();
+  for (const g of todaysGames || []) {
+    const a = canonicalizeTeamAbbr(g?.awayTeam?.abbr);
+    const h = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
+    if (a && BDL_TEAM_ID_BY_ABBR[a]) ids.add(BDL_TEAM_ID_BY_ABBR[a]);
+    if (h && BDL_TEAM_ID_BY_ABBR[h]) ids.add(BDL_TEAM_ID_BY_ABBR[h]);
+  }
+  return [...ids];
+}
+
+/** Resolve BDL team_ids for pregame teams only (state is neither "post" nor "in"). */
+function bdlTeamIdsForPregameTeams(todaysGames) {
+  const ids = new Set();
+  for (const g of todaysGames || []) {
+    const state = String(g?.state || "").toLowerCase();
+    if (state === "post" || state === "in") continue;
+    const a = canonicalizeTeamAbbr(g?.awayTeam?.abbr);
+    const h = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
+    if (a && BDL_TEAM_ID_BY_ABBR[a]) ids.add(BDL_TEAM_ID_BY_ABBR[a]);
+    if (h && BDL_TEAM_ID_BY_ABBR[h]) ids.add(BDL_TEAM_ID_BY_ABBR[h]);
+  }
+  return [...ids];
 }
 
 /**
@@ -1390,7 +1496,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
     return empty;
   }
 
-  const season = new Date().getFullYear();
+  const season = getNbaSeasonContext().season;
 
   try {
     const todayIso = getTodayEtDateString();
@@ -1409,12 +1515,20 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
       const gameLabelMap = buildGameLabelMap(games);
       playerStats = statRowsToPlayers(statRows, gameLabelMap);
       statsSource = "game_box";
-      const seasonAvg = await fetchSeasonAveragePlayerStats(bdlKey, season);
+      const seasonAvg = await fetchSeasonAveragePlayerStats(
+        bdlKey,
+        season,
+        bdlTeamIdsForPregameTeams(todaysGames),
+      );
       const merged = mergeGameBoxWithPregameSeasonAverages(playerStats, todaysGames, seasonAvg);
       playerStats = merged.players;
       statsSource = merged.statsSource;
     } else {
-      playerStats = await fetchSeasonAveragePlayerStats(bdlKey, season);
+      playerStats = await fetchSeasonAveragePlayerStats(
+        bdlKey,
+        season,
+        bdlTeamIdsForSlate(todaysGames),
+      );
       statsSource = "season_average";
     }
 
@@ -1423,7 +1537,11 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = []) {
     return { playerStats, playerStatsText, statsSource };
   } catch (err) {
     console.warn("getNbaPlayerStatsBundle error:", err.message);
-    const fallback = await fetchSeasonAveragePlayerStats(bdlKey, season);
+    const fallback = await fetchSeasonAveragePlayerStats(
+      bdlKey,
+      season,
+      bdlTeamIdsForSlate(todaysGames),
+    );
     return {
       playerStats: fallback,
       playerStatsText: buildPlayerStatsSummaryLines(fallback, "season_average"),
@@ -1730,8 +1848,8 @@ async function getNbaPlayoffSeries() {
         const away = s.competitors?.find((c) => c.homeAway === "away");
         return {
           round: s.round?.displayName || s.displayName || "",
-          home: home?.team?.abbreviation || "",
-          away: away?.team?.abbreviation || "",
+          home: canonicalizeTeamAbbr(home?.team?.abbreviation),
+          away: canonicalizeTeamAbbr(away?.team?.abbreviation),
           homeWins: parseInt(home?.wins || 0, 10) || 0,
           awayWins: parseInt(away?.wins || 0, 10) || 0,
           status: s.status?.type?.description || s.statusText || "",
@@ -1758,8 +1876,8 @@ async function getNbaPlayoffSeries() {
       const away = comps.find((c) => c.homeAway === "away");
       seriesMap[sid] = {
         round: ev.series?.type?.text || ev.seriesStatus?.displayName || "",
-        home: home?.team?.abbreviation || "",
-        away: away?.team?.abbreviation || "",
+        home: canonicalizeTeamAbbr(home?.team?.abbreviation),
+        away: canonicalizeTeamAbbr(away?.team?.abbreviation),
         homeWins: parseInt(home?.wins || ev.seriesStatus?.homeTeamWins || 0, 10) || 0,
         awayWins: parseInt(away?.wins || ev.seriesStatus?.awayTeamWins || 0, 10) || 0,
         status: ev.seriesStatus?.summary || ev.status?.type?.description || "",
