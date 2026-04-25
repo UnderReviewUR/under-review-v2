@@ -8,6 +8,12 @@ const cache = new Map();
 const BDL_SEASON_AVG_INTERVAL_MS = 1200;
 const bdlSeasonAverageCache = new Map();
 let bdlSeasonAverageQueueTail = Promise.resolve();
+const rosterDiag = {
+  firstDurableGetError: null,
+  firstDurableGetChecked: false,
+  lastSeasonAverageTeamIds: [],
+  lastSeasonAverageReturnedRows: 0,
+};
 
 function enqueueBdlSeasonAverageRequest(task) {
   const run = bdlSeasonAverageQueueTail.then(async () => {
@@ -1273,7 +1279,16 @@ async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
     return bdlSeasonAverageCache.get(cacheKey);
   }
   const durableCacheKey = `nba_season_avg_${season}_${playerId}`;
-  const cached = await getDurableJson(durableCacheKey);
+  let cached = null;
+  try {
+    cached = await getDurableJson(durableCacheKey);
+  } catch (err) {
+    if (!rosterDiag.firstDurableGetChecked) {
+      rosterDiag.firstDurableGetError = err?.message || String(err);
+    }
+  } finally {
+    rosterDiag.firstDurableGetChecked = true;
+  }
   if (cached?._empty) return null;
   if (cached !== null && cached !== undefined) return cached;
   const url = `https://api.balldontlie.io/v1/season_averages?season=${season}&player_id=${playerId}`;
@@ -1306,8 +1321,12 @@ async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
  * @param {number[]} [teamIds]  - if omitted, returns []. Pass the BDL team_ids whose pregame players are needed.
  */
 async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
+  rosterDiag.lastSeasonAverageTeamIds = [...(teamIds || [])];
   const roster = await fetchActiveRosterPlayers(bdlKey, teamIds);
-  if (!roster.length) return [];
+  if (!roster.length) {
+    rosterDiag.lastSeasonAverageReturnedRows = 0;
+    return [];
+  }
 
   const concurrency = 6;
   const out = new Array(roster.length).fill(null);
@@ -1341,7 +1360,9 @@ async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, roster.length) }, () => worker()));
-  return out.filter(Boolean).sort((a, b) => (b.pts || 0) - (a.pts || 0));
+  const result = out.filter(Boolean).sort((a, b) => (b.pts || 0) - (a.pts || 0));
+  rosterDiag.lastSeasonAverageReturnedRows = result.length;
+  return result;
 }
 
 /** Resolve BDL team_ids for every team appearing on the supplied slate (canonicalized abbrs). */
@@ -2113,6 +2134,12 @@ export default async function handler(req, res) {
         gameTotals: buildGameTotalsFromProps(propLines),
         fetchedAt: new Date().toISOString(),
         propFeedMeta,
+        _rosterDiag: {
+          pregameTeamIdCount: rosterDiag.lastSeasonAverageTeamIds.length,
+          pregameTeamIds: rosterDiag.lastSeasonAverageTeamIds,
+          seasonAverageReturnedRows: rosterDiag.lastSeasonAverageReturnedRows,
+          firstDurableGetError: rosterDiag.firstDurableGetError,
+        },
       };
       board.newsImpact = buildNbaNewsImpact(board);
 
