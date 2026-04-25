@@ -2202,7 +2202,7 @@ ${themeCss}
           </span>
         </div>
         <div style={{ fontSize: 12, color: proMarketing.subBody ?? "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
-          Full database access, every sport, same data-dense take style as the rest of the app.
+          Pick services charge $100+ a month to guess. Under Review is every ask, every sport, every day. Ten bucks.
         </div>
       </div>
       <div
@@ -2291,10 +2291,11 @@ ${themeCss}
       ))}
     </div>
 
-    {/* Quote */}
+    {/* Proof points */}
     <div style={proMarketing.quoteBox}>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,fontStyle:"italic",marginBottom:6}}>&quot;Feels like having a sharp friend who actually does the homework. I finally stopped throwing money at expensive pick services.&quot;</div>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:2,color:proMarketing.quoteAttrib ?? "#3A4050",textTransform:"uppercase"}}>Under Review Pro Member</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>125 active injury reports tracked.</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>16 playoff rosters. 280 player profiles.</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75}}>Updated every 30 minutes.</div>
     </div>
 {isUnlimited && (() => {
       const dm = getDisplayModeChrome(activeTheme);
@@ -2322,7 +2323,7 @@ ${themeCss}
     <div style={{ fontSize:10, color: dm.subtitle, fontFamily:"var(--mono-font)", letterSpacing:0.4, marginBottom:12, lineHeight:1.45 }}>
       {canUseProThemes(accessTier)
         ? accessTier === "owner"
-          ? "Owner access: Broadsheet or Crisp Sport light themes. Authority dark stays default."
+          ? "Choose your look. Pro unlocks two additional themes."
           : "Pro: Broadsheet (newsprint) or Crisp Sport (slate). Everyone else stays on Authority dark."
         : "Light editions unlock with Pro or an owner access code."}
     </div>
