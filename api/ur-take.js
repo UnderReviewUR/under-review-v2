@@ -4847,6 +4847,7 @@ CONTINUATION RULE — SHORT LIVE FOLLOW-UP
 - Ask exactly ONE compact clarifier for the decision-critical missing input (usually exact live number + full game vs 1H).
 - Acknowledge uncertainty once, then move to analysis. Do not repeat cannot-assess phrasing and do not output long missing-input checklists.
 - Do not fabricate an exact live total/line and do not imply certainty when price/scope is missing.
+- If you reference arithmetic (pace math, current score totals, points needed, possession projections), show the exact calculation inline so users can verify it instantly. Format example: "Score: 78 + 72 = 150. Points needed: 219.5 - 150 = 69.5."
 `
         : "";
 
