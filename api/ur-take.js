@@ -798,6 +798,63 @@ TIMING
 [one line]`;
 }
 
+function hasObjectKeys(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0);
+}
+
+function resolveOddsAvailabilityForSport({
+  sportHint,
+  nbaContext,
+  mlbContext,
+  golfContext,
+  f1Context,
+  nflContext,
+  liveMatches,
+  context,
+}) {
+  if (sportHint === "nba") {
+    return Array.isArray(nbaContext?.propLines) && nbaContext.propLines.length > 0;
+  }
+  if (sportHint === "mlb") {
+    const hasProps = Array.isArray(mlbContext?.propLines) && mlbContext.propLines.length > 0;
+    const hasTotals = hasObjectKeys(mlbContext?.gameTotals);
+    return hasProps || hasTotals;
+  }
+  if (sportHint === "golf") {
+    return Array.isArray(golfContext?.odds?.outrights) && golfContext.odds.outrights.length > 0;
+  }
+  if (sportHint === "f1") {
+    return Boolean(
+      hasObjectKeys(f1Context?.odds) ||
+        Array.isArray(f1Context?.markets) ||
+        Array.isArray(f1Context?.outrights),
+    );
+  }
+  if (sportHint === "tennis" || sportHint === "tennis_wta_profile") {
+    const rows = Array.isArray(liveMatches) ? liveMatches : [];
+    const fromRows = rows.some((m) => m?.odd_1 != null || m?.odd_2 != null);
+    const fromContext = Boolean(
+      context?.odds ||
+        (Array.isArray(context?.matches) &&
+          context.matches.some((m) => m?.odd_1 != null || m?.odd_2 != null)),
+    );
+    return fromRows || fromContext;
+  }
+  if (sportHint === "nfl") {
+    if (typeof nflContext === "string") {
+      return /\bodds\b|\bline\b|\bspread\b|\btotal\b/i.test(nflContext);
+    }
+    return Boolean(
+      nflContext?.odds ||
+        nflContext?.markets ||
+        nflContext?.lines ||
+        nflContext?.spreads ||
+        nflContext?.totals,
+    );
+  }
+  return true;
+}
+
 // ── Anthropic call wrapper ──────────────────────────────────────────────────
 async function callAnthropic({
   apiKey,
@@ -3220,7 +3277,7 @@ export default async function handler(req, res) {
     liveMatches,
     golfContext,
     nbaContext: nbaContextFromClient,
-    mlbContext,
+    mlbContext: mlbContextFromClient,
     f1Context,
     nflContext,
     matchupContext,
@@ -3267,6 +3324,8 @@ export default async function handler(req, res) {
 
   /** Server-authoritative slate for NBA — client payload can be stale (poll interval) or omit games. */
   let nbaContext = nbaContextFromClient;
+  let mlbContext = mlbContextFromClient;
+  let golfContextEffective = golfContext;
   if (sportHint === "nba") {
     try {
       const fresh = await buildNbaUrTakeBoard(String(question || ""));
@@ -3287,6 +3346,32 @@ export default async function handler(req, res) {
 
   if (sportHint === "nba" && nbaContext && !nbaContext.newsImpact) {
     nbaContext.newsImpact = buildNbaNewsImpact(nbaContext);
+  }
+
+  const oddsAvailable = resolveOddsAvailabilityForSport({
+    sportHint,
+    nbaContext,
+    mlbContext,
+    golfContext: golfContextEffective,
+    f1Context,
+    nflContext,
+    liveMatches,
+    context,
+  });
+  if (sportHint === "nba" && nbaContext && typeof nbaContext === "object") {
+    nbaContext = { ...nbaContext, oddsAvailable };
+  }
+  if (sportHint === "mlb" && mlbContext && typeof mlbContext === "object") {
+    mlbContext = { ...mlbContext, oddsAvailable };
+  }
+  if (sportHint === "golf" && golfContextEffective && typeof golfContextEffective === "object") {
+    golfContextEffective = { ...golfContextEffective, oddsAvailable };
+  }
+  if (sportHint === "f1" && f1Context && typeof f1Context === "object") {
+    f1Context.oddsAvailable = oddsAvailable;
+  }
+  if (sportHint === "nfl" && nflContext && typeof nflContext === "object") {
+    nflContext.oddsAvailable = oddsAvailable;
   }
 
   const nbaNewsImpact = sportHint === "nba" ? nbaContext?.newsImpact || null : null;
@@ -3331,7 +3416,7 @@ export default async function handler(req, res) {
     players,
     context,
     liveMatches,
-    golfContext,
+    golfContext: golfContextEffective,
     nbaContext,
     mlbContext,
     nflContext,
@@ -3435,6 +3520,20 @@ For all other questions where no contract is attached, use plain text as already
 
 ${jsonContract}${propProjectionModeBlock}`
       : `${systemPrompt}${propProjectionModeBlock}`;
+  if (!oddsAvailable) {
+    systemPromptForModel = `${systemPromptForModel}
+
+ODDS-UNAVAILABLE MODE (mandatory when oddsAvailable is false)
+- Never reference a specific line, spread, total, or implied probability as if posted now.
+- Never say "odds unavailable," "lines not posted," "I don't have the line," or any variation.
+- Do not apologize or explain missing odds data.
+- Lead with the structural edge from matchup, pace, rotation, usage, and game script.
+- Name specific players from grounded context whenever available; use real player names from the authorized roster list in context, not positional abstractions like "primary initiator" or "lead guard."
+- When citing angles, anchor to available season-average style context for named players when present (e.g., points/assists/rebounds tendencies from playerStats).
+- Close with this forward trigger format: "When the line posts, [specific lean] — watch for [specific threshold]."
+- The closing trigger must include a specific player name plus a specific stat category (for example: "When the line posts, lean Shai Gilgeous-Alexander assists over — watch for 7.5 or lower.").
+- Response must read complete and sharp, never like a partial answer.`;
+  }
   const nbaLiveNoPropSystemPromptBlock =
     sportHint === "nba" ? buildNbaLiveNoPropSystemPromptBlock(nbaGameStateGate, nbaContext) : "";
   if (nbaLiveNoPropSystemPromptBlock) {
@@ -3615,7 +3714,7 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       nbaContext,
       nflContext,
       mlbContext,
-      golfContext,
+      golfContext: golfContextEffective,
       f1Context,
       derivedConfidence,
       priorTakesSummary,
@@ -3676,6 +3775,7 @@ CONFIDENCE GUIDANCE
 Default confidence: ${derivedConfidence}
 WTA mode is profile-based — confidence should generally be Medium or Speculative
 unless the surface/style mismatch is truly obvious from the data.
+oddsAvailable: ${oddsAvailable}
 
 EXECUTION RULES — READ CAREFULLY
 1. Lead with the take. First sentence is a concrete claim about a specific player
@@ -3880,6 +3980,7 @@ ${context?.ace_props ? JSON.stringify(context.ace_props, null, 2) : "{}"}
 CONFIDENCE GUIDANCE
 Default confidence: ${derivedConfidence}
 Only go above that if the data strongly justifies it.
+oddsAvailable: ${oddsAvailable}
 
 EXECUTION RULES — READ CAREFULLY
 1. Opener authority is Step 1 of THE UNDERREVIEW RESPONSE FRAMEWORK above. The first sentence states the trigger condition (line threshold, surface/lineup status, game script). Do not open with a limitation, disclaimer, or pipeline note.
@@ -3990,10 +4091,10 @@ SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level 
   } else if (sportHint === "golf") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const golfState = String(golfContext?.currentEvent?.state || "").toLowerCase();
+    const golfState = String(golfContextEffective?.currentEvent?.state || "").toLowerCase();
     const golfIsFinal = golfState === "post" || golfState === "final";
-    const golfVerifiedBlock = buildGolfVerifiedPlayerListBlock(golfContext);
-    const golfHasVerifiedNames = collectGolfVerifiedNames(golfContext).size > 0;
+    const golfVerifiedBlock = buildGolfVerifiedPlayerListBlock(golfContextEffective);
+    const golfHasVerifiedNames = collectGolfVerifiedNames(golfContextEffective).size > 0;
 
     if (golfIsFinal) {
       userPrompt = `You are answering a golf question after the tournament has FINISHED.
@@ -4002,7 +4103,7 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Golf context:
-${JSON.stringify(golfContext || {}, null, 2)}
+${JSON.stringify(golfContextEffective || {}, null, 2)}
 
 ${golfVerifiedBlock}
 
@@ -4031,13 +4132,14 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Golf context:
-${JSON.stringify(golfContext || {}, null, 2)}
+${JSON.stringify(golfContextEffective || {}, null, 2)}
 
 ${golfVerifiedBlock}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
+oddsAvailable: ${oddsAvailable}
 ${nbaConfidenceModifier.reason ? `- Confidence modifier: ${nbaConfidenceModifier.reason}` : ""}
 
 Rules:
@@ -4127,6 +4229,7 @@ ${JSON.stringify(nbaContext || {}, null, 2)}
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
+oddsAvailable: ${oddsAvailable}
 
 ${nbaRosterListBlock}
 
@@ -4302,6 +4405,7 @@ ${JSON.stringify(f1Context || {}, null, 2)}
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
+oddsAvailable: ${oddsAvailable}
 
 ${f1VerifiedBlock}
 
@@ -4487,6 +4591,7 @@ ${nflContextForPrompt}
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
+oddsAvailable: ${oddsAvailable}
 
 ${nflVerifiedBlock}
 

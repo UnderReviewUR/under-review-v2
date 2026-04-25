@@ -6,12 +6,24 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 
+function logOddsUnavailable(status, scope) {
+  console.warn(
+    `[odds] unavailable — running without lines (${scope}${Number.isFinite(status) ? ` status=${status}` : ""})`,
+  );
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
 
   const API_KEY = getEnv("ODDS_API_KEY");
   if (!API_KEY) {
-    return res.status(500).json({ error: "Missing ODDS_API_KEY" });
+    logOddsUnavailable(null, "odds endpoint missing key");
+    return res.status(200).json({
+      sportKey: null,
+      matches: [],
+      props: [],
+      note: "No active tennis matches found on The Odds API right now.",
+    });
   }
 
   const { tour = "atp" } = req.query;
@@ -32,7 +44,10 @@ export default async function handler(req, res) {
     try {
       const url = `${BASE}/sports/${sportKey}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=h2h&oddsFormat=${ODDS_FORMAT}`;
       const r = await fetch(url);
-      if (!r.ok) continue;
+      if (!r.ok) {
+        logOddsUnavailable(r.status, `odds endpoint events ${sportKey}`);
+        continue;
+      }
       const data = await r.json();
       if (Array.isArray(data) && data.length > 0) {
         events = data;
@@ -107,7 +122,10 @@ export default async function handler(req, res) {
       try {
         const url = `${BASE}/events/${match.id}/odds?apiKey=${API_KEY}&regions=${REGIONS}&markets=${propMarkets}&oddsFormat=${ODDS_FORMAT}`;
         const r = await fetch(url);
-        if (!r.ok) return;
+        if (!r.ok) {
+          logOddsUnavailable(r.status, "odds endpoint props");
+          return;
+        }
         const data = await r.json();
 
         const matchProps = {

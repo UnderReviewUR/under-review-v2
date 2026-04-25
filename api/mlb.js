@@ -4,6 +4,12 @@ import { getEnv } from "./_env.js";
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
 
+function logOddsUnavailable(status, scope) {
+  console.warn(
+    `[odds] unavailable — running without lines (${scope}${Number.isFinite(status) ? ` status=${status}` : ""})`,
+  );
+}
+
 function getCached(key) {
   const e = cache.get(key);
   if (!e || Date.now() > e.expires) return null;
@@ -189,6 +195,8 @@ async function getMlbGamesWithPitchers() {
           id:       e.id,
           status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
           state:    isFinal ? "post" : isLive ? "in" : "pre",
+          date: e.date || null,
+          startTimeUtc: e.date || null,
           inning:   isLive ? e.status?.period : null,
           homeTeam: {
             name: homeTeamFull,
@@ -231,7 +239,7 @@ async function getMlbPropLines(oddsKey) {
       `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`
     );
     if (!eventsRes.ok) {
-      console.warn("MLB odds events status:", eventsRes.status);
+      logOddsUnavailable(eventsRes.status, "mlb events");
       return [];
     }
     const events = await eventsRes.json();
@@ -259,7 +267,10 @@ async function getMlbPropLines(oddsKey) {
         const propRes = await fetch(
           `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`
         );
-        if (!propRes.ok) continue;
+        if (!propRes.ok) {
+          logOddsUnavailable(propRes.status, "mlb props");
+          continue;
+        }
         const propData = await propRes.json();
         const bookmakers = propData.bookmakers || [];
 
@@ -313,7 +324,10 @@ async function getMlbGameTotals(oddsKey) {
     const res = await fetch(
       `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`
     );
-    if (!res.ok) return {};
+    if (!res.ok) {
+      logOddsUnavailable(res.status, "mlb totals");
+      return {};
+    }
     const data = await res.json();
     if (!Array.isArray(data)) return {};
 

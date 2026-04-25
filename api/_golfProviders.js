@@ -3,6 +3,12 @@ import { bdlFetch } from "./_balldontlie.js";
 const CACHE_TTL_MS = 3 * 60 * 1000;
 const cache = new Map();
 
+function logOddsUnavailable(status, scope) {
+  console.warn(
+    `[odds] unavailable — running without lines (${scope}${Number.isFinite(status) ? ` status=${status}` : ""})`,
+  );
+}
+
 function getCache(key) {
   const item = cache.get(key);
   if (!item) return null;
@@ -797,6 +803,7 @@ async function getOddsBoard(oddsApiKey) {
   };
 
   if (!oddsApiKey) {
+    logOddsUnavailable(null, "golf missing key");
     setCache(cacheKey, empty, 60 * 1000);
     return empty;
   }
@@ -815,6 +822,7 @@ async function getOddsBoard(oddsApiKey) {
   );
 
   if (!base.ok || !Array.isArray(base.data) || base.data.length === 0) {
+    if (!base.ok) logOddsUnavailable(base.status, "golf outrights");
     setCache(cacheKey, board, 60 * 1000);
     return board;
   }
@@ -871,6 +879,9 @@ async function getOddsBoard(oddsApiKey) {
           }
         }
       }
+    }
+    if (!prop.ok) {
+      logOddsUnavailable(prop.status, "golf props");
     }
   }
 

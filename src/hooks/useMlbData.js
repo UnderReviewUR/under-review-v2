@@ -60,6 +60,8 @@ export function useMlbData() {
               id:       e.id,
               status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
               state:    isFinal ? "post" : isLive ? "in" : "pre",
+              date: e.date || null,
+              startTimeUtc: e.date || null,
               homeTeam: { name: home?.team?.displayName, abbr: home?.team?.abbreviation, score: isFinal||isLive ? parseInt(home?.score||"0") : null },
               awayTeam: { name: away?.team?.displayName, abbr: away?.team?.abbreviation, score: isFinal||isLive ? parseInt(away?.score||"0") : null },
             };

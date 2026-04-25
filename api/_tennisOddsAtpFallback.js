@@ -9,6 +9,12 @@ const REGIONS = "us,us2";
 const ODDS_FORMAT = "american";
 const FETCH_MS = 12000;
 
+function logOddsUnavailable(status, scope) {
+  console.warn(
+    `[odds] unavailable — running without lines (${scope}${Number.isFinite(status) ? ` status=${status}` : ""})`,
+  );
+}
+
 export async function fetchOddsAtpFixturesForBoard() {
   const API_KEY = getEnv("ODDS_API_KEY");
   if (!API_KEY) {
@@ -27,6 +33,7 @@ export async function fetchOddsAtpFixturesForBoard() {
       const url = `${BASE}/sports/${sportKey}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=h2h&oddsFormat=${ODDS_FORMAT}`;
       const r = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
       if (!r.ok) {
+        logOddsUnavailable(r.status, `tennis fallback ${sportKey}`);
         clearTimeout(t);
         continue;
       }
@@ -44,7 +51,7 @@ export async function fetchOddsAtpFixturesForBoard() {
   }
 
   if (events.length === 0) {
-    return { ok: true, fixtures: [], reason: "no_events" };
+    return { ok: false, fixtures: [], reason: "odds_unavailable" };
   }
 
   const fixtures = events.map((event) => oddsEventToFixtureShape(event, usedSportKey));

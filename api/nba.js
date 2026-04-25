@@ -15,6 +15,12 @@ const rosterDiag = {
   lastSeasonAverageReturnedRows: 0,
 };
 
+function logOddsUnavailable(status, scope) {
+  console.warn(
+    `[odds] unavailable — running without lines (${scope}${Number.isFinite(status) ? ` status=${status}` : ""})`,
+  );
+}
+
 function enqueueBdlSeasonAverageRequest(task) {
   const run = bdlSeasonAverageQueueTail.then(async () => {
     const startedAt = Date.now();
@@ -354,7 +360,10 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
   try {
     const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${oddsKey}&daysFrom=2`;
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      logOddsUnavailable(res.status, "nba scores");
+      return [];
+    }
     const data = await res.json();
     if (!Array.isArray(data)) return [];
 
@@ -440,6 +449,8 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
                 startTimeSource: "odds_fallback",
               }));
           }
+        } else {
+          logOddsUnavailable(oddsRes.status, "nba odds list fallback");
         }
       } catch {
         /* odds merge optional */
@@ -620,6 +631,7 @@ async function getNbaPropLines(oddsKey, options = {}) {
     const eventsFetchStatus = eventsRes.status;
 
     if (!eventsFetchOk) {
+      logOddsUnavailable(eventsFetchStatus, "nba props events");
       const out = fail({
         emptyReason: "events_fetch_failed",
         eventsFetchOk: false,
@@ -720,6 +732,7 @@ async function getNbaPropLines(oddsKey, options = {}) {
           bookmakers[0];
 
         if (!propRes.ok) {
+          logOddsUnavailable(propRes.status, "nba props event");
           propFetchFailures++;
           continue;
         }

@@ -5,6 +5,10 @@ import { fetchOddsAtpFixturesForBoard } from "./_tennisOddsAtpFallback.js";
 import { buildStaticWtaBoardRows } from "./_staticWtaBoard.js";
 import { shouldRetainRecentFinishedTennisFinals } from "../shared/tennisIntent.js";
 
+function logOddsUnavailable(scope) {
+  console.warn(`[odds] unavailable — running without lines (${scope})`);
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
 
@@ -47,6 +51,9 @@ export default async function handler(req, res) {
 
       if (results.length === 0 && ODDS_KEY) {
         const odds = await fetchOddsAtpFixturesForBoard();
+        if (!odds.ok) {
+          logOddsUnavailable(`tennis atp fallback${odds.reason ? ` reason=${odds.reason}` : ""}`);
+        }
         if (odds.ok && odds.fixtures.length > 0) {
           results = odds.fixtures;
           source = "odds_atp";
