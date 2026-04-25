@@ -15,7 +15,6 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
-import { formatNbaTipoffLocal } from "./lib/nbaTime.js";
 import {
   classifyMlbGame,
   classifyNbaGame,
@@ -1126,15 +1125,25 @@ ${themeCss}
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
   const homeNbaCards = useMemo(() => {
-    const live = homePipeline.nbaGamesForHome.filter((g) => g.state === "in");
-    const upcoming = homePipeline.nbaGamesForHome.filter((g) => g.state === "pre");
-    const poolRaw = [...live, ...upcoming].slice(0, 2);
-    const pool = poolRaw.filter((g) => {
-      const k = nbaEventKey(g);
-      return !(k && cardExcludeSet.has(k));
-    });
+    const toEtTipLabel = (startTimeUtc) => {
+      const raw = String(startTimeUtc || "").trim();
+      if (!raw) return "TBD ET";
+      const dt = new Date(raw);
+      if (Number.isNaN(dt.getTime())) return "TBD ET";
+      return `${dt.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+      })} ET`;
+    };
+    const upcoming = homePipeline.nbaGamesForHome
+      .filter((g) => g?.state === "pre")
+      .filter((g) => {
+        const k = nbaEventKey(g);
+        return !(k && cardExcludeSet.has(k));
+      });
 
-    if (!pool.length && !homePipeline.nbaGamesForHome.length) {
+    if (!upcoming.length && !homePipeline.nbaGamesForHome.length) {
       return [
         {
           id: "nba-default",
@@ -1151,66 +1160,42 @@ ${themeCss}
       ];
     }
 
-    if (!pool.length && homePipeline.nbaGamesForHome.length > 0) {
-      return [
-        {
-          id: "nba-on-ticker-slate",
-          league: "NBA",
-          leagueColor: "#FF6B00",
-          homeCategory: "NBA",
-          title: "Tonight's NBA games",
-          time: "Live Snapshot / Today's slate",
-          network: "No duplicate spotlight row",
-          blurb:
-            "Matchups are already surfaced in the Live Snapshot strip or Today's slate above — tap there to avoid double-counting, then ask UR Take from the NBA tab.",
-          whatMatters: "We suppress duplicate cards when a game is reserved for the ticker or slate.",
-          quickHitters: ["Open NBA tab with verified slate", "Best prop on a named matchup?"],
-          confirmed: true,
-          nbaEventKey: null,
-        },
-      ];
-    }
-
-    if (!pool.length) {
+    if (!upcoming.length) {
       return [];
     }
 
-    return pool.map((g, i) => {
+    const rows = upcoming.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
       const series = getSeriesLabel(away, home);
-      const isLive = g.state === "in";
-      const isFinal = g.state === "post";
-      const awayScore = g.awayTeam?.score ?? null;
-      const homeScore = g.homeTeam?.score ?? null;
-      const hasScore = awayScore !== null && homeScore !== null;
       const evKey = nbaEventKey(g);
       const channel = String(g.channel || g.broadcast || "").trim();
-
-      const tipoffLocal = formatNbaTipoffLocal(g.startTimeUtc);
-      const liveLabel = isLive ? "🔴 LIVE" : isFinal ? "FINAL" : tipoffLocal;
-      const blurb = hasScore
-        ? `${away} ${awayScore} — ${home} ${homeScore}${isLive && g.period ? ` · Q${g.period}` : ""}${channel ? ` · ${channel}` : ""}`
-        : `${series || "Playoff matchup"} · Tipoff ${tipoffLocal}${channel ? ` · ${channel}` : ""}`;
-
+      const tipEt = toEtTipLabel(g.startTimeUtc);
       return {
-        id: evKey || `nba-card-${i + 1}`,
+        id: evKey || `nba-card-row-${i + 1}`,
         nbaEventKey: evKey,
-        league: isLive ? "NBA LIVE" : "NBA PLAYOFFS",
-        leagueColor: isLive ? "#FF5252" : "#FF6B00",
-        title: `${away} vs ${home}`,
-        time: liveLabel,
-        network: channel || series || "Playoff matchup",
-        blurb,
-        whatMatters: isLive
-          ? "Live: chase second-half props, totals that lag pace, and matchup pivots."
-          : "Pre-game: lean on matchup math, rotation edges, and series leverage before the number moves.",
-        quickHitters: isLive
-          ? ["Best live prop?", "Halftime total adjustment?", "Who gets the clutch minutes?"]
-          : ["Best side or total?", "Series leverage price?", "Underrated prop tomorrow?"],
-        confirmed: true,
+        away,
+        home,
+        tipEt,
+        series: series || "Playoff matchup",
+        channel,
       };
     });
+
+    return [
+      {
+        id: "nba-playoffs-rows",
+        league: "NBA PLAYOFFS",
+        leagueColor: "#FF6B00",
+        title: "Tonight's games",
+        time: `${rows.length} game${rows.length === 1 ? "" : "s"}`,
+        network: "Tap a matchup",
+        blurb: "",
+        confirmed: true,
+        isNbaRowsCard: true,
+        nbaRows: rows,
+      },
+    ];
   }, [homePipeline.nbaGamesForHome, getSeriesLabel, cardExcludeSet]);
 
   const homeMlbCards = useMemo(() => {

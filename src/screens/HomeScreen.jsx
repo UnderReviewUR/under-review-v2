@@ -97,13 +97,60 @@ export default function HomeScreen({
   <div
     key={m.id}
     className={`spotlight-card${m.isDraft ? " draft-gold-pulse" : ""}`}
-    onClick={() => openMatchup(m)}
+    onClick={() => {
+      if (m.isNbaRowsCard) return;
+      openMatchup(m);
+    }}
   >
                 <div className="spotlight-top">
                   <span className="spotlight-sport" style={{color:m.leagueColor}}>{m.homeCategory||m.league}</span>
                   <span className="spotlight-time">{m.time}</span>
                 </div>
                 <div className="spotlight-title">{m.title}</div>
+                {m.isNbaRowsCard && Array.isArray(m.nbaRows) && m.nbaRows.length > 0 ? (
+                  <div className="spotlight-edge" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {m.nbaRows.map((row) => (
+                      <button
+                        key={row.id}
+                        type="button"
+                        className="quick-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openMatchup({
+                            id: row.id,
+                            league: "NBA PLAYOFFS",
+                            leagueColor: m.leagueColor,
+                            title: `${row.away} vs ${row.home}`,
+                            time: row.tipEt,
+                            network: row.channel || row.series || "Playoff matchup",
+                            nbaEventKey: row.nbaEventKey || null,
+                          });
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          border: "1px solid rgba(255, 107, 0, 0.35)",
+                          borderRadius: 10,
+                          background: "rgba(255, 107, 0, 0.08)",
+                          padding: "8px 10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                            {row.away} @ {row.home}
+                          </div>
+                          <div style={{ fontFamily: "var(--mono-font)", fontSize: 11, color: "#FF6B00" }}>
+                            {row.tipEt}
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 3, fontSize: 11, color: "var(--muted)" }}>
+                          {[row.series, row.channel].filter(Boolean).join(" · ")}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {m.id?.startsWith("golf-home-leaderboard") && Array.isArray(m.topThree) && m.topThree.length > 0 ? (
                   <div className="spotlight-edge">
                     <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -177,7 +224,7 @@ export default function HomeScreen({
                         : undefined
                     }
                   >
-                    {m.blurb}
+                    {!m.isNbaRowsCard ? m.blurb : null}
                   </div>
                 )}
               </div>
