@@ -98,7 +98,7 @@ export async function bdlFetch(endpoint, params = {}, options = {}) {
       ok: false,
       status: 0,
       data: null,
-      error: err?.name === "AbortError" ? "BALLDONTLIE request timed out" : (err.message || "Unknown error"),
+      error: "Something went wrong. Please try again.",
       url,
     };
   }

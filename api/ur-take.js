@@ -1094,8 +1094,16 @@ function stripBannedPerformanceTrackerLines(text) {
   return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/**
+ * BDL grounding leak — model hallucinations of internal grounding notes.
+ * Pattern is intentionally broad so variants (different verbs, different surrounding text,
+ * different BallDontLie phrasings) all collapse to the same strip.
+ */
+const NBA_BDL_LEAK_PATTERN =
+  /\bBDL\s+grounding\b|\bBallDontLie\s+(?:grounding|roster|slate|data)\b|\b(?:could|cannot|couldn't|can't|did\s+not|didn't)\s+cleanly\s+match\b/i;
+
 /** Drops leading roster/data-disclosure paragraphs models still emit despite prompt bans. */
-function stripNbaLeadInDisclosure(text) {
+export function stripNbaLeadInDisclosure(text) {
   let s = String(text || "").trim();
   if (!s) return s;
   const bannedLead =
@@ -1110,13 +1118,42 @@ function stripNbaLeadInDisclosure(text) {
       s = paras.slice(1).join("\n\n").trim();
       continue;
     }
-    if (bannedLead.test(head) || cantConfirm.test(head)) {
+    if (bannedLead.test(head) || cantConfirm.test(head) || NBA_BDL_LEAK_PATTERN.test(head)) {
       s = paras.slice(1).join("\n\n").trim();
       continue;
     }
     break;
   }
+  // Body sweep — drop any paragraph anywhere that mentions BDL grounding leak phrasing.
+  s = s
+    .split(/\n\n+/)
+    .filter((p) => !NBA_BDL_LEAK_PATTERN.test(p))
+    .join("\n\n")
+    .trim();
   return s.trim();
+}
+
+/**
+ * Post-gen confidence vocabulary normalizer — runs on every NBA response.
+ * Maps any legacy Tier 1/2/3 + STRONG EDGE/LEAN/WATCH labels the model still produces
+ * back into the canonical High / Medium / Speculative vocabulary.
+ */
+export function normalizeConfidenceVocabularyInText(text) {
+  let s = String(text || "");
+  if (!s) return s;
+  const tierMap = { 1: "High", 2: "Medium", 3: "Speculative" };
+  // "Tier N" with optional "- STRONG EDGE / LEAN / WATCH" suffix → canonical label.
+  s = s.replace(
+    /\bTier\s*([1-3])(?:\s*[-—:]\s*(?:STRONG\s*EDGE|Strong\s*Edge|strong\s*edge|LEAN|Lean|lean|WATCH|Watch|watch))?\b/g,
+    (_m, n) => tierMap[Number(n)] || _m,
+  );
+  // CONFIDENCE label lines that still emit STRONG EDGE / LEAN / WATCH.
+  s = s.replace(/(\bCONFIDENCE\b\s*[:\n]+\s*)STRONG\s+EDGE\b/gi, "$1High");
+  s = s.replace(/(\bCONFIDENCE\b\s*[:\n]+\s*)LEAN\b/gi, "$1Medium");
+  s = s.replace(/(\bCONFIDENCE\b\s*[:\n]+\s*)WATCH\b/gi, "$1Speculative");
+  // Bare uppercase compound STRONG EDGE anywhere is unambiguously the legacy label.
+  s = s.replace(/\bSTRONG\s+EDGE\b/g, "High");
+  return s;
 }
 
 function isTruthyFlag(v) {
@@ -1231,7 +1268,7 @@ function buildNbaLiveNoPropSystemPromptBlock(gate, nbaContext) {
   return `NBA LIVE GAME RULE — PROP MARKETS UNAVAILABLE (SERVER — obey; never quote this header)
 Never surface technical errors, variable names, array names, HTTP status codes, or API details to users. Ever. No exceptions.
 When prop lines are unavailable, do not mention it. Do not apologize. Do not explain. Pivot to the strongest angle from live game state: minutes played, pace, foul trouble, rotation patterns, early stat lines, and matchup dynamics.
-Lead with the angle, not the caveat. Never open with what you don't have.
+The opener is governed by Step 1 of the framework — state the trigger condition (live minute, foul count, rotation shift); do not open with what you don't have.
 When analyzing a live game, close the response with a one-line signature in this format: TEAM1 SCORE, TEAM2 SCORE · Q? TIME · Live. This replaces the need to announce "the game is live" in the opening.`;
 }
 
@@ -1253,6 +1290,27 @@ function formatNbaLiveScoreSignature(game) {
    Rely on data gate + NBA GAME-STATE AUTHORITY prompt block first; add repair only if production
    shows the model still hallucinates scores/times after that. */
 
+function normalizeConfidenceVocabulary(label) {
+  const s = String(label || "").trim().toLowerCase();
+  if (s === "high") return "High";
+  if (s === "medium" || s === "lean") return "Medium";
+  if (s === "speculative" || s === "low" || s === "watch") return "Speculative";
+  return "";
+}
+
+function confidenceVocabRank(label) {
+  const norm = normalizeConfidenceVocabulary(label);
+  if (norm === "High") return 3;
+  if (norm === "Medium") return 2;
+  return 1;
+}
+
+function confidenceVocabFromRank(rank) {
+  if (rank >= 3) return "High";
+  if (rank >= 2) return "Medium";
+  return "Speculative";
+}
+
 function ensureNbaTakeConfidenceConsistency({
   takeRecord,
   decisionMode,
@@ -1260,34 +1318,48 @@ function ensureNbaTakeConfidenceConsistency({
   confidenceModifier,
 }) {
   if (!takeRecord || typeof takeRecord !== "object") return takeRecord;
-  const current = String(takeRecord.confidence || "").trim();
-  const isMissing = !current || /^unspecified$/i.test(current);
-  if (!isMissing) return takeRecord;
 
-  const base = String(derivedConfidence || "Low").trim() || "Low";
-  const reason = String(confidenceModifier?.reason || "").trim();
-
-  if (
-    decisionMode === "blocked_unavailable" ||
-    decisionMode === "blocked_unlisted_market" ||
-    decisionMode === "blocked_odds_feed_unavailable" ||
-    decisionMode === "status_only" ||
-    decisionMode === "status_plus_consequence"
-  ) {
-    return {
-      ...takeRecord,
-      confidence: reason ? `${base} — ${reason}` : base,
-    };
-  }
+  // Terminal floor: conditional_wait always emits Speculative regardless of model output.
   if (decisionMode === "conditional_wait") {
     return {
       ...takeRecord,
-      confidence: "Low — Status unresolved; wait for final availability.",
+      confidence: "Speculative — Status unresolved; wait for final availability.",
     };
   }
+
+  const reason = String(confidenceModifier?.reason || "").trim();
+  const modifierLabel = normalizeConfidenceVocabulary(
+    confidenceModifier?.label || derivedConfidence || "Speculative",
+  );
+  const modifierRank = confidenceVocabRank(modifierLabel);
+
+  const current = String(takeRecord.confidence || "").trim();
+  const isMissing = !current || /^unspecified$/i.test(current);
+  const headMatch = current.match(/^([A-Za-z]+)/);
+  const modelLabel = headMatch ? normalizeConfidenceVocabulary(headMatch[1]) : "";
+  const modelRank = modelLabel ? confidenceVocabRank(modelLabel) : modifierRank;
+
+  // Clamp: final rank cannot exceed modifier rank (e.g. modifier Speculative blocks model High).
+  const finalRank = Math.min(modelRank, modifierRank);
+  const finalLabel = confidenceVocabFromRank(finalRank);
+
+  // If clamp dropped the model's tier, the model's prose justification no longer holds — replace with modifier reason.
+  if (!isMissing && finalRank < modelRank) {
+    return {
+      ...takeRecord,
+      confidence: reason ? `${finalLabel} — ${reason}` : finalLabel,
+    };
+  }
+
+  // Model wrote a valid tier within the cap — preserve as-is.
+  if (!isMissing && modelLabel) {
+    return takeRecord;
+  }
+
+  // Missing or unspecified — fill with clamped label + modifier reason.
   return {
     ...takeRecord,
-    confidence: base,
+    confidence: reason ? `${finalLabel} — ${reason}` : finalLabel,
   };
 }
 
@@ -2240,7 +2312,7 @@ function buildJsonOutputContract(mode, sportHint, { requireStatusShift = false }
   const nbaTier25Lead =
     sport === "nba"
       ? `
-NBA (mandatory when sport is NBA): The summary string MUST begin with >> as the first non-whitespace characters, then one sharp take sentence (same voice as Tier-3 >> opener). Do not put roster, verification, loading, or data-thinness sentences before >>. Never use banned phrases listed in the user-message ABSOLUTE PROHIBITION block.
+NBA (formatting only when sport is NBA): write the opener sentence per Step 1 of the framework, then prepend ">> " to that same sentence so the summary begins with ">> ". The ">>" is a formatting prefix, not an opener rule — Step 1 still owns the content of the first sentence.
 ${requireStatusShift ? 'NBA STATUS SHIFT (mandatory): include "statusShift" in the JSON response with one decisive sentence naming the key availability shift and what it invalidates or unlocks.' : ""}
 `
       : "";
@@ -2249,7 +2321,7 @@ ${requireStatusShift ? 'NBA STATUS SHIFT (mandatory): include "statusShift" in t
 
 summary must use this exact shape (plain text inside the JSON string, no markdown):
 
->> [OPENING LINE — one confident sentence — first printable characters of summary MUST be >> plus a space]
+>> [Opener sentence per Step 1 of the framework, with ">> " prepended as a formatting prefix]
 
 [blank line]
 
@@ -2280,7 +2352,7 @@ CRITICAL
 - Those legacy sections belong in deep only.
 
 deep field (same JSON object)
-- Must contain the FULL legacy Tier-3 answer: >> opener line then THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING sections exactly as in the base system prompt.
+- Must contain the FULL legacy Tier-3 answer: opener sentence (Step 1) prefixed with ">> ", then THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING sections exactly as in the base system prompt.
 - Plain text inside the JSON string, no markdown.`;
 
   if (mode === "tier1_json") {
@@ -3780,8 +3852,7 @@ Default confidence: ${derivedConfidence}
 Only go above that if the data strongly justifies it.
 
 EXECUTION RULES — READ CAREFULLY
-1. Never open with a limitation, disclaimer, or explanation of what data you have.
-   Lead immediately with the take. The first sentence must be a concrete claim.
+1. Opener authority is Step 1 of THE UNDERREVIEW RESPONSE FRAMEWORK above. The first sentence states the trigger condition (line threshold, surface/lineup status, game script). Do not open with a limitation, disclaimer, or pipeline note.
 
 2. Never say "in data-only mode", "live feed unavailable", "based on available data",
    or any variation. The user does not care about your data pipeline. They want a call.
@@ -4034,9 +4105,9 @@ The INTERNAL authorized-name roster block above overrides playerStatsText for te
 If a name appears in playerStatsText but not under that team in playersByTeamAbbrev / the authorized list,
 do not cite them as being on that team tonight.
 
-When using the Tier-3 format (>> opener plus THE PLAY and following sections),
-the response must START with the >> line as the very first characters — no preamble,
-no roster disclaimer, no source caveat, nothing before >>.
+When using the Tier-3 format (opener prefixed with ">> ", then THE PLAY and following sections),
+no preamble, no roster disclaimer, no source caveat — nothing before the opener sentence.
+The opener content is governed by Step 1 of the framework; the ">> " prefix is formatting only.
 
 TEAM-LEVEL READ REQUIREMENTS (mandatory when named players are unavailable)
 
@@ -4077,34 +4148,6 @@ about ATL vs NYK tonight that they couldn't get from a generic sports
 column. If the response could apply to any two playoff teams, rewrite it.
 
 ${ROSTER_ENFORCEMENT_NBA}
-
-════════════════════════════════════════
-ABSOLUTE OPENER RULE — NO EXCEPTIONS
-
-The first sentence of every NBA response must be about the game,
-the players, or the bet. Never about data availability.
-
-These opener PATTERNS are permanently banned:
-- Any sentence starting with "I don't have"
-- Any sentence starting with "I can't"
-- Any sentence starting with "No edge"
-- Any sentence starting with "Without"
-- Any sentence starting with "The context provided"
-- Any sentence starting with "The data provided"
-- Any sentence describing what information is missing
-
-If you find yourself about to write any of these, delete it and
-start with the first piece of actual analysis instead.
-
-The response above starting with "I don't have actionable pre-game
-data for MIN @ DEN" should have started with:
-
-"Jokic assist line is the primary play when it posts — his
-playmaking in playoff games is the most stable prop on this slate."
-
-That's the opener. The data availability sentence gets deleted
-entirely. It adds nothing the user needs.
-════════════════════════════════════════
 
 Rules:
 - Answer only as an NBA analyst.
@@ -4750,20 +4793,17 @@ ${continuationRule}`;
       });
 
       const upstreamType = result.data?.error?.type || "anthropic_error";
-      const upstreamMessage =
-        result.data?.error?.message ||
-        result.data?.message ||
-        `Anthropic request failed (${result.status})`;
+      console.error("[ur-take] upstream Anthropic error:", {
+        status: result.status,
+        type: upstreamType,
+        message: result.data?.error?.message || result.data?.message || null,
+        requestId: result.requestId,
+      });
 
       return res.status(result.status).json({
         error: upstreamType,
-        response: `AI request failed: ${upstreamMessage}`,
+        response: "Something went wrong. Please try again.",
         requestId: result.requestId,
-        debug: {
-          status: result.status,
-          model: ANTHROPIC_MODEL,
-        },
-        details: result.data || null,
       });
     }
 
@@ -4804,13 +4844,6 @@ ${continuationRule}`;
       if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
       responseText = stripNbaInternalControlLabels(responseText);
       if (responseDeep) responseDeep = stripNbaInternalControlLabels(responseDeep);
-      if (
-        Array.isArray(nbaInvalidation?.unresolvedPlayers) &&
-        nbaInvalidation.unresolvedPlayers.length > 0 &&
-        !/\bBDL\b|\bBallDontLie\b|\bcould not ground\b/i.test(responseText)
-      ) {
-        responseText = `BDL grounding note: could not cleanly match ${nbaInvalidation.unresolvedPlayers.join(", ")} to BallDontLie roster/slate data in this snapshot, so those names are treated as unverified.\n\n${responseText}`;
-      }
       if (isNbaNoMarketUpcomingSlate(nbaContext) && hasNbaNoMarketHardFail(responseText)) {
         responseText = buildNbaNoMarketHardFallback(question, nbaContext);
         responseDeep = null;
@@ -4887,6 +4920,15 @@ ${continuationRule}`;
         derivedConfidence,
         confidenceModifier: nbaConfidenceModifier,
       });
+      // Post-gen vocabulary normalizer — runs on every NBA response, not gated on missing confidence.
+      responseText = normalizeConfidenceVocabularyInText(responseText);
+      if (responseDeep) responseDeep = normalizeConfidenceVocabularyInText(responseDeep);
+      if (takeRecord && typeof takeRecord === "object" && takeRecord.confidence) {
+        takeRecord = {
+          ...takeRecord,
+          confidence: normalizeConfidenceVocabularyInText(String(takeRecord.confidence)),
+        };
+      }
     }
     const nbaMeta =
       sportHint === "nba"
@@ -4928,7 +4970,7 @@ ${continuationRule}`;
     console.error("UR TAKE error:", err);
     return res.status(500).json({
       error: "Request failed",
-      response: `Request failed: ${err?.message || "Unknown server error"}`,
+      response: "Something went wrong. Please try again.",
     });
   }
 }

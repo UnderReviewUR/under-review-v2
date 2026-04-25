@@ -93,6 +93,6 @@ export default async function handler(req, res) {
         retryAfterSeconds: 5,
       });
     }
-    return res.status(500).json({ error: "Failed to create checkout session", details: err.message });
+    return res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 }

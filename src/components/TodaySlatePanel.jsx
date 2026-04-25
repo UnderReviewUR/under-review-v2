@@ -19,13 +19,16 @@ function formatUpdatedLabel(iso) {
   return `Updated ${h} hr${h === 1 ? "" : "s"} ago`;
 }
 
-function SlateRow({ label, item }) {
+function SlateRow({ label, item, fallbackSports }) {
   if (!item || typeof item !== "object") return null;
   const sport = String(item.sport || "nba").toLowerCase();
   const color = SPORT_COLOR[sport] || SPORT_COLOR.nba;
   const title = item.game || item.event || item.match || "Slate";
   const angle = item.angle || "";
   const why = item.why || "";
+  const titleMentionsWta = /\bwta\b/i.test(`${title} ${item.event || ""} ${item.match || ""}`);
+  const isFallbackSource =
+    (fallbackSports && fallbackSports.has(sport)) || (sport === "tennis" && titleMentionsWta);
   return (
     <div
       style={{
@@ -49,6 +52,19 @@ function SlateRow({ label, item }) {
         >
           {sport}
         </span>
+        {isFallbackSource ? (
+          <span
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 9,
+              letterSpacing: 1,
+              color: "var(--muted)",
+            }}
+            title="Source is a cached or static dataset — verify before betting"
+          >
+            Est.
+          </span>
+        ) : null}
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{title}</span>
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{angle}</div>
@@ -64,12 +80,20 @@ const SLATE_ROW_LABEL = {
   contrarian: "Contrarian",
 };
 
-export default function TodaySlatePanel({ excludeEventKeys = [], onDisplayedEventKeysChange }) {
+export default function TodaySlatePanel({
+  excludeEventKeys = [],
+  onDisplayedEventKeysChange,
+  fallbackSports = [],
+}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const excludeSet = useMemo(() => new Set(excludeEventKeys || []), [excludeEventKeys]);
+  const fallbackSportsSet = useMemo(
+    () => new Set((fallbackSports || []).map((s) => String(s || "").toLowerCase())),
+    [fallbackSports],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -177,7 +201,12 @@ export default function TodaySlatePanel({ excludeEventKeys = [], onDisplayedEven
       {!loading && !err && data && (
         <>
           {visibleRowKeys.map((key) => (
-            <SlateRow key={key} label={SLATE_ROW_LABEL[key] || key} item={data[key]} />
+            <SlateRow
+              key={key}
+              label={SLATE_ROW_LABEL[key] || key}
+              item={data[key]}
+              fallbackSports={fallbackSportsSet}
+            />
           ))}
           {!hasRenderableSlateRows ? (
             <div className="today-slate-empty">

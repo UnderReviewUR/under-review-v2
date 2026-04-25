@@ -27,8 +27,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("Golf API error:", err);
     return res.status(500).json({
-      error: "Failed to fetch golf board",
-      details: err.message || "Unknown error",
+      error: "Something went wrong. Please try again.",
     });
   }
 }

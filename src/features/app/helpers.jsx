@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { normalizeText } from "../../lib/normalizeText.js";
 export { normalizeText };
@@ -439,11 +439,68 @@ export function renderMessage(text) {
   });
 }
 
+const SPORT_ACCENT = {
+  nba: "#FF6B00",
+  mlb: "#1DB954",
+  nfl: "#4A90D9",
+  f1: "#E10600",
+  tennis: "#FFE600",
+  golf: "#FFFFFF",
+};
+
+const SPORT_EMOJI = {
+  nba: "🏀",
+  nfl: "🏈",
+  f1: "🏎️",
+  tennis: "🎾",
+  mlb: "⚾",
+  golf: "⛳",
+};
+
+const LOADING_STAGES = [
+  { atMs: 0, label: "Reading the board" },
+  { atMs: 4000, label: "Running the matchup" },
+  { atMs: 10000, label: "Sharpening the take" },
+];
+
+function resolveStageIndex(elapsedMs) {
+  let idx = 0;
+  for (let i = 0; i < LOADING_STAGES.length; i += 1) {
+    if (elapsedMs >= LOADING_STAGES[i].atMs) idx = i;
+  }
+  return idx;
+}
+
 export function LoadingBubble({ sport }) {
-  const emoji = sport === "nba" ? "🏀" : sport === "nfl" ? "🏈" : sport === "f1" ? "🏎️" : sport === "tennis" ? "🎾" : sport === "mlb" ? "⚾" : sport === "golf" ? "⛳" : "⚡";
-  const isF1 = sport === "f1";
+  const sportKey = String(sport || "").toLowerCase();
+  const accent = SPORT_ACCENT[sportKey] || "#FFFFFF";
+  const emoji = SPORT_EMOJI[sportKey] || "⚡";
+  const isF1 = sportKey === "f1";
+
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    const startedAt = Date.now();
+    const tick = () => setStage(resolveStageIndex(Date.now() - startedAt));
+    tick();
+    const id = window.setInterval(tick, 500);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const accentRgba = (alpha) => `${accent}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
+
   return (
-    <div className="bubble ai loading" style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44 }}>
+    <div
+      className="bubble ai loading"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minHeight: 64,
+        borderColor: accentRgba(0.28),
+      }}
+      aria-live="polite"
+      aria-busy="true"
+    >
       <style>{`
         @keyframes ur-bounce {
           0%,100%{transform:translateX(0) translateY(0);}
@@ -458,15 +515,43 @@ export function LoadingBubble({ sport }) {
           94% {left:0;   transform:scaleX(-1);}
           100%{left:0;   transform:scaleX(1);}
         }
+        @keyframes ur-skel-shimmer {
+          0%   {background-position: -180px 0;}
+          100% {background-position: 220px 0;}
+        }
         .ur-track{position:relative;width:72px;height:28px;flex-shrink:0;}
         .ur-emoji{position:absolute;top:50%;margin-top:-11px;font-size:20px;line-height:1;}
         .ur-emoji.driving{animation:ur-drive 1.4s ease-in-out infinite;}
         .ur-emoji.bouncing{animation:ur-bounce 0.9s ease-in-out infinite;left:0;}
+        .ur-stage-row{display:flex;align-items:center;gap:12px;}
+        .ur-stage-label{font-family:var(--mono-font);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+        .ur-stage-dots{display:inline-flex;gap:4px;margin-left:6px;}
+        .ur-stage-dot{width:5px;height:5px;border-radius:999px;background:var(--border-2);}
+        .ur-stage-dot.active{background:currentColor;}
+        .ur-skeleton{height:8px;border-radius:6px;background:linear-gradient(90deg, var(--surface) 0%, var(--border) 50%, var(--surface) 100%);background-size:240px 100%;animation:ur-skel-shimmer 1.4s linear infinite;}
       `}</style>
-      <div className="ur-track">
-        <span className={`ur-emoji ${isF1 ? "driving" : "bouncing"}`}>{emoji}</span>
+      <div className="ur-stage-row">
+        <div className="ur-track">
+          <span className={`ur-emoji ${isF1 ? "driving" : "bouncing"}`}>{emoji}</span>
+        </div>
+        <span className="ur-stage-label" style={{ color: accent }}>
+          {LOADING_STAGES[stage].label}
+          <span className="ur-stage-dots" aria-hidden="true">
+            {LOADING_STAGES.map((_, i) => (
+              <span
+                key={i}
+                className={`ur-stage-dot${i <= stage ? " active" : ""}`}
+                style={i <= stage ? { color: accent } : undefined}
+              />
+            ))}
+          </span>
+        </span>
       </div>
-      <span style={{ fontFamily: "var(--mono-font)", fontSize: 11, letterSpacing: 2, color: "var(--muted)" }}>ANALYZING...</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div className="ur-skeleton" style={{ width: "92%" }} />
+        <div className="ur-skeleton" style={{ width: "78%" }} />
+        <div className="ur-skeleton" style={{ width: "60%" }} />
+      </div>
     </div>
   );
 }

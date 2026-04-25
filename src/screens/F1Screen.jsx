@@ -38,7 +38,12 @@ export default function F1Screen({
             <div className="f1-banner">
               <div className="banner-title">Formula 1 — 2026</div>
               <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
-              <div className="banner-note">{f1Data?.standings?.length ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}</div>
+              <div className="banner-note">
+                {f1Data?.standings?.length ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races` : "Loading F1 data..."}
+                {(f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? (
+                  <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Using cached standings — live feed unavailable">Est.</span>
+                ) : null}
+              </div>
             </div>
 
             {f1Msgs.length===0&&(

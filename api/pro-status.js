@@ -74,6 +74,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("Pro status check error:", err.message);
-    return res.status(500).json({ error: "Failed to check pro status", details: err.message });
+    return res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 }

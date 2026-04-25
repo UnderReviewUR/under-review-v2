@@ -58,8 +58,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("Performance API error:", err);
     return res.status(500).json({
-      error: "Failed to load performance snapshot",
-      details: err?.message || "Unknown error",
+      error: "Something went wrong. Please try again.",
     });
   }
 }

@@ -1970,6 +1970,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error:"Invalid view", allowed:["board","games"] });
   } catch (err) {
     console.error("NBA API error:", err);
-    return res.status(500).json({ error:"Failed to fetch NBA data", details:err.message });
+    return res.status(500).json({ error: "Something went wrong. Please try again." });
   }
 }

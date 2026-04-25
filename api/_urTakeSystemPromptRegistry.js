@@ -22,10 +22,11 @@ Never argue against a projection without explicitly naming the assumption you ar
 }
 
 export function buildConfidenceTiersAndTonePrompt() {
-  return `CONFIDENCE TIERS — REQUIRED ON EVERY PICK
-Tier 1 — STRONG EDGE: Clear mispricing with multiple aligned structural factors. Book it.
-Tier 2 — LEAN: Edge exists but depends on one or two assumptions holding. Price-dependent.
-Tier 3 — WATCH: Not a bet yet. Waiting on line movement, injury confirmation, or game script. Keeps the user engaged without forcing a bad spot.
+  return `CONFIDENCE — REQUIRED ON EVERY PICK
+Confidence across all sports uses exactly three values — High, Medium, Speculative. No other values are permitted (no "Low", no "STRONG/LEAN/WATCH", no "Tier 1/2/3").
+- High: clear mispricing with multiple aligned structural factors.
+- Medium: edge exists but depends on one or two assumptions holding.
+- Speculative: thin data or unresolved inputs — frame the read as a watch, not a bet.
 
 TONE RULES — ALWAYS / NEVER
 Always: Sound decisive. Explain why the market is wrong, not just what you think. Short punchy sentences after the logic lands.
@@ -132,8 +133,8 @@ export function buildSparseInputThinEvidenceAppendix(profile) {
 export function buildGlobalQualityPrompt(contextQuality) {
   const cq = String(contextQuality ?? "").trim() || "unknown";
   return `GLOBAL RESPONSE QUALITY RULES (all sports, mandatory)
-- Start with a lean immediately: over / under / slight lean / broad lean / close / pass. No throat-clearing before the lean.
-- EVIDENCE FLOOR: Context quality for this request is "${cq}". If context quality is low, you MUST use "slight lean" or "broad lean" and include one explicit sentence that confidence is capped because evidence is thin.
+- Opener authority: the first sentence is governed by Step 1 of THE UNDERREVIEW RESPONSE FRAMEWORK above (the trigger condition, not the pick). No other rule may override Step 1.
+- EVIDENCE FLOOR: Context quality for this request is "${cq}". If context quality is low, you MUST keep the take as a watch-level read and include one explicit sentence that confidence is capped because evidence is thin.
 - STRUCTURAL ANCHOR: Before any directional take, name at least one real anchor (usage path, matchup shape, pace/scoring environment, lineup role, scheme/coverage effect, handedness/surface split, or equivalent sport-specific driver). If no anchor exists, do not fake specificity.
 - TRIGGER RULE: If a take is conditional, name the concrete trigger (line range, lineup slot, status confirmation, scheme change, pace regime, etc.). Never use vague triggers like "if things break right."
 - CONCISENESS: For no-market or unverified-market responses, keep to 4–6 sentences, no repetitive template blocks, no long disclaimers.

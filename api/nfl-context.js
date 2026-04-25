@@ -14,8 +14,7 @@ export default function handler(req, res) {
   } catch (err) {
     console.error("NFL context error:", err);
     return res.status(500).json({
-      error: "Failed to build NFL context",
-      details: err?.message || "Unknown error",
+      error: "Something went wrong. Please try again.",
     });
   }
 }

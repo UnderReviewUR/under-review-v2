@@ -90,8 +90,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("Tennis fetch error:", err);
     return res.status(500).json({
-      error: "Failed to fetch tennis fixtures",
-      details: err.message,
+      error: "Something went wrong. Please try again.",
     });
   }
 }

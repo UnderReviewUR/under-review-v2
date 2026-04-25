@@ -191,7 +191,7 @@ async function safeFetchJson(url, options = {}) {
       ok: false,
       status: 0,
       data: null,
-      error: err.message || "Network error",
+      error: "Something went wrong. Please try again.",
     };
   }
 }
@@ -232,7 +232,7 @@ async function safeFetchText(url, options = {}) {
       ok: false,
       status: 0,
       text: "",
-      error: err.message || "Network error",
+      error: "Something went wrong. Please try again.",
     };
   }
 }

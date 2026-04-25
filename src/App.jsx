@@ -1959,6 +1959,10 @@ ${themeCss}
             loadPerformanceSnapshot={loadPerformanceSnapshot}
             liveSnapshotEventKeys={liveSnapshotKeys}
             onTodaySlateDisplayedKeys={setSlateDisplayedEventKeys}
+            slateFallbackSports={[
+              ...((f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? ["f1"] : []),
+              "nfl",
+            ]}
           />
         )}
 

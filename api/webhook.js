@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error("[webhook] Signature verification failed:", err.message);
-    return res.status(400).json({ error: `Webhook signature failed: ${err.message}` });
+    return res.status(400).json({ error: "Webhook signature failed" });
   }
 
   // ── Handle events ──────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("[webhook] Event processing error:", err.message);
     // Still return 200 so Stripe doesn't retry infinitely for a processing bug
-    return res.status(200).json({ received: true, warning: err.message });
+    return res.status(200).json({ received: true });
   }
 
   return res.status(200).json({ received: true });

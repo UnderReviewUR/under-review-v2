@@ -130,7 +130,21 @@ export default function TennisScreen({
                   }}
                   onClick={() => setWtaSectionOpen((o) => !o)}
                 >
-                  <span>WTA · Profile-Based Analysis</span>
+                  <span>
+                    WTA · Profile-Based Analysis
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontFamily: "var(--mono-font)",
+                        fontSize: 9,
+                        letterSpacing: 1,
+                        color: "var(--muted)",
+                      }}
+                      title="Static WTA snapshot — no live fixtures feed"
+                    >
+                      Est.
+                    </span>
+                  </span>
                   <span
                     style={{
                       fontFamily: "var(--mono-font)",

@@ -30,6 +30,7 @@ export default function HomeScreen({
   golfScoreColor,
   liveSnapshotEventKeys,
   onTodaySlateDisplayedKeys,
+  slateFallbackSports,
 }) {
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
@@ -88,6 +89,7 @@ export default function HomeScreen({
             <TodaySlatePanel
               excludeEventKeys={liveSnapshotEventKeys}
               onDisplayedEventKeysChange={onTodaySlateDisplayedKeys}
+              fallbackSports={slateFallbackSports}
             />
 
             {/* Spotlight cards — tight, sport-colored, edge-focused */}
