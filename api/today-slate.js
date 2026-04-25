@@ -115,7 +115,7 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         sport: "nba",
         game: nbaGame || "Tonight's board",
         angle: "Game-flow read",
-        why: "Use posted matchup/series context from board rows and avoid unsupported player-name assumptions.",
+        why: "Tonight's playoff slate — ask for props, totals, or live angles on any matchup.",
       };
 
   const sharpAngle = nbaGame
