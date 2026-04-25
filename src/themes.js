@@ -572,13 +572,14 @@ export const THEMES = {
       }
 
       .theme-broadsheet .pro-cta-btn {
-        border: 2px solid #0F0D0A !important;
-        color: #0F0D0A !important;
-        background: #FFFCF7 !important;
+        border: 2px solid #080A0C !important;
+        color: #FFFFFF !important;
+        background: #080A0C !important;
       }
       .theme-broadsheet .pro-cta-btn:hover {
-        background: #0F0D0A !important;
-        color: #F7F4EE !important;
+        background: #080A0C !important;
+        border-color: #080A0C !important;
+        color: #FFFFFF !important;
       }
 
       .app.theme-broadsheet .docked-bar {
@@ -603,6 +604,7 @@ export const THEMES = {
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.15);
       }
 
       .theme-broadsheet .hdr {
