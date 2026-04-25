@@ -572,14 +572,14 @@ export const THEMES = {
       }
 
       .theme-broadsheet .pro-cta-btn {
-        border: 2px solid #080A0C !important;
-        color: #FFFFFF !important;
-        background: #080A0C !important;
+        border: none;
+        color: #FFFFFF;
+        background: #080A0C;
       }
       .theme-broadsheet .pro-cta-btn:hover {
-        background: #080A0C !important;
-        border-color: #080A0C !important;
-        color: #FFFFFF !important;
+        background: #080A0C;
+        border: none;
+        color: #FFFFFF;
       }
 
       .app.theme-broadsheet .docked-bar {
@@ -600,11 +600,8 @@ export const THEMES = {
         font-weight: 900;
         letter-spacing: .5px;
         line-height: 1;
-        background: linear-gradient(90deg, #F7F4EE 0%, #F7F4EE 45%, #C9A84C 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        text-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        color: #1a1a1a;
+        -webkit-text-fill-color: #1a1a1a;
       }
 
       .theme-broadsheet .hdr {

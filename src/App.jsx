@@ -2183,7 +2183,14 @@ ${themeCss}
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span className="logo-review" style={{ fontSize: 17, letterSpacing: 0 }}>
-            UnderReview
+            {activeTheme === "broadsheet" ? (
+              <>
+                <span style={{ color: "#1a1a1a", WebkitTextFillColor: "#1a1a1a" }}>UnderReview</span>
+                <span style={{ color: "#F5C842", WebkitTextFillColor: "#F5C842" }}> PRO</span>
+              </>
+            ) : (
+              "UnderReview"
+            )}
           </span>
           <span
             style={{
