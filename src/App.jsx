@@ -2192,21 +2192,23 @@ ${themeCss}
               "UnderReview"
             )}
           </span>
-          <span
-            style={{
-              fontFamily: "var(--display-font)",
-              fontSize: 22,
-              letterSpacing: 4,
-              background: "linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
-              backgroundSize: "200% auto",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              animation: "gleam 3s linear infinite",
-            }}
-          >
-            PRO
-          </span>
+          {activeTheme !== "broadsheet" && (
+            <span
+              style={{
+                fontFamily: "var(--display-font)",
+                fontSize: 22,
+                letterSpacing: 4,
+                background: "linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
+                backgroundSize: "200% auto",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                animation: "gleam 3s linear infinite",
+              }}
+            >
+              PRO
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 12, color: proMarketing.subBody ?? "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
           Pick services charge $100+ a month to guess. Under Review is every ask, every sport, every day. Ten bucks.

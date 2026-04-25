@@ -572,14 +572,14 @@ export const THEMES = {
       }
 
       .theme-broadsheet .pro-cta-btn {
-        border: none;
-        color: #FFFFFF;
-        background: #080A0C;
+        border: none !important;
+        color: #ffffff !important;
+        background: #080A0C !important;
       }
       .theme-broadsheet .pro-cta-btn:hover {
-        background: #080A0C;
-        border: none;
-        color: #FFFFFF;
+        background: #080A0C !important;
+        border: none !important;
+        color: #ffffff !important;
       }
 
       .app.theme-broadsheet .docked-bar {
