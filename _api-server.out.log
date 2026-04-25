@@ -1,0 +1,6 @@
+◇ injected env (12) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+[api] Local API server running on http://localhost:3001
+{"event":"nba_props_feed","oddsKeyPresent":true,"maxEvents":18,"priorityBoost":"POR,SAS","emptyReason":"events_fetch_failed","eventsFetchOk":false,"eventsFetchStatus":401,"matchingEventCount":0,"eventsProcessed":0,"propsIngestionRows":0,"propFetchFailures":0,"missingPreferredBookmaker":0}
+[nba] rosterGroundingQuality=full (tonightTeams=14)
+[ur-take] NBA rosterGroundingQuality: full
+{"event":"ur_take_nba_observability","decisionMode":"actionable","sport":"nba","matchupGroundingApplied":true,"postValidationChecked":true,"postValidationTriggered":false,"fallbackOrRepairUsed":false}

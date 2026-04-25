@@ -2108,18 +2108,27 @@ export function buildAllowedMatchupPlayerPool(matchup, nbaContext) {
 
 function injectMatchupGroundingBlock(matchup, pool) {
   if (!matchup || !pool || pool.allowedTeams.length !== 2) return "";
-  const awayList = (pool.byTeam[matchup.awayAbbr] || []).slice(0, 12).join(", ") || "(none grounded)";
-  const homeList = (pool.byTeam[matchup.homeAbbr] || []).slice(0, 12).join(", ") || "(none grounded)";
+  const awayPlayers = pool.byTeam[matchup.awayAbbr] || [];
+  const homePlayers = pool.byTeam[matchup.homeAbbr] || [];
+  const matchupQuality =
+    awayPlayers.length >= 4 && homePlayers.length >= 4
+      ? "full"
+      : awayPlayers.length > 0 && homePlayers.length > 0
+        ? "partial"
+        : "thin";
+  const awayList = awayPlayers.join(", ") || "(none grounded)";
+  const homeList = homePlayers.join(", ") || "(none grounded)";
   return `VALID MATCHUP
 - ${matchup.label}
 VALID PLAYER POOL
 - ${matchup.awayAbbr}: ${awayList}
 - ${matchup.homeAbbr}: ${homeList}
+- Focused matchup roster quality: ${matchupQuality}
 
 MATCHUP ENFORCEMENT
 - If you mention any player-specific prop or take, player must be from ${matchup.awayAbbr} or ${matchup.homeAbbr}.
 - Do not mention players from other games/teams.
-- If grounded player pool is thin, use team-level analysis and do NOT guess player names.`;
+- If focused matchup roster quality is thin, use team-level analysis and do NOT guess player names. If it is full, use the authorized player names above normally.`;
 }
 
 function buildOffMatchupPromptAcknowledgement(question, matchup, pool) {
@@ -2407,9 +2416,28 @@ function questionExplicitlyNamesPlayerCue(question) {
 }
 
 function buildNbaRosterListInner(nbaContext, rosterOpts = {}) {
-  const { hasImage = false, question = "" } = rosterOpts;
-  const rosterQuality = nbaContext?.rosterGrounding?.rosterGroundingQuality;
-  const names = [...collectNbaVerifiedPlayerNamesFromGrounding(nbaContext)].sort();
+  const { hasImage = false, question = "", matchup = null } = rosterOpts;
+  const playersByTeam = nbaContext?.rosterGrounding?.playersByTeamAbbrev || {};
+  const qualityByTeam = nbaContext?.rosterGrounding?.qualityByTeam || {};
+  let rosterQuality = nbaContext?.rosterGrounding?.rosterGroundingQuality;
+  if (matchup?.awayAbbr && matchup?.homeAbbr) {
+    const away = String(matchup.awayAbbr || "").toUpperCase();
+    const home = String(matchup.homeAbbr || "").toUpperCase();
+    const awayCount = (playersByTeam[away] || []).length;
+    const homeCount = (playersByTeam[home] || []).length;
+    rosterQuality =
+      awayCount >= 4 && homeCount >= 4
+        ? "full"
+        : awayCount > 0 && homeCount > 0
+          ? "partial"
+          : "thin";
+    if (qualityByTeam[away] === "thin" || qualityByTeam[home] === "thin") {
+      rosterQuality = "thin";
+    } else if (qualityByTeam[away] === "partial" || qualityByTeam[home] === "partial") {
+      rosterQuality = rosterQuality === "full" ? "partial" : rosterQuality;
+    }
+  }
+  const names = [...collectNbaVerifiedPlayerNamesFromGrounding(nbaContext)];
 
   const namedInQuestion = questionExplicitlyNamesPlayerCue(question);
   const userGrounded = hasImage || namedInQuestion;
@@ -2467,7 +2495,7 @@ ${buildNbaRosterListInner(nbaContext, rosterOpts)}
 ════════════════════════════════════════`;
 }
 
-const NO_MARKET_VERIFIED_PLAYER_STEP_2 = `2. Name at least TWO specific players from the AUTHORIZED player list only.
+const NO_MARKET_VERIFIED_PLAYER_STEP_2 = `2. Name the two to four highest-usage players from the AUTHORIZED list for each team in the matchup. For SAS this must include Wembanyama if present. Never stop at one name if more authorized names exist for the matchup teams.
 If fewer than two authorized names exist for the matchup, do NOT invent names.
 Give a sharp team-level read anchored to matchup context — never mention missing lines,
 loading pipelines, or roster completeness.`;
@@ -2508,7 +2536,9 @@ YOU MUST FOLLOW THESE RULES EXACTLY:
    rosterGrounding.playersByTeamAbbrev. If it does not appear, you
    CANNOT name them as being on that team. Period.
 
-2. If playersByTeamAbbrev is empty or thin for a team you need to discuss,
+2. If VALID PLAYER POOL includes a focused matchup roster quality line, use that
+   matchup-scoped quality instead of global rosterGroundingQuality. If focused
+   matchup roster quality is full, use the listed names normally. If it is thin,
    give team-level analysis (pace, scheme, series, totals, injuries from context)
    without inventing players. Do NOT tell the user the roster is missing,
    unconfirmed, partial, or loading — if coverage is weak, reflect that only
@@ -4056,6 +4086,7 @@ Never open with market-availability throat-clearing. Give monitoring hooks; name
     const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContext, {
       hasImage,
       question,
+      matchup: nbaMatchup,
     });
 
     const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);

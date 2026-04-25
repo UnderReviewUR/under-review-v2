@@ -4,6 +4,26 @@ import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
+const BDL_SEASON_AVG_INTERVAL_MS = 1200;
+const bdlSeasonAverageCache = new Map();
+let bdlSeasonAverageQueueTail = Promise.resolve();
+
+function enqueueBdlSeasonAverageRequest(task) {
+  const run = bdlSeasonAverageQueueTail.then(async () => {
+    const startedAt = Date.now();
+    try {
+      return await task();
+    } finally {
+      const elapsed = Date.now() - startedAt;
+      const waitMs = Math.max(0, BDL_SEASON_AVG_INTERVAL_MS - elapsed);
+      if (waitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+  });
+  bdlSeasonAverageQueueTail = run.catch(() => null);
+  return run;
+}
 
 /**
  * Single-source normalization for incoming team abbreviations from BDL, ESPN,
@@ -994,12 +1014,14 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource, 
     }
   }
 
+  const qualityByTeam = {};
   let rosterGroundingQuality;
   if (tonightTeams.size > 0) {
     let anyZero = false;
     let anyUnderFour = false;
     for (const abbr of tonightTeams) {
       const n = (playersByTeamAbbrev[abbr] || []).length;
+      qualityByTeam[abbr] = n === 0 ? "thin" : n < 4 ? "partial" : "full";
       if (n === 0) anyZero = true;
       if (n < 4) anyUnderFour = true;
     }
@@ -1020,6 +1042,7 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource, 
 
   return {
     playersByTeamAbbrev,
+    qualityByTeam,
     trustNote,
     ...(rosterGroundingQuality ? { rosterGroundingQuality } : {}),
     rule:
@@ -1244,12 +1267,24 @@ async function fetchActiveRosterPlayers(bdlKey, teamIds) {
 /** Per-player season averages via the new BDL contract: ?season=YYYY&player_id=<single integer>. */
 async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
   if (!playerId) return null;
+  const cacheKey = `${playerId}_${season}`;
+  if (bdlSeasonAverageCache.has(cacheKey)) {
+    return bdlSeasonAverageCache.get(cacheKey);
+  }
   const url = `https://api.balldontlie.io/v1/season_averages?season=${season}&player_id=${playerId}`;
-  const res = await fetch(url, { headers: bdlHeaders(bdlKey) });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const row = Array.isArray(data?.data) && data.data[0] ? data.data[0] : null;
-  return row || null;
+  const row = await enqueueBdlSeasonAverageRequest(async () => {
+    const res = await fetch(url, { headers: bdlHeaders(bdlKey) });
+    if (!res.ok) {
+      console.log(`[diag] fetchSeasonAverageForPlayer player_id=${playerId} url=${url} status=${res.status} hasData0=false`);
+      return null;
+    }
+    const data = await res.json();
+    const dataRow = Array.isArray(data?.data) && data.data[0] ? data.data[0] : null;
+    console.log(`[diag] fetchSeasonAverageForPlayer player_id=${playerId} url=${url} status=${res.status} hasData0=${Boolean(dataRow)}`);
+    return dataRow || null;
+  });
+  bdlSeasonAverageCache.set(cacheKey, row);
+  return row;
 }
 
 /**
