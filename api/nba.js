@@ -1,5 +1,6 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
+import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -1271,6 +1272,10 @@ async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
   if (bdlSeasonAverageCache.has(cacheKey)) {
     return bdlSeasonAverageCache.get(cacheKey);
   }
+  const durableCacheKey = `nba_season_avg_${season}_${playerId}`;
+  const cached = await getDurableJson(durableCacheKey);
+  if (cached?._empty) return null;
+  if (cached !== null && cached !== undefined) return cached;
   const url = `https://api.balldontlie.io/v1/season_averages?season=${season}&player_id=${playerId}`;
   const row = await enqueueBdlSeasonAverageRequest(async () => {
     const res = await fetch(url, { headers: bdlHeaders(bdlKey) });
@@ -1283,6 +1288,8 @@ async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
     console.log(`[diag] fetchSeasonAverageForPlayer player_id=${playerId} url=${url} status=${res.status} hasData0=${Boolean(dataRow)}`);
     return dataRow || null;
   });
+  if (row) await setDurableJson(durableCacheKey, row, { ttlSeconds: 86400 });
+  else await setDurableJson(durableCacheKey, { _empty: true }, { ttlSeconds: 21600 });
   bdlSeasonAverageCache.set(cacheKey, row);
   return row;
 }
