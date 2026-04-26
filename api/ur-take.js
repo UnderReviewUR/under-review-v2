@@ -2348,6 +2348,20 @@ function shouldUseTier25WithDeep({ question, matchupContext, sportHint }) {
   return false;
 }
 
+function isSpreadOrGameSideQuestion(question) {
+  const q = normalizeText(question);
+  if (!q) return false;
+  return (
+    q.includes("spread") ||
+    q.includes("ats") ||
+    q.includes("against the spread") ||
+    q.includes("game side") ||
+    q.includes("which team covers") ||
+    q.includes("who covers") ||
+    (q.includes("cover") && (q.includes("line") || q.includes("side")))
+  );
+}
+
 function resolveOutputJsonMode({
   chaseSignals,
   intent,
@@ -2579,6 +2593,14 @@ baselines and tour averages. ALWAYS produce projections. Never say
 "cannot project without more data." Confidence reflects data quality.
 
 In Tier 2.5 summary, PROP PROJECTIONS must contain at least 4 specific lines.`;
+
+const SPREAD_AND_GAME_SIDE_BLOCK = `SPREAD AND GAME SIDE — when user asks about a spread, ATS, or which team covers:
+
+Answer the spread question directly in the first sentence. Do not pivot to a prop angle.
+Format: '[Team] covers at [number] if [specific condition]. The fragile assumption behind the other side: [one sentence].'
+Identify the specific game script that decides the cover — pace, foul trouble, bench depth, specific player performance threshold.
+Name the kill script explicitly: 'This breaks if [specific condition].'
+End with the live trigger format: 'Live trigger: [player/team] [observable action] by [time marker] — if yes, [cover holds]. If no, [reassess].'`;
 
 const ROSTER_ENFORCEMENT_NBA = `ROSTER ENFORCEMENT — THIS IS A HARD RULE WITH NO EXCEPTIONS
 
@@ -3737,6 +3759,9 @@ export default async function handler(req, res) {
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
   });
   const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
+  const spreadAndGameSideBlock = isSpreadOrGameSideQuestion(question)
+    ? `\n\n${SPREAD_AND_GAME_SIDE_BLOCK}`
+    : "";
   let systemPromptForModel =
     outputJsonMode !== "plain" && jsonContract
       ? `${systemPrompt}
@@ -3747,8 +3772,8 @@ For factual Tier-1 questions, return JSON with only summary as a short string.
 For live in-game Tier-2 questions, return JSON with only summary in the compressed live format.
 For all other questions where no contract is attached, use plain text as already specified.
 
-${jsonContract}${propProjectionModeBlock}`
-      : `${systemPrompt}${propProjectionModeBlock}`;
+${jsonContract}${propProjectionModeBlock}${spreadAndGameSideBlock}`
+      : `${systemPrompt}${propProjectionModeBlock}${spreadAndGameSideBlock}`;
   if (!oddsAvailable) {
     systemPromptForModel = `${systemPromptForModel}
 
