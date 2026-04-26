@@ -32,8 +32,8 @@ test("composeRegisteredUrTakeSystemPrompt bans unavailable-data closings", () =>
   });
   assert.match(p, /CLOSING DISCIPLINE — NO "DATA UNAVAILABLE" ENDINGS/);
   assert.match(p, /Series context and live rotation data are unavailable/);
-  assert.match(p, /never reproduce MATCH READ, PROP PROJECTIONS/);
-  assert.match(p, /Treat follow-ups like a text message reply, not a new report/);
+  assert.match(p, /FOLLOW-UP RESPONSE RULE — MANDATORY/);
+  assert.match(p, /Treat every follow-up like a text reply from a friend who already knows the context/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt appends NBA decision spine for nba", () => {

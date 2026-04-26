@@ -721,6 +721,12 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
   }
   serverSummaryOneLiner += ".";
 
+  const priorFinals = Array.isArray(row?.completedGamesCombinedPoints) ? row.completedGamesCombinedPoints : [];
+  const avgCombined = row?.completedGamesCombinedPointsAverage;
+  if (priorFinals.length > 0 && Number.isFinite(avgCombined)) {
+    serverSummaryOneLiner += ` Completed finals in fetch window (${priorFinals.length}): combined avg ${avgCombined} pts/game.`;
+  }
+
   return {
     awayAbbr: af,
     homeAbbr: hf,
@@ -730,6 +736,8 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
     nextGameNumber: nextGameNum > 0 ? nextGameNum : null,
     round: row?.round || null,
     statusText: row?.status || null,
+    completedGamesCombinedPoints: priorFinals,
+    completedGamesCombinedPointsAverage: Number.isFinite(avgCombined) ? avgCombined : null,
     serverSummaryOneLiner,
   };
 }

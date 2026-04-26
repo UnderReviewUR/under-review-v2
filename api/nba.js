@@ -1,5 +1,6 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
+import { addCalendarDaysEt } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { persistLastKnownHomeNbaGames, recoverLastKnownHomeNbaGames } from "./_homeLastKnownGames.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
@@ -2060,6 +2061,78 @@ function shouldShowSeriesScore(item) {
   return Number.isFinite(hw) && Number.isFinite(aw) && hw + aw > 0;
 }
 
+/** Final head-to-head game between two abbrs from ESPN scoreboard event (post only). */
+function extractFinishedHeadToHeadGameTotals(event, seriesAway, seriesHome) {
+  const st = String(event?.status?.type?.state || "").toLowerCase();
+  if (st !== "post") return null;
+  const stRaw = event?.season?.type;
+  if (stRaw === 2 || stRaw === "2") return null;
+
+  const comp = event?.competitions?.[0];
+  const home = comp?.competitors?.find((c) => c.homeAway === "home");
+  const away = comp?.competitors?.find((c) => c.homeAway === "away");
+  const ha = canonicalizeTeamAbbr(home?.team?.abbreviation);
+  const aa = canonicalizeTeamAbbr(away?.team?.abbreviation);
+  if (!ha || !aa) return null;
+  const sa = String(seriesAway || "").toUpperCase();
+  const sh = String(seriesHome || "").toUpperCase();
+  const set = new Set([aa, ha]);
+  if (!set.has(sa) || !set.has(sh)) return null;
+
+  const hs = parseInt(String(home?.score ?? ""), 10);
+  const aws = parseInt(String(away?.score ?? ""), 10);
+  if (!Number.isFinite(hs) || !Number.isFinite(aws)) return null;
+
+  return {
+    combinedPoints: aws + hs,
+    awayScore: aws,
+    homeScore: hs,
+    awayAbbrBoard: aa,
+    homeAbbrBoard: ha,
+    startTimeUtc: String(event?.date || "").trim() || null,
+    eventId: event?.id ?? null,
+  };
+}
+
+/** Attach completed-game combined point totals per series row (ESPN scoreboard date range). */
+async function enrichPlayoffSeriesRowsWithCompletedGameTotals(seriesRows) {
+  if (!Array.isArray(seriesRows) || seriesRows.length === 0) return seriesRows;
+  const endEt = getTodayEtDateString();
+  const startEt = addCalendarDaysEt(endEt, -28);
+  const rangeToken = `${toEspnDateToken(startEt)}-${toEspnDateToken(endEt)}`;
+  let events = [];
+  try {
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(rangeToken)}`,
+      { cache: "no-store" },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      events = data?.events || [];
+    }
+  } catch (err) {
+    console.warn("playoff series scoreboard range fetch:", err.message);
+  }
+
+  return seriesRows.map((row) => {
+    const aa = String(row?.away || "").toUpperCase();
+    const hh = String(row?.home || "").toUpperCase();
+    if (!aa || !hh) return row;
+    const games = events
+      .map((ev) => extractFinishedHeadToHeadGameTotals(ev, aa, hh))
+      .filter(Boolean)
+      .sort((a, b) => Date.parse(a.startTimeUtc || 0) - Date.parse(b.startTimeUtc || 0));
+    const totals = games.map((g) => g.combinedPoints).filter((n) => Number.isFinite(n));
+    const avg =
+      totals.length > 0 ? Math.round((totals.reduce((s, n) => s + n, 0) / totals.length) * 10) / 10 : null;
+    return {
+      ...row,
+      completedGamesCombinedPoints: games,
+      completedGamesCombinedPointsAverage: avg,
+    };
+  });
+}
+
 async function getNbaPlayoffSeries() {
   const cacheKey = "nba_playoff_series";
   const cached = getCached(cacheKey);
@@ -2130,8 +2203,9 @@ async function getNbaPlayoffSeries() {
     const preferred = playoffSeries.length > 0 ? playoffSeries : scoreboardSeries;
     const filtered = preferred.filter(shouldShowSeriesScore);
     if (filtered.length > 0) {
-      setCached(cacheKey, filtered);
-      return filtered;
+      const enriched = await enrichPlayoffSeriesRowsWithCompletedGameTotals(filtered);
+      setCached(cacheKey, enriched);
+      return enriched;
     }
     return [];
   } catch (err) {

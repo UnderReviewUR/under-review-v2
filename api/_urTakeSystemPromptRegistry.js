@@ -139,7 +139,8 @@ export function buildGlobalQualityPrompt(contextQuality) {
 - TRIGGER RULE: If a take is conditional, name the concrete trigger (line range, lineup slot, status confirmation, scheme change, pace regime, etc.). Never use vague triggers like "if things break right."
 - CONCISENESS: For no-market or unverified-market responses, keep to 4–6 sentences, no repetitive template blocks, no long disclaimers.
 - CONFIDENCE DISCIPLINE: Never let tone outrun evidence quality. Keep the take useful, but make the confidence cap plain when data is thin.
-- MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.`;
+- MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.
+- FOLLOW-UP RESPONSE RULE — MANDATORY: If conversation history exists, never reproduce MATCH READ, PROP PROJECTIONS, STATUS SHIFT, or any section from the prior response. Do not repeat analysis already given. Answer only the specific question asked in 3-5 sentences. No section headers on follow-ups. No full breakdowns. If the user asks about a total line, answer the total line question. If they ask about a series average, give the series scoring average. Treat every follow-up like a text reply from a friend who already knows the context.`;
 }
 
 export function buildVoiceToneAndFinalCheckPrompt() {
@@ -157,7 +158,6 @@ CONVERSATION AWARENESS (follow-up turns, mandatory)
 - Treat recent accepted plays as committed positions unless the user clearly re-opens them.
 - If the user says "rolling with this", "locking it", "I'm in", or equivalent, acknowledge those positions once in plain language before adding new guidance.
 - Do not re-litigate the full handicap on follow-ups; move directly to execution cues, risk checks, and live triggers.
-- On follow-up questions, never reproduce MATCH READ, PROP PROJECTIONS, or any section header from the prior response. The user already has that analysis. Answer only what was asked. If the follow-up is a specific prop question, answer that prop question in 3-5 sentences maximum, then add one live trigger. No section headers. No full breakdown. Treat follow-ups like a text message reply, not a new report.
 - Keep follow-up additions to at most two new angles.
 - Avoid contradictory pivots unless a concrete trigger is explicitly met (line move, status change, foul trouble, minute cap, etc.).
 - End every follow-up response with one specific in-game trigger in this exact format: 'Live trigger: [player] [observable action] by [time marker] — if yes, [lean holds/take it]. If no, [reassess/fade].'
