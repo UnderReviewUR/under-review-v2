@@ -26,6 +26,7 @@ const FINISHED_KEYWORDS = [
   "abandoned",
   "complete",
 ];
+const NBA_TIP_FEED_LAG_GRACE_MS = 10 * 60 * 1000;
 
 function hasEndedByEndDate(endMs, nowMs) {
   return Number.isFinite(endMs) && nowMs > endMs;
@@ -117,6 +118,14 @@ function classifyGameState({ game, nowMs, durationMs, sport }) {
   if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "pre" || state === "scheduled") {
     if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
+    if (sport === "nba") {
+      const delta = startMs - nowMs;
+      const awayScore = Number(game?.awayTeam?.score);
+      const homeScore = Number(game?.homeTeam?.score);
+      if (delta < 0 && delta > -NBA_TIP_FEED_LAG_GRACE_MS && awayScore === 0 && homeScore === 0) {
+        return EVENT_VALIDITY.UPCOMING;
+      }
+    }
     return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.STALE;
   }
   if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
@@ -127,11 +136,11 @@ function classifyGameState({ game, nowMs, durationMs, sport }) {
 }
 
 export function classifyNbaGame(game, nowMs = Date.now()) {
-  return classifyGameState({ game, nowMs, durationMs: 4 * 60 * 60 * 1000 });
+  return classifyGameState({ game, nowMs, durationMs: 4 * 60 * 60 * 1000, sport: "nba" });
 }
 
 export function classifyMlbGame(game, nowMs = Date.now()) {
-  return classifyGameState({ game, nowMs, durationMs: 6 * 60 * 60 * 1000 });
+  return classifyGameState({ game, nowMs, durationMs: 6 * 60 * 60 * 1000, sport: "mlb" });
 }
 
 export function classifyF1Race(race, nowMs = Date.now()) {
