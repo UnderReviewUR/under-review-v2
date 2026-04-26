@@ -23,6 +23,12 @@ function extractAnthropicText(data) {
 
 function parseCopyJson(text) {
   const raw = String(text || "").trim();
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  try {
+    return JSON.parse(stripped);
+  } catch {
+    // fall through to raw parse + brace-tail parse
+  }
   try {
     return JSON.parse(raw);
   } catch {
@@ -100,7 +106,8 @@ RULES
 - Keep each field <= 24 words.
 - Do not use markdown.
 - If injuryImpactCount > 0, make injuries part of the reason.
-- If seriesGameNumber > 0, include series leverage naturally.`;
+- If seriesGameNumber > 0, include series leverage naturally.
+- Respond with only a raw JSON object. No markdown, no code fences, no preamble, no explanation. First character must be { and last character must be }.`;
 
     let parsed = null;
     try {
