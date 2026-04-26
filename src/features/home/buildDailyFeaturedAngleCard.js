@@ -89,11 +89,32 @@ function summarizeInjuryStatusesForGame(game, bdlAvailability) {
 }
 
 async function fetchGeneratedCopy(seed) {
+  const payload = seed && typeof seed === "object" ? seed : null;
+  const matchup = String(payload?.matchup || "").trim();
+  const dateKeyEt = String(payload?.dateKeyEt || "").trim();
+  const game = payload?.game && typeof payload.game === "object" ? payload.game : null;
+  if (!payload || !matchup || !dateKeyEt || !game) return null;
+
+  const requestBody = JSON.stringify({
+    dateKeyEt,
+    matchup,
+    game: {
+      away: String(game.away || "").trim(),
+      home: String(game.home || "").trim(),
+      startTimeUtc: game.startTimeUtc || null,
+      state: game.state || null,
+      status: game.status || null,
+    },
+    injuryImpactCount: Number(payload?.injuryImpactCount || 0),
+    seriesGameNumber: Number(payload?.seriesGameNumber || 0),
+    injurySummary: Array.isArray(payload?.injurySummary) ? payload.injurySummary : [],
+  });
+
   try {
     const res = await fetch("/api/home-featured-angle-copy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(seed),
+      body: requestBody,
     });
     if (!res.ok) return null;
     const data = await res.json();
