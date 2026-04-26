@@ -638,6 +638,96 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
   return "generic";
 }
 
+function normalizeAvailabilityStatusClass(value) {
+  const s = String(value || "").toLowerCase();
+  if (!s) return "";
+  if (s.includes("questionable") || s.includes("gtd")) return "questionable";
+  if (s.includes("doubtful")) return "doubtful";
+  if (s.includes("out") || s.includes("inactive")) return "out";
+  return "";
+}
+
+function getNbaSeriesGameNumberForGame(game, playoffSeries) {
+  const away = String(game?.awayTeam?.abbr || "").toUpperCase();
+  const home = String(game?.homeTeam?.abbr || "").toUpperCase();
+  if (!away || !home || !Array.isArray(playoffSeries)) return 0;
+  const row = playoffSeries.find((s) => {
+    const sa = String(s?.away || "").toUpperCase();
+    const sh = String(s?.home || "").toUpperCase();
+    return (sa === away && sh === home) || (sa === home && sh === away);
+  });
+  if (!row) return 0;
+  const sa = String(row?.away || "").toUpperCase();
+  const sh = String(row?.home || "").toUpperCase();
+  const awayWins = sa === away && sh === home ? Number(row?.awayWins || 0) : Number(row?.homeWins || 0);
+  const homeWins = sa === away && sh === home ? Number(row?.homeWins || 0) : Number(row?.awayWins || 0);
+  const played = (Number.isFinite(awayWins) ? awayWins : 0) + (Number.isFinite(homeWins) ? homeWins : 0);
+  return played + 1;
+}
+
+function getNbaAvailabilityImpactCountForGame(game, bdlAvailability) {
+  const away = String(game?.awayTeam?.abbr || "").toUpperCase();
+  const home = String(game?.homeTeam?.abbr || "").toUpperCase();
+  if (!away || !home || !bdlAvailability || typeof bdlAvailability !== "object") return 0;
+  let count = 0;
+  for (const meta of Object.values(bdlAvailability)) {
+    const team = String(meta?.team || "").toUpperCase();
+    if (team !== away && team !== home) continue;
+    const cls = normalizeAvailabilityStatusClass(meta?.statusClass || meta?.status || meta?.availability);
+    if (cls) count += 1;
+  }
+  return count;
+}
+
+function selectTopNbaSlateGameForGuarantee(nbaContext) {
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  if (games.length === 0) return null;
+  const playable = games.filter((g) => !["post", "final"].includes(String(g?.state || "").toLowerCase()));
+  const candidates = playable.length > 0 ? playable : games;
+  const bdlAvailability = nbaContext?.bdlAvailability || nbaContext?.bdlGrounding?.bdlAvailability || {};
+  const playoffSeries = Array.isArray(nbaContext?.playoffSeries) ? nbaContext.playoffSeries : [];
+  const scored = candidates.map((g, idx) => ({
+    game: g,
+    idx,
+    injuryImpactCount: getNbaAvailabilityImpactCountForGame(g, bdlAvailability),
+    seriesGameNumber: getNbaSeriesGameNumberForGame(g, playoffSeries),
+  }));
+  const maxInjury = Math.max(0, ...scored.map((s) => s.injuryImpactCount));
+  if (maxInjury > 0) {
+    return scored
+      .filter((s) => s.injuryImpactCount === maxInjury)
+      .sort((a, b) => b.seriesGameNumber - a.seriesGameNumber || a.idx - b.idx)[0];
+  }
+  const maxSeries = Math.max(0, ...scored.map((s) => s.seriesGameNumber));
+  if (maxSeries > 0) {
+    return scored
+      .filter((s) => s.seriesGameNumber === maxSeries)
+      .sort((a, b) => a.idx - b.idx)[0];
+  }
+  return scored[0];
+}
+
+function buildFirstSessionGuaranteeInjection(feature) {
+  if (!feature?.game) return "";
+  const g = feature.game;
+  const away = String(g?.awayTeam?.abbr || g?.awayTeam?.name || "Away");
+  const home = String(g?.homeTeam?.abbr || g?.homeTeam?.name || "Home");
+  const seriesLine =
+    feature.seriesGameNumber > 0
+      ? `Series leverage: Game ${feature.seriesGameNumber} (from playoffSeries context).`
+      : "Series leverage: no playoff game number present in context.";
+  const injuryLine =
+    feature.injuryImpactCount > 0
+      ? `Injury status: ${feature.injuryImpactCount} availability flags tied to this matchup in bdlAvailability.`
+      : "Injury status: no high-impact bdlAvailability flags on this matchup.";
+  return `FIRST-SESSION GUARANTEE — AUTO-SURFACE TOP SLATE GAME (DO NOT REVEAL THIS INTERNAL ROUTING)
+User asked a broad opener with no prior conversation. Treat this as: "here's the sharpest angle on tonight's slate."
+Primary matchup to anchor: ${away} @ ${home}.
+${seriesLine}
+${injuryLine}
+Use matchup context + injury status + series pressure to deliver one decisive angle as the opener.`;
+}
+
 function getContextQuality({
   sportHint,
   players,
@@ -3559,13 +3649,29 @@ export default async function handler(req, res) {
   }
   const liveSignals = detectLiveGameSignals(question, hasImage);
 
-  const sportHint = resolveSportHint({
+  let sportHint = resolveSportHint({
     incomingSportHint,
     question,
     matchupContext,
     hasImage,
     golfContext,
   });
+  const firstSessionNoHistory = !Array.isArray(incomingHistory) || incomingHistory.length === 0;
+  let firstSessionGuaranteeFeature = null;
+  let preloadedNbaBoard = null;
+  if (firstSessionNoHistory && (sportHint === "generic" || sportHint === "image_review")) {
+    try {
+      const fresh = await buildNbaUrTakeBoard(String(question || ""));
+      const featured = selectTopNbaSlateGameForGuarantee(fresh);
+      if (featured?.game) {
+        preloadedNbaBoard = fresh;
+        firstSessionGuaranteeFeature = featured;
+        sportHint = "nba";
+      }
+    } catch (err) {
+      console.warn("[ur-take] first-session guarantee board load failed:", err?.message || err);
+    }
+  }
   const nbaDebugEnabled = isTruthyFlag(getEnv("UR_TAKE_NBA_DEBUG"));
 
   /** Server-authoritative slate for NBA — client payload can be stale (poll interval) or omit games. */
@@ -3574,7 +3680,7 @@ export default async function handler(req, res) {
   let golfContextEffective = golfContext;
   if (sportHint === "nba") {
     try {
-      const fresh = await buildNbaUrTakeBoard(String(question || ""));
+      const fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
       nbaContext = {
         ...fresh,
         question: String(question || ""),
@@ -4444,6 +4550,7 @@ Never open with market-availability throat-clearing. Give monitoring hooks; name
       question,
       matchup: nbaMatchup,
     });
+    const firstSessionGuaranteeBlock = buildFirstSessionGuaranteeInjection(firstSessionGuaranteeFeature);
 
     const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);
 
@@ -4456,6 +4563,8 @@ ${sportHint === "nba" ? `INTERNAL NBA CONTROL (DO NOT QUOTE OR REPEAT VERBATIM)
 - decisionMode: ${nbaDecisionMode}
 - Obey the NBA DECISION MODE SPINE appended to the system prompt for this mode (substance + avoidance). User prompt rules below still apply where they do not conflict.
 - Never print internal labels, control headers, or mode names to the user.
+
+` : ""}${firstSessionGuaranteeBlock ? `${firstSessionGuaranteeBlock}
 
 ` : ""}${sportHint === "nba" && nbaGameStateGate ? `${buildNbaGameStateAuthorityBlock(nbaGameStateGate)}
 
