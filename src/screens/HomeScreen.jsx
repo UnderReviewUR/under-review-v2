@@ -16,6 +16,7 @@ export default function HomeScreen({
   goMlb,
   goGolf,
   dynamicHomeQuestions,
+  dailyFeaturedAngleCard,
   firePrompt,
   isNflSlateActive,
   tickerNbaGames,
@@ -85,6 +86,59 @@ export default function HomeScreen({
               mlbData={mlbData}
               f1Data={f1Data}
             />
+
+            {dailyFeaturedAngleCard ? (
+              <button
+                type="button"
+                onClick={() => firePrompt(dailyFeaturedAngleCard.prompt, dailyFeaturedAngleCard.sportHint)}
+                style={{
+                  width: "100%",
+                  marginTop: 6,
+                  marginBottom: 10,
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  borderLeft: `4px solid ${dailyFeaturedAngleCard.accentColor || "#FF6B00"}`,
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+                  padding: "14px 14px 12px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "var(--mono-font)",
+                      fontSize: 10,
+                      letterSpacing: 1.2,
+                      textTransform: "uppercase",
+                      color: dailyFeaturedAngleCard.accentColor || "#FF6B00",
+                    }}
+                  >
+                    {dailyFeaturedAngleCard.sportBadge || "NBA"}
+                  </span>
+                  <span style={{ fontFamily: "var(--mono-font)", fontSize: 10, color: "var(--muted)" }}>
+                    {dailyFeaturedAngleCard.timestamp}
+                  </span>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+                  {dailyFeaturedAngleCard.matchup}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 5 }}>
+                  {dailyFeaturedAngleCard.lean}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.4 }}>
+                  {dailyFeaturedAngleCard.reason}
+                </div>
+              </button>
+            ) : null}
 
             <TodaySlatePanel
               excludeEventKeys={liveSnapshotEventKeys}

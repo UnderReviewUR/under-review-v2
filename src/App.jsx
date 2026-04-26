@@ -14,6 +14,7 @@ import AskBar from "./components/AskBar.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
+import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
 import {
   classifyMlbGame,
@@ -1501,6 +1502,15 @@ ${themeCss}
     ]
   );
 
+  const dailyFeaturedAngleCard = useMemo(
+    () =>
+      buildDailyFeaturedAngleCard({
+        nbaGames: homePipeline.nbaGamesForHome,
+        nbaData,
+      }),
+    [homePipeline.nbaGamesForHome, nbaData],
+  );
+
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {
     setNavHistory((prevStack) => {
@@ -1939,6 +1949,7 @@ ${themeCss}
             goMlb={goMlb}
             goGolf={goGolf}
             dynamicHomeQuestions={dynamicHomeQuestions}
+            dailyFeaturedAngleCard={dailyFeaturedAngleCard}
             firePrompt={firePrompt}
             isNflSlateActive={isNflSlateActive}
             tickerNbaGames={tickerNbaGames}
