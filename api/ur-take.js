@@ -31,6 +31,7 @@ import {
 } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 import {
+  buildCoreFrameworkPrompt,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
   resolveEvidenceSparsityProfile,
@@ -1710,6 +1711,145 @@ function getNbaInjuryIndex(nbaContext) {
     });
   }
   return map;
+}
+
+function findLastUrTakeAssistantContent(rawHistory) {
+  const norm = normalizeIncomingChatHistory(rawHistory);
+  for (let i = norm.length - 1; i >= 0; i--) {
+    if (norm[i].role === "assistant") return norm[i].content;
+  }
+  return "";
+}
+
+function extractPriorAssistantKeyPositions(assistantText) {
+  const raw = String(assistantText || "").trim();
+  if (!raw) return "(none)";
+  const jsonObj = tryParseJsonObject(raw);
+  const nested = jsonObj || tryExtractSummaryDeepFromLooseText(raw);
+  if (nested && typeof nested.summary === "string" && nested.summary.trim()) {
+    const deep =
+      typeof nested.deep === "string" && nested.deep.trim() ? nested.deep.trim() : "";
+    const merged = [nested.summary.trim(), deep].filter(Boolean).join(" ");
+    const collapsed = merged.replace(/\s+/g, " ").trim();
+    return collapsed.slice(0, 700) || "(none)";
+  }
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const scored = lines.filter(
+    (l) =>
+      /^(>>|THE PLAY|LEAN|CONFIDENCE|PROP PROJECTIONS|MATCH READ)/i.test(l) ||
+      /\b(lean|fade|under|over|the play|PASS)\b/i.test(l),
+  );
+  const pick = scored.length
+    ? scored.slice(0, 10).join(" | ")
+    : raw.replace(/\s+/g, " ").trim();
+  return pick.slice(0, 700) || "(none)";
+}
+
+function summarizeNbaInjuryFlagsForFollowUp(nbaContextForModel, nbaMatchup) {
+  const teams = new Set();
+  const away = String(nbaMatchup?.awayAbbr || "").toUpperCase();
+  const home = String(nbaMatchup?.homeAbbr || "").toUpperCase();
+  if (away) teams.add(away);
+  if (home) teams.add(home);
+  const injuries = Array.isArray(nbaContextForModel?.injuries) ? nbaContextForModel.injuries : [];
+  const bits = [];
+  for (const row of injuries) {
+    const t = String(row?.team || "").toUpperCase();
+    if (teams.size > 0 && t && !teams.has(t)) continue;
+    const name = String(row?.player || "").trim();
+    if (!name) continue;
+    const statusClass = normalizeNbaAvailabilityClass(row?.status, row?.detail);
+    if (statusClass === "out" || statusClass === "doubtful" || statusClass === "questionable") {
+      bits.push(`${name} (${t || "?"}): ${statusClass}`);
+    }
+  }
+  if (bits.length === 0) return "none flagged out/doubtful/questionable on injuries for this matchup";
+  return bits.slice(0, 14).join("; ");
+}
+
+function resolveNbaFollowUpMatchupForCompact(nbaMatchup, question, nbaContextForModel) {
+  if (nbaMatchup?.awayAbbr && nbaMatchup?.homeAbbr) return nbaMatchup;
+  const abbrs = extractNbaTeamAbbrevsFromQuestion(String(question || ""));
+  if (abbrs.length < 2) return nbaMatchup;
+  const games = Array.isArray(nbaContextForModel?.todaysGames) ? nbaContextForModel.todaysGames : [];
+  const exact = games.find((g) => {
+    const ga = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const gh = String(g?.homeTeam?.abbr || "").toUpperCase();
+    return abbrs.includes(ga) && abbrs.includes(gh);
+  });
+  if (exact) {
+    return {
+      awayAbbr: String(exact?.awayTeam?.abbr || "").toUpperCase(),
+      homeAbbr: String(exact?.homeTeam?.abbr || "").toUpperCase(),
+    };
+  }
+  return { awayAbbr: abbrs[0], homeAbbr: abbrs[1] };
+}
+
+function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, incomingHistory, question }) {
+  const matchupForCompact = resolveNbaFollowUpMatchupForCompact(
+    nbaMatchup,
+    question,
+    nbaContextForModel,
+  );
+  const away = String(matchupForCompact?.awayAbbr || "").toUpperCase();
+  const home = String(matchupForCompact?.homeAbbr || "").toUpperCase();
+  const matchupLine =
+    away && home
+      ? `Matchup: ${away} @ ${home}`
+      : "Matchup: (not resolved from question — use question text only)";
+
+  const snap = nbaContextForModel?.focusedSeriesSnapshot;
+  let seriesRecordLine = "";
+  let seriesAvgLine = "";
+  if (snap && away && home) {
+    seriesRecordLine = `Series record (question order ${snap.awayAbbr} away vs ${snap.homeAbbr} home): ${snap.awayWinsInQuestionOrder}-${snap.homeWinsInQuestionOrder}`;
+    seriesAvgLine = Number.isFinite(snap.completedGamesCombinedPointsAverage)
+      ? `Series completed-game combined scoring average: ${snap.completedGamesCombinedPointsAverage}`
+      : "Series completed-game combined scoring average: n/a";
+  } else {
+    const rows = Array.isArray(nbaContextForModel?.playoffSeries) ? nbaContextForModel.playoffSeries : [];
+    const row =
+      rows.find((r) => {
+        const sa = String(r?.away || "").toUpperCase();
+        const sh = String(r?.home || "").toUpperCase();
+        return away && home && ((sa === away && sh === home) || (sa === home && sh === away));
+      }) || null;
+    if (row) {
+      const sa = String(row?.away || "").toUpperCase();
+      const sh = String(row?.home || "").toUpperCase();
+      const aw = Number(row?.awayWins) || 0;
+      const hw = Number(row?.homeWins) || 0;
+      seriesRecordLine = `Series record (${sa} @ ${sh} ESPN row order): ${aw}-${hw}`;
+      const avg = row?.completedGamesCombinedPointsAverage;
+      seriesAvgLine = Number.isFinite(Number(avg))
+        ? `Series completed-game combined scoring average: ${avg}`
+        : "Series completed-game combined scoring average: n/a";
+    } else {
+      seriesRecordLine = "Series record: n/a";
+      seriesAvgLine = "Series completed-game combined scoring average: n/a";
+    }
+  }
+
+  const injuryLine = `Current injury flags: ${summarizeNbaInjuryFlagsForFollowUp(
+    nbaContextForModel,
+    matchupForCompact,
+  )}`;
+  const priorLine = `Prior response key positions: ${extractPriorAssistantKeyPositions(findLastUrTakeAssistantContent(incomingHistory))}`;
+  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${priorLine}`;
+}
+
+function buildUrTakeFollowUpCoreSystemPrompt() {
+  return `${buildCoreFrameworkPrompt()}
+
+FABRICATION GUARDRAIL — MANDATORY
+Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the compact NBA context block in the user message.
+
+ARITHMETIC RULE — MANDATORY
+When you reference pace math, totals, or series scoring averages, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
+
+FOLLOW-UP OUTPUT GATE — MANDATORY
+Answer only the specific question asked. 3-5 sentences maximum. No section headers. No MATCH READ. No PROP PROJECTIONS. Speak like a sharp friend replying to a text.`;
 }
 
 function buildNbaPlayerUniverse(nbaContext) {
@@ -3700,6 +3840,9 @@ export default async function handler(req, res) {
     history: incomingHistory,
   } = req.body || {};
 
+  const normalizedUrTakeHistoryForGate = normalizeIncomingChatHistory(incomingHistory);
+  const isConversationFollowUp = normalizedUrTakeHistoryForGate.length > 1;
+
   if (!question || !String(question).trim()) {
     return res.status(400).json({
       error: "Missing question",
@@ -3772,6 +3915,23 @@ export default async function handler(req, res) {
     } catch (err) {
       console.warn("[ur-take] buildNbaUrTakeBoard failed:", err?.message || err);
       nbaContext = nbaContextFromClient;
+    }
+    if (
+      isConversationFollowUp &&
+      nbaContextFromClient &&
+      typeof nbaContextFromClient === "object"
+    ) {
+      const c = nbaContextFromClient;
+      const overlays = {};
+      if (Array.isArray(c.playoffSeries) && c.playoffSeries.length > 0) {
+        overlays.playoffSeries = c.playoffSeries;
+      }
+      if (Array.isArray(c.injuries) && c.injuries.length > 0) {
+        overlays.injuries = c.injuries;
+      }
+      if (Object.keys(overlays).length > 0) {
+        nbaContext = { ...nbaContext, ...overlays };
+      }
     }
   }
 
@@ -3930,15 +4090,17 @@ export default async function handler(req, res) {
     evidenceSparsityProfile,
   });
 
-  const outputJsonMode = resolveOutputJsonMode({
-    chaseSignals,
-    intent,
-    hasImage,
-    liveSignals,
-    question,
-    matchupContext,
-    sportHint,
-  });
+  const outputJsonMode = isConversationFollowUp
+    ? "plain"
+    : resolveOutputJsonMode({
+        chaseSignals,
+        intent,
+        hasImage,
+        liveSignals,
+        question,
+        matchupContext,
+        sportHint,
+      });
   const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint, {
     requireStatusShift:
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
@@ -3979,6 +4141,9 @@ ODDS-UNAVAILABLE MODE (mandatory when oddsAvailable is false)
     systemPromptForModel = `${systemPromptForModel}
 
 ${nbaLiveNoPropSystemPromptBlock}`;
+  }
+  if (isConversationFollowUp) {
+    systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
   }
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
@@ -4624,14 +4789,32 @@ Never open with market-availability throat-clearing. Give monitoring hooks; name
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
+    const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);
+
+    if (isConversationFollowUp) {
+      const compactNbaFollowUpContext = buildNbaFollowUpCompactContextLines({
+        nbaMatchup,
+        nbaContextForModel,
+        incomingHistory,
+        question,
+      });
+      userPrompt = `You are answering a short NBA betting follow-up.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${nbaQuestionForModel}
+
+COMPACT NBA CONTEXT (follow-up turn — full nbaContext JSON intentionally omitted server-side)
+${compactNbaFollowUpContext}
+
+oddsAvailable: ${oddsAvailable}
+Default confidence should be ${derivedConfidence}.`;
+    } else {
     const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContextForModel, {
       hasImage,
       question,
       matchup: nbaMatchup,
     });
     const firstSessionGuaranteeBlock = buildFirstSessionGuaranteeInjection(firstSessionGuaranteeFeature);
-
-    const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);
 
     userPrompt = `You are answering an NBA betting question.
 
@@ -4812,6 +4995,7 @@ Brunson under is the lean if his line opens 27.5 or higher — Knicks depth mean
 KAT's 3PM line is the other read. Atlanta's perimeter scheme runs him off the arc in high-leverage possessions — under 3.5 is the play if it posts at even money or better.
 
 If gameTotals in context shows 214.5, that band is the pace read: a line that low usually means both sides expect a grind — lean under on big player overs. If the same block shows 222+, plan for a track meet and nudge player overs. Use the number in the JSON, not a wait for the book.`;
+    }
   } else if (sportHint === "mlb") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.

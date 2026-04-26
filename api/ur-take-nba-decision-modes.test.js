@@ -67,7 +67,12 @@ function mockOddsApiEventPropsPayload() {
 
 async function invokeUrTake(
   body,
-  { anthropicText = "", allowAnthropic = false, omitOddsKey = false } = {},
+  {
+    anthropicText = "",
+    allowAnthropic = false,
+    omitOddsKey = false,
+    captureAnthropic = null,
+  } = {},
 ) {
   const originalFetch = globalThis.fetch;
   const originalRequireAuth = process.env.UR_TAKE_REQUIRE_AUTH;
@@ -86,6 +91,13 @@ async function invokeUrTake(
     if (url.includes("https://api.anthropic.com/v1/messages")) {
       if (!allowAnthropic) {
         throw new Error("anthropic should not be called in this test");
+      }
+      if (typeof captureAnthropic === "function") {
+        try {
+          captureAnthropic(JSON.parse(String(init?.body || "{}")));
+        } catch {
+          captureAnthropic(null);
+        }
       }
       return {
         ok: true,
@@ -629,4 +641,62 @@ test("non-NBA control remains unaffected and decisionMode stays null", async () 
   assert.equal(out.status, 200);
   assert.equal(out.payload.sport, "tennis");
   assert.equal(out.payload.decisionMode, null);
+});
+
+test("NBA conversation follow-up forces short system prompt and compact context payload", async () => {
+  /** @type {any} */
+  let anthropicPayload = null;
+  const nbaPlayoff = {
+    ...sharedNba,
+    seasonContext: { phase: "playoffs", postseason: true, season: 2025 },
+    playoffSeries: [
+      {
+        away: "MIL",
+        home: "PHI",
+        awayWins: 2,
+        homeWins: 1,
+        round: "East SF",
+        status: "in progress",
+        completedGamesCombinedPoints: [220, 210, 215],
+        completedGamesCombinedPointsAverage: 215,
+      },
+    ],
+    injuries: [{ player: "Joel Embiid", team: "PHI", status: "Out", detail: "Knee" }],
+  };
+  const out = await invokeUrTake(
+    {
+      question: "MIL @ PHI — what's the series scoring average; still lean under on pace?",
+      sportHint: "nba",
+      history: [
+        { role: "user", content: "Bucks vs Sixers — best angle?" },
+        {
+          role: "assistant",
+          content:
+            "THE PLAY\nLean under on the total if it opens 225.5+\n\nCONFIDENCE\nMedium — pace could compress late.",
+        },
+      ],
+      nbaContext: nbaPlayoff,
+    },
+    {
+      allowAnthropic: true,
+      anthropicText:
+        "Series avg math: 220+210+215=645 combined → 645/3=215 per game — still under-biased if they post 225+.",
+      captureAnthropic: (p) => {
+        anthropicPayload = p;
+      },
+    },
+  );
+  assert.equal(out.status, 200);
+  assert.ok(anthropicPayload);
+  assert.match(String(anthropicPayload.system || ""), /FOLLOW-UP OUTPUT GATE/);
+  assert.match(String(anthropicPayload.system || ""), /Answer only the specific question asked/);
+  assert.doesNotMatch(String(anthropicPayload.system || ""), /JSON RESPONSE MODE/);
+  const lastUser = [...(anthropicPayload.messages || [])].reverse().find((m) => m.role === "user");
+  const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
+  assert.match(userText, /COMPACT NBA CONTEXT/);
+  assert.match(userText, /Series completed-game combined scoring average: 215/);
+  assert.match(userText, /Prior response key positions:/i);
+  assert.match(userText, /Joel Embiid.*:\s*out/i);
+  assert.doesNotMatch(userText, /NBA context:\n\{/);
+  assert.doesNotMatch(userText, /"todaysGames"\s*:/);
 });
