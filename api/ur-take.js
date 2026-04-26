@@ -665,6 +665,75 @@ function getNbaSeriesGameNumberForGame(game, playoffSeries) {
   return played + 1;
 }
 
+/**
+ * Explicit series snapshot for the Haiku JSON payload when the question anchors a matchup.
+ * playoffSeries rows are ESPN-shaped: { away, home, awayWins, homeWins, round, status }.
+ * awayF/homeF follow resolveNbaMatchupFromQuestion board order (@ away at home).
+ */
+function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, todaysGames) {
+  const af = String(awayF || "").toUpperCase();
+  const hf = String(homeF || "").toUpperCase();
+  if (!af || !hf || !Array.isArray(playoffSeriesRows) || playoffSeriesRows.length === 0) return null;
+
+  const row =
+    playoffSeriesRows.find((s) => {
+      const sa = String(s?.away || "").toUpperCase();
+      const sh = String(s?.home || "").toUpperCase();
+      return (sa === af && sh === hf) || (sa === hf && sh === af);
+    }) || playoffSeriesRows[0];
+
+  const game = (todaysGames || []).find((g) => {
+    const a = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const h = String(g?.homeTeam?.abbr || "").toUpperCase();
+    return (a === af && h === hf) || (a === hf && h === af);
+  });
+
+  const nextGameNum = getNbaSeriesGameNumberForGame(
+    game || { awayTeam: { abbr: af }, homeTeam: { abbr: hf } },
+    playoffSeriesRows,
+  );
+
+  const sa = String(row?.away || "").toUpperCase();
+  const sh = String(row?.home || "").toUpperCase();
+  let winsAwayF = 0;
+  let winsHomeF = 0;
+  if (sa === af && sh === hf) {
+    winsAwayF = Number(row?.awayWins) || 0;
+    winsHomeF = Number(row?.homeWins) || 0;
+  } else if (sa === hf && sh === af) {
+    winsAwayF = Number(row?.homeWins) || 0;
+    winsHomeF = Number(row?.awayWins) || 0;
+  }
+
+  const leader =
+    winsAwayF > winsHomeF ? af : winsHomeF > winsAwayF ? hf : "tied";
+  const recordLine =
+    winsAwayF === winsHomeF
+      ? `${af} ${winsAwayF} — ${hf} ${winsHomeF} (series tied)`
+      : `${af} ${winsAwayF} — ${hf} ${winsHomeF} (${leader} leads ${Math.max(winsAwayF, winsHomeF)}-${Math.min(winsAwayF, winsHomeF)})`;
+
+  let serverSummaryOneLiner = recordLine;
+  if (nextGameNum > 0) {
+    serverSummaryOneLiner = `${recordLine}; tonight is Game ${nextGameNum}`;
+  }
+  if (row?.round) {
+    serverSummaryOneLiner += ` (${String(row.round).trim()})`;
+  }
+  serverSummaryOneLiner += ".";
+
+  return {
+    awayAbbr: af,
+    homeAbbr: hf,
+    awayWinsInQuestionOrder: winsAwayF,
+    homeWinsInQuestionOrder: winsHomeF,
+    leaderAbbr: leader === "tied" ? null : leader,
+    nextGameNumber: nextGameNum > 0 ? nextGameNum : null,
+    round: row?.round || null,
+    statusText: row?.status || null,
+    serverSummaryOneLiner,
+  };
+}
+
 function getNbaAvailabilityImpactCountForGame(game, bdlAvailability) {
   const away = String(game?.awayTeam?.abbr || "").toUpperCase();
   const home = String(game?.homeTeam?.abbr || "").toUpperCase();
@@ -814,6 +883,7 @@ function buildSlipReviewPrompt({
 ${JSON.stringify({
   seasonContext: nbaContext?.seasonContext || null,
   todaysGames: nbaContext?.todaysGames || [],
+  playoffSeries: nbaContext?.playoffSeries || [],
   propLines: (nbaContext?.propLines || []).slice(0, 80),
   injuries: nbaContext?.injuries || [],
   recentForm: nbaContext?.recentForm || "",
@@ -2942,6 +3012,7 @@ function buildNbaContextForModel(nbaContext, nbaMatchup) {
       const s = JSON.stringify(row || "").toUpperCase();
       return s.includes(awayF) && s.includes(homeF);
     });
+    raw.focusedSeriesSnapshot = buildFocusedPlayoffSeriesSnapshot(awayF, homeF, raw.playoffSeries, todays);
   }
 
   const nameSet = new Set(
@@ -4586,7 +4657,11 @@ Target player: ${nbaInvalidation.targetedPlayer}
 Status: ${nbaInvalidation.statusDisplay || nbaInvalidation.statusClass}
 Rule: Do not give false certainty. Keep any take contingent on confirmed status.
 
-` : ""}${nbaMatchupGroundingBlock ? `${nbaMatchupGroundingBlock}\n\n` : ""}NBA context:
+` : ""}${nbaMatchupGroundingBlock ? `${nbaMatchupGroundingBlock}\n\n` : ""}${
+      nbaContextForModel?.focusedSeriesSnapshot?.serverSummaryOneLiner
+        ? `FOCUSED PLAYOFF SERIES (board-verified — mirror this in series framing; do not invent wins/game number)\n${nbaContextForModel.focusedSeriesSnapshot.serverSummaryOneLiner}\n\n`
+        : ""
+    }NBA context:
 ${JSON.stringify(nbaContextForModel || {}, null, 2)}
 
 Confidence guidance:

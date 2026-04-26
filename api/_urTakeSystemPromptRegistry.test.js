@@ -21,6 +21,19 @@ test("composeRegisteredUrTakeSystemPrompt injects context quality and core frame
   assert.match(p, /GENERIC \/ AMBIGUOUS SPORT SPINE/);
 });
 
+test("composeRegisteredUrTakeSystemPrompt bans unavailable-data closings", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "medium",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+  });
+  assert.match(p, /CLOSING DISCIPLINE — NO "DATA UNAVAILABLE" ENDINGS/);
+  assert.match(p, /Series context and live rotation data are unavailable/);
+});
+
 test("composeRegisteredUrTakeSystemPrompt appends NBA decision spine for nba", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
     contextQuality: "medium",

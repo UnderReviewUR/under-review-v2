@@ -167,7 +167,10 @@ FINAL QUALITY DISCIPLINE CHECK (before sending)
 3) If conditional, includes a specific trigger.
 4) Includes one short market-insight angle.
 5) Ends with one forward hook (number / timing / context check).
-If any item is missing, revise before finalizing.`;
+If any item is missing, revise before finalizing.
+
+CLOSING DISCIPLINE — NO "DATA UNAVAILABLE" ENDINGS (all sports, mandatory)
+Never end a response with a statement about what data is unavailable. If context is thin, reason qualitatively from what you do have. Phrases like "Series context and live rotation data are unavailable" as a closing are forbidden — instead close on injury impact, series pressure, pace, or matchup structure you can see in context. A Game 4 elimination-pressure frame still changes usage patterns even when exact rotation data is not confirmed in the payload.`;
 }
 
 export function buildResponseStructurePrompt() {
