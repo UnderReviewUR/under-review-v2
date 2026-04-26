@@ -69,7 +69,45 @@ function chooseFeaturedGame(games, bdlAvailability, playoffSeries) {
   return scored[0];
 }
 
-export function buildDailyFeaturedAngleCard({ nbaGames, nbaData }) {
+function summarizeInjuryStatusesForGame(game, bdlAvailability) {
+  const away = String(game?.awayTeam?.abbr || "").toUpperCase();
+  const home = String(game?.homeTeam?.abbr || "").toUpperCase();
+  if (!away || !home || !bdlAvailability || typeof bdlAvailability !== "object") return [];
+  const out = [];
+  for (const [name, meta] of Object.entries(bdlAvailability)) {
+    const team = String(meta?.team || "").toUpperCase();
+    if (team !== away && team !== home) continue;
+    const cls = normalizeStatusClass(meta?.statusClass || meta?.status || meta?.availability);
+    if (!cls) continue;
+    out.push({
+      player: String(name || "").trim(),
+      team,
+      status: cls,
+    });
+  }
+  return out.slice(0, 10);
+}
+
+async function fetchGeneratedCopy(seed) {
+  try {
+    const res = await fetch("/api/home-featured-angle-copy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(seed),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || typeof data !== "object") return null;
+    const lean = String(data.lean || "").trim();
+    const reason = String(data.reason || "").trim();
+    if (!lean || !reason) return null;
+    return { lean, reason };
+  } catch {
+    return null;
+  }
+}
+
+export async function buildDailyFeaturedAngleCard({ nbaGames, nbaData }) {
   const selected = chooseFeaturedGame(
     Array.isArray(nbaGames) ? nbaGames : [],
     nbaData?.bdlAvailability || {},
@@ -85,6 +123,7 @@ export function buildDailyFeaturedAngleCard({ nbaGames, nbaData }) {
     hour: "numeric",
     minute: "2-digit",
   });
+  const injurySummary = summarizeInjuryStatusesForGame(game, nbaData?.bdlAvailability || {});
 
   let lean = `Lean ${home} to control late possessions if halfcourt pace slows by Q3.`;
   let reason = "Bench-depth swing tends to decide late-game spread value in tighter playoff rotations.";
@@ -94,6 +133,24 @@ export function buildDailyFeaturedAngleCard({ nbaGames, nbaData }) {
   } else if (selected.seriesGameNumber > 0) {
     lean = `Lean ${home} first-half spread in ${matchup} if rebounding margin starts positive.`;
     reason = `Series leverage is elevated (Game ${selected.seriesGameNumber}), and closeout-pressure rotations usually tighten early-quarter shot quality.`;
+  }
+  const generated = await fetchGeneratedCopy({
+    dateKeyEt: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+    matchup,
+    game: {
+      away,
+      home,
+      startTimeUtc: game?.startTimeUtc || null,
+      state: game?.state || null,
+      status: game?.status || null,
+    },
+    injuryImpactCount: selected.injuryImpactCount,
+    seriesGameNumber: selected.seriesGameNumber,
+    injurySummary,
+  });
+  if (generated?.lean && generated?.reason) {
+    lean = generated.lean;
+    reason = generated.reason;
   }
 
   return {

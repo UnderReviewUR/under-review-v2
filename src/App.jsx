@@ -1217,12 +1217,35 @@ ${themeCss}
     const live = homePipeline.mlbGamesForHome.filter((g) => g.state === "in");
     const upcoming = homePipeline.mlbGamesForHome.filter((g) => g.state === "pre");
     const poolRaw = [...live, ...upcoming].slice(0, 3);
+    const tomorrowGames = Array.isArray(mlbData?.tomorrowGames) ? mlbData.tomorrowGames : [];
     const pool = poolRaw.filter((g) => {
       const k = mlbEventKey(g);
       return !(k && cardExcludeSet.has(k));
     });
 
     if (!pool.length && !homePipeline.mlbGamesForHome.length) {
+      if (tomorrowGames.length > 0) {
+        const tomorrowLines = tomorrowGames.slice(0, 3).map((g) => {
+          const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+          const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+          const tip = String(g.status || "TBD");
+          return `${away} @ ${home} (${tip})`;
+        });
+        return [
+          {
+            id: "mlb-tomorrow-fallback",
+            league: "MLB",
+            leagueColor: "#1DB954",
+            title: "No games tonight — here's tomorrow's slate",
+            time: "Tomorrow",
+            network: "Daily board",
+            blurb: tomorrowLines.join(" · "),
+            whatMatters: "Prep tomorrow's K props, totals, and lineup-context edges before books tighten.",
+            quickHitters: ["Best K prop tomorrow?", "Earliest total misprice?", "Best first-game angle?"],
+            confirmed: true,
+          },
+        ];
+      }
       return [
         {
           id: "mlb-default",
@@ -1278,7 +1301,7 @@ ${themeCss}
         confirmed: true,
       };
     });
-  }, [homePipeline.mlbGamesForHome, cardExcludeSet]);
+  }, [homePipeline.mlbGamesForHome, cardExcludeSet, mlbData]);
 
   const homeGolfCards = useMemo(() => {
     if (golfData && !golfLoading && isGolfEventFinished(golfData)) {
@@ -1502,14 +1525,20 @@ ${themeCss}
     ]
   );
 
-  const dailyFeaturedAngleCard = useMemo(
-    () =>
-      buildDailyFeaturedAngleCard({
+  const [dailyFeaturedAngleCard, setDailyFeaturedAngleCard] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const card = await buildDailyFeaturedAngleCard({
         nbaGames: homePipeline.nbaGamesForHome,
         nbaData,
-      }),
-    [homePipeline.nbaGamesForHome, nbaData],
-  );
+      });
+      if (!cancelled) setDailyFeaturedAngleCard(card);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [homePipeline.nbaGamesForHome, nbaData]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {
