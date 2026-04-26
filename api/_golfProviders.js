@@ -1,4 +1,5 @@
 import { bdlFetch } from "./_balldontlie.js";
+import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
 
 const CACHE_TTL_MS = 3 * 60 * 1000;
 const cache = new Map();
@@ -628,9 +629,10 @@ async function getEspnCurrentEvent() {
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
+  const golfScoreboardYmd = etDateStringToEspnYmd(getTodayEtDateString());
   const result = await safeFetchJson(
-    "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
-    { timeoutMs: 7000 }
+    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${encodeURIComponent(golfScoreboardYmd)}`,
+    { timeoutMs: 7000 },
   );
 
   if (!result.ok) {

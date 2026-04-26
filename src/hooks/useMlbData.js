@@ -31,9 +31,12 @@ export function useMlbData() {
     let active = true;
     async function loadMlbGames() {
       try {
+        const todayYmd = new Date()
+          .toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+          .replace(/-/g, "");
         const res = await fetch(
-          "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
-          { cache: "no-store" }
+          `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${encodeURIComponent(todayYmd)}`,
+          { cache: "no-store" },
         );
         if (!res.ok) throw new Error("ESPN MLB " + res.status);
         const data = await res.json();

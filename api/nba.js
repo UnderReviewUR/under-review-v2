@@ -1,6 +1,7 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { persistLastKnownHomeNbaGames, recoverLastKnownHomeNbaGames } from "./_homeLastKnownGames.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -2089,9 +2090,11 @@ async function getNbaPlayoffSeries() {
   };
 
   const fromScoreboardEndpoint = async () => {
-    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?groups=playoff", {
-      cache: "no-store",
-    });
+    const todayYmd = toEspnDateToken(getTodayEtDateString());
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(todayYmd)}&groups=playoff`,
+      { cache: "no-store" },
+    );
     if (!res.ok) return [];
     const data = await res.json();
     const events = data?.events || [];
@@ -2250,22 +2253,53 @@ export default async function handler(req, res) {
   try {
     if (view === "games") {
       const tg = await getTodaysGames(ODDS_KEY, BDL_KEY);
-      return res.status(200).json(tg.games);
+      let games = tg.games || [];
+      if (!games.length) {
+        const rec = await recoverLastKnownHomeNbaGames();
+        if (rec?.games?.length) games = rec.games;
+      }
+      return res.status(200).json(games);
     }
 
     if (view === "board") {
       const boardCacheKey = `nba_board_${new Date().getFullYear()}`;
       const boardCached = getCached(boardCacheKey);
-      if (boardCached) return res.status(200).json(boardCached);
+      if (boardCached) {
+        let out = boardCached;
+        const cachedTodays = Array.isArray(out.todaysGames) ? out.todaysGames : [];
+        if (cachedTodays.length === 0) {
+          const rec = await recoverLastKnownHomeNbaGames();
+          if (rec?.games?.length) {
+            out = {
+              ...out,
+              todaysGames: rec.games,
+              slateRecovery: { fromLastKnownKv: true, lastUpdated: rec.lastUpdated },
+              fetchedAt: new Date().toISOString(),
+            };
+          }
+        }
+        return res.status(200).json(out);
+      }
 
       const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
+      let todaysGames = tgRes.games || [];
+      let slateRecovery = null;
+      if (todaysGames.length > 0) {
+        await persistLastKnownHomeNbaGames(todaysGames);
+      } else {
+        const rec = await recoverLastKnownHomeNbaGames();
+        if (rec?.games?.length) {
+          todaysGames = rec.games;
+          slateRecovery = { fromLastKnownKv: true, lastUpdated: rec.lastUpdated };
+        }
+      }
+
       const [rawBundle, statsBundle, playoffSeries] = await Promise.all([
         getNbaPropLines(ODDS_KEY, {}),
-        getNbaPlayerStatsBundle(BDL_KEY, tgRes.games || []),
+        getNbaPlayerStatsBundle(BDL_KEY, todaysGames),
         getNbaPlayoffSeries(),
       ]);
       const rawPropLines = rawBundle.propLines || [];
-      const todaysGames = tgRes.games;
       const todaysGamesSlateMeta = tgRes.slateMeta;
 
       const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
@@ -2303,6 +2337,7 @@ export default async function handler(req, res) {
         seasonContext: getNbaSeasonContext(),
         todaysGames,
         todaysGamesSlateMeta,
+        slateRecovery,
         lastNight: [], lastNightStats: [], liveStats: [],
         playerStats: playerStatsWithRecent.slice(0, 120),
         playerStatsText: playerStatsTextMerged,

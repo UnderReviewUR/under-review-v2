@@ -90,6 +90,18 @@ import MlbScreen from "./screens/MlbScreen.jsx";
 import GolfScreen from "./screens/GolfScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
 
+function formatHomeSlateKvUpdatedEt(iso) {
+  const t = Date.parse(String(iso || ""));
+  if (!Number.isFinite(t)) return "Last updated (saved slate)";
+  return `Last updated ${new Date(t).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  })} ET`;
+}
+
 function normalizeUrTakeDisplay(data) {
   const parseMaybe = (raw) => {
     const s = String(raw || "").trim();
@@ -1158,7 +1170,56 @@ ${themeCss}
         return ta - tb;
       });
 
+    const rawApiTodaysGames = (nbaData?.todaysGames || [])
+      .filter((g) => toEtDateYmd(g?.startTimeUtc) === todayEt)
+      .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
+      .filter((g) => {
+        const k = nbaEventKey(g);
+        return !(k && cardExcludeSet.has(k));
+      })
+      .sort((a, b) => {
+        const ta = Number.isNaN(Date.parse(a?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(a?.startTimeUtc);
+        const tb = Number.isNaN(Date.parse(b?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(b?.startTimeUtc);
+        return ta - tb;
+      });
+
     if (!todayGames.length && !homePipeline.nbaGamesForHome.length) {
+      if (rawApiTodaysGames.length > 0) {
+        const recoveryHint = nbaData?.slateRecovery?.fromLastKnownKv
+          ? formatHomeSlateKvUpdatedEt(nbaData.slateRecovery.lastUpdated)
+          : null;
+        const rows = rawApiTodaysGames.map((g, i) => {
+          const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+          const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+          const series = getSeriesLabel(away, home);
+          const evKey = nbaEventKey(g);
+          const channel = String(g.channel || g.broadcast || "").trim();
+          const tipEt = toEtTipLabel(g.startTimeUtc);
+          return {
+            id: evKey || `nba-card-row-fallback-${i + 1}`,
+            nbaEventKey: evKey,
+            away,
+            home,
+            tipEt,
+            series: series || "Playoff matchup",
+            channel,
+          };
+        });
+        return [
+          {
+            id: "nba-playoffs-rows",
+            league: "NBA PLAYOFFS",
+            leagueColor: "#FF6B00",
+            title: "Tonight's games",
+            time: `${rows.length} game${rows.length === 1 ? "" : "s"}`,
+            network: recoveryHint || "Tap a matchup",
+            blurb: recoveryHint || "",
+            confirmed: true,
+            isNbaRowsCard: true,
+            nbaRows: rows,
+          },
+        ];
+      }
       return [
         {
           id: "nba-default",
@@ -1211,9 +1272,16 @@ ${themeCss}
         nbaRows: rows,
       },
     ];
-  }, [homePipeline.nbaGamesForHome, getSeriesLabel, cardExcludeSet]);
+  }, [homePipeline.nbaGamesForHome, getSeriesLabel, cardExcludeSet, nbaData?.todaysGames, nbaData?.slateRecovery]);
 
   const homeMlbCards = useMemo(() => {
+    const toEtDateYmdMlb = (iso) => {
+      const raw = String(iso || "").trim();
+      if (!raw) return "";
+      const dt = new Date(raw);
+      if (Number.isNaN(dt.getTime())) return "";
+      return dt.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    };
     const live = homePipeline.mlbGamesForHome.filter((g) => g.state === "in");
     const upcoming = homePipeline.mlbGamesForHome.filter((g) => g.state === "pre");
     const poolRaw = [...live, ...upcoming].slice(0, 3);
@@ -1222,8 +1290,49 @@ ${themeCss}
       const k = mlbEventKey(g);
       return !(k && cardExcludeSet.has(k));
     });
+    const todayEtMlb = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const rawApiMlbToday = (mlbData?.games || []).filter((g) => {
+      const d = toEtDateYmdMlb(g?.startTimeUtc || g?.date);
+      return d === todayEtMlb;
+    });
 
     if (!pool.length && !homePipeline.mlbGamesForHome.length) {
+      if (rawApiMlbToday.length > 0) {
+        const recoveryHint = mlbData?.slateRecovery?.fromLastKnownKv
+          ? formatHomeSlateKvUpdatedEt(mlbData.slateRecovery.lastUpdated)
+          : null;
+        return rawApiMlbToday.slice(0, 3).map((g, i) => {
+          const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+          const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+          const isLive = g.state === "in";
+          const isFinal = g.state === "post";
+          const awayScore = g.awayTeam?.score ?? null;
+          const homeScore = g.homeTeam?.score ?? null;
+          const hasScore = awayScore !== null && homeScore !== null;
+          const inning = g.inning ? `${g.inningHalf === "top" ? "T" : "B"}${g.inning}` : "";
+          const liveLabel = isLive ? `🔴 LIVE${inning ? ` · ${inning}` : ""}` : isFinal ? "FINAL" : g.status || "Today";
+          const homeP = g.homeTeam?.pitcher;
+          const awayP = g.awayTeam?.pitcher;
+          const pitchers = homeP && awayP ? `${awayP} vs ${homeP}` : "";
+          const blurb = hasScore ? `${away} ${awayScore} — ${home} ${homeScore}` : pitchers || `${away} @ ${home} · Probables TBD`;
+          return {
+            id: `mlb-card-fallback-${i + 1}`,
+            league: isLive ? "MLB LIVE" : isFinal ? "MLB · FINAL" : "MLB",
+            leagueColor: isLive ? "#FF5252" : "#1DB954",
+            title: `${away} @ ${home}`,
+            time: liveLabel,
+            network: recoveryHint || pitchers || "Daily slate",
+            blurb,
+            whatMatters: isLive
+              ? "Live: totals that lag inning leverage, NRFI/YRFI swings, and bullpen bridges."
+              : "Pre-game: starter K props, park-shaped totals, and platoon batter spots.",
+            quickHitters: isLive
+              ? ["Live total read?", "Best batter prop in this inning?", "Run line live?"]
+              : ["Best K prop today?", "Total vs park?", "First-five lean?"],
+            confirmed: true,
+          };
+        });
+      }
       if (tomorrowGames.length > 0) {
         const tomorrowLines = tomorrowGames.slice(0, 3).map((g) => {
           const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
@@ -1301,7 +1410,7 @@ ${themeCss}
         confirmed: true,
       };
     });
-  }, [homePipeline.mlbGamesForHome, cardExcludeSet, mlbData]);
+  }, [homePipeline.mlbGamesForHome, cardExcludeSet, mlbData?.games, mlbData?.tomorrowGames, mlbData?.slateRecovery]);
 
   const homeGolfCards = useMemo(() => {
     if (golfData && !golfLoading && isGolfEventFinished(golfData)) {

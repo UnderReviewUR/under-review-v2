@@ -3,6 +3,7 @@ import {
   canonicalNbaStartUtcMs,
   parseEventStartMs,
 } from "./eventStartTime.js";
+import { NBA_TIP_FEED_LAG_GRACE_MS } from "./liveSnapshotFilters.js";
 
 export const EVENT_VALIDITY = Object.freeze({
   UPCOMING: "upcoming",
@@ -26,8 +27,6 @@ const FINISHED_KEYWORDS = [
   "abandoned",
   "complete",
 ];
-const NBA_TIP_FEED_LAG_GRACE_MS = 10 * 60 * 1000;
-
 function hasEndedByEndDate(endMs, nowMs) {
   return Number.isFinite(endMs) && nowMs > endMs;
 }

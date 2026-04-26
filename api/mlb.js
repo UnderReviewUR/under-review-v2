@@ -1,5 +1,7 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
+import { etDateStringToEspnYmd, getTodayEtDateString, getTomorrowEtDateString } from "./_espnEtDates.js";
+import { persistLastKnownHomeMlbGames, recoverLastKnownHomeMlbGames } from "./_homeLastKnownGames.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -96,16 +98,6 @@ function toEtDateString(isoString) {
     timeZone: "America/New_York",
   });
 }
-function getTodayEtDateString() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
-function getTomorrowEtDateString() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toLocaleDateString("en-CA", {
-    timeZone: "America/New_York",
-  });
-}
 
 // ── Fetch games with probable pitchers from ESPN ──────────────────────────────
 function firstString(values = []) {
@@ -151,7 +143,11 @@ async function getMlbGamesWithPitchers() {
   if (cached) return cached;
 
   try {
-    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard", { cache:"no-store" });
+    const todayYmd = etDateStringToEspnYmd(getTodayEtDateString());
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${encodeURIComponent(todayYmd)}`,
+      { cache: "no-store" },
+    );
     if (!res.ok) return [];
     const data = await res.json();
     const events = data?.events || [];
@@ -230,7 +226,7 @@ async function getMlbTomorrowGamesWithPitchers() {
 
   try {
     const tomorrowStr = getTomorrowEtDateString();
-    const tomorrowYmd = String(tomorrowStr).replace(/-/g, "");
+    const tomorrowYmd = etDateStringToEspnYmd(tomorrowStr);
     const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${tomorrowYmd}`, {
       cache: "no-store",
     });
@@ -443,26 +439,61 @@ export default async function handler(req, res) {
 
   try {
     if (view === "games") {
-      return res.status(200).json(await getMlbGamesWithPitchers());
+      let games = await getMlbGamesWithPitchers();
+      if (!games.length) {
+        const rec = await recoverLastKnownHomeMlbGames();
+        if (rec?.games?.length) games = rec.games;
+      }
+      return res.status(200).json(games);
     }
 
     if (view === "board") {
       const boardCached = getCached("mlb_board");
-      if (boardCached) return res.status(200).json(boardCached);
+      if (boardCached) {
+        let out = boardCached;
+        const cachedGames = Array.isArray(out.games) ? out.games : [];
+        if (cachedGames.length === 0) {
+          const rec = await recoverLastKnownHomeMlbGames();
+          if (rec?.games?.length) {
+            const gamesWithPark = rec.games.map((g) => ({
+              ...g,
+              park: g.park || getParkForGame(g.homeTeam?.name || ""),
+            }));
+            out = {
+              ...out,
+              games: gamesWithPark,
+              slateRecovery: { fromLastKnownKv: true, lastUpdated: rec.lastUpdated },
+              fetchedAt: new Date().toISOString(),
+            };
+          }
+        }
+        return res.status(200).json(out);
+      }
 
-      const [games, tomorrowGamesRaw, propLines, gameTotals] = await Promise.all([
-        getMlbGamesWithPitchers(),
+      let games = await getMlbGamesWithPitchers();
+      let slateRecovery = null;
+      if (games.length > 0) {
+        await persistLastKnownHomeMlbGames(games);
+      } else {
+        const rec = await recoverLastKnownHomeMlbGames();
+        if (rec?.games?.length) {
+          games = rec.games;
+          slateRecovery = { fromLastKnownKv: true, lastUpdated: rec.lastUpdated };
+        }
+      }
+
+      const [tomorrowGamesRaw, propLines, gameTotals] = await Promise.all([
         getMlbTomorrowGamesWithPitchers(),
         getMlbPropLines(ODDS_KEY),
         getMlbGameTotals(ODDS_KEY),
       ]);
 
       // Enrich games with park factor data
-      const gamesWithPark = games.map(g => ({
+      const gamesWithPark = games.map((g) => ({
         ...g,
         park: g.park || getParkForGame(g.homeTeam?.name || ""),
       }));
-      const tomorrowGames = tomorrowGamesRaw.map(g => ({
+      const tomorrowGames = tomorrowGamesRaw.map((g) => ({
         ...g,
         park: g.park || getParkForGame(g.homeTeam?.name || ""),
       }));
@@ -475,6 +506,7 @@ export default async function handler(req, res) {
         gameTotals,
         parkFactors: PARK_FACTORS,
         fetchedAt: new Date().toISOString(),
+        slateRecovery,
       };
 
       if (games.length > 0 || propLines.length > 0) {

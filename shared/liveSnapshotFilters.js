@@ -6,7 +6,7 @@
 import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs } from "./eventStartTime.js";
 
 export const LIVE_SNAPSHOT_PRE_WINDOW_MS = 2 * 60 * 60 * 1000;
-export const NBA_TIP_FEED_LAG_GRACE_MS = 10 * 60 * 1000;
+export const NBA_TIP_FEED_LAG_GRACE_MS = 30 * 60 * 1000;
 export const MAX_LIVE_SNAPSHOT_TILES = 5;
 
 /** @param {"nba"|"mlb"} sport */
