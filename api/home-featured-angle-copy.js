@@ -65,7 +65,7 @@ export default async function handler(req, res) {
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
-    const HAIKU_MODEL = getEnv("ANTHROPIC_HAIKU_MODEL") || "claude-3-5-haiku-latest";
+    const HAIKU_MODEL = process.env.ANTHROPIC_MODEL || getEnv("ANTHROPIC_MODEL");
     if (!ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: "Missing ANTHROPIC_API_KEY" });
     }
@@ -102,26 +102,40 @@ RULES
 - If injuryImpactCount > 0, make injuries part of the reason.
 - If seriesGameNumber > 0, include series leverage naturally.`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: HAIKU_MODEL,
-        max_tokens: 180,
-        temperature: 0.35,
-        system: "Output strict JSON only with keys lean and reason.",
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return res.status(502).json({ error: "anthropic_upstream_error" });
+    let parsed = null;
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: HAIKU_MODEL,
+          max_tokens: 180,
+          temperature: 0.35,
+          system: "Output strict JSON only with keys lean and reason.",
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error(
+          "[home-featured-angle-copy] anthropic upstream error:",
+          response.status,
+          data?.error?.message || data?.error || data,
+        );
+        return res.status(502).json({ error: "anthropic_upstream_error" });
+      }
+      parsed = parseCopyJson(extractAnthropicText(data));
+    } catch (anthropicErr) {
+      console.error(
+        "[home-featured-angle-copy] anthropic call failed:",
+        anthropicErr?.message || anthropicErr,
+      );
+      return res.status(502).json({ error: "anthropic_call_failed" });
     }
-    const parsed = parseCopyJson(extractAnthropicText(data));
     const lean = String(parsed?.lean || "").trim();
     const reason = String(parsed?.reason || "").trim();
     if (!lean || !reason) {

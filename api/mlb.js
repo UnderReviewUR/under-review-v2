@@ -229,13 +229,14 @@ async function getMlbTomorrowGamesWithPitchers() {
   if (cached) return cached;
 
   try {
-    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard", {
+    const tomorrowStr = getTomorrowEtDateString();
+    const tomorrowYmd = String(tomorrowStr).replace(/-/g, "");
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?dates=${tomorrowYmd}`, {
       cache: "no-store",
     });
     if (!res.ok) return [];
     const data = await res.json();
     const events = data?.events || [];
-    const tomorrowStr = getTomorrowEtDateString();
 
     const games = events
       .filter((e) => {
