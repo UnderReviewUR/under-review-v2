@@ -681,7 +681,8 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
       const sa = String(s?.away || "").toUpperCase();
       const sh = String(s?.home || "").toUpperCase();
       return (sa === af && sh === hf) || (sa === hf && sh === af);
-    }) || playoffSeriesRows[0];
+    }) || null;
+  if (!row) return null;
 
   const game = (todaysGames || []).find((g) => {
     const a = String(g?.awayTeam?.abbr || "").toUpperCase();
@@ -1839,6 +1840,7 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
   const snap = nbaContextForModel?.focusedSeriesSnapshot;
   let seriesRecordLine = "";
   let seriesAvgLine = "";
+  let seriesUnconfirmedInstruction = "";
   if (snap && away && home) {
     seriesRecordLine = `Series record (question order ${snap.awayAbbr} away vs ${snap.homeAbbr} home): ${snap.awayWinsInQuestionOrder}-${snap.homeWinsInQuestionOrder}`;
     seriesAvgLine = Number.isFinite(snap.completedGamesCombinedPointsAverage)
@@ -1863,8 +1865,10 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
         ? `Series completed-game combined scoring average: ${avg}`
         : "Series completed-game combined scoring average: n/a";
     } else {
-      seriesRecordLine = "Series record: n/a";
+      seriesRecordLine = "Series record: unavailable";
       seriesAvgLine = "Series completed-game combined scoring average: n/a";
+      seriesUnconfirmedInstruction =
+        "Series record is not confirmed in context. Do not state a series record. Do not use training memory for series standing. If asked about series context, say the series record is not available in current data.";
     }
   }
 
@@ -1878,7 +1882,7 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
     question,
   );
   const priorLine = `Prior response key positions: ${extractPriorAssistantKeyPositions(findLastUrTakeAssistantContent(incomingHistory))}`;
-  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${rosterBlock}\n${priorLine}`;
+  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}${seriesUnconfirmedInstruction ? `\n${seriesUnconfirmedInstruction}` : ""}\n${injuryLine}\n${rosterBlock}\n${priorLine}`;
 }
 
 function buildUrTakeFollowUpCoreSystemPrompt() {
@@ -4056,7 +4060,12 @@ export default async function handler(req, res) {
     ) {
       const c = nbaContextFromClient;
       const overlays = {};
-      if (Array.isArray(c.playoffSeries) && c.playoffSeries.length > 0) {
+      const serverPlayoffSeries = Array.isArray(nbaContext?.playoffSeries) ? nbaContext.playoffSeries : [];
+      if (
+        serverPlayoffSeries.length === 0 &&
+        Array.isArray(c.playoffSeries) &&
+        c.playoffSeries.length > 0
+      ) {
         overlays.playoffSeries = c.playoffSeries;
       }
       if (Array.isArray(c.injuries) && c.injuries.length > 0) {
