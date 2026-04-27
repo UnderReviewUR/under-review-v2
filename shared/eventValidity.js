@@ -3,6 +3,7 @@ import {
   canonicalNbaStartUtcMs,
   parseEventStartMs,
 } from "./eventStartTime.js";
+import { HOME_SLATE_HORIZON_MS } from "./homeSlateHorizon.js";
 import { NBA_TIP_FEED_LAG_GRACE_MS } from "./liveSnapshotFilters.js";
 
 export const EVENT_VALIDITY = Object.freeze({
@@ -11,6 +12,8 @@ export const EVENT_VALIDITY = Object.freeze({
   FINISHED: "finished",
   STALE: "stale",
   UNKNOWN: "unknown",
+  /** Pregame start is more than HOME_SLATE_HORIZON_MS away — omit from Home / slate. */
+  BEYOND_SLATE_HORIZON: "beyond_slate_horizon",
 });
 
 const FINISHED_KEYWORDS = [
@@ -125,10 +128,16 @@ function classifyGameState({ game, nowMs, durationMs, sport }) {
         return EVENT_VALIDITY.UPCOMING;
       }
     }
+    if (nowMs < startMs && startMs > nowMs + HOME_SLATE_HORIZON_MS) {
+      return EVENT_VALIDITY.BEYOND_SLATE_HORIZON;
+    }
     return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.STALE;
   }
   if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
-  if (nowMs < startMs) return EVENT_VALIDITY.UPCOMING;
+  if (nowMs < startMs) {
+    if (startMs > nowMs + HOME_SLATE_HORIZON_MS) return EVENT_VALIDITY.BEYOND_SLATE_HORIZON;
+    return EVENT_VALIDITY.UPCOMING;
+  }
   if (nowMs <= startMs + durationMs) return EVENT_VALIDITY.ACTIVE;
   if (nowMs > startMs + durationMs) return EVENT_VALIDITY.FINISHED;
   return EVENT_VALIDITY.UNKNOWN;

@@ -427,7 +427,7 @@ export default function TickerRail({
         {tickerQuiet ? (
           <div className="home-ticker-quiet-copy">
             Snapshot is quiet — nothing in the Home window right now. Use the sport pills above or ask UR Take on a
-            specific matchup; boards refresh on their own cadence.
+            specific matchup. Games tip tonight — ask UR Take for pre-game angles.
           </div>
         ) : (
           tiles

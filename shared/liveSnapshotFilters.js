@@ -1,10 +1,12 @@
 /**
- * Live Snapshot inclusion: NBA live/upcoming slate, MLB live or starts within 2h,
- * next major (F1/NFL handled in plan).
+ * Live Snapshot inclusion: NBA/MLB live games, or pregame starts within LIVE_SNAPSHOT_UPCOMING_WINDOW_MS,
+ * tennis within LIVE_SNAPSHOT_PRE_WINDOW_MS — next major (F1/NFL handled in plan).
  */
 
 import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs } from "./eventStartTime.js";
+import { LIVE_SNAPSHOT_UPCOMING_WINDOW_MS } from "./homeSlateHorizon.js";
 
+/** Tennis lookahead (unchanged): short window for odds-backed commence times. */
 export const LIVE_SNAPSHOT_PRE_WINDOW_MS = 2 * 60 * 60 * 1000;
 export const NBA_TIP_FEED_LAG_GRACE_MS = 30 * 60 * 1000;
 export const MAX_LIVE_SNAPSHOT_TILES = 5;
@@ -25,14 +27,13 @@ export function isNbaMlbIncludedInLiveSnapshot(game, nowMs = Date.now(), sport =
     if (!Number.isFinite(startMs)) return false;
     const delta = startMs - nowMs;
     if (sport === "nba") {
-      if (delta >= 0) return true;
       const awayScore = Number(game?.awayTeam?.score);
       const homeScore = Number(game?.homeTeam?.score);
       const lagWindow = delta < 0 && delta > -NBA_TIP_FEED_LAG_GRACE_MS;
       if (lagWindow && awayScore === 0 && homeScore === 0) return true;
-      return false;
+      return delta >= 0 && delta <= LIVE_SNAPSHOT_UPCOMING_WINDOW_MS;
     }
-    return delta >= 0 && delta <= LIVE_SNAPSHOT_PRE_WINDOW_MS;
+    return delta >= 0 && delta <= LIVE_SNAPSHOT_UPCOMING_WINDOW_MS;
   }
   return false;
 }

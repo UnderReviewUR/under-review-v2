@@ -1,5 +1,6 @@
 /**
  * Home ingestion pipeline (partial centralization): normalizes feeds that power Home tab + Live Snapshot.
+ * NBA/MLB rows use a rolling start-time horizon (`HOME_SLATE_HORIZON_MS` in classify — not calendar "today").
  * Today's Slate board filtering is aligned via `shared/todaySlateInputBundle.js` (same classify gates; golf uses `normalizeGolfTournament`).
  */
 

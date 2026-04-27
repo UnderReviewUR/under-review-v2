@@ -1139,13 +1139,6 @@ ${themeCss}
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
   const homeNbaCards = useMemo(() => {
-    const toEtDateYmd = (startTimeUtc) => {
-      const raw = String(startTimeUtc || "").trim();
-      if (!raw) return "";
-      const dt = new Date(raw);
-      if (Number.isNaN(dt.getTime())) return "";
-      return dt.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    };
     const toEtTipLabel = (startTimeUtc) => {
       const raw = String(startTimeUtc || "").trim();
       if (!raw) return "TBD ET";
@@ -1157,9 +1150,8 @@ ${themeCss}
         timeZone: "America/New_York",
       })} ET`;
     };
-    const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    const todayGames = homePipeline.nbaGamesForHome
-      .filter((g) => toEtDateYmd(g?.startTimeUtc) === todayEt)
+    /** Rolling 24h slate from `homePipeline` (same gates as classifyNbaGame + normalize). */
+    const slateGames = homePipeline.nbaGamesForHome
       .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
       .filter((g) => {
         const k = nbaEventKey(g);
@@ -1172,7 +1164,7 @@ ${themeCss}
       });
 
     const rawApiTodaysGames = (nbaData?.todaysGames || [])
-      .filter((g) => toEtDateYmd(g?.startTimeUtc) === todayEt)
+      .filter((g) => isDisplayableValidity(classifyNbaGame(g)))
       .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
       .filter((g) => {
         const k = nbaEventKey(g);
@@ -1184,7 +1176,7 @@ ${themeCss}
         return ta - tb;
       });
 
-    if (!todayGames.length && !homePipeline.nbaGamesForHome.length) {
+    if (!slateGames.length && !homePipeline.nbaGamesForHome.length) {
       if (rawApiTodaysGames.length > 0) {
         const recoveryHint = nbaData?.slateRecovery?.fromLastKnownKv
           ? formatHomeSlateKvUpdatedEt(nbaData.slateRecovery.lastUpdated)
@@ -1237,11 +1229,11 @@ ${themeCss}
       ];
     }
 
-    if (!todayGames.length) {
+    if (!slateGames.length) {
       return [];
     }
 
-    const rows = todayGames.map((g, i) => {
+    const rows = slateGames.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
       const series = getSeriesLabel(away, home);
@@ -1276,33 +1268,23 @@ ${themeCss}
   }, [homePipeline.nbaGamesForHome, getSeriesLabel, cardExcludeSet, nbaData?.todaysGames, nbaData?.slateRecovery]);
 
   const homeMlbCards = useMemo(() => {
-    const toEtDateYmdMlb = (iso) => {
-      const raw = String(iso || "").trim();
-      if (!raw) return "";
-      const dt = new Date(raw);
-      if (Number.isNaN(dt.getTime())) return "";
-      return dt.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    };
     const live = homePipeline.mlbGamesForHome.filter((g) => g.state === "in");
     const upcoming = homePipeline.mlbGamesForHome.filter((g) => g.state === "pre");
     const poolRaw = [...live, ...upcoming].slice(0, 3);
     const tomorrowGames = Array.isArray(mlbData?.tomorrowGames) ? mlbData.tomorrowGames : [];
+    const tomorrowGamesHorizon = tomorrowGames.filter((g) => isDisplayableValidity(classifyMlbGame(g)));
     const pool = poolRaw.filter((g) => {
       const k = mlbEventKey(g);
       return !(k && cardExcludeSet.has(k));
     });
-    const todayEtMlb = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    const rawApiMlbToday = (mlbData?.games || []).filter((g) => {
-      const d = toEtDateYmdMlb(g?.startTimeUtc || g?.date);
-      return d === todayEtMlb;
-    });
+    const rawApiMlbHorizon = (mlbData?.games || []).filter((g) => isDisplayableValidity(classifyMlbGame(g)));
 
     if (!pool.length && !homePipeline.mlbGamesForHome.length) {
-      if (rawApiMlbToday.length > 0) {
+      if (rawApiMlbHorizon.length > 0) {
         const recoveryHint = mlbData?.slateRecovery?.fromLastKnownKv
           ? formatHomeSlateKvUpdatedEt(mlbData.slateRecovery.lastUpdated)
           : null;
-        return rawApiMlbToday.slice(0, 3).map((g, i) => {
+        return rawApiMlbHorizon.slice(0, 3).map((g, i) => {
           const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
           const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
           const isLive = g.state === "in";
@@ -1334,8 +1316,8 @@ ${themeCss}
           };
         });
       }
-      if (tomorrowGames.length > 0) {
-        const tomorrowLines = tomorrowGames.slice(0, 3).map((g) => {
+      if (tomorrowGamesHorizon.length > 0) {
+        const tomorrowLines = tomorrowGamesHorizon.slice(0, 3).map((g) => {
           const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
           const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
           const tip = String(g.status || "TBD");
