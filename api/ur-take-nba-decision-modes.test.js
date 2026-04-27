@@ -332,6 +332,54 @@ test("blocked unavailable mode resolves from invalidation + decision resolver", 
   assert.equal(mode, "blocked_unavailable");
 });
 
+test("blocked unavailable response excludes out player from role gainers and ends with live trigger", async () => {
+  const out = await invokeUrTake({
+    question: "Austin Reaves over 17.5 points?",
+    sportHint: "nba",
+    history: [{ role: "user", content: "any updates?" }, { role: "assistant", content: "waiting on status" }],
+    nbaContext: {
+      ...sharedNba,
+      injuries: [{ player: "Austin Reaves", team: "PHI", status: "Out", detail: "Hamstring" }],
+      rosterGrounding: {
+        ...sharedNba.rosterGrounding,
+        playersByTeamAbbrev: {
+          ...sharedNba.rosterGrounding.playersByTeamAbbrev,
+          PHI: ["Austin Reaves", "Tyrese Maxey", "Joel Embiid", "Kelly Oubre Jr."],
+        },
+      },
+      playerStats: [
+        ...sharedNba.playerStats,
+        { name: "Austin Reaves", team: "PHI", pts: 17, ast: 5, reb: 4 },
+        { name: "Kelly Oubre Jr.", team: "PHI", pts: 14, ast: 2, reb: 5 },
+      ],
+      newsImpact: {
+        affectedTeams: [
+          {
+            team: "PHI",
+            outs: ["Austin Reaves"],
+            doubtful: [],
+            priority: "high",
+            beneficiaries: [
+              { player: "Austin Reaves", markets: ["points", "assists"] },
+              { player: "Tyrese Maxey", markets: ["points", "assists"] },
+              { player: "Joel Embiid", markets: ["rebounds"] },
+            ],
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(out.status, 200);
+  assert.equal(out.payload.decisionMode, "blocked_unavailable");
+  assert.match(out.payload.response, /STATUS SHIFT/i);
+  assert.match(out.payload.response, /REPLACEMENT WATCHLIST/i);
+  assert.match(out.payload.response, /PROP SHIFT/i);
+  assert.match(out.payload.response, /LIVE TRIGGER/i);
+  assert.match(out.payload.response, /Tyrese Maxey|Joel Embiid|Kelly Oubre Jr\./i);
+  assert.doesNotMatch(out.payload.response, /watch Austin Reaves volume up/i);
+  assert.doesNotMatch(out.payload.response, /Lean Austin Reaves .* toward over/i);
+});
+
 test("blocked unlisted market preserves terminal block semantics", async () => {
   const inv = applyNbaMarketInvalidation({
     question: "Brown under 25.5 live?",
