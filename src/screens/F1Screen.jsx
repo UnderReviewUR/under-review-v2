@@ -92,17 +92,37 @@ export default function F1Screen({
                     <div className="section-divider">Race Calendar</div>
                     {calendarRaces.map((race) => {
                       const raceStart = resolveF1RaceStart(race, f1Data?.sessions || []);
-                      const d = raceStart ? new Date(raceStart) : null;
-                      const dateStr = d ? d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+                      const dtSession = raceStart ? new Date(raceStart) : null;
+                      const sessionOk = dtSession && !Number.isNaN(dtSession.getTime());
+                      const fallbackDate = race.race_date ? new Date(race.race_date) : null;
+                      const fallbackOk = fallbackDate && !Number.isNaN(fallbackDate.getTime());
+                      const dateBasis = sessionOk ? dtSession : fallbackOk ? fallbackDate : null;
+                      const dateStr = dateBasis
+                        ? dateBasis.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : "";
+                      const timeStr = sessionOk
+                        ? dtSession.toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            timeZoneName: "short",
+                          })
+                        : "";
                       return (
                         <div key={race.meeting_key} className={`f1-race-card${race.is_next?" next-race":""}`}>
                           <div className="f1-race-top">
                             <div className="f1-race-name">{race.meeting_name}</div>
                             <div>{race.is_next && <span className="f1-race-badge">NEXT</span>}</div>
                           </div>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                             <div className="f1-race-location">{race.location} · {race.circuit_short_name}</div>
-                            <div className="f1-race-date">{dateStr}</div>
+                            <div className="f1-race-date" style={{ textAlign: "right" }}>
+                              {dateStr}
+                              {timeStr ? (
+                                <div style={{ fontFamily: "var(--mono-font)", fontSize: 11, marginTop: 4, opacity: 0.85 }}>
+                                  {timeStr}
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       );

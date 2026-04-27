@@ -1,4 +1,5 @@
 import { applyCors } from "./_cors.js";
+import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
 
 const OPENF1 = "https://api.openf1.org/v1";
 
@@ -188,25 +189,8 @@ function buildSchedule(meetings) {
   };
 }
 
-/**
- * OpenF1: use the Grand Prix session only — session_name must be exactly "Race"
- * (case-insensitive). Ignore practice, qualifying, sprint, shakedown, etc.
- */
 function extractRaceSessionStart(sessions) {
-  if (!Array.isArray(sessions) || sessions.length === 0) return null;
-  const excluded = ["sprint", "practice", "qualifying", "qualy", "shakedown"];
-  const raceSessions = sessions.filter((s) => {
-    const raw = String(s?.session_name || "").trim();
-    const name = raw.toLowerCase();
-    if (name !== "race") return false;
-    for (const ex of excluded) {
-      if (name.includes(ex)) return false;
-    }
-    return true;
-  });
-  if (!raceSessions.length) return null;
-  raceSessions.sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
-  return raceSessions[0]?.date_start || null;
+  return extractGrandPrixRaceStartFromSessions(sessions);
 }
 
 /** Apply OpenF1 race session starts per meeting_key (null = leave race_start unchanged). */
@@ -262,7 +246,9 @@ async function getScheduleData() {
     ...(Array.isArray(data?.upcoming) ? data.upcoming : []),
     ...(Array.isArray(data?.current) ? data.current : []),
   ];
-  const meetingKeys = [...new Set(rows.map((r) => r?.meeting_key).filter((k) => k != null))].slice(0, 18);
+  const meetingKeySet = new Set(rows.map((r) => r?.meeting_key).filter((k) => k != null));
+  if (data?.next_meeting_key != null) meetingKeySet.add(data.next_meeting_key);
+  const meetingKeys = [...meetingKeySet];
 
   const startByMeeting = new Map();
   await Promise.all(

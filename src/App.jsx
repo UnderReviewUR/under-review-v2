@@ -102,6 +102,13 @@ function formatHomeSlateKvUpdatedEt(iso) {
   })} ET`;
 }
 
+/** Home MLB cards only: treat missing / TBD / dash pitchers as absent (no probables line). */
+function isConfirmedMlbProbablePitcher(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return false;
+  return !/^(tbd|pitcher\s*tbd|probables\s*tbd|--?|—|n\/a)$/i.test(s);
+}
+
 function normalizeUrTakeDisplay(data) {
   const parseMaybe = (raw) => {
     const s = String(raw || "").trim();
@@ -1097,7 +1104,7 @@ ${themeCss}
       const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
       const dt = raceStart ? new Date(raceStart) : null;
       const fallbackDate = nextRace?.race_date ? new Date(nextRace.race_date) : null;
-      const hasConfirmedRaceStart = Boolean(dt);
+      const hasConfirmedRaceStart = Boolean(dt && !Number.isNaN(dt.getTime()));
       const dateStr = dt
         ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
         : fallbackDate
@@ -1108,9 +1115,13 @@ ${themeCss}
         : fallbackDate
           ? fallbackDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })
         : "Date TBD";
-      const timeStr = dt
-        ? dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })
-        : "Time unconfirmed";
+      const timeStr =
+        hasConfirmedRaceStart
+          ? dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })
+          : "";
+      const blurbCore = `${nextRace.location || "Track TBD"} · ${fullDateStr}`;
+      const blurb =
+        hasConfirmedRaceStart && timeStr ? `${blurbCore} at ${timeStr}` : blurbCore;
       return [{
         id: "f1-next-1",
         league: "F1",
@@ -1118,7 +1129,7 @@ ${themeCss}
         title: nextRace.meeting_name || "Next Grand Prix",
         time: dateStr,
         network: nextRace.circuit_short_name || nextRace.location || "",
-        blurb: `${nextRace.location || "Track TBD"} · ${fullDateStr}${hasConfirmedRaceStart ? ` at ${timeStr}` : ` · ${timeStr}`}`,
+        blurb,
         whatMatters: "Race Sunday only — winner, podium structure, or head-to-head reads.",
         quickHitters: ["Race winner vs field?", "Podium stack you trust?", "Best driver H2H?"],
         confirmed: true
@@ -1296,8 +1307,13 @@ ${themeCss}
           const liveLabel = isLive ? `🔴 LIVE${inning ? ` · ${inning}` : ""}` : isFinal ? "FINAL" : g.status || "Today";
           const homeP = g.homeTeam?.pitcher;
           const awayP = g.awayTeam?.pitcher;
-          const pitchers = homeP && awayP ? `${awayP} vs ${homeP}` : "";
-          const blurb = hasScore ? `${away} ${awayScore} — ${home} ${homeScore}` : pitchers || `${away} @ ${home} · Probables TBD`;
+          const pitchers =
+            isConfirmedMlbProbablePitcher(awayP) && isConfirmedMlbProbablePitcher(homeP)
+              ? `${String(awayP).trim()} vs ${String(homeP).trim()}`
+              : "";
+          const blurb = hasScore
+            ? `${away} ${awayScore} — ${home} ${homeScore}`
+            : pitchers || `${away} @ ${home}`;
           return {
             id: `mlb-card-fallback-${i + 1}`,
             league: isLive ? "MLB LIVE" : isFinal ? "MLB · FINAL" : "MLB",
@@ -1372,9 +1388,12 @@ ${themeCss}
 
       const homeP = g.homeTeam?.pitcher;
       const awayP = g.awayTeam?.pitcher;
-      const pitchers = homeP && awayP ? `${awayP} vs ${homeP}` : "";
+      const pitchers =
+        isConfirmedMlbProbablePitcher(awayP) && isConfirmedMlbProbablePitcher(homeP)
+          ? `${String(awayP).trim()} vs ${String(homeP).trim()}`
+          : "";
 
-      const blurb = hasScore ? `${away} ${awayScore} — ${home} ${homeScore}` : pitchers || `${away} @ ${home} · Probables TBD`;
+      const blurb = hasScore ? `${away} ${awayScore} — ${home} ${homeScore}` : pitchers || `${away} @ ${home}`;
 
       return {
         id: `mlb-card-${i + 1}`,
@@ -2345,37 +2364,20 @@ ${themeCss}
         <div style={{ fontFamily: "var(--mono-font)", fontSize: 9, letterSpacing: 2, color: proMarketing.subLabel ?? "var(--muted)", textTransform: "uppercase" }}>
           Subscription
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span className="logo-review" style={{ fontSize: 17, letterSpacing: 0 }}>
-            {activeTheme === "broadsheet" ? (
-              <>
-                <span style={{ color: "#1a1a1a", WebkitTextFillColor: "#1a1a1a" }}>UnderReview</span>
-                <span style={{ color: "#F5C842", WebkitTextFillColor: "#F5C842" }}> PRO</span>
-              </>
-            ) : (
-              "UnderReview"
-            )}
-          </span>
-          {activeTheme !== "broadsheet" && (
-            <span
-              style={{
-                fontFamily: "var(--display-font)",
-                fontSize: 22,
-                letterSpacing: 4,
-                background: "linear-gradient(90deg,#BF8C00,#F5C842,#FFE680,#F5C842,#BF8C00)",
-                backgroundSize: "200% auto",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                animation: "gleam 3s linear infinite",
-              }}
-            >
-              PRO
-            </span>
-          )}
+        <div
+          style={{
+            fontFamily: "var(--display-font)",
+            fontSize: 22,
+            letterSpacing: 0.5,
+            color: proMarketing.subBody ?? "var(--text)",
+            lineHeight: 1.25,
+            maxWidth: 420,
+          }}
+        >
+          UR Take, Sharpened.
         </div>
         <div style={{ fontSize: 12, color: proMarketing.subBody ?? "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
-          Pick services charge $100+ a month to guess. Under Review is every ask, every sport, every day. Ten bucks.
+          Pro unlocks deeper reasoning, explicit verdicts, and session continuity — a betting brain that builds on itself, not a pick service.
         </div>
       </div>
       <div
@@ -2393,6 +2395,23 @@ ${themeCss}
         <br />
         <span style={{ color: proMarketing.priceAsideMuted ?? "var(--muted)" }}>Cancel anytime</span>
       </div>
+    </div>
+
+    {/* Value bar */}
+    <div style={proMarketing.valueGrid}>
+      {[
+        ["Full-depth analysis — complete five-step breakdowns, never truncated",""],
+        ["Verdict close on every card — THE PLAY, confidence tier, one-line sharp read",""],
+        ["Session continuity — Pro carries the thread across your queries",""],
+        ["Unlimited asks — no weekly ceiling, no mid-session walls",""],
+      ].map(([val,label])=>(
+        <div key={val} style={proMarketing.valueCell}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:label?2:0,lineHeight:1.35}}>{val}</div>
+          {label ? (
+            <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:proMarketing.valueLabel ?? "#3A4050",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
+          ) : null}
+        </div>
+      ))}
     </div>
 
     {/* Price + CTA */}
@@ -2427,16 +2446,6 @@ ${themeCss}
         }catch{alert("Something went wrong. Try again.");}
       }}>START FREE TRIAL</button>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
-    </div>
-
-    {/* Value bar */}
-    <div style={proMarketing.valueGrid}>
-      {[["6","Sports"],["Live","Data"],["AI","Powered"],["$9.99","vs $100+ picks"]].map(([val,label])=>(
-        <div key={label} style={proMarketing.valueCell}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:2}}>{val}</div>
-          <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:proMarketing.valueLabel ?? "#3A4050",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
-        </div>
-      ))}
     </div>
 
     {/* Features */}
@@ -2741,13 +2750,13 @@ ${themeCss}
               <div style={{fontSize:28,marginBottom:8}}>🔒</div>
               <div style={{fontFamily:"var(--display-font)",fontSize:26,letterSpacing:1,marginBottom:6}}>FREE LIMIT REACHED</div>
               <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:18}}>
-                You used your {FREE_LIMIT} free questions for this week. Upgrade now for unlimited asks and full Pro access.
+                You&apos;ve hit the free limit. Pro removes the ceiling — and unlocks deeper analysis, verdict closes, and session continuity on every query.
               </div>
               <button
                 onClick={() => { setShowUpgradeModal(false); goPro(); }}
                 style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:"var(--cyan-bright)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:"pointer",marginBottom:10}}
               >
-                GO PRO
+                Unlock Pro — $9.99/mo
               </button>
               <button
                 onClick={() => setShowUpgradeModal(false)}

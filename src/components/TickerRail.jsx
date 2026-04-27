@@ -210,16 +210,38 @@ export default function TickerRail({
         🏎️ F1 NEXT
       </div>
       <div style={{ fontSize: 11, lineHeight: 1.3, ...SNAP_PRI }}>{race.meeting_name}</div>
-      <div style={{ fontSize: 10, color: "var(--muted)" }}>
-        {(() => {
-          const raceStart = resolveF1RaceStart(race, f1Data?.sessions || []);
-          const dt = raceStart ? new Date(raceStart) : null;
-          const when = dt
-            ? `${dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })} ${dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })}`
-            : "Date/Time TBD";
-          return when;
-        })()}
-      </div>
+      {(() => {
+        const raceStart = resolveF1RaceStart(race, f1Data?.sessions || []);
+        const dtSession = raceStart ? new Date(raceStart) : null;
+        const sessionOk = dtSession && !Number.isNaN(dtSession.getTime());
+        const fallbackDate = race?.race_date ? new Date(race.race_date) : null;
+        const fallbackOk = fallbackDate && !Number.isNaN(fallbackDate.getTime());
+        const datePart = sessionOk
+          ? dtSession.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              timeZone: "America/Chicago",
+            })
+          : fallbackOk
+            ? fallbackDate.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                timeZone: "America/Chicago",
+              })
+            : "";
+        const timePart = sessionOk
+          ? dtSession.toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+              timeZone: "America/Chicago",
+              timeZoneName: "short",
+            })
+          : "";
+        const line = [datePart, timePart].filter(Boolean).join(" ");
+        return line ? (
+          <div style={{ fontSize: 10, color: "var(--muted)" }}>{line}</div>
+        ) : null;
+      })()}
     </div>
   );
 

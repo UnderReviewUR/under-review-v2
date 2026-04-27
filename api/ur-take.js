@@ -3961,6 +3961,9 @@ export default async function handler(req, res) {
     req.body.userEmail = urAuth.email;
   }
 
+  const userTier = urAuth?.tier ?? "free";
+  const isPro = ["pro", "owner", "friend"].includes(userTier);
+
   const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
   const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
 
@@ -5718,7 +5721,29 @@ ${continuationRule}`;
             ? 2200
             : outputJsonMode === "tier1_json"
               ? 700
-              : 800;
+              : isPro ? 1400 : 800;
+
+    // Pro depth guidance only for plain-text full cards — never override JSON contracts,
+    // follow-up brevity rules, odds-unavailable closing contract, or draft simulation routes.
+    const shouldApplyProDepthAppendix =
+      isPro &&
+      outputJsonMode === "plain" &&
+      !isConversationFollowUp &&
+      oddsAvailable &&
+      !draftTeamSimulationInject;
+
+    const proDepthAppendix = shouldApplyProDepthAppendix ? `
+
+[PRO SESSION — DEPTH UNLOCKED]
+You are responding to a Pro subscriber. Apply the following:
+- Complete the full five-step framework without truncating the structural anchor or close. Do not compress reasoning to meet brevity targets.
+- End every analysis card with an explicit verdict block formatted exactly as:
+  THE PLAY: [lean/fade/pass] · [High/Medium/Speculative] confidence · [one sharp sentence on why]
+- If session history exists, open with one sentence that connects this query to the prior take before building the new card. Do not repeat full prior reasoning — reference it, then advance.
+- If evidence is thin, say so plainly in the verdict block rather than omitting it. Thin context, capped confidence, honest close is better than a padded card.
+` : "";
+
+    const systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}`;
 
     if (sportHint === "nba" && nbaContext?.rosterGrounding) {
       console.log(
@@ -5729,13 +5754,13 @@ ${continuationRule}`;
     console.log(
       `[ur-take] context: sport=${String(
         sportHint || "unknown",
-      )} systemPromptChars=${systemPromptForModel.length} contextPayloadChars=${userPrompt.length}`,
+      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${userPrompt.length}`,
     );
 
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
-      system: systemPromptForModel,
+      system: systemPromptWithProAppendix,
       messages,
       temperature: selectedTemperature,
       max_tokens: tokenBudget,
