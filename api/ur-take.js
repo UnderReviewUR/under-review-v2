@@ -5724,12 +5724,11 @@ ${continuationRule}`;
               : isPro ? 1400 : 800;
 
     // Pro depth guidance only for plain-text full cards — never override JSON contracts,
-    // follow-up brevity rules, odds-unavailable closing contract, or draft simulation routes.
+    // follow-up brevity rules, or draft simulation routes.
     const shouldApplyProDepthAppendix =
       isPro &&
       outputJsonMode === "plain" &&
       !isConversationFollowUp &&
-      oddsAvailable &&
       !draftTeamSimulationInject;
 
     const proDepthAppendix = shouldApplyProDepthAppendix ? `
@@ -5737,10 +5736,17 @@ ${continuationRule}`;
 [PRO SESSION — DEPTH UNLOCKED]
 You are responding to a Pro subscriber. Apply the following:
 - Complete the full five-step framework without truncating the structural anchor or close. Do not compress reasoning to meet brevity targets.
-- End every analysis card with an explicit verdict block formatted exactly as:
+- End every analysis card with an explicit verdict block. Use the format appropriate to odds availability:
+
+  If odds ARE available:
   THE PLAY: [lean/fade/pass] · [High/Medium/Speculative] confidence · [one sharp sentence on why]
+
+  If odds are NOT available (no live lines in context):
+  THE PLAY: [lean/fade/pass] · [High/Medium/Speculative] confidence · [one sharp sentence on why] — when the line posts, watch for [specific player + specific stat threshold]
+
 - If session history exists, open with one sentence that connects this query to the prior take before building the new card. Do not repeat full prior reasoning — reference it, then advance.
 - If evidence is thin, say so plainly in the verdict block rather than omitting it. Thin context, capped confidence, honest close is better than a padded card.
+- Never fabricate a line, spread, or total that is not present in the context payload. If odds are unavailable, the verdict close must be directional only — no invented numbers.
 ` : "";
 
     const systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}`;
