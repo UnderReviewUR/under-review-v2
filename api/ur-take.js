@@ -674,59 +674,74 @@ function getNbaSeriesGameNumberForGame(game, playoffSeries) {
 function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, todaysGames) {
   const af = String(awayF || "").toUpperCase();
   const hf = String(homeF || "").toUpperCase();
-  if (!af || !hf || !Array.isArray(playoffSeriesRows) || playoffSeriesRows.length === 0) return null;
-
-  const row =
-    playoffSeriesRows.find((s) => {
-      const sa = String(s?.away || "").toUpperCase();
-      const sh = String(s?.home || "").toUpperCase();
-      return (sa === af && sh === hf) || (sa === hf && sh === af);
-    }) || null;
-  if (!row) return null;
-
   const game = (todaysGames || []).find((g) => {
     const a = String(g?.awayTeam?.abbr || "").toUpperCase();
     const h = String(g?.homeTeam?.abbr || "").toUpperCase();
     return (a === af && h === hf) || (a === hf && h === af);
   });
+  if (!af || !hf) return null;
+  const hasPlayoffRows = Array.isArray(playoffSeriesRows) && playoffSeriesRows.length > 0;
+  const row = hasPlayoffRows
+    ? (playoffSeriesRows.find((s) => {
+        const sa = String(s?.away || "").toUpperCase();
+        const sh = String(s?.home || "").toUpperCase();
+        return (sa === af && sh === hf) || (sa === hf && sh === af);
+      }) || null)
+    : null;
 
-  const nextGameNum = getNbaSeriesGameNumberForGame(
-    game || { awayTeam: { abbr: af }, homeTeam: { abbr: hf } },
-    playoffSeriesRows,
-  );
+  const gameSeriesSummary = String(game?.seriesSummary || "").trim();
+  const gameSeriesLeader = String(game?.seriesLeader || "").toUpperCase();
+  const gameSeriesWins = Number(game?.seriesWins);
+  const gameSeriesDeficit = Number(game?.seriesDeficit);
+  const hasGameSeries =
+    gameSeriesSummary &&
+    Number.isFinite(gameSeriesWins) &&
+    Number.isFinite(gameSeriesDeficit) &&
+    gameSeriesWins >= 0 &&
+    gameSeriesDeficit >= 0;
+  if (!hasGameSeries && !row) return null;
 
-  const sa = String(row?.away || "").toUpperCase();
-  const sh = String(row?.home || "").toUpperCase();
+  const nextGameNum = hasGameSeries
+    ? gameSeriesWins + gameSeriesDeficit + 1
+    : getNbaSeriesGameNumberForGame(
+        game || { awayTeam: { abbr: af }, homeTeam: { abbr: hf } },
+        playoffSeriesRows,
+      );
+
   let winsAwayF = 0;
   let winsHomeF = 0;
-  if (sa === af && sh === hf) {
-    winsAwayF = Number(row?.awayWins) || 0;
-    winsHomeF = Number(row?.homeWins) || 0;
-  } else if (sa === hf && sh === af) {
-    winsAwayF = Number(row?.homeWins) || 0;
-    winsHomeF = Number(row?.awayWins) || 0;
+  if (hasGameSeries && (gameSeriesLeader === af || gameSeriesLeader === hf)) {
+    if (gameSeriesLeader === af) {
+      winsAwayF = gameSeriesWins;
+      winsHomeF = gameSeriesDeficit;
+    } else {
+      winsAwayF = gameSeriesDeficit;
+      winsHomeF = gameSeriesWins;
+    }
+  } else if (row) {
+    const sa = String(row?.away || "").toUpperCase();
+    const sh = String(row?.home || "").toUpperCase();
+    if (sa === af && sh === hf) {
+      winsAwayF = Number(row?.awayWins) || 0;
+      winsHomeF = Number(row?.homeWins) || 0;
+    } else if (sa === hf && sh === af) {
+      winsAwayF = Number(row?.homeWins) || 0;
+      winsHomeF = Number(row?.awayWins) || 0;
+    }
   }
 
   const leader =
     winsAwayF > winsHomeF ? af : winsHomeF > winsAwayF ? hf : "tied";
-  const recordLine =
-    winsAwayF === winsHomeF
-      ? `${af} ${winsAwayF} — ${hf} ${winsHomeF} (series tied)`
-      : `${af} ${winsAwayF} — ${hf} ${winsHomeF} (${leader} leads ${Math.max(winsAwayF, winsHomeF)}-${Math.min(winsAwayF, winsHomeF)})`;
-
-  let serverSummaryOneLiner = recordLine;
-  if (nextGameNum > 0) {
-    serverSummaryOneLiner = `${recordLine}; tonight is Game ${nextGameNum}`;
-  }
-  if (row?.round) {
-    serverSummaryOneLiner += ` (${String(row.round).trim()})`;
-  }
-  serverSummaryOneLiner += ".";
+  const serverSummaryOneLiner =
+    leader === "tied"
+      ? `${af} and ${hf} are tied ${winsAwayF}-${winsHomeF}${nextGameNum > 0 ? ` — Game ${nextGameNum} tonight` : ""}.`
+      : `${leader} leads ${Math.max(winsAwayF, winsHomeF)}-${Math.min(winsAwayF, winsHomeF)}${nextGameNum > 0 ? ` — Game ${nextGameNum} tonight` : ""}.`;
 
   const priorFinals = Array.isArray(row?.completedGamesCombinedPoints) ? row.completedGamesCombinedPoints : [];
   const avgCombined = row?.completedGamesCombinedPointsAverage;
+  let summaryWithAvg = serverSummaryOneLiner;
   if (priorFinals.length > 0 && Number.isFinite(avgCombined)) {
-    serverSummaryOneLiner += ` Completed finals in fetch window (${priorFinals.length}): combined avg ${avgCombined} pts/game.`;
+    summaryWithAvg += ` Completed finals in fetch window (${priorFinals.length}): combined avg ${avgCombined} pts/game.`;
   }
 
   return {
@@ -737,10 +752,10 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
     leaderAbbr: leader === "tied" ? null : leader,
     nextGameNumber: nextGameNum > 0 ? nextGameNum : null,
     round: row?.round || null,
-    statusText: row?.status || null,
+    statusText: row?.status || gameSeriesSummary || null,
     completedGamesCombinedPoints: priorFinals,
     completedGamesCombinedPointsAverage: Number.isFinite(avgCombined) ? avgCombined : null,
-    serverSummaryOneLiner,
+    serverSummaryOneLiner: summaryWithAvg,
   };
 }
 
@@ -1840,7 +1855,6 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
   const snap = nbaContextForModel?.focusedSeriesSnapshot;
   let seriesRecordLine = "";
   let seriesAvgLine = "";
-  let seriesUnconfirmedInstruction = "";
   if (snap && away && home) {
     seriesRecordLine = `Series record (question order ${snap.awayAbbr} away vs ${snap.homeAbbr} home): ${snap.awayWinsInQuestionOrder}-${snap.homeWinsInQuestionOrder}`;
     seriesAvgLine = Number.isFinite(snap.completedGamesCombinedPointsAverage)
@@ -1867,8 +1881,6 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
     } else {
       seriesRecordLine = "Series record: unavailable";
       seriesAvgLine = "Series completed-game combined scoring average: n/a";
-      seriesUnconfirmedInstruction =
-        "Series record is not confirmed in context. Do not state a series record. Do not use training memory for series standing. If asked about series context, say the series record is not available in current data.";
     }
   }
 
@@ -1882,7 +1894,7 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
     question,
   );
   const priorLine = `Prior response key positions: ${extractPriorAssistantKeyPositions(findLastUrTakeAssistantContent(incomingHistory))}`;
-  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}${seriesUnconfirmedInstruction ? `\n${seriesUnconfirmedInstruction}` : ""}\n${injuryLine}\n${rosterBlock}\n${priorLine}`;
+  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${rosterBlock}\n${priorLine}`;
 }
 
 function buildUrTakeFollowUpCoreSystemPrompt() {

@@ -161,6 +161,36 @@ function mapEspnEventToAppGame(event) {
   const period = Number(event?.status?.period);
   const displayClock = String(event?.status?.displayClock || "").trim();
   const startTimeUtc = String(event?.date || "").trim() || null;
+  const series = event?.competitions?.[0]?.series;
+  const seriesSummary = String(series?.summary || "").trim() || null;
+  const seriesCompetitors = Array.isArray(series?.competitors) ? series.competitors : [];
+  const teamIdToAbbr = new Map();
+  if (home?.team?.id && homeAbbr) teamIdToAbbr.set(String(home.team.id), homeAbbr);
+  if (away?.team?.id && awayAbbr) teamIdToAbbr.set(String(away.team.id), awayAbbr);
+  const normalizedSeriesCompetitors = seriesCompetitors
+    .map((c) => ({
+      abbr:
+        canonicalizeTeamAbbr(String(c?.team?.abbreviation || c?.abbreviation || "").trim()) ||
+        teamIdToAbbr.get(String(c?.id || "")) ||
+        null,
+      wins: Number.parseInt(String(c?.wins ?? ""), 10),
+    }))
+    .filter((c) => c.abbr && Number.isFinite(c.wins));
+  let seriesLeader = null;
+  let seriesWins = null;
+  let seriesDeficit = null;
+  if (normalizedSeriesCompetitors.length >= 2) {
+    const ordered = [...normalizedSeriesCompetitors].sort((a, b) => b.wins - a.wins);
+    if (ordered[0].wins > ordered[1].wins) {
+      seriesLeader = ordered[0].abbr;
+      seriesWins = ordered[0].wins;
+      seriesDeficit = ordered[1].wins;
+    } else {
+      // Tie case: keep leader null but still surface counts.
+      seriesWins = ordered[0].wins;
+      seriesDeficit = ordered[1].wins;
+    }
+  }
 
   let state = "pre";
   if (completed || stateRaw === "post") state = "post";
@@ -189,6 +219,10 @@ function mapEspnEventToAppGame(event) {
     channel: extractEspnBroadcastChannel(event) || null,
     broadcast: extractEspnBroadcastChannel(event) || null,
     postseason: /playoff|final/i.test(String(event?.season?.slug || event?.season?.type || "")),
+    seriesSummary,
+    seriesLeader,
+    seriesWins: Number.isFinite(seriesWins) ? seriesWins : null,
+    seriesDeficit: Number.isFinite(seriesDeficit) ? seriesDeficit : null,
   };
 }
 
