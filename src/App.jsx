@@ -292,6 +292,7 @@ ${themeCss}
   const [showEmailGate, setShowEmailGate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showCodeEntry, setShowCodeEntry] = useState(false);
+  const [openingBillingPortal, setOpeningBillingPortal] = useState(false);
   const [gateEmail, setGateEmail]         = useState("");
   const [codeInput, setCodeInput]         = useState("");
   const [codeError, setCodeError]         = useState("");
@@ -2297,6 +2298,38 @@ ${themeCss}
           <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.ownerTitle ?? "var(--cyan-bright)",letterSpacing:2,marginBottom:2}}>{accessTier==="owner"?"OWNER ACCESS":"FRIEND ACCESS"}</div>
           <div style={{fontSize:12,color:proMarketing.ownerSub ?? "var(--muted)"}}>{accessTier==="owner"?"Full access. No limits.":"Unlocked via access code. Enjoy."}</div>
         </div>
+      </div>
+    )}
+    {accessTier==="pro"&&(
+      <div style={{margin:"8px 16px 0",textAlign:"left"}}>
+        <a
+          href="/api/billing-portal"
+          onClick={async(e)=>{
+            e.preventDefault();
+            if (openingBillingPortal) return;
+            setOpeningBillingPortal(true);
+            try {
+              const portalEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
+              const query = portalEmail ? `?email=${encodeURIComponent(portalEmail)}` : "";
+              window.location.assign(`/api/billing-portal${query}`);
+            } catch {
+              alert("Could not open subscription settings. Try again.");
+            } finally {
+              setOpeningBillingPortal(false);
+            }
+          }}
+          style={{
+            fontFamily:"var(--body-font)",
+            fontSize:11,
+            color:proMarketing.ownerSub ?? "var(--muted)",
+            textDecoration:"underline",
+            textUnderlineOffset:3,
+            opacity:openingBillingPortal ? 0.75 : 1,
+            pointerEvents:openingBillingPortal ? "none" : "auto",
+          }}
+        >
+          Manage subscription →
+        </a>
       </div>
     )}
 
