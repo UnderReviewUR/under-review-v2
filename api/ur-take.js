@@ -1786,6 +1786,43 @@ function resolveNbaFollowUpMatchupForCompact(nbaMatchup, question, nbaContextFor
   return { awayAbbr: abbrs[0], homeAbbr: abbrs[1] };
 }
 
+/**
+ * Injected on NBA follow-up turns so Haiku cannot "remember" ex-roster names after JSON strip.
+ * Uses rosterGrounding.playersByTeamAbbrev for the focused matchup and any abbrs named in the question.
+ */
+function buildFollowUpVerifiedRosterByTeamBlock(nbaContextForModel, matchupForCompact, question) {
+  const pbt = nbaContextForModel?.rosterGrounding?.playersByTeamAbbrev;
+  if (!pbt || typeof pbt !== "object") {
+    return "Verified rosters (playersByTeamAbbrev): none in payload — do not name specific NBA players; use team-level reads only or say the board is missing roster verification for this request.";
+  }
+  const teamSet = new Set();
+  const a = String(matchupForCompact?.awayAbbr || "").toUpperCase();
+  const h = String(matchupForCompact?.homeAbbr || "").toUpperCase();
+  if (a) teamSet.add(a);
+  if (h) teamSet.add(h);
+  for (const ab of extractNbaTeamAbbrevsFromQuestion(String(question || ""))) {
+    if (ab) teamSet.add(String(ab).toUpperCase());
+  }
+  if (teamSet.size === 0) {
+    return "Verified rosters (playersByTeamAbbrev): (no team scope) — do not name specific players.";
+  }
+  const lines = [];
+  for (const t of teamSet) {
+    const list = pbt[t];
+    const arr = Array.isArray(list) ? list : [];
+    const display = arr.length
+      ? arr
+          .map((n) => String(n || "").trim())
+          .filter(Boolean)
+          .join(", ")
+      : "(no names listed for this team in this payload)";
+    lines.push(`${t}: ${display}`);
+  }
+  return `Verified rosters — playersByTeamAbbrev (ONLY use these names as verified for each team; max ~40 names/team in source)\n${lines.join(
+    "\n",
+  )}`;
+}
+
 function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, incomingHistory, question }) {
   const matchupForCompact = resolveNbaFollowUpMatchupForCompact(
     nbaMatchup,
@@ -1835,8 +1872,13 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
     nbaContextForModel,
     matchupForCompact,
   )}`;
+  const rosterBlock = buildFollowUpVerifiedRosterByTeamBlock(
+    nbaContextForModel,
+    matchupForCompact,
+    question,
+  );
   const priorLine = `Prior response key positions: ${extractPriorAssistantKeyPositions(findLastUrTakeAssistantContent(incomingHistory))}`;
-  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${priorLine}`;
+  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${rosterBlock}\n${priorLine}`;
 }
 
 function buildUrTakeFollowUpCoreSystemPrompt() {
@@ -1844,6 +1886,9 @@ function buildUrTakeFollowUpCoreSystemPrompt() {
 
 FABRICATION GUARDRAIL — MANDATORY
 Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the compact NBA context block in the user message.
+
+ROSTER ENFORCEMENT — MANDATORY
+Only name players from the verified roster list provided. Never use training memory for player names.
 
 ARITHMETIC RULE — MANDATORY
 When you reference pace math, totals, or series scoring averages, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
@@ -3931,6 +3976,38 @@ export default async function handler(req, res) {
       }
       if (Object.keys(overlays).length > 0) {
         nbaContext = { ...nbaContext, ...overlays };
+      }
+      const cPbt = c.rosterGrounding?.playersByTeamAbbrev;
+      if (cPbt && typeof cPbt === "object" && !Array.isArray(cPbt) && Object.keys(cPbt).length > 0) {
+        const sRg = nbaContext.rosterGrounding;
+        const sPbt = (sRg && sRg.playersByTeamAbbrev) || {};
+        const mergedPbt = { ...sPbt };
+        for (const [k, val] of Object.entries(cPbt)) {
+          if (!Array.isArray(val) || !val.length) continue;
+          const key = String(k).toUpperCase();
+          const prev = mergedPbt[key];
+          if (!Array.isArray(prev) || !prev.length) {
+            mergedPbt[key] = val.slice();
+          } else {
+            const seen = new Set(prev.map((n) => String(n).toLowerCase()));
+            const add = prev.slice();
+            for (const n of val) {
+              const nm = String(n || "").trim();
+              if (nm && !seen.has(nm.toLowerCase())) {
+                seen.add(nm.toLowerCase());
+                add.push(nm);
+              }
+            }
+            mergedPbt[key] = add;
+          }
+        }
+        nbaContext = {
+          ...nbaContext,
+          rosterGrounding: {
+            ...(sRg && typeof sRg === "object" ? sRg : {}),
+            playersByTeamAbbrev: mergedPbt,
+          },
+        };
       }
     }
   }

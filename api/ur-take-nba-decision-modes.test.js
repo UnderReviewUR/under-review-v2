@@ -690,11 +690,17 @@ test("NBA conversation follow-up forces short system prompt and compact context 
   assert.ok(anthropicPayload);
   assert.match(String(anthropicPayload.system || ""), /FOLLOW-UP OUTPUT GATE/);
   assert.match(String(anthropicPayload.system || ""), /Answer only the specific question asked/);
+  assert.match(
+    String(anthropicPayload.system || ""),
+    /Only name players from the verified roster list provided/,
+  );
   assert.doesNotMatch(String(anthropicPayload.system || ""), /JSON RESPONSE MODE/);
   const lastUser = [...(anthropicPayload.messages || [])].reverse().find((m) => m.role === "user");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
   assert.match(userText, /COMPACT NBA CONTEXT/);
   assert.match(userText, /Series completed-game combined scoring average: 215/);
+  assert.match(userText, /Verified rosters — playersByTeamAbbrev/);
+  assert.match(userText, /MIL:.*Tyrese Maxey|PHI:.*Tyrese Maxey/s);
   assert.match(userText, /Prior response key positions:/i);
   assert.match(userText, /Joel Embiid.*:\s*out/i);
   assert.doesNotMatch(userText, /NBA context:\n\{/);
