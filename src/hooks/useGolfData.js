@@ -6,19 +6,19 @@ export function useGolfData() {
 
   useEffect(() => {
     let active = true;
-    let consecutivePollFailures = 0;
     async function loadGolf() {
       setGolfLoading(true);
       try {
         const res = await fetch("/api/golf?view=board");
         if (!res.ok) throw new Error("Golf " + res.status);
         const data = await res.json();
-        if (active) {
-          setGolfData(data);
-          consecutivePollFailures = 0;
-        }
-      } catch { if (active) setGolfData(null); }
-      finally { if (active) setGolfLoading(false); }
+        if (active) setGolfData(data);
+      } catch {
+        // Transient failures: keep last successful board so the rail does not blank out.
+        if (active) setGolfData((prev) => prev);
+      } finally {
+        if (active) setGolfLoading(false);
+      }
     }
     loadGolf();
     const poll = window.setInterval(() => {
@@ -28,17 +28,16 @@ export function useGolfData() {
           return r.json();
         })
         .then((d) => {
-          if (active) {
-            setGolfData(d);
-            consecutivePollFailures = 0;
-          }
+          if (active) setGolfData(d);
         })
         .catch(() => {
-          consecutivePollFailures += 1;
-          if (active && consecutivePollFailures >= 2) setGolfData(null);
+          /* keep last-known snapshot */
         });
     }, 8 * 60 * 1000);
-    return () => { active=false; window.clearInterval(poll); };
+    return () => {
+      active = false;
+      window.clearInterval(poll);
+    };
   }, []);
 
   return { golfData, golfLoading };
