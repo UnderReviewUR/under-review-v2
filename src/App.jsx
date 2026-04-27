@@ -2400,16 +2400,30 @@ ${themeCss}
     {/* Value bar */}
     <div style={proMarketing.valueGrid}>
       {[
-        ["Full-depth analysis — complete five-step breakdowns, never truncated",""],
-        ["Verdict close on every card — THE PLAY, confidence tier, one-line sharp read",""],
-        ["Session continuity — Pro carries the thread across your queries",""],
-        ["Unlimited asks — no weekly ceiling, no mid-session walls",""],
-      ].map(([val,label])=>(
-        <div key={val} style={proMarketing.valueCell}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:label?2:0,lineHeight:1.35}}>{val}</div>
-          {label ? (
-            <div style={{fontFamily:"var(--mono-font)",fontSize:8,color:proMarketing.valueLabel ?? "#3A4050",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
-          ) : null}
+        ["FULL-DEPTH ANALYSIS", "Complete five-step breakdowns, never truncated"],
+        ["VERDICT CLOSE", "THE PLAY, confidence tier, one sharp read"],
+        ["SESSION CONTINUITY", "Pro carries the thread across your queries"],
+        ["UNLIMITED ASKS", "No weekly ceiling, no mid-session walls"],
+      ].map(([title, descriptor])=>(
+        <div key={title} style={proMarketing.valueCell}>
+          <div style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 9,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            marginBottom: 6,
+            background: "linear-gradient(90deg, #C0A060, #E8C87A, #F0D890, #E8C87A, #C0A060)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}>{title}</div>
+          <div style={{
+            fontSize: 11,
+            color: "var(--soft)",
+            lineHeight: 1.45,
+            fontWeight: 400,
+            fontFamily: "var(--body-font)",
+          }}>{descriptor}</div>
         </div>
       ))}
     </div>
