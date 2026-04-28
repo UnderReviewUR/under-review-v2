@@ -12,6 +12,9 @@ const FETCH_TIMEOUT_MS = 5000;
 /** @type {Map<string, { payload: unknown; ts: number }>} */
 const memory = new Map();
 
+/** Coalesce concurrent network fetches per sport key */
+const inFlight = new Map();
+
 /**
  * Empty MLB/NBA board payloads are not cached — otherwise a midnight empty slate
  * can stick for CACHE_TTL_MS and block fresh games/props after hooks refresh.
@@ -241,21 +244,36 @@ export async function ensureUrTakeSportContext(sportHint, hooks) {
     };
   }
 
-  try {
-    const fetched = await fetchPayloadForSport(sport);
-    if (fetched != null && !isEmptySportPayload(sport, fetched)) {
-      writeCache(sport, fetched);
-    }
-    return {
-      cacheHit: false,
-      fetchMs: Math.round(nowMs() - t0),
-      overrides: overridesFromPayload(sport, fetched),
-    };
-  } catch {
-    return {
-      cacheHit: false,
-      fetchMs: Math.round(nowMs() - t0),
-      overrides: {},
-    };
+  const cacheKey = sport;
+
+  if (inFlight.has(cacheKey)) {
+    return inFlight.get(cacheKey);
   }
+
+  const promise = (async () => {
+    try {
+      const fetched = await fetchPayloadForSport(sport);
+      if (fetched != null && !isEmptySportPayload(sport, fetched)) {
+        writeCache(sport, fetched);
+      }
+      return {
+        cacheHit: false,
+        fetchMs: Math.round(nowMs() - t0),
+        overrides: overridesFromPayload(sport, fetched),
+      };
+    } catch {
+      return {
+        cacheHit: false,
+        fetchMs: Math.round(nowMs() - t0),
+        overrides: {},
+      };
+    }
+  })();
+
+  inFlight.set(cacheKey, promise);
+  promise.finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  return promise;
 }

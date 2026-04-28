@@ -228,6 +228,8 @@ ${themeCss}
   const playerInputRef    = useRef(null);
   const nflPlayerInputRef = useRef(null);
   const fileInputRef      = useRef(null);
+  /** Pending scroll scheduling timeouts — cleared on unmount */
+  const pendingScrollTimeoutIdsRef = useRef([]);
 
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
@@ -1869,6 +1871,13 @@ ${themeCss}
     [screen, tab, askUrTake, isAsking, prefetchingUrTakeContext],
   );
 
+  useEffect(() => {
+    return () => {
+      pendingScrollTimeoutIdsRef.current.forEach((id) => clearTimeout(id));
+      pendingScrollTimeoutIdsRef.current = [];
+    };
+  }, []);
+
   const scheduleChatScroll = useCallback((screenRef) => {
     const scroll = () => {
       const el = screenRef?.current;
@@ -1879,9 +1888,10 @@ ${themeCss}
       scroll();
       requestAnimationFrame(scroll);
     });
-    setTimeout(scroll, 48);
-    setTimeout(scroll, 240);
-    setTimeout(scroll, 720);
+    const t48 = setTimeout(scroll, 48);
+    const t240 = setTimeout(scroll, 240);
+    const t720 = setTimeout(scroll, 720);
+    pendingScrollTimeoutIdsRef.current.push(t48, t240, t720);
   }, []);
 
   const openPlayer = useCallback((name) => {
@@ -1910,7 +1920,8 @@ ${themeCss}
       askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint });
       requestAnimationFrame(() => {
         scheduleChatScroll(askScreenRef);
-        setTimeout(() => scheduleChatScroll(askScreenRef), 120);
+        const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
+        pendingScrollTimeoutIdsRef.current.push(t120);
       });
     },
     [askUrTake, scheduleChatScroll, screen, tab, isAsking, prefetchingUrTakeContext],
@@ -1929,7 +1940,8 @@ ${themeCss}
     askUrTake({ text: t, setMsgs: setAskMsgs });
     requestAnimationFrame(() => {
       scheduleChatScroll(askScreenRef);
-      setTimeout(() => scheduleChatScroll(askScreenRef), 120);
+      const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
+      pendingScrollTimeoutIdsRef.current.push(t120);
     });
   }, [askUrTake, askInput, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab]);
   const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking||prefetchingUrTakeContext)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,prefetchingUrTakeContext,scheduleChatScroll]);

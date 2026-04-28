@@ -102,9 +102,10 @@ export function useTennisData() {
   }, [context]);
 
   useEffect(() => {
-    let active = true;
+    let isCurrent = true;
     let pollId = null;
     async function loadAll() {
+      if (!isCurrent) return;
       setTennisLoading(true);
       try {
         const [pRes, cRes] = await Promise.all([
@@ -120,26 +121,33 @@ export function useTennisData() {
             parsedPlayers = null;
           }
         }
-        if (!active) return;
+        if (!isCurrent) return;
         const nextPlayers = parsedPlayers || playersRef.current || null;
+        if (!isCurrent) return;
         setPlayers(nextPlayers);
+        if (!isCurrent) return;
         setStaticIntelFetchFailed(!parsedPlayers);
+        if (!isCurrent) return;
         setContext(c);
         playersRef.current = nextPlayers;
         const [board, home] = await Promise.all([
           fetchTennisBoard(c, "board"),
           fetchTennisBoard(c, "home"),
         ]);
-        if (!active) return;
+        if (!isCurrent) return;
         setLiveMatchesBoard(board);
+        if (!isCurrent) return;
         setLiveMatchesHome(home);
       } catch {
-        if (!active) return;
+        if (!isCurrent) return;
         setStaticIntelFetchFailed(true);
+        if (!isCurrent) return;
         setLiveMatchesBoard([]);
+        if (!isCurrent) return;
         setLiveMatchesHome([]);
       } finally {
-        if (active) setTennisLoading(false);
+        if (!isCurrent) return;
+        setTennisLoading(false);
       }
     }
     loadAll();
@@ -149,32 +157,32 @@ export function useTennisData() {
         fetchTennisBoard(contextRef.current, "home"),
       ])
         .then(([b, h]) => {
-          if (active) {
-            setLiveMatchesBoard(b);
-            setLiveMatchesHome(h);
-          }
+          if (!isCurrent) return;
+          setLiveMatchesBoard(b);
+          if (!isCurrent) return;
+          setLiveMatchesHome(h);
         })
         .catch(() => {});
     }, 60000);
     return () => {
-      active = false;
+      isCurrent = false;
       if (pollId) window.clearInterval(pollId);
     };
   }, [fetchTennisBoard]);
 
   useEffect(() => {
     if (!context) return;
-    let cancelled = false;
+    let isCurrent = true;
     Promise.all([fetchTennisBoard(context, "board"), fetchTennisBoard(context, "home")])
       .then(([b, h]) => {
-        if (!cancelled) {
-          setLiveMatchesBoard(b);
-          setLiveMatchesHome(h);
-        }
+        if (!isCurrent) return;
+        setLiveMatchesBoard(b);
+        if (!isCurrent) return;
+        setLiveMatchesHome(h);
       })
       .catch(() => {});
     return () => {
-      cancelled = true;
+      isCurrent = false;
     };
   }, [context, fetchTennisBoard]);
 
