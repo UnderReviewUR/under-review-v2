@@ -1417,7 +1417,7 @@ async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
     return dataRow || null;
   });
   if (row) await setDurableJson(durableCacheKey, row, { ttlSeconds: 86400 });
-  else await setDurableJson(durableCacheKey, { _empty: true }, { ttlSeconds: 21600 });
+  else await setDurableJson(durableCacheKey, { _empty: true }, { ttlSeconds: 86400 });
   bdlSeasonAverageCache.set(cacheKey, row);
   return row;
 }
