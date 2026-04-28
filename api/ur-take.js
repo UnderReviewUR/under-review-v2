@@ -10,6 +10,7 @@ import {
   getClientIp,
   ipLimit,
 } from "./_rateLimitUrTake.js";
+import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
 import {
@@ -1040,7 +1041,7 @@ function resolveOddsAvailabilityForSport({
   return true;
 }
 
-// ── Anthropic call wrapper ──────────────────────────────────────────────────
+// ── Anthropic call wrapper (429 retries via fetchAnthropicMessages) ──────────
 async function callAnthropic({
   apiKey,
   model,
@@ -1049,44 +1050,17 @@ async function callAnthropic({
   temperature = 0.45,
   max_tokens = 800,
 }) {
-  const controller = new AbortController();
   /** Allow slow Claude completions when the host permits long functions (see vercel.json maxDuration). */
-  const timeout = setTimeout(() => controller.abort(), 52000);
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens,
-        temperature,
-        system,
-        messages,
-      }),
-    });
-
-    const requestId =
-      response.headers.get("request-id") ||
-      response.headers.get("anthropic-request-id") ||
-      null;
-
-    const data = await response.json().catch(() => ({}));
-
-    return {
-      ok: response.ok,
-      status: response.status,
-      requestId,
-      data,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
+  return fetchAnthropicMessages({
+    apiKey,
+    model,
+    max_tokens,
+    temperature,
+    system,
+    messages,
+    timeoutMs: 52000,
+    maxRetries: 3,
+  });
 }
 
 function summarizePriorTakes(history) {
@@ -5784,6 +5758,14 @@ You are responding to a Pro subscriber. Apply the following:
     // enforcement alone proves insufficient. Track hallucination rate in logs.
 
     if (!result.ok) {
+      if (result.rateLimitedExhausted) {
+        return res.status(503).json({
+          error: "rate_limited",
+          response: "We're experiencing high demand — please try again in a few seconds.",
+          requestId: result.requestId,
+        });
+      }
+
       console.error("Anthropic error:", {
         status: result.status,
         requestId: result.requestId,

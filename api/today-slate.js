@@ -1,3 +1,4 @@
+import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
@@ -17,8 +18,9 @@ import {
   sanitizeTennisBoard,
 } from "../shared/todaySlateInputBundle.js";
 
-const CACHE_KEY = "today-slate:daily";
-const CACHE_TTL_SECONDS = 15 * 60;
+/** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
+const CACHE_KEY = "today_slate_cache";
+const CACHE_TTL_SECONDS = 300;
 
 function originFromReq(req) {
   const xfProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
@@ -294,31 +296,32 @@ RULES
 - If a sport has no usable slate in the payload, you may still reference it only if another field clearly supports it; otherwise favor sports with real rows.
 - "game" for golf can be the tournament short name; for tennis include player surnames vs; for F1 use next GP name from schedule if present.`;
 
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 45000);
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: ctrl.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 1200,
-        temperature: 0.35,
-        system:
-          "You output valid JSON only. No markdown fences. Keys must match the user schema exactly.",
-        messages: [{ role: "user", content: userPrompt }],
-      }),
+    const anthropicResult = await fetchAnthropicMessages({
+      apiKey: ANTHROPIC_API_KEY,
+      model: ANTHROPIC_MODEL,
+      max_tokens: 1200,
+      temperature: 0.35,
+      system:
+        "You output valid JSON only. No markdown fences. Keys must match the user schema exactly.",
+      messages: [{ role: "user", content: userPrompt }],
+      timeoutMs: 45000,
+      maxRetries: 3,
     });
-    clearTimeout(t);
 
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error("today-slate Anthropic error:", response.status, data);
-      const fb = buildFallbackSlate(bundle, `upstream_error_${response.status}`);
+    const data = anthropicResult.data;
+    if (!anthropicResult.ok) {
+      console.error(
+        "today-slate Anthropic error:",
+        anthropicResult.status,
+        anthropicResult.rateLimitedExhausted ? "(retries exhausted)" : "",
+        data,
+      );
+      const fb = buildFallbackSlate(
+        bundle,
+        anthropicResult.rateLimitedExhausted
+          ? "upstream_rate_limit"
+          : `upstream_error_${anthropicResult.status}`,
+      );
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
       res.setHeader("Cache-Control", "private, max-age=60");
       return res.status(200).json(fb);
