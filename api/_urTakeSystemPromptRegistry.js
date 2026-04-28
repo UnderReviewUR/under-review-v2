@@ -96,7 +96,7 @@ export function buildTakeTrustUiMetadata({ contextQuality, evidenceSparsityProfi
   };
 }
 
-export function buildSparseInputThinEvidenceAppendix(profile) {
+export function buildSparseInputThinEvidenceAppendix(profile, sportHint = "") {
   const sparse = Boolean(profile?.sparseQuestion);
   const thin = Boolean(profile?.thinEvidence);
   if (!sparse && !thin) return "";
@@ -104,9 +104,16 @@ export function buildSparseInputThinEvidenceAppendix(profile) {
   const lines = ["SPARSE INPUT / THIN EVIDENCE APPENDIX (this turn — mandatory)"];
 
   if (sparse) {
-    lines.push(
-      "The user's question is short or underspecified for a full priced read. Deliver the tightest useful lean (slight lean or broad lean) and one explicit evidence-cap sentence, OR ask exactly one clarifying axis if nothing is actionable without it (market type, game/slate anchor, player, side/total, or line reference) — not a questionnaire.",
-    );
+    const st = String(sportHint || "").toLowerCase();
+    if (st === "tennis" || st === "tennis_wta_profile") {
+      lines.push(
+        "When the user asks for a general clay court edge without specifying a match, select the highest-profile match currently live or upcoming from the verified board and execute the full framework on that match. Never ask the user to clarify which match — make the intelligent default choice.",
+      );
+    } else {
+      lines.push(
+        "The user's question is short or underspecified for a full priced read. Deliver the tightest useful lean (slight lean or broad lean) and one explicit evidence-cap sentence, OR ask exactly one clarifying axis if nothing is actionable without it (market type, game/slate anchor, player, side/total, or line reference) — not a questionnaire.",
+      );
+    }
     lines.push(
       "Do not invent lines, books, injuries, confirmations, or matchup facts absent from the context JSON.",
     );
@@ -234,7 +241,8 @@ Roster and prop board JSON are the only authoritative player/game anchors. Do no
 
 export function buildGolfSurfaceAppendix() {
   return `GOLF SURFACE SPINE
-Leaderboard and VERIFIED GOLF PLAYERS lists are the name floor. Never invent golfers or prices. Final vs live tournament state in user prompt overrides casual "tonight" betting language — obey that state.`;
+Leaderboard and VERIFIED GOLF PLAYERS lists are the name floor. Never invent golfers or prices. Final vs live tournament state in user prompt overrides casual "tonight" betting language — obey that state.
+If the tournament state is final, respond in two sentences only: winner confirmation and next event pointer. Do not produce a full recap.`;
 }
 
 export function buildF1SurfaceAppendix() {
@@ -346,7 +354,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
       intent,
       hasImage,
     });
-  const sparseThinAppendix = buildSparseInputThinEvidenceAppendix(evidenceProfile);
+  const sparseThinAppendix = buildSparseInputThinEvidenceAppendix(evidenceProfile, sportHint);
 
   const core = [
     buildCoreFrameworkPrompt(),
