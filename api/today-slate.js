@@ -21,6 +21,7 @@ import {
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
 const CACHE_KEY = "today_slate_cache";
 const CACHE_TTL_SECONDS = 300;
+const slateCache = {};
 
 function originFromReq(req) {
   const xfProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
@@ -234,9 +235,16 @@ export default async function handler(req, res) {
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
-    const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
+    const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
     if (!ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: "Missing ANTHROPIC_API_KEY" });
+    }
+
+    const sport = String(req.query?.sport || req.query?.tab || "home").toLowerCase();
+    const cacheKey = `${sport}_${Math.floor(Date.now() / (30 * 60 * 1000))}`;
+    if (slateCache[cacheKey]) {
+      res.setHeader("Cache-Control", "private, max-age=60");
+      return res.status(200).json(slateCache[cacheKey]);
     }
 
     const base = originFromReq(req);
@@ -296,7 +304,7 @@ RULES
     const anthropicResult = await fetchAnthropicMessages({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
-      max_tokens: 1200,
+      max_tokens: 300,
       temperature: 0.35,
       system:
         "You output valid JSON only. No markdown fences. Keys must match the user schema exactly.",
@@ -335,6 +343,7 @@ RULES
     }
 
     const out = sanitizeSlateOutput(parsed, bundle);
+    slateCache[cacheKey] = out;
 
     await setDurableJson(CACHE_KEY, out, { ttlSeconds: CACHE_TTL_SECONDS });
     res.setHeader("Cache-Control", "private, max-age=60");

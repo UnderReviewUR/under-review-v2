@@ -15,6 +15,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
+import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
 import {
   classifyMlbGame,
@@ -1636,6 +1637,33 @@ ${themeCss}
     ]
   );
 
+  const hourEt = useMemo(() => {
+    const hourText = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date());
+    const h = Number(hourText);
+    return Number.isFinite(h) ? h : null;
+  }, []);
+
+  const [liveEdgeAlerts, setLiveEdgeAlerts] = useState([]);
+  const recomputeLiveEdgeAlerts = useCallback(() => {
+    const next = buildLiveEdgeAlerts({
+      nbaContext: nbaData,
+      tennisLiveMatches,
+      golfContext: golfData,
+      hourEt,
+    });
+    setLiveEdgeAlerts(next);
+  }, [nbaData, tennisLiveMatches, golfData, hourEt]);
+
+  useEffect(() => {
+    recomputeLiveEdgeAlerts();
+    const id = window.setInterval(recomputeLiveEdgeAlerts, 60 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [recomputeLiveEdgeAlerts]);
+
   const [dailyFeaturedAngleCard, setDailyFeaturedAngleCard] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -2113,7 +2141,7 @@ ${themeCss}
               ...((f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? ["f1"] : []),
               "nfl",
             ]}
-            nbaLiveEdgeAlerts={nbaData?.liveEdgeAlerts ?? []}
+            liveEdgeAlerts={liveEdgeAlerts}
           />
         )}
 

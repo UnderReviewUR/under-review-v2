@@ -1175,7 +1175,7 @@ function detectChaseSignals(question, history) {
   };
 }
 
-function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
+function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
   if (!Array.isArray(raw)) return [];
   const out = [];
   for (const h of raw) {
@@ -1187,7 +1187,7 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 10 } = {}) {
           : null;
     const content = String(h.content ?? h.text ?? "").trim();
     if (!role || !content || /^ANALYZING/i.test(content)) continue;
-    out.push({ role, content: content.slice(0, 8000) });
+    out.push({ role, content: content.slice(0, 4000) });
   }
   const merged = [];
   for (const m of out) {
@@ -5709,6 +5709,57 @@ ${continuationRule}`;
     hasImage,
     image,
   });
+
+  const hasNoChatHistory = normalizedUrTakeHistoryForGate.length === 0;
+  const nbaHasUsableContext =
+    !!nbaContext &&
+    (Array.isArray(nbaContext?.todaysGames) && nbaContext.todaysGames.length > 0 ||
+      Array.isArray(nbaContext?.playerStats) && nbaContext.playerStats.length > 0 ||
+      Array.isArray(nbaContext?.propLines) && nbaContext.propLines.length > 0 ||
+      !!nbaContext?.liveBoxscore);
+  if (sportHint === "nba" && hasNoChatHistory && !nbaHasUsableContext) {
+    const response =
+      "The NBA feed is loading — check back closer to tip-off or ask about a specific player or matchup and I'll work with what's available.";
+    const fallbackTake = extractTakeFromResponse({
+      responseText: response,
+      sport: "nba",
+      intent,
+      question,
+    });
+    return res.status(200).json({
+      response,
+      responseDeep: null,
+      responseFormat: "plain",
+      statusShift: null,
+      decisionMode: nbaDecisionMode,
+      sport: "nba",
+      intent,
+      take: takeClientPayload(fallbackTake),
+      fallbackReason: "empty_nba_context",
+    });
+  }
+
+  if (sportHint === "golf" && hasNoChatHistory && !golfContextEffective) {
+    const response =
+      "Golf context is still loading. Ask about a specific tournament, player, or matchup and I'll work with what's available.";
+    const fallbackTake = extractTakeFromResponse({
+      responseText: response,
+      sport: "golf",
+      intent,
+      question,
+    });
+    return res.status(200).json({
+      response,
+      responseDeep: null,
+      responseFormat: "plain",
+      statusShift: null,
+      decisionMode: null,
+      sport: "golf",
+      intent,
+      take: takeClientPayload(fallbackTake),
+      fallbackReason: "empty_golf_context",
+    });
+  }
 
   try {
     const factualQuestion = isSettledFactQuestion(question);
