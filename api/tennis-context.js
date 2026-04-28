@@ -46,9 +46,13 @@ const ACE_PROPS = {
 const TENNIS_BREAKING = "";
 
 export default function handler(req, res) {
+  try {
   if (!applyCors(req, res)) return;
 
   const activeKey = getActiveTournamentKey();
+  if (!activeKey || !TOURNAMENTS[activeKey]) {
+    return res.status(200).json({ matches: [], context: null });
+  }
   const currentTournament = TOURNAMENTS[activeKey];
   const primaryElo = SURFACE_ELO_MAP[currentTournament?.surface] || "hElo";
 
@@ -65,4 +69,7 @@ export default function handler(req, res) {
     ace_props: ACE_PROPS,
     breaking: breakingOverride !== undefined ? breakingOverride : TENNIS_BREAKING,
   });
+  } catch {
+    return res.status(500).json({ error: "tennis_context_error" });
+  }
 }

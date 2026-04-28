@@ -41,6 +41,7 @@ function getCodeRegistry() {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  try {
   if (!applyCors(req, res, { methods: "POST, GET, OPTIONS" })) return;
 
   const tokenSecret = resolveAccessTokenSecretForHandler(res);
@@ -88,4 +89,7 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+  } catch {
+    return res.status(500).json({ error: "access_error" });
+  }
 }

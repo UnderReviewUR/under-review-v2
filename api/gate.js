@@ -34,6 +34,7 @@ function isValidEmail(email) {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  try {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -183,4 +184,7 @@ export default async function handler(req, res) {
   }
 
   return res.status(400).json({ error: "Unknown action" });
+  } catch {
+    return res.status(500).json({ error: "gate_error" });
+  }
 }

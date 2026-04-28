@@ -37,29 +37,38 @@ export default async function handler(req, res) {
 
   const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
-  // Optional: pre-fill email if user already entered it in the gate
-  const { email } = req.body || {};
-  const checkoutKey = getCheckoutKey(req, email);
-  const stateKey = getCheckoutStateStorageKey(checkoutKey);
-  const now = Date.now();
-  const prior = await getDurableJson(stateKey);
-
-  if (prior && now - prior.lastAttemptAt < CHECKOUT_COOLDOWN_MS) {
-    if (prior.url && now - prior.sessionCreatedAt < CHECKOUT_SESSION_REUSE_MS) {
-      return res.status(200).json({ url: prior.url, reused: true });
-    }
-    return res.status(200).json({
-      error: "Please wait a few seconds and try again.",
-      retryAfterSeconds: Math.ceil((CHECKOUT_COOLDOWN_MS - (now - prior.lastAttemptAt)) / 1000),
-    });
-  }
-
-  await setDurableJson(stateKey, {
-    ...prior,
-    lastAttemptAt: now,
-  }, { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS });
-
   try {
+    // Optional: pre-fill email if user already entered it in the gate
+    const { email } = req.body || {};
+    const checkoutKey = getCheckoutKey(req, email);
+    const stateKey = getCheckoutStateStorageKey(checkoutKey);
+    const now = Date.now();
+    let prior;
+    try {
+      prior = await getDurableJson(stateKey);
+    } catch {
+      return res.status(500).json({ error: "checkout_unavailable" });
+    }
+
+    if (prior && now - prior.lastAttemptAt < CHECKOUT_COOLDOWN_MS) {
+      if (prior.url && now - prior.sessionCreatedAt < CHECKOUT_SESSION_REUSE_MS) {
+        return res.status(200).json({ url: prior.url, reused: true });
+      }
+      return res.status(200).json({
+        error: "Please wait a few seconds and try again.",
+        retryAfterSeconds: Math.ceil((CHECKOUT_COOLDOWN_MS - (now - prior.lastAttemptAt)) / 1000),
+      });
+    }
+
+    try {
+      await setDurableJson(stateKey, {
+        ...prior,
+        lastAttemptAt: now,
+      }, { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS });
+    } catch {
+      return res.status(500).json({ error: "checkout_unavailable" });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
@@ -78,11 +87,15 @@ export default async function handler(req, res) {
       idempotencyKey: `under-review-checkout:${checkoutKey}:${Math.floor(now / CHECKOUT_COOLDOWN_MS)}`,
     });
 
-    await setDurableJson(stateKey, {
-      lastAttemptAt: now,
-      sessionCreatedAt: Date.now(),
-      url: session.url,
-    }, { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS });
+    try {
+      await setDurableJson(stateKey, {
+        lastAttemptAt: now,
+        sessionCreatedAt: Date.now(),
+        url: session.url,
+      }, { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS });
+    } catch {
+      return res.status(500).json({ error: "checkout_unavailable" });
+    }
 
     return res.status(200).json({ url: session.url });
   } catch (err) {
