@@ -40,6 +40,9 @@ import {
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
+/** Single closing rule for NBA when posted lines are missing — keeps ODDS-UNAVAILABLE + FALLBACK aligned. */
+const NBA_UNIFIED_MARKET_CLOSING_RULE = `- Close with a specific conditional trigger tied to a player name and stat threshold. Format: "If [player] line opens at [number] or lower, lean [direction]." This is a forward trigger — not a dismissal. Never say "when markets post" or "come back when lines are up" or any variant that sends the user away.`;
+
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
   return new Date().toLocaleDateString("en-US", {
@@ -4286,8 +4289,7 @@ ODDS-UNAVAILABLE MODE (mandatory when oddsAvailable is false)
 - Lead with the structural edge from matchup, pace, rotation, usage, and game script.
 - Name specific players from grounded context whenever available; use real player names from the authorized roster list in context, not positional abstractions like "primary initiator" or "lead guard."
 - When citing angles, anchor to available season-average style context for named players when present (e.g., points/assists/rebounds tendencies from playerStats).
-- Close with this forward trigger format: "When the line posts, [specific lean] — watch for [specific threshold]."
-- The closing trigger must include a specific player name plus a specific stat category (for example: "When the line posts, lean Shai Gilgeous-Alexander assists over — watch for 7.5 or lower.").
+${NBA_UNIFIED_MARKET_CLOSING_RULE}
 - Response must read complete and sharp, never like a partial answer.`;
   }
   const nbaLiveNoPropSystemPromptBlock =
@@ -5113,7 +5115,7 @@ or a stat clip — this IS the edge; deliver it now, not as homework for later.
 Do NOT use "Watch for:" as a section header.
 Do NOT use player names as headers (no "JALEN BRUNSON —").
 Do NOT open with empty-slate throat-clearing about data availability.
-Do NOT close by sending the user away until books post — the framework above is the full answer.
+${NBA_UNIFIED_MARKET_CLOSING_RULE}
 
 LIVE NBA OVERRIDE: Never surface technical errors, variable names, array names, HTTP status codes, or API details to users. Ever. No exceptions.
 When prop lines are unavailable, do not mention it. Do not apologize. Do not explain. Pivot to the strongest angle from live game state: minutes played, pace, foul trouble, rotation patterns, early stat lines, and matchup dynamics.
