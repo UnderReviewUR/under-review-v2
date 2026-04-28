@@ -2443,6 +2443,19 @@ export function resolveNbaMatchupFromQuestion(question, nbaContext) {
     }
   }
 
+  if (games.length === 1) {
+    const g = games[0];
+    const awayAbbr = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const homeAbbr = String(g?.homeTeam?.abbr || "").toUpperCase();
+    if (awayAbbr && homeAbbr) {
+      return {
+        awayAbbr,
+        homeAbbr,
+        label: `${awayAbbr} at ${homeAbbr}`,
+      };
+    }
+  }
+
   return null;
 }
 
@@ -3137,45 +3150,22 @@ function _buildNbaSlateRowDigest(game) {
  * @param {object} nbaContext
  * @param {{ awayAbbr: string, homeAbbr: string } | null} nbaMatchup
  */
-function buildNbaContextForModel(nbaContext, nbaMatchup) {
+export function buildNbaContextForModel(nbaContext, nbaMatchup) {
   if (!nbaContext || typeof nbaContext !== "object") return nbaContext;
   const todays = Array.isArray(nbaContext.todaysGames) ? nbaContext.todaysGames : [];
   const tonight = _collectTonightNbaSlateAbbrs(todays);
   const awayF = nbaMatchup ? String(nbaMatchup.awayAbbr || "").toUpperCase() : "";
   const homeF = nbaMatchup ? String(nbaMatchup.homeAbbr || "").toUpperCase() : "";
-  const focus = awayF && homeF ? new Set([awayF, homeF]) : null;
-  const relevantTeams = focus || (tonight.size > 0 ? tonight : null);
+  /** Two-team matchup scope — stats + rosterGrounding.playersByTeamAbbrev use this when set. */
+  const matchupTeamSet = awayF && homeF ? new Set([awayF, homeF]) : null;
+  /** Broader slate scope when no matchup resolved (multi-game boards). */
+  const relevantTeams = matchupTeamSet || (tonight.size > 0 ? tonight : null);
 
   let raw;
   try {
     raw = JSON.parse(JSON.stringify(nbaContext));
   } catch {
     return nbaContext;
-  }
-
-  if (relevantTeams == null || relevantTeams.size === 0) {
-    if (tonight.size > 0) {
-      raw.bdlAvailability = _filterBdlAvailabilityToTeams(raw.bdlAvailability, tonight);
-      if (raw.bdlGrounding && typeof raw.bdlGrounding === "object") {
-        raw.bdlGrounding = { ...raw.bdlGrounding };
-        raw.bdlGrounding.bdlAvailability = _filterBdlAvailabilityToTeams(
-          raw.bdlGrounding.bdlAvailability,
-          tonight,
-        );
-        if (raw.bdlGrounding.bdlGroundedPlayers) {
-          const gP = {};
-          for (const [k, v] of Object.entries(raw.bdlGrounding.bdlGroundedPlayers)) {
-            const t = String(v?.team || "").toUpperCase();
-            if (t && tonight.has(t)) gP[k] = v;
-          }
-          raw.bdlGrounding.bdlGroundedPlayers = gP;
-        }
-      }
-      if (Array.isArray(raw.injuries)) {
-        raw.injuries = raw.injuries.filter((r) => tonight.has(String(r?.team || "").toUpperCase()));
-      }
-    }
-    return raw;
   }
 
   if (tonight.size > 0) {
@@ -3202,41 +3192,54 @@ function buildNbaContextForModel(nbaContext, nbaMatchup) {
   }
 
   if (Array.isArray(raw.playerStats)) {
-    raw.playerStats = raw.playerStats.filter((row) => {
-      const t = String(row?.team || "").toUpperCase();
-      if (relevantTeams.has(t)) return true;
-      if (focus) {
-        const tg = _parseNbaTonightGameAbbrs(row?.tonightGame);
-        if (tg) {
-          const a = [tg.away, tg.home].sort().join();
-          const b = [awayF, homeF].sort().join();
-          if (a && b && a === b) return true;
+    if (relevantTeams && relevantTeams.size > 0) {
+      raw.playerStats = raw.playerStats.filter((row) => {
+        const t = String(row?.team || "").toUpperCase();
+        if (relevantTeams.has(t)) return true;
+        if (matchupTeamSet) {
+          const tg = _parseNbaTonightGameAbbrs(row?.tonightGame);
+          if (tg) {
+            const a = [tg.away, tg.home].sort().join();
+            const b = [awayF, homeF].sort().join();
+            if (a && b && a === b) return true;
+          }
         }
-      }
-      return false;
-    });
+        return false;
+      });
+    } else {
+      raw.playerStats = raw.playerStats.slice(0, 72);
+    }
+    if (!matchupTeamSet && Array.isArray(raw.playerStats) && raw.playerStats.length > 96) {
+      raw.playerStats = raw.playerStats.slice(0, 96);
+    }
   }
 
   if (raw.rosterGrounding && raw.rosterGrounding.playersByTeamAbbrev) {
+    const rosterAbbrScope = matchupTeamSet || relevantTeams;
     const pbt = {};
-    for (const ab of relevantTeams) {
-      if (raw.rosterGrounding.playersByTeamAbbrev[ab]) {
-        pbt[ab] = raw.rosterGrounding.playersByTeamAbbrev[ab];
+    if (rosterAbbrScope && rosterAbbrScope.size > 0) {
+      for (const ab of rosterAbbrScope) {
+        if (raw.rosterGrounding.playersByTeamAbbrev[ab]) {
+          pbt[ab] = raw.rosterGrounding.playersByTeamAbbrev[ab];
+        }
       }
     }
     raw.rosterGrounding = { ...raw.rosterGrounding, playersByTeamAbbrev: pbt };
     if (raw.rosterGrounding.qualityByTeam) {
       const q = {};
-      for (const ab of relevantTeams) {
-        if (raw.rosterGrounding.qualityByTeam[ab] != null) {
-          q[ab] = raw.rosterGrounding.qualityByTeam[ab];
+      const qScope = matchupTeamSet || relevantTeams;
+      if (qScope && qScope.size > 0) {
+        for (const ab of qScope) {
+          if (raw.rosterGrounding.qualityByTeam[ab] != null) {
+            q[ab] = raw.rosterGrounding.qualityByTeam[ab];
+          }
         }
       }
       raw.rosterGrounding.qualityByTeam = q;
     }
   }
 
-  if (focus && Array.isArray(raw.propLines)) {
+  if (matchupTeamSet && Array.isArray(raw.propLines)) {
     const fa = awayF;
     const fh = homeF;
     raw.propLines = raw.propLines.filter((pl) => {
@@ -3247,7 +3250,7 @@ function buildNbaContextForModel(nbaContext, nbaMatchup) {
     });
   }
 
-  if (focus && todays.length > 0) {
+  if (matchupTeamSet && todays.length > 0) {
     raw.todaysGames = todays.map((g) => {
       const a = String(g?.awayTeam?.abbr || "").toUpperCase();
       const h = String(g?.homeTeam?.abbr || "").toUpperCase();
@@ -3269,7 +3272,7 @@ function buildNbaContextForModel(nbaContext, nbaMatchup) {
     });
   }
 
-  if (focus && raw.gameTotals && typeof raw.gameTotals === "object" && !Array.isArray(raw.gameTotals)) {
+  if (matchupTeamSet && raw.gameTotals && typeof raw.gameTotals === "object" && !Array.isArray(raw.gameTotals)) {
     const o = {};
     for (const [k, v] of Object.entries(raw.gameTotals)) {
       const ku = k.toUpperCase();
@@ -3278,7 +3281,7 @@ function buildNbaContextForModel(nbaContext, nbaMatchup) {
     if (Object.keys(o).length > 0) raw.gameTotals = o;
   }
 
-  if (focus && Array.isArray(raw.playoffSeries)) {
+  if (matchupTeamSet && Array.isArray(raw.playoffSeries)) {
     raw.playoffSeries = raw.playoffSeries.filter((row) => {
       const s = JSON.stringify(row || "").toUpperCase();
       return s.includes(awayF) && s.includes(homeF);
@@ -3286,24 +3289,8 @@ function buildNbaContextForModel(nbaContext, nbaMatchup) {
     raw.focusedSeriesSnapshot = buildFocusedPlayoffSeriesSnapshot(awayF, homeF, raw.playoffSeries, todays);
   }
 
-  const nameSet = new Set(
-    (raw.playerStats || [])
-      .map((r) => String(r?.name || "").trim())
-      .filter(Boolean),
-  );
-  if (nameSet.size > 0 && raw.playerStatsText) {
-    const filtered = String(raw.playerStatsText)
-      .split("\n")
-      .filter((line) => {
-        for (const n of nameSet) {
-          if (n && line.includes(n)) return true;
-        }
-        return false;
-      })
-      .join("\n");
-    if (String(filtered).trim().length > 0) {
-      raw.playerStatsText = filtered;
-    }
+  if (Array.isArray(raw.playerStats) && raw.playerStats.length > 0) {
+    delete raw.playerStatsText;
   }
 
   return raw;
@@ -5736,10 +5723,16 @@ You are responding to a Pro subscriber. Apply the following:
         nbaContext.rosterGrounding.rosterGroundingQuality ?? "absent",
       );
     }
+    const nbaCtxJsonChars =
+      sportHint === "nba"
+        ? JSON.stringify(nbaContextForModel ?? {}).length
+        : null;
     console.log(
       `[ur-take] context: sport=${String(
         sportHint || "unknown",
-      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${userPrompt.length}`,
+      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${userPrompt.length}${
+        nbaCtxJsonChars != null ? ` nbaContextJsonChars=${nbaCtxJsonChars}` : ""
+      }`,
     );
 
     const result = await callAnthropic({

@@ -228,12 +228,9 @@ export default async function handler(req, res) {
 
   try {
     const cached = await getDurableJson(CACHE_KEY);
-    if (cached && cached.generatedAt) {
-      const age = Date.now() - Date.parse(cached.generatedAt);
-      if (!Number.isNaN(age) && age >= 0 && age < CACHE_TTL_SECONDS * 1000) {
-        res.setHeader("Cache-Control", "private, max-age=60");
-        return res.status(200).json(cached);
-      }
+    if (cached && !cached._empty) {
+      res.setHeader("Cache-Control", "private, max-age=60");
+      return res.status(200).json(cached);
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");

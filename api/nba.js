@@ -1589,6 +1589,7 @@ const NBA_QUERY_TEAM_ALIASES = {
   pelicans: "NOP",
   bucks: "MIL",
   pistons: "DET",
+  magic: "ORL",
   kings: "SAC",
   suns: "PHX",
   rockets: "HOU",
