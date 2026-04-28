@@ -533,8 +533,8 @@ function hasMeaningfulLeaderboardRows(rows) {
   });
 }
 
-/** Past finished events stay in ESPN lists; suppress pseudo-current boards after this grace past inferred end. */
-const GOLF_SCHEDULE_END_GRACE_MS = 48 * 60 * 60 * 1000;
+/** Past finished events stay in ESPN lists; suppress pseudo-current boards immediately after inferred end. */
+const GOLF_SCHEDULE_END_GRACE_MS = 0;
 
 function parseScheduleMs(value) {
   if (!value) return NaN;
@@ -1011,6 +1011,20 @@ async function getBdlTournamentBundle() {
     }))
     .sort((a, b) => a._startTs - b._startTs);
 
+  const normalizedSchedule = normalized
+    .map((t) => normalizeBdlTournament(t))
+    .filter(Boolean)
+    .filter((t) => !isBdlTournamentScheduleStale(t))
+    .sort((a, b) => Number(a?.startTs || 0) - Number(b?.startTs || 0));
+
+  const scheduleWindow = normalizedSchedule
+    .filter((t) => {
+      const startTs = Number(t?.startTs || 0);
+      const endTs = Number(t?.endTs || 0);
+      return (Number.isFinite(endTs) && endTs >= now) || (Number.isFinite(startTs) && startTs >= now);
+    })
+    .slice(0, 8);
+
   const inRange = normalized.filter((t) => t._startTs <= now && now <= t._endTs);
   const upcoming = normalized.filter((t) => t._startTs > now);
   const pool = inRange.length > 0 ? inRange : upcoming;
@@ -1050,6 +1064,7 @@ async function getBdlTournamentBundle() {
       course: null,
       results: [],
       courseStats: [],
+      schedule: scheduleWindow,
       bdlAvailable: tournamentsRes.ok,
     };
     setCache(cacheKey, empty, 60 * 1000);
@@ -1099,6 +1114,7 @@ async function getBdlTournamentBundle() {
     results,
     leaderboard: buildBdlLeaderboard(results),
     courseStats,
+    schedule: scheduleWindow,
     bdlAvailable: tournamentsRes.ok,
   };
 
@@ -1109,6 +1125,7 @@ async function getBdlTournamentBundle() {
 function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const tournament = bdlBundle?.tournament || null;
   const course = bdlBundle?.course || null;
+  const tourSchedule = Array.isArray(bdlBundle?.schedule) ? bdlBundle.schedule : [];
   const bdlLeaderboard = Array.isArray(bdlBundle?.leaderboard)
     ? bdlBundle.leaderboard
     : [];
@@ -1273,7 +1290,23 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     outTournament = null;
   }
 
-  const outCurrent = suppressCurrent ? null : currentEvent;
+  let outCurrent = suppressCurrent ? null : currentEvent;
+  if (!outCurrent && tournament && !isBdlTournamentScheduleStale(tournament)) {
+    outCurrent = {
+      id: tournament.id || null,
+      name: tournament.name || "PGA Tour Event",
+      shortName: tournament.shortName || tournament.name || "PGA Tour",
+      course: tournament.courseName || course?.name || "TBD",
+      location: tournament.location || [course?.city, course?.state || course?.country].filter(Boolean).join(", "),
+      round: "Upcoming",
+      state: "pre",
+      par: course?.par || null,
+      startDate: tournament.startDate || null,
+      endDate: tournament.endDate || null,
+      displayDate: tournament.displayDate || null,
+      leaderboard: [],
+    };
+  }
 
   return {
     currentEvent: outCurrent,
@@ -1287,6 +1320,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       marketStatus: "hidden",
     },
     tournament: outTournament,
+    tourSchedule,
     course,
     recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
     courseStats: Array.isArray(bdlBundle?.courseStats)

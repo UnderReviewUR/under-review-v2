@@ -21,6 +21,15 @@ const LIVE_QUICK_LIVE = [
   ["Fade the chalk?", "Who is the live fade among the leaders based on volatility and course fit?"],
 ];
 
+function describeTournamentStyle(evt) {
+  const course = String(evt?.courseName || evt?.course || "").toLowerCase();
+  if (course.includes("links")) return "Links profile: wind, trajectory control, and scrambling usually decide it.";
+  if (course.includes("harbour") || course.includes("harbor")) return "Positional profile: fairways and approach precision matter more than pure power.";
+  if (course.includes("augusta")) return "Augusta profile: elite irons, touch around greens, and patience under Sunday pressure.";
+  if (course.includes("bay hill") || course.includes("quail hollow")) return "Power-parkland profile: distance helps, but approach play still separates contenders.";
+  return "Standard PGA profile: SG approach, fairway control, and putter variance are the main separators.";
+}
+
 export default function GolfScreen({
   golfScreenRef,
   hasDockedBar,
@@ -38,18 +47,24 @@ export default function GolfScreen({
   const golfPhase = deriveGolfEventState(golfData);
   const shellPrompts = getQuickPromptsForState("golf", eventFinished ? "final" : golfPhase);
   const quickAngles = !eventFinished && golfPhase === "live" ? LIVE_QUICK_LIVE : LIVE_QUICK_PRE;
+  const scheduleRows = Array.isArray(golfData?.tourSchedule) ? golfData.tourSchedule : [];
+  const fallbackEvent = scheduleRows[0] || null;
+  const headerEventName = golfData?.currentEvent?.name || fallbackEvent?.name || "PGA TOUR";
+  const headerCourseLine = golfLoading
+    ? "Loading..."
+    : golfData?.currentEvent?.course
+      ? `${golfData.currentEvent.course} — ${eventFinished ? "Final" : golfData.currentEvent.round || "Live"}`
+      : fallbackEvent?.courseName
+        ? `${fallbackEvent.courseName} — Upcoming`
+        : "Ask about any player, tournament, or prop";
 
   return (
           <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="golf-banner">
-              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{golfData?.currentEvent?.name||"PGA TOUR"}</div>
+              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{headerEventName}</div>
               <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{eventFinished ? "FINAL — RESULTS & RECAP" : "OUTRIGHTS / PROPS / MATCHUP EDGES"}</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
-                {golfLoading
-  ? "Loading..."
-  : golfData?.currentEvent?.course
-    ? `${golfData.currentEvent.course} — ${eventFinished ? "Final" : golfData.currentEvent.round || "Live"}`
-    : "Ask about any player, tournament, or prop"}
+                {headerCourseLine}
               </div>
             </div>
 
@@ -73,6 +88,35 @@ export default function GolfScreen({
             )}
 
             <ChatThread msgs={golfMsgs} />
+
+            {scheduleRows.length > 0 && (
+              <>
+                <div className="section-divider">PGA Tour Schedule</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6,marginBottom:10}}>
+                  {scheduleRows.slice(0, 6).map((evt, idx) => (
+                    <div
+                      key={`${evt?.id || evt?.name || idx}`}
+                      className="golf-odds-card"
+                      onClick={() =>
+                        submitGolf(
+                          `Give me a brief tournament synopsis for ${evt?.name || "this event"}: course style, player profile that fits, and one market angle to watch this week.`,
+                        )
+                      }
+                    >
+                      <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>
+                        {evt?.shortName || evt?.name || "PGA Tour Event"}
+                      </div>
+                      <div style={{fontSize:11,color:"var(--soft)",marginTop:2}}>
+                        {(evt?.displayDate || "Upcoming")}{evt?.location ? ` · ${evt.location}` : ""}
+                      </div>
+                      <div style={{fontSize:11,color:"var(--muted)",marginTop:4}}>
+                        {describeTournamentStyle(evt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Leaderboard — full field (scroll); same list is sent to /api/ur-take as golfContext */}
             {golfData?.currentEvent?.leaderboard?.length > 0 && (
