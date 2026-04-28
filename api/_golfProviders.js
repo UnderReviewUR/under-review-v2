@@ -1,5 +1,77 @@
 import { bdlFetch } from "./_balldontlie.js";
 import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
+import { getDurableJson, setDurableJson } from "./_durableStore.js";
+
+const PGA_COURSE_COORDS = {
+  "Augusta National Golf Club": { lat: 33.5021, lon: -82.0232 },
+  "TPC Sawgrass": { lat: 30.1975, lon: -81.3967 },
+  "Pebble Beach Golf Links": { lat: 36.5681, lon: -121.9484 },
+  "Torrey Pines Golf Course": { lat: 32.8975, lon: -117.2503 },
+  "Muirfield Village Golf Club": { lat: 40.1542, lon: -83.0938 },
+  "Congressional Country Club": { lat: 39.0117, lon: -77.1347 },
+  "Valhalla Golf Club": { lat: 38.2527, lon: -85.5235 },
+  "Riviera Country Club": { lat: 34.0438, lon: -118.5126 },
+  "Bay Hill Club": { lat: 28.4772, lon: -81.4984 },
+  "TPC Scottsdale": { lat: 33.6607, lon: -111.891 },
+  "Quail Hollow Club": { lat: 35.149, lon: -80.8773 },
+  "Harbour Town Golf Links": { lat: 32.1382, lon: -80.6737 },
+  "Colonial Country Club": { lat: 32.7297, lon: -97.3684 },
+  "Kiawah Island Golf Resort": { lat: 32.6082, lon: -80.085 },
+  "Bethpage Black": { lat: 40.7479, lon: -73.4582 },
+  "Southern Hills Country Club": { lat: 36.0668, lon: -95.958 },
+  "Oakmont Country Club": { lat: 40.5243, lon: -79.8279 },
+  "Winged Foot Golf Club": { lat: 40.9626, lon: -73.7546 },
+  "Medinah Country Club": { lat: 41.9722, lon: -88.0281 },
+  "East Lake Golf Club": { lat: 33.7157, lon: -84.3024 },
+};
+
+function getCourseCoords(courseName) {
+  if (!courseName) return null;
+  const direct = PGA_COURSE_COORDS[courseName];
+  if (direct) return direct;
+  const lower = courseName.toLowerCase();
+  for (const [key, coords] of Object.entries(PGA_COURSE_COORDS)) {
+    if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
+      return coords;
+    }
+  }
+  return null;
+}
+
+async function fetchCourseWeather(lat, lon) {
+  if (!lat || !lon) return null;
+  try {
+    const cacheKey = `weather_golf_${lat.toFixed(2)}_${lon.toFixed(2)}`;
+    const cached = await getDurableJson(cacheKey);
+    if (cached && !cached._empty) return cached;
+
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=precipitation_probability,wind_speed_10m&timezone=auto&forecast_days=1`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    const windKph = data?.current_weather?.windspeed ?? null;
+    if (windKph === null) return null;
+
+    const windSpeedMph = Math.round(windKph * 0.621371);
+    const currentHour = new Date().getUTCHours();
+    const utcOffsetHours = (data.utc_offset_seconds ?? 0) / 3600;
+    const localHour = ((currentHour + utcOffsetHours) % 24 + 24) % 24;
+    const precipProbability =
+      data?.hourly?.precipitation_probability?.[Math.floor(localHour)] ?? 0;
+
+    const result = {
+      windSpeedMph,
+      precipProbability,
+      timestamp: new Date().toISOString(),
+    };
+
+    await setDurableJson(cacheKey, result, { ttlSeconds: 300 });
+    return result;
+  } catch {
+    return null;
+  }
+}
 
 const CACHE_TTL_MS = 3 * 60 * 1000;
 const cache = new Map();
@@ -715,6 +787,14 @@ async function getEspnCurrentEvent() {
         round2: stats.find((s) => s.name === "round2")?.displayValue || "—",
         round3: stats.find((s) => s.name === "round3")?.displayValue || "—",
         round4: stats.find((s) => s.name === "round4")?.displayValue || "—",
+        linescores: c.linescores || [],
+        teeTime: (() => {
+          try {
+            return c.linescores?.[0]?.statistics?.categories?.[0]?.stats?.[0]?.displayValue || null;
+          } catch {
+            return null;
+          }
+        })(),
       };
     });
 
@@ -1225,7 +1305,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v11";
+  const cacheKey = "unified_golf_board_v13";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -1243,6 +1323,46 @@ export async function getUnifiedGolfBoard({ oddsApiKey }) {
     rankings,
   });
 
-  setCache(cacheKey, merged, 2 * 60 * 1000);
-  return merged;
+  let weatherAlert = null;
+  const courseCandidates = [
+    merged.tournament?.courseName,
+    merged.course?.name,
+    merged.currentEvent?.course,
+  ];
+  let courseLabelForWeather = "";
+  for (const c of courseCandidates) {
+    const s = String(c || "").trim();
+    if (s && s !== "TBD") {
+      courseLabelForWeather = s;
+      break;
+    }
+  }
+  const coords = getCourseCoords(courseLabelForWeather);
+
+  if (coords) {
+    const weather = await fetchCourseWeather(coords.lat, coords.lon);
+    if (weather) {
+      const windAlert = weather.windSpeedMph >= 15;
+      const rainAlert = weather.precipProbability >= 60;
+      if (windAlert || rainAlert) {
+        weatherAlert = {
+          sport: "golf",
+          type: windAlert ? "wind" : "rain",
+          windSpeedMph: weather.windSpeedMph,
+          precipProbability: weather.precipProbability,
+          courseName: courseLabelForWeather || null,
+          timestamp: weather.timestamp,
+        };
+      }
+    }
+  }
+
+  const out = {
+    ...merged,
+    weatherAlert,
+    weatherCoordsMatched: Boolean(coords),
+  };
+
+  setCache(cacheKey, out, 2 * 60 * 1000);
+  return out;
 }

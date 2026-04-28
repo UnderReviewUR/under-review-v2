@@ -3,6 +3,42 @@ import WRsAndTEs from "./nfl-wr-te.js";
 import { QBs } from "./nfl-players.js";
 import { buildNflDraftBoardBlock, getActiveDraftBundle, getNflDraftMeta } from "./nfl-draft-season.js";
 
+/** Home stadium coords + dome flag — domed venues must never trigger outdoor weather alerts. */
+export const NFL_STADIUM_META = {
+  ARI: { lat: 33.5277, lon: -112.2626, domed: true, stadium: "State Farm Stadium" },
+  ATL: { lat: 33.7553, lon: -84.4006, domed: true, stadium: "Mercedes-Benz Stadium" },
+  BAL: { lat: 39.278, lon: -76.6227, domed: false, stadium: "M&T Bank Stadium" },
+  BUF: { lat: 42.7738, lon: -78.787, domed: false, stadium: "Highmark Stadium" },
+  CAR: { lat: 35.2258, lon: -80.8528, domed: false, stadium: "Bank of America Stadium" },
+  CHI: { lat: 41.8623, lon: -87.6167, domed: false, stadium: "Soldier Field" },
+  CIN: { lat: 39.0955, lon: -84.516, domed: false, stadium: "Paycor Stadium" },
+  CLE: { lat: 41.5061, lon: -81.6995, domed: false, stadium: "Cleveland Browns Stadium" },
+  DAL: { lat: 32.748, lon: -97.093, domed: true, stadium: "AT&T Stadium" },
+  DEN: { lat: 39.7439, lon: -105.0201, domed: false, stadium: "Empower Field" },
+  DET: { lat: 42.34, lon: -83.0456, domed: true, stadium: "Ford Field" },
+  GB: { lat: 44.5013, lon: -88.0622, domed: false, stadium: "Lambeau Field" },
+  HOU: { lat: 29.6847, lon: -95.4107, domed: true, stadium: "NRG Stadium" },
+  IND: { lat: 39.7601, lon: -86.1639, domed: true, stadium: "Lucas Oil Stadium" },
+  JAX: { lat: 30.3239, lon: -81.6373, domed: false, stadium: "EverBank Stadium" },
+  KC: { lat: 39.0489, lon: -94.4839, domed: false, stadium: "GEHA Field" },
+  LAC: { lat: 33.9535, lon: -118.3392, domed: true, stadium: "SoFi Stadium" },
+  LAR: { lat: 33.9535, lon: -118.3392, domed: true, stadium: "SoFi Stadium" },
+  LV: { lat: 36.0909, lon: -115.1833, domed: true, stadium: "Allegiant Stadium" },
+  MIA: { lat: 25.958, lon: -80.2389, domed: false, stadium: "Hard Rock Stadium" },
+  MIN: { lat: 44.9737, lon: -93.2577, domed: true, stadium: "U.S. Bank Stadium" },
+  NE: { lat: 42.0909, lon: -71.2643, domed: false, stadium: "Gillette Stadium" },
+  NO: { lat: 29.9511, lon: -90.0812, domed: true, stadium: "Caesars Superdome" },
+  NYG: { lat: 40.8135, lon: -74.0745, domed: false, stadium: "MetLife Stadium" },
+  NYJ: { lat: 40.8135, lon: -74.0745, domed: false, stadium: "MetLife Stadium" },
+  PHI: { lat: 39.9008, lon: -75.1675, domed: false, stadium: "Lincoln Financial Field" },
+  PIT: { lat: 40.4468, lon: -80.0158, domed: false, stadium: "Acrisure Stadium" },
+  SEA: { lat: 47.5952, lon: -122.3316, domed: false, stadium: "Lumen Field" },
+  SF: { lat: 37.4033, lon: -121.9694, domed: false, stadium: "Levi's Stadium" },
+  TB: { lat: 27.9759, lon: -82.5033, domed: false, stadium: "Raymond James Stadium" },
+  TEN: { lat: 36.1665, lon: -86.7713, domed: false, stadium: "Nissan Stadium" },
+  WAS: { lat: 38.9076, lon: -76.8645, domed: false, stadium: "Northwest Stadium" },
+};
+
 function toNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
