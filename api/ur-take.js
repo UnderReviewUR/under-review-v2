@@ -4046,6 +4046,11 @@ export default async function handler(req, res) {
       console.warn("[ur-take] first-session guarantee board load failed:", err?.message || err);
     }
   }
+  const detectedSport = sportHint;
+  console.log("[ur-take] request:", {
+    sport: detectedSport,
+    questionSlice: question?.slice(0, 80),
+  });
   const nbaDebugEnabled = isTruthyFlag(getEnv("UR_TAKE_NBA_DEBUG"));
 
   /** Server-authoritative slate for NBA — client payload can be stale (poll interval) or omit games. */
@@ -5901,6 +5906,10 @@ You are responding to a Pro subscriber. Apply the following:
     responseText = stripBannedPerformanceTrackerLines(responseText);
     if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
 
+    if (!responseText || responseText.trim().length < 50) {
+      responseText = responseDeep || responseText;
+    }
+
     let takeRecord = extractTakeFromResponse({
       responseText,
       sport: sportHint || "generic",
@@ -5941,6 +5950,14 @@ You are responding to a Pro subscriber. Apply the following:
     if (userEmail) {
       appendTakeForUser(userEmail, takeRecord).catch((e) => {
         console.warn("take logging failed:", e?.message || e);
+      });
+    }
+
+    if (!responseText || responseText.trim().length === 0) {
+      console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
+      return res.status(500).json({
+        error: "Something went wrong. Please try again.",
+        response: "Something went wrong. Please try again.",
       });
     }
 
