@@ -930,10 +930,10 @@ ${themeCss}
     ],
   );
 
-  const tickerNbaGames = homePipeline.nbaGamesForHome;
-  const liveSnapshotKeys = homePipeline.liveSnapshotKeys;
+  const tickerNbaGames = homePipeline?.nbaGamesForHome;
+  const liveSnapshotKeys = homePipeline?.liveSnapshotKeys;
 
-  verifiedNbaSlateForTakeRef.current = homePipeline.nbaGamesForHome;
+  verifiedNbaSlateForTakeRef.current = homePipeline?.nbaGamesForHome;
 
   useEffect(() => {
     if (screen !== "nba") setNbaUrTakeFocusGameKey(null);
@@ -959,7 +959,7 @@ ${themeCss}
     };
     const ts = (m) =>
       Number.isFinite(m.commenceTs) ? m.commenceTs : Number.MAX_SAFE_INTEGER;
-    return [...homePipeline.tennisMatchesForHome]
+    return [...homePipeline?.tennisMatchesForHome]
       .sort((a, b) => {
         const ta = tier(a);
         const tb = tier(b);
@@ -968,7 +968,7 @@ ${themeCss}
         return ts(a) - ts(b);
       })
       .slice(0, 4);
-  }, [homePipeline.tennisMatchesForHome]);
+  }, [homePipeline?.tennisMatchesForHome]);
 
   const [slateDisplayedEventKeys, setSlateDisplayedEventKeys] = useState([]);
 
@@ -991,7 +991,7 @@ ${themeCss}
 
   const homeAtpSpotlightCards = useMemo(() => {
     const atpRaw = validTennisMatchesBoard.filter((m) => m.league === "ATP");
-    const atpPipeline = homePipeline.tennisMatchesForHome.filter((m) => m.league === "ATP");
+    const atpPipeline = homePipeline?.tennisMatchesForHome.filter((m) => m.league === "ATP");
     const atp = atpPipeline.filter((m) => {
       const k = tennisEventKeyFromNormalized(m);
       return !(k && cardExcludeSet.has(k));
@@ -1064,7 +1064,7 @@ ${themeCss}
     const liveN = pool.filter((m) => String(m?.raw?.live || "0") === "1").length;
     const upcomingN = pool.length - liveN;
     const tName = context?.currentTournament?.name || "ATP Tour";
-    const oddsBacked = homePipeline.meta.hasAtpFromOdds;
+    const oddsBacked = homePipeline?.meta?.hasAtpFromOdds;
     return [
       {
         id: "tennis-atp-schedule-board",
@@ -1088,8 +1088,8 @@ ${themeCss}
     ];
   }, [
     validTennisMatchesBoard,
-    homePipeline.tennisMatchesForHome,
-    homePipeline.meta,
+    homePipeline?.tennisMatchesForHome,
+    homePipeline?.meta,
     tennisLoading,
     context,
     hasStaticTennisIntel,
@@ -1165,7 +1165,7 @@ ${themeCss}
       })} ET`;
     };
     /** Rolling 24h slate from `homePipeline` (same gates as classifyNbaGame + normalize). */
-    const slateGames = homePipeline.nbaGamesForHome
+    const slateGames = homePipeline?.nbaGamesForHome
       .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
       .filter((g) => {
         const k = nbaEventKey(g);
@@ -1190,7 +1190,7 @@ ${themeCss}
         return ta - tb;
       });
 
-    if (!slateGames.length && !homePipeline.nbaGamesForHome.length) {
+    if (!slateGames.length && !homePipeline?.nbaGamesForHome.length) {
       if (rawApiTodaysGames.length > 0) {
         const recoveryHint = nbaData?.slateRecovery?.fromLastKnownKv
           ? formatHomeSlateKvUpdatedEt(nbaData.slateRecovery.lastUpdated)
@@ -1279,11 +1279,11 @@ ${themeCss}
         nbaRows: rows,
       },
     ];
-  }, [homePipeline.nbaGamesForHome, getSeriesLabel, cardExcludeSet, nbaData?.todaysGames, nbaData?.slateRecovery]);
+  }, [homePipeline?.nbaGamesForHome, getSeriesLabel, cardExcludeSet, nbaData?.todaysGames, nbaData?.slateRecovery]);
 
   const homeMlbCards = useMemo(() => {
-    const live = homePipeline.mlbGamesForHome.filter((g) => g.state === "in");
-    const upcoming = homePipeline.mlbGamesForHome.filter((g) => g.state === "pre");
+    const live = homePipeline?.mlbGamesForHome.filter((g) => g.state === "in");
+    const upcoming = homePipeline?.mlbGamesForHome.filter((g) => g.state === "pre");
     const poolRaw = [...live, ...upcoming].slice(0, 3);
     const tomorrowGames = Array.isArray(mlbData?.tomorrowGames) ? mlbData.tomorrowGames : [];
     const tomorrowGamesHorizon = tomorrowGames.filter((g) => isDisplayableValidity(classifyMlbGame(g)));
@@ -1293,7 +1293,7 @@ ${themeCss}
     });
     const rawApiMlbHorizon = (mlbData?.games || []).filter((g) => isDisplayableValidity(classifyMlbGame(g)));
 
-    if (!pool.length && !homePipeline.mlbGamesForHome.length) {
+    if (!pool.length && !homePipeline?.mlbGamesForHome.length) {
       if (rawApiMlbHorizon.length > 0) {
         const recoveryHint = mlbData?.slateRecovery?.fromLastKnownKv
           ? formatHomeSlateKvUpdatedEt(mlbData.slateRecovery.lastUpdated)
@@ -1415,13 +1415,13 @@ ${themeCss}
         confirmed: true,
       };
     });
-  }, [homePipeline.mlbGamesForHome, cardExcludeSet, mlbData?.games, mlbData?.tomorrowGames, mlbData?.slateRecovery]);
+  }, [homePipeline?.mlbGamesForHome, cardExcludeSet, mlbData?.games, mlbData?.tomorrowGames, mlbData?.slateRecovery]);
 
   const homeGolfCards = useMemo(() => {
     if (golfData && !golfLoading && isGolfEventFinished(golfData)) {
       return [];
     }
-    if (golfData && !golfLoading && !homePipeline.golfVisibleOnHome) {
+    if (golfData && !golfLoading && !homePipeline?.golfVisibleOnHome) {
       return [];
     }
     if (golfData === null && golfLoading) {
@@ -1572,23 +1572,23 @@ ${themeCss}
     }
 
     return [];
-  }, [golfData, golfLoading, cardExcludeSet, homePipeline.golfVisibleOnHome]);
+  }, [golfData, golfLoading, cardExcludeSet, homePipeline?.golfVisibleOnHome]);
 
   const homeTrackerCards = useMemo(
     () =>
       buildHomeTrackerCards({
         performanceData,
-        nbaGames: homePipeline.nbaGamesForHome,
+        nbaGames: homePipeline?.nbaGamesForHome,
         mlbData: {
           ...(mlbData || {}),
-          games: homePipeline.mlbGamesForHome,
+          games: homePipeline?.mlbGamesForHome,
         },
         golfData,
         f1Data,
         nflDraftMeta,
         excludeEventKeys: cardExcludeSet,
       }),
-    [performanceData, homePipeline.nbaGamesForHome, homePipeline.mlbGamesForHome, mlbData, golfData, f1Data, nflDraftMeta, cardExcludeSet]
+    [performanceData, homePipeline?.nbaGamesForHome, homePipeline?.mlbGamesForHome, mlbData, golfData, f1Data, nflDraftMeta, cardExcludeSet]
   );
 
   const homeCards = useMemo(() => {
@@ -1622,7 +1622,7 @@ ${themeCss}
         userCity: userCityHint,
         context,
         golfData,
-        nbaGames: homePipeline.nbaGamesForHome,
+        nbaGames: homePipeline?.nbaGamesForHome,
         f1Data,
       }),
     [
@@ -1634,7 +1634,7 @@ ${themeCss}
       userCityHint,
       context,
       golfData,
-      homePipeline.nbaGamesForHome,
+      homePipeline?.nbaGamesForHome,
       f1Data,
     ]
   );
@@ -1671,7 +1671,7 @@ ${themeCss}
     let cancelled = false;
     (async () => {
       const card = await buildDailyFeaturedAngleCard({
-        nbaGames: homePipeline.nbaGamesForHome,
+        nbaGames: homePipeline?.nbaGamesForHome,
         nbaData,
       });
       if (!cancelled) setDailyFeaturedAngleCard(card);
@@ -1679,7 +1679,7 @@ ${themeCss}
     return () => {
       cancelled = true;
     };
-  }, [homePipeline.nbaGamesForHome, nbaData]);
+  }, [homePipeline?.nbaGamesForHome, nbaData]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {
@@ -2136,7 +2136,7 @@ ${themeCss}
             getSeriesLabel={getSeriesLabel}
             tennisTickerMatches={tennisTickerMatches}
             golfData={golfData}
-            mlbGames={homePipeline.mlbGamesForHome}
+            mlbGames={homePipeline?.mlbGamesForHome}
             mlbData={mlbData}
             f1Data={f1Data}
             homeCards={homeCards}
@@ -2276,7 +2276,7 @@ ${themeCss}
           <NbaScreen
             nbaScreenRef={nbaScreenRef}
             hasDockedBar={hasDockedBar}
-            verifiedNbaGames={homePipeline.nbaGamesForHome}
+            verifiedNbaGames={homePipeline?.nbaGamesForHome}
             nbaData={nbaData}
             nbaMsgs={nbaMsgs}
             nbaBarRef={nbaBarRef}
