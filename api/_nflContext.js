@@ -3,7 +3,9 @@ import WRsAndTEs from "./nfl-wr-te.js";
 import { QBs } from "./nfl-players.js";
 import { buildNflDraftBoardBlock, getActiveDraftBundle, getNflDraftMeta } from "./nfl-draft-season.js";
 
-/** Home stadium coords + dome flag — domed venues must never trigger outdoor weather alerts. */
+// WEATHER RULE: Always use home team's stadium coords.
+// Never use away team. Never use neutral site.
+// If domed === true, skip weather evaluation entirely regardless of conditions.
 export const NFL_STADIUM_META = {
   ARI: { lat: 33.5277, lon: -112.2626, domed: true, stadium: "State Farm Stadium" },
   ATL: { lat: 33.7553, lon: -84.4006, domed: true, stadium: "Mercedes-Benz Stadium" },

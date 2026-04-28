@@ -25,13 +25,18 @@ const PGA_COURSE_COORDS = {
   "East Lake Golf Club": { lat: 33.7157, lon: -84.3024 },
 };
 
+function normalizeName(s) {
+  return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
+}
+
 function getCourseCoords(courseName) {
   if (!courseName) return null;
   const direct = PGA_COURSE_COORDS[courseName];
   if (direct) return direct;
-  const lower = courseName.toLowerCase();
+  const normalizedLookup = normalizeName(courseName);
   for (const [key, coords] of Object.entries(PGA_COURSE_COORDS)) {
-    if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
+    const nk = normalizeName(key);
+    if (normalizedLookup.includes(nk) || nk.includes(normalizedLookup)) {
       return coords;
     }
   }
@@ -50,15 +55,23 @@ async function fetchCourseWeather(lat, lon) {
     if (!res.ok) return null;
     const data = await res.json();
 
-    const windKph = data?.current_weather?.windspeed ?? null;
-    if (windKph === null) return null;
-
-    const windSpeedMph = Math.round(windKph * 0.621371);
     const currentHour = new Date().getUTCHours();
     const utcOffsetHours = (data.utc_offset_seconds ?? 0) / 3600;
     const localHour = ((currentHour + utcOffsetHours) % 24 + 24) % 24;
-    const precipProbability =
-      data?.hourly?.precipitation_probability?.[Math.floor(localHour)] ?? 0;
+
+    const windKph =
+      data?.current_weather?.windspeed ??
+      data?.hourly?.wind_speed_10m?.[Math.floor(localHour)] ??
+      null;
+    if (windKph === null) return null;
+
+    const windSpeedMph = Math.round(windKph * 0.621371);
+
+    const nowIso = new Date().toISOString().slice(0, 13);
+    const hourlyTimes = data?.hourly?.time ?? [];
+    const closestIndex = hourlyTimes.findIndex((t) => t.startsWith(nowIso));
+    const precipIndex = closestIndex >= 0 ? closestIndex : Math.floor(localHour);
+    const precipProbability = data?.hourly?.precipitation_probability?.[precipIndex] ?? 0;
 
     const result = {
       windSpeedMph,
@@ -1347,7 +1360,7 @@ export async function getUnifiedGolfBoard({ oddsApiKey }) {
       if (windAlert || rainAlert) {
         weatherAlert = {
           sport: "golf",
-          type: windAlert ? "wind" : "rain",
+          type: windAlert && rainAlert ? "wind_rain" : windAlert ? "wind" : "rain",
           windSpeedMph: weather.windSpeedMph,
           precipProbability: weather.precipProbability,
           courseName: courseLabelForWeather || null,
