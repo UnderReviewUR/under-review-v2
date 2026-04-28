@@ -3905,19 +3905,25 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      error: "Method not allowed",
-      response: "Only POST is supported.",
+  const feedSnagResponse = (sportVal) => {
+    const text =
+      "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
+    return res.status(200).json({
+      response: text,
+      take: text,
+      confidence: "none",
+      sport: sportVal || "unknown",
+      fallback: true,
     });
+  };
+
+  if (req.method !== "POST") {
+    return feedSnagResponse(null);
   }
 
   const clientIp = getClientIp(req);
   if (!allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
-    return res.status(429).json({
-      error: "rate_limited",
-      response: "Too many requests from this network — try again shortly.",
-    });
+    return feedSnagResponse(null);
   }
 
   /** @type {{ ok: true, email: string | null, tier: string } | { ok: false, reason: string } | null} */
@@ -3926,32 +3932,24 @@ export default async function handler(req, res) {
     urAuth = verifyBearerForUrTake(req.headers.authorization);
     if (!urAuth.ok) {
       if (urAuth.reason === "server_misconfigured") {
-        return res.status(503).json({
-          error: "server_misconfigured",
-          response: ACCESS_TOKEN_SECRET_MISSING_MESSAGE,
-        });
+        return feedSnagResponse(null);
       }
-      return res.status(401).json({
-        error: urAuth.reason || "unauthorized",
-        response:
-          "Authorization required. Refresh the page or re-enter your email / access code.",
-      });
+      return feedSnagResponse(null);
     }
     if (urAuth.email && !allowRateLimit(`urtake:email:${urAuth.email}`, emailLimit())) {
-      return res.status(429).json({
-        error: "rate_limited",
-        response: "Too many requests for this account — try again shortly.",
-      });
+      return feedSnagResponse(null);
     }
   }
 
   const sanitized = sanitizeUrTakeBody(req.body);
   if (!sanitized.ok) {
-    return res.status(400).json({
-      error: sanitized.error,
-      response: sanitized.error,
-      code: sanitized.code ?? "bad_request",
-    });
+    const hint =
+      req.body && typeof req.body === "object" && req.body !== null && "sportHint" in req.body
+        ? /** @type {{ sportHint?: string }} */ (req.body).sportHint
+        : null;
+    return feedSnagResponse(
+      typeof hint === "string" && hint.trim() ? hint.trim() : null,
+    );
   }
   req.body = sanitized.body;
 
@@ -3966,10 +3964,11 @@ export default async function handler(req, res) {
   const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
 
   if (!ANTHROPIC_API_KEY) {
-    return res.status(500).json({
-      error: "Missing ANTHROPIC_API_KEY",
-      response: "Backend is missing ANTHROPIC_API_KEY in Vercel Production.",
-    });
+    return feedSnagResponse(
+      typeof req.body?.sportHint === "string" && req.body.sportHint.trim()
+        ? req.body.sportHint.trim()
+        : null,
+    );
   }
 
   const {
@@ -3994,10 +3993,11 @@ export default async function handler(req, res) {
   const isConversationFollowUp = normalizedUrTakeHistoryForGate.length > 1;
 
   if (!question || !String(question).trim()) {
-    return res.status(400).json({
-      error: "Missing question",
-      response: "No question was provided.",
-    });
+    return feedSnagResponse(
+      typeof incomingSportHint === "string" && incomingSportHint.trim()
+        ? incomingSportHint.trim()
+        : null,
+    );
   }
 
   const hasImage = !!image?.base64;
@@ -5888,20 +5888,13 @@ You are responding to a Pro subscriber. Apply the following:
         requestId: result.requestId,
       });
 
-      return res.status(result.status).json({
-        error: upstreamType,
-        response: "Something went wrong. Please try again.",
-        requestId: result.requestId,
-      });
+      return feedSnagResponse(sportHint);
     }
 
     const text = extractAnthropicText(result.data);
 
     if (!text) {
-      return res.status(500).json({
-        error: "Empty AI response",
-        response: "AI returned an empty response. Try again.",
-      });
+      return feedSnagResponse(sportHint);
     }
 
     let responseText = text;
@@ -6044,10 +6037,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (!responseText || responseText.trim().length === 0) {
       console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
-      return res.status(500).json({
-        error: "Something went wrong. Please try again.",
-        response: "Something went wrong. Please try again.",
-      });
+      return feedSnagResponse(sportHint);
     }
 
     return res.status(200).json({
@@ -6068,9 +6058,8 @@ You are responding to a Pro subscriber. Apply the following:
     });
   } catch (err) {
     console.error("UR TAKE error:", err);
-    return res.status(500).json({
-      error: "Request failed",
-      response: "Something went wrong. Please try again.",
-    });
+    const s =
+      req.body && typeof req.body.sportHint === "string" ? req.body.sportHint.trim() : null;
+    return feedSnagResponse(s);
   }
 }

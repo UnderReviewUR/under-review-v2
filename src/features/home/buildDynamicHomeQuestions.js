@@ -31,6 +31,33 @@ function isLikelyDraftWindow(now = new Date()) {
   return month === 4 && day >= 18 && day <= 28;
 }
 
+function getWindowRanks(hourEt) {
+  const isDay = hourEt >= 12;
+  return isDay
+    ? {
+        nbaLive: 10,
+        nbaUpcoming: 15,
+        nfl: 25,
+        mlb: 30,
+        golf: 40,
+        f1: 45,
+        tennisLive: 65,
+        tennisUpcoming: 70,
+        tennisFallback: 75,
+      }
+    : {
+        nbaLive: 12,
+        nbaUpcoming: 20,
+        nfl: 25,
+        mlb: 30,
+        golf: 50,
+        f1: 55,
+        tennisLive: 10,
+        tennisUpcoming: 15,
+        tennisFallback: 22,
+      };
+}
+
 export function buildDynamicHomeQuestions({
   activeTournamentMatches,
   tennisLiveMatches,
@@ -41,9 +68,12 @@ export function buildDynamicHomeQuestions({
   context,
   golfData,
   nbaGames,
+  mlbGames = [],
   f1Data,
+  hourEt = 12,
   promoNowMs = Date.now(),
 }) {
+  const ranks = getWindowRanks(hourEt);
   const prompts = [];
   const usedCardText = new Set();
   const usedPromptKeys = new Set();
@@ -115,6 +145,7 @@ export function buildDynamicHomeQuestions({
       id: "q1",
       color: prefLive.league === "WTA" ? "#E11D48" : "#0891B2",
       sportHint: "tennis",
+      sortRank: ranks.tennisLive,
       ...tennisLivePrompt,
     });
   }
@@ -138,6 +169,7 @@ export function buildDynamicHomeQuestions({
       id: "q2",
       color: prefUpcoming.league === "WTA" ? "#E11D48" : "#0891B2",
       sportHint: "tennis",
+      sortRank: ranks.tennisUpcoming,
       ...tennisUpcomingPrompt,
     });
   } else if (context?.currentTournament?.name) {
@@ -145,6 +177,7 @@ export function buildDynamicHomeQuestions({
       id: "q2b",
       color: "#0891B2",
       sportHint: "tennis",
+      sortRank: ranks.tennisFallback,
       text: `Tournament value — ${context.currentTournament.name}?`,
       prompt: `Around ${context.currentTournament.name}, where is the best futures or outright value on the board right now?`,
     });
@@ -176,7 +209,13 @@ export function buildDynamicHomeQuestions({
       ],
       3
     );
-    push({ id: "q3", color: "#FFFFFF", sportHint: "golf", ...golfPrompt });
+    push({
+      id: "q3",
+      color: "#FFFFFF",
+      sportHint: "golf",
+      sortRank: ranks.golf,
+      ...golfPrompt,
+    });
   }
 
   const validNbaGames = (nbaGames || []).filter((g) =>
@@ -203,7 +242,13 @@ export function buildDynamicHomeQuestions({
       ],
       5
     );
-    push({ id: "q4a", color: "#FF6B00", sportHint: "nba", ...nbaLivePrompt });
+    push({
+      id: "q4a",
+      color: "#FF6B00",
+      sportHint: "nba",
+      sortRank: ranks.nbaLive,
+      ...nbaLivePrompt,
+    });
   }
 
   if (nbaUpcomingGame) {
@@ -224,7 +269,40 @@ export function buildDynamicHomeQuestions({
       ],
       54
     );
-    push({ id: "q4b", color: "#FF6B00", sportHint: "nba", ...nbaPrePrompt });
+    push({
+      id: "q4b",
+      color: "#FF6B00",
+      sportHint: "nba",
+      sortRank: ranks.nbaUpcoming,
+      ...nbaPrePrompt,
+    });
+  }
+
+  if (Array.isArray(mlbGames) && mlbGames.length > 0) {
+    const mlbPrompt = rotate(
+      [
+        {
+          text: "Best pitcher prop on tonight's MLB slate?",
+          prompt:
+            "On tonight's MLB slate, which pitcher strikeout or workload prop is the clearest misprice vs recent form and matchup?",
+        },
+        {
+          text: "Which MLB total is mispriced tonight?",
+          prompt:
+            "Which MLB game total on tonight's slate looks mispriced vs starter quality, bullpen leverage, and park factors?",
+        },
+      ],
+      4,
+    );
+    if (mlbPrompt) {
+      push({
+        id: "q4mlb",
+        color: "#1DB954",
+        sportHint: "mlb",
+        sortRank: ranks.mlb,
+        ...mlbPrompt,
+      });
+    }
   }
 
   const nextRace = getF1NextRaceForHomePrompts(f1Data);
@@ -243,7 +321,13 @@ export function buildDynamicHomeQuestions({
       ],
       6
     );
-    push({ id: "q5", color: "#E10600", sportHint: "f1", ...f1Prompt });
+    push({
+      id: "q5",
+      color: "#E10600",
+      sportHint: "f1",
+      sortRank: ranks.f1,
+      ...f1Prompt,
+    });
   }
 
   if (isDraftMode) {
@@ -265,6 +349,7 @@ export function buildDynamicHomeQuestions({
         id: "q6a",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: `${bandHead} — best Day 2 fits?`,
         prompt: `It is ${band.roundsLabel}. ${roundHint} Name three best scheme fits for Rounds 2–3 and one trade-up candidate.`,
       });
@@ -272,6 +357,7 @@ export function buildDynamicHomeQuestions({
         id: "q6b",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: `Simulate Rounds 2–3 for the ${featuredTeam} (${featuredHeadline}).`,
         prompt: `Simulate Rounds 2–3 only for the ${featuredTeam} (${featuredHeadline}). Stay inside verified capital + needs; label any hypothetical trade as simulation.`,
       });
@@ -279,6 +365,7 @@ export function buildDynamicHomeQuestions({
         id: "q6c",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: "Where does the board bend in Rounds 2–3?",
         prompt: `During ${band.roundsLabel}, where is the class thin vs deep, and which team is most likely to reach or trade back? ${roundHint}`,
       });
@@ -287,6 +374,7 @@ export function buildDynamicHomeQuestions({
         id: "q6a",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: `${bandHead} — best Day 3 steals?`,
         prompt: `It is ${band.roundsLabel}. ${roundHint} Identify three Day 3 profiles (Rounds 4–7) with NFL-ready traits vs upside lotto tickets.`,
       });
@@ -294,6 +382,7 @@ export function buildDynamicHomeQuestions({
         id: "q6b",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: `Comp picks & specials for ${featuredTeam}?`,
         prompt: `For ${featuredTeam} (${featuredHeadline}), map realistic Rounds 4–7 targets: specials, swing OL, rotational pass rush. ${roundHint}`,
       });
@@ -301,6 +390,7 @@ export function buildDynamicHomeQuestions({
         id: "q6c",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: "Which traits overperform on Day 3?",
         prompt: `During ${band.roundsLabel}, which positions historically return value late in this class archetype? ${roundHint}`,
       });
@@ -309,6 +399,7 @@ export function buildDynamicHomeQuestions({
         id: "q6a",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: "2026 draft — biggest sleepers vs the board?",
         prompt: `Context: ${band.roundsLabel} (${bandHead}). Who are the biggest sleepers in the 2026 draft class relative to consensus? ${roundHint} Tie answers to team needs and realistic round ranges.`,
       });
@@ -316,6 +407,7 @@ export function buildDynamicHomeQuestions({
         id: "q6b",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: `Simulate the first 3 rounds for the ${featuredTeam} (${featuredHeadline}).`,
         prompt: `Simulate the first 3 rounds for the ${featuredTeam} based on their needs (${featuredHeadline}). Use realistic board flow and one contingency branch. ${roundHint}`,
       });
@@ -323,6 +415,7 @@ export function buildDynamicHomeQuestions({
         id: "q6c",
         color: "#E11D48",
         sportHint: "nfl",
+        sortRank: ranks.nfl,
         text: "Which teams are most likely to trade up into the Top 5?",
         prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}. ${roundHint}`,
       });
@@ -341,7 +434,13 @@ export function buildDynamicHomeQuestions({
       ],
       7
     );
-    push({ id: "q6", color: "#E11D48", sportHint: "nfl", ...nflSeasonPrompt });
+    push({
+      id: "q6",
+      color: "#E11D48",
+      sportHint: "nfl",
+      sortRank: ranks.nfl,
+      ...nflSeasonPrompt,
+    });
   } else {
     const nflFuturePrompt = rotate(
       [
@@ -356,8 +455,15 @@ export function buildDynamicHomeQuestions({
       ],
       8
     );
-    push({ id: "q6", color: "#E11D48", sportHint: "nfl", ...nflFuturePrompt });
+    push({
+      id: "q6",
+      color: "#E11D48",
+      sportHint: "nfl",
+      sortRank: ranks.nfl,
+      ...nflFuturePrompt,
+    });
   }
 
+  prompts.sort((a, b) => (a.sortRank ?? 999) - (b.sortRank ?? 999));
   return prompts.slice(0, 7);
 }

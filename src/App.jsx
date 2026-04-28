@@ -807,7 +807,7 @@ ${themeCss}
     const fallback =
       err?.name === "AbortError"
         ? "Request timed out — try again."
-        : err?.message || "Something went wrong — try again.";
+        : err?.message || "The feed hit a snag — try again or rephrase your question.";
     setMsgs((prev) => [...prev.filter((m) => !m.loading), { role: "ai", text: fallback }]);
   } finally {
     setIsAsking(false);
@@ -1609,7 +1609,19 @@ ${themeCss}
     homeMlbCards,
     homeF1Cards,
   ]);
-  
+
+  const hourEt = useMemo(() => {
+    const hourText = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date());
+    const h = Number(hourText);
+    return Number.isFinite(h) ? h : null;
+  }, []);
+
+  const [promptRefreshTick, setPromptRefreshTick] = useState(0);
+
   // ── Dynamic home questions ─────────────────────────────────────────────────
   const dynamicHomeQuestions = useMemo(
     () =>
@@ -1623,7 +1635,9 @@ ${themeCss}
         context,
         golfData,
         nbaGames: homePipeline?.nbaGamesForHome,
+        mlbGames: homePipeline?.mlbGamesForHome,
         f1Data,
+        hourEt: hourEt ?? 12,
       }),
     [
       activeTournamentMatches,
@@ -1635,19 +1649,12 @@ ${themeCss}
       context,
       golfData,
       homePipeline?.nbaGamesForHome,
+      homePipeline?.mlbGamesForHome,
       f1Data,
+      hourEt,
+      promptRefreshTick,
     ]
   );
-
-  const hourEt = useMemo(() => {
-    const hourText = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      hour12: false,
-    }).format(new Date());
-    const h = Number(hourText);
-    return Number.isFinite(h) ? h : null;
-  }, []);
 
   const [liveEdgeAlerts, setLiveEdgeAlerts] = useState([]);
   const recomputeLiveEdgeAlerts = useCallback(() => {
@@ -1663,7 +1670,11 @@ ${themeCss}
   useEffect(() => {
     recomputeLiveEdgeAlerts();
     const id = window.setInterval(recomputeLiveEdgeAlerts, 60 * 60 * 1000);
-    return () => window.clearInterval(id);
+    const idPrompt = window.setInterval(() => setPromptRefreshTick((t) => t + 1), 60 * 60 * 1000);
+    return () => {
+      window.clearInterval(id);
+      window.clearInterval(idPrompt);
+    };
   }, [recomputeLiveEdgeAlerts]);
 
   const [dailyFeaturedAngleCard, setDailyFeaturedAngleCard] = useState(null);
@@ -2153,7 +2164,7 @@ ${themeCss}
               ...((f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? ["f1"] : []),
               "nfl",
             ]}
-            liveEdgeAlerts={liveEdgeAlerts}
+            nbaLiveEdgeAlerts={liveEdgeAlerts}
           />
         )}
 
