@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 
@@ -32,6 +33,7 @@ export default function HomeScreen({
   liveSnapshotEventKeys,
   onTodaySlateDisplayedKeys,
   slateFallbackSports,
+  nbaLiveEdgeAlerts,
 }) {
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
@@ -69,6 +71,8 @@ export default function HomeScreen({
                 </div>
               ))}
             </div>
+
+            <LiveEdgeAlert alerts={nbaLiveEdgeAlerts || []} />
 
             <TickerRail
               isNflSlateActive={isNflSlateActive}

@@ -2113,6 +2113,7 @@ ${themeCss}
               ...((f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? ["f1"] : []),
               "nfl",
             ]}
+            nbaLiveEdgeAlerts={nbaData?.liveEdgeAlerts ?? []}
           />
         )}
 

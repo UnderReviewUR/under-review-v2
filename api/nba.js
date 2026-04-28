@@ -1952,6 +1952,184 @@ function dedupeBeneficiaries(rows) {
   return out.slice(0, 4);
 }
 
+function formatLiveEdgeBeneficiaryLine(fouledRole, beneficiaryName, beneficiaryRole) {
+  const n = String(beneficiaryName || "").trim();
+  if (!n) return null;
+  const fr = String(fouledRole || "");
+  const br = String(beneficiaryRole || "");
+  if (fr === "big" || br === "big") {
+    return `${n} rebounding props worth watching before the market adjusts.`;
+  }
+  if (fr === "guard" || br === "guard") {
+    return `${n} assists and scoring props worth watching before the market adjusts.`;
+  }
+  return `${n} perimeter scoring props worth watching before the market adjusts.`;
+}
+
+function pickLiveEdgeBeneficiary({
+  fouledStats,
+  fouledName,
+  teamAbbr,
+  playersByTeamAbbrev,
+  playerStats,
+}) {
+  const team = String(teamAbbr || "").toUpperCase();
+  const roster = Array.isArray(playersByTeamAbbrev?.[team]) ? playersByTeamAbbrev[team] : [];
+  const fouledKey = String(fouledName || "").trim().toLowerCase();
+  const fouledRole = inferPlayerRoleFromStats(fouledStats);
+  let bestName = "";
+  let bestRole = "";
+  let bestScore = -1;
+  for (const nm of roster) {
+    const label = String(nm || "").trim();
+    const nk = label.toLowerCase();
+    if (!label || nk === fouledKey) continue;
+    const row = (playerStats || []).find(
+      (p) =>
+        String(p?.team || "").toUpperCase() === team &&
+        String(p?.name || "").trim().toLowerCase() === nk,
+    );
+    if (!row) continue;
+    const role = inferPlayerRoleFromStats(row);
+    let score = 0;
+    if (fouledRole === "big") {
+      score =
+        role === "big"
+          ? Number(row.reb || 0) * 12 + Number(row.pts || 0)
+          : Number(row.reb || 0) * 8 + Number(row.pts || 0);
+    } else if (fouledRole === "guard") {
+      score = Number(row.ast || 0) * 12 + Number(row.pts || 0);
+    } else {
+      score = Number(row.pts || 0) * 2 + Number(row.ast || 0);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestName = label;
+      bestRole = role;
+    }
+  }
+  if (!bestName) {
+    return { beneficiaryName: null, beneficiaryPosition: null, beneficiaryLine: null };
+  }
+  return {
+    beneficiaryName: bestName,
+    beneficiaryPosition: bestRole,
+    beneficiaryLine: formatLiveEdgeBeneficiaryLine(fouledRole, bestName, bestRole),
+  };
+}
+
+/**
+ * Phase 1 foul-trouble alerts from confirmed BDL box `pf` only (no inference).
+ * Star gate: season PPG ≥ 15 from BDL season_averages (cached).
+ */
+export async function buildNbaLiveEdgeAlerts(board = {}) {
+  const bdlKey = getEnv("BALLDONTLIE_API_KEY");
+  const season = getNbaSeasonContext().season;
+  const todaysGames = Array.isArray(board.todaysGames) ? board.todaysGames : [];
+  const playerStats = Array.isArray(board.playerStats) ? board.playerStats : [];
+  const playersByTeamAbbrev =
+    board?.rosterGrounding?.playersByTeamAbbrev &&
+    typeof board.rosterGrounding.playersByTeamAbbrev === "object"
+      ? board.rosterGrounding.playersByTeamAbbrev
+      : {};
+
+  if (!bdlKey || !todaysGames.length || !playerStats.length) return [];
+
+  const liveGames = todaysGames.filter((g) => String(g?.state || "").toLowerCase() === "in");
+  if (!liveGames.length) return [];
+
+  const rosterHas = (teamAbbr, playerName) => {
+    const team = String(teamAbbr || "").toUpperCase();
+    const list = Array.isArray(playersByTeamAbbrev[team]) ? playersByTeamAbbrev[team] : [];
+    const pk = String(playerName || "").trim().toLowerCase();
+    return list.some((n) => String(n || "").trim().toLowerCase() === pk);
+  };
+
+  const ppgCache = new Map();
+  const seasonPpg = async (playerId) => {
+    const id = Number(playerId);
+    if (!Number.isFinite(id)) return null;
+    const key = String(id);
+    if (ppgCache.has(key)) return ppgCache.get(key);
+    const row = await fetchSeasonAverageForPlayer(bdlKey, season, id);
+    const v = row?.pts != null ? Number(row.pts) : null;
+    ppgCache.set(key, v);
+    return v;
+  };
+
+  /** Stage 1 — foul + lineup gates only (no season avg yet). */
+  const pending = [];
+  for (const g of liveGames) {
+    const gid = g?.id;
+    const period = Number(g?.period);
+    if (gid == null || !Number.isFinite(period) || period < 1 || period > 2) continue;
+
+    const home = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
+    const away = canonicalizeTeamAbbr(g?.awayTeam?.abbr);
+
+    for (const p of playerStats) {
+      if (Number(p?.gameId) !== Number(gid)) continue;
+      const team = String(p?.team || "").toUpperCase();
+      if (team !== home && team !== away) continue;
+      if (p.pf == null || p.pf === "") continue;
+      const pf = Number(p.pf);
+      if (!Number.isFinite(pf)) continue;
+
+      const playerName = String(p?.name || "").trim();
+      const playerId = p?.playerId;
+      if (!playerName || !rosterHas(team, playerName)) continue;
+
+      let quarterLabel = "";
+      let fires = false;
+      if (period === 1 && pf >= 2) {
+        fires = true;
+        quarterLabel = "Q1 still active";
+      } else if (period === 2 && pf >= 3) {
+        fires = true;
+        quarterLabel = "first half still active";
+      }
+      if (!fires) continue;
+
+      pending.push({ g, gid, period, p, team, playerName, playerId, pf, quarterLabel });
+    }
+  }
+
+  const starIds = [...new Set(pending.map((x) => Number(x.playerId)).filter(Number.isFinite))];
+  for (const id of starIds) {
+    await seasonPpg(id);
+  }
+
+  const alerts = [];
+  for (const row of pending) {
+    const ppg = ppgCache.get(String(row.playerId));
+    if (ppg == null || ppg < 15) continue;
+
+    const ben = pickLiveEdgeBeneficiary({
+      fouledStats: row.p,
+      fouledName: row.playerName,
+      teamAbbr: row.team,
+      playersByTeamAbbrev,
+      playerStats,
+    });
+
+    alerts.push({
+      id: `live_edge_${row.gid}_${row.playerId}`,
+      playerId: row.playerId,
+      playerName: row.playerName,
+      team: row.team,
+      fouls: row.pf,
+      quarter: row.period,
+      quarterLabel: row.quarterLabel,
+      beneficiaryName: ben.beneficiaryName,
+      beneficiaryPosition: ben.beneficiaryPosition,
+      beneficiaryLine: ben.beneficiaryLine,
+      gameId: row.gid,
+    });
+  }
+
+  return alerts;
+}
+
 export function buildNbaNewsImpact(board = {}) {
   const injuries = Array.isArray(board?.injuries) ? board.injuries : [];
   const playerStats = Array.isArray(board?.playerStats) ? board.playerStats : [];
@@ -2346,6 +2524,7 @@ export async function buildNbaUrTakeBoard(question = "") {
   board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
 
   board.newsImpact = buildNbaNewsImpact(board);
+  board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
   board = prioritizeNbaBoardForQuestion(board, boost);
   return board;
 }
@@ -2370,7 +2549,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const boardCacheKey = `nba_board_${new Date().getFullYear()}`;
+      const boardCacheKey = `nba_board_${new Date().getFullYear()}_le1`;
       const boardCached = getCached(boardCacheKey);
       if (boardCached) {
         let out = boardCached;
@@ -2386,7 +2565,8 @@ export default async function handler(req, res) {
             };
           }
         }
-        return res.status(200).json(out);
+        const liveEdgeAlertsCached = await buildNbaLiveEdgeAlerts(out);
+        return res.status(200).json({ ...out, liveEdgeAlerts: liveEdgeAlertsCached });
       }
 
       const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
@@ -2477,6 +2657,7 @@ export default async function handler(req, res) {
       };
       board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
       board.newsImpact = buildNbaNewsImpact(board);
+      board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
 
       if (
         todaysGames.length > 0 ||
