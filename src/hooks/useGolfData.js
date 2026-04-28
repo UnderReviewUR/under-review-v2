@@ -22,6 +22,7 @@ export function useGolfData() {
     }
     loadGolf();
     const poll = window.setInterval(() => {
+      if (document.hidden) return;
       fetch("/api/golf?view=board")
         .then((r) => {
           if (!r.ok) throw new Error("Golf " + r.status);

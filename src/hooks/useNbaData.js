@@ -79,6 +79,7 @@ export function useNbaData() {
     }
     loadNba();
     const poll = window.setInterval(() => {
+      if (document.hidden) return;
       fetch(`/api/nba?view=board&_ts=${Date.now()}`, {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },

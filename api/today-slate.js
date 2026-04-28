@@ -21,6 +21,38 @@ import {
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
 const CACHE_KEY = "today_slate_cache";
 const CACHE_TTL_SECONDS = 300;
+let todaySlateInFlight = null;
+
+async function consumeDailyLlmQuota(scope, limit) {
+  const n = Number(limit || 0);
+  if (!Number.isFinite(n) || n <= 0) return { allowed: true, used: 0, limit: 0 };
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `llm_quota:${scope}:${day}`;
+  const used = Number((await getDurableJson(key)) || 0);
+  if (used >= n) return { allowed: false, used, limit: n };
+  await setDurableJson(key, used + 1, { ttlSeconds: 2 * 24 * 60 * 60 });
+  return { allowed: true, used: used + 1, limit: n };
+}
+
+function estimateAnthropicCostUsd({
+  model,
+  inputTokens = 0,
+  outputTokens = 0,
+  cacheReadTokens = 0,
+  cacheWriteTokens = 0,
+}) {
+  const m = String(model || "").toLowerCase();
+  const isHaiku = m.includes("haiku");
+  const pricing = isHaiku
+    ? { in: 0.8, out: 4.0, cacheRead: 0.08, cacheWrite: 1.0 }
+    : { in: 3.0, out: 15.0, cacheRead: 0.3, cacheWrite: 3.75 };
+  const usd =
+    (Number(inputTokens || 0) / 1_000_000) * pricing.in +
+    (Number(outputTokens || 0) / 1_000_000) * pricing.out +
+    (Number(cacheReadTokens || 0) / 1_000_000) * pricing.cacheRead +
+    (Number(cacheWriteTokens || 0) / 1_000_000) * pricing.cacheWrite;
+  return Number.isFinite(usd) ? Number(usd.toFixed(6)) : 0;
+}
 
 function originFromReq(req) {
   const xfProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
@@ -234,7 +266,10 @@ export default async function handler(req, res) {
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
-    const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
+    const ANTHROPIC_MODEL =
+      getEnv("TODAY_SLATE_ANTHROPIC_MODEL") ||
+      getEnv("ANTHROPIC_MODEL") ||
+      "claude-3-5-haiku-latest";
     if (!ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: "Missing ANTHROPIC_API_KEY" });
     }
@@ -293,31 +328,63 @@ RULES
 - If a sport has no usable slate in the payload, you may still reference it only if another field clearly supports it; otherwise favor sports with real rows.
 - "game" for golf can be the tournament short name; for tennis include player surnames vs; for F1 use next GP name from schedule if present.`;
 
-    const anthropicResult = await fetchAnthropicMessages({
-      apiKey: ANTHROPIC_API_KEY,
-      model: ANTHROPIC_MODEL,
-      max_tokens: 1200,
-      temperature: 0.35,
-      system:
-        "You output valid JSON only. No markdown fences. Keys must match the user schema exactly.",
-      messages: [{ role: "user", content: userPrompt }],
-      timeoutMs: 45000,
-      maxRetries: 3,
-    });
+    const quotaLimit = Number(getEnv("TODAY_SLATE_DAILY_LLM_LIMIT") || 0);
+    const quota = await consumeDailyLlmQuota("today_slate", quotaLimit);
+    if (!quota.allowed) {
+      const fb = buildFallbackSlate(bundle, "budget_guard");
+      await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
+      res.setHeader("Cache-Control", "private, max-age=60");
+      return res.status(200).json(fb);
+    }
 
-    const data = anthropicResult.data;
-    if (!anthropicResult.ok) {
+    const doAnthropicCall = () =>
+      fetchAnthropicMessages({
+        apiKey: ANTHROPIC_API_KEY,
+        model: ANTHROPIC_MODEL,
+        max_tokens: 450,
+        temperature: 0.35,
+        system:
+          "You output valid JSON only. No markdown fences. Keys must match the user schema exactly.",
+        messages: [{ role: "user", content: userPrompt }],
+        timeoutMs: 45000,
+        maxRetries: 2,
+      });
+    const anthropicResult = todaySlateInFlight || doAnthropicCall();
+    if (!todaySlateInFlight) {
+      todaySlateInFlight = anthropicResult.finally(() => {
+        todaySlateInFlight = null;
+      });
+    }
+    const resolvedAnthropic = await todaySlateInFlight;
+
+    const data = resolvedAnthropic.data;
+    const usage = data?.usage || {};
+    const estimatedUsd = estimateAnthropicCostUsd({
+      model: ANTHROPIC_MODEL,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cacheReadTokens: usage.cache_read_input_tokens,
+      cacheWriteTokens: usage.cache_creation_input_tokens,
+    });
+    console.log(
+      `[today-slate] anthropic usage: input=${Number(usage.input_tokens || 0)} output=${Number(
+        usage.output_tokens || 0,
+      )} cache_read=${Number(usage.cache_read_input_tokens || 0)} cache_write=${Number(
+        usage.cache_creation_input_tokens || 0,
+      )} est_usd=${estimatedUsd}`,
+    );
+    if (!resolvedAnthropic.ok) {
       console.error(
         "today-slate Anthropic error:",
-        anthropicResult.status,
-        anthropicResult.rateLimitedExhausted ? "(retries exhausted)" : "",
+        resolvedAnthropic.status,
+        resolvedAnthropic.rateLimitedExhausted ? "(retries exhausted)" : "",
         data,
       );
       const fb = buildFallbackSlate(
         bundle,
-        anthropicResult.rateLimitedExhausted
+        resolvedAnthropic.rateLimitedExhausted
           ? "upstream_rate_limit"
-          : `upstream_error_${anthropicResult.status}`,
+          : `upstream_error_${resolvedAnthropic.status}`,
       );
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
       res.setHeader("Cache-Control", "private, max-age=60");

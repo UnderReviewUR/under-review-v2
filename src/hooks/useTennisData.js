@@ -144,6 +144,7 @@ export function useTennisData() {
     }
     loadAll();
     pollId = window.setInterval(() => {
+      if (document.hidden) return;
       Promise.all([
         fetchTennisBoard(contextRef.current, "board"),
         fetchTennisBoard(contextRef.current, "home"),

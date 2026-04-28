@@ -6,6 +6,7 @@ export function useNflData() {
   useEffect(() => {
     let active = true;
     async function loadNflContext() {
+      if (document.hidden) return;
       try {
         const res = await fetch("/api/nfl-context");
         if (!res.ok) throw new Error(`NFL context ${res.status}`);
