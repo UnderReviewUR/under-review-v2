@@ -21,7 +21,6 @@ export function useMlbData() {
     }
     loadMlb();
     const poll = window.setInterval(() => {
-      if (document.hidden) return;
       fetch("/api/mlb?view=board").then(r=>r.json()).then(d=>{ if(active) setMlbData(d); }).catch(()=>{});
     }, 180000);
     return () => { active=false; window.clearInterval(poll); };
@@ -74,10 +73,7 @@ export function useMlbData() {
       } catch(err) { console.log("MLB ESPN fetch failed:", err.message); }
     }
     loadMlbGames();
-    const poll = window.setInterval(() => {
-      if (document.hidden) return;
-      loadMlbGames();
-    }, 60000);
+    const poll = window.setInterval(loadMlbGames, 60000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 

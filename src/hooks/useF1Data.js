@@ -20,7 +20,6 @@ export function useF1Data() {
     }
     loadF1();
     const poll = window.setInterval(() => {
-      if (document.hidden) return;
       fetch("/api/f1").then(r=>r.json()).then(d=>{ if(active) setF1Data(d); }).catch(()=>{});
     }, 120000);
     return () => { active=false; window.clearInterval(poll); };

@@ -11,9 +11,7 @@ import {
   ipLimit,
 } from "./_rateLimitUrTake.js";
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
-import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
-import { createHash } from "node:crypto";
 import { buildCanonicalNflContext } from "./_nflContext.js";
 import {
   buildTeamDraftFocusBlock,
@@ -44,11 +42,6 @@ export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.j
 
 /** Single closing rule for NBA when posted lines are missing — keeps ODDS-UNAVAILABLE + FALLBACK aligned. */
 const NBA_UNIFIED_MARKET_CLOSING_RULE = `- Close with a specific conditional trigger tied to a player name and stat threshold. Format: "If [player] line opens at [number] or lower, lean [direction]." This is a forward trigger — not a dismissal. Never say "when markets post" or "come back when lines are up" or any variant that sends the user away.`;
-const UR_TAKE_RESPONSE_CACHE_TTL_SECONDS = 60;
-const UR_TAKE_REPEAT_THROTTLE_MS = 20000;
-const UR_TAKE_PROMPT_CHAR_CAP = 22000;
-const inFlightAnthropicByKey = new Map();
-const recentQuestionByActor = new Map();
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
@@ -1059,114 +1052,18 @@ async function callAnthropic({
   messages,
   temperature = 0.45,
   max_tokens = 800,
-  dedupeKey = null,
 }) {
   /** Allow slow Claude completions when the host permits long functions (see vercel.json maxDuration). */
-  const run = () =>
-    fetchAnthropicMessages({
-      apiKey,
-      model,
-      max_tokens,
-      temperature,
-      system,
-      messages,
-      timeoutMs: 52000,
-      maxRetries: 3,
-    });
-  if (!dedupeKey) return run();
-  const hit = inFlightAnthropicByKey.get(dedupeKey);
-  if (hit) return hit;
-  const task = run().finally(() => {
-    inFlightAnthropicByKey.delete(dedupeKey);
+  return fetchAnthropicMessages({
+    apiKey,
+    model,
+    max_tokens,
+    temperature,
+    system,
+    messages,
+    timeoutMs: 52000,
+    maxRetries: 3,
   });
-  inFlightAnthropicByKey.set(dedupeKey, task);
-  return task;
-}
-
-function buildStableHash(input) {
-  return createHash("sha256").update(String(input || "")).digest("hex");
-}
-
-function normalizeQuestionForCache(question) {
-  return String(question || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function estimateAnthropicCostUsd({
-  model,
-  inputTokens = 0,
-  outputTokens = 0,
-  cacheReadTokens = 0,
-  cacheWriteTokens = 0,
-}) {
-  const m = String(model || "").toLowerCase();
-  const isHaiku = m.includes("haiku");
-  // Approx pricing snapshot (USD / 1M tokens). Used for observability only.
-  const pricing = isHaiku
-    ? { in: 0.8, out: 4.0, cacheRead: 0.08, cacheWrite: 1.0 }
-    : { in: 3.0, out: 15.0, cacheRead: 0.3, cacheWrite: 3.75 };
-  const usd =
-    (Number(inputTokens || 0) / 1_000_000) * pricing.in +
-    (Number(outputTokens || 0) / 1_000_000) * pricing.out +
-    (Number(cacheReadTokens || 0) / 1_000_000) * pricing.cacheRead +
-    (Number(cacheWriteTokens || 0) / 1_000_000) * pricing.cacheWrite;
-  return Number.isFinite(usd) ? Number(usd.toFixed(6)) : 0;
-}
-
-async function consumeDailyLlmQuota(scope, limit) {
-  const n = Number(limit || 0);
-  if (!Number.isFinite(n) || n <= 0) return { allowed: true, used: 0, limit: 0 };
-  const day = new Date().toISOString().slice(0, 10);
-  const key = `llm_quota:${scope}:${day}`;
-  const used = Number((await getDurableJson(key)) || 0);
-  if (used >= n) return { allowed: false, used, limit: n };
-  await setDurableJson(key, used + 1, { ttlSeconds: 2 * 24 * 60 * 60 });
-  return { allowed: true, used: used + 1, limit: n };
-}
-
-function isDeterministicInfoIntent(question) {
-  const q = normalizeQuestionForCache(question);
-  if (!q) return false;
-  const asksSchedule =
-    /\b(who plays|who is playing|what games|what s on the slate|schedule|when does|what time)\b/.test(
-      q,
-    );
-  const asksBet = /\b(over|under|prop|best bet|angle|edge|parlay|odds|line)\b/.test(q);
-  return asksSchedule && !asksBet;
-}
-
-function buildDeterministicInfoResponse({ sportHint, question, nbaContext, mlbContext, golfContext, f1Context }) {
-  if (!isDeterministicInfoIntent(question)) return null;
-  if (sportHint === "nba") {
-    const games = (nbaContext?.todaysGames || [])
-      .filter((g) => String(g?.state || "").toLowerCase() !== "post")
-      .slice(0, 4)
-      .map((g) => `${g?.awayTeam?.abbr || "AWAY"} @ ${g?.homeTeam?.abbr || "HOME"}`);
-    if (!games.length) return "No in-window NBA games are listed right now.";
-    return `Current NBA slate: ${games.join(" · ")}.`;
-  }
-  if (sportHint === "mlb") {
-    const games = (mlbContext?.games || [])
-      .filter((g) => String(g?.state || "").toLowerCase() !== "post")
-      .slice(0, 4)
-      .map((g) => `${g?.awayTeam?.abbr || "AWAY"} @ ${g?.homeTeam?.abbr || "HOME"}`);
-    if (!games.length) return "No in-window MLB games are listed right now.";
-    return `Current MLB slate: ${games.join(" · ")}.`;
-  }
-  if (sportHint === "golf") {
-    const ev = golfContext?.currentEvent || golfContext?.tournament || null;
-    if (!ev) return "No active or upcoming PGA event is available right now.";
-    return `${ev?.shortName || ev?.name || "PGA Tour event"} — ${ev?.course || "course TBD"} (${ev?.state || "pre"}).`;
-  }
-  if (sportHint === "f1") {
-    const race = (f1Context?.schedule?.races || []).find((r) => r?.is_next) || f1Context?.schedule?.races?.[0];
-    if (!race) return "No upcoming F1 race is listed right now.";
-    return `Next F1 race: ${race?.meeting_name || race?.name || "Grand Prix"} (${race?.race_start || race?.race_date || "time TBD"}).`;
-  }
-  return null;
 }
 
 function summarizePriorTakes(history) {
@@ -4070,19 +3967,6 @@ export default async function handler(req, res) {
   }
 
   const hasImage = !!image?.base64;
-  const actorKey = String(userEmail || urAuth?.email || clientIp || "anon").toLowerCase();
-  const repeatQuestionKey = buildStableHash(normalizeQuestionForCache(question)).slice(0, 24);
-  if (!hasImage && !isConversationFollowUp) {
-    const prev = recentQuestionByActor.get(actorKey);
-    const now = Date.now();
-    if (prev && prev.key === repeatQuestionKey && now - prev.ts < UR_TAKE_REPEAT_THROTTLE_MS) {
-      return res.status(429).json({
-        error: "rate_limited",
-        response: "Same question submitted too quickly — give it a few seconds before retrying.",
-      });
-    }
-    recentQuestionByActor.set(actorKey, { key: repeatQuestionKey, ts: now });
-  }
 
   const intent = detectIntent(question, hasImage);
   const chaseSignals = detectChaseSignals(question, incomingHistory);
@@ -4211,38 +4095,6 @@ export default async function handler(req, res) {
 
   if (sportHint === "nba" && nbaContext && !nbaContext.newsImpact) {
     nbaContext.newsImpact = buildNbaNewsImpact(nbaContext);
-  }
-
-  const deterministicResponse = buildDeterministicInfoResponse({
-    sportHint,
-    question,
-    nbaContext,
-    mlbContext,
-    golfContext: golfContextEffective,
-    f1Context,
-  });
-  if (deterministicResponse) {
-    const deterministicPayload = {
-      response: deterministicResponse,
-      responseDeep: null,
-      responseFormat: "plain",
-      statusShift: null,
-      decisionMode: null,
-      sport: sportHint || "generic",
-      intent,
-      take: {
-        id: `take_${Date.now()}`,
-        playLine: deterministicResponse.slice(0, 120),
-        confidence: "Medium",
-        status: "active",
-        trust: buildTakeTrustUiMetadata({
-          contextQuality: "high",
-          evidenceSparsityProfile: "normal",
-          sportHint: sportHint || "generic",
-        }),
-      },
-    };
-    return res.status(200).json(deterministicPayload);
   }
 
   const oddsAvailable = resolveOddsAvailabilityForSport({
@@ -5816,20 +5668,28 @@ Rules:
 ${continuationRule}`;
   }
 
+  const messages = buildMessagesForAnthropic({
+    userPrompt,
+    history: incomingHistory,
+    intent,
+    hasImage,
+    image,
+  });
+
   try {
     const factualQuestion = isSettledFactQuestion(question);
     const selectedTemperature = factualQuestion ? 0.2 : 0.45;
 
     const tokenBudget =
       draftTeamSimulationInject
-        ? 1400
+        ? 2600
         : outputJsonMode === "tier2_5_json"
-          ? 1700
+          ? 4200
           : outputJsonMode === "tier2_live_json"
-            ? 1000
+            ? 2200
             : outputJsonMode === "tier1_json"
-              ? 450
-              : isPro ? 900 : 650;
+              ? 700
+              : isPro ? 1400 : 800;
 
     // Pro depth guidance only for plain-text full cards — never override JSON contracts,
     // follow-up brevity rules, or draft simulation routes.
@@ -5857,20 +5717,7 @@ You are responding to a Pro subscriber. Apply the following:
 - Never fabricate a line, spread, or total that is not present in the context payload. If odds are unavailable, the verdict close must be directional only — no invented numbers.
 ` : "";
 
-    let systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}`;
-    let effectiveUserPrompt = userPrompt;
-    const sizeBeforeTrim = systemPromptWithProAppendix.length + effectiveUserPrompt.length;
-    if (sizeBeforeTrim > UR_TAKE_PROMPT_CHAR_CAP && proDepthAppendix) {
-      systemPromptWithProAppendix = systemPromptForModel;
-    }
-    const capAfterSystem = Math.max(
-      5000,
-      UR_TAKE_PROMPT_CHAR_CAP - systemPromptWithProAppendix.length,
-    );
-    if (effectiveUserPrompt.length > capAfterSystem) {
-      effectiveUserPrompt =
-        `${effectiveUserPrompt.slice(0, capAfterSystem)}\n\n[Context trimmed server-side for token budget.]`;
-    }
+    const systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}`;
 
     if (sportHint === "nba" && nbaContext?.rosterGrounding) {
       console.log(
@@ -5885,63 +5732,11 @@ You are responding to a Pro subscriber. Apply the following:
     console.log(
       `[ur-take] context: sport=${String(
         sportHint || "unknown",
-      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${effectiveUserPrompt.length}${
+      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${userPrompt.length}${
         nbaCtxJsonChars != null ? ` nbaContextJsonChars=${nbaCtxJsonChars}` : ""
       }`,
     );
-    const messages = buildMessagesForAnthropic({
-      userPrompt: effectiveUserPrompt,
-      history: incomingHistory,
-      intent,
-      hasImage,
-      image,
-    });
-    const quotaLimit = Number(getEnv("UR_TAKE_DAILY_LLM_LIMIT") || 0);
-    const quota = await consumeDailyLlmQuota("ur_take", quotaLimit);
-    if (!quota.allowed) {
-      return res.status(503).json({
-        error: "budget_guard_active",
-        response: "UR Take is temporarily in budget protection mode — try again shortly.",
-      });
-    }
 
-    const shouldUseResponseCache =
-      !hasImage &&
-      !isConversationFollowUp &&
-      outputJsonMode !== "tier2_live_json";
-    const cacheFingerprint = shouldUseResponseCache
-      ? buildStableHash(
-          JSON.stringify({
-            q: normalizeQuestionForCache(question),
-            sport: String(sportHint || "generic"),
-            mode: String(outputJsonMode || "plain"),
-            intent: String(intent || "generic"),
-            system: systemPromptWithProAppendix,
-            userPrompt,
-          }),
-        ).slice(0, 32)
-      : null;
-    const responseCacheKey = cacheFingerprint
-      ? `ur_take_resp_v1_${cacheFingerprint}`
-      : null;
-    if (responseCacheKey) {
-      const cachedPayload = await getDurableJson(responseCacheKey);
-      if (cachedPayload && !cachedPayload?._empty) {
-        console.log(
-          `[ur-take] cache hit: key=${responseCacheKey} ttl=${UR_TAKE_RESPONSE_CACHE_TTL_SECONDS}s`,
-        );
-        return res.status(200).json(cachedPayload);
-      }
-    }
-    const anthropicDedupeKey = buildStableHash(
-      JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        temp: selectedTemperature,
-        max: tokenBudget,
-        system: systemPromptWithProAppendix,
-        messages,
-      }),
-    ).slice(0, 32);
     const result = await callAnthropic({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
@@ -5949,7 +5744,6 @@ You are responding to a Pro subscriber. Apply the following:
       messages,
       temperature: selectedTemperature,
       max_tokens: tokenBudget,
-      dedupeKey: anthropicDedupeKey,
     });
 
     // TODO: post-response validation
@@ -5989,21 +5783,6 @@ You are responding to a Pro subscriber. Apply the following:
       });
     }
 
-    const usage = result?.data?.usage || {};
-    const estimatedUsd = estimateAnthropicCostUsd({
-      model: ANTHROPIC_MODEL,
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
-      cacheReadTokens: usage.cache_read_input_tokens,
-      cacheWriteTokens: usage.cache_creation_input_tokens,
-    });
-    console.log(
-      `[ur-take] anthropic usage: input=${Number(usage.input_tokens || 0)} output=${Number(
-        usage.output_tokens || 0,
-      )} cache_read=${Number(usage.cache_read_input_tokens || 0)} cache_write=${Number(
-        usage.cache_creation_input_tokens || 0,
-      )} est_usd=${estimatedUsd}`,
-    );
     const text = extractAnthropicText(result.data);
 
     if (!text) {
@@ -6159,7 +5938,7 @@ You are responding to a Pro subscriber. Apply the following:
       });
     }
 
-    const payload = {
+    return res.status(200).json({
       response: responseText,
       responseDeep,
       responseFormat,
@@ -6174,13 +5953,7 @@ You are responding to a Pro subscriber. Apply the following:
       sport: sportHint || "generic",
       intent,
       take: takeClientPayload(takeRecord),
-    };
-    if (responseCacheKey) {
-      await setDurableJson(responseCacheKey, payload, {
-        ttlSeconds: UR_TAKE_RESPONSE_CACHE_TTL_SECONDS,
-      });
-    }
-    return res.status(200).json(payload);
+    });
   } catch (err) {
     console.error("UR TAKE error:", err);
     return res.status(500).json({
