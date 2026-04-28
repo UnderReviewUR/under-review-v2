@@ -3529,6 +3529,40 @@ Drop the exact matchup (or player + market) and I’ll tighten this into a concr
 Confidence: Low (${derivedConfidence}) — this is a no-context opinion, not a verified market read.`;
 }
 
+function buildRateLimitFallbackResponse({
+  sportHint,
+  question,
+  derivedConfidence,
+  nbaContext,
+  mlbContext,
+  golfContext,
+  f1Context,
+}) {
+  const q = String(question || "").trim();
+  if (sportHint === "nba") {
+    const games = (nbaContext?.todaysGames || [])
+      .slice(0, 3)
+      .map((g) => `${g?.awayTeam?.abbr || "AWAY"} @ ${g?.homeTeam?.abbr || "HOME"}`);
+    const gameLine = games.length ? `Slate focus: ${games.join(" | ")}.` : "Slate focus: NBA board context is loaded.";
+    return `Quick board read while upstream is busy: lean pace-and-rotation angles over hard line calls right now. ${gameLine} Confidence: ${derivedConfidence}.`;
+  }
+  if (sportHint === "mlb") {
+    const games = (mlbContext?.games || [])
+      .slice(0, 3)
+      .map((g) => `${g?.awayTeam?.abbr || "AWAY"} @ ${g?.homeTeam?.abbr || "HOME"}`);
+    return `Quick MLB board read while upstream is busy: prioritize starter role clarity and park context before committing to prop size. ${games.length ? `Slate focus: ${games.join(" | ")}.` : ""} Confidence: ${derivedConfidence}.`;
+  }
+  if (sportHint === "golf") {
+    const ev = golfContext?.currentEvent || golfContext?.tournament || null;
+    return `Quick golf board read while upstream is busy: favor placement markets over outrights unless board volatility clearly supports the upside. ${ev ? `Event: ${ev?.shortName || ev?.name || "PGA Tour event"}.` : ""} Confidence: ${derivedConfidence}.`;
+  }
+  if (sportHint === "f1") {
+    const race = (f1Context?.schedule?.races || []).find((r) => r?.is_next) || f1Context?.schedule?.races?.[0];
+    return `Quick F1 board read while upstream is busy: prefer race-pace and team-trim angles over single-session noise. ${race ? `Next race: ${race?.meeting_name || race?.name || "Grand Prix"}.` : ""} Confidence: ${derivedConfidence}.`;
+  }
+  return `Quick read while upstream is busy: ${q || "use matchup context"} and lean the highest-signal structural edge over low-information line chasing. Confidence: ${derivedConfidence}.`;
+}
+
 function buildMlbPreMarketUserPrompt({
   question,
   mlbContext,
@@ -5754,10 +5788,37 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (!result.ok) {
       if (result.rateLimitedExhausted) {
-        return res.status(503).json({
-          error: "rate_limited",
-          response: "We're experiencing high demand — please try again in a few seconds.",
+        const fallbackResponse = buildRateLimitFallbackResponse({
+          sportHint,
+          question,
+          derivedConfidence,
+          nbaContext: nbaContextForModel,
+          mlbContext,
+          golfContext: golfContextEffective,
+          f1Context,
+        });
+        const fallbackTake = extractTakeFromResponse({
+          responseText: fallbackResponse,
+          sport: sportHint || "generic",
+          intent,
+          question,
+        });
+        return res.status(200).json({
+          response: fallbackResponse,
+          responseDeep: null,
+          responseFormat: "plain",
+          statusShift: null,
+          decisionMode:
+            sportHint === "nba"
+              ? nbaDecisionMode
+              : sportHint === "mlb"
+                ? mlbDecisionMode
+                : null,
+          sport: sportHint || "generic",
+          intent,
+          take: takeClientPayload(fallbackTake),
           requestId: result.requestId,
+          fallbackReason: "upstream_rate_limit",
         });
       }
 
