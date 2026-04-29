@@ -1,8 +1,14 @@
 /**
- * POST https://api.anthropic.com/v1/messages with 429 exponential backoff (1s, 2s, 4s).
+ * POST https://api.anthropic.com/v1/messages with exponential backoff on
+ * transient upstream failures (429 rate limit, 529 overloaded, 503 unavailable).
  */
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+
+/** HTTP statuses where Anthropic may recover shortly — same backoff as 429. */
+function isTransientAnthropicHttpStatus(status) {
+  return status === 429 || status === 503 || status === 529;
+}
 
 export async function fetchAnthropicMessages({
   apiKey,
@@ -12,7 +18,7 @@ export async function fetchAnthropicMessages({
   system,
   messages,
   timeoutMs = 52000,
-  maxRetries = 3,
+  maxRetries = 4,
 }) {
   let lastResponse = null;
   let lastRequestId = null;
@@ -46,9 +52,19 @@ export async function fetchAnthropicMessages({
 
       lastData = await lastResponse.json().catch(() => ({}));
 
-      if (lastResponse.status !== 429) {
+      if (lastResponse.ok) {
         return {
-          ok: lastResponse.ok,
+          ok: true,
+          status: lastResponse.status,
+          requestId: lastRequestId,
+          data: lastData,
+          rateLimitedExhausted: false,
+        };
+      }
+
+      if (!isTransientAnthropicHttpStatus(lastResponse.status)) {
+        return {
+          ok: false,
           status: lastResponse.status,
           requestId: lastRequestId,
           data: lastData,
@@ -60,6 +76,20 @@ export async function fetchAnthropicMessages({
         const delay = Math.pow(2, attempt) * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
+    } catch (err) {
+      lastData = { error: { message: err?.message || "fetch_failed" } };
+      if (attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        return {
+          ok: false,
+          status: 0,
+          requestId: lastRequestId,
+          data: lastData,
+          rateLimitedExhausted: true,
+        };
+      }
     } finally {
       clearTimeout(timeout);
     }
@@ -67,7 +97,7 @@ export async function fetchAnthropicMessages({
 
   return {
     ok: false,
-    status: 429,
+    status: lastResponse?.status ?? 429,
     requestId: lastRequestId,
     data: lastData,
     rateLimitedExhausted: true,
