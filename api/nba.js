@@ -1648,6 +1648,35 @@ function prioritizeNbaBoardForQuestion(board, abbrevs) {
   };
 }
 
+function attachPraFieldsToPlayerRow(p) {
+  const rg = Array.isArray(p?.recentGames) ? p.recentGames : [];
+  let praSeason = null;
+  if (p.pts != null && p.reb != null && p.ast != null) {
+    praSeason = Number(p.pts) + Number(p.reb) + Number(p.ast);
+  }
+  let praRecent = null;
+  let praFloor = null;
+  let praCeiling = null;
+  if (rg.length > 0) {
+    const pras = rg.map(
+      (g) => Number(g?.pts || 0) + Number(g?.reb || 0) + Number(g?.ast || 0),
+    );
+    praRecent = pras.reduce((sum, n) => sum + n, 0) / rg.length;
+    praFloor = Math.min(...pras);
+    praCeiling = Math.max(...pras);
+  }
+  return { ...p, praSeason, praRecent, praFloor, praCeiling };
+}
+
+function formatPraToken(v) {
+  if (v == null || Number.isNaN(v)) return "n/a";
+  if (typeof v === "number" && !Number.isInteger(v)) {
+    const rounded = Math.round(v * 10) / 10;
+    return String(rounded);
+  }
+  return String(v);
+}
+
 function buildPlayerStatsSummaryLines(players, statsSource) {
   const header =
     statsSource === "game_box"
@@ -1655,7 +1684,7 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
       : statsSource === "hybrid_game_box_plus_pregame_season"
         ? "PLAYER SNAPSHOT (today's box scores PLUS season averages for teams whose games have not tipped yet — prefer tonightGame / props for matchup)"
         : "PLAYER SNAPSHOT (season averages — NOT live roster; team may lag trades. Cross-check tonightGame / props.)";
-  const lines = (players || []).slice(0, 120).map((p) => {
+  const lines = (players || []).slice(0, 120).flatMap((p) => {
     const pts = p.pts != null ? `${Number(p.pts)}` : "?";
     const reb = p.reb != null ? `${Number(p.reb)}` : "?";
     const ast = p.ast != null ? `${Number(p.ast)}` : "?";
@@ -1663,7 +1692,19 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
     const fouls = p.pf != null ? ` ${Number(p.pf)}pf` : "";
     const tg = p.tonightGame ? ` | Tonight: ${p.tonightGame}` : "";
     const tag = p.source === "season_average" ? " [season avg]" : "";
-    return `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${min}${fouls}${tg}${tag}`;
+    const base = `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${min}${fouls}${tg}${tag}`;
+    const rg = Array.isArray(p.recentGames) ? p.recentGames : [];
+    const recentLine =
+      rg.length > 0
+        ? `Last ${rg.length} games: ${rg
+            .map(
+              (g) =>
+                `${g.date} vs ${g.matchup}: ${g.pts}pts ${g.reb}reb ${g.ast}ast`,
+            )
+            .join(" | ")}`
+        : "(no recent game log available)";
+    const praLine = `PRA: season avg ${formatPraToken(p.praSeason)} | recent avg ${formatPraToken(p.praRecent)} | range ${formatPraToken(p.praFloor)}–${formatPraToken(p.praCeiling)}`;
+    return [base, recentLine, praLine];
   });
   return [header, "", ...lines].join("\n");
 }
@@ -1719,6 +1760,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
       statsSource = "season_average";
     }
 
+    playerStats = playerStats.map(attachPraFieldsToPlayerRow);
     const playerStatsText = buildPlayerStatsSummaryLines(playerStats, statsSource);
 
     return { playerStats, playerStatsText, statsSource };
@@ -1729,9 +1771,10 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
       season,
       focusTeamIds.length ? focusTeamIds : bdlTeamIdsForSlate(todaysGames),
     );
+    const fallbackWithPra = fallback.map(attachPraFieldsToPlayerRow);
     return {
-      playerStats: fallback,
-      playerStatsText: buildPlayerStatsSummaryLines(fallback, "season_average"),
+      playerStats: fallbackWithPra,
+      playerStatsText: buildPlayerStatsSummaryLines(fallbackWithPra, "season_average"),
       statsSource: "season_average",
     };
   }
@@ -1805,7 +1848,16 @@ function buildRecentGameLogEntry(row) {
 async function fetchRecentGameLogs(bdlKey, playerStats, focusTeamAbbrevs) {
   if (!bdlKey) return {};
   const focus = new Set((focusTeamAbbrevs || []).map((a) => String(a || "").toUpperCase()).filter(Boolean));
-  if (!focus.size) return {};
+  if (!focus.size) {
+    const tonightTeams = new Set(
+      (playerStats || [])
+        .filter((p) => p?.tonightGame)
+        .map((p) => String(p?.team || "").toUpperCase())
+        .filter(Boolean),
+    );
+    if (!tonightTeams.size) return {};
+    tonightTeams.forEach((t) => focus.add(t));
+  }
 
   const targetPlayerIds = [...new Set(
     (playerStats || [])
@@ -1845,7 +1897,7 @@ async function fetchRecentGameLogs(bdlKey, playerStats, focusTeamAbbrevs) {
   for (const [playerIdStr, rows] of Object.entries(byPlayer)) {
     const top = [...rows]
       .sort((a, b) => Date.parse(String(b?.game?.date || "")) - Date.parse(String(a?.game?.date || "")))
-      .slice(0, 3)
+      .slice(0, 5)
       .map(buildRecentGameLogEntry);
     out[playerIdStr] = top;
   }
@@ -2476,7 +2528,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     const recentGames = Number.isFinite(playerId)
       ? recentGameLogsByPlayerId[String(playerId)] || []
       : [];
-    return { ...p, recentGames };
+    return attachPraFieldsToPlayerRow({ ...p, recentGames });
   });
   const playerStatsTextMerged = buildPlayerStatsSummaryLines(
     playerStatsWithRecent,
@@ -2614,7 +2666,7 @@ export default async function handler(req, res) {
         const recentGames = Number.isFinite(playerId)
           ? recentGameLogsByPlayerId[String(playerId)] || []
           : [];
-        return { ...p, recentGames };
+        return attachPraFieldsToPlayerRow({ ...p, recentGames });
       });
 
       const playerStatsTextMerged = buildPlayerStatsSummaryLines(
