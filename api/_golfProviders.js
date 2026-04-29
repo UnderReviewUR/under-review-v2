@@ -1,6 +1,10 @@
 import { bdlFetch } from "./_balldontlie.js";
 import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { PGA_PLAYERS } from "../src/components/data/golf/players.js";
+
+const GOLF_CUT_LINE_FEED_NOTE =
+  "Cut line: not available in current feed. Do not project cut line. Reference make_cut odds only.";
 
 const PGA_COURSE_COORDS = {
   "Augusta National Golf Club": { lat: 33.5021, lon: -82.0232 },
@@ -27,6 +31,67 @@ const PGA_COURSE_COORDS = {
 
 function normalizeName(s) {
   return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
+}
+
+/**
+ * Static strokes-gained bundle from `PGA_PLAYERS` (season averages in repo).
+ * Fuzzy match: exact display name, then last-name match vs canonical keys.
+ */
+export function getStaticPlayerSG(playerName) {
+  const raw = String(playerName || "").trim();
+  if (!raw) return null;
+  if (PGA_PLAYERS[raw]) {
+    const sg = PGA_PLAYERS[raw]?.sg;
+    if (!sg || typeof sg !== "object") return null;
+    return {
+      sg_total: sg.total ?? null,
+      sg_app: sg.app ?? null,
+      sg_putt: sg.putt ?? null,
+    };
+  }
+  const rl = raw.toLowerCase();
+  for (const [canonical, row] of Object.entries(PGA_PLAYERS)) {
+    if (canonical.toLowerCase() === rl) {
+      const sg = row?.sg;
+      if (!sg || typeof sg !== "object") return null;
+      return {
+        sg_total: sg.total ?? null,
+        sg_app: sg.app ?? null,
+        sg_putt: sg.putt ?? null,
+      };
+    }
+  }
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const last = parts.length ? parts[parts.length - 1].toLowerCase() : "";
+  if (!last || last.length < 3) return null;
+  for (const [canonical, row] of Object.entries(PGA_PLAYERS)) {
+    const ck = canonical.split(/\s+/).pop()?.toLowerCase() || "";
+    if (ck === last) {
+      const sg = row?.sg;
+      if (!sg || typeof sg !== "object") return null;
+      return {
+        sg_total: sg.total ?? null,
+        sg_app: sg.app ?? null,
+        sg_putt: sg.putt ?? null,
+      };
+    }
+  }
+  return null;
+}
+
+function enrichLeaderboardRowsWithStaticSg(rows) {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row) => {
+    const label = row?.name || row?.player || "";
+    const sg = getStaticPlayerSG(label);
+    return {
+      ...row,
+      sg_total: sg?.sg_total ?? null,
+      sg_app: sg?.sg_app ?? null,
+      sg_putt: sg?.sg_putt ?? null,
+      sg_note: sg ? "season SG (static)" : "SG not available",
+    };
+  });
 }
 
 function getCourseCoords(courseName) {
@@ -1269,13 +1334,15 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
         (preferEspnDisplay ? espnEvent?.startDate : tournament?.startDate) ||
           espnEvent?.startDate
       ),
-    leaderboard: useBdlLeaderboard
-      ? bdlLeaderboard
-      : useEspnLeaderboard
-      ? espnEvent?.leaderboard || []
-      : useOddsProxyLeaderboard
-      ? oddsTopThree
-      : [],
+    leaderboard: enrichLeaderboardRowsWithStaticSg(
+      useBdlLeaderboard
+        ? bdlLeaderboard
+        : useEspnLeaderboard
+        ? espnEvent?.leaderboard || []
+        : useOddsProxyLeaderboard
+        ? oddsTopThree
+        : [],
+    ),
   };
 
   const suppressCurrent = shouldSuppressStaleMergedEvent({
@@ -1352,7 +1419,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v13";
+  const cacheKey = "unified_golf_board_v14";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -1371,6 +1438,7 @@ export async function getUnifiedGolfBoard({ oddsApiKey }) {
   });
 
   let weatherAlert = null;
+  let weatherSnapshot = null;
   const courseCandidates = [
     merged.tournament?.courseName,
     merged.course?.name,
@@ -1389,6 +1457,12 @@ export async function getUnifiedGolfBoard({ oddsApiKey }) {
   if (coords) {
     const weather = await fetchCourseWeather(coords.lat, coords.lon);
     if (weather) {
+      weatherSnapshot = {
+        windSpeedMph: weather.windSpeedMph,
+        precipProbability: weather.precipProbability,
+        timestamp: weather.timestamp,
+        courseName: courseLabelForWeather || null,
+      };
       const windAlert = weather.windSpeedMph >= 15;
       const rainAlert = weather.precipProbability >= 60;
       if (windAlert || rainAlert) {
@@ -1404,10 +1478,26 @@ export async function getUnifiedGolfBoard({ oddsApiKey }) {
     }
   }
 
+  const courseAugmented =
+    merged.course != null && typeof merged.course === "object"
+      ? {
+          ...merged.course,
+          cutLineFeedNote: GOLF_CUT_LINE_FEED_NOTE,
+          weatherAlert: weatherAlert || null,
+          weatherSnapshot: weatherSnapshot || null,
+        }
+      : {
+          cutLineFeedNote: GOLF_CUT_LINE_FEED_NOTE,
+          weatherAlert: weatherAlert || null,
+          weatherSnapshot: weatherSnapshot || null,
+        };
+
   const out = {
     ...merged,
+    course: courseAugmented,
     weatherAlert,
     weatherCoordsMatched: Boolean(coords),
+    cutLineFeedNote: GOLF_CUT_LINE_FEED_NOTE,
   };
 
   setCache(cacheKey, out, 2 * 60 * 1000);

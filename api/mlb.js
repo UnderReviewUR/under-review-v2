@@ -74,6 +74,54 @@ function getParkForGame(homeTeamName) {
   return PARK_FACTORS[abbr] || { pf:100, run_env:"NEUTRAL", note:"Park data unavailable" };
 }
 
+/** UR Take / model: explicit PF index + friendly tag (<95 pitcher, >105 hitter). */
+function parkFactorFieldsFromHomeTeam(homeTeamFullName) {
+  const info = getParkForGame(homeTeamFullName);
+  const pfRaw = info?.pf;
+  const pf = Number.isFinite(Number(pfRaw)) ? Number(pfRaw) : null;
+  let parkNote = "neutral";
+  if (pf != null) {
+    if (pf < 95) parkNote = "pitcher-friendly";
+    else if (pf > 105) parkNote = "hitter-friendly";
+  }
+  return { parkFactor: pf, parkNote };
+}
+
+function enrichGameWithParkFactors(gameRow) {
+  if (!gameRow || typeof gameRow !== "object") return gameRow;
+  const homeName = gameRow.homeTeam?.name || "";
+  const { parkFactor, parkNote } = parkFactorFieldsFromHomeTeam(homeName);
+  return { ...gameRow, parkFactor, parkNote };
+}
+
+function buildMlbPitcherStatsText(games) {
+  const names = new Set();
+  for (const g of games || []) {
+    if (g?.homeTeam?.pitcher) names.add(String(g.homeTeam.pitcher).trim());
+    if (g?.awayTeam?.pitcher) names.add(String(g.awayTeam.pitcher).trim());
+  }
+  const lines = [...names]
+    .filter(Boolean)
+    .map(
+      (name) =>
+        `${name} — ERA/WHIP/K9 not available in current feed. Reason from prop lines only.`,
+    );
+  if (!lines.length) {
+    return "Probable pitcher ERA/WHIP/K9 are not available in the current feed for today's slate. Reason from listed prop lines only.";
+  }
+  return lines.join("\n");
+}
+
+function buildMlbSeasonContextForBoard({ gamesForPitcherText, propLines }) {
+  const base = getMlbSeasonContext();
+  const props20 = Array.isArray(propLines) ? propLines.slice(0, 20) : [];
+  return {
+    ...base,
+    urTakePropLines: props20,
+    mlbPitcherStatsText: buildMlbPitcherStatsText(gamesForPitcherText || []),
+  };
+}
+
 function getTeamAbbr(fullName) {
   return TEAM_PARK[fullName]
     ? Object.keys(PARK_FACTORS).find(k => TEAM_PARK[fullName] === k) || fullName.split(" ").pop().slice(0,3).toUpperCase()
@@ -186,6 +234,7 @@ async function getMlbGamesWithPitchers() {
         // Park factor for home team
         const homeTeamFull = home?.team?.displayName || home?.team?.name || "";
         const parkInfo = getParkForGame(homeTeamFull);
+        const { parkFactor, parkNote } = parkFactorFieldsFromHomeTeam(homeTeamFull);
 
         return {
           id:       e.id,
@@ -207,6 +256,8 @@ async function getMlbGamesWithPitchers() {
             pitcher: awayPitcher,
           },
           park: parkInfo,
+          parkFactor,
+          parkNote,
           venue: comp?.venue?.fullName || "",
         };
       });
@@ -260,6 +311,7 @@ async function getMlbTomorrowGamesWithPitchers() {
         if (isLive && !awayPitcher) awayPitcher = extractLivePitcherHint(comp, e, "away");
 
         const homeTeamFull = home?.team?.displayName || home?.team?.name || "";
+        const { parkFactor, parkNote } = parkFactorFieldsFromHomeTeam(homeTeamFull);
         return {
           id: e.id,
           status: isFinal ? "Final" : isLive ? status?.detail || "Live" : gameTime,
@@ -280,6 +332,8 @@ async function getMlbTomorrowGamesWithPitchers() {
             pitcher: awayPitcher,
           },
           park: getParkForGame(homeTeamFull),
+          parkFactor,
+          parkNote,
           venue: comp?.venue?.fullName || "",
         };
       });
@@ -448,17 +502,19 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const boardCached = getCached("mlb_board");
+      const boardCached = getCached("mlb_board_v2");
       if (boardCached) {
         let out = boardCached;
         const cachedGames = Array.isArray(out.games) ? out.games : [];
         if (cachedGames.length === 0) {
           const rec = await recoverLastKnownHomeMlbGames();
           if (rec?.games?.length) {
-            const gamesWithPark = rec.games.map((g) => ({
-              ...g,
-              park: g.park || getParkForGame(g.homeTeam?.name || ""),
-            }));
+            const gamesWithPark = rec.games.map((g) =>
+              enrichGameWithParkFactors({
+                ...g,
+                park: g.park || getParkForGame(g.homeTeam?.name || ""),
+              }),
+            );
             out = {
               ...out,
               games: gamesWithPark,
@@ -488,18 +544,25 @@ export default async function handler(req, res) {
         getMlbGameTotals(ODDS_KEY),
       ]);
 
-      // Enrich games with park factor data
-      const gamesWithPark = games.map((g) => ({
-        ...g,
-        park: g.park || getParkForGame(g.homeTeam?.name || ""),
-      }));
-      const tomorrowGames = tomorrowGamesRaw.map((g) => ({
-        ...g,
-        park: g.park || getParkForGame(g.homeTeam?.name || ""),
-      }));
+      // Enrich games with park factor index + model-facing notes
+      const gamesWithPark = games.map((g) =>
+        enrichGameWithParkFactors({
+          ...g,
+          park: g.park || getParkForGame(g.homeTeam?.name || ""),
+        }),
+      );
+      const tomorrowGames = tomorrowGamesRaw.map((g) =>
+        enrichGameWithParkFactors({
+          ...g,
+          park: g.park || getParkForGame(g.homeTeam?.name || ""),
+        }),
+      );
 
       const board = {
-        seasonContext: getMlbSeasonContext(),
+        seasonContext: buildMlbSeasonContextForBoard({
+          gamesForPitcherText: gamesWithPark,
+          propLines,
+        }),
         games: gamesWithPark,
         tomorrowGames,
         propLines: propLines.slice(0, 100),
@@ -510,7 +573,7 @@ export default async function handler(req, res) {
       };
 
       if (games.length > 0 || propLines.length > 0) {
-        setCached("mlb_board", board, 4 * 60 * 1000);
+        setCached("mlb_board_v2", board, 4 * 60 * 1000);
       }
 
       return res.status(200).json(board);

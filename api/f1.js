@@ -54,6 +54,62 @@ function setCached(key, payload, ttlMs) {
   });
 }
 
+const QUALIFYING_NOT_DONE_NOTE = "Qualifying not yet complete for this event.";
+
+const DRIVER_RACE_HISTORY_FEED_NOTE =
+  "Driver race history: not available in current feed. Do not cite specific finishing positions from prior races. Reason from current standings and qualifying position only.";
+
+const STANDINGS_FALLBACK_FEED_NOTE =
+  "DATA NOTE: F1 standings are using fallback data. Treat with lower confidence. Do not cite specific championship points as confirmed.";
+
+function findQualifyingSessionKey(sessions) {
+  if (!Array.isArray(sessions)) return null;
+  const qual = sessions.find((s) => {
+    const t = String(s.session_type || "").toLowerCase();
+    const n = String(s.session_name || "").toLowerCase();
+    return t === "qualifying" || n === "qualifying";
+  });
+  return qual?.session_key ?? null;
+}
+
+function buildDriverLookup(standings, driversRaw) {
+  const m = new Map();
+  for (const row of standings || []) {
+    if (row?.driver_number != null) {
+      m.set(row.driver_number, {
+        full_name: row.full_name,
+        team_name: row.team_name,
+      });
+    }
+  }
+  for (const d of driversRaw || []) {
+    const num = d?.driver_number;
+    if (num != null && !m.has(num)) {
+      m.set(num, { full_name: d.full_name, team_name: d.team_name });
+    }
+  }
+  return m;
+}
+
+async function fetchQualifyingGridForSession(sessionKey, driverByNumber) {
+  if (sessionKey == null) {
+    return { qualifyingGrid: null, qualifyingNote: QUALIFYING_NOT_DONE_NOTE };
+  }
+  const res = await safeFetch(`/starting_grid?session_key=${sessionKey}`, { timeoutMs: 5000 });
+  if (!res.ok || !Array.isArray(res.data) || res.data.length === 0) {
+    return { qualifyingGrid: null, qualifyingNote: QUALIFYING_NOT_DONE_NOTE };
+  }
+  const sorted = res.data.slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+  const qualifyingGrid = sorted.map((r) => {
+    const num = r.driver_number;
+    const meta = driverByNumber.get(num) || {};
+    const driver = meta.full_name || `Driver #${num}`;
+    const team = meta.team_name || "Unknown";
+    return { position: r.position, driver, team };
+  });
+  return { qualifyingGrid, qualifyingNote: null };
+}
+
 async function safeFetch(path, options = {}) {
   const url = path.startsWith("http") ? path : `${OPENF1}${path}`;
   const timeoutMs = options.timeoutMs || 5000;
@@ -335,6 +391,10 @@ function buildFallbackBoard() {
     session: null,
     sessions: [],
     usingFallback: true,
+    qualifyingGrid: null,
+    qualifyingNote: QUALIFYING_NOT_DONE_NOTE,
+    raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
+    standingsFallbackFeedNote: STANDINGS_FALLBACK_FEED_NOTE,
   };
 }
 
@@ -366,7 +426,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const cached = getCached("f1_board_v4");
+      const cached = getCached("f1_board_v5");
       if (cached) {
         res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json(cached);
@@ -378,18 +438,28 @@ export default async function handler(req, res) {
         getSessionData(),
       ]);
 
+      const driverByNumber = buildDriverLookup(driverResult.standings, driverResult.drivers_raw);
+      const qualSessionKey = findQualifyingSessionKey(sessionPayload.sessions);
+      const qualPayload = await fetchQualifyingGridForSession(qualSessionKey, driverByNumber);
+
+      const usingFallback =
+        !!schedule.usingFallback ||
+        !!driverResult.usingFallbackDrivers ||
+        !!sessionPayload.usingFallbackSession;
+
       const body = {
         schedule,
         standings: driverResult.standings,
         session: sessionPayload.session,
         sessions: sessionPayload.sessions,
-        usingFallback:
-          !!schedule.usingFallback ||
-          !!driverResult.usingFallbackDrivers ||
-          !!sessionPayload.usingFallbackSession,
+        usingFallback,
+        qualifyingGrid: qualPayload.qualifyingGrid,
+        qualifyingNote: qualPayload.qualifyingNote,
+        raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
+        standingsFallbackFeedNote: usingFallback ? STANDINGS_FALLBACK_FEED_NOTE : null,
       };
 
-      setCached("f1_board_v4", body, CACHE_TTL.board);
+      setCached("f1_board_v5", body, CACHE_TTL.board);
       res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
       return res.status(200).json(body);
     }

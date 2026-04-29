@@ -148,7 +148,17 @@ export function buildGlobalQualityPrompt(contextQuality) {
 - CONCISENESS: For no-market or unverified-market responses, keep to 4–6 sentences, no repetitive template blocks, no long disclaimers.
 - CONFIDENCE DISCIPLINE: Never let tone outrun evidence quality. Keep the take useful, but make the confidence cap plain when data is thin.
 - MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.
-- FOLLOW-UP RESPONSE RULE — MANDATORY: If conversation history exists, never reproduce MATCH READ, PROP PROJECTIONS, STATUS SHIFT, or any section from the prior response. Do not repeat analysis already given. Answer only the specific question asked in 3-5 sentences. No section headers on follow-ups. No full breakdowns. If the user asks about a total line, answer the total line question. If they ask about a series average, give the series scoring average. Treat every follow-up like a text reply from a friend who already knows the context.`;
+- FOLLOW-UP RESPONSE RULE — MANDATORY: If conversation history exists, never reproduce MATCH READ, PROP PROJECTIONS, STATUS SHIFT, or any section from the prior response. Do not repeat analysis already given. Answer only the specific question asked in 3-5 sentences. No section headers on follow-ups. No full breakdowns. If the user asks about a total line, answer the total line question. If they ask about a series average, give the series scoring average. Treat every follow-up like a text reply from a friend who already knows the context.
+
+INJURY MENTION RULE (mandatory, no exceptions):
+- Never open a response with an injured player's name.
+- Never use an injured player as the subject of your first sentence.
+- Injured players get one subordinate clause buried inside a sentence about active players:
+  WRONG: "Damian Lillard out for season flips Portland's entire offensive architecture"
+  RIGHT: "Wembanyama's rim protection is the structural edge with Lillard sidelined"
+- If a player has missed more than 14 days, their absence is already priced in. Do not frame it as the edge. It is the reason the edge exists. State the edge. Mention the absence in passing.
+- The response must make complete sense with the injured player's name removed entirely.
+- Lead with what to do. Support it with why. Injury context is support, never lead.`;
 }
 
 export function buildVoiceToneAndFinalCheckPrompt() {

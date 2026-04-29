@@ -63,8 +63,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "missing_date_or_matchup" });
     }
 
-    const cacheKey = `featured_card_${sanitizeKeyPart(dateKey)}_${sanitizeKeyPart(matchupLabel)}`;
-    const cached = await getDurableJson(cacheKey);
+    const kvCacheKey = `featured_card_${sanitizeKeyPart(dateKey)}_${sanitizeKeyPart(matchupLabel)}`;
+    const cached = await getDurableJson(kvCacheKey);
+    console.log('[angle-copy] durable', cached ? 'HIT' : 'MISS', kvCacheKey);
     if (cached?.lean && cached?.reason) {
       res.setHeader("Cache-Control", "private, max-age=120");
       return res.status(200).json(cached);
@@ -119,7 +120,7 @@ RULES
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: HAIKU_MODEL,
+          model: ANTHROPIC_MODEL,
           max_tokens: 180,
           temperature: 0.35,
           system: "Output strict JSON only with keys lean and reason.",
@@ -149,7 +150,8 @@ RULES
       return res.status(502).json({ error: "bad_model_json" });
     }
     const out = { lean, reason };
-    await setDurableJson(cacheKey, out, { ttlSeconds: CACHE_TTL_SECONDS });
+    await setDurableJson(kvCacheKey, out, { ttlSeconds: CACHE_TTL_SECONDS });
+    console.log('[angle-copy] stored', kvCacheKey);
     res.setHeader("Cache-Control", "private, max-age=120");
     return res.status(200).json(out);
   } catch (err) {
