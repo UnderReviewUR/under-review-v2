@@ -1678,7 +1678,14 @@ ${themeCss}
   }, [recomputeLiveEdgeAlerts]);
 
   const [dailyFeaturedAngleCard, setDailyFeaturedAngleCard] = useState(null);
+  const featuredCardFetchedRef = useRef(null);
   useEffect(() => {
+    const featuredGame = homePipeline?.nbaGamesForHome?.[0];
+    const featuredKey = featuredGame?.id ?? null;
+    if (!featuredKey) return;
+    if (featuredCardFetchedRef.current === featuredKey) return;
+    featuredCardFetchedRef.current = featuredKey;
+
     let cancelled = false;
     (async () => {
       const card = await buildDailyFeaturedAngleCard({
