@@ -202,6 +202,17 @@ News Edge: Where injury or lineup news creates immediate usage shifts before mar
 Closing Line: One branded sentence. Rotate from the approved list or generate a variant in the same voice. Examples: "Lines price production. Edges come from minutes." "Books price averages. Edges live in deviations." "Production is not sustainability."`;
 }
 
+/** Live bet + slip review: conviction on cash-out / in-game management (appended when routing applies). */
+export function buildLiveBetAndSlipReviewConvictionPrompt() {
+  return `LIVE BET CONVICTION RULE:
+- When a bet is already winning and the structural reasons for the original edge still hold, do not recommend cashing out.
+- Only recommend a cash-out when the game state has materially changed against the original thesis — not as a default conservative position.
+- If the edge is intact, say so directly: "Let it ride — the thesis hasn't changed."
+- If the user asks about timing, give them a specific trigger to watch, not a generic hedge: "Watch the third quarter pace — if Spurs go up 25+ with both benches in by the fourth, you're fine."
+- Never recommend cashing a winning bet based on a risk that was already priced into the original take.
+- Confident and wrong is recoverable. Mealy-mouthed and right is useless.`;
+}
+
 export function buildNbaUrTakeDecisionModeSpine(mode) {
   const m = String(mode || "none");
   const blocks = {
@@ -338,6 +349,7 @@ Format behavior in this mode:
  * @param {boolean} [input.hasImage]
  * @param {boolean} [input.hasMatchupContext]
  * @param {{ sparseQuestion: boolean, thinEvidence: boolean }} [input.evidenceSparsityProfile] — when set, reuse (single compute in handler)
+ * @param {{ hasLiveKeyword?: boolean }} [input.liveSignals] — live-keyword turns append LIVE BET CONVICTION RULE (with slip_review)
  */
 export function composeRegisteredUrTakeSystemPrompt(input) {
   const {
@@ -352,6 +364,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     hasImage = false,
     hasMatchupContext = false,
     evidenceSparsityProfile: profileIn,
+    liveSignals = null,
   } = input;
 
   const evidenceProfile =
@@ -388,6 +401,12 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
   let composed = core + surface;
   if (s === "tennis" || s === "tennis_wta_profile") {
     composed += String(tennisSystemPromptExtra || "");
+  }
+
+  const applyLiveBetSlipReviewConviction =
+    String(intent || "").trim() === "slip_review" || Boolean(liveSignals?.hasLiveKeyword);
+  if (applyLiveBetSlipReviewConviction) {
+    composed += `\n\n${buildLiveBetAndSlipReviewConvictionPrompt()}`;
   }
 
   return applyChaseSystemOverlay(composed, chaseSignals);

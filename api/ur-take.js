@@ -4280,6 +4280,7 @@ export default async function handler(req, res) {
     hasImage,
     hasMatchupContext: Boolean(matchupContext),
     evidenceSparsityProfile,
+    liveSignals,
   });
 
   const outputJsonMode = isConversationFollowUp

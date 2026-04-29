@@ -124,6 +124,34 @@ test("composeRegisteredUrTakeSystemPrompt sparse-only when context high", () => 
   assert.doesNotMatch(p, /Payload\/context for this route is thin/);
 });
 
+test("composeRegisteredUrTakeSystemPrompt appends LIVE BET CONVICTION RULE for slip_review", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    intent: "slip_review",
+  });
+  assert.match(p, /LIVE BET CONVICTION RULE:/);
+  assert.match(p, /Let it ride — the thesis hasn't changed/);
+});
+
+test("composeRegisteredUrTakeSystemPrompt appends LIVE BET CONVICTION RULE when liveSignals.hasLiveKeyword", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    intent: "general",
+    liveSignals: { hasLiveKeyword: true },
+  });
+  assert.match(p, /LIVE BET CONVICTION RULE:/);
+});
+
 test("composeRegisteredUrTakeSystemPrompt honors injected evidenceSparsityProfile", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
     contextQuality: "low",
