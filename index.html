@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+<script>
+  (function() {
+    try {
+      if (!localStorage.getItem('ur_seen_landing')) {
+        localStorage.setItem('ur_seen_landing', '1');
+        window.location.replace('https://under-review.app/about');
+      }
+    } catch(e) {}
+  })();
+</script>
     <meta charset="UTF-8" />
 
     <!-- Mobile + viewport -->
@@ -11,6 +21,9 @@
 
     <!-- Theme color (mobile browser UI) -->
     <meta name="theme-color" content="#070710" />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
 
     <!-- Single font bundle: trims unused Epilogue weights (was 400–900 every step). DM Mono includes 600 for UI numerics. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
