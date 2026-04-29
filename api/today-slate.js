@@ -49,20 +49,122 @@ function extractAnthropicText(data) {
     .trim();
 }
 
+/**
+ * Parse Anthropic output into slate JSON. Models often wrap JSON in ```json fences
+ * despite instructions — strip fences and extract the outermost `{...}` object.
+ */
 function safeParseSlateJson(text) {
   const raw = String(text || "").trim();
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+
   const tryParse = (s) => {
     try {
-      return JSON.parse(s);
+      const o = JSON.parse(s);
+      return o && typeof o === "object" ? o : null;
     } catch {
       return null;
     }
   };
-  let o = tryParse(raw);
+
+  let o = tryParse(stripped);
   if (o) return o;
-  const m = raw.match(/\{[\s\S]*\}\s*$/);
-  if (m) return tryParse(m[0]);
+  o = tryParse(raw);
+  if (o) return o;
+
+  const brace = stripped.match(/\{[\s\S]*\}/) || raw.match(/\{[\s\S]*\}/);
+  if (brace) {
+    o = tryParse(brace[0]);
+    if (o) return o;
+  }
   return null;
+}
+
+/** Cut token volume to Anthropic (same Haiku org TPM); full boards can exceed 50k TPM when Home polls often. */
+function slimBundleForSlatePrompt(bundle) {
+  if (!bundle || typeof bundle !== "object") return bundle;
+  const out = { fetchedAt: bundle.fetchedAt };
+
+  if (bundle.nba) {
+    out.nba = {
+      todaysGames: (bundle.nba.todaysGames || []).slice(0, 12).map((g) => ({
+        awayTeam: { abbr: g?.awayTeam?.abbr, name: g?.awayTeam?.name, score: g?.awayTeam?.score },
+        homeTeam: { abbr: g?.homeTeam?.abbr, name: g?.homeTeam?.name, score: g?.homeTeam?.score },
+        state: g?.state,
+        status: g?.status,
+        period: g?.period,
+        clock: g?.clock,
+        seriesContext: g?.seriesContext,
+      })),
+      playoffSeries: Array.isArray(bundle.nba.playoffSeries) ? bundle.nba.playoffSeries.slice(0, 8) : [],
+      propLines: (bundle.nba.propLines || []).slice(0, 35).map((p) => ({
+        player: p.player,
+        game: p.game,
+        prop: p.prop || p.propRaw,
+      })),
+      gameTotals: bundle.nba.gameTotals,
+      injuries: (bundle.nba.injuries || []).slice(0, 22).map((i) => ({
+        player: i.player,
+        team: i.team,
+        status: i.status,
+      })),
+    };
+  }
+
+  if (bundle.mlb) {
+    out.mlb = {
+      games: (bundle.mlb.games || []).slice(0, 12).map((g) => ({
+        awayTeam: { abbr: g?.awayTeam?.abbr },
+        homeTeam: { abbr: g?.homeTeam?.abbr },
+        state: g?.state,
+        park: g?.park ? { name: g.park?.name, pf: g.park?.pf } : null,
+      })),
+      propLines: (bundle.mlb.propLines || []).slice(0, 35).map((p) => ({
+        player: p.player,
+        game: p.game,
+        prop: p.prop || p.propRaw,
+      })),
+      gameTotals: bundle.mlb.gameTotals,
+    };
+  }
+
+  if (bundle.golf) {
+    const ge = bundle.golf.currentEvent || bundle.golf.tournament;
+    out.golf = ge
+      ? {
+          event: {
+            name: ge.name || ge.shortName,
+            shortName: ge.shortName || ge.name,
+          },
+        }
+      : { note: "golf board present" };
+  }
+
+  if (Array.isArray(bundle.tennis)) {
+    out.tennis = bundle.tennis.slice(0, 18).map((m) => ({
+      home: m.home || m.home_team,
+      away: m.away || m.away_team,
+      round: m.round,
+    }));
+  }
+
+  if (bundle.f1) {
+    const races = bundle.f1.schedule?.races || [];
+    out.f1 = {
+      schedule: {
+        races: races.slice(0, 8).map((r) => ({
+          meeting_name: r.meeting_name,
+          is_next: r.is_next,
+          circuit_short_name: r.circuit_short_name,
+        })),
+      },
+    };
+  }
+
+  if (bundle.nfl) {
+    out.nfl = bundle.nfl;
+  }
+
+  return out;
 }
 
 function summarizeNba(nba) {
@@ -274,12 +376,14 @@ export default async function handler(req, res) {
           : null,
     };
 
+    const slimBundle = slimBundleForSlatePrompt(bundle);
+
     const userPrompt = `You are Under Review's cross-sport slate editor.
 
-Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports).
+Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports). Rows may be truncated for size — still ground angles only in what is present.
 
 DATA
-${JSON.stringify(bundle, null, 2)}
+${JSON.stringify(slimBundle, null, 2)}
 
 TASK
 Return ONLY a single JSON object (no markdown, no prose outside JSON) with exactly this shape and keys:
@@ -304,10 +408,10 @@ RULES
     const anthropicResult = await fetchAnthropicMessages({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
-      max_tokens: 300,
+      max_tokens: 260,
       temperature: 0.35,
       system:
-        "You output valid JSON only. No markdown fences. Keys must match the user schema exactly.",
+        "You output valid JSON only. Never wrap output in markdown or ``` code fences. Raw JSON object only. Keys must match the user schema exactly.",
       messages: [{ role: "user", content: userPrompt }],
       timeoutMs: 45000,
       maxRetries: 3,
