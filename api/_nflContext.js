@@ -1,7 +1,19 @@
 import RBs from "./nfl-rb.js";
 import WRsAndTEs from "./nfl-wr-te.js";
 import { QBs } from "./nfl-players.js";
-import { buildNflDraftBoardBlock, getActiveDraftBundle, getNflDraftMeta } from "./nfl-draft-season.js";
+import { defenses } from "./nfl-defense.js";
+import { getDurableJson } from "./_durableStore.js";
+import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
+import {
+  buildNflDraftBoardBlock,
+  getActiveDraftBundle,
+  getNflDraftMeta,
+  getNflTeamAbbrFromName,
+  resolveNflTeamFromQuestion,
+} from "./nfl-draft-season.js";
+
+/** Hard ceiling for `promptContext` text sent with UR Take (Anthropic payload budget). */
+export const NFL_PROMPT_CONTEXT_BUDGET_CHARS = 20000;
 
 // WEATHER RULE: Always use home team's stadium coords.
 // Never use away team. Never use neutral site.
@@ -40,6 +52,115 @@ export const NFL_STADIUM_META = {
   TEN: { lat: 36.1665, lon: -86.7713, domed: false, stadium: "Nissan Stadium" },
   WAS: { lat: 38.9076, lon: -76.8645, domed: false, stadium: "Northwest Stadium" },
 };
+
+/**
+ * @param {string} abbr
+ * @returns {string[]}
+ */
+function nflAbbrAliasKeys(abbr) {
+  const a = String(abbr || "")
+    .toUpperCase()
+    .trim();
+  if (!a) return [];
+  if (a === "WSH") return ["WAS", "WSH"];
+  if (a === "WAS") return ["WAS", "WSH"];
+  if (a === "ARI" || a === "ARZ") return ["ARI", "ARZ"];
+  return [a];
+}
+
+/**
+ * @param {Set<string>} scope
+ * @param {string} teamFromRow
+ */
+function scopeMatchesTeam(scope, teamFromRow) {
+  if (!scope || scope.size === 0) return true;
+  const t = String(teamFromRow || "")
+    .toUpperCase()
+    .trim();
+  if (!t) return false;
+  for (const s of scope) {
+    for (const k of nflAbbrAliasKeys(s)) {
+      if (t === k) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Resolve 1–2 NFL team abbreviations from question text + optional matchup card (NBA-style scope).
+ * Empty set ⇒ league-wide prompts use compact injections (token budget).
+ * @param {string} question
+ * @param {object | null | undefined} matchupContext
+ * @returns {Set<string>}
+ */
+export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
+  const set = new Set();
+  const q = String(question || "").trim();
+
+  try {
+    const hint = detectNflTeamHint(q);
+    if (hint) set.add(String(hint).toUpperCase());
+  } catch {
+    /* ignore */
+  }
+
+  const focusFullName = resolveNflTeamFromQuestion(q);
+  if (focusFullName) {
+    const ab = getNflTeamAbbrFromName(focusFullName);
+    if (ab) set.add(ab);
+  }
+
+  const qUpper = q.toUpperCase();
+  const pair = qUpper.match(/\b([A-Z]{2,4})\s*(?:@|VS\.?|V\.?)\s*([A-Z]{2,4})\b/);
+  if (pair) {
+    set.add(pair[1]);
+    set.add(pair[2]);
+  }
+
+  const leagueStr = String(matchupContext?.league || "").toUpperCase();
+  if (matchupContext && leagueStr.includes("NFL")) {
+    const raw = matchupContext.raw || {};
+    const ha = String(raw.homeTeam?.abbr || raw.home_abbr || "").toUpperCase();
+    const aa = String(raw.awayTeam?.abbr || raw.away_abbr || "").toUpperCase();
+    if (ha && /^[A-Z]{2,4}$/.test(ha)) set.add(ha);
+    if (aa && /^[A-Z]{2,4}$/.test(aa)) set.add(aa);
+  }
+
+  if (set.size > 2) return new Set();
+  return set;
+}
+
+function filterObjectEntriesByTeam(entries, scope) {
+  if (!scope || scope.size === 0) return entries;
+  return entries.filter(([, p]) => scopeMatchesTeam(scope, p?.team));
+}
+
+function filterDefensesMap(scope) {
+  if (!scope || scope.size === 0) return defenses;
+  const out = {};
+  for (const abbr of Object.keys(defenses)) {
+    let hit = false;
+    for (const s of scope) {
+      if (nflAbbrAliasKeys(s).includes(abbr)) hit = true;
+    }
+    if (hit) out[abbr] = defenses[abbr];
+  }
+  return out;
+}
+
+function filterDepthByScope(depthObj, scope) {
+  if (!depthObj || typeof depthObj !== "object") return depthObj;
+  if (!scope || scope.size === 0) return depthObj;
+  const out = {};
+  for (const [teamKey, row] of Object.entries(depthObj)) {
+    let hit = false;
+    for (const s of scope) {
+      if (nflAbbrAliasKeys(s).includes(teamKey)) hit = true;
+    }
+    if (hit) out[teamKey] = row;
+  }
+  return out;
+}
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -156,22 +277,151 @@ function buildPromptContext(uiPlayers) {
   return lines;
 }
 
-export function buildCanonicalNflContext() {
-  const wrteEntries = Object.entries(WRsAndTEs || {}).map(([name, player]) =>
-    mapWrTeToUi(name, player)
+function formatRbDatabasePrompt(rbMap) {
+  const lines = Object.entries(rbMap || {}).map(([name, p]) => {
+    const s = p.stats2025 || {};
+    const r = p.rush2025 || {};
+    const carries = s.carries ?? r.att ?? "n/a";
+    const yards = s.yards ?? r.yds ?? "n/a";
+    const tds = s.tds ?? r.td ?? "n/a";
+    return `${name} (${p.team}): ${carries} car, ${yards} yds, ${tds} TDs | Tier: ${p.tier}`;
+  });
+  return (
+    "\n\n2025 SEASON RB DATABASE (trend context — not current season):\n" + lines.join("\n")
   );
-  const rbEntries = Object.entries(RBs || {}).map(([name, player]) =>
-    mapRbToUi(name, player)
+}
+
+function formatWrTeDatabasePrompt(wrMap) {
+  const lines = Object.entries(wrMap || {}).map(([name, p]) => {
+    const s = p.stats2025 || {};
+    const r = p.rec2025 || {};
+    const rec = s.rec ?? r.rec ?? "n/a";
+    const yds = s.yds ?? r.yds ?? "n/a";
+    const td = s.td ?? r.td ?? "n/a";
+    return `${name} (${p.team}, ${p.pos || "WR"}): ${rec} rec, ${yds} yds, ${td} TDs | Tier: ${p.tier}`;
+  });
+  return (
+    "\n\n2025 SEASON WR/TE DATABASE (trend context — not current season):\n" + lines.join("\n")
   );
-  const qbEntries = Object.entries(QBs || {}).map(([name, player]) =>
-    mapQbToUi(name, player)
+}
+
+function formatDefensePrompt(defensesMap) {
+  const lines = Object.entries(defensesMap || {}).map(
+    ([abbr, d]) =>
+      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | Pass rank ${d.pass.rank} | Rush rank ${d.rush.rank} | ${d.propImpact.qb}`,
   );
+  return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams):\n" + lines.join("\n");
+}
+
+/** Short defense lines — league-wide mode without long propImpact strings (token budget). */
+function formatDefensePromptCompact(defensesMap) {
+  const lines = Object.entries(defensesMap || {}).map(
+    ([abbr, d]) =>
+      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | pass rank ${d.pass.rank} | rush rank ${d.rush.rank}`,
+  );
+  return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams — compact):\n" + lines.join("\n");
+}
+
+/**
+ * @param {object} options
+ * @param {string} [options.question]
+ * @param {object | null} [options.matchupContext]
+ * @param {Set<string>|string[]|null} [options.scopeTeamAbbrs]
+ */
+export async function buildCanonicalNflContext(options = {}) {
+  const { question = "", matchupContext = null, scopeTeamAbbrs = null } = options;
+
+  let scope = resolveNflScopeTeamAbbrevSet(question, matchupContext);
+  if (scopeTeamAbbrs instanceof Set && scopeTeamAbbrs.size > 0 && scopeTeamAbbrs.size <= 2) {
+    scope = scopeTeamAbbrs;
+  } else if (Array.isArray(scopeTeamAbbrs) && scopeTeamAbbrs.length > 0 && scopeTeamAbbrs.length <= 2) {
+    scope = new Set(scopeTeamAbbrs.map((x) => String(x || "").toUpperCase()));
+  }
+  if (scope.size > 2) scope = new Set();
+
+  const scoped = Boolean(scope && scope.size > 0 && scope.size <= 2);
+  const leagueCompact = !scoped;
+
+  let wrteEntries = Object.entries(WRsAndTEs || {}).map(([name, player]) => mapWrTeToUi(name, player));
+  let rbEntries = Object.entries(RBs || {}).map(([name, player]) => mapRbToUi(name, player));
+  let qbEntries = Object.entries(QBs || {}).map(([name, player]) => mapQbToUi(name, player));
+
+  if (scoped) {
+    wrteEntries = filterObjectEntriesByTeam(wrteEntries, scope);
+    rbEntries = filterObjectEntriesByTeam(rbEntries, scope);
+    qbEntries = filterObjectEntriesByTeam(qbEntries, scope);
+  }
 
   const uiPlayers = Object.fromEntries([...wrteEntries, ...rbEntries, ...qbEntries]);
   const draftBundle = getActiveDraftBundle();
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
   const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
-  const promptContext = [buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  let promptContext = [buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+
+  const depthData = await getDurableJson("nfl_depth_chart");
+  const depthFiltered =
+    depthData?.depth && scoped ? filterDepthByScope(depthData.depth, scope) : depthData?.depth;
+
+  if (depthFiltered && typeof depthFiltered === "object" && Object.keys(depthFiltered).length > 0) {
+    promptContext +=
+      "\n\nDEPTH CHARTS (Ourlads, updated weekly):\n" +
+      Object.entries(depthFiltered)
+        .map(([team, d]) => `${team}: QB1 ${d.qb1 || "n/a"} | QB2 ${d.qb2 || "n/a"} | QB3 ${d.qb3 || "n/a"}`)
+        .join("\n");
+  } else if (depthData?.depth && leagueCompact) {
+    promptContext +=
+      "\n\nDepth charts (Ourlads): omitted in league mode — ask with a team or matchup for QB1–QB3.";
+  }
+
+  if (scoped) {
+    const rbMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(RBs || {}), scope));
+    const wrMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(WRsAndTEs || {}), scope));
+    promptContext += formatRbDatabasePrompt(rbMap);
+    promptContext += formatWrTeDatabasePrompt(wrMap);
+    promptContext += formatDefensePrompt(filterDefensesMap(scope));
+  } else {
+    promptContext +=
+      "\n\nLeague mode: RB/WR duplicate rows omitted — ask with a team/matchup for full positional + coaching slices.";
+    promptContext += formatDefensePromptCompact(defenses);
+  }
+
+  const rosterData = await getDurableJson("nfl_espn_roster");
+  if (!leagueCompact && rosterData?.coaches && typeof rosterData.coaches === "object") {
+    let coachEntries = Object.entries(rosterData.coaches);
+    if (scoped) {
+      coachEntries = coachEntries.filter(([team]) => {
+        for (const s of scope) {
+          if (nflAbbrAliasKeys(s).includes(team)) return true;
+        }
+        return false;
+      });
+    }
+    if (coachEntries.length) {
+      const coachLines = coachEntries
+        .map(([team, c]) => `${team}: HC ${c.hc || "n/a"} | OC ${c.oc || "n/a"} | DC ${c.dc || "n/a"}`)
+        .join("\n");
+      promptContext += "\n\nNFL COACHING STAFF (current per ESPN):\n" + coachLines;
+    }
+  }
+
+  if (rosterData?.players?.length) {
+    let pool = rosterData.players.filter((p) => p.injuryStatus && p.injuryStatus !== "Active");
+    if (scoped) {
+      pool = pool.filter((p) => scopeMatchesTeam(scope, p.team));
+    }
+    const injCap = leagueCompact ? 12 : 40;
+    const injured = pool.map((p) => `${p.name} (${p.team}, ${p.position}): ${p.injuryStatus}`).slice(0, injCap);
+    if (injured.length) {
+      promptContext += "\n\nNFL INJURY REPORT (ESPN, updated every 6hrs):\n" + injured.join("\n");
+    }
+  }
+
+  if (promptContext.length > NFL_PROMPT_CONTEXT_BUDGET_CHARS) {
+    const suffix =
+      "\n\n[NFL context truncated to token budget — narrow the question to a team or matchup.]";
+    const room = Math.max(0, NFL_PROMPT_CONTEXT_BUDGET_CHARS - suffix.length);
+    promptContext = `${promptContext.slice(0, room)}${suffix}`;
+  }
 
   return {
     uiPlayers,
@@ -191,6 +441,8 @@ export function buildCanonicalNflContext() {
       qbCount: qbEntries.length,
       generatedAt: new Date().toISOString(),
       nflDraftPhase: draftMeta.phase,
+      nflPromptContextChars: promptContext.length,
+      nflPromptScopeMode: scoped ? `scoped:${[...scope].sort().join("+")}` : "league_compact",
     },
     dataFreshness: {
       qbDataSeason: "2024",

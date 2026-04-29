@@ -5291,7 +5291,7 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 Never open with "no odds yet." Give them a monitoring plan and a priced band
 in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`;
   } else if (sportHint === "nfl") {
-    const canonicalNfl = buildCanonicalNflContext();
+    const canonicalNfl = await buildCanonicalNflContext({ question, matchupContext });
     const nflContextEffective =
       nflContext && String(nflContext).trim()
         ? nflContext

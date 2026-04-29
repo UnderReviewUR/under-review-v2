@@ -267,7 +267,16 @@ Stay inside the matchup and surface implied by context. Player snapshot lines ar
 
 export function buildNflSurfaceAppendix() {
   return `NFL SURFACE SPINE
-Roster and prop board JSON are the only authoritative player/game anchors. Do not invent lines, injuries, or snap counts. When props are empty, use the NO-MARKET user rules already injected — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).`;
+Roster and prop board JSON are the only authoritative player/game anchors. Do not invent lines, injuries, or snap counts. When props are empty, use the NO-MARKET user rules already injected — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).
+
+NFL DATA CURRENCY RULE (mandatory):
+- Stats labeled "2024 SEASON" or "historical reference" are trend context only. Never present as current season performance.
+- Use historical stats for trend reasoning:
+  CORRECT: "Over the last two seasons Stafford has averaged 4,100+ yards against Cardinals defenses — that structural tendency holds."
+  WRONG: "Stafford is throwing for 4,200 yards this season."
+- Coaching staff context is current per ESPN. Use it for scheme reasoning: "In year two of Schotty's offense, the Cowboys emphasize 11-personnel..."
+- Defense data is 2025 season baseline. Present as established tendencies, not guaranteed current performance.
+- Never fabricate coaching tenure, scheme details, or injury status not present in the context payload.`;
 }
 
 export function buildGolfSurfaceAppendix() {

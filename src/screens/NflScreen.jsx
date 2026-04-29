@@ -32,6 +32,17 @@ export default function NflScreen({
                 {nflSeasonMode?"Current weekly props, role changes, usage shifts, and market edges.":"Skill positions database with per-game stats, TD rates, prop floors and ceilings."}
                 <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Player database is hand-maintained — verify lines against your book">Est.</span>
               </div>
+              <div style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 9,
+                letterSpacing: 2,
+                color: "var(--muted)",
+                textTransform: "uppercase",
+                marginTop: 6,
+                padding: "0 20px",
+              }}>
+                Player props + live lines arriving with the 2026 season
+              </div>
             </div>
             {nflMsgs.length===0&&(
               <div className="nfl-ask-shell" ref={nflBarRef}>

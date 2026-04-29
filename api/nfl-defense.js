@@ -19,11 +19,7 @@ export const config = {
 
 import { applyCors } from "./_cors.js";
 
-export default async function handler(req, res) {
-  if (!applyCors(req, res)) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
-  const defenses = {
+export const defenses = {
 
     // ═══════════════════════════════════════
     // ELITE DEFENSES — 2025 SEASON
@@ -650,7 +646,11 @@ export default async function handler(req, res) {
       bettingAngles: ["Saints defense is mediocre without elite talent", "Tyler Shough can't carry a below-average defense — OVER lean in Saints games"],
       note: "Tyrann Mathieu is aging but still a smart veteran safety. Saints defense is mediocre across the board — functional but not a game-changer in either direction."
     },
-  };
+};
+
+export default async function handler(req, res) {
+  if (!applyCors(req, res)) return;
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   return res.status(200).json({
     defenses,

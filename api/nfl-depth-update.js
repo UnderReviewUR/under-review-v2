@@ -6,12 +6,13 @@ export const config = {
   api: { bodyParser: false },
 };
 
+import { applyCors } from "./_cors.js";
+import { setDurableJson } from "./_durableStore.js";
+
 // Simple in-memory cache (resets on each cold start, fine for cron use)
 let cachedDepth = null;
 let cacheTime = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
-
-import { applyCors } from "./_cors.js";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
@@ -26,6 +27,11 @@ export default async function handler(req, res) {
     if (depth) {
       cachedDepth = depth;
       cacheTime = Date.now();
+      await setDurableJson(
+        "nfl_depth_chart",
+        { depth, fetchedAt: Date.now() },
+        { ttlSeconds: 60 * 60 * 24 * 7 },
+      );
       console.log(`[nfl-depth-update] Updated at ${new Date().toISOString()} - ${Object.keys(depth).length} teams`);
       return res.status(200).json({ source: "fresh", updatedAt: new Date(cacheTime).toISOString(), depth });
     }

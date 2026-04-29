@@ -29,6 +29,10 @@
     {
       "path": "/api/nfl-depth-update",
       "schedule": "0 14 * * 2"
+    },
+    {
+      "path": "/api/nfl-roster-refresh",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

@@ -2531,7 +2531,7 @@ ${themeCss}
         {color:"#FFE600",name:"Tennis — Elo + Surface Edges",desc:"ATP/WTA rally profiles, serve baselines, draw-path value across every surface."},
         {color:"#1DB954",name:"MLB — Pitcher K Props",desc:"Park-adjusted, platoon-split, barrel rate. Know before the line moves."},
         {color:"#FF6B00",name:"NBA — PRA Calibration",desc:"Pace-adjusted floors and ceilings. Live injury replacement plays in real time."},
-        {color:"#4A90D9",name:"NFL — QB, RB, WR & TE Database",desc:"TD rates, prop floors + ceilings for every QB, RB, WR, and TE that matters."},
+        {color:"#4A90D9",name:"NFL — QB, RB, WR & TE Database",desc:"TD rates, prop floors and ceilings for every QB, RB, WR, and TE. Scheme and matchup angles. Full live props arriving with the 2026 season."},
         {color:"#E10600",name:"F1 — Race-Day Angles",desc:"Full 2026 driver grid. Race-day edges the market hasn't priced yet."},
         {color:"#FFFFFF",name:"Golf — Course Fit & Matchup H2Hs",desc:"PGA SG profiles, make-cut plays, and outright value the market underprices weekly."},
       ].map((f,i,arr)=>(
