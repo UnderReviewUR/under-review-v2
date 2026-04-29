@@ -72,7 +72,6 @@ export default async function handler(req, res) {
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
-    const HAIKU_MODEL = process.env.ANTHROPIC_MODEL || getEnv("ANTHROPIC_MODEL");
     if (!ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: "Missing ANTHROPIC_API_KEY" });
     }
@@ -120,7 +119,7 @@ RULES
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 180,
           temperature: 0.35,
           system: "Output strict JSON only with keys lean and reason.",
