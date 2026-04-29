@@ -2488,6 +2488,10 @@ function buildGameTotalsFromProps(propLines) {
   return totals;
 }
 
+/** Prepended in board JSON immediately before `injuries` so UR Take stringified context lists injuries last. */
+const NBA_INJURIES_CONTEXT_NOTE =
+  "INJURY CONTEXT (background only — do not open response with this information, do not frame as primary edge):";
+
 /**
  * Fresh NBA payload for UR Take — **do not rely on the browser-cached board**.
  * Prioritizes Odds prop pulls + stat rows for teams named in the question (e.g. MIN @ DEN).
@@ -2555,18 +2559,19 @@ export async function buildNbaUrTakeBoard(question = "") {
       todaysGames,
     ),
     propLines: propLines.slice(0, 120),
-    injuries,
+    propFeedMeta,
+    playoffSeries,
+    recentForm: "",
+    h2hSplits: [],
+    gameTotals: buildGameTotalsFromProps(propLines),
     bdlGrounding: buildBdlGroundingEnvelope({
       playerStats: playerStatsWithRecent,
       todaysGames,
       injuries,
     }),
-    playoffSeries,
-    recentForm: "",
-    h2hSplits: [],
-    gameTotals: buildGameTotalsFromProps(propLines),
+    injuriesContextNote: NBA_INJURIES_CONTEXT_NOTE,
+    injuries,
     fetchedAt: new Date().toISOString(),
-    propFeedMeta,
     urTakeParsing: {
       boostedTeamAbbrevsFromQuestion: boost,
       note: boost.length
@@ -2690,17 +2695,20 @@ export default async function handler(req, res) {
           statsBundle.statsSource || "unknown",
           todaysGames,
         ),
-        propLines:   propLines.slice(0, 120),
-        injuries,
+        propLines: propLines.slice(0, 120),
+        propFeedMeta,
+        playoffSeries,
+        recentForm: "",
+        h2hSplits: [],
+        gameTotals: buildGameTotalsFromProps(propLines),
         bdlGrounding: buildBdlGroundingEnvelope({
           playerStats: playerStatsWithRecent,
           todaysGames,
           injuries,
         }),
-        playoffSeries,         recentForm: "", h2hSplits: [],
-        gameTotals: buildGameTotalsFromProps(propLines),
+        injuriesContextNote: NBA_INJURIES_CONTEXT_NOTE,
+        injuries,
         fetchedAt: new Date().toISOString(),
-        propFeedMeta,
         _rosterDiag: {
           pregameTeamIdCount: rosterDiag.lastSeasonAverageTeamIds.length,
           pregameTeamIds: rosterDiag.lastSeasonAverageTeamIds,
