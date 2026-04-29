@@ -99,7 +99,7 @@ export const baseCss = `
     min-width:0;
   }
 
-  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-tennis{
+  .pill-tag,.pill-live,.pill-nfl,.pill-f1,.pill-nba,.pill-mlb,.pill-tennis{
     font-family:var(--mono-font);
     font-size:9px;
     padding:3px 8px;

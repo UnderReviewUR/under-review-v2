@@ -580,18 +580,8 @@ function detectIntent(question, hasImage) {
   return "general";
 }
 
-function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage, golfContext }) {
-  if (incomingSportHint) return incomingSportHint;
-
-  if (
-    golfContext &&
-    (golfContext.currentEvent?.name ||
-      (Array.isArray(golfContext.currentEvent?.leaderboard) &&
-        golfContext.currentEvent.leaderboard.length > 0))
-  ) {
-    return "golf";
-  }
-
+/** Sport inferred only from question text, matchup league, or slip image league — not client tab. */
+function inferSportFromQuestionText(question, matchupContext, hasImage) {
   const q = normalizeText(question);
 
   if (matchupContext?.league) {
@@ -638,7 +628,40 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
     if (league.includes("f1")) return "f1";
   }
 
-  if (hasImage) return incomingSportHint || "generic";
+  return null;
+}
+
+function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage, golfContext }) {
+  const textualSport = inferSportFromQuestionText(question, matchupContext, hasImage);
+  const h =
+    typeof incomingSportHint === "string" && incomingSportHint.trim()
+      ? incomingSportHint.trim()
+      : "";
+
+  if (
+    textualSport &&
+    h &&
+    textualSport !== h &&
+    h !== "generic" &&
+    h !== "image_review"
+  ) {
+    return textualSport;
+  }
+
+  if (h) return h;
+
+  if (
+    golfContext &&
+    (golfContext.currentEvent?.name ||
+      (Array.isArray(golfContext.currentEvent?.leaderboard) &&
+        golfContext.currentEvent.leaderboard.length > 0))
+  ) {
+    return "golf";
+  }
+
+  if (textualSport) return textualSport;
+
+  if (hasImage) return "generic";
 
   return "generic";
 }

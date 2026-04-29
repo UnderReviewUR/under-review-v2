@@ -24,7 +24,7 @@ async function setRecord(email, record) {
   await setDurableJson(key, record, { ttlSeconds: GATE_TTL_SECONDS });
 }
 
-const FREE_QUERIES_PER_WEEK = 5;
+const FREE_QUERIES_PER_WEEK = 3;
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TAKE_TOKEN_TTL_MS = 10 * 60 * 1000;
 

@@ -308,7 +308,7 @@ ${themeCss}
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
-  const FREE_LIMIT  = 5;
+  const FREE_LIMIT  = 3;
 
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
 
