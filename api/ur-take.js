@@ -43,6 +43,25 @@ export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.j
 /** Single closing rule for NBA when posted lines are missing — keeps ODDS-UNAVAILABLE + FALLBACK aligned. */
 const NBA_UNIFIED_MARKET_CLOSING_RULE = `- Close with a specific conditional trigger tied to a player name and stat threshold. Format: "If [player] line opens at [number] or lower, lean [direction]." This is a forward trigger — not a dismissal. Never say "when markets post" or "come back when lines are up" or any variant that sends the user away.`;
 
+/** Injected when oddsAvailable is false (including NBA follow-up turns after compact prompt merge). */
+const NBA_ODDS_UNAVAILABLE_MODE_BLOCK = `ODDS-UNAVAILABLE MODE (mandatory when oddsAvailable is false)
+- Never reference a specific line, spread, total, or implied probability as if posted now.
+- Never say "odds unavailable," "lines not posted," "I don't have the line," or any variation.
+- Do not apologize or explain missing odds data.
+- Lead with the structural edge from matchup, pace, rotation, usage, and game script.
+- Name specific players from grounded context whenever available; use real player names from the authorized roster list in context, not positional abstractions like "primary initiator" or "lead guard."
+- When citing angles, anchor to available season-average style context for named players when present (e.g., points/assists/rebounds tendencies from playerStats).
+
+SEASON-AVERAGE PROP ESTIMATES (mandatory when oddsAvailable is false and playerStats exist in context):
+When a user asks for specific prop recommendations and live lines are unavailable, generate estimated prop thresholds from season average data in playerStats. Format these as:
+- "Based on his season average, look for [Player] to go over [season_avg_stat - small_buffer] [stat category]."
+- Example: if Cade Cunningham averages 23.9 PPG, a reasonable threshold is 22.5 — say "Look for Cunningham over 22.5 points based on his season average and elimination-game usage spike."
+Apply matchup context to adjust the threshold up or down. Never present these as live odds — present them as data-grounded estimates. This is not fabrication — this is analysis from confirmed season data.
+Never say "I cannot generate lines" when playerStats data exists in context. That data IS the basis for a recommendation.
+
+${NBA_UNIFIED_MARKET_CLOSING_RULE}
+- Response must read complete and sharp, never like a partial answer.`;
+
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
   return new Date().toLocaleDateString("en-US", {
@@ -1290,12 +1309,19 @@ function normalizeSummaryDeepPayload(summary, deep) {
   };
 }
 
+/** Removes internal routing labels the model sometimes echoes into user-facing text. */
+function stripBannedInternalLeakStrings(text) {
+  let s = String(text || "");
+  s = s.replace(/\bFOLLOW-UP\s+GATE\s+VIOLATION\b\s*:?\s*/gi, "");
+  return s.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /**
  * Global opener sanitizer: remove lead-in paragraphs that describe missing data
  * instead of giving analysis. Keeps the rest of the answer intact.
  */
 function stripBannedDataAvailabilityOpener(text) {
-  let s = String(text || "").trim();
+  let s = stripBannedInternalLeakStrings(String(text || "").trim());
   if (!s) return s;
   const bannedLead =
     /^(?:no edge(?: here)?\.?|no\s+(?:player\s+)?prop\s+markets?\s+(?:posted|available)\b|i don't have\b|i can'?t\b|without\b|the context provided\b|the data provided\b|come back when\b|when (?:markets?|prices?) post\b|props?\s+(?:aren'?t|are not)\s+(?:fully\s+)?available\b)/i;
@@ -1321,7 +1347,7 @@ function stripBannedDataAvailabilityOpener(text) {
  * in the model output (summary or deep), not just the opener.
  */
 function stripBannedPerformanceTrackerLines(text) {
-  const s = String(text || "");
+  let s = stripBannedInternalLeakStrings(String(text || ""));
   if (!s.trim()) return s.trim();
   const bannedLineMatchers = [
     /historical record/i,
@@ -1333,7 +1359,7 @@ function stripBannedPerformanceTrackerLines(text) {
   const kept = s
     .split(/\r?\n/)
     .filter((line) => !bannedLineMatchers.some((re) => re.test(line)));
-  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return stripBannedInternalLeakStrings(kept.join("\n").replace(/\n{3,}/g, "\n\n").trim());
 }
 
 /**
@@ -1902,6 +1928,7 @@ function buildUrTakeFollowUpCoreSystemPrompt() {
 
 FABRICATION GUARDRAIL — MANDATORY
 Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the compact NBA context block in the user message.
+Estimated prop thresholds derived from playerStats in context when live odds are unavailable are authorized — label them clearly as season-average estimates, not as posted book lines.
 
 ROSTER ENFORCEMENT — MANDATORY
 Only name players from the verified roster list provided. Never use training memory for player names.
@@ -1909,7 +1936,7 @@ Only name players from the verified roster list provided. Never use training mem
 ARITHMETIC RULE — MANDATORY
 When you reference pace math, totals, or series scoring averages, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
 
-FOLLOW-UP OUTPUT GATE — MANDATORY
+FOLLOW-UP STYLE — MANDATORY
 Answer only the specific question asked. 3-5 sentences maximum. No section headers. No MATCH READ. No PROP PROJECTIONS. Speak like a sharp friend replying to a text.`;
 }
 
@@ -4340,15 +4367,7 @@ ${jsonContract}${propProjectionModeBlock}${spreadAndGameSideBlock}`
   if (!oddsAvailable) {
     systemPromptForModel = `${systemPromptForModel}
 
-ODDS-UNAVAILABLE MODE (mandatory when oddsAvailable is false)
-- Never reference a specific line, spread, total, or implied probability as if posted now.
-- Never say "odds unavailable," "lines not posted," "I don't have the line," or any variation.
-- Do not apologize or explain missing odds data.
-- Lead with the structural edge from matchup, pace, rotation, usage, and game script.
-- Name specific players from grounded context whenever available; use real player names from the authorized roster list in context, not positional abstractions like "primary initiator" or "lead guard."
-- When citing angles, anchor to available season-average style context for named players when present (e.g., points/assists/rebounds tendencies from playerStats).
-${NBA_UNIFIED_MARKET_CLOSING_RULE}
-- Response must read complete and sharp, never like a partial answer.`;
+${NBA_ODDS_UNAVAILABLE_MODE_BLOCK}`;
   }
   const nbaLiveNoPropSystemPromptBlock =
     sportHint === "nba" ? buildNbaLiveNoPropSystemPromptBlock(nbaGameStateGate, nbaContext) : "";
@@ -4359,6 +4378,9 @@ ${nbaLiveNoPropSystemPromptBlock}`;
   }
   if (isConversationFollowUp) {
     systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
+    if (!oddsAvailable) {
+      systemPromptForModel = `${systemPromptForModel}\n\n${NBA_ODDS_UNAVAILABLE_MODE_BLOCK}`;
+    }
   }
 
   const priorTakesSummary = summarizePriorTakes(incomingHistory);

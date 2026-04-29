@@ -736,7 +736,7 @@ test("NBA conversation follow-up forces short system prompt and compact context 
   );
   assert.equal(out.status, 200);
   assert.ok(anthropicPayload);
-  assert.match(String(anthropicPayload.system || ""), /FOLLOW-UP OUTPUT GATE/);
+  assert.match(String(anthropicPayload.system || ""), /FOLLOW-UP STYLE/);
   assert.match(String(anthropicPayload.system || ""), /Answer only the specific question asked/);
   assert.match(
     String(anthropicPayload.system || ""),
