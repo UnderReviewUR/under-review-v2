@@ -1,100 +1,725 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Under Review</title>
-    <meta name="theme-color" content="#070710" />
-    <meta
-      name="description"
-      content="Bet smarter than the guy next to you. Under Review is the AI tool for people who take their bets personally — sharp takes, real data, no fluff. Free to try."
-    />
-    <meta property="og:title" content="Under Review" />
-    <meta
-      property="og:description"
-      content="Bet smarter than the guy next to you. For the ones who take it personally."
-    />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta
-      name="twitter:description"
-      content="Bet smarter than the guy next to you. For the ones who take it personally."
-    />
-    <style>
-      :root {
-        --bg: #070710;
-        --text: #e8eaf0;
-        --muted: #aab3c2;
-        --cyan: #0891b2;
-        --mag: #e11d48;
-        --border: #1e2328;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-        line-height: 1.5;
-      }
-      #how {
-        padding: 3rem 1.5rem 3.5rem;
-        max-width: 34rem;
-        margin: 0 auto;
-        border-top: 1px solid var(--border);
-      }
-      #how h2 {
-        font-size: 1.125rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        margin: 0 0 1rem;
-      }
-      #how p {
-        margin: 0 0 1rem;
-        color: var(--muted);
-        font-size: 1rem;
-      }
-      #how p:last-child {
-        margin-bottom: 0;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <section class="hero">
-        <h1 class="hero-headline">
-          <span class="line-1">BET SMARTER THAN</span>
-          <span class="line-2">THE GUY NEXT TO YOU.</span>
-        </h1>
-        <p class="hero-sub">For the ones who take it personally.</p>
-        <div class="hero-cta-group">
-          <a href="https://www.under-review.app" class="btn-primary">PROVE IT →</a>
-          <a href="#how" class="btn-secondary">SEE HOW IT WORKS</a>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UnderReview — Sharp Takes. Real Data.</title>
+  <meta name="theme-color" content="#070710" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <meta name="description" content="AI-powered betting intelligence across NBA, NFL, Tennis, F1, MLB and Golf. Sharp takes, real data, no pick service. Free to try." />
+  <meta property="og:title" content="UnderReview — Sharp Takes. Real Data." />
+  <meta property="og:description" content="AI-powered sports betting intelligence. Six sports. Real edges. Not a pick service." />
+  <meta property="og:url" content="https://under-review.app/about" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="UnderReview" />
+  <meta name="twitter:description" content="Sharp takes. Real data. AI betting intelligence for every sport that matters." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #070710;
+      --bg2: #0C0D18;
+      --text: #E8EAF0;
+      --soft: #6B7280;
+      --muted: #2A2D3A;
+      --cyan: #00F5E9;
+      --mag: #FF3D8F;
+      --border: #141825;
+      --mono: "SF Mono", "Fira Code", monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* NAV */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(7,7,16,0.92);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+    .nav-logo {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, var(--cyan), var(--mag));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+    }
+    .nav-cta {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--bg);
+      background: var(--cyan);
+      padding: 8px 18px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* HERO */
+    .hero {
+      padding: 72px 24px 64px;
+      max-width: 640px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .hero-eyebrow {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--soft);
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .hero-headline {
+      font-size: clamp(36px, 8vw, 64px);
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -1.5px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .hero-headline .grad {
+      background: linear-gradient(90deg, var(--cyan), var(--mag));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 16px;
+      color: var(--soft);
+      margin: 16px 0 36px;
+      line-height: 1.6;
+    }
+    .hero-cta-group {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--bg);
+      background: linear-gradient(90deg, var(--cyan), var(--mag));
+      padding: 14px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-secondary {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--soft);
+      border: 1px solid var(--border);
+      padding: 14px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--soft); color: var(--text); }
+
+    /* SOCIAL PROOF BAR */
+    .proof-bar {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .proof-item {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--soft);
+      text-transform: uppercase;
+    }
+    .proof-item span {
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    /* SECTION */
+    section { padding: 64px 24px; }
+    .section-inner {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .section-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--soft);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(24px, 5vw, 36px);
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .section-body {
+      font-size: 15px;
+      color: var(--soft);
+      line-height: 1.7;
+    }
+
+    /* HOW IT WORKS */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      margin-top: 32px;
+    }
+    .step {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .step-num {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--cyan);
+      min-width: 24px;
+      margin-top: 2px;
+    }
+    .step-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .step-body {
+      font-size: 13px;
+      color: var(--soft);
+      line-height: 1.5;
+    }
+
+    /* SPORTS GRID */
+    .sports-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 32px;
+    }
+    .sport-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .sport-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-bottom: 10px;
+    }
+    .sport-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .sport-desc {
+      font-size: 11px;
+      color: var(--soft);
+      line-height: 1.5;
+    }
+
+    /* VALUE PROPS */
+    .value-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 32px;
+    }
+    .value-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .value-title {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      background: linear-gradient(90deg, #C0A060, #F0D890, #C0A060);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .value-desc {
+      font-size: 12px;
+      color: var(--soft);
+      line-height: 1.5;
+    }
+
+    /* PRICING */
+    .pricing-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 24px;
+      text-align: center;
+      margin-top: 32px;
+    }
+    .price-amount {
+      font-size: 56px;
+      font-weight: 900;
+      color: var(--cyan);
+      letter-spacing: -2px;
+      line-height: 1;
+    }
+    .price-period {
+      font-size: 13px;
+      color: var(--soft);
+      margin: 4px 0 8px;
+      font-family: var(--mono);
+      letter-spacing: 1px;
+    }
+    .price-trial {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: rgba(0,245,233,0.4);
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .price-features {
+      list-style: none;
+      margin: 0 0 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+    }
+    .price-features li {
+      font-size: 13px;
+      color: var(--soft);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .price-features li::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      flex-shrink: 0;
+    }
+    .price-cta {
+      display: block;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--bg);
+      background: linear-gradient(90deg, var(--cyan), var(--mag));
+      padding: 16px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .price-cta:hover { opacity: 0.88; }
+    .price-note {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-top: 12px;
+      text-transform: uppercase;
+    }
+
+    /* FOOTER CTA */
+    .footer-cta {
+      border-top: 1px solid var(--border);
+      padding: 72px 24px;
+      text-align: center;
+    }
+    .footer-cta h2 {
+      font-size: clamp(28px, 6vw, 48px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .footer-cta p {
+      font-size: 15px;
+      color: var(--soft);
+      margin-bottom: 32px;
+    }
+    .footer-bottom {
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    .footer-bottom p {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 480px) {
+      .sports-grid, .value-grid { grid-template-columns: 1fr; }
+      .proof-bar { gap: 20px; }
+    }
+
+    /* EXAMPLE TAKE */
+    .example-section { 
+      padding: 64px 24px; 
+      border-top: 1px solid var(--border);
+    }
+    .example-inner { 
+      max-width: 640px; 
+      margin: 0 auto; 
+    }
+    .example-query {
+      background: #1A1D2E;
+      border-radius: 14px 14px 4px 14px;
+      padding: 14px 18px;
+      font-size: 14px;
+      color: var(--text);
+      max-width: 80%;
+      margin: 24px 0 12px auto;
+      text-align: right;
+      line-height: 1.5;
+    }
+    .example-response {
+      background: #0F1215;
+      border: 1px solid var(--border);
+      border-radius: 4px 14px 14px 14px;
+      padding: 20px;
+      font-size: 13px;
+      color: var(--soft);
+      line-height: 1.65;
+    }
+    .example-response .resp-headline {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+    .example-response .resp-section-label {
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 2.5px;
+      color: var(--soft);
+      text-transform: uppercase;
+      margin: 14px 0 5px;
+    }
+    .example-response .resp-body {
+      color: #8A95A3;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 4px;
+    }
+    .example-response .resp-play {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    .example-response .resp-play-label {
+      font-size: 8px;
+      letter-spacing: 3px;
+      color: var(--soft);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .example-response .resp-play-text {
+      background: linear-gradient(90deg, var(--cyan), var(--mag));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .example-response .resp-confidence {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: var(--soft);
+      text-transform: uppercase;
+      margin-top: 10px;
+    }
+    .example-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="https://under-review.app" class="nav-logo">UnderReview</a>
+    <a href="https://under-review.app" class="nav-cta">Try Free →</a>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-eyebrow">Sharp Takes · Real Data · Six Sports</div>
+    <h1 class="hero-headline">
+      Know before<br>
+      <span class="grad">the line moves.</span>
+    </h1>
+    <p class="hero-sub">
+      AI-powered betting intelligence built for bettors who actually think.<br>
+      Not a pick service. Not a tout. A better decision process.
+    </p>
+    <div class="hero-cta-group">
+      <a href="https://under-review.app" class="btn-primary">Start Free — 3 Days →</a>
+      <a href="#how" class="btn-secondary">See How It Works</a>
+    </div>
+  </div>
+
+  <div class="proof-bar">
+    <div class="proof-item"><span>6</span> Sports covered</div>
+    <div class="proof-item"><span>280</span> Player profiles</div>
+    <div class="proof-item"><span>125</span> Injury reports tracked</div>
+    <div class="proof-item"><span>$9.99</span> /month · cancel anytime</div>
+  </div>
+
+  <section id="how" style="background: var(--bg2); border-top: 1px solid var(--border);">
+    <div class="section-inner">
+      <div class="section-label">How It Works</div>
+      <h2 class="section-title">You bring the question.<br>UR Take leads with the edge.</h2>
+      <p class="section-body">No feed to scroll. No picks to tail. Just ask — and get a structured, grounded take backed by real data.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <div>
+            <div class="step-title">Pick your sport and ask anything</div>
+            <div class="step-body">NBA props, tennis serve angles, F1 podium odds, MLB pitcher matchups — UR Take handles all of it in plain language.</div>
+          </div>
         </div>
-      </section>
+        <div class="step">
+          <div class="step-num">02</div>
+          <div>
+            <div class="step-title">Get a full read, not a summary</div>
+            <div class="step-body">Five-step reasoning framework. Market snapshot. Structural anchor. Explicit verdict. THE PLAY at the close — not a recycled opinion.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <div>
+            <div class="step-title">Follow up. Go deeper. Stay sharp.</div>
+            <div class="step-body">Pro carries the session thread. Ask follow-ups. Pressure-test the take. Get the part of the analysis that changes your actual decision.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-      <section id="how" aria-labelledby="how-title">
-        <h2 id="how-title">You bring the lines. UR leads with the take.</h2>
-        <p>One question. Real numbers behind it. No feed. No hype.</p>
-        <p>Free to start. No download. Works on your phone right now.</p>
-      </section>
+  <section class="example-section">
+    <div class="example-inner">
+      <div class="section-label">UR Take — Live Example</div>
+      <h2 class="section-title">This is what<br>
+        <span style="background:linear-gradient(90deg,var(--cyan),var(--mag));
+        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+        background-clip:text;">$9.99 looks like.</span>
+      </h2>
+      <p class="section-body">Real reasoning. Real data. Not a recycled opinion.</p>
 
-      <section class="footer-cta">
-        <h2>
-          <span style="color: var(--text)">THINK YOU'RE</span><br />
-          <span
-            style="
-              background: linear-gradient(90deg, var(--cyan), var(--mag));
-              -webkit-background-clip: text;
-              background-clip: text;
-              -webkit-text-fill-color: transparent;
-            "
-            >SHARPER THAN</span
-          ><br />
-          <span style="color: var(--text)">MOST?</span>
-        </h2>
-        <p>One question is all it takes to find out.</p>
-        <a href="https://www.under-review.app" class="btn-primary">PROVE IT →</a>
-      </section>
-    </main>
-  </body>
+      <div class="example-query">
+        Best prop angle for OKC vs PHX tonight?
+      </div>
+
+      <div class="example-response">
+        <div class="resp-headline">
+          Shai Gilgeous-Alexander points over is 
+          the strongest angle — Phoenix's interior 
+          defense is compromised without Mark Williams.
+        </div>
+
+        <div class="resp-section-label">Market Read</div>
+        <div class="resp-body">
+          Williams' absence removes Phoenix's primary 
+          rim deterrent. OKC runs iso-heavy sets through 
+          SGA — his usage rate climbs above 32% in games 
+          where the paint is open. Phoenix will play 
+          smaller, which compresses defensive rotations 
+          and gives SGA cleaner mid-range looks.
+        </div>
+
+        <div class="resp-section-label">Structural Anchor</div>
+        <div class="resp-body">
+          SGA is averaging 32.1 PPG this season. 
+          In his last 5 games against sub-par interior 
+          defense, he's cleared 30 points in 4 of 5. 
+          The line typically opens 29.5 — lean over 
+          if it holds there or lower at tip.
+        </div>
+
+        <div class="resp-section-label">Flip Trigger</div>
+        <div class="resp-body">
+          If Phoenix starts Kevin Durant at the 4 
+          and switches everything, SGA's pull-up 
+          volume compresses. Watch the opening 
+          defensive scheme — if Durant is guarding 
+          SGA directly, reassess.
+        </div>
+
+        <div class="resp-play">
+          <div class="resp-play-label">The Play</div>
+          <div class="resp-play-text">
+            SGA points over 29.5 · High confidence · 
+            interior absence creates structural scoring 
+            opportunity the line hasn't fully priced
+          </div>
+          <div class="resp-confidence">
+            Confidence: High · NBA Playoffs
+          </div>
+        </div>
+      </div>
+
+      <div class="example-label">
+        Actual UR Take response format · 
+        Pro subscribers get this on every query
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-inner">
+      <div class="section-label">Coverage</div>
+      <h2 class="section-title">Every sport that matters.<br>One place.</h2>
+      <p class="section-body">Real data feeds. Live injury context. Updated continuously.</p>
+      <div class="sports-grid">
+        <div class="sport-card">
+          <div class="sport-dot" style="background:#FFE600"></div>
+          <div class="sport-name">Tennis — ATP/WTA</div>
+          <div class="sport-desc">Elo + surface edges, serve profiles, draw-path value across every surface.</div>
+        </div>
+        <div class="sport-card">
+          <div class="sport-dot" style="background:#FF6B00"></div>
+          <div class="sport-name">NBA</div>
+          <div class="sport-desc">PRA calibration, pace-adjusted floors, live injury replacement plays in real time.</div>
+        </div>
+        <div class="sport-card">
+          <div class="sport-dot" style="background:#4A90D9"></div>
+          <div class="sport-name">NFL</div>
+          <div class="sport-desc">QB, RB, WR & TE database. TD rates, prop floors and ceilings for every player that matters.</div>
+        </div>
+        <div class="sport-card">
+          <div class="sport-dot" style="background:#1DB954"></div>
+          <div class="sport-name">MLB</div>
+          <div class="sport-desc">Pitcher K props, park-adjusted, platoon-split, barrel rate. Know before the line moves.</div>
+        </div>
+        <div class="sport-card">
+          <div class="sport-dot" style="background:#E10600"></div>
+          <div class="sport-name">F1</div>
+          <div class="sport-desc">Full 2026 driver grid. Race-day edges the market hasn't priced yet.</div>
+        </div>
+        <div class="sport-card">
+          <div class="sport-dot" style="background:#FFFFFF"></div>
+          <div class="sport-name">Golf — PGA</div>
+          <div class="sport-desc">SG profiles, make-cut plays, and outright value the market underprices weekly.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+    <div class="section-inner">
+      <div class="section-label">Pro</div>
+      <h2 class="section-title">UR Take, Sharpened.</h2>
+      <p class="section-body">Pro isn't more access. It's better judgment — deeper reasoning, explicit verdicts, and session continuity that builds on itself.</p>
+      <div class="value-grid">
+        <div class="value-card">
+          <div class="value-title">Full-Depth Analysis</div>
+          <div class="value-desc">Complete five-step breakdowns, never truncated. The full argument, every time.</div>
+        </div>
+        <div class="value-card">
+          <div class="value-title">Verdict Close</div>
+          <div class="value-desc">THE PLAY on every card. Confidence tier. One sharp read at the close.</div>
+        </div>
+        <div class="value-card">
+          <div class="value-title">Session Continuity</div>
+          <div class="value-desc">Pro carries the thread. Follow up. Pressure-test. Build on what you already know.</div>
+        </div>
+        <div class="value-card">
+          <div class="value-title">Unlimited Asks</div>
+          <div class="value-desc">No weekly ceiling. No mid-session walls. Ask as many times as the slate demands.</div>
+        </div>
+      </div>
+      <div class="pricing-card">
+        <div class="price-amount">$9.99</div>
+        <div class="price-period">/month</div>
+        <div class="price-trial">Try free for 3 days · cancel anytime</div>
+        <ul class="price-features">
+          <li>Full-depth UR Take reasoning on every query</li>
+          <li>THE PLAY verdict close — confidence tier included</li>
+          <li>Session continuity across follow-ups</li>
+          <li>Unlimited queries — no weekly limit</li>
+          <li>Six sports, live data, 280+ player profiles</li>
+          <li>Two additional display themes</li>
+        </ul>
+        <a href="https://under-review.app" class="price-cta">Start Free Trial — 3 Days →</a>
+        <div class="price-note">Secure checkout · Powered by Stripe</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer-cta">
+    <h2>
+      Think you're sharper<br>
+      <span style="background:linear-gradient(90deg,var(--cyan),var(--mag));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">than most?</span>
+    </h2>
+    <p>One question is all it takes to find out.</p>
+    <a href="https://under-review.app" class="btn-primary">Prove It — Start Free →</a>
+  </div>
+
+  <div class="footer-bottom">
+    <p>UnderReview · under-review.app · Not a pick service · Sharp takes, real data</p>
+  </div>
+
+</body>
 </html>
