@@ -2500,183 +2500,6 @@ ${themeCss}
       ))}
     </div>
 
-    {/* Price + CTA */}
-    <div style={{padding:"24px 20px 0",textAlign:"center"}}>
-      <style>{`
-        @keyframes gleam{0%{background-position:200% center;}100%{background-position:-200% center;}}
-        .theme-epilogue .pro-cta-btn{
-          display:block;width:100%;padding:18px;
-          border:2px solid #FFFFFF;border-radius:16px;
-          background:transparent;color:#FFFFFF;
-          font-family:var(--display-font);font-size:22px;letter-spacing:2px;
-          cursor:pointer;transition:background .2s,color .2s;
-          margin-bottom:8px;
-        }
-        .theme-epilogue .pro-cta-btn:hover{background:#FFFFFF;color:#080A0C;}
-      `}</style>
-      <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:0,marginBottom:4}}>
-        <span style={{fontSize:32,fontWeight:800,color:"var(--cyan-bright)",lineHeight:1}}>$</span>
-        <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>9</span>
-        <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>.99</span>
-        <span style={{fontSize:12,color:"var(--muted)",alignSelf:"flex-end",paddingBottom:8,marginLeft:4}}>/month</span>
-      </div>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
-      <button className="pro-cta-btn" onClick={async()=>{
-        try{
-          const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
-          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
-          const data=await res.json();
-          if(data.url) window.location.href=data.url;
-          else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
-          else alert("Could not start checkout. Try again.");
-        }catch{alert("Something went wrong. Try again.");}
-      }}>START FREE TRIAL</button>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
-    </div>
-
-    {/* Features */}
-    <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:proMarketing.whatsInc ?? "#3A4050",textTransform:"uppercase",padding:"22px 20px 12px",display:"flex",alignItems:"center",gap:8}}>
-      What&apos;s included<span style={{flex:1,height:1,background:proMarketing.whatsIncRule ?? "rgba(255,255,255,.05)",display:"block"}}/>
-    </div>
-
-    <div style={{display:"flex",flexDirection:"column",gap:1,margin:"0 20px"}}>
-      {[
-        {color:"#FFE600",name:"Tennis — Elo + Surface Edges",desc:"ATP/WTA rally profiles, serve baselines, draw-path value across every surface."},
-        {color:"#1DB954",name:"MLB — Pitcher K Props",desc:"Park-adjusted, platoon-split, barrel rate. Know before the line moves."},
-        {color:"#FF6B00",name:"NBA — PRA Calibration",desc:"Pace-adjusted floors and ceilings. Live injury replacement plays in real time."},
-        {color:"#4A90D9",name:"NFL — QB, RB, WR & TE Database",desc:"TD rates, prop floors and ceilings for every QB, RB, WR, and TE. Scheme and matchup angles. Full live props arriving with the 2026 season."},
-        {color:"#E10600",name:"F1 — Race-Day Angles",desc:"Full 2026 driver grid. Race-day edges the market hasn't priced yet."},
-        {color:"#FFFFFF",name:"Golf — Course Fit & Matchup H2Hs",desc:"PGA SG profiles, make-cut plays, and outright value the market underprices weekly."},
-      ].map((f,i,arr)=>(
-        <div key={f.name} style={proMarketing.featureRow(i, arr.length)}>
-          <div style={{width:8,height:8,borderRadius:"50%",background:f.color === "#FFFFFF" && isProLightTheme(activeTheme) ? "#475569" : f.color,flexShrink:0}}/>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700,color:proMarketing.featureTitle ?? "var(--text)",marginBottom:1}}>{f.name}</div>
-            <div style={{fontSize:11,color:proMarketing.featureDesc ?? "#4A5568",lineHeight:1.5}}>{f.desc}</div>
-          </div>
-          <div style={{fontSize:14,color:proMarketing.featureChev ?? "#2A3040"}}>›</div>
-        </div>
-      ))}
-    </div>
-
-    {/* Proof points */}
-    <div style={proMarketing.quoteBox}>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>125 active injury reports tracked.</div>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>16 playoff rosters. 280 player profiles.</div>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75}}>Updated every 30 minutes.</div>
-    </div>
-{isUnlimited && (() => {
-      const dm = getDisplayModeChrome(activeTheme);
-      const lightChrome = isProLightTheme(activeTheme);
-      return (
-  <div style={{
-    margin:"24px 20px 0",
-    paddingTop:18,
-    borderTop: lightChrome
-      ? (activeTheme === "crisp" ? "1px solid #94A3B8" : "1px solid rgba(26,20,16,.15)")
-      : "1px solid rgba(255,255,255,.07)",
-  }}>
-    <div
-      style={{
-        fontFamily:"var(--mono-font)",
-        fontSize:9,
-        letterSpacing:3,
-        color: dm.sectionLabel,
-        textTransform:"uppercase",
-        marginBottom:4
-      }}
-    >
-      Display mode
-    </div>
-    <div style={{ fontSize:10, color: dm.subtitle, fontFamily:"var(--mono-font)", letterSpacing:0.4, marginBottom:12, lineHeight:1.45 }}>
-      {canUseProThemes(accessTier)
-        ? accessTier === "owner"
-          ? "Choose your look. Pro unlocks two additional themes."
-          : "Pro: Broadsheet (newsprint) or Crisp Sport (slate). Everyone else stays on Authority dark."
-        : "Light editions unlock with Pro or an owner access code."}
-    </div>
-
-    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {Object.values(THEMES)
-        .filter((theme) => !theme.proOnly || canUseProThemes(accessTier))
-        .map((theme) => {
-          const isActive = activeTheme === theme.id;
-
-          return (
-            <button
-              key={theme.id}
-              type="button"
-              onClick={() => setActiveTheme(theme.id)}
-              style={{
-                background: isActive ? dm.activeBg : dm.inactiveBg,
-                border: `1px solid ${isActive ? dm.activeBorder : dm.inactiveBorder}`,
-                borderRadius: 12,
-                padding: "12px 14px",
-                cursor: "pointer",
-                textAlign: "left",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                color: dm.rowText,
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontFamily:"var(--body-font)",
-                    fontSize:13,
-                    fontWeight:700,
-                    color: lightChrome ? dm.rowText : (isActive ? dm.titleActive : dm.titleInactive),
-                    marginBottom:2
-                  }}
-                >
-                  {theme.name}
-                  {theme.proOnly && (
-                    <span
-                      style={{
-                        marginLeft:8,
-                        fontSize:9,
-                        color:"#F5C842",
-                        fontFamily:"var(--mono-font)",
-                        letterSpacing:1
-                      }}
-                    >
-                      PRO
-                    </span>
-                  )}
-                </div>
-
-                <div
-                  style={{
-                    fontSize:10,
-                    color: dm.subtitle,
-                    fontFamily:"var(--mono-font)",
-                    letterSpacing:.5
-                  }}
-                >
-                  {theme.label}
-                </div>
-              </div>
-
-              {isActive && (
-                <div
-                  style={{
-                    width:8,
-                    height:8,
-                    borderRadius:"50%",
-                    background: dm.dot,
-                    flexShrink:0,
-                    marginLeft:12
-                  }}
-                />
-              )}
-            </button>
-          );
-        })}
-    </div>
-  </div>
-      );
-    })()}
 {isUnlimited && (() => {
   const lightChrome = isProLightTheme(activeTheme);
   const isDark = !lightChrome;
@@ -2816,6 +2639,185 @@ ${themeCss}
     </div>
   );
 })()}
+
+    {/* Price + CTA */}
+    <div style={{padding:"24px 20px 0",textAlign:"center"}}>
+      <style>{`
+        @keyframes gleam{0%{background-position:200% center;}100%{background-position:-200% center;}}
+        .theme-epilogue .pro-cta-btn{
+          display:block;width:100%;padding:18px;
+          border:2px solid #FFFFFF;border-radius:16px;
+          background:transparent;color:#FFFFFF;
+          font-family:var(--display-font);font-size:22px;letter-spacing:2px;
+          cursor:pointer;transition:background .2s,color .2s;
+          margin-bottom:8px;
+        }
+        .theme-epilogue .pro-cta-btn:hover{background:#FFFFFF;color:#080A0C;}
+      `}</style>
+      <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:0,marginBottom:4}}>
+        <span style={{fontSize:32,fontWeight:800,color:"var(--cyan-bright)",lineHeight:1}}>$</span>
+        <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>9</span>
+        <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>.99</span>
+        <span style={{fontSize:12,color:"var(--muted)",alignSelf:"flex-end",paddingBottom:8,marginLeft:4}}>/month</span>
+      </div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
+      <button className="pro-cta-btn" onClick={async()=>{
+        try{
+          const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
+          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
+          const data=await res.json();
+          if(data.url) window.location.href=data.url;
+          else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
+          else alert("Could not start checkout. Try again.");
+        }catch{alert("Something went wrong. Try again.");}
+      }}>START FREE TRIAL</button>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
+    </div>
+
+    {/* Features */}
+    <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:proMarketing.whatsInc ?? "#3A4050",textTransform:"uppercase",padding:"22px 20px 12px",display:"flex",alignItems:"center",gap:8}}>
+      What&apos;s included<span style={{flex:1,height:1,background:proMarketing.whatsIncRule ?? "rgba(255,255,255,.05)",display:"block"}}/>
+    </div>
+
+    <div style={{display:"flex",flexDirection:"column",gap:1,margin:"0 20px"}}>
+      {[
+        {color:"var(--cyan-bright)",name:"Betting Style Personalization",desc:"Tell UR Take how you approach your bets. Bold and committed, or full picture to decide. Toggle anytime."},
+        {color:"#FFE600",name:"Tennis — Elo + Surface Edges",desc:"ATP/WTA rally profiles, serve baselines, draw-path value across every surface."},
+        {color:"#1DB954",name:"MLB — Pitcher K Props",desc:"Park-adjusted, platoon-split, barrel rate. Know before the line moves."},
+        {color:"#FF6B00",name:"NBA — PRA Calibration",desc:"Pace-adjusted floors and ceilings. Live injury replacement plays in real time."},
+        {color:"#4A90D9",name:"NFL — QB, RB, WR & TE Database",desc:"TD rates, prop floors and ceilings for every QB, RB, WR, and TE. Scheme and matchup angles. Full live props arriving with the 2026 season."},
+        {color:"#E10600",name:"F1 — Race-Day Angles",desc:"Full 2026 driver grid. Race-day edges the market hasn't priced yet."},
+        {color:"#FFFFFF",name:"Golf — Course Fit & Matchup H2Hs",desc:"PGA SG profiles, make-cut plays, and outright value the market underprices weekly."},
+      ].map((f,i,arr)=>(
+        <div key={f.name} style={proMarketing.featureRow(i, arr.length)}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:f.color === "#FFFFFF" && isProLightTheme(activeTheme) ? "#475569" : f.color,flexShrink:0}}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700,color:proMarketing.featureTitle ?? "var(--text)",marginBottom:1}}>{f.name}</div>
+            <div style={{fontSize:11,color:proMarketing.featureDesc ?? "#4A5568",lineHeight:1.5}}>{f.desc}</div>
+          </div>
+          <div style={{fontSize:14,color:proMarketing.featureChev ?? "#2A3040"}}>›</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Proof points */}
+    <div style={proMarketing.quoteBox}>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>125 active injury reports tracked.</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>16 playoff rosters. 280 player profiles.</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75}}>Updated every 30 minutes.</div>
+    </div>
+{isUnlimited && (() => {
+      const dm = getDisplayModeChrome(activeTheme);
+      const lightChrome = isProLightTheme(activeTheme);
+      return (
+  <div style={{
+    margin:"24px 20px 0",
+    paddingTop:18,
+    borderTop: lightChrome
+      ? (activeTheme === "crisp" ? "1px solid #94A3B8" : "1px solid rgba(26,20,16,.15)")
+      : "1px solid rgba(255,255,255,.07)",
+  }}>
+    <div
+      style={{
+        fontFamily:"var(--mono-font)",
+        fontSize:9,
+        letterSpacing:3,
+        color: dm.sectionLabel,
+        textTransform:"uppercase",
+        marginBottom:4
+      }}
+    >
+      Display mode
+    </div>
+    <div style={{ fontSize:10, color: dm.subtitle, fontFamily:"var(--mono-font)", letterSpacing:0.4, marginBottom:12, lineHeight:1.45 }}>
+      {canUseProThemes(accessTier)
+        ? accessTier === "owner"
+          ? "Choose your look. Pro unlocks two additional themes."
+          : "Pro: Broadsheet (newsprint) or Crisp Sport (slate). Everyone else stays on Authority dark."
+        : "Light editions unlock with Pro or an owner access code."}
+    </div>
+
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {Object.values(THEMES)
+        .filter((theme) => !theme.proOnly || canUseProThemes(accessTier))
+        .map((theme) => {
+          const isActive = activeTheme === theme.id;
+
+          return (
+            <button
+              key={theme.id}
+              type="button"
+              onClick={() => setActiveTheme(theme.id)}
+              style={{
+                background: isActive ? dm.activeBg : dm.inactiveBg,
+                border: `1px solid ${isActive ? dm.activeBorder : dm.inactiveBorder}`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                color: dm.rowText,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontFamily:"var(--body-font)",
+                    fontSize:13,
+                    fontWeight:700,
+                    color: lightChrome ? dm.rowText : (isActive ? dm.titleActive : dm.titleInactive),
+                    marginBottom:2
+                  }}
+                >
+                  {theme.name}
+                  {theme.proOnly && (
+                    <span
+                      style={{
+                        marginLeft:8,
+                        fontSize:9,
+                        color:"#F5C842",
+                        fontFamily:"var(--mono-font)",
+                        letterSpacing:1
+                      }}
+                    >
+                      PRO
+                    </span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    fontSize:10,
+                    color: dm.subtitle,
+                    fontFamily:"var(--mono-font)",
+                    letterSpacing:.5
+                  }}
+                >
+                  {theme.label}
+                </div>
+              </div>
+
+              {isActive && (
+                <div
+                  style={{
+                    width:8,
+                    height:8,
+                    borderRadius:"50%",
+                    background: dm.dot,
+                    flexShrink:0,
+                    marginLeft:12
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
+    </div>
+  </div>
+      );
+    })()}
     {/* Bottom */}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
       <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:proMarketing.bottomMuted ?? "var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
