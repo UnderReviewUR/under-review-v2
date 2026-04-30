@@ -1657,6 +1657,15 @@ function attachPraFieldsToPlayerRow(p) {
   let praRecent = null;
   let praFloor = null;
   let praCeiling = null;
+  let ptsRecent = null;
+  let rebRecent = null;
+  let astRecent = null;
+  let ptsFloor = null;
+  let ptsCeiling = null;
+  let rebFloor = null;
+  let rebCeiling = null;
+  let astFloor = null;
+  let astCeiling = null;
   if (rg.length > 0) {
     const pras = rg.map(
       (g) => Number(g?.pts || 0) + Number(g?.reb || 0) + Number(g?.ast || 0),
@@ -1664,8 +1673,48 @@ function attachPraFieldsToPlayerRow(p) {
     praRecent = pras.reduce((sum, n) => sum + n, 0) / rg.length;
     praFloor = Math.min(...pras);
     praCeiling = Math.max(...pras);
+
+    const ptss = rg
+      .map((g) => (g?.pts == null ? NaN : Number(g.pts)))
+      .filter((n) => Number.isFinite(n));
+    const rebs = rg
+      .map((g) => (g?.reb == null ? NaN : Number(g.reb)))
+      .filter((n) => Number.isFinite(n));
+    const asts = rg
+      .map((g) => (g?.ast == null ? NaN : Number(g.ast)))
+      .filter((n) => Number.isFinite(n));
+    if (ptss.length > 0) {
+      ptsRecent = ptss.reduce((sum, n) => sum + n, 0) / ptss.length;
+      ptsFloor = Math.min(...ptss);
+      ptsCeiling = Math.max(...ptss);
+    }
+    if (rebs.length > 0) {
+      rebRecent = rebs.reduce((sum, n) => sum + n, 0) / rebs.length;
+      rebFloor = Math.min(...rebs);
+      rebCeiling = Math.max(...rebs);
+    }
+    if (asts.length > 0) {
+      astRecent = asts.reduce((sum, n) => sum + n, 0) / asts.length;
+      astFloor = Math.min(...asts);
+      astCeiling = Math.max(...asts);
+    }
   }
-  return { ...p, praSeason, praRecent, praFloor, praCeiling };
+  return {
+    ...p,
+    praSeason,
+    praRecent,
+    praFloor,
+    praCeiling,
+    ptsRecent,
+    rebRecent,
+    astRecent,
+    ptsFloor,
+    ptsCeiling,
+    rebFloor,
+    rebCeiling,
+    astFloor,
+    astCeiling,
+  };
 }
 
 function formatPraToken(v) {
@@ -1703,8 +1752,14 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
             )
             .join(" | ")}`
         : "(no recent game log available)";
+    const recentAveragesLine =
+      rg.length > 0
+        ? `Recent form: ${formatPraToken(p.ptsRecent)} pts | ${formatPraToken(p.rebRecent)} reb | ${formatPraToken(p.astRecent)} ast over last ${rg.length} games`
+        : "";
     const praLine = `PRA: season avg ${formatPraToken(p.praSeason)} | recent avg ${formatPraToken(p.praRecent)} | range ${formatPraToken(p.praFloor)}–${formatPraToken(p.praCeiling)}`;
-    return [base, recentLine, praLine];
+    return recentAveragesLine
+      ? [base, recentLine, recentAveragesLine, praLine]
+      : [base, recentLine, praLine];
   });
   return [header, "", ...lines].join("\n");
 }

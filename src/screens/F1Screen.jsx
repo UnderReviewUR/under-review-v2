@@ -16,6 +16,7 @@ export default function F1Screen({
   askBarCommon,
   f1Loading,
   f1Data,
+  urTakeTrackPlay = null,
 }) {
   const [weekAgoMs] = useState(() => Date.now() - 7 * 86400000);
 
@@ -68,7 +69,7 @@ export default function F1Screen({
                 </div>
               </div>
             )}
-            <ChatThread msgs={f1Msgs} />
+            <ChatThread msgs={f1Msgs} urTakeTrackPlay={urTakeTrackPlay} />
 
             {f1Loading ? (
               <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>

@@ -231,6 +231,7 @@ export default function GolfScreen({
   setGolfInput,
   submitGolf,
   askBarCommon,
+  urTakeTrackPlay = null,
 }) {
   const [lastKnownEventSnapshot, setLastKnownEventSnapshot] = useState(null);
 
@@ -358,7 +359,7 @@ export default function GolfScreen({
               </div>
             )}
 
-            <ChatThread msgs={golfMsgs} />
+            <ChatThread msgs={golfMsgs} urTakeTrackPlay={urTakeTrackPlay} />
 
             {scheduleRows.length > 0 && (
               <>

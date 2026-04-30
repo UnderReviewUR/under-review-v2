@@ -18,6 +18,7 @@ export default function NbaScreen({
   submitNba,
   askBarCommon,
   nbaLoading,
+  urTakeTrackPlay = null,
 }) {
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
   const injuries = Array.isArray(nbaData?.injuries) ? nbaData.injuries : [];
@@ -69,7 +70,7 @@ export default function NbaScreen({
         </div>
       )}
 
-      <ChatThread msgs={nbaMsgs} />
+      <ChatThread msgs={nbaMsgs} urTakeTrackPlay={urTakeTrackPlay} />
 
       {nbaLoading ? (
         <div className="loading-state">
