@@ -85,7 +85,7 @@ export default function TennisScreen({
                 )}
               </div>
             ):(
-              <div className="loading-state"><div className="loading-text">NO CONFIRMED ATP MATCHUPS LOADED</div></div>
+              <div style={{ color: "var(--muted)", fontSize: 12, padding: "12px 0" }}>NO CONFIRMED ATP MATCHUPS LOADED</div>
             )}
 
             {context?.ace_props&&(

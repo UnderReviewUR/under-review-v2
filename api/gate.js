@@ -1,6 +1,6 @@
 // api/gate.js
 // Tracks free-tier query usage and handles email gate.
-// Free tier: 5 queries per 7-day rolling window, email required after query 1.
+// Free tier: 3 queries per 7-day rolling window, email required after query 1.
 // Uses Vercel KV if available, falls back to in-memory (resets on cold start).
 // No user accounts. Identity = email stored in localStorage.
 

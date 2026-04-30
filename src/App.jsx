@@ -883,10 +883,6 @@ ${themeCss}
     () => nbaGamesRaw.filter((g) => isDisplayableValidity(classifyNbaGame(g))),
     [nbaGamesRaw],
   );
-  const validMlbGames = useMemo(
-    () => mlbGamesRaw.filter((g) => isDisplayableValidity(classifyMlbGame(g))),
-    [mlbGamesRaw],
-  );
   const displayableF1NextRace = useMemo(
     () => getDisplayableF1NextRace(f1Data),
     [f1Data],
@@ -1032,7 +1028,7 @@ ${themeCss}
           blurb:
             hasStaticTennisIntel
               ? "Surface and player intel is on Tennis — wire it to a matchup ask."
-              : "Open Tennis to hydrate the board before pricing.",
+              : "Open the Tennis tab to load the latest matchups.",
           whatMatters: "Use Tennis for live draws; bring one matchup back here to ask UR Take.",
           quickHitters: ["Open Tennis — draws & pricing"],
           confirmed: false,
@@ -1050,7 +1046,7 @@ ${themeCss}
           title: "No matchups in this window",
           time: "Schedule",
           network: context?.currentTournament?.name || "ATP",
-          blurb: "Nothing confirmed in this Home window — refresh Tennis to pull the latest BDL-backed rows.",
+          blurb: "No confirmed Tennis matchups right now. Check the Tennis tab for the latest.",
           whatMatters: "Narrow with a named matchup ask once the board is back.",
           quickHitters: ["Open Tennis to refresh"],
           confirmed: true,

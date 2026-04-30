@@ -1,7 +1,7 @@
 export const config = { api: { bodyParser: { sizeLimit: "2mb" } } };
 
 import { applyCors } from "./_cors.js";
-import { ACCESS_TOKEN_SECRET_MISSING_MESSAGE, getEnv } from "./_env.js";
+import { getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
 import {
