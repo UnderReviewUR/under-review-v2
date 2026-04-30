@@ -229,7 +229,15 @@ PROP THRESHOLD CALIBRATION RULE:
   Strong edge: season avg +20-30%
   Aggressive/speculative: season avg +30%+ (must be labeled as such)
 - If the estimated threshold requires a player to perform at more than 1.5x their season average, label it SPECULATIVE and explain exactly why the structural case justifies it.
-- Never present a speculative projection with the same confidence as a structural play.`;
+- Never present a speculative projection with the same confidence as a structural play.
+
+SESSION MEMORY RULE (when a PRIOR SESSION MEMORY block appears at the top of the system prompt — Pro accounts only):
+- Prior session takes listed in that block are context for continuity, not constraints.
+- Reference them naturally when relevant: "Last session you were tracking Sengun's rebounds — tonight he's in a similar spot."
+- Never repeat prior takes verbatim.
+- Never assume the user bet on a prior take.
+- If a prior take was wrong based on tonight's context, acknowledge it briefly and move forward.
+- Memory is for continuity, not history lessons.`;
 }
 
 export function buildVoiceToneAndFinalCheckPrompt() {
@@ -483,6 +491,7 @@ Format behavior in this mode:
  * @param {boolean} [input.hasMatchupContext]
  * @param {{ sparseQuestion: boolean, thinEvidence: boolean }} [input.evidenceSparsityProfile] — when set, reuse (single compute in handler)
  * @param {{ hasLiveKeyword?: boolean }} [input.liveSignals] — live-keyword turns append LIVE BET CONVICTION RULE (with slip_review)
+ * @param {string} [input.memoryBlock] — optional prior-session summary (prepended when non-empty)
  */
 export function composeRegisteredUrTakeSystemPrompt(input) {
   const {
@@ -499,6 +508,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     evidenceSparsityProfile: profileIn,
     liveSignals = null,
     bettingStyle = "balanced",
+    memoryBlock = "",
   } = input;
 
   const evidenceProfile =
@@ -512,6 +522,10 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
       hasImage,
     });
   const sparseThinAppendix = buildSparseInputThinEvidenceAppendix(evidenceProfile, sportHint);
+
+  const memorySection = String(memoryBlock || "").trim()
+    ? `${String(memoryBlock).trim()}\n\n`
+    : "";
 
   const core = [
     buildCoreFrameworkPrompt(),
@@ -532,7 +546,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
   });
 
   const s = String(sportHint || "").toLowerCase();
-  let composed = core + surface;
+  let composed = memorySection + core + surface;
   if (s === "tennis" || s === "tennis_wta_profile") {
     composed += String(tennisSystemPromptExtra || "");
   }

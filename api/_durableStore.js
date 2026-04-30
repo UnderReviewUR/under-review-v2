@@ -78,6 +78,20 @@ async function kvSet(key, value, ttlSeconds) {
   }
 }
 
+async function kvDel(key) {
+  const endpoint = `${KV_URL.replace(/\/$/, "")}/del/${encodeURIComponent(key)}`;
+  const res = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${KV_TOKEN}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`KV del failed: HTTP ${res.status}`);
+  }
+}
+
 export async function getDurableJson(key) {
   if (hasKvConfig()) {
     try {
@@ -103,4 +117,17 @@ export async function setDurableJson(key, value, options = {}) {
   }
 
   setMemEntry(key, value, ttlSeconds);
+}
+
+/** Best-effort delete (KV + in-memory fallback). */
+export async function deleteDurableJson(key) {
+  if (hasKvConfig()) {
+    try {
+      await kvDel(key);
+    } catch (err) {
+      console.warn("[durableStore] KV del failed, clearing memory fallback:", err.message);
+    }
+  }
+
+  memStore.delete(key);
 }

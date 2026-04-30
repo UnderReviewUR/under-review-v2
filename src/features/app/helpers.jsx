@@ -591,14 +591,50 @@ function UrTakeTrustChips({ trust }) {
   );
 }
 
-function UrTakeAiBubble({ m }) {
+function UrTakeAiBubble({ m, trackPlay }) {
   const [deepOpen, setDeepOpen] = useState(false);
   const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
+  const combined = `${summaryText}\n${m.deepText || ""}`;
+  const hasThePlay = /\bTHE\s+PLAY\b/i.test(combined);
+  const tracked =
+    Boolean(trackPlay?.trackedIds?.length) &&
+    m.msgId &&
+    trackPlay.trackedIds.includes(m.msgId);
+  const showTrack =
+    Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
+
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
       {renderMessage(summaryText)}
       {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
+      {showTrack ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (!tracked) trackPlay.onTrack(m);
+          }}
+          disabled={tracked}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: "none",
+            border: "1px solid rgba(0,245,233,0.2)",
+            borderRadius: 6,
+            padding: "5px 10px",
+            cursor: tracked ? "default" : "pointer",
+            marginTop: 8,
+            fontFamily: "var(--mono-font)",
+            fontSize: 9,
+            letterSpacing: 1.5,
+            color: tracked ? "rgba(0,245,233,0.35)" : "rgba(0,245,233,0.6)",
+            textTransform: "uppercase",
+          }}
+        >
+          {tracked ? "✓ Tracked" : "📌 Track this play"}
+        </button>
+      ) : null}
       {m.deepText ? (
         <div style={{ marginTop: 12 }}>
           {!deepOpen ? (
@@ -628,7 +664,7 @@ function UrTakeAiBubble({ m }) {
   );
 }
 
-export function ChatThread({ msgs }) {
+export function ChatThread({ msgs, urTakeTrackPlay = null }) {
   const bottomRef = useRef(null);
 
   /** Scroll the nearest scrollport (screen main) to the latest bubble — avoids mutating scrollTop (eslint). */
@@ -644,9 +680,9 @@ export function ChatThread({ msgs }) {
         m.loading ? (
           <LoadingBubble key={i} sport={m.sport} />
         ) : (
-          <div key={i} className={`bubble ${m.role}`}>
-            {m.role === "ai" && (m.takeMeta || m.deepText) ? (
-              <UrTakeAiBubble m={m} />
+          <div key={m.msgId || i} className={`bubble ${m.role}`}>
+            {m.role === "ai" ? (
+              <UrTakeAiBubble m={m} trackPlay={urTakeTrackPlay} />
             ) : (
               <>
                 {m.image && <img src={m.image} alt="" className="bubble-img" />}

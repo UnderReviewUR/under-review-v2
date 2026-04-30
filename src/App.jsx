@@ -197,7 +197,12 @@ ${themeCss}
   const [pastedImage, setPastedImage]   = useState(null);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
+  const [trackedPlays, setTrackedPlays] = useState([]);
+  const [trackedUrTakeMessageIds, setTrackedUrTakeMessageIds] = useState([]);
+  const [trackerLoaded, setTrackerLoaded] = useState(false);
+  const [syncErrorPlayId, setSyncErrorPlayId] = useState(null);
   const swipeTouchStartRef = useRef(null);
+  const lastAttemptedResult = useRef({});
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const askInputRef       = useRef(null);
@@ -329,6 +334,176 @@ ${themeCss}
     );
     setTimeout(() => setStyleToast(""), 2000);
   }, []);
+
+  const handleMarkResult = useCallback(
+    async (playId, result) => {
+      const email =
+        userEmail ||
+        gateEmail ||
+        (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+        "";
+      if (!email) return;
+
+      const previousPlays = trackedPlays;
+      lastAttemptedResult.current[playId] = result;
+
+      setTrackedPlays((prev) =>
+        prev.map((p) =>
+          p.playId === playId ? { ...p, result, resultMarkedAt: Date.now() } : p,
+        ),
+      );
+
+      try {
+        const authHeaders = await getTakeAuthHeaders();
+        const res = await fetch("/api/track-play", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ action: "mark", email, playId, result }),
+        });
+        if (!res.ok) throw new Error("sync_failed");
+        setSyncErrorPlayId((cur) => (cur === playId ? null : cur));
+      } catch {
+        setTrackedPlays(previousPlays);
+        setSyncErrorPlayId(playId);
+        setTimeout(() => setSyncErrorPlayId(null), 4000);
+      }
+    },
+    [userEmail, gateEmail, getTakeAuthHeaders, trackedPlays],
+  );
+
+  const handleClearMemory = useCallback(
+    async (clearType) => {
+      const email =
+        userEmail ||
+        gateEmail ||
+        (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+        "";
+      if (!email) return;
+
+      const confirmed = window.confirm(
+        clearType === "all"
+          ? "Clear your session memory and play tracker? This cannot be undone."
+          : `Clear your ${clearType}? This cannot be undone.`,
+      );
+      if (!confirmed) return;
+
+      try {
+        const authHeaders = await getTakeAuthHeaders();
+        const res = await fetch("/api/clear-memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ email, type: clearType }),
+        });
+        if (!res.ok) return;
+        if (clearType === "tracker" || clearType === "all") {
+          setTrackedPlays([]);
+        }
+      } catch {
+        /* ignore */
+      }
+    },
+    [userEmail, gateEmail, getTakeAuthHeaders],
+  );
+
+  const handleTrackPlay = useCallback(
+    async (message) => {
+      try {
+        const email =
+          userEmail ||
+          gateEmail ||
+          (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+          "";
+        if (!email) return;
+        const content = `${message.text || ""}\n${message.deepText || ""}`;
+        const playMatch = content.match(/THE PLAY[:\s]+([^\n]{10,300})/i);
+        const play = playMatch
+          ? String(playMatch[1]).trim()
+          : String(message.text || "").slice(0, 200);
+        if (!play || play.length < 10) return;
+        const confFromMeta = String(message.takeMeta?.confidence || "");
+        const confMatch = content.match(/confidence[:\s]+(High|Medium|Speculative)/i);
+        const confidence = /\bHigh\b/i.test(confFromMeta)
+          ? "High"
+          : /\bSpeculative\b/i.test(confFromMeta)
+            ? "Speculative"
+            : /\bMedium\b/i.test(confFromMeta)
+              ? "Medium"
+              : confMatch
+                ? confMatch[1]
+                : "Medium";
+        const sport = String(message.sport || screen || "unknown").trim() || "unknown";
+        const authHeaders = await getTakeAuthHeaders();
+        const res = await fetch("/api/track-play", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({
+            action: "save",
+            email,
+            play,
+            sport,
+            confidence,
+            takeText: String(message.text || "").slice(0, 500),
+          }),
+        });
+        if (!res.ok) return;
+        if (message.msgId) {
+          setTrackedUrTakeMessageIds((prev) =>
+            prev.includes(message.msgId) ? prev : [...prev, message.msgId],
+          );
+        }
+        const r2 = await fetch(`/api/track-play?email=${encodeURIComponent(email)}`, {
+          headers: { ...authHeaders },
+        });
+        const d2 = await r2.json().catch(() => null);
+        if (d2?.plays) setTrackedPlays(d2.plays);
+      } catch {
+        /* never surface */
+      }
+    },
+    [userEmail, gateEmail, getTakeAuthHeaders, screen],
+  );
+
+  const urTakeTrackPlay = useMemo(
+    () => ({
+      enabled: isUnlimited,
+      trackedIds: trackedUrTakeMessageIds,
+      onTrack: handleTrackPlay,
+    }),
+    [isUnlimited, trackedUrTakeMessageIds, handleTrackPlay],
+  );
+
+  useEffect(() => {
+    if (!isUnlimited) return;
+    const email =
+      userEmail ||
+      gateEmail ||
+      (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+      "";
+    let cancelled = false;
+    if (!email) {
+      startTransition(() => setTrackerLoaded(true));
+      return () => {
+        cancelled = true;
+      };
+    }
+    void (async () => {
+      try {
+        const authHeaders = await getTakeAuthHeaders();
+        const res = await fetch(`/api/track-play?email=${encodeURIComponent(email)}`, {
+          headers: { ...authHeaders },
+        });
+        const data = await res.json().catch(() => null);
+        if (!cancelled && data?.plays) startTransition(() => setTrackedPlays(data.plays));
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) startTransition(() => setTrackerLoaded(true));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isUnlimited, userEmail, gateEmail, getTakeAuthHeaders]);
 
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
 
@@ -807,10 +982,15 @@ ${themeCss}
     const normalizedDisplay = normalizeUrTakeDisplay(data);
     recordQuery();
 
+    const msgId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     setMsgs((prev) => [
       ...prev.filter((m) => !m.loading),
       {
         role: "ai",
+        msgId,
         text: normalizedDisplay.response,
         sport: sportForBubble || undefined,
         takeMeta: data.take
@@ -2226,6 +2406,7 @@ ${themeCss}
             setWtaInput={setWtaInput}
             submitWta={submitWta}
             openPlayer={openPlayer}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 
@@ -2247,6 +2428,7 @@ ${themeCss}
             setNflPosFilter={setNflPosFilter}
             filteredNflPlayers={filteredNflPlayers}
             openNflPlayer={openNflPlayer}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 
@@ -2306,6 +2488,7 @@ ${themeCss}
             askBarCommon={askBarCommon}
             f1Loading={f1Loading}
             f1Data={f1Data}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 
@@ -2325,6 +2508,7 @@ ${themeCss}
             submitNba={submitNba}
             askBarCommon={askBarCommon}
             nbaLoading={nbaLoading}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 
@@ -2344,6 +2528,7 @@ ${themeCss}
             mlbLoading={mlbLoading}
             mlbGames={mlbGames}
             mlbData={mlbData}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 
@@ -2363,6 +2548,7 @@ ${themeCss}
             setGolfInput={setGolfInput}
             submitGolf={submitGolf}
             askBarCommon={askBarCommon}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 
@@ -2435,6 +2621,231 @@ ${themeCss}
           marginBottom:4,
         }}>YOU&apos;RE IN</div>
         <div style={{fontSize:13,color: proMarketing.successBanner?.sub ?? "var(--soft)"}}>Welcome to Under Review Pro. Every edge is unlocked.</div>
+      </div>
+    )}
+
+    {isUnlimited && trackerLoaded && (
+      <div
+        style={{
+          margin: "8px 16px 0",
+          padding: "14px 16px",
+          background: "#0C0E14",
+          border: "1px solid #141825",
+          borderRadius: 10,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            marginBottom: 4,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 9,
+              letterSpacing: 2,
+              color: "rgba(0,245,233,0.4)",
+              textTransform: "uppercase",
+            }}
+          >
+            Your Play Tracker
+          </div>
+          <button
+            type="button"
+            onClick={() => handleClearMemory("all")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(255,255,255,0.15)",
+              fontSize: 9,
+              fontFamily: "var(--mono-font)",
+              letterSpacing: 1,
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+            }}
+          >
+            Clear memory
+          </button>
+        </div>
+        {trackedPlays.length === 0 ? (
+          <div style={{ fontSize: 12, color: "#2A2D3A", lineHeight: 1.5 }}>
+            Tap &quot;Track this play&quot; on any UR Take response to start your record.
+          </div>
+        ) : (
+          <>
+            {(() => {
+              const wins = trackedPlays.filter((p) => p.result === "WIN").length;
+              const losses = trackedPlays.filter((p) => p.result === "LOSS").length;
+              const rated = wins + losses;
+              const pct = rated > 0 ? Math.round((wins / rated) * 100) : null;
+              if (rated < 3 || pct == null) return null;
+              return (
+                <div
+                  style={{
+                    fontFamily: "var(--mono-font)",
+                    fontSize: 10,
+                    color: "rgba(0,245,233,0.55)",
+                    marginBottom: 10,
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  W: {wins} L: {losses} {pct}% on rated plays
+                </div>
+              );
+            })()}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {trackedPlays.slice(0, 5).map((p) => {
+                const s = String(p.sport || "").toLowerCase();
+                const dot =
+                  s === "nba"
+                    ? "#FF6B00"
+                    : s === "nfl"
+                      ? "#4A90D9"
+                      : s === "mlb"
+                        ? "#1DB954"
+                        : s === "tennis" || s === "tennis_wta_profile"
+                          ? "#FFE600"
+                          : s === "golf"
+                            ? "#FFFFFF"
+                            : s === "f1"
+                              ? "#E10600"
+                              : "var(--cyan-bright)";
+                return (
+                  <div
+                    key={p.playId}
+                    style={{
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      paddingBottom: 10,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: dot,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 9,
+                          letterSpacing: 1,
+                          color: "rgba(0,245,233,0.45)",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {String(p.sport || "").toUpperCase()}
+                      </span>
+                      <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: "auto" }}>
+                        {p.date}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--soft)",
+                        lineHeight: 1.45,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {p.play}
+                    </div>
+                    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                      <span
+                        style={{
+                          fontFamily: "var(--mono-font)",
+                          fontSize: 9,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          color: "var(--muted)",
+                        }}
+                      >
+                        {p.confidence}
+                      </span>
+                      {!p.result && syncErrorPlayId === p.playId ? (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            const r = lastAttemptedResult.current[p.playId];
+                            if (r) void handleMarkResult(p.playId, r);
+                          }}
+                          onKeyDown={(ev) => {
+                            if (ev.key === "Enter" || ev.key === " ") {
+                              ev.preventDefault();
+                              const r = lastAttemptedResult.current[p.playId];
+                              if (r) void handleMarkResult(p.playId, r);
+                            }
+                          }}
+                          style={{
+                            fontSize: 10,
+                            color: "#FF3D8F",
+                            fontFamily: "var(--mono-font)",
+                            letterSpacing: 1,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Sync failed — tap to retry
+                        </span>
+                      ) : !p.result ? (
+                        ["WIN", "LOSS", "PUSH", "VOID"].map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => handleMarkResult(p.playId, r)}
+                            style={{
+                              fontFamily: "var(--mono-font)",
+                              fontSize: 8,
+                              letterSpacing: 1,
+                              padding: "4px 8px",
+                              borderRadius: 4,
+                              border: "1px solid rgba(255,255,255,0.12)",
+                              background: "transparent",
+                              color: "rgba(0,245,233,0.5)",
+                              cursor: "pointer",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {r}
+                          </button>
+                        ))
+                      ) : (
+                        <span
+                          style={{
+                            fontFamily: "var(--mono-font)",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: 1,
+                            color:
+                              p.result === "WIN"
+                                ? "#00E676"
+                                : p.result === "LOSS"
+                                  ? "#FF5252"
+                                  : "var(--muted)",
+                          }}
+                        >
+                          {p.result}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     )}
 
@@ -2870,7 +3281,7 @@ ${themeCss}
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
             </div>
-            <ChatThread msgs={matchupMsgs} />
+            <ChatThread msgs={matchupMsgs} urTakeTrackPlay={urTakeTrackPlay} />
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
         )}
@@ -2915,6 +3326,7 @@ ${themeCss}
             askBarCommon={askBarCommon}
             dynamicHomeQuestions={dynamicHomeQuestions}
             firePrompt={firePrompt}
+            urTakeTrackPlay={urTakeTrackPlay}
           />
         )}
 

@@ -37,6 +37,11 @@ import {
   composeRegisteredUrTakeSystemPrompt,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
+import {
+  formatMemoryForPrompt,
+  getSessionMemory,
+  saveSessionMemory,
+} from "./_urTakeMemory.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
@@ -58,6 +63,12 @@ When a user asks for specific prop recommendations and live lines are unavailabl
 - Example: if Cade Cunningham averages 23.9 PPG, a reasonable threshold is 22.5 — say "Look for Cunningham over 22.5 points based on his season average and elimination-game usage spike."
 Apply matchup context to adjust the threshold up or down. Never present these as live odds — present them as data-grounded estimates. This is not fabrication — this is analysis from confirmed season data.
 Never say "I cannot generate lines" when playerStats data exists in context. That data IS the basis for a recommendation.
+
+RECENT FORM PRIORITY RULE (mandatory):
+- When recentGames or recent averages (ptsRecent, rebRecent, astRecent, praRecent, or the "Recent form:" / "Last N games" lines in playerStatsText) exist for a player, compare recent form against the season-average baseline before making any prop recommendation.
+- If recent form materially differs from the season average, explicitly mention that.
+- Do not fade an over purely from matchup theory when the player has cleared that threshold in most of the last 5 games, unless there is a concrete structural reason the trend should break.
+- Season averages are the baseline. Recent form is the adjustment authority. When season average and recent form conflict, explain which one you are weighting more and why.
 
 LIVE GAME PLAYABILITY FILTER (apply when live stats exist in context):
 - If a player has already exceeded the estimated threshold, that prop is DEAD. Do not recommend it.
@@ -1872,6 +1883,59 @@ function buildFollowUpVerifiedRosterByTeamBlock(nbaContextForModel, matchupForCo
   )}`;
 }
 
+function formatNbaCompactRecentStat(v) {
+  if (v == null || Number.isNaN(Number(v))) return "n/a";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "n/a";
+  if (!Number.isInteger(n)) return String(Math.round(n * 10) / 10);
+  return String(n);
+}
+
+/** Recent-form summary for NBA follow-up turns when full nbaContext JSON is omitted. */
+function buildNbaFollowUpRecentFormBlock(nbaContextForModel, matchupForCompact) {
+  const away = String(matchupForCompact?.awayAbbr || "").toUpperCase();
+  const home = String(matchupForCompact?.homeAbbr || "").toUpperCase();
+  const rows = Array.isArray(nbaContextForModel?.playerStats)
+    ? nbaContextForModel.playerStats
+    : [];
+  const scoped = rows.filter((row) => {
+    const t = String(row?.team || "").toUpperCase();
+    if (away && home) return t === away || t === home;
+    if (away) return t === away;
+    if (home) return t === home;
+    return false;
+  });
+  const withRecent = scoped.filter(
+    (row) => Array.isArray(row.recentGames) && row.recentGames.length > 0,
+  );
+  if (!withRecent.length) {
+    return "RECENT FORM (compact): no recent game logs in payload for focused matchup teams.";
+  }
+  withRecent.sort((a, b) => {
+    const pa = Number(a.praRecent || 0);
+    const pb = Number(b.praRecent || 0);
+    if (pb !== pa) return pb - pa;
+    return Number(b.pts || 0) - Number(a.pts || 0);
+  });
+  const cap = 14;
+  const picked = withRecent.slice(0, cap);
+  const lines = picked.map((row) => {
+    const n = String(row.name || "").trim() || "Unknown";
+    const t = String(row.team || "").toUpperCase();
+    const gN = row.recentGames.length;
+    const pts = formatNbaCompactRecentStat(row.ptsRecent);
+    const reb = formatNbaCompactRecentStat(row.rebRecent);
+    const ast = formatNbaCompactRecentStat(row.astRecent);
+    const pra = formatNbaCompactRecentStat(row.praRecent);
+    return `${n} (${t}): last ${gN} games avg — ${pts} pts | ${reb} reb | ${ast} ast | PRA avg ${pra}`;
+  });
+  const more =
+    withRecent.length > cap
+      ? `\n(...${withRecent.length - cap} more with recent logs on full board)`
+      : "";
+  return `RECENT FORM (compact — focused matchup)\n${lines.join("\n")}${more}`;
+}
+
 function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, incomingHistory, question }) {
   const matchupForCompact = resolveNbaFollowUpMatchupForCompact(
     nbaMatchup,
@@ -1926,8 +1990,12 @@ function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, i
     matchupForCompact,
     question,
   );
+  const recentFormBlock = buildNbaFollowUpRecentFormBlock(
+    nbaContextForModel,
+    matchupForCompact,
+  );
   const priorLine = `Prior response key positions: ${extractPriorAssistantKeyPositions(findLastUrTakeAssistantContent(incomingHistory))}`;
-  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${rosterBlock}\n${priorLine}`;
+  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${recentFormBlock}\n${rosterBlock}\n${priorLine}`;
 }
 
 function buildUrTakeFollowUpCoreSystemPrompt() {
@@ -3349,10 +3417,6 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
     raw.focusedSeriesSnapshot = buildFocusedPlayoffSeriesSnapshot(awayF, homeF, raw.playoffSeries, todays);
   }
 
-  if (Array.isArray(raw.playerStats) && raw.playerStats.length > 0) {
-    delete raw.playerStatsText;
-  }
-
   raw.liveScoreLabels = buildNbaLiveScoreInterpretationLabels(
     Array.isArray(raw.todaysGames) ? raw.todaysGames : [],
     raw.gameTotals && typeof raw.gameTotals === "object" && !Array.isArray(raw.gameTotals)
@@ -4391,6 +4455,12 @@ export default async function handler(req, res) {
     trust: takeTrustUi,
   });
 
+  let memoryBlock = "";
+  if (userEmail && isPro && !isConversationFollowUp) {
+    const sessionMemory = await getSessionMemory(userEmail);
+    memoryBlock = formatMemoryForPrompt(sessionMemory);
+  }
+
   const systemPrompt = composeRegisteredUrTakeSystemPrompt({
     contextQuality,
     sportHint,
@@ -4405,6 +4475,7 @@ export default async function handler(req, res) {
     evidenceSparsityProfile,
     liveSignals,
     bettingStyle,
+    memoryBlock,
   });
 
   const outputJsonMode = isConversationFollowUp
@@ -6159,6 +6230,75 @@ You are responding to a Pro subscriber. Apply the following:
     if (!responseText || responseText.trim().length === 0) {
       console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
       return feedSnagResponse(sportHint);
+    }
+
+    if (userEmail && isPro && !isConversationFollowUp) {
+      void (async () => {
+        try {
+          const src = String(responseText || "");
+          const playMatch = src.match(/THE PLAY[:\s]+([^\n]{10,200})/i);
+          const playText =
+            (playMatch?.[1] && String(playMatch[1]).trim()) ||
+            String(takeRecord?.playLine || "").trim();
+          if (playText.length >= 10) {
+            const confRaw = String(takeRecord?.confidence || "");
+            const confidenceTier = /\bHigh\b/i.test(confRaw)
+              ? "High"
+              : /\bSpeculative\b/i.test(confRaw)
+                ? "Speculative"
+                : /\bMedium\b/i.test(confRaw)
+                  ? "Medium"
+                  : "Medium";
+            const dateStr = new Date().toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            });
+
+            const playerMatch = playText.match(
+              /([A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+(over|under|fade)/i,
+            );
+            const player = playerMatch ? String(playerMatch[1]).trim() : null;
+
+            const directionMatch = playText.match(/\b(over|under|fade|back)\b/i);
+            const direction = directionMatch
+              ? String(directionMatch[1]).toLowerCase()
+              : null;
+
+            const lineMatch = playText.match(/\b(\d+\.?\d*)\b/);
+            const line = lineMatch ? String(lineMatch[1]) : null;
+
+            const marketMatch = playText.match(
+              /\b(points|rebounds|assists|steals|blocks|PRA|total|spread|moneyline)\b/i,
+            );
+            const market = marketMatch ? String(marketMatch[1]).toLowerCase() : null;
+
+            const anchorMatch = playText.match(/\d+\.?\d*\s+\w+[^\n]{0,60}/);
+            const anchor = anchorMatch
+              ? String(anchorMatch[0])
+                  .replace(/[·—\-]/g, "")
+                  .trim()
+                  .slice(0, 60)
+              : null;
+
+            await saveSessionMemory(userEmail, [
+              {
+                v: 1,
+                sport: String(sportHint || "unknown"),
+                play: playText.slice(0, 200),
+                player,
+                market,
+                direction,
+                line,
+                anchor,
+                confidence: confidenceTier,
+                date: dateStr,
+              },
+            ]);
+          }
+        } catch {
+          /* never block */
+        }
+      })();
     }
 
     console.log(JSON.stringify({
