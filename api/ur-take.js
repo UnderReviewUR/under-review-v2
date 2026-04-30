@@ -4020,6 +4020,7 @@ function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, imag
 
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  const requestStart = Date.now();
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -5933,10 +5934,11 @@ You are responding to a Pro subscriber. Apply the following:
       sportHint === "nba"
         ? JSON.stringify(nbaContextForModel ?? {}).length
         : null;
+    const contextPayloadChars = userPrompt.length;
     console.log(
       `[ur-take] context: sport=${String(
         sportHint || "unknown",
-      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${userPrompt.length}${
+      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${contextPayloadChars}${
         nbaCtxJsonChars != null ? ` nbaContextJsonChars=${nbaCtxJsonChars}` : ""
       }`,
     );
@@ -6158,6 +6160,20 @@ You are responding to a Pro subscriber. Apply the following:
       console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
       return feedSnagResponse(sportHint);
     }
+
+    console.log(JSON.stringify({
+      event: "ur_take_complete",
+      sport: sportHint,
+      mode: nbaDecisionMode || "standard",
+      bettingStyle,
+      oddsAvailable,
+      fallback: nbaFallbackOrRepairUsed || false,
+      confidenceTier: takeRecord?.confidence || "unknown",
+      contextChars: contextPayloadChars || 0,
+      durationMs: Date.now() - requestStart,
+      isFollowUp: isConversationFollowUp,
+      isPro,
+    }));
 
     return res.status(200).json({
       response: responseText,
