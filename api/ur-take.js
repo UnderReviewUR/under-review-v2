@@ -59,6 +59,13 @@ When a user asks for specific prop recommendations and live lines are unavailabl
 Apply matchup context to adjust the threshold up or down. Never present these as live odds — present them as data-grounded estimates. This is not fabrication — this is analysis from confirmed season data.
 Never say "I cannot generate lines" when playerStats data exists in context. That data IS the basis for a recommendation.
 
+LIVE GAME PLAYABILITY FILTER (apply when live stats exist in context):
+- If a player has already exceeded the estimated threshold, that prop is DEAD. Do not recommend it.
+- If required pace to hit threshold exceeds 1.5x their season average rate: DEAD.
+- If player is at or above threshold: prop is dead in both directions.
+- Shift to game total or second-half props if all player props are unplayable.
+- Never recommend a prop the player has already surpassed.
+
 ${NBA_UNIFIED_MARKET_CLOSING_RULE}
 - Response must read complete and sharp, never like a partial answer.`;
 
@@ -3346,6 +3353,13 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
     delete raw.playerStatsText;
   }
 
+  raw.liveScoreLabels = buildNbaLiveScoreInterpretationLabels(
+    Array.isArray(raw.todaysGames) ? raw.todaysGames : [],
+    raw.gameTotals && typeof raw.gameTotals === "object" && !Array.isArray(raw.gameTotals)
+      ? raw.gameTotals
+      : null,
+  );
+
   return raw;
 }
 
@@ -3497,6 +3511,60 @@ function findGameTotalsKeyForGame(gameTotals, g) {
     if (gameRowMatchesPropGame(key, g)) return key;
   }
   return null;
+}
+
+function formatNbaLabelNumber(n) {
+  if (!Number.isFinite(n)) return String(n);
+  const x = Math.round(n * 2) / 2;
+  return Number.isInteger(x) ? String(x) : x.toFixed(1);
+}
+
+/**
+ * Pre-computed score strings for the model JSON (format-only; uses existing todaysGames + gameTotals only).
+ */
+function buildNbaLiveScoreInterpretationLabels(todaysGames, gameTotals) {
+  const lines = [];
+  if (!Array.isArray(todaysGames) || todaysGames.length === 0) return lines;
+  const gt =
+    gameTotals && typeof gameTotals === "object" && !Array.isArray(gameTotals) ? gameTotals : null;
+
+  for (const g of todaysGames) {
+    if (!g || typeof g !== "object") continue;
+    const awayAbbr = String(g?.awayTeam?.abbr ?? "").trim() || "AWAY";
+    const homeAbbr = String(g?.homeTeam?.abbr ?? "").trim() || "HOME";
+    const awayScore = g?.awayTeam?.score;
+    const homeScore = g?.homeTeam?.score;
+    if (!Number.isFinite(Number(awayScore)) || !Number.isFinite(Number(homeScore))) continue;
+
+    const a = Number(awayScore);
+    const h = Number(homeScore);
+    const combined = a + h;
+
+    const period = Number(g?.period);
+    const qNum = Number.isFinite(period) && period > 0 ? period : null;
+    const qLabel = qNum != null ? `Q${qNum}` : "Q?";
+
+    lines.push(`${awayAbbr} has scored: ${formatNbaLabelNumber(a)} points`);
+    lines.push(`${homeAbbr} has scored: ${formatNbaLabelNumber(h)} points`);
+    lines.push(
+      `Combined total through ${qLabel}: ${formatNbaLabelNumber(a)}+${formatNbaLabelNumber(h)}`,
+    );
+
+    if (gt) {
+      const key = findGameTotalsKeyForGame(gt, g);
+      if (key) {
+        const totalLine = Number(gt[key]?.total);
+        if (Number.isFinite(totalLine)) {
+          const delta = totalLine - combined;
+          const dStr = formatNbaLabelNumber(delta);
+          const lStr = formatNbaLabelNumber(totalLine);
+          lines.push(`To hit over ${lStr}: need ${dStr} more combined points`);
+          lines.push(`To cash under ${lStr}: must stay under ${dStr} combined remaining`);
+        }
+      }
+    }
+  }
+  return lines;
 }
 
 /**
