@@ -428,6 +428,18 @@ function formatDateRange(startDate, endDate) {
     return "TBD";
   }
 
+  if (start.toDateString() === end.toDateString()) {
+    const endFallback = new Date(start.getTime() + 4 * 24 * 60 * 60 * 1000);
+    return `${start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "America/New_York",
+    })}–${endFallback.toLocaleDateString("en-US", {
+      day: "numeric",
+      timeZone: "America/New_York",
+    })}`;
+  }
+
   const sameMonth =
     start.getMonth() === end.getMonth() &&
     start.getFullYear() === end.getFullYear();

@@ -24,11 +24,43 @@ const LIVE_QUICK_LIVE = [
 ];
 
 function describeTournamentStyle(evt) {
-  const course = String(evt?.courseName || evt?.course || "").toLowerCase();
-  if (course.includes("links")) return "Links profile: wind, trajectory control, and scrambling usually decide it.";
-  if (course.includes("harbour") || course.includes("harbor")) return "Positional profile: fairways and approach precision matter more than pure power.";
+  const course = String(evt?.courseName || evt?.course || evt?.tournament?.courseName || "").toLowerCase();
+  const name = String(evt?.name || evt?.tournament?.name || "").toLowerCase();
+
+  // Match by course name
   if (course.includes("augusta")) return "Augusta profile: elite irons, touch around greens, and patience under Sunday pressure.";
-  if (course.includes("bay hill") || course.includes("quail hollow")) return "Power-parkland profile: distance helps, but approach play still separates contenders.";
+  if (course.includes("harbour") || course.includes("harbor")) return "Positional profile: fairways and approach precision matter more than pure power.";
+  if (course.includes("pebble beach")) return "Links-adjacent profile: wind exposure, cliff edges, and scrambling define scoring windows.";
+  if (course.includes("sawgrass") || course.includes("tpc sawgrass")) return "Precision profile: accuracy off the tee and iron precision matter more than raw distance.";
+  if (course.includes("doral") || course.includes("blue monster")) return "Power-water profile: aggressive lines reward distance, but water punishes mistakes on every hole.";
+  if (course.includes("torrey pines")) return "West Coast parkland: length and approach play dominate, coastal wind adds variance.";
+  if (course.includes("bay hill")) return "Power-parkland profile: distance helps, but approach play still separates contenders.";
+  if (course.includes("quail hollow")) return "Power-parkland profile: long hitters thrive, but the Creek Holes demand precision late.";
+  if (course.includes("riviera")) return "Classic parkland: versatility rewarded — power matters less than precision and course management.";
+  if (course.includes("muirfield")) return "Links profile: wind, trajectory control, and scrambling usually decide it.";
+  if (course.includes("valhalla")) return "Power-parkland profile: long off the tee with elite approach play separates contenders.";
+  if (course.includes("colonial") || course.includes("hogan")) return "Shotmaker profile: accuracy and iron play dominate — power is secondary here.";
+  if (course.includes("kiawah")) return "Ocean links: wind exposure is the primary factor — trajectory control and patience win.";
+  if (course.includes("bethpage")) return "Public-style monster: length and rough avoidance are prerequisites, not advantages.";
+  if (course.includes("southern hills")) return "Classic parkland: ball-striking and patience win — scrambling separates weekend rounds.";
+  if (course.includes("oakmont")) return "Brutal classic: speed and slope demand flawless ball-striking — no room for error.";
+  if (course.includes("winged foot")) return "Penal rough profile: fairways or bogey — course demands precision above all else.";
+  if (course.includes("medinah")) return "Water-parkland profile: length and iron precision, water hazards punish aggression.";
+  if (course.includes("east lake")) return "Tour Championship profile: short field, FedEx points determine strategy as much as course.";
+  if (course.includes("links")) return "Links profile: wind, trajectory control, and scrambling usually decide it.";
+
+  // Match by tournament name when course name is missing
+  if (name.includes("players championship") || name.includes("the players")) return "Precision profile: accuracy off the tee and iron precision matter more than raw distance.";
+  if (name.includes("masters")) return "Augusta profile: elite irons, touch around greens, and patience under Sunday pressure.";
+  if (name.includes("us open")) return "Penal rough profile: fairways or bogey — course demands precision above all else.";
+  if (name.includes("open championship") || name.includes("british open")) return "Links profile: wind, trajectory control, and scrambling usually decide it.";
+  if (name.includes("pga championship")) return "Power-parkland profile: varies by venue but length and approach play typically dominate.";
+  if (name.includes("cadillac") || name.includes("doral")) return "Power-water profile: aggressive lines reward distance, but water punishes mistakes on every hole.";
+  if (name.includes("byron nelson")) return "Low-scoring parkland: birdies come in bunches — scoring separates more than par-saving.";
+  if (name.includes("charles schwab") || name.includes("colonial")) return "Shotmaker profile: accuracy and iron play dominate — power is secondary here.";
+  if (name.includes("truist")) return "Power-parkland profile: distance helps, but approach play still separates contenders.";
+  if (name.includes("myrtle beach")) return "Resort parkland: scoring-friendly conditions reward aggressive play and birdie runs.";
+
   return "Standard PGA profile: SG approach, fairway control, and putter variance are the main separators.";
 }
 
