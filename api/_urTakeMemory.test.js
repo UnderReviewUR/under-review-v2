@@ -23,7 +23,9 @@ test("saveSessionMemory keeps only last 5 takes when given 6", async () => {
   await saveSessionMemory(email, takes);
   const mem = await getSessionMemory(email);
   assert.ok(mem);
-  assert.equal(mem.v, 1);
+  assert.equal(mem.v, 2);
+  assert.ok(mem.preferences);
+  assert.ok(Array.isArray(mem.preferences.frequentPlayers));
   assert.ok(Number.isFinite(mem.updatedAt));
   assert.equal(mem.takes.length, 5);
   assert.match(mem.takes[0].play, /play number 0/);
@@ -82,7 +84,7 @@ test("formatMemoryForPrompt formats takes correctly", () => {
     ],
     updatedAt: 1,
   });
-  assert.match(legacy, /\[PRIOR SESSION MEMORY — last 1 take\]/);
+  assert.match(legacy, /\[PRIOR SESSION MEMORY\]/);
   assert.match(legacy, /Apr 29: nba — Lean over on Brunson assists \(High confidence\)/);
 
   const structured = formatMemoryForPrompt({

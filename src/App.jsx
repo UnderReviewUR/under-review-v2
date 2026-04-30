@@ -144,6 +144,31 @@ function normalizeUrTakeDisplay(data) {
   };
 }
 
+/** Aligns with server-side thesis extraction for session memory fusion. */
+function extractPlayThesisFields(playText) {
+  const src = String(playText || "");
+  const playerMatch = src.match(
+    /([A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+(over|under|fade)/i,
+  );
+  const player = playerMatch ? String(playerMatch[1]).trim() : null;
+  const directionMatch = src.match(/\b(over|under|fade|back)\b/i);
+  const direction = directionMatch ? String(directionMatch[1]).toLowerCase() : null;
+  const lineMatch = src.match(/\b(\d+\.?\d*)\b/);
+  const line = lineMatch ? String(lineMatch[1]) : null;
+  const marketMatch = src.match(
+    /\b(points|rebounds|assists|steals|blocks|PRA|total|spread|moneyline)\b/i,
+  );
+  const market = marketMatch ? String(marketMatch[1]).toLowerCase() : null;
+  const anchorMatch = src.match(/\d+\.?\d*\s+\w+[^\n]{0,60}/);
+  const anchor = anchorMatch
+    ? String(anchorMatch[0])
+        .replace(/[·—\-]/g, "")
+        .trim()
+        .slice(0, 60)
+    : null;
+  return { player, market, direction, line, anchor };
+}
+
 // ── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeTheme, setActiveTheme] = useState(resolveInitialTheme);
@@ -450,6 +475,38 @@ ${themeCss}
           setTrackedUrTakeMessageIds((prev) =>
             prev.includes(message.msgId) ? prev : [...prev, message.msgId],
           );
+        }
+        const thesis = extractPlayThesisFields(play);
+        if (thesis.player) {
+          void (async () => {
+            try {
+              const dateStr = new Date().toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              });
+              await fetch("/api/save-memory", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders },
+                body: JSON.stringify({
+                  email,
+                  take: {
+                    v: 1,
+                    sport,
+                    play: play.slice(0, 200),
+                    player: thesis.player,
+                    market: thesis.market,
+                    direction: thesis.direction,
+                    line: thesis.line,
+                    anchor: thesis.anchor,
+                    confidence,
+                    date: dateStr,
+                  },
+                }),
+              });
+            } catch {
+              /* fire-and-forget */
+            }
+          })();
         }
         const r2 = await fetch(`/api/track-play?email=${encodeURIComponent(email)}`, {
           headers: { ...authHeaders },
@@ -2679,22 +2736,67 @@ ${themeCss}
         ) : (
           <>
             {(() => {
-              const wins = trackedPlays.filter((p) => p.result === "WIN").length;
-              const losses = trackedPlays.filter((p) => p.result === "LOSS").length;
-              const rated = wins + losses;
-              const pct = rated > 0 ? Math.round((wins / rated) * 100) : null;
-              if (rated < 3 || pct == null) return null;
+              const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+              const recentPlays = trackedPlays.filter((p) => {
+                const t = Number(p.savedAt);
+                if (!Number.isFinite(t)) return true;
+                return t > thirtyDaysAgo;
+              });
+              const ratedPlays = recentPlays.filter(
+                (p) => p.result === "WIN" || p.result === "LOSS",
+              );
+              const wins = ratedPlays.filter((p) => p.result === "WIN").length;
+              const losses = ratedPlays.filter((p) => p.result === "LOSS").length;
+              const overallRate =
+                ratedPlays.length >= 3 ? Math.round((wins / ratedPlays.length) * 100) : null;
+              const highPlays = ratedPlays.filter((p) => p.confidence === "High");
+              const highWins = highPlays.filter((p) => p.result === "WIN").length;
+              const highRate =
+                highPlays.length >= 3
+                  ? Math.round((highWins / highPlays.length) * 100)
+                  : null;
+
+              if (overallRate == null) {
+                return (
+                  <div
+                    style={{
+                      fontFamily: "var(--mono-font)",
+                      fontSize: 10,
+                      color: "rgba(0,245,233,0.45)",
+                      marginBottom: 10,
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    Track plays and mark results to see your record.
+                  </div>
+                );
+              }
+
               return (
-                <div
-                  style={{
-                    fontFamily: "var(--mono-font)",
-                    fontSize: 10,
-                    color: "rgba(0,245,233,0.55)",
-                    marginBottom: 10,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  W: {wins} L: {losses} {pct}% on rated plays
+                <div style={{ marginBottom: 10 }}>
+                  <div
+                    style={{
+                      fontFamily: "var(--mono-font)",
+                      fontSize: 10,
+                      color: "rgba(0,245,233,0.55)",
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    W: {wins} · L: {losses} · {overallRate}% last 30 days
+                  </div>
+                  {highRate != null ? (
+                    <div
+                      style={{
+                        fontFamily: "var(--mono-font)",
+                        fontSize: 10,
+                        color: "var(--cyan-bright)",
+                        letterSpacing: 0.4,
+                        marginTop: 4,
+                      }}
+                    >
+                      High confidence: {highRate}% ({highPlays.length} plays)
+                    </div>
+                  ) : null}
                 </div>
               );
             })()}

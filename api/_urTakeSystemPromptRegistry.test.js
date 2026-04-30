@@ -22,6 +22,23 @@ test("composeRegisteredUrTakeSystemPrompt injects context quality and core frame
   assert.match(p, /GENERIC \/ AMBIGUOUS SPORT SPINE/);
 });
 
+test("composeRegisteredUrTakeSystemPrompt prepends memoryBlock when provided", () => {
+  const mem =
+    "[PRIOR SESSION MEMORY — last 1 take]\n- Apr 29: nba — lean over (Medium confidence)";
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    memoryBlock: mem,
+  });
+  assert.ok(p.startsWith(mem));
+  assert.match(p, /SESSION MEMORY RULE/);
+  assert.match(p, /SESSION MEMORY NARRATIVE RULE/);
+});
+
 test("composeRegisteredUrTakeSystemPrompt bans unavailable-data closings", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
     contextQuality: "medium",

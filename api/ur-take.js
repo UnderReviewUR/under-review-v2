@@ -1,6 +1,7 @@
 export const config = { api: { bodyParser: { sizeLimit: "2mb" } } };
 
 import { applyCors } from "./_cors.js";
+import { getDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
@@ -38,8 +39,8 @@ import {
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
 import {
-  formatMemoryForPrompt,
-  getSessionMemory,
+  buildEnrichedMemoryPrompt,
+  extractStructuredFromPlayText,
   saveSessionMemory,
 } from "./_urTakeMemory.js";
 
@@ -4457,8 +4458,7 @@ export default async function handler(req, res) {
 
   let memoryBlock = "";
   if (userEmail && isPro && !isConversationFollowUp) {
-    const sessionMemory = await getSessionMemory(userEmail);
-    memoryBlock = formatMemoryForPrompt(sessionMemory);
+    memoryBlock = await buildEnrichedMemoryPrompt(userEmail, getDurableJson);
   }
 
   const systemPrompt = composeRegisteredUrTakeSystemPrompt({
@@ -6254,31 +6254,7 @@ You are responding to a Pro subscriber. Apply the following:
               day: "numeric",
             });
 
-            const playerMatch = playText.match(
-              /([A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+(over|under|fade)/i,
-            );
-            const player = playerMatch ? String(playerMatch[1]).trim() : null;
-
-            const directionMatch = playText.match(/\b(over|under|fade|back)\b/i);
-            const direction = directionMatch
-              ? String(directionMatch[1]).toLowerCase()
-              : null;
-
-            const lineMatch = playText.match(/\b(\d+\.?\d*)\b/);
-            const line = lineMatch ? String(lineMatch[1]) : null;
-
-            const marketMatch = playText.match(
-              /\b(points|rebounds|assists|steals|blocks|PRA|total|spread|moneyline)\b/i,
-            );
-            const market = marketMatch ? String(marketMatch[1]).toLowerCase() : null;
-
-            const anchorMatch = playText.match(/\d+\.?\d*\s+\w+[^\n]{0,60}/);
-            const anchor = anchorMatch
-              ? String(anchorMatch[0])
-                  .replace(/[·—\-]/g, "")
-                  .trim()
-                  .slice(0, 60)
-              : null;
+            const { player, market, direction, line, anchor } = extractStructuredFromPlayText(playText);
 
             await saveSessionMemory(userEmail, [
               {
