@@ -324,29 +324,39 @@ function sanitizeSlateOutput(parsed, bundle) {
 }
 
 export default async function handler(req, res) {
+  const requestStart = Date.now();
+  const respondWithDuration = (statusCode, payload) => {
+    console.log(JSON.stringify({
+      event: "today_slate_complete",
+      durationMs: Date.now() - requestStart,
+      statusCode,
+    }));
+    return res.status(statusCode).json(payload);
+  };
+
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return respondWithDuration(405, { error: "Method not allowed" });
   }
 
   try {
     const cached = await getDurableJson(CACHE_KEY);
     if (cached && !cached._empty) {
       res.setHeader("Cache-Control", "private, max-age=60");
-      return res.status(200).json(cached);
+      return respondWithDuration(200, cached);
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
     const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
     if (!ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: "Missing ANTHROPIC_API_KEY" });
+      return respondWithDuration(503, { error: "Missing ANTHROPIC_API_KEY" });
     }
 
     const sport = String(req.query?.sport || req.query?.tab || "home").toLowerCase();
     const cacheKey = `${sport}_${Math.floor(Date.now() / (30 * 60 * 1000))}`;
     if (slateCache[cacheKey]) {
       res.setHeader("Cache-Control", "private, max-age=60");
-      return res.status(200).json(slateCache[cacheKey]);
+      return respondWithDuration(200, slateCache[cacheKey]);
     }
 
     const base = originFromReq(req);
@@ -433,7 +443,7 @@ RULES
       );
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
       res.setHeader("Cache-Control", "private, max-age=60");
-      return res.status(200).json(fb);
+      return respondWithDuration(200, fb);
     }
 
     const text = extractAnthropicText(data);
@@ -443,7 +453,7 @@ RULES
       const fb = buildFallbackSlate(bundle, "bad_model_json");
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
       res.setHeader("Cache-Control", "private, max-age=60");
-      return res.status(200).json(fb);
+      return respondWithDuration(200, fb);
     }
 
     const out = sanitizeSlateOutput(parsed, bundle);
@@ -451,7 +461,7 @@ RULES
 
     await setDurableJson(CACHE_KEY, out, { ttlSeconds: CACHE_TTL_SECONDS });
     res.setHeader("Cache-Control", "private, max-age=60");
-    return res.status(200).json(out);
+    return respondWithDuration(200, out);
   } catch (err) {
     console.error("today-slate handler error:", err);
     try {
@@ -482,9 +492,9 @@ RULES
       const fb = buildFallbackSlate(bundle, "server_error");
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });
       res.setHeader("Cache-Control", "private, max-age=60");
-      return res.status(200).json(fb);
+      return respondWithDuration(200, fb);
     } catch {
-      return res.status(500).json({ error: "server_error", message: "today-slate unavailable" });
+      return respondWithDuration(500, { error: "server_error", message: "today-slate unavailable" });
     }
   }
 }

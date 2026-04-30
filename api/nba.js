@@ -2497,6 +2497,7 @@ const NBA_INJURIES_CONTEXT_NOTE =
  * Prioritizes Odds prop pulls + stat rows for teams named in the question (e.g. MIN @ DEN).
  */
 export async function buildNbaUrTakeBoard(question = "") {
+  const boardStart = Date.now();
   const ODDS_KEY = getEnv("ODDS_API_KEY");
   const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
   const boost = extractNbaTeamAbbrevsFromQuestion(String(question || ""));
@@ -2584,6 +2585,13 @@ export async function buildNbaUrTakeBoard(question = "") {
   board.newsImpact = buildNbaNewsImpact(board);
   board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
   board = prioritizeNbaBoardForQuestion(board, boost);
+  console.log(JSON.stringify({
+    event: "nba_board_complete",
+    durationMs: Date.now() - boardStart,
+    playerStatsCount: board?.playerStats?.length || 0,
+    propLinesCount: board?.propLines?.length || 0,
+    rosterQuality: board?.rosterGrounding?.rosterGroundingQuality || "unknown",
+  }));
   return board;
 }
 
