@@ -446,6 +446,96 @@ function formatDateRange(startDate, endDate) {
   return `${formatDisplayDate(startDate)}–${formatDisplayDate(endDate)}`;
 }
 
+/** parseBdlStartTs uses MAX_SAFE_INTEGER when the raw date string is unusable for sorting. */
+const BDL_SORT_SENTINEL_TS = Number.MAX_SAFE_INTEGER;
+
+function isUsableBdlScheduleTs(ts) {
+  return (
+    Number.isFinite(ts) &&
+    ts > 0 &&
+    ts < BDL_SORT_SENTINEL_TS - 24 * 60 * 60 * 1000
+  );
+}
+
+/**
+ * Same visual rules as formatDateRange, using epoch ms (aligns with parseBdlStartTs / parseBdlEndTs).
+ * Used when API date strings do not parse with Date() but fuzzy parsers still yield timestamps.
+ */
+function formatDateRangeFromMillis(startMs, endMs) {
+  if (!isUsableBdlScheduleTs(startMs)) return "TBD";
+
+  let end =
+    isUsableBdlScheduleTs(endMs) && endMs >= startMs
+      ? endMs
+      : startMs + 4 * 24 * 60 * 60 * 1000;
+
+  const start = new Date(startMs);
+  const endDate = new Date(end);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(endDate.getTime())) {
+    return "TBD";
+  }
+
+  const sameMonth =
+    start.getMonth() === endDate.getMonth() &&
+    start.getFullYear() === endDate.getFullYear();
+
+  if (sameMonth) {
+    return `${start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "America/New_York",
+    })}–${endDate.toLocaleDateString("en-US", {
+      day: "numeric",
+      timeZone: "America/New_York",
+    })}`;
+  }
+
+  return `${start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  })}–${endDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "America/New_York",
+  })}`;
+}
+
+/** When BDL schedule row has no parsable display string, copy ESPN week label for the matching event. */
+function enrichTourScheduleWithEspn(schedule, espnEvent) {
+  if (!Array.isArray(schedule) || schedule.length === 0 || !espnEvent) {
+    return schedule;
+  }
+
+  let espnDisplay = espnEvent.displayDate;
+  if (!espnDisplay || espnDisplay === "TBD") {
+    espnDisplay = formatDisplayDate(espnEvent.startDate);
+  }
+  if (!espnDisplay || espnDisplay === "TBD") return schedule;
+
+  const espnCandidates = [
+    slugify(espnEvent.name || ""),
+    slugify(espnEvent.shortName || ""),
+  ].filter(Boolean);
+
+  return schedule.map((row) => {
+    if (row.displayDate && row.displayDate !== "TBD") return row;
+
+    const rowCandidates = [
+      slugify(row.name || ""),
+      slugify(row.shortName || ""),
+    ].filter(Boolean);
+
+    const match = rowCandidates.some((r) =>
+      espnCandidates.some((e) => r && e && (r.includes(e) || e.includes(r)))
+    );
+
+    if (!match) return row;
+    return { ...row, displayDate: espnDisplay };
+  });
+}
+
 function cleanTournamentStatus(status) {
   const s = normalizeString(status);
 
@@ -477,17 +567,27 @@ function normalizeBdlTournament(tournament) {
   const courseName =
     alias?.canonicalCourseName || tournament.course_name || primaryCourse?.name || null;
   const seasonGuess = Number(tournament.season || new Date().getFullYear());
-  const startTs = parseBdlStartTs(tournament.start_date, seasonGuess);
-  const endTs = parseBdlEndTs(tournament.end_date, seasonGuess, startTs);
+  const startRaw =
+    tournament.start_date ?? tournament.startDate ?? null;
+  const endRaw = tournament.end_date ?? tournament.endDate ?? null;
+  const startTs = parseBdlStartTs(startRaw, seasonGuess);
+  const endTs = parseBdlEndTs(endRaw, seasonGuess, startTs);
+
+  const rangeStr = formatDateRange(startRaw, endRaw);
+  let displayDate = rangeStr;
+  if (rangeStr === "TBD" && isUsableBdlScheduleTs(startTs)) {
+    const endForDisplay = isUsableBdlScheduleTs(endTs) ? endTs : startTs + 4 * 24 * 60 * 60 * 1000;
+    displayDate = formatDateRangeFromMillis(startTs, endForDisplay);
+  }
 
   return {
     id: tournament.id || null,
     season: tournament.season || null,
     name,
     shortName,
-    startDate: tournament.start_date || null,
-    endDate: tournament.end_date || null,
-    displayDate: formatDateRange(tournament.start_date, tournament.end_date),
+    startDate: startRaw || null,
+    endDate: endRaw || null,
+    displayDate,
     city,
     state,
     country,
@@ -1040,7 +1140,7 @@ async function getOddsBoard(oddsApiKey) {
 }
 
 async function getBdlTournamentBundle() {
-  const cacheKey = "bdl_tournament_bundle_v6";
+  const cacheKey = "bdl_tournament_bundle_v7";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -1055,15 +1155,16 @@ async function getBdlTournamentBundle() {
   const now = Date.now();
 
   const normalized = allTournaments
-    .map((t) => ({
-      ...t,
-      _startTs: parseBdlStartTs(t?.start_date, season),
-      _endTs: parseBdlEndTs(
-        t?.end_date,
-        season,
-        parseBdlStartTs(t?.start_date, season)
-      ),
-    }))
+    .map((t) => {
+      const s = t?.start_date ?? t?.startDate;
+      const e = t?.end_date ?? t?.endDate;
+      const st = parseBdlStartTs(s, season);
+      return {
+        ...t,
+        _startTs: st,
+        _endTs: parseBdlEndTs(e, season, st),
+      };
+    })
     .sort((a, b) => a._startTs - b._startTs);
 
   const normalizedSchedule = normalized
@@ -1180,7 +1281,10 @@ async function getBdlTournamentBundle() {
 function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const tournament = bdlBundle?.tournament || null;
   const course = bdlBundle?.course || null;
-  const tourSchedule = Array.isArray(bdlBundle?.schedule) ? bdlBundle.schedule : [];
+  const tourSchedule = enrichTourScheduleWithEspn(
+    Array.isArray(bdlBundle?.schedule) ? bdlBundle.schedule : [],
+    espnEvent
+  );
   const bdlLeaderboard = Array.isArray(bdlBundle?.leaderboard)
     ? bdlBundle.leaderboard
     : [];
@@ -1409,7 +1513,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v14";
+  const cacheKey = "unified_golf_board_v15";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
