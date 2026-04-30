@@ -217,7 +217,19 @@ Rules:
 5. When live stats exist in context, ALWAYS apply this filter before making any prop recommendation. A prop recommendation for a stat a player has already exceeded is worse than no recommendation at all — it signals the app is not paying attention.
 6. If all targeted props are unplayable given current game state, shift to game total or second-half props instead. Never leave the user with zero actionable recommendations.
 
-This rule applies to NBA, tennis sets/games, golf rounds, and any other sport with live stat context.`;
+This rule applies to NBA, tennis sets/games, golf rounds, and any other sport with live stat context.
+
+SEASON-AVERAGE PROP ESTIMATES (when inferring or recommending thresholds from season-average context, not posted live lines):
+
+PROP THRESHOLD CALIBRATION RULE:
+- Never recommend a prop threshold that exceeds 130% of a player's season average for that stat without explicitly flagging it as speculative.
+- Example: if a player averages 2.1 APG, do not recommend over 5.5 assists without stating: "This is an aggressive lean — his season average is 2.1 APG. Only playable if [specific structural condition]."
+- The buffer between season average and recommended threshold should be:
+  Small edge: season avg +10-15%
+  Strong edge: season avg +20-30%
+  Aggressive/speculative: season avg +30%+ (must be labeled as such)
+- If the estimated threshold requires a player to perform at more than 1.5x their season average, label it SPECULATIVE and explain exactly why the structural case justifies it.
+- Never present a speculative projection with the same confidence as a structural play.`;
 }
 
 export function buildVoiceToneAndFinalCheckPrompt() {
