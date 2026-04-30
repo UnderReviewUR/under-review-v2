@@ -278,6 +278,7 @@ ${themeCss}
       return "balanced";
     }
   });
+  const [styleToast, setStyleToast] = useState("");
 
   const getTakeAuthHeaders = useTakeAuthHeaders();
 
@@ -322,6 +323,11 @@ ${themeCss}
       localStorage.setItem("ur_betting_style", next);
     } catch {}
     setBettingStyle(next);
+    setStyleToast(next === "limits"
+      ? "🔥 UR Take will now give you bold, high-conviction calls."
+      : "⚡ UR Take will now give you the full picture to decide."
+    );
+    setTimeout(() => setStyleToast(""), 2000);
   }, []);
 
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
@@ -2002,6 +2008,8 @@ ${themeCss}
     isAsking,
     prefetchingContext: prefetchingUrTakeContext,
     processImageFile,
+    bettingStyle,
+    isUnlimited,
   };
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||
@@ -2636,6 +2644,18 @@ ${themeCss}
           );
         })}
       </div>
+      {styleToast && (
+        <div style={{
+          fontFamily: "var(--mono-font)",
+          fontSize: 10,
+          color: "var(--muted)",
+          marginTop: 8,
+          letterSpacing: 0.4,
+          lineHeight: 1.4,
+        }}>
+          {styleToast}
+        </div>
+      )}
     </div>
   );
 })()}

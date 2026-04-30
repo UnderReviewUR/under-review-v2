@@ -15,6 +15,8 @@ const AskBar = memo(function AskBar({
   processImageFile,
   /** When false, skip the "PASTE IMAGE…" subline (e.g. hero copy already covers it). */
   showPasteHint = true,
+  bettingStyle = "balanced",
+  isUnlimited = false,
 }) {
   const busy = isAsking || prefetchingContext;
 
@@ -46,6 +48,19 @@ const AskBar = memo(function AskBar({
 
       <div className="ask-row">
         <div className="ask-col">
+          {isUnlimited && bettingStyle === "limits" && (
+            <div style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 9,
+              color: "var(--muted)",
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              paddingBottom: 4,
+              paddingLeft: 2,
+            }}>
+              🔥 Limits mode
+            </div>
+          )}
           {pastedImage && (
             <div className="ask-img-preview">
               <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
