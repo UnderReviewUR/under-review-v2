@@ -185,17 +185,7 @@ function slugify(value) {
   return normalizeString(value).replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-const BDL_TOURNAMENT_ALIASES = [
-  {
-    match: "cadillac championship",
-    canonicalName: "RBC Heritage",
-    canonicalShortName: "RBC Heritage",
-    canonicalCourseName: "Harbour Town Golf Links",
-    canonicalCity: "Hilton Head Island",
-    canonicalState: "South Carolina",
-    canonicalCountry: "United States of America",
-  },
-];
+const BDL_TOURNAMENT_ALIASES = [];
 
 function getBdlTournamentAlias(rawName) {
   const n = slugify(rawName || "");

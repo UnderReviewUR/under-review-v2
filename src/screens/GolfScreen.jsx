@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
+import { classifyGolfEvent, EVENT_VALIDITY } from "../../shared/eventValidity.js";
 import { isGolfEventFinished } from "../lib/golfEventStatus.js";
 import { deriveGolfEventState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
@@ -30,6 +32,161 @@ function describeTournamentStyle(evt) {
   return "Standard PGA profile: SG approach, fairway control, and putter variance are the main separators.";
 }
 
+/** Compact wind/rain line from provider payload only (no raw JSON). */
+function formatGolfWeatherRow(golfData) {
+  const snap = golfData?.course?.weatherSnapshot;
+  const alert =
+    golfData?.weatherAlert ||
+    golfData?.course?.weatherAlert ||
+    null;
+  const parts = [];
+  if (snap?.windSpeedMph != null && Number.isFinite(Number(snap.windSpeedMph))) {
+    parts.push(`Wind: ${Math.round(Number(snap.windSpeedMph))} mph`);
+  }
+  if (snap?.precipProbability != null && Number.isFinite(Number(snap.precipProbability))) {
+    parts.push(`Rain risk: ${Math.round(Number(snap.precipProbability))}%`);
+  }
+  const hasAlert = alert != null && typeof alert === "object";
+  if (parts.length === 0 && !hasAlert) return null;
+  const base = parts.join(" · ");
+  if (hasAlert) {
+    return base ? `${base} · Weather alert active` : "Weather alert active";
+  }
+  return base || null;
+}
+
+/**
+ * One-line course character from hole-difficulty aggregates in courseStats only.
+ * Returns null if the sample is too thin to support a credible line.
+ */
+function buildCourseStatsBlurb(courseStats) {
+  if (!Array.isArray(courseStats) || courseStats.length < 2) return null;
+  const rows = courseStats.filter((r) => r && typeof r === "object");
+  if (rows.length < 2) return null;
+
+  let sumDiff = 0;
+  let nDiff = 0;
+  let birdies = 0;
+  let pars = 0;
+  let bogeys = 0;
+  let doubles = 0;
+  for (const r of rows) {
+    const d = Number(r.scoringDiff);
+    if (Number.isFinite(d)) {
+      sumDiff += d;
+      nDiff++;
+    }
+    birdies += Number(r.birdies) || 0;
+    pars += Number(r.pars) || 0;
+    bogeys += Number(r.bogeys) || 0;
+    doubles += Number(r.doubles) || 0;
+  }
+  if (nDiff < 2) return null;
+  const avgDiff = sumDiff / nDiff;
+  const scoringEvents = birdies + bogeys + doubles;
+  if (scoringEvents < 4) return null;
+
+  const bogeyHeavy = bogeys >= birdies * 1.25 && avgDiff > 0.08;
+  const birdieHeavy = birdies >= bogeys * 1.15 && avgDiff < -0.02;
+  const tough = avgDiff > 0.12;
+
+  if (bogeyHeavy && tough) {
+    return "This course punishes mistakes — bogey avoidance matters more than raw birdie rate on the hardest holes.";
+  }
+  if (birdieHeavy) {
+    return "Birdie chances matter here — scoring separation shows up on gettable holes.";
+  }
+  if (tough) {
+    return "Tougher scoring setup — clean approach play and avoiding blow-up holes matter most.";
+  }
+  if (avgDiff < -0.05) {
+    return "Relative scoring ease on key holes — pars stay on the card but birdies move you up.";
+  }
+  return null;
+}
+
+/** Status-only completion hints (feeds may omit endTs). */
+function scheduleRowLooksCompleted(row, nowMs) {
+  const endTs = Number(row?.endTs ?? NaN);
+  if (Number.isFinite(endTs) && endTs < nowMs) return true;
+  const raw = String(row?.rawStatus || row?.status || row?.raw?.status || "").toLowerCase();
+  if (!raw.trim()) return false;
+  return (
+    raw.includes("final") ||
+    raw.includes("complete") ||
+    raw.includes("completed") ||
+    raw.includes("ended") ||
+    raw.includes("closed")
+  );
+}
+
+function scheduleRowSortKey(row) {
+  const endTs = Number(row?.endTs ?? NaN);
+  if (Number.isFinite(endTs)) return endTs;
+  const startTs = Number(row?.startTs ?? NaN);
+  return Number.isFinite(startTs) ? startTs : 0;
+}
+
+/** Most recent finished row from schedule (provider usually sends upcoming-only; kept for API evolution). */
+function pickMostRecentPastScheduleRow(rows, nowMs) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  let best = null;
+  let bestKey = -Infinity;
+  for (const row of rows) {
+    if (!scheduleRowLooksCompleted(row, nowMs)) continue;
+    const key = scheduleRowSortKey(row);
+    if (key >= bestKey) {
+      bestKey = key;
+      best = row;
+    }
+  }
+  return best;
+}
+
+/**
+ * When feed drops currentEvent and schedule is empty, avoid generic "PGA TOUR" via schedule past row or session memory.
+ * Only used if there is no named currentEvent and no named schedule[0] (caller gates).
+ */
+function computeIdentityFallback(ce, fallbackEvent, scheduleRows, lastKnownSnapshot, nowMs) {
+  if (ce?.name || ce?.shortName) return null;
+  if (fallbackEvent?.name || fallbackEvent?.shortName) return null;
+  const past = pickMostRecentPastScheduleRow(scheduleRows, nowMs);
+  if (past?.name || past?.shortName) {
+    const title = past.shortName || past.name;
+    const crs = String(past.courseName || "").trim();
+    return {
+      title,
+      courseLine: crs ? `${crs} — Final` : null,
+      monoLabel: "FINAL — RESULTS & RECAP",
+    };
+  }
+  if (lastKnownSnapshot?.name || lastKnownSnapshot?.shortName) {
+    const title = lastKnownSnapshot.shortName || lastKnownSnapshot.name;
+    const crs = String(lastKnownSnapshot.course || "").trim();
+    const v = lastKnownSnapshot.lastKnownValidity;
+    if (v === EVENT_VALIDITY.FINISHED) {
+      return {
+        title,
+        courseLine: crs ? `${crs} — Final` : null,
+        monoLabel: "FINAL — RESULTS & RECAP",
+      };
+    }
+    if (v === EVENT_VALIDITY.ACTIVE) {
+      return {
+        title,
+        courseLine: crs ? `${crs} — Live` : "Ask about any player, tournament, or prop",
+        monoLabel: "OUTRIGHTS / PROPS / MATCHUP EDGES",
+      };
+    }
+    return {
+      title,
+      courseLine: crs ? `${crs} — Upcoming` : "Ask about any player, tournament, or prop",
+      monoLabel: "OUTRIGHTS / PROPS / MATCHUP EDGES",
+    };
+  }
+  return null;
+}
+
 export default function GolfScreen({
   golfScreenRef,
   hasDockedBar,
@@ -43,29 +200,111 @@ export default function GolfScreen({
   submitGolf,
   askBarCommon,
 }) {
+  const [lastKnownEventSnapshot, setLastKnownEventSnapshot] = useState(null);
+
+  useEffect(() => {
+    const ev = golfData?.currentEvent || golfData?.tournament;
+    if (ev && (ev.name || ev.shortName)) {
+      setLastKnownEventSnapshot({
+        name: ev.name || ev.shortName,
+        shortName: ev.shortName || ev.name,
+        course: ev.course ?? ev.courseName ?? null,
+        lastKnownValidity: classifyGolfEvent(ev, Date.now()),
+      });
+    }
+  }, [golfData?.currentEvent, golfData?.tournament]);
+
   const eventFinished = isGolfEventFinished(golfData);
   const golfPhase = deriveGolfEventState(golfData);
   const shellPrompts = getQuickPromptsForState("golf", eventFinished ? "final" : golfPhase);
   const quickAngles = !eventFinished && golfPhase === "live" ? LIVE_QUICK_LIVE : LIVE_QUICK_PRE;
   const scheduleRows = Array.isArray(golfData?.tourSchedule) ? golfData.tourSchedule : [];
   const fallbackEvent = scheduleRows[0] || null;
-  const headerEventName = golfData?.currentEvent?.name || fallbackEvent?.name || "PGA TOUR";
-  const headerCourseLine = golfLoading
-    ? "Loading..."
-    : golfData?.currentEvent?.course
+  const ce = golfData?.currentEvent;
+  const validity = classifyGolfEvent(ce || null);
+  const hasNamedFeatured =
+    Boolean(ce && (ce.name || ce.shortName)) &&
+    (validity === EVENT_VALIDITY.ACTIVE ||
+      validity === EVENT_VALIDITY.UPCOMING);
+  const showNextUp =
+    !golfLoading &&
+    Boolean(fallbackEvent && (fallbackEvent.name || fallbackEvent.shortName)) &&
+    !hasNamedFeatured;
+
+  const identityFallback = computeIdentityFallback(
+    ce,
+    fallbackEvent,
+    scheduleRows,
+    lastKnownEventSnapshot,
+    Date.now(),
+  );
+
+  let headerEventName;
+  let headerCourseLine;
+  let headerMonoLabel;
+
+  if (golfLoading) {
+    headerEventName = ce?.name || fallbackEvent?.name || identityFallback?.title || "PGA TOUR";
+    headerCourseLine = "Loading...";
+    headerMonoLabel = eventFinished ? "FINAL — RESULTS & RECAP" : "OUTRIGHTS / PROPS / MATCHUP EDGES";
+  } else if (showNextUp) {
+    const nm = fallbackEvent.shortName || fallbackEvent.name || "PGA Tour Event";
+    headerEventName = `Next up: ${nm}`;
+    const crs = String(fallbackEvent.courseName || "").trim();
+    const loc = String(fallbackEvent.location || "").trim();
+    const placeOrVenue = crs || loc;
+    const dt = fallbackEvent.displayDate || "Upcoming";
+    headerCourseLine = placeOrVenue ? `${placeOrVenue} • ${dt}` : dt;
+    headerMonoLabel = "NEXT ON TOUR";
+  } else if (hasNamedFeatured) {
+    headerEventName = ce?.name || fallbackEvent?.name || "PGA TOUR";
+    headerCourseLine = golfData?.currentEvent?.course
+      ? `${golfData.currentEvent.course} — ${golfData.currentEvent.round || "Live"}`
+      : fallbackEvent?.courseName
+        ? `${fallbackEvent.courseName} — Upcoming`
+        : "Ask about any player, tournament, or prop";
+    headerMonoLabel = "OUTRIGHTS / PROPS / MATCHUP EDGES";
+  } else if (eventFinished && !fallbackEvent) {
+    headerEventName = ce?.name || identityFallback?.title || "PGA TOUR";
+    headerCourseLine = golfData?.currentEvent?.course
+      ? `${golfData.currentEvent.course} — Final`
+      : identityFallback?.courseLine || "Ask about any player, tournament, or prop";
+    headerMonoLabel = "FINAL — RESULTS & RECAP";
+  } else if (identityFallback) {
+    headerEventName = identityFallback.title;
+    headerCourseLine = identityFallback.courseLine || "Ask about any player, tournament, or prop";
+    headerMonoLabel = identityFallback.monoLabel;
+  } else {
+    headerEventName = ce?.name || fallbackEvent?.name || "PGA TOUR";
+    headerCourseLine = golfData?.currentEvent?.course
       ? `${golfData.currentEvent.course} — ${eventFinished ? "Final" : golfData.currentEvent.round || "Live"}`
       : fallbackEvent?.courseName
         ? `${fallbackEvent.courseName} — Upcoming`
         : "Ask about any player, tournament, or prop";
+    headerMonoLabel = eventFinished ? "FINAL — RESULTS & RECAP" : "OUTRIGHTS / PROPS / MATCHUP EDGES";
+  }
+
+  const weatherRow = formatGolfWeatherRow(golfData);
+  const courseProfileLine = buildCourseStatsBlurb(golfData?.courseStats);
 
   return (
           <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="golf-banner">
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{headerEventName}</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{eventFinished ? "FINAL — RESULTS & RECAP" : "OUTRIGHTS / PROPS / MATCHUP EDGES"}</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{headerMonoLabel}</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
                 {headerCourseLine}
               </div>
+              {weatherRow && (
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 }}>
+                  {weatherRow}
+                </div>
+              )}
+              {courseProfileLine && (
+                <div style={{ fontSize: 11, color: "var(--soft)", marginTop: 4, lineHeight: 1.45, fontStyle: "italic" }}>
+                  {courseProfileLine}
+                </div>
+              )}
             </div>
 
             {golfMsgs.length===0&&(
