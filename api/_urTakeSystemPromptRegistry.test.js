@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildBettingStyleAppendix,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
   resolveEvidenceSparsityProfile,
@@ -181,4 +182,14 @@ test("buildTakeTrustUiMetadata encodes P-PR3 tier from sparsity profile", () => 
   assert.equal(t.thinEvidence, true);
   assert.equal(t.sportHint, "mlb");
   assert.equal(t.version, 1);
+});
+
+test("buildBettingStyleAppendix('limits') contains PUSH THE LIMITS", () => {
+  const p = buildBettingStyleAppendix("limits");
+  assert.match(p, /PUSH THE LIMITS/);
+});
+
+test("buildBettingStyleAppendix('balanced') contains BALANCED", () => {
+  const p = buildBettingStyleAppendix("balanced");
+  assert.match(p, /BALANCED/);
 });

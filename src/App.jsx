@@ -271,6 +271,13 @@ ${themeCss}
   const [userEmail, setUserEmail] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("ur_email") || "" : ""
   );
+  const [bettingStyle, setBettingStyle] = useState(() => {
+    try {
+      return localStorage.getItem("ur_betting_style") || "balanced";
+    } catch {
+      return "balanced";
+    }
+  });
 
   const getTakeAuthHeaders = useTakeAuthHeaders();
 
@@ -309,6 +316,13 @@ ${themeCss}
   const [codeLoading, setCodeLoading]     = useState(false);
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT  = 3;
+  const handleBettingStyleChange = useCallback((style) => {
+    const next = style === "limits" ? "limits" : "balanced";
+    try {
+      localStorage.setItem("ur_betting_style", next);
+    } catch {}
+    setBettingStyle(next);
+  }, []);
 
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
 
@@ -687,6 +701,7 @@ ${themeCss}
       userEmail: userEmail || null,
       history: historyPayload,
       sportHint: effectiveSportHint,
+      bettingStyle: isUnlimited ? bettingStyle : "balanced",
       teamHint: detectNflTeamHint(text),
       matchupContext: matchup || null,
       image: null,
@@ -832,7 +847,9 @@ ${themeCss}
   nflPlayersForUi,
   nflContextData,
   canAsk,
+  bettingStyle,
   recordQuery,
+  isUnlimited,
   userEmail,
   loadPerformanceSnapshot,
   getTakeAuthHeaders,
@@ -2660,6 +2677,145 @@ ${themeCss}
   </div>
       );
     })()}
+{isUnlimited && (() => {
+  const lightChrome = isProLightTheme(activeTheme);
+  const isDark = !lightChrome;
+  return (
+    <div style={{
+      margin: "24px 20px 0",
+      paddingTop: 18,
+      borderTop: lightChrome
+        ? (activeTheme === "crisp"
+          ? "1px solid #94A3B8"
+          : "1px solid rgba(26,20,16,.15)")
+        : "1px solid rgba(255,255,255,.07)",
+    }}>
+      <div style={{
+        fontFamily: "var(--mono-font)",
+        fontSize: 9,
+        letterSpacing: 3,
+        color: isDark
+          ? "rgba(255,255,255,.35)"
+          : "#64748B",
+        textTransform: "uppercase",
+        marginBottom: 4,
+      }}>
+        Betting Style
+      </div>
+      <div style={{
+        fontSize: 10,
+        color: isDark
+          ? "rgba(255,255,255,.25)"
+          : "#94A3B8",
+        fontFamily: "var(--mono-font)",
+        letterSpacing: 0.4,
+        marginBottom: 12,
+        lineHeight: 1.45,
+      }}>
+        Select how you approach your bets
+        so UR Take can optimize its takes
+        for you.
+      </div>
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}>
+        {[
+          {
+            id: "balanced",
+            label: "⚡ I Like a Bit of Risk",
+            desc: "Balanced reads. Full picture. " +
+              "You decide how hard to lean.",
+          },
+          {
+            id: "limits",
+            label: "🔥 I Push the Limits",
+            desc: "Bold angles. Max conviction. " +
+              "UR Take commits when the edge is real.",
+          },
+        ].map((option) => {
+          const isActive =
+            bettingStyle === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() =>
+                handleBettingStyleChange(
+                  option.id
+                )
+              }
+              style={{
+                background: isActive
+                  ? isDark
+                    ? "rgba(0,245,233,0.08)"
+                    : "rgba(0,196,184,0.08)"
+                  : isDark
+                    ? "#0C0E14"
+                    : "#F8FAFC",
+                border: `1px solid ${
+                  isActive
+                    ? isDark
+                      ? "rgba(0,245,233,0.35)"
+                      : "rgba(0,196,184,0.35)"
+                    : isDark
+                      ? "#141820"
+                      : "#E2E8F0"
+                }`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              <div>
+                <div style={{
+                  fontFamily: "var(--body-font)",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: lightChrome
+                    ? "#1E293B"
+                    : isActive
+                      ? "var(--cyan-bright)"
+                      : "var(--text)",
+                  marginBottom: 2,
+                }}>
+                  {option.label}
+                </div>
+                <div style={{
+                  fontSize: 10,
+                  color: isDark
+                    ? "rgba(255,255,255,.3)"
+                    : "#94A3B8",
+                  fontFamily: "var(--mono-font)",
+                  letterSpacing: 0.5,
+                  lineHeight: 1.4,
+                }}>
+                  {option.desc}
+                </div>
+              </div>
+              {isActive && (
+                <div style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "var(--cyan-bright)",
+                  flexShrink: 0,
+                  marginLeft: 12,
+                }}/>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+})()}
     {/* Bottom */}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
       <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:proMarketing.bottomMuted ?? "var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>

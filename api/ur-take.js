@@ -4106,6 +4106,10 @@ export default async function handler(req, res) {
     image,
     history: incomingHistory,
   } = req.body || {};
+  const bettingStyle =
+    req.body?.bettingStyle === "limits"
+      ? "limits"
+      : "balanced";
 
   const normalizedUrTakeHistoryForGate = normalizeIncomingChatHistory(incomingHistory);
   const isConversationFollowUp = normalizedUrTakeHistoryForGate.length > 1;
@@ -4399,6 +4403,7 @@ export default async function handler(req, res) {
     hasMatchupContext: Boolean(matchupContext),
     evidenceSparsityProfile,
     liveSignals,
+    bettingStyle,
   });
 
   const outputJsonMode = isConversationFollowUp

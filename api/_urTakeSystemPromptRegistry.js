@@ -284,6 +284,59 @@ export function buildLiveBetAndSlipReviewConvictionPrompt() {
 - Confident and wrong is recoverable. Mealy-mouthed and right is useless.`;
 }
 
+export function buildBettingStyleAppendix(bettingStyle) {
+  if (bettingStyle === "limits") {
+    return `
+
+[USER BETTING STYLE — PUSH THE LIMITS]
+This user pushes the limits. They want
+bold, high-conviction takes. Optimize
+every response for this style:
+- Lead with the highest-conviction angle
+  available. Do not soften it.
+- When the structural edge is clear,
+  commit fully. No hedging language.
+- Identify the contrarian angle — where
+  is the market underpricing something
+  most people are missing?
+- If multiple props are available,
+  surface the boldest one with the
+  clearest structural backing.
+- Still cap confidence honestly —
+  High/Medium/Speculative tiers still
+  apply. Bold does not mean reckless.
+- THE PLAY close must be the most
+  aggressive defensible call available.
+- Do not offer "on the other hand"
+  alternatives unless they materially
+  change the call. This user wants
+  a decision, not a debate.
+`;
+  }
+
+  // balanced — default
+  return `
+
+[USER BETTING STYLE — BALANCED]
+This user likes a bit of risk but wants
+the full picture. Optimize every response
+for this style:
+- Lead with the primary play, then
+  provide supporting context and
+  secondary angles.
+- Show the reasoning clearly so the
+  user can decide how hard to lean.
+- Include the key risk or flip trigger
+  so they can monitor the situation.
+- THE PLAY close should be the most
+  defensible call — not the boldest
+  or the most conservative.
+- Confidence tiers apply as normal.
+- This user appreciates being informed,
+  not just told what to do.
+`;
+}
+
 export function buildNbaUrTakeDecisionModeSpine(mode) {
   const m = String(mode || "none");
   const blocks = {
@@ -445,6 +498,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     hasMatchupContext = false,
     evidenceSparsityProfile: profileIn,
     liveSignals = null,
+    bettingStyle = "balanced",
   } = input;
 
   const evidenceProfile =
@@ -489,5 +543,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     composed += `\n\n${buildLiveBetAndSlipReviewConvictionPrompt()}`;
   }
 
-  return applyChaseSystemOverlay(composed, chaseSignals);
+  const styleAppendix = buildBettingStyleAppendix(bettingStyle);
+
+  return applyChaseSystemOverlay(composed + styleAppendix, chaseSignals);
 }
