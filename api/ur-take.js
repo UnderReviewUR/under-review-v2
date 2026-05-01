@@ -1335,9 +1335,25 @@ function stripBannedInternalLeakStrings(text) {
   return s.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/** Phrases that must never appear in user-facing UR Take output (full-body sweep). */
+const BANNED_DATA_AVAILABILITY_BODY_PHRASES = [
+  "unavailable in context",
+  "missing from context",
+  "data missing from context",
+  "not in context",
+  "Season usage data unavailable",
+  "Last 5 games data missing",
+  "anchoring to the structural reality",
+];
+
+function escapeRegExpLiteral(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /**
  * Global opener sanitizer: remove lead-in paragraphs that describe missing data
  * instead of giving analysis. Keeps the rest of the answer intact.
+ * Also strips banned data-availability phrasing anywhere in the body.
  */
 function stripBannedDataAvailabilityOpener(text) {
   let s = stripBannedInternalLeakStrings(String(text || "").trim());
@@ -1358,7 +1374,16 @@ function stripBannedDataAvailabilityOpener(text) {
     }
     break;
   }
-  return s.trim();
+  for (const phrase of BANNED_DATA_AVAILABILITY_BODY_PHRASES) {
+    const re = new RegExp(escapeRegExpLiteral(phrase), "gi");
+    s = s.replace(re, "");
+  }
+  s = s
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n[ \t]+\n/g, "\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return s;
 }
 
 /**

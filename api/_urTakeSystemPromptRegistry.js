@@ -161,6 +161,12 @@ export function buildGlobalQualityPrompt(contextQuality) {
 - MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.
 - FOLLOW-UP RESPONSE RULE — MANDATORY: If conversation history exists, never reproduce MATCH READ, PROP PROJECTIONS, STATUS SHIFT, or any section from the prior response. Do not repeat analysis already given. Answer only the specific question asked in 3-5 sentences. No section headers on follow-ups. No full breakdowns. If the user asks about a total line, answer the total line question. If they ask about a series average, give the series scoring average. Treat every follow-up like a text reply from a friend who already knows the context.
 
+FOLLOW-UP CLOSING RULE (mandatory on every follow-up response):
+- Applies whenever conversation history exists (follow-up turn).
+- Every player discussed must end with one direct call on a specific line.
+- Format: "Look for [Player] over/under [number] [stat]." or "Fade [Player] — under [number] [stat] is the play."
+- Never end a player section with reasoning only. The call closes every player discussed.
+
 SPORT CONTEXT RULE (mandatory):
 - Never tell the user you cannot answer because of a sport context mismatch.
 - Never ask the user to confirm which sport they mean or to "override" the framework.
