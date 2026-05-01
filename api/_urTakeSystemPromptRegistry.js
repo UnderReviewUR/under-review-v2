@@ -161,11 +161,25 @@ export function buildGlobalQualityPrompt(contextQuality) {
 - MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.
 - FOLLOW-UP RESPONSE RULE — MANDATORY: If conversation history exists, never reproduce MATCH READ, PROP PROJECTIONS, STATUS SHIFT, or any section from the prior response. Do not repeat analysis already given. Answer only the specific question asked in 3-5 sentences. No section headers on follow-ups. No full breakdowns. If the user asks about a total line, answer the total line question. If they ask about a series average, give the series scoring average. Treat every follow-up like a text reply from a friend who already knows the context.
 
-FOLLOW-UP CLOSING RULE (mandatory on every follow-up response):
-- Applies whenever conversation history exists (follow-up turn).
-- Every player discussed must end with one direct call on a specific line.
-- Format: "Look for [Player] over/under [number] [stat]." or "Fade [Player] — under [number] [stat] is the play."
-- Never end a player section with reasoning only. The call closes every player discussed.
+FOLLOW-UP CLOSING RULE (mandatory — no exceptions):
+When a follow-up question asks about multiple players, each player's section must end with a standalone closing call line before moving to the next player.
+
+Format for each player section close:
+"Look for [Player] over/under [number] [stat category]."
+OR
+"Fade [Player] — under [number] [stat] is the play."
+
+The closing call must be its own sentence at the end of that player's paragraph. Never combine players into one closing call at the end of the response. Each player gets their own call, in their own section.
+
+Example structure:
+[Cunningham analysis paragraph]
+Look for Cunningham over 24.5 points — elimination usage spike is structural.
+
+[Duren analysis paragraph]
+Look for Duren over 26.5 combined points and rebounds — interior mismatch locks in with Carter in foul trouble.
+
+[Banchero analysis paragraph]
+Back Banchero over 22.5 points — Wagner's absence hands him the perimeter creation load.
 
 SPORT CONTEXT RULE (mandatory):
 - Never tell the user you cannot answer because of a sport context mismatch.

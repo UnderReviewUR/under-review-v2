@@ -1338,12 +1338,19 @@ function stripBannedInternalLeakStrings(text) {
 /** Phrases that must never appear in user-facing UR Take output (full-body sweep). */
 const BANNED_DATA_AVAILABILITY_BODY_PHRASES = [
   "unavailable in context",
+  "unavailable in compact context",
   "missing from context",
   "data missing from context",
   "not in context",
   "Season usage data unavailable",
   "Last 5 games data missing",
   "anchoring to the structural reality",
+  "absent from compact",
+  "compact context",
+  "compact data",
+  "from compact",
+  "Recent form absent",
+  "Recent form unavailable",
 ];
 
 function escapeRegExpLiteral(str) {
