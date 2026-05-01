@@ -297,7 +297,7 @@ ${themeCss}
     typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : ""
   );
 
-  // ── Email gate ──────────────────────────────────────────────────────────────
+  // ── User email (Pro session / tracking; optional until user signs in or checks out) ──
   const [userEmail, setUserEmail] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("ur_email") || "" : ""
   );
@@ -336,12 +336,9 @@ ${themeCss}
     loadPerformanceSnapshot,
   } = usePerformance(userEmail, getTakeAuthHeaders);
 
-  const [weeklyUsed, setWeeklyUsed]     = useState(0);
-  const [showEmailGate, setShowEmailGate] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   const [openingBillingPortal, setOpeningBillingPortal] = useState(false);
-  const [gateEmail, setGateEmail]         = useState("");
   const [codeInput, setCodeInput]         = useState("");
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
@@ -364,7 +361,6 @@ ${themeCss}
     async (playId, result) => {
       const email =
         userEmail ||
-        gateEmail ||
         (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
         "";
       if (!email) return;
@@ -393,14 +389,13 @@ ${themeCss}
         setTimeout(() => setSyncErrorPlayId(null), 4000);
       }
     },
-    [userEmail, gateEmail, getTakeAuthHeaders, trackedPlays],
+    [userEmail, getTakeAuthHeaders, trackedPlays],
   );
 
   const handleClearMemory = useCallback(
     async (clearType) => {
       const email =
         userEmail ||
-        gateEmail ||
         (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
         "";
       if (!email) return;
@@ -427,7 +422,7 @@ ${themeCss}
         /* ignore */
       }
     },
-    [userEmail, gateEmail, getTakeAuthHeaders],
+    [userEmail, getTakeAuthHeaders],
   );
 
   const handleTrackPlay = useCallback(
@@ -435,7 +430,6 @@ ${themeCss}
       try {
         const email =
           userEmail ||
-          gateEmail ||
           (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
           "";
         if (!email) return;
@@ -517,7 +511,7 @@ ${themeCss}
         /* never surface */
       }
     },
-    [userEmail, gateEmail, getTakeAuthHeaders, screen],
+    [userEmail, getTakeAuthHeaders, screen],
   );
 
   const urTakeTrackPlay = useMemo(
@@ -533,7 +527,6 @@ ${themeCss}
     if (!isUnlimited) return;
     const email =
       userEmail ||
-      gateEmail ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
       "";
     let cancelled = false;
@@ -560,7 +553,7 @@ ${themeCss}
     return () => {
       cancelled = true;
     };
-  }, [isUnlimited, userEmail, gateEmail, getTakeAuthHeaders]);
+  }, [isUnlimited, userEmail, getTakeAuthHeaders]);
 
   const proMarketing = useMemo(() => getProMarketingTokens(activeTheme), [activeTheme]);
 
@@ -569,15 +562,6 @@ ${themeCss}
       setActiveTheme((prev) => validateThemeForTier(prev, accessTier));
     });
   }, [accessTier]);
-
-  // Load lifetime free-query count on mount (never resets)
-  useEffect(() => {
-    if (isUnlimited) return;
-    startTransition(() => {
-      const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
-      setWeeklyUsed(Array.isArray(used) ? used.length : 0);
-    });
-  }, [isUnlimited]);
 
   // Redeem access code
   const redeemCode = useCallback(async () => {
@@ -616,24 +600,22 @@ ${themeCss}
   // Check if user can ask — called before every query
   const canAsk = useCallback(() => {
     if (isUnlimited) return true;
-    if (!userEmail) { setShowEmailGate(true); return false; }
-    if (weeklyUsed >= FREE_LIMIT) { setShowUpgradeModal(true); return false; }
-    return true;
-  }, [isUnlimited, userEmail, weeklyUsed]);
 
-  // Record a query use
-  const recordQuery = useCallback(() => {
-    if (isUnlimited) return;
-    const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
-    used.push(Date.now());
-    localStorage.setItem("ur_queries", JSON.stringify(used));
-    setWeeklyUsed(prev => prev + 1);
-    // Fire-and-forget server record
-    if (userEmail) {
-      fetch("/api/gate", { method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ action:"consume", email:userEmail }) }).catch(()=>{});
+    const freeUsed = (() => {
+      try {
+        return parseInt(localStorage.getItem("ur_free_used") || "0", 10);
+      } catch {
+        return 0;
+      }
+    })();
+
+    if (freeUsed >= FREE_LIMIT) {
+      setShowUpgradeModal(true);
+      return false;
     }
-  }, [isUnlimited, userEmail]);
+
+    return true;
+  }, [isUnlimited]);
 
   useEffect(() => {
     if (userEmail && !isUnlimited) {
@@ -1033,7 +1015,14 @@ ${themeCss}
         ? resolvedSport
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
-    recordQuery();
+    if (!isUnlimited) {
+      try {
+        const current = parseInt(localStorage.getItem("ur_free_used") || "0", 10);
+        localStorage.setItem("ur_free_used", String(current + 1));
+      } catch {
+        /* ignore */
+      }
+    }
 
     const msgId =
       typeof crypto !== "undefined" && crypto.randomUUID
@@ -1087,7 +1076,6 @@ ${themeCss}
   nflContextData,
   canAsk,
   bettingStyle,
-  recordQuery,
   isUnlimited,
   userEmail,
   loadPerformanceSnapshot,
@@ -2629,7 +2617,7 @@ ${themeCss}
             if (openingBillingPortal) return;
             setOpeningBillingPortal(true);
             try {
-              const portalEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
+              const portalEmail = userEmail || localStorage.getItem("ur_email") || "";
               const query = portalEmail ? `?email=${encodeURIComponent(portalEmail)}` : "";
               window.location.assign(`/api/billing-portal${query}`);
             } catch {
@@ -3190,7 +3178,7 @@ ${themeCss}
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>$9.99/month · cancel anytime</div>
       <button className="pro-cta-btn" onClick={async()=>{
         try{
-          const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
+          const checkoutEmail = userEmail || localStorage.getItem("ur_email") || "";
           const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
           const data=await res.json();
           if(data.url) window.location.href=data.url;
@@ -3467,34 +3455,6 @@ ${themeCss}
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
-          </div>
-        )}
-
-        {/* ══ EMAIL GATE MODAL ══ */}
-        {showEmailGate&&(
-          <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:28,maxWidth:360,width:"100%",textAlign:"center"}}>
-              <div style={{fontSize:28,marginBottom:8}}>⚡</div>
-              <div style={{fontFamily:"var(--display-font)",fontSize:26,letterSpacing:1,marginBottom:6}}>FREE ACCESS</div>
-              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:20}}>
-                Enter your email to unlock your <strong style={{color:"var(--text)"}}>free UR Take</strong> (one time). No password. No spam.
-              </div>
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={gateEmail}
-                onChange={e=>setGateEmail(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter"&&gateEmail.includes("@")){ localStorage.setItem("ur_email",gateEmail); setUserEmail(gateEmail); setShowEmailGate(false); fetch("/api/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"register",email:gateEmail})}).catch(()=>{}); } }}
-                style={{width:"100%",background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:10,padding:"12px 14px",color:"var(--text)",fontSize:16,fontFamily:"var(--body-font)",outline:"none",marginBottom:12}}
-                autoFocus
-              />
-              <button
-                disabled={!gateEmail.includes("@")}
-                onClick={()=>{ localStorage.setItem("ur_email",gateEmail); setUserEmail(gateEmail); setShowEmailGate(false); fetch("/api/gate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"register",email:gateEmail})}).catch(()=>{}); }}
-                style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:gateEmail.includes("@")?"var(--cyan-bright)":"var(--border)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:gateEmail.includes("@")?"pointer":"not-allowed",marginBottom:12}}
-              >UNLOCK FREE ACCESS</button>
-              <div style={{fontSize:11,color:"var(--muted)"}}>Already have a code? <button onClick={()=>{setShowEmailGate(false);setShowCodeEntry(true);}} style={{background:"none",border:"none",color:"var(--cyan-bright)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)"}}>Enter it here →</button></div>
-            </div>
           </div>
         )}
 
