@@ -1,6 +1,6 @@
 // api/checkout.js
 // Creates a Stripe Checkout session for Under Review Pro.
-// Called when user clicks "START FREE TRIAL" in App.jsx.
+// Called when the user starts checkout from App.jsx (full paywall after one free UR Take).
 
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
@@ -73,9 +73,6 @@ export default async function handler(req, res) {
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-      subscription_data: {
-        trial_period_days: 3,
-      },
       ...(email ? { customer_email: email } : {}),
       success_url: "https://under-review.app?pro=success",
       cancel_url:  "https://under-review.app?pro=cancelled",

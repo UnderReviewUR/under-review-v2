@@ -346,7 +346,7 @@ ${themeCss}
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
-  const FREE_LIMIT  = 3;
+  const FREE_LIMIT  = 1;
   const handleBettingStyleChange = useCallback((style) => {
     const next = style === "limits" ? "limits" : "balanced";
     try {
@@ -570,16 +570,12 @@ ${themeCss}
     });
   }, [accessTier]);
 
-  // Load weekly usage on mount
+  // Load lifetime free-query count on mount (never resets)
   useEffect(() => {
     if (isUnlimited) return;
     startTransition(() => {
       const used = JSON.parse(localStorage.getItem("ur_queries") || "[]");
-      const now = Date.now();
-      const week = 7 * 24 * 60 * 60 * 1000;
-      const recent = used.filter((t) => now - t < week);
-      setWeeklyUsed(recent.length);
-      localStorage.setItem("ur_queries", JSON.stringify(recent));
+      setWeeklyUsed(Array.isArray(used) ? used.length : 0);
     });
   }, [isUnlimited]);
 
@@ -2984,9 +2980,7 @@ ${themeCss}
           maxWidth: 200,
         }}
       >
-        $9.99/mo · 3-day trial
-        <br />
-        <span style={{ color: proMarketing.priceAsideMuted ?? "var(--muted)" }}>Cancel anytime</span>
+        $9.99/month · cancel anytime
       </div>
     </div>
 
@@ -3193,7 +3187,7 @@ ${themeCss}
         <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>.99</span>
         <span style={{fontSize:12,color:"var(--muted)",alignSelf:"flex-end",paddingBottom:8,marginLeft:4}}>/month</span>
       </div>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>Try free for 3 days</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>$9.99/month · cancel anytime</div>
       <button className="pro-cta-btn" onClick={async()=>{
         try{
           const checkoutEmail = userEmail || gateEmail || localStorage.getItem("ur_email") || "";
@@ -3203,7 +3197,7 @@ ${themeCss}
           else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
           else alert("Could not start checkout. Try again.");
         }catch{alert("Something went wrong. Try again.");}
-      }}>START FREE TRIAL</button>
+      }}>$9.99/month · cancel anytime</button>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
     </div>
 
@@ -3483,7 +3477,7 @@ ${themeCss}
               <div style={{fontSize:28,marginBottom:8}}>⚡</div>
               <div style={{fontFamily:"var(--display-font)",fontSize:26,letterSpacing:1,marginBottom:6}}>FREE ACCESS</div>
               <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:20}}>
-                Enter your email to get <strong style={{color:"var(--text)"}}>{FREE_LIMIT} free questions per week</strong>. No password. No spam.
+                Enter your email to unlock your <strong style={{color:"var(--text)"}}>free UR Take</strong> (one time). No password. No spam.
               </div>
               <input
                 type="email"
@@ -3508,10 +3502,14 @@ ${themeCss}
         {showUpgradeModal&&(
           <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:101,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:24,maxWidth:380,width:"100%",textAlign:"center"}}>
-              <div style={{fontSize:28,marginBottom:8}}>🔒</div>
-              <div style={{fontFamily:"var(--display-font)",fontSize:26,letterSpacing:1,marginBottom:6}}>FREE LIMIT REACHED</div>
-              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:18}}>
-                You&apos;ve hit the free limit. Pro removes the ceiling — and unlocks deeper analysis, verdict closes, and session continuity on every query.
+              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:18,whiteSpace:"pre-line"}}>
+                {`That was your free UR Take.
+
+Pro unlocks unlimited takes, session memory,
+betting style personalization, and live game
+edge alerts.
+
+$9.99/month · cancel anytime`}
               </div>
               <button
                 onClick={() => { setShowUpgradeModal(false); goPro(); }}
@@ -3552,13 +3550,6 @@ ${themeCss}
               >{codeLoading?"CHECKING...":"UNLOCK"}</button>
               <button onClick={()=>{setShowCodeEntry(false);setCodeInput("");setCodeError("");}} style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:12,fontFamily:"var(--body-font)"}}>Cancel</button>
             </div>
-          </div>
-        )}
-
-        {/* ══ QUERY COUNTER — shows when not unlimited ══ */}
-        {!isUnlimited&&userEmail&&weeklyUsed>0&&(
-          <div style={{position:"fixed",top:52,right:10,zIndex:20,background:"rgba(8,10,12,.85)",border:"1px solid var(--border)",borderRadius:999,padding:"3px 10px",fontFamily:"var(--mono-font)",fontSize:9,color:weeklyUsed>=FREE_LIMIT?"var(--red)":weeklyUsed>=FREE_LIMIT-1?"var(--gold)":"var(--muted)",letterSpacing:1,backdropFilter:"blur(8px)",cursor:"pointer"}} onClick={weeklyUsed>=FREE_LIMIT?()=>setShowUpgradeModal(true):undefined}>
-            {weeklyUsed>=FREE_LIMIT?"LIMIT REACHED — GO PRO":`${FREE_LIMIT-weeklyUsed} FREE LEFT THIS WEEK`}
           </div>
         )}
 

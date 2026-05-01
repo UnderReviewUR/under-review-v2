@@ -1,6 +1,6 @@
 // api/gate.js
 // Tracks free-tier query usage and handles email gate.
-// Free tier: 3 queries per 7-day rolling window, email required after query 1.
+// Free tier: 1 lifetime free question per email (never resets).
 // Uses Vercel KV if available, falls back to in-memory (resets on cold start).
 // No user accounts. Identity = email stored in localStorage.
 
@@ -24,8 +24,7 @@ async function setRecord(email, record) {
   await setDurableJson(key, record, { ttlSeconds: GATE_TTL_SECONDS });
 }
 
-const FREE_QUERIES_PER_WEEK = 3;
-const WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const FREE_QUERIES_LIFETIME = 1;
 const TAKE_TOKEN_TTL_MS = 10 * 60 * 1000;
 
 function isValidEmail(email) {
@@ -89,15 +88,14 @@ export default async function handler(req, res) {
 
     const record = (await getRecord(email)) || { queries: [], emailVerified: true };
     const now = Date.now();
-    const windowStart = now - WINDOW_MS;
-    const recentQueries = (record.queries || []).filter((t) => t > windowStart);
+    const queries = record.queries || [];
 
-    if (recentQueries.length >= FREE_QUERIES_PER_WEEK) {
+    if (queries.length >= FREE_QUERIES_LIFETIME) {
       return res.status(200).json({
         ok: false,
         reason: "limit_reached",
-        used: recentQueries.length,
-        limit: FREE_QUERIES_PER_WEEK,
+        used: queries.length,
+        limit: FREE_QUERIES_LIFETIME,
       });
     }
 
@@ -124,27 +122,22 @@ export default async function handler(req, res) {
     }
 
     const record = await getRecord(email) || { queries: [], emailVerified: true };
-    const now = Date.now();
-    const windowStart = now - WINDOW_MS;
-    const recentQueries = (record.queries || []).filter(t => t > windowStart);
+    const queries = record.queries || [];
 
-    if (recentQueries.length >= FREE_QUERIES_PER_WEEK) {
-      const oldestInWindow = Math.min(...recentQueries);
-      const resetsIn = Math.ceil((oldestInWindow + WINDOW_MS - now) / (1000 * 60 * 60));
+    if (queries.length >= FREE_QUERIES_LIFETIME) {
       return res.status(200).json({
         allowed: false,
         reason: "limit_reached",
-        used: recentQueries.length,
-        limit: FREE_QUERIES_PER_WEEK,
-        resetsInHours: resetsIn,
+        used: queries.length,
+        limit: FREE_QUERIES_LIFETIME,
       });
     }
 
     return res.status(200).json({
       allowed: true,
-      used: recentQueries.length,
-      remaining: FREE_QUERIES_PER_WEEK - recentQueries.length,
-      limit: FREE_QUERIES_PER_WEEK,
+      used: queries.length,
+      remaining: FREE_QUERIES_LIFETIME - queries.length,
+      limit: FREE_QUERIES_LIFETIME,
     });
   }
 
@@ -156,16 +149,14 @@ export default async function handler(req, res) {
 
     const record = await getRecord(email) || { queries: [], emailVerified: true };
     const now = Date.now();
-    const windowStart = now - WINDOW_MS;
-    const recentQueries = (record.queries || []).filter(t => t > windowStart);
-    recentQueries.push(now);
+    const queries = [...(record.queries || []), now];
 
-    await setRecord(email, { ...record, queries: recentQueries, lastSeen: now });
+    await setRecord(email, { ...record, queries, lastSeen: now });
 
     return res.status(200).json({
       ok: true,
-      used: recentQueries.length,
-      remaining: Math.max(0, FREE_QUERIES_PER_WEEK - recentQueries.length),
+      used: queries.length,
+      remaining: Math.max(0, FREE_QUERIES_LIFETIME - queries.length),
     });
   }
 
