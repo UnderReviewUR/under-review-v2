@@ -2,6 +2,31 @@ import { applyCors } from "./_cors.js";
 import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
 
 const OPENF1 = "https://api.openf1.org/v1";
+const ESPN_F1_SCOREBOARD =
+  "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard";
+
+/** Approximate circuit centers for Open-Meteo (2026 calendar — extend as needed). */
+const CIRCUIT_COORDS_BY_FULL_NAME = {
+  "Miami International Autodrome": { lat: 25.9581, lon: -80.2389 },
+  "Albert Park Circuit": { lat: -37.8497, lon: 144.968 },
+  "Shanghai International Circuit": { lat: 31.3389, lon: 121.2205 },
+  "Suzuka International Racing Course": { lat: 34.8431, lon: 136.541 },
+  "Bahrain International Circuit": { lat: 26.0325, lon: 50.5106 },
+  "Jeddah Corniche Circuit": { lat: 21.6319, lon: 39.1044 },
+  "Circuit Gilles Villeneuve": { lat: 45.5, lon: -73.5228 },
+  "Circuit de Monaco": { lat: 43.7347, lon: 7.4206 },
+};
+
+const CIRCUIT_COORDS_BY_MEETING_NAME = {
+  "Miami Grand Prix": { lat: 25.9581, lon: -80.2389 },
+  "Australian Grand Prix": { lat: -37.8497, lon: 144.968 },
+  "Chinese Grand Prix": { lat: 31.3389, lon: 121.2205 },
+  "Japanese Grand Prix": { lat: 34.8431, lon: 136.541 },
+  "Bahrain Grand Prix": { lat: 26.0325, lon: 50.5106 },
+  "Saudi Arabian Grand Prix": { lat: 21.6319, lon: 39.1044 },
+  "Canadian Grand Prix": { lat: 45.5, lon: -73.5228 },
+  "Monaco Grand Prix": { lat: 43.7347, lon: 7.4206 },
+};
 
 const CACHE_TTL = {
   board: 3 * 60 * 1000,
@@ -108,6 +133,80 @@ async function fetchQualifyingGridForSession(sessionKey, driverByNumber) {
     return { position: r.position, driver, team };
   });
   return { qualifyingGrid, qualifyingNote: null };
+}
+
+async function enrichScheduleWithEspn(schedule) {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(ESPN_F1_SCOREBOARD, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) return schedule;
+    const data = await res.json();
+    const event = data?.events?.[0];
+    if (!event) return schedule;
+
+    const circuitName = event?.circuit?.fullName || null;
+    const city = event?.circuit?.address?.city || null;
+    const raceSession = Array.isArray(event?.competitions)
+      ? event.competitions.find((c) => c?.type?.abbreviation === "Race")
+      : null;
+    const raceStart = raceSession?.startDate || null;
+
+    const nextRace = schedule?.races?.find((r) => r?.is_next);
+    if (nextRace && circuitName) {
+      nextRace.circuitFullName = circuitName;
+      nextRace.circuitCity = city;
+      nextRace.espnRaceStart = raceStart;
+    }
+    return schedule;
+  } catch {
+    return schedule;
+  }
+}
+
+async function fetchRaceWeather(lat, lon) {
+  if (lat == null || lon == null) return null;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=precipitation_probability,wind_speed_10m&timezone=auto&forecast_days=1`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const windKph = data?.current_weather?.windspeed ?? null;
+    if (windKph == null) return null;
+    const hourlyProb = data?.hourly?.precipitation_probability;
+    const precipProbability =
+      Array.isArray(hourlyProb) && hourlyProb.length > 0 ? hourlyProb[0] : 0;
+    return {
+      windSpeedMph: Math.round(windKph * 0.621371),
+      precipProbability,
+      timestamp: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveRaceWeatherCoords(race) {
+  if (!race || typeof race !== "object") return null;
+  const byFull = race.circuitFullName && CIRCUIT_COORDS_BY_FULL_NAME[race.circuitFullName];
+  if (byFull) return byFull;
+  const byMeeting = race.meeting_name && CIRCUIT_COORDS_BY_MEETING_NAME[race.meeting_name];
+  return byMeeting || null;
+}
+
+async function weatherForNextRace(schedule) {
+  const nextRace = schedule?.races?.find((r) => r?.is_next);
+  if (!nextRace) return null;
+  const coords = resolveRaceWeatherCoords(nextRace);
+  if (!coords) return null;
+  return fetchRaceWeather(coords.lat, coords.lon);
 }
 
 async function safeFetch(path, options = {}) {
@@ -292,7 +391,7 @@ function buildStandings(drivers) {
 }
 
 async function getScheduleData() {
-  const cached = getCached("f1_schedule_v4");
+  const cached = getCached("f1_schedule_v5");
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
@@ -322,8 +421,9 @@ async function getScheduleData() {
   );
 
   data = applyRaceStartsMapToSchedule(data, startByMeeting);
+  data = await enrichScheduleWithEspn(data);
 
-  setCached("f1_schedule_v4", data, CACHE_TTL.schedule);
+  setCached("f1_schedule_v5", data, CACHE_TTL.schedule);
   return data;
 }
 
@@ -395,6 +495,7 @@ function buildFallbackBoard() {
     qualifyingNote: QUALIFYING_NOT_DONE_NOTE,
     raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
     standingsFallbackFeedNote: STANDINGS_FALLBACK_FEED_NOTE,
+    weather: null,
   };
 }
 
@@ -426,7 +527,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const cached = getCached("f1_board_v5");
+      const cached = getCached("f1_board_v6");
       if (cached) {
         res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json(cached);
@@ -447,6 +548,8 @@ export default async function handler(req, res) {
         !!driverResult.usingFallbackDrivers ||
         !!sessionPayload.usingFallbackSession;
 
+      const weather = await weatherForNextRace(schedule);
+
       const body = {
         schedule,
         standings: driverResult.standings,
@@ -457,9 +560,10 @@ export default async function handler(req, res) {
         qualifyingNote: qualPayload.qualifyingNote,
         raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
         standingsFallbackFeedNote: usingFallback ? STANDINGS_FALLBACK_FEED_NOTE : null,
+        weather,
       };
 
-      setCached("f1_board_v5", body, CACHE_TTL.board);
+      setCached("f1_board_v6", body, CACHE_TTL.board);
       res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
       return res.status(200).json(body);
     }

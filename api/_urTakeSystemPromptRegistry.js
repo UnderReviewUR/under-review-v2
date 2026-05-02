@@ -450,7 +450,16 @@ If the tournament state is final, respond in two sentences only: winner confirma
 
 export function buildF1SurfaceAppendix() {
   return `F1 SURFACE SPINE
-Standings and schedule JSON are authoritative for drivers and race context. Do not invent lap deltas or qualifying gaps. Keep takes tied to printed session/race fields when present.`;
+Standings and schedule JSON are authoritative for drivers and race context. Do not invent lap deltas or qualifying gaps. Keep takes tied to printed session/race fields when present.
+
+F1 CONTEXT RULE:
+- qualifyingGrid in context shows current grid positions — use these for podium analysis
+- weather shows current race weekend conditions — wind and rain affect race strategy
+- Never tell the user you need track or weather data if it exists in context
+- Circuit type from schedule.races[next].circuitFullName determines strategy framing
+- Street circuit = safety car risk, tight gaps, overtaking difficult
+- High speed = tire deg and DRS trains dominate
+- Technical = setup and driver precision separate the field`;
 }
 
 export function buildGenericSurfaceAppendix(sportHint) {

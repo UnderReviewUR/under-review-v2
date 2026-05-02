@@ -661,6 +661,9 @@ ${themeCss}
     schedule: f1Src.schedule || { races: [], upcoming: [], past: [], current: [], usingFallback: true },
     session: f1Src.session || null,
     sessions: Array.isArray(f1Src.sessions) ? f1Src.sessions : [],
+    qualifyingGrid: Array.isArray(f1Src.qualifyingGrid) ? f1Src.qualifyingGrid.slice(0, 10) : [],
+    qualifyingNote: f1Src.qualifyingNote || null,
+    weather: f1Src.weather || null,
     usingFallback: !!f1Src.usingFallback,
   };
 }, [f1Data]);
