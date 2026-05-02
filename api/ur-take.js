@@ -5,7 +5,11 @@ import { getDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
-import { applyBetIntegrityPostProcess } from "./_urTakeBetIntegrity.js";
+import {
+  QA_REGENERATION_SYSTEM_SUFFIX,
+  qaRequiresRegeneration,
+  runUnderReviewPostProcess,
+} from "./_urTakeOutputQA.js";
 import {
   allowRateLimit,
   emailLimit,
@@ -6125,183 +6129,243 @@ You are responding to a Pro subscriber. Apply the following:
       }`,
     );
 
-    const result = await callAnthropic({
-      apiKey: ANTHROPIC_API_KEY,
-      model: ANTHROPIC_MODEL,
-      system: systemPromptWithProAppendix,
-      messages,
-      temperature: selectedTemperature,
-      max_tokens: tokenBudget,
-    });
+    const qaCoherenceContext =
+      sportHint === "nba" &&
+      nbaMatchupPool &&
+      Array.isArray(nbaMatchupPool.allowedTeams) &&
+      nbaMatchupPool.allowedTeams.length === 2 &&
+      nbaMatchupPool.knownPlayerToTeam instanceof Map &&
+      nbaMatchupPool.knownPlayerToTeam.size > 0
+        ? {
+            allowedTeamAbbreviations: nbaMatchupPool.allowedTeams.map((t) =>
+              String(t || "").toUpperCase(),
+            ),
+            knownPlayerToTeam: nbaMatchupPool.knownPlayerToTeam,
+          }
+        : undefined;
 
-    // Bet-integrity soft pass runs after extraction (below): hype language, logged issues.
+    const qaPostOptsBase = {
+      sport: sportHint,
+      nbaContext: nbaContextForModel,
+      intent,
+      coherenceContext: qaCoherenceContext,
+    };
 
-    if (!result.ok) {
-      if (result.rateLimitedExhausted) {
-        const fallbackResponse = buildRateLimitFallbackResponse({
-          sportHint,
-          question,
-          derivedConfidence,
-          nbaContext: nbaContextForModel,
-          mlbContext,
-          golfContext: golfContextEffective,
-          f1Context,
-        });
-        const fallbackTake = extractTakeFromResponse({
-          responseText: fallbackResponse,
-          sport: sportHint || "generic",
-          intent,
-          question,
-        });
-        return res.status(200).json({
-          response: fallbackResponse,
-          responseDeep: null,
-          responseFormat: "plain",
-          statusShift: null,
-          decisionMode:
-            sportHint === "nba"
-              ? nbaDecisionMode
-              : sportHint === "mlb"
-                ? mlbDecisionMode
-                : null,
-          sport: sportHint || "generic",
-          intent,
-          take: takeClientPayload(fallbackTake),
-          requestId: result.requestId,
-          fallbackReason: "upstream_rate_limit",
-        });
-      }
-
-      console.error("Anthropic error:", {
-        status: result.status,
-        requestId: result.requestId,
-        model: ANTHROPIC_MODEL,
-        data: result.data,
-      });
-
-      const upstreamType = result.data?.error?.type || "anthropic_error";
-      console.error("[ur-take] upstream Anthropic error:", {
-        status: result.status,
-        type: upstreamType,
-        message: result.data?.error?.message || result.data?.message || null,
-        requestId: result.requestId,
-      });
-
-      return feedSnagResponse(sportHint);
-    }
-
-    const text = extractAnthropicText(result.data);
-
-    if (!text) {
-      return feedSnagResponse(sportHint);
-    }
-
-    let responseText = text;
+    let responseText = "";
     let responseDeep = null;
     let responseFormat = "plain";
     let responseStatusShift = null;
-    if (outputJsonMode !== "plain") {
-      const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
-      if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
-        const normalized = normalizeSummaryDeepPayload(parsed.summary, parsed.deep);
-        responseText = normalized.summary;
-        responseDeep = normalized.deep;
-        if (typeof parsed.statusShift === "string" && parsed.statusShift.trim()) {
-          responseStatusShift = parsed.statusShift.trim();
-        }
-        responseFormat = outputJsonMode;
-      } else if (outputJsonMode === "tier2_5_json") {
-        // Fallback normalization for malformed / embedded JSON turns:
-        // keep response usable instead of dumping raw pseudo-JSON into UI.
-        const normalized = normalizeSummaryDeepPayload(text, null);
-        responseText = normalized.summary || text;
-        responseDeep = normalized.deep;
-      }
-    }
+    let lastQaPost = null;
+    let qaAttemptCount = 0;
+    let qaFallbackApplied = false;
 
-    if (sportHint === "nba") {
-      responseText = stripNbaLeadInDisclosure(responseText);
-      if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
-      responseText = stripNbaInternalControlLabels(responseText);
-      if (responseDeep) responseDeep = stripNbaInternalControlLabels(responseDeep);
-      if (isNbaNoMarketUpcomingSlate(nbaContext) && hasNbaNoMarketHardFail(responseText)) {
-        responseText = buildNbaNoMarketHardFallback(question, nbaContext);
-        responseDeep = null;
-        responseFormat = "plain";
-        nbaFallbackOrRepairUsed = true;
-      }
-      if (nbaInvalidation.requiresStatusAcknowledgement && !responseStatusShift && nbaStatusShiftLine) {
-        responseStatusShift = nbaStatusShiftLine;
-      }
-      if (nbaDecisionMode === "conditional_wait" && !/\b(wait|contingen|status|confirm)\b/i.test(responseText)) {
-        responseText = `Status is unresolved. Wait for final availability before locking a prop.\n\n${responseText}`;
-      }
-      if (
-        nbaMatchupGroundingApplied &&
-        nbaOffMatchupPromptAcknowledgement &&
-        !responseText.includes(nbaOffMatchupPromptAcknowledgement)
-      ) {
-        responseText = `${nbaOffMatchupPromptAcknowledgement}\n\n${responseText}`;
-      }
-      if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
-        nbaPostValidationChecked = true;
-        const allowedTeamSet = new Set(
-          nbaMatchupPool.allowedTeams.map((t) => String(t || "").toUpperCase()),
-        );
-        const knownMap = nbaMatchupPool.knownPlayerToTeam;
-        const mentionsSummary = extractMentionedPlayersFromOutput(responseText, knownMap);
-        const mentionsDeep = extractMentionedPlayersFromOutput(responseDeep || "", knownMap);
-        const invalidSummary = validatePlayersAgainstMatchup(
-          mentionsSummary,
-          allowedTeamSet,
-          knownMap,
-        );
-        const invalidDeep = validatePlayersAgainstMatchup(
-          mentionsDeep,
-          allowedTeamSet,
-          knownMap,
-        );
-        const invalidAll = [...invalidSummary, ...invalidDeep].filter(
-          (v, i, arr) =>
-            arr.findIndex(
-              (x) => x.player.toLowerCase() === v.player.toLowerCase() && x.team === v.team,
-            ) === i,
-        );
-        if (invalidAll.length > 0) {
-          nbaPostValidationTriggered = true;
-          nbaFallbackOrRepairUsed = true;
-          responseText = repairOrRegenerateInvalidMatchupOutput({
-            matchup: nbaMatchup,
-            pool: nbaMatchupPool,
-            invalidPlayers: invalidAll,
+    for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
+      qaAttemptCount = qaAttempt + 1;
+      const systemForAttempt =
+        qaAttempt === 0
+          ? systemPromptWithProAppendix
+          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}`;
+      const temperatureForAttempt =
+        qaAttempt === 0 ? selectedTemperature : Math.min(selectedTemperature, 0.28);
+
+      const result = await callAnthropic({
+        apiKey: ANTHROPIC_API_KEY,
+        model: ANTHROPIC_MODEL,
+        system: systemForAttempt,
+        messages,
+        temperature: temperatureForAttempt,
+        max_tokens: tokenBudget,
+      });
+
+      if (!result.ok) {
+        if (result.rateLimitedExhausted) {
+          const fallbackResponse = buildRateLimitFallbackResponse({
+            sportHint,
+            question,
+            derivedConfidence,
+            nbaContext: nbaContextForModel,
+            mlbContext,
+            golfContext: golfContextEffective,
+            f1Context,
           });
+          const fallbackTake = extractTakeFromResponse({
+            responseText: fallbackResponse,
+            sport: sportHint || "generic",
+            intent,
+            question,
+          });
+          return res.status(200).json({
+            response: fallbackResponse,
+            responseDeep: null,
+            responseFormat: "plain",
+            statusShift: null,
+            decisionMode:
+              sportHint === "nba"
+                ? nbaDecisionMode
+                : sportHint === "mlb"
+                  ? mlbDecisionMode
+                  : null,
+            sport: sportHint || "generic",
+            intent,
+            take: takeClientPayload(fallbackTake),
+            requestId: result.requestId,
+            fallbackReason: "upstream_rate_limit",
+          });
+        }
+
+        console.error("Anthropic error:", {
+          status: result.status,
+          requestId: result.requestId,
+          model: ANTHROPIC_MODEL,
+          data: result.data,
+        });
+
+        const upstreamType = result.data?.error?.type || "anthropic_error";
+        console.error("[ur-take] upstream Anthropic error:", {
+          status: result.status,
+          type: upstreamType,
+          message: result.data?.error?.message || result.data?.message || null,
+          requestId: result.requestId,
+        });
+
+        return feedSnagResponse(sportHint);
+      }
+
+      const text = extractAnthropicText(result.data);
+
+      if (!text) {
+        return feedSnagResponse(sportHint);
+      }
+
+      responseText = text;
+      responseDeep = null;
+      responseFormat = "plain";
+      responseStatusShift = null;
+      if (outputJsonMode !== "plain") {
+        const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
+        if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
+          const normalized = normalizeSummaryDeepPayload(parsed.summary, parsed.deep);
+          responseText = normalized.summary;
+          responseDeep = normalized.deep;
+          if (typeof parsed.statusShift === "string" && parsed.statusShift.trim()) {
+            responseStatusShift = parsed.statusShift.trim();
+          }
+          responseFormat = outputJsonMode;
+        } else if (outputJsonMode === "tier2_5_json") {
+          const normalized = normalizeSummaryDeepPayload(text, null);
+          responseText = normalized.summary || text;
+          responseDeep = normalized.deep;
+        }
+      }
+
+      if (sportHint === "nba") {
+        responseText = stripNbaLeadInDisclosure(responseText);
+        if (responseDeep) responseDeep = stripNbaLeadInDisclosure(responseDeep);
+        responseText = stripNbaInternalControlLabels(responseText);
+        if (responseDeep) responseDeep = stripNbaInternalControlLabels(responseDeep);
+        if (isNbaNoMarketUpcomingSlate(nbaContext) && hasNbaNoMarketHardFail(responseText)) {
+          responseText = buildNbaNoMarketHardFallback(question, nbaContext);
           responseDeep = null;
           responseFormat = "plain";
-          responseStatusShift = null;
+          nbaFallbackOrRepairUsed = true;
         }
+        if (nbaInvalidation.requiresStatusAcknowledgement && !responseStatusShift && nbaStatusShiftLine) {
+          responseStatusShift = nbaStatusShiftLine;
+        }
+        if (nbaDecisionMode === "conditional_wait" && !/\b(wait|contingen|status|confirm)\b/i.test(responseText)) {
+          responseText = `Status is unresolved. Wait for final availability before locking a prop.\n\n${responseText}`;
+        }
+        if (
+          nbaMatchupGroundingApplied &&
+          nbaOffMatchupPromptAcknowledgement &&
+          !responseText.includes(nbaOffMatchupPromptAcknowledgement)
+        ) {
+          responseText = `${nbaOffMatchupPromptAcknowledgement}\n\n${responseText}`;
+        }
+        if (nbaMatchup && nbaMatchupPool && nbaMatchupPool.allowedTeams.length === 2) {
+          nbaPostValidationChecked = true;
+          const allowedTeamSet = new Set(
+            nbaMatchupPool.allowedTeams.map((t) => String(t || "").toUpperCase()),
+          );
+          const knownMap = nbaMatchupPool.knownPlayerToTeam;
+          const mentionsSummary = extractMentionedPlayersFromOutput(responseText, knownMap);
+          const mentionsDeep = extractMentionedPlayersFromOutput(responseDeep || "", knownMap);
+          const invalidSummary = validatePlayersAgainstMatchup(
+            mentionsSummary,
+            allowedTeamSet,
+            knownMap,
+          );
+          const invalidDeep = validatePlayersAgainstMatchup(
+            mentionsDeep,
+            allowedTeamSet,
+            knownMap,
+          );
+          const invalidAll = [...invalidSummary, ...invalidDeep].filter(
+            (v, i, arr) =>
+              arr.findIndex(
+                (x) => x.player.toLowerCase() === v.player.toLowerCase() && x.team === v.team,
+              ) === i,
+          );
+          if (invalidAll.length > 0) {
+            nbaPostValidationTriggered = true;
+            nbaFallbackOrRepairUsed = true;
+            responseText = repairOrRegenerateInvalidMatchupOutput({
+              matchup: nbaMatchup,
+              pool: nbaMatchupPool,
+              invalidPlayers: invalidAll,
+            });
+            responseDeep = null;
+            responseFormat = "plain";
+            responseStatusShift = null;
+          }
+        }
+      }
+
+      responseText = stripBannedDataAvailabilityOpener(responseText);
+      if (responseDeep) responseDeep = stripBannedDataAvailabilityOpener(responseDeep);
+      responseText = stripBannedPerformanceTrackerLines(responseText);
+      if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
+
+      lastQaPost = runUnderReviewPostProcess(responseText, qaPostOptsBase);
+      responseText = lastQaPost.text;
+      console.log(
+        JSON.stringify({
+          ...lastQaPost.qa.metricsLine,
+          regenerationAttempt: qaAttempt,
+          qaRegenerated: qaAttempt > 0,
+        }),
+      );
+
+      if (responseDeep) {
+        const deepPost = runUnderReviewPostProcess(responseDeep, qaPostOptsBase);
+        responseDeep = deepPost.text;
+      }
+
+      if (!responseText || responseText.trim().length < 50) {
+        responseText = responseDeep || responseText;
+      }
+
+      if (!qaRequiresRegeneration(lastQaPost.qa) || qaAttempt >= 1) {
+        break;
       }
     }
 
-    responseText = stripBannedDataAvailabilityOpener(responseText);
-    if (responseDeep) responseDeep = stripBannedDataAvailabilityOpener(responseDeep);
-    responseText = stripBannedPerformanceTrackerLines(responseText);
-    if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
-
-    const biSummary = applyBetIntegrityPostProcess(responseText, { sport: sportHint });
-    responseText = biSummary.text;
-    if (biSummary.issues.length) {
+    if (lastQaPost && qaRequiresRegeneration(lastQaPost.qa)) {
+      const fb = runUnderReviewPostProcess(responseText, {
+        ...qaPostOptsBase,
+        applySafeFallbackPrefix: true,
+      });
+      responseText = fb.text;
+      lastQaPost = fb;
+      qaFallbackApplied = true;
       console.log(
         JSON.stringify({
-          event: "ur_take_bet_integrity",
+          event: "ur_take_qa_fallback",
           sport: sportHint || "generic",
-          issues: biSummary.issues,
-          modified: biSummary.modified,
+          score: fb.qa?.score,
+          criticalRegenerationCodes: fb.qa?.criticalRegenerationCodes,
         }),
       );
-    }
-    if (responseDeep) {
-      const biDeep = applyBetIntegrityPostProcess(responseDeep, { sport: sportHint });
-      responseDeep = biDeep.text;
     }
 
     if (!responseText || responseText.trim().length < 50) {
@@ -6401,19 +6465,34 @@ You are responding to a Pro subscriber. Apply the following:
       })();
     }
 
-    console.log(JSON.stringify({
-      event: "ur_take_complete",
-      sport: sportHint,
-      mode: nbaDecisionMode || "standard",
-      bettingStyle,
-      oddsAvailable,
-      fallback: nbaFallbackOrRepairUsed || false,
-      confidenceTier: takeRecord?.confidence || "unknown",
-      contextChars: contextPayloadChars || 0,
-      durationMs: Date.now() - requestStart,
-      isFollowUp: isConversationFollowUp,
-      isPro,
-    }));
+    const qaSummaryForLog = lastQaPost?.qa
+      ? {
+          score: lastQaPost.qa.score,
+          issueCodes: lastQaPost.qa.issueCodes,
+          criticalRegenerationCodes: lastQaPost.qa.criticalRegenerationCodes,
+          regenerationAttempts: qaAttemptCount,
+          qaFallbackApplied,
+          passedCriticalGates:
+            !qaRequiresRegeneration(lastQaPost.qa) || qaFallbackApplied,
+        }
+      : null;
+
+    console.log(
+      JSON.stringify({
+        event: "ur_take_complete",
+        sport: sportHint,
+        mode: nbaDecisionMode || "standard",
+        bettingStyle,
+        oddsAvailable,
+        fallback: nbaFallbackOrRepairUsed || false,
+        confidenceTier: takeRecord?.confidence || "unknown",
+        contextChars: contextPayloadChars || 0,
+        durationMs: Date.now() - requestStart,
+        isFollowUp: isConversationFollowUp,
+        isPro,
+        qa: qaSummaryForLog,
+      }),
+    );
 
     return res.status(200).json({
       response: responseText,
@@ -6430,6 +6509,7 @@ You are responding to a Pro subscriber. Apply the following:
       sport: sportHint || "generic",
       intent,
       take: takeClientPayload(takeRecord),
+      ...(qaSummaryForLog ? { qaSummary: qaSummaryForLog } : {}),
     });
   } catch (err) {
     console.error("UR TAKE error:", err);
