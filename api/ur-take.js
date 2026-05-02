@@ -39,6 +39,7 @@ import {
   nbaGameHasVerifiedBoxScore,
 } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
+import { buildF1UrTakeContext } from "./f1.js";
 import {
   buildCoreFrameworkPrompt,
   buildTakeTrustUiMetadata,
@@ -657,7 +658,31 @@ function inferSportFromQuestionText(question, matchupContext, hasImage) {
     return "golf";
   }
 
-  if (q.includes("nba") || q.includes("points") || q.includes("pra")) return "nba";
+  /** Before NBA heuristics: avoid mistaking F1 "points" (championship / points finish) for basketball. */
+  if (
+    q.includes("f1") ||
+    q.includes("grand prix") ||
+    q.includes("formula 1") ||
+    q.includes("formula one") ||
+    q.includes("pole position") ||
+    q.includes("fastest lap") ||
+    /\bmiami\s+gp\b/.test(q)
+  ) {
+    return "f1";
+  }
+
+  if (
+    q.includes("nba") ||
+    /\bpra\b/.test(q) ||
+    (q.includes("points") &&
+      (q.includes("rebounds") ||
+        q.includes("assists") ||
+        q.includes("double-double") ||
+        /\bppg\b/.test(q) ||
+        /\bplayer\s+props?\b/.test(q)))
+  ) {
+    return "nba";
+  }
   if (
     q.includes("mlb") ||
     q.includes("strikeout") ||
@@ -668,7 +693,6 @@ function inferSportFromQuestionText(question, matchupContext, hasImage) {
     return "mlb";
   }
   if (q.includes("nfl") || q.includes("receiving") || q.includes("rushing")) return "nfl";
-  if (q.includes("f1") || q.includes("grand prix")) return "f1";
   if (q.includes("tennis")) return "tennis";
 
   if (hasImage && matchupContext?.league) {
@@ -683,7 +707,7 @@ function inferSportFromQuestionText(question, matchupContext, hasImage) {
   return null;
 }
 
-function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage, golfContext }) {
+export function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage, golfContext }) {
   const textualSport = inferSportFromQuestionText(question, matchupContext, hasImage);
   const h =
     typeof incomingSportHint === "string" && incomingSportHint.trim()
@@ -708,7 +732,12 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
     return "derby";
   }
 
-  if (h) return h;
+  /** Client often sends sportHint "generic" on sport tabs; question text still anchors sport (e.g. Miami Grand Prix → f1). */
+  if ((!h || h === "generic" || h === "image_review") && textualSport) {
+    return textualSport;
+  }
+
+  if (h && h !== "generic" && h !== "image_review") return h;
 
   if (
     golfContext &&
@@ -4254,7 +4283,7 @@ export default async function handler(req, res) {
     golfContext,
     nbaContext: nbaContextFromClient,
     mlbContext: mlbContextFromClient,
-    f1Context,
+    f1Context: f1ContextFromClient,
     nflContext,
     matchupContext,
     image,
@@ -4331,6 +4360,7 @@ export default async function handler(req, res) {
   let nbaContext = nbaContextFromClient;
   let mlbContext = mlbContextFromClient;
   let golfContextEffective = golfContext;
+  let f1Context = f1ContextFromClient;
   if (sportHint === "nba") {
     try {
       const fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
@@ -4405,6 +4435,49 @@ export default async function handler(req, res) {
 
   if (sportHint === "nba" && nbaContext && !nbaContext.newsImpact) {
     nbaContext.newsImpact = buildNbaNewsImpact(nbaContext);
+  }
+
+  if (sportHint === "f1") {
+    const hasNbaNoise =
+      nbaContextFromClient &&
+      typeof nbaContextFromClient === "object" &&
+      ((Array.isArray(nbaContextFromClient.todaysGames) &&
+        nbaContextFromClient.todaysGames.length > 0) ||
+        (Array.isArray(nbaContextFromClient.playerStats) &&
+          nbaContextFromClient.playerStats.length > 0));
+    if (hasNbaNoise) {
+      console.log(
+        JSON.stringify({
+          event: "wrong_sport_context_payload",
+          requestedSport: incomingSportHint ?? null,
+          resolvedSportHint: sportHint,
+          resolvedContextSport: "f1",
+          wrongSportContextDetected: true,
+        }),
+      );
+    }
+    try {
+      const serverF1 = await buildF1UrTakeContext({ question: String(question || "") });
+      const sources = serverF1?.urTakeAssembly?.sources || ["server_openf1"];
+      f1Context = {
+        ...(typeof f1ContextFromClient === "object" && f1ContextFromClient ? f1ContextFromClient : {}),
+        ...serverF1,
+      };
+      console.log(
+        JSON.stringify({
+          event: "sport_context_route",
+          requestedSport: incomingSportHint ?? null,
+          resolvedSportHint: sportHint,
+          resolvedContextSport: "f1",
+          contextSourcesUsed: sources,
+          wrongSportContextDetected: Boolean(hasNbaNoise),
+        }),
+      );
+    } catch (err) {
+      console.warn("[ur-take] buildF1UrTakeContext failed:", err?.message || err);
+      f1Context =
+        typeof f1ContextFromClient === "object" && f1ContextFromClient ? f1ContextFromClient : {};
+    }
   }
 
   const oddsAvailable = resolveOddsAvailabilityForSport({
@@ -5528,7 +5601,10 @@ ${f1VerifiedBlock}
 
 Rules:
 - Answer only as an F1 analyst.
-- Do not mention golf, NBA, NFL, MLB, or tennis.
+- Do not mention golf, NBA, NFL, MLB, or tennis — never reference NBA slates, playoff matchups, or basketball stats (no BOS-PHI, "double-double", PRA, etc.).
+- The F1 context JSON is server-assembled; **never** ask the user to paste F1 data, context, or screenshots to proceed.
+- Use the queryFocus and schedule.races fields in context for the event the user named (e.g. Miami Grand Prix) when present.
+- If odds or qualifying grid are missing, still deliver a **race-only** framework: head-to-head driver matchup, points-finish, or fastest lap monitoring — and state limitations clearly.
 - Do not invent unrelated drivers, races, or props.
 
 NO-MARKET FALLBACK RULE (mandatory when betting markets in context are thin or odds blocks are empty but the next race or weekend is upcoming)

@@ -8,6 +8,7 @@ import {
   sentenceFailsDoubleDoubleLogic,
   sentenceFailsTripleDoubleLogic,
 } from "./_urTakeBetIntegrity.js";
+import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 
 /** Appended to system prompt on regeneration attempt (Part 3 self-check as instructions). */
 export const QA_REGENERATION_SYSTEM_SUFFIX = `
@@ -20,6 +21,8 @@ Rewrite the entire response from scratch. Verify before you answer:
 - No exaggerated certainty — use probabilistic framing; avoid lock/guarantee/automatic language.
 - Props must be realistically achievable vs role and typical ranges; acknowledge bench/low-minute risk explicitly when relevant.
 - Include at least one explicit probability or confidence qualification (percentage, implied framing, or calibrated verbal probability).
+- Correct sport-specific betting logic for the league discussed; remove overconfidence on volatile markets (HR, TD, goal scorer, outrights, fastest lap, etc.).
+- Add explicit role, usage, matchup, weather, or pace context where relevant — do not present thin-context props as safe.
 `;
 
 export const QA_SAFE_FALLBACK_PREFIX =
@@ -171,6 +174,7 @@ function rosterCoherenceFlag(text, ctx) {
  * @property {{ logic: number, probability: number, risk: number }} components
  * @property {boolean} shouldRegenerate
  * @property {boolean} applySafeFallbackPrefix
+ * @property {Array<{ code: string, severity: string, message: string, sentence: string, requiresRegeneration: boolean }>} [sportIssues]
  */
 
 /**
@@ -196,6 +200,7 @@ export function lintUrTakeOutput(text, options = {}) {
       components: { logic: 0, probability: 0, risk: 0 },
       shouldRegenerate: true,
       applySafeFallbackPrefix: true,
+      sportIssues: [],
     };
   }
 
@@ -247,6 +252,16 @@ export function lintUrTakeOutput(text, options = {}) {
     critical.push("prop_line_extreme_vs_average");
   }
 
+  const sportResult = runSportSpecificValidators(raw, options);
+  /** @type {Array<{ code: string, severity: string, message: string, sentence: string, requiresRegeneration: boolean }>} */
+  const sportIssues = sportResult.issues;
+  for (const c of sportResult.criticalCodes) {
+    if (!critical.includes(c)) critical.push(c);
+  }
+  for (const si of sportIssues) {
+    if (!issues.includes(si.code)) issues.push(si.code);
+  }
+
   /** +1 correct logic, +1 probability, +1 risk; -2 factual/stat; -1 overconfidence */
   const FACT_LOGIC_CODES = new Set([
     "stat_logic_error_remaining",
@@ -256,8 +271,24 @@ export function lintUrTakeOutput(text, options = {}) {
     "suspicious_cross_game_sgp_language",
     "roster_coherence_violation",
   ]);
+  const MISLEADING_OR_FACT_CRITICAL = new Set([
+    ...FACT_LOGIC_CODES,
+    "cross_sport_overconfidence",
+    "volatile_market_floor_misuse",
+    "high_risk_overconfidence_language",
+    "residual_lock_metaphor",
+    "mlb_batter_prop_overconfidence",
+    "mlb_hr_prop_probability_inflation",
+    "nfl_anytime_td_overconfidence",
+    "nhl_goal_scorer_overconfidence",
+    "soccer_goal_scorer_overconfidence",
+    "tennis_match_winner_overconfidence",
+    "golf_outright_probability_inflation",
+    "f1_fastest_lap_volatility_missing",
+    "wrong_sport_context_payload",
+  ]);
   let logicComp = 1;
-  if (critical.some((c) => FACT_LOGIC_CODES.has(c))) {
+  if (critical.some((c) => MISLEADING_OR_FACT_CRITICAL.has(c))) {
     logicComp = -2;
   }
 
@@ -306,6 +337,7 @@ export function lintUrTakeOutput(text, options = {}) {
     },
     shouldRegenerate,
     applySafeFallbackPrefix: shouldRegenerate,
+    sportIssues,
   };
 }
 
@@ -346,6 +378,8 @@ export function runUnderReviewPostProcess(text, options = {}) {
     criticalRegenerationCodes: lint.criticalRegenerationCodes,
     shouldRegenerate: lint.shouldRegenerate,
     betIntegrityIssues: bi.issues,
+    sportIssueCount: lint.sportIssues?.length ?? 0,
+    sportCriticalFromLint: (lint.sportIssues || []).filter((i) => i.requiresRegeneration).length,
   };
 
   const allIssues = [...new Set([...bi.issues, ...lint.issueCodes])];

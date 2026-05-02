@@ -550,6 +550,132 @@ function buildFallbackBoard() {
   };
 }
 
+/**
+ * Focus schedule row from user wording (e.g. Miami Grand Prix) for UR Take.
+ * @param {object} body
+ * @param {string} question
+ */
+function enrichF1ContextForQuery(body, question) {
+  const q = String(question || "").toLowerCase();
+  const races = body?.schedule?.races || [];
+  let focusedRace =
+    races.find((r) => {
+      const mn = String(r.meeting_name || "").toLowerCase();
+      if (!mn) return false;
+      const shortTok = mn.replace(/\s+grand\s+prix$/i, "").trim();
+      const tokens = shortTok.split(/\s+/).filter((w) => w.length > 2);
+      return tokens.some((t) => q.includes(t));
+    }) || null;
+  if (!focusedRace && q.includes("miami")) {
+    focusedRace = races.find((r) => /miami/i.test(String(r.meeting_name || ""))) || null;
+  }
+  if (!focusedRace) {
+    focusedRace = races.find((r) => r.is_next) || races[0] || null;
+  }
+
+  return {
+    ...body,
+    queryFocus: focusedRace
+      ? {
+          meeting_name: focusedRace.meeting_name,
+          circuit_short_name: focusedRace.circuit_short_name,
+          location: focusedRace.location,
+          race_start: focusedRace.race_start || null,
+          race_date: focusedRace.race_date || focusedRace.date_start || null,
+          is_next_on_calendar: !!focusedRace.is_next,
+        }
+      : null,
+    raceOnlyMarketMenu: [
+      "Race winner (outright)",
+      "Podium (top 3)",
+      "Points finish (top 6/8/10 — book-dependent)",
+      "Head-to-head / driver matchup",
+      "Fastest lap",
+      "Safety car yes/no (if listed)",
+    ],
+    urTakeGuidance: {
+      whenOddsThin:
+        "If live odds/grid are thin, favor driver matchup or points-finish framing over naked outright/podium — still give a monitoring plan. Never ask the user to paste F1 data.",
+    },
+  };
+}
+
+async function assembleF1BoardBody() {
+  const [schedule, driverResult, sessionPayload] = await Promise.all([
+    getScheduleData(),
+    getDriverData(),
+    getSessionData(),
+  ]);
+
+  const driverByNumber = buildDriverLookup(driverResult.standings, driverResult.drivers_raw);
+  const qualSessionKey = findQualifyingSessionKey(sessionPayload.sessions);
+  const qualPayload = await fetchQualifyingGridForSession(qualSessionKey, driverByNumber);
+
+  const usingFallback =
+    !!schedule.usingFallback ||
+    !!driverResult.usingFallbackDrivers ||
+    !!sessionPayload.usingFallbackSession;
+
+  const weather = await weatherForNextRace(schedule);
+
+  return {
+    schedule,
+    standings: driverResult.standings,
+    session: sessionPayload.session,
+    sessions: sessionPayload.sessions,
+    usingFallback,
+    qualifyingGrid: qualPayload.qualifyingGrid,
+    qualifyingNote: qualPayload.qualifyingNote,
+    raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
+    standingsFallbackFeedNote: usingFallback ? STANDINGS_FALLBACK_FEED_NOTE : null,
+    weather,
+    ...openf1TimingUxFields(),
+  };
+}
+
+/**
+ * Server-side F1 payload for UR Take — same sources as GET ?view=board, plus query-focused race metadata.
+ * @param {{ question?: string }} [opts]
+ */
+export async function buildF1UrTakeContext(opts = {}) {
+  const question = String(opts?.question || "");
+  try {
+    const cached = getCached(f1CacheKey("f1_board_v7"));
+    if (cached) {
+      return enrichF1ContextForQuery(
+        {
+          ...cached,
+          urTakeAssembly: {
+            sources: ["cached_openf1_board"],
+            assembledAt: new Date().toISOString(),
+          },
+        },
+        question,
+      );
+    }
+
+    const body = await assembleF1BoardBody();
+    sources.push("openf1_live_assembly");
+    const full = {
+      ...body,
+      urTakeAssembly: {
+        sources,
+        assembledAt: new Date().toISOString(),
+      },
+    };
+    return enrichF1ContextForQuery(full, question);
+  } catch (err) {
+    console.error("[f1] buildF1UrTakeContext:", err?.message || err);
+    return enrichF1ContextForQuery(
+      {
+        ...buildFallbackBoard(),
+        urTakeAssembly: { sources: ["fallback_board"], error: String(err?.message || err), assembledAt: new Date().toISOString() },
+      },
+      question,
+    );
+  }
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") {
@@ -584,36 +710,7 @@ export default async function handler(req, res) {
         return res.status(200).json(cached);
       }
 
-      const [schedule, driverResult, sessionPayload] = await Promise.all([
-        getScheduleData(),
-        getDriverData(),
-        getSessionData(),
-      ]);
-
-      const driverByNumber = buildDriverLookup(driverResult.standings, driverResult.drivers_raw);
-      const qualSessionKey = findQualifyingSessionKey(sessionPayload.sessions);
-      const qualPayload = await fetchQualifyingGridForSession(qualSessionKey, driverByNumber);
-
-      const usingFallback =
-        !!schedule.usingFallback ||
-        !!driverResult.usingFallbackDrivers ||
-        !!sessionPayload.usingFallbackSession;
-
-      const weather = await weatherForNextRace(schedule);
-
-      const body = {
-        schedule,
-        standings: driverResult.standings,
-        session: sessionPayload.session,
-        sessions: sessionPayload.sessions,
-        usingFallback,
-        qualifyingGrid: qualPayload.qualifyingGrid,
-        qualifyingNote: qualPayload.qualifyingNote,
-        raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
-        standingsFallbackFeedNote: usingFallback ? STANDINGS_FALLBACK_FEED_NOTE : null,
-        weather,
-        ...openf1TimingUxFields(),
-      };
+      const body = await assembleF1BoardBody();
 
       setCached(f1CacheKey("f1_board_v7"), body, CACHE_TTL.board);
       res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
