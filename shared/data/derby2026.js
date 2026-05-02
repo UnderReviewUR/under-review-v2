@@ -7,6 +7,8 @@ export const DERBY_2026 = {
   race: "152nd Kentucky Derby",
   date: "May 2, 2026",
   postTime: "6:57 PM ET",
+  scratchedNote:
+    "The Puma scratched morning of race — swollen pastern. Castellano-Delgado reunion does not run.",
   track: "Churchill Downs — Louisville, KY",
   tv: "NBC / Peacock",
   trackCondition: "Fast (dry)",
@@ -88,6 +90,8 @@ export const DERBY_2026 = {
       record: "5 starts: 4W 0P 0S",
       keyRace: "Won Florida Derby (100 Beyer), Won Fountain of Youth (101 Beyer)",
       style: "Stalker — settles midpack, fires in stretch",
+      jockeyNote:
+        "Saez confirmed mount for Derby — rode Commandment in Florida Derby with Flavien Prat but Saez confirmed today.",
       edge: "Four wins from five starts, all on fast dirt. Half-brother of Renegade. Sire Into Mischief produced three Derby winners. Florida Derby was the best prep race of the year. Fast track suits him perfectly.",
       verdict: "STRONG CONTENDER — best fast-track record in field",
     },
@@ -119,16 +123,17 @@ export const DERBY_2026 = {
     },
     {
       post: 9,
-      name: "The Puma",
-      odds: "10-1",
+      name: "The Puma — SCRATCHED",
+      odds: "SCR",
       trainer: "Gustavo Delgado",
       jockey: "Javier Castellano",
       owner: "OGMA Investments / JR Ranch / High Step Racing",
       record: "4 starts: 1W 2P 1S",
       keyRace: "Won Tampa Bay Derby. 2nd Florida Derby (behind Commandment). 3rd Sam F. Davis.",
       style: "Stalker",
-      edge: "Castellano-Delgado won the Derby with Mage in 2023 — same partnership returns. Post 9 historically excellent. Runner-up in best prep race. 10-1 is best overlay in field.",
-      verdict: "BEST OVERLAY — WIN bet at 10-1",
+      edge: "SCRATCHED — Castellano-Delgado reunion does not run.",
+      verdict:
+        "SCRATCHED — swollen pastern and skin infection. Withdrew morning of race May 2.",
     },
     {
       post: 10,
@@ -275,12 +280,12 @@ export const DERBY_2026 = {
     },
   ],
   topPlays: {
-    win: ["Further Ado (Post 18, 6-1)", "The Puma (Post 9, 10-1)"],
+    win: ["Further Ado (Post 18, 6-1)"],
     place: ["Chief Wallabee (Post 12, 8-1)"],
     contenders: ["Commandment (Post 6, 6-1)"],
     exoticInclusions: ["Intrepido (Post 3, 50-1)", "Emerging Market (Post 15, 15-1)"],
     fade: ["Renegade (Post 1, 4-1)", "Six Speed (Post 17, 50-1)"],
-    exactaBox: "Further Ado / The Puma / Commandment / Chief Wallabee",
+    exactaBox: "Further Ado / Commandment / Chief Wallabee",
   },
   keyAngles: [
     "Post 1 curse: No winner since Ferdinand 1986",
@@ -288,7 +293,7 @@ export const DERBY_2026 = {
     "Posts 13-16: Produced 9 of last 15 winners",
     "Fast track favors proven fast-track Beyers — Commandment and Further Ado are best fit",
     "Further Ado has highest Beyer (106) in field",
-    "Commandment-Delgado won Derby 2023 — same partnership on The Puma",
+    "The Puma (Post 9) scratched — Castellano-Delgado reunion does not run",
     "Mott-Alvarado won Derby AND Belmont 2025 — same duo on Chief Wallabee",
     "Brad Cox has two legitimate contenders: Commandment and Further Ado",
     "Arkansas Derby is historically weak prep — only 3 Derby winners ever",

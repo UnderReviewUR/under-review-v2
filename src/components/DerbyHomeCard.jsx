@@ -95,8 +95,18 @@ export default function DerbyHomeCard({ firePrompt }) {
         152nd Run for the Roses
       </div>
 
-      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
-        Churchill Downs · Fast track · 20 horses
+      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>
+        Churchill Downs · Fast track · 19 to run
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: "rgba(255, 180, 120, 0.95)",
+          marginBottom: 12,
+          lineHeight: 1.35,
+        }}
+      >
+        Scratch: The Puma (9) — swollen pastern. Castellano-Delgado reunion off.
       </div>
 
       <div
@@ -109,7 +119,7 @@ export default function DerbyHomeCard({ firePrompt }) {
       >
         {[
           { label: "WIN", name: "Further Ado", odds: "6-1", tag: "Best win" },
-          { label: "OVERLAY", name: "The Puma", odds: "10-1", tag: "Overlay" },
+          { label: "CONTENDER", name: "Commandment", odds: "6-1", tag: "Saez confirmed" },
           { label: "SLEEPER", name: "Chief Wallabee", odds: "8-1", tag: "Sleeper" },
         ].map((row) => (
           <div
