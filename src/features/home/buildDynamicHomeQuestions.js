@@ -5,10 +5,12 @@ import {
 import {
   classifyGolfEvent,
   classifyNbaGame,
+  classifyTennisMatch,
   EVENT_VALIDITY,
   isDisplayableValidity,
 } from "../../../shared/eventValidity.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
+import { isDerbyActive } from "../../data/derby2026.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -111,6 +113,29 @@ export function buildDynamicHomeQuestions({
     prompts.push(item);
   };
 
+  const referenceMs =
+    typeof promoNowMs === "number" && Number.isFinite(promoNowMs) ? promoNowMs : Date.now();
+  const derbyHomePromptsActive = isDerbyActive(new Date(referenceMs));
+
+  if (derbyHomePromptsActive) {
+    push({
+      id: "derby-home-a",
+      color: "#22d3ee",
+      sportHint: "derby",
+      sortRank: 1,
+      text: "Strongest play in the Kentucky Derby tonight?",
+      prompt: "Strongest play in the Kentucky Derby tonight?",
+    });
+    push({
+      id: "derby-home-b",
+      color: "#22d3ee",
+      sportHint: "derby",
+      sortRank: 2,
+      text: "Best longshot in the Derby — who's the overlay?",
+      prompt: "Best longshot in the Derby — who's the overlay?",
+    });
+  }
+
   const tournamentActionable = (activeTournamentMatches || []).filter(
     (m) => !isTennisMatchFinished(m),
   );
@@ -119,12 +144,20 @@ export function buildDynamicHomeQuestions({
     (m) => !isTennisMatchFinished(m),
   );
 
+  const isActiveTennis = (m) =>
+    classifyTennisMatch(m, promoNowMs) === EVENT_VALIDITY.ACTIVE;
+  const isUpcomingTennis = (m) =>
+    classifyTennisMatch(m, promoNowMs) === EVENT_VALIDITY.UPCOMING;
+
   const prefLive =
-    tournamentActionable.find((m) => String(m?.raw?.live || "0") === "1") ||
-    livePool[0];
+    tournamentActionable.find(
+      (m) => String(m?.raw?.live || "0") === "1" && isActiveTennis(m),
+    ) || livePool.find(isActiveTennis) || null;
+
   const prefUpcoming =
-    tournamentActionable.find((m) => String(m?.raw?.live || "0") !== "1") ||
-    upcomingPool[0];
+    tournamentActionable.find(
+      (m) => String(m?.raw?.live || "0") !== "1" && isUpcomingTennis(m),
+    ) || upcomingPool.find(isUpcomingTennis) || null;
 
   if (prefLive) {
     const label = `${prefLive.raw?.home || ""} vs ${prefLive.raw?.away || ""}`;
@@ -180,6 +213,16 @@ export function buildDynamicHomeQuestions({
       sortRank: ranks.tennisFallback,
       text: `Tournament value — ${context.currentTournament.name}?`,
       prompt: `Around ${context.currentTournament.name}, where is the best futures or outright value on the board right now?`,
+    });
+  } else if (!prefLive && !prefUpcoming) {
+    push({
+      id: "q2c",
+      color: "#0891B2",
+      sportHint: "tennis",
+      sortRank: ranks.tennisFallback,
+      text: "What's the sharpest ATP angle on the board?",
+      prompt:
+        "What is the single sharpest ATP angle on the board right now? Give me one best lean, one reason, and one thing that could flip it.",
     });
   }
 

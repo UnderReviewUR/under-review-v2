@@ -151,10 +151,14 @@ export const baseCss = `
 
   .hdr-tagline{
     font-family:var(--mono-font);
-    font-size:10px;
+    font-size:9px;
     color:rgba(255,255,255,.88);
-    letter-spacing:0.5px;
-    white-space:nowrap;
+    letter-spacing:0.35px;
+    line-height:1.35;
+    white-space:normal;
+    text-align:right;
+    max-width:min(260px,56vw);
+    hyphens:none;
   }
 
   .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom));scroll-behavior:smooth;-webkit-overflow-scrolling:touch;}

@@ -74,8 +74,58 @@ export function classifyGolfEvent(event, nowMs = Date.now()) {
   return EVENT_VALIDITY.UNKNOWN;
 }
 
+/** Max plausible in-play window from scheduled start; stale `live=1` past this → finished. */
+const TENNIS_MATCH_MAX_DURATION_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * True when feed signals (keywords, final markers, or age) indicate the match is over.
+ * Must run before trusting `raw.live === "1"` so stale flags cannot keep a match ACTIVE.
+ */
+function tennisMatchPayloadIndicatesFinished(match, nowMs) {
+  if (!match || typeof match !== "object") return false;
+  const r = match.raw && typeof match.raw === "object" ? match.raw : {};
+  const inner = r.raw && typeof r.raw === "object" ? r.raw : {};
+
+  const scanParts = [
+    r.event_status,
+    r.status,
+    match.status,
+    inner.event_status,
+    inner.status,
+    r.event_final_result,
+    r.event_game_result,
+    r.result,
+    r.winner,
+    r.match_result,
+    r.score,
+    match.score,
+    r.event_live,
+  ];
+  for (const part of scanParts) {
+    if (hasFinishedKeyword(part)) return true;
+  }
+
+  const commenceTs = Number(match.commenceTs);
+  const startMs = Number.isFinite(commenceTs)
+    ? commenceTs
+    : parseEventStartMs(
+        r.event_date || r.date || inner.event_date || match?.raw?.event_date,
+      );
+
+  if (Number.isFinite(startMs) && nowMs > startMs + TENNIS_MATCH_MAX_DURATION_MS) {
+    return true;
+  }
+
+  return false;
+}
+
 export function classifyTennisMatch(match, nowMs = Date.now()) {
   if (!match || typeof match !== "object") return EVENT_VALIDITY.UNKNOWN;
+
+  if (tennisMatchPayloadIndicatesFinished(match, nowMs)) {
+    return EVENT_VALIDITY.FINISHED;
+  }
+
   const status = String(match?.raw?.event_status || match?.raw?.status || "")
     .trim()
     .toLowerCase();

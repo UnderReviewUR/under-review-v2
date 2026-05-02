@@ -11,6 +11,8 @@ import {
   getClientIp,
   ipLimit,
 } from "./_rateLimitUrTake.js";
+import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
+import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
@@ -686,6 +688,14 @@ function resolveSportHint({ incomingSportHint, question, matchupContext, hasImag
     return textualSport;
   }
 
+  if (
+    isDerbyActive() &&
+    questionReferencesDerby(question) &&
+    (!h || h === "generic")
+  ) {
+    return "derby";
+  }
+
   if (h) return h;
 
   if (
@@ -914,6 +924,7 @@ function getContextQuality({
   if (sportHint === "mlb" && (mlbContext?.games?.length || mlbContext?.propLines?.length)) return "high";
   if (sportHint === "nfl" && nflContext) return "medium";
   if (sportHint === "f1" && (f1Context?.standings?.length || f1Context?.schedule?.races?.length)) return "high";
+  if (sportHint === "derby" && isDerbyActive()) return "high";
 
   return "low";
 }
@@ -4591,6 +4602,16 @@ ${nbaLiveNoPropSystemPromptBlock}`;
     }
   }
 
+  if (
+    isDerbyActive() &&
+    (questionReferencesDerby(String(question || "")) || sportHint === "derby")
+  ) {
+    const derbyCtx = buildDerbyContext();
+    if (derbyCtx) {
+      systemPromptForModel = `${systemPromptForModel}\n\n${derbyCtx}`;
+    }
+  }
+
   const priorTakesSummary = summarizePriorTakes(incomingHistory);
   const nbaImpactSummary =
     sportHint === "nba" ? summarizeNbaNewsImpact(nbaNewsImpact) : "";
@@ -5896,6 +5917,21 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
 Never open with "props aren't out." Give named players and monitoring hooks.`
 }`;
+  } else if (sportHint === "derby") {
+    userPrompt = `You are answering a Kentucky Derby 2026 betting question.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${question}
+
+STATIC DERBY FIELD DATA is appended to your system instructions — use it as the authoritative source for post positions, morning-line style odds, trainer/jockey, edges, and editorial verdicts.
+
+Rules:
+- Answer as a horse racing / Derby analyst using that appendix; cite horses by name and post when relevant.
+- Do not invent runners or prices outside the appendix.
+- Do not pivot to NBA, NFL, MLB, tennis, golf, or F1 unless the user explicitly asks.
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.

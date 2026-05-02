@@ -83,6 +83,8 @@ import { useGolfData } from "./hooks/useGolfData.js";
 import { useNflData } from "./hooks/useNflData.js";
 import { usePerformance } from "./hooks/usePerformance.js";
 import { useTakeAuthHeaders } from "./hooks/useTakeAuthHeaders.js";
+import DerbyHomeCard from "./components/DerbyHomeCard.jsx";
+import { isDerbyActive } from "./data/derby2026.js";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import TennisScreen from "./screens/TennisScreen.jsx";
 import NflScreen from "./screens/NflScreen.jsx";
@@ -2297,7 +2299,11 @@ ${themeCss}
 )}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
-      {screen==="home"&&<span className="hdr-tagline">Sharp takes. Real data.</span>}
+      {screen==="home"&&(
+        <span className="hdr-tagline">
+          Ask any game, prop, or matchup — get a sharp betting take instantly.
+        </span>
+      )}
     </>
   );
 
@@ -2402,7 +2408,9 @@ ${themeCss}
 
         {/* ══ HOME ══ */}
         {screen==="home"&&(
-          <HomeScreen
+          <>
+            {isDerbyActive() ? <DerbyHomeCard firePrompt={firePrompt} /> : null}
+            <HomeScreen
             hasDockedBar={hasDockedBar}
             askInput={askInput}
             setAskInput={setAskInput}
@@ -2442,6 +2450,7 @@ ${themeCss}
             ]}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
           />
+          </>
         )}
 
 
