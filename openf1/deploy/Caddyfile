@@ -1,0 +1,10 @@
+# TLS terminates here; traffic forwards to the OpenF1 query API (Docker api service or uvicorn).
+# Usage: install Caddy on the host, replace the hostname, then:
+#   sudo cp Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+# UnderReview Vercel env:
+#   OPENF1_BASE_URL=https://openf1.yourdomain.com/v1
+
+openf1.yourdomain.com {
+	reverse_proxy 127.0.0.1:8000
+}

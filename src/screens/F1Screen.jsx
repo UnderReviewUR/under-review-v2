@@ -48,6 +48,25 @@ export default function F1Screen({
                 {(f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? (
                   <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Using cached standings — live feed unavailable">Est.</span>
                 ) : null}
+                {f1Data?.openf1TimingSource === "custom" ? (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontFamily: "var(--mono-font)",
+                      fontSize: 9,
+                      letterSpacing: 1,
+                      color: "var(--f1)",
+                      opacity: 0.95,
+                    }}
+                    title={
+                      f1Data?.openf1TimingHost
+                        ? `Timing data from ${f1Data.openf1TimingHost} (self-hosted OpenF1)`
+                        : "Timing data from your configured OpenF1 backend"
+                    }
+                  >
+                    Live timing
+                  </span>
+                ) : null}
               </div>
             </div>
 

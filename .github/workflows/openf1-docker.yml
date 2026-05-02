@@ -1,0 +1,30 @@
+name: OpenF1 Docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "openf1/**"
+      - ".github/workflows/openf1-docker.yml"
+  pull_request:
+    paths:
+      - "openf1/**"
+      - ".github/workflows/openf1-docker.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build OpenF1 image (query API + ingest roles share Dockerfile)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./openf1
+          file: ./openf1/Dockerfile
+          push: false
+          tags: openf1-local:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

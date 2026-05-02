@@ -665,6 +665,12 @@ ${themeCss}
     qualifyingNote: f1Src.qualifyingNote || null,
     weather: f1Src.weather || null,
     usingFallback: !!f1Src.usingFallback,
+    ...(f1Src.openf1TimingSource
+      ? {
+          openf1TimingSource: f1Src.openf1TimingSource,
+          ...(f1Src.openf1TimingHost ? { openf1TimingHost: f1Src.openf1TimingHost } : {}),
+        }
+      : {}),
   };
 }, [f1Data]);
 

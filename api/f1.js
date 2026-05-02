@@ -1,7 +1,51 @@
+import crypto from "crypto";
 import { applyCors } from "./_cors.js";
+import { getEnv } from "./_env.js";
 import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
 
-const OPENF1 = "https://api.openf1.org/v1";
+const DEFAULT_OPENF1_BASE = "https://api.openf1.org/v1";
+
+function resolveOpenF1BaseUrl() {
+  const raw = getEnv("OPENF1_BASE_URL") || getEnv("UR_OPENF1_BASE_URL");
+  if (!raw || typeof raw !== "string") return DEFAULT_OPENF1_BASE;
+  const u = raw.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(u)) {
+    console.warn("[f1] OPENF1_BASE_URL must be an absolute http(s) URL; using public OpenF1");
+    return DEFAULT_OPENF1_BASE;
+  }
+  return u;
+}
+
+function resolveOpenF1AuthHeaders() {
+  const auth = getEnv("OPENF1_AUTHORIZATION");
+  if (auth) return { Authorization: auth };
+  const apiKey = getEnv("OPENF1_API_KEY");
+  if (apiKey) return { Authorization: apiKey };
+  return {};
+}
+
+const OPENF1_BASE = resolveOpenF1BaseUrl();
+const OPENF1_TIMING_SOURCE =
+  OPENF1_BASE !== DEFAULT_OPENF1_BASE ? "custom" : "public";
+
+/** Partition in-memory caches when switching OpenF1 backends (public vs self-hosted). */
+const OPENF1_CACHE_TAG = crypto.createHash("sha256").update(OPENF1_BASE).digest("hex").slice(0, 10);
+
+function f1CacheKey(name) {
+  return `${name}_${OPENF1_CACHE_TAG}`;
+}
+
+function openf1TimingUxFields() {
+  const base = {
+    openf1TimingSource: OPENF1_TIMING_SOURCE,
+  };
+  if (OPENF1_TIMING_SOURCE !== "custom") return base;
+  try {
+    return { ...base, openf1TimingHost: new URL(OPENF1_BASE).hostname };
+  } catch {
+    return base;
+  }
+}
 const ESPN_F1_SCOREBOARD =
   "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard";
 
@@ -210,8 +254,9 @@ async function weatherForNextRace(schedule) {
 }
 
 async function safeFetch(path, options = {}) {
-  const url = path.startsWith("http") ? path : `${OPENF1}${path}`;
+  const url = path.startsWith("http") ? path : `${OPENF1_BASE}${path}`;
   const timeoutMs = options.timeoutMs || 5000;
+  const authHeaders = resolveOpenF1AuthHeaders();
 
   try {
     const controller = new AbortController();
@@ -220,6 +265,11 @@ async function safeFetch(path, options = {}) {
     const res = await fetch(url, {
       cache: "no-store",
       signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        ...authHeaders,
+        ...(options.headers && typeof options.headers === "object" ? options.headers : {}),
+      },
     });
 
     clearTimeout(timer);
@@ -391,7 +441,7 @@ function buildStandings(drivers) {
 }
 
 async function getScheduleData() {
-  const cached = getCached("f1_schedule_v5");
+  const cached = getCached(f1CacheKey("f1_schedule_v5"));
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
@@ -423,12 +473,12 @@ async function getScheduleData() {
   data = applyRaceStartsMapToSchedule(data, startByMeeting);
   data = await enrichScheduleWithEspn(data);
 
-  setCached("f1_schedule_v5", data, CACHE_TTL.schedule);
+  setCached(f1CacheKey("f1_schedule_v5"), data, CACHE_TTL.schedule);
   return data;
 }
 
 async function getDriverData() {
-  const cached = getCached("f1_drivers");
+  const cached = getCached(f1CacheKey("f1_drivers"));
   if (cached) return cached;
 
   const result = await safeFetch("/drivers?session_key=latest", { timeoutMs: 4000 });
@@ -439,12 +489,12 @@ async function getDriverData() {
     usingFallbackDrivers: !result.ok,
   };
 
-  setCached("f1_drivers", payload, CACHE_TTL.drivers);
+  setCached(f1CacheKey("f1_drivers"), payload, CACHE_TTL.drivers);
   return payload;
 }
 
 async function getSessionData() {
-  const cached = getCached("f1_session");
+  const cached = getCached(f1CacheKey("f1_session"));
   if (cached) return cached;
 
   const latestSessionRes = await safeFetch("/sessions?session_key=latest", { timeoutMs: 3500 });
@@ -473,7 +523,7 @@ async function getSessionData() {
     usingFallbackSession: !latestSession,
   };
 
-  setCached("f1_session", payload, CACHE_TTL.session);
+  setCached(f1CacheKey("f1_session"), payload, CACHE_TTL.session);
   return payload;
 }
 
@@ -496,6 +546,7 @@ function buildFallbackBoard() {
     raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
     standingsFallbackFeedNote: STANDINGS_FALLBACK_FEED_NOTE,
     weather: null,
+    ...openf1TimingUxFields(),
   };
 }
 
@@ -527,7 +578,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const cached = getCached("f1_board_v6");
+      const cached = getCached(f1CacheKey("f1_board_v7"));
       if (cached) {
         res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json(cached);
@@ -561,9 +612,10 @@ export default async function handler(req, res) {
         raceHistoryFeedNote: DRIVER_RACE_HISTORY_FEED_NOTE,
         standingsFallbackFeedNote: usingFallback ? STANDINGS_FALLBACK_FEED_NOTE : null,
         weather,
+        ...openf1TimingUxFields(),
       };
 
-      setCached("f1_board_v6", body, CACHE_TTL.board);
+      setCached(f1CacheKey("f1_board_v7"), body, CACHE_TTL.board);
       res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
       return res.status(200).json(body);
     }
