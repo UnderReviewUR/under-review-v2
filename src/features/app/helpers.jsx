@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { normalizeText } from "../../lib/normalizeText.js";
+import { isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 export { normalizeText };
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
@@ -338,8 +339,32 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
     .trimStart();
 }
 
-export function renderMessage(text) {
+/** Same gradient fill as the main `>>` headline — reuse for UR Take section labels only. */
+const UR_TAKE_HEADLINE_GRADIENT_STYLE = {
+  background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+};
+
+const UR_TAKE_SECTION_HEADING_STYLE = {
+  fontFamily: "var(--display-font, 'Bebas Neue', sans-serif)",
+  fontSize: 15,
+  fontWeight: 700,
+  lineHeight: 1.2,
+  letterSpacing: "0.5px",
+  textTransform: "uppercase",
+  marginBottom: 6,
+  ...UR_TAKE_HEADLINE_GRADIENT_STYLE,
+};
+
+/**
+ * @param {{ styleUrTakeSectionLabels?: boolean }} [opts] — when true (UR Take AI bubbles), recognized section labels use the headline gradient.
+ */
+export function renderMessage(text, opts = {}) {
   if (!text) return null;
+
+  const applySectionGradients = opts.styleUrTakeSectionLabels === true;
 
   const clean = String(text)
     .replace(/\*\*([^*]+)\*\*/g, "$1")
@@ -359,9 +384,14 @@ export function renderMessage(text) {
             const head = parts[0] || "";
             const tail = parts.slice(1).join(" — ");
 
+            const headStyle =
+              applySectionGradients && isUrTakeSectionHeading(head)
+                ? UR_TAKE_SECTION_HEADING_STYLE
+                : { fontWeight: 600, color: "var(--text)", fontSize: 13, marginBottom: tail ? 4 : 0 };
+
             return (
               <div key={j} style={{ background: "rgba(8,145,178,.06)", border: "1px solid rgba(8,145,178,.12)", borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ fontWeight: 600, color: "var(--text)", fontSize: 13, marginBottom: tail ? 4 : 0 }}>{head}</div>
+                <div style={headStyle}>{head}</div>
                 {tail && <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.55 }}>{tail}</div>}
               </div>
             );
@@ -372,20 +402,22 @@ export function renderMessage(text) {
 
     const isLabelBlock = lines.length >= 2 && /^[A-Z][A-Z\s]+:?$/.test(lines[0]);
     if (isLabelBlock) {
+      const labelKey = lines[0].replace(/:$/, "");
+      const labelStyle =
+        applySectionGradients && isUrTakeSectionHeading(labelKey)
+        ? UR_TAKE_SECTION_HEADING_STYLE
+        : {
+            fontFamily: "var(--mono-font)",
+            fontSize: 10,
+            letterSpacing: 1.5,
+            color: "var(--muted)",
+            marginBottom: 6,
+            textTransform: "uppercase",
+          };
+
       return (
         <div key={i} style={{ marginBottom: 12, padding: "10px 12px", background: "rgba(255,255,255,.02)", border: "1px solid var(--border)", borderRadius: 10 }}>
-          <div
-            style={{
-              fontFamily: "var(--mono-font)",
-              fontSize: 10,
-              letterSpacing: 1.5,
-              color: "var(--muted)",
-              marginBottom: 6,
-              textTransform: "uppercase",
-            }}
-          >
-            {lines[0].replace(/:$/, "")}
-          </div>
+          <div style={labelStyle}>{labelKey}</div>
           <div style={{ lineHeight: 1.7 }}>
             {lines.slice(1).map((line, j) => (
               <div key={j} style={{ marginBottom: j === lines.slice(1).length - 1 ? 0 : 6 }}>
@@ -416,10 +448,7 @@ export function renderMessage(text) {
             marginBottom: 16,
             paddingBottom: 12,
             borderBottom: "1px solid rgba(0, 245, 233, 0.15)",
-            background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            ...UR_TAKE_HEADLINE_GRADIENT_STYLE,
           }}
         >
           {opener}
@@ -431,7 +460,11 @@ export function renderMessage(text) {
       <div key={i} style={{ lineHeight: 1.7, marginBottom: 10 }}>
         {lines.map((line, j) => (
           <div key={j} style={{ marginBottom: j === lines.length - 1 ? 0 : 6 }}>
-            {line}
+            {applySectionGradients && isUrTakeSectionHeading(line) ? (
+              <div style={UR_TAKE_SECTION_HEADING_STYLE}>{line.replace(/:$/, "")}</div>
+            ) : (
+              line
+            )}
           </div>
         ))}
       </div>
@@ -606,7 +639,7 @@ function UrTakeAiBubble({ m, trackPlay }) {
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      {renderMessage(summaryText)}
+      {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
       {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
       {showTrack ? (
         <button
@@ -655,7 +688,7 @@ function UrTakeAiBubble({ m, trackPlay }) {
               >
                 Full breakdown
               </div>
-              {renderMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}
+              {renderMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText), { styleUrTakeSectionLabels: true })}
             </>
           )}
         </div>
