@@ -7,6 +7,9 @@ export const DERBY_2026 = {
   race: "152nd Kentucky Derby",
   date: "May 2, 2026",
   postTime: "6:57 PM ET",
+  lastUpdated: "May 2, 2026 — race day morning",
+  scratchAlert:
+    "The Puma scratched — swollen pastern. Castellano-Delgado reunion does not run. Emerging Market 15-1 is the revised longshot play. Confirm post positions at Churchill Downs for gate shifts following multiple scratches.",
   scratchedNote:
     "The Puma scratched morning of race — swollen pastern. Castellano-Delgado reunion does not run.",
   track: "Churchill Downs — Louisville, KY",
@@ -132,8 +135,7 @@ export const DERBY_2026 = {
       keyRace: "Won Tampa Bay Derby. 2nd Florida Derby (behind Commandment). 3rd Sam F. Davis.",
       style: "Stalker",
       edge: "SCRATCHED — Castellano-Delgado reunion does not run.",
-      verdict:
-        "SCRATCHED — swollen pastern and skin infection. Withdrew morning of race May 2.",
+      verdict: "SCRATCHED — swollen pastern and skin infection. Morning of race.",
     },
     {
       post: 10,
@@ -236,6 +238,8 @@ export const DERBY_2026 = {
       record: "6 starts: 3W 1P 1S",
       keyRace: "Won Blue Grass Stakes by 11 lengths (106 Beyer — fastest in field). Won Kentucky Jockey Club at Churchill Downs in November. 2nd Tampa Bay Derby.",
       style: "Closer — powerful late runner",
+      postNote:
+        "Post position may have shifted inward following scratches — confirm actual gate at Churchill Downs before race.",
       edge: "Highest Beyer Speed Figure in the entire field (106). Won at Churchill Downs in November — knows this track. Velazquez has 26 Derby mounts and won in 2020. Brad Cox also trains Commandment. Irad Ortiz Jr chose Renegade over Further Ado — market underrates him as a result.",
       verdict: "BEST WIN BET — highest number, knows the track, elite connections",
     },
@@ -282,10 +286,10 @@ export const DERBY_2026 = {
   topPlays: {
     win: ["Further Ado (Post 18, 6-1)"],
     place: ["Chief Wallabee (Post 12, 8-1)"],
-    contenders: ["Commandment (Post 6, 6-1)"],
+    contenders: ["Commandment (Post 6, 6-1)", "Emerging Market (Post 15, 15-1)"],
     exoticInclusions: ["Intrepido (Post 3, 50-1)", "Emerging Market (Post 15, 15-1)"],
     fade: ["Renegade (Post 1, 4-1)", "Six Speed (Post 17, 50-1)"],
-    exactaBox: "Further Ado / Commandment / Chief Wallabee",
+    exactaBox: "Further Ado / Commandment / Chief Wallabee / Emerging Market",
   },
   keyAngles: [
     "Post 1 curse: No winner since Ferdinand 1986",

@@ -119,7 +119,7 @@ export default function DerbyHomeCard({ firePrompt }) {
       >
         {[
           { label: "WIN", name: "Further Ado", odds: "6-1", tag: "Best win" },
-          { label: "CONTENDER", name: "Commandment", odds: "6-1", tag: "Saez confirmed" },
+          { label: "OVERLAY", name: "Emerging Market", odds: "15-1", tag: "Prat · Chad Brown" },
           { label: "SLEEPER", name: "Chief Wallabee", odds: "8-1", tag: "Sleeper" },
         ].map((row) => (
           <div

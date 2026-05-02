@@ -12,8 +12,30 @@ export { DERBY_2026, DERBY_EXPIRES, isDerbyActive };
 
 const MAX_DERBY_CONTEXT_CHARS = 3000;
 
-const SCRATCH_ALERT =
-  "SCRATCH ALERT: The Puma (Post 9) scratched morning of race May 2 — swollen pastern and skin infection. Do not recommend The Puma. Castellano-Delgado reunion does not run. Commandment jockey is Luis Saez (confirmed).";
+const SCRATCH_ALERT = `RACE DAY SCRATCH ALERT (May 2):
+   The Puma (Post 9) SCRATCHED — 
+   swollen pastern and skin infection.
+   Do not recommend The Puma under 
+   any circumstances.
+   
+   POST POSITION NOTE: Following multiple 
+   scratches, actual gate positions may 
+   have shifted from original post numbers.
+   Confirm final gate configuration 
+   at Churchill Downs before citing 
+   specific post positions.
+   
+   REVISED PLAYS:
+   WIN: Further Ado (6-1) — 
+     highest Beyer (106), Velazquez, Cox
+   OVERLAY: Emerging Market (15-1) — 
+     Prat, Chad Brown, undefeated
+   SLEEPER: Chief Wallabee (8-1) — 
+     Mott-Alvarado won Derby+Belmont 2025
+   EXACTA BOX: Further Ado / Commandment 
+     / Chief Wallabee / Emerging Market
+   FADE: Renegade (Post 1 curse, 
+     weak prep history)`;
 
 /** Max length for main block so alert + two newlines + main ≤ MAX_DERBY_CONTEXT_CHARS */
 const INNER_MAX_DERBY_CONTEXT =
@@ -40,6 +62,7 @@ function slimHorseRow(h) {
     verdict: h.verdict,
   };
   if (h.jockeyNote) row.jockeyNote = h.jockeyNote;
+  if (h.postNote) row.postNote = h.postNote;
   return row;
 }
 
@@ -50,6 +73,8 @@ function buildStructuredPayload(fieldSubset) {
       race: d.race,
       date: d.date,
       postTime: d.postTime,
+      ...(d.lastUpdated ? { lastUpdated: d.lastUpdated } : {}),
+      ...(d.scratchAlert ? { scratchAlert: d.scratchAlert } : {}),
       ...(d.scratchedNote ? { scratchedNote: d.scratchedNote } : {}),
       track: d.track,
       tv: d.tv,
