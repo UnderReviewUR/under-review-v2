@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from "react";
+import { track } from "@vercel/analytics";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -809,6 +810,22 @@ ${themeCss}
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
+
+  try {
+    let sport = "generic";
+    if (sportHint && String(sportHint).trim()) {
+      sport = String(sportHint).trim().toLowerCase();
+    } else {
+      const scr = String(screen || "").toLowerCase();
+      if (scr === "nflplayer") sport = "nfl";
+      else if (["nba", "mlb", "nfl", "golf", "tennis", "f1"].includes(scr)) sport = scr;
+      else if (scr === "player") sport = "tennis";
+      else if (typeof tab === "string" && tab && tab !== "home") sport = tab;
+    }
+    track("query_submitted", { sport });
+  } catch {
+    /* analytics optional */
+  }
 
   const imgToSend = pastedImage;
 
@@ -2018,6 +2035,11 @@ ${themeCss}
   }, [screen, tab]);
 
   const goPro = useCallback(() => {
+    try {
+      track("pro_tab_viewed");
+    } catch {
+      /* analytics optional */
+    }
     if (screen !== "pro" || tab !== "pro") {
       setNavHistory((h) => [...h, { screen, tab }]);
     }
@@ -2074,6 +2096,11 @@ ${themeCss}
       }
 
       if (m?.id === "ur-home-tracker") {
+        try {
+          track("pro_tab_viewed");
+        } catch {
+          /* analytics optional */
+        }
         if (screen !== "pro" || tab !== "pro") {
           setNavHistory((h) => [...h, { screen, tab }]);
         }
@@ -3181,7 +3208,14 @@ ${themeCss}
           const checkoutEmail = userEmail || localStorage.getItem("ur_email") || "";
           const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
           const data=await res.json();
-          if(data.url) window.location.href=data.url;
+          if(data.url) {
+            try {
+              track("trial_started");
+            } catch {
+              /* analytics optional */
+            }
+            window.location.href=data.url;
+          }
           else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
           else alert("Could not start checkout. Try again.");
         }catch{alert("Something went wrong. Try again.");}
