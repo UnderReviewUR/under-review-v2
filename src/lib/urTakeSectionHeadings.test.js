@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isUrTakeSectionHeading, normalizeUrTakeSectionHeadingKey } from "./urTakeSectionHeadings.js";
+import {
+  extractUrTakeSectionHeading,
+  isUrTakeSectionHeading,
+  normalizeUrTakeSectionHeadingKey,
+} from "./urTakeSectionHeadings.js";
 
 test("recognizes listed labels with optional colon and case", () => {
   assert.equal(isUrTakeSectionHeading("THE PLAY"), true);
@@ -18,4 +22,17 @@ test("rejects partial lines and unknown labels", () => {
 
 test("normalizeUrTakeSectionHeadingKey collapses whitespace", () => {
   assert.equal(normalizeUrTakeSectionHeadingKey("  Confidence: "), "CONFIDENCE");
+});
+
+test("extractUrTakeSectionHeading splits Label: body for known headings", () => {
+  assert.deepEqual(extractUrTakeSectionHeading("Confidence: Medium. Tatum out."), {
+    label: "Confidence",
+    body: "Medium. Tatum out.",
+  });
+  assert.deepEqual(extractUrTakeSectionHeading("Live trigger: If Pritchard hits 4"), {
+    label: "Live trigger",
+    body: "If Pritchard hits 4",
+  });
+  assert.equal(extractUrTakeSectionHeading("THE PLAY"), null);
+  assert.equal(extractUrTakeSectionHeading("This is a normal sentence."), null);
 });

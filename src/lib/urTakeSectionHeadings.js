@@ -35,3 +35,29 @@ export function isUrTakeSectionHeading(line) {
   if (!key) return false;
   return NORMALIZED.has(key);
 }
+
+/**
+ * When a line is `Known label: body` (colon + space + rest), split for gradient label + plain body.
+ * Returns null for heading-only lines, unknown labels, or lines without `: `.
+ */
+export function extractUrTakeSectionHeading(line) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed) return null;
+
+  const colonIdx = trimmed.indexOf(": ");
+  if (colonIdx === -1) return null;
+
+  const candidate = trimmed.slice(0, colonIdx);
+  const body = trimmed.slice(colonIdx + 2);
+
+  const matchesHeading =
+    isUrTakeSectionHeading(candidate) || isUrTakeSectionHeading(`${candidate}:`);
+
+  if (body.trim().length > 0 && matchesHeading) {
+    return {
+      label: candidate,
+      body: body.trim(),
+    };
+  }
+  return null;
+}

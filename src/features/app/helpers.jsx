@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { normalizeText } from "../../lib/normalizeText.js";
-import { isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
+import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 export { normalizeText };
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
@@ -460,11 +460,28 @@ export function renderMessage(text, opts = {}) {
       <div key={i} style={{ lineHeight: 1.7, marginBottom: 10 }}>
         {lines.map((line, j) => (
           <div key={j} style={{ marginBottom: j === lines.length - 1 ? 0 : 6 }}>
-            {applySectionGradients && isUrTakeSectionHeading(line) ? (
-              <div style={UR_TAKE_SECTION_HEADING_STYLE}>{line.replace(/:$/, "")}</div>
-            ) : (
-              line
-            )}
+            {(() => {
+              if (!applySectionGradients) return line;
+
+              if (isUrTakeSectionHeading(line)) {
+                return <div style={UR_TAKE_SECTION_HEADING_STYLE}>{line.replace(/:$/, "")}</div>;
+              }
+
+              const extracted = extractUrTakeSectionHeading(line);
+              if (extracted) {
+                return (
+                  <div>
+                    <span style={UR_TAKE_SECTION_HEADING_STYLE}>{extracted.label}</span>
+                    <span style={{ color: "var(--soft)", fontSize: "inherit" }}>
+                      {" — "}
+                      {extracted.body}
+                    </span>
+                  </div>
+                );
+              }
+
+              return line;
+            })()}
           </div>
         ))}
       </div>
