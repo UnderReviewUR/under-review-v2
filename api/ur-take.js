@@ -83,6 +83,13 @@ LIVE GAME PLAYABILITY FILTER (apply when live stats exist in context):
 ${NBA_UNIFIED_MARKET_CLOSING_RULE}
 - Response must read complete and sharp, never like a partial answer.`;
 
+/** Keeps NBA follow-ups from dead-ending on name typos ("drop the name…"). */
+const NBA_FOLLOW_UP_THREAD_RULE = `NBA FOLLOW-UP THREAD RULE (mandatory — same chat as prior messages)
+- Verified BDL roster + slate + matchup context are supplied — you must resolve who the user means without asking. Map typos/nicknames to the closest verified full name on **this game's** roster strings in COMPACT context; open with one declarative attribution ("That's [Full Name] —") and execute props/rebounds/assists/PRA for that player.
+- Forbidden anywhere in the message: "if you meant", "tell me who", "drop the name", "correct me if", or any user-facing name confirmation.
+- Mandatory closer: Live trigger or concrete numeric threshold — never homework-only.
+- Only if no token plausibly matches either roster after fuzzy resolution: two game-level angles using verified stars already named in context — still no spelling/confirmation asks.`;
+
 // ── TODAY string — injected into every prompt ──────────────────────────────
 function getTodayStr() {
   return new Date().toLocaleDateString("en-US", {
@@ -3294,6 +3301,8 @@ Never mention client UI, API merge, rosterGroundingQuality, or "combined" data s
 The confidence line reflects data quality. That is the only place uncertainty
 about data completeness belongs. Nowhere else.
 
+TYPO / SLANG NAME RESOLUTION (mandatory): Verified BallDontLie roster lists for this slate are sufficient to identify who the user means. When a token in the Question does not exactly match a listed name, fuzzy-match it to the closest authorized full name on either team (playersByTeamAbbrev / INTERNAL authorized-name blocks). State that resolved name once as fact and analyze — never ask the user to confirm identity ("if you meant", "tell me who", "correct spelling"). ESPN/board enrichment in context is authoritative for game framing — not an excuse to punt on name resolution.
+
 ENFORCEMENT CHECK: Before generating your response, mentally verify each player name:
 If the name appears in the Question or attached image → allowed.
 Otherwise, for roster membership → must appear under the correct team in
@@ -5280,7 +5289,9 @@ COMPACT NBA CONTEXT (follow-up turn — full nbaContext JSON intentionally omitt
 ${compactNbaFollowUpContext}
 
 oddsAvailable: ${oddsAvailable}
-Default confidence should be ${derivedConfidence}.`;
+Default confidence should be ${derivedConfidence}.
+
+${NBA_FOLLOW_UP_THREAD_RULE}`;
     } else {
     const nbaRosterListBlock = buildNbaRosterProminentInjection(nbaContextForModel, {
       hasImage,
