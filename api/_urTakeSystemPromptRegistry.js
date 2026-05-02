@@ -483,13 +483,35 @@ When a user asks who wins a playoff series, answer based on playoffSeries data i
   }
   const tennis = buildTennisSurfaceAppendix(sportHint);
   if (tennis) parts.push(tennis);
-  if (s === "nfl") parts.push(buildNflSurfaceAppendix());
+  if (s === "nfl") {
+    parts.push(buildNflSurfaceAppendix());
+    parts.push(`NFL POSTSEASON FRAMING: Single-elimination bracket — cite next-round opponent paths only when they appear in context or confirmed schedule data; if the bracket step is missing from payload, say so and still give a conditional lean on the asked matchup.`);
+  }
+  if (s === "mlb") {
+    parts.push(`MLB POSTSEASON FRAMING: Series pitching leverage overrides regular-season priors; cite rotation uncertainty with explicit if-A/if-B when starters or bullpen roles are not locked.`);
+  }
   if (s === "golf") parts.push(buildGolfSurfaceAppendix());
   if (s === "f1") parts.push(buildF1SurfaceAppendix());
   const gen = buildGenericSurfaceAppendix(sportHint);
   if (gen) parts.push(gen);
   if (!parts.length) return "";
   return `\n\n${parts.join("\n\n")}`;
+}
+
+/** Directional takes when injuries / lineups / conditions are still TBD — all covered sports. */
+export function buildConditionalUncertaintyDirectionAppendix(sportHint) {
+  const s = String(sportHint || "").toLowerCase();
+  const covered =
+    s === "nba" ||
+    s === "nfl" ||
+    s === "mlb" ||
+    s === "tennis" ||
+    s === "tennis_wta_profile" ||
+    s === "golf" ||
+    s === "f1";
+  if (!covered) return "";
+  return `\n\nCONDITIONAL / UNKNOWN STATUS RULE (covered sports):
+When material facts are unsettled — availability (injury, suspension, minutes restriction, load management), lineup, pitching rotation, bullpen sequence, weather, surface or court speed, rest/travel, or tactical surprises — you still owe a directional read on prediction-style asks. Required shape: (1) lean/fade/pass with calibrated confidence; (2) the few factors that would flip or widen the band; (3) when a hinge is explicitly uncertain (e.g. star game-time decision), give a concise if-plays / if-sits branch instead of refusing. Never abstain solely because status is TBD — cap confidence and label uncertainty honestly.`;
 }
 
 export function applyChaseSystemOverlay(basePrompt, chaseSignals) {
@@ -587,9 +609,10 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     nbaDecisionMode,
     mlbDecisionMode,
   });
+  const uncertaintySurface = buildConditionalUncertaintyDirectionAppendix(sportHint);
 
   const s = String(sportHint || "").toLowerCase();
-  let composed = memorySection + core + surface;
+  let composed = memorySection + core + surface + uncertaintySurface;
   if (s === "tennis" || s === "tennis_wta_profile") {
     composed += String(tennisSystemPromptExtra || "");
   }

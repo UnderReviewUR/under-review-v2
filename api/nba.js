@@ -4,6 +4,7 @@ import { addCalendarDaysEt } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { persistLastKnownHomeNbaGames, recoverLastKnownHomeNbaGames } from "./_homeLastKnownGames.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
+import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -2640,6 +2641,12 @@ export async function buildNbaUrTakeBoard(question = "") {
   board.newsImpact = buildNbaNewsImpact(board);
   board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
   board = prioritizeNbaBoardForQuestion(board, boost);
+  try {
+    board.playoffPathGrounding = await buildNbaPlayoffPathGrounding(board.playoffSeries || [], boost);
+  } catch (err) {
+    console.warn("[nba] playoffPathGrounding failed:", err?.message || err);
+    board.playoffPathGrounding = null;
+  }
   console.log(JSON.stringify({
     event: "nba_board_complete",
     durationMs: Date.now() - boardStart,
