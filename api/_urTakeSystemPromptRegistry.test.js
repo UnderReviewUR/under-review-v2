@@ -54,6 +54,7 @@ test("composeRegisteredUrTakeSystemPrompt bans unavailable-data closings", () =>
   assert.match(p, /Treat every follow-up like a text reply from a friend who already knows the context/);
   assert.match(p, /THREAD CONTINUATION \(mandatory\)/);
   assert.match(p, /NAME RESOLUTION AUTHORITY/);
+  assert.match(p, /STAT TERM LOCK/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt appends NBA decision spine for nba", () => {

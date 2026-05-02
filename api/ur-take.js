@@ -5,6 +5,7 @@ import { getDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
+import { applyBetIntegrityPostProcess } from "./_urTakeBetIntegrity.js";
 import {
   allowRateLimit,
   emailLimit,
@@ -6133,11 +6134,7 @@ You are responding to a Pro subscriber. Apply the following:
       max_tokens: tokenBudget,
     });
 
-    // TODO: post-response validation
-    // Scan Claude response text for player names not in verifiedPlayerNames.
-    // If hallucinated names found, either retry with stronger enforcement or
-    // flag in the UI with a warning. This is the nuclear option if prompt
-    // enforcement alone proves insufficient. Track hallucination rate in logs.
+    // Bet-integrity soft pass runs after extraction (below): hype language, logged issues.
 
     if (!result.ok) {
       if (result.rateLimitedExhausted) {
@@ -6289,6 +6286,23 @@ You are responding to a Pro subscriber. Apply the following:
     if (responseDeep) responseDeep = stripBannedDataAvailabilityOpener(responseDeep);
     responseText = stripBannedPerformanceTrackerLines(responseText);
     if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
+
+    const biSummary = applyBetIntegrityPostProcess(responseText, { sport: sportHint });
+    responseText = biSummary.text;
+    if (biSummary.issues.length) {
+      console.log(
+        JSON.stringify({
+          event: "ur_take_bet_integrity",
+          sport: sportHint || "generic",
+          issues: biSummary.issues,
+          modified: biSummary.modified,
+        }),
+      );
+    }
+    if (responseDeep) {
+      const biDeep = applyBetIntegrityPostProcess(responseDeep, { sport: sportHint });
+      responseDeep = biDeep.text;
+    }
 
     if (!responseText || responseText.trim().length < 50) {
       responseText = responseDeep || responseText;

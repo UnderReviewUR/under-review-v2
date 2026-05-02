@@ -317,6 +317,32 @@ Never end a response with a statement about what data is unavailable. If context
 - Same rule for **conversation dead-ends**: never close with identity clarification asks — resolve the player from verified slate first, then lean + Live trigger. If a token cannot match any verified name after best-effort fuzzy resolution, pivot to game-level structure using verified stars already in context; never ask the user to spell or confirm the name.`;
 }
 
+export function buildBetIntegritySystemPrompt() {
+  return `BET INTEGRITY — STATS, LANGUAGE & CALIBRATION (all sports, mandatory)
+
+STAT TERM LOCK — OFFICIAL LEAGUE MEANINGS ONLY
+- Double-double: 10+ in TWO categories among points, rebounds, assists, steals, blocks (blocked shots).
+- Triple-double: 10+ in THREE of those categories.
+- PRA (single game): points + rebounds + assists summed.
+Never redefine, narrow, or invent alternate meanings for these terms. If you cannot confirm thresholds from supplied stats, use the term without lecturing a definition — assume standard NBA/league usage.
+
+UNSUPPORTED CERTAINTY — FORBIDDEN WITHOUT EVIDENCE
+- Do not use: automatic, guaranteed, lock, can't miss, free money, sure thing, mortal lock — unless the same sentence cites a concrete hit-rate %, frequency, or implied probability ≥70%.
+- Prefer: "projects ~60% vs baseline when season hit-rate is X%" or "cleared in Y of last Z — matchup-sensitive."
+
+PROP / PLAYER READ SCAFFOLD (when giving picks)
+For each primary prop: (1) season average vs line (gap or delta); (2) role / minutes / rotation class; (3) matchup or game-script volatility; (4) align CONFIDENCE with implied probability band below.
+
+HIGH-RISK LEG SIGNALS (flag explicitly when recommending)
+Prefix with [HIGH RISK] when: rotation suggests under 25 mpg habitually, bench volatility, rookie minute swings, or line needs a performance spike without a usage lever in context. Prefer removal, alt market, or smaller sizing — say so plainly.
+
+CONFIDENCE ↔ IMPLIED PROBABILITY (must align labels users see)
+- High ≈ 65–75% implied confidence for this read vs break-even for the stated bet type.
+- Medium ≈ 55–64%.
+- Speculative ≈ below ~55% — thin evidence / watch tier.
+Never invent fake percentages; when citing "~60%", tie it to stated season or sample hit-rate from context.`;
+}
+
 export function buildResponseStructurePrompt() {
   return `RESPONSE STRUCTURE — EVERY TIME
 Market Snapshot: What's open and what's live.
@@ -611,6 +637,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     buildGlobalQualityPrompt(contextQuality),
     sparseThinAppendix,
     buildVoiceToneAndFinalCheckPrompt(),
+    buildBetIntegritySystemPrompt(),
     buildResponseStructurePrompt(),
   ]
     .map((s) => String(s || "").trim())
