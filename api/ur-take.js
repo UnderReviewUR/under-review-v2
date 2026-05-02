@@ -2568,10 +2568,37 @@ function nbaTeamSignals(team) {
 
 export function resolveNbaMatchupFromQuestion(question, nbaContext) {
   const q = normalizeText(question);
-  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
-  if (!q || games.length === 0) return null;
+  if (!q) return null;
 
   const abbrs = extractNbaTeamAbbrevsFromQuestion(question);
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  const playoffSeries = Array.isArray(nbaContext?.playoffSeries) ? nbaContext.playoffSeries : [];
+
+  /** When today's slate has no game for the named teams, playoff bracket rows still identify the series. */
+  const matchupFromPlayoffSeries = () => {
+    if (abbrs.length < 2) return null;
+    const seriesMatch = playoffSeries.find((row) => {
+      const home = String(row?.home || "").toUpperCase();
+      const away = String(row?.away || "").toUpperCase();
+      if (!home || !away) return false;
+      return abbrs.includes(home) && abbrs.includes(away);
+    });
+    if (!seriesMatch) return null;
+    const awayAbbr = String(seriesMatch.away || "").toUpperCase();
+    const homeAbbr = String(seriesMatch.home || "").toUpperCase();
+    if (!awayAbbr || !homeAbbr) return null;
+    return {
+      awayAbbr,
+      homeAbbr,
+      label: `${awayAbbr} at ${homeAbbr}`,
+      isSeriesOnly: true,
+    };
+  };
+
+  if (games.length === 0) {
+    return matchupFromPlayoffSeries();
+  }
+
   if (abbrs.length >= 2) {
     const exact = games.find((g) => {
       const away = String(g?.awayTeam?.abbr || "").toUpperCase();
@@ -2603,6 +2630,9 @@ export function resolveNbaMatchupFromQuestion(question, nbaContext) {
       };
     }
   }
+
+  const fromSeries = matchupFromPlayoffSeries();
+  if (fromSeries) return fromSeries;
 
   if (games.length === 1) {
     const g = games[0];
@@ -3442,6 +3472,7 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
     if (Object.keys(o).length > 0) raw.gameTotals = o;
   }
 
+  // Same filter for slate-resolved and playoffSeries-only matchups (isSeriesOnly): awayF/homeF scope the model.
   if (matchupTeamSet && Array.isArray(raw.playoffSeries)) {
     raw.playoffSeries = raw.playoffSeries.filter((row) => {
       const s = JSON.stringify(row || "").toUpperCase();

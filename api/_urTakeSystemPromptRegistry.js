@@ -476,6 +476,8 @@ export function buildSportSurfaceRegistryAppendix({ sportHint, nbaDecisionMode, 
   if (s === "nba") {
     const nba = buildNbaUrTakeDecisionModeSpine(nbaDecisionMode);
     if (nba) parts.push(nba);
+    parts.push(`SERIES QUESTION RULE:
+When a user asks who wins a playoff series, answer based on playoffSeries data in context — not todaysGames. If the series teams are not playing tonight, that is irrelevant to the series outcome question. Never confuse a series matchup question with tonight's game slate.`);
   } else if (s === "mlb" && mlbDecisionMode != null) {
     parts.push(buildMlbUrTakeDecisionModeSpine(mlbDecisionMode));
   }
