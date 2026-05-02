@@ -2418,7 +2418,6 @@ ${themeCss}
         {/* ══ HOME ══ */}
         {screen==="home"&&(
           <>
-            {isDerbyActive() ? <DerbyHomeCard firePrompt={firePrompt} /> : null}
             <HomeScreen
             hasDockedBar={hasDockedBar}
             askInput={askInput}

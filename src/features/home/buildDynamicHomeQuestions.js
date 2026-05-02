@@ -10,7 +10,6 @@ import {
   isDisplayableValidity,
 } from "../../../shared/eventValidity.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
-import { isDerbyActive } from "../../data/derby2026.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -112,29 +111,6 @@ export function buildDynamicHomeQuestions({
     if (pk) usedPromptKeys.add(pk);
     prompts.push(item);
   };
-
-  const referenceMs =
-    typeof promoNowMs === "number" && Number.isFinite(promoNowMs) ? promoNowMs : Date.now();
-  const derbyHomePromptsActive = isDerbyActive(new Date(referenceMs));
-
-  if (derbyHomePromptsActive) {
-    push({
-      id: "derby-home-a",
-      color: "#22d3ee",
-      sportHint: "derby",
-      sortRank: 1,
-      text: "Strongest play in the Kentucky Derby tonight?",
-      prompt: "Strongest play in the Kentucky Derby tonight?",
-    });
-    push({
-      id: "derby-home-b",
-      color: "#22d3ee",
-      sportHint: "derby",
-      sortRank: 2,
-      text: "Best longshot in the Derby — who's the overlay?",
-      prompt: "Best longshot in the Derby — who's the overlay?",
-    });
-  }
 
   const tournamentActionable = (activeTournamentMatches || []).filter(
     (m) => !isTennisMatchFinished(m),
