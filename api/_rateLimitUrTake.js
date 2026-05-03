@@ -52,3 +52,8 @@ export function ipLimit() {
 export function emailLimit() {
   return limitFromEnv("UR_TAKE_RATE_EMAIL_PER_MIN", 45);
 }
+
+/** Pro status / Stripe email sync — anti-enumeration (override via PRO_STATUS_RATE_IP_PER_MIN). */
+export function proStatusIpLimit() {
+  return limitFromEnv("PRO_STATUS_RATE_IP_PER_MIN", 3);
+}

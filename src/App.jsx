@@ -20,10 +20,8 @@ import {
   getProMarketingTokens,
 } from "./themes.js";
 import AskBar from "./components/AskBar.jsx";
-import ClerkAuthBar from "./components/ClerkAuthBar.jsx";
-import ClerkSubscriptionSync from "./components/ClerkSubscriptionSync.jsx";
 import ProCheckoutCTA from "./components/ProCheckoutCTA.jsx";
-import { isClerkEnabled } from "./clerkEnv.js";
+import StripeSubscriptionSync from "./components/StripeSubscriptionSync.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
@@ -401,23 +399,34 @@ ${themeCss}
   }, [postCheckoutBanner]);
 
   const restoreProEntitlement = useCallback(async () => {
-    const email =
+    const email = String(
       userEmail ||
-      (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
-      "";
-    if (!email) {
-      alert("Save your email first (email gate) so we can find your subscription.");
+        (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+        "",
+    )
+      .trim()
+      .toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert("Enter the email you used for Pro checkout (saved in this browser after subscribe).");
       return false;
     }
     try {
       const res = await fetch("/api/restore-subscription", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ email }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.pro && data.token) {
-        localStorage.setItem("ur_access_token", data.token);
+        try {
+          localStorage.setItem("ur_access_token", data.token);
+          localStorage.setItem("ur_email", email);
+        } catch {
+          /* ignore */
+        }
+        setUserEmail(email);
         setAccessToken(data.token);
         setAccessTier("pro");
         setShowUpgradeModal(false);
@@ -425,7 +434,7 @@ ${themeCss}
       }
       alert(
         data.reason === "No active subscription"
-          ? "No active subscription found for this email."
+          ? "No active subscription found for this account."
           : data.error || "Could not restore access. Try again.",
       );
       return false;
@@ -434,58 +443,6 @@ ${themeCss}
       return false;
     }
   }, [userEmail]);
-
-  const legacyProCheckoutClick = useCallback(async () => {
-    try {
-      const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
-      let checkoutEmail = String(userEmail || localStorage.getItem("ur_email") || "").trim();
-      if (!emailOk(checkoutEmail)) {
-        const entered = window.prompt(
-          "Enter the email for your Pro subscription and receipts:",
-        );
-        if (!emailOk(entered)) {
-          alert("A valid email is required to open checkout.");
-          return;
-        }
-        checkoutEmail = entered.trim().toLowerCase();
-        try {
-          localStorage.setItem("ur_email", checkoutEmail);
-        } catch {
-          /* ignore */
-        }
-        setUserEmail(checkoutEmail);
-      }
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: checkoutEmail }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 400 && data.error === "email_required") {
-        alert(data.message || "Enter a valid email to continue.");
-        return;
-      }
-      if (res.status === 403 && data.error === "already_pro") {
-        alert(data.message || "You already have Pro access");
-        void restoreProEntitlement();
-        return;
-      }
-      if (data.url) {
-        try {
-          track("checkout_initiated");
-        } catch {
-          /* analytics optional */
-        }
-        window.location.href = data.url;
-      } else if (data.retryAfterSeconds) {
-        alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
-      } else {
-        alert(data.error || "Could not start checkout. Try again.");
-      }
-    } catch {
-      alert("Something went wrong. Try again.");
-    }
-  }, [userEmail, restoreProEntitlement]);
 
   const handleBettingStyleChange = useCallback((style) => {
     const next = style === "limits" ? "limits" : "balanced";
@@ -759,83 +716,6 @@ ${themeCss}
 
     return true;
   }, [isUnlimited]);
-
-  useEffect(() => {
-    if (isClerkEnabled) return;
-    if (userEmail && !isUnlimited) {
-      fetch(`/api/pro-status?email=${encodeURIComponent(userEmail)}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.pro && data.token) {
-            localStorage.setItem("ur_access_token", data.token);
-            setAccessToken(data.token);
-            setAccessTier("pro");
-          }
-        })
-        .catch(() => {});
-    }
-  }, [userEmail, isUnlimited]);
-
-  /** After Stripe redirect — sync Pro immediately; retry while webhooks may lag. */
-  useEffect(() => {
-    if (isClerkEnabled) return;
-    if (!proSuccess) return;
-    const email =
-      userEmail ||
-      (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
-      "";
-    if (!email) return;
-
-    let cancelled = false;
-    const sync = async () => {
-      try {
-        const res = await fetch("/api/restore-subscription", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (data.pro && data.token) {
-          localStorage.setItem("ur_access_token", data.token);
-          setAccessToken(data.token);
-          setAccessTier("pro");
-          setShowUpgradeModal(false);
-        }
-      } catch {
-        /* retry on next tick */
-      }
-    };
-
-    void sync();
-    const t2 = setTimeout(() => void sync(), 2000);
-    const t5 = setTimeout(() => void sync(), 5000);
-    const t8 = setTimeout(() => void sync(), 8000);
-
-    const alertTimer = setTimeout(() => {
-      if (cancelled) return;
-      const t = accessTierRef.current;
-      if (t !== "pro" && t !== "owner" && t !== "friend") {
-        console.error("[UR_ENTITLEMENT_DESYNC]", {
-          paymentSuccessRedirect: true,
-          tierAfter10s: t,
-        });
-        void fetch("/api/entitlement-alert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, source: "post_checkout_10s" }),
-        }).catch(() => {});
-      }
-    }, 10_000);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t2);
-      clearTimeout(t5);
-      clearTimeout(t8);
-      clearTimeout(alertTimer);
-    };
-  }, [proSuccess, userEmail]);
 
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
@@ -2559,17 +2439,16 @@ ${themeCss}
   return (
     <PerformanceContext.Provider value={performanceContextValue}>
     <>
-  {isClerkEnabled && (
-    <ClerkSubscriptionSync
-      proSuccess={proSuccess}
-      userEmail={userEmail}
-      setUserEmail={setUserEmail}
-      setAccessTier={setAccessTier}
-      setAccessToken={setAccessToken}
-      setShowUpgradeModal={setShowUpgradeModal}
-      isUnlimited={isUnlimited}
-    />
-  )}
+  <StripeSubscriptionSync
+    proSuccess={proSuccess}
+    userEmail={userEmail}
+    setUserEmail={setUserEmail}
+    setAccessTier={setAccessTier}
+    setAccessToken={setAccessToken}
+    setShowUpgradeModal={setShowUpgradeModal}
+    isUnlimited={isUnlimited}
+    accessTier={accessTier}
+  />
   <style>{css}</style>
   <div
     className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}`}
@@ -2623,7 +2502,6 @@ ${themeCss}
             className="header-right"
             style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, minWidth: 0 }}
           >
-            {isClerkEnabled && <ClerkAuthBar />}
             {headerPill}
           </div>
         </header>
@@ -2958,16 +2836,37 @@ ${themeCss}
     )}
     {accessTier==="pro"&&(
       <div style={{margin:"8px 16px 0",textAlign:"left"}}>
-        <a
-          href="/api/billing-portal"
-          onClick={async(e)=>{
-            e.preventDefault();
+        <button
+          type="button"
+          onClick={async()=>{
             if (openingBillingPortal) return;
+            const billEmail = String(
+              userEmail ||
+                (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+                "",
+            )
+              .trim()
+              .toLowerCase();
+            if (!billEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billEmail)) {
+              alert("Add the email you used for Pro (tap Subscribe on Pro tab first).");
+              return;
+            }
             setOpeningBillingPortal(true);
             try {
-              const portalEmail = userEmail || localStorage.getItem("ur_email") || "";
-              const query = portalEmail ? `?email=${encodeURIComponent(portalEmail)}` : "";
-              window.location.assign(`/api/billing-portal${query}`);
+              const res = await fetch("/api/billing-portal", {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email: billEmail }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (data.url) {
+                window.location.href = data.url;
+                return;
+              }
+              alert(data.error || "Could not open subscription settings. Try again.");
             } catch {
               alert("Could not open subscription settings. Try again.");
             } finally {
@@ -2982,10 +2881,14 @@ ${themeCss}
             textUnderlineOffset:3,
             opacity:openingBillingPortal ? 0.75 : 1,
             pointerEvents:openingBillingPortal ? "none" : "auto",
+            background:"none",
+            border:"none",
+            cursor:"pointer",
+            padding:0,
           }}
         >
           Manage subscription →
-        </a>
+        </button>
       </div>
     )}
 
@@ -3504,7 +3407,7 @@ ${themeCss}
       <ProCheckoutCTA
         className="pro-cta-btn"
         restoreProEntitlement={restoreProEntitlement}
-        onLegacyCheckout={legacyProCheckoutClick}
+        setUserEmail={setUserEmail}
       >
         $9.99/month · cancel anytime
       </ProCheckoutCTA>

@@ -91,6 +91,27 @@ export async function evaluateCheckoutBlockWithClerk(stripe, { email, clerkUserI
 /**
  * Pro status for a Clerk user: Stripe customer from Clerk privateMetadata, else lookup by primary email.
  */
+/**
+ * Persist Stripe customer id on the Clerk user (webhook + migration from verified email match).
+ */
+export async function persistStripeCustomerForClerkUser(clerkUserId, stripeCustomerId, stripeSubscriptionId) {
+  const clerk = getClerkBackendClient();
+  if (!clerk || !clerkUserId || !String(stripeCustomerId || "").startsWith("cus_")) return;
+  try {
+    const existing = await clerk.users.getUser(clerkUserId);
+    const prev = existing.privateMetadata || {};
+    await clerk.users.updateUser(clerkUserId, {
+      privateMetadata: {
+        ...prev,
+        stripeCustomerId,
+        ...(stripeSubscriptionId ? { stripeSubscriptionId } : {}),
+      },
+    });
+  } catch (e) {
+    console.error("[stripe] persistStripeCustomerForClerkUser:", e?.message || e);
+  }
+}
+
 export async function buildProStatusForClerkUserId(clerkUserId, stripe, tokenSecret) {
   const client = getClerkBackendClient();
   if (!client) {
@@ -107,15 +128,18 @@ export async function buildProStatusForClerkUserId(clerkUserId, stripe, tokenSec
       "";
 
     let customer = null;
+    let resolvedViaEmailLookup = false;
     if (stripeCustomerId?.startsWith("cus_")) {
       try {
         customer = await stripe.customers.retrieve(stripeCustomerId);
+        if (customer?.deleted) customer = null;
       } catch {
         customer = null;
       }
     }
     if (!customer && primaryEmail) {
       customer = await findCustomerByEmail(stripe, primaryEmail);
+      if (customer) resolvedViaEmailLookup = true;
     }
     if (!customer) {
       return { ok: true, status: 200, body: { pro: false, reason: "No customer found" } };
@@ -124,6 +148,14 @@ export async function buildProStatusForClerkUserId(clerkUserId, stripe, tokenSec
     const activeSub = await getActiveOrTrialingSubscription(stripe, customer.id);
     if (!activeSub) {
       return { ok: true, status: 200, body: { pro: false, reason: "No active subscription" } };
+    }
+
+    if (resolvedViaEmailLookup) {
+      const em = String(primaryEmail || "").trim().toLowerCase();
+      const custEmail = String(customer.email || "").trim().toLowerCase();
+      if (em && custEmail === em) {
+        await persistStripeCustomerForClerkUser(clerkUserId, customer.id, activeSub.id);
+      }
     }
 
     const normalized = String(primaryEmail || customer.email || "").trim().toLowerCase();

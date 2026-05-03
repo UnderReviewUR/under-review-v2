@@ -1,13 +1,11 @@
 // api/checkout.js
-// Creates a Stripe Checkout session for Under Review Pro.
-// Called when the user starts checkout from App.jsx (full paywall after one free UR Take).
+// Stripe Checkout — POST { email }; no Clerk.
 
 import { applyCors } from "./_cors.js";
-import { getClerkUserIdFromAuthorizationHeader, getClerkBackendClient, isClerkSecretConfigured } from "./_clerkAuth.js";
-import { getEnv } from "./_env.js";
+import { getEnv, resolveAccessTokenSecretForHandler } from "./_env.js";
 import Stripe from "stripe";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
-import { evaluateCheckoutBlockWithClerk } from "./_stripeProSync.js";
+import { buildProStatusResponse, evaluateCheckoutBlock } from "./_stripeProSync.js";
 
 const CHECKOUT_COOLDOWN_MS = 8 * 1000;
 const CHECKOUT_SESSION_REUSE_MS = 2 * 60 * 1000;
@@ -35,46 +33,26 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
+  const tokenSecret = resolveAccessTokenSecretForHandler(res);
+  if (tokenSecret === null) return;
+
   const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY");
-  const STRIPE_PRICE_ID   = getEnv("STRIPE_PRICE_ID");
+  const STRIPE_PRICE_ID = getEnv("STRIPE_PRICE_ID");
 
   if (!STRIPE_SECRET_KEY) return res.status(500).json({ error: "Missing STRIPE_SECRET_KEY" });
-  if (!STRIPE_PRICE_ID)   return res.status(500).json({ error: "Missing STRIPE_PRICE_ID" });
+  if (!STRIPE_PRICE_ID) return res.status(500).json({ error: "Missing STRIPE_PRICE_ID" });
 
   const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
   try {
-    const clerkUserId = await getClerkUserIdFromAuthorizationHeader(req.headers.authorization);
-    const { email: rawBodyEmail } = req.body || {};
-
-    let email = "";
-    if (isClerkSecretConfigured()) {
-      if (!clerkUserId) {
-        return res.status(401).json({
-          error: "sign_in_required",
-          message: "Sign in to your UnderReview account to subscribe. Email-only checkout is disabled when accounts are enabled.",
-        });
-      }
-      const client = getClerkBackendClient();
-      if (!client) {
-        return res.status(500).json({ error: "Clerk is not configured" });
-      }
-      const u = await client.users.getUser(clerkUserId);
-      email = String(u.primaryEmailAddress?.emailAddress || "").trim().toLowerCase();
-      if (!isValidCheckoutEmail(email)) {
-        return res.status(400).json({
-          error: "email_required",
-          message: "Your account must have a primary email to subscribe.",
-        });
-      }
-    } else {
-      email = String(rawBodyEmail || "").trim().toLowerCase();
-      if (!isValidCheckoutEmail(email)) {
-        return res.status(400).json({
-          error: "email_required",
-          message: "Enter a valid email to continue — we need it for Pro access and receipts.",
-        });
-      }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const raw = body.email ?? body.Email;
+    const email = String(raw || "").trim().toLowerCase();
+    if (!isValidCheckoutEmail(email)) {
+      return res.status(400).json({
+        error: "email_required",
+        message: "Enter a valid email address to subscribe.",
+      });
     }
 
     const checkoutKey = getCheckoutKey(req, email);
@@ -98,15 +76,27 @@ export default async function handler(req, res) {
     }
 
     try {
-      await setDurableJson(stateKey, {
-        ...prior,
-        lastAttemptAt: now,
-      }, { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS });
+      await setDurableJson(
+        stateKey,
+        {
+          ...prior,
+          lastAttemptAt: now,
+        },
+        { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS },
+      );
     } catch {
       return res.status(500).json({ error: "checkout_unavailable" });
     }
 
-    const duplicateGate = await evaluateCheckoutBlockWithClerk(stripe, { email, clerkUserId });
+    const proGate = await buildProStatusResponse(email, stripe, tokenSecret);
+    if (proGate.ok && proGate.body?.pro === true) {
+      return res.status(403).json({
+        error: "already_pro",
+        message: "You already have Pro access",
+      });
+    }
+
+    const duplicateGate = await evaluateCheckoutBlock(stripe, email);
     if (duplicateGate.block) {
       return res.status(403).json({
         error: "already_pro",
@@ -114,28 +104,34 @@ export default async function handler(req, res) {
       });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      payment_method_types: ["card"],
-      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-      customer_email: email,
-      success_url: "https://under-review.app?pro=success",
-      cancel_url:  "https://under-review.app?pro=cancelled",
-      metadata: {
-        product: "under_review_pro",
-        tier: "pro",
-        ...(clerkUserId ? { clerk_user_id: clerkUserId } : {}),
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        payment_method_types: ["card"],
+        line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+        customer_email: email,
+        success_url: "https://under-review.app?pro=success",
+        cancel_url: "https://under-review.app?pro=cancelled",
+        metadata: {
+          product: "under_review_pro",
+          tier: "pro",
+        },
       },
-    }, {
-      idempotencyKey: `under-review-checkout:${checkoutKey}:${Math.floor(now / CHECKOUT_COOLDOWN_MS)}`,
-    });
+      {
+        idempotencyKey: `under-review-checkout:${checkoutKey}:${Math.floor(now / CHECKOUT_COOLDOWN_MS)}`,
+      },
+    );
 
     try {
-      await setDurableJson(stateKey, {
-        lastAttemptAt: now,
-        sessionCreatedAt: Date.now(),
-        url: session.url,
-      }, { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS });
+      await setDurableJson(
+        stateKey,
+        {
+          lastAttemptAt: now,
+          sessionCreatedAt: Date.now(),
+          url: session.url,
+        },
+        { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS },
+      );
     } catch {
       return res.status(500).json({ error: "checkout_unavailable" });
     }

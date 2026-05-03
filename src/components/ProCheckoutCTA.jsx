@@ -1,46 +1,63 @@
-import { useAuth } from "@clerk/clerk-react";
 import { track } from "@vercel/analytics";
 
-import { isClerkEnabled } from "../clerkEnv.js";
+function isValidEmail(s) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
+}
 
-function ProCheckoutClerk({ className, restoreProEntitlement, children }) {
-  const { getToken, isSignedIn } = useAuth();
+function resolveCheckoutEmail(setUserEmail) {
+  let stored = "";
+  try {
+    stored = localStorage.getItem("ur_email") || "";
+  } catch {
+    /* ignore */
+  }
+  const trimmed = stored.trim();
+  if (trimmed && isValidEmail(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  const entered = window.prompt(
+    "Enter the email you use for Under Review (same as at checkout):",
+    trimmed || "",
+  );
+  if (entered == null) return null;
+  const e = entered.trim().toLowerCase();
+  if (!isValidEmail(e)) {
+    alert("Please enter a valid email address.");
+    return null;
+  }
+  try {
+    localStorage.setItem("ur_email", e);
+  } catch {
+    /* ignore */
+  }
+  setUserEmail?.(e);
+  return e;
+}
 
+function CheckoutButton({ className, restoreProEntitlement, setUserEmail, children }) {
   return (
     <button
       type="button"
       className={className}
       onClick={async () => {
         try {
-          if (!isSignedIn) {
-            alert("Sign in to subscribe to Pro.");
-            return;
-          }
-          const sessionJwt = await getToken();
-          if (!sessionJwt) {
-            alert("Could not start checkout. Sign in again.");
-            return;
-          }
+          const email = resolveCheckoutEmail(setUserEmail);
+          if (!email) return;
           const res = await fetch("/api/checkout", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${sessionJwt}`,
             },
-            body: JSON.stringify({ email: "clerk" }),
+            body: JSON.stringify({ email }),
           });
           const data = await res.json().catch(() => ({}));
-          if (res.status === 401 && data.error === "sign_in_required") {
-            alert(data.message || "Sign in to continue.");
-            return;
-          }
           if (res.status === 403 && data.error === "already_pro") {
             alert(data.message || "You already have Pro access");
             void restoreProEntitlement();
             return;
           }
           if (res.status === 400 && data.error === "email_required") {
-            alert(data.message || "Add a primary email to your account.");
+            alert(data.message || "Enter a valid email.");
             return;
           }
           if (data.url) {
@@ -66,15 +83,16 @@ function ProCheckoutClerk({ className, restoreProEntitlement, children }) {
 }
 
 /**
- * Pro tab primary checkout — Clerk session when enabled, else legacy email prompt (parent handler).
+ * Pro subscribe — collects email and POSTs to /api/checkout (no Clerk).
  */
-export default function ProCheckoutCTA({ className, onLegacyCheckout, restoreProEntitlement, children }) {
-  if (!isClerkEnabled) {
-    return (
-      <button type="button" className={className} onClick={onLegacyCheckout}>
-        {children}
-      </button>
-    );
-  }
-  return <ProCheckoutClerk className={className} restoreProEntitlement={restoreProEntitlement}>{children}</ProCheckoutClerk>;
+export default function ProCheckoutCTA({ className, restoreProEntitlement, setUserEmail, children }) {
+  return (
+    <CheckoutButton
+      className={className}
+      restoreProEntitlement={restoreProEntitlement}
+      setUserEmail={setUserEmail}
+    >
+      {children}
+    </CheckoutButton>
+  );
 }
