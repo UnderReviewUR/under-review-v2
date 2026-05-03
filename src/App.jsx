@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  startTransition,
+} from "react";
 import { track } from "@vercel/analytics";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
@@ -356,6 +364,41 @@ ${themeCss}
   useEffect(() => {
     accessTierRef.current = accessTier;
   }, [accessTier]);
+
+  /** Post–Stripe redirect (?pro=success): syncing → unlocked, or stuck after timeout */
+  const [postCheckoutBanner, setPostCheckoutBanner] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!proSuccess) return;
+    const elite =
+      accessTier === "pro" || accessTier === "owner" || accessTier === "friend";
+    if (elite) {
+      setPostCheckoutBanner("unlocked");
+      return;
+    }
+    setPostCheckoutBanner((prev) => (prev === "stuck" ? "stuck" : "syncing"));
+  }, [proSuccess, accessTier]);
+
+  useEffect(() => {
+    if (!proSuccess) return;
+    const id = window.setTimeout(() => {
+      const t = accessTierRef.current;
+      if (t !== "pro" && t !== "owner" && t !== "friend") {
+        setPostCheckoutBanner("stuck");
+      }
+    }, 10_000);
+    return () => window.clearTimeout(id);
+  }, [proSuccess]);
+
+  /** Hide success banner after unlock — syncing/stuck stay visible */
+  const UNLOCKED_BANNER_DISMISS_MS = 6000;
+  useEffect(() => {
+    if (postCheckoutBanner !== "unlocked") return;
+    const id = window.setTimeout(() => {
+      setPostCheckoutBanner(null);
+    }, UNLOCKED_BANNER_DISMISS_MS);
+    return () => window.clearTimeout(id);
+  }, [postCheckoutBanner]);
 
   const restoreProEntitlement = useCallback(async () => {
     const email =
@@ -2585,6 +2628,97 @@ ${themeCss}
           </div>
         </header>
 
+        {/* Post-checkout entitlement (?pro=success) — global so it shows on any landing screen */}
+        {proSuccess && postCheckoutBanner && (
+          <div
+            style={
+              postCheckoutBanner === "unlocked"
+                ? proMarketing.successBanner?.wrap ?? {
+                    background:
+                      "linear-gradient(135deg,rgba(0,230,118,.12),rgba(29,185,84,.06))",
+                    border: "1px solid rgba(0,230,118,.3)",
+                    borderRadius: 14,
+                    padding: "16px 20px",
+                    margin: "12px 16px 0",
+                    textAlign: "center",
+                  }
+                : postCheckoutBanner === "syncing"
+                  ? {
+                      background: "rgba(0,245,233,.06)",
+                      border: "1px solid rgba(0,245,233,.22)",
+                      borderRadius: 14,
+                      padding: "16px 20px",
+                      margin: "12px 16px 0",
+                      textAlign: "center",
+                    }
+                  : {
+                      background: "rgba(245,200,66,.08)",
+                      border: "1px solid rgba(245,200,66,.28)",
+                      borderRadius: 14,
+                      padding: "16px 20px",
+                      margin: "12px 16px 0",
+                      textAlign: "center",
+                    }
+            }
+          >
+            {postCheckoutBanner === "unlocked" && (
+              <div
+                style={{
+                  fontFamily: "var(--display-font)",
+                  fontSize: 18,
+                  letterSpacing: 0.5,
+                  color: proMarketing.successBanner?.title ?? "#00E676",
+                  lineHeight: 1.35,
+                }}
+              >
+                Pro unlocked — you&apos;re all set.
+              </div>
+            )}
+            {postCheckoutBanner === "syncing" && (
+              <div
+                style={{
+                  fontFamily: "var(--mono-font)",
+                  fontSize: 13,
+                  color: "var(--soft)",
+                  letterSpacing: 0.3,
+                  lineHeight: 1.45,
+                }}
+              >
+                Payment received — syncing Pro access…
+              </div>
+            )}
+            {postCheckoutBanner === "stuck" && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: "var(--soft)",
+                  lineHeight: 1.5,
+                }}
+              >
+                Payment received, but Pro access is still syncing.{" "}
+                <button
+                  type="button"
+                  onClick={() => void restoreProEntitlement()}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: "var(--cyan-bright)",
+                    fontFamily: "inherit",
+                    fontSize: "inherit",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  Restore access
+                </button>{" "}
+                or contact support.
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ══ HOME ══ */}
         {screen==="home"&&(
           <>
@@ -2852,30 +2986,6 @@ ${themeCss}
         >
           Manage subscription →
         </a>
-      </div>
-    )}
-
-    {/* Success banner */}
-    {proSuccess&&(
-      <div style={
-        proMarketing.successBanner?.wrap ?? {
-          background:"linear-gradient(135deg,rgba(0,230,118,.12),rgba(29,185,84,.06))",
-          border:"1px solid rgba(0,230,118,.3)",
-          borderRadius:14,
-          padding:"16px 20px",
-          margin:"12px 16px 0",
-          textAlign:"center",
-        }
-      }>
-        <div style={{fontSize:20,marginBottom:4}}>🎉</div>
-        <div style={{
-          fontFamily:"var(--display-font)",
-          fontSize:22,
-          letterSpacing:1,
-          color: proMarketing.successBanner?.title ?? "#00E676",
-          marginBottom:4,
-        }}>YOU&apos;RE IN</div>
-        <div style={{fontSize:13,color: proMarketing.successBanner?.sub ?? "var(--soft)"}}>Welcome to Under Review Pro. Every edge is unlocked.</div>
       </div>
     )}
 
@@ -3369,7 +3479,8 @@ ${themeCss}
   );
 })()}
 
-    {/* Price + CTA */}
+    {/* Price + subscribe CTA — hidden once user has Pro / owner / friend */}
+    {!isUnlimited && (
     <div style={{padding:"24px 20px 0",textAlign:"center"}}>
       <style>{`
         @keyframes gleam{0%{background-position:200% center;}100%{background-position:-200% center;}}
@@ -3399,6 +3510,7 @@ ${themeCss}
       </ProCheckoutCTA>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
     </div>
+    )}
 
     {/* Features */}
     <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:proMarketing.whatsInc ?? "#3A4050",textTransform:"uppercase",padding:"22px 20px 12px",display:"flex",alignItems:"center",gap:8}}>
