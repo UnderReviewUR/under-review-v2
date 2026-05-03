@@ -3531,9 +3531,11 @@ fees. One price, unlimited reads.`,
           textAlign: "center",
         }}
       >
-        ✓ Banchero · ✓ Maxey · ✓ Embiid
+        ✓ Lines move — you move first
         <br />
-        — all hit last night
+        ✓ Real-time edges, not yesterday&apos;s picks
+        <br />
+        ✓ Built to beat the market
       </div>
       <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:0,marginBottom:4}}>
         <span style={{fontSize:32,fontWeight:800,color:"var(--cyan-bright)",lineHeight:1}}>$</span>
