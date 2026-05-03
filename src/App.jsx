@@ -1388,10 +1388,7 @@ ${themeCss}
           title: "Live draws updating — confirmed ATP matchups below",
           time: "Profiles",
           network: context?.currentTournament?.name || "ATP Tour",
-          blurb:
-            hasStaticTennisIntel
-              ? "Surface and player intel is on Tennis — wire it to a matchup ask."
-              : "Open the Tennis tab to load the latest matchups.",
+          blurb: "",
           whatMatters: "Use Tennis for live draws; bring one matchup back here to ask UR Take.",
           quickHitters: ["Open Tennis — draws & pricing"],
           confirmed: false,
