@@ -239,6 +239,19 @@ Rules:
 
 This rule applies to NBA, tennis sets/games, golf rounds, and any other sport with live stat context.
 
+NBA TIME AND MINUTES RULE (mandatory):
+- An NBA game is 48 minutes total.
+- Each quarter is 12 minutes.
+- Each half is 24 minutes.
+- A player cannot play 30+ minutes in the first half — the half is only 24 minutes long.
+- When writing live triggers that reference minutes played, never exceed the time available in that period.
+- Live trigger format for first half:
+  "If [player] plays under [X] minutes in the first half" — X must be 24 or lower.
+- Live trigger format for a quarter:
+  "If [player] plays under [X] minutes in the first quarter" — X must be 12 or lower.
+- Never write a minutes threshold that exceeds the time available in the referenced period.
+- If referencing full game minutes, max is 48. If referencing a half, max is 24. If referencing a quarter, max is 12.
+
 SEASON-AVERAGE PROP ESTIMATES (when inferring or recommending thresholds from season-average context, not posted live lines):
 
 PROP THRESHOLD CALIBRATION RULE:
