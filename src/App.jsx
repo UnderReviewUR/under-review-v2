@@ -3270,10 +3270,21 @@ ${themeCss}
             maxWidth: 420,
           }}
         >
-          UR Take, Sharpened.
+          Stop guessing. Read the edge.
         </div>
-        <div style={{ fontSize: 12, color: proMarketing.subBody ?? "var(--soft)", lineHeight: 1.5, maxWidth: 400 }}>
-          Pro unlocks deeper reasoning, explicit verdicts, and session continuity — a betting brain that builds on itself, not a pick service.
+        <div
+          style={{
+            fontSize: 12,
+            color: proMarketing.subBody ?? "var(--soft)",
+            lineHeight: 1.5,
+            maxWidth: 400,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {`UR Take reads rotations,
+injuries, pace, and live game scripts —
+then gives you a direct call.
+Not picks. A real-time betting edge.`}
         </div>
       </div>
       <div
@@ -3294,10 +3305,29 @@ ${themeCss}
     {/* Value bar */}
     <div style={proMarketing.valueGrid}>
       {[
-        ["FULL-DEPTH ANALYSIS", "Complete five-step breakdowns, never truncated"],
-        ["VERDICT CLOSE", "THE PLAY, confidence tier, one sharp read"],
-        ["SESSION CONTINUITY", "Pro carries the thread across your queries"],
-        ["UNLIMITED ASKS", "No weekly ceiling, no mid-session walls"],
+        [
+          "KNOW BEFORE THE LINE MOVES",
+          `Rotation gaps, injury context,
+pace math — before the market
+adjusts.`,
+        ],
+        [
+          "THE PLAY. EVERY TIME.",
+          `Every response closes with a
+direct call. No hedging.
+No 'on the other hand.'`,
+        ],
+        [
+          "IT REMEMBERS. YOU BUILD.",
+          `UR Take carries the thread
+across sessions. Your angles
+compound.`,
+        ],
+        [
+          "ASK EVERYTHING. PAY NOTHING EXTRA.",
+          `No weekly ceiling. No per-query
+fees. One price, unlimited reads.`,
+        ],
       ].map(([title, descriptor])=>(
         <div key={title} style={proMarketing.valueCell}>
           <div style={{
@@ -3317,6 +3347,7 @@ ${themeCss}
             lineHeight: 1.45,
             fontWeight: 400,
             fontFamily: "var(--body-font)",
+            whiteSpace: "pre-line",
           }}>{descriptor}</div>
         </div>
       ))}
@@ -3489,6 +3520,21 @@ ${themeCss}
         }
         .theme-epilogue .pro-cta-btn:hover{background:#FFFFFF;color:#080A0C;}
       `}</style>
+      <div
+        style={{
+          fontFamily: "var(--mono-font)",
+          fontSize: 10,
+          letterSpacing: 2,
+          color: "var(--cyan-bright)",
+          textTransform: "uppercase",
+          marginBottom: 12,
+          textAlign: "center",
+        }}
+      >
+        ✓ Banchero · ✓ Maxey · ✓ Embiid
+        <br />
+        — all hit last night
+      </div>
       <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:0,marginBottom:4}}>
         <span style={{fontSize:32,fontWeight:800,color:"var(--cyan-bright)",lineHeight:1}}>$</span>
         <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>9</span>
@@ -3501,15 +3547,15 @@ ${themeCss}
         restoreProEntitlement={restoreProEntitlement}
         setUserEmail={setUserEmail}
       >
-        $9.99/month · cancel anytime
+        Unlock Live Edges →
       </ProCheckoutCTA>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>$9.99/month · cancel anytime · one question free to start</div>
     </div>
     )}
 
     {/* Features */}
     <div style={{fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:3,color:proMarketing.whatsInc ?? "#3A4050",textTransform:"uppercase",padding:"22px 20px 12px",display:"flex",alignItems:"center",gap:8}}>
-      What&apos;s included<span style={{flex:1,height:1,background:proMarketing.whatsIncRule ?? "rgba(255,255,255,.05)",display:"block"}}/>
+      What you&apos;re actually getting<span style={{flex:1,height:1,background:proMarketing.whatsIncRule ?? "rgba(255,255,255,.05)",display:"block"}}/>
     </div>
 
     <div style={{display:"flex",flexDirection:"column",gap:1,margin:"0 20px"}}>
@@ -3535,9 +3581,12 @@ ${themeCss}
 
     {/* Proof points */}
     <div style={proMarketing.quoteBox}>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>125 active injury reports tracked.</div>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6}}>16 playoff rosters. 280 player profiles.</div>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75}}>Updated every 30 minutes.</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6,whiteSpace:"pre-line"}}>{`125+ injuries tracked —
+ market reacts slower than this.`}</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6,whiteSpace:"pre-line"}}>{`280 player profiles across 6 sports —
+ updated every 30 minutes.`}</div>
+      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,whiteSpace:"pre-line"}}>{`Live game scripts adjust in real time —
+ you know before the line moves.`}</div>
     </div>
 {isUnlimited && (() => {
       const dm = getDisplayModeChrome(activeTheme);
