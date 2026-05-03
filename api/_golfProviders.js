@@ -1242,6 +1242,8 @@ async function getBdlTournamentBundle() {
   const normalizedTournament = normalizeBdlTournament(picked);
   const courseSearchName = normalizedTournament.courseName || null;
 
+  // BDL PGA OpenAPI: /tournament_results supports tournament_ids, season, player_ids, cursor,
+  // per_page — no date range params. We scope by picked tournament id only (single-event leaderboard).
   const [courseRes, resultsRes, courseStatsRes] = await Promise.all([
     courseSearchName
       ? safeBdlFetch("/courses", { search: courseSearchName, per_page: 5 })

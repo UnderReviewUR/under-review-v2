@@ -3,7 +3,7 @@
  * See https://www.balldontlie.io/openapi/atp.yml
  *
  * Strategy (combined):
- * - `start_date_after` filters on BDL's side so we skip months of stale completed rows.
+ * - `start_date_after` (last ~60 days) filters on BDL's side so we skip months of stale completed rows.
  * - Parallel `is_live` + anchored schedule + tournament list; pull matches by overlapping
  *   tournament IDs (direct draw access).
  * - Cursor drains stay anchored with `start_date_after` (not unbounded season scans).
@@ -199,8 +199,8 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   const byId = new Map();
   const currentYear = new Date().getFullYear();
 
-  const dateAnchor = new Date(windowStart);
-  dateAnchor.setDate(dateAnchor.getDate() - 3);
+  const dateAnchor = new Date();
+  dateAnchor.setDate(dateAnchor.getDate() - 60);
   const startDateAfter = isoDateOnly(dateAnchor);
 
   const ingest = (batch) => {
@@ -247,7 +247,7 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   };
 
   const [liveRes, page1Res, tournamentsRes] = await Promise.all([
-    fetchPage({ per_page: 100, is_live: true }),
+    fetchPage({ per_page: 100, is_live: true, start_date_after: startDateAfter }),
     fetchPage({ per_page: 100, start_date_after: startDateAfter }),
     bdlFetch(
       `/atp/v1/tournaments`,
@@ -274,6 +274,7 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
       const tr = await fetchPage({
         per_page: 100,
         tournament_ids: chunk,
+        start_date_after: startDateAfter,
       });
       handle(tr);
     }
@@ -306,10 +307,16 @@ export async function fetchBdlAtpFixturesForBoard({ windowStart, windowEnd }) {
   }
 
   if (byId.size === 0) {
-    const fallbackRes = await fetchPage({ per_page: 100 });
+    const fallbackRes = await fetchPage({
+      per_page: 100,
+      start_date_after: startDateAfter,
+    });
     handle(fallbackRes);
     const fbCur = fallbackRes.ok ? (fallbackRes.data?.meta?.next_cursor ?? null) : null;
-    await drainCursorChain(fbCur, { per_page: 100 });
+    await drainCursorChain(fbCur, {
+      per_page: 100,
+      start_date_after: startDateAfter,
+    });
   }
 
   if (byId.size === 0 && !anyOk && lastError) {

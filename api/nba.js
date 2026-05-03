@@ -1468,8 +1468,8 @@ async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
         season,
         source: avg ? "season_average" : "active_roster",
         statsNote: avg
-          ? "Season averages — team field is from BDL player record and may lag mid-season trades. Prefer game_box rows or tonightGame when present."
-          : "Active roster only — no season averages yet (early season or rookie).",
+          ? `${season} season avg (${avg.games_played} games)`
+          : "season avg unavailable",
       };
     }
   }
@@ -1742,11 +1742,12 @@ function buildPlayerStatsSummaryLines(players, statsSource) {
     const fouls = p.pf != null ? ` ${Number(p.pf)}pf` : "";
     const tg = p.tonightGame ? ` | Tonight: ${p.tonightGame}` : "";
     const tag = p.source === "season_average" ? " [season avg]" : "";
-    const base = `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${min}${fouls}${tg}${tag}`;
+    const note = p.statsNote ? ` — ${p.statsNote}` : "";
+    const base = `${p.name} (${p.team}) — ${pts}pts ${reb}reb ${ast}ast${min}${fouls}${tg}${tag}${note}`;
     const rg = Array.isArray(p.recentGames) ? p.recentGames : [];
     const recentLine =
       rg.length > 0
-        ? `Last ${rg.length} games: ${rg
+        ? `Last ${rg.length} games (${rg[rg.length - 1]?.date} to ${rg[0]?.date}): ${rg
             .map(
               (g) =>
                 `${g.date} vs ${g.matchup}: ${g.pts}pts ${g.reb}reb ${g.ast}ast`,
@@ -1923,6 +1924,17 @@ async function fetchRecentGameLogs(bdlKey, playerStats, focusTeamAbbrevs) {
   )].slice(0, 40);
   if (!targetPlayerIds.length) return {};
 
+  console.log(
+    "[nba] fetchRecentGameLogs focus teams:",
+    [...focus],
+    "player count:",
+    targetPlayerIds.length,
+  );
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 60);
+  const startDateStr = startDate.toISOString().split("T")[0];
+
   const byPlayer = {};
   const chunkSize = 10;
   for (let i = 0; i < targetPlayerIds.length; i += chunkSize) {
@@ -1931,7 +1943,8 @@ async function fetchRecentGameLogs(bdlKey, playerStats, focusTeamAbbrevs) {
     let pages = 0;
     while (pages < 10) {
       const qs = new URLSearchParams();
-      qs.append("per_page", "100");
+      qs.append("per_page", "25");
+      qs.append("start_date", startDateStr);
       chunk.forEach((id) => qs.append("player_ids[]", String(id)));
       if (cursor != null && cursor !== "") qs.append("cursor", String(cursor));
       const data = await fetchJsonOrNull(`https://api.balldontlie.io/v1/stats?${qs.toString()}`, bdlKey);
