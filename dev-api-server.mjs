@@ -14,15 +14,25 @@ const port = Number(process.env.API_PORT || 3001);
 /* Screenshots as base64 expand ~4/3 — keep headroom for nbaContext + history. */
 app.use(express.json({ limit: "25mb" }));
 
-app.all("/api/*", async (req, res) => {
+// Express 5 path-to-regexp rejects bare `/api/*`; route all `/api/...` without a glob pattern.
+app.use((req, res, next) => {
+  const urlPath = req.path || req.url?.split("?")[0] || "";
+  if (!urlPath.startsWith("/api/") && urlPath !== "/api") {
+    return next();
+  }
+  void apiDispatch(req, res);
+});
+
+async function apiDispatch(req, res) {
   try {
-    const subpath = String(req.path || "")
+    const urlPath = req.path || "";
+    const subpath = urlPath
       .replace(/^\/api\/?/i, "")
-      .replace(/\/+$/, "");
+      .replace(/^\/+|\/+$/g, "");
     if (!subpath || subpath.includes("..")) {
       return res.status(404).json({ error: "API route not found" });
     }
-    const routePath = subpath.replace(/^\//, "");
+    const routePath = subpath;
     const filePath = path.join(__dirname, "api", `${routePath}.js`);
     const moduleUrl = pathToFileURL(filePath).href;
     const mod = await import(moduleUrl);
@@ -38,7 +48,7 @@ app.all("/api/*", async (req, res) => {
     console.error(`[api] ${req.method} ${req.path} failed`, error);
     return res.status(500).json({ error: "Internal server error" });
   }
-});
+}
 
 app.listen(port, () => {
   console.log(`[api] Local API server running on http://localhost:${port}`);
