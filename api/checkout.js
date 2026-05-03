@@ -3,10 +3,11 @@
 // Called when the user starts checkout from App.jsx (full paywall after one free UR Take).
 
 import { applyCors } from "./_cors.js";
+import { getClerkUserIdFromAuthorizationHeader, getClerkBackendClient, isClerkSecretConfigured } from "./_clerkAuth.js";
 import { getEnv } from "./_env.js";
 import Stripe from "stripe";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
-import { evaluateCheckoutBlock } from "./_stripeProSync.js";
+import { evaluateCheckoutBlockWithClerk } from "./_stripeProSync.js";
 
 const CHECKOUT_COOLDOWN_MS = 8 * 1000;
 const CHECKOUT_SESSION_REUSE_MS = 2 * 60 * 1000;
@@ -43,13 +44,37 @@ export default async function handler(req, res) {
   const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
   try {
-    const { email: rawEmail } = req.body || {};
-    const email = String(rawEmail || "").trim().toLowerCase();
-    if (!isValidCheckoutEmail(email)) {
-      return res.status(400).json({
-        error: "email_required",
-        message: "Enter a valid email to continue — we need it for Pro access and receipts.",
-      });
+    const clerkUserId = await getClerkUserIdFromAuthorizationHeader(req.headers.authorization);
+    const { email: rawBodyEmail } = req.body || {};
+
+    let email = "";
+    if (isClerkSecretConfigured()) {
+      if (!clerkUserId) {
+        return res.status(401).json({
+          error: "sign_in_required",
+          message: "Sign in to your UnderReview account to subscribe. Email-only checkout is disabled when accounts are enabled.",
+        });
+      }
+      const client = getClerkBackendClient();
+      if (!client) {
+        return res.status(500).json({ error: "Clerk is not configured" });
+      }
+      const u = await client.users.getUser(clerkUserId);
+      email = String(u.primaryEmailAddress?.emailAddress || "").trim().toLowerCase();
+      if (!isValidCheckoutEmail(email)) {
+        return res.status(400).json({
+          error: "email_required",
+          message: "Your account must have a primary email to subscribe.",
+        });
+      }
+    } else {
+      email = String(rawBodyEmail || "").trim().toLowerCase();
+      if (!isValidCheckoutEmail(email)) {
+        return res.status(400).json({
+          error: "email_required",
+          message: "Enter a valid email to continue — we need it for Pro access and receipts.",
+        });
+      }
     }
 
     const checkoutKey = getCheckoutKey(req, email);
@@ -81,7 +106,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "checkout_unavailable" });
     }
 
-    const duplicateGate = await evaluateCheckoutBlock(stripe, email);
+    const duplicateGate = await evaluateCheckoutBlockWithClerk(stripe, { email, clerkUserId });
     if (duplicateGate.block) {
       return res.status(403).json({
         error: "already_pro",
@@ -99,6 +124,7 @@ export default async function handler(req, res) {
       metadata: {
         product: "under_review_pro",
         tier: "pro",
+        ...(clerkUserId ? { clerk_user_id: clerkUserId } : {}),
       },
     }, {
       idempotencyKey: `under-review-checkout:${checkoutKey}:${Math.floor(now / CHECKOUT_COOLDOWN_MS)}`,

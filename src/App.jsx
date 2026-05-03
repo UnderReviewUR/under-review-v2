@@ -12,6 +12,10 @@ import {
   getProMarketingTokens,
 } from "./themes.js";
 import AskBar from "./components/AskBar.jsx";
+import ClerkAuthBar from "./components/ClerkAuthBar.jsx";
+import ClerkSubscriptionSync from "./components/ClerkSubscriptionSync.jsx";
+import ProCheckoutCTA from "./components/ProCheckoutCTA.jsx";
+import { isClerkEnabled } from "./clerkEnv.js";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
@@ -387,6 +391,59 @@ ${themeCss}
       return false;
     }
   }, [userEmail]);
+
+  const legacyProCheckoutClick = useCallback(async () => {
+    try {
+      const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
+      let checkoutEmail = String(userEmail || localStorage.getItem("ur_email") || "").trim();
+      if (!emailOk(checkoutEmail)) {
+        const entered = window.prompt(
+          "Enter the email for your Pro subscription and receipts:",
+        );
+        if (!emailOk(entered)) {
+          alert("A valid email is required to open checkout.");
+          return;
+        }
+        checkoutEmail = entered.trim().toLowerCase();
+        try {
+          localStorage.setItem("ur_email", checkoutEmail);
+        } catch {
+          /* ignore */
+        }
+        setUserEmail(checkoutEmail);
+      }
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: checkoutEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 400 && data.error === "email_required") {
+        alert(data.message || "Enter a valid email to continue.");
+        return;
+      }
+      if (res.status === 403 && data.error === "already_pro") {
+        alert(data.message || "You already have Pro access");
+        void restoreProEntitlement();
+        return;
+      }
+      if (data.url) {
+        try {
+          track("checkout_initiated");
+        } catch {
+          /* analytics optional */
+        }
+        window.location.href = data.url;
+      } else if (data.retryAfterSeconds) {
+        alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
+      } else {
+        alert(data.error || "Could not start checkout. Try again.");
+      }
+    } catch {
+      alert("Something went wrong. Try again.");
+    }
+  }, [userEmail, restoreProEntitlement]);
+
   const handleBettingStyleChange = useCallback((style) => {
     const next = style === "limits" ? "limits" : "balanced";
     try {
@@ -661,6 +718,7 @@ ${themeCss}
   }, [isUnlimited]);
 
   useEffect(() => {
+    if (isClerkEnabled) return;
     if (userEmail && !isUnlimited) {
       fetch(`/api/pro-status?email=${encodeURIComponent(userEmail)}`)
         .then((r) => r.json())
@@ -677,6 +735,7 @@ ${themeCss}
 
   /** After Stripe redirect — sync Pro immediately; retry while webhooks may lag. */
   useEffect(() => {
+    if (isClerkEnabled) return;
     if (!proSuccess) return;
     const email =
       userEmail ||
@@ -922,22 +981,6 @@ ${themeCss}
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
 
-  try {
-    let sport = "generic";
-    if (sportHint && String(sportHint).trim()) {
-      sport = String(sportHint).trim().toLowerCase();
-    } else {
-      const scr = String(screen || "").toLowerCase();
-      if (scr === "nflplayer") sport = "nfl";
-      else if (["nba", "mlb", "nfl", "golf", "tennis", "f1"].includes(scr)) sport = scr;
-      else if (scr === "player") sport = "tennis";
-      else if (typeof tab === "string" && tab && tab !== "home") sport = tab;
-    }
-    track("query_submitted", { sport });
-  } catch {
-    /* analytics optional */
-  }
-
   const imgToSend = pastedImage;
 
   let priorSnapshot = [];
@@ -1143,6 +1186,16 @@ ${themeCss}
         ? resolvedSport
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
+
+    try {
+      const sportTracked = String(
+        sportForBubble || resolvedSport || effectiveSportHint || "generic",
+      ).toLowerCase();
+      track("query_submitted", { sport: sportTracked });
+    } catch {
+      /* analytics optional */
+    }
+
     if (!isUnlimited) {
       try {
         const current = parseInt(localStorage.getItem("ur_free_used") || "0", 10);
@@ -2463,6 +2516,17 @@ ${themeCss}
   return (
     <PerformanceContext.Provider value={performanceContextValue}>
     <>
+  {isClerkEnabled && (
+    <ClerkSubscriptionSync
+      proSuccess={proSuccess}
+      userEmail={userEmail}
+      setUserEmail={setUserEmail}
+      setAccessTier={setAccessTier}
+      setAccessToken={setAccessToken}
+      setShowUpgradeModal={setShowUpgradeModal}
+      isUnlimited={isUnlimited}
+    />
+  )}
   <style>{css}</style>
   <div
     className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}`}
@@ -2512,7 +2576,13 @@ ${themeCss}
               <span className="logo-review">UnderReview</span>
             </div>
           </div>
-          <div className="header-right">{headerPill}</div>
+          <div
+            className="header-right"
+            style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, minWidth: 0 }}
+          >
+            {isClerkEnabled && <ClerkAuthBar />}
+            {headerPill}
+          </div>
         </header>
 
         {/* ══ HOME ══ */}
@@ -3320,49 +3390,13 @@ ${themeCss}
         <span style={{fontSize:12,color:"var(--muted)",alignSelf:"flex-end",paddingBottom:8,marginLeft:4}}>/month</span>
       </div>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>$9.99/month · cancel anytime</div>
-      <button className="pro-cta-btn" onClick={async()=>{
-        try{
-          const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
-          let checkoutEmail = String(userEmail || localStorage.getItem("ur_email") || "").trim();
-          if (!emailOk(checkoutEmail)) {
-            const entered = window.prompt(
-              "Enter the email for your Pro subscription and receipts:",
-            );
-            if (!emailOk(entered)) {
-              alert("A valid email is required to open checkout.");
-              return;
-            }
-            checkoutEmail = entered.trim().toLowerCase();
-            try {
-              localStorage.setItem("ur_email", checkoutEmail);
-            } catch {
-              /* ignore */
-            }
-            setUserEmail(checkoutEmail);
-          }
-          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail })});
-          const data=await res.json().catch(() => ({}));
-          if (res.status === 400 && data.error === "email_required") {
-            alert(data.message || "Enter a valid email to continue.");
-            return;
-          }
-          if (res.status === 403 && data.error === "already_pro") {
-            alert(data.message || "You already have Pro access");
-            void restoreProEntitlement();
-            return;
-          }
-          if(data.url) {
-            try {
-              track("trial_started");
-            } catch {
-              /* analytics optional */
-            }
-            window.location.href=data.url;
-          }
-          else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
-          else alert(data.error || "Could not start checkout. Try again.");
-        }catch{alert("Something went wrong. Try again.");}
-      }}>$9.99/month · cancel anytime</button>
+      <ProCheckoutCTA
+        className="pro-cta-btn"
+        restoreProEntitlement={restoreProEntitlement}
+        onLegacyCheckout={legacyProCheckoutClick}
+      >
+        $9.99/month · cancel anytime
+      </ProCheckoutCTA>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
     </div>
 

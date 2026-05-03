@@ -1,6 +1,7 @@
 /**
  * Shared Stripe lookups for Pro entitlement — used by pro-status, restore-subscription, checkout guard.
  */
+import { getClerkBackendClient } from "./_clerkAuth.js";
 import { signToken } from "./_hmacToken.js";
 
 /** Window for “recent payment” duplicate-checkout guard (between 10–15 min spec). */
@@ -61,6 +62,103 @@ export async function evaluateCheckoutBlock(stripe, email) {
   if (recent) return { block: true, reason: "recent_payment" };
 
   return { block: false };
+}
+
+/**
+ * Same as evaluateCheckoutBlock but uses Clerk-linked Stripe customer id when present.
+ */
+export async function evaluateCheckoutBlockWithClerk(stripe, { email, clerkUserId }) {
+  if (clerkUserId) {
+    const client = getClerkBackendClient();
+    if (client) {
+      try {
+        const user = await client.users.getUser(clerkUserId);
+        const custId = user.privateMetadata?.stripeCustomerId;
+        if (typeof custId === "string" && custId.startsWith("cus_")) {
+          const activeSub = await getActiveOrTrialingSubscription(stripe, custId);
+          if (activeSub) return { block: true, reason: "active_subscription" };
+          const recent = await hasRecentSuccessfulPayment(stripe, custId, RECENT_PAYMENT_GUARD_MS);
+          if (recent) return { block: true, reason: "recent_payment" };
+        }
+      } catch (e) {
+        console.error("[stripe] evaluateCheckoutBlockWithClerk:", e?.message || e);
+      }
+    }
+  }
+  return evaluateCheckoutBlock(stripe, email);
+}
+
+/**
+ * Pro status for a Clerk user: Stripe customer from Clerk privateMetadata, else lookup by primary email.
+ */
+export async function buildProStatusForClerkUserId(clerkUserId, stripe, tokenSecret) {
+  const client = getClerkBackendClient();
+  if (!client) {
+    return { ok: false, status: 500, body: { error: "Clerk is not configured on the server" } };
+  }
+
+  try {
+    const user = await client.users.getUser(clerkUserId);
+    const md = user.privateMetadata || {};
+    const stripeCustomerId = typeof md.stripeCustomerId === "string" ? md.stripeCustomerId : null;
+    const primaryEmail =
+      user.primaryEmailAddress?.emailAddress ||
+      (user.emailAddresses && user.emailAddresses[0]?.emailAddress) ||
+      "";
+
+    let customer = null;
+    if (stripeCustomerId?.startsWith("cus_")) {
+      try {
+        customer = await stripe.customers.retrieve(stripeCustomerId);
+      } catch {
+        customer = null;
+      }
+    }
+    if (!customer && primaryEmail) {
+      customer = await findCustomerByEmail(stripe, primaryEmail);
+    }
+    if (!customer) {
+      return { ok: true, status: 200, body: { pro: false, reason: "No customer found" } };
+    }
+
+    const activeSub = await getActiveOrTrialingSubscription(stripe, customer.id);
+    if (!activeSub) {
+      return { ok: true, status: 200, body: { pro: false, reason: "No active subscription" } };
+    }
+
+    const normalized = String(primaryEmail || customer.email || "").trim().toLowerCase();
+    const expiresAt = new Date(activeSub.current_period_end * 1000).toISOString();
+    const payload = {
+      tier: "pro",
+      email: normalized,
+      stripeCustomer: customer.id,
+      subscription: activeSub.id,
+      issuedAt: new Date().toISOString(),
+      expiresAt,
+      clerkUserId,
+    };
+
+    const token = signToken(payload, tokenSecret);
+
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        pro: true,
+        tier: "pro",
+        token,
+        expiresAt,
+        status: activeSub.status,
+      },
+    };
+  } catch (err) {
+    console.error("Stripe Pro sync (Clerk) error:", err.message);
+    return {
+      ok: false,
+      status: 500,
+      body: { error: "Something went wrong. Please try again." },
+    };
+  }
 }
 
 /**

@@ -1,15 +1,32 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Analytics } from "@vercel/analytics/react";
+import { ClerkProvider } from "@clerk/clerk-react";
 import App from "./App.jsx";
+import { clerkPublishableKey } from "./clerkEnv.js";
 
-try {
-  createRoot(document.getElementById("root")).render(
+const pk = String(clerkPublishableKey || "").trim();
+
+function Root() {
+  const inner = <App />;
+  if (!pk) {
+    return (
+      <StrictMode>
+        {inner}
+        <Analytics />
+      </StrictMode>
+    );
+  }
+  return (
     <StrictMode>
-      <App />
+      <ClerkProvider publishableKey={pk}>{inner}</ClerkProvider>
       <Analytics />
     </StrictMode>
   );
+}
+
+try {
+  createRoot(document.getElementById("root")).render(<Root />);
 } catch {
   document.getElementById("root").innerHTML =
     '<div style="padding:40px;color:white;' +

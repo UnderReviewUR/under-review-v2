@@ -17,6 +17,8 @@
     "audit:stripe-dupes": "node scripts/stripe-duplicate-audit.mjs"
   },
   "dependencies": {
+    "@clerk/backend": "^3.4.4",
+    "@clerk/clerk-react": "^5.61.6",
     "@vercel/analytics": "^2.0.1",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",

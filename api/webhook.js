@@ -21,6 +21,7 @@ export const config = {
 };
 
 import Stripe from "stripe";
+import { getClerkBackendClient } from "./_clerkAuth.js";
 import { getEnv } from "./_env.js";
 
 const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY");
@@ -83,8 +84,26 @@ export default async function handler(req, res) {
         const subId   = session.subscription;
         log("checkout.session.completed", email, `customer=${custId} sub=${subId}`);
 
-        // Nothing to write to a DB here — token is issued on-demand by pro-status.js
-        // Just log it. If you add a database later, store (email, custId, subId) here.
+        const clerkUserId = session.metadata?.clerk_user_id;
+        if (clerkUserId && custId && typeof custId === "string") {
+          const clerk = getClerkBackendClient();
+          if (clerk) {
+            try {
+              const existing = await clerk.users.getUser(clerkUserId);
+              const prev = existing.privateMetadata || {};
+              await clerk.users.updateUser(clerkUserId, {
+                privateMetadata: {
+                  ...prev,
+                  stripeCustomerId: custId,
+                  stripeSubscriptionId: subId || prev.stripeSubscriptionId,
+                },
+              });
+              log("checkout.session.completed", email, `clerk_linked user=${clerkUserId}`);
+            } catch (e) {
+              console.error("[webhook] Clerk link failed:", e?.message || e);
+            }
+          }
+        }
         break;
       }
 
