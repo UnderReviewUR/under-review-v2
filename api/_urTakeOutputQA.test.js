@@ -61,7 +61,7 @@ test("bench + high assist line triggers structural risk flag", () => {
   assert.ok(lint.criticalRegenerationCodes.includes("bench_role_high_auxiliary_line"));
 });
 
-test("safe fallback prefix applied when requested", () => {
+test("safe fallback prefix is empty — no QA boilerplate prepended to user output", () => {
   const map = new Map([["Nikola Jokic", "DEN"]]);
   const raw =
     "Same-game parlay: Nikola Jokic over 10 assists — correlation with Embiid scoring.";
@@ -74,7 +74,8 @@ test("safe fallback prefix applied when requested", () => {
     },
     applySafeFallbackPrefix: true,
   });
-  assert.ok(post.text.startsWith(QA_SAFE_FALLBACK_PREFIX.slice(0, 24)));
+  assert.equal(QA_SAFE_FALLBACK_PREFIX, "");
+  assert.ok(!/\bQA notice\b/i.test(post.text));
 });
 
 test("quality score components respond to probability and risk cues", () => {

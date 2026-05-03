@@ -164,6 +164,14 @@ export function buildGlobalQualityPrompt(contextQuality) {
 FOLLOW-UP CLOSING RULE (mandatory — no exceptions):
 When a follow-up question asks about multiple players, each player's section must end with a standalone closing call line before moving to the next player.
 
+PROP PLAUSIBILITY RULE (mandatory before every closing call):
+Never recommend an over on a stat line that exceeds 1.4x the player's recent average.
+If a player averages 6.8 assists recently, never recommend over 9.5 assists.
+The closing call must be anchored to recent form — not a theoretical ceiling.
+If the structural case supports a line higher than 1.4x recent average, frame it as a conditional trigger, not a direct call:
+"If Banchero's assist line posts at 7.5 or lower, lean over — the creation vacuum is real."
+Never present an implausible line as a direct bet.
+
 Format for each player section close:
 "Look for [Player] over/under [number] [stat category]."
 OR

@@ -13,7 +13,7 @@ import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 /** Appended to system prompt on regeneration attempt (Part 3 self-check as instructions). */
 export const QA_REGENERATION_SYSTEM_SUFFIX = `
 
-[MANDATORY QA REGENERATION PASS — PREVIOUS DRAFT FAILED AUTOMATED CHECKS]
+[REWRITE PASS — prior output did not meet the quality bar]
 Rewrite the entire response from scratch. Verify before you answer:
 - Stat definitions: double-double = 10+ in TWO categories; triple-double = 10+ in THREE categories; PRA = points + rebounds + assists combined.
 - No impossible statistical claims or mismatched stat labels.
@@ -25,8 +25,8 @@ Rewrite the entire response from scratch. Verify before you answer:
 - Add explicit role, usage, matchup, weather, or pace context where relevant — do not present thin-context props as safe.
 `;
 
-export const QA_SAFE_FALLBACK_PREFIX =
-  "QA notice: automated checks still flagged residual risk in this draft — verify lines and role/minutes before betting; treat analysis as directional.\n\n";
+/** Empty — internal QA must never prepend visible boilerplate; sanitizer strips echoes. */
+export const QA_SAFE_FALLBACK_PREFIX = "";
 
 const OVERCONFIDENCE_TERMS =
   /\b(?:guaranteed|guarantee|can't lose|cant lose|mortal lock|sure\s*bet|surefire|free money|risk-?free|printing money|auto\s*cash|auto\-cash)\b/i;

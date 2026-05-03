@@ -1403,6 +1403,12 @@ const BANNED_DATA_AVAILABILITY_BODY_PHRASES = [
   "from compact",
   "Recent form absent",
   "Recent form unavailable",
+  "QA notice",
+  "automated checks",
+  "flagged residual risk",
+  "verify lines and role",
+  "treat analysis as directional",
+  "residual risk in this draft",
 ];
 
 function escapeRegExpLiteral(str) {
