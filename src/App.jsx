@@ -347,6 +347,46 @@ ${themeCss}
   const [codeLoading, setCodeLoading]     = useState(false);
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT  = 1;
+
+  const accessTierRef = useRef(accessTier);
+  useEffect(() => {
+    accessTierRef.current = accessTier;
+  }, [accessTier]);
+
+  const restoreProEntitlement = useCallback(async () => {
+    const email =
+      userEmail ||
+      (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+      "";
+    if (!email) {
+      alert("Save your email first (email gate) so we can find your subscription.");
+      return false;
+    }
+    try {
+      const res = await fetch("/api/restore-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.pro && data.token) {
+        localStorage.setItem("ur_access_token", data.token);
+        setAccessToken(data.token);
+        setAccessTier("pro");
+        setShowUpgradeModal(false);
+        return true;
+      }
+      alert(
+        data.reason === "No active subscription"
+          ? "No active subscription found for this email."
+          : data.error || "Could not restore access. Try again.",
+      );
+      return false;
+    } catch {
+      alert("Could not reach the server. Try again.");
+      return false;
+    }
+  }, [userEmail]);
   const handleBettingStyleChange = useCallback((style) => {
     const next = style === "limits" ? "limits" : "balanced";
     try {
@@ -634,6 +674,66 @@ ${themeCss}
         .catch(() => {});
     }
   }, [userEmail, isUnlimited]);
+
+  /** After Stripe redirect — sync Pro immediately; retry while webhooks may lag. */
+  useEffect(() => {
+    if (!proSuccess) return;
+    const email =
+      userEmail ||
+      (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+      "";
+    if (!email) return;
+
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const res = await fetch("/api/restore-subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (data.pro && data.token) {
+          localStorage.setItem("ur_access_token", data.token);
+          setAccessToken(data.token);
+          setAccessTier("pro");
+          setShowUpgradeModal(false);
+        }
+      } catch {
+        /* retry on next tick */
+      }
+    };
+
+    void sync();
+    const t2 = setTimeout(() => void sync(), 2000);
+    const t5 = setTimeout(() => void sync(), 5000);
+    const t8 = setTimeout(() => void sync(), 8000);
+
+    const alertTimer = setTimeout(() => {
+      if (cancelled) return;
+      const t = accessTierRef.current;
+      if (t !== "pro" && t !== "owner" && t !== "friend") {
+        console.error("[UR_ENTITLEMENT_DESYNC]", {
+          paymentSuccessRedirect: true,
+          tierAfter10s: t,
+        });
+        void fetch("/api/entitlement-alert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, source: "post_checkout_10s" }),
+        }).catch(() => {});
+      }
+    }, 10_000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t2);
+      clearTimeout(t5);
+      clearTimeout(t8);
+      clearTimeout(alertTimer);
+    };
+  }, [proSuccess, userEmail]);
 
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
@@ -3222,9 +3322,35 @@ ${themeCss}
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>$9.99/month · cancel anytime</div>
       <button className="pro-cta-btn" onClick={async()=>{
         try{
-          const checkoutEmail = userEmail || localStorage.getItem("ur_email") || "";
-          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail || undefined })});
-          const data=await res.json();
+          const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
+          let checkoutEmail = String(userEmail || localStorage.getItem("ur_email") || "").trim();
+          if (!emailOk(checkoutEmail)) {
+            const entered = window.prompt(
+              "Enter the email for your Pro subscription and receipts:",
+            );
+            if (!emailOk(entered)) {
+              alert("A valid email is required to open checkout.");
+              return;
+            }
+            checkoutEmail = entered.trim().toLowerCase();
+            try {
+              localStorage.setItem("ur_email", checkoutEmail);
+            } catch {
+              /* ignore */
+            }
+            setUserEmail(checkoutEmail);
+          }
+          const res=await fetch("/api/checkout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ email: checkoutEmail })});
+          const data=await res.json().catch(() => ({}));
+          if (res.status === 400 && data.error === "email_required") {
+            alert(data.message || "Enter a valid email to continue.");
+            return;
+          }
+          if (res.status === 403 && data.error === "already_pro") {
+            alert(data.message || "You already have Pro access");
+            void restoreProEntitlement();
+            return;
+          }
           if(data.url) {
             try {
               track("trial_started");
@@ -3234,7 +3360,7 @@ ${themeCss}
             window.location.href=data.url;
           }
           else if (data.retryAfterSeconds) alert(`Checkout is busy. Try again in ${data.retryAfterSeconds}s.`);
-          else alert("Could not start checkout. Try again.");
+          else alert(data.error || "Could not start checkout. Try again.");
         }catch{alert("Something went wrong. Try again.");}
       }}>$9.99/month · cancel anytime</button>
       <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Secure checkout · cancel anytime</div>
@@ -3387,6 +3513,15 @@ ${themeCss}
     {/* Bottom */}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
       <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:proMarketing.bottomMuted ?? "var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
+      {accessTier === "free" ? (
+        <button
+          type="button"
+          onClick={() => void restoreProEntitlement()}
+          style={{background:"none",border:"none",color:"var(--cyan-bright)",cursor:"pointer",fontSize:11,fontFamily:"var(--mono-font)",letterSpacing:1}}
+        >
+          Already paid? Restore access
+        </button>
+      ) : null}
       <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:proMarketing.stripeFoot ?? "#1E242E",letterSpacing:1}}>Powered by Stripe · Secure checkout</div>
     </div>
 
@@ -3527,6 +3662,13 @@ $9.99/month · cancel anytime`}
                 style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:"var(--cyan-bright)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:"pointer",marginBottom:10}}
               >
                 Unlock Pro — $9.99/mo
+              </button>
+              <button
+                type="button"
+                onClick={() => void restoreProEntitlement()}
+                style={{width:"100%",padding:"11px",border:"1px solid var(--border-2)",borderRadius:10,background:"transparent",color:"var(--cyan-bright)",fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:1,cursor:"pointer",marginBottom:10}}
+              >
+                Already paid? Restore access
               </button>
               <button
                 onClick={() => setShowUpgradeModal(false)}

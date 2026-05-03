@@ -1,11 +1,6 @@
-// api/pro-status.js
-// Checks whether a given email has an active Stripe subscription.
-// Called on app load if the user has a stored email but no valid token,
-// or after a successful checkout to issue a fresh access token.
-//
-// GET /api/pro-status?email=user@example.com
-// Returns: { pro: true, tier: "pro", token: "...", expiresAt: "..." }
-//       or { pro: false, reason: "..." }
+// api/restore-subscription.js
+// POST { email } — force-sync Pro entitlement from Stripe (same payload as GET /api/pro-status).
+// Use after checkout redirect or “Restore access” when webhooks lag.
 
 import { applyCors } from "./_cors.js";
 import Stripe from "stripe";
@@ -13,8 +8,8 @@ import { getEnv, resolveAccessTokenSecretForHandler } from "./_env.js";
 import { buildProStatusResponse } from "./_stripeProSync.js";
 
 export default async function handler(req, res) {
-  if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const tokenSecret = resolveAccessTokenSecretForHandler(res);
   if (tokenSecret === null) return;
@@ -22,7 +17,7 @@ export default async function handler(req, res) {
   const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY");
   if (!STRIPE_SECRET_KEY) return res.status(500).json({ error: "Missing STRIPE_SECRET_KEY" });
 
-  const { email } = req.query;
+  const { email } = req.body || {};
   const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
   const result = await buildProStatusResponse(email, stripe, tokenSecret);

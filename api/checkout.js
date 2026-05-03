@@ -6,6 +6,7 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import Stripe from "stripe";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { evaluateCheckoutBlock } from "./_stripeProSync.js";
 
 const CHECKOUT_COOLDOWN_MS = 8 * 1000;
 const CHECKOUT_SESSION_REUSE_MS = 2 * 60 * 1000;
@@ -25,6 +26,10 @@ function getCheckoutStateStorageKey(checkoutKey) {
   return `checkout:${checkoutKey}`;
 }
 
+function isValidCheckoutEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -38,8 +43,15 @@ export default async function handler(req, res) {
   const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
 
   try {
-    // Optional: pre-fill email if user already entered it in the gate
-    const { email } = req.body || {};
+    const { email: rawEmail } = req.body || {};
+    const email = String(rawEmail || "").trim().toLowerCase();
+    if (!isValidCheckoutEmail(email)) {
+      return res.status(400).json({
+        error: "email_required",
+        message: "Enter a valid email to continue — we need it for Pro access and receipts.",
+      });
+    }
+
     const checkoutKey = getCheckoutKey(req, email);
     const stateKey = getCheckoutStateStorageKey(checkoutKey);
     const now = Date.now();
@@ -69,11 +81,19 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "checkout_unavailable" });
     }
 
+    const duplicateGate = await evaluateCheckoutBlock(stripe, email);
+    if (duplicateGate.block) {
+      return res.status(403).json({
+        error: "already_pro",
+        message: "You already have Pro access",
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
-      ...(email ? { customer_email: email } : {}),
+      customer_email: email,
       success_url: "https://under-review.app?pro=success",
       cancel_url:  "https://under-review.app?pro=cancelled",
       metadata: {
