@@ -42,10 +42,20 @@ export default function ClerkSubscriptionSync({
 
     const run = async () => {
       try {
-        const jwt = await getToken();
-        if (!jwt || cancelled) return;
-        const r = await fetch("/api/pro-status", {
-          headers: { Authorization: `Bearer ${jwt}` },
+        await getToken();
+        if (cancelled) return;
+        const addr = user?.primaryEmailAddress?.emailAddress;
+        if (!addr) return;
+        let urTok = "";
+        try {
+          urTok = localStorage.getItem("ur_access_token") || "";
+        } catch {
+          /* ignore */
+        }
+        const headers = {};
+        if (urTok) headers.Authorization = `Bearer ${urTok}`;
+        const r = await fetch(`/api/pro-status?email=${encodeURIComponent(addr)}`, {
+          headers,
         });
         const data = await r.json().catch(() => ({}));
         if (cancelled) return;
@@ -88,41 +98,33 @@ export default function ClerkSubscriptionSync({
 
     let cancelled = false;
 
-    const sync = async () => {
+    const sendMagicLink = async () => {
+      const email = String(
+        user?.primaryEmailAddress?.emailAddress ||
+          userEmail ||
+          (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
+          "",
+      ).trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
       try {
-        const jwt = await getToken();
-        if (!jwt || cancelled) return;
-        const res = await fetch("/api/restore-subscription", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${jwt}`,
-          },
-          body: JSON.stringify({}),
-        });
-        const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (data.pro && data.token) {
-          localStorage.setItem("ur_access_token", data.token);
-          setAccessToken(data.token);
-          setAccessTier("pro");
-          setShowUpgradeModal(false);
-        }
+        await fetch("/api/auth/request-link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
       } catch {
-        /* retry */
+        /* ignore */
       }
     };
+
+    void sendMagicLink();
 
     const email =
       user?.primaryEmailAddress?.emailAddress ||
       userEmail ||
       (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
       "";
-
-    void sync();
-    const t2 = setTimeout(() => void sync(), 2000);
-    const t5 = setTimeout(() => void sync(), 5000);
-    const t8 = setTimeout(() => void sync(), 8000);
 
     const alertTimer = setTimeout(() => {
       if (cancelled) return;
@@ -140,21 +142,9 @@ export default function ClerkSubscriptionSync({
 
     return () => {
       cancelled = true;
-      clearTimeout(t2);
-      clearTimeout(t5);
-      clearTimeout(t8);
       clearTimeout(alertTimer);
     };
-  }, [
-    proSuccess,
-    isSignedIn,
-    getToken,
-    user,
-    userEmail,
-    setAccessTier,
-    setAccessToken,
-    setShowUpgradeModal,
-  ]);
+  }, [proSuccess, isSignedIn, user, userEmail]);
 
   return null;
 }

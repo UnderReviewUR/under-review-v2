@@ -196,6 +196,20 @@ export async function buildProStatusForClerkUserId(clerkUserId, stripe, tokenSec
 /**
  * Build the same JSON shape as GET /api/pro-status — issue token when subscription is active/trialing.
  */
+/** Stripe-only: active or trialing subscription for this email (no token issuance). */
+export async function hasActiveProSubscription(stripe, email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized) return false;
+  try {
+    const customer = await findCustomerByEmail(stripe, normalized);
+    if (!customer) return false;
+    const activeSub = await getActiveOrTrialingSubscription(stripe, customer.id);
+    return Boolean(activeSub);
+  } catch {
+    return false;
+  }
+}
+
 export async function buildProStatusResponse(email, stripe, tokenSecret) {
   const normalized = String(email || "").trim().toLowerCase();
   if (!normalized) {

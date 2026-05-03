@@ -1,6 +1,6 @@
 // api/pro-status.js
-// GET — email via ?email= or X-UR-Email header. Stripe lookup; no Clerk.
-// Rate limit by IP (PRO_STATUS_RATE_IP_PER_MIN, default 3/min) unless Bearer token matches email.
+// GET — email via ?email= or X-UR-Email header. Returns token only when Bearer matches email (refresh).
+// Email-only requests return { pro: false } (no Stripe enumeration). Rate limit by IP unless Bearer matches.
 
 import { applyCors } from "./_cors.js";
 import Stripe from "stripe";
@@ -49,6 +49,8 @@ export default async function handler(req, res) {
     if (!allowRateLimit(`prostatus:ip:${ip}`, proStatusIpLimit())) {
       return res.status(200).json({ pro: false });
     }
+    // Email alone does not unlock Pro — magic link or Bearer required (no enumeration, no token).
+    return res.status(200).json({ pro: false });
   }
 
   const tokenSecret = resolveAccessTokenSecretForHandler(res);

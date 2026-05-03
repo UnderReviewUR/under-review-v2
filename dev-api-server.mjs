@@ -14,16 +14,19 @@ const port = Number(process.env.API_PORT || 3001);
 /* Screenshots as base64 expand ~4/3 — keep headroom for nbaContext + history. */
 app.use(express.json({ limit: "25mb" }));
 
-async function loadHandler(routeName) {
-  const filePath = path.join(__dirname, "api", `${routeName}.js`);
-  const moduleUrl = pathToFileURL(filePath).href;
-  const mod = await import(moduleUrl);
-  return mod?.default;
-}
-
-app.all("/api/:route", async (req, res) => {
+app.all("/api/*", async (req, res) => {
   try {
-    const handler = await loadHandler(req.params.route);
+    const subpath = String(req.path || "")
+      .replace(/^\/api\/?/i, "")
+      .replace(/\/+$/, "");
+    if (!subpath || subpath.includes("..")) {
+      return res.status(404).json({ error: "API route not found" });
+    }
+    const routePath = subpath.replace(/^\//, "");
+    const filePath = path.join(__dirname, "api", `${routePath}.js`);
+    const moduleUrl = pathToFileURL(filePath).href;
+    const mod = await import(moduleUrl);
+    const handler = mod?.default;
     if (typeof handler !== "function") {
       return res.status(404).json({ error: "API route not found" });
     }

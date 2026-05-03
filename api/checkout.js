@@ -104,14 +104,19 @@ export default async function handler(req, res) {
       });
     }
 
+    const appBase = String(getEnv("APP_BASE_URL") || "https://under-review.app").replace(/\/$/, "");
+    const successQs = new URLSearchParams({
+      pro: "success",
+      email,
+    });
     const session = await stripe.checkout.sessions.create(
       {
         mode: "subscription",
         payment_method_types: ["card"],
         line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
         customer_email: email,
-        success_url: "https://under-review.app?pro=success",
-        cancel_url: "https://under-review.app?pro=cancelled",
+        success_url: `${appBase}/?${successQs.toString()}`,
+        cancel_url: `${appBase}/?pro=cancelled`,
         metadata: {
           product: "under_review_pro",
           tier: "pro",

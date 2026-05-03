@@ -18,13 +18,13 @@ function proStatusHeaders() {
 }
 
 /**
- * Syncs Pro from Stripe via email (ur_email). No Clerk.
- * Sends Bearer ur_access_token when present — server skips IP rate limit for same-email refresh.
- * On mount: if ur_email exists, !isUnlimited, and not post-checkout — GET /api/pro-status.
- * After ?pro=success: two attempts (0s, 5s) to stay within default 3 anonymous IP checks/min.
+ * Pro via magic link + Bearer refresh only.
+ * GET /api/pro-status runs only when ur_access_token is present (same-email refresh).
+ * After ?pro=success: POST /api/auth/request-link once (no auto-grant).
  */
 export default function StripeSubscriptionSync({
   proSuccess,
+  proCheckoutEmail,
   userEmail,
   setUserEmail,
   setAccessTier,
@@ -47,6 +47,14 @@ export default function StripeSubscriptionSync({
   useEffect(() => {
     if (isUnlimited) return;
     if (proSuccess) return;
+
+    let bearer = "";
+    try {
+      bearer = localStorage.getItem("ur_access_token") || "";
+    } catch {
+      /* ignore */
+    }
+    if (!bearer) return;
 
     const raw =
       (typeof localStorage !== "undefined" && localStorage.getItem("ur_email")) || userEmail || "";
@@ -109,67 +117,49 @@ export default function StripeSubscriptionSync({
   useEffect(() => {
     if (!proSuccess) return;
 
+    const fromCheckout = String(proCheckoutEmail || "").trim().toLowerCase();
     const raw =
-      (typeof localStorage !== "undefined" && localStorage.getItem("ur_email")) ||
+      (fromCheckout && isValidEmail(fromCheckout)
+        ? fromCheckout
+        : typeof localStorage !== "undefined" && localStorage.getItem("ur_email")) ||
       userEmail ||
       "";
     const email = String(raw).trim().toLowerCase();
     if (!isValidEmail(email)) return;
 
-    let cancelled = false;
+    try {
+      localStorage.setItem("ur_email", email);
+    } catch {
+      /* ignore */
+    }
+    setUserEmail?.(email);
 
-    const sync = async () => {
-      try {
-        const r = await fetch(`/api/pro-status?email=${encodeURIComponent(email)}`, {
-          headers: proStatusHeaders(),
-        });
-        const data = await r.json().catch(() => ({}));
-        if (cancelled) return;
-        if (data.pro && data.token) {
-          try {
-            localStorage.setItem("ur_access_token", data.token);
-            localStorage.setItem("ur_email", email);
-          } catch {
-            /* ignore */
-          }
-          setUserEmail?.(email);
-          setAccessToken(data.token);
-          setAccessTier("pro");
-          setShowUpgradeModal(false);
-        }
-      } catch {
-        /* retry */
+    try {
+      const dedupeKey = `ur_checkout_magic_sent:${email}`;
+      if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(dedupeKey)) {
+        return;
       }
-    };
+      if (typeof sessionStorage !== "undefined") {
+        sessionStorage.setItem(dedupeKey, "1");
+      }
+    } catch {
+      /* ignore */
+    }
 
-    void sync();
-    const t5 = setTimeout(() => void sync(), 5000);
-
-    const alertTimer = setTimeout(() => {
-      if (cancelled) return;
-      if (!accessTierRef.current?.isUnlimited && email) {
-        console.error("[UR_ENTITLEMENT_DESYNC]", { paymentSuccessRedirect: true, email });
-        void fetch("/api/entitlement-alert", {
+    const sendLink = async () => {
+      try {
+        await fetch("/api/auth/request-link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, source: "post_checkout_10s_stripe" }),
-        }).catch(() => {});
+          body: JSON.stringify({ email }),
+        });
+      } catch {
+        /* ignore */
       }
-    }, 10_000);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t5);
-      clearTimeout(alertTimer);
     };
-  }, [
-    proSuccess,
-    userEmail,
-    setAccessTier,
-    setAccessToken,
-    setShowUpgradeModal,
-    setUserEmail,
-  ]);
+
+    void sendLink();
+  }, [proSuccess, proCheckoutEmail, userEmail, setUserEmail]);
 
   return null;
 }

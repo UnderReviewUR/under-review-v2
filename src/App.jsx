@@ -276,17 +276,25 @@ ${themeCss}
 
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
-  // Detect Stripe redirect back to app
-  const [proSuccess] = useState(() => {
-    if (typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search).get("pro");
-      if (p === "success") {
+  // Detect Stripe redirect back to app (?pro=success&email=…)
+  const [proCheckoutState] = useState(() => {
+    if (typeof window === "undefined") return { success: false, email: "" };
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("pro") === "success") {
+        const email = String(sp.get("email") || "").trim().toLowerCase();
         window.history.replaceState({}, "", window.location.pathname);
-        return true;
+        return { success: true, email };
       }
+    } catch {
+      /* ignore */
     }
-    return false;
+    return { success: false, email: "" };
   });
+  const proSuccess = proCheckoutState.success;
+  const proCheckoutEmail = proCheckoutState.email;
+
+  const [magicLinkError, setMagicLinkError] = useState("");
 
   // ── Access tier ─────────────────────────────────────────────────────────────
   // tier: "free" | "friend" | "owner" | "pro"
@@ -309,6 +317,45 @@ ${themeCss}
   const [, setAccessToken] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : ""
   );
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const sp0 = new URLSearchParams(window.location.search);
+    if (sp0.get("magic_link") === "invalid") {
+      startTransition(() => {
+        setMagicLinkError(
+          "That login link is invalid, expired, or already used. Use Restore Pro access below to get a new link.",
+        );
+      });
+      sp0.delete("magic_link");
+      const q = sp0.toString();
+      window.history.replaceState({}, "", q ? `${window.location.pathname}?${q}` : window.location.pathname);
+    }
+
+    const { hash, search, pathname } = window.location;
+    if (!hash.startsWith("#ur_access_token=")) return;
+    const m = /^#ur_access_token=([^&]+)/.exec(hash);
+    if (!m) return;
+    const token = decodeURIComponent(m[1]);
+    try {
+      localStorage.setItem("ur_access_token", token);
+      const b64 = token.split(".")[0];
+      const payload = JSON.parse(atob(b64));
+      if (payload.email) {
+        localStorage.setItem("ur_email", String(payload.email).trim().toLowerCase());
+      }
+      if (!payload.expiresAt || new Date(payload.expiresAt) >= new Date()) {
+        startTransition(() => {
+          setAccessTier(payload.tier || "pro");
+          setAccessToken(token);
+        });
+      }
+    } catch {
+      /* malformed */
+    }
+    window.history.replaceState(null, "", pathname + (search || ""));
+  }, []);
 
   // ── User email (Pro session / tracking; optional until user signs in or checks out) ──
   const [userEmail, setUserEmail] = useState(() =>
@@ -354,6 +401,7 @@ ${themeCss}
   const [restoreAccessEmail, setRestoreAccessEmail] = useState("");
   const [restoreAccessError, setRestoreAccessError] = useState("");
   const [restoreAccessBusy, setRestoreAccessBusy] = useState(false);
+  const [restoreAccessLinkSent, setRestoreAccessLinkSent] = useState(false);
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   const [openingBillingPortal, setOpeningBillingPortal] = useState(false);
   const [codeInput, setCodeInput]         = useState("");
@@ -367,7 +415,7 @@ ${themeCss}
     accessTierRef.current = accessTier;
   }, [accessTier]);
 
-  /** Post–Stripe redirect (?pro=success): syncing → unlocked, or stuck after timeout */
+  /** Post–Stripe redirect (?pro=success): awaiting magic email → unlocked, or stuck after timeout */
   const [postCheckoutBanner, setPostCheckoutBanner] = useState(null);
 
   useLayoutEffect(() => {
@@ -378,7 +426,7 @@ ${themeCss}
       setPostCheckoutBanner("unlocked");
       return;
     }
-    setPostCheckoutBanner((prev) => (prev === "stuck" ? "stuck" : "syncing"));
+    setPostCheckoutBanner((prev) => (prev === "stuck" ? "stuck" : "awaiting_email"));
   }, [proSuccess, accessTier]);
 
   useEffect(() => {
@@ -392,7 +440,7 @@ ${themeCss}
     return () => window.clearTimeout(id);
   }, [proSuccess]);
 
-  /** Hide success banner after unlock — syncing/stuck stay visible */
+  /** Hide success banner after unlock — awaiting/stuck stay visible */
   const UNLOCKED_BANNER_DISMISS_MS = 6000;
   useEffect(() => {
     if (postCheckoutBanner !== "unlocked") return;
@@ -409,6 +457,7 @@ ${themeCss}
       "";
     setRestoreAccessEmail(pref);
     setRestoreAccessError("");
+    setRestoreAccessLinkSent(false);
     setShowRestoreAccessModal(true);
   }, [userEmail]);
 
@@ -421,32 +470,26 @@ ${themeCss}
     setRestoreAccessBusy(true);
     setRestoreAccessError("");
     try {
-      const res = await fetch("/api/restore-subscription", {
+      try {
+        localStorage.setItem("ur_email", email);
+      } catch {
+        /* ignore */
+      }
+      setUserEmail(email);
+      const res = await fetch("/api/auth/request-link", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (data.pro && data.token) {
-        try {
-          localStorage.setItem("ur_access_token", data.token);
-          localStorage.setItem("ur_email", email);
-        } catch {
-          /* ignore */
-        }
-        setUserEmail(email);
-        setAccessToken(data.token);
-        setAccessTier("pro");
+      await res.json().catch(() => ({}));
+      if (res.ok) {
+        setRestoreAccessLinkSent(true);
         setShowUpgradeModal(false);
-        setShowRestoreAccessModal(false);
-        setRestoreAccessBusy(false);
         return;
       }
-      setRestoreAccessError(
-        "No active subscription found for that email. Check your email or contact support.",
-      );
+      setRestoreAccessError("Could not reach the server. Try again.");
     } catch {
       setRestoreAccessError("Could not reach the server. Try again.");
     } finally {
@@ -2453,6 +2496,7 @@ ${themeCss}
     <>
   <StripeSubscriptionSync
     proSuccess={proSuccess}
+    proCheckoutEmail={proCheckoutEmail}
     userEmail={userEmail}
     setUserEmail={setUserEmail}
     setAccessTier={setAccessTier}
@@ -2532,7 +2576,7 @@ ${themeCss}
                     margin: "12px 16px 0",
                     textAlign: "center",
                   }
-                : postCheckoutBanner === "syncing"
+                : postCheckoutBanner === "awaiting_email"
                   ? {
                       background: "rgba(0,245,233,.06)",
                       border: "1px solid rgba(0,245,233,.22)",
@@ -2564,7 +2608,7 @@ ${themeCss}
                 Pro unlocked — you&apos;re all set.
               </div>
             )}
-            {postCheckoutBanner === "syncing" && (
+            {postCheckoutBanner === "awaiting_email" && (
               <div
                 style={{
                   fontFamily: "var(--mono-font)",
@@ -2574,7 +2618,7 @@ ${themeCss}
                   lineHeight: 1.45,
                 }}
               >
-                Payment received — syncing Pro access…
+                Payment successful — check your email for your secure login link.
               </div>
             )}
             {postCheckoutBanner === "stuck" && (
@@ -2585,7 +2629,7 @@ ${themeCss}
                   lineHeight: 1.5,
                 }}
               >
-                Payment received, but Pro access is still syncing.{" "}
+                Still waiting on the login email? Check spam, or request a new link.{" "}
                 <button
                   type="button"
                   onClick={() => openRestoreAccessModal()}
@@ -2608,6 +2652,42 @@ ${themeCss}
             )}
           </div>
         )}
+
+        {magicLinkError ? (
+          <div
+            style={{
+              background: "rgba(245,100,100,.1)",
+              border: "1px solid rgba(245,100,100,.35)",
+              borderRadius: 14,
+              padding: "12px 16px",
+              margin: "12px 16px 0",
+              fontSize: 13,
+              color: "var(--soft)",
+              lineHeight: 1.45,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <span>{magicLinkError}</span>
+            <button
+              type="button"
+              onClick={() => setMagicLinkError("")}
+              style={{
+                flexShrink: 0,
+                border: "none",
+                background: "none",
+                color: "var(--cyan-bright)",
+                cursor: "pointer",
+                fontSize: 12,
+                textDecoration: "underline",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
 
         {/* ══ HOME ══ */}
         {screen==="home"&&(
@@ -3767,7 +3847,7 @@ $9.99/month · cancel anytime`}
                   Restore access →
                 </button>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.45 }}>
-                  New phone or browser? Enter the email from your Stripe receipt — access stays tied to that email.
+                  New phone or browser? Enter the email from your Stripe receipt — we&apos;ll email you a secure login link.
                 </div>
               </div>
               <button
@@ -3813,88 +3893,123 @@ $9.99/month · cancel anytime`}
               <div style={{ fontFamily: "var(--display-font)", fontSize: 22, letterSpacing: 0.5, marginBottom: 8, color: "var(--text)" }}>
                 Restore Pro access
               </div>
-              <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.55, marginBottom: 16 }}>
-                Enter the email you used at Stripe checkout. We&apos;ll verify your subscription and unlock Pro on this device.
-              </p>
-              <label htmlFor="restore-access-email" style={{ fontSize: 11, fontFamily: "var(--mono-font)", color: "var(--muted)", letterSpacing: 1, display: "block", marginBottom: 6 }}>
-                EMAIL
-              </label>
-              <input
-                id="restore-access-email"
-                type="email"
-                name="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                enterKeyHint="go"
-                placeholder="you@example.com"
-                value={restoreAccessEmail}
-                onChange={(e) => {
-                  setRestoreAccessEmail(e.target.value);
-                  setRestoreAccessError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void submitRestoreAccess();
-                }}
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  background: "var(--surface-2)",
-                  border: `1px solid ${restoreAccessError ? "var(--red)" : "var(--border-2)"}`,
-                  borderRadius: 10,
-                  padding: "12px 14px",
-                  color: "var(--text)",
-                  fontSize: 16,
-                  fontFamily: "var(--body-font)",
-                  outline: "none",
-                  marginBottom: restoreAccessError ? 8 : 14,
-                }}
-              />
-              {restoreAccessError ? (
-                <div style={{ fontSize: 12, color: "var(--red)", lineHeight: 1.45, marginBottom: 14 }}>{restoreAccessError}</div>
+              {restoreAccessLinkSent ? (
+                <>
+                  <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.55, marginBottom: 16 }}>
+                    Check your email for your secure login link. It expires in 15 minutes and works once.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRestoreAccessModal(false);
+                      setRestoreAccessLinkSent(false);
+                      setRestoreAccessError("");
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "13px",
+                      border: "none",
+                      borderRadius: 10,
+                      background: "var(--cyan-bright)",
+                      color: "#080A0C",
+                      fontFamily: "var(--display-font)",
+                      fontSize: 16,
+                      letterSpacing: 1,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Close
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.55, marginBottom: 16 }}>
+                    Enter the email you used at Stripe checkout. If it has active Pro, you&apos;ll receive a secure login link.
+                  </p>
+                  <label htmlFor="restore-access-email" style={{ fontSize: 11, fontFamily: "var(--mono-font)", color: "var(--muted)", letterSpacing: 1, display: "block", marginBottom: 6 }}>
+                    EMAIL
+                  </label>
+                  <input
+                    id="restore-access-email"
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="go"
+                    placeholder="you@example.com"
+                    value={restoreAccessEmail}
+                    onChange={(e) => {
+                      setRestoreAccessEmail(e.target.value);
+                      setRestoreAccessError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void submitRestoreAccess();
+                    }}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      background: "var(--surface-2)",
+                      border: `1px solid ${restoreAccessError ? "var(--red)" : "var(--border-2)"}`,
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      color: "var(--text)",
+                      fontSize: 16,
+                      fontFamily: "var(--body-font)",
+                      outline: "none",
+                      marginBottom: restoreAccessError ? 8 : 14,
+                    }}
+                  />
+                  {restoreAccessError ? (
+                    <div style={{ fontSize: 12, color: "var(--red)", lineHeight: 1.45, marginBottom: 14 }}>{restoreAccessError}</div>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={restoreAccessBusy}
+                    onClick={() => void submitRestoreAccess()}
+                    style={{
+                      width: "100%",
+                      padding: "13px",
+                      border: "none",
+                      borderRadius: 10,
+                      background: "var(--cyan-bright)",
+                      color: "#080A0C",
+                      fontFamily: "var(--display-font)",
+                      fontSize: 16,
+                      letterSpacing: 1,
+                      cursor: restoreAccessBusy ? "wait" : "pointer",
+                      opacity: restoreAccessBusy ? 0.85 : 1,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {restoreAccessBusy ? "Sending…" : "Email me a login link"}
+                  </button>
+                </>
+              )}
+              {!restoreAccessLinkSent ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRestoreAccessModal(false);
+                    setRestoreAccessError("");
+                    setRestoreAccessLinkSent(false);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "none",
+                    borderRadius: 10,
+                    background: "transparent",
+                    color: "var(--muted)",
+                    fontFamily: "var(--body-font)",
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
               ) : null}
-              <button
-                type="button"
-                disabled={restoreAccessBusy}
-                onClick={() => void submitRestoreAccess()}
-                style={{
-                  width: "100%",
-                  padding: "13px",
-                  border: "none",
-                  borderRadius: 10,
-                  background: "var(--cyan-bright)",
-                  color: "#080A0C",
-                  fontFamily: "var(--display-font)",
-                  fontSize: 16,
-                  letterSpacing: 1,
-                  cursor: restoreAccessBusy ? "wait" : "pointer",
-                  opacity: restoreAccessBusy ? 0.85 : 1,
-                  marginBottom: 10,
-                }}
-              >
-                {restoreAccessBusy ? "Restoring…" : "Restore Access"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRestoreAccessModal(false);
-                  setRestoreAccessError("");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  border: "none",
-                  borderRadius: 10,
-                  background: "transparent",
-                  color: "var(--muted)",
-                  fontFamily: "var(--body-font)",
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
-                Cancel
-              </button>
             </div>
           </div>
         )}
