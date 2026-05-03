@@ -350,6 +350,10 @@ ${themeCss}
   } = usePerformance(userEmail, getTakeAuthHeaders);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showRestoreAccessModal, setShowRestoreAccessModal] = useState(false);
+  const [restoreAccessEmail, setRestoreAccessEmail] = useState("");
+  const [restoreAccessError, setRestoreAccessError] = useState("");
+  const [restoreAccessBusy, setRestoreAccessBusy] = useState(false);
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   const [openingBillingPortal, setOpeningBillingPortal] = useState(false);
   const [codeInput, setCodeInput]         = useState("");
@@ -398,18 +402,24 @@ ${themeCss}
     return () => window.clearTimeout(id);
   }, [postCheckoutBanner]);
 
-  const restoreProEntitlement = useCallback(async () => {
-    const email = String(
+  const openRestoreAccessModal = useCallback(() => {
+    const pref =
+      (typeof localStorage !== "undefined" && localStorage.getItem("ur_email")) ||
       userEmail ||
-        (typeof localStorage !== "undefined" ? localStorage.getItem("ur_email") : "") ||
-        "",
-    )
-      .trim()
-      .toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      alert("Enter the email you used for Pro checkout (saved in this browser after subscribe).");
-      return false;
+      "";
+    setRestoreAccessEmail(pref);
+    setRestoreAccessError("");
+    setShowRestoreAccessModal(true);
+  }, [userEmail]);
+
+  const submitRestoreAccess = useCallback(async () => {
+    const email = String(restoreAccessEmail || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setRestoreAccessError("Enter a valid email address.");
+      return;
     }
+    setRestoreAccessBusy(true);
+    setRestoreAccessError("");
     try {
       const res = await fetch("/api/restore-subscription", {
         method: "POST",
@@ -430,19 +440,24 @@ ${themeCss}
         setAccessToken(data.token);
         setAccessTier("pro");
         setShowUpgradeModal(false);
-        return true;
+        setShowRestoreAccessModal(false);
+        setRestoreAccessBusy(false);
+        return;
       }
-      alert(
-        data.reason === "No active subscription"
-          ? "No active subscription found for this account."
-          : data.error || "Could not restore access. Try again.",
+      setRestoreAccessError(
+        "No active subscription found for that email. Check your email or contact support.",
       );
-      return false;
     } catch {
-      alert("Could not reach the server. Try again.");
-      return false;
+      setRestoreAccessError("Could not reach the server. Try again.");
+    } finally {
+      setRestoreAccessBusy(false);
     }
-  }, [userEmail]);
+  }, [restoreAccessEmail, setUserEmail]);
+
+  /** Opens email modal (e.g. Pro checkout “already pro” or “Restore access” links). */
+  const restoreProEntitlement = useCallback(async () => {
+    openRestoreAccessModal();
+  }, [openRestoreAccessModal]);
 
   const handleBettingStyleChange = useCallback((style) => {
     const next = style === "limits" ? "limits" : "balanced";
@@ -2576,7 +2591,7 @@ ${themeCss}
                 Payment received, but Pro access is still syncing.{" "}
                 <button
                   type="button"
-                  onClick={() => void restoreProEntitlement()}
+                  onClick={() => openRestoreAccessModal()}
                   style={{
                     background: "none",
                     border: "none",
@@ -3563,13 +3578,36 @@ ${themeCss}
     <div style={{padding:"18px 20px 0",textAlign:"center",display:"flex",flexDirection:"column",gap:10,alignItems:"center"}}>
       <button onClick={()=>setShowCodeEntry(true)} style={{background:"none",border:"none",color:proMarketing.bottomMuted ?? "var(--muted)",cursor:"pointer",fontSize:11,fontFamily:"var(--body-font)",textDecoration:"underline",textUnderlineOffset:3}}>Have an access code? Enter it here →</button>
       {accessTier === "free" ? (
-        <button
-          type="button"
-          onClick={() => void restoreProEntitlement()}
-          style={{background:"none",border:"none",color:"var(--cyan-bright)",cursor:"pointer",fontSize:11,fontFamily:"var(--mono-font)",letterSpacing:1}}
-        >
-          Already paid? Restore access
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--muted)",
+              fontFamily: "var(--body-font)",
+              letterSpacing: 0.3,
+            }}
+          >
+            Already subscribed?
+          </div>
+          <button
+            type="button"
+            onClick={() => openRestoreAccessModal()}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--cyan-bright)",
+              cursor: "pointer",
+              fontSize: 13,
+              fontFamily: "var(--mono-font)",
+              letterSpacing: 1,
+              fontWeight: 700,
+              textDecoration: "underline",
+              textUnderlineOffset: 3,
+            }}
+          >
+            Restore access →
+          </button>
+        </div>
       ) : null}
       <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:proMarketing.stripeFoot ?? "#1E242E",letterSpacing:1}}>Powered by Stripe · Secure checkout</div>
     </div>
@@ -3697,7 +3735,7 @@ ${themeCss}
         {showUpgradeModal&&(
           <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:101,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:24,maxWidth:380,width:"100%",textAlign:"center"}}>
-              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:18,whiteSpace:"pre-line"}}>
+              <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:16,whiteSpace:"pre-line"}}>
                 {`That was your free UR Take.
 
 Pro unlocks unlimited takes, session memory,
@@ -3706,6 +3744,35 @@ edge alerts.
 
 $9.99/month · cancel anytime`}
               </div>
+              <div style={{ marginBottom: 18, paddingBottom: 16, borderBottom: "1px solid var(--border-2)" }}>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontFamily: "var(--body-font)" }}>
+                  Already subscribed?
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpgradeModal(false);
+                    openRestoreAccessModal();
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--cyan-bright)",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontFamily: "var(--mono-font)",
+                    letterSpacing: 1,
+                    fontWeight: 700,
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  Restore access →
+                </button>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.45 }}>
+                  New phone or browser? Enter the email from your Stripe receipt — access stays tied to that email.
+                </div>
+              </div>
               <button
                 onClick={() => { setShowUpgradeModal(false); goPro(); }}
                 style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:"var(--cyan-bright)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:"pointer",marginBottom:10}}
@@ -3713,17 +3780,123 @@ $9.99/month · cancel anytime`}
                 Unlock Pro — $9.99/mo
               </button>
               <button
-                type="button"
-                onClick={() => void restoreProEntitlement()}
-                style={{width:"100%",padding:"11px",border:"1px solid var(--border-2)",borderRadius:10,background:"transparent",color:"var(--cyan-bright)",fontFamily:"var(--mono-font)",fontSize:11,letterSpacing:1,cursor:"pointer",marginBottom:10}}
-              >
-                Already paid? Restore access
-              </button>
-              <button
                 onClick={() => setShowUpgradeModal(false)}
                 style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:12,fontFamily:"var(--body-font)"}}
               >
                 Not now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showRestoreAccessModal && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(8,10,12,.94)",
+              zIndex: 102,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+            }}
+          >
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border-2)",
+                borderRadius: 20,
+                padding: 24,
+                maxWidth: 400,
+                width: "100%",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ fontFamily: "var(--display-font)", fontSize: 22, letterSpacing: 0.5, marginBottom: 8, color: "var(--text)" }}>
+                Restore Pro access
+              </div>
+              <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.55, marginBottom: 16 }}>
+                Enter the email you used at Stripe checkout. We&apos;ll verify your subscription and unlock Pro on this device.
+              </p>
+              <label htmlFor="restore-access-email" style={{ fontSize: 11, fontFamily: "var(--mono-font)", color: "var(--muted)", letterSpacing: 1, display: "block", marginBottom: 6 }}>
+                EMAIL
+              </label>
+              <input
+                id="restore-access-email"
+                type="email"
+                name="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="go"
+                placeholder="you@example.com"
+                value={restoreAccessEmail}
+                onChange={(e) => {
+                  setRestoreAccessEmail(e.target.value);
+                  setRestoreAccessError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitRestoreAccess();
+                }}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  background: "var(--surface-2)",
+                  border: `1px solid ${restoreAccessError ? "var(--red)" : "var(--border-2)"}`,
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  color: "var(--text)",
+                  fontSize: 16,
+                  fontFamily: "var(--body-font)",
+                  outline: "none",
+                  marginBottom: restoreAccessError ? 8 : 14,
+                }}
+              />
+              {restoreAccessError ? (
+                <div style={{ fontSize: 12, color: "var(--red)", lineHeight: 1.45, marginBottom: 14 }}>{restoreAccessError}</div>
+              ) : null}
+              <button
+                type="button"
+                disabled={restoreAccessBusy}
+                onClick={() => void submitRestoreAccess()}
+                style={{
+                  width: "100%",
+                  padding: "13px",
+                  border: "none",
+                  borderRadius: 10,
+                  background: "var(--cyan-bright)",
+                  color: "#080A0C",
+                  fontFamily: "var(--display-font)",
+                  fontSize: 16,
+                  letterSpacing: 1,
+                  cursor: restoreAccessBusy ? "wait" : "pointer",
+                  opacity: restoreAccessBusy ? 0.85 : 1,
+                  marginBottom: 10,
+                }}
+              >
+                {restoreAccessBusy ? "Restoring…" : "Restore Access"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRestoreAccessModal(false);
+                  setRestoreAccessError("");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  border: "none",
+                  borderRadius: 10,
+                  background: "transparent",
+                  color: "var(--muted)",
+                  fontFamily: "var(--body-font)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
               </button>
             </div>
           </div>
