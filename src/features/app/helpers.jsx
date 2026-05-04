@@ -527,6 +527,29 @@ function stripMarkdownForUrTakeDisplay(text) {
     .replace(/\*([^*]+)\*/g, "$1");
 }
 
+/** All-caps short section labels (e.g. WHAT TO WATCH); excludes stats lines with digits (H2H allowed). */
+function isUrTakeAllCapsSectionLine(line) {
+  const s = String(line).trim();
+  if (!s || s.length >= 40) return false;
+  if (/\d/.test(s.replace(/\bH2H\b/gi, ""))) return false;
+  const letters = s.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 2) return false;
+  return letters === letters.toUpperCase();
+}
+
+const UR_TAKE_BODY_MUTED = "rgba(255,255,255,0.75)";
+
+const UR_TAKE_SECTION_LABEL_STYLE = {
+  fontFamily: "var(--mono-font)",
+  fontSize: 9,
+  letterSpacing: 3,
+  color: "var(--cyan-bright)",
+  textTransform: "uppercase",
+  marginTop: 18,
+  marginBottom: 6,
+  opacity: 0.7,
+};
+
 function parseUrTakeVisualParts(raw) {
   let text = stripMarkdownForUrTakeDisplay(stripLeadingUrTakeDisclaimersForDisplay(String(raw || "")));
   const game = peelGameStateHeaderLine(text);
@@ -604,7 +627,9 @@ export function renderUrTakeAiMessage(raw) {
             fontWeight: 700,
             color: "var(--text)",
             lineHeight: 1.4,
-            marginBottom: 14,
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            paddingBottom: 14,
+            marginBottom: 16,
           }}
         >
           {highlightStatsInText(headlineText)}
@@ -613,25 +638,52 @@ export function renderUrTakeAiMessage(raw) {
     }
     if (rest) {
       rest.split(/\n{2,}/).forEach((para, i) => {
+        const oddPara = i % 2 === 1;
         nodes.push(
           <div
             key={`ur-body-${i}`}
             style={{
               fontSize: 13,
               fontWeight: 400,
-              color: "var(--text)",
+              color: UR_TAKE_BODY_MUTED,
               lineHeight: 1.65,
               marginBottom: 10,
+              ...(oddPara
+                ? {
+                    background: "rgba(255,255,255,0.02)",
+                    borderRadius: 6,
+                    padding: "8px 10px",
+                    margin: "4px -10px",
+                    marginBottom: 10,
+                  }
+                : { background: "transparent" }),
             }}
           >
-            {para.split("\n").map((line, j, arr) => (
-              <div
-                key={j}
-                style={{ marginBottom: j === arr.length - 1 ? 0 : 6 }}
-              >
-                {highlightStatsInText(line)}
-              </div>
-            ))}
+            {para.split("\n").map((line, j, arr) => {
+              if (isUrTakeAllCapsSectionLine(line)) {
+                const firstSection =
+                  Boolean(headlineText) && i === 0 && j === 0;
+                return (
+                  <div
+                    key={j}
+                    style={{
+                      ...UR_TAKE_SECTION_LABEL_STYLE,
+                      marginTop: firstSection ? 8 : 18,
+                    }}
+                  >
+                    {line.trim()}
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={j}
+                  style={{ marginBottom: j === arr.length - 1 ? 0 : 6 }}
+                >
+                  {highlightStatsInText(line)}
+                </div>
+              );
+            })}
           </div>,
         );
       });
@@ -676,15 +728,13 @@ export function renderUrTakeAiMessage(raw) {
       <div
         key="ur-close"
         style={{
-          margin: "16px 0 4px",
-          padding: "12px 16px",
-          background: "rgba(0,245,233,0.08)",
-          border: "1px solid rgba(0,245,233,0.25)",
-          borderRadius: 10,
-          fontSize: 15,
-          fontWeight: 700,
-          color: "var(--cyan-bright)",
-          lineHeight: 1.4,
+          marginTop: 16,
+          paddingLeft: 12,
+          borderLeft: "2px solid var(--magenta, #FF2D6B)",
+          fontSize: 14,
+          fontWeight: 600,
+          color: "var(--text)",
+          lineHeight: 1.5,
         }}
       >
         {parts.closing}
