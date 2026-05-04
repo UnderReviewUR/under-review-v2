@@ -48,6 +48,9 @@ test("composeRegisteredUrTakeSystemPrompt includes voice lock and follow-up qual
     nbaDecisionMode: "actionable",
     mlbDecisionMode: null,
   });
+  assert.match(p, /NO DATA UNAVAILABLE CLOSINGS \(mandatory\)/);
+  assert.match(p, /NBA NAME RESOLUTION \(mandatory\)/);
+  assert.match(p, /FORWARD HOOK DISCIPLINE \(mandatory\)/);
   assert.match(p, /UR TAKE VOICE — MANDATORY FOR ALL RESPONSES/);
   assert.match(p, /BANNED PHRASES \(never use\)/);
   assert.match(p, /THE ONE-LINE TEST/);
