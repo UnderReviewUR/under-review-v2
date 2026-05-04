@@ -339,6 +339,299 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
     .trimStart();
 }
 
+/** ── UR Take AI bubble visual formatting (presentation only; text unchanged) ── */
+
+function peelGameStateHeaderLine(text) {
+  const trimmed = text.trimStart();
+  const nl = trimmed.indexOf("\n");
+  const firstLine = nl >= 0 ? trimmed.slice(0, nl).trim() : trimmed.trim();
+  if (!firstLine) return { header: null, rest: text };
+  const scoreLike = /^[A-Z]{2,4}\s+\d+/i.test(firstLine);
+  const hasDot = firstLine.includes("·");
+  const hasQuarterOrLive =
+    /\bQ\d\b/i.test(firstLine) || /\bLive\b/i.test(firstLine) || /\bOT\b/i.test(firstLine);
+  if (scoreLike && (hasDot || hasQuarterOrLive)) {
+    const rest = nl >= 0 ? trimmed.slice(nl + 1) : "";
+    return { header: firstLine, rest: rest.trimStart() };
+  }
+  return { header: null, rest: text };
+}
+
+function peelConfidenceLine(text) {
+  const lines = text.split("\n");
+  if (lines.length === 0) return { rest: text, confidence: null };
+  const last = lines[lines.length - 1].trim();
+  if (/^Confidence\s*:/i.test(last)) {
+    return {
+      rest: lines.slice(0, -1).join("\n").trimEnd(),
+      confidence: last.trim(),
+    };
+  }
+  return { rest: text, confidence: null };
+}
+
+function peelClosingCallLine(text) {
+  const lines = text.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (/^(Look for|Back|Fade|Take the)\b/i.test(line)) {
+      const rest = [...lines.slice(0, i), ...lines.slice(i + 1)].join("\n").trimEnd();
+      return { rest, closing: line };
+    }
+  }
+  return { rest: text, closing: null };
+}
+
+function peelLiveTriggerSection(text) {
+  const m = text.match(/\bLive trigger\b\s*:?\s*/i);
+  if (!m || m.index === undefined) return { main: text, trigger: null };
+  const main = text.slice(0, m.index).trimEnd();
+  const trigger = text.slice(m.index + m[0].length).trim();
+  return { main, trigger: trigger || null };
+}
+
+function splitFirstSentenceHeadline(block) {
+  const t = block.trim();
+  if (!t) return { first: "", rest: "" };
+  for (let i = 1; i < t.length; i++) {
+    const c = t[i];
+    if (c === "." || c === "!" || c === "?") {
+      if (c === "." && /\d/.test(t[i - 1])) {
+        const nextCh = t[i + 1];
+        if (nextCh && /\d/.test(nextCh)) continue;
+      }
+      const after = t.slice(i + 1).trimStart();
+      if (!after || /^[A-Z"(“]/.test(after)) {
+        return { first: t.slice(0, i + 1).trim(), rest: after };
+      }
+    }
+  }
+  const nl = t.indexOf("\n");
+  if (nl > 0) return { first: t.slice(0, nl).trim(), rest: t.slice(nl + 1).trim() };
+  return { first: t, rest: "" };
+}
+
+const STAT_HIGHLIGHT_RE =
+  /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|minutes?|PPG|APG|RPG)\b/gi;
+
+function highlightStatsInText(text) {
+  const s = String(text);
+  const out = [];
+  let last = 0;
+  let m;
+  let k = 0;
+  const re = new RegExp(STAT_HIGHLIGHT_RE.source, "gi");
+  while ((m = re.exec(s)) !== null) {
+    out.push(s.slice(last, m.index));
+    out.push(
+      <span
+        key={`ur-stat-${k++}`}
+        style={{ color: "var(--cyan-bright)", fontWeight: 600 }}
+      >
+        {m[0]}
+      </span>,
+    );
+    last = m.index + m[0].length;
+  }
+  out.push(s.slice(last));
+  return out;
+}
+
+function stripMarkdownForUrTakeDisplay(text) {
+  return String(text || "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1");
+}
+
+function parseUrTakeVisualParts(raw) {
+  let text = stripMarkdownForUrTakeDisplay(stripLeadingUrTakeDisclaimersForDisplay(String(raw || "")));
+  const game = peelGameStateHeaderLine(text);
+  text = game.rest;
+
+  let confidence = null;
+  ({ rest: text, confidence } = peelConfidenceLine(text));
+
+  let closing = null;
+  ({ rest: text, closing } = peelClosingCallLine(text));
+
+  let liveTrigger = null;
+  ({ main: text, trigger: liveTrigger } = peelLiveTriggerSection(text));
+
+  return {
+    gameHeader: game.header,
+    mainText: text.trim(),
+    liveTrigger,
+    closing,
+    confidence,
+  };
+}
+
+/**
+ * Rich UR Take presentation: score header, headline sentence, stat highlights,
+ * live trigger + closing cards, muted confidence. Same string content as input.
+ */
+export function renderUrTakeAiMessage(raw) {
+  const parts = parseUrTakeVisualParts(raw);
+  const nodes = [];
+
+  if (parts.gameHeader) {
+    nodes.push(
+      <div
+        key="ur-game-hdr"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontFamily: "var(--mono-font)",
+          fontSize: 11,
+          color: "var(--cyan-bright)",
+          letterSpacing: 1.5,
+          textTransform: "uppercase",
+          marginBottom: 12,
+          paddingBottom: 10,
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: "#22c55e",
+            display: "inline-block",
+            flexShrink: 0,
+          }}
+        />
+        {parts.gameHeader}
+      </div>,
+    );
+  }
+
+  const main = parts.mainText;
+  if (main) {
+    const { first, rest } = splitFirstSentenceHeadline(main);
+    if (first) {
+      nodes.push(
+        <p
+          key="ur-headline"
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: "var(--text)",
+            lineHeight: 1.4,
+            marginBottom: 14,
+          }}
+        >
+          {highlightStatsInText(first)}
+        </p>,
+      );
+    }
+    if (rest) {
+      rest.split(/\n{2,}/).forEach((para, i) => {
+        nodes.push(
+          <div
+            key={`ur-body-${i}`}
+            style={{
+              fontSize: 13,
+              fontWeight: 400,
+              color: "var(--text)",
+              lineHeight: 1.65,
+              marginBottom: 10,
+            }}
+          >
+            {para.split("\n").map((line, j, arr) => (
+              <div
+                key={j}
+                style={{ marginBottom: j === arr.length - 1 ? 0 : 6 }}
+              >
+                {highlightStatsInText(line)}
+              </div>
+            ))}
+          </div>,
+        );
+      });
+    }
+  }
+
+  if (parts.liveTrigger) {
+    nodes.push(
+      <div
+        key="ur-lt"
+        style={{
+          margin: "14px 0",
+          padding: "10px 14px",
+          background: "rgba(0,245,233,0.06)",
+          borderLeft: "2px solid var(--cyan-bright)",
+          borderRadius: "0 8px 8px 0",
+          fontSize: 13,
+          lineHeight: 1.5,
+          color: "var(--text)",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 9,
+            color: "var(--cyan-bright)",
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            display: "block",
+            marginBottom: 4,
+          }}
+        >
+          Live Trigger
+        </span>
+        <div>{highlightStatsInText(parts.liveTrigger)}</div>
+      </div>,
+    );
+  }
+
+  if (parts.closing) {
+    nodes.push(
+      <div
+        key="ur-close"
+        style={{
+          margin: "16px 0 4px",
+          padding: "12px 16px",
+          background: "rgba(0,245,233,0.08)",
+          border: "1px solid rgba(0,245,233,0.25)",
+          borderRadius: 10,
+          fontSize: 15,
+          fontWeight: 700,
+          color: "var(--cyan-bright)",
+          lineHeight: 1.4,
+        }}
+      >
+        {parts.closing}
+      </div>,
+    );
+  }
+
+  if (parts.confidence) {
+    nodes.push(
+      <p
+        key="ur-conf"
+        style={{
+          fontSize: 11,
+          color: "var(--muted)",
+          fontFamily: "var(--mono-font)",
+          letterSpacing: 0.3,
+          marginTop: 8,
+        }}
+      >
+        {parts.confidence}
+      </p>,
+    );
+  }
+
+  if (nodes.length === 0) {
+    return renderMessage(String(raw || ""), { styleUrTakeSectionLabels: true });
+  }
+
+  return <>{nodes}</>;
+}
+
 /** Same gradient fill as the main `>>` headline — reuse for UR Take section labels only. */
 const UR_TAKE_HEADLINE_GRADIENT_STYLE = {
   background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
@@ -656,7 +949,7 @@ function UrTakeAiBubble({ m, trackPlay }) {
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
+      {renderUrTakeAiMessage(summaryText)}
       {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
       {showTrack ? (
         <button
@@ -705,7 +998,7 @@ function UrTakeAiBubble({ m, trackPlay }) {
               >
                 Full breakdown
               </div>
-              {renderMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText), { styleUrTakeSectionLabels: true })}
+              {renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}
             </>
           )}
         </div>
