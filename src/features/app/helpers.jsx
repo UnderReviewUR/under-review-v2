@@ -367,20 +367,71 @@ function peelConfidenceLine(text) {
       confidence: last.trim(),
     };
   }
+  if (/^(Medium|High|Low)\s+confidence\b/i.test(last)) {
+    return {
+      rest: lines.slice(0, -1).join("\n").trimEnd(),
+      confidence: last.trim(),
+    };
+  }
   return { rest: text, confidence: null };
 }
 
-function peelClosingCallLine(text) {
-  const lines = text.split("\n");
+/** Single full line that reads as an explicit closing / verdict (scanned from bottom). */
+function lineMatchesExplicitClosing(line) {
+  const L = line.trim();
+  if (!L) return false;
+  if (/^(Look for|Back|Fade|Take the)\b/i.test(L)) return true;
+  if (/\bis the play\b/i.test(L)) return true;
+  if (/\b(lean over|lean under)\b/i.test(L) && L.length < 220) return true;
+  if (/^\s*(?:the\s+)?(?:over|under)\s+[\d.]+\b/i.test(L)) return true;
+  if (
+    /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(L) &&
+    /\d+(?:\.\d+)?/.test(L) &&
+    /\b(over|under|points?|rebounds?|PRA)\b/i.test(L)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function splitLastSentence(block) {
+  const t = block.trim();
+  if (!t) return { body: "", last: "" };
+  for (let i = t.length - 1; i > 0; i--) {
+    const c = t[i];
+    if (c === "." || c === "!" || c === "?") {
+      if (c === "." && /\d/.test(t[i - 1])) {
+        const nextCh = t[i + 1];
+        if (nextCh && /\d/.test(nextCh)) continue;
+      }
+      const before = t.slice(0, i).trimEnd();
+      if (!before) continue;
+      return { body: before, last: t.slice(i).trim() };
+    }
+  }
+  return { body: "", last: t };
+}
+
+/**
+ * Pull closing call from main narrative (after confidence peel, before Live trigger was split out).
+ * Explicit patterns first; otherwise last sentence as verdict hero (two+ sentences only).
+ */
+function peelClosingFromMain(mainChunk) {
+  const lines = mainChunk.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (!line) continue;
-    if (/^(Look for|Back|Fade|Take the)\b/i.test(line)) {
+    if (lineMatchesExplicitClosing(line)) {
       const rest = [...lines.slice(0, i), ...lines.slice(i + 1)].join("\n").trimEnd();
       return { rest, closing: line };
     }
   }
-  return { rest: text, closing: null };
+
+  const { body, last } = splitLastSentence(mainChunk);
+  if (!last || !body.trim()) {
+    return { rest: mainChunk, closing: null };
+  }
+  return { rest: body.trimEnd(), closing: last.trim() };
 }
 
 function peelLiveTriggerSection(text) {
@@ -415,24 +466,47 @@ function splitFirstSentenceHeadline(block) {
 const STAT_HIGHLIGHT_RE =
   /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|minutes?|PPG|APG|RPG)\b/gi;
 
+const UR_STAT_HIGHLIGHT_PATTERN_LIST = [
+  /\d+(?:\.\d+)?\s*(?:pts|reb|ast)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:pts|reb|ast))+/gi,
+  /\(\s*\d+(?:\.\d+)?\s*PRA\s*\)/gi,
+  STAT_HIGHLIGHT_RE,
+  /\b\d+(?:\.\d+)?\s*(?:pts|reb|ast)\b/gi,
+];
+
+function pickNonOverlappingStatRanges(ranges) {
+  const byLen = [...ranges].sort((a, b) => b.end - b.start - (a.end - a.start));
+  const picked = [];
+  for (const r of byLen) {
+    if (picked.some((p) => r.start < p.end && r.end > p.start)) continue;
+    picked.push(r);
+  }
+  return picked.sort((a, b) => a.start - b.start);
+}
+
 function highlightStatsInText(text) {
   const s = String(text);
+  const ranges = [];
+  for (const re of UR_STAT_HIGHLIGHT_PATTERN_LIST) {
+    const r = new RegExp(re.source, re.flags);
+    let m;
+    while ((m = r.exec(s)) !== null) {
+      ranges.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
+    }
+  }
+  const picked = pickNonOverlappingStatRanges(ranges);
   const out = [];
   let last = 0;
-  let m;
-  let k = 0;
-  const re = new RegExp(STAT_HIGHLIGHT_RE.source, "gi");
-  while ((m = re.exec(s)) !== null) {
-    out.push(s.slice(last, m.index));
+  for (const span of picked) {
+    out.push(s.slice(last, span.start));
     out.push(
       <span
-        key={`ur-stat-${k++}`}
+        key={`ur-stat-${span.start}-${span.end}`}
         style={{ color: "var(--cyan-bright)", fontWeight: 600 }}
       >
-        {m[0]}
+        {span.text}
       </span>,
     );
-    last = m.index + m[0].length;
+    last = span.end;
   }
   out.push(s.slice(last));
   return out;
@@ -452,11 +526,11 @@ function parseUrTakeVisualParts(raw) {
   let confidence = null;
   ({ rest: text, confidence } = peelConfidenceLine(text));
 
-  let closing = null;
-  ({ rest: text, closing } = peelClosingCallLine(text));
-
   let liveTrigger = null;
   ({ main: text, trigger: liveTrigger } = peelLiveTriggerSection(text));
+
+  let closing = null;
+  ({ rest: text, closing } = peelClosingFromMain(text));
 
   return {
     gameHeader: game.header,
