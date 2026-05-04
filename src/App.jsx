@@ -241,6 +241,8 @@ ${themeCss}
   const [syncErrorPlayId, setSyncErrorPlayId] = useState(null);
   const swipeTouchStartRef = useRef(null);
   const lastAttemptedResult = useRef({});
+  /** Synchronous guard so double-submit cannot overlap /api/ur-take before React re-renders isAsking. */
+  const urTakeInFlightRef = useRef(false);
 
   // Separate inputRef per screen — critical for AskBar memo optimization
   const askInputRef       = useRef(null);
@@ -961,6 +963,10 @@ ${themeCss}
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
+  if (urTakeInFlightRef.current) return;
+  const upstreamFailMsg = "Couldn't complete that read. Try again.";
+  urTakeInFlightRef.current = true;
+  setIsAsking(true);
 
   const imgToSend = pastedImage;
 
@@ -1048,8 +1054,6 @@ ${themeCss}
       nflBundle?.uiPlayers && Object.keys(nflBundle.uiPlayers).length
         ? nflBundle.uiPlayers
         : nflPlayersForUi;
-
-    setIsAsking(true);
 
     const loadingSport =
       effectiveSportHint === "tennis_wta_profile" ? "tennis" : effectiveSportHint;
@@ -1142,9 +1146,26 @@ ${themeCss}
     const raw = await res.text();
 
     if (!res.ok) {
+      let j = {};
+      try {
+        j = JSON.parse(raw);
+      } catch {
+        /* ignore */
+      }
+      const code = String(j.code || "");
+      const fr = String(j.fallbackReason || "");
+      if (
+        res.status === 503 &&
+        (code === "upstream_unavailable" || fr === "upstream_rate_limit")
+      ) {
+        setMsgs((prev) => [
+          ...prev.filter((m) => !m.loading),
+          { role: "ai", text: upstreamFailMsg },
+        ]);
+        return;
+      }
       let msg = `/api/ur-take ${res.status}: ${raw.slice(0, 600)}`;
       try {
-        const j = JSON.parse(raw);
         const human = String(j.response || j.error || "").trim();
         const tag = j.code ? ` (${j.code})` : "";
         if (human) msg = `${human}${tag}`;
@@ -1159,6 +1180,14 @@ ${themeCss}
       data = JSON.parse(raw);
     } catch {
       throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
+    }
+
+    if (data.fallbackReason === "upstream_rate_limit") {
+      setMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        { role: "ai", text: upstreamFailMsg },
+      ]);
+      return;
     }
 
     const resolvedSport = String(data.sport || "").trim();
@@ -1216,6 +1245,7 @@ ${themeCss}
     setMsgs((prev) => [...prev.filter((m) => !m.loading), { role: "ai", text: fallback }]);
   } finally {
     setIsAsking(false);
+    urTakeInFlightRef.current = false;
   }
 }, [
   clearImage,
