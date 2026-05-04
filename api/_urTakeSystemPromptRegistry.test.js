@@ -39,7 +39,7 @@ test("composeRegisteredUrTakeSystemPrompt prepends memoryBlock when provided", (
   assert.match(p, /SESSION MEMORY NARRATIVE RULE/);
 });
 
-test("composeRegisteredUrTakeSystemPrompt bans unavailable-data closings", () => {
+test("composeRegisteredUrTakeSystemPrompt includes voice lock and follow-up quality rules", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
     contextQuality: "medium",
     sportHint: "nba",
@@ -48,12 +48,11 @@ test("composeRegisteredUrTakeSystemPrompt bans unavailable-data closings", () =>
     nbaDecisionMode: "actionable",
     mlbDecisionMode: null,
   });
-  assert.match(p, /CLOSING DISCIPLINE — NO "DATA UNAVAILABLE" ENDINGS/);
-  assert.match(p, /Series context and live rotation data are unavailable/);
+  assert.match(p, /UR TAKE VOICE — MANDATORY FOR ALL RESPONSES/);
+  assert.match(p, /BANNED PHRASES \(never use\)/);
+  assert.match(p, /THE ONE-LINE TEST/);
   assert.match(p, /FOLLOW-UP RESPONSE RULE — MANDATORY/);
   assert.match(p, /Treat every follow-up like a text reply from a friend who already knows the context/);
-  assert.match(p, /THREAD CONTINUATION \(mandatory\)/);
-  assert.match(p, /NAME RESOLUTION AUTHORITY/);
   assert.match(p, /STAT TERM LOCK/);
 });
 
