@@ -20,6 +20,20 @@ export const NBA_UI_PLAYER_CHIPS = [
   { chip: "KD", fullName: "Kevin Durant", teamAbbr: "HOU" },
   { chip: "Booker", fullName: "Devin Booker", teamAbbr: "PHX" },
   { chip: "Ja Morant", fullName: "Ja Morant", teamAbbr: "MEM" },
+  { chip: "Edgecombe", fullName: "VJ Edgecombe", teamAbbr: "PHI" },
+  { chip: "Risacher", fullName: "Zaccharie Risacher", teamAbbr: "ATL" },
+  { chip: "Sarr", fullName: "Alexandre Sarr", teamAbbr: "WAS" },
+  { chip: "Knecht", fullName: "Dalton Knecht", teamAbbr: "LAL" },
+  { chip: "Sheppard", fullName: "Reed Sheppard", teamAbbr: "HOU" },
+  { chip: "Castle", fullName: "Stephon Castle", teamAbbr: "SAS" },
+  { chip: "Dillingham", fullName: "Rob Dillingham", teamAbbr: "MIN" },
+  { chip: "Wells", fullName: "Jaylen Wells", teamAbbr: "MEM" },
+  { chip: "Bub", fullName: "Bub Carrington", teamAbbr: "WAS" },
+  { chip: "Salaun", fullName: "Tidjane Salaun", teamAbbr: "CHA" },
+  { chip: "Walter", fullName: "Ja'Kobe Walter", teamAbbr: "TOR" },
+  { chip: "Buzelis", fullName: "Matas Buzelis", teamAbbr: "CHI" },
+  { chip: "Topic", fullName: "Nikola Topic", teamAbbr: "OKC" },
+  { chip: "Missi", fullName: "Yves Missi", teamAbbr: "NOP" },
 ];
 
 /**
