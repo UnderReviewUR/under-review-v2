@@ -442,6 +442,15 @@ function peelLiveTriggerSection(text) {
   return { main, trigger: trigger || null };
 }
 
+/** Prompt syntax; stripped before the headline is shown (never visible). */
+function stripLeadingUrTakeHeadlineChevrons(text) {
+  let t = String(text || "").trimStart();
+  while (/^(?:>\s*){2}/.test(t)) {
+    t = t.replace(/^(?:>\s*){2}\s*/, "");
+  }
+  return t.trim();
+}
+
 function splitFirstSentenceHeadline(block) {
   const t = block.trim();
   if (!t) return { first: "", rest: "" };
@@ -585,7 +594,8 @@ export function renderUrTakeAiMessage(raw) {
   const main = parts.mainText;
   if (main) {
     const { first, rest } = splitFirstSentenceHeadline(main);
-    if (first) {
+    const headlineText = stripLeadingUrTakeHeadlineChevrons(first);
+    if (headlineText) {
       nodes.push(
         <p
           key="ur-headline"
@@ -597,7 +607,7 @@ export function renderUrTakeAiMessage(raw) {
             marginBottom: 14,
           }}
         >
-          {highlightStatsInText(first)}
+          {highlightStatsInText(headlineText)}
         </p>,
       );
     }
@@ -689,7 +699,7 @@ export function renderUrTakeAiMessage(raw) {
         style={{
           fontSize: 11,
           color: "var(--muted)",
-          fontFamily: "var(--mono-font)",
+          fontFamily: "var(--body-font)",
           letterSpacing: 0.3,
           marginTop: 8,
         }}
