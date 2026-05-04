@@ -32,6 +32,43 @@ THE GOLDEN RULE — MANDATORY
 Never argue against a projection without explicitly naming the assumption you are fading. If the math says over and you are calling under, you must say: "That projection assumes X — and X is fragile because Y." This is non-negotiable. Any response that contradicts its own math without this explanation is a failed response. The closing line is never the place for reasoning — it is the place for the call. Sharp bettors want to know what to do, not what to think about.`;
 }
 
+/**
+ * User explicitly requested a long-form breakdown (expanded deep panel).
+ * Must stay aligned with JSON output contract in api/ur-take.js `buildJsonOutputContract`.
+ */
+export function detectUrTakeLongFormIntent(question) {
+  const q = String(question || "").toLowerCase();
+  return (
+    /\bdeep\s*dive\b/.test(q) ||
+    /\bfull\s*breakdown\b/.test(q) ||
+    /\bexplain\s*everything\b/.test(q) ||
+    /\bevery\s*detail\b/.test(q) ||
+    /\bwalk\s+me\s+through\b/.test(q) ||
+    /\blong\s*form\b/.test(q) ||
+    /\bcomplete\s*breakdown\b/.test(q) ||
+    /\bfull\s*analysis\b/.test(q)
+  );
+}
+
+/** Default mobile-first length — paired with JSON summary/deep caps when JSON mode applies. */
+export function buildUrTakeDefaultLengthModePrompt() {
+  return `MOBILE DEFAULT — RESPONSE LENGTH & SHAPE (mandatory unless LONG-FORM MODE below applies)
+- Total answer target: 180–260 words (plain text or JSON summary field — same budget).
+- At most 3–4 short sections total (section labels optional; keep scan-friendly).
+- At most 2–3 bullets per section.
+- CONFIDENCE: exactly one short line (tier + brief justification).
+- Final closing line: direct, actionable bet recommendation per the framework closing rules.
+- Include "what kills it" or "what to watch" only if omitting it would change how someone bets.
+- No repeated rationale across sections; no long explainers by default.`;
+}
+
+export function buildUrTakeLongFormModePrompt() {
+  return `LONG-FORM MODE (this turn — user asked for depth)
+- You may use longer reasoning and the full expanded breakdown where the output contract allows it (especially the JSON "deep" field).
+- Keep the primary visible summary scannable; do not paste the entire deep essay into the summary.
+- JSON routes: follow the LONG-FORM ON branch of the attached output contract for summary/deep split.`;
+}
+
 export function buildConfidenceTiersAndTonePrompt() {
   return `CONFIDENCE — REQUIRED ON EVERY PICK
 Confidence across all sports uses exactly three values — High, Medium, Speculative. No other values are permitted (no "Low", no "STRONG/LEAN/WATCH", no "Tier 1/2/3").
@@ -156,7 +193,7 @@ export function buildGlobalQualityPrompt(contextQuality) {
 - EVIDENCE FLOOR: Context quality for this request is "${cq}". If context quality is low, you MUST keep the take as a watch-level read and include one explicit sentence that confidence is capped because evidence is thin.
 - STRUCTURAL ANCHOR: Before any directional take, name at least one real anchor (usage path, matchup shape, pace/scoring environment, lineup role, scheme/coverage effect, handedness/surface split, or equivalent sport-specific driver). If no anchor exists, do not fake specificity.
 - TRIGGER RULE: If a take is conditional, name the concrete trigger (line range, lineup slot, status confirmation, scheme change, pace regime, etc.). Never use vague triggers like "if things break right."
-- CONCISENESS: For no-market or unverified-market responses, keep to 4–6 sentences, no repetitive template blocks, no long disclaimers.
+- CONCISENESS: Default primary responses target 180–260 words total; no-market or thin-evidence turns stay shorter (4–6 sentences when unstructured), no repetitive template blocks, no long disclaimers.
 - CONFIDENCE DISCIPLINE: Never let tone outrun evidence quality. Keep the take useful, but make the confidence cap plain when data is thin.
 - MARKET INSIGHT: Include one short angle on what the market may be mispricing vs surface-level read.
 - FOLLOW-UP RESPONSE RULE — MANDATORY: If conversation history exists, never reproduce MATCH READ, PROP PROJECTIONS, STATUS SHIFT, or any section from the prior response. Do not repeat analysis already given. Answer only the specific question asked in 3-5 sentences. No section headers on follow-ups. No full breakdowns. If the user asks about a total line, answer the total line question. If they ask about a series average, give the series scoring average. Treat every follow-up like a text reply from a friend who already knows the context.
@@ -353,13 +390,13 @@ BANNED PHRASES (never use):
 - "moving forward"
 - "that being said"
 
-STRUCTURE — every response in this order:
-1. What's happening (one sentence)
-2. The edge (one to two sentences)
-3. What kills it (one sentence)
-4. What to watch — optional,
-   only if live game
-5. Confidence — one word or short phrase
+STRUCTURE — primary responses in this order (skip optional lines if they do not change the bet):
+1. What's happening (one sentence — opener / headline)
+2. The edge (one to two sentences, or one short labeled section)
+3. What kills it — only if it would change how someone bets
+4. What to watch — only if it would change how someone bets (live or market hinge)
+5. CONFIDENCE — exactly one short line
+6. Final call — direct actionable closing line per framework
 
 EXAMPLES:
 
@@ -412,9 +449,9 @@ while the structural setup favors..."
 Write "Lean it. If X happens, pass."
 
 LENGTH:
-- First response: 5-8 sentences max
-- Follow-up: 2-4 sentences max
-- Live game: 3-5 sentences max
+- Default primary response: 180–260 words total (follow MOBILE DEFAULT block above)
+- Follow-up (when follow-up system prompt applies): 2-4 sentences max
+- Live game: same 180–260 word budget unless LONG-FORM MODE is on
 - Never a wall of text`;
 }
 
@@ -444,13 +481,22 @@ CONFIDENCE ↔ IMPLIED PROBABILITY (must align labels users see)
 Never invent fake percentages; when citing "~60%", tie it to stated season or sample hit-rate from context.`;
 }
 
-export function buildResponseStructurePrompt() {
-  return `RESPONSE STRUCTURE — EVERY TIME
+export function buildResponseStructurePrompt(longFormRequested = false) {
+  if (longFormRequested) {
+    return `RESPONSE STRUCTURE — LONG-FORM MODE
 Market Snapshot: What's open and what's live.
-Live Angles: Two to four picks maximum. Each gets player, line trigger, tier, three to five lines of reasoning following the five steps, and a one-line close.
+Live Angles: Two to four picks maximum. Each gets player, line trigger, tier, deeper reasoning following the five steps, and a one-line close.
 Watchlist: Conditional plays waiting on news, line, or confirmation.
 News Edge: Where injury or lineup news creates immediate usage shifts before markets adjust.
-Closing Line: One branded sentence. Rotate from the approved list or generate a variant in the same voice. Examples: "Lines price production. Edges come from minutes." "Books price averages. Edges live in deviations." "Production is not sustainability."`;
+Closing Line: One branded sentence when useful. Examples: "Lines price production. Edges come from minutes." "Books price averages. Edges live in deviations." "Production is not sustainability."`;
+  }
+  return `RESPONSE STRUCTURE — MOBILE DEFAULT (every primary response)
+Keep total output within 180–260 words and at most 3–4 short sections.
+Market Snapshot: One or two tight sentences — what's open / what's live.
+Live Angles: At most two angles unless LONG-FORM MODE; each angle = trigger + tier + max 2–3 lines of reasoning + one-line close.
+Watchlist: At most one conditional play unless it changes the bet.
+News Edge: One sentence only when it moves a line or role.
+Closing Line: Optional branded kicker; never replace the framework's final actionable bet line.`;
 }
 
 /** Live bet + slip review: conviction on cash-out / in-game management (appended when routing applies). */
@@ -697,6 +743,7 @@ Format behavior in this mode:
  * @param {{ sparseQuestion: boolean, thinEvidence: boolean }} [input.evidenceSparsityProfile] — when set, reuse (single compute in handler)
  * @param {{ hasLiveKeyword?: boolean }} [input.liveSignals] — live-keyword turns append LIVE BET CONVICTION RULE (with slip_review)
  * @param {string} [input.memoryBlock] — optional prior-session summary (prepended when non-empty)
+ * @param {boolean} [input.longFormRequested] — when set, use expanded prompts; otherwise derived from `question` via detectUrTakeLongFormIntent
  */
 export function composeRegisteredUrTakeSystemPrompt(input) {
   const {
@@ -714,7 +761,13 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     liveSignals = null,
     bettingStyle = "balanced",
     memoryBlock = "",
+    longFormRequested: longFormRequestedOpt,
   } = input;
+
+  const longFormRequested =
+    typeof longFormRequestedOpt === "boolean"
+      ? longFormRequestedOpt
+      : detectUrTakeLongFormIntent(question);
 
   const evidenceProfile =
     profileIn ??
@@ -737,9 +790,10 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     buildConfidenceTiersAndTonePrompt(),
     buildGlobalQualityPrompt(contextQuality),
     sparseThinAppendix,
+    longFormRequested ? buildUrTakeLongFormModePrompt() : buildUrTakeDefaultLengthModePrompt(),
     buildVoiceToneAndFinalCheckPrompt(),
     buildBetIntegritySystemPrompt(),
-    buildResponseStructurePrompt(),
+    buildResponseStructurePrompt(longFormRequested),
   ]
     .map((s) => String(s || "").trim())
     .filter(Boolean)

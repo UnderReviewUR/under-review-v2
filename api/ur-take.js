@@ -44,6 +44,7 @@ import {
   buildCoreFrameworkPrompt,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
+  detectUrTakeLongFormIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
 import {
@@ -3079,7 +3080,11 @@ function resolveOutputJsonMode({
   return "plain";
 }
 
-function buildJsonOutputContract(mode, sportHint, { requireStatusShift = false } = {}) {
+function buildJsonOutputContract(
+  mode,
+  sportHint,
+  { requireStatusShift = false, longFormRequested = false } = {},
+) {
   const sport = String(sportHint || "generic").toLowerCase();
 
   const nbaTier25Lead =
@@ -3090,16 +3095,60 @@ ${requireStatusShift ? 'NBA STATUS SHIFT (mandatory): include "statusShift" in t
 `
       : "";
 
-  const tier25Spec = `TIER 2.5 — DEFAULT MATCHUP / PROP / SIDE RESPONSE (summary field)
+  const tier25ModeBanner = longFormRequested
+    ? `LONG-FORM MODE IS ON for this turn (user explicitly asked for deep dive / full breakdown / explain everything / every detail / walk me through / long form / complete breakdown / full analysis). Use the LONG-FORM branch below.`
+    : `LONG-FORM MODE IS OFF — MOBILE DEFAULT applies. Match system prompt MOBILE DEFAULT length rules and the DEFAULT branch below.`;
 
-summary must use this exact shape (plain text inside the JSON string, no markdown):
+  const tier25SpecDefault = `TIER 2.5 — MATCHUP / PROP / SIDE (summary + deep) — MOBILE DEFAULT
 
->> [Opener sentence per Step 1 of the framework, with ">> " prepended as a formatting prefix]
+${tier25ModeBanner}
+
+summary field (plain text inside the JSON string, no markdown):
+- Target 180–260 words for the entire summary.
+- At most 3–4 short sections total (optional ALL-CAPS labels). At most 2–3 bullets per section.
+- Shape:
+
+>> [Opener sentence per Step 1, with ">> " prepended only if NBA formatting block above applies]
 
 [blank line]
 
 MATCH READ
-- [bullet 1 — concrete edge for the favored side — stats or sequences, not "good form"]
+- [bullet — max 3 bullets in this section total]
+
+PROP PROJECTIONS
+- Up to 3 lines total (project STATS not book prices — "project ~7" not "over 6.5 -110"). Pick lines that fit ${sport}.
+- Tennis: threshold lean; aces/projection as fits. NBA: points/PRA/threes/total lean as fits. MLB/NFL/Golf/F1: same discipline — fewer lines, tighter.
+
+CONFIDENCE
+[High / Medium / Speculative] — one short line only
+${nbaTier25Lead}
+deep field (same JSON object) — MOBILE DEFAULT
+- Target at most ~300 words total for deep.
+- Compact expansion only: extra angles, risks, alt markets — do NOT duplicate the full summary text.
+- Do NOT output the full legacy Tier-3 section stack (THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE block in long legacy form).
+- Plain text inside the JSON string, no markdown.
+
+CRITICAL
+- Never say "limited profile", "held back", or apologize for thin data — put uncertainty only in CONFIDENCE.
+- Never invent book lines; estimate stats only.
+- Never include the phrase "See full breakdown" in any field (UI handles that).
+- If you can only produce 1–2 projection lines, confidence must be Speculative.
+- summary MUST NOT include legacy headers like THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE (those belong in deep only when appropriate).`;
+
+  const tier25SpecLongForm = `TIER 2.5 — MATCHUP / PROP / SIDE (summary + deep) — LONG-FORM MODE
+
+${tier25ModeBanner}
+
+summary field (plain text inside the JSON string, no markdown):
+- Keep the summary scannable; prefer 180–260 words when possible but depth may spill moderately if needed for clarity.
+- Shape:
+
+>> [Opener sentence per Step 1, with ">> " prepended when NBA formatting applies]
+
+[blank line]
+
+MATCH READ
+- [bullet 1 — concrete edge — stats or sequences, not "good form"]
 - [bullet 2 — opponent weakness or friction]
 - [bullet 3 — surface / park / venue / matchup factor]
 
@@ -3116,17 +3165,19 @@ Sport-specific projection lines (pick what fits ${sport}):
 CONFIDENCE
 [High / Medium / Speculative] — [one-line justification]
 ${nbaTier25Lead}
+deep field (same JSON object) — LONG-FORM MODE
+- Must contain the FULL legacy Tier-3 answer: opener sentence (Step 1) prefixed with ">> " when NBA formatting applies, then THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING sections exactly as in the base system prompt (500+ words allowed).
+- Plain text inside the JSON string, no markdown.
+
 CRITICAL
 - Never say "limited profile", "held back", or apologize for thin data — put uncertainty only in CONFIDENCE.
 - Never invent book lines; estimate stats only.
 - Never include the phrase "See full breakdown" in any field (UI handles that).
-- If you can only produce 1–2 projection lines, confidence must be Speculative.
-- summary MUST NOT include legacy headers like THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE.
-- Those legacy sections belong in deep only.
+- If you can only produce 1–2 projection lines in summary, confidence must be Speculative.
+- summary MUST NOT include legacy headers like THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE — those belong in deep.
+- Those legacy sections belong in deep only.`;
 
-deep field (same JSON object)
-- Must contain the FULL legacy Tier-3 answer: opener sentence (Step 1) prefixed with ">> ", then THE PLAY / MARKET MISTAKE / WHY MISPRICED / TIMING EDGE / WHY IT FITS / FADE / CONFIDENCE / TIMING sections exactly as in the base system prompt.
-- Plain text inside the JSON string, no markdown.`;
+  const tier25Spec = longFormRequested ? tier25SpecLongForm : tier25SpecDefault;
 
   if (mode === "tier1_json") {
     return `OUTPUT CONTRACT — TIER 1 (mandatory)
@@ -4594,6 +4645,8 @@ export default async function handler(req, res) {
     memoryBlock = await buildEnrichedMemoryPrompt(userEmail, getDurableJson);
   }
 
+  const longFormRequested = detectUrTakeLongFormIntent(String(question || ""));
+
   const systemPrompt = composeRegisteredUrTakeSystemPrompt({
     contextQuality,
     sportHint,
@@ -4609,6 +4662,7 @@ export default async function handler(req, res) {
     liveSignals,
     bettingStyle,
     memoryBlock,
+    longFormRequested,
   });
 
   const outputJsonMode = isConversationFollowUp
@@ -4625,6 +4679,7 @@ export default async function handler(req, res) {
   const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint, {
     requireStatusShift:
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
+    longFormRequested,
   });
   const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
   const spreadAndGameSideBlock = isSpreadOrGameSideQuestion(question)
