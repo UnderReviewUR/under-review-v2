@@ -10,6 +10,8 @@
  * - ur_take_followup_response_completed — chip round finished; props: success, roundTripMs, sessionUserTurns, optional error
  *
  * Server logs: api/ur-take stdout JSON `ur_take_complete` includes liveMode, followUpsAttached, followUpsCount.
+ *
+ * Offline aggregation / guardrails: `src/lib/urTakeTelemetryMetrics.js`.
  */
 
 import { track } from "@vercel/analytics";
