@@ -9,6 +9,7 @@ import {
   sentenceFailsTripleDoubleLogic,
 } from "./_urTakeBetIntegrity.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
+import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
 
 /** Appended to system prompt on regeneration attempt (Part 3 self-check as instructions). */
 export const QA_REGENERATION_SYSTEM_SUFFIX = `
@@ -23,6 +24,7 @@ Rewrite the entire response from scratch. Verify before you answer:
 - Include at least one explicit probability or confidence qualification (percentage, implied framing, or calibrated verbal probability).
 - Correct sport-specific betting logic for the league discussed; remove overconfidence on volatile markets (HR, TD, goal scorer, outrights, fastest lap, etc.).
 - Add explicit role, usage, matchup, weather, or pace context where relevant — do not present thin-context props as safe.
+- UnderReview voice: no "projection invalid" or cold "player unavailable" when status is still uncertain; no triple-decimal stat spam; no STATUS SHIFT / STRUCTURAL REALITY / PROP SHIFT headers in user text.
 `;
 
 /** Empty — internal QA must never prepend visible boilerplate; sanitizer strips echoes. */
@@ -137,6 +139,104 @@ function escapeReg(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const HARD_BANNED_HEADER_LINE =
+  /^(?:STRUCTURAL REALITY|STATUS SHIFT|PROP SHIFT|REPLACEMENT WATCHLIST|LIVE TRIGGER)\b[:\s-]*/i;
+
+function normalizeStatLikeDecimals(text) {
+  let s = String(text || "");
+  s = s.replace(
+    /\b(\d+)\.(\d{2,})\s*(pts|points|rebounds?|assists?|PRA|pra|ast|reb|rpg|apg|ppg|yds|yd)\b/gi,
+    (_, a, b, unit) => {
+      const n = parseFloat(`${a}.${b}`);
+      if (!Number.isFinite(n)) return _;
+      return `~${Math.round(n)} ${unit}`;
+    },
+  );
+  s = s.replace(/\b(\d+)\.(\d{2,})\s+(PRA|pra)\b/g, (_, a, b, unit) => {
+    const n = parseFloat(`${a}.${b}`);
+    if (!Number.isFinite(n)) return `${a}.${b} ${unit}`;
+    return `~${Math.round(n)} ${unit}`;
+  });
+  return s;
+}
+
+function stripBannedHeaders(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(HARD_BANNED_HEADER_LINE, "").trimEnd())
+    .filter((line) => line.trim().length > 0)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function sanitizeRoboticPhrases(text) {
+  return String(text || "")
+    .replace(/\bprojection invalid\b/gi, "can't play that directly")
+    .replace(
+      /\bplayer unavailable\b/gi,
+      "if he's out, I'd pivot to a different angle",
+    )
+    .replace(/\bstatistically speaking\b/gi, "from the numbers")
+    .replace(/\bbased on analysis\b/gi, "from this spot");
+}
+
+function patchStatusContradiction(text) {
+  let s = String(text || "");
+  s = s.replace(
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:is\s+)?probable\b[\s\S]{0,90}\b(?:is\s+out|ruled\s+out|definitely\s+out)\b/g,
+    (_, name) => `${name} is still uncertain — if he's in, play it; if he sits, pivot.`,
+  );
+  s = s.replace(
+    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:is\s+)?questionable\b[\s\S]{0,90}\b(?:is\s+out|ruled\s+out|definitely\s+out)\b/g,
+    (_, name) => `${name} is still uncertain — if he's in, play it; if he sits, pivot.`,
+  );
+  return s;
+}
+
+function appendSlateDiversificationLine(text, options) {
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  if (!options?.slateWidePropQuestion || !/\bparlay\b/i.test(raw)) return raw;
+  if (/\b(same[- ]?game|SGP)\b/i.test(raw)) return raw;
+  const matchups = raw.match(/\b[A-Z]{2,4}\s*[@v.\s]+\s*[A-Z]{2,4}\b/g) || [];
+  const isSingleGame = new Set(matchups).size <= 1;
+  if (!isSingleGame || !/\d\s*(?:leg|legs)\b/i.test(raw)) return raw;
+  if (/diversify across the slate/i.test(raw)) return raw;
+  return `${raw}\n\nThese are all from one game — you might want to diversify across the slate.`;
+}
+
+function countSlipLegMentions(text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const indexed = lines.filter((l) => /^(\d+[\).\]-]|leg\s*\d+|#\d+)/i.test(l)).length;
+  if (indexed > 0) return indexed;
+  const explicit = String(text || "").match(/\bleg\s+\d+\b/gi);
+  return explicit ? explicit.length : 0;
+}
+
+function enforceSlipCompleteness(text, options) {
+  if (String(options?.intent || "") !== "slip_review") return String(text || "").trim();
+  const expected = Number(options?.expectedSlipLegCount);
+  if (!Number.isFinite(expected) || expected <= 0) return String(text || "").trim();
+  const seen = countSlipLegMentions(text);
+  if (seen >= expected) return String(text || "").trim();
+  if (/might be missing a leg here/i.test(String(text || ""))) return String(text || "").trim();
+  return `${String(text || "").trim()}\n\nmight be missing a leg here — worth a closer look`;
+}
+
+function applyDeterministicQaEnforcement(text, options = {}) {
+  let s = String(text || "");
+  s = normalizeStatLikeDecimals(s);
+  s = stripBannedHeaders(s);
+  s = sanitizeRoboticPhrases(s);
+  s = patchStatusContradiction(s);
+  s = appendSlateDiversificationLine(s, options);
+  s = enforceSlipCompleteness(s, options);
+  return s.trim();
+}
+
 /**
  * Same-game coherence when caller passes matchup constraint (NBA handler sets this).
  * @param {string} text
@@ -185,6 +285,9 @@ function rosterCoherenceFlag(text, ctx) {
  * @param {object} [options.nbaContext] — optional playerStats for prop realism
  * @param {{ allowedTeamAbbreviations?: string[], knownPlayerToTeam?: Map<string,string> }} [options.coherenceContext]
  * @param {string} [options.intent]
+ * @param {boolean} [options.liveMode]
+ * @param {string} [options.question]
+ * @param {boolean} [options.slateWidePropQuestion]
  * @returns {UrTakeQaLintResult}
  */
 export function lintUrTakeOutput(text, options = {}) {
@@ -262,6 +365,58 @@ export function lintUrTakeOutput(text, options = {}) {
     if (!issues.includes(si.code)) issues.push(si.code);
   }
 
+  if (/\bprojection invalid\b/i.test(raw)) {
+    issues.push("robotic_projection_invalid_phrase");
+    critical.push("robotic_projection_invalid_phrase");
+  }
+
+  if (/\bplayer unavailable\b/i.test(raw) && /\b(probable|questionable|doubtful|gtd|game[- ]time|uncertain|might play|if he)\b/i.test(raw)) {
+    issues.push("status_language_player_unavailable_mismatch");
+    critical.push("status_language_player_unavailable_mismatch");
+  }
+
+  if (/\b(probable|questionable)\b/i.test(raw) && /\b(is out|ruled out|definitely out)\b/i.test(raw)) {
+    issues.push("status_contradiction_probable_vs_out");
+    critical.push("status_contradiction_probable_vs_out");
+  }
+
+  if (/\b\d+\.\d{3,}\b/.test(raw) && /\b(?:pts|points|rebounds?|assists?|PRA|pra|ast|reb|yds)\b/i.test(raw)) {
+    issues.push("over_precise_decimal_stats");
+    critical.push("over_precise_decimal_stats");
+  }
+
+  if (/\b(?:STATUS SHIFT|STRUCTURAL REALITY|PROP SHIFT|REPLACEMENT WATCHLIST|LIVE TRIGGER)\b/i.test(raw)) {
+    issues.push("report_style_header_echo");
+    critical.push("report_style_header_echo");
+  }
+
+  if (options.liveMode) {
+    if (!/Best look:/i.test(raw)) {
+      issues.push("live_mode_missing_best_look");
+    }
+    if (!/Watch:/i.test(raw)) {
+      issues.push("live_mode_missing_watch");
+    }
+    const paragraphs = raw
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const hasDenseLiveParagraph = paragraphs.some((p) => {
+      const sentences = splitIntoSentences(p);
+      return p.length >= 300 || sentences.length >= 5;
+    });
+    if (hasDenseLiveParagraph) {
+      issues.push("live_mode_dense_paragraph");
+    }
+  }
+
+  if (options.slateWidePropQuestion && /\bparlay\b/i.test(raw) && !/\b(same[- ]?game|SGP)\b/i.test(raw)) {
+    const abbrPairMatches = raw.match(/\b[A-Z]{2,4}\s*[@v.\s]+\s*[A-Z]{2,4}\b/g) || [];
+    if (abbrPairMatches.length < 2 && /\d\s*(?:leg|legs)\b/i.test(raw)) {
+      issues.push("slate_wide_answer_may_be_single_game_parlay");
+    }
+  }
+
   /** +1 correct logic, +1 probability, +1 risk; -2 factual/stat; -1 overconfidence */
   const FACT_LOGIC_CODES = new Set([
     "stat_logic_error_remaining",
@@ -273,6 +428,11 @@ export function lintUrTakeOutput(text, options = {}) {
   ]);
   const MISLEADING_OR_FACT_CRITICAL = new Set([
     ...FACT_LOGIC_CODES,
+    "robotic_projection_invalid_phrase",
+    "status_language_player_unavailable_mismatch",
+    "status_contradiction_probable_vs_out",
+    "over_precise_decimal_stats",
+    "report_style_header_echo",
     "cross_sport_overconfidence",
     "volatile_market_floor_misuse",
     "high_risk_overconfidence_language",
@@ -353,7 +513,9 @@ export function lintUrTakeOutput(text, options = {}) {
  * }}
  */
 export function runUnderReviewPostProcess(text, options = {}) {
-  const bi = applyBetIntegrityPostProcess(text, options);
+  const voiceCleaned = sanitizeOverFormalOutput(text);
+  const deterministicCleaned = applyDeterministicQaEnforcement(voiceCleaned, options);
+  const bi = applyBetIntegrityPostProcess(deterministicCleaned, options);
   const lint = lintUrTakeOutput(bi.text, {
     ...options,
     betIntegrityIssues: bi.issues,

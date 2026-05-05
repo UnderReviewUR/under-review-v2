@@ -371,10 +371,9 @@ test("blocked unavailable response excludes out player from role gainers and end
   });
   assert.equal(out.status, 200);
   assert.equal(out.payload.decisionMode, "blocked_unavailable");
-  assert.match(out.payload.response, /STATUS SHIFT/i);
-  assert.match(out.payload.response, /REPLACEMENT WATCHLIST/i);
-  assert.match(out.payload.response, /PROP SHIFT/i);
-  assert.match(out.payload.response, /LIVE TRIGGER/i);
+  assert.match(out.payload.response, /How the board shifts/i);
+  assert.match(out.payload.response, /Replacement looks/i);
+  assert.match(out.payload.response, /\bWatch\b/i);
   assert.match(out.payload.response, /Tyrese Maxey|Joel Embiid|Kelly Oubre Jr\./i);
   assert.doesNotMatch(out.payload.response, /watch Austin Reaves volume up/i);
   assert.doesNotMatch(out.payload.response, /Lean Austin Reaves .* toward over/i);
@@ -595,7 +594,7 @@ test("status_only routes upstream and returns consistent confidence", async () =
   });
   assert.equal(out.status, 200);
   assert.equal(out.payload.decisionMode, "status_only");
-  assert.ok(/^STATUS\b/i.test(out.payload.response));
+  assert.ok(/Joel Embiid/i.test(out.payload.response));
   assert.notEqual(out.payload.take.confidence, "Unspecified");
   assert.match(out.payload.take.confidence, /^(Low|Medium|High)\b/);
 });
@@ -612,7 +611,7 @@ test("status_plus_consequence keeps routing and consequence block", async () => 
   });
   assert.equal(out.status, 200);
   assert.equal(out.payload.decisionMode, "status_plus_consequence");
-  assert.ok(/BETTING CONSEQUENCE/i.test(out.payload.response));
+  assert.ok(/How to play it/i.test(out.payload.response));
 });
 
 test("actionable output strips internal labels and backfills take confidence", async () => {

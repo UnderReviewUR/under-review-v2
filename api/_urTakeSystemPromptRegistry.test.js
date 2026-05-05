@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildBettingStyleAppendix,
+  buildLiveModeVoicePrompt,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
   resolveEvidenceSparsityProfile,
@@ -39,7 +40,7 @@ test("composeRegisteredUrTakeSystemPrompt prepends memoryBlock when provided", (
   assert.match(p, /SESSION MEMORY NARRATIVE RULE/);
 });
 
-test("composeRegisteredUrTakeSystemPrompt includes voice lock and follow-up quality rules", () => {
+test("composeRegisteredUrTakeSystemPrompt includes UnderReview voice and follow-up quality rules", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
     contextQuality: "medium",
     sportHint: "nba",
@@ -49,14 +50,47 @@ test("composeRegisteredUrTakeSystemPrompt includes voice lock and follow-up qual
     mlbDecisionMode: null,
   });
   assert.match(p, /NO DATA UNAVAILABLE CLOSINGS \(mandatory\)/);
-  assert.match(p, /NBA NAME RESOLUTION \(mandatory\)/);
+  assert.match(p, /PLAYER VERIFICATION RULE — ALL SPORTS \(mandatory\)/);
   assert.match(p, /FORWARD HOOK DISCIPLINE \(mandatory\)/);
-  assert.match(p, /UR TAKE VOICE — MANDATORY FOR ALL RESPONSES/);
-  assert.match(p, /BANNED PHRASES \(never use\)/);
+  assert.match(p, /UNDERREVIEW VOICE — SHARP FRIEND, NOT A REPORT/);
+  assert.match(p, /Never "suggests", "indicates"/);
   assert.match(p, /THE ONE-LINE TEST/);
   assert.match(p, /FOLLOW-UP RESPONSE RULE — MANDATORY/);
   assert.match(p, /Treat every follow-up like a text reply from a friend who already knows the context/);
   assert.match(p, /STAT TERM LOCK/);
+  assert.match(
+    p,
+    /STATUS & TRUTH/,
+    "injury/status realism lives in the unified UnderReview voice block",
+  );
+});
+
+test("composeRegisteredUrTakeSystemPrompt injects slate-wide rule for best props tonight (NBA)", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    question: "best NBA props tonight",
+  });
+  assert.match(p, /SLATE-WIDE "BEST PROPS TONIGHT"/);
+  assert.match(p, /not only the matchup card/);
+});
+
+test("composeRegisteredUrTakeSystemPrompt appends slip review voice for slip_review", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    intent: "slip_review",
+  });
+  assert.match(p, /SLIP REVIEW VOICE \(mandatory — slip_review route\)/);
+  assert.match(p, /Acknowledge every leg the deterministic vision block lists/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt appends NBA decision spine for nba", () => {
@@ -173,6 +207,12 @@ test("composeRegisteredUrTakeSystemPrompt appends LIVE BET CONVICTION RULE when 
     liveSignals: { hasLiveKeyword: true },
   });
   assert.match(p, /LIVE BET CONVICTION RULE:/);
+});
+
+test("buildLiveModeVoicePrompt includes Best look and Watch shape", () => {
+  const p = buildLiveModeVoicePrompt();
+  assert.match(p, /\bBest look:/);
+  assert.match(p, /\bWatch:/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt honors injected evidenceSparsityProfile", () => {

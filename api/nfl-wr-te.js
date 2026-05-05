@@ -1,4 +1,6 @@
 // api/nfl-wr-te.js
+// Last verified: May 2026
+// Next update needed: August 2026 (training camp roster cuts)
 // NFL Wide Receiver + Tight End Database for UR TAKE
 // Source: PFR receiving stats
 // 2025 season = season ending Jan 2026 (current baseline)

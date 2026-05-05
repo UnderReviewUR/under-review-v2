@@ -39,6 +39,7 @@ import {
   nbaGameHasVerifiedBoxScore,
 } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
+import { getSlipImageRouteMeta } from "./_slipImageIntent.js";
 import { buildF1UrTakeContext } from "./f1.js";
 import {
   buildCoreFrameworkPrompt,
@@ -593,7 +594,7 @@ function isShortMarketFollowUp(question) {
   );
 }
 
-function detectIntent(question, hasImage) {
+export function detectIntent(question, hasImage) {
   const q = normalizeText(question);
 
   const hasExplicitSlipLanguage =
@@ -614,6 +615,9 @@ function detectIntent(question, hasImage) {
   if (q.includes("fade")) return "fade";
   if (q.includes("sleeper")) return "sleeper";
   if (q.includes("outright")) return "outright";
+  if (getSlipImageRouteMeta(String(question ?? ""), Boolean(hasImage)).routesToSlip) {
+    return "slip_review";
+  }
   if (
     q.includes("best props") ||
     q.includes("what props") ||
@@ -2987,11 +2991,11 @@ function buildNbaAvailabilityResponse({
         nbaContext,
         teamImpact,
       });
-      consequenceBlock = `\n\nBETTING CONSEQUENCE\n${targetedPlayer} is out — do not play direct props on this player.\n\nREPLACEMENT WATCHLIST\n${outPlan.replacementLines}\n\n${outPlan.shiftLine}\n\n${outPlan.liveTrigger}`;
+      consequenceBlock = `\n\nHow to play it\n${targetedPlayer} is out — do not play direct props on this player.\n\nReplacement looks\n${outPlan.replacementLines}\n\nProp reads\n${outPlan.shiftLine}\n\nWatch\n${String(outPlan.liveTrigger || "").replace(/^Live trigger:\s*/i, "").trim()}`;
     } else if (statusClass === "questionable" || statusClass === "doubtful") {
-      consequenceBlock = `\n\nBETTING CONSEQUENCE\nTreat ${targetedPlayer} props as contingent until final availability confirms. Avoid full-size exposure before status lock.`;
+      consequenceBlock = `\n\nHow to play it\nTreat ${targetedPlayer} props as contingent until final availability confirms. Avoid full-size exposure before status lock.`;
     } else {
-      consequenceBlock = `\n\nBETTING CONSEQUENCE\nNo explicit injury downgrade in current context. Use listed markets and matchup structure for any sizing decision.`;
+      consequenceBlock = `\n\nHow to play it\nNo explicit injury downgrade in current context. Use listed markets and matchup structure for any sizing decision.`;
     }
   }
 
@@ -4396,6 +4400,23 @@ export default async function handler(req, res) {
         nbaContext.rosterGrounding,
         nbaContext.todaysGames || [],
       );
+      if (
+        nbaContextFromClient &&
+        typeof nbaContextFromClient === "object" &&
+        Array.isArray(nbaContextFromClient.injuries) &&
+        nbaContextFromClient.injuries.length > 0
+      ) {
+        const merged = new Map();
+        for (const row of nbaContext.injuries || []) {
+          const k = String(row?.player || "").trim().toLowerCase();
+          if (k) merged.set(k, row);
+        }
+        for (const row of nbaContextFromClient.injuries) {
+          const k = String(row?.player || "").trim().toLowerCase();
+          if (k) merged.set(k, row);
+        }
+        nbaContext = { ...nbaContext, injuries: [...merged.values()] };
+      }
     } catch (err) {
       console.warn("[ur-take] buildNbaUrTakeBoard failed:", err?.message || err);
       nbaContext = nbaContextFromClient;
@@ -4813,18 +4834,18 @@ ${nbaLiveNoPropSystemPromptBlock}`;
       teamImpact: affected,
     });
     const blockedLead = `${nbaInvalidation.targetedPlayer} is ${nbaInvalidation.statusDisplay || "out"}. Direct prop projection is invalid.`;
-    const blockedHeader = "STATUS SHIFT";
-    const blockedResponse = `${blockedHeader}
+    const watchBody = String(outPlan.liveTrigger || "").replace(/^Live trigger:\s*/i, "").trim();
+    const blockedResponse = `How the board shifts
 ${blockedLead}
 
-REPLACEMENT WATCHLIST
+Replacement looks
 ${outPlan.replacementLines}
 
-PROP SHIFT
+Prop reads
 ${outPlan.shiftLine}
 
-LIVE TRIGGER
-${outPlan.liveTrigger}
+Watch
+${watchBody}
 
 CONFIDENCE
 ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifier.reason}` : ""}`;
@@ -6183,6 +6204,12 @@ ${continuationRule}`;
             ? 2200
             : outputJsonMode === "tier1_json"
               ? 700
+              : outputJsonMode === "plain" &&
+                  !isConversationFollowUp &&
+                  Boolean(liveSignals?.hasLiveKeyword)
+                ? isPro
+                  ? 700
+                  : 500
               : isPro ? 1400 : 800;
 
     // Pro depth guidance only for plain-text full cards — never override JSON contracts,
@@ -6251,6 +6278,7 @@ You are responding to a Pro subscriber. Apply the following:
       sport: sportHint,
       nbaContext: nbaContextForModel,
       intent,
+      liveMode: Boolean(liveSignals?.hasLiveKeyword),
       coherenceContext: qaCoherenceContext,
     };
 

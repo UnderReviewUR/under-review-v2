@@ -85,3 +85,117 @@ test("quality score components respond to probability and risk cues", () => {
   assert.ok(lint.score >= 2);
   assert.equal(lint.shouldRegenerate, false);
 });
+
+test("QA: triple-decimal stats near pts/PRA trigger regeneration", () => {
+  const t =
+    "Projection lands at 13.584 pts vs a soft matchup — lean over if minutes hold.";
+  const lint = lintUrTakeOutput(t, { betIntegrityIssues: [] });
+  assert.ok(lint.criticalRegenerationCodes.includes("over_precise_decimal_stats"));
+});
+
+test("QA: projection invalid phrase triggers regeneration", () => {
+  const lint = lintUrTakeOutput("projection invalid for this market.", {
+    betIntegrityIssues: [],
+  });
+  assert.ok(lint.criticalRegenerationCodes.includes("robotic_projection_invalid_phrase"));
+});
+
+test("QA: player unavailable + probable language mismatch", () => {
+  const lint = lintUrTakeOutput(
+    "Player unavailable — he's probable but I'm fading the points anyway.",
+    { betIntegrityIssues: [] },
+  );
+  assert.ok(
+    lint.criticalRegenerationCodes.includes("status_language_player_unavailable_mismatch"),
+  );
+});
+
+test("QA: probable vs ruled out contradiction (Edwards)", () => {
+  const lint = lintUrTakeOutput(
+    "Anthony Edwards is probable for tonight but he is ruled out — skip the prop.",
+    { betIntegrityIssues: [] },
+  );
+  assert.ok(lint.criticalRegenerationCodes.includes("status_contradiction_probable_vs_out"));
+});
+
+test("QA: report-style headers echo", () => {
+  const lint = lintUrTakeOutput("STRUCTURAL REALITY: pace is fast.", {
+    betIntegrityIssues: [],
+  });
+  assert.ok(lint.criticalRegenerationCodes.includes("report_style_header_echo"));
+});
+
+test("post-process strips triple decimals from user-facing output", () => {
+  const post = runUnderReviewPostProcess("Model edge ~13.584 pts vs line.", {
+    sport: "nba",
+  });
+  assert.ok(!/\b13\.584\b/.test(post.text));
+});
+
+test("QA: slate-wide ask + single-game 4-leg parlay heuristic", () => {
+  const t =
+    "4 legs on this parlay, all from PHI @ NYK — spread, points, boards, assists.";
+  const lint = lintUrTakeOutput(t, {
+    betIntegrityIssues: [],
+    slateWidePropQuestion: true,
+  });
+  assert.ok(lint.issueCodes.includes("slate_wide_answer_may_be_single_game_parlay"));
+});
+
+test("post-process strips banned headers and replaces robotic phrases", () => {
+  const raw = `STRUCTURAL REALITY: edge is pace.\nSTATUS SHIFT: player unavailable.\nThis projection invalid setup is thin.`;
+  const post = runUnderReviewPostProcess(raw, { sport: "nba" });
+  assert.ok(!/\bSTRUCTURAL REALITY\b/i.test(post.text));
+  assert.ok(!/\bSTATUS SHIFT\b/i.test(post.text));
+  assert.ok(!/\bprojection invalid\b/i.test(post.text));
+  assert.match(post.text, /can't play that directly/i);
+});
+
+test("post-process adds diversification line for slate-wide one-game parlay", () => {
+  const raw = "4 legs parlay in PHI @ NYK only — points, boards, assists, spread.";
+  const post = runUnderReviewPostProcess(raw, {
+    sport: "nba",
+    slateWidePropQuestion: true,
+  });
+  assert.match(post.text, /diversify across the slate/i);
+});
+
+test("post-process rewrites probable/out contradiction to conditional phrasing", () => {
+  const raw = "Anthony Edwards is probable and ruled out in this report.";
+  const post = runUnderReviewPostProcess(raw, { sport: "nba" });
+  assert.ok(!/\bprobable\b[\s\S]{0,80}\b(?:ruled out|is out)\b/i.test(post.text));
+  assert.match(post.text, /if he's in/i);
+  assert.match(post.text, /if he sits/i);
+});
+
+test("post-process appends slip completeness warning when legs are missing", () => {
+  const raw = "Leg 1 — over points. Leg 2 — over rebounds.";
+  const post = runUnderReviewPostProcess(raw, {
+    sport: "nba",
+    intent: "slip_review",
+    expectedSlipLegCount: 4,
+  });
+  assert.match(post.text, /missing a leg here — worth a closer look/i);
+});
+
+test("QA: flags dense live paragraphs", () => {
+  const dense =
+    "Best look: take the live over here because pace, transition frequency, foul profile, and matchup dynamics all project sustained scoring through multiple lineup combinations while the market lags possessions and efficiency changes across recent minutes. Watch: only back off if the game slows to a walk and second-unit shot quality collapses.";
+  const lint = lintUrTakeOutput(dense, { betIntegrityIssues: [], liveMode: true });
+  assert.ok(lint.issueCodes.includes("live_mode_dense_paragraph"));
+});
+
+test("QA: flags report-style headers in live output", () => {
+  const live = "Best look: Over 219.5.\nLIVE TRIGGER: if pace stays high.\nWatch: foul trouble.";
+  const lint = lintUrTakeOutput(live, { betIntegrityIssues: [], liveMode: true });
+  assert.ok(lint.criticalRegenerationCodes.includes("report_style_header_echo"));
+});
+
+test("QA: clean Best look / Also like / Watch live response passes", () => {
+  const clean =
+    "Best look: Knicks team total over 107.5 if pace stays above average.\nAlso like: Brunson 2H points over if his usage holds.\nWatch: if foul trouble cuts minutes, this edge weakens.";
+  const lint = lintUrTakeOutput(clean, { betIntegrityIssues: [], liveMode: true });
+  assert.equal(lint.shouldRegenerate, false);
+  assert.ok(!lint.issueCodes.includes("report_style_header_echo"));
+  assert.ok(!lint.issueCodes.includes("live_mode_dense_paragraph"));
+});

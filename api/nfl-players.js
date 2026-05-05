@@ -1,4 +1,6 @@
 // api/nfl-players.js
+// Last verified: May 2026
+// Next update needed: August 2026 (training camp roster cuts)
 // NFL Player Database for UR TAKE
 // QB data: 2024 PFR stats as baseline, 2025/2026 roster situations from Ourlads (March 2026)
 // Auto-updated weekly via api/nfl-sync.js

@@ -1356,6 +1356,152 @@ const BDL_TEAM_ABBR_BY_ID = Object.fromEntries(
   Object.entries(BDL_TEAM_ID_BY_ABBR).map(([abbr, id]) => [String(id), abbr]),
 );
 
+/** Canonical BDL abbr → ESPN roster URL slug (site.api.espn.com/.../teams/{slug}/roster). */
+const BDL_ABBR_TO_ESPN_SLUG = {
+  ATL: "atl",
+  BOS: "bos",
+  BKN: "bkn",
+  CHA: "cha",
+  CHI: "chi",
+  CLE: "cle",
+  DAL: "dal",
+  DEN: "den",
+  DET: "det",
+  GSW: "gs",
+  HOU: "hou",
+  IND: "ind",
+  LAC: "lac",
+  LAL: "lal",
+  MEM: "mem",
+  MIA: "mia",
+  MIL: "mil",
+  MIN: "min",
+  NOP: "no",
+  NYK: "ny",
+  OKC: "okc",
+  ORL: "orl",
+  PHI: "phi",
+  PHX: "phx",
+  POR: "por",
+  SAC: "sac",
+  SAS: "sa",
+  TOR: "tor",
+  UTA: "utah",
+  WAS: "wsh",
+};
+
+/**
+ * Where ESPN's short abbreviations differ from our canonical 3-letter codes (BDL/UR).
+ * Teams not listed here match BDL (ATL, BOS, etc.).
+ */
+const ESPN_TO_BDL_ABBR = {
+  GS: "GSW",
+  SA: "SAS",
+  NO: "NOP",
+  NY: "NYK",
+  PHO: "PHX",
+  BRK: "BKN",
+  CHO: "CHA",
+  NJN: "BKN",
+  UTAH: "UTA",
+  WSH: "WAS",
+  WAS: "WAS",
+};
+
+function normalizeRosterPlayerName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * @param {string} espnTeamAbbr  ESPN roster slug or short abbr (e.g. "phi", "PHI", "gs")
+ * @returns {Promise<Array<{ name: string, position: string, espnId: number|null, status: string }>>}
+ */
+async function fetchEspnRosterForTeam(espnTeamAbbr) {
+  const slug = String(espnTeamAbbr || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "");
+  if (!slug) return [];
+  const url = `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${slug}/roster`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const json = await res.json();
+    let athletes = [];
+    if (Array.isArray(json?.athletes)) {
+      athletes = json.athletes;
+    } else if (Array.isArray(json?.teams?.[0]?.roster)) {
+      athletes = json.teams[0].roster;
+    } else if (Array.isArray(json?.teams?.[0]?.athletes)) {
+      athletes = json.teams[0].athletes;
+    }
+    return athletes
+      .map((a) => {
+        const statusObj = a?.status;
+        let status = "";
+        if (statusObj && typeof statusObj === "object") {
+          status = String(statusObj.type || statusObj.name || statusObj.abbreviation || "").toLowerCase();
+        } else {
+          status = String(statusObj || "").toLowerCase();
+        }
+        return {
+          name: String(a?.displayName || "").trim(),
+          position: String(a?.position?.abbreviation || a?.position || "").trim(),
+          espnId: a?.id != null ? Number(a.id) : null,
+          status: status || "unknown",
+        };
+      })
+      .filter((row) => row.name);
+  } catch (err) {
+    console.warn(`[nba] fetchEspnRosterForTeam(${slug})`, err?.message || err);
+    return [];
+  }
+}
+
+/**
+ * Adds ESPN-only names so verified roster context matches active NBA rosters when BDL lags (e.g. rookies).
+ * Only runs for `canonicalTeamAbbrevs` (typically tonight's slate team ids → abbrs).
+ */
+async function mergeEspnRosterFallbackRows(bdlRosterRows, canonicalTeamAbbrevs) {
+  const teams = [...new Set((canonicalTeamAbbrevs || []).map((a) => canonicalizeTeamAbbr(a)).filter(Boolean))];
+  if (!teams.length) return Array.isArray(bdlRosterRows) ? bdlRosterRows : [];
+
+  const roster = Array.isArray(bdlRosterRows) ? [...bdlRosterRows] : [];
+  const seen = new Set();
+  for (const row of roster) {
+    const t = canonicalizeTeamAbbr(row?.team);
+    const n = normalizeRosterPlayerName(row?.name);
+    if (t && n) seen.add(`${t}|${n}`);
+  }
+
+  for (const abbr of teams) {
+    const slug = BDL_ABBR_TO_ESPN_SLUG[abbr];
+    if (!slug) continue;
+    const espnList = await fetchEspnRosterForTeam(slug);
+    for (const e of espnList) {
+      const n = normalizeRosterPlayerName(e.name);
+      const key = `${abbr}|${n}`;
+      if (!n || seen.has(key)) continue;
+      seen.add(key);
+      roster.push({
+        playerId: null,
+        name: e.name,
+        team: abbr,
+        position: e.position || "",
+        espnId: e.espnId,
+        espnStatus: e.status,
+        source: "espn_roster_fallback",
+        statsNote: "ESPN roster only — no stats available",
+        recentGames: [],
+      });
+    }
+  }
+  return roster;
+}
+
 /** Active roster pull for one or more team IDs from BDL's /v1/players/active endpoint. */
 async function fetchActiveRosterPlayers(bdlKey, teamIds) {
   const ids = (teamIds || []).filter(Boolean);
@@ -1436,7 +1582,13 @@ async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
  */
 async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
   rosterDiag.lastSeasonAverageTeamIds = [...(teamIds || [])];
-  const roster = await fetchActiveRosterPlayers(bdlKey, teamIds);
+  const canonicalAbbrevs = (teamIds || [])
+    .map((id) => BDL_TEAM_ABBR_BY_ID[String(id)])
+    .filter(Boolean);
+  let roster = await fetchActiveRosterPlayers(bdlKey, teamIds);
+  if (canonicalAbbrevs.length) {
+    roster = await mergeEspnRosterFallbackRows(roster, canonicalAbbrevs);
+  }
   if (!roster.length) {
     rosterDiag.lastSeasonAverageReturnedRows = 0;
     return [];
@@ -1449,6 +1601,32 @@ async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
     while (cursor < roster.length) {
       const idx = cursor++;
       const p = roster[idx];
+      if (p?.source === "espn_roster_fallback") {
+        out[idx] = {
+          playerId: null,
+          name: p.name,
+          team: p.team,
+          position: p.position || "",
+          pts: null,
+          reb: null,
+          ast: null,
+          stl: null,
+          blk: null,
+          pf: null,
+          min: null,
+          fg_pct: null,
+          fg3_pct: null,
+          ft_pct: null,
+          games_played: 0,
+          season,
+          source: "espn_roster_fallback",
+          statsNote: p.statsNote || "ESPN roster only — no stats available",
+          recentGames: Array.isArray(p.recentGames) ? p.recentGames : [],
+          ...(p.espnId != null ? { espnId: p.espnId } : {}),
+          ...(p.espnStatus ? { espnStatus: p.espnStatus } : {}),
+        };
+        continue;
+      }
       const avg = await fetchSeasonAverageForPlayer(bdlKey, season, p.playerId);
       out[idx] = {
         playerId: p.playerId,

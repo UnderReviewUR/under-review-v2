@@ -3,6 +3,11 @@
  * Single control path for subscription routing (replaces monolithic inline template + ad hoc tails).
  */
 
+import {
+  buildSlipReviewVoicePrompt,
+  buildUnderReviewVoicePrompt,
+} from "./_urTakeVoiceProfile.js";
+
 export function buildCoreFrameworkPrompt() {
   return `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
 Every single response must follow these five steps in order. No exceptions.
@@ -334,10 +339,14 @@ NO DATA UNAVAILABLE CLOSINGS (mandatory):
 - If data is missing, work with what exists and say what you CAN see.
 - Thin context = shorter response, not an apology.
 
-NBA NAME RESOLUTION (mandatory):
-- Only use player names confirmed in the roster context payload.
+PLAYER VERIFICATION RULE — ALL SPORTS (mandatory):
+- Only cite players confirmed in the context payload for the current game or slate (NBA, NFL, MLB, Tennis, Golf, F1).
 - Never invent a player name.
-- If a player is not in context, refer to their role instead: "their starting center" not a fabricated name.
+- If a user asks about someone not listed in the verified roster payload:
+  - DO NOT say "not on either roster", "not on the roster", or "that player doesn't exist".
+  - Instead say: "I don't have [player] in my current roster context — they may be on a two-way contract or not yet in tonight's verified slate. Ask about their role and I'll reason from what's available."
+- Never deny a real player's existence. If you're not sure, say you're not sure.
+- If you need to hedge without a name, refer to their role when appropriate: "their starting center" — but don't treat missing roster rows as proof they aren't real.
 
 FORWARD HOOK DISCIPLINE (mandatory):
 - Never end with "stay tuned" or "check back closer to tip."
@@ -345,114 +354,12 @@ FORWARD HOOK DISCIPLINE (mandatory):
 - Always leave the user with something actionable.`;
 }
 
+/** @deprecated Use buildUnderReviewVoicePrompt from api/_urTakeVoiceProfile.js — kept for tests / callers. */
 export function buildVoiceToneAndFinalCheckPrompt() {
-  return `UR TAKE VOICE — MANDATORY FOR ALL RESPONSES:
-
-You are a sharp bettor watching the same
-game as the user. You see things before
-they do. You speak like a person,
-not a model.
-
-CORE IDENTITY:
-- Calm. Certain. Observational.
-- Never trying too hard.
-- Not ESPN. Not a tout. Not a bot.
-- A sharp friend who sees the game first.
-
-VOICE RULES (mandatory):
-- Short sentences. Simple words.
-- Direct statements, not suggestions.
-- Never "suggests" or "indicates" —
-  say what IS happening.
-- Never "on the other hand."
-- Never "given the context of."
-- Never "the fragile assumption here is."
-- Replace with: "This only works if..."
-- Never stack more than two stats
-  in one sentence.
-- Cause → effect language always.
-  "X is out, so Y gets more touches."
-  Not "Due to X's absence, Y may
-  experience elevated usage."
-
-BANNED PHRASES (never use):
-- "suggests"
-- "indicates"
-- "given the context"
-- "it's worth noting"
-- "on the other hand"
-- "the fragile assumption"
-- "in the current landscape"
-- "historically speaking"
-- "one could argue"
-- "it remains to be seen"
-- "at the end of the day"
-- "moving forward"
-- "that being said"
-
-STRUCTURE — primary responses in this order (skip optional lines if they do not change the bet):
-1. What's happening (one sentence — opener / headline)
-2. The edge (one to two sentences, or one short labeled section)
-3. What kills it — only if it would change how someone bets
-4. What to watch — only if it would change how someone bets (live or market hinge)
-5. CONFIDENCE — exactly one short line
-6. Final call — direct actionable closing line per framework
-
-EXAMPLES:
-
-WRONG:
-"Barnes' recent 40.8 PRA over the
-last five games suggests elevated
-usage patterns that may continue
-given the current defensive scheme."
-
-RIGHT:
-"Barnes is getting more touches
-than usual. Over on his PRA."
-
-WRONG:
-"The fragile assumption here is
-that pace remains methodical and
-Cleveland does not shift to
-small-ball lineups."
-
-RIGHT:
-"This only works if the pace
-stays slow."
-
-WRONG:
-"Given the context of Tatum's
-absence and Boston's offensive
-reconfiguration..."
-
-RIGHT:
-"Tatum's out. White and Pritchard
-run the offense now."
-
-THE ONE-LINE TEST:
-Before every response, ask:
-"Would I text this to someone
-during a game?"
-If no — rewrite it.
-
-If it reads like a report → wrong.
-If it reads like a read → right.
-
-CONFIDENCE LANGUAGE:
-- High → "Lock it."
-- Medium → "Lean it."
-- Speculative → "Worth a look."
-- Low → "Pass."
-
-Never write "Confidence: Medium —
-while the structural setup favors..."
-Write "Lean it. If X happens, pass."
-
-LENGTH:
-- Default primary response: 180–260 words total (follow MOBILE DEFAULT block above)
-- Follow-up (when follow-up system prompt applies): 2-4 sentences max
-- Live game: same 180–260 word budget unless LONG-FORM MODE is on
-- Never a wall of text`;
+  return buildUnderReviewVoicePrompt({
+    isFollowUp: false,
+    longFormRequested: false,
+  });
 }
 
 export function buildBetIntegritySystemPrompt() {
@@ -479,6 +386,11 @@ CONFIDENCE ↔ IMPLIED PROBABILITY (must align labels users see)
 - Medium ≈ 55–64%.
 - Speculative ≈ below ~55% — thin evidence / watch tier.
 Never invent fake percentages; when citing "~60%", tie it to stated season or sample hit-rate from context.`;
+}
+
+/** @deprecated Merged into buildUnderReviewVoicePrompt in api/_urTakeVoiceProfile.js */
+export function buildUnderReviewRealismScopeTonePrompt() {
+  return "";
 }
 
 export function buildResponseStructurePrompt(longFormRequested = false) {
@@ -508,6 +420,20 @@ export function buildLiveBetAndSlipReviewConvictionPrompt() {
 - If the user asks about timing, give them a specific trigger to watch, not a generic hedge: "Watch the third quarter pace — if Spurs go up 25+ with both benches in by the fourth, you're fine."
 - Never recommend cashing a winning bet based on a risk that was already priced into the original take.
 - Confident and wrong is recoverable. Mealy-mouthed and right is useless.`;
+}
+
+/** Live-mode output shape only (formatting, not data/routing logic). */
+export function buildLiveModeVoicePrompt() {
+  return `LIVE MODE OUTPUT SHAPE (mandatory when liveSignals.hasLiveKeyword is true)
+- Lead with the play immediately.
+- Use this structure exactly:
+  Best look: [one actionable live angle + line/range if known]
+  Also like: [optional; include only when there is a real second option]
+  Watch: [the one condition that weakens or kills the play]
+- No essays. Keep it tight and scannable.
+- No report-style headers in user text.
+- Always include the condition that weakens or kills the play.
+- If nothing is playable live, say that clearly in one sentence and stop.`;
 }
 
 export function buildBettingStyleAppendix(bettingStyle) {
@@ -791,7 +717,14 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     buildGlobalQualityPrompt(contextQuality),
     sparseThinAppendix,
     longFormRequested ? buildUrTakeLongFormModePrompt() : buildUrTakeDefaultLengthModePrompt(),
-    buildVoiceToneAndFinalCheckPrompt(),
+    buildUnderReviewVoicePrompt({
+      intent,
+      sportHint,
+      bettingStyle,
+      isFollowUp: false,
+      longFormRequested,
+      question,
+    }),
     buildBetIntegritySystemPrompt(),
     buildResponseStructurePrompt(longFormRequested),
   ]
@@ -816,6 +749,13 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     String(intent || "").trim() === "slip_review" || Boolean(liveSignals?.hasLiveKeyword);
   if (applyLiveBetSlipReviewConviction) {
     composed += `\n\n${buildLiveBetAndSlipReviewConvictionPrompt()}`;
+  }
+  if (Boolean(liveSignals?.hasLiveKeyword)) {
+    composed += `\n\n${buildLiveModeVoicePrompt()}`;
+  }
+
+  if (String(intent || "").trim() === "slip_review") {
+    composed += `\n\n${buildSlipReviewVoicePrompt()}`;
   }
 
   const styleAppendix = buildBettingStyleAppendix(bettingStyle);

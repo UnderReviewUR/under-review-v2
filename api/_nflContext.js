@@ -356,7 +356,9 @@ export async function buildCanonicalNflContext(options = {}) {
   const draftBundle = getActiveDraftBundle();
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
   const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
-  let promptContext = [buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  const nflRosterVerificationBanner =
+    "NOTE: NFL roster data last verified May 2026. Rookie class from 2025 draft integrated via ESPN roster fetch. For 2025 draftees not in static database, use ESPN roster context only.";
+  let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
 
   const depthData = await getDurableJson("nfl_depth_chart");
   const depthFiltered =

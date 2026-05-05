@@ -1,4 +1,6 @@
 // api/nfl-rb.js
+// Last verified: May 2026
+// Next update needed: August 2026 (training camp roster cuts)
 // NFL Running Back Database for UR TAKE
 // Source: PFR rushing stats
 // 2025 season = season ending Jan 2026 (current baseline)
