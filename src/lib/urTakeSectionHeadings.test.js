@@ -36,3 +36,9 @@ test("extractUrTakeSectionHeading splits Label: body for known headings", () => 
   assert.equal(extractUrTakeSectionHeading("THE PLAY"), null);
   assert.equal(extractUrTakeSectionHeading("This is a normal sentence."), null);
 });
+
+test("extractUrTakeSectionHeading rejects short candidates and game-clock refs (Q4, H1)", () => {
+  assert.equal(extractUrTakeSectionHeading("Q4: tight bench rotation."), null);
+  assert.equal(extractUrTakeSectionHeading("H1: fast pace."), null);
+  assert.equal(extractUrTakeSectionHeading("AB: not a real heading."), null);
+});

@@ -472,8 +472,9 @@ function splitFirstSentenceHeadline(block) {
   return { first: t, rest: "" };
 }
 
+/** Omit raw "minutes" — avoids highlighting clock/Q4 usage (e.g. "Q4 32 minutes"). */
 const STAT_HIGHLIGHT_RE =
-  /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|minutes?|PPG|APG|RPG)\b/gi;
+  /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|PPG|APG|RPG)\b/gi;
 
 const UR_STAT_HIGHLIGHT_PATTERN_LIST = [
   /\d+(?:\.\d+)?\s*(?:pts|reb|ast)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:pts|reb|ast))+/gi,
@@ -690,7 +691,8 @@ export function renderUrTakeAiMessage(raw) {
     }
   }
 
-  if (parts.liveTrigger) {
+  const liveTriggerContent = parts.liveTrigger?.trim();
+  if (liveTriggerContent) {
     nodes.push(
       <div
         key="ur-lt"
@@ -718,12 +720,13 @@ export function renderUrTakeAiMessage(raw) {
         >
           Live Trigger
         </span>
-        <div>{highlightStatsInText(parts.liveTrigger)}</div>
+        <div>{highlightStatsInText(liveTriggerContent)}</div>
       </div>,
     );
   }
 
-  if (parts.closing) {
+  const closingContent = parts.closing?.trim();
+  if (closingContent) {
     nodes.push(
       <div
         key="ur-close"
@@ -737,7 +740,7 @@ export function renderUrTakeAiMessage(raw) {
           lineHeight: 1.5,
         }}
       >
-        {parts.closing}
+        {closingContent}
       </div>,
     );
   }

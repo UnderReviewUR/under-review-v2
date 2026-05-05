@@ -40,6 +40,9 @@ export function isUrTakeSectionHeading(line) {
  * When a line is `Known label: body` (colon + space + rest), split for gradient label + plain body.
  * Returns null for heading-only lines, unknown labels, or lines without `: `.
  */
+/** Single uppercase letter + digits only (Q4, H1, G6) — game refs, not section labels. */
+const GAME_REF_LABEL_PATTERN = /^[A-Z]\d+$/;
+
 export function extractUrTakeSectionHeading(line) {
   const trimmed = String(line || "").trim();
   if (!trimmed) return null;
@@ -49,6 +52,10 @@ export function extractUrTakeSectionHeading(line) {
 
   const candidate = trimmed.slice(0, colonIdx);
   const body = trimmed.slice(colonIdx + 2);
+
+  const candidateTrim = candidate.trim();
+  if (candidateTrim.length < 4) return null;
+  if (GAME_REF_LABEL_PATTERN.test(candidateTrim)) return null;
 
   const matchesHeading =
     isUrTakeSectionHeading(candidate) || isUrTakeSectionHeading(`${candidate}:`);
