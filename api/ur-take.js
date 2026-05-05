@@ -11,6 +11,10 @@ import {
   runUnderReviewPostProcess,
 } from "./_urTakeOutputQA.js";
 import {
+  generateLiveFollowUpsWithHaiku,
+  shouldAttachLiveFollowUps,
+} from "./_urTakeLiveFollowUps.js";
+import {
   allowRateLimit,
   emailLimit,
   getClientIp,
@@ -6599,6 +6603,25 @@ You are responding to a Pro subscriber. Apply the following:
       }),
     );
 
+    /** Live-mode chips only: plain answer, live keyword, not a conversation follow-up turn. */
+    let followUpsField;
+    if (
+      shouldAttachLiveFollowUps({
+        outputJsonMode,
+        hasLiveKeyword: liveSignals?.hasLiveKeyword,
+        isConversationFollowUp,
+      })
+    ) {
+      try {
+        const fus = await generateLiveFollowUpsWithHaiku(responseText, ANTHROPIC_API_KEY);
+        if (Array.isArray(fus) && fus.length >= 2) {
+          followUpsField = fus;
+        }
+      } catch (e) {
+        console.warn("[ur-take] followUps:", e?.message || e);
+      }
+    }
+
     return res.status(200).json({
       response: responseText,
       responseDeep,
@@ -6615,6 +6638,7 @@ You are responding to a Pro subscriber. Apply the following:
       intent,
       take: takeClientPayload(takeRecord),
       ...(qaSummaryForLog ? { qaSummary: qaSummaryForLog } : {}),
+      ...(followUpsField ? { followUps: followUpsField } : {}),
     });
   } catch (err) {
     console.error("UR TAKE error:", err);

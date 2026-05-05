@@ -6,6 +6,8 @@ import {
   qaRequiresRegeneration,
   runUnderReviewPostProcess,
   QA_SAFE_FALLBACK_PREFIX,
+  qaLiveFollowUps,
+  LIVE_FOLLOW_UP_FALLBACK,
 } from "./_urTakeOutputQA.js";
 
 test("QA: bad double-double wording fails stat logic after deterministic rewrite path", () => {
@@ -198,4 +200,57 @@ test("QA: clean Best look / Also like / Watch live response passes", () => {
   assert.equal(lint.shouldRegenerate, false);
   assert.ok(!lint.issueCodes.includes("report_style_header_echo"));
   assert.ok(!lint.issueCodes.includes("live_mode_dense_paragraph"));
+});
+
+test("QA live follow-ups: valid suggestions pass", () => {
+  const r = qaLiveFollowUps([
+    "still like this line?",
+    "good for second half?",
+    "live alt worth it?",
+  ]);
+  assert.equal(r.usedFallback, false);
+  assert.equal(r.followUps.length, 3);
+  assert.ok(r.followUps.every((s) => s.includes("?")));
+});
+
+test("QA live follow-ups: duplicates are dropped", () => {
+  const r = qaLiveFollowUps([
+    "still like this line?",
+    "still like this line?",
+    "good for second half?",
+    "pair this with anything?",
+  ]);
+  assert.equal(r.usedFallback, false);
+  assert.equal(r.followUps.length, 3);
+  assert.equal(new Set(r.followUps.map((s) => s.toLowerCase())).size, 3);
+});
+
+test("QA live follow-ups: over 7 words dropped", () => {
+  const r = qaLiveFollowUps([
+    "still like this line?",
+    "would you like more detailed betting analysis on this prop tonight?",
+    "good for second half?",
+  ]);
+  assert.equal(r.usedFallback, false);
+  assert.ok(!r.followUps.some((s) => s.includes("detailed")));
+});
+
+test("QA live follow-ups: formal phrases dropped", () => {
+  const r = qaLiveFollowUps([
+    "explore more betting insights?",
+    "still like this line?",
+    "good for second half?",
+  ]);
+  assert.equal(r.usedFallback, false);
+  assert.ok(!r.followUps.some((s) => /\binsights\b/i.test(s)));
+});
+
+test("QA live follow-ups: fallback when too few valid remain", () => {
+  const r = qaLiveFollowUps([
+    "Would you like more analysis?",
+    "explore recommendation engines?",
+    "see insights here?",
+  ]);
+  assert.equal(r.usedFallback, true);
+  assert.deepEqual(r.followUps, [...LIVE_FOLLOW_UP_FALLBACK]);
 });

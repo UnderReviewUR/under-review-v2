@@ -1071,7 +1071,7 @@ function UrTakeTrustChips({ trust }) {
   );
 }
 
-function UrTakeAiBubble({ m, trackPlay }) {
+function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
   const [deepOpen, setDeepOpen] = useState(false);
   const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
   const combined = `${summaryText}\n${m.deepText || ""}`;
@@ -1082,11 +1082,47 @@ function UrTakeAiBubble({ m, trackPlay }) {
     trackPlay.trackedIds.includes(m.msgId);
   const showTrack =
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
+  const followUps =
+    Array.isArray(m.followUps) && m.followUps.length >= 2 ? m.followUps : null;
 
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
       {renderUrTakeAiMessage(summaryText)}
+      {followUps && typeof onUrTakeFollowUp === "function" ? (
+        <div
+          role="group"
+          aria-label="Suggested follow-ups"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            marginTop: 12,
+          }}
+        >
+          {followUps.map((q) => (
+            <button
+              key={q}
+              type="button"
+              className="ur-take-follow-up-pill"
+              onClick={() => onUrTakeFollowUp(q)}
+              style={{
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "var(--body-font)",
+                fontSize: 12,
+                lineHeight: 1.25,
+                padding: "6px 11px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.06)",
+                color: "rgba(255,255,255,0.82)",
+              }}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
       {showTrack ? (
         <button
@@ -1144,7 +1180,7 @@ function UrTakeAiBubble({ m, trackPlay }) {
   );
 }
 
-export function ChatThread({ msgs, urTakeTrackPlay = null }) {
+export function ChatThread({ msgs, urTakeTrackPlay = null, onUrTakeFollowUp = null }) {
   const bottomRef = useRef(null);
 
   /** Scroll the nearest scrollport (screen main) to the latest bubble — avoids mutating scrollTop (eslint). */
@@ -1162,7 +1198,7 @@ export function ChatThread({ msgs, urTakeTrackPlay = null }) {
         ) : (
           <div key={m.msgId || i} className={`bubble ${m.role}`}>
             {m.role === "ai" ? (
-              <UrTakeAiBubble m={m} trackPlay={urTakeTrackPlay} />
+              <UrTakeAiBubble m={m} trackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
             ) : (
               <>
                 {m.image && <img src={m.image} alt="" className="bubble-img" />}

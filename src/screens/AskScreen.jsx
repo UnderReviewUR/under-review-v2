@@ -13,6 +13,7 @@ export default function AskScreen({
   dynamicHomeQuestions,
   firePrompt,
   urTakeTrackPlay = null,
+  onUrTakeFollowUp = null,
 }) {
   return (
           <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
@@ -33,7 +34,7 @@ export default function AskScreen({
             ) : (
               <>
                 <div style={{ fontSize: 10, fontFamily: "var(--mono-font)", letterSpacing: 2, color: "var(--muted)", padding: "6px 2px 10px", textTransform: "uppercase" }}>UR TAKE · conversation</div>
-                <ChatThread msgs={askMsgs} urTakeTrackPlay={urTakeTrackPlay} />
+                <ChatThread msgs={askMsgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
               </>
             )}
           </main>

@@ -561,3 +561,80 @@ export function runUnderReviewPostProcess(text, options = {}) {
 export function qaRequiresRegeneration(qa) {
   return Boolean(qa?.shouldRegenerate && (qa.criticalRegenerationCodes?.length ?? 0) > 0);
 }
+
+/** Static fallback when Haiku fails or QA removes too many live follow-up suggestions. */
+export const LIVE_FOLLOW_UP_FALLBACK = Object.freeze([
+  "still like this line?",
+  "good for second half?",
+  "pair this with anything?",
+]);
+
+const FOLLOW_UP_GENERIC_PHRASES = /learn\s+more|get\s+more\s+analysis|see\s+insights/i;
+const FOLLOW_UP_FORMAL_TERMS = /\b(analysis|insights|explore|recommendation|projection)\b/i;
+const FOLLOW_UP_EMOJI = /\p{Extended_Pictographic}/u;
+
+function followUpWordCount(s) {
+  return String(s || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+/**
+ * Casual bettor-shaped question — rejects assistant-y openers and formal CTAs.
+ * @param {string} s
+ * @returns {boolean}
+ */
+function looksLikeBettorFollowUpQuestion(s) {
+  const t = String(s || "").trim();
+  if (!t) return false;
+  if (!/\?/.test(t)) return false;
+  if (/^(would\s+you|could\s+you|can\s+you|do\s+you\s+want|tell\s+me|please)\b/i.test(t)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Validates and normalizes live-mode follow-up chips after Haiku generation.
+ * @param {unknown} items
+ * @returns {{ followUps: string[], usedFallback: boolean }}
+ */
+export function qaLiveFollowUps(items) {
+  const fallback = [...LIVE_FOLLOW_UP_FALLBACK];
+  if (!Array.isArray(items)) {
+    return { followUps: fallback, usedFallback: true };
+  }
+
+  const seen = new Set();
+  /** @type {string[]} */
+  const valid = [];
+
+  for (const item of items) {
+    const raw = String(item ?? "").trim();
+    if (!raw) continue;
+    if (FOLLOW_UP_EMOJI.test(raw)) continue;
+    const key = raw.toLowerCase();
+    if (seen.has(key)) continue;
+    if (followUpWordCount(raw) > 7) continue;
+    if (FOLLOW_UP_FORMAL_TERMS.test(raw)) continue;
+    if (FOLLOW_UP_GENERIC_PHRASES.test(raw)) continue;
+    if (!looksLikeBettorFollowUpQuestion(raw)) continue;
+    seen.add(key);
+    valid.push(raw);
+    if (valid.length >= 3) break;
+  }
+
+  if (valid.length < 2) {
+    return { followUps: fallback, usedFallback: true };
+  }
+
+  const out = [...valid];
+  for (const f of LIVE_FOLLOW_UP_FALLBACK) {
+    if (out.length >= 3) break;
+    const fk = f.toLowerCase();
+    if (!out.some((o) => o.toLowerCase() === fk)) out.push(f);
+  }
+
+  return { followUps: out.slice(0, 3), usedFallback: false };
+}

@@ -33,6 +33,7 @@ export default function TennisScreen({
   submitWta,
   openPlayer,
   urTakeTrackPlay = null,
+  onUrTakeFollowUp = null,
 }) {
   const tennisQuickPrompts = getQuickPromptsForState("tennis", deriveTennisBoardState(liveMatches));
 
@@ -63,7 +64,7 @@ export default function TennisScreen({
               </div>
             )}
 
-            <ChatThread msgs={tennisMsgs} urTakeTrackPlay={urTakeTrackPlay} />
+            <ChatThread msgs={tennisMsgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
 
             <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>
 

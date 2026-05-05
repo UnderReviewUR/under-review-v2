@@ -1230,6 +1230,7 @@ ${themeCss}
           ? { confidence: data.take.confidence, trust: data.take.trust ?? null }
           : null,
         deepText: normalizedDisplay.responseDeep,
+        followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
       },
     ]);
     lastUrTakeSportRef.current = sportForBubble;
@@ -2421,6 +2422,81 @@ ${themeCss}
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,golfInput,scheduleChatScroll]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
 
+  /** Insert suggested live follow-up into the docked bar and submit (matches each sport's ask flow). */
+  const urTakeFollowUpAsk = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setAskInput(t);
+      askUrTake({ text: t, setMsgs: setAskMsgs });
+      scheduleChatScroll(askScreenRef);
+    },
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+  );
+  const urTakeFollowUpTennis = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setTennisInput(t);
+      submitTennis(t);
+    },
+    [submitTennis, isAsking, prefetchingUrTakeContext],
+  );
+  const urTakeFollowUpNfl = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setNflInput(t);
+      submitNfl(t);
+    },
+    [submitNfl, isAsking, prefetchingUrTakeContext],
+  );
+  const urTakeFollowUpF1 = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setF1Input(t);
+      submitF1(t);
+    },
+    [submitF1, isAsking, prefetchingUrTakeContext],
+  );
+  const urTakeFollowUpNba = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setNbaInput(t);
+      submitNba(t);
+    },
+    [submitNba, isAsking, prefetchingUrTakeContext],
+  );
+  const urTakeFollowUpMlb = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setMlbInput(t);
+      submitMlb(t);
+    },
+    [submitMlb, isAsking, prefetchingUrTakeContext],
+  );
+  const urTakeFollowUpGolf = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setGolfInput(t);
+      submitGolf(t);
+    },
+    [submitGolf, isAsking, prefetchingUrTakeContext],
+  );
+  const urTakeFollowUpMatchup = useCallback(
+    (text) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setMatchupInput(t);
+      submitMatchup(t);
+    },
+    [submitMatchup, isAsking, prefetchingUrTakeContext],
+  );
+
   const askBarCommon = {
     fileInputRef,
     pastedImage,
@@ -2796,6 +2872,7 @@ ${themeCss}
             submitWta={submitWta}
             openPlayer={openPlayer}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpTennis}
           />
         )}
 
@@ -2818,6 +2895,7 @@ ${themeCss}
             filteredNflPlayers={filteredNflPlayers}
             openNflPlayer={openNflPlayer}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpNfl}
           />
         )}
 
@@ -2878,6 +2956,7 @@ ${themeCss}
             f1Loading={f1Loading}
             f1Data={f1Data}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpF1}
           />
         )}
 
@@ -2898,6 +2977,7 @@ ${themeCss}
             askBarCommon={askBarCommon}
             nbaLoading={nbaLoading}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpNba}
           />
         )}
 
@@ -2918,6 +2998,7 @@ ${themeCss}
             mlbGames={mlbGames}
             mlbData={mlbData}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpMlb}
           />
         )}
 
@@ -2938,6 +3019,7 @@ ${themeCss}
             submitGolf={submitGolf}
             askBarCommon={askBarCommon}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpGolf}
           />
         )}
 
@@ -3796,7 +3878,7 @@ fees. One price, unlimited reads.`,
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
             </div>
-            <ChatThread msgs={matchupMsgs} urTakeTrackPlay={urTakeTrackPlay} />
+            <ChatThread msgs={matchupMsgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={urTakeFollowUpMatchup} />
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
         )}
@@ -3842,6 +3924,7 @@ fees. One price, unlimited reads.`,
             dynamicHomeQuestions={dynamicHomeQuestions}
             firePrompt={firePrompt}
             urTakeTrackPlay={urTakeTrackPlay}
+            onUrTakeFollowUp={urTakeFollowUpAsk}
           />
         )}
 
