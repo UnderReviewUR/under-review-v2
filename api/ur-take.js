@@ -6586,23 +6586,6 @@ You are responding to a Pro subscriber. Apply the following:
         }
       : null;
 
-    console.log(
-      JSON.stringify({
-        event: "ur_take_complete",
-        sport: sportHint,
-        mode: nbaDecisionMode || "standard",
-        bettingStyle,
-        oddsAvailable,
-        fallback: nbaFallbackOrRepairUsed || false,
-        confidenceTier: takeRecord?.confidence || "unknown",
-        contextChars: contextPayloadChars || 0,
-        durationMs: Date.now() - requestStart,
-        isFollowUp: isConversationFollowUp,
-        isPro,
-        qa: qaSummaryForLog,
-      }),
-    );
-
     /** Live-mode chips only: plain answer, live keyword, not a conversation follow-up turn. */
     let followUpsField;
     if (
@@ -6622,6 +6605,28 @@ You are responding to a Pro subscriber. Apply the following:
       }
     }
 
+    const liveModeFlag = Boolean(liveSignals?.hasLiveKeyword);
+
+    console.log(
+      JSON.stringify({
+        event: "ur_take_complete",
+        sport: sportHint,
+        mode: nbaDecisionMode || "standard",
+        bettingStyle,
+        oddsAvailable,
+        fallback: nbaFallbackOrRepairUsed || false,
+        confidenceTier: takeRecord?.confidence || "unknown",
+        contextChars: contextPayloadChars || 0,
+        durationMs: Date.now() - requestStart,
+        isFollowUp: isConversationFollowUp,
+        isPro,
+        qa: qaSummaryForLog,
+        liveMode: liveModeFlag,
+        followUpsAttached: Boolean(followUpsField?.length),
+        followUpsCount: followUpsField?.length ?? 0,
+      }),
+    );
+
     return res.status(200).json({
       response: responseText,
       responseDeep,
@@ -6636,6 +6641,7 @@ You are responding to a Pro subscriber. Apply the following:
       ...(nbaDebugEnabled && nbaMeta ? { nbaDebug: nbaMeta } : {}),
       sport: sportHint || "generic",
       intent,
+      liveMode: liveModeFlag,
       take: takeClientPayload(takeRecord),
       ...(qaSummaryForLog ? { qaSummary: qaSummaryForLog } : {}),
       ...(followUpsField ? { followUps: followUpsField } : {}),

@@ -8,6 +8,12 @@ import {
   startTransition,
 } from "react";
 import { track } from "@vercel/analytics";
+import {
+  telemetryUrTakeLiveResponseGenerated,
+  telemetryUrTakeFollowUpsAttached,
+  telemetryUrTakeFollowUpSubmit,
+  telemetryUrTakeFollowUpResponseCompleted,
+} from "./lib/urTakeTelemetry.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -960,7 +966,7 @@ ${themeCss}
   }, []);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
-  const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint }) => {
+  const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry }) => {
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
   if (urTakeInFlightRef.current) return;
@@ -980,6 +986,9 @@ ${themeCss}
   });
 
   clearImage();
+
+  /** Set before fetch when submitting a live follow-up chip (for round-trip + completion telemetry). */
+  let fuTelemetryState = null;
 
   try {
     await new Promise((resolve) => {
@@ -1126,6 +1135,37 @@ ${themeCss}
       };
     }
 
+    const sessionUserTurns = priorSnapshot.filter((m) => m.role === "user").length + 1;
+    if (followUpTelemetry) {
+      const roundStart = typeof performance !== "undefined" ? performance.now() : Date.now();
+      fuTelemetryState = {
+        tel: followUpTelemetry,
+        sessionUserTurns,
+        roundStart,
+        sportResolved: String(followUpTelemetry.sport || effectiveSportHint || "generic").toLowerCase(),
+      };
+      telemetryUrTakeFollowUpSubmit({
+        sport: fuTelemetryState.sportResolved,
+        intent: String(followUpTelemetry.intent || ""),
+        liveMode: Boolean(followUpTelemetry.liveMode),
+        followUpText: String(followUpTelemetry.followUpText || text || "").slice(0, 160),
+        sourceMsgId: String(followUpTelemetry.sourceMsgId || ""),
+        sessionUserTurns,
+        followUpIndex:
+          typeof followUpTelemetry.followUpIndex === "number"
+            ? followUpTelemetry.followUpIndex
+            : -1,
+        followUpCount:
+          typeof followUpTelemetry.followUpCount === "number"
+            ? followUpTelemetry.followUpCount
+            : 0,
+        msSinceResponseShown: Math.max(
+          0,
+          Number(followUpTelemetry.msSinceResponseShown) || 0,
+        ),
+      });
+    }
+
     const ctrl = new AbortController();
     const abortTimer = window.setTimeout(() => ctrl.abort(), 75000);
 
@@ -1162,6 +1202,22 @@ ${themeCss}
           ...prev.filter((m) => !m.loading),
           { role: "ai", text: upstreamFailMsg },
         ]);
+        if (fuTelemetryState) {
+          const end = typeof performance !== "undefined" ? performance.now() : Date.now();
+          telemetryUrTakeFollowUpResponseCompleted({
+            success: false,
+            roundTripMs: Math.max(0, Math.round(end - fuTelemetryState.roundStart)),
+            sport: fuTelemetryState.sportResolved,
+            intent: String(fuTelemetryState.tel.intent || ""),
+            liveMode: Boolean(fuTelemetryState.tel.liveMode),
+            followUpText: String(fuTelemetryState.tel.followUpText || "").slice(0, 160),
+            sourceMsgId: String(fuTelemetryState.tel.sourceMsgId || ""),
+            sessionUserTurns: fuTelemetryState.sessionUserTurns,
+            followUpIndex: fuTelemetryState.tel.followUpIndex ?? -1,
+            followUpCount: fuTelemetryState.tel.followUpCount ?? 0,
+            error: "upstream_503",
+          });
+        }
         return;
       }
       let msg = `/api/ur-take ${res.status}: ${raw.slice(0, 600)}`;
@@ -1187,6 +1243,22 @@ ${themeCss}
         ...prev.filter((m) => !m.loading),
         { role: "ai", text: upstreamFailMsg },
       ]);
+      if (fuTelemetryState) {
+        const end = typeof performance !== "undefined" ? performance.now() : Date.now();
+        telemetryUrTakeFollowUpResponseCompleted({
+          success: false,
+          roundTripMs: Math.max(0, Math.round(end - fuTelemetryState.roundStart)),
+          sport: fuTelemetryState.sportResolved,
+          intent: String(fuTelemetryState.tel.intent || ""),
+          liveMode: Boolean(fuTelemetryState.tel.liveMode),
+          followUpText: String(fuTelemetryState.tel.followUpText || "").slice(0, 160),
+          sourceMsgId: String(fuTelemetryState.tel.sourceMsgId || ""),
+          sessionUserTurns: fuTelemetryState.sessionUserTurns,
+          followUpIndex: fuTelemetryState.tel.followUpIndex ?? -1,
+          followUpCount: fuTelemetryState.tel.followUpCount ?? 0,
+          error: "upstream_rate_limit",
+        });
+      }
       return;
     }
 
@@ -1202,6 +1274,22 @@ ${themeCss}
         sportForBubble || resolvedSport || effectiveSportHint || "generic",
       ).toLowerCase();
       track("query_submitted", { sport: sportTracked });
+      if (data.liveMode) {
+        telemetryUrTakeLiveResponseGenerated({
+          sport: sportTracked,
+          intent: String(data.intent || ""),
+          liveMode: true,
+          followUpCount: Array.isArray(data.followUps) ? data.followUps.length : 0,
+        });
+      }
+      if (Array.isArray(data.followUps) && data.followUps.length > 0) {
+        telemetryUrTakeFollowUpsAttached({
+          sport: sportTracked,
+          intent: String(data.intent || ""),
+          liveMode: Boolean(data.liveMode),
+          followUpCount: data.followUps.length,
+        });
+      }
     } catch {
       /* analytics optional */
     }
@@ -1219,6 +1307,9 @@ ${themeCss}
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const sportTrackedForBubble = String(
+      sportForBubble || resolvedSport || effectiveSportHint || "generic",
+    ).toLowerCase();
     setMsgs((prev) => [
       ...prev.filter((m) => !m.loading),
       {
@@ -1231,14 +1322,51 @@ ${themeCss}
           : null,
         deepText: normalizedDisplay.responseDeep,
         followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
+        urTakeTelemetry: {
+          intent: String(data.intent || ""),
+          liveMode: Boolean(data.liveMode),
+          sport: sportTrackedForBubble,
+          shownAt: Date.now(),
+        },
       },
     ]);
+    if (fuTelemetryState) {
+      const end = typeof performance !== "undefined" ? performance.now() : Date.now();
+      telemetryUrTakeFollowUpResponseCompleted({
+        success: true,
+        roundTripMs: Math.max(0, Math.round(end - fuTelemetryState.roundStart)),
+        sport: sportTrackedForBubble,
+        intent: String(data.intent || ""),
+        liveMode: Boolean(data.liveMode),
+        followUpText: String(fuTelemetryState.tel.followUpText || "").slice(0, 160),
+        sourceMsgId: String(fuTelemetryState.tel.sourceMsgId || ""),
+        sessionUserTurns: fuTelemetryState.sessionUserTurns,
+        followUpIndex: fuTelemetryState.tel.followUpIndex ?? -1,
+        followUpCount: fuTelemetryState.tel.followUpCount ?? 0,
+      });
+    }
     lastUrTakeSportRef.current = sportForBubble;
     if (userEmail) {
       loadPerformanceSnapshot().catch(() => {});
     }
   } catch (err) {
     setPrefetchingUrTakeContext(false);
+    if (fuTelemetryState) {
+      const end = typeof performance !== "undefined" ? performance.now() : Date.now();
+      telemetryUrTakeFollowUpResponseCompleted({
+        success: false,
+        roundTripMs: Math.max(0, Math.round(end - fuTelemetryState.roundStart)),
+        sport: fuTelemetryState.sportResolved,
+        intent: String(fuTelemetryState.tel.intent || ""),
+        liveMode: Boolean(fuTelemetryState.tel.liveMode),
+        followUpText: String(fuTelemetryState.tel.followUpText || "").slice(0, 160),
+        sourceMsgId: String(fuTelemetryState.tel.sourceMsgId || ""),
+        sessionUserTurns: fuTelemetryState.sessionUserTurns,
+        followUpIndex: fuTelemetryState.tel.followUpIndex ?? -1,
+        followUpCount: fuTelemetryState.tel.followUpCount ?? 0,
+        error: err?.name === "AbortError" ? "abort" : "client_error",
+      });
+    }
     const fallback =
       err?.name === "AbortError"
         ? "Request timed out — try again."
@@ -2424,77 +2552,208 @@ ${themeCss}
 
   /** Insert suggested live follow-up into the docked bar and submit (matches each sport's ask flow). */
   const urTakeFollowUpAsk = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setAskInput(t);
-      askUrTake({ text: t, setMsgs: setAskMsgs });
+      askUrTake({
+        text: t,
+        setMsgs: setAskMsgs,
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "generic",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
       scheduleChatScroll(askScreenRef);
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpTennis = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setTennisInput(t);
-      submitTennis(t);
+      askUrTake({
+        text: t,
+        setMsgs: setTennisMsgs,
+        sportHint: "tennis",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "tennis",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(tennisScreenRef);
     },
-    [submitTennis, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpNfl = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setNflInput(t);
-      submitNfl(t);
+      askUrTake({
+        text: t,
+        setMsgs: setNflMsgs,
+        sportHint: "nfl",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "nfl",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(nflScreenRef);
     },
-    [submitNfl, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpF1 = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setF1Input(t);
-      submitF1(t);
+      askUrTake({
+        text: t,
+        setMsgs: setF1Msgs,
+        sportHint: "f1",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "f1",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(f1ScreenRef);
     },
-    [submitF1, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpNba = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setNbaInput(t);
-      submitNba(t);
+      askUrTake({
+        text: t,
+        setMsgs: setNbaMsgs,
+        sportHint: "nba",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "nba",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(nbaScreenRef);
     },
-    [submitNba, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpMlb = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setMlbInput(t);
-      submitMlb(t);
+      askUrTake({
+        text: t,
+        setMsgs: setMlbMsgs,
+        sportHint: "mlb",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "mlb",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(mlbScreenRef);
     },
-    [submitMlb, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpGolf = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setGolfInput(t);
-      submitGolf(t);
+      askUrTake({
+        text: t,
+        setMsgs: setGolfMsgs,
+        sportHint: "golf",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "golf",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(golfScreenRef);
     },
-    [submitGolf, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
   const urTakeFollowUpMatchup = useCallback(
-    (text) => {
+    (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       setMatchupInput(t);
-      submitMatchup(t);
+      const league = String(selectedMatchup?.league || "").toUpperCase();
+      const hint = league.includes("NFL")
+        ? "nfl"
+        : league.includes("NBA")
+          ? "nba"
+          : league.includes("MLB")
+            ? "mlb"
+            : league.includes("F1")
+              ? "f1"
+              : league.includes("GOLF")
+                ? "golf"
+                : "tennis";
+      askUrTake({
+        text: t,
+        matchup: selectedMatchup,
+        setMsgs: setMatchupMsgs,
+        sportHint: hint,
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || hint,
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(matchupScreenRef);
     },
-    [submitMatchup, isAsking, prefetchingUrTakeContext],
+    [askUrTake, isAsking, prefetchingUrTakeContext, selectedMatchup, scheduleChatScroll],
   );
 
   const askBarCommon = {

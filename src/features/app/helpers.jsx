@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { normalizeText } from "../../lib/normalizeText.js";
+import { telemetryUrTakeFollowUpClick } from "../../lib/urTakeTelemetry.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 export { normalizeText };
 
@@ -1100,12 +1101,26 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
             marginTop: 12,
           }}
         >
-          {followUps.map((q) => (
+          {followUps.map((q, idx) => (
             <button
               key={q}
               type="button"
               className="ur-take-follow-up-pill"
-              onClick={() => onUrTakeFollowUp(q)}
+              onClick={() => {
+                const shownAt = m.urTakeTelemetry?.shownAt ?? Date.now();
+                const meta = {
+                  sourceMsgId: m.msgId,
+                  followUpIndex: idx,
+                  followUpCount: followUps.length,
+                  msSinceResponseShown: Math.max(0, Date.now() - shownAt),
+                  intent: String(m.urTakeTelemetry?.intent ?? ""),
+                  liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+                  sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+                  followUpText: q,
+                };
+                telemetryUrTakeFollowUpClick(meta);
+                onUrTakeFollowUp(q, meta);
+              }}
               style={{
                 border: "none",
                 cursor: "pointer",
