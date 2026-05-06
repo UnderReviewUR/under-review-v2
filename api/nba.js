@@ -82,6 +82,24 @@ function setCached(key, payload, ttl = CACHE_TTL) {
   cache.set(key, { expires: Date.now() + ttl, payload });
 }
 
+/** When `CRON_SECRET` is set (recommended on Vercel), warmup requests must send `Authorization: Bearer <CRON_SECRET>`. */
+export function verifyNbaBoardWarmupAuth(req) {
+  const secret = getEnv("CRON_SECRET");
+  if (!secret) return true;
+  const auth = String(req.headers?.authorization || "").trim();
+  return auth === `Bearer ${secret}`;
+}
+
+function emitNbaBoardWarmupLog(payload) {
+  console.log(
+    JSON.stringify({
+      event: "nba_board_warmup",
+      warmup: true,
+      ...payload,
+    }),
+  );
+}
+
 function getNbaSeasonContext() {
   const now = new Date();
   const month = now.getMonth() + 1;
@@ -3112,6 +3130,7 @@ export async function buildNbaUrTakeBoard(question = "") {
       playerStatsCount: board?.playerStats?.length || 0,
       propLinesCount: board?.propLines?.length || 0,
       rosterQuality: board?.rosterGrounding?.rosterGroundingQuality || "unknown",
+      statsBundleAbbrevs,
       playoffPrioritySource,
       playoffSeriesRowsReturned,
       playoffSeriesRowsScoreVisible,
@@ -3146,6 +3165,12 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
+      const isWarmupRequest = String(req.query?.warmup || "") === "1";
+      if (isWarmupRequest && !verifyNbaBoardWarmupAuth(req)) {
+        res.setHeader("Content-Type", "application/json");
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const boardT0 = Date.now();
       const boardCacheKey = `nba_board_${new Date().getFullYear()}_le2`;
       const boardCached = getCached(boardCacheKey);
@@ -3165,13 +3190,15 @@ export default async function handler(req, res) {
         }
         const liveEdgeAlertsCached = await buildNbaLiveEdgeAlerts(out);
         const pf = out.playoffFocusMeta || {};
+        const boardElapsedCachedMs = Date.now() - boardT0;
         console.log(
           JSON.stringify({
             event: "nba_board_complete",
             cacheHit: true,
             scope: "home_board",
-            totalMs: Date.now() - boardT0,
+            totalMs: boardElapsedCachedMs,
             gameCount: Array.isArray(out.todaysGames) ? out.todaysGames.length : 0,
+            statsBundleAbbrevs: pf.statsBundleAbbrevs ?? [],
             playoffFocusMode: pf.playoffFocusMode ?? false,
             playoffFocusTeamCount: pf.playoffFocusTeamCount ?? 0,
             playoffPrioritySource: pf.playoffPrioritySource ?? "none",
@@ -3183,6 +3210,14 @@ export default async function handler(req, res) {
             nonPlayoffTeamRequested: pf.nonPlayoffTeamRequested ?? false,
           }),
         );
+        if (isWarmupRequest) {
+          emitNbaBoardWarmupLog({
+            cacheHit: true,
+            totalMs: boardElapsedCachedMs,
+            playoffFocusMode: Boolean(pf.playoffFocusMode),
+            statsBundleMs: null,
+          });
+        }
         return res.status(200).json({ ...out, liveEdgeAlerts: liveEdgeAlertsCached });
       }
 
@@ -3347,6 +3382,7 @@ export default async function handler(req, res) {
       board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
       const liveEdgeAlertsMs = Date.now() - le0;
 
+      const boardElapsedColdMs = Date.now() - boardT0;
       console.log(
         JSON.stringify({
           event: "nba_board_complete",
@@ -3359,7 +3395,7 @@ export default async function handler(req, res) {
           injuriesMs,
           recentGameLogsMs,
           liveEdgeAlertsMs,
-          totalMs: Date.now() - boardT0,
+          totalMs: boardElapsedColdMs,
           gameCount: todaysGames.length,
           propCount: propLines.length,
           injuryCount: injuries.length,
@@ -3367,6 +3403,14 @@ export default async function handler(req, res) {
           ...playoffFocusMeta,
         }),
       );
+      if (isWarmupRequest) {
+        emitNbaBoardWarmupLog({
+          cacheHit: false,
+          totalMs: boardElapsedColdMs,
+          playoffFocusMode,
+          statsBundleMs,
+        });
+      }
 
       if (
         todaysGames.length > 0 ||
