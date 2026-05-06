@@ -3,10 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { telemetryUrTakeFollowUpClick } from "../../lib/urTakeTelemetry.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
-import {
-  isSubstantiveClosing,
-  peelClosingFromMain,
-} from "../../lib/urTakeClosingSentence.js";
+import { isSubstantiveClosing } from "../../lib/urTakeClosingSentence.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 
@@ -345,189 +342,7 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
     .trimStart();
 }
 
-/** ── UR Take AI bubble visual formatting (presentation only; text unchanged) ── */
-
-function peelGameStateHeaderLine(text) {
-  const trimmed = text.trimStart();
-  const nl = trimmed.indexOf("\n");
-  const firstLine = nl >= 0 ? trimmed.slice(0, nl).trim() : trimmed.trim();
-  if (!firstLine) return { header: null, rest: text };
-  if (firstLine.length > 80) return { header: null, rest: text };
-  const scoreLike = /^[A-Z]{2,4}\s+\d+/i.test(firstLine);
-  const hasDot = firstLine.includes("·");
-  const hasQuarterOrLive =
-    /\bQ\d\b/i.test(firstLine) || /\bLive\b/i.test(firstLine) || /\bOT\b/i.test(firstLine);
-  if (scoreLike && (hasDot || hasQuarterOrLive)) {
-    const rest = nl >= 0 ? trimmed.slice(nl + 1) : "";
-    return { header: firstLine, rest: rest.trimStart() };
-  }
-  return { header: null, rest: text };
-}
-
-function peelConfidenceLine(text) {
-  const lines = text.split("\n");
-  if (lines.length === 0) return { rest: text, confidence: null };
-  const last = lines[lines.length - 1].trim();
-  if (/^Confidence\s*:/i.test(last)) {
-    return {
-      rest: lines.slice(0, -1).join("\n").trimEnd(),
-      confidence: last.trim(),
-    };
-  }
-  if (/^(Medium|High|Low)\s+confidence\b/i.test(last)) {
-    return {
-      rest: lines.slice(0, -1).join("\n").trimEnd(),
-      confidence: last.trim(),
-    };
-  }
-  const inlineConfidence = text.match(/\b(Confidence\s*:\s*[^\n]+)\s*$/i);
-  if (inlineConfidence && inlineConfidence.index !== undefined) {
-    const rest = text.slice(0, inlineConfidence.index).trimEnd();
-    if (rest) {
-      return {
-        rest,
-        confidence: inlineConfidence[1].trim(),
-      };
-    }
-  }
-  const trailingConfidence = text.match(/\b(CONFIDENCE\s*[:\-—]?\s*[^\n]+)\s*$/i);
-  if (trailingConfidence && trailingConfidence.index !== undefined) {
-    const rest = text.slice(0, trailingConfidence.index).trimEnd();
-    if (rest) {
-      return {
-        rest,
-        confidence: trailingConfidence[1].trim(),
-      };
-    }
-  }
-  return { rest: text, confidence: null };
-}
-
-function peelLiveTriggerSection(text) {
-  const m = text.match(/\bLive trigger\b\s*:?\s*/i);
-  if (!m || m.index === undefined) return { main: text, trigger: null };
-  const main = text.slice(0, m.index).trimEnd();
-  const trigger = text.slice(m.index + m[0].length).trim();
-  return { main, trigger: trigger || null };
-}
-
-/** Prompt syntax; stripped before the headline is shown (never visible). */
-function stripLeadingUrTakeHeadlineChevrons(text) {
-  let t = String(text || "").trimStart();
-  while (/^(?:>\s*){2}/.test(t)) {
-    t = t.replace(/^(?:>\s*){2}\s*/, "");
-  }
-  return t.trim();
-}
-
-function splitFirstSentenceHeadline(block) {
-  const t = block.trim();
-  if (!t) return { first: "", rest: "" };
-  for (let i = 1; i < t.length; i++) {
-    const c = t[i];
-    if (c === "." || c === "!" || c === "?") {
-      if (c === "." && /\d/.test(t[i - 1])) {
-        const nextCh = t[i + 1];
-        if (nextCh && /\d/.test(nextCh)) continue;
-      }
-      const after = t.slice(i + 1).trimStart();
-      if (!after || /^[A-Z"(“]/.test(after)) {
-        return { first: t.slice(0, i + 1).trim(), rest: after };
-      }
-    }
-  }
-  const emMatch = t.match(/\s[—–]\s+/);
-  if (emMatch && emMatch.index !== undefined && emMatch.index > 0) {
-    const after = t.slice(emMatch.index + emMatch[0].length).trimStart();
-    if (!after || /^[A-Z"(“]/.test(after)) {
-      return { first: t.slice(0, emMatch.index).trim(), rest: after };
-    }
-  }
-
-  const nl = t.indexOf("\n");
-  if (nl > 0) return { first: t.slice(0, nl).trim(), rest: t.slice(nl + 1).trim() };
-  return { first: t, rest: "" };
-}
-
-/**
- * If the model returns one giant sentence/paragraph, force a headline/body split
- * so cards can still render without changing response copy.
- */
-function forceHeadlineBodySplit(first, rest) {
-  const headline = String(first || "").trim();
-  const body = String(rest || "").trim();
-  if (!headline) return { first: "", rest: body };
-  if (body) return { first: headline, rest: body };
-  if (headline.length < 180) return { first: headline, rest: "" };
-
-  const probes = [
-    /\.\s+/g,
-    /\s+but\s+/gi,
-    /\s+if\s+/gi,
-    /\s+watch\s+/gi,
-    /\s+right\s+now\b/gi,
-    /\s+the\s+script\s+/gi,
-  ];
-  let splitAt = -1;
-  for (const re of probes) {
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(headline)) !== null) {
-      if (m.index >= 110) {
-        splitAt = m.index;
-        break;
-      }
-    }
-    if (splitAt >= 0) break;
-  }
-  if (splitAt < 0) {
-    // Final fallback for dense one-line blobs: split at punctuation near mid-length.
-    const target = Math.min(Math.max(140, Math.floor(headline.length * 0.42)), 260);
-    let punctAt = -1;
-    for (let i = target; i < headline.length; i += 1) {
-      const ch = headline[i];
-      if (ch === "." || ch === "!" || ch === "?") {
-        punctAt = i + 1;
-        break;
-      }
-    }
-    if (punctAt > 0 && punctAt < headline.length - 20) {
-      splitAt = punctAt;
-    } else {
-      return { first: headline, rest: "" };
-    }
-  }
-
-  const forcedFirst = headline.slice(0, splitAt).trim();
-  const forcedRest = headline.slice(splitAt).replace(/^[\s,.;:–—-]+/, "").trim();
-  if (!forcedFirst || !forcedRest) return { first: headline, rest: "" };
-  return { first: forcedFirst, rest: forcedRest };
-}
-
-/** Keeps the visible headline to one sentence and max 200 chars; overflow becomes body. */
-function clampUrTakeHeadline(headline, rest) {
-  let h = String(headline || "").trim();
-  let r = String(rest || "").trim();
-  if (h.length <= 200) return { first: h, rest: r };
-
-  const slice200 = h.slice(0, 200);
-  const dot = slice200.lastIndexOf(".");
-  const bang = slice200.lastIndexOf("!");
-  const question = slice200.lastIndexOf("?");
-  const cutoff = Math.max(dot, bang, question);
-
-  if (cutoff > 50) {
-    const overflow = h.slice(cutoff + 1).trim();
-    h = h.slice(0, cutoff + 1).trim();
-    r = [overflow, r].filter(Boolean).join("\n\n").trim();
-    return { first: h, rest: r };
-  }
-
-  const overflow = h.slice(120).trim();
-  h = `${h.slice(0, 120)}...`;
-  r = [overflow, r].filter(Boolean).join("\n\n").trim();
-  return { first: h, rest: r };
-}
+/** ── UR Take AI bubble — simple line-based layout ── */
 
 function splitBySentenceCluster(text, targetClusters = 3) {
   const source = String(text || "").trim();
@@ -547,508 +362,145 @@ function splitBySentenceCluster(text, targetClusters = 3) {
   return clusters.length > 1 ? clusters : [source];
 }
 
-function hasAllCapsSectionLine(text) {
-  return String(text || "")
-    .split("\n")
-    .some((line) => isUrTakeAllCapsSectionLine(line));
-}
-
-function splitProjectionsIntoBullets(text) {
-  const source = String(text || "").trim();
-  if (!source) return [];
-  const normalized = source.replace(/\s+/g, " ").trim();
-  if (!normalized) return [];
-
-  const cleaned = normalized.replace(/\bCONFIDENCE\b[\s\S]*$/i, "").trim() || normalized;
-
-  // Primary split: player-name + prop action marker.
-  const marker =
-    /\b([A-Z][a-z]+(?:[-'][A-Za-z]+)?(?:\s+[A-Z][a-z]+(?:[-'][A-Za-z]+)?){0,2})\s+(over|under|snags|gets|records|to\s+record|to\s+grab|for)\b/g;
-  const starts = [];
-  let match;
-  while ((match = marker.exec(cleaned)) !== null) {
-    starts.push(match.index);
-  }
-
-  if (starts.length >= 2) {
-    const bullets = [];
-    for (let i = 0; i < starts.length; i += 1) {
-      const start = starts[i];
-      const end = i + 1 < starts.length ? starts[i + 1] : cleaned.length;
-      const piece = cleaned.slice(start, end).trim().replace(/^[,;•\-\s]+/, "");
-      if (piece) bullets.push(piece);
-    }
-    if (bullets.length >= 2) return bullets;
-  }
-
-  // Secondary split: sentence chunks containing explicit prop verbs.
-  const propishSentences = cleaned
-    .split(/(?<=[.!?])\s+(?=[A-Z])/)
-    .map((s) => s.trim())
-    .filter((s) => /\b(over|under|double-double|PRA|assists?|rebounds?|points?)\b/i.test(s));
-  if (propishSentences.length >= 2) return propishSentences;
-
-  // Fallback split when player-leading pattern is unavailable.
-  const sentenceParts = cleaned
-    .split(/(?<=[.!?])\s+(?=[A-Z])/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (sentenceParts.length < 2) return [];
-  return sentenceParts;
-}
-
-function parseInlineSectionBlocks(text) {
-  const source = String(text || "").trim();
-  if (!source) return [];
-  const headingRegex = /\b(MATCH READ|BET ANGLE|PRO PROJECTIONS|LIVE TRIGGER)\b\s*[-:—]\s*/gi;
-  const matches = [];
-  let m;
-  while ((m = headingRegex.exec(source)) !== null) {
-    matches.push({
-      index: m.index,
-      label: String(m[1] || "").toUpperCase(),
-      bodyStart: headingRegex.lastIndex,
-    });
-  }
-  if (!matches.length) return [];
-
-  const blocks = [];
-  const lead = source.slice(0, matches[0].index).trim().replace(/^[.\s-]+/, "");
-  if (lead && /[A-Za-z0-9]/.test(lead)) {
-    blocks.push({ sectionHeader: null, bodyText: lead });
-  }
-
-  for (let i = 0; i < matches.length; i += 1) {
-    const cur = matches[i];
-    const end = i + 1 < matches.length ? matches[i + 1].index : source.length;
-    const bodyText = source
-      .slice(cur.bodyStart, end)
-      .trim()
-      .replace(/^[.\s-]+/, "");
-    if (!bodyText) continue;
-    blocks.push({ sectionHeader: cur.label, bodyText });
-  }
-  return blocks;
-}
-
-/** Omit raw "minutes" — avoids highlighting clock/Q4 usage (e.g. "Q4 32 minutes"). */
-const STAT_HIGHLIGHT_RE =
-  /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|PPG|APG|RPG)\b/gi;
-
-const UR_STAT_HIGHLIGHT_PATTERN_LIST = [
-  /\d+(?:\.\d+)?\s*(?:pts|reb|ast)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:pts|reb|ast))+/gi,
-  /\(\s*\d+(?:\.\d+)?\s*PRA\s*\)/gi,
-  STAT_HIGHLIGHT_RE,
-  /\b\d+(?:\.\d+)?\s*(?:pts|reb|ast)\b/gi,
-];
-
-const UR_TAKE_GRADIENT_TEXT = {
-  background: "linear-gradient(90deg,#00F5E9 0%,#FF2D6B 100%)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-};
-
-function pickNonOverlappingStatRanges(ranges) {
-  const byLen = [...ranges].sort((a, b) => b.end - b.start - (a.end - a.start));
-  const picked = [];
-  for (const r of byLen) {
-    if (picked.some((p) => r.start < p.end && r.end > p.start)) continue;
-    picked.push(r);
-  }
-  return picked.sort((a, b) => a.start - b.start);
-}
-
-function highlightStatsInText(text) {
-  const s = String(text);
-  const ranges = [];
-  for (const re of UR_STAT_HIGHLIGHT_PATTERN_LIST) {
-    const r = new RegExp(re.source, re.flags);
-    let m;
-    while ((m = r.exec(s)) !== null) {
-      ranges.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
-    }
-  }
-  const picked = pickNonOverlappingStatRanges(ranges);
-  const out = [];
-  let last = 0;
-  for (const span of picked) {
-    out.push(s.slice(last, span.start));
-    out.push(
-      <span
-        key={`ur-stat-${span.start}-${span.end}`}
-        style={{ color: "#00F5E9", fontWeight: 600 }}
-      >
-        {span.text}
-      </span>,
-    );
-    last = span.end;
-  }
-  out.push(s.slice(last));
-  return out;
-}
-
-function stripMarkdownForUrTakeDisplay(text) {
-  return String(text || "")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1");
-}
-
-/** All-caps short section labels (e.g. WHAT TO WATCH); excludes stats lines with digits (H2H allowed). */
-function isUrTakeAllCapsSectionLine(line) {
-  const s = String(line).trim();
-  if (!s || s.length >= 40) return false;
-  if (/\d/.test(s.replace(/\bH2H\b/gi, ""))) return false;
-  const letters = s.replace(/[^A-Za-z]/g, "");
-  if (letters.length < 2) return false;
-  return letters === letters.toUpperCase();
-}
-
-const UR_TAKE_BODY_MUTED = "var(--soft)";
-const UR_TAKE_CLOSING_SCORE_FOOTER_STYLE = {
-  fontSize: 11,
-  color: "var(--soft)",
-  fontFamily: "var(--mono-font)",
-  marginTop: 8,
-  opacity: 0.5,
-};
-
-const UR_TAKE_SECTION_LABEL_STYLE = {
-  fontFamily: "var(--mono-font)",
-  fontSize: 9,
-  letterSpacing: 2,
-  textTransform: "uppercase",
-  marginBottom: 10,
-  background: "linear-gradient(90deg, #C0A060, #F0D890, #C0A060)",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-};
-
-function parseUrTakeVisualParts(raw) {
-  let text = stripMarkdownForUrTakeDisplay(stripLeadingUrTakeDisclaimersForDisplay(String(raw || "")));
-  const game = peelGameStateHeaderLine(text);
-  text = game.rest;
-
-  let confidence = null;
-  ({ rest: text, confidence } = peelConfidenceLine(text));
-
-  let liveTrigger = null;
-  ({ main: text, trigger: liveTrigger } = peelLiveTriggerSection(text));
-
-  let closing = null;
-  ({ rest: text, closing } = peelClosingFromMain(text));
-
-  return {
-    gameHeader: game.header,
-    mainText: text.trim(),
-    liveTrigger,
-    closing,
-    confidence,
-  };
-}
-
-/**
- * Rich UR Take presentation: score header, headline sentence, stat highlights,
- * live trigger + closing cards, muted confidence. Same string content as input.
- */
 export function renderUrTakeAiMessage(raw) {
-  const fullResponseText = String(raw || "");
-  const hasLiveScore = /\b(Q[1-4]|OT|Live|Final)\b/i.test(fullResponseText);
-  const parts = parseUrTakeVisualParts(raw);
-  const nodes = [];
-  const middleNodes = [];
+  const text = String(raw || "");
+  const lines = text.split("\n");
 
-  if (parts.gameHeader) {
-    nodes.push(
-      <div
-        key="ur-game-hdr"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "4px 12px",
-          background: "rgba(34,197,94,0.08)",
-          border: "1px solid rgba(34,197,94,0.15)",
-          borderRadius: 999,
-          fontFamily: "var(--mono-font)",
-          fontSize: 10,
-          color: "#22c55e",
-          letterSpacing: 1.5,
-          marginBottom: 16,
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: "#22c55e",
-            flexShrink: 0,
-          }}
-        />
-        {parts.gameHeader}
-      </div>,
-    );
+  let gameState = "";
+  let bodyStart = 0;
+  if (lines[0] && /\b(Q[1-4]|OT|Live|Final)\b/.test(lines[0])) {
+    gameState = lines[0];
+    bodyStart = 1;
   }
 
-  const main = parts.mainText;
-  if (main) {
-    const roughSplit = splitFirstSentenceHeadline(main);
-    const forced = forceHeadlineBodySplit(roughSplit.first, roughSplit.rest);
-    const clamped = clampUrTakeHeadline(forced.first, forced.rest);
-    const headlineText = stripLeadingUrTakeHeadlineChevrons(clamped.first);
-    const rest = clamped.rest;
-    if (headlineText) {
-      nodes.push(
-        <div
-          key="ur-headline"
-          style={{
-            ...UR_TAKE_GRADIENT_TEXT,
-            fontSize: "clamp(18px, 2.5vw, 24px)",
-            fontWeight: 800,
-            lineHeight: 1.3,
-            marginBottom: 20,
-            paddingBottom: 0,
-            borderBottom: "none",
-            letterSpacing: "-0.3px",
-          }}
-        >
-          {highlightStatsInText(headlineText)}
-        </div>,
-      );
-    }
-    if (rest) {
-      const inlineBlocks = parseInlineSectionBlocks(rest);
-      const normalizedBlocks =
-        inlineBlocks.length > 0
-          ? inlineBlocks.map((b) => ({
-              sectionHeader: b.sectionHeader,
-              bodyLines: [String(b.bodyText || "").trim()],
-            }))
-          : (() => {
-              let bodyChunks = rest.split(/\n{2,}/);
-              if (
-                bodyChunks.length === 1 &&
-                bodyChunks[0].length > 400 &&
-                !hasAllCapsSectionLine(bodyChunks[0])
-              ) {
-                bodyChunks = splitBySentenceCluster(bodyChunks[0]);
-              }
-              return bodyChunks
-                .map((para) => {
-                  const paraLines = para
-                    .split("\n")
-                    .map((line) => line.trimEnd())
-                    .filter((line) => line.trim().length > 0);
-                  if (!paraLines.length) return null;
-                  const headerIndex = paraLines.findIndex((line) => isUrTakeAllCapsSectionLine(line));
-                  const sectionHeader = headerIndex >= 0 ? paraLines[headerIndex].trim() : null;
-                  const bodyLines =
-                    headerIndex >= 0
-                      ? paraLines.filter((_, idx) => idx !== headerIndex)
-                      : paraLines;
-                  return { sectionHeader, bodyLines };
-                })
-                .filter(Boolean);
-            })();
+  const remaining = lines.slice(bodyStart).join("\n");
+  const firstSentenceMatch = remaining.match(/^[^.!?]*[.!?]/);
+  const headline = firstSentenceMatch ? firstSentenceMatch[0].trim() : "";
 
-      normalizedBlocks.forEach((block, i) => {
-        const sectionHeader = block.sectionHeader;
-        const bodyLines = block.bodyLines;
-        const projectionBody = bodyLines.join(" ").trim();
-        const isLiveTriggerLabel =
-          sectionHeader && sectionHeader.replace(/[^A-Z]/gi, "") === "LIVETRIGGER";
-        const isProProjectionsSection =
-          sectionHeader && sectionHeader.replace(/[^A-Z]/gi, "") === "PROPROJECTIONS";
-        const projectionBullets =
-          isProProjectionsSection ? splitProjectionsIntoBullets(projectionBody) : [];
-        const inferredProjectionBullets =
-          !isProProjectionsSection ? splitProjectionsIntoBullets(projectionBody) : [];
-        const renderAsProjectionBullets =
-          projectionBullets.length > 0 || inferredProjectionBullets.length >= 2;
-        const bulletsToRender =
-          projectionBullets.length > 0 ? projectionBullets : inferredProjectionBullets;
+  const bodyText = remaining.slice(firstSentenceMatch?.[0].length ?? 0).trim();
 
-        middleNodes.push(
-          <div
-            key={`ur-body-${i}`}
-            style={{
-              background: "rgba(255,255,255,0.025)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 12,
-              padding: "14px 16px",
-            }}
-          >
-            {sectionHeader && !(isLiveTriggerLabel && !hasLiveScore) ? (
-              <div style={UR_TAKE_SECTION_LABEL_STYLE}>{sectionHeader}</div>
-            ) : null}
-            {renderAsProjectionBullets ? (
-              <div>
-                {bulletsToRender.map((bullet, j) => (
-                  <div
-                    key={`ur-proj-${j}`}
-                    style={{
-                      fontSize: 14,
-                      lineHeight: 1.65,
-                      color: UR_TAKE_BODY_MUTED,
-                      fontWeight: "normal",
-                      fontFamily: "inherit",
-                      display: "flex",
-                      gap: 8,
-                      marginBottom: j === bulletsToRender.length - 1 ? 0 : 6,
-                    }}
-                  >
-                    <span style={{ color: "#00F5E9", fontWeight: 700 }}>•</span>
-                    <span>{highlightStatsInText(bullet)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div>
-                {bodyLines.map((line, j) => (
-                  <div
-                    key={j}
-                    style={{
-                      marginBottom: j === bodyLines.length - 1 ? 0 : 6,
-                      fontSize: 14,
-                      lineHeight: 1.65,
-                      color: UR_TAKE_BODY_MUTED,
-                      fontWeight: "normal",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {highlightStatsInText(line)}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>,
-        );
-      });
-    }
+  const paras = bodyText.split(/\n{2,}/);
+  let bodyChunks = paras.length > 1 ? paras : splitBySentenceCluster(bodyText, 3);
+  bodyChunks = bodyChunks.map((c) => String(c).trim()).filter(Boolean);
+
+  let confidence = "";
+  const lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : "";
+  if (/^Confidence:/.test(lastLine)) {
+    confidence = lines[lines.length - 1];
   }
 
-  const liveTriggerContent = parts.liveTrigger?.trim();
-  if (liveTriggerContent) {
-    if (hasLiveScore) {
-      middleNodes.push(
+  let closing = "";
+  const idx = lines.length - (confidence ? 2 : 1);
+  const potentialClosing = idx >= 0 ? lines[idx] : "";
+  if (potentialClosing && /^(Look for|Back|Fade|Watch|Take the)/i.test(potentialClosing.trim())) {
+    closing = potentialClosing;
+  }
+
+  const hasVisual =
+    Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
+
+  if (!hasVisual) {
+    return renderMessage(text, { styleUrTakeSectionLabels: true });
+  }
+
+  return (
+    <div style={{ padding: "0 4px" }}>
+      {gameState ? (
         <div
-          key="ur-lt"
           style={{
-            padding: "14px 16px",
-            background: "rgba(0,245,233,0.04)",
-            border: "1px solid rgba(0,245,233,0.15)",
-            borderLeft: "3px solid #00F5E9",
-            borderRadius: "0 12px 12px 0",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 12px",
+            background: "rgba(34,197,94,0.08)",
+            border: "1px solid rgba(34,197,94,0.15)",
+            borderRadius: 999,
+            fontFamily: "var(--mono-font)",
+            fontSize: 10,
+            color: "#22c55e",
+            letterSpacing: 1.5,
+            marginBottom: 16,
           }}
         >
           <span
             style={{
-              fontFamily: "var(--mono-font)",
-              fontSize: 8,
-              letterSpacing: 3,
-              color: "#00F5E9",
-              textTransform: "uppercase",
-              marginBottom: 6,
-              opacity: 0.7,
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "#22c55e",
             }}
-          >
-            ⚡ Live Trigger
-          </span>
-          <div style={{ fontSize: 14, lineHeight: 1.65, color: UR_TAKE_BODY_MUTED, fontWeight: "normal" }}>
-            {highlightStatsInText(liveTriggerContent)}
-          </div>
-        </div>,
-      );
-    } else {
-      middleNodes.push(
+          />
+          {gameState}
+        </div>
+      ) : null}
+
+      {headline ? (
         <div
-          key="ur-lt-plain"
           style={{
-            background: "rgba(255,255,255,0.025)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 12,
-            padding: "14px 16px",
+            fontSize: 20,
+            fontWeight: 800,
+            lineHeight: 1.3,
+            marginBottom: 18,
+            background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            letterSpacing: "-0.3px",
           }}
         >
-          <div style={{ fontSize: 14, lineHeight: 1.65, color: UR_TAKE_BODY_MUTED, fontWeight: "normal" }}>
-            {highlightStatsInText(liveTriggerContent)}
-          </div>
-        </div>,
-      );
-    }
-  }
+          {headline}
+        </div>
+      ) : null}
 
-  if (middleNodes.length) {
-    nodes.push(
-      <div
-        key="ur-sections-wrap"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          margin: "0 0 20px 0",
-        }}
-      >
-        {middleNodes}
-      </div>,
-    );
-  }
+      {bodyChunks.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          {bodyChunks.map((chunk, i) => (
+            <div
+              key={i}
+              style={{
+                padding: "14px 16px",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.05)",
+                borderRadius: 12,
+                fontSize: 13,
+                lineHeight: 1.7,
+                color: "rgba(255,255,255,0.68)",
+              }}
+            >
+              {chunk}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
-  const closingContent = parts.closing?.trim();
-  const closingLooksLikeGameState =
-    Boolean(closingContent) &&
-    /\b(Q[1-4]|OT|H[12]|Live|Final)\b/i.test(closingContent) &&
-    /\d+\s*[,·]\s*\d+/.test(closingContent);
-  if (closingLooksLikeGameState) {
-    nodes.push(
-      <div key="ur-score-footer" style={UR_TAKE_CLOSING_SCORE_FOOTER_STYLE}>
-        {closingContent}
-      </div>,
-    );
-  } else if (closingContent && isSubstantiveClosing(closingContent)) {
-    nodes.push(
-      <div
-        key="ur-close"
-        style={{
-          marginTop: 0,
-          paddingTop: 0,
-          borderTop: "none",
-          fontSize: 14,
-          fontWeight: 700,
-          lineHeight: 1.5,
-          letterSpacing: "normal",
-          color: "#FF3D8F",
-        }}
-      >
-        {closingContent}
-      </div>,
-    );
-  }
+      {closing ? (
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: "#FF3D8F",
+            marginBottom: 12,
+            lineHeight: 1.4,
+          }}
+        >
+          {closing}
+        </div>
+      ) : null}
 
-  if (parts.confidence) {
-    nodes.push(
-      <p
-        key="ur-conf"
-        style={{
-          marginTop: 12,
-          fontSize: 11,
-          color: "rgba(255,255,255,0.28)",
-          fontFamily: "var(--body-font)",
-          letterSpacing: 0.3,
-        }}
-      >
-        {parts.confidence}
-      </p>,
-    );
-  }
-
-  if (nodes.length === 0) {
-    return renderMessage(String(raw || ""), { styleUrTakeSectionLabels: true });
-  }
-
-  return <>{nodes}</>;
+      {confidence ? (
+        <div
+          style={{
+            fontSize: 11,
+            color: "rgba(255,255,255,0.28)",
+            fontFamily: "var(--body-font)",
+            letterSpacing: 0.3,
+          }}
+        >
+          {confidence}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** Cyan → magenta gradient for legacy `>>` opener and emphasis (not section labels). */
