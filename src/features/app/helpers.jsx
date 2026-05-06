@@ -379,6 +379,16 @@ function peelConfidenceLine(text) {
       confidence: last.trim(),
     };
   }
+  const inlineConfidence = text.match(/\b(Confidence\s*:\s*[^\n]+)\s*$/i);
+  if (inlineConfidence && inlineConfidence.index !== undefined) {
+    const rest = text.slice(0, inlineConfidence.index).trimEnd();
+    if (rest) {
+      return {
+        rest,
+        confidence: inlineConfidence[1].trim(),
+      };
+    }
+  }
   return { rest: text, confidence: null };
 }
 
@@ -418,6 +428,45 @@ function splitFirstSentenceHeadline(block) {
   const nl = t.indexOf("\n");
   if (nl > 0) return { first: t.slice(0, nl).trim(), rest: t.slice(nl + 1).trim() };
   return { first: t, rest: "" };
+}
+
+/**
+ * If the model returns one giant sentence/paragraph, force a headline/body split
+ * so cards can still render without changing response copy.
+ */
+function forceHeadlineBodySplit(first, rest) {
+  const headline = String(first || "").trim();
+  const body = String(rest || "").trim();
+  if (!headline) return { first: "", rest: body };
+  if (body) return { first: headline, rest: body };
+  if (headline.length < 200) return { first: headline, rest: "" };
+
+  const probes = [
+    /\.\s+/g,
+    /\s+but\s+/gi,
+    /\s+if\s+/gi,
+    /\s+watch\s+/gi,
+    /\s+right\s+now\b/gi,
+    /\s+the\s+script\s+/gi,
+  ];
+  let splitAt = -1;
+  for (const re of probes) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(headline)) !== null) {
+      if (m.index >= 110) {
+        splitAt = m.index;
+        break;
+      }
+    }
+    if (splitAt >= 0) break;
+  }
+  if (splitAt < 0) return { first: headline, rest: "" };
+
+  const forcedFirst = headline.slice(0, splitAt).trim();
+  const forcedRest = headline.slice(splitAt).replace(/^[\s,.;:–—-]+/, "").trim();
+  if (!forcedFirst || !forcedRest) return { first: headline, rest: "" };
+  return { first: forcedFirst, rest: forcedRest };
 }
 
 /** Omit raw "minutes" — avoids highlighting clock/Q4 usage (e.g. "Q4 32 minutes"). */
@@ -573,7 +622,8 @@ export function renderUrTakeAiMessage(raw) {
 
   const main = parts.mainText;
   if (main) {
-    const { first, rest } = splitFirstSentenceHeadline(main);
+    const roughSplit = splitFirstSentenceHeadline(main);
+    const { first, rest } = forceHeadlineBodySplit(roughSplit.first, roughSplit.rest);
     const headlineText = stripLeadingUrTakeHeadlineChevrons(first);
     if (headlineText) {
       nodes.push(
