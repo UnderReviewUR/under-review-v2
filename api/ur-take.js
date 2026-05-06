@@ -6625,6 +6625,7 @@ You are responding to a Pro subscriber. Apply the following:
             playoffSeriesRowsReturned: nbaContext.urTakeParsing.playoffSeriesRowsReturned ?? 0,
             playoffSeriesRowsScoreVisible:
               nbaContext.urTakeParsing.playoffSeriesRowsScoreVisible ?? 0,
+            statsBundleAbbrevs: nbaContext.urTakeParsing.statsBundleAbbrevs ?? [],
             effectiveFocusAbbrevs: nbaContext.urTakeParsing.effectiveFocusAbbrevs ?? [],
             deepHydratedTeams: nbaContext.urTakeParsing.deepHydratedTeams ?? [],
             directTeamOverride: Boolean(nbaContext.urTakeParsing.directTeamOverride),
