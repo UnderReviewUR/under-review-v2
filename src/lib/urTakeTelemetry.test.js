@@ -28,3 +28,12 @@ test("sanitizeUrTakeTelemetryProps drops non-finite numbers", () => {
   assert.equal(out.ok, 1);
   assert.ok(!("bad" in out));
 });
+
+test("sanitizeUrTakeTelemetryProps caps followUpTexts to 3 strings × 80 chars", () => {
+  const long = "y".repeat(100);
+  const out = sanitizeUrTakeTelemetryProps({
+    followUpTexts: ["  Alpha?  ", "Beta?", long, "fourth"],
+  });
+  assert.deepEqual(out.followUpTexts, ["Alpha?", "Beta?", "y".repeat(80)]);
+});
+

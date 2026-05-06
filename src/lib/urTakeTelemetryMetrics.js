@@ -194,7 +194,10 @@ export function groupFollowUpPerformance(events) {
 
   const rows = [];
   for (const [followUpText, r] of map.entries()) {
-    const impressionsEstimated = Boolean(r.clicks > 0 && !r.impressionsFromAttach);
+    /** True only when impressions came from click-floor (no followUpTexts on attach events for this key). */
+    const impressionsEstimated = Boolean(
+      r.impressions > 0 && !r.impressionsFromAttach,
+    );
     const ctr =
       r.impressions > 0 ? r.clicks / r.impressions : r.clicks > 0 ? 1 : null;
     const completionRate = r.clicks > 0 ? r.successes / r.clicks : null;

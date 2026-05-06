@@ -4,7 +4,7 @@
  *
  * Event names (see UR_TAKE_TELEMETRY):
  * - ur_take_live_response_generated — API returned liveMode; props: sport, intent, liveMode, followUpCount
- * - ur_take_followups_attached — followUps array non-empty; props: sport, intent, liveMode, followUpCount
+ * - ur_take_followups_attached — followUps array non-empty; props: sport, intent, liveMode, followUpCount, followUpTexts (≤3, 80 chars each)
  * - ur_take_followup_click — chip tap; props include followUpText, msSinceResponseShown, followUpIndex, followUpCount
  * - ur_take_followup_submit — /api/ur-take request starts from chip; props include sessionUserTurns (conversation depth)
  * - ur_take_followup_response_completed — chip round finished; props: success, roundTripMs, sessionUserTurns, optional error
@@ -29,15 +29,24 @@ const TEXT_MAX = 160;
 
 /**
  * Flatten props to primitives safe for analytics payloads.
+ * `followUpTexts` is capped (max 3 strings, 80 chars each) — displayed chip copy only.
  * @param {Record<string, unknown>} props
- * @returns {Record<string, string | number | boolean>}
+ * @returns {Record<string, string | number | boolean | string[]>}
  */
 export function sanitizeUrTakeTelemetryProps(props) {
-  /** @type {Record<string, string | number | boolean>} */
+  /** @type {Record<string, string | number | boolean | string[]>} */
   const out = {};
   if (!props || typeof props !== "object") return out;
   for (const [k, v] of Object.entries(props)) {
     if (v === undefined || v === null) continue;
+    if (k === "followUpTexts" && Array.isArray(v)) {
+      const cleaned = v
+        .slice(0, 3)
+        .map((x) => String(x ?? "").trim().slice(0, 80))
+        .filter((s) => s.length > 0);
+      if (cleaned.length > 0) out[k] = cleaned;
+      continue;
+    }
     if (typeof v === "boolean" || typeof v === "number") {
       if (typeof v === "number" && !Number.isFinite(v)) continue;
       out[k] = v;

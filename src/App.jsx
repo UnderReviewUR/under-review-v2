@@ -1283,11 +1283,13 @@ ${themeCss}
         });
       }
       if (Array.isArray(data.followUps) && data.followUps.length > 0) {
+        const chips = data.followUps.slice(0, 3);
         telemetryUrTakeFollowUpsAttached({
           sport: sportTracked,
           intent: String(data.intent || ""),
           liveMode: Boolean(data.liveMode),
           followUpCount: data.followUps.length,
+          followUpTexts: chips.map((t) => String(t).trim().slice(0, 80)),
         });
       }
     } catch {

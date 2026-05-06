@@ -94,6 +94,24 @@ test("groupFollowUpPerformance groups copy and computes ctr when followUpTexts p
   assert.equal(line.impressionsEstimated, false);
 });
 
+test("groupFollowUpPerformance uses followUpTexts impressions not click-floor when texts present", () => {
+  const events = [
+    ev(E.FOLLOWUPS_ATTACHED, {
+      followUpCount: 3,
+      followUpTexts: ["chip one?", "chip two?", "chip three?"],
+    }),
+    ev(E.FOLLOWUP_CLICK, { followUpText: "chip one?" }),
+    ev(E.FOLLOWUP_CLICK, { followUpText: "chip one?" }),
+  ];
+  const { rows } = groupFollowUpPerformance(events);
+  const one = rows.find((r) => r.followUpText === "chip one?");
+  assert.ok(one);
+  assert.equal(one.impressions, 1);
+  assert.equal(one.clicks, 2);
+  assert.equal(one.clickThroughRate, 2);
+  assert.equal(one.impressionsEstimated, false);
+});
+
 test("groupFollowUpPerformance uses click floor when attach texts absent", () => {
   const events = [
     ev(E.FOLLOWUPS_ATTACHED, { followUpCount: 3 }),
