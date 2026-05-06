@@ -60,6 +60,7 @@ import {
   filterPropLinesToVerifiedSlate,
   mergeNbaTodaysGames,
 } from "./lib/nbaUiSurface.js";
+import { getEtHour24 } from "./lib/nbaTime.js";
 import {
   ChatThread,
   buildNflContext,
@@ -861,7 +862,9 @@ ${themeCss}
       todaysGames:     mergedTodaysGames,
       todaysGamesTrustNote:
         mergedTodaysGames.length === 0
-          ? "Verified Home/NBA pipeline slate is empty — do not invent tonight matchups or props."
+          ? getEtHour24() < 12
+            ? "Today's NBA slate hasn't posted yet — ask about player props or matchup history and I'll work with what's available."
+            : "The NBA board isn't showing games right now — could be a data delay. Try again in a few minutes or ask about a specific player."
           : "todaysGames is restricted to the verified displayable slate (same gates as Home). Props/stats filtered to these games.",
       /** When the slate is empty but BDL responded OK — tells UR Take it is a real off day vs. pipeline failure */
       todaysGamesSlateMeta: slateMeta,

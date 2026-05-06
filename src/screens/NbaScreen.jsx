@@ -2,7 +2,7 @@ import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import { filterNbaUiChipsForSlateAndInjuries } from "../lib/nbaUiSurface.js";
-import { formatNbaTipoffLocal } from "../lib/nbaTime.js";
+import { formatNbaTipoffLocal, getEtHour24 } from "../lib/nbaTime.js";
 import { nbaEventKey } from "../../shared/homeEventDedup.js";
 
 export default function NbaScreen({
@@ -26,12 +26,23 @@ export default function NbaScreen({
   const playerChips = filterNbaUiChipsForSlateAndInjuries(gamesForState, injuries);
   const nbaQuickPrompts = getQuickPromptsForState("nba", deriveDominantGameState(gamesForState));
 
+  const slateNote = String(nbaData?.todaysGamesSlateMeta?.note || "").trim();
+  const apiGamesLen = Array.isArray(nbaData?.todaysGames) ? nbaData.todaysGames.length : 0;
+
   const bannerCounts =
     gamesForState.length > 0
       ? `${gamesForState.filter((g) => g.state === "in").length > 0 ? gamesForState.filter((g) => g.state === "in").length + " live · " : ""}${gamesForState.filter((g) => g.state === "pre").length > 0 ? gamesForState.filter((g) => g.state === "pre").length + " upcoming · " : ""}${gamesForState.length} on verified slate`
       : nbaLoading
         ? "Loading…"
-        : "Verified slate empty — off night or board still wiring";
+        : !nbaData
+          ? "Board loading — pull to refresh"
+          : slateNote
+            ? "No NBA games in this window"
+            : apiGamesLen === 0
+              ? getEtHour24() < 12
+                ? "Today's slate posts closer to tip — check back after noon"
+                : "No games tonight — next slate posts tomorrow"
+              : "Verified slate empty — off night or board still wiring";
 
   return (
     <main ref={nbaScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>

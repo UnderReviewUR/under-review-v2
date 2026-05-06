@@ -1,3 +1,15 @@
+/** Hour 0–23 in America/New_York for UI copy (empty slate, trust notes). */
+export function getEtHour24() {
+  return parseInt(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date()),
+    10,
+  );
+}
+
 export function formatNbaTipoffLocal(startTimeUtc) {
   const raw = String(startTimeUtc || "").trim();
   if (!raw) return "TBD";

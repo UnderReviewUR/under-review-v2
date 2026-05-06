@@ -4234,6 +4234,9 @@ function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, imag
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const requestStart = Date.now();
+  let nbaBoardBuildMs = 0;
+  let anthropicMs = 0;
+  let haikuFollowUpsMs = 0;
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -4394,7 +4397,9 @@ export default async function handler(req, res) {
   let f1Context = f1ContextFromClient;
   if (sportHint === "nba") {
     try {
+      const nbaT0 = Date.now();
       const fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
+      nbaBoardBuildMs = Date.now() - nbaT0;
       nbaContext = {
         ...fresh,
         question: String(question || ""),
@@ -6303,6 +6308,7 @@ You are responding to a Pro subscriber. Apply the following:
       const temperatureForAttempt =
         qaAttempt === 0 ? selectedTemperature : Math.min(selectedTemperature, 0.28);
 
+      const anthropicT0 = Date.now();
       const result = await callAnthropic({
         apiKey: ANTHROPIC_API_KEY,
         model: ANTHROPIC_MODEL,
@@ -6311,6 +6317,7 @@ You are responding to a Pro subscriber. Apply the following:
         temperature: temperatureForAttempt,
         max_tokens: tokenBudget,
       });
+      anthropicMs += Date.now() - anthropicT0;
 
       if (!result.ok) {
         if (result.rateLimitedExhausted) {
@@ -6596,7 +6603,9 @@ You are responding to a Pro subscriber. Apply the following:
       })
     ) {
       try {
+        const haikuT0 = Date.now();
         const fus = await generateLiveFollowUpsWithHaiku(responseText, ANTHROPIC_API_KEY);
+        haikuFollowUpsMs = Date.now() - haikuT0;
         if (Array.isArray(fus) && fus.length >= 2) {
           followUpsField = fus;
         }
@@ -6624,6 +6633,9 @@ You are responding to a Pro subscriber. Apply the following:
         liveMode: liveModeFlag,
         followUpsAttached: Boolean(followUpsField?.length),
         followUpsCount: followUpsField?.length ?? 0,
+        nbaBoardBuildMs,
+        anthropicMs,
+        haikuFollowUpsMs,
       }),
     );
 

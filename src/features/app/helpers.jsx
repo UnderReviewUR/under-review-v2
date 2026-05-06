@@ -3,7 +3,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { telemetryUrTakeFollowUpClick } from "../../lib/urTakeTelemetry.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
+import {
+  isSubstantiveClosing,
+  peelClosingFromMain,
+} from "../../lib/urTakeClosingSentence.js";
 export { normalizeText };
+export { isSubstantiveClosing };
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
 /** Prefer explicit sport on stored AI bubbles (follow-up routing). */
@@ -377,64 +382,6 @@ function peelConfidenceLine(text) {
   return { rest: text, confidence: null };
 }
 
-/** Single full line that reads as an explicit closing / verdict (scanned from bottom). */
-function lineMatchesExplicitClosing(line) {
-  const L = line.trim();
-  if (!L) return false;
-  if (/^(Look for|Back|Fade|Take the)\b/i.test(L)) return true;
-  if (/\bis the play\b/i.test(L)) return true;
-  if (/\b(lean over|lean under)\b/i.test(L) && L.length < 220) return true;
-  if (/^\s*(?:the\s+)?(?:over|under)\s+[\d.]+\b/i.test(L)) return true;
-  if (
-    /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(L) &&
-    /\d+(?:\.\d+)?/.test(L) &&
-    /\b(over|under|points?|rebounds?|PRA)\b/i.test(L)
-  ) {
-    return true;
-  }
-  return false;
-}
-
-function splitLastSentence(block) {
-  const t = block.trim();
-  if (!t) return { body: "", last: "" };
-  for (let i = t.length - 1; i > 0; i--) {
-    const c = t[i];
-    if (c === "." || c === "!" || c === "?") {
-      if (c === "." && /\d/.test(t[i - 1])) {
-        const nextCh = t[i + 1];
-        if (nextCh && /\d/.test(nextCh)) continue;
-      }
-      const before = t.slice(0, i).trimEnd();
-      if (!before) continue;
-      return { body: before, last: t.slice(i).trim() };
-    }
-  }
-  return { body: "", last: t };
-}
-
-/**
- * Pull closing call from main narrative (after confidence peel, before Live trigger was split out).
- * Explicit patterns first; otherwise last sentence as verdict hero (two+ sentences only).
- */
-function peelClosingFromMain(mainChunk) {
-  const lines = mainChunk.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    if (lineMatchesExplicitClosing(line)) {
-      const rest = [...lines.slice(0, i), ...lines.slice(i + 1)].join("\n").trimEnd();
-      return { rest, closing: line };
-    }
-  }
-
-  const { body, last } = splitLastSentence(mainChunk);
-  if (!last || !body.trim()) {
-    return { rest: mainChunk, closing: null };
-  }
-  return { rest: body.trimEnd(), closing: last.trim() };
-}
-
 function peelLiveTriggerSection(text) {
   const m = text.match(/\bLive trigger\b\s*:?\s*/i);
   if (!m || m.index === undefined) return { main: text, trigger: null };
@@ -727,7 +674,7 @@ export function renderUrTakeAiMessage(raw) {
   }
 
   const closingContent = parts.closing?.trim();
-  if (closingContent) {
+  if (closingContent && isSubstantiveClosing(closingContent)) {
     nodes.push(
       <div
         key="ur-close"
