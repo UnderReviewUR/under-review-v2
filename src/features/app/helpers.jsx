@@ -554,9 +554,21 @@ const VISUAL_A_CONFIDENCE_STYLE = {
   marginTop: 10,
 };
 
+function normalizeUrTakeNewlines(s) {
+  return String(s || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+}
+
+/** True when at least one line is an explicit ALL CAPS section label (legacy UR Take shape). */
+function restContainsAllCapsSectionHeader(block) {
+  const lines = normalizeUrTakeNewlines(block).split("\n");
+  return lines.some((line) => isUrTakeAllCapsSectionLine(line));
+}
+
 /** Split body into blocks separated by all-caps section headers (labels stay on their card). */
 function splitIntoAllCapsSectionCards(block) {
-  const rawLines = String(block || "").split("\n");
+  const rawLines = normalizeUrTakeNewlines(block).split("\n");
   const sections = [];
   let title = null;
   let curLines = [];
@@ -581,6 +593,61 @@ function splitIntoAllCapsSectionCards(block) {
   }
   push();
   return sections;
+}
+
+/**
+ * When models omit ALL CAPS headers: infer cards from paragraph gaps (`\\n\\n`), then
+ * from bullet/list runs (`•` / `-` at line start) when the whole body would otherwise be one blob.
+ */
+function splitIntoParagraphCards(block) {
+  const normalized = normalizeUrTakeNewlines(block).trim();
+  if (!normalized) return [];
+  let paras = normalized
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (paras.length === 1 && paras[0]) {
+    const lines = paras[0].split("\n");
+    const bulletish = (ln) => /^(\u2022|•|-|–)\s/.test(ln.trim()) || /^\d+\.\s/.test(ln.trim());
+    const bulletLines = lines.filter((ln) => ln.trim() && bulletish(ln));
+    if (bulletLines.length >= 2 && bulletLines.length >= Math.ceil(lines.filter(Boolean).length * 0.5)) {
+      const chunks = [];
+      let buf = [];
+      for (const ln of lines) {
+        const t = ln.trim();
+        if (!t) {
+          if (buf.length) chunks.push(buf.join("\n").trim());
+          buf = [];
+          continue;
+        }
+        if (bulletish(ln) && buf.length) {
+          chunks.push(buf.join("\n").trim());
+          buf = [ln.trimEnd()];
+        } else {
+          buf.push(ln.trimEnd());
+        }
+      }
+      if (buf.length) chunks.push(buf.join("\n").trim());
+      const filtered = chunks.map((c) => c.trim()).filter(Boolean);
+      if (filtered.length > 1) paras = filtered;
+    }
+  }
+
+  return paras.map((body) => ({ title: null, body }));
+}
+
+/**
+ * Prefer explicit all-caps section breaks when present; otherwise infer cards from paragraph gaps.
+ * Live trigger / closing / confidence are already peeled out of this block upstream.
+ */
+function splitMainBodyIntoVisualSectionCards(restAfterHeadline) {
+  const trimmed = normalizeUrTakeNewlines(restAfterHeadline).trim();
+  if (!trimmed) return [];
+  if (restContainsAllCapsSectionHeader(trimmed)) {
+    return splitIntoAllCapsSectionCards(trimmed);
+  }
+  return splitIntoParagraphCards(trimmed);
 }
 
 function parseUrTakeVisualParts(raw) {
@@ -661,7 +728,7 @@ export function renderUrTakeAiMessage(raw) {
       );
     }
     if (rest) {
-      const sectionCards = splitIntoAllCapsSectionCards(rest);
+      const sectionCards = splitMainBodyIntoVisualSectionCards(rest);
       sectionCards.forEach((sec, i) => {
         nodes.push(
           <div key={`ur-sec-${i}`} style={VISUAL_A_SECTION_CARD_STYLE}>
