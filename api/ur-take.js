@@ -6621,6 +6621,11 @@ You are responding to a Pro subscriber. Apply the following:
         ? {
             playoffFocusMode: Boolean(nbaContext.urTakeParsing.playoffFocusMode),
             playoffFocusTeamCount: nbaContext.urTakeParsing.playoffFocusTeamCount ?? 0,
+            playoffPrioritySource: nbaContext.urTakeParsing.playoffPrioritySource ?? "none",
+            playoffSeriesRowsReturned: nbaContext.urTakeParsing.playoffSeriesRowsReturned ?? 0,
+            playoffSeriesRowsScoreVisible:
+              nbaContext.urTakeParsing.playoffSeriesRowsScoreVisible ?? 0,
+            effectiveFocusAbbrevs: nbaContext.urTakeParsing.effectiveFocusAbbrevs ?? [],
             deepHydratedTeams: nbaContext.urTakeParsing.deepHydratedTeams ?? [],
             directTeamOverride: Boolean(nbaContext.urTakeParsing.directTeamOverride),
             nonPlayoffTeamRequested: Boolean(nbaContext.urTakeParsing.nonPlayoffTeamRequested),

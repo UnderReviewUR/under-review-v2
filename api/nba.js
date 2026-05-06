@@ -1883,6 +1883,58 @@ export function derivePlayoffPriorityAbbrevs(playoffSeries = [], todaysGames = [
   return [...new Set(out)].sort();
 }
 
+/** Teams on today's slate marked postseason (BDL `postseason` or verified ESPN-style flag). */
+export function derivePostseasonSlateTeamAbbrevs(todaysGames = []) {
+  const out = new Set();
+  for (const g of todaysGames || []) {
+    const isPo = Boolean(g?.postseason);
+    if (!isPo) continue;
+    const aa = canonicalizeTeamAbbr(String(g?.awayTeam?.abbr || "").trim());
+    const ha = canonicalizeTeamAbbr(String(g?.homeTeam?.abbr || "").trim());
+    if (aa && aa !== "UNK") out.add(aa);
+    if (ha && ha !== "UNK") out.add(ha);
+  }
+  return [...out].sort();
+}
+
+/**
+ * Playoff priority list: bracket ∩ slate first; else verified postseason games on the slate.
+ * @returns {{ abbrevs: string[], source: "series"|"slate_postseason"|"none" }}
+ */
+export function resolvePlayoffPriorityAbbrevs(playoffSeries = [], todaysGames = []) {
+  const fromBracket = derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
+  if (fromBracket.length > 0) {
+    return { abbrevs: fromBracket, source: "series" };
+  }
+  const fromSlate = derivePostseasonSlateTeamAbbrevs(todaysGames);
+  if (fromSlate.length > 0) {
+    return { abbrevs: fromSlate, source: "slate_postseason" };
+  }
+  return { abbrevs: [], source: "none" };
+}
+
+function slateTeamAbbrevsAll(todaysGames) {
+  const seen = new Set();
+  const out = [];
+  for (const g of todaysGames || []) {
+    for (const side of [g?.awayTeam?.abbr, g?.homeTeam?.abbr]) {
+      const a = canonicalizeTeamAbbr(String(side || "").trim());
+      if (a && a !== "UNK" && !seen.has(a)) {
+        seen.add(a);
+        out.push(a);
+      }
+    }
+  }
+  out.sort();
+  return out;
+}
+
+/** Caps slate-wide stats pull when no playoff/postseason focus (generic asks). */
+function slateTeamAbbrevsCapped(todaysGames, maxTeams = 8) {
+  const all = slateTeamAbbrevsAll(todaysGames);
+  return all.slice(0, Math.max(1, maxTeams));
+}
+
 /**
  * Merges question teams (first) with playoff-slate priority. Direct teams outrank playoff-only
  * in downstream tiered boost / sort (see `prioritizeNbaBoardForQuestion`).
@@ -2719,7 +2771,8 @@ export function buildNbaNewsImpact(board = {}) {
   };
 }
 
-function shouldShowSeriesScore(item) {
+/** True when series has at least one completed game worth of wins — for enrichment only, not for dropping rows. */
+export function shouldShowSeriesScore(item) {
   const hw = Number(item?.homeWins || 0);
   const aw = Number(item?.awayWins || 0);
   return Number.isFinite(hw) && Number.isFinite(aw) && hw + aw > 0;
@@ -2798,14 +2851,16 @@ async function enrichPlayoffSeriesRowsWithCompletedGameTotals(seriesRows) {
 }
 
 async function getNbaPlayoffSeries() {
-  const cacheKey = "nba_playoff_series";
+  const seasonYear = getNbaSeasonContext().season;
+  const cacheKey = `nba_playoff_series_v3_${seasonYear}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
   const fromPlayoffEndpoint = async () => {
-    const res = await fetch("https://site.api.espn.com/apis/v2/sports/basketball/nba/playoff?season=2025", {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `https://site.api.espn.com/apis/v2/sports/basketball/nba/playoff?season=${encodeURIComponent(String(seasonYear))}`,
+      { cache: "no-store" },
+    );
     if (!res.ok) return [];
     const d2 = await res.json();
     const brackets = d2?.bracket?.series || d2?.rounds?.flatMap((r) => r.series || []) || [];
@@ -2865,13 +2920,10 @@ async function getNbaPlayoffSeries() {
     const scoreboardSeries = scoreboardRows.status === "fulfilled" ? scoreboardRows.value : [];
 
     const preferred = playoffSeries.length > 0 ? playoffSeries : scoreboardSeries;
-    const filtered = preferred.filter(shouldShowSeriesScore);
-    if (filtered.length > 0) {
-      const enriched = await enrichPlayoffSeriesRowsWithCompletedGameTotals(filtered);
-      setCached(cacheKey, enriched);
-      return enriched;
-    }
-    return [];
+    if (!preferred.length) return [];
+    const enriched = await enrichPlayoffSeriesRowsWithCompletedGameTotals(preferred);
+    setCached(cacheKey, enriched);
+    return enriched;
   } catch (err) {
     console.warn("getNbaPlayoffSeries error:", err.message);
     return [];
@@ -2906,7 +2958,13 @@ export async function buildNbaUrTakeBoard(question = "") {
   const todaysGamesSlateMeta = tgRes.slateMeta;
 
   const playoffSeries = await getNbaPlayoffSeries();
-  const playoffPriorityAbbrevs = derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
+  const playoffSeriesRowsReturned = Array.isArray(playoffSeries) ? playoffSeries.length : 0;
+  const playoffSeriesRowsScoreVisible = Array.isArray(playoffSeries)
+    ? playoffSeries.filter(shouldShowSeriesScore).length
+    : 0;
+
+  const { abbrevs: playoffPriorityAbbrevs, source: playoffPrioritySource } =
+    resolvePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
   const { mergedPriorityAbbrevs, directAbbrevs, playoffOnlyAbbrevs } = mergeNbaUrTakePriorityAbbrevs(
     boost,
     playoffPriorityAbbrevs,
@@ -2918,6 +2976,13 @@ export async function buildNbaUrTakeBoard(question = "") {
     playoffFocusMode && boost.some((t) => !playoffPrioritySet.has(String(t || "").toUpperCase()));
   const directTeamOverride = boost.length > 0;
 
+  let statsBundleAbbrevs = mergedPriorityAbbrevs;
+  if (statsBundleAbbrevs.length === 0 && boost.length === 0) {
+    statsBundleAbbrevs = slateTeamAbbrevsCapped(todaysGames, 8);
+  }
+  const effectiveFocusAbbrevs =
+    mergedPriorityAbbrevs.length > 0 ? mergedPriorityAbbrevs : statsBundleAbbrevs;
+
   const [rawBundle, statsBundle] = await Promise.all([
     getNbaPropLines(ODDS_KEY, {
       priorityAbbrevs: mergedPriorityAbbrevs,
@@ -2925,7 +2990,7 @@ export async function buildNbaUrTakeBoard(question = "") {
       priorityPlayoffOnlyAbbrevs: playoffOnlyAbbrevs,
       maxEvents: 18,
     }),
-    getNbaPlayerStatsBundle(BDL_KEY, todaysGames, mergedPriorityAbbrevs),
+    getNbaPlayerStatsBundle(BDL_KEY, todaysGames, statsBundleAbbrevs),
   ]);
   const rawPropLines = rawBundle.propLines || [];
   const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
@@ -2942,7 +3007,7 @@ export async function buildNbaUrTakeBoard(question = "") {
   const recentGameLogsByPlayerId = await fetchRecentGameLogs(
     BDL_KEY,
     playerStatsWithTonight,
-    mergedPriorityAbbrevs,
+    effectiveFocusAbbrevs,
   );
   const playerStatsWithRecent = playerStatsWithTonight.map((p) => {
     const playerId = Number(p?.playerId);
@@ -2956,13 +3021,13 @@ export async function buildNbaUrTakeBoard(question = "") {
     statsBundle.statsSource || "season_average",
   );
 
-  const mergedFocusSet = new Set(mergedPriorityAbbrevs);
+  const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
   const deepHydratedTeams = [
     ...new Set(
       playerStatsWithRecent
         .filter((p) => Array.isArray(p.recentGames) && p.recentGames.length > 0)
         .map((p) => String(p?.team || "").toUpperCase())
-        .filter((abbr) => abbr && mergedFocusSet.has(abbr)),
+        .filter((abbr) => abbr && effectiveFocusSet.has(abbr)),
     ),
   ].sort();
 
@@ -3003,6 +3068,11 @@ export async function buildNbaUrTakeBoard(question = "") {
       boostedTeamAbbrevsFromQuestion: boost,
       mergedPriorityAbbrevs,
       playoffPriorityAbbrevs,
+      playoffPrioritySource,
+      playoffSeriesRowsReturned,
+      playoffSeriesRowsScoreVisible,
+      statsBundleAbbrevs,
+      effectiveFocusAbbrevs,
       playoffFocusMode,
       playoffFocusTeamCount,
       deepHydratedTeams,
@@ -3042,8 +3112,12 @@ export async function buildNbaUrTakeBoard(question = "") {
       playerStatsCount: board?.playerStats?.length || 0,
       propLinesCount: board?.propLines?.length || 0,
       rosterQuality: board?.rosterGrounding?.rosterGroundingQuality || "unknown",
+      playoffPrioritySource,
+      playoffSeriesRowsReturned,
+      playoffSeriesRowsScoreVisible,
       playoffFocusMode,
       playoffFocusTeamCount,
+      effectiveFocusAbbrevs,
       deepHydratedTeams,
       directTeamOverride,
       nonPlayoffTeamRequested,
@@ -3073,7 +3147,7 @@ export default async function handler(req, res) {
 
     if (view === "board") {
       const boardT0 = Date.now();
-      const boardCacheKey = `nba_board_${new Date().getFullYear()}_le1`;
+      const boardCacheKey = `nba_board_${new Date().getFullYear()}_le2`;
       const boardCached = getCached(boardCacheKey);
       if (boardCached) {
         let out = boardCached;
@@ -3100,6 +3174,10 @@ export default async function handler(req, res) {
             gameCount: Array.isArray(out.todaysGames) ? out.todaysGames.length : 0,
             playoffFocusMode: pf.playoffFocusMode ?? false,
             playoffFocusTeamCount: pf.playoffFocusTeamCount ?? 0,
+            playoffPrioritySource: pf.playoffPrioritySource ?? "none",
+            playoffSeriesRowsReturned: pf.playoffSeriesRowsReturned ?? 0,
+            playoffSeriesRowsScoreVisible: pf.playoffSeriesRowsScoreVisible ?? 0,
+            effectiveFocusAbbrevs: pf.effectiveFocusAbbrevs ?? [],
             deepHydratedTeams: pf.deepHydratedTeams ?? [],
             directTeamOverride: pf.directTeamOverride ?? false,
             nonPlayoffTeamRequested: pf.nonPlayoffTeamRequested ?? false,
@@ -3131,11 +3209,23 @@ export default async function handler(req, res) {
       const playoffWrap = await wrapTimed(() => getNbaPlayoffSeries());
       const playoffSeries = playoffWrap.r;
       const playoffSeriesMs = playoffWrap.ms;
-      const playoffPriorityAbbrevs = derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
+      const playoffSeriesRowsReturned = Array.isArray(playoffSeries) ? playoffSeries.length : 0;
+      const playoffSeriesRowsScoreVisible = Array.isArray(playoffSeries)
+        ? playoffSeries.filter(shouldShowSeriesScore).length
+        : 0;
+
+      const { abbrevs: playoffPriorityAbbrevs, source: playoffPrioritySource } =
+        resolvePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
       const { mergedPriorityAbbrevs, playoffOnlyAbbrevs } = mergeNbaUrTakePriorityAbbrevs(
         [],
         playoffPriorityAbbrevs,
       );
+      let statsBundleAbbrevs = mergedPriorityAbbrevs;
+      if (statsBundleAbbrevs.length === 0) {
+        statsBundleAbbrevs = slateTeamAbbrevsCapped(todaysGames, 8);
+      }
+      const effectiveFocusAbbrevs =
+        mergedPriorityAbbrevs.length > 0 ? mergedPriorityAbbrevs : statsBundleAbbrevs;
       const playoffFocusTeamCount = playoffPriorityAbbrevs.length;
       const playoffFocusMode = playoffFocusTeamCount > 0;
 
@@ -3147,7 +3237,7 @@ export default async function handler(req, res) {
             priorityPlayoffOnlyAbbrevs: playoffOnlyAbbrevs,
           }),
         ),
-        wrapTimed(() => getNbaPlayerStatsBundle(BDL_KEY, todaysGames, mergedPriorityAbbrevs)),
+        wrapTimed(() => getNbaPlayerStatsBundle(BDL_KEY, todaysGames, statsBundleAbbrevs)),
       ]);
       const rawBundle = propWrap.r;
       const propLinesMs = propWrap.ms;
@@ -3175,7 +3265,7 @@ export default async function handler(req, res) {
       const recentGameLogsByPlayerId = await fetchRecentGameLogs(
         BDL_KEY,
         playerStatsWithTonight,
-        mergedPriorityAbbrevs,
+        effectiveFocusAbbrevs,
       );
       const recentGameLogsMs = Date.now() - rl0;
       const playerStatsWithRecent = playerStatsWithTonight.map((p) => {
@@ -3191,16 +3281,21 @@ export default async function handler(req, res) {
         statsBundle.statsSource || "season_average",
       );
 
-      const mergedFocusSet = new Set(mergedPriorityAbbrevs);
+      const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
       const deepHydratedTeams = [
         ...new Set(
           playerStatsWithRecent
             .filter((p) => Array.isArray(p.recentGames) && p.recentGames.length > 0)
             .map((p) => String(p?.team || "").toUpperCase())
-            .filter((abbr) => abbr && mergedFocusSet.has(abbr)),
+            .filter((abbr) => abbr && effectiveFocusSet.has(abbr)),
         ),
       ].sort();
       const playoffFocusMeta = {
+        playoffPrioritySource,
+        playoffSeriesRowsReturned,
+        playoffSeriesRowsScoreVisible,
+        statsBundleAbbrevs,
+        effectiveFocusAbbrevs,
         playoffFocusMode,
         playoffFocusTeamCount,
         deepHydratedTeams,

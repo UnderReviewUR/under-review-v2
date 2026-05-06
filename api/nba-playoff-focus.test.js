@@ -6,8 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import {
   derivePlayoffPriorityAbbrevs,
+  derivePostseasonSlateTeamAbbrevs,
   mergeNbaUrTakePriorityAbbrevs,
   prioritizeNbaBoardForQuestion,
+  resolvePlayoffPriorityAbbrevs,
+  shouldShowSeriesScore,
 } from "./nba.js";
 import { getQuickPromptsForState } from "../src/lib/getQuickPromptsForState.js";
 
@@ -26,11 +29,61 @@ test("derivePlayoffPriorityAbbrevs: intersection of playoffSeries teams and toda
   assert.deepEqual(abbrevs, ["DEN", "MIN"]);
 });
 
-test("derivePlayoffPriorityAbbrevs: empty when playoff data missing", () => {
-  assert.deepEqual(derivePlayoffPriorityAbbrevs([], [{ awayTeam: { abbr: "MIN" }, homeTeam: { abbr: "DEN" } }]), []);
+test("0–0 playoff series rows still produce priority abbrevs (derive ignores wins)", () => {
+  const playoffSeries = [
+    { away: "DET", home: "CLE", homeWins: 0, awayWins: 0 },
+    { away: "LAL", home: "OKC", homeWins: 0, awayWins: 0 },
+  ];
+  assert.equal(shouldShowSeriesScore(playoffSeries[0]), false);
+  const todaysGames = [
+    { awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } },
+    { awayTeam: { abbr: "LAL" }, homeTeam: { abbr: "OKC" } },
+  ];
   assert.deepEqual(
-    derivePlayoffPriorityAbbrevs([{ away: "MIN", home: "DEN" }], []),
-    [],
+    derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames),
+    ["CLE", "DET", "LAL", "OKC"],
+  );
+});
+
+test("derivePlayoffPriorityAbbrevs: DET/CLE + LAL/OKC bracket ∩ slate", () => {
+  const playoffSeries = [
+    { away: "DET", home: "CLE", homeWins: 1, awayWins: 1 },
+    { away: "LAL", home: "OKC", homeWins: 2, awayWins: 2 },
+  ];
+  const todaysGames = [
+    { awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } },
+    { awayTeam: { abbr: "LAL" }, homeTeam: { abbr: "OKC" } },
+  ];
+  assert.deepEqual(
+    derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames),
+    ["CLE", "DET", "LAL", "OKC"],
+  );
+});
+
+test("resolvePlayoffPriorityAbbrevs: empty bracket + postseason slate → slate_postseason", () => {
+  const todaysGames = [
+    { postseason: true, awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } },
+    { postseason: true, awayTeam: { abbr: "LAL" }, homeTeam: { abbr: "OKC" } },
+  ];
+  const r = resolvePlayoffPriorityAbbrevs([], todaysGames);
+  assert.equal(r.source, "slate_postseason");
+  assert.deepEqual(r.abbrevs, ["CLE", "DET", "LAL", "OKC"]);
+});
+
+test("derivePostseasonSlateTeamAbbrevs ignores non-postseason games", () => {
+  const todaysGames = [
+    { postseason: true, awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } },
+    { postseason: false, awayTeam: { abbr: "MEM" }, homeTeam: { abbr: "DEN" } },
+  ];
+  assert.deepEqual(derivePostseasonSlateTeamAbbrevs(todaysGames), ["CLE", "DET"]);
+});
+
+test("shouldShowSeriesScore is independent of derivePlayoffPriorityAbbrevs (metadata gate vs priority)", () => {
+  const row = { away: "DET", home: "CLE", homeWins: 0, awayWins: 0 };
+  assert.equal(shouldShowSeriesScore(row), false);
+  assert.ok(
+    derivePlayoffPriorityAbbrevs([row], [{ awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } }]).length >
+      0,
   );
 });
 
@@ -84,6 +137,17 @@ test("prioritizeNbaBoardForQuestion does not remove rows (sort only)", () => {
   assert.equal(out.todaysGames.length, 1);
   assert.equal(out.propLines.length, 1);
   assert.equal(out.playerStats.length, 1);
+});
+
+test("resolvePlayoffPriorityAbbrevs prefers series over slate when both match", () => {
+  const playoffSeries = [{ away: "DET", home: "CLE", homeWins: 1, awayWins: 0 }];
+  const todaysGames = [
+    { postseason: true, awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } },
+    { postseason: true, awayTeam: { abbr: "LAL" }, homeTeam: { abbr: "OKC" } },
+  ];
+  const r = resolvePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
+  assert.equal(r.source, "series");
+  assert.deepEqual(r.abbrevs, ["CLE", "DET"]);
 });
 
 test("UI copy: playoff matchup hint without Playoff Mode branding", () => {
