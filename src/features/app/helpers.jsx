@@ -352,6 +352,7 @@ function peelGameStateHeaderLine(text) {
   const nl = trimmed.indexOf("\n");
   const firstLine = nl >= 0 ? trimmed.slice(0, nl).trim() : trimmed.trim();
   if (!firstLine) return { header: null, rest: text };
+  if (firstLine.length > 80) return { header: null, rest: text };
   const scoreLike = /^[A-Z]{2,4}\s+\d+/i.test(firstLine);
   const hasDot = firstLine.includes("·");
   const hasQuarterOrLive =
@@ -543,6 +544,13 @@ function isUrTakeAllCapsSectionLine(line) {
 }
 
 const UR_TAKE_BODY_MUTED = "rgba(255,255,255,0.82)";
+const UR_TAKE_CLOSING_SCORE_FOOTER_STYLE = {
+  fontSize: 11,
+  color: "var(--soft)",
+  fontFamily: "var(--mono-font)",
+  marginTop: 8,
+  opacity: 0.5,
+};
 
 const UR_TAKE_SECTION_LABEL_STYLE = {
   fontFamily: "var(--mono-font)",
@@ -648,8 +656,9 @@ export function renderUrTakeAiMessage(raw) {
           <div
             key={`ur-body-${i}`}
             style={{
+              fontFamily: "inherit",
               fontSize: 14,
-              fontWeight: 400,
+              fontWeight: "normal",
               color: UR_TAKE_BODY_MUTED,
               lineHeight: 1.72,
               marginBottom: 12,
@@ -717,7 +726,17 @@ export function renderUrTakeAiMessage(raw) {
   }
 
   const closingContent = parts.closing?.trim();
-  if (closingContent && isSubstantiveClosing(closingContent)) {
+  const closingLooksLikeGameState =
+    Boolean(closingContent) &&
+    /\b(Q[1-4]|OT|H[12]|Live|Final)\b/i.test(closingContent) &&
+    /\d+\s*[,·]\s*\d+/.test(closingContent);
+  if (closingLooksLikeGameState) {
+    nodes.push(
+      <div key="ur-score-footer" style={UR_TAKE_CLOSING_SCORE_FOOTER_STYLE}>
+        {closingContent}
+      </div>,
+    );
+  } else if (closingContent && isSubstantiveClosing(closingContent)) {
     nodes.push(
       <div
         key="ur-close"
