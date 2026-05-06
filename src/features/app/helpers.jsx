@@ -431,6 +431,13 @@ const UR_STAT_HIGHLIGHT_PATTERN_LIST = [
   /\b\d+(?:\.\d+)?\s*(?:pts|reb|ast)\b/gi,
 ];
 
+const UR_TAKE_GRADIENT_TEXT = {
+  background: "linear-gradient(90deg,#00F5E9 0%,#FF2D6B 100%)",
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  backgroundClip: "text",
+};
+
 function pickNonOverlappingStatRanges(ranges) {
   const byLen = [...ranges].sort((a, b) => b.end - b.start - (a.end - a.start));
   const picked = [];
@@ -459,7 +466,7 @@ function highlightStatsInText(text) {
     out.push(
       <span
         key={`ur-stat-${span.start}-${span.end}`}
-        style={{ color: "var(--cyan-bright)", fontWeight: 600 }}
+        style={{ color: "#00F5E9", fontWeight: 700 }}
       >
         {span.text}
       </span>,
@@ -486,17 +493,15 @@ function isUrTakeAllCapsSectionLine(line) {
   return letters === letters.toUpperCase();
 }
 
-const UR_TAKE_BODY_MUTED = "rgba(255,255,255,0.75)";
+const UR_TAKE_BODY_MUTED = "rgba(255,255,255,0.82)";
 
 const UR_TAKE_SECTION_LABEL_STYLE = {
   fontFamily: "var(--mono-font)",
-  fontSize: 9,
-  letterSpacing: 3,
-  color: "var(--cyan-bright)",
+  fontSize: 8,
+  letterSpacing: 3.5,
+  color: "rgba(0,245,233,0.55)",
   textTransform: "uppercase",
-  marginTop: 18,
-  marginBottom: 6,
-  opacity: 0.7,
+  marginBottom: 10,
 };
 
 function parseUrTakeVisualParts(raw) {
@@ -535,17 +540,20 @@ export function renderUrTakeAiMessage(raw) {
       <div
         key="ur-game-hdr"
         style={{
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
           gap: 8,
+          padding: "8px 14px",
+          borderRadius: 999,
+          background: "rgba(34,197,94,0.14)",
+          border: "1px solid rgba(34,197,94,0.35)",
+          maxWidth: "100%",
+          flexWrap: "wrap",
           fontFamily: "var(--mono-font)",
           fontSize: 11,
-          color: "var(--cyan-bright)",
-          letterSpacing: 1.5,
-          textTransform: "uppercase",
-          marginBottom: 12,
-          paddingBottom: 10,
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          color: "rgba(255,255,255,0.88)",
+          letterSpacing: 1,
+          marginBottom: 14,
         }}
       >
         <span
@@ -572,13 +580,12 @@ export function renderUrTakeAiMessage(raw) {
         <p
           key="ur-headline"
           style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: "var(--text)",
-            lineHeight: 1.4,
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            paddingBottom: 14,
-            marginBottom: 16,
+            ...UR_TAKE_GRADIENT_TEXT,
+            fontSize: "clamp(24px, 5vw, 28px)",
+            fontWeight: 800,
+            lineHeight: 1.18,
+            letterSpacing: "-0.4px",
+            marginBottom: 18,
           }}
         >
           {highlightStatsInText(headlineText)}
@@ -587,39 +594,25 @@ export function renderUrTakeAiMessage(raw) {
     }
     if (rest) {
       rest.split(/\n{2,}/).forEach((para, i) => {
-        const oddPara = i % 2 === 1;
         nodes.push(
           <div
             key={`ur-body-${i}`}
             style={{
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 400,
               color: UR_TAKE_BODY_MUTED,
-              lineHeight: 1.65,
-              marginBottom: 10,
-              ...(oddPara
-                ? {
-                    background: "rgba(255,255,255,0.02)",
-                    borderRadius: 6,
-                    padding: "8px 10px",
-                    margin: "4px -10px",
-                    marginBottom: 10,
-                  }
-                : { background: "transparent" }),
+              lineHeight: 1.72,
+              marginBottom: 12,
+              background: "rgba(255,255,255,0.025)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 14,
+              padding: "16px 18px",
             }}
           >
             {para.split("\n").map((line, j, arr) => {
               if (isUrTakeAllCapsSectionLine(line)) {
-                const firstSection =
-                  Boolean(headlineText) && i === 0 && j === 0;
                 return (
-                  <div
-                    key={j}
-                    style={{
-                      ...UR_TAKE_SECTION_LABEL_STYLE,
-                      marginTop: firstSection ? 8 : 18,
-                    }}
-                  >
+                  <div key={j} style={UR_TAKE_SECTION_LABEL_STYLE}>
                     {line.trim()}
                   </div>
                 );
@@ -645,25 +638,25 @@ export function renderUrTakeAiMessage(raw) {
       <div
         key="ur-lt"
         style={{
-          margin: "14px 0",
-          padding: "10px 14px",
-          background: "rgba(0,245,233,0.06)",
-          borderLeft: "2px solid var(--cyan-bright)",
-          borderRadius: "0 8px 8px 0",
-          fontSize: 13,
-          lineHeight: 1.5,
-          color: "var(--text)",
+          margin: "12px 0 18px",
+          padding: "16px 18px",
+          background: "rgba(0,245,233,0.055)",
+          border: "1px solid rgba(0,245,233,0.22)",
+          borderRadius: 14,
+          fontSize: 14,
+          lineHeight: 1.72,
+          color: UR_TAKE_BODY_MUTED,
         }}
       >
         <span
           style={{
             fontFamily: "var(--mono-font)",
-            fontSize: 9,
-            color: "var(--cyan-bright)",
-            letterSpacing: 2,
+            fontSize: 8,
+            color: "rgba(0,245,233,0.55)",
+            letterSpacing: 3.5,
             textTransform: "uppercase",
             display: "block",
-            marginBottom: 4,
+            marginBottom: 10,
           }}
         >
           Live Trigger
@@ -679,13 +672,12 @@ export function renderUrTakeAiMessage(raw) {
       <div
         key="ur-close"
         style={{
-          marginTop: 16,
-          paddingLeft: 12,
-          borderLeft: "2px solid var(--magenta, #FF2D6B)",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "var(--text)",
-          lineHeight: 1.5,
+          ...UR_TAKE_GRADIENT_TEXT,
+          fontSize: 20,
+          fontWeight: 800,
+          lineHeight: 1.3,
+          marginTop: 18,
+          marginBottom: 12,
         }}
       >
         {closingContent}
@@ -699,9 +691,9 @@ export function renderUrTakeAiMessage(raw) {
         key="ur-conf"
         style={{
           fontSize: 11,
-          color: "var(--muted)",
+          color: "rgba(255,255,255,0.32)",
           fontFamily: "var(--body-font)",
-          letterSpacing: 0.3,
+          letterSpacing: 0.2,
           marginTop: 8,
         }}
       >
