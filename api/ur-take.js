@@ -6616,6 +6616,17 @@ You are responding to a Pro subscriber. Apply the following:
 
     const liveModeFlag = Boolean(liveSignals?.hasLiveKeyword);
 
+    const nbaPlayoffFocusLog =
+      sportHint === "nba" && nbaContext?.urTakeParsing
+        ? {
+            playoffFocusMode: Boolean(nbaContext.urTakeParsing.playoffFocusMode),
+            playoffFocusTeamCount: nbaContext.urTakeParsing.playoffFocusTeamCount ?? 0,
+            deepHydratedTeams: nbaContext.urTakeParsing.deepHydratedTeams ?? [],
+            directTeamOverride: Boolean(nbaContext.urTakeParsing.directTeamOverride),
+            nonPlayoffTeamRequested: Boolean(nbaContext.urTakeParsing.nonPlayoffTeamRequested),
+          }
+        : {};
+
     console.log(
       JSON.stringify({
         event: "ur_take_complete",
@@ -6636,6 +6647,7 @@ You are responding to a Pro subscriber. Apply the following:
         nbaBoardBuildMs,
         anthropicMs,
         haikuFollowUpsMs,
+        ...nbaPlayoffFocusLog,
       }),
     );
 

@@ -613,17 +613,48 @@ function scoreNbaEventBoost(event, boostSet) {
   return s;
 }
 
+/** @param {Set<string>} directSet @param {Set<string>} playoffOnlySet */
+function scoreNbaEventBoostTiered(event, directSet, playoffOnlySet) {
+  const away = canonicalizeTeamAbbr(normalizeTeamAbbr(event.away_team));
+  const home = canonicalizeTeamAbbr(normalizeTeamAbbr(event.home_team));
+  const tier = (abbr) => {
+    if (!abbr || abbr === "UNK") return 0;
+    if (directSet.has(abbr)) return 2;
+    if (playoffOnlySet.has(abbr)) return 1;
+    return 0;
+  };
+  return Math.max(tier(away), tier(home));
+}
+
 /**
  * Pull NBA player props from The Odds API (per-event markets).
+ * Optional tiered priority: when `priorityDirectAbbrevs` / `priorityPlayoffOnlyAbbrevs` are
+ * provided (arrays), direct teams sort ahead of playoff-focus-only teams.
  * @returns {{ propLines: object[], feedMeta: object }}
  */
 async function getNbaPropLines(oddsKey, options = {}) {
-  const { priorityAbbrevs = [], maxEvents = DEFAULT_NBA_PROP_FETCH_OPTIONS.maxEvents } = {
+  const {
+    priorityAbbrevs = [],
+    priorityDirectAbbrevs,
+    priorityPlayoffOnlyAbbrevs,
+    maxEvents = DEFAULT_NBA_PROP_FETCH_OPTIONS.maxEvents,
+  } = {
     ...DEFAULT_NBA_PROP_FETCH_OPTIONS,
     ...options,
   };
-  const boostSorted = [...priorityAbbrevs].map((a) => String(a || "").toUpperCase()).sort().join(",");
-  const cacheKey = `nba_props_v4_${maxEvents}_${boostSorted}`;
+  const tieredPriority =
+    Array.isArray(priorityDirectAbbrevs) && Array.isArray(priorityPlayoffOnlyAbbrevs);
+  const directSet = tieredPriority
+    ? new Set(priorityDirectAbbrevs.map((a) => String(a || "").toUpperCase()).filter(Boolean))
+    : null;
+  const playoffOnlySet = tieredPriority
+    ? new Set(priorityPlayoffOnlyAbbrevs.map((a) => String(a || "").toUpperCase()).filter(Boolean))
+    : null;
+
+  const boostSorted = tieredPriority
+    ? `tier:d:${[...directSet].sort().join(",")}|p:${[...playoffOnlySet].sort().join(",")}`
+    : [...priorityAbbrevs].map((a) => String(a || "").toUpperCase()).sort().join(",");
+  const cacheKey = `nba_props_v5_${maxEvents}_${boostSorted}`;
   const boostSet = new Set(
     priorityAbbrevs.map((a) => String(a || "").toUpperCase()).filter(Boolean),
   );
@@ -730,8 +761,15 @@ async function getNbaPropLines(oddsKey, options = {}) {
     });
 
     const prioritized = [...etFiltered].sort((a, b) => {
-      const sb = scoreNbaEventBoost(b, boostSet);
-      const sa = scoreNbaEventBoost(a, boostSet);
+      let sb;
+      let sa;
+      if (tieredPriority && directSet && playoffOnlySet) {
+        sb = scoreNbaEventBoostTiered(b, directSet, playoffOnlySet);
+        sa = scoreNbaEventBoostTiered(a, directSet, playoffOnlySet);
+      } else {
+        sb = scoreNbaEventBoost(b, boostSet);
+        sa = scoreNbaEventBoost(a, boostSet);
+      }
       if (sb !== sa) return sb - sa;
       const ta = new Date(a.commence_time || 0).getTime();
       const tb = new Date(b.commence_time || 0).getTime();
@@ -748,7 +786,9 @@ async function getNbaPropLines(oddsKey, options = {}) {
           id: e.id,
           away: e.away_team,
           home: e.home_team,
-          boost: scoreNbaEventBoost(e, boostSet),
+          boost: tieredPriority
+            ? scoreNbaEventBoostTiered(e, directSet, playoffOnlySet)
+            : scoreNbaEventBoost(e, boostSet),
         })),
         targetEventCount: targetEvents.length,
       }),
@@ -1811,35 +1851,111 @@ export function extractNbaTeamAbbrevsFromQuestion(question) {
   return [...out];
 }
 
-function prioritizeNbaBoardForQuestion(board, abbrevs) {
-  const ab = new Set((abbrevs || []).map((a) => String(a || "").toUpperCase()).filter(Boolean));
-  if (ab.size === 0) return board;
+/**
+ * Teams that appear in verified playoff bracket data (from `playoffSeries`) and on the current
+ * `todaysGames` slate. Prioritization only — never use this to filter out other teams.
+ * @param {Array<{ home?: string, away?: string }>} playoffSeries
+ * @param {Array<{ awayTeam?: { abbr?: string }, homeTeam?: { abbr?: string } }>} todaysGames
+ * @returns {string[]}
+ */
+export function derivePlayoffPriorityAbbrevs(playoffSeries = [], todaysGames = []) {
+  if (!Array.isArray(playoffSeries) || !Array.isArray(todaysGames)) return [];
+  const slate = new Set();
+  for (const g of todaysGames) {
+    const aa = canonicalizeTeamAbbr(String(g?.awayTeam?.abbr || "").trim());
+    const ha = canonicalizeTeamAbbr(String(g?.homeTeam?.abbr || "").trim());
+    if (aa && aa !== "UNK") slate.add(aa);
+    if (ha && ha !== "UNK") slate.add(ha);
+  }
+  if (!slate.size) return [];
+  const fromSeries = new Set();
+  for (const s of playoffSeries) {
+    const h = canonicalizeTeamAbbr(String(s?.home || "").trim());
+    const a = canonicalizeTeamAbbr(String(s?.away || "").trim());
+    if (h && h !== "UNK") fromSeries.add(h);
+    if (a && a !== "UNK") fromSeries.add(a);
+  }
+  if (!fromSeries.size) return [];
+  const out = [];
+  for (const t of slate) {
+    if (fromSeries.has(t)) out.push(t);
+  }
+  return [...new Set(out)].sort();
+}
 
-  const gameMatches = (g) => {
-    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
-    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
-    return (aa && ab.has(aa)) || (ha && ab.has(ha));
+/**
+ * Merges question teams (first) with playoff-slate priority. Direct teams outrank playoff-only
+ * in downstream tiered boost / sort (see `prioritizeNbaBoardForQuestion`).
+ */
+export function mergeNbaUrTakePriorityAbbrevs(directAbbrevs = [], playoffPriorityAbbrevs = []) {
+  const direct = [
+    ...new Set(
+      (directAbbrevs || [])
+        .map((a) => String(a || "").toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+  const dset = new Set(direct);
+  const playoffOnly = [
+    ...new Set(
+      (playoffPriorityAbbrevs || [])
+        .map((a) => String(a || "").toUpperCase())
+        .filter((a) => a && !dset.has(a)),
+    ),
+  ];
+  const mergedPriorityAbbrevs = [...direct, ...playoffOnly];
+  return { mergedPriorityAbbrevs, directAbbrevs: direct, playoffOnlyAbbrevs: playoffOnly };
+}
+
+export function prioritizeNbaBoardForQuestion(board, directAbbrevs, playoffOnlyAbbrevs = []) {
+  const direct = new Set(
+    (directAbbrevs || []).map((a) => String(a || "").toUpperCase()).filter(Boolean),
+  );
+  const playoffOnly = new Set(
+    (playoffOnlyAbbrevs || []).map((a) => String(a || "").toUpperCase()).filter(Boolean),
+  );
+  if (!direct.size && !playoffOnly.size) return board;
+
+  const matchupPriority = (awayAbbr, homeAbbr) => {
+    const aa = String(awayAbbr || "").toUpperCase();
+    const ha = String(homeAbbr || "").toUpperCase();
+    let ta = 0;
+    let th = 0;
+    if (aa) {
+      if (direct.has(aa)) ta = 2;
+      else if (playoffOnly.has(aa)) ta = 1;
+    }
+    if (ha) {
+      if (direct.has(ha)) th = 2;
+      else if (playoffOnly.has(ha)) th = 1;
+    }
+    return Math.max(ta, th);
   };
 
-  const propMatches = (p) => {
-    const aa = String(p?.awayAbbr || "").toUpperCase();
-    const ha = String(p?.homeAbbr || "").toUpperCase();
-    return (aa && ab.has(aa)) || (ha && ab.has(ha));
-  };
+  const gameMatches = (g) =>
+    matchupPriority(g?.awayTeam?.abbr, g?.homeTeam?.abbr);
 
-  const playerTeamMatches = (p) => ab.has(String(p?.team || "").toUpperCase());
+  const propMatches = (p) => matchupPriority(p?.awayAbbr, p?.homeAbbr);
+
+  const playerTeamTier = (p) => {
+    const t = String(p?.team || "").toUpperCase();
+    if (!t) return 0;
+    if (direct.has(t)) return 2;
+    if (playoffOnly.has(t)) return 1;
+    return 0;
+  };
 
   return {
     ...board,
     todaysGames: [...(board.todaysGames || [])].sort(
-      (a, b) => Number(gameMatches(b)) - Number(gameMatches(a)),
+      (a, b) => gameMatches(b) - gameMatches(a),
     ),
     propLines: [...(board.propLines || [])].sort(
-      (a, b) => Number(propMatches(b)) - Number(propMatches(a)),
+      (a, b) => propMatches(b) - propMatches(a),
     ),
     playerStats: [...(board.playerStats || [])].sort((a, b) => {
-      const pa = playerTeamMatches(a) ? 1 : 0;
-      const pb = playerTeamMatches(b) ? 1 : 0;
+      const pa = playerTeamTier(a);
+      const pb = playerTeamTier(b);
       if (pb !== pa) return pb - pa;
       return (b.pts || 0) - (a.pts || 0);
     }),
@@ -2789,10 +2905,27 @@ export async function buildNbaUrTakeBoard(question = "") {
   const todaysGames = tgRes.games || [];
   const todaysGamesSlateMeta = tgRes.slateMeta;
 
-  const [rawBundle, statsBundle, playoffSeries] = await Promise.all([
-    getNbaPropLines(ODDS_KEY, { priorityAbbrevs: boost, maxEvents: 18 }),
-    getNbaPlayerStatsBundle(BDL_KEY, todaysGames, boost),
-    getNbaPlayoffSeries(),
+  const playoffSeries = await getNbaPlayoffSeries();
+  const playoffPriorityAbbrevs = derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
+  const { mergedPriorityAbbrevs, directAbbrevs, playoffOnlyAbbrevs } = mergeNbaUrTakePriorityAbbrevs(
+    boost,
+    playoffPriorityAbbrevs,
+  );
+  const playoffFocusTeamCount = playoffPriorityAbbrevs.length;
+  const playoffFocusMode = playoffFocusTeamCount > 0;
+  const playoffPrioritySet = new Set(playoffPriorityAbbrevs);
+  const nonPlayoffTeamRequested =
+    playoffFocusMode && boost.some((t) => !playoffPrioritySet.has(String(t || "").toUpperCase()));
+  const directTeamOverride = boost.length > 0;
+
+  const [rawBundle, statsBundle] = await Promise.all([
+    getNbaPropLines(ODDS_KEY, {
+      priorityAbbrevs: mergedPriorityAbbrevs,
+      priorityDirectAbbrevs: directAbbrevs,
+      priorityPlayoffOnlyAbbrevs: playoffOnlyAbbrevs,
+      maxEvents: 18,
+    }),
+    getNbaPlayerStatsBundle(BDL_KEY, todaysGames, mergedPriorityAbbrevs),
   ]);
   const rawPropLines = rawBundle.propLines || [];
   const propLines = filterPropLinesForActiveSlate(rawPropLines, todaysGames);
@@ -2809,7 +2942,7 @@ export async function buildNbaUrTakeBoard(question = "") {
   const recentGameLogsByPlayerId = await fetchRecentGameLogs(
     BDL_KEY,
     playerStatsWithTonight,
-    boost,
+    mergedPriorityAbbrevs,
   );
   const playerStatsWithRecent = playerStatsWithTonight.map((p) => {
     const playerId = Number(p?.playerId);
@@ -2822,6 +2955,16 @@ export async function buildNbaUrTakeBoard(question = "") {
     playerStatsWithRecent,
     statsBundle.statsSource || "season_average",
   );
+
+  const mergedFocusSet = new Set(mergedPriorityAbbrevs);
+  const deepHydratedTeams = [
+    ...new Set(
+      playerStatsWithRecent
+        .filter((p) => Array.isArray(p.recentGames) && p.recentGames.length > 0)
+        .map((p) => String(p?.team || "").toUpperCase())
+        .filter((abbr) => abbr && mergedFocusSet.has(abbr)),
+    ),
+  ].sort();
 
   let board = {
     seasonContext: getNbaSeasonContext(),
@@ -2858,29 +3001,54 @@ export async function buildNbaUrTakeBoard(question = "") {
     fetchedAt: new Date().toISOString(),
     urTakeParsing: {
       boostedTeamAbbrevsFromQuestion: boost,
-      note: boost.length
-        ? `Question referenced teams: ${boost.join(", ")} — props and player rows are ordered for this matchup first.`
-        : "",
+      mergedPriorityAbbrevs,
+      playoffPriorityAbbrevs,
+      playoffFocusMode,
+      playoffFocusTeamCount,
+      deepHydratedTeams,
+      directTeamOverride,
+      nonPlayoffTeamRequested,
+      note:
+        boost.length || playoffFocusMode
+          ? [
+              boost.length
+                ? `Question referenced teams: ${boost.join(", ")} — ordered ahead of slate-wide playoff focus.`
+                : null,
+              playoffFocusMode
+                ? `Playoff-slate focus (non-exclusive): ${playoffPriorityAbbrevs.join(", ") || "none"}.`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : "",
     },
   };
   board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
 
   board.newsImpact = buildNbaNewsImpact(board);
   board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
-  board = prioritizeNbaBoardForQuestion(board, boost);
+  board = prioritizeNbaBoardForQuestion(board, directAbbrevs, playoffOnlyAbbrevs);
   try {
     board.playoffPathGrounding = await buildNbaPlayoffPathGrounding(board.playoffSeries || [], boost);
   } catch (err) {
     console.warn("[nba] playoffPathGrounding failed:", err?.message || err);
     board.playoffPathGrounding = null;
   }
-  console.log(JSON.stringify({
-    event: "nba_board_complete",
-    durationMs: Date.now() - boardStart,
-    playerStatsCount: board?.playerStats?.length || 0,
-    propLinesCount: board?.propLines?.length || 0,
-    rosterQuality: board?.rosterGrounding?.rosterGroundingQuality || "unknown",
-  }));
+  console.log(
+    JSON.stringify({
+      event: "nba_board_complete",
+      scope: "ur_take_board",
+      durationMs: Date.now() - boardStart,
+      playerStatsCount: board?.playerStats?.length || 0,
+      propLinesCount: board?.propLines?.length || 0,
+      rosterQuality: board?.rosterGrounding?.rosterGroundingQuality || "unknown",
+      playoffFocusMode,
+      playoffFocusTeamCount,
+      deepHydratedTeams,
+      directTeamOverride,
+      nonPlayoffTeamRequested,
+    }),
+  );
   return board;
 }
 
@@ -2922,12 +3090,19 @@ export default async function handler(req, res) {
           }
         }
         const liveEdgeAlertsCached = await buildNbaLiveEdgeAlerts(out);
+        const pf = out.playoffFocusMeta || {};
         console.log(
           JSON.stringify({
             event: "nba_board_complete",
             cacheHit: true,
+            scope: "home_board",
             totalMs: Date.now() - boardT0,
             gameCount: Array.isArray(out.todaysGames) ? out.todaysGames.length : 0,
+            playoffFocusMode: pf.playoffFocusMode ?? false,
+            playoffFocusTeamCount: pf.playoffFocusTeamCount ?? 0,
+            deepHydratedTeams: pf.deepHydratedTeams ?? [],
+            directTeamOverride: pf.directTeamOverride ?? false,
+            nonPlayoffTeamRequested: pf.nonPlayoffTeamRequested ?? false,
           }),
         );
         return res.status(200).json({ ...out, liveEdgeAlerts: liveEdgeAlertsCached });
@@ -2953,17 +3128,31 @@ export default async function handler(req, res) {
         const r = await fn();
         return { r, ms: Date.now() - t0 };
       };
-      const [propWrap, statsWrap, playoffWrap] = await Promise.all([
-        wrapTimed(() => getNbaPropLines(ODDS_KEY, {})),
-        wrapTimed(() => getNbaPlayerStatsBundle(BDL_KEY, todaysGames)),
-        wrapTimed(() => getNbaPlayoffSeries()),
+      const playoffWrap = await wrapTimed(() => getNbaPlayoffSeries());
+      const playoffSeries = playoffWrap.r;
+      const playoffSeriesMs = playoffWrap.ms;
+      const playoffPriorityAbbrevs = derivePlayoffPriorityAbbrevs(playoffSeries, todaysGames);
+      const { mergedPriorityAbbrevs, playoffOnlyAbbrevs } = mergeNbaUrTakePriorityAbbrevs(
+        [],
+        playoffPriorityAbbrevs,
+      );
+      const playoffFocusTeamCount = playoffPriorityAbbrevs.length;
+      const playoffFocusMode = playoffFocusTeamCount > 0;
+
+      const [propWrap, statsWrap] = await Promise.all([
+        wrapTimed(() =>
+          getNbaPropLines(ODDS_KEY, {
+            priorityAbbrevs: mergedPriorityAbbrevs,
+            priorityDirectAbbrevs: [],
+            priorityPlayoffOnlyAbbrevs: playoffOnlyAbbrevs,
+          }),
+        ),
+        wrapTimed(() => getNbaPlayerStatsBundle(BDL_KEY, todaysGames, mergedPriorityAbbrevs)),
       ]);
       const rawBundle = propWrap.r;
       const propLinesMs = propWrap.ms;
       const statsBundle = statsWrap.r;
       const statsBundleMs = statsWrap.ms;
-      const playoffSeries = playoffWrap.r;
-      const playoffSeriesMs = playoffWrap.ms;
       const rawPropLines = rawBundle.propLines || [];
       const todaysGamesSlateMeta = tgRes.slateMeta;
 
@@ -2986,7 +3175,7 @@ export default async function handler(req, res) {
       const recentGameLogsByPlayerId = await fetchRecentGameLogs(
         BDL_KEY,
         playerStatsWithTonight,
-        [],
+        mergedPriorityAbbrevs,
       );
       const recentGameLogsMs = Date.now() - rl0;
       const playerStatsWithRecent = playerStatsWithTonight.map((p) => {
@@ -3001,6 +3190,23 @@ export default async function handler(req, res) {
         playerStatsWithRecent,
         statsBundle.statsSource || "season_average",
       );
+
+      const mergedFocusSet = new Set(mergedPriorityAbbrevs);
+      const deepHydratedTeams = [
+        ...new Set(
+          playerStatsWithRecent
+            .filter((p) => Array.isArray(p.recentGames) && p.recentGames.length > 0)
+            .map((p) => String(p?.team || "").toUpperCase())
+            .filter((abbr) => abbr && mergedFocusSet.has(abbr)),
+        ),
+      ].sort();
+      const playoffFocusMeta = {
+        playoffFocusMode,
+        playoffFocusTeamCount,
+        deepHydratedTeams,
+        directTeamOverride: false,
+        nonPlayoffTeamRequested: false,
+      };
 
       const board = {
         seasonContext: getNbaSeasonContext(),
@@ -3032,6 +3238,7 @@ export default async function handler(req, res) {
         injuriesContextNote: NBA_INJURIES_CONTEXT_NOTE,
         injuries,
         fetchedAt: new Date().toISOString(),
+        playoffFocusMeta,
         _rosterDiag: {
           pregameTeamIdCount: rosterDiag.lastSeasonAverageTeamIds.length,
           pregameTeamIds: rosterDiag.lastSeasonAverageTeamIds,
@@ -3049,6 +3256,7 @@ export default async function handler(req, res) {
         JSON.stringify({
           event: "nba_board_complete",
           cacheHit: false,
+          scope: "home_board",
           getTodaysGamesMs,
           propLinesMs,
           statsBundleMs,
@@ -3061,6 +3269,7 @@ export default async function handler(req, res) {
           propCount: propLines.length,
           injuryCount: injuries.length,
           playerCount: statsBundle.playerStats?.length || 0,
+          ...playoffFocusMeta,
         }),
       );
 

@@ -59,7 +59,7 @@ export default function NbaScreen({
             value={nbaInput}
             onChange={setNbaInput}
             onSubmit={() => submitNba()}
-            placeholder="Jokic PRA over tonight? Best prop this slate?"
+            placeholder="Ask about any playoff matchup or prop tonight"
             btnColor="var(--nba)"
             {...askBarCommon}
           />

@@ -111,12 +111,22 @@ export function getQuickPromptsForState(sport, eventState) {
 
   if (sport === "nba") {
     if (st === "live" || st === "mixed") {
-      return ["Live game total?", "Second-half prop angle?", "Still-open props?", "Pace / foul game?"];
+      return [
+        "Best playoff prop angle tonight?",
+        "Live game total?",
+        "Second-half prop angle?",
+        "Still-open props?",
+      ];
     }
     if (st === "final") {
       return ["Which props hit?", "Biggest surprise?", "Stat outliers tonight?", "Look ahead next slate?"];
     }
-    return ["Best prop on tonight's slate?", "Safest PRA bet?", "Who has a usage spike?", "Best game total?"];
+    return [
+      "Best playoff prop angle tonight?",
+      "Best prop on tonight's slate?",
+      "Who has a usage spike?",
+      "Best game total?",
+    ];
   }
 
   if (sport === "nfl") {

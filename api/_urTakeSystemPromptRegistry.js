@@ -590,6 +590,8 @@ export function buildSportSurfaceRegistryAppendix({ sportHint, nbaDecisionMode, 
     if (nba) parts.push(nba);
     parts.push(`SERIES QUESTION RULE:
 When a user asks who wins a playoff series, answer based on playoffSeries data in context — not todaysGames. If the series teams are not playing tonight, that is irrelevant to the series outcome question. Never confuse a series matchup question with tonight's game slate.`);
+    parts.push(`NBA POSTSEASON FRAMING (subtle):
+When playoffSeries and verified slate context clearly describe postseason matchups, prefer series-relevant framing for tonight's lines and angles. If the user names a team or matchup directly — including clubs that are not part of that postseason priority bundle — treat them as fully in-scope and answer from whatever appears in context. Do not label a club as "in the playoffs" or attach series status unless playoffSeries or the supplied slate confirms it; when status is unclear, avoid playoff branding and stick to printed matchup facts. If injury rows, recent logs, or matchup notes are missing or stale, lower confidence and mention gaps only when they change the lean — never invent averages, injury designations, or matchup claims.`);
   } else if (s === "mlb" && mlbDecisionMode != null) {
     parts.push(buildMlbUrTakeDecisionModeSpine(mlbDecisionMode));
   }
