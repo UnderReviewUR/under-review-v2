@@ -470,6 +470,24 @@ function forceHeadlineBodySplit(first, rest) {
   return { first: forcedFirst, rest: forcedRest };
 }
 
+function splitBySentenceCluster(text, targetClusters = 3) {
+  const source = String(text || "").trim();
+  if (!source) return [""];
+  const sentences = source.match(/[^.!?]*[.!?]+/g) || [source];
+  if (sentences.length <= 2) return [source];
+
+  const itemsPerCluster = Math.ceil(sentences.length / targetClusters);
+  const clusters = [];
+  for (let i = 0; i < sentences.length; i += itemsPerCluster) {
+    const cluster = sentences
+      .slice(i, i + itemsPerCluster)
+      .join(" ")
+      .trim();
+    if (cluster) clusters.push(cluster);
+  }
+  return clusters.length > 1 ? clusters : [source];
+}
+
 /** Omit raw "minutes" — avoids highlighting clock/Q4 usage (e.g. "Q4 32 minutes"). */
 const STAT_HIGHLIGHT_RE =
   /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|PPG|APG|RPG)\b/gi;
@@ -651,7 +669,12 @@ export function renderUrTakeAiMessage(raw) {
       );
     }
     if (rest) {
-      rest.split(/\n{2,}/).forEach((para, i) => {
+      let bodyChunks = rest.split(/\n{2,}/);
+      if (bodyChunks.length === 1 && bodyChunks[0].length > 400) {
+        bodyChunks = splitBySentenceCluster(bodyChunks[0]);
+      }
+      bodyChunks.forEach((para, i) => {
+        if (!para.trim()) return;
         middleNodes.push(
           <div
             key={`ur-body-${i}`}
