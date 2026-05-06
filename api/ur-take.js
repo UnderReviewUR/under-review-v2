@@ -6321,10 +6321,18 @@ You are responding to a Pro subscriber. Apply the following:
 
       if (!result.ok) {
         if (result.rateLimitedExhausted) {
+          const exhaustedFallbackReason = "upstream_rate_limit";
+          console.error("[ur-take] upstream retries exhausted", {
+            status: result.status,
+            requestId: result.requestId,
+            upstreamError: result.data?.error ?? null,
+            data: result.data,
+            fallbackReason: exhaustedFallbackReason,
+          });
           return res.status(503).json({
             error: "Couldn't complete that read. Try again.",
             code: "upstream_unavailable",
-            fallbackReason: "upstream_rate_limit",
+            fallbackReason: exhaustedFallbackReason,
             requestId: result.requestId,
           });
         }
