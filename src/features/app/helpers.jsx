@@ -388,7 +388,12 @@ export function renderUrTakeAiMessage(raw) {
   let closing = "";
   const idx = lines.length - (confidence ? 2 : 1);
   const potentialClosing = idx >= 0 ? lines[idx] : "";
-  if (potentialClosing && /^(Look for|Back|Fade|Watch|Take the)/i.test(potentialClosing.trim())) {
+  const closingTrim = potentialClosing.trim();
+  if (
+    closingTrim &&
+    (/^(Look for|Back|Fade|Watch|Take the|Over|Under)/i.test(closingTrim) ||
+      /\b(over|under)\s+\d+/i.test(closingTrim))
+  ) {
     closing = potentialClosing;
   }
 
@@ -407,6 +412,12 @@ export function renderUrTakeAiMessage(raw) {
 
   const hasVisual =
     Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
+
+  if (!closing) {
+    console.error("[UR_TAKE] NO CLOSING DETECTED");
+  } else {
+    console.error("[UR_TAKE] CLOSING FOUND:", closing.slice(0, 80));
+  }
 
   if (!hasVisual) {
     return renderMessage(text, { styleUrTakeSectionLabels: true });
