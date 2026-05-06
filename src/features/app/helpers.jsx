@@ -377,11 +377,7 @@ export function renderUrTakeAiMessage(raw) {
   const firstSentenceMatch = remaining.match(/^[^.!?]*[.!?]/);
   const headline = firstSentenceMatch ? firstSentenceMatch[0].trim() : "";
 
-  const bodyText = remaining.slice(firstSentenceMatch?.[0].length ?? 0).trim();
-
-  const paras = bodyText.split(/\n{2,}/);
-  let bodyChunks = paras.length > 1 ? paras : splitBySentenceCluster(bodyText, 3);
-  bodyChunks = bodyChunks.map((c) => String(c).trim()).filter(Boolean);
+  let bodyText = remaining.slice(firstSentenceMatch?.[0].length ?? 0).trim();
 
   let confidence = "";
   const lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : "";
@@ -395,6 +391,19 @@ export function renderUrTakeAiMessage(raw) {
   if (potentialClosing && /^(Look for|Back|Fade|Watch|Take the)/i.test(potentialClosing.trim())) {
     closing = potentialClosing;
   }
+
+  if (closing) {
+    const cl = closing.trim();
+    bodyText = bodyText.split("\n").filter((ln) => ln.trim() !== cl).join("\n").trim();
+  }
+  if (confidence) {
+    const cf = confidence.trim();
+    bodyText = bodyText.split("\n").filter((ln) => ln.trim() !== cf).join("\n").trim();
+  }
+
+  const paras = bodyText.split(/\n{2,}/);
+  let bodyChunks = paras.length > 1 ? paras : splitBySentenceCluster(bodyText, 3);
+  bodyChunks = bodyChunks.map((c) => String(c).trim()).filter(Boolean);
 
   const hasVisual =
     Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
@@ -476,11 +485,17 @@ export function renderUrTakeAiMessage(raw) {
       {closing ? (
         <div
           style={{
-            fontSize: 14,
+            marginTop: 16,
+            padding: "14px 16px",
+            background: "rgba(255, 61, 143, 0.08)",
+            border: "1px solid rgba(255, 61, 143, 0.2)",
+            borderRadius: 12,
+            fontSize: 15,
             fontWeight: 700,
             color: "#FF3D8F",
+            lineHeight: 1.5,
+            letterSpacing: "0.3px",
             marginBottom: 12,
-            lineHeight: 1.4,
           }}
         >
           {closing}
