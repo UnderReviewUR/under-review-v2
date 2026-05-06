@@ -347,16 +347,28 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
 
 /** ── UR Take AI bubble visual formatting (presentation only; text unchanged) ── */
 
+/** First line looks like scoreboard / game-clock context (Visual A game-state pill). */
+function lineMatchesScoreOrGameClock(firstLine) {
+  const s = firstLine.trim();
+  if (!s) return false;
+  const scoreTeamPrefix = /^[A-Z]{2,4}\s+\d+/i.test(s);
+  const hasSep = s.includes("·") || s.includes("|");
+  const periodOrOt = /\bQ[1-4]\b/i.test(s) || /\bOT\b/i.test(s);
+  const live = /\bLive\b/i.test(s);
+  const clock = /\d{1,2}:\d{2}/.test(s);
+  const hyphenScore = /\d{2,3}\s*[-–]\s*\d{2,3}/.test(s);
+  if (scoreTeamPrefix && (hasSep || periodOrOt || live || clock)) return true;
+  if (hyphenScore && (hasSep || periodOrOt || live || clock)) return true;
+  if (/\b(Final|Halftime)\b/i.test(s) && /\d/.test(s)) return true;
+  return false;
+}
+
 function peelGameStateHeaderLine(text) {
   const trimmed = text.trimStart();
   const nl = trimmed.indexOf("\n");
   const firstLine = nl >= 0 ? trimmed.slice(0, nl).trim() : trimmed.trim();
   if (!firstLine) return { header: null, rest: text };
-  const scoreLike = /^[A-Z]{2,4}\s+\d+/i.test(firstLine);
-  const hasDot = firstLine.includes("·");
-  const hasQuarterOrLive =
-    /\bQ\d\b/i.test(firstLine) || /\bLive\b/i.test(firstLine) || /\bOT\b/i.test(firstLine);
-  if (scoreLike && (hasDot || hasQuarterOrLive)) {
+  if (lineMatchesScoreOrGameClock(firstLine)) {
     const rest = nl >= 0 ? trimmed.slice(nl + 1) : "";
     return { header: firstLine, rest: rest.trimStart() };
   }
@@ -383,7 +395,7 @@ function peelConfidenceLine(text) {
 }
 
 function peelLiveTriggerSection(text) {
-  const m = text.match(/\bLive trigger\b\s*:?\s*/i);
+  const m = text.match(/\b(?:Live trigger|LIVE TRIGGER)\b\s*:?\s*/i);
   if (!m || m.index === undefined) return { main: text, trigger: null };
   const main = text.slice(0, m.index).trimEnd();
   const trigger = text.slice(m.index + m[0].length).trim();
@@ -459,7 +471,7 @@ function highlightStatsInText(text) {
     out.push(
       <span
         key={`ur-stat-${span.start}-${span.end}`}
-        style={{ color: "var(--cyan-bright)", fontWeight: 600 }}
+        style={{ color: "#00F5E9", fontWeight: 600 }}
       >
         {span.text}
       </span>,
@@ -486,18 +498,90 @@ function isUrTakeAllCapsSectionLine(line) {
   return letters === letters.toUpperCase();
 }
 
-const UR_TAKE_BODY_MUTED = "rgba(255,255,255,0.75)";
-
-const UR_TAKE_SECTION_LABEL_STYLE = {
-  fontFamily: "var(--mono-font)",
-  fontSize: 9,
-  letterSpacing: 3,
-  color: "var(--cyan-bright)",
-  textTransform: "uppercase",
-  marginTop: 18,
-  marginBottom: 6,
-  opacity: 0.7,
+/** Visual A — UR Take AI bubble (gradient headline + floating cards). */
+const VISUAL_A_GRADIENT_TEXT = {
+  background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  WebkitTextFillColor: "transparent",
 };
+
+const VISUAL_A_HEADLINE_STYLE = {
+  ...VISUAL_A_GRADIENT_TEXT,
+  fontSize: 20,
+  fontWeight: 800,
+  lineHeight: 1.35,
+  margin: "0 0 16px",
+};
+
+const VISUAL_A_SECTION_CARD_STYLE = {
+  background: "rgba(255,255,255,0.02)",
+  border: "1px solid rgba(255,255,255,0.05)",
+  borderRadius: 12,
+  padding: "14px 16px",
+  marginBottom: 12,
+};
+
+const VISUAL_A_SECTION_LABEL_STYLE = {
+  fontFamily: "var(--mono-font)",
+  fontSize: 8,
+  letterSpacing: 2,
+  color: "rgba(0,245,233,0.5)",
+  textTransform: "uppercase",
+  marginBottom: 8,
+};
+
+const VISUAL_A_BODY_STYLE = {
+  fontSize: 13,
+  lineHeight: 1.7,
+  color: "rgba(255,255,255,0.68)",
+};
+
+const VISUAL_A_LIVE_TRIGGER_CARD_STYLE = {
+  background: "rgba(0,245,233,0.04)",
+  borderLeft: "3px solid #00F5E9",
+  borderRadius: 12,
+  padding: "14px 16px",
+  marginTop: 4,
+  marginBottom: 12,
+};
+
+const VISUAL_A_CONFIDENCE_STYLE = {
+  fontSize: 11,
+  color: "var(--muted)",
+  fontFamily: "var(--body-font)",
+  letterSpacing: 0.2,
+  marginTop: 10,
+};
+
+/** Split body into blocks separated by all-caps section headers (labels stay on their card). */
+function splitIntoAllCapsSectionCards(block) {
+  const rawLines = String(block || "").split("\n");
+  const sections = [];
+  let title = null;
+  let curLines = [];
+
+  const push = () => {
+    const body = curLines.join("\n").trimEnd();
+    if (title || body) {
+      sections.push({ title, body });
+    }
+    title = null;
+    curLines = [];
+  };
+
+  for (const line of rawLines) {
+    if (isUrTakeAllCapsSectionLine(line)) {
+      push();
+      title = line.trim();
+      curLines = [];
+    } else {
+      curLines.push(line);
+    }
+  }
+  push();
+  return sections;
+}
 
 function parseUrTakeVisualParts(raw) {
   let text = stripMarkdownForUrTakeDisplay(stripLeadingUrTakeDisclaimersForDisplay(String(raw || "")));
@@ -523,8 +607,8 @@ function parseUrTakeVisualParts(raw) {
 }
 
 /**
- * Rich UR Take presentation: score header, headline sentence, stat highlights,
- * live trigger + closing cards, muted confidence. Same string content as input.
+ * Visual A — gradient headline + floating section cards + cyan live trigger + gradient closing.
+ * Presentation only; input string unchanged (same parsing pipeline as before).
  */
 export function renderUrTakeAiMessage(raw) {
   const parts = parseUrTakeVisualParts(raw);
@@ -535,26 +619,28 @@ export function renderUrTakeAiMessage(raw) {
       <div
         key="ur-game-hdr"
         style={{
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
           gap: 8,
+          padding: "8px 14px",
+          borderRadius: 999,
+          background: "rgba(34,197,94,0.14)",
+          border: "1px solid rgba(34,197,94,0.35)",
+          marginBottom: 16,
           fontFamily: "var(--mono-font)",
           fontSize: 11,
-          color: "var(--cyan-bright)",
-          letterSpacing: 1.5,
-          textTransform: "uppercase",
-          marginBottom: 12,
-          paddingBottom: 10,
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          color: "rgba(255,255,255,0.88)",
+          letterSpacing: 1,
+          maxWidth: "100%",
+          flexWrap: "wrap",
         }}
       >
         <span
           style={{
-            width: 7,
-            height: 7,
+            width: 8,
+            height: 8,
             borderRadius: "50%",
             background: "#22c55e",
-            display: "inline-block",
             flexShrink: 0,
           }}
         />
@@ -569,70 +655,31 @@ export function renderUrTakeAiMessage(raw) {
     const headlineText = stripLeadingUrTakeHeadlineChevrons(first);
     if (headlineText) {
       nodes.push(
-        <p
-          key="ur-headline"
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: "var(--text)",
-            lineHeight: 1.4,
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            paddingBottom: 14,
-            marginBottom: 16,
-          }}
-        >
+        <p key="ur-headline" style={VISUAL_A_HEADLINE_STYLE}>
           {highlightStatsInText(headlineText)}
         </p>,
       );
     }
     if (rest) {
-      rest.split(/\n{2,}/).forEach((para, i) => {
-        const oddPara = i % 2 === 1;
+      const sectionCards = splitIntoAllCapsSectionCards(rest);
+      sectionCards.forEach((sec, i) => {
         nodes.push(
-          <div
-            key={`ur-body-${i}`}
-            style={{
-              fontSize: 13,
-              fontWeight: 400,
-              color: UR_TAKE_BODY_MUTED,
-              lineHeight: 1.65,
-              marginBottom: 10,
-              ...(oddPara
-                ? {
-                    background: "rgba(255,255,255,0.02)",
-                    borderRadius: 6,
-                    padding: "8px 10px",
-                    margin: "4px -10px",
-                    marginBottom: 10,
-                  }
-                : { background: "transparent" }),
-            }}
-          >
-            {para.split("\n").map((line, j, arr) => {
-              if (isUrTakeAllCapsSectionLine(line)) {
-                const firstSection =
-                  Boolean(headlineText) && i === 0 && j === 0;
-                return (
-                  <div
-                    key={j}
-                    style={{
-                      ...UR_TAKE_SECTION_LABEL_STYLE,
-                      marginTop: firstSection ? 8 : 18,
-                    }}
-                  >
-                    {line.trim()}
-                  </div>
-                );
-              }
-              return (
+          <div key={`ur-sec-${i}`} style={VISUAL_A_SECTION_CARD_STYLE}>
+            {sec.title ? <div style={VISUAL_A_SECTION_LABEL_STYLE}>{sec.title}</div> : null}
+            <div style={VISUAL_A_BODY_STYLE}>
+              {sec.body.split("\n").map((line, j, arr) => (
                 <div
                   key={j}
-                  style={{ marginBottom: j === arr.length - 1 ? 0 : 6 }}
+                  style={{
+                    marginBottom:
+                      j < arr.length - 1 ? (line.trim() ? 8 : 4) : 0,
+                    minHeight: line.trim() ? undefined : 4,
+                  }}
                 >
-                  {highlightStatsInText(line)}
+                  {line.trim() ? highlightStatsInText(line) : null}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>,
         );
       });
@@ -642,33 +689,23 @@ export function renderUrTakeAiMessage(raw) {
   const liveTriggerContent = parts.liveTrigger?.trim();
   if (liveTriggerContent) {
     nodes.push(
-      <div
-        key="ur-lt"
-        style={{
-          margin: "14px 0",
-          padding: "10px 14px",
-          background: "rgba(0,245,233,0.06)",
-          borderLeft: "2px solid var(--cyan-bright)",
-          borderRadius: "0 8px 8px 0",
-          fontSize: 13,
-          lineHeight: 1.5,
-          color: "var(--text)",
-        }}
-      >
+      <div key="ur-lt" style={VISUAL_A_LIVE_TRIGGER_CARD_STYLE}>
         <span
           style={{
             fontFamily: "var(--mono-font)",
-            fontSize: 9,
-            color: "var(--cyan-bright)",
+            fontSize: 8,
+            color: "rgba(0,245,233,0.65)",
             letterSpacing: 2,
             textTransform: "uppercase",
             display: "block",
-            marginBottom: 4,
+            marginBottom: 6,
           }}
         >
-          Live Trigger
+          Live trigger
         </span>
-        <div>{highlightStatsInText(liveTriggerContent)}</div>
+        <div style={{ ...VISUAL_A_BODY_STYLE, color: "rgba(255,255,255,0.82)" }}>
+          {highlightStatsInText(liveTriggerContent)}
+        </div>
       </div>,
     );
   }
@@ -679,13 +716,12 @@ export function renderUrTakeAiMessage(raw) {
       <div
         key="ur-close"
         style={{
-          marginTop: 16,
-          paddingLeft: 12,
-          borderLeft: "2px solid var(--magenta, #FF2D6B)",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "var(--text)",
-          lineHeight: 1.5,
+          marginTop: 8,
+          marginBottom: 4,
+          fontSize: 15,
+          fontWeight: 700,
+          lineHeight: 1.55,
+          ...VISUAL_A_GRADIENT_TEXT,
         }}
       >
         {closingContent}
@@ -695,16 +731,7 @@ export function renderUrTakeAiMessage(raw) {
 
   if (parts.confidence) {
     nodes.push(
-      <p
-        key="ur-conf"
-        style={{
-          fontSize: 11,
-          color: "var(--muted)",
-          fontFamily: "var(--body-font)",
-          letterSpacing: 0.3,
-          marginTop: 8,
-        }}
-      >
+      <p key="ur-conf" style={VISUAL_A_CONFIDENCE_STYLE}>
         {parts.confidence}
       </p>,
     );
@@ -717,12 +744,9 @@ export function renderUrTakeAiMessage(raw) {
   return <>{nodes}</>;
 }
 
-/** Same gradient fill as the main `>>` headline — reuse for UR Take section labels only. */
+/** Same gradient as Visual A headline — reuse for `>>` openers and section labels in `renderMessage`. */
 const UR_TAKE_HEADLINE_GRADIENT_STYLE = {
-  background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
-  WebkitBackgroundClip: "text",
-  backgroundClip: "text",
-  WebkitTextFillColor: "transparent",
+  ...VISUAL_A_GRADIENT_TEXT,
 };
 
 const UR_TAKE_SECTION_HEADING_STYLE = {
