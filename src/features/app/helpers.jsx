@@ -362,6 +362,44 @@ function splitBySentenceCluster(text, targetClusters = 3) {
   return clusters.length > 1 ? clusters : [source];
 }
 
+/** Last sentence vs rest — skips decimal periods; needs a following sentence (uppercase) to split. */
+function splitLastSentenceForUrTakeClosing(block) {
+  const t = String(block || "").trim();
+  if (!t) return { head: "", tail: "" };
+
+  let lastSentenceStart = 0;
+  for (let i = 1; i < t.length; i += 1) {
+    const c = t[i];
+    if (c === "." || c === "!" || c === "?") {
+      if (c === "." && /\d/.test(t[i - 1])) {
+        const nextCh = t[i + 1];
+        if (nextCh && /\d/.test(nextCh)) continue;
+      }
+      const after = t.slice(i + 1).trimStart();
+      if (after && /^[A-Z"(“]/.test(after)) {
+        let j = i + 1;
+        while (j < t.length && /\s/.test(t[j])) j += 1;
+        lastSentenceStart = j;
+      }
+    }
+  }
+
+  if (lastSentenceStart === 0) return { head: t, tail: "" };
+  return {
+    head: t.slice(0, lastSentenceStart).trimEnd(),
+    tail: t.slice(lastSentenceStart).trim(),
+  };
+}
+
+function urTakeClosingLooksLikeVerdict(s) {
+  const x = String(s || "").trim();
+  if (!x) return false;
+  return (
+    /^(Look for|Back|Fade|Watch|Take the|Over|Under)/i.test(x) ||
+    /\b(over|under)\s+\d+/i.test(x)
+  );
+}
+
 export function renderUrTakeAiMessage(raw) {
   const text = String(raw || "");
   const lines = text.split("\n");
@@ -389,12 +427,17 @@ export function renderUrTakeAiMessage(raw) {
   const idx = lines.length - (confidence ? 2 : 1);
   const potentialClosing = idx >= 0 ? lines[idx] : "";
   const closingTrim = potentialClosing.trim();
-  if (
-    closingTrim &&
-    (/^(Look for|Back|Fade|Watch|Take the|Over|Under)/i.test(closingTrim) ||
-      /\b(over|under)\s+\d+/i.test(closingTrim))
-  ) {
-    closing = potentialClosing;
+  if (closingTrim && urTakeClosingLooksLikeVerdict(closingTrim)) {
+    closing = closingTrim;
+  }
+
+  if (!closing && bodyText) {
+    const { head, tail } = splitLastSentenceForUrTakeClosing(bodyText);
+    const tailTrim = tail.trim();
+    if (head && tailTrim && urTakeClosingLooksLikeVerdict(tailTrim)) {
+      closing = tailTrim;
+      bodyText = head.trim();
+    }
   }
 
   if (closing) {
