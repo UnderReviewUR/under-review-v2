@@ -514,6 +514,18 @@ const VISUAL_A_HEADLINE_STYLE = {
   margin: "0 0 16px",
 };
 
+/** Closing uses the same gradient treatment as the headline, visually separated above confidence. */
+const VISUAL_A_CLOSING_STYLE = {
+  ...VISUAL_A_GRADIENT_TEXT,
+  fontSize: 16,
+  fontWeight: 700,
+  lineHeight: 1.35,
+  marginTop: 16,
+  marginBottom: 8,
+  paddingTop: 16,
+  borderTop: "1px solid rgba(255,255,255,0.08)",
+};
+
 const VISUAL_A_SECTION_CARD_STYLE = {
   background: "rgba(255,255,255,0.02)",
   border: "1px solid rgba(255,255,255,0.05)",
@@ -525,7 +537,7 @@ const VISUAL_A_SECTION_CARD_STYLE = {
 const VISUAL_A_SECTION_LABEL_STYLE = {
   fontFamily: "var(--mono-font)",
   fontSize: 8,
-  letterSpacing: 2,
+  letterSpacing: 3.5,
   color: "rgba(0,245,233,0.5)",
   textTransform: "uppercase",
   marginBottom: 8,
@@ -548,7 +560,7 @@ const VISUAL_A_LIVE_TRIGGER_CARD_STYLE = {
 
 const VISUAL_A_CONFIDENCE_STYLE = {
   fontSize: 11,
-  color: "var(--muted)",
+  color: "rgba(255,255,255,0.28)",
   fontFamily: "var(--body-font)",
   letterSpacing: 0.2,
   marginTop: 10,
@@ -780,17 +792,7 @@ export function renderUrTakeAiMessage(raw) {
   const closingContent = parts.closing?.trim();
   if (closingContent && isSubstantiveClosing(closingContent)) {
     nodes.push(
-      <div
-        key="ur-close"
-        style={{
-          marginTop: 8,
-          marginBottom: 4,
-          fontSize: 15,
-          fontWeight: 700,
-          lineHeight: 1.55,
-          ...VISUAL_A_GRADIENT_TEXT,
-        }}
-      >
+      <div key="ur-close" style={VISUAL_A_CLOSING_STYLE}>
         {closingContent}
       </div>,
     );
