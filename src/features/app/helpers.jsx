@@ -488,6 +488,49 @@ function splitBySentenceCluster(text, targetClusters = 3) {
   return clusters.length > 1 ? clusters : [source];
 }
 
+function hasAllCapsSectionLine(text) {
+  return String(text || "")
+    .split("\n")
+    .some((line) => isUrTakeAllCapsSectionLine(line));
+}
+
+function splitProjectionsIntoBullets(text) {
+  const source = String(text || "").trim();
+  if (!source) return [];
+  const normalized = source.replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+
+  // Primary split: each player-led projection starts a new bullet.
+  const playerLeadPattern =
+    /(?=(?:[A-Z][a-z]+(?:[-'][A-Za-z]+)?(?:\s+[A-Z][a-z]+(?:[-'][A-Za-z]+)?){0,2})\s+(?:over|under|snags|gets|records|to\s+record|for))/g;
+  const starts = [];
+  let m;
+  while ((m = playerLeadPattern.exec(normalized)) !== null) {
+    starts.push(m.index);
+    // Prevent zero-width regex from stalling.
+    if (playerLeadPattern.lastIndex === m.index) playerLeadPattern.lastIndex += 1;
+  }
+
+  if (starts.length >= 2) {
+    const bullets = [];
+    for (let i = 0; i < starts.length; i += 1) {
+      const start = starts[i];
+      const end = i + 1 < starts.length ? starts[i + 1] : normalized.length;
+      const piece = normalized.slice(start, end).trim().replace(/^[,;•\-\s]+/, "");
+      if (piece) bullets.push(piece);
+    }
+    if (bullets.length >= 2) return bullets;
+  }
+
+  // Fallback split when player-leading pattern is unavailable.
+  const sentenceParts = normalized
+    .split(/(?<=[.!?])\s+(?=[A-Z])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (sentenceParts.length < 2) return [];
+  return sentenceParts;
+}
+
 /** Omit raw "minutes" — avoids highlighting clock/Q4 usage (e.g. "Q4 32 minutes"). */
 const STAT_HIGHLIGHT_RE =
   /(\d+(?:\.\d+)?)\s+(boards?|rebounds?|points?|assists?|PF|PPG|APG|RPG)\b/gi;
@@ -670,11 +713,31 @@ export function renderUrTakeAiMessage(raw) {
     }
     if (rest) {
       let bodyChunks = rest.split(/\n{2,}/);
-      if (bodyChunks.length === 1 && bodyChunks[0].length > 400) {
+      if (
+        bodyChunks.length === 1 &&
+        bodyChunks[0].length > 400 &&
+        !hasAllCapsSectionLine(bodyChunks[0])
+      ) {
         bodyChunks = splitBySentenceCluster(bodyChunks[0]);
       }
       bodyChunks.forEach((para, i) => {
         if (!para.trim()) return;
+        const paraLines = para
+          .split("\n")
+          .map((line) => line.trimEnd())
+          .filter((line) => line.trim().length > 0);
+        const headerIndex = paraLines.findIndex((line) => isUrTakeAllCapsSectionLine(line));
+        const sectionHeader = headerIndex >= 0 ? paraLines[headerIndex].trim() : null;
+        const bodyLines =
+          headerIndex >= 0
+            ? paraLines.filter((_, idx) => idx !== headerIndex)
+            : paraLines;
+        const isProProjectionsSection =
+          sectionHeader && sectionHeader.replace(/[^A-Z]/gi, "") === "PROPROJECTIONS";
+        const projectionBody = bodyLines.join(" ").trim();
+        const projectionBullets =
+          isProProjectionsSection ? splitProjectionsIntoBullets(projectionBody) : [];
+
         middleNodes.push(
           <div
             key={`ur-body-${i}`}
@@ -685,21 +748,36 @@ export function renderUrTakeAiMessage(raw) {
               padding: "14px 16px",
             }}
           >
-            {para.split("\n").map((line, j, arr) => {
-              if (isUrTakeAllCapsSectionLine(line)) {
-                return (
-                  <div key={j} style={UR_TAKE_SECTION_LABEL_STYLE}>
-                    {line.trim()}
-                  </div>
-                );
-              }
-              return (
-                <div
-                  key={j}
-                  style={{ marginBottom: j === arr.length - 1 ? 0 : 6 }}
-                >
+            {sectionHeader ? (
+              <div style={UR_TAKE_SECTION_LABEL_STYLE}>{sectionHeader}</div>
+            ) : null}
+            {projectionBullets.length > 0 ? (
+              <div>
+                {projectionBullets.map((bullet, j) => (
                   <div
+                    key={`ur-proj-${j}`}
                     style={{
+                      fontSize: 13,
+                      lineHeight: 1.7,
+                      color: "rgba(255,255,255,0.68)",
+                      fontFamily: "inherit",
+                      display: "flex",
+                      gap: 8,
+                      marginBottom: j === projectionBullets.length - 1 ? 0 : 6,
+                    }}
+                  >
+                    <span style={{ color: "#00F5E9", fontWeight: 600 }}>•</span>
+                    <span>{highlightStatsInText(bullet)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div>
+                {bodyLines.map((line, j) => (
+                  <div
+                    key={j}
+                    style={{
+                      marginBottom: j === bodyLines.length - 1 ? 0 : 6,
                       fontSize: 13,
                       lineHeight: 1.7,
                       color: "rgba(255,255,255,0.68)",
@@ -708,9 +786,9 @@ export function renderUrTakeAiMessage(raw) {
                   >
                     {highlightStatsInText(line)}
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>,
         );
       });
