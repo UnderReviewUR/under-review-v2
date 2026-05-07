@@ -2,8 +2,37 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { etDateStringToEspnYmd, getTodayEtDateString, getTomorrowEtDateString } from "./_espnEtDates.js";
 import { persistLastKnownHomeMlbGames, recoverLastKnownHomeMlbGames } from "./_homeLastKnownGames.js";
+import {
+  fetchBdlMlbGameTotalsMap,
+  fetchBdlMlbInjuriesForTeamIds,
+  fetchBdlMlbPlayerPropsForSlate,
+  fetchBdlMlbTodayTomorrowGames,
+} from "./_mlbBdl.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
+const MLB_BDL_SLATE_MEMO_MS = 45000;
+/** Dedupe today+tomorrow BallDontLie pulls within one board refresh / back-to-back getters. */
+let mlbBdlSlateMemo = { ts: 0, bundle: null };
+
+async function getMlbBdlSlateBundle(bdlKey) {
+  if (!bdlKey) return null;
+  const now = Date.now();
+  if (mlbBdlSlateMemo.bundle != null && now - mlbBdlSlateMemo.ts < MLB_BDL_SLATE_MEMO_MS) {
+    return mlbBdlSlateMemo.bundle;
+  }
+  const todayEt = getTodayEtDateString();
+  const tomorrowEt = getTomorrowEtDateString();
+  try {
+    const bundle = await fetchBdlMlbTodayTomorrowGames(bdlKey, todayEt, tomorrowEt);
+    if (!bundle || (!bundle.todayGames?.length && !bundle.tomorrowGames?.length)) return null;
+    mlbBdlSlateMemo = { ts: now, bundle };
+    return bundle;
+  } catch (err) {
+    console.warn("[mlb] BallDontLie slate error:", err?.message || err);
+    return null;
+  }
+}
+
 const cache = new Map();
 
 function logOddsUnavailable(status, scope) {
@@ -190,6 +219,21 @@ async function getMlbGamesWithPitchers() {
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
+  const bdlKey = getEnv("BALLDONTLIE_API_KEY");
+  if (bdlKey) {
+    const bundle = await getMlbBdlSlateBundle(bdlKey);
+    if (bundle?.todayGames?.length) {
+      const enriched = bundle.todayGames.map((g) =>
+        enrichGameWithParkFactors({
+          ...g,
+          park: g.park || getParkForGame(g.homeTeam?.name || ""),
+        }),
+      );
+      if (enriched.length > 0) setCached(cacheKey, enriched, 3 * 60 * 1000);
+      return enriched;
+    }
+  }
+
   try {
     const todayYmd = etDateStringToEspnYmd(getTodayEtDateString());
     const res = await fetch(
@@ -274,6 +318,21 @@ async function getMlbTomorrowGamesWithPitchers() {
   const cacheKey = "mlb_games_tomorrow";
   const cached = getCached(cacheKey);
   if (cached) return cached;
+
+  const bdlKey = getEnv("BALLDONTLIE_API_KEY");
+  if (bdlKey) {
+    const bundle = await getMlbBdlSlateBundle(bdlKey);
+    if (bundle?.tomorrowGames?.length) {
+      const enriched = bundle.tomorrowGames.map((g) =>
+        enrichGameWithParkFactors({
+          ...g,
+          park: g.park || getParkForGame(g.homeTeam?.name || ""),
+        }),
+      );
+      if (enriched.length > 0) setCached(cacheKey, enriched, 15 * 60 * 1000);
+      return enriched;
+    }
+  }
 
   try {
     const tomorrowStr = getTomorrowEtDateString();
@@ -502,7 +561,7 @@ export default async function handler(req, res) {
     }
 
     if (view === "board") {
-      const boardCached = getCached("mlb_board_v2");
+      const boardCached = getCached("mlb_board_v4");
       if (boardCached) {
         let out = boardCached;
         const cachedGames = Array.isArray(out.games) ? out.games : [];
@@ -538,7 +597,7 @@ export default async function handler(req, res) {
         }
       }
 
-      const [tomorrowGamesRaw, propLines, gameTotals] = await Promise.all([
+      const [tomorrowGamesRaw, propLinesOdds, gameTotalsOdds] = await Promise.all([
         getMlbTomorrowGamesWithPitchers(),
         getMlbPropLines(ODDS_KEY),
         getMlbGameTotals(ODDS_KEY),
@@ -558,6 +617,35 @@ export default async function handler(req, res) {
         }),
       );
 
+      let propLines = propLinesOdds;
+      let gameTotals = gameTotalsOdds;
+      let injuries = [];
+
+      const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
+      const slateFromBdl = gamesWithPark.some((g) => g.source === "balldontlie_mlb");
+      if (BDL_KEY && slateFromBdl && gamesWithPark.length > 0) {
+        const bundle = await getMlbBdlSlateBundle(BDL_KEY);
+        const teamIds = bundle?.teamIds || [];
+        const [bdlProps, bdlTotals, bdlInj] = await Promise.all([
+          fetchBdlMlbPlayerPropsForSlate(BDL_KEY, gamesWithPark),
+          fetchBdlMlbGameTotalsMap(BDL_KEY, getTodayEtDateString(), gamesWithPark),
+          teamIds.length ? fetchBdlMlbInjuriesForTeamIds(BDL_KEY, teamIds) : Promise.resolve([]),
+        ]);
+        if (bdlProps.length > 0) propLines = bdlProps;
+        if (Object.keys(bdlTotals).length > 0) gameTotals = bdlTotals;
+        injuries = Array.isArray(bdlInj) ? bdlInj : [];
+        console.log(
+          JSON.stringify({
+            event: "mlb_board_bdl",
+            slateFromBdl: true,
+            games: gamesWithPark.length,
+            bdlProps: bdlProps.length,
+            bdlTotals: Object.keys(bdlTotals || {}).length,
+            injuries: injuries.length,
+          }),
+        );
+      }
+
       const board = {
         seasonContext: buildMlbSeasonContextForBoard({
           gamesForPitcherText: gamesWithPark,
@@ -567,13 +655,15 @@ export default async function handler(req, res) {
         tomorrowGames,
         propLines: propLines.slice(0, 100),
         gameTotals,
+        injuries,
+        primarySource: slateFromBdl ? "balldontlie_mlb" : "espn",
         parkFactors: PARK_FACTORS,
         fetchedAt: new Date().toISOString(),
         slateRecovery,
       };
 
       if (games.length > 0 || propLines.length > 0) {
-        setCached("mlb_board_v2", board, 4 * 60 * 1000);
+        setCached("mlb_board_v4", board, 4 * 60 * 1000);
       }
 
       return res.status(200).json(board);

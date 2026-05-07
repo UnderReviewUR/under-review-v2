@@ -3685,6 +3685,12 @@ function collectMlbRosterNames(mlbContext) {
       names.push(n);
     }
   }
+  for (const inj of mlbContext?.injuries || []) {
+    const n = String(inj?.player || "").trim();
+    if (!n || seen.has(n.toLowerCase())) continue;
+    seen.add(n.toLowerCase());
+    names.push(n);
+  }
   return names;
 }
 
@@ -6171,6 +6177,12 @@ ${continuationRule}`;
     image,
   });
 
+  /** Single user-turn prompt body (embedded JSON contexts live here). Anthropic `messages` also contain prior turns when present. */
+  const contextPayload = { userPrompt };
+  const contextPayloadJson = JSON.stringify(contextPayload);
+  const messagesJson = JSON.stringify(messages);
+  const userPromptCharCount = userPrompt.length;
+
   const hasNoChatHistory = normalizedUrTakeHistoryForGate.length === 0;
   const nbaHasUsableContext =
     !!nbaContext &&
@@ -6281,11 +6293,10 @@ You are responding to a Pro subscriber. Apply the following:
       sportHint === "nba"
         ? JSON.stringify(nbaContextForModel ?? {}).length
         : null;
-    const contextPayloadChars = userPrompt.length;
     console.log(
       `[ur-take] context: sport=${String(
         sportHint || "unknown",
-      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${contextPayloadChars}${
+      )} systemPromptChars=${systemPromptWithProAppendix.length} contextPayloadChars=${userPromptCharCount}${
         nbaCtxJsonChars != null ? ` nbaContextJsonChars=${nbaCtxJsonChars}` : ""
       }`,
     );
@@ -6329,6 +6340,29 @@ You are responding to a Pro subscriber. Apply the following:
           : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}`;
       const temperatureForAttempt =
         qaAttempt === 0 ? selectedTemperature : Math.min(selectedTemperature, 0.28);
+
+      const systemPromptChars = systemForAttempt.length;
+      const contextPayloadChars = contextPayloadJson.length;
+      const messagesChars = messagesJson.length;
+      /** Sum requested for audits; note userPrompt is duplicated inside `messages`, so this overstates unique bytes. */
+      const totalChars = systemPromptChars + contextPayloadChars + messagesChars;
+      /** Closer to Anthropic request body text volume: system + messages only (user prompt counted once). */
+      const anthropicWireApproxChars = systemPromptChars + messagesChars;
+      console.log("[UR_TAKE_REQUEST_SIZE]", {
+        qaAttempt: qaAttempt + 1,
+        sportHint: String(sportHint || "unknown"),
+        intent: String(intent || ""),
+        isConversationFollowUp,
+        systemPromptChars,
+        contextPayloadChars,
+        messagesChars,
+        totalChars,
+        anthropicWireApproxChars,
+        estimatedTokens: Math.ceil(totalChars / 4),
+        estimatedTokensAnthropicWire: Math.ceil(anthropicWireApproxChars / 4),
+        userPromptChars: userPromptCharCount,
+        ...(nbaCtxJsonChars != null ? { nbaContextJsonChars: nbaCtxJsonChars } : {}),
+      });
 
       const anthropicT0 = Date.now();
       const result = await callAnthropic({
@@ -6672,7 +6706,7 @@ You are responding to a Pro subscriber. Apply the following:
         oddsAvailable,
         fallback: nbaFallbackOrRepairUsed || false,
         confidenceTier: takeRecord?.confidence || "unknown",
-        contextChars: contextPayloadChars || 0,
+        contextChars: userPromptCharCount,
         durationMs: Date.now() - requestStart,
         isFollowUp: isConversationFollowUp,
         isPro,

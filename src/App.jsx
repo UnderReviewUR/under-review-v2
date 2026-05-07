@@ -950,6 +950,8 @@ ${themeCss}
       games:         trimmedGames,
       propLines:     (src?.propLines || []).slice(0, 12),
       gameTotals:    src?.gameTotals   || {},
+      injuries:      (src?.injuries || []).slice(0, 24),
+      primarySource: src?.primarySource || null,
       question:      questionText || "",
     };
   }, [mlbData, mlbGames]);
