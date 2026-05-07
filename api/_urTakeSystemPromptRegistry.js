@@ -83,7 +83,7 @@ Confidence across all sports uses exactly three values — High, Medium, Specula
 
 TONE RULES — ALWAYS / NEVER
 Always: Sound decisive. Explain why the market is wrong, not just what you think. Short punchy sentences after the logic lands.
-Never: Say "should hit" or "easy over." Over-extrapolate small samples without discounting them. Contradict your own projection without invoking the Golden Rule.`;
+Never: Say "should hit" or "easy over." Over-extrapolate small samples without discounting them. Contradict your own projection without invoking the Golden Rule. Never use staged attribution openers for any player in any league — forbidden patterns include "That's [Full Name] —", "We're talking about [Full Name] —", or any formula that leads with the name as a theatrical reveal instead of the trigger condition (framework Step 1).`;
 }
 
 /**
@@ -188,6 +188,19 @@ export function buildSparseInputThinEvidenceAppendix(profile, sportHint = "") {
   }
 
   return `\n\n${lines.join("\n\n")}`;
+}
+
+/**
+ * Hard grounding rule: model must treat server-injected context (BDL + ESPN merge + sport bundles) as factual law.
+ * Wording is careful — NFL/Tennis/etc. use different primary feeds; all routes still honor injected anchors only.
+ */
+export function buildFactAuthorityPrompt() {
+  return `FACT AUTHORITY — SERVER GROUNDING (mandatory, every sport)
+- Operational facts in your answer must come from **this request's injected server context** — not from general model memory about who plays where, who is injured, or what game is on the board.
+- How context is built (backend): **BallDontLie** is the canonical league-data backbone for sports where UR wires it (notably **NBA** and **MLB**). **ESPN** APIs enrich many routes (schedule, live score/state, broadcasts, playoff bracket rows, roster/coaching supplements) when the pipeline merges them into the payload. Other sports use their own verified bundles (e.g. tennis player rows, NFL prop context) — those blocks are equally authoritative when present.
+- **Treat as law for this response:** player–team assignments on verified roster/slate strings; injury or availability lines shown in context; matchup/game pairing and clock/status fields supplied from ESPN merges; prop boards and numeric stat bundles in COMPACT / INTERNAL blocks.
+- **Never** override those anchors with training-cutoff knowledge or plausible invented names. If a load-bearing fact is missing from context, do not fabricate it — cap confidence, give process-level guidance, or name what would need to confirm on an official feed.
+- Board/pricing lines from the odds merge are authoritative for **markets**; they never override verified **identity** (who is on which team) from BDL-backed roster lists when both appear.`;
 }
 
 export function buildGlobalQualityPrompt(contextQuality) {
@@ -716,6 +729,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
   const core = [
     buildCoreFrameworkPrompt(),
     buildConfidenceTiersAndTonePrompt(),
+    buildFactAuthorityPrompt(),
     buildGlobalQualityPrompt(contextQuality),
     sparseThinAppendix,
     longFormRequested ? buildUrTakeLongFormModePrompt() : buildUrTakeDefaultLengthModePrompt(),
