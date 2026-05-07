@@ -14,6 +14,7 @@ import {
   telemetryUrTakeFollowUpSubmit,
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
+import { FREE_QUESTION_LIMIT } from "./lib/freeTierLimits.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -421,7 +422,7 @@ ${themeCss}
   const [codeError, setCodeError]         = useState("");
   const [codeLoading, setCodeLoading]     = useState(false);
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
-  const FREE_LIMIT  = 1;
+  const FREE_LIMIT = FREE_QUESTION_LIMIT;
 
   const accessTierRef = useRef(accessTier);
   useEffect(() => {
@@ -3169,6 +3170,7 @@ ${themeCss}
             openPlayer={openPlayer}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpTennis}
+            accessTier={accessTier}
           />
         )}
 
@@ -3192,6 +3194,7 @@ ${themeCss}
             openNflPlayer={openNflPlayer}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpNfl}
+            accessTier={accessTier}
           />
         )}
 
@@ -3253,6 +3256,7 @@ ${themeCss}
             f1Data={f1Data}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpF1}
+            accessTier={accessTier}
           />
         )}
 
@@ -3274,6 +3278,7 @@ ${themeCss}
             nbaLoading={nbaLoading}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpNba}
+            accessTier={accessTier}
           />
         )}
 
@@ -3295,6 +3300,7 @@ ${themeCss}
             mlbData={mlbData}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpMlb}
+            accessTier={accessTier}
           />
         )}
 
@@ -3316,6 +3322,7 @@ ${themeCss}
             askBarCommon={askBarCommon}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpGolf}
+            accessTier={accessTier}
           />
         )}
 
@@ -4174,7 +4181,12 @@ fees. One price, unlimited reads.`,
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
             </div>
-            <ChatThread msgs={matchupMsgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={urTakeFollowUpMatchup} />
+            <ChatThread
+              msgs={matchupMsgs}
+              urTakeTrackPlay={urTakeTrackPlay}
+              onUrTakeFollowUp={urTakeFollowUpMatchup}
+              accessTier={accessTier}
+            />
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
         )}
@@ -4221,6 +4233,7 @@ fees. One price, unlimited reads.`,
             firePrompt={firePrompt}
             urTakeTrackPlay={urTakeTrackPlay}
             onUrTakeFollowUp={urTakeFollowUpAsk}
+            accessTier={accessTier}
           />
         )}
 
@@ -4273,7 +4286,7 @@ fees. One price, unlimited reads.`,
           <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:101,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:24,maxWidth:380,width:"100%",textAlign:"center"}}>
               <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:16,whiteSpace:"pre-line"}}>
-                {`That was your free UR Take.
+                {`You've used your 2 free UR Takes.
 
 Pro unlocks unlimited takes, session memory,
 betting style personalization, and live game

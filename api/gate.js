@@ -1,6 +1,6 @@
 // api/gate.js
 // Tracks free-tier query usage and handles email gate.
-// Free tier: 1 lifetime free question per email (never resets).
+// Free tier: N lifetime free questions per email (never resets). Match src/lib/freeTierLimits.js.
 // Uses Vercel KV if available, falls back to in-memory (resets on cold start).
 // No user accounts. Identity = email stored in localStorage.
 
@@ -24,7 +24,7 @@ async function setRecord(email, record) {
   await setDurableJson(key, record, { ttlSeconds: GATE_TTL_SECONDS });
 }
 
-const FREE_QUERIES_LIFETIME = 1;
+const FREE_QUERIES_LIFETIME = 2;
 const TAKE_TOKEN_TTL_MS = 10 * 60 * 1000;
 
 function isValidEmail(email) {

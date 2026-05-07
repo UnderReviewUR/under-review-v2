@@ -1,26 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const FREE_QUERIES_PER_WEEK = 3;
-const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Mirrors api/gate.js FREE_QUERIES_LIFETIME (lifetime cap per email, not a rolling week).
+ * Must match src/lib/freeTierLimits.js FREE_QUESTION_LIMIT.
+ */
+const FREE_QUERIES_LIFETIME = 2;
 
-function recentInWindow(queries, now) {
-  const windowStart = now - WINDOW_MS;
-  return queries.filter((t) => t > windowStart);
+function isWithinLifetimeQuota(queriesLength) {
+  return queriesLength < FREE_QUERIES_LIFETIME;
 }
 
-test("gate window keeps only timestamps inside 7d rolling window", () => {
-  const now = 1_000_000_000_000;
-  const old = now - WINDOW_MS - 1;
-  const q = [now, now - 1000, old];
-  const recent = recentInWindow(q, now);
-  assert.equal(recent.length, 2);
+test("free tier allows requests while below lifetime limit", () => {
+  assert.ok(isWithinLifetimeQuota(0));
+  assert.ok(isWithinLifetimeQuota(1));
+  assert.ok(!isWithinLifetimeQuota(2));
 });
 
-test("free tier blocks at 3 queries in window", () => {
-  const now = 2_000_000_000_000;
-  const queries = [1, 2, 3].map((i) => now - i * 1000);
-  const recent = recentInWindow(queries, now);
-  assert.equal(recent.length, 3);
-  assert.ok(recent.length >= FREE_QUERIES_PER_WEEK);
+test("lifetime limit matches gate.js and client FREE_QUESTION_LIMIT (2)", () => {
+  assert.equal(FREE_QUERIES_LIFETIME, 2);
 });

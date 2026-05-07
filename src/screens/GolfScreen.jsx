@@ -233,6 +233,7 @@ export default function GolfScreen({
   askBarCommon,
   urTakeTrackPlay = null,
   onUrTakeFollowUp = null,
+  accessTier,
 }) {
   const [lastKnownEventSnapshot, setLastKnownEventSnapshot] = useState(null);
 
@@ -360,7 +361,12 @@ export default function GolfScreen({
               </div>
             )}
 
-            <ChatThread msgs={golfMsgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
+            <ChatThread
+              msgs={golfMsgs}
+              urTakeTrackPlay={urTakeTrackPlay}
+              onUrTakeFollowUp={onUrTakeFollowUp}
+              accessTier={accessTier}
+            />
 
             {scheduleRows.length > 0 && (
               <>

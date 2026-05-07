@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { telemetryUrTakeFollowUpClick } from "../../lib/urTakeTelemetry.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
@@ -997,7 +998,12 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
   );
 }
 
-export function ChatThread({ msgs, urTakeTrackPlay = null, onUrTakeFollowUp = null }) {
+export function ChatThread({
+  msgs,
+  urTakeTrackPlay = null,
+  onUrTakeFollowUp = null,
+  accessTier = null,
+}) {
   const bottomRef = useRef(null);
 
   /** Scroll the nearest scrollport (screen main) to the latest bubble — avoids mutating scrollTop (eslint). */
@@ -1005,6 +1011,25 @@ export function ChatThread({ msgs, urTakeTrackPlay = null, onUrTakeFollowUp = nu
     if (!msgs?.length) return;
     bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
   }, [msgs]);
+
+  let weeklyUsed = 0;
+  try {
+    weeklyUsed = parseInt(
+      typeof localStorage !== "undefined" ? localStorage.getItem("ur_free_used") || "0" : "0",
+      10,
+    );
+  } catch {
+    weeklyUsed = 0;
+  }
+
+  const last = msgs?.length ? msgs[msgs.length - 1] : null;
+  const showFreeFollowUpCue =
+    accessTier === "free" &&
+    weeklyUsed === 1 &&
+    FREE_QUESTION_LIMIT === 2 &&
+    last &&
+    last.role === "ai" &&
+    !last.loading;
 
   if (!msgs || msgs.length === 0) return null;
   return (
@@ -1025,6 +1050,22 @@ export function ChatThread({ msgs, urTakeTrackPlay = null, onUrTakeFollowUp = nu
           </div>
         )
       )}
+      {showFreeFollowUpCue ? (
+        <div
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 10,
+            letterSpacing: 1.5,
+            color: "rgba(0,245,233,0.5)",
+            textTransform: "uppercase",
+            textAlign: "center",
+            marginTop: 12,
+            padding: "8px 16px",
+          }}
+        >
+          ⚡ One follow-up left free — go deeper or ask another angle
+        </div>
+      ) : null}
       <div ref={bottomRef} style={{ height: 1, width: "100%", overflow: "hidden" }} aria-hidden />
     </div>
   );

@@ -18,6 +18,7 @@ export default function F1Screen({
   f1Data,
   urTakeTrackPlay = null,
   onUrTakeFollowUp = null,
+  accessTier,
 }) {
   const [weekAgoMs] = useState(() => Date.now() - 7 * 86400000);
 
@@ -89,7 +90,12 @@ export default function F1Screen({
                 </div>
               </div>
             )}
-            <ChatThread msgs={f1Msgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
+            <ChatThread
+              msgs={f1Msgs}
+              urTakeTrackPlay={urTakeTrackPlay}
+              onUrTakeFollowUp={onUrTakeFollowUp}
+              accessTier={accessTier}
+            />
 
             {f1Loading ? (
               <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>

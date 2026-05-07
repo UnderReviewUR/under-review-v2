@@ -17,6 +17,7 @@ export default function MlbScreen({
   mlbData,
   urTakeTrackPlay = null,
   onUrTakeFollowUp = null,
+  accessTier,
 }) {
   const gamesForState =
     Array.isArray(mlbGames) && mlbGames.length > 0
@@ -53,7 +54,12 @@ export default function MlbScreen({
               </div>
             )}
 
-            <ChatThread msgs={mlbMsgs} urTakeTrackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
+            <ChatThread
+              msgs={mlbMsgs}
+              urTakeTrackPlay={urTakeTrackPlay}
+              onUrTakeFollowUp={onUrTakeFollowUp}
+              accessTier={accessTier}
+            />
 
             {mlbLoading && mlbGames.length === 0 ? (
               <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
