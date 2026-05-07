@@ -396,9 +396,37 @@ function splitLastSentenceForUrTakeClosing(block) {
   };
 }
 
+/** Verdict lines should be short callouts — not full paragraphs (avoids magenta wall-of-text). */
+const UR_TAKE_VERDICT_LINE_MAX = 220;
+
+function stripUrTakeInlineMarkdown(s) {
+  return String(s || "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .trim();
+}
+
+/**
+ * First line is only the live/final ribbon when it is short (model often emits one long line
+ * containing “Live” — that must not become the green pill or it eats the whole answer).
+ */
+function firstLineIsUrTakeGameRibbon(line) {
+  const s = String(line || "").trim();
+  if (!s) return false;
+  if (s.length > 120) return false;
+  return /\b(Q[1-4]|OT|Live|Final)\b/i.test(s);
+}
+
+function trimLeadingOrphanDots(text) {
+  return String(text || "")
+    .replace(/^(?:\s*\.{1,3}\s*\n)+/m, "")
+    .replace(/^\s*\.{1,3}\s*$/m, "")
+    .trim();
+}
+
 function urTakeClosingLooksLikeVerdict(s) {
   const x = String(s || "").trim();
-  if (!x) return false;
+  if (!x || x.length > UR_TAKE_VERDICT_LINE_MAX) return false;
   return (
     /^(Look for|Back|Fade|Watch|Take the|Over|Under)/i.test(x) ||
     /\b(over|under)\s+\d+/i.test(x)
@@ -411,14 +439,14 @@ export function renderUrTakeAiMessage(raw) {
 
   let gameState = "";
   let bodyStart = 0;
-  if (lines[0] && /\b(Q[1-4]|OT|Live|Final)\b/.test(lines[0])) {
-    gameState = lines[0];
+  if (lines[0] && firstLineIsUrTakeGameRibbon(lines[0])) {
+    gameState = lines[0].trim();
     bodyStart = 1;
   }
 
   const remaining = lines.slice(bodyStart).join("\n");
   const { first: headline, rest: bodyAfterHeadline } = takeFirstSentenceSpan(remaining);
-  let bodyText = bodyAfterHeadline;
+  let bodyText = trimLeadingOrphanDots(bodyAfterHeadline);
 
   let confidence = "";
   const lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : "";
@@ -454,7 +482,9 @@ export function renderUrTakeAiMessage(raw) {
 
   const paras = bodyText.split(/\n{2,}/);
   let bodyChunks = paras.length > 1 ? paras : splitBySentenceCluster(bodyText, 3);
-  bodyChunks = bodyChunks.map((c) => String(c).trim()).filter(Boolean);
+  bodyChunks = bodyChunks
+    .map((c) => stripUrTakeInlineMarkdown(String(c).trim()))
+    .filter((c) => c.length >= 2 && !/^[\s.•]+$/u.test(c));
 
   const hasVisual =
     Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
@@ -462,6 +492,9 @@ export function renderUrTakeAiMessage(raw) {
   if (!hasVisual) {
     return renderMessage(text, { styleUrTakeSectionLabels: true });
   }
+
+  const headlineDisplay = headline ? stripUrTakeInlineMarkdown(headline) : "";
+  const closingDisplay = closing ? stripUrTakeInlineMarkdown(closing) : "";
 
   return (
     <div style={{ padding: "0 4px" }}>
@@ -490,11 +523,11 @@ export function renderUrTakeAiMessage(raw) {
               background: "#22c55e",
             }}
           />
-          {gameState}
+          {stripUrTakeInlineMarkdown(gameState)}
         </div>
       ) : null}
 
-      {headline ? (
+      {headlineDisplay ? (
         <div
           style={{
             fontSize: 20,
@@ -508,7 +541,7 @@ export function renderUrTakeAiMessage(raw) {
             letterSpacing: "-0.3px",
           }}
         >
-          {headline}
+          {headlineDisplay}
         </div>
       ) : null}
 
@@ -533,7 +566,7 @@ export function renderUrTakeAiMessage(raw) {
         </div>
       ) : null}
 
-      {closing ? (
+      {closingDisplay ? (
         <div
           style={{
             marginTop: 16,
@@ -549,7 +582,7 @@ export function renderUrTakeAiMessage(raw) {
             marginBottom: 12,
           }}
         >
-          {closing}
+          {closingDisplay}
         </div>
       ) : null}
 
@@ -842,7 +875,9 @@ export function LoadingBubble({ sport }) {
 
 function UrTakeTrustChips({ trust }) {
   if (!trust || typeof trust !== "object") return null;
-  const show = trust.tier !== "standard" || trust.contextQuality === "low";
+  const cq = String(trust.contextQuality || "").toLowerCase();
+  /** Hide routine metadata during normal reads — only surface real caution signals. */
+  const show = cq === "low" || Boolean(trust.thinEvidence);
   if (!show) return null;
 
   const chipStyle = {
