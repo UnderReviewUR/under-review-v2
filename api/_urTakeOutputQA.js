@@ -9,6 +9,7 @@ import {
   sentenceFailsTripleDoubleLogic,
 } from "./_urTakeBetIntegrity.js";
 import { lintNbaHardGrounding } from "./_urTakeNbaGroundingQA.js";
+import { logNbaInventedPlayerShadowEvents, scanNbaInventedPlayerShadow } from "./_urTakeNbaInventedPlayerShadow.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
 
@@ -287,6 +288,7 @@ function rosterCoherenceFlag(text, ctx) {
  * @param {object} [options.nbaContext] — optional playerStats for prop realism
  * @param {{ allowedTeamAbbreviations?: string[], knownPlayerToTeam?: Map<string,string> }} [options.coherenceContext]
  * @param {object|null} [options.nbaGroundingSnapshot] — from buildNbaGroundingSnapshot (NBA only)
+ * @param {{ allowlistLower: Set<string>, matchupTeams: [string, string] }|null|undefined} [options.nbaInventedShadow] — matchup-only shadow telemetry (no QA impact)
  * @param {string} [options.intent]
  * @param {boolean} [options.liveMode]
  * @param {string} [options.question]
@@ -551,6 +553,21 @@ export function runUnderReviewPostProcess(text, options = {}) {
     modified = true;
   }
 
+  let nbaInventedPlayerShadowCount = 0;
+  const shadowCtx = options.nbaInventedShadow;
+  if (
+    shadowCtx?.allowlistLower instanceof Set &&
+    Array.isArray(shadowCtx.matchupTeams) &&
+    shadowCtx.matchupTeams.length === 2
+  ) {
+    const shadow = scanNbaInventedPlayerShadow(bi.text, {
+      allowlistLower: shadowCtx.allowlistLower,
+      matchupTeams: shadowCtx.matchupTeams,
+    });
+    nbaInventedPlayerShadowCount = shadow.count;
+    logNbaInventedPlayerShadowEvents(shadow.events);
+  }
+
   const metricsLine = {
     event: "ur_take_qa",
     score: lint.score,
@@ -561,6 +578,7 @@ export function runUnderReviewPostProcess(text, options = {}) {
     sportIssueCount: lint.sportIssues?.length ?? 0,
     sportCriticalFromLint: (lint.sportIssues || []).filter((i) => i.requiresRegeneration).length,
     nbaGroundingEventCount: lint.groundingEvents?.length ?? 0,
+    nbaInventedPlayerShadowCount,
   };
 
   const allIssues = [...new Set([...bi.issues, ...lint.issueCodes])];

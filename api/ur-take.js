@@ -58,6 +58,7 @@ import {
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
 import { buildNbaGroundingSnapshot, NBA_GROUNDING_REGENERATION_SUFFIX } from "./_urTakeNbaGroundingQA.js";
+import { buildAllowlistLowerSetFromSnapshot } from "./_urTakeNbaInventedPlayerShadow.js";
 import {
   buildEnrichedMemoryPrompt,
   extractStructuredFromPlayText,
@@ -6323,6 +6324,21 @@ You are responding to a Pro subscriber. Apply the following:
           }
         : undefined;
 
+    const nbaInventedShadow =
+      sportHint === "nba" &&
+      nbaMatchup &&
+      nbaGroundingSnapshot &&
+      Array.isArray(nbaGroundingSnapshot.focusAllowedTeams) &&
+      nbaGroundingSnapshot.focusAllowedTeams.length === 2
+        ? {
+            allowlistLower: buildAllowlistLowerSetFromSnapshot(nbaGroundingSnapshot),
+            matchupTeams: /** @type {[string, string]} */ ([
+              String(nbaGroundingSnapshot.focusAllowedTeams[0] || "").toUpperCase(),
+              String(nbaGroundingSnapshot.focusAllowedTeams[1] || "").toUpperCase(),
+            ]),
+          }
+        : undefined;
+
     const qaPostOptsBase = {
       sport: sportHint,
       nbaContext: nbaContextForModel,
@@ -6330,6 +6346,7 @@ You are responding to a Pro subscriber. Apply the following:
       liveMode: Boolean(liveSignals?.hasLiveKeyword),
       coherenceContext: qaCoherenceContext,
       nbaGroundingSnapshot: sportHint === "nba" ? nbaGroundingSnapshot : undefined,
+      nbaInventedShadow,
     };
 
     let responseText = "";
@@ -6546,7 +6563,10 @@ You are responding to a Pro subscriber. Apply the following:
       );
 
       if (responseDeep) {
-        const deepPost = runUnderReviewPostProcess(responseDeep, qaPostOptsBase);
+        const deepPost = runUnderReviewPostProcess(responseDeep, {
+          ...qaPostOptsBase,
+          nbaInventedShadow: undefined,
+        });
         responseDeep = deepPost.text;
       }
 
