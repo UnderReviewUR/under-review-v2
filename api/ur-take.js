@@ -43,6 +43,10 @@ import {
   nbaGameHasVerifiedBoxScore,
 } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
+import {
+  slimNbaPlayerStatRowForUrTake,
+  slimPlayoffSeriesForBoard,
+} from "../shared/nbaUrTakeSlim.js";
 import { getSlipImageRouteMeta } from "./_slipImageIntent.js";
 import { buildF1UrTakeContext } from "./f1.js";
 import {
@@ -862,11 +866,16 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
       ? `${af} and ${hf} are tied ${winsAwayF}-${winsHomeF}${nextGameNum > 0 ? ` — Game ${nextGameNum} tonight` : ""}.`
       : `${leader} leads ${Math.max(winsAwayF, winsHomeF)}-${Math.min(winsAwayF, winsHomeF)}${nextGameNum > 0 ? ` — Game ${nextGameNum} tonight` : ""}.`;
 
-  const priorFinals = Array.isArray(row?.completedGamesCombinedPoints) ? row.completedGamesCombinedPoints : [];
+  const priorCount =
+    typeof row?.completedGamesCombinedPointsCount === "number"
+      ? row.completedGamesCombinedPointsCount
+      : Array.isArray(row?.completedGamesCombinedPoints)
+        ? row.completedGamesCombinedPoints.length
+        : 0;
   const avgCombined = row?.completedGamesCombinedPointsAverage;
   let summaryWithAvg = serverSummaryOneLiner;
-  if (priorFinals.length > 0 && Number.isFinite(avgCombined)) {
-    summaryWithAvg += ` Completed finals in fetch window (${priorFinals.length}): combined avg ${avgCombined} pts/game.`;
+  if (priorCount > 0 && Number.isFinite(avgCombined)) {
+    summaryWithAvg += ` Completed finals in fetch window (${priorCount}): combined avg ${avgCombined} pts/game.`;
   }
 
   return {
@@ -878,7 +887,7 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
     nextGameNumber: nextGameNum > 0 ? nextGameNum : null,
     round: row?.round || null,
     statusText: row?.status || gameSeriesSummary || null,
-    completedGamesCombinedPoints: priorFinals,
+    completedGamesCombinedPointsCount: priorCount,
     completedGamesCombinedPointsAverage: Number.isFinite(avgCombined) ? avgCombined : null,
     serverSummaryOneLiner: summaryWithAvg,
   };
@@ -3607,6 +3616,19 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
       : null,
   );
 
+  if (Array.isArray(raw.playerStats)) {
+    raw.playerStats = raw.playerStats.map(slimNbaPlayerStatRowForUrTake);
+  }
+  raw.playoffSeries = slimPlayoffSeriesForBoard(raw.playoffSeries || []);
+
+  delete raw.urTakeParsing;
+  delete raw.propFeedMeta;
+  delete raw.fetchedAt;
+  delete raw.playoffFocusMeta;
+  delete raw._rosterDiag;
+  delete raw.liveEdgeAlerts;
+  delete raw.playoffPathGrounding;
+
   return raw;
 }
 
@@ -5472,7 +5494,7 @@ Rule: Do not give false certainty. Keep any take contingent on confirmed status.
         ? `FOCUSED PLAYOFF SERIES (board-verified — mirror this in series framing; do not invent wins/game number)\n${nbaContextForModel.focusedSeriesSnapshot.serverSummaryOneLiner}\n\n`
         : ""
     }NBA context:
-${JSON.stringify(nbaContextForModel || {}, null, 2)}
+${JSON.stringify(nbaContextForModel || {})}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.

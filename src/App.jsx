@@ -60,6 +60,10 @@ import {
   filterPropLinesToVerifiedSlate,
   mergeNbaTodaysGames,
 } from "./lib/nbaUiSurface.js";
+import {
+  collectPlayoffBracketTeamAbbrevs,
+  slimNbaPlayerStatRowForUrTake,
+} from "../shared/nbaUrTakeSlim.js";
 import { getEtHour24 } from "./lib/nbaTime.js";
 import {
   ChatThread,
@@ -824,7 +828,13 @@ ${themeCss}
 }, [f1Data]);
 
   const buildNbaContext = useCallback(
-    (questionText, nbaDataOverride = null, verifiedSlateGames = [], focusGameKey = null) => {
+    (
+      questionText,
+      nbaDataOverride = null,
+      verifiedSlateGames = [],
+      focusGameKey = null,
+      playoffTeamAbbrevs = null,
+    ) => {
       const src = nbaDataOverride ?? nbaData;
       const fromSrc = Array.isArray(src?.todaysGames) ? src.todaysGames : [];
       const fromLocal = Array.isArray(nbaGames) ? nbaGames : [];
@@ -841,7 +851,27 @@ ${themeCss}
 
       const slateMeta = src?.todaysGamesSlateMeta || null;
       const filteredProps = filterPropLinesToVerifiedSlate(src?.propLines, mergedTodaysGames);
-      const filteredStats = filterPlayerStatsToVerifiedTeams(src?.playerStats, mergedTodaysGames);
+      let filteredStats = filterPlayerStatsToVerifiedTeams(src?.playerStats, mergedTodaysGames);
+      const seasonCtx = src?.seasonContext || {};
+      const bracketTeams =
+        playoffTeamAbbrevs != null
+          ? new Set(
+              (Array.isArray(playoffTeamAbbrevs) ? playoffTeamAbbrevs : []).map((a) =>
+                String(a || "").toUpperCase(),
+              ),
+            )
+          : collectPlayoffBracketTeamAbbrevs(src?.playoffSeries || []);
+      const usePlayoffTeamScope =
+        seasonCtx.postseason === true &&
+        bracketTeams.size >= 4 &&
+        Array.isArray(src?.playoffSeries) &&
+        src.playoffSeries.length > 0;
+      if (usePlayoffTeamScope) {
+        filteredStats = filteredStats.filter((row) =>
+          bracketTeams.has(String(row?.team || "").toUpperCase()),
+        );
+      }
+      filteredStats = filteredStats.map(slimNbaPlayerStatRowForUrTake);
       const teamsTonight = new Set();
       for (const g of mergedTodaysGames) {
         const aa = String(g?.awayTeam?.abbr || "").toUpperCase();

@@ -4,6 +4,11 @@ import { addCalendarDaysEt } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { persistLastKnownHomeNbaGames, recoverLastKnownHomeNbaGames } from "./_homeLastKnownGames.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
+import {
+  collectPlayoffBracketTeamAbbrevs,
+  slimNbaPlayerStatRowForUrTake,
+  slimPlayoffSeriesForBoard,
+} from "../shared/nbaUrTakeSlim.js";
 import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -1163,6 +1168,72 @@ function buildNbaRosterGrounding(playerStats, propLines, injuries, statsSource, 
     rule:
       "Authoritative list is playersByTeamAbbrev (API + tonight slate). Follow UR Take ROSTER ENFORCEMENT block; never use training memory for player-team assignments.",
   };
+}
+
+/**
+ * Playoffs: only pull BDL stat bundles for teams still in the ESPN bracket (plus any question-boosted team).
+ * @param {"strict"|"always"} fillSlateWhenEmpty strict = only when boost is empty (UR Take); always = home board.
+ */
+function resolveStatsBundleAbbrevsForPlayoffs({
+  mergedPriorityAbbrevs,
+  boost,
+  todaysGames,
+  playoffSeries,
+  seasonCtx,
+  fillSlateWhenEmpty,
+}) {
+  let statsBundleAbbrevs = mergedPriorityAbbrevs;
+  const canFillSlate =
+    statsBundleAbbrevs.length === 0 &&
+    (fillSlateWhenEmpty === "always" || !boost || boost.length === 0);
+  if (canFillSlate) {
+    statsBundleAbbrevs = slateTeamAbbrevsCapped(todaysGames, 8);
+  }
+  const bracketTeams = collectPlayoffBracketTeamAbbrevs(playoffSeries);
+  const hasBracket =
+    seasonCtx?.postseason === true &&
+    Array.isArray(playoffSeries) &&
+    playoffSeries.length > 0 &&
+    bracketTeams.size >= 4;
+
+  if (!hasBracket) return statsBundleAbbrevs;
+
+  const boostSet = new Set(
+    (boost || []).map((x) => canonicalizeTeamAbbr(String(x || ""))).filter(Boolean),
+  );
+  statsBundleAbbrevs = statsBundleAbbrevs.filter((a) => bracketTeams.has(a) || boostSet.has(a));
+  if (statsBundleAbbrevs.length === 0 && boostSet.size > 0) {
+    statsBundleAbbrevs = [...boostSet];
+  }
+  if (statsBundleAbbrevs.length === 0) {
+    statsBundleAbbrevs = slateTeamAbbrevsCapped(todaysGames, 8).filter((a) => bracketTeams.has(a));
+  }
+  return statsBundleAbbrevs;
+}
+
+/** Final wire-size reduction for cached JSON + Anthropic-bound payloads (slim stats, trim props/playoffs). */
+function compressNbaBoardForWire(board) {
+  if (!board || typeof board !== "object") return board;
+  const slimStats = (board.playerStats || [])
+    .map(slimNbaPlayerStatRowForUrTake)
+    .slice(0, 72);
+  board.playerStats = slimStats;
+  board.playoffSeries = slimPlayoffSeriesForBoard(board.playoffSeries || []);
+  board.propLines = (board.propLines || []).slice(0, 80);
+  board.bdlGrounding = buildBdlGroundingEnvelope({
+    playerStats: slimStats,
+    todaysGames: board.todaysGames || [],
+    injuries: board.injuries || [],
+  });
+  board.rosterGrounding = buildNbaRosterGrounding(
+    slimStats,
+    board.propLines || [],
+    board.injuries || [],
+    board.statsSource || "unknown",
+    board.todaysGames || [],
+  );
+  board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
+  return board;
 }
 
 function bdlHeaders(bdlKey) {
@@ -2861,8 +2932,13 @@ async function enrichPlayoffSeriesRowsWithCompletedGameTotals(seriesRows) {
     const avg =
       totals.length > 0 ? Math.round((totals.reduce((s, n) => s + n, 0) / totals.length) * 10) / 10 : null;
     return {
-      ...row,
-      completedGamesCombinedPoints: games,
+      round: row.round,
+      home: row.home,
+      away: row.away,
+      homeWins: row.homeWins,
+      awayWins: row.awayWins,
+      status: row.status,
+      completedGamesCombinedPointsCount: games.length,
       completedGamesCombinedPointsAverage: avg,
     };
   });
@@ -2974,6 +3050,7 @@ export async function buildNbaUrTakeBoard(question = "") {
   const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
   const todaysGames = tgRes.games || [];
   const todaysGamesSlateMeta = tgRes.slateMeta;
+  const seasonCtx = getNbaSeasonContext();
 
   const playoffSeries = await getNbaPlayoffSeries();
   const playoffSeriesRowsReturned = Array.isArray(playoffSeries) ? playoffSeries.length : 0;
@@ -2994,10 +3071,14 @@ export async function buildNbaUrTakeBoard(question = "") {
     playoffFocusMode && boost.some((t) => !playoffPrioritySet.has(String(t || "").toUpperCase()));
   const directTeamOverride = boost.length > 0;
 
-  let statsBundleAbbrevs = mergedPriorityAbbrevs;
-  if (statsBundleAbbrevs.length === 0 && boost.length === 0) {
-    statsBundleAbbrevs = slateTeamAbbrevsCapped(todaysGames, 8);
-  }
+  const statsBundleAbbrevs = resolveStatsBundleAbbrevsForPlayoffs({
+    mergedPriorityAbbrevs,
+    boost,
+    todaysGames,
+    playoffSeries,
+    seasonCtx,
+    fillSlateWhenEmpty: "strict",
+  });
   const effectiveFocusAbbrevs =
     mergedPriorityAbbrevs.length > 0 ? mergedPriorityAbbrevs : statsBundleAbbrevs;
 
@@ -3050,7 +3131,7 @@ export async function buildNbaUrTakeBoard(question = "") {
   ].sort();
 
   let board = {
-    seasonContext: getNbaSeasonContext(),
+    seasonContext: seasonCtx,
     todaysGames,
     todaysGamesSlateMeta,
     todaysGamesSlateNote:
@@ -3122,6 +3203,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     console.warn("[nba] playoffPathGrounding failed:", err?.message || err);
     board.playoffPathGrounding = null;
   }
+  compressNbaBoardForWire(board);
   console.log(
     JSON.stringify({
       event: "nba_board_complete",
@@ -3172,7 +3254,7 @@ export default async function handler(req, res) {
       }
 
       const boardT0 = Date.now();
-      const boardCacheKey = `nba_board_${new Date().getFullYear()}_le2`;
+      const boardCacheKey = `nba_board_${new Date().getFullYear()}_le3`;
       const boardCached = getCached(boardCacheKey);
       if (boardCached) {
         let out = boardCached;
@@ -3241,6 +3323,7 @@ export default async function handler(req, res) {
         const r = await fn();
         return { r, ms: Date.now() - t0 };
       };
+      const seasonCtx = getNbaSeasonContext();
       const playoffWrap = await wrapTimed(() => getNbaPlayoffSeries());
       const playoffSeries = playoffWrap.r;
       const playoffSeriesMs = playoffWrap.ms;
@@ -3255,10 +3338,14 @@ export default async function handler(req, res) {
         [],
         playoffPriorityAbbrevs,
       );
-      let statsBundleAbbrevs = mergedPriorityAbbrevs;
-      if (statsBundleAbbrevs.length === 0) {
-        statsBundleAbbrevs = slateTeamAbbrevsCapped(todaysGames, 8);
-      }
+      const statsBundleAbbrevs = resolveStatsBundleAbbrevsForPlayoffs({
+        mergedPriorityAbbrevs,
+        boost: [],
+        todaysGames,
+        playoffSeries,
+        seasonCtx,
+        fillSlateWhenEmpty: "always",
+      });
       const effectiveFocusAbbrevs =
         mergedPriorityAbbrevs.length > 0 ? mergedPriorityAbbrevs : statsBundleAbbrevs;
       const playoffFocusTeamCount = playoffPriorityAbbrevs.length;
@@ -3339,7 +3426,7 @@ export default async function handler(req, res) {
       };
 
       const board = {
-        seasonContext: getNbaSeasonContext(),
+        seasonContext: seasonCtx,
         todaysGames,
         todaysGamesSlateMeta,
         slateRecovery,
@@ -3381,6 +3468,7 @@ export default async function handler(req, res) {
       const le0 = Date.now();
       board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
       const liveEdgeAlertsMs = Date.now() - le0;
+      compressNbaBoardForWire(board);
 
       const boardElapsedColdMs = Date.now() - boardT0;
       console.log(
