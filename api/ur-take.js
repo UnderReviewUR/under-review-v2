@@ -51,11 +51,13 @@ import { getSlipImageRouteMeta } from "./_slipImageIntent.js";
 import { buildF1UrTakeContext } from "./f1.js";
 import {
   buildCoreFrameworkPrompt,
+  buildFactAuthorityPrompt,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
   detectUrTakeLongFormIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
+import { buildNbaGroundingSnapshot, NBA_GROUNDING_REGENERATION_SUFFIX } from "./_urTakeNbaGroundingQA.js";
 import {
   buildEnrichedMemoryPrompt,
   extractStructuredFromPlayText,
@@ -101,7 +103,7 @@ ${NBA_UNIFIED_MARKET_CLOSING_RULE}
 
 /** Keeps NBA follow-ups from dead-ending on name typos ("drop the name…"). */
 const NBA_FOLLOW_UP_THREAD_RULE = `NBA FOLLOW-UP THREAD RULE (mandatory — same chat as prior messages)
-- Verified BDL roster + slate + matchup context are supplied — you must resolve who the user means without asking. Map typos/nicknames to the closest verified full name on **this game's** roster strings in COMPACT context; open with one declarative attribution ("That's [Full Name] —") and execute props/rebounds/assists/PRA for that player.
+- Verified BDL roster + slate + matchup context are supplied — you must resolve who the user means without asking. Map typos/nicknames to the closest verified full name on **this game's** roster strings in COMPACT context; use that verified full name naturally in the first paragraph (where it fits the framework — never a staged name-drop opener). Execute props/rebounds/assists/PRA for that player.
 - Forbidden anywhere in the message: "if you meant", "tell me who", "drop the name", "correct me if", or any user-facing name confirmation.
 - Mandatory closer: Live trigger or concrete numeric threshold — never homework-only.
 - Only if no token plausibly matches either roster after fuzzy resolution: two game-level angles using verified stars already named in context — still no spelling/confirmation asks.`;
@@ -3409,7 +3411,7 @@ Never mention client UI, API merge, rosterGroundingQuality, or "combined" data s
 The confidence line reflects data quality. That is the only place uncertainty
 about data completeness belongs. Nowhere else.
 
-TYPO / SLANG NAME RESOLUTION (mandatory): Verified BallDontLie roster lists for this slate are sufficient to identify who the user means. When a token in the Question does not exactly match a listed name, fuzzy-match it to the closest authorized full name on either team (playersByTeamAbbrev / INTERNAL authorized-name blocks). State that resolved name once as fact and analyze — never ask the user to confirm identity ("if you meant", "tell me who", "correct spelling"). ESPN/board enrichment in context is authoritative for game framing — not an excuse to punt on name resolution.
+TYPO / SLANG NAME RESOLUTION (mandatory): Verified BallDontLie roster lists for this slate are sufficient to identify who the user means. When a token in the Question does not exactly match a listed name, fuzzy-match it to the closest authorized full name on either team (playersByTeamAbbrev / INTERNAL authorized-name blocks). Use that verified full name naturally in the analysis — never ask the user to confirm identity ("if you meant", "tell me who", "correct spelling"). Do not use staged "That's [Name] —" openers; align with global tone rules. ESPN/board enrichment in context is authoritative for game framing — not an excuse to punt on name resolution.
 
 ENFORCEMENT CHECK: Before generating your response, mentally verify each player name:
 If the name appears in the Question or attached image → allowed.
@@ -4661,6 +4663,10 @@ export default async function handler(req, res) {
     sportHint === "nba" && nbaMatchup
       ? buildAllowedMatchupPlayerPool(nbaMatchup, nbaContext || {})
       : null;
+  const nbaGroundingSnapshot =
+    sportHint === "nba" && nbaContext && typeof nbaContext === "object"
+      ? buildNbaGroundingSnapshot(nbaContext, nbaMatchup)
+      : null;
   const nbaMatchupGroundingBlock =
     sportHint === "nba" ? injectMatchupGroundingBlock(nbaMatchup, nbaMatchupPool) : "";
   const nbaMatchupGroundingApplied = sportHint === "nba" && Boolean(nbaMatchupGroundingBlock);
@@ -4769,6 +4775,9 @@ ${nbaLiveNoPropSystemPromptBlock}`;
   }
   if (isConversationFollowUp) {
     systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
+    if (sportHint === "nba") {
+      systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
+    }
     if (!oddsAvailable) {
       systemPromptForModel = `${systemPromptForModel}\n\n${NBA_ODDS_UNAVAILABLE_MODE_BLOCK}`;
     }
@@ -6303,16 +6312,14 @@ You are responding to a Pro subscriber. Apply the following:
 
     const qaCoherenceContext =
       sportHint === "nba" &&
-      nbaMatchupPool &&
-      Array.isArray(nbaMatchupPool.allowedTeams) &&
-      nbaMatchupPool.allowedTeams.length === 2 &&
-      nbaMatchupPool.knownPlayerToTeam instanceof Map &&
-      nbaMatchupPool.knownPlayerToTeam.size > 0
+      nbaGroundingSnapshot &&
+      nbaGroundingSnapshot.verifiedPlayerToTeam instanceof Map &&
+      nbaGroundingSnapshot.verifiedPlayerToTeam.size > 0
         ? {
-            allowedTeamAbbreviations: nbaMatchupPool.allowedTeams.map((t) =>
-              String(t || "").toUpperCase(),
-            ),
-            knownPlayerToTeam: nbaMatchupPool.knownPlayerToTeam,
+            allowedTeamAbbreviations: nbaMatchup
+              ? nbaGroundingSnapshot.focusAllowedTeams || []
+              : nbaGroundingSnapshot.slateTeamAbbrevs || [],
+            knownPlayerToTeam: nbaGroundingSnapshot.verifiedPlayerToTeam,
           }
         : undefined;
 
@@ -6322,6 +6329,7 @@ You are responding to a Pro subscriber. Apply the following:
       intent,
       liveMode: Boolean(liveSignals?.hasLiveKeyword),
       coherenceContext: qaCoherenceContext,
+      nbaGroundingSnapshot: sportHint === "nba" ? nbaGroundingSnapshot : undefined,
     };
 
     let responseText = "";
@@ -6331,13 +6339,21 @@ You are responding to a Pro subscriber. Apply the following:
     let lastQaPost = null;
     let qaAttemptCount = 0;
     let qaFallbackApplied = false;
+    /** Critical QA codes from the prior generation attempt (used to tailor NBA grounding repair suffix). */
+    let prevQaCriticalCodes = [];
 
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
+      const nbaGroundingRepairSuffix =
+        sportHint === "nba" &&
+        qaAttempt > 0 &&
+        prevQaCriticalCodes.some((c) => String(c).startsWith("nba_grounding"))
+          ? NBA_GROUNDING_REGENERATION_SUFFIX
+          : "";
       const systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
-          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}`;
+          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${nbaGroundingRepairSuffix}`;
       const temperatureForAttempt =
         qaAttempt === 0 ? selectedTemperature : Math.min(selectedTemperature, 0.28);
 
@@ -6508,6 +6524,19 @@ You are responding to a Pro subscriber. Apply the following:
 
       lastQaPost = runUnderReviewPostProcess(responseText, qaPostOptsBase);
       responseText = lastQaPost.text;
+      const groundingEvents = lastQaPost.qa.groundingEvents || [];
+      if (sportHint === "nba" && groundingEvents.length > 0) {
+        console.log(
+          JSON.stringify({
+            event: "ur_take_nba_grounding_qa",
+            sport: "nba",
+            ruleCodes: [...new Set(groundingEvents.map((e) => e.ruleCode))],
+            failures: groundingEvents,
+            regenerationAttempted: qaAttempt > 0,
+          }),
+        );
+      }
+      prevQaCriticalCodes = lastQaPost.qa.criticalRegenerationCodes || [];
       console.log(
         JSON.stringify({
           ...lastQaPost.qa.metricsLine,

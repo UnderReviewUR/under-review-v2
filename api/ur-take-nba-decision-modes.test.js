@@ -737,6 +737,7 @@ test("NBA conversation follow-up forces short system prompt and compact context 
   assert.ok(anthropicPayload);
   assert.match(String(anthropicPayload.system || ""), /FOLLOW-UP STYLE/);
   assert.match(String(anthropicPayload.system || ""), /Answer only the specific question asked/);
+  assert.match(String(anthropicPayload.system || ""), /FACT AUTHORITY — SERVER GROUNDING/);
   assert.match(
     String(anthropicPayload.system || ""),
     /Only name players from the verified roster list provided/,

@@ -8,6 +8,7 @@ import {
   sentenceFailsDoubleDoubleLogic,
   sentenceFailsTripleDoubleLogic,
 } from "./_urTakeBetIntegrity.js";
+import { lintNbaHardGrounding } from "./_urTakeNbaGroundingQA.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
 
@@ -275,6 +276,7 @@ function rosterCoherenceFlag(text, ctx) {
  * @property {boolean} shouldRegenerate
  * @property {boolean} applySafeFallbackPrefix
  * @property {Array<{ code: string, severity: string, message: string, sentence: string, requiresRegeneration: boolean }>} [sportIssues]
+ * @property {Array<{ ruleCode: string, player?: string, expectedTeam?: string, mentionedTeam?: string, expectedStatus?: string, mentionedStatus?: string }>} [groundingEvents]
  */
 
 /**
@@ -284,6 +286,7 @@ function rosterCoherenceFlag(text, ctx) {
  * @param {string[]} [options.betIntegrityIssues]
  * @param {object} [options.nbaContext] — optional playerStats for prop realism
  * @param {{ allowedTeamAbbreviations?: string[], knownPlayerToTeam?: Map<string,string> }} [options.coherenceContext]
+ * @param {object|null} [options.nbaGroundingSnapshot] — from buildNbaGroundingSnapshot (NBA only)
  * @param {string} [options.intent]
  * @param {boolean} [options.liveMode]
  * @param {string} [options.question]
@@ -304,6 +307,7 @@ export function lintUrTakeOutput(text, options = {}) {
       shouldRegenerate: true,
       applySafeFallbackPrefix: true,
       sportIssues: [],
+      groundingEvents: [],
     };
   }
 
@@ -347,6 +351,17 @@ export function lintUrTakeOutput(text, options = {}) {
   if (coherence.invalid) {
     issues.push("roster_coherence_violation");
     critical.push("roster_coherence_violation");
+  }
+
+  /** @type {Array<{ ruleCode: string, player?: string, expectedTeam?: string, mentionedTeam?: string, expectedStatus?: string, mentionedStatus?: string }>} */
+  let groundingEvents = [];
+  if (String(options.sport || "").toLowerCase() === "nba" && options.nbaGroundingSnapshot) {
+    const g = lintNbaHardGrounding(raw, options.nbaGroundingSnapshot);
+    groundingEvents = g.events || [];
+    for (const code of g.criticalCodes || []) {
+      if (!critical.includes(code)) critical.push(code);
+      if (!issues.includes(code)) issues.push(code);
+    }
   }
 
   const nbaCtx = options.nbaContext;
@@ -425,6 +440,8 @@ export function lintUrTakeOutput(text, options = {}) {
     "bench_role_high_auxiliary_line",
     "suspicious_cross_game_sgp_language",
     "roster_coherence_violation",
+    "nba_grounding_player_off_matchup",
+    "nba_grounding_injury_contradiction",
   ]);
   const MISLEADING_OR_FACT_CRITICAL = new Set([
     ...FACT_LOGIC_CODES,
@@ -498,6 +515,7 @@ export function lintUrTakeOutput(text, options = {}) {
     shouldRegenerate,
     applySafeFallbackPrefix: shouldRegenerate,
     sportIssues,
+    groundingEvents,
   };
 }
 
@@ -542,6 +560,7 @@ export function runUnderReviewPostProcess(text, options = {}) {
     betIntegrityIssues: bi.issues,
     sportIssueCount: lint.sportIssues?.length ?? 0,
     sportCriticalFromLint: (lint.sportIssues || []).filter((i) => i.requiresRegeneration).length,
+    nbaGroundingEventCount: lint.groundingEvents?.length ?? 0,
   };
 
   const allIssues = [...new Set([...bi.issues, ...lint.issueCodes])];
