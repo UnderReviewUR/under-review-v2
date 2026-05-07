@@ -4,6 +4,10 @@ import { normalizeText } from "../../lib/normalizeText.js";
 import { telemetryUrTakeFollowUpClick } from "../../lib/urTakeTelemetry.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 import { isSubstantiveClosing } from "../../lib/urTakeClosingSentence.js";
+import {
+  splitSentencesForUrTakeDisplay,
+  takeFirstSentenceSpan,
+} from "../../lib/urTakeSentenceBoundaries.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 
@@ -347,7 +351,7 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
 function splitBySentenceCluster(text, targetClusters = 3) {
   const source = String(text || "").trim();
   if (!source) return [""];
-  const sentences = source.match(/[^.!?]*[.!?]+/g) || [source];
+  const sentences = splitSentencesForUrTakeDisplay(source);
   if (sentences.length <= 2) return [source];
 
   const itemsPerCluster = Math.ceil(sentences.length / targetClusters);
@@ -412,10 +416,8 @@ export function renderUrTakeAiMessage(raw) {
   }
 
   const remaining = lines.slice(bodyStart).join("\n");
-  const firstSentenceMatch = remaining.match(/^[^.!?]*[.!?]/);
-  const headline = firstSentenceMatch ? firstSentenceMatch[0].trim() : "";
-
-  let bodyText = remaining.slice(firstSentenceMatch?.[0].length ?? 0).trim();
+  const { first: headline, rest: bodyAfterHeadline } = takeFirstSentenceSpan(remaining);
+  let bodyText = bodyAfterHeadline;
 
   let confidence = "";
   const lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : "";
@@ -455,12 +457,6 @@ export function renderUrTakeAiMessage(raw) {
 
   const hasVisual =
     Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
-
-  if (!closing) {
-    console.error("[UR_TAKE] NO CLOSING DETECTED");
-  } else {
-    console.error("[UR_TAKE] CLOSING FOUND:", closing.slice(0, 80));
-  }
 
   if (!hasVisual) {
     return renderMessage(text, { styleUrTakeSectionLabels: true });
