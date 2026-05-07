@@ -33,6 +33,12 @@ If no specific player prop exists, close with a game total call:
 
 The closing call must include a specific number. Never close with a direction only. Never close with "watch for" or "monitor" or "if the line posts." The reasoning already handled the conditions — the closing line is the verdict.
 
+CLOSING CALL RULE (updated):
+The closing call is a direct, actionable statement.
+Never start with "WHEN", "IF", or conditional frames.
+Write as imperative: "Look for X over Y" or "The play is X."
+Conditions can appear in the body analysis, not the verdict.
+
 THE GOLDEN RULE — MANDATORY
 Never argue against a projection without explicitly naming the assumption you are fading. If the math says over and you are calling under, you must say: "That projection assumes X — and X is fragile because Y." This is non-negotiable. Any response that contradicts its own math without this explanation is a failed response. The closing line is never the place for reasoning — it is the place for the call. Sharp bettors want to know what to do, not what to think about.`;
 }

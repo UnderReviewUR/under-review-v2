@@ -437,6 +437,12 @@ export function renderUrTakeAiMessage(raw) {
   const text = String(raw || "");
   const lines = text.split("\n");
 
+  console.log("[RENDER_DEBUG]", {
+    totalLines: lines.length,
+    firstLine: lines[0]?.slice(0, 80),
+    lastLine: lines[lines.length - 1]?.slice(0, 80),
+  });
+
   let gameState = "";
   let bodyStart = 0;
   if (lines[0] && firstLineIsUrTakeGameRibbon(lines[0])) {
@@ -485,6 +491,14 @@ export function renderUrTakeAiMessage(raw) {
   bodyChunks = bodyChunks
     .map((c) => stripUrTakeInlineMarkdown(String(c).trim()))
     .filter((c) => c.length >= 2 && !/^[\s.•]+$/u.test(c));
+
+  console.log("[RENDER_DEBUG] Extraction", {
+    headlineFound: !!headline,
+    headlineLength: headline?.length,
+    closingFound: !!closing,
+    closingLength: closing?.length,
+    bodyChunksCount: bodyChunks?.length,
+  });
 
   const hasVisual =
     Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
@@ -774,10 +788,12 @@ const SPORT_EMOJI = {
   golf: "⛳",
 };
 
+/** UR Take loading skeleton — ~10s is normal for complex reads; only optimize if median exceeds ~15s (feels broken). */
 const LOADING_STAGES = [
   { atMs: 0, label: "Reading the board" },
   { atMs: 4000, label: "Running the matchup" },
   { atMs: 10000, label: "Sharpening the take" },
+  { atMs: 15000, label: "Heavy slate — almost there" },
 ];
 
 function resolveStageIndex(elapsedMs) {
