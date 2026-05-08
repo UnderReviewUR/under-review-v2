@@ -64,7 +64,10 @@ import {
   extractStructuredFromPlayText,
   saveSessionMemory,
 } from "./_urTakeMemory.js";
-import { validateStructuredURTakeResponse, mapSportHintToEnum } from "./types/urTakeResponse.js";
+import {
+  validateStructuredURTakeResponse,
+  normalizeStructuredUrTakeResponse,
+} from "./types/urTakeResponse.js";
 import { getStructuredURTakePrompt } from "./prompts/urTakeStructuredPrompt.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
@@ -1394,6 +1397,46 @@ function tryParseJsonObject(text) {
   }
   const m = raw.match(/\{[\s\S]*\}\s*$/);
   if (m) return parse(m[0]);
+  return null;
+}
+
+/** First balanced `{ ... }` slice with JSON-safe string handling (handles leading prose before JSON). */
+function extractBalancedJsonObject(text) {
+  const raw = String(text || "").trim();
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < raw.length; i++) {
+    const c = raw[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (c === "\\") {
+        escape = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        const slice = raw.slice(start, i + 1);
+        try {
+          return JSON.parse(slice);
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
   return null;
 }
 
@@ -4391,7 +4434,8 @@ export default async function handler(req, res) {
       .toLowerCase();
     return v === "0" || v === "false" || v === "off" || v === "no";
   })();
-  let requestStructured =
+  /** Immutable for the whole request — never flip false on parse failure or QA loses structured instructions on retry. */
+  const structuredModeRequested =
     !structuredUrTakeGloballyDisabled &&
     (req.query?.structured === "true" || req.body?.structured === true);
 
@@ -4810,7 +4854,7 @@ export default async function handler(req, res) {
     : "";
   /** Structured mode must NOT also attach summary/deep JSON contract — model would return wrong shape and validation always fails. */
   const attachTieredJsonContract =
-    outputJsonMode !== "plain" && Boolean(jsonContract) && !requestStructured;
+    outputJsonMode !== "plain" && Boolean(jsonContract) && !structuredModeRequested;
   let systemPromptForModel = attachTieredJsonContract
       ? `${systemPrompt}
 
@@ -6311,7 +6355,7 @@ ${continuationRule}`;
     const tokenBudget =
       draftTeamSimulationInject
         ? 2600
-        : requestStructured
+        : structuredModeRequested
           ? 4200
           : outputJsonMode === "tier2_5_json"
             ? 4200
@@ -6425,6 +6469,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
+      const previousStructured = structuredResponse;
       structuredResponse = null;
       const nbaGroundingRepairSuffix =
         sportHint === "nba" &&
@@ -6436,7 +6481,7 @@ You are responding to a Pro subscriber. Apply the following:
         qaAttempt === 0
           ? systemPromptWithProAppendix
           : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${nbaGroundingRepairSuffix}`;
-      if (requestStructured) {
+      if (structuredModeRequested) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {
           systemForAttempt += `
@@ -6521,10 +6566,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
 
       // If structured mode was requested, extract and validate JSON
-      if (requestStructured) {
+      if (structuredModeRequested) {
         try {
           const responseTextRaw = extractAnthropicText(result.data).trim();
-          const parsedObj = tryParseJsonObject(responseTextRaw);
+          const parsedObj =
+            tryParseJsonObject(responseTextRaw) ||
+            extractBalancedJsonObject(responseTextRaw);
           if (
             !parsedObj ||
             typeof parsedObj !== "object" ||
@@ -6532,12 +6579,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           ) {
             throw new Error("structured_response_not_json_object");
           }
-          structuredResponse = parsedObj;
-
-          // Normalize sport
-          if (!structuredResponse.sport && sportHint) {
-            structuredResponse.sport = mapSportHintToEnum(sportHint);
-          }
+          structuredResponse = normalizeStructuredUrTakeResponse(parsedObj, sportHint);
 
           // Validate
           const validation = validateStructuredURTakeResponse(structuredResponse);
@@ -6556,9 +6598,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               // Sentry error, skip
             }
 
-            // Invalid structured response — fall back to normal mode
+            // Invalid structured response — fall back to prose for this attempt (QA may retry)
             structuredResponse = null;
-            requestStructured = false;
           }
         } catch (parseError) {
           console.error("[STRUCTURED_UR_TAKE_PARSE_ERROR]", {
@@ -6578,10 +6619,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             // Sentry error, skip
           }
 
-          // Parse error — fall back to normal mode
           structuredResponse = null;
-          requestStructured = false;
         }
+      }
+
+      if (structuredModeRequested && !structuredResponse && previousStructured) {
+        structuredResponse = previousStructured;
       }
 
       const text = extractAnthropicText(result.data);

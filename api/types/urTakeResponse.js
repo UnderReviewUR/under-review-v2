@@ -144,6 +144,76 @@ export function mapSportHintToEnum(sportHint) {
   return map[sportHint?.toLowerCase?.()] || null;
 }
 
+const STRUCTURED_SPORT_ENUM = new Set(['NBA', 'NFL', 'MLB', 'Tennis', 'Golf', 'F1']);
+
+/**
+ * Coerce common model slips before schema validation (still runs full validate after).
+ */
+export function normalizeStructuredUrTakeResponse(response, sportHint) {
+  if (!response || typeof response !== 'object' || Array.isArray(response)) {
+    return response;
+  }
+  const out = { ...response };
+
+  if (typeof out.confidence === 'string') {
+    const lower = out.confidence.trim().toLowerCase();
+    if (lower === 'high') out.confidence = 'High';
+    else if (lower === 'medium') out.confidence = 'Medium';
+    else if (lower === 'speculative') out.confidence = 'Speculative';
+  }
+
+  if (typeof out.callType === 'string') {
+    const lower = out.callType.trim().toLowerCase();
+    if (['prop', 'spread', 'moneyline', 'parlay'].includes(lower)) {
+      out.callType = lower;
+    }
+  }
+
+  if (out.callType !== 'parlay') {
+    if (Array.isArray(out.parlayLegs) && out.parlayLegs.length === 0) {
+      out.parlayLegs = null;
+      out.parlayTotalOdds = null;
+    }
+  }
+
+  if (typeof out.timestamp === 'string') {
+    let t = out.timestamp.trim();
+    if (t && !/Z$/i.test(t) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(t)) {
+      t = `${t}Z`;
+    }
+    out.timestamp = t;
+  }
+  if (!out.timestamp || typeof out.timestamp !== 'string') {
+    out.timestamp = new Date().toISOString();
+  }
+
+  if (!out.sport || typeof out.sport !== 'string' || !STRUCTURED_SPORT_ENUM.has(out.sport)) {
+    const mapped = mapSportHintToEnum(sportHint);
+    if (mapped) out.sport = mapped;
+  }
+  if (typeof out.sport === 'string') {
+    const slug = out.sport.trim().toLowerCase();
+    const synonyms = {
+      basketball: 'NBA',
+      football: 'NFL',
+      baseball: 'MLB',
+      tennis: 'Tennis',
+      golf: 'Golf',
+      'formula 1': 'F1',
+      'formula1': 'F1',
+      f1: 'F1',
+      nba: 'NBA',
+      nfl: 'NFL',
+      mlb: 'MLB',
+    };
+    if (synonyms[slug] && STRUCTURED_SPORT_ENUM.has(synonyms[slug])) {
+      out.sport = synonyms[slug];
+    }
+  }
+
+  return out;
+}
+
 /**
  * Validate structured response against schema
  * Returns { valid: true } or { valid: false, errors: [...] }
