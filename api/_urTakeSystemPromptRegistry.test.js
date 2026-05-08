@@ -6,6 +6,7 @@ import {
   buildLiveModeVoicePrompt,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
+  detectParlayIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
 
@@ -23,6 +24,29 @@ test("composeRegisteredUrTakeSystemPrompt injects context quality and core frame
   assert.match(p, /\*\*BallDontLie\*\* is the canonical league-data backbone/);
   assert.match(p, /THE UNDERREVIEW RESPONSE FRAMEWORK/);
   assert.match(p, /GENERIC \/ AMBIGUOUS SPORT SPINE/);
+});
+
+test("parlay question injects PARLAY RESPONSE STRUCTURE block", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    question: "Provide a 4 leg parlay for the lakers vs thunder. Player props only.",
+  });
+  assert.match(p, /PARLAY RESPONSE STRUCTURE/);
+  assert.match(p, /RECOMMENDED PARLAY/);
+  assert.match(p, /WHY EACH LEG/);
+  assert.match(p, /RISK SUMMARY/);
+  assert.match(p, /ALTERNATIVE/);
+});
+
+test("detectParlayIntent", () => {
+  assert.equal(detectParlayIntent("best player props tonight"), false);
+  assert.equal(detectParlayIntent("4 leg parlay lakers thunder"), true);
+  assert.equal(detectParlayIntent("Give me an SGP for this game"), true);
 });
 
 test("composeRegisteredUrTakeSystemPrompt prepends memoryBlock when provided", () => {

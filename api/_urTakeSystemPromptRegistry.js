@@ -61,6 +61,19 @@ export function detectUrTakeLongFormIntent(question) {
   );
 }
 
+/** True when the user is asking for a multi-leg or same-game parlay ticket. */
+export function detectParlayIntent(question) {
+  const q = String(question || "").toLowerCase();
+  return (
+    /\bparlay\b/.test(q) ||
+    /\bsgp\b/.test(q) ||
+    /\bsame[- ]game\s+parlay\b/.test(q) ||
+    /\b\d+\s*[-]?\s*leg\b/.test(q) ||
+    (/\b(legs?|ticket)\b/.test(q) && /\b(parlay|sgp)\b/.test(q)) ||
+    (/\b(parlay|sgp)\b/.test(q) && /\b(legs?|ticket)\b/.test(q))
+  );
+}
+
 /** Default mobile-first length — paired with JSON summary/deep caps when JSON mode applies. */
 export function buildUrTakeDefaultLengthModePrompt() {
   return `MOBILE DEFAULT — RESPONSE LENGTH & SHAPE (mandatory unless LONG-FORM MODE below applies)
@@ -430,6 +443,28 @@ News Edge: One sentence only when it moves a line or role.
 Closing Line: Optional branded kicker; never replace the framework's final actionable bet line.`;
 }
 
+/** Mandatory shape when the user asks for a parlay (any sport). Injected via detectParlayIntent(question). */
+export function buildParlayResponseStructurePrompt() {
+  return `PARLAY RESPONSE STRUCTURE (when user asks for a parlay):
+1. **RECOMMENDED PARLAY** (if confidence is high enough):
+   - Leg 1: [Player] [prop] [line]
+   - Leg 2: [Player] [prop] [line]
+   - Leg 3: [Player] [prop] [line]
+   - Leg 4: [Player] [prop] [line]
+   - Implied odds: ~[X to 1]
+
+2. **WHY EACH LEG** (1-2 sentences per leg, max):
+   - Leg 1: [reason]
+   - Leg 2: [reason]
+   - etc.
+
+3. **RISK SUMMARY** (1 sentence on volatility / confidence)
+
+4. **ALTERNATIVE** (if parlay is thin, suggest a sharper 2-3 leg instead)
+
+Never output as one paragraph. Always format as bulleted list with clear labels.`;
+}
+
 /** Live bet + slip review: conviction on cash-out / in-game management (appended when routing applies). */
 export function buildLiveBetAndSlipReviewConvictionPrompt() {
   return `LIVE BET CONVICTION RULE:
@@ -749,6 +784,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     }),
     buildBetIntegritySystemPrompt(),
     buildResponseStructurePrompt(longFormRequested),
+    detectParlayIntent(question) ? buildParlayResponseStructurePrompt() : "",
   ]
     .map((s) => String(s || "").trim())
     .filter(Boolean)
