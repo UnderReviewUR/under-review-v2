@@ -135,6 +135,30 @@ function isConfirmedMlbProbablePitcher(raw) {
   return !/^(tbd|pitcher\s*tbd|probables\s*tbd|--?|—|n\/a)$/i.test(s);
 }
 
+/** When API omits `structured` but model returned raw JSON in `response`, recover stages 1–5 UI. */
+function structuredPayloadFromApi(data) {
+  if (data?.structured && typeof data.structured === "object") return data.structured;
+  const raw = String(data?.response ?? "").trim();
+  if (!raw.startsWith("{")) return null;
+  try {
+    const o = JSON.parse(raw);
+    if (
+      o &&
+      typeof o === "object" &&
+      typeof o.call === "string" &&
+      o.call.length >= 2 &&
+      o.analysis &&
+      typeof o.analysis === "object" &&
+      typeof o.analysis.matchupAnalysis === "string"
+    ) {
+      return o;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function normalizeUrTakeDisplay(data) {
   const parseMaybe = (raw) => {
     const s = String(raw || "").trim();
@@ -1311,6 +1335,7 @@ ${themeCss}
         ? resolvedSport
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
+    const structuredForBubble = structuredPayloadFromApi(data);
 
     try {
       const sportTracked = String(
@@ -1366,9 +1391,7 @@ ${themeCss}
           ? { confidence: data.take.confidence, trust: data.take.trust ?? null }
           : null,
         deepText: normalizedDisplay.responseDeep,
-        ...(data.structured && typeof data.structured === "object"
-          ? { structured: data.structured }
-          : {}),
+        ...(structuredForBubble ? { structured: structuredForBubble } : {}),
         followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
         urTakeTelemetry: {
           intent: String(data.intent || ""),

@@ -6942,6 +6942,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         oddsAvailable,
         fallback: nbaFallbackOrRepairUsed || false,
         confidenceTier: takeRecord?.confidence || "unknown",
+        structuredInPayload: Boolean(structuredResponse),
         contextChars: userPromptCharCount,
         durationMs: Date.now() - requestStart,
         isFollowUp: isConversationFollowUp,
