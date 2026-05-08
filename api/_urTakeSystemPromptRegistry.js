@@ -570,9 +570,11 @@ export function buildMlbUrTakeDecisionModeSpine(mode) {
     no_data: `MLB DECISION MODE SPINE — no_data
 No verified games + props + totals bundle for this ask. Do not invent pitchers, lines, or parks. Give a compact honest no-board read; if league calendar context exists in payload, one structural season-level hook only — no fake matchup specifics.`,
     pre_market_framework: `MLB DECISION MODE SPINE — pre_market_framework
-Slate or partial board exists but the question is not anchored to a verified listed market for the named player/matchup. Build the angle from park environment, role, bullpen script, or game total only when those slices exist in context; never quote a number that is not printed in the JSON.`,
+Slate or partial board exists but the question is not anchored to a verified listed market for the named player/matchup. Build the angle from park environment, role, bullpen script, or game total only when those slices exist in context; never quote a number that is not printed in the JSON.
+Never abstain or refuse solely because probable starters are TBD or because gameTotals is incomplete — hedge with "if the listed arm is X…" and still deliver a scannable lean on pace, park, and bullpen leverage.`,
     actionable: `MLB DECISION MODE SPINE — actionable
-Verified prop or game-total anchor exists for the asked angle. Lead with posted structure; cite only numbers printed in context; keep pivots inside the same matchup when propRows tie to it.`,
+Verified prop or game-total anchor exists for the asked angle. Lead with posted structure; cite only numbers printed in context; keep pivots inside the same matchup when propRows tie to it.
+If a probable pitcher is still TBD, do not refuse — state it once and keep the call conditional on the listed line still being valid at lock.`,
   };
   return blocks[m] || blocks.no_data;
 }

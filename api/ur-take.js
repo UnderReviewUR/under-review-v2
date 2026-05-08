@@ -983,7 +983,21 @@ function getContextQuality({
   if (sportHint === "tennis" && (context?.currentTournament || (liveMatches || []).length || players)) return "high";
   if (sportHint === "golf" && golfContext?.currentEvent) return "high";
   if (sportHint === "nba" && (nbaContext?.todaysGames?.length || nbaContext?.playerStats?.length)) return "high";
-  if (sportHint === "mlb" && (mlbContext?.games?.length || mlbContext?.propLines?.length)) return "high";
+  if (sportHint === "mlb") {
+    const gt =
+      mlbContext?.gameTotals &&
+      typeof mlbContext.gameTotals === "object" &&
+      !Array.isArray(mlbContext.gameTotals)
+        ? mlbContext.gameTotals
+        : {};
+    if (
+      (mlbContext?.games?.length || 0) > 0 ||
+      (mlbContext?.propLines?.length || 0) > 0 ||
+      Object.keys(gt).length > 0
+    ) {
+      return "high";
+    }
+  }
   if (sportHint === "nfl" && nflContext) return "medium";
   if (sportHint === "f1" && (f1Context?.standings?.length || f1Context?.schedule?.races?.length)) return "high";
   if (sportHint === "derby" && isDerbyActive()) return "high";
@@ -3971,6 +3985,10 @@ SERVER MODE — PRE_MARKET_FRAMEWORK (mandatory)
 - You MAY describe park factors and venue using games[].park (and named pitchers only when printed on that side — never invent a starter name).
 - You MAY cite a game total ONLY from gameTotals in the JSON (exact number).
 
+MLB ANTI-REFUSAL (mandatory)
+- Never refuse, decline, or say you "cannot" give a mispricing read solely because probable starters are TBD, gameTotals is missing for some matchups, or a specific prop is not in propLines. TBD starters are normal pre-lock — acknowledge once if relevant, then deliver park / bullpen / pace / leverage framing with honest confidence.
+- You must still output a useful directional lean (over/under/side/watch) from structural anchors in games[], injuries, and any numbers present in gameTotals or propLines. If a posted total exists for a game, cite it verbatim; if not, discuss run environment qualitatively without inventing a line.
+
 Answer structure:
 1. Lean first — give a clear take (over/under/side/slight lean/close) even when market verification is missing.
 
@@ -4014,6 +4032,9 @@ SERVER MODE — ACTIONABLE (propLines present in payload)
 - You MAY cite game total numbers ONLY from gameTotals in the JSON.
 - Do NOT invent props, K totals, or juice not shown in propLines or gameTotals.
 - Do NOT claim books "will" open or price at a level without a listed line in propLines.
+
+MLB ANTI-REFUSAL (mandatory)
+- Never refuse the take solely because a probable pitcher is still TBD in games[] — state TBD once if needed, then give the grounded lean from listed lines and structure.
 
 Rules:
 - Answer only as an MLB analyst.
@@ -4067,8 +4088,7 @@ Pitchers: ${pitchers.length ? pitchers.join(", ") : "(none in games array)"}
 Prop-listed players: ${propListed.length ? propListed.join(", ") : "(none)"}
 
 Do not name any batter or pitcher not on this list as playing tonight.
-When a pitcher shows as "TBD", you MUST say: "starter TBD for [team] — Coors Field park factor analysis applies regardless"
-for that team context, then give a venue-based read without inventing pitcher names.`;
+When a pitcher shows as "TBD", note it once for that team (e.g. starter TBD for [team]), then continue with park, bullpen leverage, run environment, and game state from context — never refuse the answer solely because starters are unsettled, and do not imply you need confirmed starters before giving a lean.`;
 }
 
 function buildNflVerifiedPlayerListBlock(nflContextEffective) {
