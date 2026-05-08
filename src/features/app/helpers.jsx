@@ -928,6 +928,7 @@ function UrTakeTrustChips({ trust }) {
 
 function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
   const [deepOpen, setDeepOpen] = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
   const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
   const combined = `${summaryText}\n${m.deepText || ""}`;
   const hasThePlay = /\bTHE\s+PLAY\b/i.test(combined);
@@ -996,10 +997,16 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
       {showTrack ? (
         <button
           type="button"
-          onClick={() => {
-            if (!tracked) trackPlay.onTrack(m);
+          onClick={async () => {
+            if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
+            setIsTracking(true);
+            try {
+              await Promise.resolve(trackPlay.onTrack(m));
+            } finally {
+              setIsTracking(false);
+            }
           }}
-          disabled={tracked}
+          disabled={tracked || isTracking}
           style={{
             display: "flex",
             alignItems: "center",
@@ -1008,16 +1015,17 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
             border: "1px solid rgba(0,245,233,0.2)",
             borderRadius: 6,
             padding: "5px 10px",
-            cursor: tracked ? "default" : "pointer",
+            cursor: tracked || isTracking ? "default" : "pointer",
             marginTop: 8,
             fontFamily: "var(--mono-font)",
             fontSize: 9,
             letterSpacing: 1.5,
             color: tracked ? "rgba(0,245,233,0.35)" : "rgba(0,245,233,0.6)",
             textTransform: "uppercase",
+            opacity: isTracking ? 0.5 : 1,
           }}
         >
-          {tracked ? "✓ Tracked" : "📌 Track this play"}
+          {tracked ? "✓ Tracked" : isTracking ? "Tracking..." : "Track this play"}
         </button>
       ) : null}
       {m.deepText ? (

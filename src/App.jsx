@@ -637,6 +637,7 @@ ${themeCss}
           }),
         });
         if (!res.ok) return;
+        const savePayload = await res.json().catch(() => ({}));
         if (message.msgId) {
           setTrackedUrTakeMessageIds((prev) =>
             prev.includes(message.msgId) ? prev : [...prev, message.msgId],
@@ -674,11 +675,15 @@ ${themeCss}
             }
           })();
         }
-        const r2 = await fetch(`/api/track-play?email=${encodeURIComponent(email)}`, {
-          headers: { ...authHeaders },
-        });
-        const d2 = await r2.json().catch(() => null);
-        if (d2?.plays) setTrackedPlays(d2.plays);
+        if (Array.isArray(savePayload?.plays)) {
+          setTrackedPlays(savePayload.plays);
+        } else {
+          const r2 = await fetch(`/api/track-play?email=${encodeURIComponent(email)}`, {
+            headers: { ...authHeaders },
+          });
+          const d2 = await r2.json().catch(() => null);
+          if (d2?.plays) setTrackedPlays(d2.plays);
+        }
       } catch {
         /* never surface */
       }

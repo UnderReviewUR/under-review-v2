@@ -116,7 +116,7 @@ export default async function handler(req, res) {
         { ttlSeconds: TRACKER_TTL_SECONDS },
       );
 
-      return res.status(200).json({ ok: true, playId });
+      return res.status(200).json({ ok: true, playId, plays });
     }
 
     if (action === "mark") {
