@@ -15,6 +15,7 @@ import {
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
 import { FREE_QUESTION_LIMIT } from "./lib/freeTierLimits.js";
+import { isStructuredUrTakeUiEnabled } from "./lib/structuredUrTakeClient.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -1127,6 +1128,7 @@ ${themeCss}
       teamHint: detectNflTeamHint(text),
       matchupContext: matchup || null,
       image: null,
+      ...(isStructuredUrTakeUiEnabled() ? { structured: true } : {}),
     };
 
     if (effectiveSportHint === "tennis_wta_profile") {
@@ -1364,6 +1366,9 @@ ${themeCss}
           ? { confidence: data.take.confidence, trust: data.take.trust ?? null }
           : null,
         deepText: normalizedDisplay.responseDeep,
+        ...(data.structured && typeof data.structured === "object"
+          ? { structured: data.structured }
+          : {}),
         followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
         urTakeTelemetry: {
           intent: String(data.intent || ""),

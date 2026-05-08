@@ -21,6 +21,8 @@ test("composeRegisteredUrTakeSystemPrompt injects context quality and core frame
   });
   assert.match(p, /EVIDENCE FLOOR: Context quality for this request is "high"/);
   assert.match(p, /FACT AUTHORITY — SERVER GROUNDING/);
+  assert.match(p, /COMMITMENT RULE \(all UR Take responses\):/);
+  assert.match(p, /Per ESPN, Mitchell Robinson is OUT for Game 3/);
   assert.match(p, /\*\*BallDontLie\*\* is the canonical league-data backbone/);
   assert.match(p, /THE UNDERREVIEW RESPONSE FRAMEWORK/);
   assert.match(p, /GENERIC \/ AMBIGUOUS SPORT SPINE/);

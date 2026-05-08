@@ -64,6 +64,8 @@ import {
   extractStructuredFromPlayText,
   saveSessionMemory,
 } from "./_urTakeMemory.js";
+import { validateStructuredURTakeResponse, mapSportHintToEnum } from "./types/urTakeResponse.js";
+import { getStructuredURTakePrompt } from "./prompts/urTakeStructuredPrompt.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
@@ -4357,6 +4359,12 @@ export default async function handler(req, res) {
     );
   }
 
+  // Feature flag: accept structured response if requested
+  const STRUCTURED_UR_TAKE_ENABLED = process.env.STRUCTURED_UR_TAKE_MODE === "1";
+  let requestStructured =
+    STRUCTURED_UR_TAKE_ENABLED &&
+    (req.query?.structured === "true" || req.body?.structured === true);
+
   const {
     question,
     userEmail,
@@ -6379,18 +6387,24 @@ You are responding to a Pro subscriber. Apply the following:
     /** Critical QA codes from the prior generation attempt (used to tailor NBA grounding repair suffix). */
     let prevQaCriticalCodes = [];
 
+    let structuredResponse = null;
+
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
+      structuredResponse = null;
       const nbaGroundingRepairSuffix =
         sportHint === "nba" &&
         qaAttempt > 0 &&
         prevQaCriticalCodes.some((c) => String(c).startsWith("nba_grounding"))
           ? NBA_GROUNDING_REGENERATION_SUFFIX
           : "";
-      const systemForAttempt =
+      let systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
           : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${nbaGroundingRepairSuffix}`;
+      if (requestStructured) {
+        systemForAttempt += getStructuredURTakePrompt();
+      }
       const temperatureForAttempt =
         qaAttempt === 0 ? selectedTemperature : Math.min(selectedTemperature, 0.28);
 
@@ -6462,6 +6476,69 @@ You are responding to a Pro subscriber. Apply the following:
         });
 
         return feedSnagResponse(sportHint);
+      }
+
+      // If structured mode was requested, extract and validate JSON
+      if (requestStructured) {
+        try {
+          const responseTextRaw = extractAnthropicText(result.data).trim();
+
+          // Remove markdown backticks if present (defensive)
+          const cleanJson = responseTextRaw
+            .replace(/^```json\s*/, "")
+            .replace(/^```\s*/, "")
+            .replace(/\s*```$/, "");
+
+          structuredResponse = JSON.parse(cleanJson);
+
+          // Normalize sport
+          if (!structuredResponse.sport && sportHint) {
+            structuredResponse.sport = mapSportHintToEnum(sportHint);
+          }
+
+          // Validate
+          const validation = validateStructuredURTakeResponse(structuredResponse);
+          if (!validation.valid) {
+            console.error("[STRUCTURED_UR_TAKE_VALIDATION_ERROR]", {
+              errors: validation.errors,
+            });
+
+            try {
+              globalThis.Sentry?.captureException(new Error("Structured UR Take validation failed"), {
+                tags: { phase: "structured_response_validation", sport: sportHint },
+                extra: { validationErrors: validation.errors },
+                level: "error",
+              });
+            } catch (e) {
+              // Sentry error, skip
+            }
+
+            // Invalid structured response — fall back to normal mode
+            structuredResponse = null;
+            requestStructured = false;
+          }
+        } catch (parseError) {
+          console.error("[STRUCTURED_UR_TAKE_PARSE_ERROR]", {
+            error: parseError.message,
+            responsePreview: extractAnthropicText(result.data).slice(0, 200),
+          });
+
+          try {
+            globalThis.Sentry?.captureException(parseError, {
+              tags: { phase: "structured_response_parse", sport: sportHint },
+              extra: {
+                responsePreview: extractAnthropicText(result.data).slice(0, 500),
+              },
+              level: "error",
+            });
+          } catch (e) {
+            // Sentry error, skip
+          }
+
+          // Parse error — fall back to normal mode
+          structuredResponse = null;
+          requestStructured = false;
+        }
       }
 
       const text = extractAnthropicText(result.data);
@@ -6790,7 +6867,7 @@ You are responding to a Pro subscriber. Apply the following:
       }),
     );
 
-    return res.status(200).json({
+    const responseBody = {
       response: responseText,
       responseDeep,
       responseFormat,
@@ -6808,7 +6885,13 @@ You are responding to a Pro subscriber. Apply the following:
       take: takeClientPayload(takeRecord),
       ...(qaSummaryForLog ? { qaSummary: qaSummaryForLog } : {}),
       ...(followUpsField ? { followUps: followUpsField } : {}),
-    });
+    };
+
+    if (structuredResponse) {
+      responseBody.structured = structuredResponse;
+    }
+
+    return res.status(200).json(responseBody);
   } catch (err) {
     console.error("UR TAKE error:", err);
     const s =

@@ -9,6 +9,8 @@ import {
   splitSentencesForUrTakeDisplay,
   takeFirstSentenceSpan,
 } from "../../lib/urTakeSentenceBoundaries.js";
+import URTakeResponse from "../../components/URTakeResponse.jsx";
+import { isStructuredUrTakeUiEnabled } from "../../lib/structuredUrTakeClient.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 
@@ -926,10 +928,11 @@ function UrTakeTrustChips({ trust }) {
   );
 }
 
-function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
+function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
   const [deepOpen, setDeepOpen] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
+  const structuredUiEnabled = isStructuredUrTakeUiEnabled();
   const combined = `${summaryText}\n${m.deepText || ""}`;
   const hasThePlay = /\bTHE\s+PLAY\b/i.test(combined);
   const tracked =
@@ -940,6 +943,78 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp }) {
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
   const followUps =
     Array.isArray(m.followUps) && m.followUps.length >= 2 ? m.followUps : null;
+
+  if (structuredUiEnabled && m.structured && typeof m.structured === "object") {
+    const s = m.structured;
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        <URTakeResponse
+          sport={s.sport}
+          question={userQuestion}
+          call={s.call}
+          confidence={s.confidence}
+          whyNow={s.whyNow}
+          edge={s.edge}
+          callType={s.callType}
+          analysis={s.analysis}
+          caveats={s.caveats}
+          parlayLegs={s.parlayLegs}
+          parlayTotalOdds={s.parlayTotalOdds}
+          timestamp={s.timestamp}
+        />
+        {followUps && typeof onUrTakeFollowUp === "function" ? (
+          <div
+            role="group"
+            aria-label="Suggested follow-ups"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              marginTop: 12,
+            }}
+          >
+            {followUps.map((q, idx) => (
+              <button
+                key={q}
+                type="button"
+                className="ur-take-follow-up-pill"
+                onClick={() => {
+                  const shownAt = m.urTakeTelemetry?.shownAt ?? Date.now();
+                  const meta = {
+                    sourceMsgId: m.msgId,
+                    followUpIndex: idx,
+                    followUpCount: followUps.length,
+                    msSinceResponseShown: Math.max(0, Date.now() - shownAt),
+                    intent: String(m.urTakeTelemetry?.intent ?? ""),
+                    liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+                    sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+                    followUpText: q,
+                  };
+                  telemetryUrTakeFollowUpClick(meta);
+                  onUrTakeFollowUp(q, meta);
+                }}
+                style={{
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--body-font)",
+                  fontSize: 12,
+                  lineHeight: 1.25,
+                  padding: "6px 11px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.06)",
+                  color: "rgba(255,255,255,0.82)",
+                }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
+      </>
+    );
+  }
 
   return (
     <>
@@ -1099,7 +1174,14 @@ export function ChatThread({
         ) : (
           <div key={m.msgId || i} className={`bubble ${m.role}`}>
             {m.role === "ai" ? (
-              <UrTakeAiBubble m={m} trackPlay={urTakeTrackPlay} onUrTakeFollowUp={onUrTakeFollowUp} />
+              <UrTakeAiBubble
+                m={m}
+                trackPlay={urTakeTrackPlay}
+                onUrTakeFollowUp={onUrTakeFollowUp}
+                userQuestion={String(
+                  [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
+                )}
+              />
             ) : (
               <>
                 {m.image && <img src={m.image} alt="" className="bubble-img" />}
