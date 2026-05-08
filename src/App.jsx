@@ -15,7 +15,6 @@ import {
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
 import { FREE_QUESTION_LIMIT } from "./lib/freeTierLimits.js";
-import { isStructuredUrTakeUiEnabled } from "./lib/structuredUrTakeClient.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -1128,7 +1127,8 @@ ${themeCss}
       teamHint: detectNflTeamHint(text),
       matchupContext: matchup || null,
       image: null,
-      ...(isStructuredUrTakeUiEnabled() ? { structured: true } : {}),
+      /** Always ask for structured JSON; API gates with STRUCTURED_UR_TAKE_MODE (no Vite build-time flag needed). */
+      structured: true,
     };
 
     if (effectiveSportHint === "tennis_wta_profile") {

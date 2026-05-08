@@ -10,7 +10,6 @@ import {
   takeFirstSentenceSpan,
 } from "../../lib/urTakeSentenceBoundaries.js";
 import URTakeResponse from "../../components/URTakeResponse.jsx";
-import { isStructuredUrTakeUiEnabled } from "../../lib/structuredUrTakeClient.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 
@@ -932,7 +931,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
   const [deepOpen, setDeepOpen] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
-  const structuredUiEnabled = isStructuredUrTakeUiEnabled();
   const combined = `${summaryText}\n${m.deepText || ""}`;
   const hasThePlay = /\bTHE\s+PLAY\b/i.test(combined);
   const tracked =
@@ -944,7 +942,7 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
   const followUps =
     Array.isArray(m.followUps) && m.followUps.length >= 2 ? m.followUps : null;
 
-  if (structuredUiEnabled && m.structured && typeof m.structured === "object") {
+  if (m.structured && typeof m.structured === "object") {
     const s = m.structured;
     return (
       <>
