@@ -132,6 +132,30 @@ function extractAnthropicText(data) {
     .trim();
 }
 
+/** Dual-publish: turn validated structured JSON into prose so extractTakeFromResponse + UI still work. */
+function formatStructuredResponseAsUrTakeProse(s) {
+  if (!s || typeof s !== "object") return "";
+  const call = String(s.call || "").trim();
+  const conf = String(s.confidence || "").trim();
+  const lines = [];
+  if (call) lines.push(`THE PLAY: ${call}`);
+  if (conf) lines.push(`CONFIDENCE\n${conf}`);
+  if (s.whyNow) lines.push(String(s.whyNow).trim());
+  if (s.edge) lines.push(String(s.edge).trim());
+  const a = s.analysis;
+  if (a && typeof a === "object") {
+    if (a.matchupAnalysis) lines.push(`MATCH READ\n${String(a.matchupAnalysis).trim()}`);
+    if (a.injuryContext) lines.push(`INJURY / AVAILABILITY\n${String(a.injuryContext).trim()}`);
+    if (a.marketContext) lines.push(`MARKET\n${String(a.marketContext).trim()}`);
+    if (a.lineMovement) lines.push(`LINE MOVEMENT\n${String(a.lineMovement).trim()}`);
+    if (a.statisticalEdge) lines.push(`STAT EDGE\n${String(a.statisticalEdge).trim()}`);
+  }
+  if (Array.isArray(s.caveats) && s.caveats.length) {
+    lines.push(`WHAT KILLS IT\n${s.caveats.map((c) => String(c).trim()).filter(Boolean).join("\n")}`);
+  }
+  return lines.filter(Boolean).join("\n\n");
+}
+
 // ── Intent + sport helpers ─────────────────────────────────────────────────
 function normalizeText(v) {
   return String(v || "").trim().toLowerCase();
@@ -4778,8 +4802,10 @@ export default async function handler(req, res) {
   const spreadAndGameSideBlock = isSpreadOrGameSideQuestion(question)
     ? `\n\n${SPREAD_AND_GAME_SIDE_BLOCK}`
     : "";
-  let systemPromptForModel =
-    outputJsonMode !== "plain" && jsonContract
+  /** Structured mode must NOT also attach summary/deep JSON contract — model would return wrong shape and validation always fails. */
+  const attachTieredJsonContract =
+    outputJsonMode !== "plain" && Boolean(jsonContract) && !requestStructured;
+  let systemPromptForModel = attachTieredJsonContract
       ? `${systemPrompt}
 
 JSON RESPONSE MODE (overrides conflicting FORMATTING / DEFAULT RESPONSE FORMAT rules above for this turn only)
@@ -6279,19 +6305,21 @@ ${continuationRule}`;
     const tokenBudget =
       draftTeamSimulationInject
         ? 2600
-        : outputJsonMode === "tier2_5_json"
+        : requestStructured
           ? 4200
-          : outputJsonMode === "tier2_live_json"
-            ? 2200
-            : outputJsonMode === "tier1_json"
-              ? 700
-              : outputJsonMode === "plain" &&
-                  !isConversationFollowUp &&
-                  Boolean(liveSignals?.hasLiveKeyword)
-                ? isPro
-                  ? 700
-                  : 500
-              : isPro ? 1400 : 800;
+          : outputJsonMode === "tier2_5_json"
+            ? 4200
+            : outputJsonMode === "tier2_live_json"
+              ? 2200
+              : outputJsonMode === "tier1_json"
+                ? 700
+                : outputJsonMode === "plain" &&
+                    !isConversationFollowUp &&
+                    Boolean(liveSignals?.hasLiveKeyword)
+                  ? isPro
+                    ? 700
+                    : 500
+                : isPro ? 1400 : 800;
 
     // Pro depth guidance only for plain-text full cards — never override JSON contracts,
     // follow-up brevity rules, or draft simulation routes.
@@ -6551,7 +6579,11 @@ You are responding to a Pro subscriber. Apply the following:
       responseDeep = null;
       responseFormat = "plain";
       responseStatusShift = null;
-      if (outputJsonMode !== "plain") {
+      if (structuredResponse && typeof structuredResponse === "object") {
+        responseText = formatStructuredResponseAsUrTakeProse(structuredResponse);
+        responseDeep = null;
+        responseFormat = "plain";
+      } else if (outputJsonMode !== "plain") {
         const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
         if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
           const normalized = normalizeSummaryDeepPayload(parsed.summary, parsed.deep);
