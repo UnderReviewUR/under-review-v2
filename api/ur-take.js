@@ -4383,10 +4383,16 @@ export default async function handler(req, res) {
     );
   }
 
-  // Feature flag: accept structured response if requested
-  const STRUCTURED_UR_TAKE_ENABLED = process.env.STRUCTURED_UR_TAKE_MODE === "1";
+  // Structured redesign: ON by default when client opts in (structured:true).
+  // Set STRUCTURED_UR_TAKE_MODE=0 (or false/off) on the server to disable without redeploying the client.
+  const structuredUrTakeGloballyDisabled = (() => {
+    const v = String(process.env.STRUCTURED_UR_TAKE_MODE ?? "")
+      .trim()
+      .toLowerCase();
+    return v === "0" || v === "false" || v === "off" || v === "no";
+  })();
   let requestStructured =
-    STRUCTURED_UR_TAKE_ENABLED &&
+    !structuredUrTakeGloballyDisabled &&
     (req.query?.structured === "true" || req.body?.structured === true);
 
   const {
@@ -6432,6 +6438,14 @@ You are responding to a Pro subscriber. Apply the following:
           : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${nbaGroundingRepairSuffix}`;
       if (requestStructured) {
         systemForAttempt += getStructuredURTakePrompt();
+        if (isConversationFollowUp) {
+          systemForAttempt += `
+
+[FOLLOW-UP + STRUCTURED — OUTPUT CHANNEL]
+Structured JSON mode overrides the follow-up "3–5 sentences / no headers" prose rules.
+Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the follow-up inside whyNow, edge, and analysis fields (keep each field tight; all required keys must be present).
+`;
+        }
       }
       const temperatureForAttempt =
         qaAttempt === 0 ? selectedTemperature : Math.min(selectedTemperature, 0.28);
@@ -6510,14 +6524,15 @@ You are responding to a Pro subscriber. Apply the following:
       if (requestStructured) {
         try {
           const responseTextRaw = extractAnthropicText(result.data).trim();
-
-          // Remove markdown backticks if present (defensive)
-          const cleanJson = responseTextRaw
-            .replace(/^```json\s*/, "")
-            .replace(/^```\s*/, "")
-            .replace(/\s*```$/, "");
-
-          structuredResponse = JSON.parse(cleanJson);
+          const parsedObj = tryParseJsonObject(responseTextRaw);
+          if (
+            !parsedObj ||
+            typeof parsedObj !== "object" ||
+            Array.isArray(parsedObj)
+          ) {
+            throw new Error("structured_response_not_json_object");
+          }
+          structuredResponse = parsedObj;
 
           // Normalize sport
           if (!structuredResponse.sport && sportHint) {

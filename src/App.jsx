@@ -1127,7 +1127,7 @@ ${themeCss}
       teamHint: detectNflTeamHint(text),
       matchupContext: matchup || null,
       image: null,
-      /** Always ask for structured JSON; API gates with STRUCTURED_UR_TAKE_MODE (no Vite build-time flag needed). */
+      /** Always ask for structured JSON; API defaults ON (set STRUCTURED_UR_TAKE_MODE=0 on server to disable). */
       structured: true,
     };
 
