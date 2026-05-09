@@ -368,38 +368,6 @@ function splitBySentenceCluster(text, targetClusters = 3) {
   return clusters.length > 1 ? clusters : [source];
 }
 
-/** Last sentence vs rest — skips decimal periods; needs a following sentence (uppercase) to split. */
-function splitLastSentenceForUrTakeClosing(block) {
-  const t = String(block || "").trim();
-  if (!t) return { head: "", tail: "" };
-
-  let lastSentenceStart = 0;
-  for (let i = 1; i < t.length; i += 1) {
-    const c = t[i];
-    if (c === "." || c === "!" || c === "?") {
-      if (c === "." && /\d/.test(t[i - 1])) {
-        const nextCh = t[i + 1];
-        if (nextCh && /\d/.test(nextCh)) continue;
-      }
-      const after = t.slice(i + 1).trimStart();
-      if (after && /^[A-Z"(“]/.test(after)) {
-        let j = i + 1;
-        while (j < t.length && /\s/.test(t[j])) j += 1;
-        lastSentenceStart = j;
-      }
-    }
-  }
-
-  if (lastSentenceStart === 0) return { head: t, tail: "" };
-  return {
-    head: t.slice(0, lastSentenceStart).trimEnd(),
-    tail: t.slice(lastSentenceStart).trim(),
-  };
-}
-
-/** Verdict lines should be short callouts — not full paragraphs (avoids magenta wall-of-text). */
-const UR_TAKE_VERDICT_LINE_MAX = 220;
-
 function stripUrTakeInlineMarkdown(s) {
   return String(s || "")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
@@ -423,15 +391,6 @@ function trimLeadingOrphanDots(text) {
     .replace(/^(?:\s*\.{1,3}\s*\n)+/m, "")
     .replace(/^\s*\.{1,3}\s*$/m, "")
     .trim();
-}
-
-function urTakeClosingLooksLikeVerdict(s) {
-  const x = String(s || "").trim();
-  if (!x || x.length > UR_TAKE_VERDICT_LINE_MAX) return false;
-  return (
-    /^(Look for|Back|Fade|Watch|Take the|Over|Under)/i.test(x) ||
-    /\b(over|under)\s+\d+/i.test(x)
-  );
 }
 
 /**
@@ -459,20 +418,19 @@ export function parseUrTakeResponse(raw) {
     confidence = lines[lines.length - 1];
   }
 
-  let closing = "";
-  const idx = lines.length - (confidence ? 2 : 1);
-  const potentialClosing = idx >= 0 ? lines[idx] : "";
-  const closingTrim = potentialClosing.trim();
-  if (closingTrim && urTakeClosingLooksLikeVerdict(closingTrim)) {
-    closing = closingTrim;
-  }
+  const textForClosingScan = confidence ? lines.slice(0, -1).join("\n") : text;
+  const allSentences = textForClosingScan.match(/[^.!?]+[.!?]+/g) || [];
+  const lastSentence = allSentences[allSentences.length - 1]?.trim() ?? "";
 
-  if (!closing && bodyText) {
-    const { head, tail } = splitLastSentenceForUrTakeClosing(bodyText);
-    const tailTrim = tail.trim();
-    if (head && tailTrim && urTakeClosingLooksLikeVerdict(tailTrim)) {
-      closing = tailTrim;
-      bodyText = head.trim();
+  let closing = "";
+  if (lastSentence && lastSentence.length < 120) {
+    const headlineNorm = headline
+      ? stripUrTakeInlineMarkdown(String(headline).replace(/^>>\s*/, "").replace(/\*\*/g, "")).trim()
+      : "";
+    const lastNorm = stripUrTakeInlineMarkdown(lastSentence).trim();
+    if (lastNorm !== headlineNorm) {
+      closing = lastSentence;
+      bodyText = bodyText.replace(lastSentence, "").trim();
     }
   }
 
@@ -491,7 +449,9 @@ export function parseUrTakeResponse(raw) {
     .map((c) => stripUrTakeInlineMarkdown(String(c).trim()))
     .filter((c) => c.length >= 2 && !/^[\s.•]+$/u.test(c));
 
-  const headlineDisplay = headline ? stripUrTakeInlineMarkdown(headline) : "";
+  const headlineDisplay = headline
+    ? stripUrTakeInlineMarkdown(String(headline).replace(/^>>\s*/, "").replace(/\*\*/g, ""))
+    : "";
   const closingDisplay = closing ? stripUrTakeInlineMarkdown(closing) : "";
 
   const hasVisual = Boolean(
