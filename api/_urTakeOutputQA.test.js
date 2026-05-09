@@ -43,6 +43,18 @@ test("extreme assist line vs season average (context) is flagged", () => {
   assert.ok(lint.criticalRegenerationCodes.includes("prop_line_extreme_vs_average"));
 });
 
+test("extreme rebound under vs season average is flagged from question + playerStats", () => {
+  const t = "Lean under on boards — matchup stays big.";
+  const playerStats = [{ name: "Jalen Duren", reb: 11.5, pts: 14, ast: 1 }];
+  const lint = lintUrTakeOutput(t, {
+    betIntegrityIssues: [],
+    sport: "nba",
+    question: "Jalen Duren under 5 rebounds tonight?",
+    nbaContext: { playerStats },
+  });
+  assert.ok(lint.criticalRegenerationCodes.includes("extreme_rebound_under_vs_average"));
+});
+
 test("roster coherence: player mapped outside allowed teams fails", () => {
   const map = new Map([["Nikola Jokic", "DEN"]]);
   const t = "Same-game parlay: Nikola Jokic over 10 assists alongside Embiid scoring.";

@@ -70,6 +70,12 @@ import {
   repairStructuredForDelivery,
 } from "./types/urTakeResponse.js";
 import { getStructuredURTakePrompt } from "./prompts/urTakeStructuredPrompt.js";
+import {
+  findFirstPlayerStatRowForQuestion,
+  inferNbaPropDirection,
+  nbaUnderVsSeasonAverageImplausible,
+  parseNbaRequestedMarket,
+} from "./_nbaPropSanity.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
@@ -2428,18 +2434,6 @@ export function normalizeNbaMarketPlayerKey(name) {
     .replace(/\s+/g, " ");
 }
 
-function parseNbaRequestedMarket(question) {
-  const q = String(question || "").toLowerCase();
-  const lineMatch = q.match(/\b(\d{1,3}(?:\.\d+)?)\b/);
-  const requestedLine = lineMatch ? Number(lineMatch[1]) : null;
-  let market = null;
-  if (/\bpra\b|\bpoints?\s+rebounds?\s+assists?\b/.test(q)) market = "points rebounds assists";
-  else if (/\bassists?\b/.test(q)) market = "assists";
-  else if (/\brebounds?\b/.test(q)) market = "rebounds";
-  else if (/\bpoints?\b/.test(q)) market = "points";
-  return { market, line: Number.isFinite(requestedLine) ? requestedLine : null };
-}
-
 function propLineMatchesTargetedPlayer(pl, targetedPlayer) {
   const k = normalizeNbaMarketPlayerKey(pl?.player);
   const t = normalizeNbaMarketPlayerKey(targetedPlayer);
@@ -2664,6 +2658,7 @@ export function applyNbaConfidenceModifiers({
   baseConfidence,
   invalidation,
   nbaContext,
+  question = "",
 }) {
   const directBlockedUnavailable = invalidation?.blockedReason === "unavailable";
   const directBlockedNoMarket = invalidation?.blockedReason === "unlisted_market";
@@ -2684,6 +2679,29 @@ export function applyNbaConfidenceModifiers({
     return {
       label: "Low",
       reason: "No active listed market — avoid speculative confidence inflation.",
+    };
+  }
+
+  const q = String(question || "");
+  const rm = invalidation?.requestedMarket ?? parseNbaRequestedMarket(q);
+  const dir = inferNbaPropDirection(q);
+  let playerRow = null;
+  if (invalidation?.targetedPlayer && Array.isArray(nbaContext?.playerStats)) {
+    playerRow =
+      nbaContext.playerStats.find(
+        (p) =>
+          String(p?.name || "").trim().toLowerCase() ===
+          String(invalidation.targetedPlayer || "").trim().toLowerCase(),
+      ) || null;
+  }
+  if (!playerRow) {
+    playerRow = findFirstPlayerStatRowForQuestion(q, nbaContext?.playerStats);
+  }
+  const implausibleUnder = nbaUnderVsSeasonAverageImplausible(rm, dir, playerRow);
+  if (implausibleUnder) {
+    return {
+      label: "Speculative",
+      reason: `Prop under vs season ${implausibleUnder.stat} average is implausible — watch-tier only.`,
     };
   }
 
@@ -4835,6 +4853,7 @@ export default async function handler(req, res) {
           baseConfidence: baseDerivedConfidence,
           invalidation: nbaInvalidation,
           nbaContext,
+          question: String(question || ""),
         })
       : { label: baseDerivedConfidence, reason: "" };
   const derivedConfidence = nbaConfidenceModifier.label;
@@ -6524,6 +6543,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     const qaPostOptsBase = {
       sport: sportHint,
+      question: String(question || ""),
       nbaContext: nbaContextForModel,
       intent,
       liveMode: Boolean(liveSignals?.hasLiveKeyword),

@@ -255,6 +255,15 @@ DATA CONFIDENCE RULE:
 - If recentGames is empty or absent for a player, say "recent form unavailable" for that player and pivot to season-average fields only when those fields exist in payload — never invent a gap-fill stat.
 - Never construct a figure from thin air or blend vague ranges into fake precision.
 
+PROP SANITY RULE (mandatory, all sports):
+Before recommending ANY under on a counting stat (points, rebounds, assists, etc.):
+- Check the player's season average for that stat from the injected payload.
+- If the proposed line is less than 60% of season average, that call is INVALID unless you can cite from the payload: (1) confirmed injury limiting minutes, OR (2) last three games all below the line in recentGames / stated game logs, OR (3) a specific structural reason grounded in the data (not model memory).
+Example of INVALID: recommending "under 5 rebounds" when season RPG in payload is ~11.5 with no injury/minutes collapse in data.
+Example of VALID framing: "under 8 rebounds" when season avg is ~11.5 but payload shows foul trouble and low rebound counts in last three games plus matchup data supporting fewer boards.
+Same discipline for overs: do not treat a line above ~140% of season average as a normal pick without explicit structural justification from the payload.
+If you cannot justify the pick from injected data, reject that angle and choose a different structural read.
+
 Robinson example (mandatory shape):
 RIGHT: "Per ESPN, Mitchell Robinson is OUT for Game 3. Here's the edge: Karl-Anthony Towns rebounds…"
 WRONG: "Robinson being out flips… but he was listed probable…" (never undermine a confirmed designation with contradictory softness.)`;

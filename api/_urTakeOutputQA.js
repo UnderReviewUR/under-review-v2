@@ -12,6 +12,12 @@ import { lintNbaHardGrounding } from "./_urTakeNbaGroundingQA.js";
 import { logNbaInventedPlayerShadowEvents, scanNbaInventedPlayerShadow } from "./_urTakeNbaInventedPlayerShadow.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
+import {
+  findFirstPlayerStatRowForQuestion,
+  inferNbaPropDirection,
+  nbaUnderVsSeasonAverageImplausible,
+  parseNbaRequestedMarket,
+} from "./_nbaPropSanity.js";
 
 /** Appended to system prompt on regeneration attempt (Part 3 self-check as instructions). */
 export const QA_REGENERATION_SYSTEM_SUFFIX = `
@@ -372,6 +378,23 @@ export function lintUrTakeOutput(text, options = {}) {
     critical.push("prop_line_extreme_vs_average");
   }
 
+  const qaQuestion = String(options.question || "");
+  if (
+    String(options.sport || "").toLowerCase() === "nba" &&
+    qaQuestion &&
+    Array.isArray(nbaCtx?.playerStats) &&
+    nbaCtx.playerStats.length > 0
+  ) {
+    const rm = parseNbaRequestedMarket(qaQuestion);
+    const dir = inferNbaPropDirection(qaQuestion);
+    const prow = findFirstPlayerStatRowForQuestion(qaQuestion, nbaCtx.playerStats);
+    const underImp = nbaUnderVsSeasonAverageImplausible(rm, dir, prow);
+    if (underImp) {
+      issues.push(underImp.code);
+      critical.push(underImp.code);
+    }
+  }
+
   const sportResult = runSportSpecificValidators(raw, options);
   /** @type {Array<{ code: string, severity: string, message: string, sentence: string, requiresRegeneration: boolean }>} */
   const sportIssues = sportResult.issues;
@@ -439,6 +462,9 @@ export function lintUrTakeOutput(text, options = {}) {
     "stat_logic_error_remaining",
     "pra_definition_conflict",
     "prop_line_extreme_vs_average",
+    "extreme_rebound_under_vs_average",
+    "extreme_points_under_vs_average",
+    "extreme_assist_under_vs_average",
     "bench_role_high_auxiliary_line",
     "suspicious_cross_game_sgp_language",
     "roster_coherence_violation",
@@ -452,6 +478,9 @@ export function lintUrTakeOutput(text, options = {}) {
     "status_contradiction_probable_vs_out",
     "over_precise_decimal_stats",
     "report_style_header_echo",
+    "extreme_rebound_under_vs_average",
+    "extreme_points_under_vs_average",
+    "extreme_assist_under_vs_average",
     "cross_sport_overconfidence",
     "volatile_market_floor_misuse",
     "high_risk_overconfidence_language",
