@@ -13,18 +13,18 @@ const gLadSf = {
   homeTeam: { name: "San Francisco Giants", abbr: "SF" },
 };
 
-test("resolveMlbDecisionMode: no_data when games, props, and totals are all absent", () => {
-  assert.equal(resolveMlbDecisionMode({}, "any question"), "no_data");
-  assert.equal(resolveMlbDecisionMode({ games: [], propLines: [], gameTotals: {} }, ""), "no_data");
+test("resolveMlbDecisionMode: structural_only when games, props, and totals are all absent", () => {
+  assert.equal(resolveMlbDecisionMode({}, "any question"), "structural_only");
+  assert.equal(resolveMlbDecisionMode({ games: [], propLines: [], gameTotals: {} }, ""), "structural_only");
 });
 
-test("resolveMlbDecisionMode: generic board ask + unrelated slate props → pre_market_framework", () => {
+test("resolveMlbDecisionMode: generic board ask + unrelated slate props → structural_only", () => {
   assert.equal(
     resolveMlbDecisionMode(
       { propLines: [{ player: "Someone", propRaw: "pitcher_strikeouts" }] },
       "Best MLB look tonight?",
     ),
-    "pre_market_framework",
+    "structural_only",
   );
 });
 
@@ -49,7 +49,7 @@ test("resolveMlbDecisionMode: relevant player + relevant market in propLines →
   );
 });
 
-test("resolveMlbDecisionMode: player has props but requested market missing → pre_market_framework", () => {
+test("resolveMlbDecisionMode: player has props but requested market missing → structural_only", () => {
   assert.equal(
     resolveMlbDecisionMode(
       {
@@ -65,11 +65,11 @@ test("resolveMlbDecisionMode: player has props but requested market missing → 
       },
       "Ohtani TB?",
     ),
-    "pre_market_framework",
+    "structural_only",
   );
 });
 
-test("resolveMlbDecisionMode: props on slate but not for asked player → pre_market_framework", () => {
+test("resolveMlbDecisionMode: props on slate but not for asked player → structural_only", () => {
   assert.equal(
     resolveMlbDecisionMode(
       {
@@ -84,7 +84,7 @@ test("resolveMlbDecisionMode: props on slate but not for asked player → pre_ma
       },
       "Shohei Ohtani strikeout prop — over or under?",
     ),
-    "pre_market_framework",
+    "structural_only",
   );
 });
 
@@ -107,7 +107,7 @@ test("resolveMlbDecisionMode: game-level ask with props for that matchup → act
   );
 });
 
-test("resolveMlbDecisionMode: matchup props exist only elsewhere on slate → pre_market_framework", () => {
+test("resolveMlbDecisionMode: matchup props exist only elsewhere on slate → structural_only", () => {
   assert.equal(
     resolveMlbDecisionMode(
       {
@@ -122,7 +122,7 @@ test("resolveMlbDecisionMode: matchup props exist only elsewhere on slate → pr
       },
       "Dodgers vs Giants — what is your lean?",
     ),
-    "pre_market_framework",
+    "structural_only",
   );
 });
 
@@ -142,13 +142,13 @@ test("resolveMlbDecisionMode: game total wording + matching gameTotals key → a
   );
 });
 
-test("resolveMlbDecisionMode: pre_market_framework when games exist but no props", () => {
+test("resolveMlbDecisionMode: structural_only when games exist but no props", () => {
   assert.equal(
     resolveMlbDecisionMode({ games: [{ homeTeam: {}, awayTeam: {} }] }, "Yankees tonight?"),
-    "pre_market_framework",
+    "structural_only",
   );
 });
 
-test("resolveMlbDecisionMode: pre_market_framework when only gameTotals (partial board)", () => {
-  assert.equal(resolveMlbDecisionMode({ gameTotals: { "NYY@BOS": 9 } }, "Totals?"), "pre_market_framework");
+test("resolveMlbDecisionMode: structural_only when only gameTotals (partial board)", () => {
+  assert.equal(resolveMlbDecisionMode({ gameTotals: { "NYY@BOS": 9 } }, "Totals?"), "structural_only");
 });

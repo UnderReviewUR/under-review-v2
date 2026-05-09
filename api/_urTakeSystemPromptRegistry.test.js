@@ -127,10 +127,10 @@ test("composeRegisteredUrTakeSystemPrompt appends NBA decision spine for nba", (
     sportHint: "nba",
     chaseSignals: { isChase: false },
     tennisSystemPromptExtra: "",
-    nbaDecisionMode: "blocked_unlisted_market",
+    nbaDecisionMode: "structural_only",
     mlbDecisionMode: null,
   });
-  assert.match(p, /NBA DECISION MODE SPINE — blocked \(market not listed\)/);
+  assert.match(p, /NBA DECISION MODE SPINE — structural_only/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt appends MLB decision spine for mlb", () => {
@@ -140,10 +140,21 @@ test("composeRegisteredUrTakeSystemPrompt appends MLB decision spine for mlb", (
     chaseSignals: { isChase: false },
     tennisSystemPromptExtra: "",
     nbaDecisionMode: "none",
-    mlbDecisionMode: "pre_market_framework",
+    mlbDecisionMode: "structural_only",
   });
-  assert.match(p, /MLB DECISION MODE SPINE — pre_market_framework/);
-  assert.match(p, /MLB PROBABLE-PITCHER TBD — OVERRIDES LINEUP-WAIT REFUSAL/);
+  assert.match(p, /MLB DECISION MODE SPINE — structural_only/);
+});
+
+test("composeRegisteredUrTakeSystemPrompt appends DATA AVAILABILITY RULE for all sports", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nfl",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "none",
+    mlbDecisionMode: null,
+  });
+  assert.match(p, /DATA AVAILABILITY RULE \(all sports, mandatory\)/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt applies chase overlay last", () => {

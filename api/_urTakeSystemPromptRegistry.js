@@ -619,6 +619,39 @@ for this style:
 `;
 }
 
+export function buildDataAvailabilityRulePrompt() {
+  return `DATA AVAILABILITY RULE (all sports, mandatory):
+
+When betting lines and odds are in your context: reference them precisely. Cite the line, the movement, the implied probability.
+
+When betting lines are not in your context: analyze from structure alone. Use these data sources:
+
+NBA: BDL season averages, last 5 game logs, injury reports, playoff series context, pace and defensive ratings
+
+MLB: ESPN probable starters (ERA, K/9, handedness), BDL season stats, park factors, bullpen depth, injury reports
+
+PGA: BDL tournament results, strokes gained, course history, weather conditions
+
+Tennis: BDL match history, surface record, head to head, tournament draw, fatigue from scheduling
+
+F1: Constructor standings, circuit history, qualifying pace, weather, tire strategy
+
+NFL: BDL season stats, injury reports, coaching tendencies, weather, home/away splits
+
+NEVER:
+- Mention that odds or lines are unavailable
+- Say "I cannot" for any reason
+- Refuse a question
+- Deliver a lower quality response when odds are missing
+- Let the user sense any difference
+
+ALWAYS:
+- End with a direct actionable call
+- Cite specific numbers from the data you have
+- Name the structural edge clearly
+- Be equally confident with or without lines`;
+}
+
 export function buildNbaUrTakeDecisionModeSpine(mode) {
   const m = String(mode || "none");
   const blocks = {
@@ -626,10 +659,8 @@ export function buildNbaUrTakeDecisionModeSpine(mode) {
 You have a verified prop/market path or clean team-level slate. Lead with game or market substance (never data-availability). Use the five-step framework and Golden Rule. Cite only numbers and names present in context; never invent lines.`,
     blocked_unavailable: `NBA DECISION MODE SPINE — blocked (player unavailable)
 Terminal block for props on the unavailable player: do not price, imply, or recommend a bet on them. State the status fact once, crisply. Pivot only to team/game structure explicitly in context (series, totals, injuries). Confidence stays capped — no faux precision.`,
-    blocked_odds_feed_unavailable: `NBA DECISION MODE SPINE — blocked (market snapshot unavailable)
-Do not expose source, system, or verification gaps. Lead with the strongest structural angle available from live state, roster/slate facts, pace, role, matchup, series, totals, or injuries. Do not invent books or numbers.`,
-    blocked_unlisted_market: `NBA DECISION MODE SPINE — blocked (market not listed)
-The asked market is not on the verified board. Do not fabricate a line or book. Name what is listed instead, or pivot to the closest verified structural read (pace, role, matchup) without pretending the missing market exists.`,
+    structural_only: `NBA DECISION MODE SPINE — structural_only
+Odds may or may not be in context — never gate depth, confidence, or decisiveness on their presence. When the prop slice is empty, the asked market is missing from the verified board, or prices are absent: still deliver a full sharp take from BDL/ESPN (live state, minutes, pace, role, matchup, series, injuries). Do not name feed gaps, empty boards, unlisted markets, or odds availability. Cite only numbers present. Never refuse; end with a direct THE CALL.`,
     status_only: `NBA DECISION MODE SPINE — status-only availability
 The user is asking availability/status, not for a priced play. Answer the factual status first in plain language. Do not append betting consequence unless the user explicitly mixed consequence language — keep betting voice off unless that hybrid was detected upstream.`,
     status_plus_consequence: `NBA DECISION MODE SPINE — status + consequence
@@ -641,20 +672,17 @@ Central player status is unresolved but a listed market exists. Frame every lean
 }
 
 export function buildMlbUrTakeDecisionModeSpine(mode) {
-  const m = String(mode || "no_data");
+  const m = String(mode || "structural_only");
   const blocks = {
-    no_data: `MLB DECISION MODE SPINE — no_data
-No verified games + props + totals bundle for this ask. Do not invent pitchers, lines, or parks. Give a compact honest no-board read; if league calendar context exists in payload, one structural season-level hook only — no fake matchup specifics.`,
-    pre_market_framework: `MLB DECISION MODE SPINE — pre_market_framework
-Slate or partial board exists but the question is not anchored to a verified listed market for the named player/matchup. Build the angle from park environment, role, bullpen script, or game total only when those slices exist in context; never quote a number that is not printed in the JSON.
-Never abstain or refuse solely because probable starters are TBD or because gameTotals is incomplete. Open with a scannable structural lean on pace, park, and bullpen leverage — do not open with starter-TBD disclaimers or "if the listed arm is X" throat-clearing; optional pitcher conditionals only after the opening lean if needed.
-STARTERS TBD: Give the structural lean anyway. Never say "I can't call this mispriced" or refuse the angle — commit to the lean, then end with exactly one hedge sentence: "Confirm starters before placing."`,
+    structural_only: `MLB DECISION MODE SPINE — structural_only
+Odds may or may not be in context — same bar for quality either way. Build from ESPN probable starters, BDL stats, park, bullpen, injuries, and run environment when present. When games/props/totals are thin or the question is not anchored to a listed market: still open with a confident structural lean (pace, park, leverage, handedness); never quote numbers not in JSON; never refuse because starters are TBD or the board is partial.
+STARTERS TBD: deliver the lean first; end with exactly one hedge when applicable: "Confirm starters before placing." Never say lines or odds are missing; never downgrade tone because markets are thin.`,
     actionable: `MLB DECISION MODE SPINE — actionable
 Verified prop or game-total anchor exists for the asked angle. Lead with posted structure; cite only numbers printed in context; keep pivots inside the same matchup when propRows tie to it.
 If a probable pitcher is still TBD, do not refuse — deliver the posted-structure lean first without opening on uncertainty; keep the call tied to the listed line still being valid at lock.
 When starters are still TBD, close with: "Confirm starters before placing." Never refuse or imply you cannot spot a mispricing — lean first, hedge last; never lead with TBD caveats.`,
   };
-  return blocks[m] || blocks.no_data;
+  return blocks[m] || blocks.structural_only;
 }
 
 export function buildTennisSurfaceAppendix(sportHint) {
@@ -915,5 +943,6 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
 
   const styleAppendix = buildBettingStyleAppendix(bettingStyle);
 
-  return applyChaseSystemOverlay(composed + styleAppendix, chaseSignals);
+  const dataAvailabilityRule = `\n\n${buildDataAvailabilityRulePrompt()}`;
+  return applyChaseSystemOverlay(composed + styleAppendix + dataAvailabilityRule, chaseSignals);
 }

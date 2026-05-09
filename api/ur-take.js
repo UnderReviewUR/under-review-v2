@@ -82,121 +82,26 @@ export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.j
 /** Closing when markets / lines are missing — structural only; no hypothetical prices (aligns with STRUCTURAL ANALYSIS MODE). */
 const NBA_STRUCTURAL_MARKET_CLOSING_RULE = `- Close with a direct structural call (THE CALL): name the edge and who benefits — grounded only in payload data. No hypothetical prices, no "if the line posts at X," no fabricated thresholds.`;
 
-/**
- * Shared base — applies when oddsAvailable is false for any sport.
- * @param {string} sportLabel — display label e.g. NBA, MLB, PGA
- * @param {string} dataAvailable — human list of what the payload provides
- */
-function ODDS_UNAVAILABLE_STRUCTURAL_MODE(sportLabel, dataAvailable) {
-  const sport = String(sportLabel || "GENERAL").trim();
-  const bulletsNba =
-    sport === "NBA"
-      ? `
-- RECENT FORM: Last 5 games — exact numbers from recentGames (and ptsRecent/rebRecent/astRecent/praRecent when present) only
-- MATCHUP EDGE: Who benefits from tonight's specific matchup when grounded in context
-- INJURY IMPACT: Confirmed outs and their direct effect when listed
-- THE CALL: Direct structural call with no line needed`
-      : "";
-  const bulletsMlb =
-    sport === "MLB"
-      ? `
-- RECENT FORM: Last 5 games — exact numbers only when present in payload
-- MATCHUP EDGE: Who benefits from tonight's matchup when grounded in context (park, handedness, bullpen path)
-- INJURY IMPACT: Confirmed outs and their direct effect when listed
-- STARTERS TBD: Probable pitchers or lineups still unconfirmed — deliver the structural lean anyway (park, bullpen depth, pace/run environment, leverage). Do not refuse the take because starters are TBD.
-- OPENING: Lead with that lean — never open with "starters TBD", probables unsettled, or similar upfront caveats; starter uncertainty belongs only in the final hedge below when applicable.
-- THE CALL: Commit to a clear structural lean without invented lines
-- FINAL HEDGE: When starters are TBD, end the response with exactly one sentence: "Confirm starters before placing." — after the lean, not instead of it.
-- Never say "I can't call this mispriced," "can't identify an edge," or any refusal that declines the lean — state the lean, then hedge at the bottom`
-      : "";
-  const bulletsPga =
-    sport === "PGA"
-      ? `
-- RECENT FORM: Last 5 tournaments, scoring averages, strokes gained — only when present in context
-- COURSE FIT: Historical performance at this venue, course style match — when payload supports it
-- CONDITIONS: Weather, wind, course setup affecting play style — when provided
-- THE CALL: Direct structural call on winner or top-10 finish`
-      : "";
-  const bulletsF1 =
-    sport === "F1"
-      ? `
-- RECENT FORM: Last 5 races, qualifying pace, race pace trends — numbers only from payload
-- CIRCUIT FIT: Historical performance at this track type when grounded in context
-- CONDITIONS: Weather, tire strategy, safety car probability — when stated in context
-- TEAM/CAR: Constructor advantage at this circuit — when grounded in context
-- THE CALL: Direct structural call on podium or points finish`
-      : "";
-  const bulletsTennis =
-    sport === "TENNIS"
-      ? `
-- RECENT FORM: Last 5 matches, surface record, head-to-head — only when present in context
-- SURFACE FIT: Historical performance on this surface — when grounded in payload
-- CONDITIONS: Weather, court speed, scheduling fatigue — when provided
-- THE CALL: Direct structural call on match winner or set total framing without fabricated totals`
-      : "";
-  const bulletsNfl =
-    sport === "NFL"
-      ? `
-- RECENT FORM: Trends only from injected NFL bundle fields — cite numbers present there only
-- MATCHUP EDGE: Scheme / personnel leverage when grounded in context
-- INJURY IMPACT: Confirmed outs when listed
-- THE CALL: Direct structural call with no line needed`
-      : "";
-  const bulletsGeneral =
-    !bulletsNba && !bulletsMlb && !bulletsPga && !bulletsF1 && !bulletsTennis && !bulletsNfl
-      ? `
-- Anchor every claim to injected server context for this request
-- THE CALL: Direct structural read — no prices or fabricated thresholds`
-      : "";
+// Odds enhance but never gate a response. Availability is server-side only; the universal
+// DATA AVAILABILITY RULE lives in composeRegisteredUrTakeSystemPrompt.
 
-  return `LIVE LINES UNAVAILABLE — STRUCTURAL ANALYSIS MODE (${sport})
-
-You have access to: ${dataAvailable}
-
-YOUR JOB: Deliver a sharp, confident take using ONLY what you have.
-Never mention lines, odds, or books. Never say lines are unavailable.
-Never say you're estimating or "projected." Never apologize for missing data.
-Never invent a number you don't have.
-
-STRUCTURE YOUR RESPONSE AROUND WHAT YOU HAVE:${bulletsNba}${bulletsMlb}${bulletsPga}${bulletsF1}${bulletsTennis}${bulletsNfl}${bulletsGeneral}
-
-NEVER:
-- Mention that odds or lines are unavailable
-- Say "no live lines available", "lines unavailable", "odds unavailable", "no lines to reference", or any variation — including in the closing call or final sentence. The closing take must be confident and direct with zero reference to missing markets or missing data.
-- Say "based on estimates" or imply fabricated projections
-- Invent a stat or line number
-- Say "if the line posts at X"
-- Apologize for missing data
-- Use vague language like "should perform well"
-
-Answer the question with what you have. Be direct. Be confident.`;
+/** Deep-remove oddsAvailable so it never appears in model-facing JSON or prompts. */
+function stripOddsAvailabilityFromContext(value) {
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.map(stripOddsAvailabilityFromContext);
+  if (typeof value === "object") {
+    const out = { ...value };
+    delete out.oddsAvailable;
+    for (const k of Object.keys(out)) {
+      out[k] = stripOddsAvailabilityFromContext(out[k]);
+    }
+    return out;
+  }
+  return value;
 }
 
-function resolveOddsUnavailableSportMeta(sportHint) {
-  const h = String(sportHint || "").toLowerCase().trim();
-  const table = {
-    nba: ["NBA", "player season averages, last 5 games, injury status, playoff context, pace and defensive ratings"],
-    mlb: ["MLB", "pitcher stats, bullpen depth, park factors, lineup injuries, last 5 games, run environment"],
-    golf: ["PGA", "last 5 tournament results, strokes gained, course history, current conditions"],
-    f1: ["F1", "last 5 race results, qualifying pace, circuit history, constructor performance, conditions"],
-    tennis: ["TENNIS", "last 5 matches, surface record, head-to-head history, current tournament draw, conditions"],
-    tennis_wta_profile: [
-      "TENNIS",
-      "last 5 matches, surface record, head-to-head history, current tournament draw, conditions",
-    ],
-    nfl: ["NFL", "roster and injury context, usage signals in the injected NFL bundle, matchup framing when present"],
-  };
-  const row = table[h];
-  if (row) return { sport: row[0], dataAvailable: row[1] };
-  return {
-    sport: "GENERAL",
-    dataAvailable: "verified server-injected context for this request (sport bundle, slate, injuries, stats)",
-  };
-}
-
-function buildOddsUnavailableStructuralModeBlock(sportHint) {
-  const { sport, dataAvailable } = resolveOddsUnavailableSportMeta(sportHint);
-  return ODDS_UNAVAILABLE_STRUCTURAL_MODE(sport, dataAvailable);
+function contextJsonForModel(obj) {
+  return JSON.stringify(stripOddsAvailabilityFromContext(obj ?? {}), null, 2);
 }
 
 /** Keeps NBA follow-ups from dead-ending on name typos ("drop the name…"). */
@@ -496,7 +401,7 @@ function extractNflPlayersFromContext(nflContext) {
   const text =
     typeof nflContext === "string"
       ? nflContext
-      : JSON.stringify(nflContext || {}, null, 2);
+      : contextJsonForModel(nflContext);
 
   const names = [];
   const regex = /^([^\n|]{2,})\s+\|\s+(RB|WR|TE|QB)\s+\|/gm;
@@ -1178,7 +1083,7 @@ function buildSlipReviewPrompt({
 
   if (sportHint === "nba") {
     relevantContext = `NBA context:
-${JSON.stringify({
+${contextJsonForModel({
   seasonContext: nbaContext?.seasonContext || null,
   todaysGames: nbaContext?.todaysGames || [],
   playoffSeries: nbaContext?.playoffSeries || [],
@@ -1190,19 +1095,19 @@ ${JSON.stringify({
   rosterGrounding: nbaContext?.rosterGrounding || null,
   todaysGamesSlateMeta: nbaContext?.todaysGamesSlateMeta || null,
   todaysGamesSlateNote: nbaContext?.todaysGamesSlateNote || null,
-}, null, 2)}`;
+})}`;
   } else if (sportHint === "nfl") {
     relevantContext = `NFL context:
-${typeof nflContext === "string" ? nflContext : JSON.stringify(nflContext || {}, null, 2)}`;
+${typeof nflContext === "string" ? nflContext : contextJsonForModel(nflContext)}`;
   } else if (sportHint === "mlb") {
     relevantContext = `MLB context:
-${JSON.stringify(mlbContext || {}, null, 2)}`;
+${contextJsonForModel(mlbContext)}`;
   } else if (sportHint === "golf") {
     relevantContext = `Golf context:
-${JSON.stringify(golfContext || {}, null, 2)}`;
+${contextJsonForModel(golfContext)}`;
   } else if (sportHint === "f1") {
     relevantContext = `F1 context:
-${JSON.stringify(f1Context || {}, null, 2)}`;
+${contextJsonForModel(f1Context)}`;
   }
 
   return `You are reviewing a betting slip or pick entry.
@@ -2622,9 +2527,9 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
     decisionMode: blocked
       ? "blocked_unavailable"
       : blockedPlayerLevelNoListedMarket
-        ? "blocked_unlisted_market"
+        ? "structural_only"
         : blockedOddsFeedSnapshot
-          ? "blocked_odds_feed_unavailable"
+          ? "structural_only"
           : unresolvedCentral
             ? "unresolved_status"
             : "normal",
@@ -2685,13 +2590,13 @@ export function applyNbaConfidenceModifiers({
   if (directBlockedOddsFeed) {
     return {
       label: "Low",
-      reason: "Odds provider snapshot unavailable — named player props cannot be verified.",
+      reason: "Structural read only — anchor claims to verified stats and live state in context.",
     };
   }
   if (directBlockedNoMarket) {
     return {
       label: "Low",
-      reason: "No active listed market — avoid speculative confidence inflation.",
+      reason: "Closest verified structural read — tie claims to pace, role, and matchup data present.",
     };
   }
 
@@ -2767,9 +2672,8 @@ export function resolveNbaDecisionMode({
       : "status_only";
   }
   if (invalidation?.blockedReason === "unavailable") return "blocked_unavailable";
-  if (invalidation?.blockedReason === "odds_feed_unavailable")
-    return "blocked_odds_feed_unavailable";
-  if (invalidation?.blockedReason === "unlisted_market") return "blocked_unlisted_market";
+  if (invalidation?.blockedReason === "odds_feed_unavailable") return "structural_only";
+  if (invalidation?.blockedReason === "unlisted_market") return "structural_only";
   if (invalidation?.unresolved && invalidation?.hasTargetPlayerMarket) return "conditional_wait";
   return "actionable";
 }
@@ -3818,6 +3722,7 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
   delete raw._rosterDiag;
   delete raw.liveEdgeAlerts;
   delete raw.playoffPathGrounding;
+  delete raw.oddsAvailable;
 
   return raw;
 }
@@ -4034,13 +3939,12 @@ function buildNbaLiveScoreInterpretationLabels(todaysGames, gameTotals) {
 
 /**
  * MLB server decision mode (MLB only — aligns conditional analysis with missing-market guardrails).
- * - no_data: nothing usable in payload (no games, props, or gameTotals keys).
  * - actionable: posted data in propLines/gameTotals matches this question's player/game/market scope.
- * - pre_market_framework: incomplete or not question-relevant — no fabricated prop lines or K projections.
+ * - structural_only: everything else (thin slate, no listed market for the ask, empty bundle) — still full LLM take.
  *
  * Known limitations (baseline — keep question-aware routing lean; refine deliberately):
  * - Player detection uses names from propLines plus probable/listed pitchers on games[] only — not full batting rosters.
- * - Game/prop/totals matching can fall back to pre_market_framework when ESPN vs Odds API team strings diverge.
+ * - Game/prop/totals matching can fall back to structural_only when ESPN vs Odds API team strings diverge.
  * - If the question implies a player but extractMlbMarketHints finds no market keywords, any prop row for that player still qualifies as actionable (narrow by prompts later if needed).
  */
 export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
@@ -4058,7 +3962,7 @@ export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
   const hasTotals = Object.keys(gameTotals).length > 0;
 
   if (!hasGames && !hasProps && !hasTotals) {
-    return "no_data";
+    return "structural_only";
   }
 
   const marketHints = extractMlbMarketHints(question);
@@ -4071,14 +3975,14 @@ export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
     : [];
 
   if (playerRef.matched) {
-    if (propsForPlayer.length === 0) return "pre_market_framework";
+    if (propsForPlayer.length === 0) return "structural_only";
     const hintsNoTotal = new Set(marketHints);
     hintsNoTotal.delete("game_total");
     if (hintsNoTotal.size === 0) {
       return "actionable";
     }
     const ok = propsForPlayer.some((pl) => mlbPropMatchesMarketHints(pl, hintsNoTotal));
-    return ok ? "actionable" : "pre_market_framework";
+    return ok ? "actionable" : "structural_only";
   }
 
   if (gameRef.matched) {
@@ -4086,30 +3990,18 @@ export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
     const totalsKey = findGameTotalsKeyForGame(gameTotals, gameRef.game);
     if (wantsGameTotal) {
       if (totalsKey) return "actionable";
-      return forGame.length > 0 ? "actionable" : "pre_market_framework";
+      return forGame.length > 0 ? "actionable" : "structural_only";
     }
     const hintsNoTotal = new Set(marketHints);
     hintsNoTotal.delete("game_total");
     if (hintsNoTotal.size === 0) {
-      return forGame.length > 0 ? "actionable" : "pre_market_framework";
+      return forGame.length > 0 ? "actionable" : "structural_only";
     }
     const ok = forGame.some((pl) => mlbPropMatchesMarketHints(pl, hintsNoTotal));
-    return ok ? "actionable" : "pre_market_framework";
+    return ok ? "actionable" : "structural_only";
   }
 
-  return "pre_market_framework";
-}
-
-function buildMlbNoDataTerminalResponse({ derivedConfidence }) {
-  return `Lean: broad and low-confidence until a game is pinned.
-
-Without a specific matchup, the safest MLB default is role-first: trust confirmed starters, bullpen depth, and run-environment context over hot streak narratives.
-
-Where it breaks: once park/weather, lineups, or pitcher confirmation changes the run environment, this generic lean can flip quickly.
-
-Drop the exact matchup (or player + market) and I’ll tighten this into a concrete over/under-style take.
-
-Confidence: Low (${derivedConfidence}) — this is a no-context opinion, not a verified market read.`;
+  return "structural_only";
 }
 
 function buildMlbPreMarketUserPrompt({
@@ -4145,7 +4037,7 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 MLB context (JSON — authoritative for what exists; absence means unknown):
-${JSON.stringify(mlbContext || {}, null, 2)}
+${contextJsonForModel(mlbContext)}
 
 ${mlbVerifiedBlock}
 
@@ -4194,7 +4086,7 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 MLB context:
-${JSON.stringify(mlbContext || {}, null, 2)}
+${contextJsonForModel(mlbContext)}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
@@ -4804,6 +4696,11 @@ export default async function handler(req, res) {
   if (sportHint === "nfl" && nflContext && typeof nflContext === "object") {
     nflContext.oddsAvailable = oddsAvailable;
   }
+  if (!oddsAvailable) {
+    console.warn(
+      `[odds] unavailable — running without lines (sport=${String(sportHint || "unknown")}; server log only, not shown to model)`,
+    );
+  }
 
   const nbaNewsImpact = sportHint === "nba" ? nbaContext?.newsImpact || null : null;
   const nbaInvalidation =
@@ -4980,11 +4877,6 @@ For all other questions where no contract is attached, use plain text as already
 
 ${jsonContract}${propProjectionModeBlock}${spreadAndGameSideBlock}`
       : `${systemPrompt}${propProjectionModeBlock}${spreadAndGameSideBlock}`;
-  if (!oddsAvailable) {
-    systemPromptForModel = `${systemPromptForModel}
-
-${buildOddsUnavailableStructuralModeBlock(sportHint)}`;
-  }
   const nbaLiveNoPropSystemPromptBlock =
     sportHint === "nba" ? buildNbaLiveNoPropSystemPromptBlock(nbaGameStateGate, nbaContext) : "";
   if (nbaLiveNoPropSystemPromptBlock) {
@@ -4996,9 +4888,6 @@ ${nbaLiveNoPropSystemPromptBlock}`;
     systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
     if (sportHint === "nba") {
       systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
-    }
-    if (!oddsAvailable) {
-      systemPromptForModel = `${systemPromptForModel}\n\n${buildOddsUnavailableStructuralModeBlock(sportHint)}`;
     }
   }
 
@@ -5155,31 +5044,6 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
     });
   }
 
-  if (sportHint === "mlb" && mlbDecisionMode === "no_data") {
-    const responseText = buildMlbNoDataTerminalResponse({ derivedConfidence });
-    let takeRecord = extractTakeFromResponse({
-      responseText,
-      sport: "mlb",
-      intent,
-      question,
-    });
-    if (userEmail) {
-      appendTakeForUser(userEmail, takeRecord).catch((e) => {
-        console.warn("take logging failed:", e?.message || e);
-      });
-    }
-    return res.status(200).json({
-      response: responseText,
-      responseDeep: null,
-      responseFormat: "plain",
-      statusShift: null,
-      decisionMode: "no_data",
-      sport: "mlb",
-      intent,
-      take: takeClientPayload(takeRecord),
-    });
-  }
-
   let userPrompt = question;
   /** Scoped for Anthropic token budget — NFL TYPE_A draft simulation uses a higher max_tokens ceiling. */
   let draftTeamSimulationInject = false;
@@ -5252,7 +5116,6 @@ CONFIDENCE GUIDANCE
 Default confidence: ${derivedConfidence}
 WTA mode is profile-based — confidence should generally be Medium or Speculative
 unless the surface/style mismatch is truly obvious from the data.
-oddsAvailable: ${oddsAvailable}
 
 EXECUTION RULES — READ CAREFULLY
 1. Lead with the take. First sentence is a concrete claim about a specific player
@@ -5452,12 +5315,11 @@ PROP GUIDE DIGEST — ACE / SERVE VOLUME (canonical; must match app Prop Guide c
 ${buildAcePropsDigest(context?.ace_props, tournamentSurface)}
 
 ACE_PROPS_JSON (verbatim — same source as digest; use for field-level checks only)
-${context?.ace_props ? JSON.stringify(context.ace_props, null, 2) : "{}"}
+${context?.ace_props ? contextJsonForModel(context.ace_props) : "{}"}
 
 CONFIDENCE GUIDANCE
 Default confidence: ${derivedConfidence}
 Only go above that if the data strongly justifies it.
-oddsAvailable: ${oddsAvailable}
 
 EXECUTION RULES — READ CAREFULLY
 1. Opener authority is Step 1 of THE UNDERREVIEW RESPONSE FRAMEWORK above. The first sentence states the trigger condition (line threshold, surface/lineup status, game script). Do not open with a limitation, disclaimer, or pipeline note.
@@ -5580,7 +5442,7 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Golf context:
-${JSON.stringify(golfContextEffective || {}, null, 2)}
+${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
 
@@ -5609,14 +5471,13 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 Golf context:
-${JSON.stringify(golfContextEffective || {}, null, 2)}
+${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
-oddsAvailable: ${oddsAvailable}
 ${nbaConfidenceModifier.reason ? `- Confidence modifier: ${nbaConfidenceModifier.reason}` : ""}
 
 Rules:
@@ -5679,7 +5540,6 @@ ${nbaQuestionForModel}
 COMPACT NBA CONTEXT (follow-up turn — full nbaContext JSON intentionally omitted server-side)
 ${compactNbaFollowUpContext}
 
-oddsAvailable: ${oddsAvailable}
 Default confidence should be ${derivedConfidence}.
 
 ${NBA_FOLLOW_UP_THREAD_RULE}`;
@@ -5728,12 +5588,11 @@ Rule: Do not give false certainty. Keep any take contingent on confirmed status.
         ? `FOCUSED PLAYOFF SERIES (board-verified — mirror this in series framing; do not invent wins/game number)\n${nbaContextForModel.focusedSeriesSnapshot.serverSummaryOneLiner}\n\n`
         : ""
     }NBA context:
-${JSON.stringify(nbaContextForModel || {})}
+${contextJsonForModel(nbaContextForModel)}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
-oddsAvailable: ${oddsAvailable}
 
 ${nbaRosterListBlock}
 
@@ -5876,7 +5735,7 @@ If gameTotals in context shows 214.5, that band is the pace read: a line that lo
     const mlbVerifiedBlock = buildMlbVerifiedPlayerListBlock(mlbContext);
 
     userPrompt =
-      mlbDecisionMode === "pre_market_framework"
+      mlbDecisionMode !== "actionable"
         ? buildMlbPreMarketUserPrompt({
             question,
             mlbContext,
@@ -5902,12 +5761,11 @@ ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
 
 F1 context:
-${JSON.stringify(f1Context || {}, null, 2)}
+${contextJsonForModel(f1Context)}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
-oddsAvailable: ${oddsAvailable}
 
 ${f1VerifiedBlock}
 
@@ -5916,7 +5774,7 @@ Rules:
 - Do not mention golf, NBA, NFL, MLB, or tennis — never reference NBA slates, playoff matchups, or basketball stats (no BOS-PHI, "double-double", PRA, etc.).
 - The F1 context JSON is server-assembled; **never** ask the user to paste F1 data, context, or screenshots to proceed.
 - Use the queryFocus and schedule.races fields in context for the event the user named (e.g. Miami Grand Prix) when present.
-- If odds or qualifying grid are missing, still deliver a **race-only** framework: head-to-head driver matchup, points-finish, or fastest lap monitoring — and state limitations clearly.
+- Whether odds grids or qualifying splits appear or not, deliver the same-caliber **race-only** read: head-to-head matchup, points finish, qualifying pace, tire or weather hooks — grounded only in fields present in context.
 - Do not invent unrelated drivers, races, or props.
 
 NO-MARKET FALLBACK RULE (mandatory when betting markets in context are thin or odds blocks are empty but the next race or weekend is upcoming)
@@ -6078,7 +5936,7 @@ No bet now; re-run once verified player context is loaded.`;
     const nflContextForPrompt =
       (typeof nflContextEffective === "string"
         ? nflContextEffective
-        : JSON.stringify(nflContextEffective || {}, null, 2)) +
+        : contextJsonForModel(nflContextEffective)) +
       (teamCapitalBlock ? `\n\n---\n\n${teamCapitalBlock}` : "");
     const nflVerifiedBlock = buildNflVerifiedPlayerListBlock(nflContextEffective);
 
@@ -6096,7 +5954,6 @@ ${nflContextForPrompt}
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
-oddsAvailable: ${oddsAvailable}
 
 ${nflVerifiedBlock}
 
@@ -6519,9 +6376,7 @@ You are responding to a Pro subscriber. Apply the following:
       );
     }
     const nbaCtxJsonChars =
-      sportHint === "nba"
-        ? JSON.stringify(nbaContextForModel ?? {}).length
-        : null;
+      sportHint === "nba" ? contextJsonForModel(nbaContextForModel ?? {}).length : null;
     console.log(
       `[ur-take] context: sport=${String(
         sportHint || "unknown",

@@ -379,7 +379,7 @@ test("blocked unavailable response excludes out player from role gainers and end
   assert.doesNotMatch(out.payload.response, /Lean Austin Reaves .* toward over/i);
 });
 
-test("blocked unlisted market preserves terminal block semantics", async () => {
+test("unlisted market routes to structural_only (no odds-gated refusal)", async () => {
   const inv = applyNbaMarketInvalidation({
     question: "Brown under 25.5 live?",
     board: sharedNba,
@@ -393,10 +393,10 @@ test("blocked unlisted market preserves terminal block semantics", async () => {
     directPropAsk: true,
     invalidation: inv,
   });
-  assert.equal(mode, "blocked_unlisted_market");
+  assert.equal(mode, "structural_only");
 });
 
-test("invokeUrTake with no ODDS_API_KEY surfaces odds feed block copy", async () => {
+test("invokeUrTake with no ODDS_API_KEY uses structural_only decision mode", async () => {
   const out = await invokeUrTake(
     {
       question: "Jaylen Brown under 25.5 live?",
@@ -413,12 +413,12 @@ test("invokeUrTake with no ODDS_API_KEY surfaces odds feed block copy", async ()
       }),
     },
   );
-  assert.equal(out.payload.decisionMode, "blocked_odds_feed_unavailable");
+  assert.equal(out.payload.decisionMode, "structural_only");
   assert.ok(typeof out.payload.response === "string" && out.payload.response.length > 0);
   assert.ok(!/ODDS FEED UNAVAILABLE/i.test(out.payload.response));
 });
 
-test("empty active prop slate uses odds_feed_unavailable (not unlisted market phrasing)", () => {
+test("empty active prop slate resolves to structural_only decision mode", () => {
   const inv = applyNbaMarketInvalidation({
     question: "Jaylen Brown under 25.5 live?",
     board: {
@@ -434,7 +434,7 @@ test("empty active prop slate uses odds_feed_unavailable (not unlisted market ph
     directPropAsk: true,
     invalidation: inv,
   });
-  assert.equal(mode, "blocked_odds_feed_unavailable");
+  assert.equal(mode, "structural_only");
 });
 
 test("two-player prompt resolves both players independently", () => {
