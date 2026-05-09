@@ -89,13 +89,25 @@ const NBA_STRUCTURAL_MARKET_CLOSING_RULE = `- Close with a direct structural cal
  */
 function ODDS_UNAVAILABLE_STRUCTURAL_MODE(sportLabel, dataAvailable) {
   const sport = String(sportLabel || "GENERAL").trim();
-  const bulletsNbaMlb =
-    sport === "NBA" || sport === "MLB"
+  const bulletsNba =
+    sport === "NBA"
       ? `
 - RECENT FORM: Last 5 games — exact numbers from recentGames (and ptsRecent/rebRecent/astRecent/praRecent when present) only
 - MATCHUP EDGE: Who benefits from tonight's specific matchup when grounded in context
 - INJURY IMPACT: Confirmed outs and their direct effect when listed
 - THE CALL: Direct structural call with no line needed`
+      : "";
+  const bulletsMlb =
+    sport === "MLB"
+      ? `
+- RECENT FORM: Last 5 games — exact numbers only when present in payload
+- MATCHUP EDGE: Who benefits from tonight's matchup when grounded in context (park, handedness, bullpen path)
+- INJURY IMPACT: Confirmed outs and their direct effect when listed
+- STARTERS TBD: Probable pitchers or lineups still unconfirmed — deliver the structural lean anyway (park, bullpen depth, pace/run environment, leverage). Do not refuse the take because starters are TBD.
+- OPENING: Lead with that lean — never open with "starters TBD", probables unsettled, or similar upfront caveats; starter uncertainty belongs only in the final hedge below when applicable.
+- THE CALL: Commit to a clear structural lean without invented lines
+- FINAL HEDGE: When starters are TBD, end the response with exactly one sentence: "Confirm starters before placing." — after the lean, not instead of it.
+- Never say "I can't call this mispriced," "can't identify an edge," or any refusal that declines the lean — state the lean, then hedge at the bottom`
       : "";
   const bulletsPga =
     sport === "PGA"
@@ -131,7 +143,7 @@ function ODDS_UNAVAILABLE_STRUCTURAL_MODE(sportLabel, dataAvailable) {
 - THE CALL: Direct structural call with no line needed`
       : "";
   const bulletsGeneral =
-    !bulletsNbaMlb && !bulletsPga && !bulletsF1 && !bulletsTennis && !bulletsNfl
+    !bulletsNba && !bulletsMlb && !bulletsPga && !bulletsF1 && !bulletsTennis && !bulletsNfl
       ? `
 - Anchor every claim to injected server context for this request
 - THE CALL: Direct structural read — no prices or fabricated thresholds`
@@ -146,7 +158,7 @@ Never mention lines, odds, or books. Never say lines are unavailable.
 Never say you're estimating or "projected." Never apologize for missing data.
 Never invent a number you don't have.
 
-STRUCTURE YOUR RESPONSE AROUND WHAT YOU HAVE:${bulletsNbaMlb}${bulletsPga}${bulletsF1}${bulletsTennis}${bulletsNfl}${bulletsGeneral}
+STRUCTURE YOUR RESPONSE AROUND WHAT YOU HAVE:${bulletsNba}${bulletsMlb}${bulletsPga}${bulletsF1}${bulletsTennis}${bulletsNfl}${bulletsGeneral}
 
 NEVER:
 - Mention that odds or lines are unavailable
@@ -4146,7 +4158,9 @@ SERVER MODE — PRE_MARKET_FRAMEWORK (mandatory)
 - You MAY cite a game total ONLY from gameTotals in the JSON (exact number).
 
 MLB ANTI-REFUSAL (mandatory)
-- Never refuse, decline, or say you "cannot" give a mispricing read solely because probable starters are TBD, gameTotals is missing for some matchups, or a specific prop is not in propLines. TBD starters are normal pre-lock — acknowledge once if relevant, then deliver park / bullpen / pace / leverage framing with honest confidence.
+- Never refuse, decline, or say you "cannot" give a mispricing read solely because probable starters are TBD, gameTotals is missing for some matchups, or a specific prop is not in propLines. TBD starters are normal pre-lock — open directly with park / bullpen / pace / leverage framing (the structural lean). Do not lead with starter uncertainty, probables caveats, or throat-clearing; the only starter caveat when TBD is the final sentence below.
+- Never say "I can't call this mispriced" or any variant that declines the lean — deliver the structural angle, then hedge at the end.
+- When probable starters or pitchers are still TBD in games[] or context, end the entire response with exactly one final sentence: "Confirm starters before placing." (after your lean — not instead of it.)
 - You must still output a useful directional lean (over/under/side/watch) from structural anchors in games[], injuries, and any numbers present in gameTotals or propLines. If a posted total exists for a game, cite it verbatim; if not, discuss run environment qualitatively without inventing a line.
 
 Answer structure:
@@ -4194,14 +4208,16 @@ SERVER MODE — ACTIONABLE (propLines present in payload)
 - Do NOT claim books "will" open or price at a level without a listed line in propLines.
 
 MLB ANTI-REFUSAL (mandatory)
-- Never refuse the take solely because a probable pitcher is still TBD in games[] — state TBD once if needed, then give the grounded lean from listed lines and structure.
+- Never refuse the take solely because a probable pitcher is still TBD in games[] — open with the grounded lean from listed lines and structure; do not open with pitcher-TBD disclaimers or conditional throat-clearing.
+- Never say "I can't call this mispriced" — commit to the lean from verified lines and structure, then hedge last.
+- When starters are still TBD, end with exactly one sentence: "Confirm starters before placing."
 
 Rules:
 - Answer only as an MLB analyst.
 - Do not mention golf, NBA, NFL, F1, or tennis.
 - Do not invent unrelated games or props.
 
-Lead with the strongest grounded angle using verified lines from propLines. If a starter is still TBD in games[], say so and keep the lean conditional on confirmation.
+Lead with the strongest grounded angle using verified lines from propLines. If starters are still TBD in games[], keep the body of the answer committed to structure and listed lines; close with "Confirm starters before placing." — do not front-load TBD or "conditional on confirmation" at the top.
 `;
 }
 
@@ -4248,7 +4264,7 @@ Pitchers: ${pitchers.length ? pitchers.join(", ") : "(none in games array)"}
 Prop-listed players: ${propListed.length ? propListed.join(", ") : "(none)"}
 
 Do not name any batter or pitcher not on this list as playing tonight.
-When a pitcher shows as "TBD", note it once for that team (e.g. starter TBD for [team]), then continue with park, bullpen leverage, run environment, and game state from context — never refuse the answer solely because starters are unsettled, and do not imply you need confirmed starters before giving a lean.`;
+When a pitcher shows as "TBD", still open with park, bullpen leverage, run environment, and game state — do not lead with "starter TBD for [team]" or similar upfront caveats; reserve starter uncertainty for the closing sentence "Confirm starters before placing." Never refuse solely because starters are unsettled.`;
 }
 
 function buildNflVerifiedPlayerListBlock(nflContextEffective) {

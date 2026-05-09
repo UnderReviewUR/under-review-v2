@@ -618,10 +618,12 @@ export function buildMlbUrTakeDecisionModeSpine(mode) {
 No verified games + props + totals bundle for this ask. Do not invent pitchers, lines, or parks. Give a compact honest no-board read; if league calendar context exists in payload, one structural season-level hook only — no fake matchup specifics.`,
     pre_market_framework: `MLB DECISION MODE SPINE — pre_market_framework
 Slate or partial board exists but the question is not anchored to a verified listed market for the named player/matchup. Build the angle from park environment, role, bullpen script, or game total only when those slices exist in context; never quote a number that is not printed in the JSON.
-Never abstain or refuse solely because probable starters are TBD or because gameTotals is incomplete — hedge with "if the listed arm is X…" and still deliver a scannable lean on pace, park, and bullpen leverage.`,
+Never abstain or refuse solely because probable starters are TBD or because gameTotals is incomplete. Open with a scannable structural lean on pace, park, and bullpen leverage — do not open with starter-TBD disclaimers or "if the listed arm is X" throat-clearing; optional pitcher conditionals only after the opening lean if needed.
+STARTERS TBD: Give the structural lean anyway. Never say "I can't call this mispriced" or refuse the angle — commit to the lean, then end with exactly one hedge sentence: "Confirm starters before placing."`,
     actionable: `MLB DECISION MODE SPINE — actionable
 Verified prop or game-total anchor exists for the asked angle. Lead with posted structure; cite only numbers printed in context; keep pivots inside the same matchup when propRows tie to it.
-If a probable pitcher is still TBD, do not refuse — state it once and keep the call conditional on the listed line still being valid at lock.`,
+If a probable pitcher is still TBD, do not refuse — deliver the posted-structure lean first without opening on uncertainty; keep the call tied to the listed line still being valid at lock.
+When starters are still TBD, close with: "Confirm starters before placing." Never refuse or imply you cannot spot a mispricing — lean first, hedge last; never lead with TBD caveats.`,
   };
   return blocks[m] || blocks.no_data;
 }
