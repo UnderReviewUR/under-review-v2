@@ -451,6 +451,9 @@ export function parseUrTakeResponse(raw) {
   bodyChunks = bodyChunks
     .map((c) => c.replace(/\*\*Confidence:.*$/im, "").trim())
     .filter(Boolean);
+  bodyChunks = bodyChunks
+    .map((c) => c.replace(/\*\*/g, "").trim())
+    .filter(Boolean);
 
   const headlineDisplay = headline
     ? stripUrTakeInlineMarkdown(String(headline).replace(/^>>\s*/, "").replace(/\*\*/g, ""))
