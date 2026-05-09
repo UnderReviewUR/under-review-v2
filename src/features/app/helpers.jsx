@@ -433,8 +433,8 @@ export function parseUrTakeResponse(raw) {
       bodyText = bodyText.replace(lastSentence, "").trim();
     }
   }
-
   if (closing) {
+    closing = closing.replace(/\*\*/g, "").trim();
     const cl = closing.trim();
     bodyText = bodyText.split("\n").filter((ln) => ln.trim() !== cl).join("\n").trim();
   }
@@ -448,6 +448,9 @@ export function parseUrTakeResponse(raw) {
   bodyChunks = bodyChunks
     .map((c) => stripUrTakeInlineMarkdown(String(c).trim()))
     .filter((c) => c.length >= 2 && !/^[\s.•]+$/u.test(c));
+  bodyChunks = bodyChunks
+    .map((c) => c.replace(/\*\*Confidence:.*$/im, "").trim())
+    .filter(Boolean);
 
   const headlineDisplay = headline
     ? stripUrTakeInlineMarkdown(String(headline).replace(/^>>\s*/, "").replace(/\*\*/g, ""))
