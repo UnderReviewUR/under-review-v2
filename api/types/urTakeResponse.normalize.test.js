@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   normalizeStructuredUrTakeResponse,
   validateStructuredURTakeResponse,
+  repairStructuredForDelivery,
 } from "./urTakeResponse.js";
 
 test("normalize fixes confidence case and timestamp Z", () => {
@@ -29,6 +30,23 @@ test("normalize fixes confidence case and timestamp Z", () => {
   assert.equal(n.confidence, "High");
   assert.match(n.timestamp, /Z$/);
   const v = validateStructuredURTakeResponse(n);
+  assert.equal(v.valid, true, v.errors?.join("; "));
+});
+
+test("repairStructuredForDelivery yields schema-valid payload", () => {
+  const rough = {
+    call: "X",
+    confidence: "high",
+    whyNow: "short",
+    edge: "too short",
+    callType: "prop",
+    analysis: {},
+    caveats: [],
+    sport: "nba",
+    timestamp: "bad",
+  };
+  const repaired = repairStructuredForDelivery(rough, "nba");
+  const v = validateStructuredURTakeResponse(repaired);
   assert.equal(v.valid, true, v.errors?.join("; "));
 });
 
