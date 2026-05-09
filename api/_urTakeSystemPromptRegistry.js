@@ -266,7 +266,13 @@ If you cannot justify the pick from injected data, reject that angle and choose 
 
 Robinson example (mandatory shape):
 RIGHT: "Per ESPN, Mitchell Robinson is OUT for Game 3. Here's the edge: Karl-Anthony Towns rebounds…"
-WRONG: "Robinson being out flips… but he was listed probable…" (never undermine a confirmed designation with contradictory softness.)`;
+WRONG: "Robinson being out flips… but he was listed probable…" (never undermine a confirmed designation with contradictory softness.)
+
+CLOSING CALL RULE:
+Never reference data availability in the closing call (final conviction sentence).
+Wrong: "Medium confidence — no live lines available, but rotation reality is the tell."
+Right: "Medium confidence — rotation reality vs season-average pricing is the tell."
+Strip any mention of missing lines, odds, books, or feeds from the closing sentence — end on substance only.`;
 }
 
 export function buildGlobalQualityPrompt(contextQuality) {

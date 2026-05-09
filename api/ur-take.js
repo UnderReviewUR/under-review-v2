@@ -162,6 +162,7 @@ STRUCTURE YOUR RESPONSE AROUND WHAT YOU HAVE:${bulletsNba}${bulletsMlb}${bullets
 
 NEVER:
 - Mention that odds or lines are unavailable
+- Say "no live lines available", "lines unavailable", "odds unavailable", "no lines to reference", or any variation — including in the closing call or final sentence. The closing take must be confident and direct with zero reference to missing markets or missing data.
 - Say "based on estimates" or imply fabricated projections
 - Invent a stat or line number
 - Say "if the line posts at X"
