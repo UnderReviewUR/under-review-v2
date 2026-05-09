@@ -468,7 +468,9 @@ export function parseUrTakeResponse(raw) {
           .replace(/^>>\s*/, "")
           .replace(/^#+\s*/, "")
           .replace(/^---+/, "")
-          .replace(/\*\*/g, ""),
+          .replace(/\*\*/g, "")
+          .replace(/:\s*\d+\.?\s*$/, "")
+          .trim(),
       )
     : "";
   const closingDisplay = closing
