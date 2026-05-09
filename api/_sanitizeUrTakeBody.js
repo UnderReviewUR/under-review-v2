@@ -17,6 +17,9 @@ const ALLOWED_KEYS = new Set([
   "matchupContext",
   "image",
   "history",
+  /** Client asks for structured JSON + URTakeResponse card (must not be stripped). */
+  "structured",
+  "bettingStyle",
 ]);
 
 const DEFAULT_MAX_QUESTION = 12000;
@@ -65,6 +68,14 @@ function sanitizeValue(key, val, depth, limits) {
 
   if (key === "sportHint") {
     return typeof val === "string" ? val.slice(0, 64) : val;
+  }
+
+  if (key === "structured") {
+    return val === true;
+  }
+
+  if (key === "bettingStyle") {
+    return val === "limits" ? "limits" : "balanced";
   }
 
   if (key === "teamHint") {

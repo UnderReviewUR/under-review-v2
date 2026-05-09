@@ -12,6 +12,29 @@ test("sanitizeUrTakeBody strips unknown keys", () => {
   assert.equal("hacker" in body, false);
 });
 
+test("sanitizeUrTakeBody preserves structured flag and bettingStyle", () => {
+  const { ok, body } = sanitizeUrTakeBody({
+    question: "Edge?",
+    sportHint: "nba",
+    structured: true,
+    bettingStyle: "limits",
+  });
+  assert.equal(ok, true);
+  assert.equal(body.structured, true);
+  assert.equal(body.bettingStyle, "limits");
+});
+
+test("sanitizeUrTakeBody coerces structured/bettingStyle safely", () => {
+  const { ok, body } = sanitizeUrTakeBody({
+    question: "x",
+    structured: "yes",
+    bettingStyle: "wild",
+  });
+  assert.equal(ok, true);
+  assert.equal(body.structured, false);
+  assert.equal(body.bettingStyle, "balanced");
+});
+
 test("sanitizeUrTakeBody caps question length", () => {
   const long = "x".repeat(20000);
   const { ok, body } = sanitizeUrTakeBody({ question: long });
