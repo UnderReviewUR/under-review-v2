@@ -740,8 +740,9 @@ test("NBA conversation follow-up forces short system prompt and full NBA context
   assert.match(String(anthropicPayload.system || ""), /FACT AUTHORITY — SERVER GROUNDING/);
   assert.match(
     String(anthropicPayload.system || ""),
-    /Only name players from the verified roster list provided/,
+    /Only name players and teams that appear in verified roster or verification lists/,
   );
+  assert.match(String(anthropicPayload.system || ""), /DATA PERSISTENCE — FOLLOW-UPS/);
   assert.doesNotMatch(String(anthropicPayload.system || ""), /JSON RESPONSE MODE/);
   const lastUser = [...(anthropicPayload.messages || [])].reverse().find((m) => m.role === "user");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";

@@ -1969,14 +1969,17 @@ function buildUrTakeFollowUpCoreSystemPrompt() {
   return `${buildCoreFrameworkPrompt()}
 
 FABRICATION GUARDRAIL — MANDATORY
-Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the NBA context JSON (and roster injection blocks) in the user message.
-Estimated prop thresholds derived from playerStats in context when live odds are unavailable are authorized — label them clearly as season-average estimates, not as posted book lines.
+Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the full sport context JSON and verification blocks in the user message for this request.
+Estimated prop thresholds derived from playerStats or analogous stat bundles in context when live odds are unavailable are authorized — label them clearly as season-average or estimate-tier reads, not as posted book lines.
 
 ROSTER ENFORCEMENT — MANDATORY
-Only name players from the verified roster list provided. Never use training memory for player names.
+Only name players and teams that appear in verified roster or verification lists in the user message for this sport. Never use training memory for identities.
 
 ARITHMETIC RULE — MANDATORY
-When you reference pace math, totals, or series scoring averages, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
+When you reference pace math, totals, series scoring averages, or cumulative stats, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
+
+DATA PERSISTENCE — FOLLOW-UPS (mandatory)
+The user message includes the same full server-assembled context payload as the opening turn whenever this sport provides JSON or verification blocks. Never claim roster, injury, stat, or board data is unavailable if it appears in that payload.
 
 FOLLOW-UP STYLE — MANDATORY
 Answer only the specific question asked. 3-5 sentences maximum. No section headers. No MATCH READ. No PROP PROJECTIONS. Speak like a sharp friend replying to a text.`;
@@ -4661,9 +4664,7 @@ ${nbaLiveNoPropSystemPromptBlock}`;
   }
   if (isConversationFollowUp) {
     systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
-    if (sportHint === "nba") {
-      systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
-    }
+    systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
   }
 
   if (
@@ -4871,7 +4872,10 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
 TODAY
 ${getTodayStr()}
 
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}QUESTION
+${context && typeof context === "object" ? `TENNIS APP CONTEXT (JSON — full server bundle; same on every turn including follow-ups)
+${contextJsonForModel(context)}
+
+` : ""}${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}QUESTION
 ${question}
 
 MODE
@@ -5055,7 +5059,10 @@ ${getTodayStr()}
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}QUESTION
 ${question}
 
-${matchFocusBlock ? `${matchFocusBlock}\n\n` : ""}${breakingNews ? `BREAKING NEWS — READ FIRST AND ADJUST ALL ANSWERS ACCORDINGLY
+${context && typeof context === "object" ? `TENNIS APP CONTEXT (JSON — full server bundle; same on every turn including follow-ups)
+${contextJsonForModel(context)}
+
+` : ""}${matchFocusBlock ? `${matchFocusBlock}\n\n` : ""}${breakingNews ? `BREAKING NEWS — READ FIRST AND ADJUST ALL ANSWERS ACCORDINGLY
 ${breakingNews}
 
 ` : ""}TOURNAMENT CONTEXT
