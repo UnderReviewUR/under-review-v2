@@ -4031,7 +4031,7 @@ function buildMlbPreMarketUserPrompt({
     ? `Listed game totals from payload only — cite these numbers verbatim when referencing a total:\n${totalsPreview}`
     : "No gameTotals in this payload — do not state a game total number.";
 
-  return `You are answering an MLB betting question in PRE_MARKET_FRAMEWORK mode.
+  return `You are answering an MLB betting question (structural / partial-board mode — same quality bar as full lines).
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
@@ -4043,7 +4043,7 @@ ${mlbVerifiedBlock}
 
 ${totalsNote}
 
-SERVER MODE — PRE_MARKET_FRAMEWORK (mandatory)
+SERVER MODE — STRUCTURAL (mandatory)
 - Do NOT invent prop numbers, K totals, strikeout lines, hitter lines, juice, or price quotes.
 - Do NOT say or imply "expect K props at X", "books will price", "likely opens at", "look for under 6.5", or any fabricated numeric projection unless that exact number appears in propLines or gameTotals in the JSON above.
 - Do NOT assume books are pricing anything until propLines lists the market.
