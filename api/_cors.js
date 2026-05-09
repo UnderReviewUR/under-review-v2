@@ -56,7 +56,10 @@ export function applyCors(req, res, { methods = "GET, OPTIONS" } = {}) {
   if (allowedOrigin) {
     res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Access-Control-Allow-Methods", methods);
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-UR-Take-Structured",
+    );
     res.setHeader("Vary", "Origin");
   }
 

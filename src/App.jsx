@@ -1242,7 +1242,12 @@ ${themeCss}
     try {
       res = await fetch("/api/ur-take", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: {
+          "Content-Type": "application/json",
+          /** Redundant with body.structured — ensures API enables structured mode even if JSON body is narrowed en route. */
+          "X-UR-Take-Structured": "1",
+          ...authHeaders,
+        },
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });

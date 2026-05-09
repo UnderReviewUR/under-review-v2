@@ -4,8 +4,6 @@ import { applyCors } from "./_cors.js";
 import { getDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
-import { appendFileSync } from "node:fs";
-import { join } from "node:path";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
 import {
   QA_REGENERATION_SYSTEM_SUFFIX,
@@ -4437,10 +4435,15 @@ export default async function handler(req, res) {
       .toLowerCase();
     return v === "0" || v === "false" || v === "off" || v === "no";
   })();
+  /** Backup opt-in if JSON body loses `structured` in transit (proxy/middleware). Browser sends `X-UR-Take-Structured: 1`. */
+  const structuredHeaderRequested =
+    String(req.headers["x-ur-take-structured"] ?? "").trim() === "1";
   /** Immutable for the whole request — never flip false on parse failure or QA loses structured instructions on retry. */
   const structuredModeRequested =
     !structuredUrTakeGloballyDisabled &&
-    (req.query?.structured === "true" || req.body?.structured === true);
+    (req.query?.structured === "true" ||
+      req.body?.structured === true ||
+      structuredHeaderRequested);
 
   const {
     question,
@@ -6587,29 +6590,6 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
           // Validate
           const validation = validateStructuredURTakeResponse(structuredResponse);
-          // #region agent log
-          try {
-            fetch("http://127.0.0.1:7421/ingest/951cdd48-774c-4da8-bbb1-32f0288dd325", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "fd471b" },
-              body: JSON.stringify({
-                sessionId: "fd471b",
-                hypothesisId: "H4",
-                location: "ur-take.js:structured-validate",
-                message: "validation after repair",
-                data: {
-                  valid: validation.valid,
-                  errorCount: validation.errors?.length ?? 0,
-                  errorsPreview: (validation.errors || []).slice(0, 6),
-                },
-                timestamp: Date.now(),
-                runId: "post-repair",
-              }),
-            }).catch(() => {});
-          } catch {
-            /* ignore */
-          }
-          // #endregion
           if (!validation.valid) {
             console.error("[STRUCTURED_UR_TAKE_VALIDATION_ERROR]", {
               errors: validation.errors,
@@ -7008,29 +6988,6 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     if (structuredResponse) {
       responseBody.structured = structuredResponse;
     }
-
-    // #region agent log
-    try {
-      appendFileSync(
-        join(process.cwd(), "debug-fd471b.log"),
-        `${JSON.stringify({
-          sessionId: "fd471b",
-          hypothesisId: "H4",
-          location: "api/ur-take.js:responseBody",
-          message: "server outgoing",
-          data: {
-            structuredModeRequested,
-            structuredInPayload: Boolean(structuredResponse),
-            reqStructuredFlag: req.body?.structured === true,
-          },
-          timestamp: Date.now(),
-          runId: "debug-fd471b",
-        })}\n`,
-      );
-    } catch {
-      /* ignore — e.g. serverless cwd */
-    }
-    // #endregion
 
     return res.status(200).json(responseBody);
   } catch (err) {
