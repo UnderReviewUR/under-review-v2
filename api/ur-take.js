@@ -73,46 +73,118 @@ import { getStructuredURTakePrompt } from "./prompts/urTakeStructuredPrompt.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
-/** Single closing rule for NBA when posted lines are missing — keeps ODDS-UNAVAILABLE + FALLBACK aligned. */
-const NBA_UNIFIED_MARKET_CLOSING_RULE = `- Close with a specific conditional trigger tied to a player name and stat threshold. Format: "If [player] line opens at [number] or lower, lean [direction]." This is a forward trigger — not a dismissal. Never say "when markets post" or "come back when lines are up" or any variant that sends the user away.`;
+/** Closing when markets / lines are missing — structural only; no hypothetical prices (aligns with STRUCTURAL ANALYSIS MODE). */
+const NBA_STRUCTURAL_MARKET_CLOSING_RULE = `- Close with a direct structural call (THE CALL): name the edge and who benefits — grounded only in payload data. No hypothetical prices, no "if the line posts at X," no fabricated thresholds.`;
 
-/** Injected when oddsAvailable is false (including NBA follow-up turns after compact prompt merge). */
-const NBA_ODDS_UNAVAILABLE_MODE_BLOCK = `ODDS-UNAVAILABLE MODE (mandatory when oddsAvailable is false)
-- Never reference a specific line, spread, total, or implied probability as if posted now.
-- Never say "odds unavailable," "lines not posted," "I don't have the line," or any variation.
-- Do not apologize or explain missing odds data.
-- Lead with the structural edge from matchup, pace, rotation, usage, and game script.
-- Name specific players from grounded context whenever available; use real player names from the authorized roster list in context, not positional abstractions like "primary initiator" or "lead guard."
-- When citing angles, anchor to available season-average style context for named players when present (e.g., points/assists/rebounds tendencies from playerStats).
+/**
+ * Shared base — applies when oddsAvailable is false for any sport.
+ * @param {string} sportLabel — display label e.g. NBA, MLB, PGA
+ * @param {string} dataAvailable — human list of what the payload provides
+ */
+function ODDS_UNAVAILABLE_STRUCTURAL_MODE(sportLabel, dataAvailable) {
+  const sport = String(sportLabel || "GENERAL").trim();
+  const bulletsNbaMlb =
+    sport === "NBA" || sport === "MLB"
+      ? `
+- RECENT FORM: Last 5 games — exact numbers from recentGames (and ptsRecent/rebRecent/astRecent/praRecent when present) only
+- MATCHUP EDGE: Who benefits from tonight's specific matchup when grounded in context
+- INJURY IMPACT: Confirmed outs and their direct effect when listed
+- THE CALL: Direct structural call with no line needed`
+      : "";
+  const bulletsPga =
+    sport === "PGA"
+      ? `
+- RECENT FORM: Last 5 tournaments, scoring averages, strokes gained — only when present in context
+- COURSE FIT: Historical performance at this venue, course style match — when payload supports it
+- CONDITIONS: Weather, wind, course setup affecting play style — when provided
+- THE CALL: Direct structural call on winner or top-10 finish`
+      : "";
+  const bulletsF1 =
+    sport === "F1"
+      ? `
+- RECENT FORM: Last 5 races, qualifying pace, race pace trends — numbers only from payload
+- CIRCUIT FIT: Historical performance at this track type when grounded in context
+- CONDITIONS: Weather, tire strategy, safety car probability — when stated in context
+- TEAM/CAR: Constructor advantage at this circuit — when grounded in context
+- THE CALL: Direct structural call on podium or points finish`
+      : "";
+  const bulletsTennis =
+    sport === "TENNIS"
+      ? `
+- RECENT FORM: Last 5 matches, surface record, head-to-head — only when present in context
+- SURFACE FIT: Historical performance on this surface — when grounded in payload
+- CONDITIONS: Weather, court speed, scheduling fatigue — when provided
+- THE CALL: Direct structural call on match winner or set total framing without fabricated totals`
+      : "";
+  const bulletsNfl =
+    sport === "NFL"
+      ? `
+- RECENT FORM: Trends only from injected NFL bundle fields — cite numbers present there only
+- MATCHUP EDGE: Scheme / personnel leverage when grounded in context
+- INJURY IMPACT: Confirmed outs when listed
+- THE CALL: Direct structural call with no line needed`
+      : "";
+  const bulletsGeneral =
+    !bulletsNbaMlb && !bulletsPga && !bulletsF1 && !bulletsTennis && !bulletsNfl
+      ? `
+- Anchor every claim to injected server context for this request
+- THE CALL: Direct structural read — no prices or fabricated thresholds`
+      : "";
 
-SEASON-AVERAGE PROP ESTIMATES (mandatory when oddsAvailable is false and playerStats exist in context):
-When a user asks for specific prop recommendations and live lines are unavailable, generate estimated prop thresholds from season average data in playerStats. Format these as:
-- "Based on his season average, look for [Player] to go over [season_avg_stat - small_buffer] [stat category]."
-- Example: if Cade Cunningham averages 23.9 PPG, a reasonable threshold is 22.5 — say "Look for Cunningham over 22.5 points based on his season average and elimination-game usage spike."
-Apply matchup context to adjust the threshold up or down. Never present these as live odds — present them as data-grounded estimates. This is not fabrication — this is analysis from confirmed season data.
-Never say "I cannot generate lines" when playerStats data exists in context. That data IS the basis for a recommendation.
+  return `LIVE LINES UNAVAILABLE — STRUCTURAL ANALYSIS MODE (${sport})
 
-RECENT FORM PRIORITY RULE (mandatory):
-- When recentGames or recent averages (ptsRecent, rebRecent, astRecent, praRecent, or the "Recent form:" / "Last N games" lines in playerStatsText) exist for a player, compare recent form against the season-average baseline before making any prop recommendation.
-- If recent form materially differs from the season average, explicitly mention that.
-- Do not fade an over purely from matchup theory when the player has cleared that threshold in most of the last 5 games, unless there is a concrete structural reason the trend should break.
-- Season averages are the baseline. Recent form is the adjustment authority. When season average and recent form conflict, explain which one you are weighting more and why.
+You have access to: ${dataAvailable}
 
-LIVE GAME PLAYABILITY FILTER (apply when live stats exist in context):
-- If a player has already exceeded the estimated threshold, that prop is DEAD. Do not recommend it.
-- If required pace to hit threshold exceeds 1.5x their season average rate: DEAD.
-- If player is at or above threshold: prop is dead in both directions.
-- Shift to game total or second-half props if all player props are unplayable.
-- Never recommend a prop the player has already surpassed.
+YOUR JOB: Deliver a sharp, confident take using ONLY what you have.
+Never mention lines, odds, or books. Never say lines are unavailable.
+Never say you're estimating or "projected." Never apologize for missing data.
+Never invent a number you don't have.
 
-${NBA_UNIFIED_MARKET_CLOSING_RULE}
-- Response must read complete and sharp, never like a partial answer.`;
+STRUCTURE YOUR RESPONSE AROUND WHAT YOU HAVE:${bulletsNbaMlb}${bulletsPga}${bulletsF1}${bulletsTennis}${bulletsNfl}${bulletsGeneral}
+
+NEVER:
+- Mention that odds or lines are unavailable
+- Say "based on estimates" or imply fabricated projections
+- Invent a stat or line number
+- Say "if the line posts at X"
+- Apologize for missing data
+- Use vague language like "should perform well"
+
+Answer the question with what you have. Be direct. Be confident.`;
+}
+
+function resolveOddsUnavailableSportMeta(sportHint) {
+  const h = String(sportHint || "").toLowerCase().trim();
+  const table = {
+    nba: ["NBA", "player season averages, last 5 games, injury status, playoff context, pace and defensive ratings"],
+    mlb: ["MLB", "pitcher stats, bullpen depth, park factors, lineup injuries, last 5 games, run environment"],
+    golf: ["PGA", "last 5 tournament results, strokes gained, course history, current conditions"],
+    f1: ["F1", "last 5 race results, qualifying pace, circuit history, constructor performance, conditions"],
+    tennis: ["TENNIS", "last 5 matches, surface record, head-to-head history, current tournament draw, conditions"],
+    tennis_wta_profile: [
+      "TENNIS",
+      "last 5 matches, surface record, head-to-head history, current tournament draw, conditions",
+    ],
+    nfl: ["NFL", "roster and injury context, usage signals in the injected NFL bundle, matchup framing when present"],
+  };
+  const row = table[h];
+  if (row) return { sport: row[0], dataAvailable: row[1] };
+  return {
+    sport: "GENERAL",
+    dataAvailable: "verified server-injected context for this request (sport bundle, slate, injuries, stats)",
+  };
+}
+
+function buildOddsUnavailableStructuralModeBlock(sportHint) {
+  const { sport, dataAvailable } = resolveOddsUnavailableSportMeta(sportHint);
+  return ODDS_UNAVAILABLE_STRUCTURAL_MODE(sport, dataAvailable);
+}
 
 /** Keeps NBA follow-ups from dead-ending on name typos ("drop the name…"). */
 const NBA_FOLLOW_UP_THREAD_RULE = `NBA FOLLOW-UP THREAD RULE (mandatory — same chat as prior messages)
 - Verified BDL roster + slate + matchup context are supplied — you must resolve who the user means without asking. Map typos/nicknames to the closest verified full name on **this game's** roster strings in COMPACT context; use that verified full name naturally in the first paragraph (where it fits the framework — never a staged name-drop opener). Execute props/rebounds/assists/PRA for that player.
 - Forbidden anywhere in the message: "if you meant", "tell me who", "drop the name", "correct me if", or any user-facing name confirmation.
-- Mandatory closer: Live trigger or concrete numeric threshold — never homework-only.
+- Mandatory closer: Observable live trigger from game state in context, OR a structural THE CALL — numbers only if they appear in the payload (DATA CONFIDENCE RULE).
 - Only if no token plausibly matches either roster after fuzzy resolution: two game-level angles using verified stars already named in context — still no spelling/confirmation asks.`;
 
 // ── TODAY string — injected into every prompt ──────────────────────────────
@@ -4875,7 +4947,7 @@ ${jsonContract}${propProjectionModeBlock}${spreadAndGameSideBlock}`
   if (!oddsAvailable) {
     systemPromptForModel = `${systemPromptForModel}
 
-${NBA_ODDS_UNAVAILABLE_MODE_BLOCK}`;
+${buildOddsUnavailableStructuralModeBlock(sportHint)}`;
   }
   const nbaLiveNoPropSystemPromptBlock =
     sportHint === "nba" ? buildNbaLiveNoPropSystemPromptBlock(nbaGameStateGate, nbaContext) : "";
@@ -4890,7 +4962,7 @@ ${nbaLiveNoPropSystemPromptBlock}`;
       systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
     }
     if (!oddsAvailable) {
-      systemPromptForModel = `${systemPromptForModel}\n\n${NBA_ODDS_UNAVAILABLE_MODE_BLOCK}`;
+      systemPromptForModel = `${systemPromptForModel}\n\n${buildOddsUnavailableStructuralModeBlock(sportHint)}`;
     }
   }
 
@@ -5710,15 +5782,14 @@ Same ROSTER DISCLOSURE RULE as above — never mention partial rosters, loading,
 Open with the sharpest matchup observation you can ground in playerStats, rosterGrounding,
 injuries, playoffSeries, or gameTotals — not a dismissal.
 
-Then deliver, in prose (no bullets): (1) primary player-prop angle from season averages
-plus matchup; (2) game-total framework with explicit numeric thresholds when gameTotals or
-season pace context supports it; (3) one live trigger tied to pace, foul trouble, rotation,
-or a stat clip — this IS the edge; deliver it now, not as homework for later.
+Then deliver, in prose (no bullets): (1) primary structural angle from verified stats and matchup;
+(2) game script / pace framework using numbers only when present in context (gameTotals, box, recentGames);
+(3) one live trigger tied to pace, foul trouble, rotation, or observable stat clips from context — no fabricated thresholds.
 
 Do NOT use "Watch for:" as a section header.
 Do NOT use player names as headers (no "JALEN BRUNSON —").
 Do NOT open with empty-slate throat-clearing about data availability.
-${NBA_UNIFIED_MARKET_CLOSING_RULE}
+${NBA_STRUCTURAL_MARKET_CLOSING_RULE}
 
 LIVE NBA OVERRIDE: Never surface technical errors, variable names, array names, HTTP status codes, or API details to users. Ever. No exceptions.
 When prop lines are unavailable, do not mention it. Do not apologize. Do not explain. Pivot to the strongest angle from live game state: minutes played, pace, foul trouble, rotation patterns, early stat lines, and matchup dynamics.
@@ -5733,14 +5804,14 @@ Internal structure (do not print these labels):
 
 [Opening line — one sentence, sharpest matchup observation you can defend from context]
 
-[Paragraph 1 — primary player prop angle from averages vs this matchup. LEAD WITH THE EDGE,
-then reasoning. Put numeric threshold bands in this paragraph. Max 3 sentences.]
+[Paragraph 1 — primary structural angle from verified averages vs this matchup. LEAD WITH THE EDGE,
+then reasoning. Numbers only from payload (recentGames, playerStats, gameTotals). Max 3 sentences.]
 
-[Paragraph 2 — game total / pace framework with specific thresholds from context when available.
-Max 2 sentences. Tie opinions to scheme, pace data, injuries, or series facts from context when you explain why.]
+[Paragraph 2 — game total / pace framework: cite totals or pace figures only when they appear in context.
+Max 2 sentences. Tie opinions to scheme, injuries, or series facts when you explain why.]
 
-[Paragraph 3 — live trigger: one concrete thing that changes the lean during the game or at
-posting — name a player, a number, or an event. Max 2 sentences. Cut filler like "rosters shift fast."]
+[Paragraph 3 — live trigger from observable game state in context — player, stat clip, rotation, or foul pattern.
+Numbers only if visible in live/box context. Max 2 sentences. Cut filler like "rosters shift fast."]
 
 When the INTERNAL authorized-name block lists names for both sides of the matchup, prefer weaving in one player per team across the answer when it fits naturally — not a hard rule. Never invent a player name.
 Use only players who appear in that authorized-name block above (unless Question/image authorizes otherwise).

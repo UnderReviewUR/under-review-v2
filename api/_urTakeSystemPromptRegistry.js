@@ -249,6 +249,12 @@ Attribution:
 
 No gray-area hedging on verified facts: you have data, use it with attribution.
 
+DATA CONFIDENCE RULE:
+- Only cite a number if it exists in the data payload (including computed fields explicitly present such as ptsRecent / rebRecent / praRecent when supplied).
+- When recentGames arrays exist with per-game stats, you may summarize last-five numerics from those entries only (e.g. average points across those games).
+- If recentGames is empty or absent for a player, say "recent form unavailable" for that player and pivot to season-average fields only when those fields exist in payload — never invent a gap-fill stat.
+- Never construct a figure from thin air or blend vague ranges into fake precision.
+
 Robinson example (mandatory shape):
 RIGHT: "Per ESPN, Mitchell Robinson is OUT for Game 3. Here's the edge: Karl-Anthony Towns rebounds…"
 WRONG: "Robinson being out flips… but he was listed probable…" (never undermine a confirmed designation with contradictory softness.)`;
