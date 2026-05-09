@@ -103,3 +103,12 @@ export async function bdlFetch(endpoint, params = {}, options = {}) {
     };
   }
 }
+
+/**
+ * Milliseconds for sorting BDL rows that nest game metadata (NBA `/v1/stats`, etc.).
+ * Prefer `game.date`; fall back to top-level `date` when nested game is sparse — matches
+ * recent-game display dates (game nested + row fallback) and avoids misordered "last N" logs.
+ */
+export function bdlNestedGameRowDateMs(row) {
+  return Date.parse(String(row?.game?.date || row?.date || "").trim()) || 0;
+}

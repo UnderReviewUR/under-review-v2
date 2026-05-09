@@ -9,6 +9,8 @@ import {
   fetchBdlMlbTodayTomorrowGames,
 } from "./_mlbBdl.js";
 
+/** MLB BDL merge here is slate/games/props/injuries — no NBA-style `/v1/stats` per-player game log sort in this route; recent pitcher/hitter logs would need the same nested-date fallback pattern as `bdlNestedGameRowDateMs` in `_balldontlie.js`. */
+
 const CACHE_TTL = 5 * 60 * 1000;
 const MLB_BDL_SLATE_MEMO_MS = 45000;
 /** Dedupe today+tomorrow BallDontLie pulls within one board refresh / back-to-back getters. */

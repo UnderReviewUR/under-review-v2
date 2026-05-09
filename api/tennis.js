@@ -301,7 +301,14 @@ function normalizeTennisBoardResponse({
 
   const enriched = cleaned.map((match) => {
     const commence_time = parseCommenceTime(match);
-    const commenceTs = getTimestamp(commence_time);
+    let commenceTs = getTimestamp(commence_time);
+    if (commenceTs === Number.MAX_SAFE_INTEGER) {
+      const d = String(match.event_date || "").trim().slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        const t = Date.parse(`${d}T12:00:00.000Z`);
+        if (Number.isFinite(t)) commenceTs = t;
+      }
+    }
     const live = isLiveMatch(match);
     const priority = tournamentPriority(match);
     const finished = isFinishedStatus(match.event_status);

@@ -10,6 +10,7 @@ import {
   slimPlayoffSeriesForBoard,
 } from "../shared/nbaUrTakeSlim.js";
 import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
+import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -2436,7 +2437,7 @@ async function fetchRecentGameLogs(bdlKey, playerStats, focusTeamAbbrevs) {
   const out = {};
   for (const [playerIdStr, rows] of Object.entries(byPlayer)) {
     const top = [...rows]
-      .sort((a, b) => Date.parse(String(b?.game?.date || "")) - Date.parse(String(a?.game?.date || "")))
+      .sort((a, b) => bdlNestedGameRowDateMs(b) - bdlNestedGameRowDateMs(a))
       .slice(0, 5)
       .map(buildRecentGameLogEntry);
     out[playerIdStr] = top;

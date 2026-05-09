@@ -639,6 +639,25 @@ function normalizeBdlCourse(course) {
   };
 }
 
+/** PGA tournament round rows — calendar date descending (most recent round first); tie-break by round index. */
+function sortPgaRoundRowsDesc(rounds) {
+  if (!Array.isArray(rounds) || rounds.length === 0) return [];
+  return [...rounds].sort((a, b) => {
+    const da =
+      Date.parse(String(a?.date ?? a?.round_date ?? "").trim()) ||
+      Date.parse(String(a?.played_at ?? "").trim()) ||
+      0;
+    const db =
+      Date.parse(String(b?.date ?? b?.round_date ?? "").trim()) ||
+      Date.parse(String(b?.played_at ?? "").trim()) ||
+      0;
+    if (db !== da) return db - da;
+    const na = Number(a?.round_number ?? a?.round ?? 0);
+    const nb = Number(b?.round_number ?? b?.round ?? 0);
+    return nb - na;
+  });
+}
+
 function normalizeTournamentResultRow(row) {
   return {
     position: row?.position || null,
@@ -647,7 +666,7 @@ function normalizeTournamentResultRow(row) {
     country: row?.player?.country_code || row?.player?.country || "",
     score: row?.par_relative_score || null,
     earnings: row?.earnings || null,
-    rounds: row?.rounds || [],
+    rounds: sortPgaRoundRowsDesc(row?.rounds || []),
     raw: row,
   };
 }

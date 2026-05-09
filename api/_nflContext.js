@@ -15,6 +15,8 @@ import {
 /** Hard ceiling for `promptContext` text sent with UR Take (Anthropic payload budget). */
 export const NFL_PROMPT_CONTEXT_BUDGET_CHARS = 20000;
 
+/** BallDontLie is not used for NFL game-by-game logs in this stack — no NBA-style recentGames sort path here. */
+
 // WEATHER RULE: Always use home team's stadium coords.
 // Never use away team. Never use neutral site.
 // If domed === true, skip weather evaluation entirely regardless of conditions.
