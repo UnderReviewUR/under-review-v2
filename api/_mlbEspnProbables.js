@@ -105,19 +105,31 @@ function detailFromProbablePitcherWrapper(pp) {
  */
 export function extractProbableStartersFromEspnCompetition(comp) {
   const out = { home: null, away: null };
+
+  /** Site scoreboard (2024+): probables[] lives on each competitor, not on the competition. */
+  for (const c of comp?.competitors || []) {
+    const side = c.homeAway === "home" ? "home" : c.homeAway === "away" ? "away" : null;
+    if (!side) continue;
+    const rows = c.probables;
+    if (Array.isArray(rows) && rows.length > 0) {
+      const d = detailFromProbableRow(rows[0]);
+      if (d) out[side] = d;
+    }
+  }
+
   const probables = comp?.probables;
   if (Array.isArray(probables) && probables.length > 0) {
     for (const row of probables) {
       const side = row.homeAway === "home" ? "home" : row.homeAway === "away" ? "away" : null;
-      if (!side) continue;
+      if (!side || out[side]) continue;
       const d = detailFromProbableRow(row);
       if (d) out[side] = d;
     }
-    if (out.home || out.away) return out;
   }
+
   for (const c of comp?.competitors || []) {
     const side = c.homeAway === "home" ? "home" : c.homeAway === "away" ? "away" : null;
-    if (!side) continue;
+    if (!side || out[side]) continue;
     const d = detailFromProbablePitcherWrapper(c.probablePitcher);
     if (d) out[side] = d;
   }

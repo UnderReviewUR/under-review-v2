@@ -10,7 +10,6 @@ import {
 } from "./_mlbBdl.js";
 import {
   extractProbableStartersFromEspnCompetition,
-  fetchEspnProbableStartersLookupForEtDay,
   mergeEspnProbableStartersIntoGames,
 } from "./_mlbEspnProbables.js";
 
@@ -259,15 +258,6 @@ async function getMlbGamesWithPitchers() {
         }),
       );
       const enriched = await mergeEspnProbableStartersIntoGames(mapped, getTodayEtDateString(), TEAM_PARK);
-      console.log(
-        "[MLB_ESPN_STARTERS]",
-        JSON.stringify(
-          enriched.slice(0, 3).map((g) => ({
-            matchup: `${g.awayTeam?.abbr} @ ${g.homeTeam?.abbr}`,
-            probableStarters: g.probableStarters || null,
-          })),
-        ),
-      );
       if (enriched.length > 0) setCached(cacheKey, enriched, 3 * 60 * 1000);
       return enriched;
     }
@@ -303,10 +293,16 @@ async function getMlbGamesWithPitchers() {
           ? new Date(e.date).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", timeZone:"America/New_York" }) + " ET"
           : "TBD";
 
-        // Extract probable pitchers from probables array, then fallback competitor fields.
-        const probables = comp?.probables || [];
-        let homePitcher = probables.find(p => p.homeAway === "home")?.athlete?.shortName || null;
-        let awayPitcher = probables.find(p => p.homeAway === "away")?.athlete?.shortName || null;
+        // Probables usually live on each competitor (not competition.probables); fall back to legacy paths.
+        const compProbables = comp?.probables || [];
+        let homePitcher =
+          home?.probables?.[0]?.athlete?.shortName ||
+          compProbables.find((p) => p.homeAway === "home")?.athlete?.shortName ||
+          null;
+        let awayPitcher =
+          away?.probables?.[0]?.athlete?.shortName ||
+          compProbables.find((p) => p.homeAway === "away")?.athlete?.shortName ||
+          null;
         if (!homePitcher) homePitcher = extractPitcherFromCompetitor(home);
         if (!awayPitcher) awayPitcher = extractPitcherFromCompetitor(away);
 
@@ -373,15 +369,6 @@ async function getMlbTomorrowGamesWithPitchers() {
         }),
       );
       const enriched = await mergeEspnProbableStartersIntoGames(mapped, getTomorrowEtDateString(), TEAM_PARK);
-      console.log(
-        "[MLB_ESPN_STARTERS]",
-        JSON.stringify(
-          enriched.slice(0, 3).map((g) => ({
-            matchup: `${g.awayTeam?.abbr} @ ${g.homeTeam?.abbr}`,
-            probableStarters: g.probableStarters || null,
-          })),
-        ),
-      );
       if (enriched.length > 0) setCached(cacheKey, enriched, 15 * 60 * 1000);
       return enriched;
     }
@@ -414,9 +401,15 @@ async function getMlbTomorrowGamesWithPitchers() {
           ? new Date(e.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET"
           : "TBD";
 
-        const probables = comp?.probables || [];
-        let homePitcher = probables.find((p) => p.homeAway === "home")?.athlete?.shortName || null;
-        let awayPitcher = probables.find((p) => p.homeAway === "away")?.athlete?.shortName || null;
+        const compProbables = comp?.probables || [];
+        let homePitcher =
+          home?.probables?.[0]?.athlete?.shortName ||
+          compProbables.find((p) => p.homeAway === "home")?.athlete?.shortName ||
+          null;
+        let awayPitcher =
+          away?.probables?.[0]?.athlete?.shortName ||
+          compProbables.find((p) => p.homeAway === "away")?.athlete?.shortName ||
+          null;
         if (!homePitcher) homePitcher = extractPitcherFromCompetitor(home);
         if (!awayPitcher) awayPitcher = extractPitcherFromCompetitor(away);
         if (isLive && !homePitcher) homePitcher = extractLivePitcherHint(comp, e, "home");
@@ -602,13 +595,6 @@ async function getMlbGameTotals(oddsKey) {
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") return res.status(405).json({ error:"Method not allowed" });
-
-  try {
-    const testEspn = await fetchEspnProbableStartersLookupForEtDay(getTodayEtDateString(), TEAM_PARK);
-    console.log("[ESPN_TEST]", JSON.stringify([...testEspn.entries()].slice(0, 3)));
-  } catch (err) {
-    console.log("[ESPN_TEST]", "error", err?.message || String(err));
-  }
 
   const ODDS_KEY = getEnv("ODDS_API_KEY");
   const view = String(req.query.view || "board").toLowerCase();

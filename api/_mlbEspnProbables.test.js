@@ -25,6 +25,25 @@ test("normalizeMlbAbbr maps WSX → CHW", () => {
   assert.equal(normalizeMlbAbbr("WSX"), "CHW");
 });
 
+test("extractProbableStartersFromEspnCompetition reads competitors[].probables (site scoreboard)", () => {
+  const comp = {
+    competitors: [
+      {
+        homeAway: "away",
+        probables: [{ athlete: { shortName: "A. Away", statistics: [{ abbreviation: "ERA", displayValue: "2.00" }] } }],
+      },
+      {
+        homeAway: "home",
+        probables: [{ athlete: { shortName: "H. Home", statistics: [{ abbreviation: "ERA", displayValue: "3.00" }] } }],
+      },
+    ],
+  };
+  const out = extractProbableStartersFromEspnCompetition(comp);
+  assert.equal(out.away.name, "A. Away");
+  assert.equal(out.away.era, "2.00");
+  assert.equal(out.home.name, "H. Home");
+});
+
 test("extractProbableStartersFromEspnCompetition uses probables array", () => {
   const comp = {
     probables: [
