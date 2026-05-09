@@ -452,13 +452,32 @@ export function parseUrTakeResponse(raw) {
     .map((c) => c.replace(/\*\*Confidence:.*$/im, "").trim())
     .filter(Boolean);
   bodyChunks = bodyChunks
-    .map((c) => c.replace(/\*\*/g, "").trim())
+    .map((c) =>
+      String(c)
+        .replace(/\*\*/g, "")
+        .replace(/^#+\s*/gm, "")
+        .replace(/^---+/gm, "")
+        .replace(/^\d+\.\s+/gm, "")
+        .trim(),
+    )
     .filter(Boolean);
 
   const headlineDisplay = headline
-    ? stripUrTakeInlineMarkdown(String(headline).replace(/^>>\s*/, "").replace(/\*\*/g, ""))
+    ? stripUrTakeInlineMarkdown(
+        String(headline)
+          .replace(/^>>\s*/, "")
+          .replace(/^#+\s*/, "")
+          .replace(/^---+/, "")
+          .replace(/\*\*/g, ""),
+      )
     : "";
-  const closingDisplay = closing ? stripUrTakeInlineMarkdown(closing) : "";
+  const closingDisplay = closing
+    ? stripUrTakeInlineMarkdown(
+        String(closing)
+          .replace(/^---+\s*/, "")
+          .replace(/\*\*/g, ""),
+      )
+    : "";
 
   const hasVisual = Boolean(
     gameState || headlineDisplay || bodyChunks.length > 0 || closingDisplay || confidence,
