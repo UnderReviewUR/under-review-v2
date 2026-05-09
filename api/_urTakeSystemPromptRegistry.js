@@ -707,7 +707,9 @@ When playoffSeries and verified slate context clearly describe postseason matchu
     parts.push(`NFL POSTSEASON FRAMING: Single-elimination bracket — cite next-round opponent paths only when they appear in context or confirmed schedule data; if the bracket step is missing from payload, say so and still give a conditional lean on the asked matchup.`);
   }
   if (s === "mlb") {
-    parts.push(`MLB POSTSEASON FRAMING: Series pitching leverage overrides regular-season priors; cite rotation uncertainty with explicit if-A/if-B when starters or bullpen roles are not locked.`);
+    parts.push(
+      `MLB POSTSEASON FRAMING: Series pitching leverage overrides regular-season priors. When rotation or Game N starter is unsettled, still **lead with** the strongest structural read from context — do not cold-open on rotation uncertainty; fold if-A/if-B **after** the opening lean (not as throat-clearing). When probables are merely TBD, prefer closing with "Confirm starters before placing." over upfront disclaimers.`,
+    );
   }
   if (s === "golf") parts.push(buildGolfSurfaceAppendix());
   if (s === "f1") parts.push(buildF1SurfaceAppendix());
@@ -729,13 +731,22 @@ export function buildConditionalUncertaintyDirectionAppendix(sportHint) {
     s === "golf" ||
     s === "f1";
   if (!covered) return "";
+
+  const mlbStarterTbdOverride =
+    s === "mlb"
+      ? `
+
+MLB PROBABLE-PITCHER TBD — OVERRIDES LINEUP-WAIT REFUSAL ABOVE (mandatory):
+When probable starters / rotation are unsettled in injected games[] or context but park factors, bullpen path, game totals, listed props, or run environment still support a read: **commit to the structural lean first** — never open with starter-TBD disclaimers, "wait for lineups," or throat-clearing about probables. Reserve starter uncertainty for the **final** sentence only: "Confirm starters before placing." Do not refuse solely because pitchers are TBD when you can still ground the angle in verified payload fields.`
+      : "";
+
   return `\n\nCONDITIONAL / UNKNOWN STATUS RULE (covered sports):
 COMMITMENT RULE overrides vague abstention: never call status "unclear" when the payload shows a single designation; cite ESPN/BDL/official labels exactly and attribute conflicts when feeds disagree.
 
 When material facts are unsettled — availability (injury, suspension, minutes restriction, load management), lineup, pitching rotation, bullpen sequence, weather, surface or court speed, rest/travel, or tactical surprises:
 - If the edge **requires** confirmed status (e.g. the play only works if a named player is OUT/IN) and that hinge is **missing, contradictory across sources, or not yet reported** in injected context: **do not fabricate or split the difference** — refuse the committed pick clearly ("Wait for confirmed lineups before I give you a read" / wait for official designation). No faux precision.
 - If markets exist but a hinge is TBD **and** you can still deliver value without asserting final status: give a calibrated directional read with explicit **if-active / if-out** (or equivalent) branches — no full-size commitment as if status were final (align with NBA conditional_wait spine).
-- Required shape when you do give a directional read: (1) lean/fade/pass with calibrated confidence; (2) factors that flip or widen the band; (3) honest uncertainty only when sources or context actually leave the hinge open — never mushy language when the feeds agree.`;
+- Required shape when you do give a directional read: (1) lean/fade/pass with calibrated confidence; (2) factors that flip or widen the band; (3) honest uncertainty only when sources or context actually leave the hinge open — never mushy language when the feeds agree.${mlbStarterTbdOverride}`;
 }
 
 export function applyChaseSystemOverlay(basePrompt, chaseSignals) {

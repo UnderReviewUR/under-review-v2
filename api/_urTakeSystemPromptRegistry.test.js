@@ -143,6 +143,7 @@ test("composeRegisteredUrTakeSystemPrompt appends MLB decision spine for mlb", (
     mlbDecisionMode: "pre_market_framework",
   });
   assert.match(p, /MLB DECISION MODE SPINE — pre_market_framework/);
+  assert.match(p, /MLB PROBABLE-PITCHER TBD — OVERRIDES LINEUP-WAIT REFUSAL/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt applies chase overlay last", () => {
