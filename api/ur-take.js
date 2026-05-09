@@ -106,7 +106,7 @@ function contextJsonForModel(obj) {
 
 /** Keeps NBA follow-ups from dead-ending on name typos ("drop the name…"). */
 const NBA_FOLLOW_UP_THREAD_RULE = `NBA FOLLOW-UP THREAD RULE (mandatory — same chat as prior messages)
-- Verified BDL roster + slate + matchup context are supplied — you must resolve who the user means without asking. Map typos/nicknames to the closest verified full name on **this game's** roster strings in COMPACT context; use that verified full name naturally in the first paragraph (where it fits the framework — never a staged name-drop opener). Execute props/rebounds/assists/PRA for that player.
+- Verified BDL roster + slate + matchup context are supplied in the NBA context JSON below — you must resolve who the user means without asking. Map typos/nicknames to the closest verified full name on **this game's** roster strings in that payload; use that verified full name naturally in the first paragraph (where it fits the framework — never a staged name-drop opener). Execute props/rebounds/assists/PRA for that player.
 - Forbidden anywhere in the message: "if you meant", "tell me who", "drop the name", "correct me if", or any user-facing name confirmation.
 - Mandatory closer: Observable live trigger from game state in context, OR a structural THE CALL — numbers only if they appear in the payload (DATA CONFIDENCE RULE).
 - Only if no token plausibly matches either roster after fuzzy resolution: two game-level angles using verified stars already named in context — still no spelling/confirmation asks.`;
@@ -1965,236 +1965,11 @@ function getNbaInjuryIndex(nbaContext) {
   return map;
 }
 
-function findLastUrTakeAssistantContent(rawHistory) {
-  const norm = normalizeIncomingChatHistory(rawHistory);
-  for (let i = norm.length - 1; i >= 0; i--) {
-    if (norm[i].role === "assistant") return norm[i].content;
-  }
-  return "";
-}
-
-function extractPriorAssistantKeyPositions(assistantText) {
-  const raw = String(assistantText || "").trim();
-  if (!raw) return "(none)";
-  const jsonObj = tryParseJsonObject(raw);
-  const nested = jsonObj || tryExtractSummaryDeepFromLooseText(raw);
-  if (nested && typeof nested.summary === "string" && nested.summary.trim()) {
-    const deep =
-      typeof nested.deep === "string" && nested.deep.trim() ? nested.deep.trim() : "";
-    const merged = [nested.summary.trim(), deep].filter(Boolean).join(" ");
-    const collapsed = merged.replace(/\s+/g, " ").trim();
-    return collapsed.slice(0, 700) || "(none)";
-  }
-  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const scored = lines.filter(
-    (l) =>
-      /^(>>|THE PLAY|LEAN|CONFIDENCE|PROP PROJECTIONS|MATCH READ)/i.test(l) ||
-      /\b(lean|fade|under|over|the play|PASS)\b/i.test(l),
-  );
-  const pick = scored.length
-    ? scored.slice(0, 10).join(" | ")
-    : raw.replace(/\s+/g, " ").trim();
-  return pick.slice(0, 700) || "(none)";
-}
-
-function summarizeNbaInjuryFlagsForFollowUp(nbaContextForModel, nbaMatchup) {
-  const teams = new Set();
-  const away = String(nbaMatchup?.awayAbbr || "").toUpperCase();
-  const home = String(nbaMatchup?.homeAbbr || "").toUpperCase();
-  if (away) teams.add(away);
-  if (home) teams.add(home);
-  const injuries = Array.isArray(nbaContextForModel?.injuries) ? nbaContextForModel.injuries : [];
-  const bits = [];
-  for (const row of injuries) {
-    const t = String(row?.team || "").toUpperCase();
-    if (teams.size > 0 && t && !teams.has(t)) continue;
-    const name = String(row?.player || "").trim();
-    if (!name) continue;
-    const statusClass = normalizeNbaAvailabilityClass(row?.status, row?.detail);
-    if (statusClass === "out" || statusClass === "doubtful" || statusClass === "questionable") {
-      bits.push(`${name} (${t || "?"}): ${statusClass}`);
-    }
-  }
-  if (bits.length === 0) return "none flagged out/doubtful/questionable on injuries for this matchup";
-  return bits.slice(0, 14).join("; ");
-}
-
-function resolveNbaFollowUpMatchupForCompact(nbaMatchup, question, nbaContextForModel) {
-  if (nbaMatchup?.awayAbbr && nbaMatchup?.homeAbbr) return nbaMatchup;
-  const abbrs = extractNbaTeamAbbrevsFromQuestion(String(question || ""));
-  if (abbrs.length < 2) return nbaMatchup;
-  const games = Array.isArray(nbaContextForModel?.todaysGames) ? nbaContextForModel.todaysGames : [];
-  const exact = games.find((g) => {
-    const ga = String(g?.awayTeam?.abbr || "").toUpperCase();
-    const gh = String(g?.homeTeam?.abbr || "").toUpperCase();
-    return abbrs.includes(ga) && abbrs.includes(gh);
-  });
-  if (exact) {
-    return {
-      awayAbbr: String(exact?.awayTeam?.abbr || "").toUpperCase(),
-      homeAbbr: String(exact?.homeTeam?.abbr || "").toUpperCase(),
-    };
-  }
-  return { awayAbbr: abbrs[0], homeAbbr: abbrs[1] };
-}
-
-/**
- * Injected on NBA follow-up turns so Haiku cannot "remember" ex-roster names after JSON strip.
- * Uses rosterGrounding.playersByTeamAbbrev for the focused matchup and any abbrs named in the question.
- */
-function buildFollowUpVerifiedRosterByTeamBlock(nbaContextForModel, matchupForCompact, question) {
-  const pbt = nbaContextForModel?.rosterGrounding?.playersByTeamAbbrev;
-  if (!pbt || typeof pbt !== "object") {
-    return "Verified rosters (playersByTeamAbbrev): none in payload — do not name specific NBA players; use team-level reads only or say the board is missing roster verification for this request.";
-  }
-  const teamSet = new Set();
-  const a = String(matchupForCompact?.awayAbbr || "").toUpperCase();
-  const h = String(matchupForCompact?.homeAbbr || "").toUpperCase();
-  if (a) teamSet.add(a);
-  if (h) teamSet.add(h);
-  for (const ab of extractNbaTeamAbbrevsFromQuestion(String(question || ""))) {
-    if (ab) teamSet.add(String(ab).toUpperCase());
-  }
-  if (teamSet.size === 0) {
-    return "Verified rosters (playersByTeamAbbrev): (no team scope) — do not name specific players.";
-  }
-  const lines = [];
-  for (const t of teamSet) {
-    const list = pbt[t];
-    const arr = Array.isArray(list) ? list : [];
-    const display = arr.length
-      ? arr
-          .map((n) => String(n || "").trim())
-          .filter(Boolean)
-          .join(", ")
-      : "(no names listed for this team in this payload)";
-    lines.push(`${t}: ${display}`);
-  }
-  return `Verified rosters — playersByTeamAbbrev (ONLY use these names as verified for each team; max ~40 names/team in source)\n${lines.join(
-    "\n",
-  )}`;
-}
-
-function formatNbaCompactRecentStat(v) {
-  if (v == null || Number.isNaN(Number(v))) return "n/a";
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "n/a";
-  if (!Number.isInteger(n)) return String(Math.round(n * 10) / 10);
-  return String(n);
-}
-
-/** Recent-form summary for NBA follow-up turns when full nbaContext JSON is omitted. */
-function buildNbaFollowUpRecentFormBlock(nbaContextForModel, matchupForCompact) {
-  const away = String(matchupForCompact?.awayAbbr || "").toUpperCase();
-  const home = String(matchupForCompact?.homeAbbr || "").toUpperCase();
-  const rows = Array.isArray(nbaContextForModel?.playerStats)
-    ? nbaContextForModel.playerStats
-    : [];
-  const scoped = rows.filter((row) => {
-    const t = String(row?.team || "").toUpperCase();
-    if (away && home) return t === away || t === home;
-    if (away) return t === away;
-    if (home) return t === home;
-    return false;
-  });
-  const withRecent = scoped.filter(
-    (row) => Array.isArray(row.recentGames) && row.recentGames.length > 0,
-  );
-  if (!withRecent.length) {
-    return "RECENT FORM (compact): no recent game logs in payload for focused matchup teams.";
-  }
-  withRecent.sort((a, b) => {
-    const pa = Number(a.praRecent || 0);
-    const pb = Number(b.praRecent || 0);
-    if (pb !== pa) return pb - pa;
-    return Number(b.pts || 0) - Number(a.pts || 0);
-  });
-  const cap = 14;
-  const picked = withRecent.slice(0, cap);
-  const lines = picked.map((row) => {
-    const n = String(row.name || "").trim() || "Unknown";
-    const t = String(row.team || "").toUpperCase();
-    const gN = row.recentGames.length;
-    const pts = formatNbaCompactRecentStat(row.ptsRecent);
-    const reb = formatNbaCompactRecentStat(row.rebRecent);
-    const ast = formatNbaCompactRecentStat(row.astRecent);
-    const pra = formatNbaCompactRecentStat(row.praRecent);
-    return `${n} (${t}): last ${gN} games avg — ${pts} pts | ${reb} reb | ${ast} ast | PRA avg ${pra}`;
-  });
-  const more =
-    withRecent.length > cap
-      ? `\n(...${withRecent.length - cap} more with recent logs on full board)`
-      : "";
-  return `RECENT FORM (compact — focused matchup)\n${lines.join("\n")}${more}`;
-}
-
-function buildNbaFollowUpCompactContextLines({ nbaMatchup, nbaContextForModel, incomingHistory, question }) {
-  const matchupForCompact = resolveNbaFollowUpMatchupForCompact(
-    nbaMatchup,
-    question,
-    nbaContextForModel,
-  );
-  const away = String(matchupForCompact?.awayAbbr || "").toUpperCase();
-  const home = String(matchupForCompact?.homeAbbr || "").toUpperCase();
-  const matchupLine =
-    away && home
-      ? `Matchup: ${away} @ ${home}`
-      : "Matchup: (not resolved from question — use question text only)";
-
-  const snap = nbaContextForModel?.focusedSeriesSnapshot;
-  let seriesRecordLine = "";
-  let seriesAvgLine = "";
-  if (snap && away && home) {
-    seriesRecordLine = `Series record (question order ${snap.awayAbbr} away vs ${snap.homeAbbr} home): ${snap.awayWinsInQuestionOrder}-${snap.homeWinsInQuestionOrder}`;
-    seriesAvgLine = Number.isFinite(snap.completedGamesCombinedPointsAverage)
-      ? `Series completed-game combined scoring average: ${snap.completedGamesCombinedPointsAverage}`
-      : "Series completed-game combined scoring average: n/a";
-  } else {
-    const rows = Array.isArray(nbaContextForModel?.playoffSeries) ? nbaContextForModel.playoffSeries : [];
-    const row =
-      rows.find((r) => {
-        const sa = String(r?.away || "").toUpperCase();
-        const sh = String(r?.home || "").toUpperCase();
-        return away && home && ((sa === away && sh === home) || (sa === home && sh === away));
-      }) || null;
-    if (row) {
-      const sa = String(row?.away || "").toUpperCase();
-      const sh = String(row?.home || "").toUpperCase();
-      const aw = Number(row?.awayWins) || 0;
-      const hw = Number(row?.homeWins) || 0;
-      seriesRecordLine = `Series record (${sa} @ ${sh} ESPN row order): ${aw}-${hw}`;
-      const avg = row?.completedGamesCombinedPointsAverage;
-      seriesAvgLine = Number.isFinite(Number(avg))
-        ? `Series completed-game combined scoring average: ${avg}`
-        : "Series completed-game combined scoring average: n/a";
-    } else {
-      seriesRecordLine = "Series record: unavailable";
-      seriesAvgLine = "Series completed-game combined scoring average: n/a";
-    }
-  }
-
-  const injuryLine = `Current injury flags: ${summarizeNbaInjuryFlagsForFollowUp(
-    nbaContextForModel,
-    matchupForCompact,
-  )}`;
-  const rosterBlock = buildFollowUpVerifiedRosterByTeamBlock(
-    nbaContextForModel,
-    matchupForCompact,
-    question,
-  );
-  const recentFormBlock = buildNbaFollowUpRecentFormBlock(
-    nbaContextForModel,
-    matchupForCompact,
-  );
-  const priorLine = `Prior response key positions: ${extractPriorAssistantKeyPositions(findLastUrTakeAssistantContent(incomingHistory))}`;
-  return `${matchupLine}\n${seriesRecordLine}\n${seriesAvgLine}\n${injuryLine}\n${recentFormBlock}\n${rosterBlock}\n${priorLine}`;
-}
-
 function buildUrTakeFollowUpCoreSystemPrompt() {
   return `${buildCoreFrameworkPrompt()}
 
 FABRICATION GUARDRAIL — MANDATORY
-Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the compact NBA context block in the user message.
+Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the NBA context JSON (and roster injection blocks) in the user message.
 Estimated prop thresholds derived from playerStats in context when live odds are unavailable are authorized — label them clearly as season-average estimates, not as posted book lines.
 
 ROSTER ENFORCEMENT — MANDATORY
@@ -5526,21 +5301,32 @@ Never open with market-availability throat-clearing. Give monitoring hooks; name
     const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);
 
     if (isConversationFollowUp) {
-      const compactNbaFollowUpContext = buildNbaFollowUpCompactContextLines({
-        nbaMatchup,
-        nbaContextForModel,
-        incomingHistory,
+      const nbaRosterListBlockFollowUp = buildNbaRosterProminentInjection(nbaContextForModel, {
+        hasImage,
         question,
+        matchup: nbaMatchup,
       });
       userPrompt = `You are answering a short NBA betting follow-up.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${nbaQuestionForModel}
 
-COMPACT NBA CONTEXT (follow-up turn — full nbaContext JSON intentionally omitted server-side)
-${compactNbaFollowUpContext}
+${nbaMatchupGroundingBlock ? `${nbaMatchupGroundingBlock}\n\n` : ""}${nbaImpactSummary ? `HIGH-PRIORITY NBA NEWS IMPACT (SERVER-COMPUTED — READ FIRST)
+${nbaImpactSummary}
+
+` : ""}${nbaInvalidation.unresolved && nbaInvalidation.targetedPlayer ? `UNRESOLVED AVAILABILITY FLAG
+Target player: ${nbaInvalidation.targetedPlayer}
+Status: ${nbaInvalidation.statusDisplay || nbaInvalidation.statusClass}
+Rule: Do not give false certainty. Keep any take contingent on confirmed status.
+
+` : ""}NBA context (full board — same filtered payload as the opening turn; cite only numbers present):
+${contextJsonForModel(nbaContextForModel)}
 
 Default confidence should be ${derivedConfidence}.
+
+${nbaRosterListBlockFollowUp}
+
+IMPORTANT: playerStatsText may contain season-average rows with stale team assignments. The INTERNAL authorized-name roster block above overrides playerStatsText for team assignments when both appear.
 
 ${NBA_FOLLOW_UP_THREAD_RULE}`;
     } else {

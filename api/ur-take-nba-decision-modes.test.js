@@ -690,7 +690,7 @@ test("non-NBA control remains unaffected and decisionMode stays null", async () 
   assert.equal(out.payload.decisionMode, null);
 });
 
-test("NBA conversation follow-up forces short system prompt and compact context payload", async () => {
+test("NBA conversation follow-up forces short system prompt and full NBA context JSON in user message", async () => {
   /** @type {any} */
   let anthropicPayload = null;
   const nbaPlayoff = {
@@ -745,12 +745,9 @@ test("NBA conversation follow-up forces short system prompt and compact context 
   assert.doesNotMatch(String(anthropicPayload.system || ""), /JSON RESPONSE MODE/);
   const lastUser = [...(anthropicPayload.messages || [])].reverse().find((m) => m.role === "user");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
-  assert.match(userText, /COMPACT NBA CONTEXT/);
-  assert.match(userText, /Series completed-game combined scoring average: 215/);
-  assert.match(userText, /Verified rosters — playersByTeamAbbrev/);
-  assert.match(userText, /MIL:.*Tyrese Maxey|PHI:.*Tyrese Maxey/s);
-  assert.match(userText, /Prior response key positions:/i);
-  assert.match(userText, /Joel Embiid.*:\s*out/i);
-  assert.doesNotMatch(userText, /NBA context:\n\{/);
-  assert.doesNotMatch(userText, /"todaysGames"\s*:/);
+  assert.match(userText, /NBA context \(full board — same filtered payload as the opening turn/);
+  assert.match(userText, /"playoffSeries"\s*:/);
+  assert.match(userText, /"completedGamesCombinedPointsAverage"\s*:\s*215/);
+  assert.match(userText, /Joel Embiid/i);
+  assert.match(userText, /"injuries"\s*:/);
 });
