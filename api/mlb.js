@@ -8,6 +8,10 @@ import {
   fetchBdlMlbPlayerPropsForSlate,
   fetchBdlMlbTodayTomorrowGames,
 } from "./_mlbBdl.js";
+import {
+  extractProbableStartersFromEspnCompetition,
+  mergeEspnProbableStartersIntoGames,
+} from "./_mlbEspnProbables.js";
 
 /** MLB BDL merge here is slate/games/props/injuries — no NBA-style `/v1/stats` per-player game log sort in this route; recent pitcher/hitter logs would need the same nested-date fallback pattern as `bdlNestedGameRowDateMs` in `_balldontlie.js`. */
 
@@ -125,18 +129,40 @@ function enrichGameWithParkFactors(gameRow) {
   return { ...gameRow, parkFactor, parkNote };
 }
 
+function formatProbableStarterLine(sideLabel, d) {
+  if (!d?.name) return null;
+  const bits = [d.name];
+  if (d.handedness) bits.push(`${d.handedness}-hand`);
+  if (d.era != null && String(d.era).trim()) bits.push(`ERA ${d.era}`);
+  if (d.k9 != null && String(d.k9).trim()) bits.push(`K/9 ${d.k9}`);
+  return `${sideLabel}: ${bits.join(" · ")}`;
+}
+
 function buildMlbPitcherStatsText(games) {
-  const names = new Set();
+  const lines = [];
+  const legacyNames = new Set();
   for (const g of games || []) {
-    if (g?.homeTeam?.pitcher) names.add(String(g.homeTeam.pitcher).trim());
-    if (g?.awayTeam?.pitcher) names.add(String(g.awayTeam.pitcher).trim());
+    const ps = g?.probableStarters;
+    if (ps && (ps.home || ps.away)) {
+      const matchup =
+        g?.awayTeam?.abbr && g?.homeTeam?.abbr
+          ? `${g.awayTeam.abbr} @ ${g.homeTeam.abbr}`
+          : "";
+      const segs = [];
+      const awayLine = formatProbableStarterLine("Away SP", ps.away);
+      const homeLine = formatProbableStarterLine("Home SP", ps.home);
+      if (awayLine) segs.push(awayLine);
+      if (homeLine) segs.push(homeLine);
+      if (segs.length) lines.push(matchup ? `${matchup}: ${segs.join(" | ")}` : segs.join(" | "));
+      continue;
+    }
+    if (g?.homeTeam?.pitcher) legacyNames.add(String(g.homeTeam.pitcher).trim());
+    if (g?.awayTeam?.pitcher) legacyNames.add(String(g.awayTeam.pitcher).trim());
   }
-  const lines = [...names]
-    .filter(Boolean)
-    .map(
-      (name) =>
-        `${name} — ERA/WHIP/K9 not available in current feed. Reason from prop lines only.`,
-    );
+  for (const name of legacyNames) {
+    if (!name) continue;
+    lines.push(`${name} — ERA/WHIP/K9 not available in current feed. Reason from prop lines only.`);
+  }
   if (!lines.length) {
     return "Probable pitcher ERA/WHIP/K9 are not available in the current feed for today's slate. Reason from listed prop lines only.";
   }
@@ -225,12 +251,13 @@ async function getMlbGamesWithPitchers() {
   if (bdlKey) {
     const bundle = await getMlbBdlSlateBundle(bdlKey);
     if (bundle?.todayGames?.length) {
-      const enriched = bundle.todayGames.map((g) =>
+      const mapped = bundle.todayGames.map((g) =>
         enrichGameWithParkFactors({
           ...g,
           park: g.park || getParkForGame(g.homeTeam?.name || ""),
         }),
       );
+      const enriched = await mergeEspnProbableStartersIntoGames(mapped, getTodayEtDateString(), TEAM_PARK);
       if (enriched.length > 0) setCached(cacheKey, enriched, 3 * 60 * 1000);
       return enriched;
     }
@@ -282,6 +309,8 @@ async function getMlbGamesWithPitchers() {
         const parkInfo = getParkForGame(homeTeamFull);
         const { parkFactor, parkNote } = parkFactorFieldsFromHomeTeam(homeTeamFull);
 
+        const probableStarters = extractProbableStartersFromEspnCompetition(comp);
+
         return {
           id:       e.id,
           status:   isFinal ? "Final" : isLive ? (status?.detail || "Live") : gameTime,
@@ -305,6 +334,8 @@ async function getMlbGamesWithPitchers() {
           parkFactor,
           parkNote,
           venue: comp?.venue?.fullName || "",
+          probableStarters,
+          espnProbablesMerged: Boolean(probableStarters?.home || probableStarters?.away),
         };
       });
 
@@ -325,12 +356,13 @@ async function getMlbTomorrowGamesWithPitchers() {
   if (bdlKey) {
     const bundle = await getMlbBdlSlateBundle(bdlKey);
     if (bundle?.tomorrowGames?.length) {
-      const enriched = bundle.tomorrowGames.map((g) =>
+      const mapped = bundle.tomorrowGames.map((g) =>
         enrichGameWithParkFactors({
           ...g,
           park: g.park || getParkForGame(g.homeTeam?.name || ""),
         }),
       );
+      const enriched = await mergeEspnProbableStartersIntoGames(mapped, getTomorrowEtDateString(), TEAM_PARK);
       if (enriched.length > 0) setCached(cacheKey, enriched, 15 * 60 * 1000);
       return enriched;
     }
@@ -373,6 +405,7 @@ async function getMlbTomorrowGamesWithPitchers() {
 
         const homeTeamFull = home?.team?.displayName || home?.team?.name || "";
         const { parkFactor, parkNote } = parkFactorFieldsFromHomeTeam(homeTeamFull);
+        const probableStarters = extractProbableStartersFromEspnCompetition(comp);
         return {
           id: e.id,
           status: isFinal ? "Final" : isLive ? status?.detail || "Live" : gameTime,
@@ -396,6 +429,8 @@ async function getMlbTomorrowGamesWithPitchers() {
           parkFactor,
           parkNote,
           venue: comp?.venue?.fullName || "",
+          probableStarters,
+          espnProbablesMerged: Boolean(probableStarters?.home || probableStarters?.away),
         };
       });
 

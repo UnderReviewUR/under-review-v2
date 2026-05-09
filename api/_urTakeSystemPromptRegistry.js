@@ -288,6 +288,9 @@ Wrong: "Season: 10.5 RPG in 28:13 MPG. Last five: 11 RPG…"
 Right: "Duren: 10.5 RPG season, 11 RPG last five…"
 Each body chunk = one player or one concept, with the subject named at the start (player, team, matchup, or market angle).
 
+CHUNK BOUNDARY RULE (mandatory):
+Every body chunk must be a complete thought — never start a chunk mid-sentence or with a dangling comma or conjunction. Each chunk starts with a capital letter and ends with terminal punctuation (usually a period). Never split one sentence across chunks.
+
 CLOSING CALL RULE:
 Never reference data availability in the closing call (final conviction sentence).
 Wrong: "Medium confidence — no live lines available, but rotation reality is the tell."
