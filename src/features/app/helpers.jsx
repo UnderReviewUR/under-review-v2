@@ -434,7 +434,11 @@ function urTakeClosingLooksLikeVerdict(s) {
   );
 }
 
-export function renderUrTakeAiMessage(raw) {
+/**
+ * Parsed UR Take prose (same rules as the visual card).
+ * @returns {{ gameState: string, headline: string, bodyChunks: string[], closing: string, confidence: string, hasVisual: boolean }}
+ */
+export function parseUrTakeResponse(raw) {
   const text = String(raw || "");
   const lines = text.split("\n");
 
@@ -487,15 +491,32 @@ export function renderUrTakeAiMessage(raw) {
     .map((c) => stripUrTakeInlineMarkdown(String(c).trim()))
     .filter((c) => c.length >= 2 && !/^[\s.•]+$/u.test(c));
 
-  const hasVisual =
-    Boolean(gameState || headline || bodyChunks.length > 0 || closing || confidence);
+  const headlineDisplay = headline ? stripUrTakeInlineMarkdown(headline) : "";
+  const closingDisplay = closing ? stripUrTakeInlineMarkdown(closing) : "";
 
-  if (!hasVisual) {
+  const hasVisual = Boolean(
+    gameState || headlineDisplay || bodyChunks.length > 0 || closingDisplay || confidence,
+  );
+
+  return {
+    gameState,
+    headline: headlineDisplay,
+    bodyChunks,
+    closing: closingDisplay,
+    confidence,
+    hasVisual,
+  };
+}
+
+export function renderUrTakeAiMessage(raw) {
+  const text = String(raw || "");
+  const parsed = parseUrTakeResponse(text);
+
+  if (!parsed.hasVisual) {
     return renderMessage(text, { styleUrTakeSectionLabels: true });
   }
 
-  const headlineDisplay = headline ? stripUrTakeInlineMarkdown(headline) : "";
-  const closingDisplay = closing ? stripUrTakeInlineMarkdown(closing) : "";
+  const { gameState, headline: headlineDisplay, bodyChunks, closing: closingDisplay, confidence } = parsed;
 
   return (
     <div style={{ padding: "0 4px" }}>
@@ -914,7 +935,7 @@ function UrTakeTrustChips({ trust }) {
 }
 
 function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
-  const [deepOpen, setDeepOpen] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
   const combined = `${summaryText}\n${m.deepText || ""}`;
@@ -927,6 +948,58 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
   const followUps =
     Array.isArray(m.followUps) && m.followUps.length >= 2 ? m.followUps : null;
+
+  const followUpPills =
+    followUps && typeof onUrTakeFollowUp === "function" ? (
+      <div
+        role="group"
+        aria-label="Suggested follow-ups"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          marginTop: 12,
+        }}
+      >
+        {followUps.map((q, idx) => (
+          <button
+            key={q}
+            type="button"
+            className="ur-take-follow-up-pill"
+            onClick={() => {
+              const shownAt = m.urTakeTelemetry?.shownAt ?? Date.now();
+              const meta = {
+                sourceMsgId: m.msgId,
+                followUpIndex: idx,
+                followUpCount: followUps.length,
+                msSinceResponseShown: Math.max(0, Date.now() - shownAt),
+                intent: String(m.urTakeTelemetry?.intent ?? ""),
+                liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+                sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+                followUpText: q,
+              };
+              telemetryUrTakeFollowUpClick(meta);
+              onUrTakeFollowUp(q, meta);
+            }}
+            style={{
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "var(--body-font)",
+              fontSize: 12,
+              lineHeight: 1.25,
+              padding: "6px 11px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.82)",
+            }}
+          >
+            {q}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
+  const trustChips = m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null;
 
   if (m.structured && typeof m.structured === "object") {
     const s = m.structured;
@@ -947,55 +1020,97 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
           parlayTotalOdds={s.parlayTotalOdds}
           timestamp={s.timestamp}
         />
-        {followUps && typeof onUrTakeFollowUp === "function" ? (
-          <div
-            role="group"
-            aria-label="Suggested follow-ups"
+        {followUpPills}
+        {trustChips}
+      </>
+    );
+  }
+
+  const parsed = parseUrTakeResponse(summaryText);
+
+  if (showBreakdown && m.deepText) {
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        <div
+          style={{
+            background: "rgba(0,0,0,0.3)",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 12,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowBreakdown(false)}
             style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 12,
+              color: "#00F5E9",
+              cursor: "pointer",
+              marginBottom: 12,
+              background: "none",
+              border: "none",
+              fontFamily: "var(--body-font)",
+              fontSize: 13,
             }}
           >
-            {followUps.map((q, idx) => (
-              <button
-                key={q}
-                type="button"
-                className="ur-take-follow-up-pill"
-                onClick={() => {
-                  const shownAt = m.urTakeTelemetry?.shownAt ?? Date.now();
-                  const meta = {
-                    sourceMsgId: m.msgId,
-                    followUpIndex: idx,
-                    followUpCount: followUps.length,
-                    msSinceResponseShown: Math.max(0, Date.now() - shownAt),
-                    intent: String(m.urTakeTelemetry?.intent ?? ""),
-                    liveMode: Boolean(m.urTakeTelemetry?.liveMode),
-                    sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
-                    followUpText: q,
-                  };
-                  telemetryUrTakeFollowUpClick(meta);
-                  onUrTakeFollowUp(q, meta);
-                }}
-                style={{
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "var(--body-font)",
-                  fontSize: 12,
-                  lineHeight: 1.25,
-                  padding: "6px 11px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(255,255,255,0.82)",
-                }}
-              >
-                {q}
-              </button>
-            ))}
+            ← Back
+          </button>
+          <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
+        </div>
+        {followUpPills}
+        {trustChips}
+      </>
+    );
+  }
+
+  if (!parsed.hasVisual) {
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
+        {followUpPills}
+        {trustChips}
+        {showTrack ? (
+          <button
+            type="button"
+            onClick={async () => {
+              if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
+              setIsTracking(true);
+              try {
+                await Promise.resolve(trackPlay.onTrack(m));
+              } finally {
+                setIsTracking(false);
+              }
+            }}
+            disabled={tracked || isTracking}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "1px solid rgba(0,245,233,0.2)",
+              borderRadius: 6,
+              padding: "5px 10px",
+              cursor: tracked || isTracking ? "default" : "pointer",
+              marginTop: 8,
+              fontFamily: "var(--mono-font)",
+              fontSize: 9,
+              letterSpacing: 1.5,
+              color: tracked ? "rgba(0,245,233,0.35)" : "rgba(0,245,233,0.6)",
+              textTransform: "uppercase",
+              opacity: isTracking ? 0.5 : 1,
+            }}
+          >
+            {tracked ? "✓ Tracked" : isTracking ? "Tracking..." : "Track this play"}
+          </button>
+        ) : null}
+        {m.deepText ? (
+          <div style={{ marginTop: 12 }}>
+            <button type="button" className="quick-btn" onClick={() => setShowBreakdown(true)} style={{ fontSize: 11 }}>
+              See full breakdown
+            </button>
           </div>
         ) : null}
-        {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
       </>
     );
   }
@@ -1003,115 +1118,163 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      {renderUrTakeAiMessage(summaryText)}
-      {followUps && typeof onUrTakeFollowUp === "function" ? (
-        <div
-          role="group"
-          aria-label="Suggested follow-ups"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            marginTop: 12,
-          }}
-        >
-          {followUps.map((q, idx) => (
-            <button
-              key={q}
-              type="button"
-              className="ur-take-follow-up-pill"
-              onClick={() => {
-                const shownAt = m.urTakeTelemetry?.shownAt ?? Date.now();
-                const meta = {
-                  sourceMsgId: m.msgId,
-                  followUpIndex: idx,
-                  followUpCount: followUps.length,
-                  msSinceResponseShown: Math.max(0, Date.now() - shownAt),
-                  intent: String(m.urTakeTelemetry?.intent ?? ""),
-                  liveMode: Boolean(m.urTakeTelemetry?.liveMode),
-                  sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
-                  followUpText: q,
-                };
-                telemetryUrTakeFollowUpClick(meta);
-                onUrTakeFollowUp(q, meta);
-              }}
+      <div
+        style={{
+          background: "rgba(0,0,0,0.2)",
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 12,
+        }}
+      >
+        {parsed.gameState ? (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 12px",
+              background: "rgba(34,197,94,0.08)",
+              border: "1px solid rgba(34,197,94,0.15)",
+              borderRadius: 999,
+              fontFamily: "var(--mono-font)",
+              fontSize: 10,
+              color: "#22c55e",
+              letterSpacing: 1.5,
+              marginBottom: 16,
+            }}
+          >
+            <span
               style={{
-                border: "none",
-                cursor: "pointer",
-                fontFamily: "var(--body-font)",
-                fontSize: 12,
-                lineHeight: 1.25,
-                padding: "6px 11px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.06)",
-                color: "rgba(255,255,255,0.82)",
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "#22c55e",
               }}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null}
-      {showTrack ? (
-        <button
-          type="button"
-          onClick={async () => {
-            if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
-            setIsTracking(true);
-            try {
-              await Promise.resolve(trackPlay.onTrack(m));
-            } finally {
-              setIsTracking(false);
-            }
-          }}
-          disabled={tracked || isTracking}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "none",
-            border: "1px solid rgba(0,245,233,0.2)",
-            borderRadius: 6,
-            padding: "5px 10px",
-            cursor: tracked || isTracking ? "default" : "pointer",
-            marginTop: 8,
-            fontFamily: "var(--mono-font)",
-            fontSize: 9,
-            letterSpacing: 1.5,
-            color: tracked ? "rgba(0,245,233,0.35)" : "rgba(0,245,233,0.6)",
-            textTransform: "uppercase",
-            opacity: isTracking ? 0.5 : 1,
-          }}
-        >
-          {tracked ? "✓ Tracked" : isTracking ? "Tracking..." : "Track this play"}
-        </button>
-      ) : null}
-      {m.deepText ? (
-        <div style={{ marginTop: 12 }}>
-          {!deepOpen ? (
-            <button type="button" className="quick-btn" onClick={() => setDeepOpen(true)} style={{ fontSize: 11 }}>
-              See full breakdown
-            </button>
-          ) : (
-            <>
-              <div
+            />
+            {stripUrTakeInlineMarkdown(parsed.gameState)}
+          </div>
+        ) : null}
+
+        {parsed.headline ? (
+          <div
+            style={{
+              background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              fontSize: 20,
+              fontWeight: 800,
+              marginBottom: 16,
+              lineHeight: 1.3,
+            }}
+          >
+            {parsed.headline}
+          </div>
+        ) : null}
+
+        {parsed.bodyChunks.map((chunk, i) => (
+          <div
+            key={i}
+            style={{
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.05)",
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 12,
+              lineHeight: 1.5,
+              fontSize: 14,
+              color: "rgba(255,255,255,0.9)",
+            }}
+          >
+            {chunk}
+          </div>
+        ))}
+
+        {parsed.closing ? (
+          <div
+            style={{
+              background: "rgba(255, 61, 143, 0.15)",
+              border: "1px solid #FF3D8F",
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 12,
+              color: "#FF3D8F",
+              fontWeight: 700,
+              fontSize: 15,
+            }}
+          >
+            {parsed.closing}
+          </div>
+        ) : null}
+
+        {parsed.confidence ? (
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>
+            {parsed.confidence}
+          </div>
+        ) : null}
+
+        {(m.deepText || showTrack) && (
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginTop: 12,
+              justifyContent: "flex-end",
+              flexWrap: "wrap",
+            }}
+          >
+            {m.deepText ? (
+              <button
+                type="button"
+                onClick={() => setShowBreakdown(true)}
                 style={{
-                  fontFamily: "var(--mono-font)",
-                  fontSize: 10,
-                  letterSpacing: 1.2,
-                  color: "var(--muted)",
-                  margin: "12px 0 8px",
-                  textTransform: "uppercase",
+                  background: "transparent",
+                  color: "#00F5E9",
+                  border: "1px solid #00F5E9",
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontFamily: "var(--body-font)",
                 }}
               >
-                Full breakdown
-              </div>
-              {renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}
-            </>
-          )}
-        </div>
-      ) : null}
+                See full breakdown
+              </button>
+            ) : null}
+            {showTrack ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
+                  setIsTracking(true);
+                  try {
+                    await Promise.resolve(trackPlay.onTrack(m));
+                  } finally {
+                    setIsTracking(false);
+                  }
+                }}
+                disabled={tracked || isTracking}
+                style={{
+                  background: "transparent",
+                  color: "#FF3D8F",
+                  border: "1px solid #FF3D8F",
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  cursor: tracked || isTracking ? "default" : "pointer",
+                  fontSize: 12,
+                  textTransform: "uppercase",
+                  fontFamily: "var(--body-font)",
+                  opacity: isTracking ? 0.5 : 1,
+                }}
+              >
+                {tracked ? "✓ TRACKED" : isTracking ? "TRACKING..." : "TRACK THIS PLAY"}
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+      {followUpPills}
+      {trustChips}
     </>
   );
 }
