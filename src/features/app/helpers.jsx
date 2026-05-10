@@ -348,211 +348,178 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
     .trimStart();
 }
 
-/** Plain-text UR Take visual blocks — mount-only staggered entry (shared by message renderer + bubble). */
+/** Option C confidence pill classes (plain-text card; structured card mirrors in URTakeResponse until shared CSS lands). */
+function urTakeConfidenceTierFromParsedLine(line) {
+  const s = String(line || "").toLowerCase();
+  if (/high/.test(s)) return "High";
+  if (/medium/.test(s)) return "Medium";
+  if (/speculative/.test(s)) return "Speculative";
+  return "Speculative";
+}
+
+function urTakeConfidencePillClass(tier) {
+  const t = String(tier || "");
+  if (t === "High") {
+    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(74,222,128,0.1)] text-[#4ade80] border border-[rgba(74,222,128,0.25)]";
+  }
+  if (t === "Medium") {
+    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(234,179,8,0.1)] text-[#eab308] border border-[rgba(234,179,8,0.25)]";
+  }
+  if (t === "Speculative") {
+    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(148,163,184,0.1)] text-[#94a3b8] border border-[rgba(148,163,184,0.25)]";
+  }
+  return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(148,163,184,0.1)] text-[#94a3b8] border border-[rgba(148,163,184,0.25)]";
+}
+
+function UrTakePlainTextPickLine({ text }) {
+  const raw = String(text || "");
+  const rest = raw.replace(/^\s*→\s*/, "");
+  const hasArrow = /^\s*→/.test(raw);
+  return (
+    <div className="border-l-[3px] border-l-[#6366f1] rounded-r-lg bg-[rgba(99,102,241,0.06)] py-2.5 px-3.5 mb-2 text-[13px] text-white/[0.85] leading-snug">
+      {hasArrow ? (
+        <>
+          <span className="text-[#6366f1]">→</span>
+          {rest ? ` ${rest}` : ""}
+        </>
+      ) : (
+        raw
+      )}
+    </div>
+  );
+}
+
+/** Plain-text UR Take visual — Option C card (shared by message renderer + bubble). */
 function UrTakePlainTextVisual({
   gameStateLine,
   headlineDisplay,
   bodyChunks,
   closingDisplay,
   confidence,
-  compactBubble,
+  compactBubble: _compactBubble,
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const chunkOuter =
-    compactBubble === true
-      ? {}
-      : { display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 };
+  const confTier = confidence ? urTakeConfidenceTierFromParsedLine(confidence) : "";
+  const confidencePillText = confidence
+    ? String(confidence)
+        .replace(/^\s*Confidence:\s*/i, "")
+        .trim() || confTier
+    : "";
+  const pillCls = urTakeConfidencePillClass(confTier);
 
-  const chunkCardStyle =
-    compactBubble === true
-      ? {
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.05)",
-          borderRadius: 12,
-          padding: 12,
-          marginBottom: 12,
-          lineHeight: 1.5,
-          fontSize: 14,
-          color: "rgba(255,255,255,0.9)",
-        }
-      : {
-          padding: "14px 16px",
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.05)",
-          borderRadius: 12,
-          fontSize: 13,
-          lineHeight: 1.7,
-          color: "rgba(255,255,255,0.68)",
-        };
-
-  const headlineStyle = {
-    background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    backgroundClip: "text",
-    fontSize: 20,
-    fontWeight: 800,
-    marginBottom: compactBubble === true ? 16 : 18,
-    lineHeight: 1.3,
-    letterSpacing: "-0.3px",
-  };
-
-  const closingStyle =
-    compactBubble === true
-      ? {
-          background: "rgba(255, 61, 143, 0.15)",
-          border: "1px solid #FF3D8F",
-          borderRadius: 12,
-          padding: 12,
-          marginBottom: 12,
-          color: "#FF3D8F",
-          fontWeight: 700,
-          fontSize: 15,
-        }
-      : {
-          marginTop: 16,
-          padding: "14px 16px",
-          background: "rgba(255, 61, 143, 0.08)",
-          border: "1px solid rgba(255, 61, 143, 0.2)",
-          borderRadius: 12,
-          fontSize: 15,
-          fontWeight: 700,
-          color: "#FF3D8F",
-          lineHeight: 1.5,
-          letterSpacing: "0.3px",
-          marginBottom: 12,
-        };
-
-  const confidenceStyle =
-    compactBubble === true
-      ? { fontSize: 12, color: "rgba(255,255,255,0.28)", marginTop: 8 }
-      : {
-          fontSize: 11,
-          color: "rgba(255,255,255,0.28)",
-          fontFamily: "var(--body-font)",
-          letterSpacing: 0.3,
-        };
-
-  const wrapStyle = {
-    position: "relative",
-    paddingBottom: compactBubble === true ? 36 : 40,
-  };
-
-  const gameStateRibbon = (
+  const accentBar = (
     <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 12px",
-        background: "rgba(34,197,94,0.08)",
-        border: "1px solid rgba(34,197,94,0.15)",
-        borderRadius: 999,
-        fontFamily: "var(--mono-font)",
-        fontSize: 10,
-        color: "#22c55e",
-        letterSpacing: 1.5,
-        marginBottom: 16,
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "#22c55e",
-        }}
-      />
-      {gameStateLine}
-    </div>
+      className="h-[3px] w-full shrink-0"
+      style={{ background: "linear-gradient(90deg, #6366f1, #a855f7)" }}
+    />
   );
 
+  const gameStateRibbon =
+    gameStateLine ? (
+      <div
+        className="flex items-center gap-1.5 px-5 py-2.5 bg-[#1a1d24] border-b border-white/[0.06]"
+        style={{ paddingLeft: 20, paddingRight: 20 }}
+      >
+        <span
+          className="shrink-0 rounded-full bg-[#4ade80]"
+          style={{ width: 6, height: 6 }}
+        />
+        <span className="font-mono text-[11px] text-[#4ade80]">{gameStateLine}</span>
+      </div>
+    ) : null;
+
   return (
-    <div style={wrapStyle}>
-      {gameStateLine ? gameStateRibbon : null}
+    <div className="mt-1">
+      <div className="rounded-2xl overflow-hidden border border-white/[0.08] bg-[#111318]">
+        {accentBar}
+        {gameStateRibbon}
 
-      {headlineDisplay ? (
-        <div
-          className={mounted ? "ur-response-headline" : undefined}
-          style={{ ...headlineStyle, opacity: mounted ? undefined : 0 }}
-        >
-          {headlineDisplay}
-        </div>
-      ) : null}
-
-      {bodyChunks.length > 0 ? (
-        <div style={chunkOuter}>
-          {bodyChunks.map((chunk, i) => {
-            const isPick =
-              chunk &&
-              typeof chunk === "object" &&
-              chunk.type === "pick";
-            const isLabel =
-              chunk &&
-              typeof chunk === "object" &&
-              chunk.type === "label";
-            const text =
-              typeof chunk === "string"
-                ? chunk
-                : chunk && typeof chunk === "object"
-                  ? chunk.text
-                  : "";
-            if (isLabel) {
-              return (
-                <div
-                  key={i}
-                  className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45 mt-3 mb-1"
-                  style={{ opacity: mounted ? undefined : 0 }}
-                >
-                  {text}
-                </div>
-              );
+        {headlineDisplay ? (
+          <div
+            className={
+              mounted
+                ? "text-[20px] font-semibold text-white leading-[1.3] tracking-[-0.2px] px-5 pt-5 mb-4 ur-response-headline"
+                : "text-[20px] font-semibold text-white leading-[1.3] tracking-[-0.2px] px-5 pt-5 mb-4"
             }
-            if (isPick) {
+            style={{ opacity: mounted ? undefined : 0, paddingLeft: 20, paddingRight: 20 }}
+          >
+            {headlineDisplay}
+          </div>
+        ) : null}
+
+        {bodyChunks.length > 0 ? (
+          <div className="px-5 pb-1" style={{ paddingLeft: 20, paddingRight: 20 }}>
+            {bodyChunks.map((chunk, i) => {
+              const isPick = chunk && typeof chunk === "object" && chunk.type === "pick";
+              const isLabel = chunk && typeof chunk === "object" && chunk.type === "label";
+              const text =
+                typeof chunk === "string"
+                  ? chunk
+                  : chunk && typeof chunk === "object"
+                    ? chunk.text
+                    : "";
+              if (isLabel) {
+                return (
+                  <div
+                    key={i}
+                    className={`font-mono text-[9px] tracking-[0.18em] uppercase text-white/[0.25] mb-1.5 pl-2.5 border-l-2 border-white/[0.1] rounded-none ${i === 0 ? "mt-0" : "mt-4"}`}
+                    style={{ opacity: mounted ? undefined : 0 }}
+                  >
+                    {text}
+                  </div>
+                );
+              }
+              if (isPick) {
+                return (
+                  <div key={i} style={{ opacity: mounted ? undefined : 0 }}>
+                    <UrTakePlainTextPickLine text={text} />
+                  </div>
+                );
+              }
               return (
                 <div
                   key={i}
                   className={
                     mounted
-                      ? "border-l-2 border-cyan-400 pl-3 py-1 text-[13px] leading-snug ur-response-chunk"
-                      : "border-l-2 border-cyan-400 pl-3 py-1 text-[13px] leading-snug"
+                      ? "rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 mb-2.5 text-[13px] text-white/[0.65] leading-relaxed ur-response-chunk"
+                      : "rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 mb-2.5 text-[13px] text-white/[0.65] leading-relaxed"
                   }
                   style={{ opacity: mounted ? undefined : 0 }}
                 >
                   {text}
                 </div>
               );
+            })}
+          </div>
+        ) : null}
+
+        {closingDisplay ? (
+          <div
+            className={
+              mounted
+                ? "rounded-[10px] border border-[rgba(99,102,241,0.2)] bg-[rgba(99,102,241,0.08)] px-4 py-3.5 mx-5 mt-4 text-[14px] font-semibold text-white leading-snug ur-response-closing"
+                : "rounded-[10px] border border-[rgba(99,102,241,0.2)] bg-[rgba(99,102,241,0.08)] px-4 py-3.5 mx-5 mt-4 text-[14px] font-semibold text-white leading-snug"
             }
-            return (
-              <div
-                key={i}
-                className={mounted ? "ur-response-chunk" : undefined}
-                style={{ ...chunkCardStyle, opacity: mounted ? undefined : 0 }}
-              >
-                {text}
-              </div>
-            );
-          })}
+            style={{ marginLeft: 20, marginRight: 20, opacity: mounted ? undefined : 0 }}
+          >
+            {closingDisplay}
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-between px-5 py-2.5 mt-4 bg-[#1a1d24] border-t border-white/[0.06]">
+          {confidence ? (
+            <span className={pillCls} style={{ maxWidth: "62%" }}>
+              {confidencePillText}
+            </span>
+          ) : (
+            <span />
+          )}
+          <UrTakeShareButton headline={headlineDisplay || ""} bodyChunks={bodyChunks} />
         </div>
-      ) : null}
-
-      {closingDisplay ? (
-        <div
-          className={mounted ? "ur-response-closing" : undefined}
-          style={{ ...closingStyle, opacity: mounted ? undefined : 0 }}
-        >
-          {closingDisplay}
-        </div>
-      ) : null}
-
-      {confidence ? <div style={confidenceStyle}>{confidence}</div> : null}
-
-      <div className="ur-take-share-anchor">
-        <UrTakeShareButton headline={headlineDisplay || ""} bodyChunks={bodyChunks} />
       </div>
     </div>
   );
