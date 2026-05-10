@@ -1,6 +1,21 @@
 import AskBar from "../components/AskBar.jsx";
 import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
-import { ChatThread } from "../features/app/helpers.jsx";
+import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
+
+function sessionSportLabel(slug) {
+  const s = String(slug || "").toLowerCase();
+  const map = {
+    nba: "NBA",
+    nfl: "NFL",
+    mlb: "MLB",
+    tennis: "Tennis",
+    tennis_wta_profile: "WTA",
+    golf: "Golf",
+    f1: "F1",
+    generic: "Multi-sport",
+  };
+  return map[s] || (s ? s.replace(/_/g, " ").toUpperCase() : "Multi-sport");
+}
 
 export default function AskScreen({
   askScreenRef,
@@ -39,7 +54,19 @@ export default function AskScreen({
               </>
             ) : (
               <>
-                <div style={{ fontSize: 10, fontFamily: "var(--mono-font)", letterSpacing: 2, color: "var(--muted)", padding: "6px 2px 10px", textTransform: "uppercase" }}>UR TAKE · conversation</div>
+                <div className="ur-session-context-header" aria-live="polite">
+                  <span className="ur-session-context-kicker">UR TAKE</span>
+                  <span className="ur-session-context-divider" aria-hidden>
+                    ·
+                  </span>
+                  <span className="ur-session-context-sport">{sessionSportLabel(inferredSport || "generic")}</span>
+                  <span className="ur-session-context-divider" aria-hidden>
+                    ·
+                  </span>
+                  <span className="ur-session-context-meta">
+                    {exchangeCount} {exchangeCount === 1 ? "exchange" : "exchanges"}
+                  </span>
+                </div>
                 <ChatThread
                   msgs={askMsgs}
                   urTakeTrackPlay={urTakeTrackPlay}
