@@ -616,29 +616,35 @@ const STRUCTURAL_LABELS = [
   "PARLAY LEGS",
 ];
 
-const STRUCTURAL_LABEL_REGEX = new RegExp(
-  `(${STRUCTURAL_LABELS.map((l) => l.replace(/\s+/g, "\\s+")).join("|")})`,
-  "gi",
-);
-
 const STRUCTURAL_LABEL_CANONICAL = new Map(
   STRUCTURAL_LABELS.map((l) => [l.replace(/\s+/g, " ").trim().toUpperCase(), l]),
 );
 
+function structuralLabelAlternationPattern() {
+  return STRUCTURAL_LABELS.map((l) => l.replace(/\s+/g, "\\s+")).join("|");
+}
+
+/**
+ * Split prose into labeled sections only when a structural label is anchored:
+ * start of text, start after a newline, or after sentence-ending . ! ? plus whitespace.
+ * Avoids mid-sentence splits like "floor, THE EDGE narrows".
+ */
 function splitStructuralLabelsInText(text) {
   const t = String(text || "");
   if (!t.trim()) return [];
   const parts = [];
   let lastIndex = 0;
   let m;
-  const re = new RegExp(STRUCTURAL_LABEL_REGEX.source, STRUCTURAL_LABEL_REGEX.flags);
-  while ((m = re.exec(t)) !== null) {
-    const before = t.slice(lastIndex, m.index).trim();
+  const alt = structuralLabelAlternationPattern();
+  const anchoredRe = new RegExp(`(?:^|[\\r\\n]+|[.!?]\\s+)(${alt})`, "gi");
+  while ((m = anchoredRe.exec(t)) !== null) {
+    const matchStart = m.index;
+    const before = t.slice(lastIndex, matchStart).trim();
     if (before) parts.push({ type: "prose", text: before });
     const raw = String(m[1] || "").replace(/\s+/g, " ").trim().toUpperCase();
     const labelText = STRUCTURAL_LABEL_CANONICAL.get(raw) || String(m[1] || "").trim();
     parts.push({ type: "label", text: labelText });
-    lastIndex = m.index + m[0].length;
+    lastIndex = matchStart + m[0].length;
   }
   const rest = t.slice(lastIndex).trim();
   if (rest) parts.push({ type: "prose", text: rest });
@@ -906,7 +912,7 @@ function buildPromotedParlayStructured(summaryText, sportHint, legs) {
       rationale:
         typeof leg.rationale === "string" && leg.rationale.trim().length > 0
           ? leg.rationale.trim()
-          : "See the narrative in your answer above.",
+          : "",
       odds: leg.odds || "TBD",
     })),
     parlayTotalOdds: "TBD",

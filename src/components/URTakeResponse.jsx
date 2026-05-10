@@ -165,12 +165,16 @@ export default function URTakeResponse({
             {parlayLegs.map((leg, idx) => (
               <div key={`${leg.play}-${idx}`} className="rounded-lg border border-white/10 p-3 text-[12px] leading-snug">
                 <div className="mb-1 font-semibold">{leg.play}</div>
-                <div className="text-white/75">{leg.rationale}</div>
-                <div className="mt-1.5 font-mono text-[10px] text-white/45">Odds: {leg.odds}</div>
+                {leg.rationale && String(leg.rationale).trim() ? (
+                  <div className="text-white/75">{leg.rationale}</div>
+                ) : null}
+                {leg.odds && leg.odds !== "TBD" ? (
+                  <div className="mt-1.5 font-mono text-[10px] text-white/45">Odds: {leg.odds}</div>
+                ) : null}
               </div>
             ))}
           </div>
-          {parlayTotalOdds ? (
+          {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
             <div className="mt-2.5 font-mono text-[11px] text-white/70">Ticket odds: {parlayTotalOdds}</div>
           ) : null}
         </div>
