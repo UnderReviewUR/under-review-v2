@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
@@ -34,11 +35,20 @@ export default function HomeScreen({
   onTodaySlateDisplayedKeys,
   slateFallbackSports,
   nbaLiveEdgeAlerts,
+  publicStats = null,
 }) {
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
   return (
           <main className={`screen home-surface-premium${hasDockedBar ? " has-msgs" : ""}`}>
+            <UrTakeOnboardingOverlay visible />
+
+            {publicStats ? (
+              <div className="ur-public-stats">
+                {publicStats.totalTakes.toLocaleString()} edges analyzed ·{" "}
+                {Math.round(publicStats.highConfidenceWinRate * 100)}% win rate on high confidence calls
+              </div>
+            ) : null}
 
             {/* Same UR TAKE input as Ask tab — one bar, shared state */}
             <AskBar

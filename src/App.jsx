@@ -81,6 +81,7 @@ import {
   preferredTournamentScore,
   buildContextualQuestion,
   inferUrTakeSportFromMessages,
+  getFollowUpSuggestions,
 } from "./features/app/helpers.jsx";
 
 import { baseCss } from "./styles/appBaseCss.js";
@@ -448,6 +449,33 @@ ${themeCss}
     performanceError,
     loadPerformanceSnapshot,
   } = usePerformance(userEmail, getTakeAuthHeaders);
+
+  /** Public aggregate from GET /api/performance (no auth) — social proof on Home only. */
+  const [publicStats, setPublicStats] = useState(null);
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/performance");
+        if (cancel) return;
+        if (res.status === 204) return;
+        if (!res.ok) return;
+        const data = await res.json();
+        if (
+          data &&
+          typeof data.totalTakes === "number" &&
+          typeof data.highConfidenceWinRate === "number"
+        ) {
+          setPublicStats(data);
+        }
+      } catch {
+        /* fail silent — no chip */
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showRestoreAccessModal, setShowRestoreAccessModal] = useState(false);
@@ -2666,23 +2694,21 @@ ${themeCss}
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
 
-  /** Last assistant message with API follow-ups — duplicate chips above docked Ask bar for visibility. */
+  /** Last assistant message — chips above docked Ask bar (API followUps or client-side fallbacks). */
   const askDockFollowUpSource = useMemo(() => {
     for (let i = askMsgs.length - 1; i >= 0; i--) {
       const m = askMsgs[i];
       if (!m || m.loading || m.role !== "ai") continue;
-      const fus = m.followUps;
-      if (Array.isArray(fus) && fus.length > 0) {
-        return {
-          msgId: m.msgId,
-          followUps: fus.slice(0, 3),
-          shownAt: m.urTakeTelemetry?.shownAt ?? Date.now(),
-          intent: String(m.urTakeTelemetry?.intent ?? ""),
-          liveMode: Boolean(m.urTakeTelemetry?.liveMode),
-          sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
-          followUpCount: fus.length,
-        };
-      }
+      const followUps = getFollowUpSuggestions(m);
+      return {
+        msgId: m.msgId,
+        followUps,
+        shownAt: m.urTakeTelemetry?.shownAt ?? Date.now(),
+        intent: String(m.urTakeTelemetry?.intent ?? ""),
+        liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+        sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+        followUpCount: followUps.length,
+      };
     }
     return null;
   }, [askMsgs]);
@@ -3209,6 +3235,7 @@ ${themeCss}
               "nfl",
             ]}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
+            publicStats={publicStats}
           />
           </>
         )}
@@ -4384,7 +4411,7 @@ fees. One price, unlimited reads.`,
                 ))}
               </div>
             ) : null}
-            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
+            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Go deeper..." {...askBarCommon}/>
           </div>
         )}
 

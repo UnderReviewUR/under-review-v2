@@ -394,6 +394,15 @@ export const baseCss = `
   .ur-session-context-meta{letter-spacing:0.08em;color:rgba(255,255,255,.45);}
   .ur-session-context-divider{opacity:.35;}
 
+  .ur-public-stats{
+    font-family:monospace;
+    font-size:11px;
+    color:rgba(255,255,255,0.4);
+    text-align:center;
+    padding:4px 16px 12px;
+    letter-spacing:0.03em;
+  }
+
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 10px;max-height:min(28vh,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}

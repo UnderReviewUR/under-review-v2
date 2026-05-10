@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { getDurableJson, listKeysWithPrefix, setDurableJson } from "./_durableStore.js";
 
 const TAKE_TTL_SECONDS = 60 * 60 * 24 * 120; // 120 days
 const MAX_TAKES_PER_USER = 400;
@@ -411,6 +411,42 @@ function computeBucketSummary(takes) {
     winRate: settled.length ? Number((wins / settled.length).toFixed(3)) : 0,
     roiUnits: Number(units.toFixed(2)),
     roiPct: stake ? Number(((units / stake) * 100).toFixed(1)) : 0,
+  };
+}
+
+function tierFromConfidenceLine(line) {
+  const s = String(line || "").trim().toLowerCase();
+  if (s.startsWith("high")) return "High";
+  if (s.startsWith("medium")) return "Medium";
+  if (s.startsWith("speculative")) return "Speculative";
+  return null;
+}
+
+/**
+ * Platform-wide aggregates from all `takes:*` ledger bundles (no user-identifying payload).
+ * Returns null when the sample is too small to surface publicly.
+ */
+export async function aggregatePublicLedgerStats() {
+  const keys = await listKeysWithPrefix("takes:");
+  const allTakes = [];
+  for (const key of keys) {
+    const bundle = await getDurableJson(key);
+    const raw = Array.isArray(bundle?.takes) ? bundle.takes : [];
+    for (const t of raw) {
+      if (t) allTakes.push(migrateTakeStatuses(t));
+    }
+  }
+  if (allTakes.length < 20) return null;
+
+  const highSettled = allTakes.filter(
+    (t) => t.status === "settled" && tierFromConfidenceLine(t.confidence) === "High",
+  );
+  const hw = highSettled.filter((t) => t.result === "win").length;
+  const highConfidenceWinRate = highSettled.length ? hw / highSettled.length : 0;
+
+  return {
+    totalTakes: allTakes.length,
+    highConfidenceWinRate,
   };
 }
 

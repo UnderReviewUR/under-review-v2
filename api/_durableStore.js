@@ -119,6 +119,55 @@ export async function setDurableJson(key, value, options = {}) {
   setMemEntry(key, value, ttlSeconds);
 }
 
+/** List keys with prefix (memory map or Redis SCAN). Used for aggregate-only server metrics. */
+export async function listKeysWithPrefix(prefix) {
+  const p = String(prefix || "");
+  if (!p) return [];
+
+  if (!hasKvConfig()) {
+    const keys = [];
+    for (const k of memStore.keys()) {
+      if (String(k).startsWith(p)) keys.push(String(k));
+    }
+    return keys;
+  }
+
+  let cursor = "0";
+  const keys = [];
+  const base = KV_URL.replace(/\/$/, "");
+  const matchPattern = `${p}*`;
+
+  try {
+    do {
+      const url = `${base}/scan/${encodeURIComponent(cursor)}?match=${encodeURIComponent(matchPattern)}&count=500`;
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${KV_TOKEN}`,
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`KV scan failed: HTTP ${res.status}`);
+      }
+      const payload = await res.json();
+      const result = payload?.result;
+      const nextCursor = Array.isArray(result) ? result[0] : result?.[0];
+      const batch = Array.isArray(result) ? result[1] : result?.[1];
+      cursor = nextCursor != null ? String(nextCursor) : "0";
+      if (Array.isArray(batch)) {
+        for (const k of batch) {
+          if (k) keys.push(String(k));
+        }
+      }
+    } while (cursor !== "0");
+  } catch (err) {
+    console.warn("[durableStore] KV scan failed:", err?.message || err);
+    return [];
+  }
+
+  return keys;
+}
+
 /** Best-effort delete (KV + in-memory fallback). */
 export async function deleteDurableJson(key) {
   if (hasKvConfig()) {
