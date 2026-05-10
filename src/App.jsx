@@ -314,6 +314,20 @@ ${themeCss}
 
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const handleViewportResize = () => {
+      const keyboardHeight = Math.max(0, window.innerHeight - vv.height);
+      document.documentElement.style.setProperty("--keyboard-height", `${keyboardHeight}px`);
+    };
+    vv.addEventListener("resize", handleViewportResize);
+    handleViewportResize();
+    return () => {
+      vv.removeEventListener("resize", handleViewportResize);
+    };
+  }, []);
+
   // Detect Stripe redirect back to app (?pro=success&email=…)
   const [proCheckoutState] = useState(() => {
     if (typeof window === "undefined") return { success: false, email: "" };
