@@ -385,6 +385,7 @@ function UrTakePlainTextPickLine({ text }) {
 
 /** Plain-text UR Take visual — Option C card (shared by message renderer + bubble). */
 function UrTakePlainTextVisual({
+  sport = "generic",
   gameStateLine,
   headlineDisplay,
   bodyChunks,
@@ -405,22 +406,27 @@ function UrTakePlainTextVisual({
     : "";
   const pillCls = urTakeConfidencePillClass(confTier);
 
-  const gameStateRibbon =
-    gameStateLine ? (
-      <div className="ur-card-header" style={{ paddingTop: "calc(14px + 4px)" }}>
-        <div className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
-          <span className="font-mono text-[11px] text-[#4ade80]">{gameStateLine}</span>
-        </div>
-        <div />
-      </div>
-    ) : null;
+  const liveRibbon = String(gameStateLine || "").trim();
+  const showLiveHeader = liveRibbon.length > 0;
+  const sportTag = `${String(sport || "generic").toUpperCase()} · TAKE`;
 
   return (
     <div className="mt-1">
       <div className="ur-card-root">
         <div className="ur-card-accent-bar" />
-        {gameStateRibbon}
+        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 4px)" }}>
+          <span className="ur-card-sport-tag">{sportTag}</span>
+          {showLiveHeader ? (
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
+              <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
+            </div>
+          ) : confidence ? (
+            <span className={pillCls}>{confidencePillText}</span>
+          ) : (
+            <span />
+          )}
+        </div>
 
         {headlineDisplay ? (
           <div
@@ -485,7 +491,7 @@ function UrTakePlainTextVisual({
         ) : null}
 
         <div className="ur-card-footer mt-4">
-          {confidence ? (
+          {showLiveHeader && confidence ? (
             <span className={pillCls} style={{ maxWidth: "62%" }}>
               {confidencePillText}
             </span>
@@ -826,6 +832,63 @@ function attemptParlayConversion(text) {
   return extractParlayLegsFromLines(raw);
 }
 
+/** Prose-only chunks from parse (skip headline machinery, arrow legs, section labels). */
+function extractPromotedParlayNarrativeChunks(parsed) {
+  const out = [];
+  for (const c of parsed?.bodyChunks || []) {
+    if (typeof c === "string") {
+      const t = String(c).trim();
+      if (t) out.push(t);
+      continue;
+    }
+    if (!c || typeof c !== "object") continue;
+    if (c.type === "label" || c.type === "pick") continue;
+    const t = String(c.text || "").trim();
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+function buildPromotedParlayWhyEdge(parsed, summaryText) {
+  const prose = extractPromotedParlayNarrativeChunks(parsed);
+  const clip = (s, n) => String(s || "").trim().slice(0, n);
+  if (prose.length >= 2) {
+    return { whyNow: clip(prose[0], 520), edge: clip(prose[1], 520) };
+  }
+  if (prose.length === 1) {
+    const paras = prose[0].split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    if (paras.length >= 2) {
+      return { whyNow: clip(paras[0], 520), edge: clip(paras[1], 520) };
+    }
+    const one = prose[0];
+    const mid = Math.min(280, Math.floor(one.length / 2));
+    if (one.length > 120) {
+      return {
+        whyNow: clip(one, 320),
+        edge: clip(one.slice(mid), 520) || clip(one, 520),
+      };
+    }
+  }
+  const tail = String(summaryText || "")
+    .split(/\n/)
+    .map((ln) => ln.trim())
+    .filter((ln) => ln && !/^>>/.test(ln) && !/^PARLAY\s+LEG/i.test(ln) && !/^→\s/.test(ln) && !/^Confidence:/i.test(ln))
+    .slice(0, 4)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (tail.length >= 40) {
+    const half = Math.min(240, Math.floor(tail.length / 2));
+    return { whyNow: clip(tail, half + 80), edge: clip(tail.slice(half), 520) };
+  }
+  return {
+    whyNow:
+      "These legs cluster angles from tonight's slate — each one below stands on its own structural read.",
+    edge:
+      "Correlation still matters: if two legs need the same game script, size the ticket like one hinge, not two independent edges.",
+  };
+}
+
 function buildPromotedParlayStructured(summaryText, sportHint, legs) {
   const parsed = parseUrTakeResponse(summaryText);
   const firstLine = summaryText.split("\n").find((ln) => String(ln).trim()) || "";
@@ -837,14 +900,13 @@ function buildPromotedParlayStructured(summaryText, sportHint, legs) {
       .slice(0, 100) ||
     "Parlay card";
   const call = callRaw.length >= 3 ? callRaw : "Parlay card";
+  const { whyNow, edge } = buildPromotedParlayWhyEdge(parsed, summaryText);
   return {
     sport: String(sportHint || "generic"),
     call,
     confidence: "Medium",
-    whyNow:
-      "Legs below are shown in the structured card for scanning; your full write-up stays in the thread.",
-    edge:
-      "Confirm legs, prices, and correlation on the board before placing — layout is extracted from plain text.",
+    whyNow,
+    edge,
     callType: "parlay",
     analysis: null,
     caveats: [],
@@ -944,6 +1006,7 @@ export function renderUrTakeAiMessage(raw) {
   return (
     <div style={{ padding: "0 4px" }}>
       <UrTakePlainTextVisual
+        sport="generic"
         gameStateLine={gameState ? stripUrTakeInlineMarkdown(gameState) : ""}
         headlineDisplay={headlineDisplay}
         bodyChunks={bodyChunks}
@@ -1439,6 +1502,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
         }}
       >
         <UrTakePlainTextVisual
+          sport={m.sport || "generic"}
           gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
           headlineDisplay={parsed.headline}
           bodyChunks={parsed.bodyChunks}

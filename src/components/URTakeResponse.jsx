@@ -112,16 +112,13 @@ export default function URTakeResponse({
           ) : null}
 
           {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
-            <div className="mt-5">
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/[0.25] mb-2">
+            <div className="mt-7 pt-5 border-t border-white/[0.06]">
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/[0.25] mb-3">
                 PARLAY LEGS
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col">
                 {parlayLegs.map((leg, idx) => (
-                  <div
-                    key={`${leg.play}-${idx}`}
-                    className="rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3.5 py-3"
-                  >
+                  <div key={`${leg.play}-${idx}`} className="ur-pick-row">
                     <div className="text-[14px] font-semibold text-white mb-1">{leg.play}</div>
                     {leg.rationale && String(leg.rationale).trim() ? (
                       <div className="text-[12px] text-white/[0.55] leading-snug">{leg.rationale}</div>
