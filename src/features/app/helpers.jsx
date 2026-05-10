@@ -481,15 +481,42 @@ function UrTakePlainTextVisual({
 
       {bodyChunks.length > 0 ? (
         <div style={chunkOuter}>
-          {bodyChunks.map((chunk, i) => (
-            <div
-              key={i}
-              className={mounted ? "ur-response-chunk" : undefined}
-              style={{ ...chunkCardStyle, opacity: mounted ? undefined : 0 }}
-            >
-              {chunk}
-            </div>
-          ))}
+          {bodyChunks.map((chunk, i) => {
+            const isPick =
+              chunk &&
+              typeof chunk === "object" &&
+              chunk.type === "pick";
+            const text =
+              typeof chunk === "string"
+                ? chunk
+                : chunk && typeof chunk === "object"
+                  ? chunk.text
+                  : "";
+            if (isPick) {
+              return (
+                <div
+                  key={i}
+                  className={
+                    mounted
+                      ? "border-l-2 border-cyan-400 pl-3 py-1 text-[13px] leading-snug ur-response-chunk"
+                      : "border-l-2 border-cyan-400 pl-3 py-1 text-[13px] leading-snug"
+                  }
+                  style={{ opacity: mounted ? undefined : 0 }}
+                >
+                  {text}
+                </div>
+              );
+            }
+            return (
+              <div
+                key={i}
+                className={mounted ? "ur-response-chunk" : undefined}
+                style={{ ...chunkCardStyle, opacity: mounted ? undefined : 0 }}
+              >
+                {text}
+              </div>
+            );
+          })}
         </div>
       ) : null}
 
@@ -552,9 +579,37 @@ function trimLeadingOrphanDots(text) {
     .trim();
 }
 
+/** Split lines beginning with → into separate pick rows (never merged into prose). */
+function splitArrowPickLinesFromChunks(chunks) {
+  const out = [];
+  for (const chunk of chunks) {
+    const raw = String(chunk || "").trim();
+    if (!raw) continue;
+    const lines = raw.split("\n");
+    let proseLines = [];
+    const flushProse = () => {
+      if (!proseLines.length) return;
+      const text = proseLines.join("\n").trim();
+      proseLines = [];
+      if (text) out.push({ type: "prose", text });
+    };
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("→")) {
+        flushProse();
+        out.push({ type: "pick", text: trimmed });
+      } else {
+        proseLines.push(line);
+      }
+    }
+    flushProse();
+  }
+  return out;
+}
+
 /**
  * Parsed UR Take prose (same rules as the visual card).
- * @returns {{ gameState: string, headline: string, bodyChunks: string[], closing: string, confidence: string, hasVisual: boolean }}
+ * @returns {{ gameState: string, headline: string, bodyChunks: Array<string | { type: 'prose' | 'pick', text: string }>, closing: string, confidence: string, hasVisual: boolean }}
  */
 export function parseUrTakeResponse(raw) {
   const text = String(raw || "");
@@ -623,11 +678,20 @@ export function parseUrTakeResponse(raw) {
     )
     .filter(Boolean);
 
+  bodyChunks = splitArrowPickLinesFromChunks(bodyChunks);
+
   if (
     closing &&
     closing.split(" ").filter(Boolean).length < 15
   ) {
-    closing = bodyChunks.pop() || closing;
+    const lastChunk = bodyChunks.pop();
+    const lastStr =
+      typeof lastChunk === "string"
+        ? lastChunk
+        : lastChunk && typeof lastChunk === "object"
+          ? String(lastChunk.text || "").trim()
+          : "";
+    closing = lastStr || closing;
   }
 
   const headlineDisplay = headline
