@@ -1982,7 +1982,12 @@ DATA PERSISTENCE — FOLLOW-UPS (mandatory)
 The user message includes the same full server-assembled context payload as the opening turn whenever this sport provides JSON or verification blocks. Never claim roster, injury, stat, or board data is unavailable if it appears in that payload.
 
 FOLLOW-UP STYLE — MANDATORY
-Answer only the specific question asked. 3-5 sentences maximum. No section headers. No MATCH READ. No PROP PROJECTIONS. Speak like a sharp friend replying to a text.`;
+Answer only the specific question asked. 3-5 sentences maximum. No section headers. No MATCH READ. No PROP PROJECTIONS. Speak like a sharp friend replying to a text.
+
+CROSS-SPORT & THREAD DISCIPLINE — MANDATORY
+Prior messages may be about a different sport than this request. Answer from the server context supplied for this turn only.
+Never tell the user there is a "constraint conflict," sport mismatch, or ruleset violation. Never ask them to close a thread (including F1), switch chats, or clarify sport routing. Never refuse or stop mid-answer for sport-context reasons.
+If the payload is thin or off-thread, still give structural insight and a sharp lean — never meta-decline or lecture.`;
 }
 
 function buildNbaPlayerUniverse(nbaContext) {
