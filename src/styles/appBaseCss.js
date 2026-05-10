@@ -456,6 +456,136 @@ export const baseCss = `
     border-color:rgba(255,255,255,0.4);
   }
 
+  .ur-card-root{
+    background:#111318;
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,0.08);
+    overflow:hidden;
+  }
+  .ur-card-accent-bar{
+    height:3px;
+    width:100%;
+    background:linear-gradient(90deg,#6366f1,#a855f7);
+  }
+  .ur-card-header{
+    background:#1a1d24;
+    padding:10px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+  }
+  .ur-card-footer{
+    background:#1a1d24;
+    padding:10px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .ur-card-sport-tag{
+    font-family:monospace;
+    font-size:10px;
+    letter-spacing:0.12em;
+    color:#a855f7;
+    text-transform:uppercase;
+  }
+  .ur-card-body{
+    padding:20px 20px 16px;
+  }
+  .ur-card-headline{
+    font-size:20px;
+    font-weight:600;
+    color:#ffffff;
+    line-height:1.3;
+    letter-spacing:-0.2px;
+    margin-bottom:16px;
+  }
+  .ur-conf-pill-high{
+    font-size:11px;
+    font-weight:500;
+    padding:3px 12px;
+    border-radius:20px;
+    background:rgba(74,222,128,0.1);
+    color:#4ade80;
+    border:1px solid rgba(74,222,128,0.25);
+  }
+  .ur-conf-pill-medium{
+    font-size:11px;
+    font-weight:500;
+    padding:3px 12px;
+    border-radius:20px;
+    background:rgba(234,179,8,0.1);
+    color:#eab308;
+    border:1px solid rgba(234,179,8,0.25);
+  }
+  .ur-conf-pill-speculative{
+    font-size:11px;
+    font-weight:500;
+    padding:3px 12px;
+    border-radius:20px;
+    background:rgba(148,163,184,0.1);
+    color:#94a3b8;
+    border:1px solid rgba(148,163,184,0.25);
+  }
+  .ur-labeled-block-label{
+    font-family:monospace;
+    font-size:9px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,0.25);
+    margin-bottom:6px;
+    padding-left:10px;
+    border-left:2px solid rgba(255,255,255,0.1);
+    border-radius:0;
+  }
+  .ur-edge-block{
+    background:rgba(99,102,241,0.08);
+    border-left:3px solid #6366f1;
+    border-radius:0 10px 10px 0;
+    padding:12px 16px;
+    margin-bottom:16px;
+  }
+  .ur-edge-block-label{
+    font-family:monospace;
+    font-size:9px;
+    letter-spacing:0.15em;
+    color:#6366f1;
+    text-transform:uppercase;
+    margin-bottom:5px;
+  }
+  .ur-pick-row{
+    border-left:3px solid #6366f1;
+    border-radius:0 8px 8px 0;
+    background:rgba(99,102,241,0.06);
+    padding:10px 14px;
+    margin-bottom:8px;
+    font-size:13px;
+    color:rgba(255,255,255,0.85);
+    line-height:1.4;
+  }
+  .ur-prose-chunk{
+    background:rgba(255,255,255,0.03);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    font-size:13px;
+    color:rgba(255,255,255,0.65);
+    line-height:1.6;
+  }
+  .ur-closing-block{
+    background:rgba(99,102,241,0.08);
+    border:1px solid rgba(99,102,241,0.2);
+    border-radius:10px;
+    padding:14px 16px;
+    margin:16px 0 0;
+    font-size:14px;
+    font-weight:600;
+    color:#ffffff;
+    line-height:1.4;
+  }
+
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 10px;max-height:min(28vh,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}

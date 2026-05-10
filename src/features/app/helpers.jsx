@@ -348,7 +348,7 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
     .trimStart();
 }
 
-/** Option C confidence pill classes (plain-text card; structured card mirrors in URTakeResponse until shared CSS lands). */
+/** Maps parsed confidence text to shared `.ur-conf-pill-*` tier classes in appBaseCss. */
 function urTakeConfidenceTierFromParsedLine(line) {
   const s = String(line || "").toLowerCase();
   if (/high/.test(s)) return "High";
@@ -359,16 +359,10 @@ function urTakeConfidenceTierFromParsedLine(line) {
 
 function urTakeConfidencePillClass(tier) {
   const t = String(tier || "");
-  if (t === "High") {
-    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(74,222,128,0.1)] text-[#4ade80] border border-[rgba(74,222,128,0.25)]";
-  }
-  if (t === "Medium") {
-    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(234,179,8,0.1)] text-[#eab308] border border-[rgba(234,179,8,0.25)]";
-  }
-  if (t === "Speculative") {
-    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(148,163,184,0.1)] text-[#94a3b8] border border-[rgba(148,163,184,0.25)]";
-  }
-  return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(148,163,184,0.1)] text-[#94a3b8] border border-[rgba(148,163,184,0.25)]";
+  if (t === "High") return "ur-conf-pill-high";
+  if (t === "Medium") return "ur-conf-pill-medium";
+  if (t === "Speculative") return "ur-conf-pill-speculative";
+  return "ur-conf-pill-speculative";
 }
 
 function UrTakePlainTextPickLine({ text }) {
@@ -376,7 +370,7 @@ function UrTakePlainTextPickLine({ text }) {
   const rest = raw.replace(/^\s*→\s*/, "");
   const hasArrow = /^\s*→/.test(raw);
   return (
-    <div className="border-l-[3px] border-l-[#6366f1] rounded-r-lg bg-[rgba(99,102,241,0.06)] py-2.5 px-3.5 mb-2 text-[13px] text-white/[0.85] leading-snug">
+    <div className="ur-pick-row">
       {hasArrow ? (
         <>
           <span className="text-[#6366f1]">→</span>
@@ -411,48 +405,36 @@ function UrTakePlainTextVisual({
     : "";
   const pillCls = urTakeConfidencePillClass(confTier);
 
-  const accentBar = (
-    <div
-      className="h-[3px] w-full shrink-0"
-      style={{ background: "linear-gradient(90deg, #6366f1, #a855f7)" }}
-    />
-  );
-
   const gameStateRibbon =
     gameStateLine ? (
-      <div
-        className="flex items-center gap-1.5 px-5 py-2.5 bg-[#1a1d24] border-b border-white/[0.06]"
-        style={{ paddingLeft: 20, paddingRight: 20 }}
-      >
-        <span
-          className="shrink-0 rounded-full bg-[#4ade80]"
-          style={{ width: 6, height: 6 }}
-        />
-        <span className="font-mono text-[11px] text-[#4ade80]">{gameStateLine}</span>
+      <div className="ur-card-header">
+        <div className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
+          <span className="font-mono text-[11px] text-[#4ade80]">{gameStateLine}</span>
+        </div>
+        <div />
       </div>
     ) : null;
 
   return (
     <div className="mt-1">
-      <div className="rounded-2xl overflow-hidden border border-white/[0.08] bg-[#111318]">
-        {accentBar}
+      <div className="ur-card-root">
+        <div className="ur-card-accent-bar" />
         {gameStateRibbon}
 
         {headlineDisplay ? (
           <div
             className={
-              mounted
-                ? "text-[20px] font-semibold text-white leading-[1.3] tracking-[-0.2px] px-5 pt-5 mb-4 ur-response-headline"
-                : "text-[20px] font-semibold text-white leading-[1.3] tracking-[-0.2px] px-5 pt-5 mb-4"
+              mounted ? "ur-card-headline px-5 pt-5 ur-response-headline" : "ur-card-headline px-5 pt-5"
             }
-            style={{ opacity: mounted ? undefined : 0, paddingLeft: 20, paddingRight: 20 }}
+            style={{ opacity: mounted ? undefined : 0 }}
           >
             {headlineDisplay}
           </div>
         ) : null}
 
         {bodyChunks.length > 0 ? (
-          <div className="px-5 pb-1" style={{ paddingLeft: 20, paddingRight: 20 }}>
+          <div className="px-5 pb-1">
             {bodyChunks.map((chunk, i) => {
               const isPick = chunk && typeof chunk === "object" && chunk.type === "pick";
               const isLabel = chunk && typeof chunk === "object" && chunk.type === "label";
@@ -466,7 +448,7 @@ function UrTakePlainTextVisual({
                 return (
                   <div
                     key={i}
-                    className={`font-mono text-[9px] tracking-[0.18em] uppercase text-white/[0.25] mb-1.5 pl-2.5 border-l-2 border-white/[0.1] rounded-none ${i === 0 ? "mt-0" : "mt-4"}`}
+                    className={`ur-labeled-block-label ${i === 0 ? "mt-0" : "mt-4"}`}
                     style={{ opacity: mounted ? undefined : 0 }}
                   >
                     {text}
@@ -483,11 +465,7 @@ function UrTakePlainTextVisual({
               return (
                 <div
                   key={i}
-                  className={
-                    mounted
-                      ? "rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 mb-2.5 text-[13px] text-white/[0.65] leading-relaxed ur-response-chunk"
-                      : "rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3.5 py-3 mb-2.5 text-[13px] text-white/[0.65] leading-relaxed"
-                  }
+                  className={mounted ? "ur-prose-chunk ur-response-chunk" : "ur-prose-chunk"}
                   style={{ opacity: mounted ? undefined : 0 }}
                 >
                   {text}
@@ -499,18 +477,14 @@ function UrTakePlainTextVisual({
 
         {closingDisplay ? (
           <div
-            className={
-              mounted
-                ? "rounded-[10px] border border-[rgba(99,102,241,0.2)] bg-[rgba(99,102,241,0.08)] px-4 py-3.5 mx-5 mt-4 text-[14px] font-semibold text-white leading-snug ur-response-closing"
-                : "rounded-[10px] border border-[rgba(99,102,241,0.2)] bg-[rgba(99,102,241,0.08)] px-4 py-3.5 mx-5 mt-4 text-[14px] font-semibold text-white leading-snug"
-            }
-            style={{ marginLeft: 20, marginRight: 20, opacity: mounted ? undefined : 0 }}
+            className={mounted ? "ur-closing-block mx-5 mt-4 ur-response-closing" : "ur-closing-block mx-5 mt-4"}
+            style={{ opacity: mounted ? undefined : 0 }}
           >
             {closingDisplay}
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between px-5 py-2.5 mt-4 bg-[#1a1d24] border-t border-white/[0.06]">
+        <div className="ur-card-footer mt-4">
           {confidence ? (
             <span className={pillCls} style={{ maxWidth: "62%" }}>
               {confidencePillText}
