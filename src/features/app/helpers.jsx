@@ -1202,7 +1202,7 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
   const showTrack =
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
   const followUps =
-    Array.isArray(m.followUps) && m.followUps.length >= 2 ? m.followUps : null;
+    Array.isArray(m.followUps) && m.followUps.length >= 1 ? m.followUps : null;
 
   const followUpPills =
     followUps && typeof onUrTakeFollowUp === "function" ? (
@@ -1235,17 +1235,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
               };
               telemetryUrTakeFollowUpClick(meta);
               onUrTakeFollowUp(q, meta);
-            }}
-            style={{
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "var(--body-font)",
-              fontSize: 12,
-              lineHeight: 1.25,
-              padding: "6px 11px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.82)",
             }}
           >
             {q}

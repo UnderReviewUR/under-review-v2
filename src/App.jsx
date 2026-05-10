@@ -11,6 +11,7 @@ import { track } from "@vercel/analytics";
 import {
   telemetryUrTakeLiveResponseGenerated,
   telemetryUrTakeFollowUpsAttached,
+  telemetryUrTakeFollowUpClick,
   telemetryUrTakeFollowUpSubmit,
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
@@ -2664,6 +2665,28 @@ ${themeCss}
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
+
+  /** Last assistant message with API follow-ups — duplicate chips above docked Ask bar for visibility. */
+  const askDockFollowUpSource = useMemo(() => {
+    for (let i = askMsgs.length - 1; i >= 0; i--) {
+      const m = askMsgs[i];
+      if (!m || m.loading || m.role !== "ai") continue;
+      const fus = m.followUps;
+      if (Array.isArray(fus) && fus.length > 0) {
+        return {
+          msgId: m.msgId,
+          followUps: fus.slice(0, 3),
+          shownAt: m.urTakeTelemetry?.shownAt ?? Date.now(),
+          intent: String(m.urTakeTelemetry?.intent ?? ""),
+          liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+          sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+          followUpCount: fus.length,
+        };
+      }
+    }
+    return null;
+  }, [askMsgs]);
+
   const urTakeFollowUpTennis = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
@@ -4329,6 +4352,38 @@ fees. One price, unlimited reads.`,
         )}
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
+            {askDockFollowUpSource ? (
+              <div
+                className="ur-docked-follow-ups"
+                role="group"
+                aria-label="Suggested follow-ups"
+              >
+                {askDockFollowUpSource.followUps.map((q, idx) => (
+                  <button
+                    key={`${q}-${idx}`}
+                    type="button"
+                    className="ur-take-follow-up-pill"
+                    onClick={() => {
+                      const shownAt = askDockFollowUpSource.shownAt;
+                      const meta = {
+                        sourceMsgId: askDockFollowUpSource.msgId,
+                        followUpIndex: idx,
+                        followUpCount: askDockFollowUpSource.followUpCount,
+                        msSinceResponseShown: Math.max(0, Date.now() - shownAt),
+                        intent: askDockFollowUpSource.intent,
+                        liveMode: askDockFollowUpSource.liveMode,
+                        sport: askDockFollowUpSource.sport,
+                        followUpText: q,
+                      };
+                      telemetryUrTakeFollowUpClick(meta);
+                      urTakeFollowUpAsk(q, meta);
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Ask another..." {...askBarCommon}/>
           </div>
         )}
