@@ -1,5 +1,26 @@
 import { useState } from "react";
 
+function formatTimestamp(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return null;
+  try {
+    const base = d
+      .toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(",", " ·");
+    return `${base} ET`;
+  } catch {
+    return null;
+  }
+}
+
 function confidenceBadgeClasses(tier) {
   const t = String(tier || "");
   if (t === "High") return "border-emerald-400/35 bg-emerald-400/10 text-emerald-400";
@@ -28,6 +49,7 @@ export default function URTakeResponse({
 }) {
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const badgeCls = confidenceBadgeClasses(confidence);
+  const formattedTimestamp = formatTimestamp(timestamp);
 
   return (
     <div className="mt-1 ur-take-structured ur-take-response">
@@ -120,8 +142,8 @@ export default function URTakeResponse({
         </div>
       ) : null}
 
-      {timestamp ? (
-        <div className="mt-3 font-mono text-[9px] text-white/45">{timestamp}</div>
+      {formattedTimestamp ? (
+        <div className="mt-3 font-mono text-[9px] text-white/45">{formattedTimestamp}</div>
       ) : null}
     </div>
   );
