@@ -457,7 +457,7 @@ export const baseCss = `
   }
 
   .ur-card-root{
-    background:#111318;
+    background:#0d1117;
     border-radius:16px;
     border:1px solid rgba(255,255,255,0.08);
     overflow:hidden;
@@ -466,17 +466,21 @@ export const baseCss = `
     height:4px;
     width:100%;
     background:linear-gradient(90deg,#00d4a8,#00e5b0);
+    margin-bottom:10px;
+    flex-shrink:0;
   }
   .ur-card-header{
-    background:#1a1d24;
+    background:#161b22;
     padding:14px 20px;
     display:flex;
     align-items:center;
     justify-content:space-between;
     border-bottom:1px solid rgba(255,255,255,0.06);
+    min-height:44px;
+    box-sizing:border-box;
   }
   .ur-card-footer{
-    background:#1a1d24;
+    background:#161b22;
     padding:10px 20px;
     display:flex;
     align-items:center;
@@ -487,7 +491,7 @@ export const baseCss = `
     font-family:monospace;
     font-size:10px;
     letter-spacing:0.12em;
-    color:#a855f7;
+    color:#00d4a8;
     text-transform:uppercase;
   }
   .ur-card-body{

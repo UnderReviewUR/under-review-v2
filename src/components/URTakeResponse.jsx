@@ -30,6 +30,20 @@ function confidencePillClass(tier) {
   return "ur-conf-pill-speculative";
 }
 
+/** Strip internal prompt / UI scaffolding that sometimes leaks into structured JSON. */
+function scrubStructuredFaceText(text) {
+  let s = String(text || "");
+  const patterns = [
+    /\bLegs below are shown in the structured card[^.!?\n]*/gi,
+    /\byour full write-up stays in the thread\.?/gi,
+    /\blayout is extracted from plain text\.?/gi,
+  ];
+  for (const re of patterns) {
+    s = s.replace(re, " ");
+  }
+  return s.replace(/\s{2,}/g, " ").replace(/^\s+|\s+$/g, "").trim();
+}
+
 /**
  * Structured UR Take card — Option C (API `structured`).
  */
@@ -63,6 +77,9 @@ export default function URTakeResponse({
     "";
   const showLiveHeader = liveRibbon.length > 0;
 
+  const whyNowDisplay = scrubStructuredFaceText(whyNow) || "—";
+  const edgeDisplay = scrubStructuredFaceText(edge) || "—";
+
   return (
     <div className="mt-1 ur-take-structured ur-take-response">
       <div className="ur-card-root">
@@ -92,12 +109,12 @@ export default function URTakeResponse({
 
           <div className="mb-4">
             <div className="ur-labeled-block-label">WHY NOW</div>
-            <div className="text-[13px] text-white/[0.6] leading-relaxed pl-3">{whyNow}</div>
+            <div className="text-[13px] text-white/[0.6] leading-relaxed pl-3">{whyNowDisplay}</div>
           </div>
 
           <div className="ur-edge-block">
             <div className="ur-edge-block-label">EDGE</div>
-            <div className="text-[13px] text-white/[0.7] leading-relaxed">{edge}</div>
+            <div className="text-[13px] text-white/[0.7] leading-relaxed">{edgeDisplay}</div>
           </div>
 
           {Array.isArray(caveats) && caveats.length > 0 ? (
@@ -119,18 +136,26 @@ export default function URTakeResponse({
               <div className="flex flex-col">
                 {parlayLegs.map((leg, idx) => (
                   <div key={`${leg.play}-${idx}`} className="ur-pick-row">
-                    <div className="text-[14px] font-semibold text-white mb-1">{leg.play}</div>
+                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                      <span className="min-w-0 flex-1 text-[14px] font-semibold leading-snug text-white">
+                        {leg.play}
+                      </span>
+                      {leg.odds && leg.odds !== "TBD" ? (
+                        <span className="shrink-0 font-mono text-[10px] leading-snug text-white/35">
+                          {leg.odds}
+                        </span>
+                      ) : null}
+                    </div>
                     {leg.rationale && String(leg.rationale).trim() ? (
-                      <div className="text-[12px] text-white/[0.55] leading-snug">{leg.rationale}</div>
-                    ) : null}
-                    {leg.odds && leg.odds !== "TBD" ? (
-                      <div className="mt-1 font-mono text-[10px] text-white/[0.35]">Odds: {leg.odds}</div>
+                      <div className="mt-2 text-[12px] leading-snug text-white/[0.55]">{leg.rationale}</div>
                     ) : null}
                   </div>
                 ))}
               </div>
               {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
-                <div className="mt-2.5 font-mono text-[11px] text-white/70">Ticket odds: {parlayTotalOdds}</div>
+                <div className="mt-4 border-t border-white/[0.06] pt-3 font-mono text-[10px] tracking-wide text-white/40">
+                  Combined price {parlayTotalOdds}
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -145,10 +170,10 @@ export default function URTakeResponse({
           {showLiveHeader ? (
             <div className="flex items-center gap-2">
               {confidence ? <span className={pillCls}>{confidence}</span> : null}
-              <UrTakeShareButton headline={call} bodyChunks={[edge]} />
+              <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
             </div>
           ) : (
-            <UrTakeShareButton headline={call} bodyChunks={[edge]} />
+            <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
           )}
         </div>
       </div>
