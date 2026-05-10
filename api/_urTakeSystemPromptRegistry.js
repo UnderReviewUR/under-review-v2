@@ -299,6 +299,15 @@ export function buildSparseInputThinEvidenceAppendix(profile, sportHint = "") {
  * Hard grounding rule: model must treat server-injected context (BDL + ESPN merge + sport bundles) as factual law.
  * Wording is careful — NFL/Tennis/etc. use different primary feeds; all routes still honor injected anchors only.
  */
+/** NBA-only — paired with `bdlAvailability` array on slimmed `nbaContext` for the model. */
+export function buildNbaBdlAvailabilityGroundingPrompt() {
+  return `INJURY GROUNDING: Every player in the payload has a bdlAvailability entry.
+If status is "NOT LISTED / ACTIVE per BDL" — treat them as healthy. Do not 
+reference any injury, absence, or limitation for this player. If status is 
+"INJURED" — cite only the detail field. Never invent timelines, severity, 
+or return dates not present in the detail field.`;
+}
+
 export function buildFactAuthorityPrompt() {
   return `FACT AUTHORITY — SERVER GROUNDING (mandatory, every sport)
 - Operational facts in your answer must come from **this request's injected server context** — not from general model memory about who plays where, who is injured, or what game is on the board.
@@ -1125,6 +1134,9 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
 
   const s = String(sportHint || "").toLowerCase();
   let composed = memorySection + core + surface + uncertaintySurface;
+  if (s === "nba") {
+    composed += `\n\n${buildNbaBdlAvailabilityGroundingPrompt()}`;
+  }
   if (s === "tennis" || s === "tennis_wta_profile") {
     composed += String(tennisSystemPromptExtra || "");
   }

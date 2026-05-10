@@ -38,9 +38,11 @@ import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
 import {
   buildNbaUrTakeBoard,
   buildNbaNewsImpact,
+  canonicalizeTeamAbbr,
   extractNbaTeamAbbrevsFromQuestion,
   classifyNbaBoardGamePhase,
   nbaGameHasVerifiedBoxScore,
+  questionMentionsPlayer,
 } from "./nba.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 import {
@@ -3303,10 +3305,10 @@ function _parseNbaTonightGameAbbrs(tonightGame) {
 function _collectTonightNbaSlateAbbrs(todaysGames) {
   const set = new Set();
   for (const g of todaysGames || []) {
-    const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
-    const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
-    if (aa && aa !== "?") set.add(aa);
-    if (ha && ha !== "?") set.add(ha);
+    const aa = canonicalizeTeamAbbr(g?.awayTeam?.abbr);
+    const ha = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
+    if (aa && aa !== "?" && aa !== "UNK") set.add(aa);
+    if (ha && ha !== "?" && ha !== "UNK") set.add(ha);
   }
   return set;
 }
@@ -3315,9 +3317,75 @@ function _filterBdlAvailabilityToTeams(avail, allowTeams) {
   if (!avail || typeof avail !== "object" || !allowTeams || allowTeams.size === 0) return {};
   const out = {};
   for (const [name, meta] of Object.entries(avail)) {
-    const t = String(meta?.team || "").toUpperCase();
+    const t = canonicalizeTeamAbbr(meta?.team);
     if (t && allowTeams.has(t)) out[name] = meta;
   }
+  return out;
+}
+
+/** @param {unknown[]} injuries */
+function _injuryRowsByNormalizedPlayerName(injuries) {
+  const m = new Map();
+  for (const r of injuries || []) {
+    const k = String(r?.player || "").trim().toLowerCase();
+    if (k && !m.has(k)) m.set(k, r);
+  }
+  return m;
+}
+
+/**
+ * Slim stat rows use `name`; raw rows may use `player`.
+ * Union with `filteredInjuries` so players who only appear as retained injury rows (e.g. named in the question but off the focused stat slice) still get a row.
+ * @param {unknown[]} rows
+ * @param {unknown[]} filteredInjuries
+ */
+function _collectBdlAvailabilityPlayerNames(rows, filteredInjuries) {
+  /** @type {Map<string, string>} lower -> canonical display */
+  const map = new Map();
+  for (const row of rows || []) {
+    const display = String(row?.name || row?.player || "").trim();
+    if (!display) continue;
+    const k = display.toLowerCase();
+    if (!map.has(k)) map.set(k, display);
+  }
+  for (const inj of filteredInjuries || []) {
+    const display = String(inj?.player || "").trim();
+    if (!display) continue;
+    const k = display.toLowerCase();
+    if (!map.has(k)) map.set(k, display);
+  }
+  return map;
+}
+
+/**
+ * One row per player in the slimmed stat bundle — explicit healthy vs injured for the model.
+ * @param {Map<string, string>} displayNamesByLower
+ * @param {Map<string, object>} injuriesByLower
+ */
+function _buildBdlAvailabilityModelArray(displayNamesByLower, injuriesByLower) {
+  const out = [];
+  for (const displayName of displayNamesByLower.values()) {
+    const k = displayName.toLowerCase();
+    const inj = injuriesByLower.get(k);
+    if (inj) {
+      const parts = [
+        inj.status != null && String(inj.status).trim(),
+        inj.detail != null && String(inj.detail).trim(),
+        inj.returnDate != null && String(inj.returnDate).trim(),
+      ].filter(Boolean);
+      out.push({
+        player: displayName,
+        status: "INJURED",
+        detail: parts.join(" — ") || String(inj.status || "").trim() || "Listed on BDL injury feed",
+      });
+    } else {
+      out.push({
+        player: displayName,
+        status: "NOT LISTED / ACTIVE per BDL",
+      });
+    }
+  }
+  out.sort((a, b) => String(a.player).localeCompare(String(b.player)));
   return out;
 }
 
@@ -3345,8 +3413,9 @@ function _buildNbaSlateRowDigest(game) {
  * Fetch/cache code keeps full nbaContext server-side; call sites pass this for prompt JSON + roster block.
  * @param {object} nbaContext
  * @param {{ awayAbbr: string, homeAbbr: string } | null} nbaMatchup
+ * @param {string} [question] When trimming injuries to tonight's slate, keep rows for players named in the question.
  */
-export function buildNbaContextForModel(nbaContext, nbaMatchup) {
+export function buildNbaContextForModel(nbaContext, nbaMatchup, question = "") {
   if (!nbaContext || typeof nbaContext !== "object") return nbaContext;
   const todays = Array.isArray(nbaContext.todaysGames) ? nbaContext.todaysGames : [];
   const tonight = _collectTonightNbaSlateAbbrs(todays);
@@ -3375,7 +3444,7 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
       if (raw.bdlGrounding.bdlGroundedPlayers) {
         const gP = {};
         for (const [k, v] of Object.entries(raw.bdlGrounding.bdlGroundedPlayers)) {
-          const t = String(v?.team || "").toUpperCase();
+          const t = canonicalizeTeamAbbr(v?.team);
           if (t && tonight.has(t)) gP[k] = v;
         }
         raw.bdlGrounding.bdlGroundedPlayers = gP;
@@ -3383,8 +3452,17 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
     }
   }
 
+  /** BallDontLie injury rows after slate/question filtering — same source as INJURED rows in `bdlAvailability`. */
+  let filteredInjuries = Array.isArray(raw.injuries) ? raw.injuries.slice() : [];
   if (tonight.size > 0 && Array.isArray(raw.injuries)) {
-    raw.injuries = raw.injuries.filter((r) => tonight.has(String(r?.team || "").toUpperCase()));
+    const q = String(question || "");
+    filteredInjuries = raw.injuries.filter((r) => {
+      const t = canonicalizeTeamAbbr(r?.team);
+      if (t && tonight.has(t)) return true;
+      const playerLc = String(r?.player || "").toLowerCase();
+      return Boolean(q && playerLc && questionMentionsPlayer(q, playerLc));
+    });
+    raw.injuries = filteredInjuries;
   }
 
   if (Array.isArray(raw.playerStats)) {
@@ -3497,6 +3575,12 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
     raw.playerStats = raw.playerStats.map((row) => slimNbaPlayerStatRowForUrTake(row));
   }
   raw.playoffSeries = slimPlayoffSeriesForBoard(raw.playoffSeries || []);
+
+  {
+    const injuryByNorm = _injuryRowsByNormalizedPlayerName(filteredInjuries);
+    const namesMap = _collectBdlAvailabilityPlayerNames(raw.playerStats, filteredInjuries);
+    raw.bdlAvailability = _buildBdlAvailabilityModelArray(namesMap, injuryByNorm);
+  }
 
   delete raw.urTakeParsing;
   delete raw.propFeedMeta;
@@ -4575,7 +4659,7 @@ export default async function handler(req, res) {
 
   const nbaContextForModel =
     sportHint === "nba" && nbaContext && typeof nbaContext === "object"
-      ? buildNbaContextForModel(nbaContext, nbaMatchup)
+      ? buildNbaContextForModel(nbaContext, nbaMatchup, question)
       : nbaContext;
 
   const tennisSystemPromptExtra = ``;
@@ -5455,6 +5539,7 @@ Rules:
   Never declare a prop a winner while the game is still in progress.
 - If a player mentioned in the question is not in today's injury report or
   game list, reflect uncertainty only in CONFIDENCE — never lead the answer with data-availability throat-clearing.
+- NBA availability is enforced globally via INJURY GROUNDING (NBA BDL) in the system registry — use the \`bdlAvailability\` array (not training memory).
 - When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.
 - When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.
 - If todaysGamesSlateNote is set, todaysGames is empty for the reason given (e.g. BallDontLie returned no games for that ET date). Trust that note instead of guessing a pipeline failure.

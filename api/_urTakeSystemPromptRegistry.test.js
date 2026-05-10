@@ -4,11 +4,18 @@ import assert from "node:assert/strict";
 import {
   buildBettingStyleAppendix,
   buildLiveModeVoicePrompt,
+  buildNbaBdlAvailabilityGroundingPrompt,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
   detectParlayIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
+
+test("buildNbaBdlAvailabilityGroundingPrompt matches NBA injury bundle shape", () => {
+  const g = buildNbaBdlAvailabilityGroundingPrompt();
+  assert.match(g, /Every player in the payload has a bdlAvailability entry/);
+  assert.match(g, /NOT LISTED \/ ACTIVE per BDL/);
+});
 
 test("composeRegisteredUrTakeSystemPrompt injects context quality and core framework", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
@@ -38,6 +45,7 @@ test("parlay question still receives canonical arrow parlay rule from COMMITMENT
     mlbDecisionMode: null,
     question: "Provide a 4 leg parlay for the lakers vs thunder. Player props only.",
   });
+  assert.match(p, /INJURY GROUNDING: Every player in the payload has a bdlAvailability entry/);
   assert.match(p, /PARLAY AND PROP REQUEST RULE/);
   assert.match(p, /THE CALL:/);
   assert.match(p, /→ \[Last name\]/);

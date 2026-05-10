@@ -2301,7 +2301,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
   }
 }
 
-function questionMentionsPlayer(question, playerName) {
+export function questionMentionsPlayer(question, playerName) {
   const q = String(question || "").toLowerCase();
   const full = String(playerName || "").trim().toLowerCase();
   if (!q || !full) return false;
@@ -2313,13 +2313,13 @@ function questionMentionsPlayer(question, playerName) {
 }
 
 async function getNbaInjuries(bdlKey, todaysGames, question = "") {
-  const cacheKey = "nba_injuries";
-  const cached = getCached(cacheKey);
-  if (cached) return cached;
+  /** Slate + question filter must run every call — do not memoize here (fetchPlayerInjuries is durably cached). */
   const gameTeams = new Set();
-  for (const g of todaysGames||[]) {
-    if (g.homeTeam?.abbr) gameTeams.add(g.homeTeam.abbr);
-    if (g.awayTeam?.abbr) gameTeams.add(g.awayTeam.abbr);
+  for (const g of todaysGames || []) {
+    const h = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
+    const a = canonicalizeTeamAbbr(g?.awayTeam?.abbr);
+    if (h) gameTeams.add(h);
+    if (a) gameTeams.add(a);
   }
 
   try {
@@ -2327,17 +2327,21 @@ async function getNbaInjuries(bdlKey, todaysGames, question = "") {
     const rows = Object.entries(injuryMap || {}).map(([playerId, meta]) => ({
       playerId: Number(playerId),
       player: String(meta?.player || "").trim(),
-      team: String(meta?.team || "").trim().toUpperCase(),
+      team:
+        canonicalizeTeamAbbr(meta?.team) ||
+        String(meta?.team || "")
+          .trim()
+          .toUpperCase(),
       status: String(meta?.status || "").trim(),
       detail: String(meta?.description || "").trim(),
       returnDate: String(meta?.returnDate || "").trim(),
     }));
     const injuries = rows.filter((i) => {
       const lower = String(i.player || "").toLowerCase();
-      return gameTeams.has(i.team) || questionMentionsPlayer(question, lower);
+      const team = canonicalizeTeamAbbr(i.team) || String(i.team || "").trim().toUpperCase();
+      return (team && gameTeams.has(team)) || questionMentionsPlayer(question, lower);
     });
 
-    setCached(cacheKey, injuries);
     return injuries;
   } catch (err) {
     console.warn("getNbaInjuries error:", err.message);
@@ -3045,7 +3049,7 @@ function buildGameTotalsFromProps(propLines) {
 
 /** Prepended in board JSON immediately before `injuries` so UR Take stringified context lists injuries last. */
 const NBA_INJURIES_CONTEXT_NOTE =
-  "INJURY CONTEXT (background only — do not open response with this information, do not frame as primary edge):";
+  "INJURY CONTEXT (BallDontLie feed — cite status/detail only from rows below; background only — do not open with this, do not frame as primary edge):";
 
 /**
  * Fresh NBA payload for UR Take — **do not rely on the browser-cached board**.
