@@ -612,26 +612,12 @@ News Edge: One sentence only when it moves a line or role.
 Closing Line: Optional branded kicker; never replace the framework's final actionable bet line.`;
 }
 
-/** Mandatory shape when the user asks for a parlay (any sport). Injected via detectParlayIntent(question). */
+/**
+ * @deprecated — use PARLAY AND PROP REQUEST RULE in buildCommitmentRulePrompt.
+ * The → arrow format there is the only canonical parlay format. Kept exported for compatibility.
+ */
 export function buildParlayResponseStructurePrompt() {
-  return `PARLAY RESPONSE STRUCTURE (when user asks for a parlay):
-1. **RECOMMENDED PARLAY** (if confidence is high enough):
-   - Leg 1: [Player] [prop] [line]
-   - Leg 2: [Player] [prop] [line]
-   - Leg 3: [Player] [prop] [line]
-   - Leg 4: [Player] [prop] [line]
-   - Implied odds: ~[X to 1]
-
-2. **WHY EACH LEG** (1-2 sentences per leg, max):
-   - Leg 1: [reason]
-   - Leg 2: [reason]
-   - etc.
-
-3. **RISK SUMMARY** (1 sentence on volatility / confidence)
-
-4. **ALTERNATIVE** (if parlay is thin, suggest a sharper 2-3 leg instead)
-
-Never output as one paragraph. Always format as bulleted list with clear labels.`;
+  return "";
 }
 
 /** Live bet + slip review: conviction on cash-out / in-game management (appended when routing applies). */
@@ -1009,7 +995,6 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     }),
     buildBetIntegritySystemPrompt(),
     buildResponseStructurePrompt(longFormRequested),
-    detectParlayIntent(question) ? buildParlayResponseStructurePrompt() : "",
   ]
     .map((s) => String(s || "").trim())
     .filter(Boolean)

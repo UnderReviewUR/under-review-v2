@@ -28,7 +28,7 @@ test("composeRegisteredUrTakeSystemPrompt injects context quality and core frame
   assert.match(p, /GENERIC \/ AMBIGUOUS SPORT SPINE/);
 });
 
-test("parlay question injects PARLAY RESPONSE STRUCTURE block", () => {
+test("parlay question still receives canonical arrow parlay rule from COMMITMENT RULE", () => {
   const p = composeRegisteredUrTakeSystemPrompt({
     contextQuality: "high",
     sportHint: "nba",
@@ -38,11 +38,10 @@ test("parlay question injects PARLAY RESPONSE STRUCTURE block", () => {
     mlbDecisionMode: null,
     question: "Provide a 4 leg parlay for the lakers vs thunder. Player props only.",
   });
-  assert.match(p, /PARLAY RESPONSE STRUCTURE/);
-  assert.match(p, /RECOMMENDED PARLAY/);
-  assert.match(p, /WHY EACH LEG/);
-  assert.match(p, /RISK SUMMARY/);
-  assert.match(p, /ALTERNATIVE/);
+  assert.match(p, /PARLAY AND PROP REQUEST RULE/);
+  assert.match(p, /THE CALL:/);
+  assert.match(p, /→ \[Last name\]/);
+  assert.doesNotMatch(p, /PARLAY RESPONSE STRUCTURE \(when user asks for a parlay\)/);
 });
 
 test("detectParlayIntent", () => {
