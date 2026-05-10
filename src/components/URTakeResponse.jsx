@@ -46,8 +46,8 @@ export default function URTakeResponse({
   parlayLegs,
   parlayTotalOdds,
   timestamp,
-  gameStateLine: _gameStateLine,
-  liveScore: _liveScore,
+  gameStateLine,
+  liveScore,
 }) {
   const [animMounted, setAnimMounted] = useState(false);
   useEffect(() => {
@@ -57,6 +57,12 @@ export default function URTakeResponse({
   const formattedTimestamp = formatTimestamp(timestamp);
   const sportTag = `${String(sport || "generic").toUpperCase()} · ${callType || "—"}`;
 
+  const liveRibbon =
+    String(liveScore || "").trim() ||
+    String(gameStateLine || "").trim() ||
+    "";
+  const showLiveHeader = liveRibbon.length > 0;
+
   return (
     <div className="mt-1 ur-take-structured ur-take-response">
       <div className="ur-card-root">
@@ -64,7 +70,14 @@ export default function URTakeResponse({
 
         <div className="ur-card-header">
           <span className="ur-card-sport-tag">{sportTag}</span>
-          <span className={pillCls}>{confidence}</span>
+          {showLiveHeader ? (
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
+              <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
+            </div>
+          ) : (
+            <span className={pillCls}>{confidence}</span>
+          )}
         </div>
 
         <div className="ur-card-body">
@@ -132,7 +145,14 @@ export default function URTakeResponse({
           ) : (
             <span />
           )}
-          <UrTakeShareButton headline={call} bodyChunks={[edge]} />
+          {showLiveHeader ? (
+            <div className="flex items-center gap-2">
+              {confidence ? <span className={pillCls}>{confidence}</span> : null}
+              <UrTakeShareButton headline={call} bodyChunks={[edge]} />
+            </div>
+          ) : (
+            <UrTakeShareButton headline={call} bodyChunks={[edge]} />
+          )}
         </div>
       </div>
     </div>

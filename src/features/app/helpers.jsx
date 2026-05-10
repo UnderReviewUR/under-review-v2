@@ -1300,6 +1300,11 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
     m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
 
   if (effectiveStructured && typeof effectiveStructured === "object") {
+    const parsedLiveRibbon = parseUrTakeResponse(summaryText);
+    const structuredGameStateLine = parsedLiveRibbon.gameState
+      ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)
+      : "";
+
     const s = effectiveStructured;
     return (
       <>
@@ -1317,6 +1322,8 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
           parlayLegs={s.parlayLegs}
           parlayTotalOdds={s.parlayTotalOdds}
           timestamp={s.timestamp}
+          gameStateLine={structuredGameStateLine}
+          liveScore={String(m.liveScore || "").trim()}
         />
         {trustChips}
       </>
