@@ -452,6 +452,9 @@ export async function aggregatePublicLedgerStats() {
 
 export function buildPerformanceSnapshot(takes) {
   const rows = Array.isArray(takes) ? takes.map(migrateTakeStatuses) : [];
+  const sortedRows = rows
+    .slice()
+    .sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0));
   const summary = computeBucketSummary(rows);
 
   const bySport = {};
@@ -474,10 +477,8 @@ export function buildPerformanceSnapshot(takes) {
     byConfidence: Object.fromEntries(
       Object.entries(byConfidence).map(([k, v]) => [k, computeBucketSummary(v)])
     ),
-    recent: rows
-      .slice()
-      .sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0))
-      .slice(0, 40),
+    recent: sortedRows.slice(0, 40),
+    ledgerRows: sortedRows,
     generatedAt: new Date().toISOString(),
   };
 }

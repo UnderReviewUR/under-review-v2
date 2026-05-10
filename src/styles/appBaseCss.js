@@ -403,6 +403,42 @@ export const baseCss = `
     letter-spacing:0.03em;
   }
 
+  .ur-record-dashboard-wrap{margin:16px 16px 0;padding:14px 16px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;}
+  .ur-record-dashboard-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
+  .ur-record-heading{font-family:var(--mono-font);font-size:10px;letter-spacing:2px;color:var(--cyan-bright);text-transform:uppercase;}
+  .ur-record-head-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .ur-record-csv-btn,.ur-record-refresh-btn{font-family:var(--mono-font);font-size:10px;letter-spacing:0.5px;padding:6px 10px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface-2);color:var(--muted);cursor:pointer;}
+  .ur-record-csv-btn:hover,.ur-record-refresh-btn:hover{border-color:rgba(255,255,255,0.25);color:var(--soft);}
+  .ur-record-muted{font-size:12px;color:var(--muted);line-height:1.5;margin:0;}
+  .ur-record-err{font-size:12px;color:#ff4444;margin:0;}
+
+  .ur-record-overall{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:baseline;margin-bottom:14px;font-family:var(--mono-font);font-size:13px;color:var(--soft);}
+  .ur-record-wlp{font-weight:700;color:var(--text);}
+  .ur-record-roi{color:#00F5E9;}
+  .ur-record-sample{font-size:11px;color:var(--muted);}
+
+  .ur-record-section-label{font-family:var(--mono-font);font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin:14px 0 6px;}
+
+  .ur-record-data-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px;color:var(--soft);}
+  .ur-record-mono{font-family:var(--mono-font);font-size:11px;color:rgba(255,255,255,0.85);}
+
+  .ur-record-last-grid{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+  .ur-record-last-row{display:grid;grid-template-columns:52px 44px minmax(0,1fr) 22px 10px;gap:8px;align-items:center;padding:8px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;font-size:12px;}
+  .ur-record-last-date{color:var(--muted);}
+  .ur-record-last-sport{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,0.55);}
+  .ur-record-last-pick{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--soft);}
+  .ur-record-result-badge{font-family:var(--mono-font);font-size:10px;font-weight:700;text-align:center;}
+  .ur-badge-w{color:#00ff87;}
+  .ur-badge-l{color:#ff4444;}
+  .ur-badge-p{color:rgba(255,255,255,0.45);}
+  .ur-record-conf-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;}
+
+  .ur-record-gate{text-align:center;padding:20px 16px;margin:16px 16px 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;}
+  .ur-record-teaser{font-family:var(--mono-font);font-size:13px;color:var(--soft);margin-bottom:8px;}
+  .ur-record-unlock{font-size:11px;color:var(--muted);margin-bottom:14px;}
+  button.ur-upgrade-btn{font-family:var(--mono-font);font-size:12px;letter-spacing:1px;padding:10px 18px;border-radius:10px;border:1px solid rgba(245,200,66,0.35);background:rgba(245,200,66,0.08);color:#F5C842;cursor:pointer;}
+  button.ur-upgrade-btn:hover{border-color:rgba(245,200,66,0.55);background:rgba(245,200,66,0.12);}
+
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 10px;max-height:min(28vh,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}

@@ -117,6 +117,7 @@ import NbaScreen from "./screens/NbaScreen.jsx";
 import MlbScreen from "./screens/MlbScreen.jsx";
 import GolfScreen from "./screens/GolfScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
+import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
 
 function formatHomeSlateKvUpdatedEt(iso) {
   const t = Date.parse(String(iso || ""));
@@ -3500,6 +3501,17 @@ ${themeCss}
         </button>
       </div>
     )}
+
+    <UrTakeProLedgerDashboard
+      accessTier={accessTier}
+      userEmail={userEmail}
+      publicStats={publicStats}
+      performanceData={performanceData}
+      performanceLoading={performanceLoading}
+      performanceError={performanceError}
+      onRefresh={loadPerformanceSnapshot}
+      onUpgrade={() => setShowUpgradeModal(true)}
+    />
 
     {isUnlimited && trackerLoaded && (
       <div
