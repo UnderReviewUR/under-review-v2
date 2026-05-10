@@ -435,6 +435,7 @@ export function parseUrTakeResponse(raw) {
   }
   if (closing) {
     closing = closing.replace(/\*\*/g, "").trim();
+    closing = closing.replace(/^\d+\)\s*[-–]\s*/, "").trim();
     const cl = closing.trim();
     bodyText = bodyText.split("\n").filter((ln) => ln.trim() !== cl).join("\n").trim();
   }
@@ -458,9 +459,17 @@ export function parseUrTakeResponse(raw) {
         .replace(/^#+\s*/gm, "")
         .replace(/^---+/gm, "")
         .replace(/^\d+\.\s+/gm, "")
+        .replace(/\bTHE CALL:\s*/g, "")
         .trim(),
     )
     .filter(Boolean);
+
+  if (
+    closing &&
+    closing.split(" ").filter(Boolean).length < 15
+  ) {
+    closing = bodyChunks.pop() || closing;
+  }
 
   const headlineDisplay = headline
     ? stripUrTakeInlineMarkdown(
@@ -1272,12 +1281,14 @@ export function ChatThread({
   onUrTakeFollowUp = null,
   accessTier = null,
 }) {
-  const bottomRef = useRef(null);
+  const chatThreadRef = useRef(null);
 
-  /** Scroll the nearest scrollport (screen main) to the latest bubble — avoids mutating scrollTop (eslint). */
+  /** Scroll so the top of the latest assistant reply is visible — headline first, not the tail of a long answer. */
   useLayoutEffect(() => {
     if (!msgs?.length) return;
-    bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    const nodes = chatThreadRef.current?.querySelectorAll('[data-role="assistant"]');
+    const target = nodes?.[nodes.length - 1];
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [msgs]);
 
   let weeklyUsed = 0;
@@ -1301,12 +1312,16 @@ export function ChatThread({
 
   if (!msgs || msgs.length === 0) return null;
   return (
-    <div className="chat-thread" style={{ marginBottom: 20 }}>
+    <div ref={chatThreadRef} className="chat-thread" style={{ marginBottom: 20 }}>
       {msgs.map((m, i) =>
         m.loading ? (
           <LoadingBubble key={i} sport={m.sport} />
         ) : (
-          <div key={m.msgId || i} className={`bubble ${m.role}`}>
+          <div
+            key={m.msgId || i}
+            className={`bubble ${m.role}`}
+            {...(m.role === "ai" ? { "data-role": "assistant" } : { "data-role": "user" })}
+          >
             {m.role === "ai" ? (
               <UrTakeAiBubble
                 m={m}
@@ -1341,7 +1356,6 @@ export function ChatThread({
           ⚡ One follow-up left free — go deeper or ask another angle
         </div>
       ) : null}
-      <div ref={bottomRef} style={{ height: 1, width: "100%", overflow: "hidden" }} aria-hidden />
     </div>
   );
 }
