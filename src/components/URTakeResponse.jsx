@@ -68,7 +68,7 @@ export default function URTakeResponse({
       <div className="ur-card-root">
         <div className="ur-card-accent-bar" />
 
-        <div className="ur-card-header">
+        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 4px)" }}>
           <span className="ur-card-sport-tag">{sportTag}</span>
           {showLiveHeader ? (
             <div className="flex items-center gap-1.5">

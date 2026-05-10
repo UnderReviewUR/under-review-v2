@@ -407,7 +407,7 @@ function UrTakePlainTextVisual({
 
   const gameStateRibbon =
     gameStateLine ? (
-      <div className="ur-card-header">
+      <div className="ur-card-header" style={{ paddingTop: "calc(14px + 4px)" }}>
         <div className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
           <span className="font-mono text-[11px] text-[#4ade80]">{gameStateLine}</span>

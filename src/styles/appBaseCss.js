@@ -463,13 +463,13 @@ export const baseCss = `
     overflow:hidden;
   }
   .ur-card-accent-bar{
-    height:3px;
+    height:4px;
     width:100%;
-    background:linear-gradient(90deg,#6366f1,#a855f7);
+    background:linear-gradient(90deg,#00d4a8,#00e5b0);
   }
   .ur-card-header{
     background:#1a1d24;
-    padding:10px 20px;
+    padding:14px 20px;
     display:flex;
     align-items:center;
     justify-content:space-between;
