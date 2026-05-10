@@ -1,37 +1,36 @@
 import { useState } from "react";
 
-function firstChunkText(bodyChunks) {
+const SHARE_URL = "https://under-review.app";
+
+const getShareBody = (bodyChunks) => {
   const c0 = bodyChunks?.[0];
-  if (typeof c0 === "string") return c0;
-  if (c0 && typeof c0 === "object" && c0.text != null) return String(c0.text);
-  return "";
-}
+  const full = typeof c0 === "string" ? c0 : c0?.text != null ? String(c0.text) : "";
+  if (!String(full).trim()) return "";
+  const match = full.match(/^.{20,}?[.!?](?=\s+[A-Z]|$)/);
+  if (match) return match[0].trim();
+  return full.slice(0, 200).replace(/\s+\S*$/, "").trim() + "...";
+};
 
 /**
  * Subtle share / copy for UR Take cards (Web Share API or clipboard).
+ * Format: headline, first complete sentence from body, URL (no confidence line).
  */
-export default function UrTakeShareButton({ headline, bodyChunks, confidence }) {
+export default function UrTakeShareButton({ headline, bodyChunks }) {
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {
-    const body0 = firstChunkText(bodyChunks);
-    const shareText = [
-      headline,
-      "",
-      body0.slice(0, 200) + (body0.length > 200 ? "..." : ""),
-      "",
-      confidence ? `Confidence: ${confidence}` : "",
-      "",
-      "via under-review.app",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const head = String(headline || "").trim();
+    const body = getShareBody(bodyChunks);
+
+    const finalText = body
+      ? `${head}\n\n${body}\n\n${SHARE_URL}`
+      : `${head}\n\n${SHARE_URL}`;
 
     try {
       if (navigator.share) {
-        await navigator.share({ text: shareText });
+        await navigator.share({ text: finalText });
       } else {
-        await navigator.clipboard.writeText(shareText);
+        await navigator.clipboard.writeText(finalText);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }

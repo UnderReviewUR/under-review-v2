@@ -19,7 +19,6 @@ export default function NbaScreen({
   askBarCommon,
   nbaLoading,
   urTakeTrackPlay = null,
-  onUrTakeFollowUp = null,
   accessTier,
 }) {
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
@@ -86,7 +85,6 @@ export default function NbaScreen({
       <ChatThread
         msgs={nbaMsgs}
         urTakeTrackPlay={urTakeTrackPlay}
-        onUrTakeFollowUp={onUrTakeFollowUp}
         accessTier={accessTier}
       />
 

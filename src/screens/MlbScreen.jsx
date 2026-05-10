@@ -16,7 +16,6 @@ export default function MlbScreen({
   mlbGames,
   mlbData,
   urTakeTrackPlay = null,
-  onUrTakeFollowUp = null,
   accessTier,
 }) {
   const gamesForState =
@@ -57,7 +56,6 @@ export default function MlbScreen({
             <ChatThread
               msgs={mlbMsgs}
               urTakeTrackPlay={urTakeTrackPlay}
-              onUrTakeFollowUp={onUrTakeFollowUp}
               accessTier={accessTier}
             />
 

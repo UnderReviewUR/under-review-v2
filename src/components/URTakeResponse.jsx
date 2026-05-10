@@ -110,7 +110,7 @@ export default function URTakeResponse({
           </div>
         </div>
         <div className="ur-take-share-anchor">
-          <UrTakeShareButton headline={call} bodyChunks={[edge]} confidence={confidence} />
+          <UrTakeShareButton headline={call} bodyChunks={[edge]} />
         </div>
       </div>
 

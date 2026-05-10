@@ -1,5 +1,4 @@
 import AskBar from "../components/AskBar.jsx";
-import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
 import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
 
 function sessionSportLabel(slug) {
@@ -29,11 +28,10 @@ export default function AskScreen({
   dynamicHomeQuestions,
   firePrompt,
   urTakeTrackPlay = null,
-  onUrTakeFollowUp = null,
   accessTier,
 }) {
   const inferredSport = inferUrTakeSportFromMessages(askMsgs);
-  const exchangeCount = askMsgs.filter((m) => m.role === "user").length;
+  const questionCount = askMsgs.filter((m) => m.role === "user").length;
 
   return (
           <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
@@ -64,13 +62,12 @@ export default function AskScreen({
                     ·
                   </span>
                   <span className="ur-session-context-meta">
-                    {exchangeCount} {exchangeCount === 1 ? "exchange" : "exchanges"}
+                    {questionCount} {questionCount === 1 ? "question" : "questions"}
                   </span>
                 </div>
                 <ChatThread
                   msgs={askMsgs}
                   urTakeTrackPlay={urTakeTrackPlay}
-                  onUrTakeFollowUp={onUrTakeFollowUp}
                   accessTier={accessTier}
                 />
               </>

@@ -21,7 +21,6 @@ export default function NflScreen({
   filteredNflPlayers,
   openNflPlayer,
   urTakeTrackPlay = null,
-  onUrTakeFollowUp = null,
   accessTier,
 }) {
   const nflQuickPrompts = getQuickPromptsForState("nfl", nflSeasonMode);
@@ -65,7 +64,6 @@ export default function NflScreen({
             <ChatThread
               msgs={nflMsgs}
               urTakeTrackPlay={urTakeTrackPlay}
-              onUrTakeFollowUp={onUrTakeFollowUp}
               accessTier={accessTier}
             />
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>

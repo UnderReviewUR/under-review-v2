@@ -33,7 +33,6 @@ export default function TennisScreen({
   submitWta,
   openPlayer,
   urTakeTrackPlay = null,
-  onUrTakeFollowUp = null,
   accessTier,
 }) {
   const tennisQuickPrompts = getQuickPromptsForState("tennis", deriveTennisBoardState(liveMatches));
@@ -68,7 +67,6 @@ export default function TennisScreen({
             <ChatThread
               msgs={tennisMsgs}
               urTakeTrackPlay={urTakeTrackPlay}
-              onUrTakeFollowUp={onUrTakeFollowUp}
               accessTier={accessTier}
             />
 

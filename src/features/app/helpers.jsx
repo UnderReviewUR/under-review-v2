@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
 import { normalizeText } from "../../lib/normalizeText.js";
-import { telemetryUrTakeFollowUpClick } from "../../lib/urTakeTelemetry.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 import { isSubstantiveClosing } from "../../lib/urTakeClosingSentence.js";
 import {
@@ -553,11 +552,7 @@ function UrTakePlainTextVisual({
       {confidence ? <div style={confidenceStyle}>{confidence}</div> : null}
 
       <div className="ur-take-share-anchor">
-        <UrTakeShareButton
-          headline={headlineDisplay || ""}
-          bodyChunks={bodyChunks}
-          confidence={confidence || ""}
-        />
+        <UrTakeShareButton headline={headlineDisplay || ""} bodyChunks={bodyChunks} />
       </div>
     </div>
   );
@@ -818,7 +813,57 @@ export function parseUrTakeResponse(raw) {
   };
 }
 
-const PARLAY_LEG_PATTERN = /(?:leg\s*\d+|→)\s*:?\s*([A-Z][^—\n]+)/gi;
+/** Legacy loose match (any characters after leg marker — avoids missing lowercase picks). */
+const PARLAY_LEG_PATTERN = /(?:leg\s*\d+|→)\s*:?\s*([^\n—]+)/gi;
+
+function matchParlayLegLineBody(trimmedLine) {
+  const t = String(trimmedLine || "").trim();
+  const m =
+    t.match(/^→\s*(.+)$/) ||
+    t.match(/^Leg\s*\d+\s*[:\-–]\s*(.+)$/i) ||
+    t.match(/^\d+[\).\]]\s+(.+)$/);
+  if (!m || !m[1]) return null;
+  const play = m[1].replace(/\*\*/g, "").trim();
+  if (play.length < 3 || /^parlay\s+leg/i.test(play)) return null;
+  return play.slice(0, 160);
+}
+
+/**
+ * When the API omits `structured`, promote plain-text parlays to the premium card if we can find
+ * ≥2 legs (PARLAY LEGS section, arrows, or numbered rows). Gated on "parlay" so random numbered lists don't promote.
+ */
+function extractParlayLegsFromLines(raw) {
+  if (!/\bparlay\b/i.test(raw)) return null;
+  const lines = raw.split("\n");
+
+  let inLegSection = false;
+  const sectionLegs = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (/^PARLAY\s+LEG/i.test(t)) {
+      inLegSection = true;
+      continue;
+    }
+    if (
+      inLegSection &&
+      /^(CONFIDENCE|EDGE|THE\s+EDGE|CAVEATS|WHY\s+NOW|MARKET\s+READ)(\s|:|$)/i.test(t)
+    ) {
+      inLegSection = false;
+      continue;
+    }
+    if (!inLegSection) continue;
+    const play = matchParlayLegLineBody(t);
+    if (play) sectionLegs.push({ play, rationale: "", odds: "TBD" });
+  }
+  if (sectionLegs.length >= 2) return sectionLegs;
+
+  const loose = [];
+  for (const line of lines) {
+    const play = matchParlayLegLineBody(line.trim());
+    if (play) loose.push({ play, rationale: "", odds: "TBD" });
+  }
+  return loose.length >= 2 ? loose : null;
+}
 
 function attemptParlayConversion(text) {
   const raw = String(text || "");
@@ -831,7 +876,7 @@ function attemptParlayConversion(text) {
       odds: "TBD",
     }));
   }
-  return null;
+  return extractParlayLegsFromLines(raw);
 }
 
 function buildPromotedParlayStructured(summaryText, sportHint, legs) {
@@ -901,6 +946,42 @@ export function getFollowUpSuggestions(message) {
     return ["Which is the single safest?", "Rank these by confidence", "Build a parlay from these"];
   }
   return ["Give me a specific bet", "What's the strongest edge?", "What kills this take?"];
+}
+
+/** Last AI bubble + suggestions for docked follow-up chips (Ask + sport surfaces). */
+export function getLastAiFollowUpDockSource(msgs) {
+  if (!Array.isArray(msgs)) return null;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (!m || m.loading || m.role !== "ai") continue;
+    const followUps = getFollowUpSuggestions(m);
+    return {
+      msgId: m.msgId,
+      followUps,
+      shownAt: m.urTakeTelemetry?.shownAt ?? Date.now(),
+      intent: String(m.urTakeTelemetry?.intent ?? ""),
+      liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+      sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+      followUpCount: followUps.length,
+    };
+  }
+  return null;
+}
+
+/**
+ * Remove API `followUps` lines duplicated inside assistant prose so chips only appear in the docked bar.
+ */
+export function stripEmbeddedFollowUpQuestions(text, followUps) {
+  if (!Array.isArray(followUps) || followUps.length === 0) return String(text || "");
+  let t = String(text || "");
+  for (const fu of followUps) {
+    const q = String(fu || "").trim();
+    if (q.length < 4) continue;
+    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    t = t.replace(new RegExp(`^\\s*[-•*\\d.)]*\\s*${esc}\\s*$`, "gim"), "");
+    t = t.replace(new RegExp(`\\n\\s*[-•*\\d.)]*\\s*${esc}\\s*(?=\\n|$)`, "gim"), "\n");
+  }
+  return t.replace(/\n{3,}/g, "\n\n").trimEnd();
 }
 
 export function renderUrTakeAiMessage(raw) {
@@ -1237,10 +1318,13 @@ function UrTakeTrustChips({ trust }) {
   );
 }
 
-function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
+function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
-  const summaryText = stripLeadingUrTakeDisclaimersForDisplay(m.text);
+  const summaryText = stripEmbeddedFollowUpQuestions(
+    stripLeadingUrTakeDisclaimersForDisplay(m.text),
+    m.followUps,
+  );
   const combined = `${summaryText}\n${m.deepText || ""}`;
   const hasThePlay = /\bTHE\s+PLAY\b/i.test(combined);
   const tracked =
@@ -1249,47 +1333,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
     trackPlay.trackedIds.includes(m.msgId);
   const showTrack =
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
-  const followUps = getFollowUpSuggestions(m);
-
-  const followUpPills =
-    followUps.length >= 1 && typeof onUrTakeFollowUp === "function" ? (
-      <div
-        role="group"
-        aria-label="Suggested follow-ups"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 6,
-          marginTop: 12,
-        }}
-      >
-        {followUps.map((q, idx) => (
-          <button
-            key={q}
-            type="button"
-            className="ur-take-follow-up-pill"
-            onClick={() => {
-              const shownAt = m.urTakeTelemetry?.shownAt ?? Date.now();
-              const meta = {
-                sourceMsgId: m.msgId,
-                followUpIndex: idx,
-                followUpCount: followUps.length,
-                msSinceResponseShown: Math.max(0, Date.now() - shownAt),
-                intent: String(m.urTakeTelemetry?.intent ?? ""),
-                liveMode: Boolean(m.urTakeTelemetry?.liveMode),
-                sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
-                followUpText: q,
-              };
-              telemetryUrTakeFollowUpClick(meta);
-              onUrTakeFollowUp(q, meta);
-            }}
-          >
-            {q}
-          </button>
-        ))}
-      </div>
-    ) : null;
-
   const trustChips = m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null;
 
   /**
@@ -1328,7 +1371,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
           parlayTotalOdds={s.parlayTotalOdds}
           timestamp={s.timestamp}
         />
-        {followUpPills}
         {trustChips}
       </>
     );
@@ -1365,7 +1407,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
           </button>
           <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
         </div>
-        {followUpPills}
         {trustChips}
       </>
     );
@@ -1383,14 +1424,9 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
         <div style={{ position: "relative", paddingBottom: 36 }}>
           {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
           <div className="ur-take-share-anchor">
-            <UrTakeShareButton
-              headline={plainHeadline}
-              bodyChunks={[summaryText]}
-              confidence=""
-            />
+            <UrTakeShareButton headline={plainHeadline} bodyChunks={[summaryText]} />
           </div>
         </div>
-        {followUpPills}
         {trustChips}
         {showTrack ? (
           <button
@@ -1517,7 +1553,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
           </div>
         )}
       </div>
-      {followUpPills}
       {trustChips}
     </>
   );
@@ -1526,7 +1561,6 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
 export function ChatThread({
   msgs,
   urTakeTrackPlay = null,
-  onUrTakeFollowUp = null,
   accessTier = null,
 }) {
   const chatThreadRef = useRef(null);
@@ -1574,7 +1608,6 @@ export function ChatThread({
               <UrTakeAiBubble
                 m={m}
                 trackPlay={urTakeTrackPlay}
-                onUrTakeFollowUp={onUrTakeFollowUp}
                 userQuestion={String(
                   [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
                 )}
