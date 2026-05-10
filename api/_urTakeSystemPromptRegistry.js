@@ -556,7 +556,37 @@ CONFIDENCE ↔ IMPLIED PROBABILITY (must align labels users see)
 - High ≈ 65–75% implied confidence for this read vs break-even for the stated bet type.
 - Medium ≈ 55–64%.
 - Speculative ≈ below ~55% — thin evidence / watch tier.
-Never invent fake percentages; when citing "~60%", tie it to stated season or sample hit-rate from context.`;
+Never invent fake percentages; when citing "~60%", tie it to stated season or sample hit-rate from context.
+
+VIG AND BREAKEVEN RULE (mandatory — all sports, all takes):
+
+Every directional recommendation must implicitly clear the breakeven threshold for the price the user will pay. Use these as your internal benchmarks:
+
+-110: need 52.4% to break even (standard vig)
+-120: need 54.5%
+-130: need 56.5%
+-140: need 58.3%
+-150: need 60.0%
+-160: need 61.5%
++110: need 47.6%
++120: need 45.5%
++130: need 43.5%
++150: need 40.0%
+
+These thresholds are not optional context. They are the floor every recommendation must clear before it qualifies as an edge.
+
+High confidence = structural case clears 65%+ implied probability AFTER accounting for standard vig. Multiple independent factors align. The fragile assumption is clearly identifiable and clearly fragile.
+
+Medium confidence = structural case clears 55-64% implied after vig. Edge exists but depends on one or two assumptions holding that aren't fully confirmed.
+
+Speculative = structural case is below 55% implied after vig. Thin data, unresolved inputs, or too many assumptions required. Frame as a watch, not a bet.
+
+When no line is available, state the price threshold explicitly in the take:
+"This read has value at -115 or better. At -140 or higher, the edge doesn't clear breakeven — wait for a better number."
+
+Never recommend a bet where the structural case only marginally clears breakeven at standard vig. The edge must be meaningful — not a coin flip with extra steps.
+
+When odds ARE in context, reference the implied probability explicitly: "At -130, you need this to hit 56.5% of the time. The structural case here clears that comfortably / narrowly / does not clear it."`;
 }
 
 /** @deprecated Merged into buildUnderReviewVoicePrompt in api/_urTakeVoiceProfile.js */
