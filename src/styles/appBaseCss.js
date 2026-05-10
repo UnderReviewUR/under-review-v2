@@ -531,17 +531,28 @@ export const baseCss = `
   .nav-btn.golf-active{color:#FFFFFF;}
   .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
   .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
-  .golf-ask-label{font-family:var(--mono-font);font-size:10px;color:#FFFFFF;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;opacity:.85;}
+  .golf-ask-label{font-family:var(--mono-font);font-size:11px;color:#FFFFFF;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;opacity:.85;}
   .golf-leaderboard-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s;}
   .golf-leaderboard-card:hover{border-color:rgba(255,255,255,.3);}
   .golf-pos{font-family:var(--display-font);font-size:22px;color:var(--muted);min-width:36px;text-align:right;line-height:1;}
   .golf-player-info{flex:1;}
   .golf-player-name{font-size:14px;font-weight:700;color:var(--text);margin-bottom:1px;}
-  .golf-player-country{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
+  .golf-player-country{font-family:var(--mono-font);font-size:11px;color:var(--muted);}
   .golf-score{text-align:right;}
   .golf-score-num{font-family:var(--mono-font);font-size:16px;color:#FFFFFF;display:block;}
-  .golf-score-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);}
+  .golf-score-label{font-family:var(--mono-font);font-size:11px;color:var(--muted);}
   .golf-odds-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .15s;}
   .golf-odds-card:hover{border-color:rgba(255,255,255,.3);}
   .golf-player-odds{font-family:var(--mono-font);font-size:14px;color:#FFFFFF;}
+  .golf-quick-btn-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+  .golf-quick-btn-tap{min-height:44px;}
+  .golf-schedule-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+  .golf-schedule-card.golf-odds-card{flex-direction:column;align-items:stretch;justify-content:flex-start;}
+  .golf-schedule-blurb{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45;}
+  .golf-schedule-synopsis-link{margin-top:10px;align-self:flex-start;background:none;border:none;padding:4px 0;font-family:var(--mono-font);font-size:11px;letter-spacing:0.5px;color:var(--cyan-bright);cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+
+  @media (max-width:390px){
+    .quick-btn{min-height:44px;font-size:12px;}
+    .golf-leaderboard-card{padding:12px 14px;}
+  }
 `;

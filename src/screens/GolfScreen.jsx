@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { classifyGolfEvent, EVENT_VALIDITY } from "../../shared/eventValidity.js";
@@ -236,6 +236,12 @@ export default function GolfScreen({
   accessTier,
 }) {
   const [lastKnownEventSnapshot, setLastKnownEventSnapshot] = useState(null);
+  /** Which PGA Tour schedule row (id/name + index) is expanded to show course-profile blurb. */
+  const [expandedScheduleKey, setExpandedScheduleKey] = useState(null);
+
+  const toggleScheduleCard = useCallback((key) => {
+    setExpandedScheduleKey((prev) => (prev === key ? null : key));
+  }, []);
 
   useEffect(() => {
     const ev = golfData?.currentEvent || golfData?.tournament;
@@ -326,17 +332,17 @@ export default function GolfScreen({
           <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             <div className="golf-banner">
               <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{headerEventName}</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{headerMonoLabel}</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{headerMonoLabel}</div>
               <div style={{fontSize:12,color:"var(--soft)"}}>
                 {headerCourseLine}
               </div>
               {weatherRow && (
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 }}>
+                <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 }}>
                   {weatherRow}
                 </div>
               )}
               {courseProfileLine && (
-                <div style={{ fontSize: 11, color: "var(--soft)", marginTop: 4, lineHeight: 1.45, fontStyle: "italic" }}>
+                <div style={{ fontSize: 13, color: "var(--soft)", marginTop: 4, lineHeight: 1.45, fontStyle: "italic" }}>
                   {courseProfileLine}
                 </div>
               )}
@@ -346,14 +352,14 @@ export default function GolfScreen({
               <div className="golf-ask-shell" ref={golfBarRef}>
                 <div className="golf-ask-label">{eventFinished ? "Recap — Golf" : "Ask Anything — Golf"}</div>
                 <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder={eventFinished ? "How did the tournament finish? Biggest surprise?" : "Scheffler top 5? Best make-cut play? Matchup angle?"} btnColor="#DCE6F2" {...askBarCommon}/>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                <div className="golf-quick-btn-grid">
                   {(shellPrompts.length ? shellPrompts : [
                     "Best outright?",
                     "Top-10 value?",
                     "Course fit sleeper?",
                     "Fade favorites?",
                   ]).map((q) => (
-                    <button key={q} className="quick-btn" onClick={() => submitGolf(q)} style={{ fontSize: 11 }}>
+                    <button key={q} type="button" className="quick-btn golf-quick-btn-tap" onClick={() => submitGolf(q)}>
                       {q}
                     </button>
                   ))}
@@ -371,28 +377,53 @@ export default function GolfScreen({
             {scheduleRows.length > 0 && (
               <>
                 <div className="section-divider">PGA Tour Schedule</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr",gap:6,marginBottom:10}}>
-                  {scheduleRows.slice(0, 6).map((evt, idx) => (
+                <div className="golf-schedule-list">
+                  {scheduleRows.slice(0, 8).map((evt, idx) => {
+                    const scheduleKey = `${evt?.id ?? ""}-${evt?.name ?? ""}-${idx}`;
+                    const expanded = expandedScheduleKey === scheduleKey;
+                    return (
                     <div
-                      key={`${evt?.id || evt?.name || idx}`}
-                      className="golf-odds-card"
-                      onClick={() =>
-                        submitGolf(
-                          `Give me a brief tournament synopsis for ${evt?.name || "this event"}: course style, player profile that fits, and one market angle to watch this week.`,
-                        )
-                      }
+                      key={scheduleKey}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expanded}
+                      className="golf-odds-card golf-schedule-card"
+                      onClick={() => toggleScheduleCard(scheduleKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleScheduleCard(scheduleKey);
+                        }
+                      }}
                     >
                       <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>
                         {evt?.shortName || evt?.name || "PGA Tour Event"}
                       </div>
-                      <div style={{fontSize:11,color:"var(--soft)",marginTop:2}}>
+                      <div style={{fontSize:13,color:"var(--soft)",marginTop:2}}>
                         {(evt?.displayDate || "Upcoming")}{evt?.location ? ` · ${evt.location}` : ""}
                       </div>
-                      <div style={{fontSize:11,color:"var(--muted)",marginTop:4}}>
-                        {describeTournamentStyle(evt)}
-                      </div>
+                      {expanded && (
+                        <>
+                          <div className="golf-schedule-blurb">
+                            {describeTournamentStyle(evt)}
+                          </div>
+                          <button
+                            type="button"
+                            className="golf-schedule-synopsis-link"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              submitGolf(
+                                `Give me a brief tournament synopsis for ${evt?.name || "this event"}: course style, player profile that fits, and one market angle to watch this week.`,
+                              );
+                            }}
+                          >
+                            UR synopsis
+                          </button>
+                        </>
+                      )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </>
             )}
@@ -402,7 +433,7 @@ export default function GolfScreen({
               <>
                 <div className="section-divider">
                   {golfData.currentEvent.name} — {eventFinished ? "Final" : golfData.currentEvent.round}
-                  <span style={{ fontFamily: "var(--mono-font)", fontSize: 9, color: "var(--muted)", marginLeft: 8 }}>
+                  <span style={{ fontFamily: "var(--mono-font)", fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>
                     {golfData.currentEvent.leaderboard.length} players
                   </span>
                 </div>
@@ -442,18 +473,18 @@ export default function GolfScreen({
             {!eventFinished && (
             <>
             <div className="section-divider">Quick Angles</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 12px"}}>
+            <div className="golf-quick-btn-grid" style={{ padding: "0 0 12px" }}>
               {quickAngles.map(([label, prompt]) => (
-                <button key={label} className="quick-btn" onClick={() => submitGolf(prompt)} style={{ fontSize: 11 }}>
+                <button key={label} type="button" className="quick-btn golf-quick-btn-tap" onClick={() => submitGolf(prompt)}>
                   {label}
                 </button>
               ))}
             </div>
 
             <div className="section-divider">Ask About Any Player</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 0 8px"}}>
+            <div className="golf-quick-btn-grid" style={{ padding: "0 0 8px" }}>
               {["Scheffler","Rory","Schauffele","Morikawa","Hovland","Cantlay","Rahm","Ludvig Aberg","Tom Kim","Spieth","JT","Fleetwood","Fitzpatrick","Hatton","Lowry","Matsuyama","Brian Harman","Cameron Young","Wyndham Clark","Sahith Theegala"].map(name=>(
-                <button key={name} className="quick-btn" onClick={()=>submitGolf(`Best betting angle for ${name} this week? Top 10, matchup, outright, or make cut?`)} style={{fontSize:11}}>{name}</button>
+                <button key={name} type="button" className="quick-btn golf-quick-btn-tap" onClick={()=>submitGolf(`Best betting angle for ${name} this week? Top 10, matchup, outright, or make cut?`)}>{name}</button>
               ))}
             </div>
             </>
