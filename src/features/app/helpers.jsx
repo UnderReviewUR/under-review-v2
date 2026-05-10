@@ -804,6 +804,57 @@ export function parseUrTakeResponse(raw) {
   };
 }
 
+const PARLAY_LEG_PATTERN = /(?:leg\s*\d+|→)\s*:?\s*([A-Z][^—\n]+)/gi;
+
+function attemptParlayConversion(text) {
+  const raw = String(text || "");
+  const re = new RegExp(PARLAY_LEG_PATTERN.source, PARLAY_LEG_PATTERN.flags);
+  const legs = [...raw.matchAll(re)];
+  if (legs.length >= 2) {
+    return legs.map((match) => ({
+      play: match[1].trim(),
+      rationale: "",
+      odds: "TBD",
+    }));
+  }
+  return null;
+}
+
+function buildPromotedParlayStructured(summaryText, sportHint, legs) {
+  const parsed = parseUrTakeResponse(summaryText);
+  const firstLine = summaryText.split("\n").find((ln) => String(ln).trim()) || "";
+  const callRaw =
+    parsed.headline ||
+    String(firstLine)
+      .replace(/^>>\s*/, "")
+      .trim()
+      .slice(0, 100) ||
+    "Parlay card";
+  const call = callRaw.length >= 3 ? callRaw : "Parlay card";
+  return {
+    sport: String(sportHint || "generic"),
+    call,
+    confidence: "Medium",
+    whyNow:
+      "Legs below are shown in the structured card for scanning; your full write-up stays in the thread.",
+    edge:
+      "Confirm legs, prices, and correlation on the board before placing — layout is extracted from plain text.",
+    callType: "parlay",
+    analysis: null,
+    caveats: [],
+    parlayLegs: legs.map((leg) => ({
+      play: String(leg.play || "Leg").slice(0, 50),
+      rationale:
+        typeof leg.rationale === "string" && leg.rationale.trim().length > 0
+          ? leg.rationale.trim()
+          : "See the narrative in your answer above.",
+      odds: leg.odds || "TBD",
+    })),
+    parlayTotalOdds: "TBD",
+    timestamp: null,
+  };
+}
+
 export function renderUrTakeAiMessage(raw) {
   const text = String(raw || "");
   const parsed = parseUrTakeResponse(text);
@@ -1205,8 +1256,25 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
 
   const trustChips = m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null;
 
-  if (m.structured && typeof m.structured === "object") {
-    const s = m.structured;
+  /**
+   * Bubble rendering paths:
+   * 1. `m.structured` from the API → `URTakeResponse` premium card.
+   * 2. Else plain text matches parlay leg heuristics (`attemptParlayConversion`) → synthetic structured
+   *    object (`callType: "parlay"`) and the same card (covers answers that never received structured JSON).
+   * 3. Else `parseUrTakeResponse(summaryText).hasVisual` → `UrTakePlainTextVisual` (gradient + chunks).
+   * 4. Else legacy `renderMessage` typography.
+   * Breakdown toggles `renderUrTakeAiMessage` on `deepText` when present.
+   */
+  const plainParlayLegs =
+    m.structured && typeof m.structured === "object" ? null : attemptParlayConversion(summaryText);
+  const promotedParlayStructured = plainParlayLegs
+    ? buildPromotedParlayStructured(summaryText, m.sport, plainParlayLegs)
+    : null;
+  const effectiveStructured =
+    m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
+
+  if (effectiveStructured && typeof effectiveStructured === "object") {
+    const s = effectiveStructured;
     return (
       <>
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
