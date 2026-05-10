@@ -486,12 +486,27 @@ function UrTakePlainTextVisual({
               chunk &&
               typeof chunk === "object" &&
               chunk.type === "pick";
+            const isLabel =
+              chunk &&
+              typeof chunk === "object" &&
+              chunk.type === "label";
             const text =
               typeof chunk === "string"
                 ? chunk
                 : chunk && typeof chunk === "object"
                   ? chunk.text
                   : "";
+            if (isLabel) {
+              return (
+                <div
+                  key={i}
+                  className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45 mt-3 mb-1"
+                  style={{ opacity: mounted ? undefined : 0 }}
+                >
+                  {text}
+                </div>
+              );
+            }
             if (isPick) {
               return (
                 <div
@@ -579,6 +594,67 @@ function trimLeadingOrphanDots(text) {
     .trim();
 }
 
+/** Inline structural labels emitted by the model — split into styled section headers in the UI. */
+const STRUCTURAL_LABELS = [
+  "WHAT THE MARKET SEES",
+  "THE FRAGILE ASSUMPTION",
+  "THE STRUCTURAL EDGE",
+  "THE CALL",
+  "MARKET READ",
+  "WHY NOW",
+  "THE EDGE",
+  "CAVEATS",
+  "PARLAY LEGS",
+];
+
+const STRUCTURAL_LABEL_REGEX = new RegExp(
+  `(${STRUCTURAL_LABELS.map((l) => l.replace(/\s+/g, "\\s+")).join("|")})`,
+  "gi",
+);
+
+const STRUCTURAL_LABEL_CANONICAL = new Map(
+  STRUCTURAL_LABELS.map((l) => [l.replace(/\s+/g, " ").trim().toUpperCase(), l]),
+);
+
+function splitStructuralLabelsInText(text) {
+  const t = String(text || "");
+  if (!t.trim()) return [];
+  const parts = [];
+  let lastIndex = 0;
+  let m;
+  const re = new RegExp(STRUCTURAL_LABEL_REGEX.source, STRUCTURAL_LABEL_REGEX.flags);
+  while ((m = re.exec(t)) !== null) {
+    const before = t.slice(lastIndex, m.index).trim();
+    if (before) parts.push({ type: "prose", text: before });
+    const raw = String(m[1] || "").replace(/\s+/g, " ").trim().toUpperCase();
+    const labelText = STRUCTURAL_LABEL_CANONICAL.get(raw) || String(m[1] || "").trim();
+    parts.push({ type: "label", text: labelText });
+    lastIndex = m.index + m[0].length;
+  }
+  const rest = t.slice(lastIndex).trim();
+  if (rest) parts.push({ type: "prose", text: rest });
+  return parts;
+}
+
+function splitStructuralLabelsFromChunks(chunks) {
+  const out = [];
+  for (const item of chunks) {
+    if (!item || typeof item !== "object") continue;
+    if (item.type === "pick") {
+      out.push(item);
+      continue;
+    }
+    if (item.type === "prose") {
+      const pieces = splitStructuralLabelsInText(item.text);
+      for (const p of pieces) {
+        if (p.text && String(p.text).trim()) out.push(p);
+      }
+      continue;
+    }
+  }
+  return out;
+}
+
 /** Split lines beginning with → into separate pick rows (never merged into prose). */
 function splitArrowPickLinesFromChunks(chunks) {
   const out = [];
@@ -609,7 +685,7 @@ function splitArrowPickLinesFromChunks(chunks) {
 
 /**
  * Parsed UR Take prose (same rules as the visual card).
- * @returns {{ gameState: string, headline: string, bodyChunks: Array<string | { type: 'prose' | 'pick', text: string }>, closing: string, confidence: string, hasVisual: boolean }}
+ * @returns {{ gameState: string, headline: string, bodyChunks: Array<string | { type: 'prose' | 'pick' | 'label', text: string }>, closing: string, confidence: string, hasVisual: boolean }}
  */
 export function parseUrTakeResponse(raw) {
   const text = String(raw || "");
@@ -679,6 +755,7 @@ export function parseUrTakeResponse(raw) {
     .filter(Boolean);
 
   bodyChunks = splitArrowPickLinesFromChunks(bodyChunks);
+  bodyChunks = splitStructuralLabelsFromChunks(bodyChunks);
 
   if (
     closing &&
