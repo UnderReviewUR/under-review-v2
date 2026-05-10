@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import UrTakeShareButton from "./UrTakeShareButton.jsx";
 
 function formatTimestamp(ts) {
   if (!ts) return null;
@@ -57,7 +58,7 @@ export default function URTakeResponse({
 
   return (
     <div className="mt-1 ur-take-structured ur-take-response">
-      <div className="rounded-xl border border-[rgba(0,245,233,0.25)] bg-[rgba(0,245,233,0.04)] p-4 shadow-[0_0_24px_rgba(0,245,233,0.06)]">
+      <div className="relative pb-11 rounded-xl border border-[rgba(0,245,233,0.25)] bg-[rgba(0,245,233,0.04)] p-4 shadow-[0_0_24px_rgba(0,245,233,0.06)]">
         {/* THE CALL */}
         <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">THE CALL · {sport || "—"}</div>
         <div
@@ -107,6 +108,9 @@ export default function URTakeResponse({
             <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">EDGE</div>
             <p className="m-0">{edge}</p>
           </div>
+        </div>
+        <div className="ur-take-share-anchor">
+          <UrTakeShareButton headline={call} bodyChunks={[edge]} confidence={confidence} />
         </div>
       </div>
 

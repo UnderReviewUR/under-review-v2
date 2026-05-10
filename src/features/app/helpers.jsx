@@ -10,6 +10,7 @@ import {
   takeFirstSentenceSpan,
 } from "../../lib/urTakeSentenceBoundaries.js";
 import URTakeResponse from "../../components/URTakeResponse.jsx";
+import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
 export { normalizeText };
 export { isSubstantiveClosing };
 
@@ -437,6 +438,11 @@ function UrTakePlainTextVisual({
           letterSpacing: 0.3,
         };
 
+  const wrapStyle = {
+    position: "relative",
+    paddingBottom: compactBubble === true ? 36 : 40,
+  };
+
   const gameStateRibbon = (
     <div
       style={{
@@ -467,7 +473,7 @@ function UrTakePlainTextVisual({
   );
 
   return (
-    <>
+    <div style={wrapStyle}>
       {gameStateLine ? gameStateRibbon : null}
 
       {headlineDisplay ? (
@@ -545,7 +551,15 @@ function UrTakePlainTextVisual({
       ) : null}
 
       {confidence ? <div style={confidenceStyle}>{confidence}</div> : null}
-    </>
+
+      <div className="ur-take-share-anchor">
+        <UrTakeShareButton
+          headline={headlineDisplay || ""}
+          bodyChunks={bodyChunks}
+          confidence={confidence || ""}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -853,6 +867,40 @@ function buildPromotedParlayStructured(summaryText, sportHint, legs) {
     parlayTotalOdds: "TBD",
     timestamp: null,
   };
+}
+
+/** Prefer API followUps when present; otherwise derive three chips from answer text (parlay / O-U / slate / default). */
+export function getFollowUpSuggestions(message) {
+  const api = Array.isArray(message?.followUps) ? message.followUps : [];
+  if (api.length >= 1) return api.slice(0, 3);
+
+  const contentStr =
+    typeof message?.content === "string"
+      ? message.content
+      : typeof message?.text === "string"
+        ? message.text
+        : "";
+  const structuredCall =
+    message?.structured && typeof message.structured === "object" && typeof message.structured.call === "string"
+      ? message.structured.call
+      : "";
+  const deepTextStr = typeof message?.deepText === "string" ? message.deepText : "";
+  const text = [contentStr, structuredCall, deepTextStr].filter(Boolean).join("\n");
+
+  if (/parlay/i.test(text)) {
+    return ["What breaks this parlay?", "Best single leg from this", "Adjust to 2 legs"];
+  }
+  if (/over|under/i.test(text)) {
+    return [
+      "Build a parlay around this",
+      "What's the risk here?",
+      "Show me the opposing view",
+    ];
+  }
+  if (/slate|top \d|best \d/i.test(text)) {
+    return ["Which is the single safest?", "Rank these by confidence", "Build a parlay from these"];
+  }
+  return ["Give me a specific bet", "What's the strongest edge?", "What kills this take?"];
 }
 
 export function renderUrTakeAiMessage(raw) {
@@ -1201,11 +1249,10 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
     trackPlay.trackedIds.includes(m.msgId);
   const showTrack =
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
-  const followUps =
-    Array.isArray(m.followUps) && m.followUps.length >= 1 ? m.followUps : null;
+  const followUps = getFollowUpSuggestions(m);
 
   const followUpPills =
-    followUps && typeof onUrTakeFollowUp === "function" ? (
+    followUps.length >= 1 && typeof onUrTakeFollowUp === "function" ? (
       <div
         role="group"
         aria-label="Suggested follow-ups"
@@ -1325,10 +1372,24 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
   }
 
   if (!parsed.hasVisual) {
+    const plainHeadline =
+      summaryText
+        .split("\n")
+        .map((l) => l.trim())
+        .find((l) => l.length > 0) || summaryText;
     return (
       <>
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
-        {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
+        <div style={{ position: "relative", paddingBottom: 36 }}>
+          {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
+          <div className="ur-take-share-anchor">
+            <UrTakeShareButton
+              headline={plainHeadline}
+              bodyChunks={[summaryText]}
+              confidence=""
+            />
+          </div>
+        </div>
         {followUpPills}
         {trustChips}
         {showTrack ? (
