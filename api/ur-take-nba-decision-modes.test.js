@@ -596,7 +596,7 @@ test("status_only routes upstream and returns consistent confidence", async () =
   assert.equal(out.payload.decisionMode, "status_only");
   assert.ok(/Joel Embiid/i.test(out.payload.response));
   assert.notEqual(out.payload.take.confidence, "Unspecified");
-  assert.match(out.payload.take.confidence, /^(Low|Medium|High)\b/);
+  assert.match(out.payload.take.confidence, /^(High|Medium|Speculative)\b/);
 });
 
 test("status_plus_consequence keeps routing and consequence block", async () => {

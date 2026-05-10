@@ -1062,7 +1062,7 @@ function deriveConfidenceLabel({
   let label;
   if (score >= 6) label = "High";
   else if (score >= 3) label = "Medium";
-  else label = "Low";
+  else label = "Speculative";
 
   if (isLive && label === "High") return "Medium";
   return label;
@@ -1155,7 +1155,7 @@ FIRST CUT
 [one line]
 
 CONFIDENCE
-[High / Medium / Low]
+[High / Medium / Speculative]
 
 TIMING
 [one line]`;
@@ -2352,7 +2352,7 @@ function confidenceLabelToRank(label) {
 function confidenceRankToLabel(rank) {
   if (rank >= 3) return "High";
   if (rank >= 2) return "Medium";
-  return "Low";
+  return "Speculative";
 }
 
 export function applyNbaConfidenceModifiers({
@@ -2366,19 +2366,19 @@ export function applyNbaConfidenceModifiers({
   const directBlockedOddsFeed = invalidation?.blockedReason === "odds_feed_unavailable";
   if (directBlockedUnavailable) {
     return {
-      label: "Low",
+      label: "Speculative",
       reason: "Player unavailable — direct prop projection is blocked.",
     };
   }
   if (directBlockedOddsFeed) {
     return {
-      label: "Low",
+      label: "Speculative",
       reason: "Structural read only — anchor claims to verified stats and live state in context.",
     };
   }
   if (directBlockedNoMarket) {
     return {
-      label: "Low",
+      label: "Speculative",
       reason: "Closest verified structural read — tie claims to pace, role, and matchup data present.",
     };
   }
