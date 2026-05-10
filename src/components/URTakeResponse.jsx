@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function formatTimestamp(ts) {
   if (!ts) return null;
@@ -48,6 +48,10 @@ export default function URTakeResponse({
   timestamp,
 }) {
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [animMounted, setAnimMounted] = useState(false);
+  useEffect(() => {
+    setAnimMounted(true);
+  }, []);
   const badgeCls = confidenceBadgeClasses(confidence);
   const formattedTimestamp = formatTimestamp(timestamp);
 
@@ -56,27 +60,53 @@ export default function URTakeResponse({
       <div className="rounded-xl border border-[rgba(0,245,233,0.25)] bg-[rgba(0,245,233,0.04)] p-4 shadow-[0_0_24px_rgba(0,245,233,0.06)]">
         {/* THE CALL */}
         <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">THE CALL · {sport || "—"}</div>
-        <div className="mb-4 font-sans text-[17px] font-semibold leading-snug text-white/95">{call}</div>
-
-        <p className="mb-4 text-[13px] leading-relaxed text-white/82">
-          <strong className="text-[rgba(0,245,233,0.85)]">Why now:</strong> {whyNow}
-        </p>
-
-        {/* CONFIDENCE */}
-        <div className="mb-4">
-          <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">CONFIDENCE</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-wide ${badgeCls}`}>
-              {confidence}
-            </span>
-            <span className="font-mono text-[10px] text-white/45">{callType}</span>
-          </div>
+        <div
+          className={animMounted ? "mb-4 font-sans text-[17px] font-semibold leading-snug text-white/95 ur-response-headline" : "mb-4 font-sans text-[17px] font-semibold leading-snug text-white/95"}
+          style={{ opacity: animMounted ? undefined : 0 }}
+        >
+          {call}
         </div>
 
-        {/* EDGE */}
-        <div>
-          <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">EDGE</div>
-          <p className="m-0 text-[13px] leading-relaxed text-white/78">{edge}</p>
+        <div className="flex flex-col gap-4">
+          <div
+            className={
+              animMounted
+                ? "text-[13px] leading-relaxed text-white/82 ur-response-chunk"
+                : "text-[13px] leading-relaxed text-white/82"
+            }
+            style={{ opacity: animMounted ? undefined : 0 }}
+          >
+            <strong className="text-[rgba(0,245,233,0.85)]">Why now:</strong> {whyNow}
+          </div>
+
+          {/* CONFIDENCE */}
+          <div
+            className={
+              animMounted ? "ur-response-closing" : undefined
+            }
+            style={{ opacity: animMounted ? undefined : 0 }}
+          >
+            <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">CONFIDENCE</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-wide ${badgeCls}`}>
+                {confidence}
+              </span>
+              <span className="font-mono text-[10px] text-white/45">{callType}</span>
+            </div>
+          </div>
+
+          {/* EDGE */}
+          <div
+            className={
+              animMounted
+                ? "text-[13px] leading-relaxed text-white/78 ur-response-chunk"
+                : "text-[13px] leading-relaxed text-white/78"
+            }
+            style={{ opacity: animMounted ? undefined : 0 }}
+          >
+            <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">EDGE</div>
+            <p className="m-0">{edge}</p>
+          </div>
         </div>
       </div>
 

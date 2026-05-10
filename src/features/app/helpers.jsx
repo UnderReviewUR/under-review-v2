@@ -348,6 +348,165 @@ export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
     .trimStart();
 }
 
+/** Plain-text UR Take visual blocks — mount-only staggered entry (shared by message renderer + bubble). */
+function UrTakePlainTextVisual({
+  gameStateLine,
+  headlineDisplay,
+  bodyChunks,
+  closingDisplay,
+  confidence,
+  compactBubble,
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const chunkOuter =
+    compactBubble === true
+      ? {}
+      : { display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 };
+
+  const chunkCardStyle =
+    compactBubble === true
+      ? {
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(255,255,255,0.05)",
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 12,
+          lineHeight: 1.5,
+          fontSize: 14,
+          color: "rgba(255,255,255,0.9)",
+        }
+      : {
+          padding: "14px 16px",
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(255,255,255,0.05)",
+          borderRadius: 12,
+          fontSize: 13,
+          lineHeight: 1.7,
+          color: "rgba(255,255,255,0.68)",
+        };
+
+  const headlineStyle = {
+    background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+    fontSize: 20,
+    fontWeight: 800,
+    marginBottom: compactBubble === true ? 16 : 18,
+    lineHeight: 1.3,
+    letterSpacing: "-0.3px",
+  };
+
+  const closingStyle =
+    compactBubble === true
+      ? {
+          background: "rgba(255, 61, 143, 0.15)",
+          border: "1px solid #FF3D8F",
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 12,
+          color: "#FF3D8F",
+          fontWeight: 700,
+          fontSize: 15,
+        }
+      : {
+          marginTop: 16,
+          padding: "14px 16px",
+          background: "rgba(255, 61, 143, 0.08)",
+          border: "1px solid rgba(255, 61, 143, 0.2)",
+          borderRadius: 12,
+          fontSize: 15,
+          fontWeight: 700,
+          color: "#FF3D8F",
+          lineHeight: 1.5,
+          letterSpacing: "0.3px",
+          marginBottom: 12,
+        };
+
+  const confidenceStyle =
+    compactBubble === true
+      ? { fontSize: 12, color: "rgba(255,255,255,0.28)", marginTop: 8 }
+      : {
+          fontSize: 11,
+          color: "rgba(255,255,255,0.28)",
+          fontFamily: "var(--body-font)",
+          letterSpacing: 0.3,
+        };
+
+  const gameStateRibbon = (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "4px 12px",
+        background: "rgba(34,197,94,0.08)",
+        border: "1px solid rgba(34,197,94,0.15)",
+        borderRadius: 999,
+        fontFamily: "var(--mono-font)",
+        fontSize: 10,
+        color: "#22c55e",
+        letterSpacing: 1.5,
+        marginBottom: 16,
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#22c55e",
+        }}
+      />
+      {gameStateLine}
+    </div>
+  );
+
+  return (
+    <>
+      {gameStateLine ? gameStateRibbon : null}
+
+      {headlineDisplay ? (
+        <div
+          className={mounted ? "ur-response-headline" : undefined}
+          style={{ ...headlineStyle, opacity: mounted ? undefined : 0 }}
+        >
+          {headlineDisplay}
+        </div>
+      ) : null}
+
+      {bodyChunks.length > 0 ? (
+        <div style={chunkOuter}>
+          {bodyChunks.map((chunk, i) => (
+            <div
+              key={i}
+              className={mounted ? "ur-response-chunk" : undefined}
+              style={{ ...chunkCardStyle, opacity: mounted ? undefined : 0 }}
+            >
+              {chunk}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {closingDisplay ? (
+        <div
+          className={mounted ? "ur-response-closing" : undefined}
+          style={{ ...closingStyle, opacity: mounted ? undefined : 0 }}
+        >
+          {closingDisplay}
+        </div>
+      ) : null}
+
+      {confidence ? <div style={confidenceStyle}>{confidence}</div> : null}
+    </>
+  );
+}
+
 /** ── UR Take AI bubble — simple line-based layout ── */
 
 function splitBySentenceCluster(text, targetClusters = 3) {
@@ -516,106 +675,14 @@ export function renderUrTakeAiMessage(raw) {
 
   return (
     <div style={{ padding: "0 4px" }}>
-      {gameState ? (
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "4px 12px",
-            background: "rgba(34,197,94,0.08)",
-            border: "1px solid rgba(34,197,94,0.15)",
-            borderRadius: 999,
-            fontFamily: "var(--mono-font)",
-            fontSize: 10,
-            color: "#22c55e",
-            letterSpacing: 1.5,
-            marginBottom: 16,
-          }}
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "#22c55e",
-            }}
-          />
-          {stripUrTakeInlineMarkdown(gameState)}
-        </div>
-      ) : null}
-
-      {headlineDisplay ? (
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 800,
-            lineHeight: 1.3,
-            marginBottom: 18,
-            background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            letterSpacing: "-0.3px",
-          }}
-        >
-          {headlineDisplay}
-        </div>
-      ) : null}
-
-      {bodyChunks.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {bodyChunks.map((chunk, i) => (
-            <div
-              key={i}
-              style={{
-                padding: "14px 16px",
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.05)",
-                borderRadius: 12,
-                fontSize: 13,
-                lineHeight: 1.7,
-                color: "rgba(255,255,255,0.68)",
-              }}
-            >
-              {chunk}
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {closingDisplay ? (
-        <div
-          style={{
-            marginTop: 16,
-            padding: "14px 16px",
-            background: "rgba(255, 61, 143, 0.08)",
-            border: "1px solid rgba(255, 61, 143, 0.2)",
-            borderRadius: 12,
-            fontSize: 15,
-            fontWeight: 700,
-            color: "#FF3D8F",
-            lineHeight: 1.5,
-            letterSpacing: "0.3px",
-            marginBottom: 12,
-          }}
-        >
-          {closingDisplay}
-        </div>
-      ) : null}
-
-      {confidence ? (
-        <div
-          style={{
-            fontSize: 11,
-            color: "rgba(255,255,255,0.28)",
-            fontFamily: "var(--body-font)",
-            letterSpacing: 0.3,
-          }}
-        >
-          {confidence}
-        </div>
-      ) : null}
+      <UrTakePlainTextVisual
+        gameStateLine={gameState ? stripUrTakeInlineMarkdown(gameState) : ""}
+        headlineDisplay={headlineDisplay}
+        bodyChunks={bodyChunks}
+        closingDisplay={closingDisplay}
+        confidence={confidence}
+        compactBubble={false}
+      />
     </div>
   );
 }
@@ -1122,92 +1189,14 @@ function UrTakeAiBubble({ m, trackPlay, onUrTakeFollowUp, userQuestion = "" }) {
           marginBottom: 12,
         }}
       >
-        {parsed.gameState ? (
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 12px",
-              background: "rgba(34,197,94,0.08)",
-              border: "1px solid rgba(34,197,94,0.15)",
-              borderRadius: 999,
-              fontFamily: "var(--mono-font)",
-              fontSize: 10,
-              color: "#22c55e",
-              letterSpacing: 1.5,
-              marginBottom: 16,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "#22c55e",
-              }}
-            />
-            {stripUrTakeInlineMarkdown(parsed.gameState)}
-          </div>
-        ) : null}
-
-        {parsed.headline ? (
-          <div
-            style={{
-              background: "linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              fontSize: 20,
-              fontWeight: 800,
-              marginBottom: 16,
-              lineHeight: 1.3,
-            }}
-          >
-            {parsed.headline}
-          </div>
-        ) : null}
-
-        {parsed.bodyChunks.map((chunk, i) => (
-          <div
-            key={i}
-            style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 12,
-              lineHeight: 1.5,
-              fontSize: 14,
-              color: "rgba(255,255,255,0.9)",
-            }}
-          >
-            {chunk}
-          </div>
-        ))}
-
-        {parsed.closing ? (
-          <div
-            style={{
-              background: "rgba(255, 61, 143, 0.15)",
-              border: "1px solid #FF3D8F",
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 12,
-              color: "#FF3D8F",
-              fontWeight: 700,
-              fontSize: 15,
-            }}
-          >
-            {parsed.closing}
-          </div>
-        ) : null}
-
-        {parsed.confidence ? (
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", marginTop: 8 }}>
-            {parsed.confidence}
-          </div>
-        ) : null}
+        <UrTakePlainTextVisual
+          gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
+          headlineDisplay={parsed.headline}
+          bodyChunks={parsed.bodyChunks}
+          closingDisplay={parsed.closing}
+          confidence={parsed.confidence}
+          compactBubble={true}
+        />
 
         {(m.deepText || showTrack) && (
           <div

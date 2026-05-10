@@ -6,6 +6,27 @@ export const baseCss = `
     50%{opacity:0.4;}
   }
 
+  @keyframes ur-fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ur-response-headline {
+      animation: ur-fade-up 300ms ease forwards;
+    }
+    .ur-response-chunk {
+      animation: ur-fade-up 300ms ease forwards;
+    }
+    .ur-response-chunk:nth-child(1) { animation-delay: 80ms; }
+    .ur-response-chunk:nth-child(2) { animation-delay: 160ms; }
+    .ur-response-chunk:nth-child(3) { animation-delay: 240ms; }
+    .ur-response-closing {
+      animation: ur-fade-up 300ms ease forwards;
+      animation-delay: 320ms;
+    }
+  }
+
   :root{
     --cyan:#0891B2;
     --cyan-bright:#00F5E9;
