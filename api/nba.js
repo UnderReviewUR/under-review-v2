@@ -2106,6 +2106,14 @@ export function prioritizeNbaBoardForQuestion(board, directAbbrevs, playoffOnlyA
 
 function attachPraFieldsToPlayerRow(p) {
   const rg = Array.isArray(p?.recentGames) ? p.recentGames : [];
+  /** DNP / incomplete BDL rows often come through as all zeros — exclude from recent-form averages. */
+  const validRg = rg.filter((g) => {
+    const pra =
+      Number(g?.pts ?? 0) + Number(g?.reb ?? 0) + Number(g?.ast ?? 0);
+    return pra !== 0;
+  });
+  const recentGamesStale = validRg.length < 2;
+
   let praSeason = null;
   if (p.pts != null && p.reb != null && p.ast != null) {
     praSeason = Number(p.pts) + Number(p.reb) + Number(p.ast);
@@ -2122,21 +2130,21 @@ function attachPraFieldsToPlayerRow(p) {
   let rebCeiling = null;
   let astFloor = null;
   let astCeiling = null;
-  if (rg.length > 0) {
-    const pras = rg.map(
+  if (validRg.length > 0) {
+    const pras = validRg.map(
       (g) => Number(g?.pts || 0) + Number(g?.reb || 0) + Number(g?.ast || 0),
     );
-    praRecent = pras.reduce((sum, n) => sum + n, 0) / rg.length;
+    praRecent = pras.reduce((sum, n) => sum + n, 0) / validRg.length;
     praFloor = Math.min(...pras);
     praCeiling = Math.max(...pras);
 
-    const ptss = rg
+    const ptss = validRg
       .map((g) => (g?.pts == null ? NaN : Number(g.pts)))
       .filter((n) => Number.isFinite(n));
-    const rebs = rg
+    const rebs = validRg
       .map((g) => (g?.reb == null ? NaN : Number(g.reb)))
       .filter((n) => Number.isFinite(n));
-    const asts = rg
+    const asts = validRg
       .map((g) => (g?.ast == null ? NaN : Number(g.ast)))
       .filter((n) => Number.isFinite(n));
     if (ptss.length > 0) {
@@ -2170,6 +2178,7 @@ function attachPraFieldsToPlayerRow(p) {
     rebCeiling,
     astFloor,
     astCeiling,
+    recentGamesStale,
   };
 }
 

@@ -46,6 +46,7 @@ export function slimNbaPlayerStatRowForUrTake(p) {
     praRecent: p.praRecent ?? null,
     praFloor: p.praFloor ?? null,
     praCeiling: p.praCeiling ?? null,
+    recentGamesStale: p.recentGamesStale === true,
   };
 }
 

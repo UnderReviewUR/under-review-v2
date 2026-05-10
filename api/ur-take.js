@@ -3494,14 +3494,7 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup) {
   );
 
   if (Array.isArray(raw.playerStats)) {
-    raw.playerStats = raw.playerStats.map((row) => {
-      const slimmed = slimNbaPlayerStatRowForUrTake(row);
-      const rg = Array.isArray(slimmed?.recentGames) ? slimmed.recentGames : [];
-      if (rg.length === 0 || rg.length < 3) {
-        return { ...slimmed, recentGamesStale: true };
-      }
-      return slimmed;
-    });
+    raw.playerStats = raw.playerStats.map((row) => slimNbaPlayerStatRowForUrTake(row));
   }
   raw.playoffSeries = slimPlayoffSeriesForBoard(raw.playoffSeries || []);
 
