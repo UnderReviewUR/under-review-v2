@@ -381,6 +381,13 @@ export const baseCss = `
   .mini-label{font-family:var(--mono-font);font-size:9px;color:var(--muted);margin-bottom:4px;}
   .mini-value{font-size:15px;font-weight:700;}
 
+  .ur-onboarding-backdrop{position:fixed;inset:0;z-index:120;background:rgba(8,10,12,.88);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);}
+  .ur-onboarding-card{background:var(--surface);border:1px solid var(--border-2);border-radius:18px;padding:22px 20px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35);}
+  .ur-onboarding-title{font-family:var(--display-font);font-size:22px;letter-spacing:1px;margin-bottom:12px;background:linear-gradient(90deg,var(--cyan-bright),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .ur-onboarding-lead{font-size:14px;color:var(--soft);line-height:1.55;margin:0 0 14px;}
+  .ur-onboarding-list{margin:0 0 18px;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.5;}
+  .ur-onboarding-cta{width:100%;border:none;border-radius:12px;padding:12px 16px;font-family:var(--body-font);font-size:15px;font-weight:600;cursor:pointer;background:var(--cyan-bright);color:#080A0C;}
+
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 10px;max-height:min(28vh,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}

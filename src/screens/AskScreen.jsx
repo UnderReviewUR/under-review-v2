@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 
 export default function AskScreen({
@@ -16,10 +17,14 @@ export default function AskScreen({
   onUrTakeFollowUp = null,
   accessTier,
 }) {
+  const inferredSport = inferUrTakeSportFromMessages(askMsgs);
+  const exchangeCount = askMsgs.filter((m) => m.role === "user").length;
+
   return (
           <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
             {askMsgs.length === 0 ? (
               <>
+                <UrTakeOnboardingOverlay visible />
                 <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
                 <AskBar
                   inputRef={askInputRef}
