@@ -22,167 +22,133 @@ function formatTimestamp(ts) {
   }
 }
 
-function confidenceBadgeClasses(tier) {
+/** Option C confidence pill (inline until shared CSS in appBaseCss). */
+function confidencePillClass(tier) {
   const t = String(tier || "");
-  if (t === "High") return "border-emerald-400/35 bg-emerald-400/10 text-emerald-400";
-  if (t === "Medium") return "border-amber-400/35 bg-amber-400/10 text-amber-400";
-  if (t === "Speculative") return "border-white/12 bg-white/5 text-white/55";
-  return "border-white/10 bg-black/20 text-white/50";
+  if (t === "High") {
+    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(74,222,128,0.1)] text-[#4ade80] border border-[rgba(74,222,128,0.25)]";
+  }
+  if (t === "Medium") {
+    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(234,179,8,0.1)] text-[#eab308] border border-[rgba(234,179,8,0.25)]";
+  }
+  if (t === "Speculative") {
+    return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(148,163,184,0.1)] text-[#94a3b8] border border-[rgba(148,163,184,0.25)]";
+  }
+  return "text-[11px] font-medium px-3 py-0.5 rounded-[20px] bg-[rgba(148,163,184,0.1)] text-[#94a3b8] border border-[rgba(148,163,184,0.25)]";
 }
 
 /**
- * Structured UR Take card — rendered when API returns `structured`.
- * Design sections: THE CALL, CONFIDENCE, EDGE, DEEP ANALYSIS, CAVEATS.
+ * Structured UR Take card — Option C (API `structured`).
  */
 export default function URTakeResponse({
   sport,
-  question,
+  question: _question,
   call,
   confidence,
   whyNow,
   edge,
   callType,
-  analysis,
+  analysis: _analysis,
   caveats,
   parlayLegs,
   parlayTotalOdds,
   timestamp,
 }) {
-  const [analysisOpen, setAnalysisOpen] = useState(false);
   const [animMounted, setAnimMounted] = useState(false);
   useEffect(() => {
     setAnimMounted(true);
   }, []);
-  const badgeCls = confidenceBadgeClasses(confidence);
+  const pillCls = confidencePillClass(confidence);
   const formattedTimestamp = formatTimestamp(timestamp);
+  const sportTag = `${String(sport || "generic").toUpperCase()} · ${callType || "—"}`;
 
   return (
     <div className="mt-1 ur-take-structured ur-take-response">
-      <div className="relative pb-11 rounded-xl border border-[rgba(0,245,233,0.25)] bg-[rgba(0,245,233,0.04)] p-4 shadow-[0_0_24px_rgba(0,245,233,0.06)]">
-        {/* THE CALL */}
-        <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">THE CALL · {sport || "—"}</div>
+      <div className="rounded-2xl overflow-hidden border border-white/[0.08] bg-[#111318]">
         <div
-          className={animMounted ? "mb-4 font-sans text-[17px] font-semibold leading-snug text-white/95 ur-response-headline" : "mb-4 font-sans text-[17px] font-semibold leading-snug text-white/95"}
-          style={{ opacity: animMounted ? undefined : 0 }}
-        >
-          {call}
+          className="h-[3px] w-full shrink-0"
+          style={{ background: "linear-gradient(90deg, #6366f1, #a855f7)" }}
+        />
+
+        <div className="flex justify-between items-center px-5 py-3 bg-[#1a1d24] border-b border-white/[0.06]">
+          <span className="font-mono text-[10px] tracking-[0.12em] text-[#a855f7] uppercase">{sportTag}</span>
+          <span className={pillCls}>{confidence}</span>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="px-5 pt-6 pb-6">
           <div
             className={
               animMounted
-                ? "text-[13px] leading-relaxed text-white/82 ur-response-chunk"
-                : "text-[13px] leading-relaxed text-white/82"
+                ? "text-[20px] font-semibold text-white leading-[1.3] tracking-[-0.2px] mb-5 ur-response-headline"
+                : "text-[20px] font-semibold text-white leading-[1.3] tracking-[-0.2px] mb-5"
             }
             style={{ opacity: animMounted ? undefined : 0 }}
           >
-            <strong className="text-[rgba(0,245,233,0.85)]">Why now:</strong> {whyNow}
+            {call}
           </div>
 
-          {/* CONFIDENCE */}
-          <div
-            className={
-              animMounted ? "ur-response-closing" : undefined
-            }
-            style={{ opacity: animMounted ? undefined : 0 }}
-          >
-            <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">CONFIDENCE</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-wide ${badgeCls}`}>
-                {confidence}
-              </span>
-              <span className="font-mono text-[10px] text-white/45">{callType}</span>
+          <div className="mb-4">
+            <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-white/[0.25] mb-1.5 pl-2.5 border-l-2 border-white/[0.1] rounded-none">
+              WHY NOW
+            </div>
+            <div className="text-[13px] text-white/[0.6] leading-relaxed pl-3" style={{ paddingLeft: "12px" }}>
+              {whyNow}
             </div>
           </div>
 
-          {/* EDGE */}
-          <div
-            className={
-              animMounted
-                ? "text-[13px] leading-relaxed text-white/78 ur-response-chunk"
-                : "text-[13px] leading-relaxed text-white/78"
-            }
-            style={{ opacity: animMounted ? undefined : 0 }}
-          >
-            <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">EDGE</div>
-            <p className="m-0">{edge}</p>
+          <div className="bg-[rgba(99,102,241,0.08)] border-l-[3px] border-l-[#6366f1] rounded-r-[10px] py-3 px-4 mb-4">
+            <div className="font-mono text-[9px] tracking-[0.15em] text-[#6366f1] uppercase mb-1">EDGE</div>
+            <div className="text-[13px] text-white/[0.7] leading-relaxed">{edge}</div>
           </div>
+
+          {Array.isArray(caveats) && caveats.length > 0 ? (
+            <div className="mb-4">
+              <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-white/[0.25] mb-1.5 pl-2.5 border-l-2 border-white/[0.1] rounded-none">
+                CAVEATS
+              </div>
+              <ul className="m-0 list-disc space-y-1.5 pl-[18px] text-[13px] leading-relaxed text-white/[0.65]">
+                {caveats.map((c, idx) => (
+                  <li key={idx}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
+            <div className="mt-5">
+              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/[0.25] mb-2">PARLAY LEGS</div>
+              <div className="flex flex-col gap-2">
+                {parlayLegs.map((leg, idx) => (
+                  <div
+                    key={`${leg.play}-${idx}`}
+                    className="rounded-[10px] border border-white/[0.07] bg-white/[0.03] px-3.5 py-3"
+                  >
+                    <div className="text-[14px] font-semibold text-white mb-1">{leg.play}</div>
+                    {leg.rationale && String(leg.rationale).trim() ? (
+                      <div className="text-[12px] text-white/[0.55] leading-snug">{leg.rationale}</div>
+                    ) : null}
+                    {leg.odds && leg.odds !== "TBD" ? (
+                      <div className="mt-1 font-mono text-[10px] text-white/[0.35]">Odds: {leg.odds}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
+                <div className="mt-2.5 font-mono text-[11px] text-white/70">Ticket odds: {parlayTotalOdds}</div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        <div className="ur-take-share-anchor">
+
+        <div className="flex items-center justify-between px-5 py-2.5 bg-[#1a1d24] border-t border-white/[0.06]">
+          {formattedTimestamp ? (
+            <span className="font-mono text-[10px] text-white/[0.25]">{formattedTimestamp}</span>
+          ) : (
+            <span />
+          )}
           <UrTakeShareButton headline={call} bodyChunks={[edge]} />
         </div>
       </div>
-
-      {question ? (
-        <div className="mt-2.5 font-mono text-[10px] leading-snug text-white/45">Q: {question}</div>
-      ) : null}
-
-      {/* DEEP ANALYSIS */}
-      <div className="mt-3.5">
-        <button
-          type="button"
-          className="quick-btn text-[11px]"
-          onClick={() => setAnalysisOpen((o) => !o)}
-        >
-          {analysisOpen ? "Hide deep analysis" : "Deep analysis"}
-        </button>
-        {analysisOpen && analysis && typeof analysis === "object" ? (
-          <div className="mt-3 rounded-[10px] border border-white/10 bg-black/20 p-3 text-[12px] leading-relaxed text-white/82">
-            <div className="mb-3 font-mono text-[9px] uppercase tracking-[0.15em] text-white/45">DEEP ANALYSIS</div>
-            {[
-              ["Matchup", analysis.matchupAnalysis],
-              ["Injuries & availability", analysis.injuryContext],
-              ["Market", analysis.marketContext],
-              ["Line movement", analysis.lineMovement],
-              ["Statistical edge", analysis.statisticalEdge],
-            ].map(([label, val]) => (
-              <div key={label} className="mb-3 last:mb-0">
-                <div className="mb-1 font-mono text-[9px] uppercase tracking-wider text-white/45">{label}</div>
-                <div>{val}</div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      {/* CAVEATS */}
-      {Array.isArray(caveats) && caveats.length > 0 ? (
-        <div className="mt-3.5">
-          <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-orange-400/90">CAVEATS</div>
-          <ul className="m-0 list-disc space-y-1.5 pl-[18px] text-[12px] leading-snug text-white/78">
-            {caveats.map((c, idx) => (
-              <li key={idx}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
-        <div className="mt-3.5">
-          <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">PARLAY LEGS</div>
-          <div className="flex flex-col gap-2.5">
-            {parlayLegs.map((leg, idx) => (
-              <div key={`${leg.play}-${idx}`} className="rounded-lg border border-white/10 p-3 text-[12px] leading-snug">
-                <div className="mb-1 font-semibold">{leg.play}</div>
-                {leg.rationale && String(leg.rationale).trim() ? (
-                  <div className="text-white/75">{leg.rationale}</div>
-                ) : null}
-                {leg.odds && leg.odds !== "TBD" ? (
-                  <div className="mt-1.5 font-mono text-[10px] text-white/45">Odds: {leg.odds}</div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
-            <div className="mt-2.5 font-mono text-[11px] text-white/70">Ticket odds: {parlayTotalOdds}</div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {formattedTimestamp ? (
-        <div className="mt-3 font-mono text-[9px] text-white/45">{formattedTimestamp}</div>
-      ) : null}
     </div>
   );
 }
