@@ -826,6 +826,21 @@ function getNbaSeriesGameNumberForGame(game, playoffSeries) {
   return played + 1;
 }
 
+/** Plain-language elimination signal for serverSummaryOneLiner (series wins in matchup question order). */
+function appendPlayoffEliminationSuffix(winsAwayF, winsHomeF, af, hf) {
+  const a = Number(winsAwayF) || 0;
+  const h = Number(winsHomeF) || 0;
+  if (a <= 2 && h <= 2) return " — no team facing elimination yet.";
+  if (a === 3 && h === 3) return " — next game eliminates the loser.";
+  const hi = Math.max(a, h);
+  const lo = Math.min(a, h);
+  if (hi >= 3 && lo <= 2 && hi > lo) {
+    const trailing = a < h ? af : h < a ? hf : "";
+    if (trailing) return ` — ${trailing} facing elimination.`;
+  }
+  return "";
+}
+
 /**
  * Explicit series snapshot for the Haiku JSON payload when the question anchors a matchup.
  * playoffSeries rows are ESPN-shaped: { away, home, awayWins, homeWins, round, status }.
@@ -892,10 +907,11 @@ function buildFocusedPlayoffSeriesSnapshot(awayF, homeF, playoffSeriesRows, toda
 
   const leader =
     winsAwayF > winsHomeF ? af : winsHomeF > winsAwayF ? hf : "tied";
-  const serverSummaryOneLiner =
+  let serverSummaryOneLiner =
     leader === "tied"
       ? `${af} and ${hf} are tied ${winsAwayF}-${winsHomeF}${nextGameNum > 0 ? ` — Game ${nextGameNum} tonight` : ""}.`
       : `${leader} leads ${Math.max(winsAwayF, winsHomeF)}-${Math.min(winsAwayF, winsHomeF)}${nextGameNum > 0 ? ` — Game ${nextGameNum} tonight` : ""}.`;
+  serverSummaryOneLiner += appendPlayoffEliminationSuffix(winsAwayF, winsHomeF, af, hf);
 
   const priorCount =
     typeof row?.completedGamesCombinedPointsCount === "number"

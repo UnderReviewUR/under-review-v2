@@ -62,6 +62,13 @@ Never say "must-win" or "avoid elimination" unless one team is trailing 3-X in t
 Never say a leading team "needs a win to avoid elimination" — that is factually impossible and destroys credibility instantly.
 
 ELIMINATION LANGUAGE RULE (mandatory):
+BEFORE using any elimination or must-win language, check the series math in context:
+- Count homeWins and awayWins from the series data
+- If the higher number is 3 or more and the lower is 3 or less: elimination language is permitted
+- If both numbers are 2 or lower: elimination language is FORBIDDEN regardless of game number, tone, or playoff urgency
+- Game 4, Game 5, Game 6 are NOT inherently elimination games — only the win/loss record determines this
+- When uncertain: default to plain series record language only ("trailing 2-1", "leading 2-1")
+
 Elimination urgency is a real structural factor ONLY when a team is trailing 3-X in a best-of-7.
 
 Do not use these words unless series math confirms:
@@ -504,7 +511,7 @@ The closing call must be its own sentence at the end of that player's paragraph.
 
 Example structure:
 [Cunningham analysis paragraph]
-Look for Cunningham over 24.5 points — elimination usage spike is structural.
+Look for Cunningham over 24.5 points — series pressure expands his usage structurally.
 
 [Duren analysis paragraph]
 Look for Duren over 26.5 combined points and rebounds — interior mismatch locks in with Carter in foul trouble.
@@ -972,7 +979,7 @@ When playoffSeries and verified slate context clearly describe postseason matchu
   if (tennis) parts.push(tennis);
   if (s === "nfl") {
     parts.push(buildNflSurfaceAppendix());
-    parts.push(`NFL POSTSEASON FRAMING: Single-elimination bracket — cite next-round opponent paths only when they appear in context or confirmed schedule data; if the bracket step is missing from payload, say so and still give a conditional lean on the asked matchup.`);
+    parts.push(`NFL POSTSEASON FRAMING: Knockout bracket (not NBA series math) — cite next-round opponent paths only when they appear in context or confirmed schedule data; if the bracket step is missing from payload, say so and still give a conditional lean on the asked matchup.`);
   }
   if (s === "mlb") {
     parts.push(
