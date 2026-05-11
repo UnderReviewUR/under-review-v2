@@ -20,6 +20,7 @@ export default function NbaScreen({
   nbaLoading,
   urTakeTrackPlay = null,
   accessTier,
+  onUrTakeFollowUpPick = null,
 }) {
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
   const injuries = Array.isArray(nbaData?.injuries) ? nbaData.injuries : [];
@@ -86,6 +87,7 @@ export default function NbaScreen({
         msgs={nbaMsgs}
         urTakeTrackPlay={urTakeTrackPlay}
         accessTier={accessTier}
+        onUrTakeFollowUpPick={onUrTakeFollowUpPick}
       />
 
       {nbaLoading ? (

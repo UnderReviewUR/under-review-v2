@@ -29,6 +29,7 @@ export default function AskScreen({
   firePrompt,
   urTakeTrackPlay = null,
   accessTier,
+  onUrTakeFollowUpPick = null,
 }) {
   const inferredSport = inferUrTakeSportFromMessages(askMsgs);
   const questionCount = askMsgs.filter((m) => m.role === "user").length;
@@ -69,6 +70,7 @@ export default function AskScreen({
                   msgs={askMsgs}
                   urTakeTrackPlay={urTakeTrackPlay}
                   accessTier={accessTier}
+                  onUrTakeFollowUpPick={onUrTakeFollowUpPick}
                 />
               </>
             )}

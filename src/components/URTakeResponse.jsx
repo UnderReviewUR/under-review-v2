@@ -81,24 +81,37 @@ export default function URTakeResponse({
   const whyNowDisplay = scrubStructuredFaceText(whyNow) || "—";
   const edgeDisplay = scrubStructuredFaceText(edge) || "—";
 
+  const metaRight = showLiveHeader ? (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
+      <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
+    </div>
+  ) : confidence ? (
+    <span className={pillCls}>{confidence}</span>
+  ) : (
+    <span />
+  );
+
+  const bottomRight = showLiveHeader && confidence ? (
+    <div className="flex items-center gap-2 shrink-0">
+      <span className={pillCls}>{confidence}</span>
+      <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
+    </div>
+  ) : (
+    <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
+  );
+
   return (
     <div className="mt-1 ur-take-structured ur-take-response">
       <div className="ur-card-root">
         <div className="ur-card-accent-bar" />
 
-        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 6px)" }}>
-          <span className="ur-card-sport-tag">{sportTag}</span>
-          {showLiveHeader ? (
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
-              <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
-            </div>
-          ) : (
-            <span className={pillCls}>{confidence}</span>
-          )}
-        </div>
-
         <div className="ur-card-body">
+          <div className="ur-card-meta-row">
+            <span className="ur-card-sport-tag">{sportTag}</span>
+            {metaRight}
+          </div>
+
           <div
             className={
               animMounted ? "ur-card-headline ur-response-headline" : "ur-card-headline"
@@ -160,22 +173,15 @@ export default function URTakeResponse({
               ) : null}
             </div>
           ) : null}
-        </div>
 
-        <div className="ur-card-footer">
-          {formattedTimestamp ? (
-            <span className="font-mono text-[10px] text-white/[0.25]">{formattedTimestamp}</span>
-          ) : (
-            <span />
-          )}
-          {showLiveHeader ? (
-            <div className="flex items-center gap-2">
-              {confidence ? <span className={pillCls}>{confidence}</span> : null}
-              <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
-            </div>
-          ) : (
-            <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
-          )}
+          <div className="ur-card-bottom-row">
+            {formattedTimestamp ? (
+              <span className="font-mono text-[10px] text-white/[0.25]">{formattedTimestamp}</span>
+            ) : (
+              <span />
+            )}
+            {bottomRight}
+          </div>
         </div>
       </div>
     </div>

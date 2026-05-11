@@ -9,6 +9,7 @@ import {
   takeFirstSentenceSpan,
 } from "../../lib/urTakeSentenceBoundaries.js";
 import URTakeResponse from "../../components/URTakeResponse.jsx";
+import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
 export { normalizeText };
@@ -413,37 +414,44 @@ function UrTakePlainTextVisual({
   const showLiveHeader = liveRibbon.length > 0;
   const sportTag = formatUrTakeSportTag(sport, callType);
 
+  const metaRight = showLiveHeader ? (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
+      <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
+    </div>
+  ) : confidence ? (
+    <span className={pillCls}>{confidencePillText}</span>
+  ) : (
+    <span />
+  );
+
+  const shareBtn = (
+    <UrTakeShareButton headline={headlineDisplay || ""} bodyChunks={bodyChunks} />
+  );
+
   return (
     <div className="mt-1">
       <div className="ur-card-root">
         <div className="ur-card-accent-bar" />
-        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 6px)" }}>
-          <span className="ur-card-sport-tag">{sportTag}</span>
-          {showLiveHeader ? (
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
-              <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
-            </div>
-          ) : confidence ? (
-            <span className={pillCls}>{confidencePillText}</span>
-          ) : (
-            <span />
-          )}
-        </div>
-
-        {headlineDisplay ? (
-          <div
-            className={
-              mounted ? "ur-card-headline px-5 pt-6 ur-response-headline" : "ur-card-headline px-5 pt-6"
-            }
-            style={{ opacity: mounted ? undefined : 0 }}
-          >
-            {headlineDisplay}
+        <div className="ur-card-body">
+          <div className="ur-card-meta-row">
+            <span className="ur-card-sport-tag">{sportTag}</span>
+            {metaRight}
           </div>
-        ) : null}
+
+          {headlineDisplay ? (
+            <div
+              className={
+                mounted ? "ur-card-headline ur-response-headline" : "ur-card-headline"
+              }
+              style={{ opacity: mounted ? undefined : 0 }}
+            >
+              {headlineDisplay}
+            </div>
+          ) : null}
 
         {bodyChunks.length > 0 ? (
-          <div className="px-5 pb-1">
+          <div className="pb-1">
             {bodyChunks.map((chunk, i) => {
               const isPick = chunk && typeof chunk === "object" && chunk.type === "pick";
               const isLabel = chunk && typeof chunk === "object" && chunk.type === "label";
@@ -484,24 +492,26 @@ function UrTakePlainTextVisual({
           </div>
         ) : null}
 
-        {closingDisplay ? (
-          <div
-            className={mounted ? "ur-closing-block mx-5 mt-4 ur-response-closing" : "ur-closing-block mx-5 mt-4"}
-            style={{ opacity: mounted ? undefined : 0 }}
-          >
-            {closingDisplay}
-          </div>
-        ) : null}
-
-        <div className="ur-card-footer mt-4">
-          {showLiveHeader && confidence ? (
-            <span className={pillCls} style={{ maxWidth: "62%" }}>
-              {confidencePillText}
-            </span>
+          {closingDisplay ? (
+            <div className="ur-closing-share-row" style={{ opacity: mounted ? undefined : 0 }}>
+              <div className="ur-closing-block ur-response-closing">{closingDisplay}</div>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                {showLiveHeader && confidencePillText ? (
+                  <span className={pillCls}>{confidencePillText}</span>
+                ) : null}
+                {shareBtn}
+              </div>
+            </div>
           ) : (
-            <span />
+            <div className="ur-card-bottom-row" style={{ opacity: mounted ? undefined : 0 }}>
+              <span>
+                {showLiveHeader && confidencePillText ? (
+                  <span className={pillCls}>{confidencePillText}</span>
+                ) : null}
+              </span>
+              {shareBtn}
+            </div>
           )}
-          <UrTakeShareButton headline={headlineDisplay || ""} bodyChunks={bodyChunks} />
         </div>
       </div>
     </div>
@@ -1584,6 +1594,7 @@ export function ChatThread({
   msgs,
   urTakeTrackPlay = null,
   accessTier = null,
+  onUrTakeFollowUpPick = null,
 }) {
   const chatThreadRef = useRef(null);
 
@@ -1604,6 +1615,9 @@ export function ChatThread({
   } catch {
     weeklyUsed = 0;
   }
+
+  const followUpDockSource =
+    typeof onUrTakeFollowUpPick === "function" ? getLastAiFollowUpDockSource(msgs) : null;
 
   const last = msgs?.length ? msgs[msgs.length - 1] : null;
   const showFreeFollowUpCue =
@@ -1643,6 +1657,11 @@ export function ChatThread({
           </div>
         )
       )}
+      {followUpDockSource?.followUps?.length ? (
+        <div className="ur-thread-follow-ups">
+          <UrTakeDockedFollowUps source={followUpDockSource} onPick={onUrTakeFollowUpPick} />
+        </div>
+      ) : null}
       {showFreeFollowUpCue ? (
         <div
           style={{

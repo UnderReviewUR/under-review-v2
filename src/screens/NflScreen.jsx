@@ -22,6 +22,7 @@ export default function NflScreen({
   openNflPlayer,
   urTakeTrackPlay = null,
   accessTier,
+  onUrTakeFollowUpPick = null,
 }) {
   const nflQuickPrompts = getQuickPromptsForState("nfl", nflSeasonMode);
 
@@ -65,6 +66,7 @@ export default function NflScreen({
               msgs={nflMsgs}
               urTakeTrackPlay={urTakeTrackPlay}
               accessTier={accessTier}
+              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
             />
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
             <NflPropGuideSection

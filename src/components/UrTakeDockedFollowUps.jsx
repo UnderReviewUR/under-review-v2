@@ -1,7 +1,7 @@
 import { telemetryUrTakeFollowUpClick } from "../lib/urTakeTelemetry.js";
 
 /**
- * Follow-up chips shown above the Ask bar (never inline on the response card).
+ * Follow-up suggestion chips — rendered inline below the chat thread (and historically above the Ask bar).
  */
 export default function UrTakeDockedFollowUps({ source, onPick }) {
   if (!source?.followUps?.length) return null;

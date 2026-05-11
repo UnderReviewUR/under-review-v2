@@ -18,6 +18,7 @@ export default function F1Screen({
   f1Data,
   urTakeTrackPlay = null,
   accessTier,
+  onUrTakeFollowUpPick = null,
 }) {
   const [weekAgoMs] = useState(() => Date.now() - 7 * 86400000);
 
@@ -93,6 +94,7 @@ export default function F1Screen({
               msgs={f1Msgs}
               urTakeTrackPlay={urTakeTrackPlay}
               accessTier={accessTier}
+              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
             />
 
             {f1Loading ? (

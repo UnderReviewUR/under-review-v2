@@ -17,6 +17,7 @@ export default function MlbScreen({
   mlbData,
   urTakeTrackPlay = null,
   accessTier,
+  onUrTakeFollowUpPick = null,
 }) {
   const gamesForState =
     Array.isArray(mlbGames) && mlbGames.length > 0
@@ -57,6 +58,7 @@ export default function MlbScreen({
               msgs={mlbMsgs}
               urTakeTrackPlay={urTakeTrackPlay}
               accessTier={accessTier}
+              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
             />
 
             {mlbLoading && mlbGames.length === 0 ? (

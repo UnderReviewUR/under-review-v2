@@ -443,17 +443,17 @@ export const baseCss = `
   button.ur-share-btn{
     font-family:monospace;
     font-size:11px;
-    color:rgba(255,255,255,0.4);
+    color:#ffffff;
     background:transparent;
-    border:1px solid rgba(255,255,255,0.15);
+    border:1px solid rgba(255,255,255,0.4);
     border-radius:6px;
     padding:5px 10px;
     cursor:pointer;
     transition:all 150ms ease;
   }
   button.ur-share-btn:hover{
-    color:white;
-    border-color:rgba(255,255,255,0.4);
+    color:#ffffff;
+    border-color:rgba(255,255,255,0.55);
   }
 
   .ur-card-root{
@@ -469,23 +469,30 @@ export const baseCss = `
     margin-bottom:10px;
     flex-shrink:0;
   }
-  .ur-card-header{
-    background:#161b22;
-    padding:14px 20px;
+  .ur-card-meta-row{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    border-bottom:1px solid rgba(255,255,255,0.06);
-    min-height:44px;
-    box-sizing:border-box;
+    margin-bottom:12px;
   }
-  .ur-card-footer{
-    background:#161b22;
-    padding:10px 20px;
+  .ur-card-bottom-row{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    border-top:1px solid rgba(255,255,255,0.06);
+    gap:12px;
+    margin-top:16px;
+  }
+  .ur-closing-share-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:16px;
+  }
+  .ur-closing-share-row .ur-closing-block{
+    margin-top:0;
+    flex:1;
+    min-width:0;
   }
   .ur-card-sport-tag{
     font-family:monospace;
@@ -493,7 +500,7 @@ export const baseCss = `
     letter-spacing:0.12em;
     color:#00d4a8;
     text-transform:uppercase;
-    margin-bottom:8px;
+    margin-bottom:0;
   }
   .ur-card-body{
     padding-left:20px;
@@ -584,8 +591,8 @@ export const baseCss = `
   }
   .ur-closing-block{
     background:rgba(0,212,168,0.06);
-    border:1px solid rgba(0,212,168,0.3);
-    border-left:3px solid #00d4a8;
+    border:2px solid rgba(0,212,168,0.4);
+    border-left:4px solid #00d4a8;
     border-radius:10px;
     padding:14px 16px;
     margin:16px 0 0;
@@ -595,6 +602,7 @@ export const baseCss = `
     line-height:1.4;
   }
 
+  .ur-thread-follow-ups{margin-top:4px;padding:0 2px 8px;}
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 10px;max-height:min(28vh,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}
