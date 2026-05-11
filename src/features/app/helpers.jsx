@@ -10,8 +10,10 @@ import {
 } from "../../lib/urTakeSentenceBoundaries.js";
 import URTakeResponse from "../../components/URTakeResponse.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
+import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
 export { normalizeText };
 export { isSubstantiveClosing };
+export { formatUrTakeSportTag };
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
 /** Prefer explicit sport on stored AI bubbles (follow-up routing). */
@@ -386,6 +388,7 @@ function UrTakePlainTextPickLine({ text }) {
 /** Plain-text UR Take visual — Option C card (shared by message renderer + bubble). */
 function UrTakePlainTextVisual({
   sport = "generic",
+  callType,
   gameStateLine,
   headlineDisplay,
   bodyChunks,
@@ -408,13 +411,13 @@ function UrTakePlainTextVisual({
 
   const liveRibbon = String(gameStateLine || "").trim();
   const showLiveHeader = liveRibbon.length > 0;
-  const sportTag = `${String(sport || "generic").toUpperCase()} · TAKE`;
+  const sportTag = formatUrTakeSportTag(sport, callType);
 
   return (
     <div className="mt-1">
       <div className="ur-card-root">
         <div className="ur-card-accent-bar" />
-        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 4px)" }}>
+        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 6px)" }}>
           <span className="ur-card-sport-tag">{sportTag}</span>
           {showLiveHeader ? (
             <div className="flex items-center gap-1.5">
@@ -1503,6 +1506,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
       >
         <UrTakePlainTextVisual
           sport={m.sport || "generic"}
+          callType={typeof m.structured?.callType === "string" ? m.structured.callType : undefined}
           gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
           headlineDisplay={parsed.headline}
           bodyChunks={parsed.bodyChunks}

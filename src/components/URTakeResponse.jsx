@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 
 function formatTimestamp(ts) {
@@ -69,7 +70,7 @@ export default function URTakeResponse({
   }, []);
   const pillCls = confidencePillClass(confidence);
   const formattedTimestamp = formatTimestamp(timestamp);
-  const sportTag = `${String(sport || "generic").toUpperCase()} · ${callType || "—"}`;
+  const sportTag = formatUrTakeSportTag(sport, callType);
 
   const liveRibbon =
     String(liveScore || "").trim() ||
@@ -85,7 +86,7 @@ export default function URTakeResponse({
       <div className="ur-card-root">
         <div className="ur-card-accent-bar" />
 
-        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 4px)" }}>
+        <div className="ur-card-header" style={{ paddingTop: "calc(14px + 6px)" }}>
           <span className="ur-card-sport-tag">{sportTag}</span>
           {showLiveHeader ? (
             <div className="flex items-center gap-1.5">

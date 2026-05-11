@@ -463,7 +463,7 @@ export const baseCss = `
     overflow:hidden;
   }
   .ur-card-accent-bar{
-    height:4px;
+    height:6px;
     width:100%;
     background:linear-gradient(90deg,#00d4a8,#00e5b0);
     margin-bottom:10px;
@@ -495,7 +495,10 @@ export const baseCss = `
     text-transform:uppercase;
   }
   .ur-card-body{
-    padding:20px 20px 16px;
+    padding-left:20px;
+    padding-right:20px;
+    padding-bottom:16px;
+    padding-top:20px;
   }
   .ur-card-headline{
     font-size:20px;
@@ -579,8 +582,9 @@ export const baseCss = `
     line-height:1.6;
   }
   .ur-closing-block{
-    background:rgba(99,102,241,0.08);
-    border:1px solid rgba(99,102,241,0.2);
+    background:rgba(0,212,168,0.06);
+    border:1px solid rgba(0,212,168,0.3);
+    border-left:3px solid #00d4a8;
     border-radius:10px;
     padding:14px 16px;
     margin:16px 0 0;
