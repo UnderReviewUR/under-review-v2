@@ -584,6 +584,13 @@ function structuralLabelAlternationPattern() {
   return STRUCTURAL_LABELS.map((l) => l.replace(/\s+/g, "\\s+")).join("|");
 }
 
+/** After a structural label, the model often emits ": — -" before the section body — strip so it does not lead the next prose chunk. */
+function stripLeadingAfterStructuralLabel(text) {
+  return String(text || "")
+    .replace(/^[\s:—\-]+/, "")
+    .trim();
+}
+
 /**
  * Split prose into labeled sections only when a structural label is anchored:
  * start of text, start after a newline, or after sentence-ending . ! ? plus whitespace.
@@ -594,19 +601,24 @@ function splitStructuralLabelsInText(text) {
   if (!t.trim()) return [];
   const parts = [];
   let lastIndex = 0;
+  let stripNextProse = false;
   let m;
   const alt = structuralLabelAlternationPattern();
   const anchoredRe = new RegExp(`(?:^|[\\r\\n]+|[.!?]\\s+)(${alt})`, "gi");
   while ((m = anchoredRe.exec(t)) !== null) {
     const matchStart = m.index;
-    const before = t.slice(lastIndex, matchStart).trim();
+    const rawBefore = t.slice(lastIndex, matchStart);
+    const before = stripNextProse ? stripLeadingAfterStructuralLabel(rawBefore) : rawBefore.trim();
     if (before) parts.push({ type: "prose", text: before });
     const raw = String(m[1] || "").replace(/\s+/g, " ").trim().toUpperCase();
     const labelText = STRUCTURAL_LABEL_CANONICAL.get(raw) || String(m[1] || "").trim();
     parts.push({ type: "label", text: labelText });
     lastIndex = matchStart + m[0].length;
+    stripNextProse = true;
   }
-  const rest = t.slice(lastIndex).trim();
+  let rest = t.slice(lastIndex);
+  if (stripNextProse) rest = stripLeadingAfterStructuralLabel(rest);
+  else rest = rest.trim();
   if (rest) parts.push({ type: "prose", text: rest });
   return parts;
 }
