@@ -434,7 +434,7 @@ function UrTakePlainTextVisual({
         {headlineDisplay ? (
           <div
             className={
-              mounted ? "ur-card-headline px-5 pt-5 ur-response-headline" : "ur-card-headline px-5 pt-5"
+              mounted ? "ur-card-headline px-5 pt-6 ur-response-headline" : "ur-card-headline px-5 pt-6"
             }
             style={{ opacity: mounted ? undefined : 0 }}
           >
@@ -1176,7 +1176,7 @@ export function renderMessage(text, opts = {}) {
 }
 
 const SPORT_ACCENT = {
-  nba: "#FF6B00",
+  nba: "#f97316",
   mlb: "#1DB954",
   nfl: "#4A90D9",
   f1: "#E10600",
@@ -1224,8 +1224,6 @@ export function LoadingBubble({ sport }) {
     return () => window.clearInterval(id);
   }, []);
 
-  const accentRgba = (alpha) => `${accent}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
-
   return (
     <div
       className="bubble ai loading"
@@ -1234,7 +1232,9 @@ export function LoadingBubble({ sport }) {
         flexDirection: "column",
         gap: 10,
         minHeight: 64,
-        borderColor: accentRgba(0.28),
+        opacity: 1,
+        border: `1px solid ${accent}`,
+        boxShadow: `0 0 0 1px ${accent}`,
       }}
       aria-live="polite"
       aria-busy="true"

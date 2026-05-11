@@ -493,12 +493,13 @@ export const baseCss = `
     letter-spacing:0.12em;
     color:#00d4a8;
     text-transform:uppercase;
+    margin-bottom:8px;
   }
   .ur-card-body{
     padding-left:20px;
     padding-right:20px;
     padding-bottom:16px;
-    padding-top:20px;
+    padding-top:24px;
   }
   .ur-card-headline{
     font-size:20px;
