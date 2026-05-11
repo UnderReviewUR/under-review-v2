@@ -967,19 +967,23 @@ export function getFollowUpSuggestions(message) {
   const text = [contentStr, structuredCall, deepTextStr].filter(Boolean).join("\n");
 
   if (/parlay/i.test(text)) {
-    return ["What breaks this parlay?", "Best single leg from this", "Adjust to 2 legs"];
+    return ["What breaks this parlay?", "Best single leg", "Sharpen to 2 legs"];
   }
   if (/over|under/i.test(text)) {
     return [
       "Build a parlay around this",
-      "What's the risk here?",
-      "Show me the opposing view",
+      "What kills this edge?",
+      "Give me the other side",
     ];
   }
   if (/slate|top \d|best \d/i.test(text)) {
-    return ["Which is the single safest?", "Rank these by confidence", "Build a parlay from these"];
+    return ["Which is the safest single bet?", "Rank these by confidence", "Build a parlay from these"];
   }
-  return ["Give me a specific bet", "What's the strongest edge?", "What kills this take?"];
+  return [
+    "Give me a specific number to target",
+    "What's the strongest edge here?",
+    "What kills this take?",
+  ];
 }
 
 /** Last AI bubble + suggestions for docked follow-up chips (Ask + sport surfaces). */
