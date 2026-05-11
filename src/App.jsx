@@ -14,7 +14,7 @@ import {
   telemetryUrTakeFollowUpSubmit,
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
-import { FREE_QUESTION_LIMIT } from "./lib/freeTierLimits.js";
+import { FREE_QUESTION_LIMIT, freeTierApproachingLimit } from "./lib/freeTierLimits.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -477,6 +477,14 @@ ${themeCss}
   }, []);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [freeUsedRevision, setFreeUsedRevision] = useState(0);
+  const [freeLimitChipDismissedSession, setFreeLimitChipDismissedSession] = useState(() => {
+    try {
+      return sessionStorage.getItem("ur_free_limit_chip_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [showRestoreAccessModal, setShowRestoreAccessModal] = useState(false);
   const [restoreAccessEmail, setRestoreAccessEmail] = useState("");
   const [restoreAccessError, setRestoreAccessError] = useState("");
@@ -489,6 +497,15 @@ ${themeCss}
   const [codeLoading, setCodeLoading]     = useState(false);
   const isUnlimited = accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
   const FREE_LIMIT = FREE_QUESTION_LIMIT;
+
+  const freeUsedCount = useMemo(() => {
+    void freeUsedRevision;
+    try {
+      return parseInt(localStorage.getItem("ur_free_used") || "0", 10);
+    } catch {
+      return 0;
+    }
+  }, [freeUsedRevision]);
 
   const accessTierRef = useRef(accessTier);
   useEffect(() => {
@@ -1415,6 +1432,7 @@ ${themeCss}
       try {
         const current = parseInt(localStorage.getItem("ur_free_used") || "0", 10);
         localStorage.setItem("ur_free_used", String(current + 1));
+        setFreeUsedRevision((n) => n + 1);
       } catch {
         /* ignore */
       }
@@ -2473,6 +2491,49 @@ ${themeCss}
     setShowUpgradeModal(true);
   }, []);
 
+  const dismissFreeLimitChip = useCallback(() => {
+    try {
+      sessionStorage.setItem("ur_free_limit_chip_dismissed", "1");
+    } catch {
+      /* ignore */
+    }
+    setFreeLimitChipDismissedSession(true);
+  }, []);
+
+  const freeLimitChip = useMemo(() => {
+    if (accessTier !== "free") return null;
+    if (freeLimitChipDismissedSession) return null;
+    if (!freeTierApproachingLimit(freeUsedCount, FREE_LIMIT)) return null;
+    const remaining = Math.max(0, FREE_LIMIT - freeUsedCount);
+    const qWord = remaining === 1 ? "question" : "questions";
+    return (
+      <div className="ur-free-limit-chip" role="status">
+        <div className="ur-free-limit-chip-main">
+          <span>
+            {remaining} free {qWord} remaining today — unlock unlimited with Pro{" "}
+            <button type="button" className="ur-free-limit-chip-unlock" onClick={openUpgradeModal}>
+              Unlock
+            </button>
+          </span>
+        </div>
+        <button
+          type="button"
+          className="ur-free-limit-chip-dismiss"
+          aria-label="Dismiss quota reminder"
+          onClick={dismissFreeLimitChip}
+        >
+          ×
+        </button>
+      </div>
+    );
+  }, [
+    accessTier,
+    dismissFreeLimitChip,
+    freeLimitChipDismissedSession,
+    freeUsedCount,
+    openUpgradeModal,
+  ]);
+
   const goGolf = useCallback(() => {
     if (screen !== "golf" || tab !== "golf") {
       setNavHistory((h) => [...h, { screen, tab }]);
@@ -2888,6 +2949,7 @@ ${themeCss}
     processImageFile,
     bettingStyle,
     isUnlimited,
+    freeLimitChip,
   };
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||

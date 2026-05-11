@@ -617,6 +617,26 @@ export const baseCss = `
   }
   button.ur-thread-upgrade-nudge-btn:hover{opacity:0.92;}
   button.ur-thread-upgrade-nudge-btn:active{opacity:0.85;}
+
+  .ur-free-limit-chip{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+    margin-bottom:8px;padding:8px 10px;border-radius:10px;
+    border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);
+    font-family:var(--mono-font);font-size:10px;letter-spacing:0.12em;line-height:1.45;
+    color:rgba(255,255,255,0.4);
+  }
+  .ur-free-limit-chip-main{flex:1;min-width:0;}
+  button.ur-free-limit-chip-dismiss{
+    flex-shrink:0;border:none;background:transparent;color:rgba(255,255,255,0.35);
+    cursor:pointer;font-size:16px;line-height:1;padding:0 2px;font-family:var(--mono-font);
+  }
+  button.ur-free-limit-chip-dismiss:hover{color:rgba(255,255,255,0.55);}
+  button.ur-free-limit-chip-unlock{
+    border:none;background:transparent;font-family:var(--mono-font);font-size:10px;
+    letter-spacing:0.14em;color:#00d4a8;cursor:pointer;padding:0;margin-left:4px;
+    text-decoration:underline;text-underline-offset:2px;
+  }
+  button.ur-free-limit-chip-unlock:hover{opacity:0.92;}
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:6px;padding:0 2px 10px;max-height:min(28vh,104px);overflow-y:auto;-webkit-overflow-scrolling:touch;}
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}

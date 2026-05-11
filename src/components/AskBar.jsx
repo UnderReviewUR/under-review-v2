@@ -17,6 +17,8 @@ const AskBar = memo(function AskBar({
   showPasteHint = true,
   bettingStyle = "balanced",
   isUnlimited = false,
+  /** Optional chip above the input (e.g. free-tier quota warning). */
+  freeLimitChip = null,
 }) {
   const busy = isAsking || prefetchingContext;
 
@@ -38,6 +40,7 @@ const AskBar = memo(function AskBar({
 
   return (
     <div className="ask-wrap">
+      {freeLimitChip}
       <input
         ref={fileInputRef}
         type="file"
