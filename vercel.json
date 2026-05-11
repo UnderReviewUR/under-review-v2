@@ -22,6 +22,9 @@
     },
     "api/nba.js": {
       "maxDuration": 300
+    },
+    "api/daily-take.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -40,6 +43,10 @@
     {
       "path": "/api/nba?view=board&warmup=1",
       "schedule": "*/5 * * 1,2,3,4,5,6,10,11,12 *"
+    },
+    {
+      "path": "/api/daily-take?refresh=1",
+      "schedule": "30 11 * * *"
     }
   ]
 }

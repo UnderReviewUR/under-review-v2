@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import AskBar from "../components/AskBar.jsx";
 import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
@@ -20,6 +22,7 @@ export default function HomeScreen({
   dynamicHomeQuestions,
   dailyFeaturedAngleCard,
   firePrompt,
+  prefillUrTakeQuestion,
   isNflSlateActive,
   tickerNbaGames,
   getSeriesLabel,
@@ -38,6 +41,25 @@ export default function HomeScreen({
   publicStats = null,
 }) {
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
+
+  const [dailyPreview, setDailyPreview] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/daily-take");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.ok && data?.headline) setDailyPreview(data);
+      } catch {
+        /* ignore — preview is optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
           <main className={`screen home-surface-premium${hasDockedBar ? " has-msgs" : ""}`}>
@@ -70,6 +92,73 @@ export default function HomeScreen({
               <button className="sport-pill sport-pill-mlb" onClick={goMlb}>MLB</button>
               <button className="sport-pill" style={{color:"#FFFFFF",borderColor:"rgba(255,255,255,.5)"}} onClick={goGolf}>GOLF</button>
             </div>
+
+            {dailyPreview && prefillUrTakeQuestion ? (
+              <section
+                className="daily-edge-preview"
+                style={{
+                  margin: "12px 16px 14px",
+                  padding: "14px 14px 12px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "linear-gradient(180deg, rgba(0,212,168,0.06), rgba(255,255,255,0.02))",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "var(--mono-font)",
+                    fontSize: 10,
+                    letterSpacing: "0.14em",
+                    color: "#00d4a8",
+                    marginBottom: 10,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  TODAY&apos;S EDGE — FREE PREVIEW
+                </div>
+                {dailyPreview.matchupLabel ? (
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+                    {dailyPreview.matchupLabel}
+                  </div>
+                ) : null}
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", lineHeight: 1.35, marginBottom: 8 }}>
+                  {dailyPreview.headline}
+                </div>
+                {dailyPreview.bodyChunk ? (
+                  <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.45, marginBottom: 8 }}>
+                    {dailyPreview.bodyChunk}
+                  </div>
+                ) : null}
+                {dailyPreview.closing ? (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cyan-bright)", lineHeight: 1.4 }}>
+                    {dailyPreview.closing}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() =>
+                    prefillUrTakeQuestion(dailyPreview.question, dailyPreview.sportHint || null)
+                  }
+                  style={{
+                    marginTop: 12,
+                    width: "100%",
+                    textAlign: "left",
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    fontFamily: "var(--mono-font)",
+                    fontSize: 12,
+                    letterSpacing: "0.06em",
+                    color: "#00d4a8",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  Get the full take →
+                </button>
+              </section>
+            ) : null}
 
             {/* Prompts first — actionable before the live snapshot strip */}
             <div className="ask-cards">

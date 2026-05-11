@@ -285,6 +285,8 @@ ${themeCss}
   const askInputRef       = useRef(null);
   /** Remember last resolved sport from UR TAKE so generic Ask follow-ups still send NBA/golf/etc. context. */
   const lastUrTakeSportRef = useRef(null);
+  /** From daily preview CTA — UR Ask tab does not infer sport from `screen` once navigated from Home. */
+  const pendingExplicitSportHintRef = useRef(null);
   const tennisInputRef    = useRef(null);
   const wtaInputRef       = useRef(null);
   const nflInputRef       = useRef(null);
@@ -1119,8 +1121,16 @@ ${themeCss}
       requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
 
+    const refHint =
+      typeof pendingExplicitSportHintRef.current === "string"
+        ? pendingExplicitSportHintRef.current.trim()
+        : "";
+    pendingExplicitSportHintRef.current = null;
+
     const explicitHint =
-      typeof sportHint === "string" && sportHint.trim() !== "" ? sportHint.trim() : null;
+      typeof sportHint === "string" && sportHint.trim() !== ""
+        ? sportHint.trim()
+        : refHint || null;
     let detected = detectSportFromQuestion(text, tab);
     if (detected === "generic") detected = null;
 
@@ -2696,6 +2706,26 @@ ${themeCss}
     [askUrTake, scheduleChatScroll, screen, tab, isAsking, prefetchingUrTakeContext],
   );
 
+  /** Navigate to UR Take with the question pre-filled (sport hint stored for submit). */
+  const prefillUrTakeQuestion = useCallback(
+    (prompt, sportHint = null) => {
+      if (isAsking || prefetchingUrTakeContext) return;
+      pendingExplicitSportHintRef.current =
+        typeof sportHint === "string" && sportHint.trim() !== "" ? sportHint.trim() : null;
+      if (screen !== "ask" || tab !== "ask") {
+        setNavHistory((h) => [...h, { screen, tab }]);
+      }
+      setTab("ask");
+      setScreen("ask");
+      setAskInput(String(prompt || ""));
+      requestAnimationFrame(() => {
+        scheduleChatScroll(askScreenRef);
+        askInputRef.current?.focus?.();
+      });
+    },
+    [askInputRef, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab],
+  );
+
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome = useCallback(() => {
     const t = askInput.trim();
@@ -3258,6 +3288,7 @@ ${themeCss}
             dynamicHomeQuestions={dynamicHomeQuestions}
             dailyFeaturedAngleCard={dailyFeaturedAngleCard}
             firePrompt={firePrompt}
+            prefillUrTakeQuestion={prefillUrTakeQuestion}
             isNflSlateActive={isNflSlateActive}
             tickerNbaGames={tickerNbaGames}
             getSeriesLabel={getSeriesLabel}

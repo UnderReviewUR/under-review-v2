@@ -4259,14 +4259,21 @@ export default async function handler(req, res) {
     return feedSnagResponse(null);
   }
 
+  const dailyTakePipeline =
+    Boolean(process.env.CRON_SECRET) &&
+    String(req.headers["x-daily-take-internal"] ?? "").trim() === "1" &&
+    req.headers.authorization === `Bearer ${process.env.CRON_SECRET}`;
+
   const clientIp = getClientIp(req);
-  if (!allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
+  if (!dailyTakePipeline && !allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
     return feedSnagResponse(null);
   }
 
   /** @type {{ ok: true, email: string | null, tier: string } | { ok: false, reason: string } | null} */
   let urAuth = null;
-  if (shouldRequireUrTakeAuth()) {
+  if (dailyTakePipeline) {
+    urAuth = { ok: true, email: null, tier: "pro" };
+  } else if (shouldRequireUrTakeAuth()) {
     urAuth = verifyBearerForUrTake(req.headers.authorization);
     if (!urAuth.ok) {
       if (urAuth.reason === "server_misconfigured") {
