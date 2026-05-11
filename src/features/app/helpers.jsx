@@ -1602,13 +1602,31 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
   );
 }
 
+/** Free tier: after 2nd–3rd completed answer, eligible for one subtle Pro nudge (see ChatThread). */
+function computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradeClick) {
+  if (typeof onUpgradeClick !== "function") return false;
+  if (accessTier !== "free") return false;
+  if (!Array.isArray(msgs) || msgs.length === 0) return false;
+  const userTurns = msgs.filter((m) => m.role === "user").length;
+  const completedAi = msgs.filter((m) => m.role === "ai" && !m.loading).length;
+  const last = msgs[msgs.length - 1];
+  if (userTurns < 2 || userTurns > 3) return false;
+  if (completedAi < 2 || completedAi !== userTurns) return false;
+  if (!last || last.role !== "ai" || last.loading) return false;
+  return true;
+}
+
 export function ChatThread({
   msgs,
   urTakeTrackPlay = null,
   accessTier = null,
   onUrTakeFollowUpPick = null,
+  onUpgradePromptClick = null,
 }) {
   const chatThreadRef = useRef(null);
+  /** Avoid double localStorage writes under React Strict Mode — keep nudge visible once committed on this mount. */
+  const proUpgradeNudgeCommittedRef = useRef(false);
+  const [proUpgradeNudgeVisible, setProUpgradeNudgeVisible] = useState(false);
 
   /** Scroll so the top of the latest assistant reply is visible — headline first, not the tail of a long answer. */
   useLayoutEffect(() => {
@@ -1630,6 +1648,32 @@ export function ChatThread({
 
   const followUpDockSource =
     typeof onUrTakeFollowUpPick === "function" ? getLastAiFollowUpDockSource(msgs) : null;
+
+  useEffect(() => {
+    const qualifies = computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradePromptClick);
+    if (!qualifies) {
+      setProUpgradeNudgeVisible(false);
+      return;
+    }
+    if (proUpgradeNudgeCommittedRef.current) {
+      setProUpgradeNudgeVisible(true);
+      return;
+    }
+    try {
+      if (typeof localStorage !== "undefined" && localStorage.getItem("ur_upgrade_nudge_shown") === "1") {
+        setProUpgradeNudgeVisible(false);
+        return;
+      }
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("ur_upgrade_nudge_shown", "1");
+      }
+    } catch {
+      setProUpgradeNudgeVisible(false);
+      return;
+    }
+    proUpgradeNudgeCommittedRef.current = true;
+    setProUpgradeNudgeVisible(true);
+  }, [msgs, accessTier, onUpgradePromptClick]);
 
   const last = msgs?.length ? msgs[msgs.length - 1] : null;
   const showFreeFollowUpCue =
@@ -1672,6 +1716,20 @@ export function ChatThread({
       {followUpDockSource?.followUps?.length ? (
         <div className="ur-thread-follow-ups">
           <UrTakeDockedFollowUps source={followUpDockSource} onPick={onUrTakeFollowUpPick} />
+        </div>
+      ) : null}
+      {proUpgradeNudgeVisible ? (
+        <div className="ur-thread-upgrade-nudge" aria-live="polite">
+          <span className="ur-thread-upgrade-nudge-text">
+            Go deeper on every game, every night — unlock Pro
+          </span>
+          <button
+            type="button"
+            className="ur-thread-upgrade-nudge-btn"
+            onClick={() => onUpgradePromptClick?.()}
+          >
+            Upgrade
+          </button>
         </div>
       ) : null}
       {showFreeFollowUpCue ? (

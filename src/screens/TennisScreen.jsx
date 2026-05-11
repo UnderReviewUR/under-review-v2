@@ -35,6 +35,7 @@ export default function TennisScreen({
   urTakeTrackPlay = null,
   accessTier,
   onUrTakeFollowUpPick = null,
+  onUpgradePromptClick = null,
 }) {
   const tennisQuickPrompts = getQuickPromptsForState("tennis", deriveTennisBoardState(liveMatches));
 
@@ -70,6 +71,7 @@ export default function TennisScreen({
               urTakeTrackPlay={urTakeTrackPlay}
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+              onUpgradePromptClick={onUpgradePromptClick}
             />
 
             <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>

@@ -2469,6 +2469,10 @@ ${themeCss}
     setSelectedNflPlayer(null);
   }, [screen, tab]);
 
+  const openUpgradeModal = useCallback(() => {
+    setShowUpgradeModal(true);
+  }, []);
+
   const goGolf = useCallback(() => {
     if (screen !== "golf" || tab !== "golf") {
       setNavHistory((h) => [...h, { screen, tab }]);
@@ -2925,7 +2929,7 @@ ${themeCss}
       {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
       {screen==="home"&&(
         <span className="hdr-tagline">
-          Ask any game, prop, or matchup — get a sharp betting take instantly.
+          Find where the market is wrong. NBA, MLB, PGA, Tennis, F1 — structural edges backed by real data.
         </span>
       )}
     </>
@@ -3253,6 +3257,7 @@ ${themeCss}
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpTennis}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 
@@ -3277,6 +3282,7 @@ ${themeCss}
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpNfl}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 
@@ -3339,6 +3345,7 @@ ${themeCss}
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpF1}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 
@@ -3361,6 +3368,7 @@ ${themeCss}
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpNba}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 
@@ -3383,6 +3391,7 @@ ${themeCss}
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpMlb}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 
@@ -3405,6 +3414,7 @@ ${themeCss}
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpGolf}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 
@@ -4279,6 +4289,7 @@ fees. One price, unlimited reads.`,
               urTakeTrackPlay={urTakeTrackPlay}
               accessTier={accessTier}
               onUrTakeFollowUpPick={urTakeFollowUpMatchup}
+              onUpgradePromptClick={openUpgradeModal}
             />
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
@@ -4327,6 +4338,7 @@ fees. One price, unlimited reads.`,
             urTakeTrackPlay={urTakeTrackPlay}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpAsk}
+            onUpgradePromptClick={openUpgradeModal}
           />
         )}
 

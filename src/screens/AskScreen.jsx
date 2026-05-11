@@ -30,6 +30,7 @@ export default function AskScreen({
   urTakeTrackPlay = null,
   accessTier,
   onUrTakeFollowUpPick = null,
+  onUpgradePromptClick = null,
 }) {
   const inferredSport = inferUrTakeSportFromMessages(askMsgs);
   const questionCount = askMsgs.filter((m) => m.role === "user").length;
@@ -71,6 +72,7 @@ export default function AskScreen({
                   urTakeTrackPlay={urTakeTrackPlay}
                   accessTier={accessTier}
                   onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+                  onUpgradePromptClick={onUpgradePromptClick}
                 />
               </>
             )}

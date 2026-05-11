@@ -234,6 +234,7 @@ export default function GolfScreen({
   urTakeTrackPlay = null,
   accessTier,
   onUrTakeFollowUpPick = null,
+  onUpgradePromptClick = null,
 }) {
   const [lastKnownEventSnapshot, setLastKnownEventSnapshot] = useState(null);
   /** Which PGA Tour schedule row (id/name + index) is expanded to show course-profile blurb. */
@@ -372,6 +373,7 @@ export default function GolfScreen({
               urTakeTrackPlay={urTakeTrackPlay}
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+              onUpgradePromptClick={onUpgradePromptClick}
             />
 
             {scheduleRows.length > 0 && (
