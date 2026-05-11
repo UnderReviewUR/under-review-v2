@@ -2,6 +2,56 @@
  * Shared NBA UR Take context slimming — client + API use the same shapes to cut token load.
  */
 
+/**
+ * Raw BDL stat row: true when the player logged playable minutes (keep when building last-N logs).
+ * Filters DNP / null minutes / zero clock before slicing to five games.
+ */
+export function bdlStatRowHasPlayingTime(row) {
+  if (!row || typeof row !== "object") return false;
+  if (row.did_not_play === true) return false;
+  if (row.active === false) return false;
+  const m = row.min;
+  if (m === null || m === undefined) return false;
+  if (m === 0 || m === "0") return false;
+  const s = String(m).trim();
+  if (s === "" || s === "00:00" || s === "0:00") return false;
+  const colon = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (colon) {
+    const mm = Number(colon[1]);
+    const ss = Number(colon[2]);
+    return mm > 0 || ss > 0;
+  }
+  const n = Number(m);
+  return Number.isFinite(n) && n > 0;
+}
+
+/**
+ * Normalized recent game log entry: true when pts+reb+ast are all zero due to DNP / no minutes / flags —
+ * exclude from recent-form PRA averages (never treat as "played" zeros).
+ * False when stats are non-zero, or when minutes show the player actually played (even if the box is 0-0-0).
+ */
+export function isNbaRecentGameZeroStatDnpLike(g) {
+  const pts = Number(g?.pts ?? 0);
+  const reb = Number(g?.reb ?? 0);
+  const ast = Number(g?.ast ?? 0);
+  if (pts + reb + ast !== 0) return false;
+  if (g?.did_not_play === true) return true;
+  if (g?.active === false) return true;
+  const m = g?.min;
+  if (m === null || m === undefined) return true;
+  if (m === 0 || m === "0") return true;
+  const s = String(m).trim();
+  if (s === "" || s === "00:00" || s === "0:00") return true;
+  const colon = /^(\d{1,2}):(\d{2})$/.exec(s);
+  if (colon) {
+    const mm = Number(colon[1]);
+    const ss = Number(colon[2]);
+    return mm === 0 && ss === 0;
+  }
+  const n = Number(m);
+  return Number.isFinite(n) && n === 0;
+}
+
 /** All teams currently in the ESPN playoff bracket (union of series away/home). */
 export function collectPlayoffBracketTeamAbbrevs(playoffSeries) {
   const set = new Set();

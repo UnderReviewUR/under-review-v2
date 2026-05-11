@@ -452,6 +452,20 @@ phrase it as "season average" not "recent form" or
 game data. Say: "averaging X this season" not
 "trending at X" or "last five show X."
 
+ZERO-STAT GAME RULE (mandatory):
+When recentGames data contains rows where pts + reb + ast = 0, NEVER assume or state the player missed those games due to injury or absence unless the injury feed explicitly confirms it with OUT or INACTIVE status.
+
+Zero-stat rows may be DNP entries or BDL data artifacts. They are NOT confirmed absences.
+
+Never say:
+- "note X zeroes from missed contests"
+- "recent form includes missed games"
+- "absence-adjusted average"
+
+Unless the player appears in the injury report as OUT or INACTIVE.
+
+When zero-stat rows exist, use season average as the anchor and state "season average" only.
+
 STAT LABELING RULE (mandatory):
 Every time you cite a player stat, label the stat category explicitly — never assume the reader knows what number refers to what measure.
 Wrong: "Jalen Duren (10.5 season, 11.0 recent)"
