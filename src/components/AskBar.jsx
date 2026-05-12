@@ -19,8 +19,14 @@ const AskBar = memo(function AskBar({
   isUnlimited = false,
   /** Optional chip above the input (e.g. free-tier quota warning). */
   freeLimitChip = null,
+  /** Optional: scroll chat when input is focused (mobile keyboard). Wired from App via askBarCommon. */
+  onInputFocus,
 }) {
   const busy = isAsking || prefetchingContext;
+
+  const handleInputFocus = useCallback(() => {
+    if (typeof onInputFocus === "function") onInputFocus();
+  }, [onInputFocus]);
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -79,6 +85,7 @@ const AskBar = memo(function AskBar({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={handleInputFocus}
             placeholder={pastedImage ? "Ask about this image..." : placeholder}
             disabled={busy}
           />

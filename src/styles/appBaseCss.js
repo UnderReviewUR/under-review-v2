@@ -190,9 +190,9 @@ export const baseCss = `
     hyphens:none;
   }
 
-  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + 12px + env(safe-area-inset-bottom));scroll-behavior:smooth;-webkit-overflow-scrolling:touch;}
-  .screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + 140px + env(safe-area-inset-bottom));}
-  .docked-bar{position:fixed;left:0;right:0;bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px 8px;z-index:25;backdrop-filter:blur(12px);}
+  .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 12px + env(safe-area-inset-bottom));scroll-behavior:smooth;-webkit-overflow-scrolling:touch;}
+  .screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 140px + env(safe-area-inset-bottom));}
+  .docked-bar{position:fixed;left:0;right:0;bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));background:var(--nav-bg);border-top:1px solid var(--border);padding:8px 12px 8px;z-index:25;backdrop-filter:blur(12px);transition:bottom 0.22s ease;}
   .docked-bar .ask-wrap{margin:0;}
   .docked-bar .ask-hint{padding-bottom:4px;}
   .docked-bar-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;opacity:.7;}
@@ -256,8 +256,8 @@ export const baseCss = `
   .spotlight-atp-foot{margin-top:10px;font-size:11px;color:var(--muted);line-height:1.35;}
 
   /* P-PR4 — Home premium pass (scoped: Home main + ticker + slate + prompt rail + spotlights only) */
-  .home-surface-premium.screen{padding:8px 14px 0;padding-bottom:calc(96px + env(safe-area-inset-bottom));}
-  .home-surface-premium.screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + 140px + env(safe-area-inset-bottom));}
+  .home-surface-premium.screen{padding:8px 14px 0;padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + env(safe-area-inset-bottom));}
+  .home-surface-premium.screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 140px + env(safe-area-inset-bottom));}
   .home-surface-premium .ask-wrap{margin:8px 0 16px;}
   .home-surface-premium .sport-rail{margin-bottom:12px;}
   .home-surface-premium .sport-pill{background:rgba(0,0,0,.14);backdrop-filter:blur(8px);}
@@ -641,11 +641,13 @@ export const baseCss = `
   button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}
 
-  .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:8px;}
+  .chat-thread{display:flex;flex-direction:column;gap:16px;margin-top:8px;}
   .bubble{border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;overflow-wrap:break-word;word-break:break-word;}
   .ur-take-structured,.ur-take-response{overflow-wrap:break-word;word-break:break-word;}
-  .bubble.user{margin-left:auto;max-width:88%;background:#1E2B38;border:1px solid #2A3A4A;color:#E8EAF0;border-bottom-right-radius:6px;}
+  .bubble.user{margin-left:auto;max-width:88%;background:#1E2B38;border:1px solid rgba(8,145,178,0.45);color:#E8EAF0;border-bottom-right-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,0.18);}
   .bubble.ai{margin-right:auto;max-width:96%;background:var(--surface);border:1px solid var(--border);color:var(--soft);border-bottom-left-radius:6px;}
+  .bubble.ai:has(.ur-take-structured){max-width:100%;width:100%;margin-left:0;margin-right:0;padding:10px 6px;background:transparent;border:none;box-shadow:none;}
+  .bubble.ai:has(.ur-take-structured) .ur-take-structured{margin-top:0;}
   .bubble.loading{opacity:.5;font-family:var(--mono-font);font-size:12px;letter-spacing:2px;color:var(--muted);}
   .bubble-img{width:100%;max-width:200px;border-radius:10px;margin-bottom:6px;display:block;}
 
