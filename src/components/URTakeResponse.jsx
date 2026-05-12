@@ -123,7 +123,9 @@ export default function URTakeResponse({
 
           <div className="mb-4">
             <div className="ur-labeled-block-label">WHY NOW</div>
-            <div className="text-[13px] text-white/[0.6] leading-relaxed pl-3">{whyNowDisplay}</div>
+            <div className="break-words text-[13px] text-white/[0.6] leading-relaxed pl-3 whitespace-normal">
+              {whyNowDisplay}
+            </div>
           </div>
 
           <div className="ur-edge-block">

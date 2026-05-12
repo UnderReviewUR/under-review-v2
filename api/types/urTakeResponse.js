@@ -25,7 +25,7 @@ export const UR_TAKE_STRUCTURED_SCHEMA = {
   whyNow: {
     type: 'string',
     minLength: 10,
-    maxLength: 150,
+    maxLength: 8000,
   },
 
   // Market inefficiency explanation (why mispriced, why now)
@@ -267,7 +267,13 @@ export function repairStructuredForDelivery(response, sportHint) {
     base.callType = 'prop';
   }
 
-  base.whyNow = padLen(base.whyNow, 10, 150, DEFAULT_WHY_NOW);
+  {
+    let w = String(base.whyNow ?? '').trim();
+    if (w.length < 10) {
+      w = `${w ? `${w} ` : ''}${DEFAULT_WHY_NOW}`.trim();
+    }
+    base.whyNow = w;
+  }
   base.edge = padLen(base.edge, 30, 500, DEFAULT_EDGE);
 
   const analysis = base.analysis && typeof base.analysis === 'object' ? { ...base.analysis } : {};
@@ -388,10 +394,10 @@ export function validateStructuredURTakeResponse(response) {
       errors.push(`whyNow: must be string`);
     } else if (
       response.whyNow.length < 10 ||
-      response.whyNow.length > 150
+      response.whyNow.length > 8000
     ) {
       errors.push(
-        `whyNow: length must be 10-150, got ${response.whyNow.length}`
+        `whyNow: length must be 10-8000, got ${response.whyNow.length}`
       );
     }
   }

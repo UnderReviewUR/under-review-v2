@@ -61,6 +61,7 @@ export default function MlbScreen({
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
               onUpgradePromptClick={onUpgradePromptClick}
+              hideFollowUpDock
             />
 
             {mlbLoading && mlbGames.length === 0 ? (

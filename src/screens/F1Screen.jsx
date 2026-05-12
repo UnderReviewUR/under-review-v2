@@ -97,6 +97,7 @@ export default function F1Screen({
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
               onUpgradePromptClick={onUpgradePromptClick}
+              hideFollowUpDock
             />
 
             {f1Loading ? (

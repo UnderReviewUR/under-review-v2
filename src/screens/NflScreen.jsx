@@ -69,6 +69,7 @@ export default function NflScreen({
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
               onUpgradePromptClick={onUpgradePromptClick}
+              hideFollowUpDock
             />
             <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
             <NflPropGuideSection

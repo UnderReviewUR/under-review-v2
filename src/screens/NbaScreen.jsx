@@ -90,6 +90,7 @@ export default function NbaScreen({
         accessTier={accessTier}
         onUrTakeFollowUpPick={onUrTakeFollowUpPick}
         onUpgradePromptClick={onUpgradePromptClick}
+        hideFollowUpDock
       />
 
       {nbaLoading ? (

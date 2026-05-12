@@ -1,13 +1,14 @@
 import { telemetryUrTakeFollowUpClick } from "../lib/urTakeTelemetry.js";
 
 /**
- * Follow-up suggestion chips — rendered inline below the chat thread (and historically above the Ask bar).
+ * Follow-up suggestion chips — parent places this above the Ask bar (fixed docked bar or matchup input).
  */
 export default function UrTakeDockedFollowUps({ source, onPick }) {
-  if (!source?.followUps?.length) return null;
+  const pills = Array.isArray(source?.followUps) ? source.followUps.slice(0, 3) : [];
+  if (!pills.length) return null;
   return (
     <div className="ur-docked-follow-ups" role="group" aria-label="Suggested follow-ups">
-      {source.followUps.map((q, idx) => (
+      {pills.map((q, idx) => (
         <button
           key={`${q}-${idx}`}
           type="button"

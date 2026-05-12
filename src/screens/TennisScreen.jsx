@@ -72,6 +72,7 @@ export default function TennisScreen({
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
               onUpgradePromptClick={onUpgradePromptClick}
+              hideFollowUpDock
             />
 
             <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>

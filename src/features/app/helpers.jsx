@@ -878,18 +878,18 @@ function buildPromotedParlayWhyEdge(parsed, summaryText) {
   const prose = extractPromotedParlayNarrativeChunks(parsed);
   const clip = (s, n) => String(s || "").trim().slice(0, n);
   if (prose.length >= 2) {
-    return { whyNow: clip(prose[0], 520), edge: clip(prose[1], 520) };
+    return { whyNow: String(prose[0] || "").trim(), edge: clip(prose[1], 520) };
   }
   if (prose.length === 1) {
     const paras = prose[0].split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
     if (paras.length >= 2) {
-      return { whyNow: clip(paras[0], 520), edge: clip(paras[1], 520) };
+      return { whyNow: String(paras[0] || "").trim(), edge: clip(paras[1], 520) };
     }
     const one = prose[0];
     const mid = Math.min(280, Math.floor(one.length / 2));
     if (one.length > 120) {
       return {
-        whyNow: clip(one, 320),
+        whyNow: String(one || "").trim(),
         edge: clip(one.slice(mid), 520) || clip(one, 520),
       };
     }
@@ -904,7 +904,7 @@ function buildPromotedParlayWhyEdge(parsed, summaryText) {
     .trim();
   if (tail.length >= 40) {
     const half = Math.min(240, Math.floor(tail.length / 2));
-    return { whyNow: clip(tail, half + 80), edge: clip(tail.slice(half), 520) };
+    return { whyNow: tail, edge: clip(tail.slice(half), 520) };
   }
   return {
     whyNow:
@@ -948,10 +948,29 @@ function buildPromotedParlayStructured(summaryText, sportHint, legs) {
   };
 }
 
+/** Merge API follow-ups with heuristics so we always surface 3 distinct chips when possible. */
+function mergeFollowUpChips(primary, fallback) {
+  const seen = new Set();
+  const out = [];
+  for (const list of [primary, fallback]) {
+    if (!Array.isArray(list)) continue;
+    for (const raw of list) {
+      const q = String(raw || "").trim();
+      if (q.length < 4) continue;
+      const key = q.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(q);
+      if (out.length >= 3) return out;
+    }
+  }
+  return out;
+}
+
 /** Prefer API followUps when present; otherwise derive three chips from answer text (parlay / O-U / slate / default). */
 export function getFollowUpSuggestions(message) {
-  const api = Array.isArray(message?.followUps) ? message.followUps : [];
-  if (api.length >= 1) return api.slice(0, 3);
+  const apiRaw = Array.isArray(message?.followUps) ? message.followUps : [];
+  const api = apiRaw.map((t) => String(t).trim()).filter(Boolean);
 
   const contentStr =
     typeof message?.content === "string"
@@ -966,24 +985,28 @@ export function getFollowUpSuggestions(message) {
   const deepTextStr = typeof message?.deepText === "string" ? message.deepText : "";
   const text = [contentStr, structuredCall, deepTextStr].filter(Boolean).join("\n");
 
+  let fallback;
   if (/parlay/i.test(text)) {
-    return ["What breaks this parlay?", "Best single leg", "Sharpen to 2 legs"];
-  }
-  if (/over|under/i.test(text)) {
-    return [
+    fallback = ["What breaks this parlay?", "Best single leg", "Sharpen to 2 legs"];
+  } else if (/over|under/i.test(text)) {
+    fallback = [
       "Build a parlay around this",
       "What kills this edge?",
       "Give me the other side",
     ];
+  } else if (/slate|top \d|best \d/i.test(text)) {
+    fallback = ["Which is the safest single bet?", "Rank these by confidence", "Build a parlay from these"];
+  } else {
+    fallback = [
+      "Give me a specific number to target",
+      "What's the strongest edge here?",
+      "What kills this take?",
+    ];
   }
-  if (/slate|top \d|best \d/i.test(text)) {
-    return ["Which is the safest single bet?", "Rank these by confidence", "Build a parlay from these"];
-  }
-  return [
-    "Give me a specific number to target",
-    "What's the strongest edge here?",
-    "What kills this take?",
-  ];
+
+  if (api.length >= 3) return api.slice(0, 3);
+  if (api.length === 0) return fallback;
+  return mergeFollowUpChips(api, fallback);
 }
 
 /** Last AI bubble + suggestions for docked follow-up chips (Ask + sport surfaces). */
@@ -1360,9 +1383,10 @@ function UrTakeTrustChips({ trust }) {
 function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  const dockFollowUps = getFollowUpSuggestions(m);
   const summaryText = stripEmbeddedFollowUpQuestions(
     stripLeadingUrTakeDisclaimersForDisplay(m.text),
-    m.followUps,
+    dockFollowUps,
   );
   const combined = `${summaryText}\n${m.deepText || ""}`;
   const hasThePlay = /\bTHE\s+PLAY\b/i.test(combined);
@@ -1626,6 +1650,7 @@ export function ChatThread({
   accessTier = null,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  hideFollowUpDock = false,
 }) {
   const chatThreadRef = useRef(null);
   /** Avoid double localStorage writes under React Strict Mode — keep nudge visible once committed on this mount. */
@@ -1651,7 +1676,9 @@ export function ChatThread({
   }
 
   const followUpDockSource =
-    typeof onUrTakeFollowUpPick === "function" ? getLastAiFollowUpDockSource(msgs) : null;
+    !hideFollowUpDock && typeof onUrTakeFollowUpPick === "function"
+      ? getLastAiFollowUpDockSource(msgs)
+      : null;
 
   useEffect(() => {
     const qualifies = computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradePromptClick);

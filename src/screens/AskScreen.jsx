@@ -73,6 +73,7 @@ export default function AskScreen({
                   accessTier={accessTier}
                   onUrTakeFollowUpPick={onUrTakeFollowUpPick}
                   onUpgradePromptClick={onUpgradePromptClick}
+                  hideFollowUpDock
                 />
               </>
             )}

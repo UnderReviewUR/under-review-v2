@@ -374,6 +374,7 @@ export default function GolfScreen({
               accessTier={accessTier}
               onUrTakeFollowUpPick={onUrTakeFollowUpPick}
               onUpgradePromptClick={onUpgradePromptClick}
+              hideFollowUpDock
             />
 
             {scheduleRows.length > 0 && (

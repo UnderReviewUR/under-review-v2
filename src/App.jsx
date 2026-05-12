@@ -68,6 +68,7 @@ import {
 import { getEtHour24 } from "./lib/nbaTime.js";
 import {
   ChatThread,
+  getLastAiFollowUpDockSource,
   buildNflContext,
   formatOverallStats,
   formatReturnStats,
@@ -115,7 +116,16 @@ import NbaScreen from "./screens/NbaScreen.jsx";
 import MlbScreen from "./screens/MlbScreen.jsx";
 import GolfScreen from "./screens/GolfScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
+import UrTakeDockedFollowUps from "./components/UrTakeDockedFollowUps.jsx";
 import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
+
+/** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
+function UrTakeFollowUpDockStrip({ msgs, onPick }) {
+  if (!Array.isArray(msgs) || msgs.length === 0 || typeof onPick !== "function") return null;
+  const source = getLastAiFollowUpDockSource(msgs);
+  if (!source?.followUps?.length) return null;
+  return <UrTakeDockedFollowUps source={source} onPick={onPick} />;
+}
 
 function formatHomeSlateKvUpdatedEt(iso) {
   const t = Date.parse(String(iso || ""));
@@ -4383,7 +4393,9 @@ fees. One price, unlimited reads.`,
               accessTier={accessTier}
               onUrTakeFollowUpPick={urTakeFollowUpMatchup}
               onUpgradePromptClick={openUpgradeModal}
+              hideFollowUpDock
             />
+            <UrTakeFollowUpDockStrip msgs={matchupMsgs} onPick={urTakeFollowUpMatchup} />
             <AskBar inputRef={matchupInputRef} value={matchupInput} onChange={setMatchupInput} onSubmit={()=>submitMatchup()} placeholder={`Ask about ${selectedMatchup.title}...`} {...askBarCommon}/>
           </main>
         )}
@@ -4439,42 +4451,49 @@ fees. One price, unlimited reads.`,
         {/* ══ DOCKED INPUT BARS ══ */}
         {screen==="tennis"&&tennisMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(255,230,0,.25)"}}>
+            <UrTakeFollowUpDockStrip msgs={tennisMsgs} onPick={urTakeFollowUpTennis} />
             <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis · Ask another</div>
             <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Ask another..." {...askBarCommon}/>
           </div>
         )}
         {screen==="nfl"&&nflMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(74,144,217,.25)"}}>
+            <UrTakeFollowUpDockStrip msgs={nflMsgs} onPick={urTakeFollowUpNfl} />
             <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>
             <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder="Ask another..." btnColor="#4A90D9" {...askBarCommon}/>
           </div>
         )}
         {screen==="f1"&&f1Msgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(225,6,0,.25)"}}>
+            <UrTakeFollowUpDockStrip msgs={f1Msgs} onPick={urTakeFollowUpF1} />
             <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 · Ask another</div>
             <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Ask another..." btnColor="var(--f1)" {...askBarCommon}/>
           </div>
         )}
         {screen==="nba"&&nbaMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(255,107,0,.25)"}}>
+            <UrTakeFollowUpDockStrip msgs={nbaMsgs} onPick={urTakeFollowUpNba} />
             <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA · Ask another</div>
             <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Ask another..." btnColor="var(--nba)" {...askBarCommon}/>
           </div>
         )}
         {screen==="mlb"&&mlbMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(29,185,84,.25)"}}>
+            <UrTakeFollowUpDockStrip msgs={mlbMsgs} onPick={urTakeFollowUpMlb} />
             <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB · Ask another</div>
             <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon}/>
           </div>
         )}
         {screen==="golf"&&golfMsgs.length>0&&(
           <div className="docked-bar" style={{borderTopColor:"rgba(255,255,255,.2)"}}>
+            <UrTakeFollowUpDockStrip msgs={golfMsgs} onPick={urTakeFollowUpGolf} />
             <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
             <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#DCE6F2" {...askBarCommon}/>
           </div>
         )}
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
+            <UrTakeFollowUpDockStrip msgs={askMsgs} onPick={urTakeFollowUpAsk} />
             <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Go deeper..." {...askBarCommon}/>
           </div>
         )}
