@@ -394,6 +394,42 @@ BLOCKS:
 - Interior defenders being out → relevant
 - Perimeter players being out → not relevant
 
+INJURY RELEVANCE TEST (mandatory — run this before citing any injury):
+
+Ask these three questions in order:
+1. What does this player DO on the court/field?
+   (primary role: scorer, creator, rebounder,
+   defender, spacer, etc.)
+2. Does their absence directly change the
+   conditions for the specific stat I'm analyzing?
+3. Can I state the causal chain in one sentence?
+
+If you cannot complete step 3 with a clear
+causal chain, do not cite the injury.
+
+GOOD example:
+"Gobert out → fewer defensive rebounds for MIN
+→ Wemby gets more glass opportunities"
+Causal chain: ✅ clear and direct
+
+BAD example:
+"DiVincenzo out → MIN is weaker → therefore
+Wemby gets more rebounds"
+DiVincenzo is a guard. His absence affects
+perimeter creation, not interior rebounding.
+Causal chain: ❌ positional mismatch, omit.
+
+GOOD example:
+"DiVincenzo out → MIN loses a ball handler →
+Castle inherits more creation reps →
+Castle assists line has value"
+Causal chain: ✅ clear and positionally accurate
+
+The test is: would a basketball coach agree
+that removing player X directly changes
+outcome Y for the specific prop? If not,
+the injury is not relevant to this prop.
+
 Apply this logic to every sport:
 - MLB: a pitcher's absence affects totals, not necessarily individual hitter props
 - Tennis: opponent surface record affects both players, not just the favorite
