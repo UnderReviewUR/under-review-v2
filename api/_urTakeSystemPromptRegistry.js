@@ -240,8 +240,16 @@ export function resolveEvidenceSparsityProfile({
  * @param {string} p.contextQuality
  * @param {{ sparseQuestion?: boolean, thinEvidence?: boolean }} p.evidenceSparsityProfile
  * @param {string} [p.sportHint]
+ * @param {string[]} [p.confidenceDrivers] — human-readable reasons for confidence tier (all sports)
+ * @param {Record<string, boolean>} [p.claimEvidenceFlags] — grounded claim classes from sport evidence layer
  */
-export function buildTakeTrustUiMetadata({ contextQuality, evidenceSparsityProfile, sportHint }) {
+export function buildTakeTrustUiMetadata({
+  contextQuality,
+  evidenceSparsityProfile,
+  sportHint,
+  confidenceDrivers,
+  claimEvidenceFlags,
+}) {
   const sparse = Boolean(evidenceSparsityProfile?.sparseQuestion);
   const thin = Boolean(evidenceSparsityProfile?.thinEvidence);
   const cq = String(contextQuality ?? "unknown").toLowerCase().trim() || "unknown";
@@ -258,6 +266,29 @@ export function buildTakeTrustUiMetadata({ contextQuality, evidenceSparsityProfi
     sparseQuestion: sparse,
     thinEvidence: thin,
     sportHint: String(sportHint || "generic").toLowerCase(),
+    ...(Array.isArray(confidenceDrivers) && confidenceDrivers.length
+      ? { confidenceDrivers: confidenceDrivers.slice(0, 12) }
+      : {}),
+    ...(claimEvidenceFlags && typeof claimEvidenceFlags === "object"
+      ? { claimEvidenceFlags }
+      : {}),
+  };
+}
+
+/**
+ * Merge post-QA evidence hints into trust metadata for the client (no second model call).
+ * @param {object} trust — from `buildTakeTrustUiMetadata`
+ * @param {string[]|undefined|null} qaEvidenceDriverHints
+ * @returns {object}
+ */
+export function mergeTrustWithQaHints(trust, qaEvidenceDriverHints) {
+  if (!trust || typeof trust !== "object") return trust;
+  if (!Array.isArray(qaEvidenceDriverHints) || !qaEvidenceDriverHints.length) return trust;
+  const prev = Array.isArray(trust.confidenceDrivers) ? trust.confidenceDrivers : [];
+  const merged = [...new Set([...prev, ...qaEvidenceDriverHints.map((s) => String(s || "").trim()).filter(Boolean)])];
+  return {
+    ...trust,
+    confidenceDrivers: merged.slice(0, 16),
   };
 }
 
@@ -338,7 +369,39 @@ Never build analysis around:
 When a key player is injured and their replacement is a low-relevance player, say:
 "[Star] is out — the vacancy shifts usage to [next relevant player], not a specific sub."
 Reference the structural vacancy and who inherits it among relevant players only.
-Never name an irrelevant player as if they are a meaningful betting angle.`;
+Never name an irrelevant player as if they are a meaningful betting angle.
+
+POSITIONAL INJURY IMPACT RULE (mandatory):
+
+Before citing an injury as a factor for a specific prop, reason through whether that player's position actually affects the stat being analyzed. Not every injury is relevant to every prop.
+
+Use this framework:
+
+REBOUNDS:
+- A center or power forward being out → directly affects rebound distribution
+- A guard or small forward being out → only affects rebounds if they were a significant offensive rebounder (5+ RPG)
+  Otherwise: guard absence does NOT create a rebound edge for the opposing center
+
+POINTS/SCORING:
+- A primary scorer or ball handler being out → directly affects usage and shot volume
+- A role player being out → only relevant if they specifically drew defensive attention away from the player being analyzed
+
+ASSISTS:
+- A secondary ball handler or creator being out → directly affects assist opportunities
+- A non-creator being out → not relevant to assist props
+
+BLOCKS:
+- Interior defenders being out → relevant
+- Perimeter players being out → not relevant
+
+Apply this logic to every sport:
+- MLB: a pitcher's absence affects totals, not necessarily individual hitter props
+- Tennis: opponent surface record affects both players, not just the favorite
+- F1: weather affects all drivers, not just the leader
+
+NEVER cite an injury as a structural edge unless you can explicitly state WHY that player's specific position and role affects the specific stat being analyzed.
+
+If the positional logic doesn't hold, omit the injury angle entirely and lead with matchup architecture instead.`;
 }
 
 /**
