@@ -21,6 +21,8 @@ const AskBar = memo(function AskBar({
   freeLimitChip = null,
   /** Optional: scroll chat when input is focused (mobile keyboard). Wired from App via askBarCommon. */
   onInputFocus,
+  /** When true (only pass from fixed dock in App.jsx): logo-gradient border on text input; CSS scoped to `.docked-bar` / `.docked-interaction-zone`. */
+  dockedGradient = false,
 }) {
   const busy = isAsking || prefetchingContext;
 
@@ -45,7 +47,7 @@ const AskBar = memo(function AskBar({
   );
 
   return (
-    <div className="ask-wrap">
+    <div className={`ask-wrap${dockedGradient ? " ask-wrap--docked-gradient" : ""}`}>
       {freeLimitChip}
       <input
         ref={fileInputRef}
@@ -79,16 +81,31 @@ const AskBar = memo(function AskBar({
             </div>
           )}
 
-          <input
-            ref={inputRef}
-            className="ask-bar"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={handleInputFocus}
-            placeholder={pastedImage ? "Ask about this image..." : placeholder}
-            disabled={busy}
-          />
+          {dockedGradient ? (
+            <div className="ask-bar-gradient-frame">
+              <input
+                ref={inputRef}
+                className="ask-bar ask-bar--docked-fill"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={handleInputFocus}
+                placeholder={pastedImage ? "Ask about this image..." : placeholder}
+                disabled={busy}
+              />
+            </div>
+          ) : (
+            <input
+              ref={inputRef}
+              className="ask-bar"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={handleInputFocus}
+              placeholder={pastedImage ? "Ask about this image..." : placeholder}
+              disabled={busy}
+            />
+          )}
 
           {!pastedImage && showPasteHint && (
             <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>
