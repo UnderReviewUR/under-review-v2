@@ -1546,6 +1546,11 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
       : "";
 
     const s = effectiveStructured;
+    console.log("[SharpBrief] UrTakeAiBubble → URTakeResponse", {
+      hasApiStructured: Boolean(m.structured),
+      promotedParlay: Boolean(promotedParlayStructured),
+      callPreview: String(s?.call ?? "").slice(0, 72),
+    });
     const followUpsResolved = getFollowUpSuggestions(m);
     const followUpSourceInline =
       Array.isArray(followUpsResolved) &&

@@ -90,6 +90,11 @@ export default function URTakeResponse({
     setAnimMounted(true);
   }, []);
 
+  console.log("[SharpBrief] URTakeResponse render", {
+    sport,
+    callPreview: String(call ?? "").slice(0, 80),
+  });
+
   const formattedTimestamp = formatTimestamp(timestamp);
   const sportTag = formatUrTakeSportTag(sport, callType);
   const liveRibbon = String(liveScore || "").trim() || String(gameStateLine || "").trim() || "";
