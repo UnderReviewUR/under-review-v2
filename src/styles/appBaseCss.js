@@ -196,7 +196,7 @@ export const baseCss = `
     position:fixed;left:0;right:0;
     bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));
     z-index:25;
-    padding:0;margin:0 0 12px;
+    padding:0;margin:0;
     background:transparent;border:none;box-shadow:none;
     backdrop-filter:none;-webkit-backdrop-filter:none;
     transition:bottom 0.22s ease;
@@ -204,14 +204,14 @@ export const baseCss = `
   .docked-interaction-zone{
     width:100%;
     box-sizing:border-box;
-    padding-top:clamp(16px,4.2vw,22px);
+    padding-top:6px;
     padding-left:16px;
     padding-right:16px;
-    padding-bottom:clamp(14px,3.5vw,20px);
+    padding-bottom:8px;
     display:flex;
     flex-direction:column;
     align-items:stretch;
-    gap:clamp(8px,2vw,11px);
+    gap:6px;
     border-top:1px solid var(--dock-accent,rgba(255,255,255,0.09));
     background:
       linear-gradient(180deg,rgba(0,245,233,0.045) 0%,rgba(255,45,107,0.025) 20%,transparent 42%),
@@ -224,12 +224,17 @@ export const baseCss = `
   }
   .docked-interaction-zone .docked-bar-label{margin:0;opacity:0.85;padding-top:1px;}
   .docked-interaction-zone .ur-docked-follow-ups{
-    padding:0;margin:0;
+    padding:0;margin:0 0 2px;
     gap:10px;
     max-height:min(34vh,132px);
   }
   .docked-interaction-zone .ask-wrap{margin:0;}
   /* Logo-gradient frame: only with AskBar dockedGradient + .ask-wrap--docked-gradient (see AskBar.jsx) */
+  .docked-bar .ask-wrap--docked-gradient .ask-row,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-row{
+    align-items:center;
+    gap:10px;
+  }
   .docked-bar .ask-wrap--docked-gradient .ask-col,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-col{
     border:none;
@@ -241,23 +246,96 @@ export const baseCss = `
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-col:focus-within{
     border-color:transparent;
   }
+  /* Gradient is only the 1px frame; fill lives in .ask-bar-docked-inner */
   .docked-bar .ask-wrap--docked-gradient .ask-bar-gradient-frame,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-gradient-frame{
-    background:linear-gradient(135deg,#00e5a0,#ff6ec7,#6366f1);
-    border-radius:14px;
-    padding:1.5px;
+    background:linear-gradient(90deg,#00F5E9,#FF2D6B);
+    border-radius:10px;
+    padding:1px;
     flex:1;
     min-width:0;
+    width:100%;
+    height:32px;
     box-sizing:border-box;
+    display:flex;
+    align-items:stretch;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner{
+    flex:1;
+    min-width:0;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    background:#111;
+    border-radius:9px;
+    overflow:hidden;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-input-slot,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-input-slot{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    align-items:center;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill{
-    background:#0d1117;
-    border-radius:13px;
-    border:none;
+    flex:1;
+    min-height:0;
     width:100%;
+    margin:0;
     box-sizing:border-box;
+    background:transparent;
+    border-radius:0;
+    border:none;
     color:var(--text);
+    font-size:14px;
+    line-height:1.2;
+    padding:0 10px;
+    outline:none;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder{
+    color:var(--muted);
+    opacity:1;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ask-hint--docked-in-frame,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-hint--docked-in-frame{
+    display:none;
+  }
+  .docked-bar .ask-wrap--docked-gradient .attach-btn,
+  .docked-interaction-zone .ask-wrap--docked-gradient .attach-btn{
+    width:32px;
+    height:32px;
+    min-width:32px;
+    box-sizing:border-box;
+    border-radius:8px;
+    background:#111;
+    border:0.5px solid #1e1e1e;
+  }
+  .docked-bar .ask-wrap--docked-gradient .send-btn,
+  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn{
+    width:32px;
+    height:32px;
+    min-width:32px;
+    box-sizing:border-box;
+    border-radius:8px;
+  }
+  .docked-bar .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand,
+  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand{
+    background:linear-gradient(135deg,#ff4da6,#ff7a00);
+    color:#fff;
+    border:none;
+  }
+  .docked-bar .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:disabled,
+  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:disabled{
+    background:var(--border);
+    color:var(--muted);
+    opacity:0.85;
+  }
+  .docked-bar .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:hover:not(:disabled),
+  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:hover:not(:disabled){
+    filter:brightness(1.06);
   }
   .docked-interaction-zone .ask-hint{padding-top:4px;padding-bottom:6px;}
   .docked-bar-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;text-transform:uppercase;}
@@ -377,6 +455,20 @@ export const baseCss = `
 
   .ask-wrap{margin:12px 0 18px;}
   .ask-row{display:flex;gap:8px;align-items:flex-end;}
+  /* Inline AskBars (hero shells, detail screens, WTA): one row baseline with docked bar */
+  .nba-ask-shell .ask-row,
+  .nfl-ask-shell .ask-row,
+  .f1-ask-shell .ask-row,
+  .mlb-ask-shell .ask-row,
+  .golf-ask-shell .ask-row,
+  .tennis-ask-shell .ask-row,
+  .wta-ask-inline .ask-row,
+  .home-surface-premium .ask-wrap .ask-row,
+  .screen > .detail-card ~ .ask-wrap .ask-row,
+  .screen > section.hero ~ .ask-wrap .ask-row{
+    align-items:center;
+    gap:10px;
+  }
   .ask-col{flex:1;border:1px solid var(--border-2);background:var(--surface-2);border-radius:18px;overflow:hidden;transition:border-color .15s ease;}
   .ask-col:focus-within{border-color:rgba(0,245,233,.4);}
   .ask-img-preview{padding:8px 12px 0;display:flex;align-items:center;gap:8px;}
@@ -707,6 +799,7 @@ export const baseCss = `
   button.ur-take-follow-up-pill:active{opacity:0.82;}
 
   .chat-thread{display:flex;flex-direction:column;gap:16px;margin-top:8px;}
+  .ur-chat-thread-anchor{height:1px;width:100%;flex-shrink:0;margin:0;padding:0;pointer-events:none;overflow:hidden;opacity:0;}
   .bubble{border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;overflow-wrap:break-word;word-break:break-word;}
   .ur-take-structured,.ur-take-response{overflow-wrap:break-word;word-break:break-word;}
   .bubble.user{margin-left:auto;max-width:88%;background:#1E2B38;border:1px solid rgba(8,145,178,0.45);color:#E8EAF0;border-bottom-right-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,0.18);}
@@ -823,7 +916,7 @@ export const baseCss = `
     width:4px;
     height:4px;
     border-radius:50%;
-    background:#00F5E9;
+    background:#FFD700;
   }
 
   .pro-banner{border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid rgba(245,200,66,.3);background:linear-gradient(135deg,rgba(245,200,66,.08),rgba(255,45,107,.04));text-align:center;}
@@ -888,6 +981,9 @@ export const baseCss = `
   .nav-btn.golf-active{color:#FFFFFF;}
   .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
   .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .tennis-ask-shell{background:var(--surface);border:1px solid rgba(255,230,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
+  .tennis-ask-shell-kicker{font-size:10px;color:#FFE600;font-family:var(--mono-font);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}
+  .wta-ask-inline{margin-bottom:10px;}
   .golf-ask-label{font-family:var(--mono-font);font-size:11px;color:#FFFFFF;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;opacity:.85;}
   .golf-leaderboard-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s;}
   .golf-leaderboard-card:hover{border-color:rgba(255,255,255,.3);}
@@ -907,6 +1003,57 @@ export const baseCss = `
   .golf-schedule-card.golf-odds-card{flex-direction:column;align-items:stretch;justify-content:flex-start;}
   .golf-schedule-blurb{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45;}
   .golf-schedule-synopsis-link{margin-top:10px;align-self:flex-start;background:none;border:none;padding:4px 0;font-family:var(--mono-font);font-size:11px;letter-spacing:0.5px;color:var(--cyan-bright);cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+
+  .ur-v2-card{background:#080808;border-radius:12px;overflow:hidden;max-width:720px;margin-left:auto;margin-right:auto;border:0.5px solid #1e1e1e;}
+  .ur-v2-sport-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;background:#0f0f0f;padding:10px 14px;border-bottom:0.5px solid #1e1e1e;}
+  .ur-v2-sport-bar-tag{font-family:var(--mono-font);font-size:10px;letter-spacing:0.18em;color:#00F5E9;text-transform:uppercase;}
+  .ur-v2-sport-bar-dot{color:rgba(255,255,255,.25);font-size:12px;}
+  .ur-v2-sport-bar-ctx{font-family:var(--body-font);font-size:12px;color:rgba(255,255,255,.55);}
+  .ur-v2-sport-bar-spacer{flex:1;}
+  .ur-v2-mode-pill{font-family:var(--mono-font);font-size:9px;letter-spacing:0.12em;text-transform:uppercase;padding:4px 8px;border-radius:999px;border:0.5px solid #1e1e1e;background:#111;color:rgba(255,255,255,.65);display:inline-flex;align-items:center;gap:6px;}
+  .ur-v2-mode-pill--odds{border-color:rgba(34,197,94,.35);color:#86efac;}
+  .ur-v2-mode-pill--ee{border-color:rgba(0,245,233,.35);color:#5eead4;}
+  .ur-v2-mode-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;flex-shrink:0;}
+  .ur-v2-mode-ic{font-size:10px;line-height:1;}
+  .ur-v2-body-pad{padding:14px 16px 16px;}
+  .ur-v2-headline{font-family:var(--display-font);font-size:22px;line-height:1.2;font-weight:800;color:#fff;margin:0 0 10px;letter-spacing:0.02em;}
+  .ur-v2-pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .ur-v2-mini-pill{font-size:10px;padding:4px 10px;border-radius:999px;background:#111;border:0.5px solid #1e1e1e;color:rgba(255,255,255,.72);font-family:var(--mono-font);letter-spacing:0.06em;text-transform:uppercase;}
+  .ur-v2-mini-pill--muted{color:rgba(255,255,255,.45);}
+  .ur-v2-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+  .ur-v2-stat-cell{background:#111;border:0.5px solid #1e1e1e;border-radius:10px;padding:10px 12px;min-height:72px;display:flex;flex-direction:column;justify-content:center;}
+  .ur-v2-stat-cell--hi{border-color:rgba(0,245,233,.45);box-shadow:0 0 0 1px rgba(0,245,233,.12);}
+  .ur-v2-stat-label{font-family:var(--mono-font);font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,.38);margin-bottom:6px;}
+  .ur-v2-stat-value{font-size:14px;font-weight:700;color:#fff;line-height:1.25;word-break:break-word;}
+  .ur-v2-divider{height:1px;background:#1e1e1e;margin:4px 0 14px;}
+  .ur-v2-body-copy{font-size:14px;line-height:1.55;color:rgba(255,255,255,.78);}
+  .ur-v2-body-p{margin:0 0 12px;}
+  .ur-v2-muted{color:rgba(255,255,255,.55);}
+  .ur-v2-inline-label{font-family:var(--mono-font);font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-right:6px;}
+  .ur-v2-driver-list{margin:8px 0 0;padding-left:18px;color:rgba(255,255,255,.65);font-size:13px;}
+  .ur-v2-caveats{margin:12px 0 0;padding-left:18px;color:rgba(255,230,100,.85);font-size:13px;}
+  .ur-v2-parlay-block{margin-top:14px;padding-top:12px;border-top:0.5px solid #1e1e1e;}
+  .ur-v2-parlay-title{font-family:var(--mono-font);font-size:9px;letter-spacing:0.18em;color:rgba(255,255,255,.35);text-transform:uppercase;margin-bottom:8px;}
+  .ur-v2-parlay-leg{margin-bottom:10px;}
+  .ur-v2-parlay-leg-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
+  .ur-v2-parlay-play{font-weight:600;color:#fff;font-size:14px;}
+  .ur-v2-parlay-odds{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.4);}
+  .ur-v2-parlay-rationale{font-size:12px;color:rgba(255,255,255,.55);margin-top:4px;line-height:1.45;}
+  .ur-v2-parlay-combined{margin-top:10px;}
+  .ur-v2-parlay-combined-label{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.4);}
+  .ur-v2-parlay-explainer{font-size:11px;color:rgba(255,255,255,.48);margin-top:6px;line-height:1.45;}
+  .ur-v2-inline-followups{margin-top:14px;}
+  .ur-v2-inline-followups .ur-docked-follow-ups{flex-wrap:wrap;max-height:none;}
+  .ur-v2-footer-row{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:10px;border-top:0.5px solid #1e1e1e;}
+  .ur-v2-ts{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.22);}
+  .bottom-nav .nav-btn.active{color:#FFD700;}
+  .bottom-nav .nav-btn.tennis-active{color:#FFD700;}
+  .bottom-nav .nav-btn.nfl-active{color:#FFD700;}
+  .bottom-nav .nav-btn.f1-active{color:#FFD700;}
+  .bottom-nav .nav-btn.nba-active{color:#FFD700;}
+  .bottom-nav .nav-btn.mlb-active{color:#FFD700;}
+  .bottom-nav .nav-btn.golf-active{color:#FFD700;}
+  .bottom-nav .nav-btn.pro-active{color:#FFD700;}
 
   @media (max-width:390px){
     .quick-btn{min-height:44px;font-size:12px;}

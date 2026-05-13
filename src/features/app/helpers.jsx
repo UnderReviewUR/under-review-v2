@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
 import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
 import { normalizeText } from "../../lib/normalizeText.js";
@@ -1346,8 +1348,9 @@ export function LoadingBubble({ sport }) {
 function UrTakeTrustChips({ trust }) {
   if (!trust || typeof trust !== "object") return null;
   const cq = String(trust.contextQuality || "").toLowerCase();
-  /** Hide routine metadata during normal reads — only surface real caution signals. */
-  const show = cq === "low" || Boolean(trust.thinEvidence);
+  const drivers = Array.isArray(trust.confidenceDrivers) ? trust.confidenceDrivers.filter(Boolean) : [];
+  /** Hide routine metadata during normal reads — surface caution signals or confidence rationale. */
+  const show = cq === "low" || Boolean(trust.thinEvidence) || drivers.length > 0;
   if (!show) return null;
 
   const chipStyle = {
@@ -1365,22 +1368,133 @@ function UrTakeTrustChips({ trust }) {
   if (trust.sparseQuestion) items.push("Sparse Q");
   if (trust.thinEvidence) items.push("Thin evidence");
 
+  const driverLine = drivers.slice(0, 4).join(" · ");
+
   return (
     <div
       role="group"
       aria-label="Take trust metadata"
-      style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}
+      style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}
     >
-      {items.map((label) => (
-        <span key={label} style={chipStyle}>
-          {label}
-        </span>
-      ))}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {items.map((label) => (
+          <span key={label} style={chipStyle}>
+            {label}
+          </span>
+        ))}
+      </div>
+      {driverLine ? (
+        <div
+          className="ur-take-trust-drivers"
+          style={{
+            fontSize: 11,
+            lineHeight: 1.35,
+            color: "var(--muted)",
+            maxWidth: "100%",
+          }}
+        >
+          {driverLine}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
+function UrTakeBetSignalPrompt({ takeId, takeMeta, getTakeAuthHeaders, enabled }) {
+  const [busy, setBusy] = useState(false);
+  const [localRecorded, setLocalRecorded] = useState(false);
+  const serverRecorded = Boolean(takeMeta?.betSignal);
+  const done = serverRecorded || localRecorded;
+
+  if (!enabled || !takeId || typeof getTakeAuthHeaders !== "function") return null;
+
+  const email =
+    typeof localStorage !== "undefined" ? String(localStorage.getItem("ur_email") || "").trim() : "";
+  if (!email.includes("@")) return null;
+
+  const post = async (betYes) => {
+    if (busy || done) return;
+    setBusy(true);
+    try {
+      const authHeaders = await getTakeAuthHeaders();
+      const ts = new Date().toISOString();
+      const r = await fetch("/api/take-bet-signal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ takeId, betYes, timestamp: ts, email }),
+      });
+      if (r.ok || r.status === 409) setLocalRecorded(true);
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div
+        className="ur-take-bet-signal ur-take-bet-signal--done"
+        style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}
+      >
+        Thanks — saved.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="ur-take-bet-signal"
+      style={{
+        marginTop: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      <span style={{ fontSize: 11, color: "var(--muted)" }}>Did you bet this?</span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void post(true)}
+        style={{
+          background: "rgba(0,245,233,0.12)",
+          color: "#00F5E9",
+          border: "1px solid rgba(0,245,233,0.35)",
+          borderRadius: 6,
+          padding: "4px 12px",
+          fontSize: 11,
+          cursor: busy ? "default" : "pointer",
+          fontFamily: "var(--body-font)",
+          opacity: busy ? 0.5 : 1,
+        }}
+      >
+        Yes
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void post(false)}
+        style={{
+          background: "transparent",
+          color: "var(--muted)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          borderRadius: 6,
+          padding: "4px 12px",
+          fontSize: 11,
+          cursor: busy ? "default" : "pointer",
+          fontFamily: "var(--body-font)",
+          opacity: busy ? 0.5 : 1,
+        }}
+      >
+        No
+      </button>
+    </div>
+  );
+}
+
+function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, onUrTakeFollowUpPick = null }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const dockFollowUps = getFollowUpSuggestions(m);
@@ -1396,7 +1510,17 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
     trackPlay.trackedIds.includes(m.msgId);
   const showTrack =
     Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
+  const takeId = String(m.takeMeta?.id || "").trim();
+  const showBetSignal = Boolean(takeId && hasThePlay);
   const trustChips = m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null;
+  const betSignalRow = (
+    <UrTakeBetSignalPrompt
+      takeId={takeId}
+      takeMeta={m.takeMeta}
+      getTakeAuthHeaders={getTakeAuthHeaders}
+      enabled={showBetSignal}
+    />
+  );
 
   /**
    * Bubble rendering paths:
@@ -1422,6 +1546,21 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
       : "";
 
     const s = effectiveStructured;
+    const followUpsResolved = getFollowUpSuggestions(m);
+    const followUpSourceInline =
+      Array.isArray(followUpsResolved) &&
+      followUpsResolved.length > 0 &&
+      typeof onUrTakeFollowUpPick === "function"
+        ? {
+            msgId: m.msgId,
+            followUps: followUpsResolved,
+            shownAt: m.urTakeTelemetry?.shownAt ?? Date.now(),
+            intent: String(m.urTakeTelemetry?.intent ?? ""),
+            liveMode: Boolean(m.urTakeTelemetry?.liveMode),
+            sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
+            followUpCount: followUpsResolved.length,
+          }
+        : null;
     return (
       <>
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
@@ -1440,8 +1579,13 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
           timestamp={s.timestamp}
           gameStateLine={structuredGameStateLine}
           liveScore={String(m.liveScore || "").trim()}
+          estimatedEdge={m.estimatedEdge}
+          takeMeta={m.takeMeta}
+          followUpSource={followUpSourceInline}
+          onFollowUpPick={onUrTakeFollowUpPick}
         />
         {trustChips}
+        {betSignalRow}
       </>
     );
   }
@@ -1478,6 +1622,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
           <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
         </div>
         {trustChips}
+        {betSignalRow}
       </>
     );
   }
@@ -1539,6 +1684,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
             </button>
           </div>
         ) : null}
+        {betSignalRow}
       </>
     );
   }
@@ -1626,6 +1772,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "" }) {
         )}
       </div>
       {trustChips}
+      {betSignalRow}
     </>
   );
 }
@@ -1652,17 +1799,31 @@ export function ChatThread({
   onUpgradePromptClick = null,
   hideFollowUpDock = false,
 }) {
+  const getTakeAuthHeaders = useTakeAuthHeaders();
   const chatThreadRef = useRef(null);
+  const bottomAnchorRef = useRef(null);
+  /** Skip first effect — no auto-scroll on initial mount / restored thread. */
+  const skipInitialScrollRef = useRef(true);
+  const prevScrollSigRef = useRef("");
   /** Avoid double localStorage writes under React Strict Mode — keep nudge visible once committed on this mount. */
   const proUpgradeNudgeCommittedRef = useRef(false);
   const [proUpgradeNudgeVisible, setProUpgradeNudgeVisible] = useState(false);
 
-  /** Scroll so the top of the latest assistant reply is visible — headline first, not the tail of a long answer. */
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!msgs?.length) return;
-    const nodes = chatThreadRef.current?.querySelectorAll('[data-role="assistant"]');
-    const target = nodes?.[nodes.length - 1];
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const last = msgs[msgs.length - 1];
+    const streaming = Boolean(last?.loading);
+    const sig = `${msgs.length}:${streaming ? 1 : 0}:${String(last?.text || "").length}:${last?.msgId || ""}`;
+    if (skipInitialScrollRef.current) {
+      skipInitialScrollRef.current = false;
+      prevScrollSigRef.current = sig;
+      return;
+    }
+    if (sig === prevScrollSigRef.current) return;
+    prevScrollSigRef.current = sig;
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
   }, [msgs]);
 
   let weeklyUsed = 0;
@@ -1734,6 +1895,8 @@ export function ChatThread({
                 userQuestion={String(
                   [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
                 )}
+                getTakeAuthHeaders={getTakeAuthHeaders}
+                onUrTakeFollowUpPick={onUrTakeFollowUpPick}
               />
             ) : (
               <>
@@ -1779,6 +1942,7 @@ export function ChatThread({
           ⚡ One follow-up left free — go deeper or ask another angle
         </div>
       ) : null}
+      <div ref={bottomAnchorRef} className="ur-chat-thread-anchor" aria-hidden="true" />
     </div>
   );
 }

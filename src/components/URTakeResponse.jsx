@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
+import { scrubStructuredFaceText } from "../lib/urTakeFaceTextScrub.js";
+import { buildEstimatedEdgeCardModel } from "../lib/urTakeEstimatedEdgeUi.js";
+import {
+  buildSharpBriefStatGrid,
+  inferEdgeTypePill,
+  inferMarketPill,
+  pickSharpBriefHeadline,
+} from "../lib/urTakeSharpBriefUi.js";
+import UrTakeDockedFollowUps from "./UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 
 function formatTimestamp(ts) {
@@ -23,34 +32,42 @@ function formatTimestamp(ts) {
   }
 }
 
-function confidencePillClass(tier) {
-  const t = String(tier || "");
-  if (t === "High") return "ur-conf-pill-high";
-  if (t === "Medium") return "ur-conf-pill-medium";
-  if (t === "Speculative") return "ur-conf-pill-speculative";
-  return "ur-conf-pill-speculative";
+function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
+  const tag = String(combinedAmerican || "").trim() || "this price";
+  const legs = Array.isArray(parlayLegs) ? parlayLegs : [];
+  const odds = legs
+    .map((leg) => String(leg?.odds ?? "").trim())
+    .filter((o) => o && o !== "TBD" && /^[+-]?\d+$/.test(o.replace(/^\+/, "")));
+  if (odds.length < 2) {
+    return `${tag} is the single-ticket American price for this parlay—each leg’s line rolls into one payout (books compound implied odds; they don’t add American prices like a scoreboard).`;
+  }
+  const uniq = [...new Set(odds)];
+  if (uniq.length === 1) {
+    return `Each leg is ${uniq[0]}; one slip rolls those into ${tag} American—typical parlay math for two ${uniq[0]} legs lands near +260–+270, not “${uniq[0]} + ${uniq[0]}”.`;
+  }
+  return `${tag} is the rolled-up American price for this parlay—leg lines compound into one number the book shows on the full ticket.`;
 }
 
-/** Strip internal prompt / UI scaffolding that sometimes leaks into structured JSON. */
-function scrubStructuredFaceText(text) {
-  let s = String(text || "");
-  const patterns = [
-    /\bLegs below are shown in the structured card[^.!?\n]*/gi,
-    /\byour full write-up stays in the thread\.?/gi,
-    /\blayout is extracted from plain text\.?/gi,
-  ];
-  for (const re of patterns) {
-    s = s.replace(re, " ");
-  }
-  return s.replace(/\s{2,}/g, " ").replace(/^\s+|\s+$/g, "").trim();
+function formatEstimatedSportLabel(sport) {
+  const s = String(sport || "").toLowerCase();
+  if (s === "tennis_wta_profile") return "Tennis (WTA profile)";
+  if (!s) return "—";
+  return s.toUpperCase();
+}
+
+function matchupPillText(gameStateLine, userQuestion) {
+  const g = String(gameStateLine || "").trim();
+  if (g.length >= 6 && g.length <= 48) return g;
+  const q = String(userQuestion || "").trim();
+  return q ? q.slice(0, 44) + (q.length > 44 ? "…" : "") : "Tonight";
 }
 
 /**
- * Structured UR Take card — Option C (API `structured`).
+ * Sharp Brief (Variant 2) — structured UR Take card.
  */
 export default function URTakeResponse({
   sport,
-  question: _question,
+  question: userQuestion,
   call,
   confidence,
   whyNow,
@@ -63,127 +80,192 @@ export default function URTakeResponse({
   timestamp,
   gameStateLine,
   liveScore,
+  estimatedEdge,
+  takeMeta = null,
+  followUpSource = null,
+  onFollowUpPick = null,
 }) {
   const [animMounted, setAnimMounted] = useState(false);
   useEffect(() => {
     setAnimMounted(true);
   }, []);
-  const pillCls = confidencePillClass(confidence);
+
   const formattedTimestamp = formatTimestamp(timestamp);
   const sportTag = formatUrTakeSportTag(sport, callType);
-
-  const liveRibbon =
-    String(liveScore || "").trim() ||
-    String(gameStateLine || "").trim() ||
-    "";
-  const showLiveHeader = liveRibbon.length > 0;
+  const liveRibbon = String(liveScore || "").trim() || String(gameStateLine || "").trim() || "";
+  const showLiveRibbon = liveRibbon.length > 0;
 
   const whyNowDisplay = scrubStructuredFaceText(whyNow) || "—";
   const edgeDisplay = scrubStructuredFaceText(edge) || "—";
+  const callScrub = scrubStructuredFaceText(call);
 
-  const metaRight = showLiveHeader ? (
-    <div className="flex items-center gap-1.5 shrink-0">
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4ade80]" />
-      <span className="font-mono text-[11px] text-[#4ade80]">{liveRibbon}</span>
-    </div>
-  ) : confidence ? (
-    <span className={pillCls}>{confidence}</span>
-  ) : (
-    <span />
-  );
+  const ee =
+    estimatedEdge && typeof estimatedEdge === "object" && estimatedEdge.source === "estimated_edge"
+      ? estimatedEdge
+      : null;
+  const eeModel = buildEstimatedEdgeCardModel(ee);
 
-  const bottomRight = showLiveHeader && confidence ? (
-    <div className="flex items-center gap-2 shrink-0">
-      <span className={pillCls}>{confidence}</span>
-      <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
-    </div>
-  ) : (
-    <UrTakeShareButton headline={call} bodyChunks={[edgeDisplay]} />
-  );
+  const headline = pickSharpBriefHeadline(callScrub, edgeDisplay, callType, sport);
+  const statGrid = buildSharpBriefStatGrid({
+    estimatedEdge: ee,
+    takeMeta,
+    structured: { call: callScrub, confidence, callType },
+  });
+
+  const contextLine = [
+    inferMarketPill(callScrub, callType),
+    showLiveRibbon ? "Live" : "Tonight",
+  ].join(" · ");
+
+  const modePill =
+    ee && eeModel ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--ee">
+        <span className="ur-v2-mode-ic" aria-hidden>
+          ◈
+        </span>
+        Estimated edge
+      </span>
+    ) : takeMeta?.openingLineSnapshot?.line != null || takeMeta?.openingLineSnapshot?.openingAmerican != null ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--odds">
+        <span className="ur-v2-mode-dot" aria-hidden />
+        Live odds
+      </span>
+    ) : (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Structural read</span>
+    );
+
+  const shareBody = [whyNowDisplay, edgeDisplay].filter(Boolean);
 
   return (
-    <div className="mt-1 ur-take-structured ur-take-response">
-      <div className="ur-card-root">
-        <div className="ur-card-accent-bar" />
+    <div className="mt-1 ur-take-structured ur-take-response ur-v2-card">
+      <div className="ur-v2-sport-bar">
+        <span className="ur-v2-sport-bar-tag">{sportTag}</span>
+        <span className="ur-v2-sport-bar-dot" aria-hidden>
+          ·
+        </span>
+        <span className="ur-v2-sport-bar-ctx">{contextLine}</span>
+        <span className="ur-v2-sport-bar-spacer" />
+        {modePill}
+      </div>
 
-        <div className="ur-card-body">
-          <div className="ur-card-meta-row">
-            <span className="ur-card-sport-tag">{sportTag}</span>
-            {metaRight}
-          </div>
+      <div className="ur-v2-body-pad">
+        <h2
+          className={`ur-v2-headline ${animMounted ? "ur-v2-headline--in" : ""}`}
+          style={{ opacity: animMounted ? 1 : 0 }}
+        >
+          {headline}
+        </h2>
 
-          <div
-            className={
-              animMounted ? "ur-card-headline ur-response-headline" : "ur-card-headline"
-            }
-            style={{ opacity: animMounted ? undefined : 0 }}
-          >
-            {call}
-          </div>
+        <div className="ur-v2-pill-row">
+          <span className="ur-v2-mini-pill">{inferEdgeTypePill(callType)}</span>
+          <span className="ur-v2-mini-pill">{inferMarketPill(callScrub, callType)}</span>
+          <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
+        </div>
 
-          <div className="mb-4">
-            <div className="ur-labeled-block-label">WHY NOW</div>
-            <div className="break-words text-[13px] text-white/[0.6] leading-relaxed pl-3 whitespace-normal">
-              {whyNowDisplay}
+        <div className="ur-v2-stat-grid">
+          {statGrid.slots.map((slot) => (
+            <div
+              key={slot.key}
+              className={`ur-v2-stat-cell${slot.highlight ? " ur-v2-stat-cell--hi" : ""}`}
+            >
+              <div className="ur-v2-stat-label">{slot.label}</div>
+              <div className="ur-v2-stat-value">{slot.value}</div>
             </div>
-          </div>
+          ))}
+        </div>
 
-          <div className="ur-edge-block">
-            <div className="ur-edge-block-label">EDGE</div>
-            <div className="text-[13px] text-white/[0.7] leading-relaxed">{edgeDisplay}</div>
-          </div>
+        <div className="ur-v2-divider" />
+
+        <div className="ur-v2-body-copy">
+          <p className="ur-v2-body-p">{whyNowDisplay}</p>
+          <p className="ur-v2-body-p">{edgeDisplay}</p>
+
+          {ee && eeModel ? (
+            <div className="ur-v2-ee-prose">
+              <p className="ur-v2-body-p ur-v2-muted">
+                <span className="ur-v2-inline-label">Why this tier</span> {eeModel.whyTierBody}
+              </p>
+              {eeModel.layout === "thin" ? (
+                <>
+                  <p className="ur-v2-body-p">
+                    <span className="ur-v2-inline-label">{eeModel.leanHeading}</span> {eeModel.leanBody}
+                  </p>
+                  {eeModel.drivers.length > 0 ? (
+                    <ul className="ur-v2-driver-list">
+                      {eeModel.drivers.map((d, i) => (
+                        <li key={i}>{d}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {eeModel.numericRows.map((row) => (
+                    <p key={row.key} className="ur-v2-body-p">
+                      <span className="ur-v2-inline-label">{row.label}</span> {row.value}
+                    </p>
+                  ))}
+                  {eeModel.drivers.length > 0 ? (
+                    <ul className="ur-v2-driver-list">
+                      {eeModel.drivers.map((d, i) => (
+                        <li key={i}>{d}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
 
           {Array.isArray(caveats) && caveats.length > 0 ? (
-            <div className="mb-4">
-              <div className="ur-labeled-block-label">CAVEATS</div>
-              <ul className="m-0 list-disc space-y-1.5 pl-[18px] text-[13px] leading-relaxed text-white/[0.65]">
-                {caveats.map((c, idx) => (
-                  <li key={idx}>{c}</li>
-                ))}
-              </ul>
-            </div>
+            <ul className="ur-v2-caveats">
+              {caveats.map((c, idx) => (
+                <li key={idx}>{c}</li>
+              ))}
+            </ul>
           ) : null}
+        </div>
 
-          {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
-            <div className="mt-7 pt-5 border-t border-white/[0.06]">
-              <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/[0.25] mb-3">
-                PARLAY LEGS
-              </div>
-              <div className="flex flex-col">
-                {parlayLegs.map((leg, idx) => (
-                  <div key={`${leg.play}-${idx}`} className="ur-pick-row">
-                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                      <span className="min-w-0 flex-1 text-[14px] font-semibold leading-snug text-white">
-                        {leg.play}
-                      </span>
-                      {leg.odds && leg.odds !== "TBD" ? (
-                        <span className="shrink-0 font-mono text-[10px] leading-snug text-white/35">
-                          {leg.odds}
-                        </span>
-                      ) : null}
-                    </div>
-                    {leg.rationale && String(leg.rationale).trim() ? (
-                      <div className="mt-2 text-[12px] leading-snug text-white/[0.55]">{leg.rationale}</div>
+        {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
+          <div className="ur-v2-parlay-block">
+            <div className="ur-v2-parlay-title">Parlay legs</div>
+            <div className="ur-v2-parlay-legs">
+              {parlayLegs.map((leg, idx) => (
+                <div key={`${leg.play}-${idx}`} className="ur-v2-parlay-leg">
+                  <div className="ur-v2-parlay-leg-head">
+                    <span className="ur-v2-parlay-play">{leg.play}</span>
+                    {leg.odds && leg.odds !== "TBD" ? (
+                      <span className="ur-v2-parlay-odds">{leg.odds}</span>
                     ) : null}
                   </div>
-                ))}
-              </div>
-              {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
-                <div className="mt-4 border-t border-white/[0.06] pt-3 font-mono text-[10px] tracking-wide text-white/40">
-                  Combined price {parlayTotalOdds}
+                  {leg.rationale && String(leg.rationale).trim() ? (
+                    <div className="ur-v2-parlay-rationale">{leg.rationale}</div>
+                  ) : null}
                 </div>
-              ) : null}
+              ))}
             </div>
-          ) : null}
-
-          <div className="ur-card-bottom-row">
-            {formattedTimestamp ? (
-              <span className="font-mono text-[10px] text-white/[0.25]">{formattedTimestamp}</span>
-            ) : (
-              <span />
-            )}
-            {bottomRight}
+            {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
+              <div className="ur-v2-parlay-combined">
+                <div className="ur-v2-parlay-combined-label">Combined price {parlayTotalOdds}</div>
+                <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(parlayLegs, parlayTotalOdds)}</div>
+              </div>
+            ) : null}
           </div>
+        ) : null}
+
+        {followUpSource?.followUps?.length > 0 && typeof onFollowUpPick === "function" ? (
+          <div className="ur-v2-inline-followups">
+            <UrTakeDockedFollowUps source={followUpSource} onPick={onFollowUpPick} />
+          </div>
+        ) : null}
+
+        <div className="ur-v2-footer-row">
+          {formattedTimestamp ? (
+            <span className="ur-v2-ts">{formattedTimestamp}</span>
+          ) : (
+            <span />
+          )}
+          <UrTakeShareButton headline={headline} bodyChunks={shareBody} />
         </div>
       </div>
     </div>
