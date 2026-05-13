@@ -458,8 +458,10 @@ export default function GolfScreen({
               </>
             )}
 
-            {/* Tournament field (ESPN); BDL tournament results merged when names match */}
-            {!eventFinished && golfData?.odds?.outrights?.length > 0 && (
+            {/* Tournament field (ESPN core + scoreboard); BDL tournament results merged when names match */}
+            {!eventFinished &&
+              (golfData?.odds?.outrights?.length > 0 ||
+                golfData?.odds?.fieldUnavailableMessage) && (
               <>
                 <div className="section-divider">
                   Tournament Field — ESPN
@@ -469,6 +471,19 @@ export default function GolfScreen({
                     </span>
                   ) : null}
                 </div>
+                {golfData.odds?.fieldUnavailableMessage &&
+                !(golfData.odds?.outrights?.length > 0) ? (
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "var(--muted)",
+                      padding: "12px 0 16px",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {golfData.odds.fieldUnavailableMessage}
+                  </div>
+                ) : (
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
                   {golfData.odds.outrights.slice(0,20).map((o,i)=>(
                     <div key={i} className="golf-odds-card" onClick={()=>submitGolf(`Best angle on ${o.player}? Outright, top 10, or matchup — give me the sharpest play.`)}>
@@ -485,6 +500,7 @@ export default function GolfScreen({
                     </div>
                   ))}
                 </div>
+                )}
               </>
             )}
 
