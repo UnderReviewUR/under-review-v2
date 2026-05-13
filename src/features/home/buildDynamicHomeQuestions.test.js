@@ -46,7 +46,7 @@ test("draft prompts do not require nfl in-season mode", () => {
   assert.ok(texts.some((t) => /sleepers/i.test(t) && /2026 draft/i.test(t)));
 });
 
-test("tennis home: generic ATP fallback when no tournament and no eligible matchups", () => {
+test("tennis home: Masters / 1000 context surfaces tournament futures prompt when no eligible matchups", () => {
   const prompts = buildDynamicHomeQuestions({
     activeTournamentMatches: [],
     tennisLiveMatches: [],
@@ -54,7 +54,7 @@ test("tennis home: generic ATP fallback when no tournament and no eligible match
     nflSeasonMode: false,
     nflDraftMeta: null,
     userCity: "",
-    context: null,
+    context: { currentTournament: { name: "Miami Open" } },
     golfData: null,
     nbaGames: [],
     mlbGames: [],
@@ -63,11 +63,8 @@ test("tennis home: generic ATP fallback when no tournament and no eligible match
   });
   const tennisPrompt = prompts.find((p) => p.sportHint === "tennis");
   assert.ok(tennisPrompt);
-  assert.equal(
-    tennisPrompt.text,
-    "What's the sharpest ATP angle on the board?",
-  );
-  assert.match(tennisPrompt.prompt, /single sharpest ATP angle/i);
+  assert.equal(tennisPrompt.text, "Tournament value — Miami Open?");
+  assert.match(tennisPrompt.prompt, /Miami Open/i);
 });
 
 test("tennis home: stale live match does not produce named live prompt", () => {

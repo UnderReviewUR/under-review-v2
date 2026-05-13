@@ -3202,9 +3202,7 @@ ${themeCss}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
       {screen==="home"&&(
-        <span className="hdr-tagline">
-          Find where the market is wrong. NBA, MLB, PGA, Tennis, F1 — structural edges backed by real data.
-        </span>
+        <span className="hdr-tagline">Find where the market is wrong.</span>
       )}
     </>
   );

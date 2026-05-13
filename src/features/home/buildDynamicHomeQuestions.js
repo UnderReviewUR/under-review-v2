@@ -1,7 +1,10 @@
 import {
   getF1NextRaceForHomePrompts,
+  isF1GpRaceWeekendEt,
   isTennisMatchFinished,
+  isTennisShowcaseWindow,
 } from "../../lib/homePromptEligibility.js";
+import { getGolfHomeValidity } from "../../lib/golfEventStatus.js";
 import {
   classifyGolfEvent,
   classifyNbaGame,
@@ -26,38 +29,116 @@ function promptDedupeKey(prompt) {
     .slice(0, 96);
 }
 
-function isLikelyDraftWindow(now = new Date()) {
-  const month = now.getMonth() + 1;
-  const day = now.getDate();
+function isLikelyDraftWindowEt(etNow) {
+  const month = etNow.getMonth() + 1;
+  const day = etNow.getDate();
   return month === 4 && day >= 18 && day <= 28;
 }
 
-function getWindowRanks(hourEt) {
-  const isDay = hourEt >= 12;
-  return isDay
-    ? {
-        nbaLive: 10,
-        nbaUpcoming: 15,
-        nfl: 25,
-        mlb: 30,
-        golf: 40,
-        f1: 45,
-        tennisLive: 65,
-        tennisUpcoming: 70,
-        tennisFallback: 75,
-      }
-    : {
-        nbaLive: 12,
-        nbaUpcoming: 20,
-        nfl: 25,
-        mlb: 30,
-        golf: 50,
-        f1: 55,
-        tennisLive: 10,
-        tennisUpcoming: 15,
-        tennisFallback: 22,
-      };
+/** Oct–Jun (0-index: Sep=9 … Jun=5); Jul/Aug/Sep off-season. */
+function isNbaSeasonMonthEt(etNow) {
+  const m = etNow.getMonth();
+  return m >= 9 || m <= 5;
 }
+
+/** Sep–Jan NFL priority window (0-index: Aug–Dec + Jan). */
+function isNflPriorityMonthsEt(etNow) {
+  const m = etNow.getMonth();
+  return m === 8 || m === 9 || m === 10 || m === 11 || m === 0;
+}
+
+/** Apr–Oct MLB window (0-index: Mar–Sep). */
+function isMlbSeasonMonthEt(etNow) {
+  const m = etNow.getMonth();
+  return m >= 3 && m <= 9;
+}
+
+function isNbaPlayoffToneEt(etNow, nbaGames) {
+  if (Array.isArray(nbaGames) && nbaGames.some((g) => g?.postseason)) return true;
+  const m = etNow.getMonth();
+  const d = etNow.getDate();
+  if (m === 3 && d >= 14) return true;
+  if (m === 4 || m === 5) return true;
+  if (m === 6 && d <= 19) return true;
+  return false;
+}
+
+/**
+ * Sort ranks — lower first. When `nflTop`, NFL bumps above all else; golf stays in the top band after NFL blocks.
+ */
+function computeSortRanks(nflTop) {
+  if (nflTop) {
+    return {
+      nflA: 7,
+      nflB: 8,
+      nflC: 9,
+      nflSolo: 8,
+      golf: 11,
+      golfLive: 10,
+      nbaLive: 14,
+      nbaUp: 15,
+      nbaSeason: 16,
+      mlb: 28,
+      f1: 32,
+      tennisLive: 38,
+      tennisUp: 39,
+      tennisTourney: 40,
+      fallback: 900,
+    };
+  }
+  return {
+    nflA: 20,
+    nflB: 21,
+    nflC: 22,
+    nflSolo: 20,
+    nbaLive: 7,
+    nbaUp: 8,
+    nbaSeason: 9,
+    golf: 11,
+    golfLive: 10,
+    mlb: 28,
+    f1: 32,
+    tennisLive: 38,
+    tennisUp: 39,
+    tennisTourney: 40,
+    fallback: 900,
+  };
+}
+
+const HOME_PROMPT_FALLBACKS = [
+  {
+    id: "fb1",
+    color: "#9CA3AF",
+    sportHint: "generic",
+    text: "Where is the crowd the most wrong today?",
+    prompt:
+      "Across the sports UR is tracking today, where is public money most misaligned with the data-backed read?",
+  },
+  {
+    id: "fb2",
+    color: "#9CA3AF",
+    sportHint: "generic",
+    text: "Sharpest cross-sport edge on the board?",
+    prompt:
+      "Pick the single sharpest cross-sport angle available from today's verified boards — one lean and one thing that flips it.",
+  },
+  {
+    id: "fb3",
+    color: "#9CA3AF",
+    sportHint: "generic",
+    text: "Trust the data or the narrative?",
+    prompt:
+      "Name one market where the narrative is loud but the supplied stats/context say fade — stay inside today's JSON only.",
+  },
+  {
+    id: "fb4",
+    color: "#9CA3AF",
+    sportHint: "generic",
+    text: "One play you would stamp before lines move?",
+    prompt:
+      "If you could only stamp one actionable lean before the next line move, what is it — and what specifically are you watching to validate it?",
+  },
+];
 
 export function buildDynamicHomeQuestions({
   activeTournamentMatches,
@@ -71,33 +152,39 @@ export function buildDynamicHomeQuestions({
   nbaGames,
   mlbGames = [],
   f1Data,
-  hourEt = 12,
+  hourEt: _hourEt = 12,
   promoNowMs = Date.now(),
 }) {
-  const ranks = getWindowRanks(hourEt);
   const prompts = [];
   const usedCardText = new Set();
   const usedPromptKeys = new Set();
-  const daypart = getDaypartLabel();
+
   const etNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "America/New_York" })
+    new Date(promoNowMs).toLocaleString("en-US", { timeZone: "America/New_York" }),
   );
+  const daypart = getDaypartLabel();
   const daySeed = Number(
     `${etNow.getFullYear()}${String(etNow.getMonth() + 1).padStart(2, "0")}${String(
-      etNow.getDate()
-    ).padStart(2, "0")}`
+      etNow.getDate(),
+    ).padStart(2, "0")}`,
   );
 
   const rotate = (arr, offset = 0) =>
     Array.isArray(arr) && arr.length > 0 ? arr[(daySeed + offset) % arr.length] : null;
+
   const draftPhase = String(nflDraftMeta?.phase || "").toLowerCase();
   const isDraftMode =
     draftPhase === "pre_draft" ||
     draftPhase === "during_draft" ||
-    (!draftPhase && isLikelyDraftWindow(etNow));
-  const teamNeeds = nflDraftMeta?.teamNeeds && typeof nflDraftMeta.teamNeeds === "object"
-    ? nflDraftMeta.teamNeeds
-    : {};
+    (!draftPhase && isLikelyDraftWindowEt(etNow));
+
+  const nflTop = isNflPriorityMonthsEt(etNow);
+  const ranks = computeSortRanks(nflTop);
+
+  const teamNeeds =
+    nflDraftMeta?.teamNeeds && typeof nflDraftMeta.teamNeeds === "object"
+      ? nflDraftMeta.teamNeeds
+      : {};
   const teamEntries = Object.entries(teamNeeds).filter(([, v]) => v?.headline);
   const cityHint = String(userCity || "").toLowerCase();
   const dallasPriority = cityHint.includes("dallas");
@@ -111,6 +198,31 @@ export function buildDynamicHomeQuestions({
     if (pk) usedPromptKeys.add(pk);
     prompts.push(item);
   };
+
+  const validNbaGames = (nbaGames || []).filter((g) =>
+    isDisplayableValidity(classifyNbaGame(g, promoNowMs)),
+  );
+  const nbaLive = validNbaGames.filter((g) => g?.state === "in");
+  const nbaUpcoming = validNbaGames.filter((g) => g?.state === "pre");
+  const nbaLiveGame = nbaLive[0] || null;
+  const nbaUpcomingGame = nbaUpcoming[0] || null;
+  const hasNbaSlateToday = Boolean(nbaLiveGame || nbaUpcomingGame);
+  const nbaPlayoffTone = isNbaPlayoffToneEt(etNow, nbaGames);
+  const nbaSeason = isNbaSeasonMonthEt(etNow);
+
+  const golfValidity = getGolfHomeValidity(golfData, promoNowMs);
+  const golfEventName =
+    golfData?.currentEvent?.shortName ||
+    golfData?.currentEvent?.name ||
+    golfData?.tournament?.shortName ||
+    golfData?.tournament?.name ||
+    golfValidity.upcomingEvent?.shortName ||
+    golfValidity.upcomingEvent?.name ||
+    null;
+  const golfActive = Boolean(golfValidity.valid && golfEventName);
+  const golfState = classifyGolfEvent(golfData?.currentEvent || null, promoNowMs);
+  const golfLeaders = golfData?.currentEvent?.leaderboard || [];
+  const golfLeader = golfLeaders[0];
 
   const tournamentActionable = (activeTournamentMatches || []).filter(
     (m) => !isTennisMatchFinished(m),
@@ -128,14 +240,21 @@ export function buildDynamicHomeQuestions({
   const prefLive =
     tournamentActionable.find(
       (m) => String(m?.raw?.live || "0") === "1" && isActiveTennis(m),
-    ) || livePool.find(isActiveTennis) || null;
+    ) ||
+    livePool.find(isActiveTennis) ||
+    null;
 
   const prefUpcoming =
     tournamentActionable.find(
       (m) => String(m?.raw?.live || "0") !== "1" && isUpcomingTennis(m),
-    ) || upcomingPool.find(isUpcomingTennis) || null;
+    ) ||
+    upcomingPool.find(isUpcomingTennis) ||
+    null;
 
-  if (prefLive) {
+  const tennisShowcase = isTennisShowcaseWindow(context, activeTournamentMatches);
+  const tennisBoardOk = tennisShowcase || Boolean(prefLive || prefUpcoming);
+
+  if (tennisBoardOk && prefLive) {
     const label = `${prefLive.raw?.home || ""} vs ${prefLive.raw?.away || ""}`;
     const tennisLivePrompt = rotate(
       [
@@ -148,7 +267,7 @@ export function buildDynamicHomeQuestions({
           prompt: `For ${label} live, where is the book most wrong on side or total — and what score or script flips your read?`,
         },
       ],
-      1
+      1,
     );
     push({
       id: "q1",
@@ -159,7 +278,7 @@ export function buildDynamicHomeQuestions({
     });
   }
 
-  if (prefUpcoming) {
+  if (tennisBoardOk && prefUpcoming) {
     const label = `${prefUpcoming.raw?.home || ""} vs ${prefUpcoming.raw?.away || ""}`;
     const tennisUpcomingPrompt = rotate(
       [
@@ -172,47 +291,66 @@ export function buildDynamicHomeQuestions({
           prompt: `For ${label} pre-match, where is pricing still stale vs what the matchup shape implies?`,
         },
       ],
-      2
+      2,
     );
     push({
       id: "q2",
       color: prefUpcoming.league === "WTA" ? "#E11D48" : "#0891B2",
       sportHint: "tennis",
-      sortRank: ranks.tennisUpcoming,
+      sortRank: ranks.tennisUp,
       ...tennisUpcomingPrompt,
     });
-  } else if (context?.currentTournament?.name) {
+  } else if (tennisShowcase && context?.currentTournament?.name) {
     push({
       id: "q2b",
       color: "#0891B2",
       sportHint: "tennis",
-      sortRank: ranks.tennisFallback,
+      sortRank: ranks.tennisTourney,
       text: `Tournament value — ${context.currentTournament.name}?`,
       prompt: `Around ${context.currentTournament.name}, where is the best futures or outright value on the board right now?`,
     });
-  } else if (!prefLive && !prefUpcoming) {
+  } else if (tennisShowcase && !prefLive && !prefUpcoming) {
     push({
       id: "q2c",
       color: "#0891B2",
       sportHint: "tennis",
-      sortRank: ranks.tennisFallback,
+      sortRank: ranks.tennisTourney,
       text: "What's the sharpest ATP angle on the board?",
       prompt:
         "What is the single sharpest ATP angle on the board right now? Give me one best lean, one reason, and one thing that could flip it.",
     });
   }
 
-  const golfState = classifyGolfEvent(golfData?.currentEvent || null);
-  const golfLeaders = golfData?.currentEvent?.leaderboard || [];
-  const golfLeader = golfLeaders[0];
-  const golfEventName =
-    golfData?.currentEvent?.shortName ||
-    golfData?.currentEvent?.name ||
-    golfData?.tournament?.shortName ||
-    golfData?.tournament?.name ||
-    null;
-  /** No live/pre-market golf prompts once the event is final — avoids bad model behavior without live markets. */
-  if (isDisplayableValidity(golfState) && golfState !== EVENT_VALIDITY.UPCOMING && (golfLeader || golfEventName)) {
+  if (golfActive) {
+    const label = String(golfEventName).trim();
+    const golfTourneyPrompt = rotate(
+      [
+        {
+          text: `Best betting angle for ${label}?`,
+          prompt: `For ${label} this week, what is the single best betting angle — outright, placement, or matchup — and what stat or weather hook backs it?`,
+        },
+        {
+          text: `Course fit sleeper at ${label}?`,
+          prompt: `At ${label}, who is the best course-fit sleeper the board is still sleeping on, and what market type captures it?`,
+        },
+      ],
+      3,
+    );
+    push({
+      id: "q3field",
+      color: "#FFFFFF",
+      sportHint: "golf",
+      sortRank: ranks.golf,
+      ...golfTourneyPrompt,
+    });
+  }
+
+  if (
+    golfActive &&
+    isDisplayableValidity(golfState) &&
+    golfState !== EVENT_VALIDITY.UPCOMING &&
+    (golfLeader || golfEventName)
+  ) {
     const leaderName = String(golfLeader?.name || "the current leader").trim();
     const label = golfEventName || "PGA Tour board";
     const golfPrompt = rotate(
@@ -226,48 +364,71 @@ export function buildDynamicHomeQuestions({
           prompt: `Against the live ${label} board, is ${leaderName} still mispriced in placement or matchup markets?`,
         },
       ],
-      3
+      31,
     );
     push({
-      id: "q3",
+      id: "q3live",
       color: "#FFFFFF",
       sportHint: "golf",
-      sortRank: ranks.golf,
+      sortRank: ranks.golfLive,
       ...golfPrompt,
     });
   }
 
-  const validNbaGames = (nbaGames || []).filter((g) =>
-    isDisplayableValidity(classifyNbaGame(g)),
-  );
-  const nbaLive = validNbaGames.filter((g) => g?.state === "in");
-  const nbaUpcoming = validNbaGames.filter((g) => g?.state === "pre");
-  const nbaLiveGame = nbaLive[0] || null;
-  const nbaUpcomingGame = nbaUpcoming[0] || null;
+  if (nbaSeason && !hasNbaSlateToday) {
+    const playoff = nbaPlayoffTone;
+    push({
+      id: "q4season",
+      color: "#FF6B00",
+      sportHint: "nba",
+      sortRank: ranks.nbaSeason,
+      text: playoff ? "Best angle in tonight's playoff game?" : "Misprice before tip tonight?",
+      prompt: playoff
+        ? "NBA playoff night: what is the best angle on tonight's playoff slate — one series or game read backed by matchup data?"
+        : "NBA regular-season night: where is the clearest pre-tip misprice on tonight's likely slate — side, total, or prop — and what injury or rotation note flips it?",
+    });
+  }
 
   if (nbaLiveGame) {
     const away = nbaLiveGame.awayTeam?.abbr || nbaLiveGame.awayTeam?.name || "Away";
     const home = nbaLiveGame.homeTeam?.abbr || nbaLiveGame.homeTeam?.name || "Home";
-    const nbaLivePrompt = rotate(
-      [
-        {
-          text: `Best prop live — ${away} vs ${home}?`,
-          prompt: `In ${away} vs ${home} right now, what is the strongest in-game player prop edge and what script kills it?`,
-        },
-        {
-          text: `Market wrong spot — ${away} @ ${home}?`,
-          prompt: `Where is the book most off in ${away} @ ${home} live — side, total, or prop — and what are you watching next?`,
-        },
-      ],
-      5
-    );
-    push({
-      id: "q4a",
-      color: "#FF6B00",
-      sportHint: "nba",
-      sortRank: ranks.nbaLive,
-      ...nbaLivePrompt,
-    });
+    const playoff = nbaPlayoffTone;
+    const nbaLivePrompt = playoff
+      ? rotate(
+          [
+            {
+              text: "Best angle in tonight's playoff game?",
+              prompt: `In ${away} vs ${home} live, what is the best playoff-game angle — side, total, or prop — and what script kills it?`,
+            },
+            {
+              text: `Market wrong spot — ${away} @ ${home}?`,
+              prompt: `Where is the book most off in ${away} @ ${home} live — side, total, or prop — and what are you watching next?`,
+            },
+          ],
+          5,
+        )
+      : rotate(
+          [
+            {
+              text: `Best prop live — ${away} vs ${home}?`,
+              prompt: `In ${away} vs ${home} right now, what is the strongest in-game player prop edge and what script kills it?`,
+            },
+            {
+              text: `Market wrong spot — ${away} @ ${home}?`,
+              prompt: `Where is the book most off in ${away} @ ${home} live — side, total, or prop — and what are you watching next?`,
+            },
+          ],
+          5,
+        );
+    if (nbaLivePrompt) {
+      push({
+        id: "q4a",
+        color: "#FF6B00",
+        sportHint: "nba",
+        sortRank: ranks.nbaLive,
+        ...nbaLivePrompt,
+      });
+    }
   }
 
   if (nbaUpcomingGame) {
@@ -275,29 +436,46 @@ export function buildDynamicHomeQuestions({
       nbaUpcomingGame.awayTeam?.abbr || nbaUpcomingGame.awayTeam?.name || "Away";
     const home =
       nbaUpcomingGame.homeTeam?.abbr || nbaUpcomingGame.homeTeam?.name || "Home";
-    const nbaPrePrompt = rotate(
-      [
-        {
-          text: `Pre-tip edge — ${away} @ ${home}?`,
-          prompt: `Before tip between ${away} and ${home}, what is the strongest pre-game edge on side, total, or prop — and what injury or line move flips it?`,
-        },
-        {
-          text: `Misprice before tip — ${away} vs ${home}?`,
-          prompt: `Pre-tip for ${away} vs ${home}, where is pricing laziest vs rotation and pace reality?`,
-        },
-      ],
-      54
-    );
-    push({
-      id: "q4b",
-      color: "#FF6B00",
-      sportHint: "nba",
-      sortRank: ranks.nbaUpcoming,
-      ...nbaPrePrompt,
-    });
+    const playoff = nbaPlayoffTone;
+    const nbaPrePrompt = playoff
+      ? rotate(
+          [
+            {
+              text: "Best angle in tonight's playoff game?",
+              prompt: `Before tip in ${away} @ ${home}, what is the sharpest playoff read — spread, total, or key prop — and what matchup lever backs it?`,
+            },
+            {
+              text: `Pre-tip edge — ${away} @ ${home}?`,
+              prompt: `Before tip between ${away} and ${home}, what is the strongest pre-game edge on side, total, or prop — and what injury or line move flips it?`,
+            },
+          ],
+          54,
+        )
+      : rotate(
+          [
+            {
+              text: "Misprice before tip tonight?",
+              prompt: `Pre-tip for ${away} vs ${home}, where is pricing laziest vs rotation and pace reality?`,
+            },
+            {
+              text: `Pre-tip edge — ${away} @ ${home}?`,
+              prompt: `Before tip between ${away} and ${home}, what is the strongest pre-game edge on side, total, or prop — and what injury or line move flips it?`,
+            },
+          ],
+          54,
+        );
+    if (nbaPrePrompt) {
+      push({
+        id: "q4b",
+        color: "#FF6B00",
+        sportHint: "nba",
+        sortRank: ranks.nbaUp,
+        ...nbaPrePrompt,
+      });
+    }
   }
 
-  if (Array.isArray(mlbGames) && mlbGames.length > 0) {
+  if (isMlbSeasonMonthEt(etNow) && Array.isArray(mlbGames) && mlbGames.length > 0) {
     const mlbPrompt = rotate(
       [
         {
@@ -325,7 +503,7 @@ export function buildDynamicHomeQuestions({
   }
 
   const nextRace = getF1NextRaceForHomePrompts(f1Data);
-  if (nextRace) {
+  if (nextRace && isF1GpRaceWeekendEt(f1Data, promoNowMs)) {
     const raceName = nextRace.meeting_name || "next Grand Prix";
     const f1Prompt = rotate(
       [
@@ -338,7 +516,7 @@ export function buildDynamicHomeQuestions({
           prompt: `At ${raceName}, is the cleaner edge on podium structure or a driver H2H — and where is the market too confident?`,
         },
       ],
-      6
+      6,
     );
     push({
       id: "q5",
@@ -348,6 +526,10 @@ export function buildDynamicHomeQuestions({
       ...f1Prompt,
     });
   }
+
+  const nflRankA = ranks.nflA;
+  const nflRankB = ranks.nflB;
+  const nflRankC = ranks.nflC;
 
   if (isDraftMode) {
     const band = resolveNflDraftPromoBand(promoNowMs, nflDraftMeta);
@@ -368,7 +550,7 @@ export function buildDynamicHomeQuestions({
         id: "q6a",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankA,
         text: `${bandHead} — best Day 2 fits?`,
         prompt: `It is ${band.roundsLabel}. ${roundHint} Name three best scheme fits for Rounds 2–3 and one trade-up candidate.`,
       });
@@ -376,7 +558,7 @@ export function buildDynamicHomeQuestions({
         id: "q6b",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankB,
         text: `Simulate Rounds 2–3 for the ${featuredTeam} (${featuredHeadline}).`,
         prompt: `Simulate Rounds 2–3 only for the ${featuredTeam} (${featuredHeadline}). Stay inside verified capital + needs; label any hypothetical trade as simulation.`,
       });
@@ -384,7 +566,7 @@ export function buildDynamicHomeQuestions({
         id: "q6c",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankC,
         text: "Where does the board bend in Rounds 2–3?",
         prompt: `During ${band.roundsLabel}, where is the class thin vs deep, and which team is most likely to reach or trade back? ${roundHint}`,
       });
@@ -393,7 +575,7 @@ export function buildDynamicHomeQuestions({
         id: "q6a",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankA,
         text: `${bandHead} — best Day 3 steals?`,
         prompt: `It is ${band.roundsLabel}. ${roundHint} Identify three Day 3 profiles (Rounds 4–7) with NFL-ready traits vs upside lotto tickets.`,
       });
@@ -401,7 +583,7 @@ export function buildDynamicHomeQuestions({
         id: "q6b",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankB,
         text: `Comp picks & specials for ${featuredTeam}?`,
         prompt: `For ${featuredTeam} (${featuredHeadline}), map realistic Rounds 4–7 targets: specials, swing OL, rotational pass rush. ${roundHint}`,
       });
@@ -409,7 +591,7 @@ export function buildDynamicHomeQuestions({
         id: "q6c",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankC,
         text: "Which traits overperform on Day 3?",
         prompt: `During ${band.roundsLabel}, which positions historically return value late in this class archetype? ${roundHint}`,
       });
@@ -418,7 +600,7 @@ export function buildDynamicHomeQuestions({
         id: "q6a",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankA,
         text: "2026 draft — biggest sleepers vs the board?",
         prompt: `Context: ${band.roundsLabel} (${bandHead}). Who are the biggest sleepers in the 2026 draft class relative to consensus? ${roundHint} Tie answers to team needs and realistic round ranges.`,
       });
@@ -426,7 +608,7 @@ export function buildDynamicHomeQuestions({
         id: "q6b",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankB,
         text: `Simulate the first 3 rounds for the ${featuredTeam} (${featuredHeadline}).`,
         prompt: `Simulate the first 3 rounds for the ${featuredTeam} based on their needs (${featuredHeadline}). Use realistic board flow and one contingency branch. ${roundHint}`,
       });
@@ -434,7 +616,7 @@ export function buildDynamicHomeQuestions({
         id: "q6c",
         color: "#E11D48",
         sportHint: "nfl",
-        sortRank: ranks.nfl,
+        sortRank: nflRankC,
         text: "Which teams are most likely to trade up into the Top 5?",
         prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}. ${roundHint}`,
       });
@@ -444,20 +626,22 @@ export function buildDynamicHomeQuestions({
       [
         {
           text: "Which weekly prop is the clearest misprice?",
-          prompt: "Which NFL weekly player prop is most mispriced vs current usage, role, and opponent tendency?",
+          prompt:
+            "Which NFL weekly player prop is most mispriced vs current usage, role, and opponent tendency?",
         },
         {
           text: "Biggest role-shift edge this week?",
-          prompt: "Where is the biggest NFL role or snap-shift not yet priced into the weekly markets?",
+          prompt:
+            "Where is the biggest NFL role or snap-shift not yet priced into the weekly markets?",
         },
       ],
-      7
+      7,
     );
     push({
       id: "q6",
       color: "#E11D48",
       sportHint: "nfl",
-      sortRank: ranks.nfl,
+      sortRank: ranks.nflSolo,
       ...nflSeasonPrompt,
     });
   } else {
@@ -465,24 +649,40 @@ export function buildDynamicHomeQuestions({
       [
         {
           text: "Which NFL future is still sleeping?",
-          prompt: "Which NFL futures market looks most mispriced today when you weigh roster path and schedule leverage?",
+          prompt:
+            "Which NFL futures market looks most mispriced today when you weigh roster path and schedule leverage?",
         },
         {
           text: "Best futures value on the board now?",
-          prompt: "What is the best NFL futures value on the board right now, and why is public money still wrong?",
+          prompt:
+            "What is the best NFL futures value on the board right now, and why is public money still wrong?",
         },
       ],
-      8
+      8,
     );
     push({
       id: "q6",
       color: "#E11D48",
       sportHint: "nfl",
-      sortRank: ranks.nfl,
+      sortRank: ranks.nflSolo,
       ...nflFuturePrompt,
     });
   }
 
   prompts.sort((a, b) => (a.sortRank ?? 999) - (b.sortRank ?? 999));
-  return prompts.slice(0, 7);
+
+  let out = prompts.slice(0, 7);
+  let fb = 0;
+  while (out.length < 4 && fb < HOME_PROMPT_FALLBACKS.length) {
+    const row = { ...HOME_PROMPT_FALLBACKS[fb], sortRank: ranks.fallback + fb };
+    fb += 1;
+    if (usedCardText.has(row.text)) continue;
+    const pk = promptDedupeKey(row.prompt);
+    if (pk && usedPromptKeys.has(pk)) continue;
+    usedCardText.add(row.text);
+    if (pk) usedPromptKeys.add(pk);
+    out.push(row);
+  }
+
+  return out;
 }

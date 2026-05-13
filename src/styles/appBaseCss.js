@@ -204,15 +204,19 @@ export const baseCss = `
   }
 
   .hdr-tagline{
-    font-family:var(--mono-font);
-    font-size:9px;
-    color:rgba(255,255,255,.88);
-    letter-spacing:0.35px;
+    font-family:var(--body-font),system-ui,-apple-system,sans-serif;
+    font-size:11px;
+    font-weight:500;
+    color:#555;
+    letter-spacing:0;
     line-height:1.35;
     white-space:normal;
     text-align:right;
-    max-width:min(260px,56vw);
+    max-width:200px;
     hyphens:none;
+  }
+  @media (max-width:380px){
+    .hdr-tagline{display:none;}
   }
 
   .screen{flex:1;overflow-y:auto;width:100%;max-width:none;margin:0;min-height:0;padding:10px 16px;padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 12px + env(safe-area-inset-bottom));scroll-behavior:smooth;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box;}
