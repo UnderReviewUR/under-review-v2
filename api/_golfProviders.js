@@ -1,4 +1,5 @@
 import { bdlFetch } from "./_balldontlie.js";
+import { logOddsApiUsage, redactOddsApiUrl } from "./_oddsApiUsageLog.js";
 import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { PGA_PLAYERS } from "../src/components/data/golf/players.js";
@@ -152,6 +153,8 @@ async function fetchCourseWeather(lat, lon) {
 }
 
 const CACHE_TTL_MS = 3 * 60 * 1000;
+/** Max upcoming tournaments in schedule window (BDL + optional ESPN injection); Golf UI shows subset. */
+const SCHEDULE_WINDOW_MAX = 10;
 const cache = new Map();
 
 function logOddsUnavailable(status, scope) {
@@ -217,7 +220,12 @@ function parseBdlEndTs(value, season, startTs) {
   const parsed = Date.parse(value || "");
   if (!Number.isNaN(parsed)) {
     const year = new Date(parsed).getUTCFullYear();
-    if (year >= season - 1 && year <= season + 1 && parsed >= startTs) return parsed;
+    if (year >= season - 1 && year <= season + 1 && parsed >= startTs) {
+      if (ymdKeyEastern(parsed) === ymdKeyEastern(startTs)) {
+        return startTs + 4 * 24 * 60 * 60 * 1000;
+      }
+      return parsed;
+    }
   }
 
   const raw = String(value || "");
@@ -309,6 +317,10 @@ async function safeFetchJson(url, options = {}) {
       signal: safeTimeoutSignal(options.timeoutMs || 7000),
       headers: options.headers || {},
     });
+
+    if (options.oddsUsageLabel && String(url).includes("api.the-odds-api.com")) {
+      logOddsApiUsage({ label: options.oddsUsageLabel, url, response: res });
+    }
 
     if (!res.ok) {
       let body = null;
@@ -416,6 +428,20 @@ function formatDisplayDate(dateStr) {
   });
 }
 
+/** YYYY-MM-DD in America/New_York (calendar semantics for schedule strings). */
+function ymdKeyEastern(dateOrMs) {
+  const d = dateOrMs instanceof Date ? dateOrMs : new Date(dateOrMs);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function sameEtYearMonth(a, b) {
+  const ka = ymdKeyEastern(a);
+  const kb = ymdKeyEastern(b);
+  if (!ka || !kb) return false;
+  return ka.slice(0, 7) === kb.slice(0, 7);
+}
+
 function formatDateRange(startDate, endDate) {
   if (!startDate && !endDate) return "TBD";
   if (startDate && !endDate) return formatDisplayDate(startDate);
@@ -428,7 +454,7 @@ function formatDateRange(startDate, endDate) {
     return "TBD";
   }
 
-  if (start.toDateString() === end.toDateString()) {
+  if (ymdKeyEastern(start) === ymdKeyEastern(end)) {
     const endFallback = new Date(start.getTime() + 4 * 24 * 60 * 60 * 1000);
     return `${start.toLocaleDateString("en-US", {
       month: "short",
@@ -440,9 +466,7 @@ function formatDateRange(startDate, endDate) {
     })}`;
   }
 
-  const sameMonth =
-    start.getMonth() === end.getMonth() &&
-    start.getFullYear() === end.getFullYear();
+  const sameMonth = sameEtYearMonth(start, end);
 
   if (sameMonth) {
     return `${start.toLocaleDateString("en-US", {
@@ -477,20 +501,22 @@ function formatDateRangeFromMillis(startMs, endMs) {
   if (!isUsableBdlScheduleTs(startMs)) return "TBD";
 
   let end =
-    isUsableBdlScheduleTs(endMs) && endMs >= startMs
+    isUsableBdlScheduleTs(endMs) && endMs > startMs
       ? endMs
       : startMs + 4 * 24 * 60 * 60 * 1000;
 
   const start = new Date(startMs);
-  const endDate = new Date(end);
+  let endDate = new Date(end);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(endDate.getTime())) {
     return "TBD";
   }
 
-  const sameMonth =
-    start.getMonth() === endDate.getMonth() &&
-    start.getFullYear() === endDate.getFullYear();
+  if (ymdKeyEastern(start) === ymdKeyEastern(endDate)) {
+    endDate = new Date(startMs + 4 * 24 * 60 * 60 * 1000);
+  }
+
+  const sameMonth = sameEtYearMonth(start, endDate);
 
   if (sameMonth) {
     return `${start.toLocaleDateString("en-US", {
@@ -1070,6 +1096,15 @@ async function getEspnWorldRankings() {
   return rankings;
 }
 
+/** Weekly PGA vs major-only sport keys (The Odds API v4). Majors often 404 on `golf_pga`. */
+const GOLF_OUTRIGHTS_SPORT_KEYS = [
+  "golf_pga",
+  "golf_pga_championship_winner",
+  "golf_masters_tournament_winner",
+  "golf_us_open_winner",
+  "golf_the_open_championship_winner",
+];
+
 async function getOddsBoard(oddsApiKey) {
   const cacheKey = "golf_odds_board";
   const cached = getCache(cacheKey);
@@ -1097,10 +1132,26 @@ async function getOddsBoard(oddsApiKey) {
     marketStatus: "hidden",
   };
 
-  const base = await safeFetchJson(
-    `https://api.the-odds-api.com/v4/sports/golf_pga/odds/?apiKey=${oddsApiKey}&regions=us&markets=outrights&oddsFormat=american`,
-    { timeoutMs: 8000 }
-  );
+  let base = { ok: false, status: 0, data: null, error: null };
+  let activeSportKey = GOLF_OUTRIGHTS_SPORT_KEYS[0];
+
+  for (const sportKey of GOLF_OUTRIGHTS_SPORT_KEYS) {
+    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${oddsApiKey}&regions=us&markets=outrights&oddsFormat=american`;
+    base = await safeFetchJson(url, {
+      timeoutMs: 8000,
+      oddsUsageLabel: `golf.getOddsBoard.outrights_list:${sportKey}`,
+    });
+    console.warn(
+      `[odds] golf outrights ${redactOddsApiUrl(url)} -> status=${base.status} ok=${base.ok}`,
+    );
+    if (base.ok && Array.isArray(base.data) && base.data.length > 0) {
+      activeSportKey = sportKey;
+      break;
+    }
+    if (!base.ok && (base.status === 401 || base.status === 403)) {
+      break;
+    }
+  }
 
   if (!base.ok || !Array.isArray(base.data) || base.data.length === 0) {
     if (!base.ok) logOddsUnavailable(base.status, "golf outrights");
@@ -1133,9 +1184,13 @@ async function getOddsBoard(oddsApiKey) {
   }
 
   if (event?.id) {
-    const prop = await safeFetchJson(
-      `https://api.the-odds-api.com/v4/sports/golf_pga/events/${event.id}/odds?apiKey=${oddsApiKey}&regions=us&markets=top_10_finish,top_20_finish,make_cut&oddsFormat=american`,
-      { timeoutMs: 8000 }
+    const propUrl = `https://api.the-odds-api.com/v4/sports/${activeSportKey}/events/${event.id}/odds?apiKey=${oddsApiKey}&regions=us&markets=top_10_finish,top_20_finish,make_cut&oddsFormat=american`;
+    const prop = await safeFetchJson(propUrl, {
+      timeoutMs: 8000,
+      oddsUsageLabel: `golf.getOddsBoard.event_markets:${activeSportKey}:${event.id}`,
+    });
+    console.warn(
+      `[odds] golf props ${redactOddsApiUrl(propUrl)} -> status=${prop.status} ok=${prop.ok}`,
     );
 
     if (prop.ok) {
@@ -1171,7 +1226,7 @@ async function getOddsBoard(oddsApiKey) {
 }
 
 async function getBdlTournamentBundle() {
-  const cacheKey = "bdl_tournament_bundle_v7";
+  const cacheKey = "bdl_tournament_bundle_v8";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -1210,7 +1265,7 @@ async function getBdlTournamentBundle() {
       const endTs = Number(t?.endTs || 0);
       return (Number.isFinite(endTs) && endTs >= now) || (Number.isFinite(startTs) && startTs >= now);
     })
-    .slice(0, 8);
+    .slice(0, SCHEDULE_WINDOW_MAX);
 
   const inRange = normalized.filter((t) => t._startTs <= now && now <= t._endTs);
   const upcoming = normalized.filter((t) => t._startTs > now);
@@ -1309,6 +1364,79 @@ async function getBdlTournamentBundle() {
 
   setCache(cacheKey, bundle, 3 * 60 * 1000);
   return bundle;
+}
+
+/**
+ * When ESPN's scoreboard week (e.g. PGA Championship) is missing from BDL's upcoming window,
+ * slug-match and prepend a synthetic row so the Golf UI schedule still lists the live major.
+ */
+function tourScheduleAlreadyIncludesEspnEvent(tourSchedule, espnEvent) {
+  const espnName = String(espnEvent?.name || "").trim();
+  const espnShort = String(espnEvent?.shortName || "").trim();
+  if (!espnName && !espnShort) return true;
+  const espnSlugs = [slugify(espnName), slugify(espnShort)].filter(Boolean);
+  if (espnSlugs.length === 0) return true;
+
+  for (const row of tourSchedule || []) {
+    const rowSlugs = [slugify(row?.name), slugify(row?.shortName)].filter(Boolean);
+    for (const rs of rowSlugs) {
+      if (!rs) continue;
+      for (const es of espnSlugs) {
+        if (!es) continue;
+        if (rs === es || rs.includes(es) || es.includes(rs)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function buildSyntheticScheduleRowFromEspn(espnEvent) {
+  const name = espnEvent?.name || espnEvent?.shortName || "PGA Tour Event";
+  const shortName = espnEvent?.shortName || espnEvent?.name || name;
+  const startMs = parseScheduleMs(espnEvent?.startDate);
+  const endMs = Number.isFinite(startMs)
+    ? inferPgaTourEndMsFromStart(startMs)
+    : NaN;
+  const displayDate =
+    espnEvent?.displayDate && espnEvent.displayDate !== "TBD"
+      ? espnEvent.displayDate
+      : formatDisplayDate(espnEvent?.startDate);
+
+  return {
+    id: espnEvent?.id ?? null,
+    season: new Date().getFullYear(),
+    name,
+    shortName,
+    startDate: espnEvent?.startDate || null,
+    endDate: null,
+    displayDate,
+    city: "",
+    state: "",
+    country: "",
+    location: espnEvent?.location || "",
+    purse: null,
+    status: cleanTournamentStatus(espnEvent?.state || espnEvent?.raw?.status),
+    rawStatus: espnEvent?.state || null,
+    courseName: espnEvent?.course || null,
+    courseId: null,
+    champion: null,
+    aliasApplied: null,
+    startTs: Number.isFinite(startMs) ? startMs : null,
+    endTs: Number.isFinite(endMs) ? endMs : null,
+    raw: { source: "espn_scoreboard_injected", espn: espnEvent?.raw },
+  };
+}
+
+function injectEspnIntoTourScheduleIfMissing(tourSchedule, espnEvent) {
+  const list = Array.isArray(tourSchedule) ? [...tourSchedule] : [];
+  if (!espnEvent || (!espnEvent.name && !espnEvent.shortName)) {
+    return list.slice(0, SCHEDULE_WINDOW_MAX);
+  }
+  if (tourScheduleAlreadyIncludesEspnEvent(list, espnEvent)) {
+    return list.slice(0, SCHEDULE_WINDOW_MAX);
+  }
+  const injected = buildSyntheticScheduleRowFromEspn(espnEvent);
+  return [injected, ...list].slice(0, SCHEDULE_WINDOW_MAX);
 }
 
 function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
@@ -1502,6 +1630,11 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     };
   }
 
+  let tourScheduleOut = tourSchedule;
+  if (Array.isArray(tourScheduleOut)) {
+    tourScheduleOut = injectEspnIntoTourScheduleIfMissing(tourScheduleOut, espnEvent);
+  }
+
   return {
     currentEvent: outCurrent,
     leaderboard: outCurrent?.leaderboard ?? [],
@@ -1514,7 +1647,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       marketStatus: "hidden",
     },
     tournament: outTournament,
-    tourSchedule,
+    tourSchedule: tourScheduleOut,
     course,
     recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
     courseStats: Array.isArray(bdlBundle?.courseStats)
@@ -1546,7 +1679,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v15";
+  const cacheKey = "unified_golf_board_v16";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 

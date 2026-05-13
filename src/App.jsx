@@ -2311,7 +2311,7 @@ ${themeCss}
           upcomingEvent?.course ||
           golfData?.course?.name ||
           "PGA Tour",
-        blurb: `Tee sheet is staged — live scoring opens closer to gun.\n${sourceLabel} · ${freshnessLabel}`,
+        blurb: `Field not yet available — check back closer to tee time.\n${sourceLabel} · ${freshnessLabel}`,
         whatMatters: "Pre-tourney: map course fit, weather, and ownership before numbers tighten.",
         quickHitters: [
           "When does live scoring start?",
