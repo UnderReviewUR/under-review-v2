@@ -4243,6 +4243,20 @@ function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, imag
   return [...prior, { role: "user", content: userPrompt }];
 }
 
+/**
+ * Dev-only audit log for NBA UR Take grounding (no images, no raw user text).
+ * Enable with UR_TAKE_NBA_AUDIT_LOG=1 in the API environment.
+ * @param {Record<string, unknown>} payload
+ */
+function logNbaUrTakeAuditIfDev(payload) {
+  if (String(process.env.UR_TAKE_NBA_AUDIT_LOG ?? "").trim() !== "1") return;
+  try {
+    console.log(JSON.stringify({ event: "ur_take_nba_audit", ...payload }));
+  } catch {
+    // ignore logging failures
+  }
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const requestStart = Date.now();
@@ -6358,7 +6372,10 @@ You are responding to a Pro subscriber. Apply the following:
       const nbaGroundingRepairSuffix =
         sportHint === "nba" &&
         qaAttempt > 0 &&
-        prevQaCriticalCodes.some((c) => String(c).startsWith("nba_grounding"))
+        prevQaCriticalCodes.some((c) => {
+          const s = String(c || "");
+          return s.startsWith("nba_grounding") || s === "nba_unverified_out_claim";
+        })
           ? NBA_GROUNDING_REGENERATION_SUFFIX
           : "";
       let systemForAttempt =
@@ -6401,6 +6418,30 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         userPromptChars: userPromptCharCount,
         ...(nbaCtxJsonChars != null ? { nbaContextJsonChars: nbaCtxJsonChars } : {}),
       });
+
+      if (sportHint === "nba") {
+        logNbaUrTakeAuditIfDev({
+          phase: "pre_model",
+          qaAttempt: qaAttempt + 1,
+          sportHint: String(sportHint || "unknown"),
+          matchup: nbaMatchup
+            ? {
+                awayAbbr: nbaMatchup.awayAbbr,
+                homeAbbr: nbaMatchup.homeAbbr,
+                label: nbaMatchup.label,
+              }
+            : null,
+          injuryRowsForModel: (nbaContextForModel?.injuries || []).slice(0, 80).map((r) => ({
+            player: r?.player,
+            team: r?.team,
+            status: r?.status,
+          })),
+          injuryRowCount: Array.isArray(nbaContextForModel?.injuries) ? nbaContextForModel.injuries.length : 0,
+          playerStatsCount: Array.isArray(nbaContextForModel?.playerStats) ? nbaContextForModel.playerStats.length : 0,
+          propLinesCount: Array.isArray(nbaContextForModel?.propLines) ? nbaContextForModel.propLines.length : 0,
+          questionCharCount: String(question || "").length,
+        });
+      }
 
       const anthropicT0 = Date.now();
       const result = await callAnthropic({
@@ -6626,6 +6667,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         );
       }
       prevQaCriticalCodes = lastQaPost.qa.criticalRegenerationCodes || [];
+      if (sportHint === "nba") {
+        logNbaUrTakeAuditIfDev({
+          phase: "post_qa",
+          qaAttempt: qaAttempt + 1,
+          sportHint: "nba",
+          qaCritical: prevQaCriticalCodes,
+          groundingEvents: (lastQaPost.qa.groundingEvents || []).slice(0, 20),
+          answerPreview: String(responseText || "").slice(0, 4000),
+          answerLength: String(responseText || "").length,
+        });
+      }
       console.log(
         JSON.stringify({
           ...lastQaPost.qa.metricsLine,

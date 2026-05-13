@@ -527,6 +527,7 @@ export function lintUrTakeOutput(text, options = {}) {
     "roster_coherence_violation",
     "nba_grounding_player_off_matchup",
     "nba_grounding_injury_contradiction",
+    "nba_unverified_out_claim",
     "unsupported_line_movement_claim",
     "unsupported_weather_claim",
     "unsupported_injury_certainty",

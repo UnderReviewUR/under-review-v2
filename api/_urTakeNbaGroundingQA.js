@@ -126,11 +126,95 @@ export function buildNbaGroundingSnapshot(nbaContext, matchup) {
 }
 
 /**
+ * Last-name-only mentions (e.g. "LeVert") when that surname maps to exactly one
+ * grounded roster key on the slate — full-name regex misses these.
  * @param {string} text
- * @param {Map<string, string>} verifiedPlayerToTeam lower → team abbr
+ * @param {Map<string, string>} verifiedPlayerToTeam
  */
-function extractMentionsFromVerifiedCatalog(text, verifiedPlayerToTeam) {
-  return extractMentionedPlayersFromVerifiedMap(text, verifiedPlayerToTeam);
+function buildUniqueLastNameToPlayerKey(verifiedPlayerToTeam) {
+  /** @type {Map<string, string[]>} */
+  const byLast = new Map();
+  for (const k of verifiedPlayerToTeam.keys()) {
+    const parts = String(k || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    const last = parts[parts.length - 1];
+    if (!last || last.length < 4) continue;
+    const lastLower = last.toLowerCase();
+    if (!byLast.has(lastLower)) byLast.set(lastLower, []);
+    byLast.get(lastLower).push(k);
+  }
+  /** @type {Map<string, string>} */
+  const unique = new Map();
+  for (const [lastLower, keys] of byLast) {
+    if (keys.length === 1) unique.set(lastLower, keys[0]);
+  }
+  return unique;
+}
+
+/**
+ * @param {string} text
+ * @param {Map<string, string>} verifiedPlayerToTeam
+ */
+function collectExpandedGroundingMentionKeys(text, verifiedPlayerToTeam) {
+  const keys = new Set(extractMentionedPlayersFromVerifiedMap(text, verifiedPlayerToTeam));
+  const lastUnique = buildUniqueLastNameToPlayerKey(verifiedPlayerToTeam);
+  const t = String(text || "");
+  for (const [lastLower, key] of lastUnique) {
+    if (keys.has(key)) continue;
+    const re = new RegExp(`\\b${escapeRegExp(lastLower)}\\b`, "i");
+    if (!re.test(t)) continue;
+    /** Suppress when a multi-word roster name starts with this token (e.g. "Mitchell" in "Mitchell Robinson" must not tag Donovan Mitchell). */
+    let suppressed = false;
+    for (const otherKey of verifiedPlayerToTeam.keys()) {
+      if (otherKey === key) continue;
+      const op = String(otherKey || "")
+        .split(/\s+/)
+        .filter(Boolean);
+      if (op.length < 2) continue;
+      if (op[0].toLowerCase() !== lastLower) continue;
+      const otherPretty = op.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+      if (new RegExp(`\\b${escapeRegExp(otherPretty)}\\b`, "i").test(t)) {
+        suppressed = true;
+        break;
+      }
+    }
+    if (suppressed) continue;
+    keys.add(key);
+  }
+  return [...keys];
+}
+
+/** Split on sentence boundaries, em-dash, semicolon, or blank lines for injury audits. */
+function splitTextForInjuryAudit(text) {
+  return String(text || "")
+    .trim()
+    .split(/\s*(?:(?<=[.!?])\s+|—|;|\n{2,})\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * True when the segment states the player is unavailable in a definitive way
+ * (not a hypothetical "if out").
+ */
+function segmentAssertsDefiniteNbaAbsence(segment) {
+  const s = String(segment || "").trim();
+  if (!s) return false;
+  if (/^\s*if\b/i.test(s)) return false;
+  if (/\bout\s+of\b/i.test(s)) return false;
+  if (/\bout\s+to\b/i.test(s)) return false;
+  if (/\bsold\s+out\b/i.test(s)) return false;
+  if (/\b(?:ruled\s+out|will\s+not\s+play|inactive|sidelined|not\s+playing|will\s+miss)\b/i.test(s)) return true;
+  if (/\b(?:is|are)\s+out\b/i.test(s)) return true;
+  if (/\bboth\s+out\b/i.test(s)) return true;
+  if (/\bOUT\b/.test(s)) return true;
+  return false;
+}
+
+/** @param {{ bucket: string, statusRaw: string, team: string }|undefined} inj */
+function injuryRowSupportsVerifiedOut(inj) {
+  return Boolean(inj && inj.bucket === "out");
 }
 
 const DEFINITE_ACTIVE_PHRASE =
@@ -151,7 +235,7 @@ function injurySentenceContradictsContext(sentence, inj) {
   }
 
   if (inj.bucket === "active_or_probable" || inj.bucket === "uncertain") {
-    return DEFINITE_OUT_DECLARATION.test(s);
+    return DEFINITE_OUT_DECLARATION.test(s) || /\bOUT\b/.test(s) || /\bboth\s+out\b/i.test(s);
   }
 
   return false;
@@ -173,7 +257,8 @@ export function lintNbaHardGrounding(text, snapshot) {
   }
 
   const { verifiedPlayerToTeam, focusAllowedTeams, injuryByPlayerLower } = snapshot;
-  const mentions = extractMentionsFromVerifiedCatalog(raw, verifiedPlayerToTeam);
+  const mentions = collectExpandedGroundingMentionKeys(raw, verifiedPlayerToTeam);
+  const segments = splitTextForInjuryAudit(raw);
 
   const allowedFocus =
     focusAllowedTeams?.length === 2 ? new Set(focusAllowedTeams.map((t) => String(t).toUpperCase())) : null;
@@ -196,13 +281,19 @@ export function lintNbaHardGrounding(text, snapshot) {
     }
 
     const inj = injuryByPlayerLower.get(key);
-    if (!inj) continue;
 
-    const chunks = raw.split(/(?<=[.!?])\s+/);
-    for (const sent of chunks) {
-      const re = new RegExp(`\\b${pretty.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-      if (!re.test(sent)) continue;
-      if (injurySentenceContradictsContext(sent, inj)) {
+    const namePattern = (fullName) =>
+      new RegExp(
+        `\\b(?:${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${escapeRegExp(
+          fullName.split(/\s+/).pop() || fullName,
+        )})\\b`,
+        "i",
+      );
+    const reAny = namePattern(pretty);
+
+    for (const sent of segments.length ? segments : [raw]) {
+      if (!reAny.test(sent)) continue;
+      if (inj && injurySentenceContradictsContext(sent, inj)) {
         criticalCodes.push("nba_grounding_injury_contradiction");
         events.push({
           ruleCode: "nba_grounding_injury_contradiction",
@@ -212,6 +303,21 @@ export function lintNbaHardGrounding(text, snapshot) {
         });
         break;
       }
+    }
+
+    for (const sent of segments.length ? segments : [raw]) {
+      if (!reAny.test(sent)) continue;
+      if (!segmentAssertsDefiniteNbaAbsence(sent)) continue;
+      if (injuryRowSupportsVerifiedOut(inj)) continue;
+      if (inj && injurySentenceContradictsContext(sent, inj)) continue;
+      criticalCodes.push("nba_unverified_out_claim");
+      events.push({
+        ruleCode: "nba_unverified_out_claim",
+        player: pretty,
+        expectedStatus: inj ? inj.statusRaw || inj.bucket : "(no injury row in server context)",
+        mentionedStatus: sent.slice(0, 200),
+      });
+      break;
     }
   }
 
@@ -230,4 +336,5 @@ Rewrite from scratch:
 - Only NBA player names that appear in playersByTeamAbbrev / verified roster strings in the user context for this slate (or the focused matchup teams when the question is matchup-specific).
 - Player–team assignments and injury/status lines must match the injury block and roster lists exactly — no contradictory availability language.
 - Do not cite players from other games when the user asked about a specific matchup — only names from the two matchup teams' verified lists.
+- Never state that a player is OUT, inactive, ruled out, sidelined, not playing, or will miss unless that exact player appears in the injuries array with an OUT-equivalent designation from the server. If their status is absent, questionable, probable, or unknown, say status is not verified and do not build the play on an assumed absence.
 `;

@@ -69,6 +69,7 @@ If the user or system requests structured output, respond with **ONLY** valid JS
    - \`lineMovement\`: "Line stable; no recent sharp movement."
    - \`statisticalEdge\`: "Limited sample size or data unavailable."
    - \`injuryContext\`: "No relevant injuries for this play."
+10. **NBA injury / availability (mandatory for NBA structured takes):** Never assert a player is OUT, inactive, ruled out, sidelined, not playing, or will miss unless that exact player appears in the server \`injuries\` payload with an OUT-equivalent designation. If status is absent, questionable, probable, doubtful, or unknown, write that status is not verified and do not premise the play on an assumed absence. For \`callType === "parlay"\`, each \`parlayLegs[].rationale\` must obey the same rule — no parlay leg may depend on an unverified absence.
 
 ### Example Response
 

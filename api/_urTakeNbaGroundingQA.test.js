@@ -115,3 +115,95 @@ test("clean NBA response passes output QA with snapshot attached", () => {
   assert.equal(lint.criticalRegenerationCodes.includes("nba_grounding_player_off_matchup"), false);
   assert.equal(lint.criticalRegenerationCodes.includes("nba_grounding_injury_contradiction"), false);
 });
+
+const detroitParlayContext = {
+  todaysGames: [{ awayTeam: { abbr: "DET" }, homeTeam: { abbr: "CLE" } }],
+  rosterGrounding: {
+    playersByTeamAbbrev: {
+      DET: ["Caris LeVert", "Mitchell Robinson", "Cade Cunningham", "Jalen Duren"],
+      CLE: ["Donovan Mitchell"],
+    },
+  },
+  injuries: [{ player: "Mitchell Robinson", team: "DET", status: "Out", detail: "Ankle" }],
+  playerStats: [],
+};
+
+test("false OUT on last-name-only mention when no verified injury row — LeVert", () => {
+  const snap = buildNbaGroundingSnapshot(detroitParlayContext, {
+    awayAbbr: "DET",
+    homeAbbr: "CLE",
+    label: "DET @ CLE",
+  });
+  const bad =
+    "LeVert and Robinson both OUT — Detroit's creation and interior rebound load consolidate onto Cunningham and Duren.";
+  const r = lintNbaHardGrounding(bad, snap);
+  assert.ok(r.criticalCodes.includes("nba_unverified_out_claim"));
+  assert.ok(r.events.some((e) => e.ruleCode === "nba_unverified_out_claim" && /LeVert/i.test(e.player || "")));
+});
+
+test("verified OUT for Robinson does not flag unverified_out_claim", () => {
+  const snap = buildNbaGroundingSnapshot(detroitParlayContext, {
+    awayAbbr: "DET",
+    homeAbbr: "CLE",
+    label: "DET @ CLE",
+  });
+  const ok = "Mitchell Robinson is OUT — Detroit leans heavier on Duren on the glass.";
+  const r = lintNbaHardGrounding(ok, snap);
+  assert.equal(r.criticalCodes.includes("nba_unverified_out_claim"), false);
+});
+
+test("may describe status uncertainty without asserting OUT", () => {
+  const snap = buildNbaGroundingSnapshot(detroitParlayContext, {
+    awayAbbr: "DET",
+    homeAbbr: "CLE",
+    label: "DET @ CLE",
+  });
+  const ok =
+    "Caris LeVert's availability is not verified on the current board — do not build the play on an assumed absence; Mitchell Robinson is OUT per the injury feed.";
+  const r = lintNbaHardGrounding(ok, snap);
+  assert.equal(r.criticalCodes.includes("nba_unverified_out_claim"), false);
+});
+
+test("parlay-style rationale cannot assert unverified absence for named teammate", () => {
+  const snap = buildNbaGroundingSnapshot(detroitParlayContext, {
+    awayAbbr: "DET",
+    homeAbbr: "CLE",
+    label: "DET @ CLE",
+  });
+  const bad =
+    "PARLAY LEG RATIONALE: LeVert ruled out opens creation for Cunningham — pair with Robinson OUT rebound vacuum.";
+  const r = lintNbaHardGrounding(bad, snap);
+  assert.ok(r.criticalCodes.includes("nba_unverified_out_claim"));
+});
+
+test("false OUT for Robinson when injury context is only questionable", () => {
+  const ctx = {
+    ...detroitParlayContext,
+    injuries: [{ player: "Mitchell Robinson", team: "DET", status: "Questionable", detail: "Ankle" }],
+  };
+  const snap = buildNbaGroundingSnapshot(ctx, {
+    awayAbbr: "DET",
+    homeAbbr: "CLE",
+    label: "DET @ CLE",
+  });
+  const bad = "Robinson is OUT — slam the over.";
+  const r = lintNbaHardGrounding(bad, snap);
+  assert.ok(
+    r.criticalCodes.includes("nba_grounding_injury_contradiction") ||
+      r.criticalCodes.includes("nba_unverified_out_claim"),
+  );
+});
+
+test("lintUrTakeOutput regenerates on nba_unverified_out_claim", () => {
+  const snap = buildNbaGroundingSnapshot(detroitParlayContext, {
+    awayAbbr: "DET",
+    homeAbbr: "CLE",
+    label: "DET @ CLE",
+  });
+  const lint = lintUrTakeOutput("LeVert is OUT — pivot to Cunningham.", {
+    sport: "nba",
+    nbaGroundingSnapshot: snap,
+    betIntegrityIssues: [],
+  });
+  assert.ok(lint.criticalRegenerationCodes.includes("nba_unverified_out_claim"));
+});
