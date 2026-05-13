@@ -21,12 +21,14 @@ function playableEeSummary(ee) {
  * @param {object|null} opts.estimatedEdge
  * @param {object|null} opts.takeMeta
  * @param {object} opts.structured — { call, confidence, callType }
+ * @param {Array|undefined} opts.parlayLegs — when ≥2 legs, suppress stat grid even if callType is wrong
  */
-export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured }) {
+export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, parlayLegs }) {
   const ee = estimatedEdge?.source === "estimated_edge" ? estimatedEdge : null;
   const call = String(structured?.call || "").trim();
   const conf = String(structured?.confidence || "Medium").trim();
   const callType = String(structured?.callType || "single").toLowerCase();
+  const legs = Array.isArray(parlayLegs) ? parlayLegs : [];
 
   if (ee) {
     const proj = nonEmpty(ee.projection)
@@ -48,7 +50,9 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured })
     };
   }
 
-  /* Parlay: URTakeResponse omits the four-cell stat grid; legs + body carry the read. */
+  if (callType === "parlay" || legs.length >= 2) {
+    return { mode: "parlay", slots: [] };
+  }
 
   const snap = takeMeta?.openingLineSnapshot;
   const lineVal =

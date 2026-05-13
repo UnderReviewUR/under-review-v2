@@ -5,6 +5,7 @@ import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { polishUrTakeFollowUpPhrase } from "../../lib/polishUrTakeFollowUpPhrase.js";
+import { CHASE_CALM_COPY } from "../../lib/chaseSignals.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 import { isSubstantiveClosing } from "../../lib/urTakeClosingSentence.js";
 import {
@@ -1246,89 +1247,49 @@ const SPORT_ACCENT = {
   golf: "#FFFFFF",
 };
 
-const SPORT_EMOJI = {
-  nba: "🏀",
-  nfl: "🏈",
-  f1: "🏎️",
-  tennis: "🎾",
-  mlb: "⚾",
-  golf: "⛳",
-};
-
-/** UR Take loading skeleton — ~10s is normal for complex reads; only optimize if median exceeds ~15s (feels broken). */
-const LOADING_STAGES = [
-  { atMs: 0, label: "Reading the board" },
-  { atMs: 4000, label: "Running the matchup" },
-  { atMs: 10000, label: "Sharpening the take" },
-  { atMs: 15000, label: "Heavy slate — almost there" },
+/** Phased copy for UR Take loading — cycling text + progress bar (no dot animation). */
+const UR_TAKE_LOADING_PHASES = [
+  { delay: 0, text: "Pulling live data..." },
+  { delay: 2500, text: "Reading the injury report..." },
+  { delay: 5000, text: "Checking the line movement..." },
+  { delay: 7500, text: "Building the take..." },
+  { delay: 9500, text: "Almost there..." },
 ];
-
-function resolveStageIndex(elapsedMs) {
-  let idx = 0;
-  for (let i = 0; i < LOADING_STAGES.length; i += 1) {
-    if (elapsedMs >= LOADING_STAGES[i].atMs) idx = i;
-  }
-  return idx;
-}
 
 export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
   const sportKey = String(sport || "").toLowerCase();
   const accent = SPORT_ACCENT[sportKey] || "#FFFFFF";
-  const emoji = SPORT_EMOJI[sportKey] || "⚡";
-  const isF1 = sportKey === "f1";
   const imessage = variant === "urChatDocked";
 
-  const [stage, setStage] = useState(0);
+  const [phaseText, setPhaseText] = useState(UR_TAKE_LOADING_PHASES[0].text);
+  const [progressPhase, setProgressPhase] = useState("");
+
   useEffect(() => {
-    const startedAt = Date.now();
-    const tick = () => setStage(resolveStageIndex(Date.now() - startedAt));
-    tick();
-    const id = window.setInterval(tick, 500);
-    return () => window.clearInterval(id);
+    const timers = UR_TAKE_LOADING_PHASES.slice(1).map(({ delay, text }) =>
+      window.setTimeout(() => setPhaseText(text), delay),
+    );
+    let raf2;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => setProgressPhase("ur-loading-progress--active"));
+    });
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      window.cancelAnimationFrame(raf1);
+      if (raf2 != null) window.cancelAnimationFrame(raf2);
+    };
   }, []);
 
   useEffect(() => {
     if (typeof onLayoutTick === "function") onLayoutTick();
-  }, [stage, onLayoutTick]);
+  }, [phaseText, onLayoutTick]);
 
-  const sportTag = formatUrTakeSportTag(sport || "generic", "single");
+  const progressClassName = `ur-loading-progress${progressPhase ? ` ${progressPhase}` : ""}`;
 
   if (imessage) {
     return (
-      <div
-        className="ur-take-loading-card ur-v2-card"
-        aria-live="polite"
-        aria-busy="true"
-        style={{ minHeight: 220 }}
-      >
-        <div className="ur-v2-sport-bar">
-          <span className="ur-v2-sport-bar-tag">{sportTag}</span>
-          <span className="ur-v2-sport-bar-dot" aria-hidden>
-            ·
-          </span>
-          <span className="ur-v2-sport-bar-ctx">Preparing read</span>
-          <span className="ur-v2-sport-bar-spacer" />
-        </div>
-        <div className="ur-take-loading-card-body">
-          <div className="ur-take-loading-row">
-            <span className="ur-take-loading-emoji" aria-hidden>
-              {emoji}
-            </span>
-            <span className="ur-take-loading-label">
-              READING THE BOARD
-              <span className="ur-take-loading-dots" aria-hidden>
-                <span>.</span>
-                <span>.</span>
-                <span>.</span>
-              </span>
-            </span>
-          </div>
-          <div className="ur-take-loading-skel-stack">
-            <div className="ur-take-loading-skel" style={{ width: "92%" }} />
-            <div className="ur-take-loading-skel" style={{ width: "78%" }} />
-            <div className="ur-take-loading-skel" style={{ width: "60%" }} />
-          </div>
-        </div>
+      <div className="ur-take-loading-phases ur-take-loading-phases--dock" aria-live="polite" aria-busy="true">
+        <p className="ur-take-loading-phase-text">{phaseText}</p>
+        <div className={progressClassName} aria-hidden="true" />
       </div>
     );
   }
@@ -1339,7 +1300,7 @@ export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 8,
         minHeight: 64,
         opacity: 1,
         border: `1px solid ${accent}`,
@@ -1348,56 +1309,9 @@ export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
       aria-live="polite"
       aria-busy="true"
     >
-      <style>{`
-        @keyframes ur-bounce {
-          0%,100%{transform:translateX(0) translateY(0);}
-          25%{transform:translateX(24px) translateY(-5px);}
-          50%{transform:translateX(48px) translateY(0);}
-          75%{transform:translateX(24px) translateY(-5px);}
-        }
-        @keyframes ur-drive {
-          0%  {left:0;   transform:scaleX(1);}
-          44% {left:52px;transform:scaleX(1);}
-          50% {left:52px;transform:scaleX(-1);}
-          94% {left:0;   transform:scaleX(-1);}
-          100%{left:0;   transform:scaleX(1);}
-        }
-        @keyframes ur-skel-shimmer {
-          0%   {background-position: -180px 0;}
-          100% {background-position: 220px 0;}
-        }
-        .ur-track{position:relative;width:72px;height:28px;flex-shrink:0;}
-        .ur-emoji{position:absolute;top:50%;margin-top:-11px;font-size:20px;line-height:1;}
-        .ur-emoji.driving{animation:ur-drive 1.4s ease-in-out infinite;}
-        .ur-emoji.bouncing{animation:ur-bounce 0.9s ease-in-out infinite;left:0;}
-        .ur-stage-row{display:flex;align-items:center;gap:12px;}
-        .ur-stage-label{font-family:var(--mono-font);font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
-        .ur-stage-dots{display:inline-flex;gap:4px;margin-left:6px;}
-        .ur-stage-dot{width:5px;height:5px;border-radius:999px;background:var(--border-2);}
-        .ur-stage-dot.active{background:currentColor;}
-        .ur-skeleton{height:8px;border-radius:6px;background:linear-gradient(90deg, var(--surface) 0%, var(--border) 50%, var(--surface) 100%);background-size:240px 100%;animation:ur-skel-shimmer 1.4s linear infinite;}
-      `}</style>
-      <div className="ur-stage-row">
-        <div className="ur-track">
-          <span className={`ur-emoji ${isF1 ? "driving" : "bouncing"}`}>{emoji}</span>
-        </div>
-        <span className="ur-stage-label" style={{ color: accent }}>
-          {LOADING_STAGES[stage].label}
-          <span className="ur-stage-dots" aria-hidden="true">
-            {LOADING_STAGES.map((_, i) => (
-              <span
-                key={i}
-                className={`ur-stage-dot${i <= stage ? " active" : ""}`}
-                style={i <= stage ? { color: accent } : undefined}
-              />
-            ))}
-          </span>
-        </span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div className="ur-skeleton" style={{ width: "92%" }} />
-        <div className="ur-skeleton" style={{ width: "78%" }} />
-        <div className="ur-skeleton" style={{ width: "60%" }} />
+      <div className="ur-take-loading-phases ur-take-loading-phases--bubble">
+        <p className="ur-take-loading-phase-text">{phaseText}</p>
+        <div className={progressClassName} aria-hidden="true" />
       </div>
     </div>
   );
@@ -1552,6 +1466,23 @@ function UrTakeBetSignalPrompt({ takeId, takeMeta, getTakeAuthHeaders, enabled }
   );
 }
 
+function UrTakeChaseCalmInset() {
+  return (
+    <p className="ur-chase-calm-inset" role="note">
+      {CHASE_CALM_COPY}
+    </p>
+  );
+}
+
+/** Inline continuation nudge after a completed UR Take (all answer shapes). */
+function UrTakeNextContinuationLine() {
+  return (
+    <p className="ur-take-next-line">
+      Next: what&apos;s one thing that could break this?
+    </p>
+  );
+}
+
 function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
@@ -1625,8 +1556,10 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
           estimatedEdge={m.estimatedEdge}
           takeMeta={m.takeMeta}
         />
+        <UrTakeNextContinuationLine />
         {trustChips}
         {betSignalRow}
+        {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
       </>
     );
   }
@@ -1662,8 +1595,10 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
           </button>
           <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
         </div>
+        <UrTakeNextContinuationLine />
         {trustChips}
         {betSignalRow}
+        {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
       </>
     );
   }
@@ -1687,6 +1622,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
             <UrTakeShareButton headline={plainHeadline} bodyChunks={[summaryText]} />
           </div>
         </div>
+        <UrTakeNextContinuationLine />
         {trustChips}
         {showTrack ? (
           <button
@@ -1730,6 +1666,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
           </div>
         ) : null}
         {betSignalRow}
+        {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
       </>
     );
   }
@@ -1760,6 +1697,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
           confidence={parsed.confidence}
           compactBubble={true}
         />
+        <UrTakeNextContinuationLine />
 
         {(m.deepText || showTrack) && (
           <div
@@ -1823,6 +1761,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
       </div>
       {trustChips}
       {betSignalRow}
+      {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
     </>
   );
 }
@@ -2027,6 +1966,7 @@ export function ChatThread({
               key={rowKey(m, i)}
               ref={anchorLast ? dockScrollAnchorRef : undefined}
               className="ur-imessage-assistant-row"
+              data-msg-id={m.msgId || undefined}
             >
               <div className="bubble ai bubble--imessage-ai" data-role="assistant">
                 {bubbleInner}

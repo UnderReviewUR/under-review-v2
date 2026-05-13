@@ -260,6 +260,18 @@ export default function App() {
 ${baseCss}
 /* UR Ask chat scroll bottom inset: --ur-dock-askbar-est, --ur-dock-followups-est, --bottom-nav-height in appBaseCss.js */
 ${themeCss}
+
+/* UR Take structured card: strip themed .bubble.ai chrome so Option C sits flush (themes append after baseCss) */
+.app .bubble.ai.bubble--imessage-ai:has(> .ur-take-structured),
+.app .bubble.ai.bubble--imessage-ai:has(> .ur-take-response-v2),
+.app .bubble.ai:has(> .ur-take-structured),
+.app .bubble.ai:has(> .ur-take-response-v2) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
 `;
 
   const [tab, setTab] = useState("home");

@@ -95,11 +95,11 @@ export default function URTakeResponse({
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
   const headline = pickSharpBriefHeadline(callScrub, edgeDisplay, callType, sport);
-  const isParlayCard = String(callType || "").toLowerCase() === "parlay";
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
     structured: { call: callScrub, confidence, callType },
+    parlayLegs,
   });
 
   const contextLine = [
@@ -137,7 +137,7 @@ export default function URTakeResponse({
   }, [whyNowDisplay, edgeDisplay, caveats, ee]);
 
   return (
-    <div className="ur-take-structured ur-take-response ur-v2-card">
+    <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">
       <div className="ur-v2-sport-bar">
         <span className="ur-v2-sport-bar-tag">{sportTag}</span>
         <span className="ur-v2-sport-bar-dot" aria-hidden>
@@ -158,7 +158,7 @@ export default function URTakeResponse({
         <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
       </div>
 
-      {!isParlayCard ? (
+      {statGrid.slots.length > 0 ? (
         <>
           <div className="ur-v2-stat-grid">
             {statGrid.slots.map((slot) => (
@@ -235,7 +235,7 @@ export default function URTakeResponse({
         </button>
       ) : null}
 
-      {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
+      {Array.isArray(parlayLegs) && parlayLegs.length >= 2 ? (
         <div className="ur-v2-parlay-block">
           <div className="ur-v2-parlay-title">Parlay legs</div>
           <div className="ur-v2-parlay-legs">

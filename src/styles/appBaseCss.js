@@ -1239,19 +1239,53 @@ export const baseCss = `
   .golf-schedule-blurb{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.45;}
   .golf-schedule-synopsis-link{margin-top:10px;align-self:flex-start;background:none;border:none;padding:4px 0;font-family:var(--mono-font);font-size:11px;letter-spacing:0.5px;color:var(--cyan-bright);cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
 
-  .ur-take-loading-card{border-radius:0;border-left:none;border-right:none;}
-  .ur-take-loading-card-body{padding:16px 16px 18px;}
-  .ur-take-loading-row{display:flex;align-items:center;gap:10px;}
-  .ur-take-loading-emoji{font-size:22px;line-height:1;}
-  .ur-take-loading-label{font-family:var(--mono-font);font-size:11px;letter-spacing:0.22em;color:rgba(255,255,255,.55);text-transform:uppercase;}
-  @keyframes ur-take-dots{0%,20%{opacity:0.2;}40%{opacity:1;}100%{opacity:0.2;}}
-  .ur-take-loading-dots{display:inline-flex;gap:2px;margin-left:4px;}
-  .ur-take-loading-dots span{animation:ur-take-dots 1.2s ease-in-out infinite;}
-  .ur-take-loading-dots span:nth-child(2){animation-delay:0.15s;}
-  .ur-take-loading-dots span:nth-child(3){animation-delay:0.3s;}
-  .ur-take-loading-skel-stack{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
-  @keyframes ur-take-skel{0%{background-position:-160px 0;}100%{background-position:200px 0;}}
-  .ur-take-loading-skel{height:8px;border-radius:6px;background:linear-gradient(90deg,#111 0%,#1e1e1e 45%,#111 100%);background-size:360px 100%;animation:ur-take-skel 1.35s linear infinite;}
+  .ur-take-loading-phases--dock{
+    min-height:48px;
+    padding:6px 0 10px;
+    margin:0;
+    box-sizing:border-box;
+    width:100%;
+    max-width:none;
+    background:transparent;
+    border:none;
+  }
+  .ur-take-loading-phases--bubble{
+    min-height:48px;
+    padding:4px 2px 8px;
+    margin:0;
+    box-sizing:border-box;
+    width:100%;
+    justify-content:center;
+    display:flex;
+    flex-direction:column;
+  }
+  .ur-take-loading-phase-text{
+    font-family:var(--body-font);
+    font-size:13px;
+    line-height:1.35;
+    color:var(--muted);
+    font-style:italic;
+    text-align:center;
+    margin:0;
+  }
+  .ur-loading-progress{
+    height:2px;
+    background:var(--cyan-bright);
+    opacity:0.4;
+    width:0%;
+    transition:width 10s linear;
+    border-radius:1px;
+    margin-top:8px;
+    max-width:100%;
+  }
+  .ur-loading-progress--active{
+    width:85%;
+  }
+  .ur-loading-progress--complete{
+    width:100%;
+    opacity:0;
+    transition:width 0.2s ease, opacity 0.4s ease 0.1s;
+  }
 
   .ur-v2-card{background:#080808;border-radius:0;overflow:hidden;width:100%;max-width:none;margin:0;border:none;border-bottom:0.5px solid #1a1a1a;box-sizing:border-box;}
   .ur-v2-body-pad{padding:0;width:100%;max-width:none;margin:0;box-sizing:border-box;}
