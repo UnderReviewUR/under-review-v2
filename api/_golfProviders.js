@@ -1,5 +1,4 @@
 import { bdlFetch } from "./_balldontlie.js";
-import { logOddsApiUsage, redactOddsApiUrl } from "./_oddsApiUsageLog.js";
 import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { PGA_PLAYERS } from "../src/components/data/golf/players.js";
@@ -157,12 +156,6 @@ const CACHE_TTL_MS = 3 * 60 * 1000;
 const SCHEDULE_WINDOW_MAX = 10;
 const cache = new Map();
 
-function logOddsUnavailable(status, scope) {
-  console.warn(
-    `[odds] unavailable — running without lines (${scope}${Number.isFinite(status) ? ` status=${status}` : ""})`,
-  );
-}
-
 function getCache(key) {
   const item = cache.get(key);
   if (!item) return null;
@@ -317,10 +310,6 @@ async function safeFetchJson(url, options = {}) {
       signal: safeTimeoutSignal(options.timeoutMs || 7000),
       headers: options.headers || {},
     });
-
-    if (options.oddsUsageLabel && String(url).includes("api.the-odds-api.com")) {
-      logOddsApiUsage({ label: options.oddsUsageLabel, url, response: res });
-    }
 
     if (!res.ok) {
       let body = null;
@@ -921,32 +910,11 @@ function summarizeCourseStats(rows) {
   }));
 }
 
-async function getEspnCurrentEvent() {
-  const cacheKey = "espn_current_event_v5";
-  const cached = getCache(cacheKey);
-  if (cached) return cached;
-
-  const golfScoreboardYmd = etDateStringToEspnYmd(getTodayEtDateString());
-  const result = await safeFetchJson(
-    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${encodeURIComponent(golfScoreboardYmd)}`,
-    { timeoutMs: 7000 },
-  );
-
-  if (!result.ok) {
-    setCache(cacheKey, null, 60 * 1000);
-    return null;
-  }
-
-  const events = result.data?.events || [];
-  if (!events.length) {
-    setCache(cacheKey, null, 60 * 1000);
-    return null;
-  }
+/** Same primary-event pick as `getEspnCurrentEvent` (Zurich filter, scoring, stale guard). */
+function selectPrimaryPgaScoreboardEvent(events) {
+  if (!Array.isArray(events) || events.length === 0) return null;
   const validEvents = events.filter((e) => !espnScoreboardEventLooksStale(e));
-  if (!validEvents.length) {
-    setCache(cacheKey, null, 60 * 1000);
-    return null;
-  }
+  if (!validEvents.length) return null;
 
   const activePool = validEvents.filter((e) => {
     const st = e?.status?.type?.state;
@@ -979,9 +947,137 @@ async function getEspnCurrentEvent() {
   }
 
   if (!selectedEvent) {
-    const nonStaleFallback = validEvents;
-    selectedEvent = nonStaleFallback[0] || null;
+    selectedEvent = validEvents[0] || null;
   }
+
+  return selectedEvent;
+}
+
+/**
+ * Full tournament field from ESPN scoreboard JSON (competitors on the primary event).
+ * Cached 1h — field is stable during the week. No Odds API.
+ */
+async function fetchEspnGolfField() {
+  const cacheKey = "espn_golf_field_v1";
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  const empty = { players: [], eventName: null, eventId: null };
+
+  const tryBoard = async (url) => {
+    const result = await safeFetchJson(url, { timeoutMs: 8000 });
+    if (!result.ok || !result.data) return null;
+    const events = result.data?.events || [];
+    if (!events.length) return null;
+    const selected = selectPrimaryPgaScoreboardEvent(events);
+    if (!selected) return null;
+    const comps = selected?.competitions?.[0]?.competitors || [];
+    const players = comps
+      .filter((c) => c?.athlete)
+      .map((c) => String(c.athlete?.displayName || c.athlete?.fullName || "").trim())
+      .filter(Boolean);
+    const eventName = selected?.name || selected?.shortName || "PGA Tour Event";
+    return {
+      players,
+      eventName,
+      eventId: selected?.id ?? null,
+    };
+  };
+
+  let picked =
+    (await tryBoard(
+      "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
+    )) ||
+    (await tryBoard(
+      `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${encodeURIComponent(
+        etDateStringToEspnYmd(getTodayEtDateString()),
+      )}`,
+    ));
+
+  if (!picked) {
+    console.warn("[golf] espn field fetch → 0 players, event: (none)");
+    setCache(cacheKey, empty, 5 * 60 * 1000);
+    return empty;
+  }
+
+  console.warn(
+    `[golf] espn field fetch → ${picked.players.length} players, event: ${picked.eventName}`,
+  );
+
+  setCache(cacheKey, picked, 60 * 60 * 1000);
+  return picked;
+}
+
+function buildGolfOddsFromEspnField(espnField, bdlBundle) {
+  const players = Array.isArray(espnField?.players) ? espnField.players : [];
+  const bdlResults = Array.isArray(bdlBundle?.results) ? bdlBundle.results : [];
+  const byNorm = new Map();
+  for (const row of bdlResults) {
+    const ply = String(row?.player || "").trim();
+    if (!ply) continue;
+    byNorm.set(normalizeName(ply), row);
+  }
+
+  const outrights = players.map((name) => {
+    const nm = normalizeName(name);
+    let row = byNorm.get(nm);
+    if (!row) {
+      const parts = nm.split(" ").filter(Boolean);
+      const last = parts.length ? parts[parts.length - 1] : "";
+      if (last && last.length > 2) {
+        for (const [k, v] of byNorm) {
+          if (k.endsWith(last)) {
+            row = v;
+            break;
+          }
+        }
+      }
+    }
+    const o = {
+      player: name,
+      odds: null,
+      source: "espn_field",
+    };
+    if (row) {
+      if (row.position != null) o.bdlPosition = String(row.position);
+      if (row.score != null) o.bdlScore = String(row.score);
+    }
+    return o;
+  });
+
+  return {
+    outrights,
+    topFinish: {},
+    makeCut: {},
+    eventName: espnField?.eventName || null,
+    marketStatus: players.length ? "field" : "hidden",
+    linesUnavailable: true,
+  };
+}
+
+async function getEspnCurrentEvent() {
+  const cacheKey = "espn_current_event_v5";
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  const golfScoreboardYmd = etDateStringToEspnYmd(getTodayEtDateString());
+  const result = await safeFetchJson(
+    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${encodeURIComponent(golfScoreboardYmd)}`,
+    { timeoutMs: 7000 },
+  );
+
+  if (!result.ok) {
+    setCache(cacheKey, null, 60 * 1000);
+    return null;
+  }
+
+  const events = result.data?.events || [];
+  if (!events.length) {
+    setCache(cacheKey, null, 60 * 1000);
+    return null;
+  }
+
+  const selectedEvent = selectPrimaryPgaScoreboardEvent(events);
 
   if (!selectedEvent) {
     setCache(cacheKey, null, 60 * 1000);
@@ -1094,135 +1190,6 @@ async function getEspnWorldRankings() {
 
   setCache(cacheKey, rankings, 60 * 60 * 1000);
   return rankings;
-}
-
-/** Weekly PGA vs major-only sport keys (The Odds API v4). Majors often 404 on `golf_pga`. */
-const GOLF_OUTRIGHTS_SPORT_KEYS = [
-  "golf_pga",
-  "golf_pga_championship_winner",
-  "golf_masters_tournament_winner",
-  "golf_us_open_winner",
-  "golf_the_open_championship_winner",
-];
-
-async function getOddsBoard(oddsApiKey) {
-  const cacheKey = "golf_odds_board";
-  const cached = getCache(cacheKey);
-  if (cached) return cached;
-
-  const empty = {
-    outrights: [],
-    topFinish: {},
-    makeCut: {},
-    eventName: null,
-    marketStatus: "hidden",
-  };
-
-  if (!oddsApiKey) {
-    logOddsUnavailable(null, "golf missing key");
-    setCache(cacheKey, empty, 60 * 1000);
-    return empty;
-  }
-
-  const board = {
-    outrights: [],
-    topFinish: {},
-    makeCut: {},
-    eventName: null,
-    marketStatus: "hidden",
-  };
-
-  let base = { ok: false, status: 0, data: null, error: null };
-  let activeSportKey = GOLF_OUTRIGHTS_SPORT_KEYS[0];
-
-  for (const sportKey of GOLF_OUTRIGHTS_SPORT_KEYS) {
-    const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${oddsApiKey}&regions=us&markets=outrights&oddsFormat=american`;
-    base = await safeFetchJson(url, {
-      timeoutMs: 8000,
-      oddsUsageLabel: `golf.getOddsBoard.outrights_list:${sportKey}`,
-    });
-    console.warn(
-      `[odds] golf outrights ${redactOddsApiUrl(url)} -> status=${base.status} ok=${base.ok}`,
-    );
-    if (base.ok && Array.isArray(base.data) && base.data.length > 0) {
-      activeSportKey = sportKey;
-      break;
-    }
-    if (!base.ok && (base.status === 401 || base.status === 403)) {
-      break;
-    }
-  }
-
-  if (!base.ok || !Array.isArray(base.data) || base.data.length === 0) {
-    if (!base.ok) logOddsUnavailable(base.status, "golf outrights");
-    setCache(cacheKey, board, 60 * 1000);
-    return board;
-  }
-
-  const event = base.data[0];
-  board.eventName = event?.sport_title || null;
-
-  const book =
-    event?.bookmakers?.find((b) => b.key === "draftkings") ||
-    event?.bookmakers?.find((b) => b.key === "fanduel") ||
-    event?.bookmakers?.[0];
-
-  const outrightMarket = book?.markets?.find((m) => m.key === "outrights");
-  if (outrightMarket) {
-    board.outrights = (outrightMarket.outcomes || [])
-      .map((o) => ({
-        player: o.name,
-        odds: o.price,
-        book: book.key,
-      }))
-      .filter((o) => o.player && o.odds != null)
-      .sort((a, b) => Number(a.odds || 999999) - Number(b.odds || 999999));
-  }
-
-  if (board.outrights.length > 0) {
-    board.marketStatus = "live";
-  }
-
-  if (event?.id) {
-    const propUrl = `https://api.the-odds-api.com/v4/sports/${activeSportKey}/events/${event.id}/odds?apiKey=${oddsApiKey}&regions=us&markets=top_10_finish,top_20_finish,make_cut&oddsFormat=american`;
-    const prop = await safeFetchJson(propUrl, {
-      timeoutMs: 8000,
-      oddsUsageLabel: `golf.getOddsBoard.event_markets:${activeSportKey}:${event.id}`,
-    });
-    console.warn(
-      `[odds] golf props ${redactOddsApiUrl(propUrl)} -> status=${prop.status} ok=${prop.ok}`,
-    );
-
-    if (prop.ok) {
-      const propBook =
-        prop.data?.bookmakers?.find((b) => b.key === "draftkings") ||
-        prop.data?.bookmakers?.[0];
-
-      if (propBook) {
-        for (const market of propBook.markets || []) {
-          for (const o of market.outcomes || []) {
-            const key = o.description || o.name;
-
-            if (market.key === "make_cut") {
-              if (o.name === "Yes") {
-                board.makeCut[key] = o.price;
-              }
-              continue;
-            }
-
-            if (!board.topFinish[key]) board.topFinish[key] = {};
-            board.topFinish[key][market.key] = o.price;
-          }
-        }
-      }
-    }
-    if (!prop.ok) {
-      logOddsUnavailable(prop.status, "golf props");
-    }
-  }
-
-  setCache(cacheKey, board, 2 * 60 * 1000);
-  return board;
 }
 
 async function getBdlTournamentBundle() {
@@ -1504,18 +1471,25 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     (espnIsRbcHeritage && !bdlIsRbcHeritage);
   const bdlEventMismatch = preferEspnDisplay && !sameEvent;
   const oddsTopThree = Array.isArray(odds?.outrights)
-    ? odds.outrights.slice(0, 3).map((o, idx) => ({
-        position: String(idx + 1),
-        name: o?.player || "",
-        country: "",
-        score: "MKT",
-        today: "—",
-        thru: "—",
-        round1: "—",
-        round2: "—",
-        round3: "—",
-        round4: "—",
-      })).filter((r) => r.name)
+    ? odds.outrights.slice(0, 3).map((o, idx) => {
+        const posted =
+          o?.odds != null && Number.isFinite(Number(o.odds)) ? Number(o.odds) : null;
+        const bdl = o?.bdlScore != null && String(o.bdlScore).trim() !== "" ? String(o.bdlScore) : null;
+        const scoreCell =
+          bdl != null ? bdl : posted != null ? String(posted) : "—";
+        return {
+          position: String(idx + 1),
+          name: o?.player || "",
+          country: "",
+          score: scoreCell,
+          today: "—",
+          thru: "—",
+          round1: "—",
+          round2: "—",
+          round3: "—",
+          round4: "—",
+        };
+      }).filter((r) => r.name)
     : [];
   const hasOddsProxy = oddsTopThree.length > 0;
   const useBdlLeaderboard = bdlHasLeaderboard;
@@ -1659,13 +1633,18 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
         : useEspnLeaderboard
         ? (sameEvent ? "bdl_espn_aligned" : "espn_leaderboard_fallback")
         : useOddsProxyLeaderboard
-        ? "odds_market_fallback"
+        ? "espn_field_proxy_lb"
         : preferEspnDisplay
         ? "espn_event_meta_primary"
         : "balldontlie_only",
       tournament: tournament ? "balldontlie" : "none",
       course: course ? "balldontlie" : "none",
-      odds: odds?.outrights?.length ? "odds_api" : "none",
+      odds:
+        odds?.outrights?.length > 0
+          ? odds?.linesUnavailable
+            ? "espn_field"
+            : "odds_api"
+          : "none",
       usedFallbackLeaderboard: !useBdlLeaderboard,
       bdlHadLeaderboard: bdlHasLeaderboard,
       espnHadLeaderboard: espnHasLeaderboard,
@@ -1678,17 +1657,19 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   };
 }
 
-export async function getUnifiedGolfBoard({ oddsApiKey }) {
-  const cacheKey = "unified_golf_board_v16";
+export async function getUnifiedGolfBoard() {
+  const cacheKey = "unified_golf_board_v17";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
-  const [espnEvent, rankings, odds, bdlBundle] = await Promise.all([
+  const [espnEvent, rankings, espnField, bdlBundle] = await Promise.all([
     getEspnCurrentEvent(),
     getEspnWorldRankings(),
-    getOddsBoard(oddsApiKey),
+    fetchEspnGolfField(),
     getBdlTournamentBundle(),
   ]);
+
+  const odds = buildGolfOddsFromEspnField(espnField, bdlBundle);
 
   const merged = mergeGolfBoard({
     espnEvent,

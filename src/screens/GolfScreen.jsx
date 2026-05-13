@@ -458,15 +458,30 @@ export default function GolfScreen({
               </>
             )}
 
-            {/* Outright odds — stale after the event ends; hide for final */}
+            {/* Tournament field (ESPN); BDL tournament results merged when names match */}
             {!eventFinished && golfData?.odds?.outrights?.length > 0 && (
               <>
-                <div className="section-divider">Outright Odds — This Week</div>
+                <div className="section-divider">
+                  Tournament Field — ESPN
+                  {golfData.odds?.linesUnavailable ? (
+                    <span style={{ fontFamily: "var(--mono-font)", fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>
+                      Lines unavailable
+                    </span>
+                  ) : null}
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>
                   {golfData.odds.outrights.slice(0,20).map((o,i)=>(
                     <div key={i} className="golf-odds-card" onClick={()=>submitGolf(`Best angle on ${o.player}? Outright, top 10, or matchup — give me the sharpest play.`)}>
                       <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>{o.player}</div>
-                      <div className="golf-player-odds">{o.odds>0?"+":""}{o.odds}</div>
+                      {o.odds != null && Number.isFinite(Number(o.odds)) ? (
+                        <div className="golf-player-odds">{Number(o.odds) > 0 ? "+" : ""}{o.odds}</div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                          {(o.bdlPosition != null && String(o.bdlPosition).trim()) || (o.bdlScore != null && String(o.bdlScore).trim())
+                            ? [o.bdlPosition != null && String(o.bdlPosition).trim() ? `Pos ${o.bdlPosition}` : null, o.bdlScore != null && String(o.bdlScore).trim() ? `Score ${o.bdlScore}` : null].filter(Boolean).join(" · ") || "—"
+                            : "—"}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

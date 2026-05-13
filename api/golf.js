@@ -1,5 +1,4 @@
 import { applyCors } from "./_cors.js";
-import { getEnv } from "./_env.js";
 import { getUnifiedGolfBoard } from "./_golfProviders.js";
 
 export default async function handler(req, res) {
@@ -18,9 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const board = await getUnifiedGolfBoard({
-      oddsApiKey: getEnv("ODDS_API_KEY") || "",
-    });
+    const board = await getUnifiedGolfBoard();
 
     res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=300");
     return res.status(200).json(board);

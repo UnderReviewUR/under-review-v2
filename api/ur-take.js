@@ -787,7 +787,8 @@ export function resolveSportHint({ incomingSportHint, question, matchupContext, 
     golfContext &&
     (golfContext.currentEvent?.name ||
       (Array.isArray(golfContext.currentEvent?.leaderboard) &&
-        golfContext.currentEvent.leaderboard.length > 0))
+        golfContext.currentEvent.leaderboard.length > 0) ||
+      (Array.isArray(golfContext.odds?.outrights) && golfContext.odds.outrights.length > 0))
   ) {
     return "golf";
   }
@@ -1202,7 +1203,8 @@ function resolveOddsAvailabilityForSport({
     return hasProps || hasTotals;
   }
   if (sportHint === "golf") {
-    return Array.isArray(golfContext?.odds?.outrights) && golfContext.odds.outrights.length > 0;
+    const rows = Array.isArray(golfContext?.odds?.outrights) ? golfContext.odds.outrights : [];
+    return rows.some((r) => r?.odds != null && Number.isFinite(Number(r.odds)));
   }
   if (sportHint === "f1") {
     return Boolean(
@@ -4176,6 +4178,13 @@ function collectGolfVerifiedNames(golfContext) {
     const n = String(r?.name || "").trim();
     if (n) set.add(n);
   }
+  const oddsRows = golfContext?.odds?.outrights;
+  if (Array.isArray(oddsRows)) {
+    for (const row of oddsRows) {
+      const n = String(row?.player || "").trim();
+      if (n) set.add(n);
+    }
+  }
   return set;
 }
 
@@ -5349,8 +5358,8 @@ TOURNAMENT STATUS: FINAL (currentEvent.state is post/final)
 
 FINAL RECAP — BETTING INTELLIGENCE (mandatory; narrative alone is incomplete)
 When the tournament status is Final, the recap MUST include all of the following that the JSON can support (skip a bullet only if that slice is truly absent):
-1) Which pre-tournament outright prices in odds.outrights would have CASHED versus the final leaderboard (name golfer + printed price from context only).
-2) Which top-5 / top-10 / top-20 style prices in odds.topFinish (or related slices) would have cashed — cite the structure present in JSON.
+1) If odds.outrights rows include numeric American prices, which pre-tournament outrights would have CASHED versus the final leaderboard (name golfer + printed price from context only). If there are no numeric odds (field-only payload), state that in one line and skip hypothetical price tickets.
+2) Which top-5 / top-10 / top-20 style prices in odds.topFinish (or related slices) would have cashed — cite the structure present in JSON; skip if empty.
 3) Which make-cut prices in odds.makeCut cashed or lost for named golfers — only if those rows exist.
 4) One concrete lesson for handicapping a future event at this course (field / setup / volatility) tied to what the final board showed.
 
@@ -5384,7 +5393,7 @@ Rules:
 ${
   golfHasVerifiedNames
     ? `- Always name at least one specific golfer whose name appears in the VERIFIED GOLF PLAYERS list above.
-- For outright questions, THE PLAY must begin with one specific golfer name and market (example: "Collin Morikawa outright +2200") — golfer must be on the verified list.`
+- For betting-market questions: if odds.outrights has numeric prices, THE PLAY must begin with one specific golfer name and market (example: "Collin Morikawa outright +2200") — golfer must be on the verified list. If there are no posted prices, lean on leaderboard / field / course context without inventing odds.`
     : `- There are no verified golfer names in this payload — do NOT invent golfers. Give course-, field-, or odds-structure analysis only.`
 }
 - Never return a generic team-level or archetype-only answer when the verified golfer list is non-empty without using a named golfer from that list.

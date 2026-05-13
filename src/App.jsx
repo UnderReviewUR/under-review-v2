@@ -1104,6 +1104,12 @@ ${themeCss}
       outrights: (g?.odds?.outrights || []).slice(0, 16),
       topFinish: g?.odds?.topFinish || {},
       makeCut: g?.odds?.makeCut || {},
+      linesUnavailable: Boolean(g?.odds?.linesUnavailable),
+      hasPostedLines: Boolean(
+        (g?.odds?.outrights || []).some(
+          (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
+        ),
+      ),
     },
     recentResults: (g?.recentResults || []).slice(0, 10),
     courseStats: (g?.courseStats || []).slice(0, 8),
