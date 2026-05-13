@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
 import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
 
 function sessionSportLabel(slug) {
@@ -18,7 +19,7 @@ function sessionSportLabel(slug) {
 
 export default function AskScreen({
   askScreenRef,
-  hasDockedBar,
+  hasDockedBar: _hasDockedBar,
   askMsgs,
   askInputRef,
   askInput,
@@ -36,7 +37,10 @@ export default function AskScreen({
   const questionCount = askMsgs.filter((m) => m.role === "user").length;
 
   return (
-          <main ref={askScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main
+            ref={askScreenRef}
+            className={`screen${askMsgs.length > 0 ? " has-msgs screen--ur-chat" : ""}`}
+          >
             {askMsgs.length === 0 ? (
               <>
                 <UrTakeOnboardingOverlay visible />
@@ -67,14 +71,17 @@ export default function AskScreen({
                     {questionCount} {questionCount === 1 ? "question" : "questions"}
                   </span>
                 </div>
-                <ChatThread
-                  msgs={askMsgs}
-                  urTakeTrackPlay={urTakeTrackPlay}
-                  accessTier={accessTier}
-                  onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-                  onUpgradePromptClick={onUpgradePromptClick}
-                  hideFollowUpDock
-                />
+                <div className="ur-chat-scroll">
+                  <ChatThread
+                    msgs={askMsgs}
+                    urTakeTrackPlay={urTakeTrackPlay}
+                    accessTier={accessTier}
+                    onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+                    onUpgradePromptClick={onUpgradePromptClick}
+                    hideFollowUpDock
+                    variant="urChatDocked"
+                  />
+                </div>
               </>
             )}
           </main>

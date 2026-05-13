@@ -146,24 +146,39 @@ function isConfirmedMlbProbablePitcher(raw) {
   return !/^(tbd|pitcher\s*tbd|probables\s*tbd|--?|—|n\/a)$/i.test(s);
 }
 
+/** Strip ``` / ```json fences — models often wrap JSON despite instructions. */
+function stripResponseCodeFences(raw) {
+  return String(raw ?? "")
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+}
+
 /** When API omits `structured` but model returned raw JSON in `response`, recover stages 1–5 UI. */
 function structuredPayloadFromApi(data) {
   if (data?.structured && typeof data.structured === "object") return data.structured;
-  const raw = String(data?.response ?? "").trim();
-  if (!raw.startsWith("{")) return null;
+  let raw = stripResponseCodeFences(String(data?.response ?? ""));
+  if (!raw.startsWith("{")) {
+    const brace = raw.indexOf("{");
+    if (brace === -1) return null;
+    raw = raw.slice(brace);
+  }
   try {
     const o = JSON.parse(raw);
-    if (
-      o &&
-      typeof o === "object" &&
-      typeof o.call === "string" &&
-      o.call.length >= 2 &&
+    if (!o || typeof o !== "object") return null;
+    if (typeof o.call !== "string" || o.call.trim().length < 2) return null;
+    const hasAnalysis =
       o.analysis &&
       typeof o.analysis === "object" &&
-      typeof o.analysis.matchupAnalysis === "string"
-    ) {
-      return o;
-    }
+      (typeof o.analysis.matchupAnalysis === "string" ||
+        typeof o.analysis.injuryContext === "string" ||
+        typeof o.analysis.marketContext === "string");
+    const hasCore =
+      typeof o.whyNow === "string" ||
+      typeof o.edge === "string" ||
+      typeof o.confidence === "string" ||
+      Array.isArray(o.caveats);
+    if (hasAnalysis || hasCore) return o;
   } catch {
     return null;
   }
@@ -1482,11 +1497,23 @@ ${themeCss}
         msgId,
         text: normalizedDisplay.response,
         sport: sportForBubble || undefined,
-        takeMeta: data.take
-          ? { confidence: data.take.confidence, trust: data.take.trust ?? null }
-          : null,
+        takeMeta:
+          data.take && typeof data.take === "object"
+            ? {
+                id: data.take.id,
+                confidence: data.take.confidence,
+                trust: data.take.trust ?? null,
+                openingLineSnapshot: data.take.openingLineSnapshot ?? null,
+                status: data.take.status,
+                betSignal: data.take.betSignal,
+                estimatedEdgeMeta: data.take.estimatedEdgeMeta,
+              }
+            : null,
         deepText: normalizedDisplay.responseDeep,
         ...(structuredForBubble ? { structured: structuredForBubble } : {}),
+        ...(data.estimatedEdge && typeof data.estimatedEdge === "object"
+          ? { estimatedEdge: data.estimatedEdge }
+          : {}),
         followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
         urTakeTelemetry: {
           intent: String(data.intent || ""),
@@ -4503,51 +4530,65 @@ fees. One price, unlimited reads.`,
 
         {/* ══ DOCKED INPUT BARS ══ */}
         {screen==="tennis"&&tennisMsgs.length>0&&(
-          <div className="docked-bar" style={{borderTopColor:"rgba(255,230,0,.25)"}}>
-            <UrTakeFollowUpDockStrip msgs={tennisMsgs} onPick={urTakeFollowUpTennis} />
-            <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis · Ask another</div>
-            <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Ask another..." {...askBarCommon} dockedGradient />
+          <div className="docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(255,230,0,.25)" }}>
+              <UrTakeFollowUpDockStrip msgs={tennisMsgs} onPick={urTakeFollowUpTennis} />
+              <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis · Ask another</div>
+              <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Ask another..." {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
         {screen==="nfl"&&nflMsgs.length>0&&(
-          <div className="docked-bar" style={{borderTopColor:"rgba(74,144,217,.25)"}}>
-            <UrTakeFollowUpDockStrip msgs={nflMsgs} onPick={urTakeFollowUpNfl} />
-            <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>
-            <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder="Ask another..." btnColor="#4A90D9" {...askBarCommon} dockedGradient />
+          <div className="docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(74,144,217,.25)" }}>
+              <UrTakeFollowUpDockStrip msgs={nflMsgs} onPick={urTakeFollowUpNfl} />
+              <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>
+              <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder="Ask another..." btnColor="#4A90D9" {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
         {screen==="f1"&&f1Msgs.length>0&&(
-          <div className="docked-bar" style={{borderTopColor:"rgba(225,6,0,.25)"}}>
-            <UrTakeFollowUpDockStrip msgs={f1Msgs} onPick={urTakeFollowUpF1} />
-            <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 · Ask another</div>
-            <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Ask another..." btnColor="var(--f1)" {...askBarCommon} dockedGradient />
+          <div className="docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(225,6,0,.25)" }}>
+              <UrTakeFollowUpDockStrip msgs={f1Msgs} onPick={urTakeFollowUpF1} />
+              <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 · Ask another</div>
+              <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Ask another..." btnColor="var(--f1)" {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
         {screen==="nba"&&nbaMsgs.length>0&&(
-          <div className="docked-bar" style={{borderTopColor:"rgba(255,107,0,.25)"}}>
-            <UrTakeFollowUpDockStrip msgs={nbaMsgs} onPick={urTakeFollowUpNba} />
-            <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA · Ask another</div>
-            <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Ask another..." btnColor="var(--nba)" {...askBarCommon} dockedGradient />
+          <div className="docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(255,107,0,.25)" }}>
+              <UrTakeFollowUpDockStrip msgs={nbaMsgs} onPick={urTakeFollowUpNba} />
+              <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA · Ask another</div>
+              <AskBar inputRef={nbaInputRef} value={nbaInput} onChange={setNbaInput} onSubmit={()=>submitNba()} placeholder="Ask another..." btnColor="var(--nba)" {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
         {screen==="mlb"&&mlbMsgs.length>0&&(
-          <div className="docked-bar" style={{borderTopColor:"rgba(29,185,84,.25)"}}>
-            <UrTakeFollowUpDockStrip msgs={mlbMsgs} onPick={urTakeFollowUpMlb} />
-            <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB · Ask another</div>
-            <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon} dockedGradient />
+          <div className="docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(29,185,84,.25)" }}>
+              <UrTakeFollowUpDockStrip msgs={mlbMsgs} onPick={urTakeFollowUpMlb} />
+              <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB · Ask another</div>
+              <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Ask another..." btnColor="var(--mlb)" {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
         {screen==="golf"&&golfMsgs.length>0&&(
-          <div className="docked-bar" style={{borderTopColor:"rgba(255,255,255,.2)"}}>
-            <UrTakeFollowUpDockStrip msgs={golfMsgs} onPick={urTakeFollowUpGolf} />
-            <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
-            <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#DCE6F2" {...askBarCommon} dockedGradient />
+          <div className="docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(255,255,255,.2)" }}>
+              <UrTakeFollowUpDockStrip msgs={golfMsgs} onPick={urTakeFollowUpGolf} />
+              <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
+              <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#DCE6F2" {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar">
-            <UrTakeFollowUpDockStrip msgs={askMsgs} onPick={urTakeFollowUpAsk} />
-            <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Go deeper..." {...askBarCommon} dockedGradient />
+            <div className="docked-interaction-zone">
+              <UrTakeFollowUpDockStrip msgs={askMsgs} onPick={urTakeFollowUpAsk} />
+              <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Go deeper..." {...askBarCommon} dockedGradient />
+            </div>
           </div>
         )}
 

@@ -8,6 +8,13 @@
  * It is a **parallel** output mode.
  */
 
+const STRUCTURED_JSON_ONLY_FOOTER = `
+
+### FINAL OUTPUT CONTRACT (NON-NEGOTIABLE)
+
+Respond ONLY with a valid JSON object. The first character of your response must be {. No prose, no markdown, no headers before or after.
+`;
+
 export function getStructuredURTakePrompt() {
   return `
 
@@ -98,7 +105,39 @@ If the user or system requests structured output, respond with **ONLY** valid JS
 - Do **NOT** omit caveats for brevity. Caveats are trust.
 - Do **NOT** return markdown, prose, or explanation. **ONLY JSON.**
 
-`;
+` + STRUCTURED_JSON_ONLY_FOOTER;
+}
+
+/** When UR_ESTIMATED_EDGE_JSON is attached (odds snapshot unavailable). Pass the server `estimatedEdge` object. */
+export function getStructuredURTakePromptEstimatedEdgeOverlay(estimatedEdge) {
+  if (!estimatedEdge || estimatedEdge.source !== "estimated_edge") return "";
+  const dq = String(estimatedEdge.dataQuality || "");
+
+  if (dq === "thin") {
+    return `
+
+### ESTIMATED EDGE + STRUCTURED JSON — THIN DATA (mandatory overlay)
+
+- \`analysis.marketContext\`: must state this is a **UR structural read** from verified context only — **not** a posted market, book price, or live line.
+- \`analysis.lineMovement\`: use exactly: "No verified line movement available"
+- \`edge\`: **no** numeric fair line, playable threshold, or pass-band decimals. Explain the lean vs **context signals** from UR_ESTIMATED_EDGE_JSON (leanRead, drivers) only.
+- \`confidence\`: must be **Speculative** only.
+- \`call\`: **lean** or **pass** framing — not a forced priced bet; no fabricated numbers from thin mode.
+
+` + STRUCTURED_JSON_ONLY_FOOTER;
+  }
+
+  return `
+
+### ESTIMATED EDGE + STRUCTURED JSON (mandatory overlay)
+
+- \`analysis.marketContext\`: describe **pricing discipline** using UR projection / fair line / playable threshold / pass band from UR_ESTIMATED_EDGE_JSON when those fields are present — never "the market", "posted line", "current line", or book quotes.
+- \`analysis.lineMovement\`: use exactly: "UR threshold mode — no movement narrative."
+- \`edge\`: explain the edge vs **UR fair line / pass band** (UR-modeled), not vs a book number.
+- \`confidence\`: never **High** in Estimated Edge Mode; cap at **Medium** for dataQuality strong; otherwise **Speculative** or **Medium** per JSON.
+- \`call\`: echo actionable threshold language only when numeric fields exist in UR_ESTIMATED_EDGE_JSON; never claim a book offered that number.
+
+` + STRUCTURED_JSON_ONLY_FOOTER;
 }
 
 /**

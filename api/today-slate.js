@@ -51,11 +51,11 @@ function extractAnthropicText(data) {
 
 /**
  * Parse Anthropic output into slate JSON. Models often wrap JSON in ```json fences
- * despite instructions — strip fences and extract the outermost `{...}` object.
+ * despite instructions — strip all ``` / ```json fences, then extract the outermost `{...}` object.
  */
 function safeParseSlateJson(text) {
-  const raw = String(text || "").trim();
-  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  let raw = String(text || "").trim();
+  raw = raw.replace(/```json|```/gi, "").trim();
 
   const tryParse = (s) => {
     try {
@@ -66,12 +66,10 @@ function safeParseSlateJson(text) {
     }
   };
 
-  let o = tryParse(stripped);
-  if (o) return o;
-  o = tryParse(raw);
+  let o = tryParse(raw);
   if (o) return o;
 
-  const brace = stripped.match(/\{[\s\S]*\}/) || raw.match(/\{[\s\S]*\}/);
+  const brace = raw.match(/\{[\s\S]*\}/);
   if (brace) {
     o = tryParse(brace[0]);
     if (o) return o;
@@ -413,7 +411,11 @@ RULES
 - contrarian: an angle nobody's talking about — fade of chalk, live trigger, or correlated underpriced situation.
 - Use only facts visible in the JSON; do not invent games, scores, or prices.
 - If a sport has no usable slate in the payload, you may still reference it only if another field clearly supports it; otherwise favor sports with real rows.
-- "game" for golf can be the tournament short name; for tennis include player surnames vs; for F1 use next GP name from schedule if present.`;
+- "game" for golf can be the tournament short name; for tennis include player surnames vs; for F1 use next GP name from schedule if present.
+
+OUTPUT
+Respond ONLY with raw JSON (no markdown, no code fences). The first character must be {.
+`;
 
     const anthropicResult = await fetchAnthropicMessages({
       apiKey: ANTHROPIC_API_KEY,
@@ -421,7 +423,7 @@ RULES
       max_tokens: 260,
       temperature: 0.35,
       system:
-        "You output valid JSON only. Never wrap output in markdown or ``` code fences. Raw JSON object only. Keys must match the user schema exactly.",
+        "You output valid JSON only. Never wrap output in markdown or ``` code fences. Respond ONLY with raw JSON: the first character must be {. Keys must match the user schema exactly.",
       messages: [{ role: "user", content: userPrompt }],
       timeoutMs: 45000,
       maxRetries: 3,

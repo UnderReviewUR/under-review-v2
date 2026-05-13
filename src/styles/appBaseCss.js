@@ -192,6 +192,30 @@ export const baseCss = `
 
   .screen{flex:1;overflow-y:auto;padding:10px 12px;padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 12px + env(safe-area-inset-bottom));scroll-behavior:smooth;-webkit-overflow-scrolling:touch;}
   .screen.has-msgs{padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 200px + env(safe-area-inset-bottom));}
+  .app.has-docked main.screen.screen--ur-chat.has-msgs{
+    display:flex;
+    flex-direction:column;
+    flex:1;
+    min-height:0;
+    overflow:hidden;
+    padding-bottom:12px;
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .ur-session-context-header{
+    flex-shrink:0;
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll{
+    flex:1;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 120px + env(safe-area-inset-bottom));
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs .chat-thread--ur-chat-dock{
+    flex:1 1 auto;
+    margin-top:0;
+    margin-bottom:0;
+    min-height:100%;
+  }
   .docked-bar{
     position:fixed;left:0;right:0;
     bottom:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--keyboard-height, 0px));
@@ -204,15 +228,16 @@ export const baseCss = `
   .docked-interaction-zone{
     width:100%;
     box-sizing:border-box;
-    padding-top:6px;
+    padding-top:0;
     padding-left:16px;
     padding-right:16px;
-    padding-bottom:8px;
+    padding-bottom:0;
+    margin:0;
     display:flex;
     flex-direction:column;
     align-items:stretch;
-    gap:6px;
-    border-top:1px solid var(--dock-accent,rgba(255,255,255,0.09));
+    gap:8px;
+    border-top:none;
     background:
       linear-gradient(180deg,rgba(0,245,233,0.045) 0%,rgba(255,45,107,0.025) 20%,transparent 42%),
       linear-gradient(180deg,rgba(8,10,12,0.82) 0%,rgba(8,10,12,0.95) 50%,rgba(8,10,12,0.99) 100%);
@@ -229,11 +254,20 @@ export const baseCss = `
     max-height:min(34vh,132px);
   }
   .docked-interaction-zone .ask-wrap{margin:0;}
-  /* Logo-gradient frame: only with AskBar dockedGradient + .ask-wrap--docked-gradient (see AskBar.jsx) */
-  .docked-bar .ask-wrap--docked-gradient .ask-row,
-  .docked-interaction-zone .ask-wrap--docked-gradient .ask-row{
+  /* Docked UR row: [clip 32][input flex:1 @ 32][send 32] — see AskBar.jsx */
+  .docked-bar .ask-wrap--docked-gradient .ask-row--docked-triple,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-row--docked-triple{
     align-items:center;
     gap:10px;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-input-mid,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-input-mid{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:center;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-col,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-col{
@@ -246,12 +280,15 @@ export const baseCss = `
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-col:focus-within{
     border-color:transparent;
   }
-  /* Gradient is only the 1px frame; fill lives in .ask-bar-docked-inner */
+  /* Static dual-layer frame: outer gradient ring, inner #111 fill (no animation) */
   .docked-bar .ask-wrap--docked-gradient .ask-bar-gradient-frame,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-gradient-frame{
-    background:linear-gradient(90deg,#00F5E9,#FF2D6B);
-    border-radius:10px;
-    padding:1px;
+    border:1px solid transparent;
+    border-radius:20px;
+    background-image:linear-gradient(#111,#111),linear-gradient(90deg,#00F5E9,#FF2D6B);
+    background-origin:border-box;
+    background-clip:padding-box,border-box;
+    padding:0;
     flex:1;
     min-width:0;
     width:100%;
@@ -268,7 +305,7 @@ export const baseCss = `
     display:flex;
     flex-direction:column;
     background:#111;
-    border-radius:9px;
+    border-radius:19px;
     overflow:hidden;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-input-slot,
@@ -303,39 +340,65 @@ export const baseCss = `
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-hint--docked-in-frame{
     display:none;
   }
-  .docked-bar .ask-wrap--docked-gradient .attach-btn,
-  .docked-interaction-zone .ask-wrap--docked-gradient .attach-btn{
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach{
+    display:flex;
     width:32px;
     height:32px;
     min-width:32px;
+    flex-shrink:0;
     box-sizing:border-box;
-    border-radius:8px;
-    background:#111;
-    border:0.5px solid #1e1e1e;
-  }
-  .docked-bar .ask-wrap--docked-gradient .send-btn,
-  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn{
-    width:32px;
-    height:32px;
-    min-width:32px;
-    box-sizing:border-box;
-    border-radius:8px;
-  }
-  .docked-bar .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand,
-  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand{
-    background:linear-gradient(135deg,#ff4da6,#ff7a00);
-    color:#fff;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    border-radius:50%;
+    background:#141414;
     border:none;
+    color:rgba(255,255,255,0.82);
+    cursor:pointer;
   }
-  .docked-bar .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:disabled,
-  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:disabled{
-    background:var(--border);
-    color:var(--muted);
-    opacity:0.85;
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach.has-img,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach.has-img{
+    box-shadow:0 0 0 1px rgba(0,245,233,0.35);
   }
-  .docked-bar .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:hover:not(:disabled),
-  .docked-interaction-zone .ask-wrap--docked-gradient .send-btn.send-btn--docked-brand:hover:not(:disabled){
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send{
+    display:flex;
+    width:32px;
+    height:32px;
+    min-width:32px;
+    flex-shrink:0;
+    box-sizing:border-box;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    border-radius:50%;
+    background:#FF2D6B;
+    border:none;
+    color:#ffffff;
+    cursor:pointer;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send:disabled,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send:disabled{
+    background:#2a2a2a;
+    color:rgba(255,255,255,0.45);
+    opacity:1;
+    cursor:default;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send:hover:not(:disabled),
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send:hover:not(:disabled){
     filter:brightness(1.06);
+  }
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-svg--on-magenta,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-svg--on-magenta{
+    color:#ffffff;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ur-dock-send-busy,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-send-busy{
+    font-size:14px;
+    font-weight:700;
+    line-height:1;
+    color:#fff;
   }
   .docked-interaction-zone .ask-hint{padding-top:4px;padding-bottom:6px;}
   .docked-bar-label{font-family:var(--mono-font);font-size:9px;letter-spacing:2px;text-transform:uppercase;}

@@ -1798,6 +1798,8 @@ export function ChatThread({
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
   hideFollowUpDock = false,
+  /** When "urChatDocked", thread fills Ask screen above fixed dock (flex layout). */
+  variant = "default",
 }) {
   const getTakeAuthHeaders = useTakeAuthHeaders();
   const chatThreadRef = useRef(null);
@@ -1878,7 +1880,11 @@ export function ChatThread({
 
   if (!msgs || msgs.length === 0) return null;
   return (
-    <div ref={chatThreadRef} className="chat-thread" style={{ marginBottom: 20 }}>
+    <div
+      ref={chatThreadRef}
+      className={`chat-thread${variant === "urChatDocked" ? " chat-thread--ur-chat-dock" : ""}`}
+      style={variant === "urChatDocked" ? undefined : { marginBottom: 20 }}
+    >
       {msgs.map((m, i) =>
         m.loading ? (
           <LoadingBubble key={i} sport={m.sport} />

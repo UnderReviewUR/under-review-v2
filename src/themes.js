@@ -592,9 +592,29 @@ export const THEMES = {
       }
 
       .app.theme-broadsheet .docked-bar {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+      .app.theme-broadsheet .docked-interaction-zone {
         background: rgba(248,244,238,.97);
-        border-top: 1px solid #d8d0c4;
+        border-top: none;
         backdrop-filter: blur(12px);
+        box-shadow: 0 -12px 32px rgba(15,13,10,.12), inset 0 1px 0 rgba(255,255,255,.5);
+      }
+      .theme-broadsheet .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner,
+      .theme-broadsheet .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner {
+        background: #FFFFFF;
+      }
+      .theme-broadsheet .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder,
+      .theme-broadsheet .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder {
+        color: #8a7a6a;
+        opacity: 1;
+      }
+      .theme-broadsheet .docked-interaction-zone .ask-hint--docked-in-frame,
+      .theme-broadsheet .docked-bar .ask-hint--docked-in-frame {
+        color: #9a8b7a;
       }
 
       .app.theme-broadsheet .bottom-nav {
@@ -832,9 +852,29 @@ export const THEMES = {
       }
 
       .app.theme-crisp .docked-bar {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+      .app.theme-crisp .docked-interaction-zone {
         background: rgba(248,250,252,.96);
-        border-top: 1px solid #E2E8F0;
+        border-top: none;
         backdrop-filter: blur(12px);
+        box-shadow: 0 -12px 32px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.7);
+      }
+      .theme-crisp .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner,
+      .theme-crisp .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner {
+        background: #FFFFFF;
+      }
+      .theme-crisp .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder,
+      .theme-crisp .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder {
+        color: #64748B;
+        opacity: 1;
+      }
+      .theme-crisp .docked-interaction-zone .ask-hint--docked-in-frame,
+      .theme-crisp .docked-bar .ask-hint--docked-in-frame {
+        color: #94a3b8;
       }
 
       .app.theme-crisp .bottom-nav {
