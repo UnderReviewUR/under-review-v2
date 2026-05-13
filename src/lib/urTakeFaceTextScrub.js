@@ -11,3 +11,6 @@ export function scrubStructuredFaceText(text) {
   }
   return s.replace(/\s{2,}/g, " ").replace(/^\s+|\s+$/g, "").trim();
 }
+
+/** Alias — some imports use `scrubFaceText`; same implementation as `scrubStructuredFaceText`. */
+export const scrubFaceText = scrubStructuredFaceText;

@@ -2698,6 +2698,38 @@ ${themeCss}
   );
 
   useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const vv = window.visualViewport || {
+      get height() {
+        return window.innerHeight;
+      },
+      get offsetTop() {
+        return 0;
+      },
+      addEventListener(ev, fn) {
+        if (ev === "resize" || ev === "scroll") window.addEventListener("resize", fn);
+      },
+      removeEventListener(ev, fn) {
+        if (ev === "resize" || ev === "scroll") window.removeEventListener("resize", fn);
+      },
+    };
+    const setRise = () => {
+      const h = typeof vv.height === "number" ? vv.height : window.innerHeight;
+      const top = typeof vv.offsetTop === "number" ? vv.offsetTop : 0;
+      const rise = Math.max(0, window.innerHeight - h - top);
+      document.documentElement.style.setProperty("--ur-vv-rise", `${rise}px`);
+    };
+    setRise();
+    vv.addEventListener("resize", setRise);
+    vv.addEventListener("scroll", setRise);
+    return () => {
+      vv.removeEventListener("resize", setRise);
+      vv.removeEventListener("scroll", setRise);
+      document.documentElement.style.removeProperty("--ur-vv-rise");
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       pendingScrollTimeoutIdsRef.current.forEach((id) => clearTimeout(id));
       pendingScrollTimeoutIdsRef.current = [];
@@ -2707,7 +2739,18 @@ ${themeCss}
   const scheduleChatScroll = useCallback((screenRef) => {
     const scroll = () => {
       const el = screenRef?.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (!el) return;
+      const inner = typeof el.querySelector === "function" ? el.querySelector(".ur-chat-scroll") : null;
+      const anchor =
+        inner && typeof inner.querySelector === "function"
+          ? inner.querySelector(".ur-chat-thread-anchor")
+          : null;
+      if (anchor) {
+        anchor.scrollIntoView({ behavior: "smooth", block: "end" });
+        return;
+      }
+      const target = inner || el;
+      if (typeof target.scrollHeight === "number") target.scrollTop = target.scrollHeight;
     };
     scroll();
     requestAnimationFrame(() => {
@@ -2724,7 +2767,9 @@ ${themeCss}
   const scrollActiveScreenForKeyboard = useCallback(() => {
     const scrollEl = (el) => {
       if (!el || typeof el.scrollHeight !== "number") return;
-      el.scrollTop = el.scrollHeight;
+      const inner = typeof el.querySelector === "function" ? el.querySelector(".ur-chat-scroll") : null;
+      const target = inner || el;
+      target.scrollTop = target.scrollHeight;
     };
     const pickScrollParent = () => {
       if (typeof document === "undefined") return null;
@@ -2832,7 +2877,16 @@ ${themeCss}
       pendingScrollTimeoutIdsRef.current.push(t120);
     });
   }, [askUrTake, askInput, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab]);
-  const submitAsk     = useCallback(()=>{ const t=askInput.trim();     if(!t||isAsking||prefetchingUrTakeContext)return; setAskInput(""); askUrTake({text:t,setMsgs:setAskMsgs}); scheduleChatScroll(askScreenRef); },[askInput,askUrTake,isAsking,prefetchingUrTakeContext,scheduleChatScroll]);
+  const submitAsk = useCallback(() => {
+    const t = askInput.trim();
+    if (!t || isAsking || prefetchingUrTakeContext) return;
+    setAskInput("");
+    askUrTake({ text: t, setMsgs: setAskMsgs });
+    scheduleChatScroll(askScreenRef);
+    requestAnimationFrame(() => {
+      askInputRef.current?.focus({ preventScroll: true });
+    });
+  }, [askInput, askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll]);
   const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,tennisInput,scheduleChatScroll]);
   const submitWta = useCallback(
     (forced) => {
@@ -4530,7 +4584,7 @@ fees. One price, unlimited reads.`,
 
         {/* ══ DOCKED INPUT BARS ══ */}
         {screen==="tennis"&&tennisMsgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(255,230,0,.25)" }}>
               <UrTakeFollowUpDockStrip msgs={tennisMsgs} onPick={urTakeFollowUpTennis} />
               <div className="docked-bar-label" style={{color:"#FFE600"}}>Tennis · Ask another</div>
@@ -4539,7 +4593,7 @@ fees. One price, unlimited reads.`,
           </div>
         )}
         {screen==="nfl"&&nflMsgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(74,144,217,.25)" }}>
               <UrTakeFollowUpDockStrip msgs={nflMsgs} onPick={urTakeFollowUpNfl} />
               <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>
@@ -4548,7 +4602,7 @@ fees. One price, unlimited reads.`,
           </div>
         )}
         {screen==="f1"&&f1Msgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(225,6,0,.25)" }}>
               <UrTakeFollowUpDockStrip msgs={f1Msgs} onPick={urTakeFollowUpF1} />
               <div className="docked-bar-label" style={{color:"var(--f1)"}}>F1 · Ask another</div>
@@ -4557,7 +4611,7 @@ fees. One price, unlimited reads.`,
           </div>
         )}
         {screen==="nba"&&nbaMsgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(255,107,0,.25)" }}>
               <UrTakeFollowUpDockStrip msgs={nbaMsgs} onPick={urTakeFollowUpNba} />
               <div className="docked-bar-label" style={{color:"var(--nba)"}}>NBA · Ask another</div>
@@ -4566,7 +4620,7 @@ fees. One price, unlimited reads.`,
           </div>
         )}
         {screen==="mlb"&&mlbMsgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(29,185,84,.25)" }}>
               <UrTakeFollowUpDockStrip msgs={mlbMsgs} onPick={urTakeFollowUpMlb} />
               <div className="docked-bar-label" style={{color:"var(--mlb)"}}>MLB · Ask another</div>
@@ -4575,7 +4629,7 @@ fees. One price, unlimited reads.`,
           </div>
         )}
         {screen==="golf"&&golfMsgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(255,255,255,.2)" }}>
               <UrTakeFollowUpDockStrip msgs={golfMsgs} onPick={urTakeFollowUpGolf} />
               <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
@@ -4584,7 +4638,7 @@ fees. One price, unlimited reads.`,
           </div>
         )}
         {screen==="ask"&&askMsgs.length>0&&(
-          <div className="docked-bar">
+          <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone">
               <UrTakeFollowUpDockStrip msgs={askMsgs} onPick={urTakeFollowUpAsk} />
               <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Go deeper..." {...askBarCommon} dockedGradient />

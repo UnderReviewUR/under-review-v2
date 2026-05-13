@@ -13,6 +13,9 @@ export default function UrTakeDockedFollowUps({ source, onPick }) {
           key={`${q}-${idx}`}
           type="button"
           className="ur-take-follow-up-pill"
+          onMouseDown={(e) => {
+            if (e.button === 0) e.preventDefault();
+          }}
           onClick={() => {
             const shownAt = source.shownAt;
             const meta = {

@@ -1546,7 +1546,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
       : "";
 
     const s = effectiveStructured;
-    console.log("[SharpBrief] UrTakeAiBubble → URTakeResponse", {
+    console.info("[SharpBrief] UrTakeAiBubble → URTakeResponse", {
       hasApiStructured: Boolean(m.structured),
       promotedParlay: Boolean(promotedParlayStructured),
       callPreview: String(s?.call ?? "").slice(0, 72),
@@ -1633,6 +1633,10 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
   }
 
   if (!parsed.hasVisual) {
+    console.error("[SharpBrief] plain-text fallback (no structured + no visual parser match)", {
+      hasStructuredField: Boolean(m.structured),
+      textHead: summaryText.slice(0, 200),
+    });
     const plainHeadline =
       summaryText
         .split("\n")
@@ -1693,6 +1697,11 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
       </>
     );
   }
+
+  console.error("[SharpBrief] UrTakePlainTextVisual path (structured JSON missing)", {
+    hasStructuredField: Boolean(m.structured),
+    textHead: summaryText.slice(0, 200),
+  });
 
   return (
     <>
@@ -1821,6 +1830,24 @@ export function ChatThread({
     const last = msgs[msgs.length - 1];
     const streaming = Boolean(last?.loading);
     const sig = `${msgs.length}:${streaming ? 1 : 0}:${String(last?.text || "").length}:${last?.msgId || ""}`;
+
+    const scrollBottom = () => {
+      requestAnimationFrame(() => {
+        bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      });
+    };
+
+    if (variant === "urChatDocked") {
+      if (skipInitialScrollRef.current) {
+        skipInitialScrollRef.current = false;
+        prevScrollSigRef.current = sig;
+        return;
+      }
+      prevScrollSigRef.current = sig;
+      scrollBottom();
+      return;
+    }
+
     if (skipInitialScrollRef.current) {
       skipInitialScrollRef.current = false;
       prevScrollSigRef.current = sig;
@@ -1828,10 +1855,8 @@ export function ChatThread({
     }
     if (sig === prevScrollSigRef.current) return;
     prevScrollSigRef.current = sig;
-    requestAnimationFrame(() => {
-      bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    });
-  }, [msgs]);
+    scrollBottom();
+  }, [msgs, variant]);
 
   let weeklyUsed = 0;
   try {

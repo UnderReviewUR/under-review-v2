@@ -598,10 +598,10 @@ export const THEMES = {
         backdrop-filter: none;
       }
       .app.theme-broadsheet .docked-interaction-zone {
-        background: rgba(248,244,238,.97);
+        background: #080808;
         border-top: none;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 -12px 32px rgba(15,13,10,.12), inset 0 1px 0 rgba(255,255,255,.5);
+        backdrop-filter: none;
+        box-shadow: none;
       }
       .theme-broadsheet .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner,
       .theme-broadsheet .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner {
@@ -858,10 +858,10 @@ export const THEMES = {
         backdrop-filter: none;
       }
       .app.theme-crisp .docked-interaction-zone {
-        background: rgba(248,250,252,.96);
+        background: #080808;
         border-top: none;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 -12px 32px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.7);
+        backdrop-filter: none;
+        box-shadow: none;
       }
       .theme-crisp .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner,
       .theme-crisp .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner {

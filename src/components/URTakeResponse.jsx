@@ -90,9 +90,16 @@ export default function URTakeResponse({
     setAnimMounted(true);
   }, []);
 
-  console.log("[SharpBrief] URTakeResponse render", {
+  console.info("[SharpBrief] URTakeResponse payload", {
     sport,
-    callPreview: String(call ?? "").slice(0, 80),
+    callType,
+    keys: {
+      call: Boolean(call),
+      whyNow: Boolean(whyNow),
+      edge: Boolean(edge),
+      analysis: _analysis && typeof _analysis === "object",
+      caveats: Array.isArray(caveats),
+    },
   });
 
   const formattedTimestamp = formatTimestamp(timestamp);

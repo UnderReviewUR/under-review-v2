@@ -6,3 +6,6 @@ export function formatUrTakeSportTag(sport, callType) {
   if (String(callType || "").toLowerCase() === "parlay") return `${sp} · PARLAY`;
   return sp;
 }
+
+/** Alias for `formatUrTakeSportTag` (alternate import name). */
+export const formatSportTag = formatUrTakeSportTag;
