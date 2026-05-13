@@ -95,6 +95,7 @@ export default function URTakeResponse({
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
   const headline = pickSharpBriefHeadline(callScrub, edgeDisplay, callType, sport);
+  const isParlayCard = String(callType || "").toLowerCase() === "parlay";
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
@@ -157,19 +158,23 @@ export default function URTakeResponse({
         <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
       </div>
 
-      <div className="ur-v2-stat-grid">
-        {statGrid.slots.map((slot) => (
-          <div
-            key={slot.key}
-            className={`ur-v2-stat-cell${slot.highlight ? " ur-v2-stat-cell--hi" : ""}`}
-          >
-            <div className="ur-v2-stat-label">{slot.label}</div>
-            <div className="ur-v2-stat-value">{slot.value}</div>
+      {!isParlayCard ? (
+        <>
+          <div className="ur-v2-stat-grid">
+            {statGrid.slots.map((slot) => (
+              <div
+                key={slot.key}
+                className={`ur-v2-stat-cell${slot.highlight ? " ur-v2-stat-cell--hi" : ""}`}
+              >
+                <div className="ur-v2-stat-label">{slot.label}</div>
+                <div className="ur-v2-stat-value">{slot.value}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="ur-v2-divider" />
+          <div className="ur-v2-divider" />
+        </>
+      ) : null}
 
       <div
         ref={bodyWrapRef}

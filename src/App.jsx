@@ -258,6 +258,7 @@ export default function App() {
 
   const css = `
 ${baseCss}
+/* UR Ask chat scroll bottom inset: --ur-dock-askbar-est, --ur-dock-followups-est, --bottom-nav-height in appBaseCss.js */
 ${themeCss}
 `;
 

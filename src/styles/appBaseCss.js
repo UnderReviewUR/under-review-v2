@@ -56,6 +56,10 @@ export const baseCss = `
     --mono-font:'DM Mono',monospace;
     --display-font:'Bebas Neue',sans-serif;
     --bottom-nav-height:126px;
+    /* Ask dock (follow-ups + AskBar) — summed with nav + safe area for UR chat scroll padding */
+    --ur-dock-askbar-est:60px;
+    --ur-dock-followups-est:48px;
+    --ur-chat-scroll-dock-buffer:16px;
     --keyboard-height:0px;
   }
 
@@ -261,8 +265,23 @@ export const baseCss = `
     overscroll-behavior:contain;
     padding-left:16px;
     padding-right:16px;
-    padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 232px + env(safe-area-inset-bottom));
-    scroll-padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 232px + env(safe-area-inset-bottom));
+    /* Follow-ups + AskBar + bottom nav + full safe-area + buffer — last bubble clears fixed chrome */
+    padding-bottom:calc(
+      var(--ur-dock-followups-est)
+      + var(--ur-dock-askbar-est)
+      + var(--bottom-nav-height)
+      + env(safe-area-inset-bottom, 0px)
+      + var(--ur-chat-scroll-dock-buffer)
+      + var(--keyboard-height, 0px)
+    );
+    scroll-padding-bottom:calc(
+      var(--ur-dock-followups-est)
+      + var(--ur-dock-askbar-est)
+      + var(--bottom-nav-height)
+      + env(safe-area-inset-bottom, 0px)
+      + var(--ur-chat-scroll-dock-buffer)
+      + var(--keyboard-height, 0px)
+    );
   }
   /* Thread must size to its content so .ur-chat-scroll gains scrollHeight; avoid flex:1 + min-height:100% swallowing overflow */
   .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll .chat-thread.chat-thread--ur-chat-dock{
@@ -970,8 +989,31 @@ export const baseCss = `
   .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:8px;flex:1;min-height:0;}
   .chat-thread--ur-chat-dock{gap:10px;}
   .ur-chat-thread-anchor{height:1px;width:100%;flex-shrink:0;margin:0;padding:0;pointer-events:none;overflow:hidden;opacity:0;}
-  .ur-imessage-user-row{display:flex;width:100%;justify-content:flex-end;align-items:center;padding:0;margin:0;box-sizing:border-box;}
-  .ur-imessage-user-row .bubble--imessage-user{max-width:75%;margin-right:16px;margin-left:0;width:auto;background:#1a1a1a;border:none;border-radius:18px 18px 4px 18px;color:#fff;font-size:15px;line-height:1.45;padding:10px 14px;box-shadow:none;}
+  .ur-imessage-user-row{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    width:100%;
+    padding:0;
+    margin:0;
+    box-sizing:border-box;
+  }
+  .ur-imessage-user-row .bubble--imessage-user{
+    align-self:flex-end;
+    margin-left:auto;
+    margin-right:0;
+    max-width:85%;
+    width:auto;
+    background:rgba(255,255,255,0.08);
+    border:none;
+    border-radius:18px 18px 4px 18px;
+    color:#fff;
+    font-size:15px;
+    line-height:1.45;
+    padding:12px 16px;
+    box-shadow:none;
+    text-align:left;
+  }
   .ur-imessage-assistant-row{width:100%;margin:0;padding:0;box-sizing:border-box;display:flex;justify-content:flex-start;}
   .ur-imessage-assistant-row .bubble--imessage-ai{width:100%;max-width:none;margin:0;padding:0;background:transparent;border:none;box-shadow:none;border-radius:0;}
   .bubble{border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;overflow-wrap:break-word;word-break:break-word;}
@@ -981,17 +1023,17 @@ export const baseCss = `
   .app .ur-imessage-user-row .bubble.user.bubble--imessage-user{
     box-sizing:border-box;
     display:block;
-    max-width:75%;
+    align-self:flex-end;
+    max-width:85%;
     width:fit-content;
     margin-left:auto;
     margin-right:0;
-    align-self:center;
-    background:#1a1a1a;
+    background:rgba(255,255,255,0.08);
     border:none;
     border-radius:18px 18px 4px 18px;
     color:#fff;
     box-shadow:none;
-    padding:10px 14px;
+    padding:12px 16px;
     font-size:15px;
     line-height:1.45;
     text-align:left;

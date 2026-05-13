@@ -48,17 +48,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured })
     };
   }
 
-  if (callType === "parlay") {
-    return {
-      mode: "parlay",
-      slots: [
-        { key: "t", label: "Format", value: "Parlay", highlight: false },
-        { key: "l", label: "Legs", value: "Multi-leg ticket", highlight: false },
-        { key: "r", label: "Read", value: call.slice(0, 72) || "Stacked angles", highlight: false },
-        { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
-      ],
-    };
-  }
+  /* Parlay: URTakeResponse omits the four-cell stat grid; legs + body carry the read. */
 
   const snap = takeMeta?.openingLineSnapshot;
   const lineVal =
