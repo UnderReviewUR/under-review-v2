@@ -9,6 +9,8 @@ import {
   lintNhlOutput,
   lintSoccerOutput,
   lintTennisOutput,
+  lintSportEvidenceEnforcement,
+  sportEvidenceLayerIsThin,
   runSportSpecificValidators,
 } from "./_urTakeSportValidators/index.js";
 import { lintUrTakeOutput } from "./_urTakeOutputQA.js";
@@ -126,6 +128,62 @@ test("runSportSpecificValidators respects sport hint", () => {
   assert.ok(nfl.issues.some((i) => i.code === "nfl_anytime_td_overconfidence"));
   const mlb = runSportSpecificValidators(t, { sport: "mlb" });
   assert.ok(!mlb.issues.some((i) => i.code === "nfl_anytime_td_overconfidence"));
+});
+
+test("sport evidence enforcement: flags block sharp money without feed", () => {
+  const flags = {
+    lineMovementEvidence: false,
+    weatherEvidence: false,
+    injuryEvidence: false,
+    matchupStatsEvidence: false,
+    courseEvidence: false,
+    surfaceEvidence: false,
+    sessionDataEvidence: false,
+  };
+  const issues = lintSportEvidenceEnforcement("Sharp money steamed this side.", {
+    unsupportedClaimFlags: flags,
+  });
+  assert.ok(issues.some((i) => i.code === "unsupported_line_movement_claim" && i.requiresRegeneration));
+});
+
+test("sport evidence enforcement: thin layer + High confidence is critical", () => {
+  const thinLayer = {
+    verifiedSnapshot: ["One fact"],
+    baselineFacts: [],
+    dataLimitations: [],
+    unsupportedClaimFlags: {
+      lineMovementEvidence: false,
+      weatherEvidence: false,
+      injuryEvidence: false,
+      matchupStatsEvidence: false,
+      courseEvidence: false,
+      surfaceEvidence: false,
+      sessionDataEvidence: false,
+    },
+    confidenceDrivers: [],
+  };
+  assert.equal(sportEvidenceLayerIsThin(thinLayer), true);
+  const issues = lintSportEvidenceEnforcement("This is a High confidence take on the over.", {
+    sportEvidenceLayer: thinLayer,
+  });
+  assert.ok(issues.some((i) => i.code === "evidence_thin_high_confidence_cap"));
+});
+
+test("sport evidence enforcement runs before sport switch (generic route)", () => {
+  const flags = {
+    lineMovementEvidence: false,
+    weatherEvidence: false,
+    injuryEvidence: false,
+    matchupStatsEvidence: false,
+    courseEvidence: false,
+    surfaceEvidence: false,
+    sessionDataEvidence: false,
+  };
+  const r = runSportSpecificValidators("Syndicate reverse line movement confirms the under.", {
+    sport: "generic",
+    unsupportedClaimFlags: flags,
+  });
+  assert.ok(r.criticalCodes.includes("unsupported_line_movement_claim"));
 });
 
 test("healthy MLB writeup: no critical sport flags", () => {

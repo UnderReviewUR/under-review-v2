@@ -17,7 +17,8 @@ const KEEP_CTX =
  * @param {string} text
  * @returns {SportQaIssue[]}
  */
-export function lintSoccerOutput(text) {
+/** @param {object} [_options] — forwarded from `runSportSpecificValidators` (e.g. `sportEvidenceLayer`) */
+export function lintSoccerOutput(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;

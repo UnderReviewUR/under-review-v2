@@ -1,5 +1,9 @@
 import crypto from "crypto";
 import { getDurableJson, listKeysWithPrefix, setDurableJson } from "./_durableStore.js";
+import {
+  computeEstimatedEdgeDashboardStats,
+  computeMissDistance,
+} from "./_estimatedEdgeObservability.js";
 
 const TAKE_TTL_SECONDS = 60 * 60 * 24 * 120; // 120 days
 const MAX_TAKES_PER_USER = 400;
@@ -71,7 +75,13 @@ export function migrateTakeStatuses(take) {
   return take;
 }
 
-export function extractTakeFromResponse({ responseText, sport, intent, question }) {
+export function extractTakeFromResponse({
+  responseText,
+  sport,
+  intent,
+  question,
+  openingLineSnapshot = null,
+}) {
   let playLine = extractSectionValue(responseText, "THE PLAY");
   if (!playLine) {
     playLine = extractSectionValue(responseText, "OPENING LINE");
@@ -114,6 +124,9 @@ export function extractTakeFromResponse({ responseText, sport, intent, question 
     gradingNote: parsed ? "" : "Tracked — auto-grading is not available for this market yet.",
     createdAt: new Date().toISOString(),
     settledAt: null,
+    ...(openingLineSnapshot && typeof openingLineSnapshot === "object"
+      ? { openingLineSnapshot }
+      : {}),
   };
 }
 
@@ -153,6 +166,144 @@ export async function appendTakeForUser(email, take) {
   takes.unshift(take);
   await saveUserTakeBundle(cleanEmail, { takes: clipTakes(takes) });
   return take;
+}
+
+/**
+ * Irreversible behavioral capture: whether the user placed the bet (yes/no only).
+ * @returns {{ ok: true } | { ok: false, reason: string }}
+ */
+export async function recordTakeBetSignal(email, takeId, betYes, atIso) {
+  const cleanEmail = normalizeEmail(email);
+  const tid = String(takeId || "").trim();
+  if (!cleanEmail || !tid) return { ok: false, reason: "bad_input" };
+
+  const bundle = await getUserTakeBundle(cleanEmail);
+  const takes = Array.isArray(bundle.takes) ? [...bundle.takes] : [];
+  const idx = takes.findIndex((t) => t && t.id === tid);
+  if (idx < 0) return { ok: false, reason: "not_found" };
+
+  const row = takes[idx];
+  if (row.betSignal && typeof row.betSignal === "object" && "betYes" in row.betSignal) {
+    return { ok: false, reason: "already_recorded" };
+  }
+
+  const at = String(atIso || "").trim() || new Date().toISOString();
+  const nextRow = {
+    ...row,
+    betSignal: {
+      betYes: Boolean(betYes),
+      at,
+    },
+  };
+  if (row.estimatedEdgeMeta && typeof row.estimatedEdgeMeta === "object") {
+    nextRow.estimatedEdgeMeta = {
+      ...row.estimatedEdgeMeta,
+      userBetSignal: betYes ? "yes" : "no",
+    };
+  }
+  takes[idx] = nextRow;
+  await saveUserTakeBundle(cleanEmail, { takes: clipTakes(takes) });
+
+  try {
+    console.log(
+      JSON.stringify({
+        event: "ee_bet_signal",
+        takeId: tid,
+        userBetSignal: betYes ? "yes" : "no",
+        sport: row.estimatedEdgeMeta?.sport ?? null,
+        marketType: row.estimatedEdgeMeta?.marketType ?? null,
+        subject: row.estimatedEdgeMeta?.subject ?? null,
+        dataQuality: row.estimatedEdgeMeta?.dataQuality ?? null,
+        dataQualityReason: row.estimatedEdgeMeta?.dataQualityReason ?? null,
+        confidence: row.estimatedEdgeMeta?.confidence ?? null,
+        projectionPresent: row.estimatedEdgeMeta?.projectionPresent ?? null,
+        fairLinePresent: row.estimatedEdgeMeta?.fairLinePresent ?? null,
+        leanReadPresent: row.estimatedEdgeMeta?.leanReadPresent ?? null,
+      }),
+    );
+  } catch {
+    /* ignore log failures */
+  }
+
+  return { ok: true };
+}
+
+const EE_OUTCOME_RESULTS = new Set(["win", "loss", "push", "pass"]);
+
+/**
+ * Manual EE outcome capture (complements auto-settle for standard moneylines).
+ * @returns {{ ok: true } | { ok: false, reason: string }}
+ */
+export async function recordEstimatedEdgeOutcome(email, takeId, payload) {
+  const cleanEmail = normalizeEmail(email);
+  const tid = String(takeId || "").trim();
+  if (!cleanEmail || !tid) return { ok: false, reason: "bad_input" };
+
+  const resultRaw = String(payload?.result || "").trim().toLowerCase();
+  if (!EE_OUTCOME_RESULTS.has(resultRaw)) return { ok: false, reason: "bad_result" };
+
+  const actualLineRaw = payload?.actualLine;
+  const actualLine =
+    actualLineRaw === null || actualLineRaw === undefined || actualLineRaw === ""
+      ? null
+      : Number(actualLineRaw);
+  const notes = payload?.notes != null ? String(payload.notes).slice(0, 500) : "";
+
+  const bundle = await getUserTakeBundle(cleanEmail);
+  const takes = Array.isArray(bundle.takes) ? [...bundle.takes] : [];
+  const idx = takes.findIndex((t) => t && t.id === tid);
+  if (idx < 0) return { ok: false, reason: "not_found" };
+
+  const row = takes[idx];
+  if (!row.estimatedEdgeMeta || typeof row.estimatedEdgeMeta !== "object") {
+    return { ok: false, reason: "no_estimated_edge" };
+  }
+
+  const fairN = row.estimatedEdgeMeta.fairLineNumeric;
+  const missDistance =
+    Number.isFinite(actualLine) && fairN != null
+      ? computeMissDistance(fairN, actualLine)
+      : null;
+
+  const gradedAt = new Date().toISOString();
+  const nextMeta = {
+    ...row.estimatedEdgeMeta,
+    outcome: {
+      result: resultRaw,
+      gradedAt,
+      actualLine: Number.isFinite(actualLine) ? actualLine : null,
+      missDistance:
+        typeof missDistance === "number" && Number.isFinite(missDistance)
+          ? Number(missDistance.toFixed(4))
+          : null,
+      ...(notes ? { notes } : {}),
+    },
+  };
+
+  takes[idx] = {
+    ...row,
+    estimatedEdgeMeta: nextMeta,
+  };
+  await saveUserTakeBundle(cleanEmail, { takes: clipTakes(takes) });
+
+  try {
+    console.log(
+      JSON.stringify({
+        event: "ee_outcome_graded",
+        takeId: tid,
+        result: resultRaw,
+        sport: nextMeta.sport ?? null,
+        dataQuality: nextMeta.dataQuality ?? null,
+        userBetSignal: nextMeta.userBetSignal ?? null,
+        missDistance: nextMeta.outcome?.missDistance ?? null,
+        projectionPresent: nextMeta.projectionPresent ?? null,
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+
+  return { ok: true };
 }
 
 function etDateOffsets(days) {
@@ -477,6 +628,7 @@ export function buildPerformanceSnapshot(takes) {
     byConfidence: Object.fromEntries(
       Object.entries(byConfidence).map(([k, v]) => [k, computeBucketSummary(v)])
     ),
+    estimatedEdge: computeEstimatedEdgeDashboardStats(sortedRows),
     recent: sortedRows.slice(0, 40),
     ledgerRows: sortedRows,
     generatedAt: new Date().toISOString(),

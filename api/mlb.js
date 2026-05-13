@@ -12,6 +12,7 @@ import {
   extractProbableStartersFromEspnCompetition,
   mergeEspnProbableStartersIntoGames,
 } from "./_mlbEspnProbables.js";
+import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 
 /** MLB BDL merge here is slate/games/props/injuries — no NBA-style `/v1/stats` per-player game log sort in this route; recent pitcher/hitter logs would need the same nested-date fallback pattern as `bdlNestedGameRowDateMs` in `_balldontlie.js`. */
 
@@ -466,9 +467,9 @@ async function getMlbPropLines(oddsKey) {
     const tomorrowET = getTomorrowEtDateString();
 
     // Step 1: Get event list
-    const eventsRes = await fetch(
-      `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`
-    );
+    const mlbEventsUrl = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`;
+    const eventsRes = await fetch(mlbEventsUrl);
+    logOddsApiUsage({ label: "mlb.getMlbPropLines.events_list", url: mlbEventsUrl, response: eventsRes });
     if (!eventsRes.ok) {
       logOddsUnavailable(eventsRes.status, "mlb events");
       return [];
@@ -495,9 +496,13 @@ async function getMlbPropLines(oddsKey) {
 
     for (const event of targetEvents) {
       try {
-        const propRes = await fetch(
-          `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`
-        );
+        const mlbPropUrl = `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`;
+        const propRes = await fetch(mlbPropUrl);
+        logOddsApiUsage({
+          label: `mlb.getMlbPropLines.event_props:${event.id}`,
+          url: mlbPropUrl,
+          response: propRes,
+        });
         if (!propRes.ok) {
           logOddsUnavailable(propRes.status, "mlb props");
           continue;
@@ -552,9 +557,9 @@ async function getMlbGameTotals(oddsKey) {
 
   try {
     const todayET = getTodayEtDateString();
-    const res = await fetch(
-      `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`
-    );
+    const mlbTotalsUrl = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`;
+    const res = await fetch(mlbTotalsUrl);
+    logOddsApiUsage({ label: "mlb.getMlbGameTotals.totals_list", url: mlbTotalsUrl, response: res });
     if (!res.ok) {
       logOddsUnavailable(res.status, "mlb totals");
       return {};

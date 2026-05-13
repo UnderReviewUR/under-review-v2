@@ -1,6 +1,6 @@
 /**
  * Shared sport QA helpers and cross-sport deterministic rules.
- * @typedef {{ code: string, severity: 'critical' | 'warning', message: string, sentence: string, requiresRegeneration: boolean }} SportQaIssue
+ * @typedef {{ code: string, severity: 'critical' | 'warning', message: string, sentence: string, requiresRegeneration: boolean, confidenceDriverHints?: string[] }} SportQaIssue
  */
 
 export function splitSentences(text) {

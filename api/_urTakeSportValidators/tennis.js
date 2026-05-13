@@ -17,7 +17,8 @@ const GAMES_CTX = /\b(?:expected|length|competitive|close|straight\s+sets|form)\
  * @param {string} text
  * @returns {SportQaIssue[]}
  */
-export function lintTennisOutput(text) {
+/** @param {object} [_options] — forwarded from `runSportSpecificValidators` (e.g. `sportEvidenceLayer`) */
+export function lintTennisOutput(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;

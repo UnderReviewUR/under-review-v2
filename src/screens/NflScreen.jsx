@@ -26,9 +26,40 @@ export default function NflScreen({
   onUpgradePromptClick = null,
 }) {
   const nflQuickPrompts = getQuickPromptsForState("nfl", nflSeasonMode);
+  const urDockedChat = hasDockedBar && nflMsgs.length > 0;
+  const chatThreadProps = {
+    msgs: nflMsgs,
+    urTakeTrackPlay,
+    accessTier,
+    onUrTakeFollowUpPick,
+    onUpgradePromptClick,
+    hideFollowUpDock: true,
+  };
+  const nflBoardBelow = (
+    <>
+      <div className="section-divider">{nflSeasonMode ? "Top Weekly Leans" : "Top Future Leans"}</div>
+      <NflPropGuideSection
+        guide={NFL_PROP_GUIDE}
+        onSelectProp={(prop) =>
+          submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)
+        }
+      />
+      <div className="section-divider">Player Database</div>
+      <div className="pos-tabs">
+        {NFL_POSITIONS.map((pos) => (
+          <button key={pos} className={`pos-tab${nflPosFilter === pos ? " active" : ""}`} onClick={() => setNflPosFilter(pos)}>
+            {pos}
+          </button>
+        ))}
+      </div>
+      {filteredNflPlayers.map(([name, player]) => (
+        <NflPlayerCard key={name} name={name} player={player} onOpen={openNflPlayer} />
+      ))}
+    </>
+  );
 
   return (
-          <main ref={nflScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
+          <main ref={nflScreenRef} className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}>
             <div className="nfl-banner">
               <div className="banner-title">{nflSeasonMode?"NFL In-Season Board":"NFL Futures Board"}</div>
               <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
@@ -63,25 +94,19 @@ export default function NflScreen({
               </div>
               </div>
             )}
-            <ChatThread
-              msgs={nflMsgs}
-              urTakeTrackPlay={urTakeTrackPlay}
-              accessTier={accessTier}
-              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-              onUpgradePromptClick={onUpgradePromptClick}
-              hideFollowUpDock
-            />
-            <div className="section-divider">{nflSeasonMode?"Top Weekly Leans":"Top Future Leans"}</div>
-            <NflPropGuideSection
-              guide={NFL_PROP_GUIDE}
-              onSelectProp={(prop) =>
-                submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)
-              }
-            />
-            <div className="section-divider">Player Database</div>
-            <div className="pos-tabs">{NFL_POSITIONS.map(pos=><button key={pos} className={`pos-tab${nflPosFilter===pos?" active":""}`} onClick={()=>setNflPosFilter(pos)}>{pos}</button>)}</div>
-            {filteredNflPlayers.map(([name,player])=><NflPlayerCard key={name} name={name} player={player} onOpen={openNflPlayer} />)}
-            <div className="page-spacer"/>
+            {urDockedChat ? (
+              <div className="ur-chat-scroll">
+                <ChatThread {...chatThreadProps} variant="urChatDocked" />
+                {nflBoardBelow}
+                <div className="page-spacer" />
+              </div>
+            ) : (
+              <>
+                <ChatThread {...chatThreadProps} />
+                {nflBoardBelow}
+                <div className="page-spacer" />
+              </>
+            )}
           </main>
   );
 }

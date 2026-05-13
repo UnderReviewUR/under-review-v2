@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
 import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
 import { normalizeText } from "../../lib/normalizeText.js";
+import { polishUrTakeFollowUpPhrase } from "../../lib/polishUrTakeFollowUpPhrase.js";
 import { extractUrTakeSectionHeading, isUrTakeSectionHeading } from "../../lib/urTakeSectionHeadings.js";
 import { isSubstantiveClosing } from "../../lib/urTakeClosingSentence.js";
 import {
@@ -969,6 +970,12 @@ function mergeFollowUpChips(primary, fallback) {
   return out;
 }
 
+/** Cap and polish follow-up chip labels for dock + thread. */
+function polishFollowUpList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((t) => polishUrTakeFollowUpPhrase(String(t || "").trim())).filter(Boolean).slice(0, 3);
+}
+
 /** Prefer API followUps when present; otherwise derive three chips from answer text (parlay / O-U / slate / default). */
 export function getFollowUpSuggestions(message) {
   const apiRaw = Array.isArray(message?.followUps) ? message.followUps : [];
@@ -989,26 +996,30 @@ export function getFollowUpSuggestions(message) {
 
   let fallback;
   if (/parlay/i.test(text)) {
-    fallback = ["What breaks this parlay?", "Best single leg", "Sharpen to 2 legs"];
+    fallback = ["What breaks this parlay?", "What's the best single leg?", "Sharpen this to 2 legs."];
   } else if (/over|under/i.test(text)) {
     fallback = [
-      "Build a parlay around this",
+      "Build a parlay around this.",
       "What kills this edge?",
-      "Give me the other side",
+      "What's the other side of this?",
     ];
   } else if (/slate|top \d|best \d/i.test(text)) {
-    fallback = ["Which is the safest single bet?", "Rank these by confidence", "Build a parlay from these"];
+    fallback = [
+      "Which is the safest single bet?",
+      "Rank these by confidence.",
+      "Build a parlay from these.",
+    ];
   } else {
     fallback = [
-      "Give me a specific number to target",
+      "Give me a specific number to target.",
       "What's the strongest edge here?",
       "What kills this take?",
     ];
   }
 
-  if (api.length >= 3) return api.slice(0, 3);
-  if (api.length === 0) return fallback;
-  return mergeFollowUpChips(api, fallback);
+  if (api.length >= 3) return polishFollowUpList(api.slice(0, 3));
+  if (api.length === 0) return polishFollowUpList(fallback);
+  return polishFollowUpList(mergeFollowUpChips(api, fallback));
 }
 
 /** Last AI bubble + suggestions for docked follow-up chips (Ask + sport surfaces). */
@@ -1541,7 +1552,7 @@ function UrTakeBetSignalPrompt({ takeId, takeMeta, getTakeAuthHeaders, enabled }
   );
 }
 
-function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, onUrTakeFollowUpPick = null }) {
+function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const dockFollowUps = getFollowUpSuggestions(m);
@@ -1593,21 +1604,6 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
       : "";
 
     const s = effectiveStructured;
-    const followUpsResolved = getFollowUpSuggestions(m);
-    const followUpSourceInline =
-      Array.isArray(followUpsResolved) &&
-      followUpsResolved.length > 0 &&
-      typeof onUrTakeFollowUpPick === "function"
-        ? {
-            msgId: m.msgId,
-            followUps: followUpsResolved,
-            shownAt: m.urTakeTelemetry?.shownAt ?? Date.now(),
-            intent: String(m.urTakeTelemetry?.intent ?? ""),
-            liveMode: Boolean(m.urTakeTelemetry?.liveMode),
-            sport: String(m.sport || m.urTakeTelemetry?.sport || "generic"),
-            followUpCount: followUpsResolved.length,
-          }
-        : null;
     return (
       <>
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
@@ -1628,8 +1624,6 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
           liveScore={String(m.liveScore || "").trim()}
           estimatedEdge={m.estimatedEdge}
           takeMeta={m.takeMeta}
-          followUpSource={followUpSourceInline}
-          onFollowUpPick={onUrTakeFollowUpPick}
         />
         {trustChips}
         {betSignalRow}
@@ -1860,6 +1854,8 @@ export function ChatThread({
   const getTakeAuthHeaders = useTakeAuthHeaders();
   const chatThreadRef = useRef(null);
   const bottomAnchorRef = useRef(null);
+  const dockScrollAnchorRef = useRef(null);
+  const prevDockScrollSigRef = useRef("");
   /** Skip first effect — no auto-scroll on initial mount / restored thread. */
   const skipInitialScrollRef = useRef(true);
   const prevScrollSigRef = useRef("");
@@ -1873,7 +1869,33 @@ export function ChatThread({
     });
   }, []);
 
+  useLayoutEffect(() => {
+    if (variant !== "urChatDocked") {
+      prevDockScrollSigRef.current = "";
+      return;
+    }
+    if (!msgs?.length) {
+      prevDockScrollSigRef.current = "";
+      return;
+    }
+    const last = msgs[msgs.length - 1];
+    const sig = `${msgs.length}:${last?.loading ? "L" : "R"}:${last?.msgId || ""}`;
+    if (sig === prevDockScrollSigRef.current) return;
+    prevDockScrollSigRef.current = sig;
+
+    requestAnimationFrame(() => {
+      const node = dockScrollAnchorRef.current;
+      if (!node) return;
+      if (last?.loading) {
+        node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      } else if (last?.role === "ai" && !last?.loading) {
+        node.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+      }
+    });
+  }, [msgs, variant]);
+
   useEffect(() => {
+    if (variant === "urChatDocked") return;
     if (!msgs?.length) return;
     const last = msgs[msgs.length - 1];
     const streaming = Boolean(last?.loading);
@@ -1882,12 +1904,6 @@ export function ChatThread({
     const scrollBottom = () => {
       bumpScrollToBottom();
     };
-
-    if (variant === "urChatDocked") {
-      prevScrollSigRef.current = sig;
-      scrollBottom();
-      return;
-    }
 
     if (skipInitialScrollRef.current) {
       skipInitialScrollRef.current = false;
@@ -1910,7 +1926,9 @@ export function ChatThread({
   }
 
   const followUpDockSource =
-    !hideFollowUpDock && typeof onUrTakeFollowUpPick === "function"
+    !hideFollowUpDock &&
+    variant !== "urChatDocked" &&
+    typeof onUrTakeFollowUpPick === "function"
       ? getLastAiFollowUpDockSource(msgs)
       : null;
 
@@ -1964,9 +1982,14 @@ export function ChatThread({
           if (!docked) {
             return <LoadingBubble key={rowKey(m, i)} sport={m.sport} variant="default" />;
           }
+          const anchorLast = docked && i === msgs.length - 1;
           return (
-            <div key={rowKey(m, i)} className="ur-imessage-assistant-row">
-              <LoadingBubble sport={m.sport} variant={variant} onLayoutTick={bumpScrollToBottom} />
+            <div
+              key={rowKey(m, i)}
+              ref={anchorLast ? dockScrollAnchorRef : undefined}
+              className="ur-imessage-assistant-row"
+            >
+              <LoadingBubble sport={m.sport} variant={variant} />
             </div>
           );
         }
@@ -1980,7 +2003,6 @@ export function ChatThread({
                 [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
               )}
               getTakeAuthHeaders={getTakeAuthHeaders}
-              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
             />
           ) : (
             <>
@@ -1989,7 +2011,7 @@ export function ChatThread({
             </>
           );
 
-        if (docked && m.role === "user") {
+        if (m.role === "user") {
           return (
             <div key={rowKey(m, i)} className="ur-imessage-user-row">
               <div className="bubble user bubble--imessage-user" data-role="user">
@@ -1999,8 +2021,13 @@ export function ChatThread({
           );
         }
         if (docked && m.role === "ai") {
+          const anchorLast = i === msgs.length - 1;
           return (
-            <div key={rowKey(m, i)} className="ur-imessage-assistant-row">
+            <div
+              key={rowKey(m, i)}
+              ref={anchorLast ? dockScrollAnchorRef : undefined}
+              className="ur-imessage-assistant-row"
+            >
               <div className="bubble ai bubble--imessage-ai" data-role="assistant">
                 {bubbleInner}
               </div>
@@ -2009,11 +2036,7 @@ export function ChatThread({
         }
 
         return (
-          <div
-            key={rowKey(m, i)}
-            className={`bubble ${m.role}`}
-            {...(m.role === "ai" ? { "data-role": "assistant" } : { "data-role": "user" })}
-          >
+          <div key={rowKey(m, i)} className="bubble ai" data-role="assistant">
             {bubbleInner}
           </div>
         );

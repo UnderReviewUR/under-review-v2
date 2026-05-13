@@ -3,7 +3,7 @@ import { useCallback } from "react";
 const TAKE_SKEW_MS = 45_000;
 
 /**
- * Headers for `/api/ur-take` and `/api/performance`:
+ * Headers for `/api/ur-take`, `/api/performance`, `/api/take-bet-signal`, and `/api/estimated-edge-outcome`:
  * prefers `ur_access_token`, else short-lived `issue_take_token` session token.
  */
 export function useTakeAuthHeaders() {

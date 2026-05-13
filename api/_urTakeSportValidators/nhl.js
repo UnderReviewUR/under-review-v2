@@ -17,7 +17,8 @@ const G_CTX = /\b(?:shot\s+volume|expected\s+shots|offensive\s+pace|shots\s+agai
  * @param {string} text
  * @returns {SportQaIssue[]}
  */
-export function lintNhlOutput(text) {
+/** @param {object} [_options] — forwarded from `runSportSpecificValidators` (e.g. `sportEvidenceLayer`) */
+export function lintNhlOutput(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;

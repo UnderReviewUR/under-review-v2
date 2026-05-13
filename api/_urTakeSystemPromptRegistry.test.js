@@ -6,6 +6,7 @@ import {
   buildLiveModeVoicePrompt,
   buildNbaBdlAvailabilityGroundingPrompt,
   buildTakeTrustUiMetadata,
+  mergeTrustWithQaHints,
   composeRegisteredUrTakeSystemPrompt,
   detectParlayIntent,
   resolveEvidenceSparsityProfile,
@@ -291,6 +292,32 @@ test("buildTakeTrustUiMetadata encodes P-PR3 tier from sparsity profile", () => 
   assert.equal(t.thinEvidence, true);
   assert.equal(t.sportHint, "mlb");
   assert.equal(t.version, 1);
+});
+
+test("buildTakeTrustUiMetadata passes through confidenceDrivers and claimEvidenceFlags", () => {
+  const t = buildTakeTrustUiMetadata({
+    contextQuality: "high",
+    evidenceSparsityProfile: { sparseQuestion: false, thinEvidence: false },
+    sportHint: "tennis",
+    confidenceDrivers: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"],
+    claimEvidenceFlags: { lineMovementEvidence: false, foo: true },
+  });
+  assert.equal(t.confidenceDrivers.length, 12);
+  assert.equal(t.claimEvidenceFlags.lineMovementEvidence, false);
+  assert.equal(t.claimEvidenceFlags.foo, true);
+});
+
+test("mergeTrustWithQaHints dedupes and caps driver list", () => {
+  const t = buildTakeTrustUiMetadata({
+    contextQuality: "high",
+    evidenceSparsityProfile: { sparseQuestion: false, thinEvidence: false },
+    sportHint: "nba",
+    confidenceDrivers: ["Payload/context quality: high"],
+  });
+  const m = mergeTrustWithQaHints(t, ["Limited matchup evidence", "Limited matchup evidence", "x"]);
+  assert.ok(m.confidenceDrivers.includes("Limited matchup evidence"));
+  assert.ok(m.confidenceDrivers.includes("Payload/context quality: high"));
+  assert.ok(m.confidenceDrivers.length <= 16);
 });
 
 test("buildBettingStyleAppendix('limits') contains PUSH THE LIMITS", () => {

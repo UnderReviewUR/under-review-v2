@@ -8,7 +8,6 @@ import {
   inferMarketPill,
   pickSharpBriefHeadline,
 } from "../lib/urTakeSharpBriefUi.js";
-import UrTakeDockedFollowUps from "./UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 
 function formatTimestamp(ts) {
@@ -75,8 +74,6 @@ export default function URTakeResponse({
   liveScore,
   estimatedEdge,
   takeMeta = null,
-  followUpSource = null,
-  onFollowUpPick = null,
 }) {
   const bodyWrapRef = useRef(null);
   const [bodyExpandable, setBodyExpandable] = useState(false);
@@ -257,12 +254,6 @@ export default function URTakeResponse({
               <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(parlayLegs, parlayTotalOdds)}</div>
             </div>
           ) : null}
-        </div>
-      ) : null}
-
-      {followUpSource?.followUps?.length > 0 && typeof onFollowUpPick === "function" ? (
-        <div className="ur-v2-inline-followups">
-          <UrTakeDockedFollowUps source={followUpSource} onPick={onFollowUpPick} />
         </div>
       ) : null}
 

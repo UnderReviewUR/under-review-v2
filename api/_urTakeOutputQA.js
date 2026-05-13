@@ -274,16 +274,67 @@ function rosterCoherenceFlag(text, ctx) {
   return { invalid: false };
 }
 
+function collectEvidenceDriverHintsFromSportIssues(sportIssues) {
+  if (!Array.isArray(sportIssues)) return [];
+  const out = [];
+  for (const si of sportIssues) {
+    if (si && Array.isArray(si.confidenceDriverHints)) out.push(...si.confidenceDriverHints);
+  }
+  return [...new Set(out.map((s) => String(s || "").trim()).filter(Boolean))];
+}
+
+/**
+ * Deterministic cap when QA flagged soft matchup hedge — no model call.
+ * @param {string} text
+ * @returns {{ text: string, modified: boolean }}
+ */
+export function downgradeHighConfidenceMarkersInText(text) {
+  let t = String(text || "");
+  let modified = false;
+  const pairs = [
+    [/\bHigh\s+confidence\b/gi, "Medium confidence"],
+    [/\*\*CONFIDENCE\*\*\s*:\s*High\b/gi, "**CONFIDENCE**: Medium"],
+    [/\bCONFIDENCE\s*:\s*High\b/gi, "CONFIDENCE: Medium"],
+  ];
+  for (const [re, rep] of pairs) {
+    if (re.test(t)) {
+      t = t.replace(re, rep);
+      modified = true;
+    }
+  }
+  return { text: t, modified };
+}
+
+/**
+ * @param {string} text
+ * @returns {{ text: string, modified: boolean }}
+ */
+export function tryDowngradeStructuredConfidenceHighToMedium(text) {
+  const t0 = String(text || "").trim();
+  if (!t0.startsWith("{")) return { text: t0, modified: false };
+  try {
+    const o = JSON.parse(t0);
+    if (o && typeof o === "object" && o.confidence === "High") {
+      o.confidence = "Medium";
+      return { text: JSON.stringify(o), modified: true };
+    }
+  } catch {
+    return { text: t0, modified: false };
+  }
+  return { text: t0, modified: false };
+}
+
 /**
  * @typedef {object} UrTakeQaLintResult
  * @property {string[]} issueCodes
  * @property {string[]} criticalRegenerationCodes
  * @property {number} score
- * @property {{ logic: number, probability: number, risk: number }} components
+ * @property {{ logic: number, probability: number, risk: number, overconfidence: number }} components
  * @property {boolean} shouldRegenerate
  * @property {boolean} applySafeFallbackPrefix
- * @property {Array<{ code: string, severity: string, message: string, sentence: string, requiresRegeneration: boolean }>} [sportIssues]
+ * @property {Array<{ code: string, severity: string, message: string, sentence: string, requiresRegeneration: boolean, confidenceDriverHints?: string[] }>} [sportIssues]
  * @property {Array<{ ruleCode: string, player?: string, expectedTeam?: string, mentionedTeam?: string, expectedStatus?: string, mentionedStatus?: string }>} [groundingEvents]
+ * @property {string[]} [qaEvidenceDriverHints] — merged into client trust when present (soft matchup cap)
  */
 
 /**
@@ -299,6 +350,8 @@ function rosterCoherenceFlag(text, ctx) {
  * @param {boolean} [options.liveMode]
  * @param {string} [options.question]
  * @param {boolean} [options.slateWidePropQuestion]
+ * @param {import("./_urTakeSportEvidence.js").SportEvidenceLayer|null|undefined} [options.sportEvidenceLayer] — forwarded to sport validators (claim caps + thin confidence)
+ * @param {import("./_urTakeSportEvidence.js").UnsupportedClaimFlags} [options.unsupportedClaimFlags] — merged with layer flags in `runSportSpecificValidators` when layer omitted
  * @returns {UrTakeQaLintResult}
  */
 export function lintUrTakeOutput(text, options = {}) {
@@ -311,11 +364,12 @@ export function lintUrTakeOutput(text, options = {}) {
       issueCodes: ["empty_output"],
       criticalRegenerationCodes: ["empty_output"],
       score: -4,
-      components: { logic: 0, probability: 0, risk: 0 },
+      components: { logic: 0, probability: 0, risk: 0, overconfidence: 0 },
       shouldRegenerate: true,
       applySafeFallbackPrefix: true,
       sportIssues: [],
       groundingEvents: [],
+      qaEvidenceDriverHints: [],
     };
   }
 
@@ -324,6 +378,8 @@ export function lintUrTakeOutput(text, options = {}) {
   if (biIssues.includes("invalid_stat_term_logic")) {
     issues.push("invalid_stat_term_logic");
   }
+
+  /* Claim caps from VERIFIED_SNAPSHOT / CLAIM_FLAGS run in `runSportSpecificValidators` via `_evidenceEnforcement.js`. */
 
   if (anySentenceFailsDdTd(raw)) {
     issues.push("stat_logic_error_remaining");
@@ -404,6 +460,7 @@ export function lintUrTakeOutput(text, options = {}) {
   for (const si of sportIssues) {
     if (!issues.includes(si.code)) issues.push(si.code);
   }
+  const qaEvidenceDriverHints = collectEvidenceDriverHintsFromSportIssues(sportIssues);
 
   if (/\bprojection invalid\b/i.test(raw)) {
     issues.push("robotic_projection_invalid_phrase");
@@ -470,6 +527,15 @@ export function lintUrTakeOutput(text, options = {}) {
     "roster_coherence_violation",
     "nba_grounding_player_off_matchup",
     "nba_grounding_injury_contradiction",
+    "unsupported_line_movement_claim",
+    "unsupported_weather_claim",
+    "unsupported_injury_certainty",
+    "unsupported_scheme_claim",
+    "unsupported_course_fit_claim",
+    "unsupported_surface_dominance_claim",
+    "unsupported_f1_session_claim",
+    "evidence_thin_high_confidence_cap",
+    "unsupported_matchup_specificity",
   ]);
   const MISLEADING_OR_FACT_CRITICAL = new Set([
     ...FACT_LOGIC_CODES,
@@ -547,6 +613,7 @@ export function lintUrTakeOutput(text, options = {}) {
     applySafeFallbackPrefix: shouldRegenerate,
     sportIssues,
     groundingEvents,
+    qaEvidenceDriverHints,
   };
 }
 
@@ -572,6 +639,16 @@ export function runUnderReviewPostProcess(text, options = {}) {
 
   let outText = bi.text;
   let modified = bi.modified;
+
+  const hints = lint.qaEvidenceDriverHints || [];
+  if (hints.length > 0 && !lint.shouldRegenerate) {
+    const d1 = downgradeHighConfidenceMarkersInText(outText);
+    outText = d1.text;
+    modified = modified || d1.modified;
+    const d2 = tryDowngradeStructuredConfidenceHighToMedium(outText);
+    outText = d2.text;
+    modified = modified || d2.modified;
+  }
 
   if (
     lint.shouldRegenerate &&
@@ -608,6 +685,8 @@ export function runUnderReviewPostProcess(text, options = {}) {
     sportCriticalFromLint: (lint.sportIssues || []).filter((i) => i.requiresRegeneration).length,
     nbaGroundingEventCount: lint.groundingEvents?.length ?? 0,
     nbaInventedPlayerShadowCount,
+    qaEvidenceDriverHints: lint.qaEvidenceDriverHints || [],
+    evidenceClaimFlags: options.unsupportedClaimFlags || options.sportEvidenceLayer?.unsupportedClaimFlags || null,
   };
 
   const allIssues = [...new Set([...bi.issues, ...lint.issueCodes])];

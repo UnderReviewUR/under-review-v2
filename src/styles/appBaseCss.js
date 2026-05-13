@@ -237,6 +237,20 @@ export const baseCss = `
     padding-left:16px;
     padding-right:16px;
   }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > *:first-child{
+    flex-shrink:0;
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .nba-banner,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .golf-banner,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .nfl-banner,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .f1-banner,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .tour-banner,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .sport-board-header{
+    margin-left:16px;
+    margin-right:16px;
+    width:auto;
+    box-sizing:border-box;
+  }
   .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll{
     flex:1;
     min-height:0;
@@ -245,13 +259,19 @@ export const baseCss = `
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
-    padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 120px + env(safe-area-inset-bottom));
+    padding-left:16px;
+    padding-right:16px;
+    padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 232px + env(safe-area-inset-bottom));
+    scroll-padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 232px + env(safe-area-inset-bottom));
   }
-  .app.has-docked main.screen.screen--ur-chat.has-msgs .chat-thread--ur-chat-dock{
-    flex:1 1 auto;
+  /* Thread must size to its content so .ur-chat-scroll gains scrollHeight; avoid flex:1 + min-height:100% swallowing overflow */
+  .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll .chat-thread.chat-thread--ur-chat-dock{
+    flex:0 0 auto;
+    align-self:stretch;
+    width:100%;
+    min-height:0;
     margin-top:0;
     margin-bottom:0;
-    min-height:100%;
   }
   .docked-bar,.docked-bar.ur-docked-bar{
     position:fixed;
@@ -282,18 +302,18 @@ export const baseCss = `
     display:flex;
     flex-direction:column;
     align-items:stretch;
-    gap:0;
+    gap:2px;
     border-top:none;
     background:#080808;
     box-shadow:none;
     backdrop-filter:none;
     -webkit-backdrop-filter:none;
   }
-  .docked-interaction-zone .docked-bar-label{margin:0;opacity:0.85;padding:4px 16px 0;}
+  .docked-interaction-zone .docked-bar-label{margin:0;opacity:0.85;padding:6px 16px 0;}
   .docked-interaction-zone .ur-docked-follow-ups{
     width:100%;
     max-width:none;
-    padding:8px 16px 0;
+    padding:4px 16px 2px;
     margin:0;
     gap:8px;
     max-height:none;
@@ -313,14 +333,14 @@ export const baseCss = `
     width:100%;
     box-sizing:border-box;
   }
-  .docked-interaction-zone .ask-wrap{margin:0;}
-  /* Docked UR row: [clip 32][input flex:1 @ 32][send 32] — see AskBar.jsx */
+  .docked-interaction-zone .ask-wrap{margin:0;padding:0 0 6px;}
+  /* Docked UR row — taller tap-friendly bar (see AskBar.jsx) */
   .docked-bar .ask-wrap--docked-gradient .ask-row--docked-triple,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-row--docked-triple{
     align-items:center;
-    gap:8px;
-    min-height:44px;
-    padding:6px 12px;
+    gap:10px;
+    min-height:56px;
+    padding:10px 14px 8px;
     box-sizing:border-box;
   }
   .docked-bar .ask-wrap--docked-gradient .ur-dock-input-mid,
@@ -348,8 +368,7 @@ export const baseCss = `
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-gradient-frame{
     box-sizing:border-box;
     border:1.5px solid transparent;
-    border-radius:20px;
-    background-color:transparent;
+    border-radius:24px;
     background-image:linear-gradient(#111,#111),linear-gradient(90deg,#00F5E9,#FF2D6B);
     background-origin:border-box;
     background-clip:padding-box,border-box;
@@ -358,9 +377,25 @@ export const baseCss = `
     flex:1;
     min-width:0;
     width:100%;
-    height:32px;
+    min-height:48px;
+    height:48px;
     display:flex;
     align-items:stretch;
+    transition:min-height 0.16s ease,height 0.16s ease,border-radius 0.16s ease;
+  }
+  .docked-bar .ask-wrap--docked-gradient:focus-within .ask-bar-gradient-frame,
+  .docked-interaction-zone .ask-wrap--docked-gradient:focus-within .ask-bar-gradient-frame{
+    min-height:50px;
+    height:50px;
+    border-radius:25px;
+  }
+  .docked-bar .ask-wrap--docked-gradient:focus-within .ask-row--docked-triple,
+  .docked-interaction-zone .ask-wrap--docked-gradient:focus-within .ask-row--docked-triple{
+    min-height:58px;
+  }
+  .docked-bar .ask-wrap--docked-gradient:focus-within .ask-bar-docked-inner,
+  .docked-interaction-zone .ask-wrap--docked-gradient:focus-within .ask-bar-docked-inner{
+    border-radius:23px;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner{
@@ -370,7 +405,7 @@ export const baseCss = `
     display:flex;
     flex-direction:column;
     background:transparent;
-    border-radius:17px;
+    border-radius:22px;
     overflow:hidden;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-input-slot,
@@ -383,7 +418,7 @@ export const baseCss = `
   .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill{
     flex:1;
-    min-height:0;
+    min-height:44px;
     width:100%;
     margin:0;
     box-sizing:border-box;
@@ -392,8 +427,8 @@ export const baseCss = `
     border:none;
     color:rgba(255,255,255,.92);
     font-size:16px;
-    line-height:1.2;
-    padding:0 10px;
+    line-height:1.35;
+    padding:0 14px;
     outline:none;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder,
@@ -411,9 +446,9 @@ export const baseCss = `
   .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach,
   .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach{
     display:flex;
-    width:32px;
-    height:32px;
-    min-width:32px;
+    width:44px;
+    height:44px;
+    min-width:44px;
     flex-shrink:0;
     box-sizing:border-box;
     align-items:center;
@@ -432,9 +467,9 @@ export const baseCss = `
   .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send,
   .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-send{
     display:flex;
-    width:32px;
-    height:32px;
-    min-width:32px;
+    width:44px;
+    height:44px;
+    min-width:44px;
     flex-shrink:0;
     box-sizing:border-box;
     align-items:center;
@@ -929,19 +964,38 @@ export const baseCss = `
   }
   button.ur-free-limit-chip-unlock:hover{opacity:0.92;}
   .ur-docked-follow-ups{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 8px;width:100%;max-width:none;max-height:none;overflow:visible;-webkit-overflow-scrolling:touch;}
-  button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:12px;line-height:1.25;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.82);transition:opacity .15s;}
+  button.ur-take-follow-up-pill{border:none;cursor:pointer;font-family:var(--body-font);font-size:13px;line-height:1.35;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.88);transition:opacity .15s;}
   button.ur-take-follow-up-pill:active{opacity:0.82;}
 
   .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:8px;flex:1;min-height:0;}
   .chat-thread--ur-chat-dock{gap:10px;}
   .ur-chat-thread-anchor{height:1px;width:100%;flex-shrink:0;margin:0;padding:0;pointer-events:none;overflow:hidden;opacity:0;}
-  .ur-imessage-user-row{display:flex;width:100%;justify-content:flex-end;align-items:flex-end;padding:0;margin:0;box-sizing:border-box;}
+  .ur-imessage-user-row{display:flex;width:100%;justify-content:flex-end;align-items:center;padding:0;margin:0;box-sizing:border-box;}
   .ur-imessage-user-row .bubble--imessage-user{max-width:75%;margin-right:16px;margin-left:0;width:auto;background:#1a1a1a;border:none;border-radius:18px 18px 4px 18px;color:#fff;font-size:15px;line-height:1.45;padding:10px 14px;box-shadow:none;}
   .ur-imessage-assistant-row{width:100%;margin:0;padding:0;box-sizing:border-box;display:flex;justify-content:flex-start;}
   .ur-imessage-assistant-row .bubble--imessage-ai{width:100%;max-width:none;margin:0;padding:0;background:transparent;border:none;box-shadow:none;border-radius:0;}
   .bubble{border-radius:18px;padding:13px 14px;font-size:14px;line-height:1.65;overflow-wrap:break-word;word-break:break-word;}
   .ur-take-structured,.ur-take-response{overflow-wrap:break-word;word-break:break-word;}
   .bubble.user{margin-left:0;margin-right:0;max-width:none;width:100%;background:#1E2B38;border:1px solid rgba(8,145,178,0.45);color:#E8EAF0;border-bottom-right-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,0.18);box-sizing:border-box;}
+  /* App-class prefix beats theme .bubble.user rules (theme CSS is appended after baseCss). */
+  .app .ur-imessage-user-row .bubble.user.bubble--imessage-user{
+    box-sizing:border-box;
+    display:block;
+    max-width:75%;
+    width:fit-content;
+    margin-left:auto;
+    margin-right:0;
+    align-self:center;
+    background:#1a1a1a;
+    border:none;
+    border-radius:18px 18px 4px 18px;
+    color:#fff;
+    box-shadow:none;
+    padding:10px 14px;
+    font-size:15px;
+    line-height:1.45;
+    text-align:left;
+  }
   .bubble.ai{margin-left:0;margin-right:0;max-width:none;width:100%;background:var(--surface);border:1px solid var(--border);color:var(--soft);border-bottom-left-radius:6px;box-sizing:border-box;}
   .bubble.ai:has(.ur-take-structured){max-width:none;width:100%;margin-left:0;margin-right:0;padding:0;background:transparent;border:none;box-shadow:none;}
   .bubble.ai:has(.ur-take-structured) .ur-take-structured{margin-top:0;}
@@ -1198,8 +1252,6 @@ export const baseCss = `
   .ur-v2-parlay-combined{margin-top:10px;}
   .ur-v2-parlay-combined-label{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.4);}
   .ur-v2-parlay-explainer{font-size:11px;color:rgba(255,255,255,.48);margin-top:6px;line-height:1.45;}
-  .ur-v2-inline-followups{margin-top:0;padding:8px 16px 0;}
-  .ur-v2-inline-followups .ur-docked-follow-ups{padding:0;}
   .ur-v2-footer-row{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 12px;border-top:none;}
   .ur-v2-ts{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.22);}
   .bottom-nav .nav-btn.active{color:#FFD700;}

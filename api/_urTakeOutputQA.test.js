@@ -9,6 +9,7 @@ import {
   qaLiveFollowUps,
   LIVE_FOLLOW_UP_FALLBACK,
 } from "./_urTakeOutputQA.js";
+import { buildDefaultUnsupportedClaimFlags } from "./_urTakeSportEvidence.js";
 
 test("QA: bad double-double wording fails stat logic after deterministic rewrite path", () => {
   const raw =
@@ -265,4 +266,14 @@ test("QA live follow-ups: fallback when too few valid remain", () => {
   ]);
   assert.equal(r.usedFallback, true);
   assert.deepEqual(r.followUps, [...LIVE_FOLLOW_UP_FALLBACK]);
+});
+
+test("QA: soft matchup hedge triggers driver hints and downgrades High confidence", () => {
+  const flags = buildDefaultUnsupportedClaimFlags();
+  const raw =
+    "High confidence. The defense tends to get exposed in isolation when they switch everything.";
+  const post = runUnderReviewPostProcess(raw, { sport: "nba", unsupportedClaimFlags: flags });
+  assert.ok((post.qa.qaEvidenceDriverHints || []).length > 0);
+  assert.ok(/Medium confidence/i.test(post.text));
+  assert.equal(post.qa.shouldRegenerate, false);
 });

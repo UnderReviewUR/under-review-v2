@@ -53,13 +53,72 @@ function pickSummaryLine(take) {
   return q ? q.slice(0, 35) : "—";
 }
 
+function formatPct01(n) {
+  if (n == null || !Number.isFinite(Number(n))) return "—";
+  return `${Math.round(Number(n) * 100)}%`;
+}
+
+function formatNum(n, digits = 2) {
+  if (n == null || !Number.isFinite(Number(n))) return "—";
+  return Number(n).toFixed(digits);
+}
+
 function downloadLedgerCsv(rows) {
   const list = Array.isArray(rows) ? rows : [];
-  const headers = ["createdAt", "sport", "playLine", "confidence", "status", "result"];
+  const headers = [
+    "createdAt",
+    "sport",
+    "playLine",
+    "confidence",
+    "status",
+    "result",
+    "eeSport",
+    "eeMarketType",
+    "eeSubject",
+    "eeDataQuality",
+    "eeConfidence",
+    "eeProjectionPresent",
+    "eeFairLinePresent",
+    "eeLeanReadPresent",
+    "eeUserBetSignal",
+    "eeGradedResult",
+    "eeGradedAt",
+    "eeMissDistance",
+  ];
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = [
     headers.join(","),
-    ...list.map((r) => headers.map((h) => esc(r[h])).join(",")),
+    ...list.map((r) => {
+      const m = r.estimatedEdgeMeta;
+      const o = m?.outcome;
+      const flat = {
+        createdAt: r.createdAt,
+        sport: r.sport,
+        playLine: r.playLine,
+        confidence: r.confidence,
+        status: r.status,
+        result: r.result,
+        eeSport: m?.sport ?? "",
+        eeMarketType: m?.marketType ?? "",
+        eeSubject: m?.subject ?? "",
+        eeDataQuality: m?.dataQuality ?? "",
+        eeConfidence: m?.confidence ?? "",
+        eeProjectionPresent: m?.projectionPresent === true ? "yes" : m?.projectionPresent === false ? "no" : "",
+        eeFairLinePresent: m?.fairLinePresent === true ? "yes" : m?.fairLinePresent === false ? "no" : "",
+        eeLeanReadPresent: m?.leanReadPresent === true ? "yes" : m?.leanReadPresent === false ? "no" : "",
+        eeUserBetSignal:
+          m?.userBetSignal ??
+          (r.betSignal && typeof r.betSignal === "object" && "betYes" in r.betSignal
+            ? r.betSignal.betYes
+              ? "yes"
+              : "no"
+            : ""),
+        eeGradedResult: o?.result ?? "",
+        eeGradedAt: o?.gradedAt ?? "",
+        eeMissDistance: o?.missDistance != null ? String(o.missDistance) : "",
+      };
+      return headers.map((h) => esc(flat[h])).join(",");
+    }),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
@@ -174,6 +233,11 @@ export default function UrTakeProLedgerDashboard({
 
   const ledgerRows = performanceData.ledgerRows || performanceData.recent || [];
 
+  const ee = performanceData.estimatedEdge;
+  const eeSportEntries =
+    ee && ee.bySport ? Object.entries(ee.bySport).sort((a, b) => b[1] - a[1]) : [];
+  const eeDqOrder = ["strong", "usable", "thin", "unknown"];
+
   return (
     <div className="ur-record-dashboard-wrap">
       <div className="ur-record-dashboard-head">
@@ -234,6 +298,63 @@ export default function UrTakeProLedgerDashboard({
         <>
           <div className="ur-record-section-label">By sport</div>
           {sportBlocks}
+        </>
+      ) : null}
+
+      {ee && ee.eeTakeCount > 0 ? (
+        <>
+          <div className="ur-record-section-label">Estimated Edge (odds-off)</div>
+          <p className="ur-record-muted" style={{ margin: "0 0 8px" }}>
+            {ee.eeTakeCount} EE take{ee.eeTakeCount === 1 ? "" : "s"} — bet signal rate (answered):{" "}
+            {formatPct01(ee.overallBetYesRateAmongAnswered)}
+            {ee.thinHeuristic?.thinTakes > 0 ? (
+              <>
+                {" "}
+                · thin pass-like (heuristic): {formatPct01(ee.thinHeuristic.thinPassLikeRate)} (
+                {ee.thinHeuristic.thinPassLikeCount}/{ee.thinHeuristic.thinTakes})
+              </>
+            ) : null}
+          </p>
+          {eeSportEntries.length > 0 ? (
+            <>
+              <div className="ur-record-muted" style={{ fontSize: "12px", marginBottom: "4px" }}>
+                EE takes by sport
+              </div>
+              {eeSportEntries.map(([k, n]) => (
+                <div key={k} className="ur-record-data-row">
+                  <span>{sportDisplayLabel(k)}</span>
+                  <span className="ur-record-mono">{n}</span>
+                  <span />
+                  <span />
+                </div>
+              ))}
+            </>
+          ) : null}
+          <div className="ur-record-muted" style={{ fontSize: "12px", margin: "10px 0 4px" }}>
+            By data quality (EE)
+          </div>
+          {eeDqOrder.map((dq) => {
+            const row = ee.byDataQuality?.[dq];
+            if (!row || !row.takes) return null;
+            const wl = `${row.win}-${row.loss}-${row.pushes}${row.pass ? `-${row.pass}p` : ""}`;
+            return (
+              <div key={dq} className="ur-record-data-row">
+                <span style={{ textTransform: "capitalize" }}>{dq}</span>
+                <span className="ur-record-mono" title="takes">
+                  n={row.takes}
+                </span>
+                <span className="ur-record-mono" title="bet yes among answered">
+                  bet {formatPct01(row.betYesRateAmongAnswered)}
+                </span>
+                <span className="ur-record-mono" title="graded EE outcomes">
+                  gr {row.graded} {row.graded ? `· ${wl}` : ""}
+                </span>
+                <span className="ur-record-mono" title="avg miss when line vs actual captured">
+                  miss {formatNum(row.avgMissDistanceWhenProjectionPresent)}
+                </span>
+              </div>
+            );
+          })}
         </>
       ) : null}
 

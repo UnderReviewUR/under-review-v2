@@ -13,6 +13,7 @@ import {
 } from "../shared/nbaUrTakeSlim.js";
 import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
+import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -423,6 +424,7 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
   try {
     const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${oddsKey}&daysFrom=2`;
     const res = await fetch(url);
+    logOddsApiUsage({ label: "nba.getTodaysGamesFromOddsApi.scores", url, response: res });
     if (!res.ok) {
       logOddsUnavailable(res.status, "nba scores");
       return [];
@@ -474,9 +476,13 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
 
     if (games.length === 0) {
       try {
-        const oddsRes = await fetch(
-          `https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`,
-        );
+        const oddsListUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`;
+        const oddsRes = await fetch(oddsListUrl);
+        logOddsApiUsage({
+          label: "nba.getTodaysGamesFromOddsApi.odds_list_fallback",
+          url: oddsListUrl,
+          response: oddsRes,
+        });
         if (oddsRes.ok) {
           const oddsData = await oddsRes.json();
           if (Array.isArray(oddsData)) {
@@ -718,9 +724,9 @@ async function getNbaPropLines(oddsKey, options = {}) {
   if (cached) return cached;
 
   try {
-    const eventsRes = await fetch(
-      `https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`,
-    );
+    const nbaEventsListUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/odds/?apiKey=${oddsKey}&regions=us&markets=h2h&oddsFormat=american`;
+    const eventsRes = await fetch(nbaEventsListUrl);
+    logOddsApiUsage({ label: "nba.getNbaPropLines.events_list", url: nbaEventsListUrl, response: eventsRes });
     const eventsFetchOk = eventsRes.ok;
     const eventsFetchStatus = eventsRes.status;
 
@@ -825,9 +831,13 @@ async function getNbaPropLines(oddsKey, options = {}) {
 
     for (const event of targetEvents) {
       try {
-        const propRes = await fetch(
-          `https://api.the-odds-api.com/v4/sports/basketball_nba/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`,
-        );
+        const propUrl = `https://api.the-odds-api.com/v4/sports/basketball_nba/events/${event.id}/odds?apiKey=${oddsKey}&regions=us&markets=${propMarkets}&oddsFormat=american`;
+        const propRes = await fetch(propUrl);
+        logOddsApiUsage({
+          label: `nba.getNbaPropLines.event_props:${event.id}`,
+          url: propUrl,
+          response: propRes,
+        });
         const propData = propRes.ok ? await propRes.json() : {};
         const bookmakers = propData.bookmakers || [];
         const preferred =

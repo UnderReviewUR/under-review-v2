@@ -28,45 +28,21 @@ export default function MlbScreen({
         : [];
   const mlbQuickPrompts = getQuickPromptsForState("mlb", deriveDominantGameState(gamesForState));
 
-  return (
-          <main ref={mlbScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
-              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
-              <div style={{fontSize:12,color:"var(--soft)"}}>
-                {mlbLoading ? "Loading..." : mlbGames.length > 0 ? `${mlbGames.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
-              </div>
-            </div>
-
-            {mlbMsgs.length===0&&(
-              <div style={{background:"var(--surface)",border:"1px solid rgba(29,185,84,.2)",borderRadius:14,padding:14,marginBottom:16}} ref={mlbBarRef}>
-                <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"#1DB954",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything -- MLB</div>
-                <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="#1DB954" {...askBarCommon}/>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
-                  {(mlbQuickPrompts.length ? mlbQuickPrompts : [
-                    "Best pitcher K prop?",
-                    "Best batter hits prop?",
-                    "Best game total?",
-                    "Best home run prop?",
-                  ]).map((q) => (
-                    <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <ChatThread
-              msgs={mlbMsgs}
-              urTakeTrackPlay={urTakeTrackPlay}
-              accessTier={accessTier}
-              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-              onUpgradePromptClick={onUpgradePromptClick}
-              hideFollowUpDock
-            />
-
-            {mlbLoading && mlbGames.length === 0 ? (
-              <div className="loading-state"><div className="loading-text">LOADING MLB DATA...</div></div>
-            ) : (
+  const urDockedChat = hasDockedBar && mlbMsgs.length > 0;
+  const chatThreadProps = {
+    msgs: mlbMsgs,
+    urTakeTrackPlay,
+    accessTier,
+    onUrTakeFollowUpPick,
+    onUpgradePromptClick,
+    hideFollowUpDock: true,
+  };
+  const mlbBoardBelow =
+    mlbLoading && mlbGames.length === 0 ? (
+      <div className="loading-state">
+        <div className="loading-text">LOADING MLB DATA...</div>
+      </div>
+    ) : (
               <>
                 {(mlbGames.length > 0 || mlbData?.games?.length > 0) && (
                   <>
@@ -136,8 +112,48 @@ export default function MlbScreen({
                   ))}
                 </div>
               </>
+            );
+
+  return (
+          <main ref={mlbScreenRef} className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}>
+            <div className="sport-board-header" style={{borderRadius:16,padding:16,marginBottom:16,border:"1px solid rgba(29,185,84,.2)",background:"linear-gradient(135deg,rgba(29,185,84,.08),rgba(0,100,40,.04))"}}>
+              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>MLB</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:9,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>PROPS / GAME TOTALS / PITCHER ANGLES</div>
+              <div style={{fontSize:12,color:"var(--soft)"}}>
+                {mlbLoading ? "Loading..." : mlbGames.length > 0 ? `${mlbGames.length} games today` : (mlbData?.games?.length > 0) ? `${mlbData.games.length} games today` : "MLB Season Active — Ask about any game or player"}
+              </div>
+            </div>
+
+            {mlbMsgs.length===0&&(
+              <div style={{background:"var(--surface)",border:"1px solid rgba(29,185,84,.2)",borderRadius:14,padding:14,marginBottom:16}} ref={mlbBarRef}>
+                <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:"#1DB954",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything -- MLB</div>
+                <AskBar inputRef={mlbInputRef} value={mlbInput} onChange={setMlbInput} onSubmit={()=>submitMlb()} placeholder="Best K prop tonight? Park factor angle? Best game total?" btnColor="#1DB954" {...askBarCommon}/>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+                  {(mlbQuickPrompts.length ? mlbQuickPrompts : [
+                    "Best pitcher K prop?",
+                    "Best batter hits prop?",
+                    "Best game total?",
+                    "Best home run prop?",
+                  ]).map((q) => (
+                    <button key={q} className="quick-btn" onClick={()=>submitMlb(q)} style={{fontSize:11}}>{q}</button>
+                  ))}
+                </div>
+              </div>
             )}
-            <div className="page-spacer"/>
+
+            {urDockedChat ? (
+              <div className="ur-chat-scroll">
+                <ChatThread {...chatThreadProps} variant="urChatDocked" />
+                {mlbBoardBelow}
+                <div className="page-spacer" />
+              </div>
+            ) : (
+              <>
+                <ChatThread {...chatThreadProps} />
+                {mlbBoardBelow}
+                <div className="page-spacer" />
+              </>
+            )}
           </main>
   );
 }

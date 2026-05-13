@@ -329,53 +329,17 @@ export default function GolfScreen({
   const weatherRow = formatGolfWeatherRow(golfData);
   const courseProfileLine = buildCourseStatsBlurb(golfData?.courseStats);
 
-  return (
-          <main ref={golfScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="golf-banner">
-              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{headerEventName}</div>
-              <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{headerMonoLabel}</div>
-              <div style={{fontSize:12,color:"var(--soft)"}}>
-                {headerCourseLine}
-              </div>
-              {weatherRow && (
-                <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 }}>
-                  {weatherRow}
-                </div>
-              )}
-              {courseProfileLine && (
-                <div style={{ fontSize: 13, color: "var(--soft)", marginTop: 4, lineHeight: 1.45, fontStyle: "italic" }}>
-                  {courseProfileLine}
-                </div>
-              )}
-            </div>
-
-            {golfMsgs.length===0&&(
-              <div className="golf-ask-shell" ref={golfBarRef}>
-                <div className="golf-ask-label">{eventFinished ? "Recap — Golf" : "Ask Anything — Golf"}</div>
-                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder={eventFinished ? "How did the tournament finish? Biggest surprise?" : "Scheffler top 5? Best make-cut play? Matchup angle?"} btnColor="#DCE6F2" {...askBarCommon}/>
-                <div className="golf-quick-btn-grid">
-                  {(shellPrompts.length ? shellPrompts : [
-                    "Best outright?",
-                    "Top-10 value?",
-                    "Course fit sleeper?",
-                    "Fade favorites?",
-                  ]).map((q) => (
-                    <button key={q} type="button" className="quick-btn golf-quick-btn-tap" onClick={() => submitGolf(q)}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <ChatThread
-              msgs={golfMsgs}
-              urTakeTrackPlay={urTakeTrackPlay}
-              accessTier={accessTier}
-              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-              onUpgradePromptClick={onUpgradePromptClick}
-              hideFollowUpDock
-            />
+  const urDockedChat = hasDockedBar && golfMsgs.length > 0;
+  const chatThreadProps = {
+    msgs: golfMsgs,
+    urTakeTrackPlay,
+    accessTier,
+    onUrTakeFollowUpPick,
+    onUpgradePromptClick,
+    hideFollowUpDock: true,
+  };
+  const golfBoardBelow = (
+    <>
 
             {scheduleRows.length > 0 && (
               <>
@@ -523,8 +487,61 @@ export default function GolfScreen({
             </div>
             </>
             )}
+    </>
+  );
 
-            <div className="page-spacer"/>
+  return (
+          <main ref={golfScreenRef} className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}>
+            <div className="golf-banner">
+              <div style={{fontFamily:"var(--display-font)",fontSize:28,letterSpacing:1,marginBottom:2}}>{headerEventName}</div>
+              <div style={{fontFamily:"var(--mono-font)",fontSize:11,color:"var(--muted)",letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>{headerMonoLabel}</div>
+              <div style={{fontSize:12,color:"var(--soft)"}}>
+                {headerCourseLine}
+              </div>
+              {weatherRow && (
+                <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 6, lineHeight: 1.4 }}>
+                  {weatherRow}
+                </div>
+              )}
+              {courseProfileLine && (
+                <div style={{ fontSize: 13, color: "var(--soft)", marginTop: 4, lineHeight: 1.45, fontStyle: "italic" }}>
+                  {courseProfileLine}
+                </div>
+              )}
+            </div>
+
+            {golfMsgs.length===0&&(
+              <div className="golf-ask-shell" ref={golfBarRef}>
+                <div className="golf-ask-label">{eventFinished ? "Recap — Golf" : "Ask Anything — Golf"}</div>
+                <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder={eventFinished ? "How did the tournament finish? Biggest surprise?" : "Scheffler top 5? Best make-cut play? Matchup angle?"} btnColor="#DCE6F2" {...askBarCommon}/>
+                <div className="golf-quick-btn-grid">
+                  {(shellPrompts.length ? shellPrompts : [
+                    "Best outright?",
+                    "Top-10 value?",
+                    "Course fit sleeper?",
+                    "Fade favorites?",
+                  ]).map((q) => (
+                    <button key={q} type="button" className="quick-btn golf-quick-btn-tap" onClick={() => submitGolf(q)}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {urDockedChat ? (
+              <div className="ur-chat-scroll">
+                <ChatThread {...chatThreadProps} variant="urChatDocked" />
+                {golfBoardBelow}
+                <div className="page-spacer" />
+              </div>
+            ) : (
+              <>
+                <ChatThread {...chatThreadProps} />
+                {golfBoardBelow}
+                <div className="page-spacer" />
+              </>
+            )}
           </main>
   );
 }

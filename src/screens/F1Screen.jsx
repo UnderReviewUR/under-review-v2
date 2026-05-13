@@ -37,72 +37,21 @@ export default function F1Screen({
 
   const f1QuickPrompts = getQuickPromptsForState("f1", deriveF1EventState(f1Data));
 
-  return (
-          <main ref={f1ScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="f1-banner">
-              <div className="banner-title">Formula 1 — 2026</div>
-              <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
-              <div className="banner-note">
-                {f1Data?.standings?.length
-                  ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races`
-                  : f1Loading
-                    ? "Loading F1 data..."
-                    : "F1 data unavailable right now. Check back closer to race week."}
-                {(f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? (
-                  <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Using cached standings — live feed unavailable">Est.</span>
-                ) : null}
-                {f1Data?.openf1TimingSource === "custom" ? (
-                  <span
-                    style={{
-                      marginLeft: 8,
-                      fontFamily: "var(--mono-font)",
-                      fontSize: 9,
-                      letterSpacing: 1,
-                      color: "var(--f1)",
-                      opacity: 0.95,
-                    }}
-                    title={
-                      f1Data?.openf1TimingHost
-                        ? `Timing data from ${f1Data.openf1TimingHost} (self-hosted OpenF1)`
-                        : "Timing data from your configured OpenF1 backend"
-                    }
-                  >
-                    Live timing
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            {f1Msgs.length===0&&(
-              <div className="f1-ask-shell" ref={f1BarRef}>
-                <div className="f1-ask-label">Ask Anything — F1</div>
-                <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {(f1QuickPrompts.length ? f1QuickPrompts : [
-                    "Who wins the next Grand Prix?",
-                    "Best F1 future right now?",
-                    "Is Antonelli for real?",
-                    "Hamilton podium value?",
-                  ]).map((q) => (
-                    <button key={q} className="quick-btn" onClick={() => submitF1(q)} style={{ fontSize: 11 }}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <ChatThread
-              msgs={f1Msgs}
-              urTakeTrackPlay={urTakeTrackPlay}
-              accessTier={accessTier}
-              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-              onUpgradePromptClick={onUpgradePromptClick}
-              hideFollowUpDock
-            />
-
-            {f1Loading ? (
-              <div className="loading-state"><div className="loading-text">LOADING F1 DATA...</div></div>
-            ) : (
+  const urDockedChat = hasDockedBar && f1Msgs.length > 0;
+  const chatThreadProps = {
+    msgs: f1Msgs,
+    urTakeTrackPlay,
+    accessTier,
+    onUrTakeFollowUpPick,
+    onUpgradePromptClick,
+    hideFollowUpDock: true,
+  };
+  const f1BoardBelow =
+    f1Loading ? (
+      <div className="loading-state">
+        <div className="loading-text">LOADING F1 DATA...</div>
+      </div>
+    ) : (
               <>
                 {f1Data?.standings?.length > 0 && (
                   <>
@@ -164,8 +113,75 @@ export default function F1Screen({
                   </>
                 )}
               </>
+            );
+
+  return (
+          <main ref={f1ScreenRef} className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}>
+            <div className="f1-banner">
+              <div className="banner-title">Formula 1 — 2026</div>
+              <div className="banner-sub">DRIVER STANDINGS · RACE CALENDAR · BETTING ANGLES</div>
+              <div className="banner-note">
+                {f1Data?.standings?.length
+                  ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races`
+                  : f1Loading
+                    ? "Loading F1 data..."
+                    : "F1 data unavailable right now. Check back closer to race week."}
+                {(f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? (
+                  <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Using cached standings — live feed unavailable">Est.</span>
+                ) : null}
+                {f1Data?.openf1TimingSource === "custom" ? (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontFamily: "var(--mono-font)",
+                      fontSize: 9,
+                      letterSpacing: 1,
+                      color: "var(--f1)",
+                      opacity: 0.95,
+                    }}
+                    title={
+                      f1Data?.openf1TimingHost
+                        ? `Timing data from ${f1Data.openf1TimingHost} (self-hosted OpenF1)`
+                        : "Timing data from your configured OpenF1 backend"
+                    }
+                  >
+                    Live timing
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            {f1Msgs.length===0&&(
+              <div className="f1-ask-shell" ref={f1BarRef}>
+                <div className="f1-ask-label">Ask Anything — F1</div>
+                <AskBar inputRef={f1InputRef} value={f1Input} onChange={setF1Input} onSubmit={()=>submitF1()} placeholder="Who wins the next Grand Prix? Best F1 future?" btnColor="var(--f1)" {...askBarCommon} />
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {(f1QuickPrompts.length ? f1QuickPrompts : [
+                    "Who wins the next Grand Prix?",
+                    "Best F1 future right now?",
+                    "Is Antonelli for real?",
+                    "Hamilton podium value?",
+                  ]).map((q) => (
+                    <button key={q} className="quick-btn" onClick={() => submitF1(q)} style={{ fontSize: 11 }}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-            <div className="page-spacer"/>
+            {urDockedChat ? (
+              <div className="ur-chat-scroll">
+                <ChatThread {...chatThreadProps} variant="urChatDocked" />
+                {f1BoardBelow}
+                <div className="page-spacer" />
+              </div>
+            ) : (
+              <>
+                <ChatThread {...chatThreadProps} />
+                {f1BoardBelow}
+                <div className="page-spacer" />
+              </>
+            )}
           </main>
   );
 }

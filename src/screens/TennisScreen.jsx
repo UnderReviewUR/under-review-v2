@@ -38,43 +38,17 @@ export default function TennisScreen({
   onUpgradePromptClick = null,
 }) {
   const tennisQuickPrompts = getQuickPromptsForState("tennis", deriveTennisBoardState(liveMatches));
-
-  return (
-          <main ref={tennisScreenRef} className={`screen${hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="tour-banner">
-              <div className="banner-title">{tennisBoardHeadline}</div>
-              <div className="banner-sub">{tennisBoardSubline}</div>
-              <div className="banner-note">{liveMatches.length>0?`ATP · ${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in tournament focus`:""}`:"No ATP matches loaded right now."}</div>
-            </div>
-
-            {tennisMsgs.length===0&&(
-              <div ref={tennisBarRef} style={{background:"var(--surface)",border:"1px solid rgba(255,230,0,.2)",borderRadius:14,padding:14,marginBottom:16}}>
-                <div style={{fontSize:10,color:"#FFE600",fontFamily:"var(--mono-font)",letterSpacing:2,marginBottom:8,textTransform:"uppercase"}}>Ask Anything — Tennis</div>
-                <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet? Which match is mispriced?" {...askBarCommon} />
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {(tennisQuickPrompts.length ? tennisQuickPrompts : [
-                    "Best tennis bet tonight?",
-                    "Which match is mispriced?",
-                    "Best live angle?",
-                    "Best futures value?",
-                  ]).map((q) => (
-                    <button key={q} className="quick-btn" onClick={() => submitTennis(q)} style={{ fontSize: 11 }}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <ChatThread
-              msgs={tennisMsgs}
-              urTakeTrackPlay={urTakeTrackPlay}
-              accessTier={accessTier}
-              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-              onUpgradePromptClick={onUpgradePromptClick}
-              hideFollowUpDock
-            />
-
+  const urDockedChat = hasDockedBar && tennisMsgs.length > 0;
+  const chatThreadProps = {
+    msgs: tennisMsgs,
+    urTakeTrackPlay,
+    accessTier,
+    onUrTakeFollowUpPick,
+    onUpgradePromptClick,
+    hideFollowUpDock: true,
+  };
+  const tennisBoardBelow = (
+    <>
             <div className="section-divider">{activeTournamentMatches.length>0&&context?.currentTournament?.name?`${context.currentTournament.name} · ATP Board`:"ATP · Live + Upcoming"}</div>
 
             {tennisLoading?(
@@ -187,15 +161,17 @@ export default function TennisScreen({
                       breakdowns and head-to-head matchup questions.
                     </div>
 
-                    <AskBar
-                      inputRef={wtaInputRef}
-                      value={wtaInput}
-                      onChange={setWtaInput}
-                      onSubmit={() => submitWta()}
-                      placeholder="Sabalenka vs Gauff on clay? Best matchup angle?"
-                      btnColor="#FF2D6B"
-                      {...askBarCommon}
-                    />
+                    <div className="wta-ask-inline">
+                      <AskBar
+                        inputRef={wtaInputRef}
+                        value={wtaInput}
+                        onChange={setWtaInput}
+                        onSubmit={() => submitWta()}
+                        placeholder="Sabalenka vs Gauff on clay? Best matchup angle?"
+                        btnColor="#FF2D6B"
+                        {...askBarCommon}
+                      />
+                    </div>
 
                     <div
                       style={{
@@ -226,7 +202,49 @@ export default function TennisScreen({
                 )}
               </>
             )}
-            <div className="page-spacer"/>
+    </>
+  );
+
+  return (
+          <main ref={tennisScreenRef} className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}>
+            <div className="tour-banner">
+              <div className="banner-title">{tennisBoardHeadline}</div>
+              <div className="banner-sub">{tennisBoardSubline}</div>
+              <div className="banner-note">{liveMatches.length>0?`ATP · ${tennisLiveMatches.length} live · ${tennisUpcomingMatches.length} upcoming${activeTournamentMatches.length?` · ${activeTournamentMatches.length} in tournament focus`:""}`:"No ATP matches loaded right now."}</div>
+            </div>
+
+            {tennisMsgs.length===0&&(
+              <div ref={tennisBarRef} className="tennis-ask-shell">
+                <div className="tennis-ask-shell-kicker">Ask Anything — Tennis</div>
+                <AskBar inputRef={tennisInputRef} value={tennisInput} onChange={setTennisInput} onSubmit={()=>submitTennis()} placeholder="Best tennis bet? Which match is mispriced?" {...askBarCommon} />
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {(tennisQuickPrompts.length ? tennisQuickPrompts : [
+                    "Best tennis bet tonight?",
+                    "Which match is mispriced?",
+                    "Best live angle?",
+                    "Best futures value?",
+                  ]).map((q) => (
+                    <button key={q} className="quick-btn" onClick={() => submitTennis(q)} style={{ fontSize: 11 }}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {urDockedChat ? (
+              <div className="ur-chat-scroll">
+                <ChatThread {...chatThreadProps} variant="urChatDocked" />
+                {tennisBoardBelow}
+                <div className="page-spacer" />
+              </div>
+            ) : (
+              <>
+                <ChatThread {...chatThreadProps} />
+                {tennisBoardBelow}
+                <div className="page-spacer" />
+              </>
+            )}
           </main>
   );
 }

@@ -36,9 +36,10 @@ function correlationConflictNfl(raw) {
 
 /**
  * @param {string} text
+ * @param {object} [_options] — forwarded from `runSportSpecificValidators` (e.g. `sportEvidenceLayer`)
  * @returns {SportQaIssue[]}
  */
-export function lintNflOutput(text) {
+export function lintNflOutput(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;

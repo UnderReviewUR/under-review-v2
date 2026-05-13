@@ -24,7 +24,8 @@ const MATCHUP = /\b(?:matchup|head[-\s]?to[-\s]?head|vs\.|versus)\b/i;
  * @param {string} text
  * @returns {SportQaIssue[]}
  */
-export function lintGolfOutput(text) {
+/** @param {object} [_options] — forwarded from `runSportSpecificValidators` (e.g. `sportEvidenceLayer`) */
+export function lintGolfOutput(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;

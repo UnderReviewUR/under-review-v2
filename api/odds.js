@@ -5,6 +5,7 @@
 
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
+import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 
 function logOddsUnavailable(status, scope) {
   console.warn(
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
     try {
       const url = `${BASE}/sports/${sportKey}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=h2h&oddsFormat=${ODDS_FORMAT}`;
       const r = await fetch(url);
+      logOddsApiUsage({ label: `odds.handler.list:${sportKey}`, url, response: r });
       if (!r.ok) {
         logOddsUnavailable(r.status, `odds endpoint events ${sportKey}`);
         continue;
@@ -122,6 +124,7 @@ export default async function handler(req, res) {
       try {
         const url = `${BASE}/events/${match.id}/odds?apiKey=${API_KEY}&regions=${REGIONS}&markets=${propMarkets}&oddsFormat=${ODDS_FORMAT}`;
         const r = await fetch(url);
+        logOddsApiUsage({ label: `odds.handler.event_props:${match.id}`, url, response: r });
         if (!r.ok) {
           logOddsUnavailable(r.status, "odds endpoint props");
           return;

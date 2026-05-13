@@ -18,7 +18,8 @@ const PIT_TIRE = /\b(?:pit|pit\s+window|tyre|tire|strategy|compound)\b/i;
  * @param {string} text
  * @returns {SportQaIssue[]}
  */
-export function lintF1Output(text) {
+/** @param {object} [_options] — forwarded from `runSportSpecificValidators` (e.g. `sportEvidenceLayer`) */
+export function lintF1Output(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;

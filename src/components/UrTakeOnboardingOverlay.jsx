@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "ur_take_onboarding_v1_done";
+const STORAGE_KEY = "ur_visited";
 
 /**
- * One-time overlay when the user opens UR Take with an empty thread (first session only).
+ * One-time overlay on first visit to the app (home); dismissed state stored in `ur_visited`.
  */
 export default function UrTakeOnboardingOverlay({ visible }) {
   const [open, setOpen] = useState(false);

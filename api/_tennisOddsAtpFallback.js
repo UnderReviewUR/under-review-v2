@@ -3,6 +3,7 @@
  * Maps events into the same fixture shape as `_tennisAtpBdl.bdlMatchToFixtureShape` consumers.
  */
 import { getEnv } from "./_env.js";
+import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 
 const BASE = "https://api.the-odds-api.com/v4";
 const REGIONS = "us,us2";
@@ -32,6 +33,7 @@ export async function fetchOddsAtpFixturesForBoard() {
     try {
       const url = `${BASE}/sports/${sportKey}/odds/?apiKey=${API_KEY}&regions=${REGIONS}&markets=h2h&oddsFormat=${ODDS_FORMAT}`;
       const r = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+      logOddsApiUsage({ label: `tennis.fetchOddsAtpFixturesForBoard.list:${sportKey}`, url, response: r });
       if (!r.ok) {
         logOddsUnavailable(r.status, `tennis fallback ${sportKey}`);
         clearTimeout(t);
