@@ -43,7 +43,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured })
         { key: "p", label: "UR projection", value: proj, highlight: false },
         { key: "pl", label: "Playable at", value: playable, highlight: true },
         { key: "dq", label: "Data quality", value: dq, highlight: false },
-        { key: "c", label: "Confidence", value: capConf, highlight: false },
+        { key: "c", label: "Confidence — capped", value: capConf, highlight: false },
       ],
     };
   }
@@ -99,7 +99,8 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured })
   };
 }
 
-const INJURY_LEAD = /^(out|questionable|doubtful|injury|injured|ruled|inactive|dnp|gtd)\b/i;
+const INJURY_LEAD =
+  /^(out|questionable|doubtful|injury|injured|ruled|inactive|dnp|gtd|probable|game\s*time|downgraded|upgraded|status|roster|minutes\s*restriction)\b/i;
 
 /** Prefer edge-first headline; avoid opening on injury status lines. */
 export function pickSharpBriefHeadline(call, edge, callType, sport) {

@@ -1236,6 +1236,11 @@ ${themeCss}
     const loadingSport =
       effectiveSportHint === "tennis_wta_profile" ? "tennis" : effectiveSportHint;
 
+    const pendingMsgId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `pend_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
     setMsgs((prev) => [
       ...prev,
       {
@@ -1243,6 +1248,7 @@ ${themeCss}
         text: "ANALYZING...",
         loading: true,
         sport: loadingSport,
+        msgId: pendingMsgId,
       },
     ]);
 
@@ -1483,46 +1489,48 @@ ${themeCss}
       }
     }
 
-    const msgId =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     const sportTrackedForBubble = String(
       sportForBubble || resolvedSport || effectiveSportHint || "generic",
     ).toLowerCase();
-    setMsgs((prev) => [
-      ...prev.filter((m) => !m.loading),
-      {
-        role: "ai",
-        msgId,
-        text: normalizedDisplay.response,
-        sport: sportForBubble || undefined,
-        takeMeta:
-          data.take && typeof data.take === "object"
-            ? {
-                id: data.take.id,
-                confidence: data.take.confidence,
-                trust: data.take.trust ?? null,
-                openingLineSnapshot: data.take.openingLineSnapshot ?? null,
-                status: data.take.status,
-                betSignal: data.take.betSignal,
-                estimatedEdgeMeta: data.take.estimatedEdgeMeta,
-              }
-            : null,
-        deepText: normalizedDisplay.responseDeep,
-        ...(structuredForBubble ? { structured: structuredForBubble } : {}),
-        ...(data.estimatedEdge && typeof data.estimatedEdge === "object"
-          ? { estimatedEdge: data.estimatedEdge }
-          : {}),
-        followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
-        urTakeTelemetry: {
-          intent: String(data.intent || ""),
-          liveMode: Boolean(data.liveMode),
-          sport: sportTrackedForBubble,
-          shownAt: Date.now(),
-        },
+    const completeBubble = {
+      role: "ai",
+      msgId: pendingMsgId,
+      text: normalizedDisplay.response,
+      sport: sportForBubble || undefined,
+      takeMeta:
+        data.take && typeof data.take === "object"
+          ? {
+              id: data.take.id,
+              confidence: data.take.confidence,
+              trust: data.take.trust ?? null,
+              openingLineSnapshot: data.take.openingLineSnapshot ?? null,
+              status: data.take.status,
+              betSignal: data.take.betSignal,
+              estimatedEdgeMeta: data.take.estimatedEdgeMeta,
+            }
+          : null,
+      deepText: normalizedDisplay.responseDeep,
+      ...(structuredForBubble ? { structured: structuredForBubble } : {}),
+      ...(data.estimatedEdge && typeof data.estimatedEdge === "object"
+        ? { estimatedEdge: data.estimatedEdge }
+        : {}),
+      followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
+      urTakeTelemetry: {
+        intent: String(data.intent || ""),
+        liveMode: Boolean(data.liveMode),
+        sport: sportTrackedForBubble,
+        shownAt: Date.now(),
       },
-    ]);
+    };
+    setMsgs((prev) => {
+      const idx = prev.findIndex(
+        (m) => m.role === "ai" && m.loading && m.msgId === pendingMsgId,
+      );
+      if (idx === -1) return [...prev.filter((m) => !m.loading), completeBubble];
+      const next = [...prev];
+      next[idx] = completeBubble;
+      return next;
+    });
     if (fuTelemetryState) {
       const end = typeof performance !== "undefined" ? performance.now() : Date.now();
       telemetryUrTakeFollowUpResponseCompleted({
@@ -2911,7 +2919,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setAskInput(t);
+      setAskInput("");
       askUrTake({
         text: t,
         setMsgs: setAskMsgs,
@@ -2927,6 +2935,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(askScreenRef);
+      requestAnimationFrame(() => {
+        askInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -2935,7 +2946,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setTennisInput(t);
+      setTennisInput("");
       askUrTake({
         text: t,
         setMsgs: setTennisMsgs,
@@ -2952,6 +2963,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(tennisScreenRef);
+      requestAnimationFrame(() => {
+        tennisInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -2959,7 +2973,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setNflInput(t);
+      setNflInput("");
       askUrTake({
         text: t,
         setMsgs: setNflMsgs,
@@ -2976,6 +2990,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(nflScreenRef);
+      requestAnimationFrame(() => {
+        nflInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -2983,7 +3000,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setF1Input(t);
+      setF1Input("");
       askUrTake({
         text: t,
         setMsgs: setF1Msgs,
@@ -3000,6 +3017,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(f1ScreenRef);
+      requestAnimationFrame(() => {
+        f1InputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -3007,7 +3027,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setNbaInput(t);
+      setNbaInput("");
       askUrTake({
         text: t,
         setMsgs: setNbaMsgs,
@@ -3024,6 +3044,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(nbaScreenRef);
+      requestAnimationFrame(() => {
+        nbaInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -3031,7 +3054,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setMlbInput(t);
+      setMlbInput("");
       askUrTake({
         text: t,
         setMsgs: setMlbMsgs,
@@ -3048,6 +3071,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(mlbScreenRef);
+      requestAnimationFrame(() => {
+        mlbInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -3055,7 +3081,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setGolfInput(t);
+      setGolfInput("");
       askUrTake({
         text: t,
         setMsgs: setGolfMsgs,
@@ -3072,6 +3098,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(golfScreenRef);
+      requestAnimationFrame(() => {
+        golfInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
@@ -3079,7 +3108,7 @@ ${themeCss}
     (text, meta) => {
       const t = String(text || "").trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
-      setMatchupInput(t);
+      setMatchupInput("");
       const league = String(selectedMatchup?.league || "").toUpperCase();
       const hint = league.includes("NFL")
         ? "nfl"
@@ -3109,6 +3138,9 @@ ${themeCss}
         },
       });
       scheduleChatScroll(matchupScreenRef);
+      requestAnimationFrame(() => {
+        matchupInputRef.current?.focus({ preventScroll: true });
+      });
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, selectedMatchup, scheduleChatScroll],
   );

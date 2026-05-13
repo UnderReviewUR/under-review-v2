@@ -104,6 +104,9 @@ const AskBar = memo(function AskBar({
               </button>
             </div>
           )}
+          {!pastedImage && showPasteHint && (
+            <div className="ur-docked-paste-hint">PASTE IMAGE OR TAP ATTACH</div>
+          )}
           <div className="ask-row ask-row--docked-triple">
             <button
               className={`attach-btn ur-dock-icon-btn ur-dock-attach${pastedImage ? " has-img" : ""}`}
@@ -128,9 +131,6 @@ const AskBar = memo(function AskBar({
                       disabled={busy}
                     />
                   </div>
-                  {!pastedImage && showPasteHint && (
-                    <div className="ask-hint ask-hint--docked-in-frame">PASTE IMAGE OR TAP ATTACH</div>
-                  )}
                 </div>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
@@ -1260,11 +1260,12 @@ function resolveStageIndex(elapsedMs) {
   return idx;
 }
 
-export function LoadingBubble({ sport }) {
+export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
   const sportKey = String(sport || "").toLowerCase();
   const accent = SPORT_ACCENT[sportKey] || "#FFFFFF";
   const emoji = SPORT_EMOJI[sportKey] || "⚡";
   const isF1 = sportKey === "f1";
+  const imessage = variant === "urChatDocked";
 
   const [stage, setStage] = useState(0);
   useEffect(() => {
@@ -1274,6 +1275,52 @@ export function LoadingBubble({ sport }) {
     const id = window.setInterval(tick, 500);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (typeof onLayoutTick === "function") onLayoutTick();
+  }, [stage, onLayoutTick]);
+
+  const sportTag = formatUrTakeSportTag(sport || "generic", "single");
+
+  if (imessage) {
+    return (
+      <div
+        className="ur-take-loading-card ur-v2-card"
+        aria-live="polite"
+        aria-busy="true"
+        style={{ minHeight: 220 }}
+      >
+        <div className="ur-v2-sport-bar">
+          <span className="ur-v2-sport-bar-tag">{sportTag}</span>
+          <span className="ur-v2-sport-bar-dot" aria-hidden>
+            ·
+          </span>
+          <span className="ur-v2-sport-bar-ctx">Preparing read</span>
+          <span className="ur-v2-sport-bar-spacer" />
+        </div>
+        <div className="ur-take-loading-card-body">
+          <div className="ur-take-loading-row">
+            <span className="ur-take-loading-emoji" aria-hidden>
+              {emoji}
+            </span>
+            <span className="ur-take-loading-label">
+              READING THE BOARD
+              <span className="ur-take-loading-dots" aria-hidden>
+                <span>.</span>
+                <span>.</span>
+                <span>.</span>
+              </span>
+            </span>
+          </div>
+          <div className="ur-take-loading-skel-stack">
+            <div className="ur-take-loading-skel" style={{ width: "92%" }} />
+            <div className="ur-take-loading-skel" style={{ width: "78%" }} />
+            <div className="ur-take-loading-skel" style={{ width: "60%" }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1546,11 +1593,6 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders, o
       : "";
 
     const s = effectiveStructured;
-    console.info("[SharpBrief] UrTakeAiBubble → URTakeResponse", {
-      hasApiStructured: Boolean(m.structured),
-      promotedParlay: Boolean(promotedParlayStructured),
-      callPreview: String(s?.call ?? "").slice(0, 72),
-    });
     const followUpsResolved = getFollowUpSuggestions(m);
     const followUpSourceInline =
       Array.isArray(followUpsResolved) &&
@@ -1825,6 +1867,12 @@ export function ChatThread({
   const proUpgradeNudgeCommittedRef = useRef(false);
   const [proUpgradeNudgeVisible, setProUpgradeNudgeVisible] = useState(false);
 
+  const bumpScrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+  }, []);
+
   useEffect(() => {
     if (!msgs?.length) return;
     const last = msgs[msgs.length - 1];
@@ -1832,17 +1880,10 @@ export function ChatThread({
     const sig = `${msgs.length}:${streaming ? 1 : 0}:${String(last?.text || "").length}:${last?.msgId || ""}`;
 
     const scrollBottom = () => {
-      requestAnimationFrame(() => {
-        bottomAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      });
+      bumpScrollToBottom();
     };
 
     if (variant === "urChatDocked") {
-      if (skipInitialScrollRef.current) {
-        skipInitialScrollRef.current = false;
-        prevScrollSigRef.current = sig;
-        return;
-      }
       prevScrollSigRef.current = sig;
       scrollBottom();
       return;
@@ -1856,7 +1897,7 @@ export function ChatThread({
     if (sig === prevScrollSigRef.current) return;
     prevScrollSigRef.current = sig;
     scrollBottom();
-  }, [msgs, variant]);
+  }, [msgs, variant, bumpScrollToBottom]);
 
   let weeklyUsed = 0;
   try {
@@ -1908,41 +1949,75 @@ export function ChatThread({
     last.role === "ai" &&
     !last.loading;
 
+  const docked = variant === "urChatDocked";
+  const rowKey = (m, i) => m.msgId || `${m.role}-${i}-${m.loading ? "l" : "x"}`;
+
   if (!msgs || msgs.length === 0) return null;
   return (
     <div
       ref={chatThreadRef}
-      className={`chat-thread${variant === "urChatDocked" ? " chat-thread--ur-chat-dock" : ""}`}
-      style={variant === "urChatDocked" ? undefined : { marginBottom: 20 }}
+      className={`chat-thread${docked ? " chat-thread--ur-chat-dock" : ""}`}
+      style={docked ? undefined : { marginBottom: 20 }}
     >
-      {msgs.map((m, i) =>
-        m.loading ? (
-          <LoadingBubble key={i} sport={m.sport} />
-        ) : (
+      {msgs.map((m, i) => {
+        if (m.loading) {
+          if (!docked) {
+            return <LoadingBubble key={rowKey(m, i)} sport={m.sport} variant="default" />;
+          }
+          return (
+            <div key={rowKey(m, i)} className="ur-imessage-assistant-row">
+              <LoadingBubble sport={m.sport} variant={variant} onLayoutTick={bumpScrollToBottom} />
+            </div>
+          );
+        }
+
+        const bubbleInner =
+          m.role === "ai" ? (
+            <UrTakeAiBubble
+              m={m}
+              trackPlay={urTakeTrackPlay}
+              userQuestion={String(
+                [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
+              )}
+              getTakeAuthHeaders={getTakeAuthHeaders}
+              onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+            />
+          ) : (
+            <>
+              {m.image && <img src={m.image} alt="" className="bubble-img" />}
+              {renderMessage(m.text)}
+            </>
+          );
+
+        if (docked && m.role === "user") {
+          return (
+            <div key={rowKey(m, i)} className="ur-imessage-user-row">
+              <div className="bubble user bubble--imessage-user" data-role="user">
+                {bubbleInner}
+              </div>
+            </div>
+          );
+        }
+        if (docked && m.role === "ai") {
+          return (
+            <div key={rowKey(m, i)} className="ur-imessage-assistant-row">
+              <div className="bubble ai bubble--imessage-ai" data-role="assistant">
+                {bubbleInner}
+              </div>
+            </div>
+          );
+        }
+
+        return (
           <div
-            key={m.msgId || i}
+            key={rowKey(m, i)}
             className={`bubble ${m.role}`}
             {...(m.role === "ai" ? { "data-role": "assistant" } : { "data-role": "user" })}
           >
-            {m.role === "ai" ? (
-              <UrTakeAiBubble
-                m={m}
-                trackPlay={urTakeTrackPlay}
-                userQuestion={String(
-                  [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
-                )}
-                getTakeAuthHeaders={getTakeAuthHeaders}
-                onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-              />
-            ) : (
-              <>
-                {m.image && <img src={m.image} alt="" className="bubble-img" />}
-                {renderMessage(m.text)}
-              </>
-            )}
+            {bubbleInner}
           </div>
-        )
-      )}
+        );
+      })}
       {followUpDockSource?.followUps?.length ? (
         <div className="ur-thread-follow-ups">
           <UrTakeDockedFollowUps source={followUpDockSource} onPick={onUrTakeFollowUpPick} />

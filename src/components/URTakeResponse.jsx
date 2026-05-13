@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { scrubStructuredFaceText } from "../lib/urTakeFaceTextScrub.js";
 import { buildEstimatedEdgeCardModel } from "../lib/urTakeEstimatedEdgeUi.js";
@@ -48,13 +48,6 @@ function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   return `${tag} is the rolled-up American price for this parlay—leg lines compound into one number the book shows on the full ticket.`;
 }
 
-function formatEstimatedSportLabel(sport) {
-  const s = String(sport || "").toLowerCase();
-  if (s === "tennis_wta_profile") return "Tennis (WTA profile)";
-  if (!s) return "—";
-  return s.toUpperCase();
-}
-
 function matchupPillText(gameStateLine, userQuestion) {
   const g = String(gameStateLine || "").trim();
   if (g.length >= 6 && g.length <= 48) return g;
@@ -85,22 +78,9 @@ export default function URTakeResponse({
   followUpSource = null,
   onFollowUpPick = null,
 }) {
-  const [animMounted, setAnimMounted] = useState(false);
-  useEffect(() => {
-    setAnimMounted(true);
-  }, []);
-
-  console.info("[SharpBrief] URTakeResponse payload", {
-    sport,
-    callType,
-    keys: {
-      call: Boolean(call),
-      whyNow: Boolean(whyNow),
-      edge: Boolean(edge),
-      analysis: _analysis && typeof _analysis === "object",
-      caveats: Array.isArray(caveats),
-    },
-  });
+  const bodyWrapRef = useRef(null);
+  const [bodyExpandable, setBodyExpandable] = useState(false);
+  const [bodyExpanded, setBodyExpanded] = useState(false);
 
   const formattedTimestamp = formatTimestamp(timestamp);
   const sportTag = formatUrTakeSportTag(sport, callType);
@@ -148,8 +128,18 @@ export default function URTakeResponse({
 
   const shareBody = [whyNowDisplay, edgeDisplay].filter(Boolean);
 
+  useLayoutEffect(() => {
+    const el = bodyWrapRef.current;
+    if (!el) return;
+    const cs = globalThis.getComputedStyle?.(el);
+    const lh = parseFloat(cs?.lineHeight || "0") || 23;
+    const threshold = lh * 4 + 2;
+    setBodyExpandable(el.scrollHeight > threshold);
+    if (el.scrollHeight <= threshold) setBodyExpanded(false);
+  }, [whyNowDisplay, edgeDisplay, caveats, ee]);
+
   return (
-    <div className="mt-1 ur-take-structured ur-take-response ur-v2-card">
+    <div className="ur-take-structured ur-take-response ur-v2-card">
       <div className="ur-v2-sport-bar">
         <span className="ur-v2-sport-bar-tag">{sportTag}</span>
         <span className="ur-v2-sport-bar-dot" aria-hidden>
@@ -160,125 +150,129 @@ export default function URTakeResponse({
         {modePill}
       </div>
 
-      <div className="ur-v2-body-pad">
-        <h2
-          className={`ur-v2-headline ${animMounted ? "ur-v2-headline--in" : ""}`}
-          style={{ opacity: animMounted ? 1 : 0 }}
-        >
-          {headline}
-        </h2>
+      <div className="ur-v2-headline-wrap">
+        <h2 className="ur-v2-headline">{headline}</h2>
+      </div>
 
-        <div className="ur-v2-pill-row">
-          <span className="ur-v2-mini-pill">{inferEdgeTypePill(callType)}</span>
-          <span className="ur-v2-mini-pill">{inferMarketPill(callScrub, callType)}</span>
-          <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
-        </div>
+      <div className="ur-v2-pill-row">
+        <span className="ur-v2-mini-pill">{inferEdgeTypePill(callType)}</span>
+        <span className="ur-v2-mini-pill">{inferMarketPill(callScrub, callType)}</span>
+        <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
+      </div>
 
-        <div className="ur-v2-stat-grid">
-          {statGrid.slots.map((slot) => (
-            <div
-              key={slot.key}
-              className={`ur-v2-stat-cell${slot.highlight ? " ur-v2-stat-cell--hi" : ""}`}
-            >
-              <div className="ur-v2-stat-label">{slot.label}</div>
-              <div className="ur-v2-stat-value">{slot.value}</div>
-            </div>
-          ))}
-        </div>
+      <div className="ur-v2-stat-grid">
+        {statGrid.slots.map((slot) => (
+          <div
+            key={slot.key}
+            className={`ur-v2-stat-cell${slot.highlight ? " ur-v2-stat-cell--hi" : ""}`}
+          >
+            <div className="ur-v2-stat-label">{slot.label}</div>
+            <div className="ur-v2-stat-value">{slot.value}</div>
+          </div>
+        ))}
+      </div>
 
-        <div className="ur-v2-divider" />
+      <div className="ur-v2-divider" />
 
-        <div className="ur-v2-body-copy">
-          <p className="ur-v2-body-p">{whyNowDisplay}</p>
-          <p className="ur-v2-body-p">{edgeDisplay}</p>
+      <div
+        ref={bodyWrapRef}
+        className={`ur-v2-body-copy${bodyExpandable && !bodyExpanded ? " ur-v2-body-prose-wrap--clamp" : ""}`}
+      >
+        <p className="ur-v2-body-p">{whyNowDisplay}</p>
+        <p className="ur-v2-body-p">{edgeDisplay}</p>
 
-          {ee && eeModel ? (
-            <div className="ur-v2-ee-prose">
-              <p className="ur-v2-body-p ur-v2-muted">
-                <span className="ur-v2-inline-label">Why this tier</span> {eeModel.whyTierBody}
-              </p>
-              {eeModel.layout === "thin" ? (
-                <>
-                  <p className="ur-v2-body-p">
-                    <span className="ur-v2-inline-label">{eeModel.leanHeading}</span> {eeModel.leanBody}
+        {ee && eeModel ? (
+          <div className="ur-v2-ee-prose">
+            <p className="ur-v2-body-p ur-v2-muted">
+              <span className="ur-v2-inline-label">Why this tier</span> {eeModel.whyTierBody}
+            </p>
+            {eeModel.layout === "thin" ? (
+              <>
+                <p className="ur-v2-body-p">
+                  <span className="ur-v2-inline-label">{eeModel.leanHeading}</span> {eeModel.leanBody}
+                </p>
+                {eeModel.drivers.length > 0 ? (
+                  <ul className="ur-v2-driver-list">
+                    {eeModel.drivers.map((d, i) => (
+                      <li key={i}>{d}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {eeModel.numericRows.map((row) => (
+                  <p key={row.key} className="ur-v2-body-p">
+                    <span className="ur-v2-inline-label">{row.label}</span> {row.value}
                   </p>
-                  {eeModel.drivers.length > 0 ? (
-                    <ul className="ur-v2-driver-list">
-                      {eeModel.drivers.map((d, i) => (
-                        <li key={i}>{d}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  {eeModel.numericRows.map((row) => (
-                    <p key={row.key} className="ur-v2-body-p">
-                      <span className="ur-v2-inline-label">{row.label}</span> {row.value}
-                    </p>
-                  ))}
-                  {eeModel.drivers.length > 0 ? (
-                    <ul className="ur-v2-driver-list">
-                      {eeModel.drivers.map((d, i) => (
-                        <li key={i}>{d}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ) : null}
+                ))}
+                {eeModel.drivers.length > 0 ? (
+                  <ul className="ur-v2-driver-list">
+                    {eeModel.drivers.map((d, i) => (
+                      <li key={i}>{d}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
 
-          {Array.isArray(caveats) && caveats.length > 0 ? (
-            <ul className="ur-v2-caveats">
-              {caveats.map((c, idx) => (
-                <li key={idx}>{c}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+        {Array.isArray(caveats) && caveats.length > 0 ? (
+          <ul className="ur-v2-caveats">
+            {caveats.map((c, idx) => (
+              <li key={idx}>{c}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
-        {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
-          <div className="ur-v2-parlay-block">
-            <div className="ur-v2-parlay-title">Parlay legs</div>
-            <div className="ur-v2-parlay-legs">
-              {parlayLegs.map((leg, idx) => (
-                <div key={`${leg.play}-${idx}`} className="ur-v2-parlay-leg">
-                  <div className="ur-v2-parlay-leg-head">
-                    <span className="ur-v2-parlay-play">{leg.play}</span>
-                    {leg.odds && leg.odds !== "TBD" ? (
-                      <span className="ur-v2-parlay-odds">{leg.odds}</span>
-                    ) : null}
-                  </div>
-                  {leg.rationale && String(leg.rationale).trim() ? (
-                    <div className="ur-v2-parlay-rationale">{leg.rationale}</div>
+      {bodyExpandable && !bodyExpanded ? (
+        <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(true)}>
+          Full breakdown ↓
+        </button>
+      ) : null}
+
+      {callType === "parlay" && Array.isArray(parlayLegs) && parlayLegs.length > 0 ? (
+        <div className="ur-v2-parlay-block">
+          <div className="ur-v2-parlay-title">Parlay legs</div>
+          <div className="ur-v2-parlay-legs">
+            {parlayLegs.map((leg, idx) => (
+              <div key={`${leg.play}-${idx}`} className="ur-v2-parlay-leg">
+                <div className="ur-v2-parlay-leg-head">
+                  <span className="ur-v2-parlay-play">{leg.play}</span>
+                  {leg.odds && leg.odds !== "TBD" ? (
+                    <span className="ur-v2-parlay-odds">{leg.odds}</span>
                   ) : null}
                 </div>
-              ))}
-            </div>
-            {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
-              <div className="ur-v2-parlay-combined">
-                <div className="ur-v2-parlay-combined-label">Combined price {parlayTotalOdds}</div>
-                <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(parlayLegs, parlayTotalOdds)}</div>
+                {leg.rationale && String(leg.rationale).trim() ? (
+                  <div className="ur-v2-parlay-rationale">{leg.rationale}</div>
+                ) : null}
               </div>
-            ) : null}
+            ))}
           </div>
-        ) : null}
-
-        {followUpSource?.followUps?.length > 0 && typeof onFollowUpPick === "function" ? (
-          <div className="ur-v2-inline-followups">
-            <UrTakeDockedFollowUps source={followUpSource} onPick={onFollowUpPick} />
-          </div>
-        ) : null}
-
-        <div className="ur-v2-footer-row">
-          {formattedTimestamp ? (
-            <span className="ur-v2-ts">{formattedTimestamp}</span>
-          ) : (
-            <span />
-          )}
-          <UrTakeShareButton headline={headline} bodyChunks={shareBody} />
+          {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
+            <div className="ur-v2-parlay-combined">
+              <div className="ur-v2-parlay-combined-label">Combined price {parlayTotalOdds}</div>
+              <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(parlayLegs, parlayTotalOdds)}</div>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      {followUpSource?.followUps?.length > 0 && typeof onFollowUpPick === "function" ? (
+        <div className="ur-v2-inline-followups">
+          <UrTakeDockedFollowUps source={followUpSource} onPick={onFollowUpPick} />
+        </div>
+      ) : null}
+
+      <div className="ur-v2-footer-row">
+        {formattedTimestamp ? (
+          <span className="ur-v2-ts">{formattedTimestamp}</span>
+        ) : (
+          <span />
+        )}
+        <UrTakeShareButton headline={headline} bodyChunks={shareBody} />
       </div>
     </div>
   );

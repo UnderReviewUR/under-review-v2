@@ -612,8 +612,8 @@ export const THEMES = {
         color: #8a7a6a;
         opacity: 1;
       }
-      .theme-broadsheet .docked-interaction-zone .ask-hint--docked-in-frame,
-      .theme-broadsheet .docked-bar .ask-hint--docked-in-frame {
+      .theme-broadsheet .docked-interaction-zone .ur-docked-paste-hint,
+      .theme-broadsheet .docked-bar .ur-docked-paste-hint {
         color: #9a8b7a;
       }
 
@@ -872,8 +872,8 @@ export const THEMES = {
         color: #64748B;
         opacity: 1;
       }
-      .theme-crisp .docked-interaction-zone .ask-hint--docked-in-frame,
-      .theme-crisp .docked-bar .ask-hint--docked-in-frame {
+      .theme-crisp .docked-interaction-zone .ur-docked-paste-hint,
+      .theme-crisp .docked-bar .ur-docked-paste-hint {
         color: #94a3b8;
       }
 
