@@ -663,8 +663,11 @@ async function assembleMlbBoardData() {
   let injuries = [];
 
   const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
+  const slateHasOddsProps = propLinesOdds.length > 0;
+  const slateHasOddsTotals = Object.keys(gameTotalsOdds || {}).length > 0;
+  const shouldTryBdl = Boolean(BDL_KEY && gamesWithPark.length > 0);
   const slateFromBdl = gamesWithPark.some((g) => g.source === "balldontlie_mlb");
-  if (BDL_KEY && slateFromBdl && gamesWithPark.length > 0) {
+  if (shouldTryBdl && (!slateHasOddsProps || !slateHasOddsTotals)) {
     const bundle = await getMlbBdlSlateBundle(BDL_KEY);
     const teamIds = bundle?.teamIds || [];
     const [bdlProps, bdlTotals, bdlInj] = await Promise.all([
@@ -678,7 +681,9 @@ async function assembleMlbBoardData() {
     console.log(
       JSON.stringify({
         event: "mlb_board_bdl",
-        slateFromBdl: true,
+        slateFromBdl,
+        oddsPropsEmpty: !slateHasOddsProps,
+        oddsTotalsEmpty: !slateHasOddsTotals,
         games: gamesWithPark.length,
         bdlProps: bdlProps.length,
         bdlTotals: Object.keys(bdlTotals || {}).length,
