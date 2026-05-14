@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
 import { normalizeText } from "../features/app/helpers.jsx";
 import { formatTennisScore } from "../features/tennis/tennisFormatters.js";
@@ -32,6 +32,7 @@ export default function TickerRail({
   mlbGames,
   mlbData,
   f1Data,
+  collapsible = false,
 }) {
   const nflOn = Boolean(isNflSlateActive);
 
@@ -431,6 +432,55 @@ export default function TickerRail({
     .filter(Boolean);
 
   const tickerQuiet = tiles.length === 0;
+  const liveCount = tiles.length;
+
+  const [liveExpanded, setLiveExpanded] = useState(false);
+
+  const railInner = (
+    <>
+      <div className="home-live-label">Live snapshot</div>
+      <div
+        className={`game-ticker home-ticker-premium${tickerQuiet ? " home-ticker-quiet" : ""}`}
+        style={{
+          display: "flex",
+          gap: 8,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+          marginBottom: 12,
+          alignItems: "stretch",
+        }}
+      >
+        {tickerQuiet ? (
+          <div className="home-ticker-quiet-copy">
+            Snapshot is quiet — nothing in the Home window right now. Use UR Take on a specific matchup; games tip
+            tonight — ask for a pre-game angle.
+          </div>
+        ) : (
+          tiles
+        )}
+      </div>
+    </>
+  );
+
+  if (collapsible) {
+    return (
+      <div className="ur-home-live-module">
+        <button
+          type="button"
+          className="ur-home-live-toggle"
+          onClick={() => setLiveExpanded((v) => !v)}
+          aria-expanded={liveExpanded}
+        >
+          <span className="ur-home-live-toggle-title">Live now</span>
+          <span className="ur-home-live-toggle-count">({liveCount})</span>
+          <span className="ur-home-live-toggle-chev" aria-hidden>
+            {liveExpanded ? "▾" : "▸"}
+          </span>
+        </button>
+        {liveExpanded ? railInner : null}
+      </div>
+    );
+  }
 
   return (
     <>

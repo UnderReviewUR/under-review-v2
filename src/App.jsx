@@ -2392,38 +2392,37 @@ ${themeCss}
   const [promptRefreshTick, setPromptRefreshTick] = useState(0);
 
   // ── Dynamic home questions ─────────────────────────────────────────────────
-  const dynamicHomeQuestions = useMemo(
-    () =>
-      buildDynamicHomeQuestions({
-        activeTournamentMatches,
-        tennisLiveMatches,
-        tennisUpcomingMatches,
-        nflSeasonMode,
-        nflDraftMeta,
-        userCity: userCityHint,
-        context,
-        golfData,
-        nbaGames: homePipeline?.nbaGamesForHome,
-        mlbGames: homePipeline?.mlbGamesForHome,
-        f1Data,
-        hourEt: hourEt ?? 12,
-      }),
-    [
+  const dynamicHomeQuestions = useMemo(() => {
+    const list = buildDynamicHomeQuestions({
       activeTournamentMatches,
       tennisLiveMatches,
       tennisUpcomingMatches,
       nflSeasonMode,
       nflDraftMeta,
-      userCityHint,
+      userCity: userCityHint,
       context,
       golfData,
-      homePipeline?.nbaGamesForHome,
-      homePipeline?.mlbGamesForHome,
+      nbaGames: homePipeline?.nbaGamesForHome,
+      mlbGames: homePipeline?.mlbGamesForHome,
       f1Data,
-      hourEt,
-      promptRefreshTick,
-    ]
-  );
+      hourEt: hourEt ?? 12,
+    });
+    return Array.isArray(list) ? list.slice(0, 3) : [];
+  }, [
+    activeTournamentMatches,
+    tennisLiveMatches,
+    tennisUpcomingMatches,
+    nflSeasonMode,
+    nflDraftMeta,
+    userCityHint,
+    context,
+    golfData,
+    homePipeline?.nbaGamesForHome,
+    homePipeline?.mlbGamesForHome,
+    f1Data,
+    hourEt,
+    promptRefreshTick,
+  ]);
 
   const [liveEdgeAlerts, setLiveEdgeAlerts] = useState([]);
   const recomputeLiveEdgeAlerts = useCallback(() => {
@@ -2615,6 +2614,17 @@ ${themeCss}
     }
     setTab("golf");
     setScreen("golf");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goUrTakeTab = useCallback(() => {
+    if (screen !== "ask" || tab !== "ask") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("ask");
+    setScreen("ask");
     setSelectedMatchup(null);
     setSelectedPlayer(null);
     setSelectedNflPlayer(null);
@@ -3251,9 +3261,15 @@ ${themeCss}
 )}
       {screen==="mlb"&&<span className="pill-mlb">MLB PROPS</span>}
       {screen==="golf"&&<span style={{fontFamily:"var(--mono-font)",fontSize:9,padding:"3px 8px",borderRadius:999,color:"#FFFFFF",border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",whiteSpace:"nowrap"}}>{golfData?.currentEvent?.shortName||"PGA TOUR"}</span>}
-      {screen==="home"&&(
-        <span className="hdr-tagline">Find where the market is wrong.</span>
-      )}
+      {screen === "home" ? (
+        <button
+          type="button"
+          className="ur-hdr-account-btn"
+          onClick={() => openRestoreAccessModal()}
+        >
+          Account
+        </button>
+      ) : null}
     </>
   );
 
@@ -3530,11 +3546,6 @@ ${themeCss}
             homeCards={homeCards}
             openMatchup={openMatchup}
             golfScoreColor={golfScoreColor}
-            userEmail={userEmail}
-            performanceData={performanceData}
-            performanceLoading={performanceLoading}
-            performanceError={performanceError}
-            loadPerformanceSnapshot={loadPerformanceSnapshot}
             liveSnapshotEventKeys={liveSnapshotKeys}
             onTodaySlateDisplayedKeys={setSlateDisplayedEventKeys}
             slateFallbackSports={[
@@ -4969,7 +4980,7 @@ $9.99/month · cancel anytime`}
         )}
 
         {/* ══ NAV ══ */}
-        <nav className="bottom-nav">
+        <nav className="bottom-nav" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
           <button className={`nav-btn${tab==="tennis"?" tennis-active":""}`} onClick={goTennis}><span>Tennis</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
@@ -4977,6 +4988,12 @@ $9.99/month · cancel anytime`}
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
+          <button
+            className={`nav-btn${tab === "ask" && screen === "ask" ? " active" : ""}`}
+            onClick={goUrTakeTab}
+          >
+            <span>UR Take</span>
+          </button>
           <button
             className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
             onClick={goPro}

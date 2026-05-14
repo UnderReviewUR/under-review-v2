@@ -45,6 +45,8 @@ const AskBar = memo(function AskBar({
   onInputFocus,
   /** When true (only pass from fixed dock in App.jsx): logo-gradient border on text input; CSS scoped to `.docked-bar` / `.docked-interaction-zone`. */
   dockedGradient = false,
+  /** Override paste/attach subline copy (default: PASTE IMAGE…). */
+  pasteHintText = null,
 }) {
   const busy = isAsking || prefetchingContext;
 
@@ -105,7 +107,7 @@ const AskBar = memo(function AskBar({
             </div>
           )}
           {!pastedImage && showPasteHint && (
-            <div className="ur-docked-paste-hint">PASTE IMAGE OR TAP ATTACH</div>
+            <div className="ur-docked-paste-hint">{pasteHintText || "PASTE IMAGE OR TAP ATTACH"}</div>
           )}
           <div className="ask-row ask-row--docked-triple">
             <button
@@ -191,7 +193,7 @@ const AskBar = memo(function AskBar({
               />
 
               {!pastedImage && showPasteHint && (
-                <div className="ask-hint">PASTE IMAGE OR TAP ATTACH</div>
+                <div className="ask-hint">{pasteHintText || "PASTE IMAGE OR TAP ATTACH"}</div>
               )}
             </div>
 
