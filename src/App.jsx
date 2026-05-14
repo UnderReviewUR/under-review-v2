@@ -4989,7 +4989,7 @@ $9.99/month · cancel anytime`}
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
           <button
-            className={`nav-btn${tab === "ask" && screen === "ask" ? " active" : ""}`}
+            className={`nav-btn nav-btn--ur-take${tab === "ask" && screen === "ask" ? " active" : ""}`}
             onClick={goUrTakeTab}
           >
             <span>UR Take</span>

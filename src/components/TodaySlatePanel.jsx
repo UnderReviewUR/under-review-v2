@@ -31,6 +31,7 @@ function SlateRow({ label, item, fallbackSports }) {
     (fallbackSports && fallbackSports.has(sport)) || (sport === "tennis" && titleMentionsWta);
   return (
     <div
+      className="today-slate-row"
       style={{
         padding: "10px 0",
         borderTop: "1px solid var(--border)",
@@ -176,16 +177,7 @@ export default function TodaySlatePanel({
         borderRadius: 14,
       }}
     >
-      <div
-        style={{
-          fontFamily: "var(--mono-font)",
-          fontSize: 11,
-          letterSpacing: 2,
-          color: "#00F5E9",
-          textTransform: "uppercase",
-          marginBottom: 4,
-        }}
-      >
+      <div className="today-slate-title" style={{ marginBottom: 4 }}>
         {"Today's slate"}
       </div>
       {loading && (
@@ -214,7 +206,7 @@ export default function TodaySlatePanel({
               Snapshot. Ask UR Take on a specific game for a sharper read.
             </div>
           ) : null}
-          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+          <div className="today-slate-updated" style={{ marginTop: 8 }}>
             {formatUpdatedLabel(data.generatedAt)}
           </div>
         </>
