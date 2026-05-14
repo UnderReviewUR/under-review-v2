@@ -570,9 +570,11 @@ async function getMlbGameTotals(oddsKey) {
     const totals = {};
     for (const event of data.filter(e => toEtDateString(e.commence_time) === todayET)) {
       const gameKey = `${event.away_team} @ ${event.home_team}`;
-      const book = event.bookmakers?.[0];
-      if (!book) continue;
-      const market = book.markets?.find(m => m.key === "totals");
+      const bookWithTotals = (event.bookmakers || []).find((b) =>
+        (b.markets || []).some((m) => m.key === "totals"),
+      );
+      if (!bookWithTotals) continue;
+      const market = bookWithTotals.markets.find((m) => m.key === "totals");
       if (!market) continue;
       const over = market.outcomes?.find(o => o.name === "Over");
       if (!over) continue;
