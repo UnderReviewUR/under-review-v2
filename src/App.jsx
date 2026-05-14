@@ -1075,10 +1075,20 @@ ${themeCss}
       homeTeam: { abbr: g.homeTeam?.abbr, name: g.homeTeam?.name, score: g.homeTeam?.score ?? null, pitcher: g.homeTeam?.pitcher || null },
       awayTeam: { abbr: g.awayTeam?.abbr, name: g.awayTeam?.name, score: g.awayTeam?.score ?? null, pitcher: g.awayTeam?.pitcher || null },
     }));
+    const propLinesPool =
+      src?.propLines?.length > 0
+        ? src.propLines
+        : mlbDataOverride?.propLines?.length > 0
+          ? mlbDataOverride.propLines
+          : mlbData?.propLines || [];
+    const propLines = propLinesPool.slice(0, 12);
+    if (trimmedGames.length > 0 && propLines.length === 0) {
+      console.warn("[buildMlbContext] games present but propLines empty — client context degraded");
+    }
     return {
       seasonContext: src?.seasonContext || {},
       games:         trimmedGames,
-      propLines:     (src?.propLines || []).slice(0, 12),
+      propLines,
       gameTotals:    src?.gameTotals   || {},
       injuries:      (src?.injuries || []).slice(0, 24),
       primarySource: src?.primarySource || null,
