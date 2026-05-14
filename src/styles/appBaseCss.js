@@ -62,6 +62,7 @@ export const baseCss = `
     --display-font:'Bebas Neue',sans-serif;
     --ur-cyan:var(--cyan-bright);
     --ur-mag:var(--magenta);
+    --ur-muted:rgba(148,163,184,0.62);
     --bottom-nav-height:72px;
     /* Ask dock (follow-ups + AskBar) — summed with nav + safe area for UR chat scroll padding */
     --ur-dock-askbar-est:60px;
@@ -699,7 +700,8 @@ export const baseCss = `
     border-bottom-color:rgba(255,255,255,0.06);
     border-left-width:2px;
   }
-  .home-surface-v1 .ur-home-starter-cards .ask-card > div:last-child{color:var(--ur-cyan) !important;}
+  .home-surface-v1 .ur-home-starter-cards .ask-card > div:last-child,
+  .home-surface-v1 .ur-home-starter-cards .ur-home-starter-chev{color:var(--ur-cyan) !important;font-size:16px;flex-shrink:0;line-height:1;}
   .ur-home-promise{
     font-size:15px;
     font-weight:600;
@@ -1776,6 +1778,29 @@ export const baseCss = `
   .ur-v2-parlay-explainer{font-size:11px;color:rgba(255,255,255,.48);margin-top:6px;line-height:1.45;}
   .ur-v2-footer-row{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 12px;border-top:none;}
   .ur-v2-ts{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.22);}
+
+  @media (max-width:767px){
+    .home-surface-v1.home-surface-premium.screen{padding-top:20px;}
+    .home-surface-v1 .ur-home-promise{margin:6px 0 10px;}
+    .home-surface-v1 .ask-wrap{margin:10px 0 20px;}
+    .home-surface-v1 .ur-home-try-row{display:none !important;}
+    .home-surface-v1 .ur-home-starters{margin-top:28px;margin-bottom:20px;}
+    .home-surface-v1 .ur-home-starters-heading{
+      font-size:10px;
+      letter-spacing:0.12em;
+      color:var(--ur-muted);
+    }
+    .home-surface-v1 .ur-home-starter-cards .ask-card{
+      min-height:52px;
+      padding:14px 16px;
+      align-items:center;
+    }
+    .home-surface-v1 .ur-home-starter-cards .ask-card-text{
+      font-size:14px;
+      font-weight:500;
+      line-height:1.35;
+    }
+  }
 
   @media (max-width:390px){
     .quick-btn{min-height:44px;font-size:12px;}

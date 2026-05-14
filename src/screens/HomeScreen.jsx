@@ -57,6 +57,16 @@ export default function HomeScreen({
 
   const [dailyPreview, setDailyPreview] = useState(null);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  const [narrowHome, setNarrowHome] = useState(false);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setNarrowHome(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const tryOne = useMemo(() => {
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
@@ -65,9 +75,9 @@ export default function HomeScreen({
 
   const starterQs = useMemo(() => {
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
-    if (dq.length > 1) return dq.slice(1, 4);
-    return dq.slice(0, 3);
-  }, [dynamicHomeQuestions]);
+    if (dq.length > 1) return narrowHome ? dq.slice(1, 3) : dq.slice(1, 4);
+    return narrowHome ? dq.slice(0, 2) : dq.slice(0, 3);
+  }, [dynamicHomeQuestions, narrowHome]);
 
   useLayoutEffect(() => {
     if (!strippedHomeSession) return;
@@ -207,7 +217,7 @@ export default function HomeScreen({
               <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}>
                 <div className="ask-card-bar" style={{ background: q.color }} />
                 <div className="ask-card-text">{q.text}</div>
-                <div style={{ color: "var(--muted)", fontSize: 16, flexShrink: 0 }} aria-hidden>
+                <div className="ur-home-starter-chev" aria-hidden>
                   ›
                 </div>
               </div>
