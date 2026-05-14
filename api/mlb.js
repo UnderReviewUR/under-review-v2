@@ -596,6 +596,139 @@ async function getMlbGameTotals(oddsKey) {
   }
 }
 
+/** Trim game rows to the slim shape UR Take / mobile `buildMlbContext` uses. */
+function trimGamesForUrTakeContext(gamesWithPark) {
+  return (gamesWithPark || []).map((g) => ({
+    id: g.id,
+    state: g.state,
+    status: g.status,
+    inning: g.inning || null,
+    inningHalf: g.inningHalf || null,
+    homeTeam: {
+      abbr: g.homeTeam?.abbr,
+      name: g.homeTeam?.name,
+      score: g.homeTeam?.score ?? null,
+      pitcher: g.homeTeam?.pitcher || null,
+    },
+    awayTeam: {
+      abbr: g.awayTeam?.abbr,
+      name: g.awayTeam?.name,
+      score: g.awayTeam?.score ?? null,
+      pitcher: g.awayTeam?.pitcher || null,
+    },
+  }));
+}
+
+/**
+ * Core MLB board assembly (games, odds, optional BDL merge) — no mlb_board_v4 cache write.
+ * Used by GET view=board and by `buildMlbUrTakeBoard` for fresh UR Take context.
+ */
+async function assembleMlbBoardData() {
+  let games = await getMlbGamesWithPitchers();
+  let slateRecovery = null;
+  if (games.length > 0) {
+    await persistLastKnownHomeMlbGames(games);
+  } else {
+    const rec = await recoverLastKnownHomeMlbGames();
+    if (rec?.games?.length) {
+      games = rec.games;
+      slateRecovery = { fromLastKnownKv: true, lastUpdated: rec.lastUpdated };
+    }
+  }
+
+  const ODDS_KEY = getEnv("ODDS_API_KEY");
+  const [tomorrowGamesRaw, propLinesOdds, gameTotalsOdds] = await Promise.all([
+    getMlbTomorrowGamesWithPitchers(),
+    getMlbPropLines(ODDS_KEY),
+    getMlbGameTotals(ODDS_KEY),
+  ]);
+
+  const gamesWithPark = games.map((g) =>
+    enrichGameWithParkFactors({
+      ...g,
+      park: g.park || getParkForGame(g.homeTeam?.name || ""),
+    }),
+  );
+  const tomorrowGames = tomorrowGamesRaw.map((g) =>
+    enrichGameWithParkFactors({
+      ...g,
+      park: g.park || getParkForGame(g.homeTeam?.name || ""),
+    }),
+  );
+
+  let propLines = propLinesOdds;
+  let gameTotals = gameTotalsOdds;
+  let injuries = [];
+
+  const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
+  const slateFromBdl = gamesWithPark.some((g) => g.source === "balldontlie_mlb");
+  if (BDL_KEY && slateFromBdl && gamesWithPark.length > 0) {
+    const bundle = await getMlbBdlSlateBundle(BDL_KEY);
+    const teamIds = bundle?.teamIds || [];
+    const [bdlProps, bdlTotals, bdlInj] = await Promise.all([
+      fetchBdlMlbPlayerPropsForSlate(BDL_KEY, gamesWithPark),
+      fetchBdlMlbGameTotalsMap(BDL_KEY, getTodayEtDateString(), gamesWithPark),
+      teamIds.length ? fetchBdlMlbInjuriesForTeamIds(BDL_KEY, teamIds) : Promise.resolve([]),
+    ]);
+    if (bdlProps.length > 0) propLines = bdlProps;
+    if (Object.keys(bdlTotals).length > 0) gameTotals = bdlTotals;
+    injuries = Array.isArray(bdlInj) ? bdlInj : [];
+    console.log(
+      JSON.stringify({
+        event: "mlb_board_bdl",
+        slateFromBdl: true,
+        games: gamesWithPark.length,
+        bdlProps: bdlProps.length,
+        bdlTotals: Object.keys(bdlTotals || {}).length,
+        injuries: injuries.length,
+      }),
+    );
+  }
+
+  return {
+    games,
+    gamesWithPark,
+    tomorrowGames,
+    propLines,
+    gameTotals,
+    injuries,
+    slateFromBdl,
+    slateRecovery,
+  };
+}
+
+/**
+ * Fresh MLB payload for UR Take — mirrors view=board assembly without writing `mlb_board_v4`.
+ * Shape aligns with `buildMlbContext` in App.jsx (trimmed games, capped propLines).
+ */
+export async function buildMlbUrTakeBoard(question = "") {
+  const {
+    games,
+    gamesWithPark,
+    propLines,
+    gameTotals,
+    injuries,
+    slateFromBdl,
+    slateRecovery,
+  } = await assembleMlbBoardData();
+
+  return {
+    seasonContext: buildMlbSeasonContextForBoard({
+      gamesForPitcherText: gamesWithPark,
+      propLines,
+    }),
+    games: trimGamesForUrTakeContext(gamesWithPark),
+    propLines: propLines.slice(0, 12),
+    gameTotals: gameTotals || {},
+    injuries: (injuries || []).slice(0, 24),
+    primarySource: slateFromBdl ? "balldontlie_mlb" : "espn",
+    question: String(question || ""),
+    fetchedAt: new Date().toISOString(),
+    slateRecovery,
+    urTakeAssembly: { gamesLength: games.length, scope: "ur_take_fresh" },
+  };
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
@@ -639,66 +772,16 @@ export default async function handler(req, res) {
         return res.status(200).json(out);
       }
 
-      let games = await getMlbGamesWithPitchers();
-      let slateRecovery = null;
-      if (games.length > 0) {
-        await persistLastKnownHomeMlbGames(games);
-      } else {
-        const rec = await recoverLastKnownHomeMlbGames();
-        if (rec?.games?.length) {
-          games = rec.games;
-          slateRecovery = { fromLastKnownKv: true, lastUpdated: rec.lastUpdated };
-        }
-      }
-
-      const [tomorrowGamesRaw, propLinesOdds, gameTotalsOdds] = await Promise.all([
-        getMlbTomorrowGamesWithPitchers(),
-        getMlbPropLines(ODDS_KEY),
-        getMlbGameTotals(ODDS_KEY),
-      ]);
-
-      // Enrich games with park factor index + model-facing notes
-      const gamesWithPark = games.map((g) =>
-        enrichGameWithParkFactors({
-          ...g,
-          park: g.park || getParkForGame(g.homeTeam?.name || ""),
-        }),
-      );
-      const tomorrowGames = tomorrowGamesRaw.map((g) =>
-        enrichGameWithParkFactors({
-          ...g,
-          park: g.park || getParkForGame(g.homeTeam?.name || ""),
-        }),
-      );
-
-      let propLines = propLinesOdds;
-      let gameTotals = gameTotalsOdds;
-      let injuries = [];
-
-      const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
-      const slateFromBdl = gamesWithPark.some((g) => g.source === "balldontlie_mlb");
-      if (BDL_KEY && slateFromBdl && gamesWithPark.length > 0) {
-        const bundle = await getMlbBdlSlateBundle(BDL_KEY);
-        const teamIds = bundle?.teamIds || [];
-        const [bdlProps, bdlTotals, bdlInj] = await Promise.all([
-          fetchBdlMlbPlayerPropsForSlate(BDL_KEY, gamesWithPark),
-          fetchBdlMlbGameTotalsMap(BDL_KEY, getTodayEtDateString(), gamesWithPark),
-          teamIds.length ? fetchBdlMlbInjuriesForTeamIds(BDL_KEY, teamIds) : Promise.resolve([]),
-        ]);
-        if (bdlProps.length > 0) propLines = bdlProps;
-        if (Object.keys(bdlTotals).length > 0) gameTotals = bdlTotals;
-        injuries = Array.isArray(bdlInj) ? bdlInj : [];
-        console.log(
-          JSON.stringify({
-            event: "mlb_board_bdl",
-            slateFromBdl: true,
-            games: gamesWithPark.length,
-            bdlProps: bdlProps.length,
-            bdlTotals: Object.keys(bdlTotals || {}).length,
-            injuries: injuries.length,
-          }),
-        );
-      }
+      const {
+        games,
+        gamesWithPark,
+        tomorrowGames,
+        propLines,
+        gameTotals,
+        injuries,
+        slateFromBdl,
+        slateRecovery,
+      } = await assembleMlbBoardData();
 
       const board = {
         seasonContext: buildMlbSeasonContextForBoard({

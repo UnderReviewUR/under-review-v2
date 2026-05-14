@@ -44,6 +44,7 @@ import {
   nbaGameHasVerifiedBoxScore,
   questionMentionsPlayer,
 } from "./nba.js";
+import { buildMlbUrTakeBoard } from "./mlb.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 import {
   slimNbaPlayerStatRowForUrTake,
@@ -4534,6 +4535,25 @@ export default async function handler(req, res) {
           },
         };
       }
+    }
+  }
+
+  if (sportHint === "mlb") {
+    try {
+      const freshMlb = await buildMlbUrTakeBoard(String(question || ""));
+      if (
+        freshMlb &&
+        ((Array.isArray(freshMlb.propLines) && freshMlb.propLines.length > 0) ||
+          Object.keys(freshMlb.gameTotals || {}).length > 0)
+      ) {
+        mlbContext = {
+          ...(mlbContext && typeof mlbContext === "object" ? mlbContext : {}),
+          ...freshMlb,
+          question: String(question || ""),
+        };
+      }
+    } catch (e) {
+      console.warn("[ur-take] MLB board refresh failed, using client context", e?.message || e);
     }
   }
 
