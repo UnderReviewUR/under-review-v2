@@ -57,7 +57,9 @@ export default function HomeScreen({
 
   const [dailyPreview, setDailyPreview] = useState(null);
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
-  const [narrowHome, setNarrowHome] = useState(false);
+  const [narrowHome, setNarrowHome] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches,
+  );
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
