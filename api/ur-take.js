@@ -4620,6 +4620,14 @@ export default async function handler(req, res) {
   if (sportHint === "mlb" && mlbContext && typeof mlbContext === "object") {
     mlbContext = { ...mlbContext, oddsAvailable };
   }
+  if (sportHint === "mlb") {
+    console.log("[ur-take] MLB context audit", {
+      propLinesCount: Array.isArray(mlbContext?.propLines) ? mlbContext.propLines.length : 0,
+      gameTotalsCount: Object.keys(mlbContext?.gameTotals ?? {}).length,
+      gamesCount: Array.isArray(mlbContext?.games) ? mlbContext.games.length : 0,
+      source: mlbContext?.primarySource ?? "unknown",
+    });
+  }
   if (sportHint === "golf" && golfContextEffective && typeof golfContextEffective === "object") {
     golfContextEffective = { ...golfContextEffective, oddsAvailable };
   }
