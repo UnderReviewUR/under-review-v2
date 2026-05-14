@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 
 const SHARE_URL = "https://under-review.app";
 
@@ -29,8 +30,10 @@ export default function UrTakeShareButton({ headline, bodyChunks }) {
     try {
       if (navigator.share) {
         await navigator.share({ text: finalText });
+        trackFunnelEvent("share_card_click", { shareMethod: "web_share" });
       } else {
         await navigator.clipboard.writeText(finalText);
+        trackFunnelEvent("share_card_click", { shareMethod: "clipboard" });
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }

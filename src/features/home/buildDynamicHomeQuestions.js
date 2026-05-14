@@ -105,38 +105,38 @@ function computeSortRanks(nflTop) {
   };
 }
 
-const HOME_PROMPT_FALLBACKS = [
+export const HOME_PROMPT_FALLBACKS = [
   {
     id: "fb1",
-    color: "#9CA3AF",
+    color: "var(--magenta)",
     sportHint: "generic",
-    text: "Where is the crowd the most wrong today?",
+    text: "Talk me out of a bad bet",
     prompt:
-      "Across the sports UR is tracking today, where is public money most misaligned with the data-backed read?",
+      "I want you to pressure-test a bet I'm considering. Ask me what it is, then give me the honest case against it — what the data says, what I'm probably missing, and whether there's a smarter play.",
   },
   {
     id: "fb2",
-    color: "#9CA3AF",
+    color: "var(--cyan-bright)",
     sportHint: "generic",
-    text: "Sharpest cross-sport edge on the board?",
+    text: "Which line is the book getting wrong tonight?",
     prompt:
-      "Pick the single sharpest cross-sport angle available from today's verified boards — one lean and one thing that flips it.",
+      "Across tonight's verified boards, identify the single market where the posted line is most out of step with the underlying data — and explain exactly why.",
   },
   {
     id: "fb3",
-    color: "#9CA3AF",
+    color: "var(--gold)",
     sportHint: "generic",
-    text: "Trust the data or the narrative?",
+    text: "Build me a parlay worth actually making",
     prompt:
-      "Name one market where the narrative is loud but the supplied stats/context say fade — stay inside today's JSON only.",
+      "I want a parlay, but I want one that's actually built on correlated logic, not just stacked odds. Walk me through which legs make structural sense together and name the one thing that kills the ticket.",
   },
   {
     id: "fb4",
-    color: "#9CA3AF",
+    color: "var(--muted)",
     sportHint: "generic",
-    text: "One play you would stamp before lines move?",
+    text: "What would a sharp bettor do differently than me?",
     prompt:
-      "If you could only stamp one actionable lean before the next line move, what is it — and what specifically are you watching to validate it?",
+      "Walk me through how a sharp bettor approaches tonight's slate differently than the public — what they're looking at, what they're avoiding, and why the popular picks are probably wrong.",
   },
 ];
 

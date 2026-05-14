@@ -1,12 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 import AskBar from "../components/AskBar.jsx";
-import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
+import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
+import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
+
+const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
+  ["fb1", "fb2", "fb3"].includes(q.id),
+);
 
 export default function HomeScreen({
+  strippedHomeSession = false,
+  strippedSessionBusy = false,
   hasDockedBar,
   askInput,
   setAskInput,
@@ -43,8 +50,29 @@ export default function HomeScreen({
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
   const [dailyPreview, setDailyPreview] = useState(null);
+  const [homeCenterTipMode, setHomeCenterTipMode] = useState("off");
+
+  useLayoutEffect(() => {
+    if (!strippedHomeSession) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+    const t = window.setTimeout(() => askInputRef?.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [strippedHomeSession, askInputRef]);
 
   useEffect(() => {
+    if (!strippedHomeSession) return;
+    try {
+      if (sessionStorage.getItem("ur_first_session_home_viewed") === "1") return;
+      sessionStorage.setItem("ur_first_session_home_viewed", "1");
+    } catch {
+      /* ignore */
+    }
+    trackFunnelEvent("first_session_home_view", { surface: "stripped_home" });
+  }, [strippedHomeSession]);
+
+  useEffect(() => {
+    if (strippedHomeSession) return;
     let cancelled = false;
     (async () => {
       try {
@@ -59,11 +87,91 @@ export default function HomeScreen({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [strippedHomeSession]);
+
+  useEffect(() => {
+    if (strippedHomeSession) {
+      setHomeCenterTipMode("off");
+      return;
+    }
+    try {
+      if (localStorage.getItem("ur_home_center_tip_seen") === "1") return;
+    } catch {
+      return;
+    }
+    setHomeCenterTipMode("on");
+    const fadeT = window.setTimeout(() => setHomeCenterTipMode("fade"), 3500);
+    const doneT = window.setTimeout(() => {
+      setHomeCenterTipMode("off");
+      try {
+        localStorage.setItem("ur_home_center_tip_seen", "1");
+      } catch {
+        /* ignore */
+      }
+    }, 4000);
+    return () => {
+      window.clearTimeout(fadeT);
+      window.clearTimeout(doneT);
+    };
+  }, [strippedHomeSession]);
+
+  if (strippedHomeSession) {
+    return (
+      <main className="screen ur-first-session-home">
+        <div className="ur-first-session-stack">
+          <h1 className="ur-first-session-headline">What do you want to know before you bet?</h1>
+          <AskBar
+            inputRef={askInputRef}
+            value={askInput}
+            onChange={setAskInput}
+            onSubmit={submitHome}
+            placeholder="One sharp line — player, game, or price you care about…"
+            {...askBarCommon}
+          />
+          {strippedSessionBusy ? (
+            <p className="ur-first-session-wait" aria-live="polite">
+              Working on your answer…
+            </p>
+          ) : null}
+          <div className="ur-first-session-prompts">
+            {FIRST_SESSION_PROMPTS.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                disabled={strippedSessionBusy}
+                className={`ur-first-session-pill ur-first-session-pill--${q.id}`}
+                onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}
+              >
+                <span className="ur-first-session-pill-text" style={{ color: q.color }}>
+                  {q.text}
+                </span>
+                <span className="ur-first-session-pill-arrow" style={{ color: q.color }} aria-hidden>
+                  →
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="ur-first-session-foot">2 questions free · No card · No signup</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
           <main className={`screen home-surface-premium${hasDockedBar ? " has-msgs" : ""}`}>
-            <UrTakeOnboardingOverlay visible />
+
+            {homeCenterTipMode !== "off" ? (
+              <p
+                className={
+                  homeCenterTipMode === "fade"
+                    ? "ur-home-center-tip ur-home-center-tip--fade"
+                    : "ur-home-center-tip"
+                }
+                role="status"
+              >
+                This is your command center.
+              </p>
+            ) : null}
 
             {publicStats ? (
               <div className="ur-public-stats">
@@ -163,7 +271,7 @@ export default function HomeScreen({
             {/* Prompts first — actionable before the live snapshot strip */}
             <div className="ask-cards">
               {dynamicHomeQuestions.map((q) => (
-                <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null)}>
+                <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}>
                   <div className="ask-card-bar" style={{ background: q.color }} />
                   <div className="ask-card-text">{q.text}</div>
                   <div style={{ color: "var(--muted)", fontSize: 16, flexShrink: 0 }}>›</div>
@@ -193,7 +301,13 @@ export default function HomeScreen({
             {dailyFeaturedAngleCard ? (
               <button
                 type="button"
-                onClick={() => firePrompt(dailyFeaturedAngleCard.prompt, dailyFeaturedAngleCard.sportHint)}
+                onClick={() =>
+                    firePrompt(
+                      dailyFeaturedAngleCard.prompt,
+                      dailyFeaturedAngleCard.sportHint,
+                      "daily_featured_angle",
+                    )
+                  }
                 style={{
                   width: "100%",
                   marginTop: 6,
@@ -363,7 +477,7 @@ export default function HomeScreen({
                               key={q}
                               type="button"
                               className="quick-btn"
-                              onClick={() => firePrompt(q, "nfl")}
+                              onClick={() => firePrompt(q, "nfl", "nfl_home_quick")}
                             >
                               {q}
                             </button>

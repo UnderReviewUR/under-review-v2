@@ -1,5 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
-import UrTakeOnboardingOverlay from "../components/UrTakeOnboardingOverlay.jsx";
+import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
 
 function sessionSportLabel(slug) {
@@ -17,6 +17,13 @@ function sessionSportLabel(slug) {
   return map[s] || (s ? s.replace(/_/g, " ").toUpperCase() : "Multi-sport");
 }
 
+/** Deterministic context chip; hidden when sport is unknown or generic. */
+function lockedContextLine(inferredSlug) {
+  const s = String(inferredSlug || "").trim().toLowerCase();
+  if (!s || s === "generic") return null;
+  return `Locked: ${sessionSportLabel(inferredSlug)} tonight`;
+}
+
 export default function AskScreen({
   askScreenRef,
   hasDockedBar: _hasDockedBar,
@@ -32,9 +39,14 @@ export default function AskScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  fileInputRef = null,
+  savedTakes = [],
+  onSaveLastUrTake = null,
+  onOpenSavedTake = null,
 }) {
   const inferredSport = inferUrTakeSportFromMessages(askMsgs);
   const questionCount = askMsgs.filter((m) => m.role === "user").length;
+  const lockedLine = lockedContextLine(inferredSport);
 
   return (
           <main
@@ -43,7 +55,6 @@ export default function AskScreen({
           >
             {askMsgs.length === 0 ? (
               <>
-                <UrTakeOnboardingOverlay visible />
                 <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
                 <AskBar
                   inputRef={askInputRef}
@@ -54,7 +65,7 @@ export default function AskScreen({
                   showPasteHint={false}
                   {...askBarCommon}
                 />
-                <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
+                <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null, q.id)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
               </>
             ) : (
               <>
@@ -71,6 +82,7 @@ export default function AskScreen({
                     {questionCount} {questionCount === 1 ? "question" : "questions"}
                   </span>
                 </div>
+                {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
                 <div className="ur-chat-scroll">
                   <ChatThread
                     msgs={askMsgs}
@@ -82,6 +94,13 @@ export default function AskScreen({
                     variant="urChatDocked"
                   />
                 </div>
+                <AskUrTakeRetentionStrip
+                  askMsgs={askMsgs}
+                  fileInputRef={fileInputRef}
+                  onSaveTake={onSaveLastUrTake}
+                  savedTakes={savedTakes}
+                  onOpenSavedTake={onOpenSavedTake}
+                />
               </>
             )}
           </main>

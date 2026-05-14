@@ -1483,6 +1483,18 @@ function UrTakeNextContinuationLine() {
   );
 }
 
+/** Same structured / promoted-parlay resolution as the `URTakeResponse` path inside `UrTakeAiBubble`. */
+function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText) {
+  const plainParlayLegs =
+    m.structured && typeof m.structured === "object" ? null : attemptParlayConversion(summaryText);
+  const promotedParlayStructured = plainParlayLegs
+    ? buildPromotedParlayStructured(summaryText, m.sport, plainParlayLegs)
+    : null;
+  const effectiveStructured =
+    m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
+  return effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null;
+}
+
 function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
@@ -1520,15 +1532,9 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
    * 4. Else legacy `renderMessage` typography.
    * Breakdown toggles `renderUrTakeAiMessage` on `deepText` when present.
    */
-  const plainParlayLegs =
-    m.structured && typeof m.structured === "object" ? null : attemptParlayConversion(summaryText);
-  const promotedParlayStructured = plainParlayLegs
-    ? buildPromotedParlayStructured(summaryText, m.sport, plainParlayLegs)
-    : null;
-  const effectiveStructured =
-    m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
+  const effectiveStructured = resolveEffectiveUrTakeStructuredFromSummary(m, summaryText);
 
-  if (effectiveStructured && typeof effectiveStructured === "object") {
+  if (effectiveStructured) {
     const parsedLiveRibbon = parseUrTakeResponse(summaryText);
     const structuredGameStateLine = parsedLiveRibbon.gameState
       ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)
@@ -1570,14 +1576,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
     return (
       <>
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
-        <div
-          style={{
-            background: "rgba(0,0,0,0.3)",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 12,
-          }}
-        >
+        <div className="ur-take-ai-panel ur-take-ai-panel--breakdown">
           <button
             type="button"
             onClick={() => setShowBreakdown(false)}
@@ -1679,14 +1678,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      <div
-        style={{
-          background: "rgba(0,0,0,0.2)",
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 12,
-        }}
-      >
+      <div className="ur-take-ai-panel ur-take-ai-panel--visual">
         <UrTakePlainTextVisual
           sport={m.sport || "generic"}
           callType={typeof m.structured?.callType === "string" ? m.structured.callType : undefined}
@@ -1933,6 +1925,17 @@ export function ChatThread({
           );
         }
 
+        let showUrTakeResponseBubbleHost = false;
+        if (m.role === "ai" && !m.loading) {
+          const hostSummary = stripEmbeddedFollowUpQuestions(
+            stripLeadingUrTakeDisclaimersForDisplay(m.text),
+            getFollowUpSuggestions(m),
+          );
+          showUrTakeResponseBubbleHost = Boolean(
+            resolveEffectiveUrTakeStructuredFromSummary(m, hostSummary),
+          );
+        }
+
         const bubbleInner =
           m.role === "ai" ? (
             <UrTakeAiBubble
@@ -1950,11 +1953,33 @@ export function ChatThread({
             </>
           );
 
+        const aiBubbleHostClass = showUrTakeResponseBubbleHost ? " ur-take-response-bubble-host" : "";
+
         if (m.role === "user") {
           return (
-            <div key={rowKey(m, i)} className="ur-imessage-user-row">
-              <div className="bubble user bubble--imessage-user" data-role="user">
-                {bubbleInner}
+            <div
+              key={rowKey(m, i)}
+              className={`ur-imessage-user-row${docked ? " ur-imessage-user-row--dock" : ""}`}
+            >
+              <div
+                className={`bubble user bubble--imessage-user${docked ? " bubble--imessage-user--caption" : ""}`}
+                data-role="user"
+              >
+                {docked ? (
+                  <>
+                    <span className="ur-user-ask-kicker">You asked</span>
+                    <span className="ur-user-ask-sep" aria-hidden>
+                      {" "}
+                      ·{" "}
+                    </span>
+                    <span className="ur-user-ask-body">
+                      {m.image && <img src={m.image} alt="" className="bubble-img" />}
+                      {renderMessage(m.text)}
+                    </span>
+                  </>
+                ) : (
+                  bubbleInner
+                )}
               </div>
             </div>
           );
@@ -1968,7 +1993,10 @@ export function ChatThread({
               className="ur-imessage-assistant-row"
               data-msg-id={m.msgId || undefined}
             >
-              <div className="bubble ai bubble--imessage-ai" data-role="assistant">
+              <div
+                className={`bubble ai bubble--imessage-ai${aiBubbleHostClass}`}
+                data-role="assistant"
+              >
                 {bubbleInner}
               </div>
             </div>
@@ -1976,7 +2004,11 @@ export function ChatThread({
         }
 
         return (
-          <div key={rowKey(m, i)} className="bubble ai" data-role="assistant">
+          <div
+            key={rowKey(m, i)}
+            className={`bubble ai${aiBubbleHostClass}`}
+            data-role="assistant"
+          >
             {bubbleInner}
           </div>
         );

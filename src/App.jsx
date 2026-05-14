@@ -118,6 +118,8 @@ import GolfScreen from "./screens/GolfScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
 import UrTakeDockedFollowUps from "./components/UrTakeDockedFollowUps.jsx";
 import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
+import { readSavedTakes, pushSavedTake } from "./lib/savedTakes.js";
+import { trackFunnelEvent } from "./lib/funnelAnalytics.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -260,18 +262,6 @@ export default function App() {
 ${baseCss}
 /* UR Ask chat scroll bottom inset: --ur-dock-askbar-est, --ur-dock-followups-est, --bottom-nav-height in appBaseCss.js */
 ${themeCss}
-
-/* UR Take structured card: strip themed .bubble.ai chrome so Option C sits flush (themes append after baseCss) */
-.app .bubble.ai.bubble--imessage-ai:has(> .ur-take-structured),
-.app .bubble.ai.bubble--imessage-ai:has(> .ur-take-response-v2),
-.app .bubble.ai:has(> .ur-take-structured),
-.app .bubble.ai:has(> .ur-take-response-v2) {
-  background: transparent !important;
-  border: none !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
 `;
 
   const [tab, setTab] = useState("home");
@@ -298,6 +288,7 @@ ${themeCss}
 
   // Per-screen message threads
   const [askMsgs, setAskMsgs]         = useState([]);
+  const [savedTakes, setSavedTakes]   = useState([]);
   const [tennisMsgs, setTennisMsgs]   = useState([]);
   const [nflMsgs, setNflMsgs]         = useState([]);
   const [f1Msgs, setF1Msgs]           = useState([]);
@@ -2961,6 +2952,52 @@ ${themeCss}
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
 
+  const refreshSavedTakes = useCallback(() => {
+    setSavedTakes(readSavedTakes());
+  }, []);
+
+  useEffect(() => {
+    if (screen !== "ask") return;
+    refreshSavedTakes();
+  }, [screen, askMsgs.length, refreshSavedTakes]);
+
+  const onSaveLastUrTake = useCallback(() => {
+    const last = [...askMsgs].reverse().find(
+      (m) => m.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...",
+    );
+    if (!last) return;
+    let headlineSnippet = "";
+    if (last.structured && typeof last.structured.call === "string" && last.structured.call.trim()) {
+      headlineSnippet = last.structured.call.trim();
+    } else {
+      headlineSnippet =
+        String(last.text || "")
+          .split("\n")
+          .map((l) => l.trim())
+          .find(Boolean) || String(last.text || "");
+    }
+    headlineSnippet = headlineSnippet.slice(0, 120);
+    const entry = pushSavedTake({
+      headlineSnippet,
+      sport: last.sport || last.urTakeTelemetry?.sport,
+      msgId: last.msgId,
+      takeId: last.takeMeta?.id,
+    });
+    if (entry) {
+      refreshSavedTakes();
+      trackFunnelEvent("saved_take_push", { sport: entry.sport || "unknown" });
+    }
+  }, [askMsgs, refreshSavedTakes]);
+
+  const onOpenSavedTake = useCallback((t) => {
+    trackFunnelEvent("saved_take_open", { id: String(t?.id || "") });
+    const snippet = String(t?.headlineSnippet || "").trim().slice(0, 120);
+    if (snippet) setAskInput(`About my saved take: ${snippet} — `);
+    requestAnimationFrame(() => {
+      askInputRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
   const urTakeFollowUpTennis = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
@@ -4627,6 +4664,10 @@ fees. One price, unlimited reads.`,
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpAsk}
             onUpgradePromptClick={openUpgradeModal}
+            fileInputRef={fileInputRef}
+            savedTakes={savedTakes}
+            onSaveLastUrTake={onSaveLastUrTake}
+            onOpenSavedTake={onOpenSavedTake}
           />
         )}
 
