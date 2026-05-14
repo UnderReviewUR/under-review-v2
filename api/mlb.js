@@ -588,7 +588,9 @@ async function getMlbGameTotals(oddsKey) {
       };
     }
 
-    setCached(cacheKey, totals);
+    if (Object.keys(totals).length > 0) {
+      setCached(cacheKey, totals);
+    }
     return totals;
   } catch (err) {
     console.warn("getMlbGameTotals error:", err.message);
