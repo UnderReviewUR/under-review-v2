@@ -1200,12 +1200,66 @@ ${themeCss}
 
   const imgToSend = pastedImage;
 
+  const refHint =
+    typeof pendingExplicitSportHintRef.current === "string"
+      ? pendingExplicitSportHintRef.current.trim()
+      : "";
+  pendingExplicitSportHintRef.current = null;
+
+  const explicitHint =
+    typeof sportHint === "string" && sportHint.trim() !== ""
+      ? sportHint.trim()
+      : refHint || null;
+  let detected = detectSportFromQuestion(text, tab);
+  if (detected === "generic") detected = null;
+
+  const scr = String(screen || "").toLowerCase();
+  const screenSport =
+    scr === "nfl" || scr === "nflplayer"
+      ? "nfl"
+      : scr === "mlb" || scr === "nba" || scr === "golf" || scr === "tennis" || scr === "f1"
+        ? scr
+        : null;
+
   let priorSnapshot = [];
+  /** Filled synchronously inside the `setMsgs` updater (same turn as user + loading rows). */
+  let effectiveSportHint = null;
+  let hintForEnsure = null;
+
+  const pendingMsgId =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `pend_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
   setMsgs((prev) => {
     priorSnapshot = [...prev];
+    let eff =
+      explicitHint ??
+      detected ??
+      screenSport ??
+      lastUrTakeSportRef.current ??
+      inferUrTakeSportFromMessages(priorSnapshot) ??
+      null;
+    if (eff === "generic") eff = null;
+    effectiveSportHint = eff;
+
+    let hEnsure = effectiveSportHint;
+    if (!hEnsure && questionSuggestsGolf(text)) hEnsure = "golf";
+    if (!hEnsure && screenSport) hEnsure = screenSport;
+    hintForEnsure = hEnsure;
+
+    const loadingSport = eff === "tennis_wta_profile" ? "tennis" : eff;
+
     return [
       ...prev,
       { role: "user", text, image: imgToSend?.previewUrl || null },
+      {
+        role: "ai",
+        text: "ANALYZING...",
+        loading: true,
+        sport: loadingSport,
+        msgId: pendingMsgId,
+      },
     ];
   });
 
@@ -1215,45 +1269,6 @@ ${themeCss}
   let fuTelemetryState = null;
 
   try {
-    await new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-
-    const refHint =
-      typeof pendingExplicitSportHintRef.current === "string"
-        ? pendingExplicitSportHintRef.current.trim()
-        : "";
-    pendingExplicitSportHintRef.current = null;
-
-    const explicitHint =
-      typeof sportHint === "string" && sportHint.trim() !== ""
-        ? sportHint.trim()
-        : refHint || null;
-    let detected = detectSportFromQuestion(text, tab);
-    if (detected === "generic") detected = null;
-
-    const scr = String(screen || "").toLowerCase();
-    const screenSport =
-      scr === "nfl" || scr === "nflplayer"
-        ? "nfl"
-        : scr === "mlb" || scr === "nba" || scr === "golf" || scr === "tennis" || scr === "f1"
-          ? scr
-          : null;
-
-    let effectiveSportHint =
-      explicitHint ??
-      detected ??
-      screenSport ??
-      lastUrTakeSportRef.current ??
-      inferUrTakeSportFromMessages(priorSnapshot) ??
-      null;
-
-    if (effectiveSportHint === "generic") effectiveSportHint = null;
-
-    let hintForEnsure = effectiveSportHint;
-    if (!hintForEnsure && questionSuggestsGolf(text)) hintForEnsure = "golf";
-    if (!hintForEnsure && screenSport) hintForEnsure = screenSport;
-
     setPrefetchingUrTakeContext(true);
     const ensureStart = typeof performance !== "undefined" ? performance.now() : Date.now();
     const ensured = await ensureUrTakeSportContext(hintForEnsure || "generic", {
@@ -1295,25 +1310,6 @@ ${themeCss}
       nflBundle?.uiPlayers && Object.keys(nflBundle.uiPlayers).length
         ? nflBundle.uiPlayers
         : nflPlayersForUi;
-
-    const loadingSport =
-      effectiveSportHint === "tennis_wta_profile" ? "tennis" : effectiveSportHint;
-
-    const pendingMsgId =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `pend_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-
-    setMsgs((prev) => [
-      ...prev,
-      {
-        role: "ai",
-        text: "ANALYZING...",
-        loading: true,
-        sport: loadingSport,
-        msgId: pendingMsgId,
-      },
-    ]);
 
     const body = {
       question: buildContextualQuestion(text, { priorMessages: priorSnapshot }),
