@@ -220,8 +220,9 @@ export function buildDynamicHomeQuestions({
     golfValidity.upcomingEvent?.name ||
     null;
   const golfActive = Boolean(golfValidity.valid && golfEventName);
-  const golfState = classifyGolfEvent(golfData?.currentEvent || null, promoNowMs);
-  const golfLeaders = golfData?.currentEvent?.leaderboard || [];
+  const golfPrimary = golfData?.currentEvent || golfData?.tournament || null;
+  const golfState = classifyGolfEvent(golfPrimary, promoNowMs);
+  const golfLeaders = golfPrimary?.leaderboard || [];
   const golfLeader = golfLeaders[0];
 
   const tournamentActionable = (activeTournamentMatches || []).filter(

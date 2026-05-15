@@ -43,9 +43,43 @@ export function isDisplayableValidity(state) {
   return state === EVENT_VALIDITY.UPCOMING || state === EVENT_VALIDITY.ACTIVE;
 }
 
+/** BDL schedule rows use `status` ("Live", "Upcoming"); ESPN merge uses `state` ("in", "pre"). */
+function normalizeGolfFeedStateToken(event) {
+  const raw = String(event?.state || event?.status || "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw.includes("final") || raw.includes("complete")) return "post";
+  if (raw.includes("progress") || raw === "in" || raw === "live") return "in";
+  if (
+    raw.includes("not_started") ||
+    raw.includes("scheduled") ||
+    raw.includes("upcoming") ||
+    raw === "pre"
+  ) {
+    return "pre";
+  }
+  if (raw.includes("post")) return "post";
+  return raw;
+}
+
+function golfEventStartMsForValidity(event) {
+  if (Number.isFinite(event?.startTs) && event.startTs > 0) return event.startTs;
+  return parseEventStartMs(
+    event?.startDate || event?.date || event?.raw?.date || event?.displayDate,
+  );
+}
+
+function golfEventEndMsForValidity(event, startMs) {
+  if (Number.isFinite(event?.endTs) && event.endTs > 0) return event.endTs;
+  let endMs = parseEventStartMs(event?.endDate);
+  if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
+    endMs = startMs + 4 * 24 * 60 * 60 * 1000;
+  }
+  return endMs;
+}
+
 export function classifyGolfEvent(event, nowMs = Date.now()) {
   if (!event || typeof event !== "object") return EVENT_VALIDITY.UNKNOWN;
-  const state = String(event.state || "").toLowerCase();
+  const state = normalizeGolfFeedStateToken(event);
   if (state === "post" || state === "final") return EVENT_VALIDITY.FINISHED;
 
   const hasIdentity =
@@ -53,11 +87,8 @@ export function classifyGolfEvent(event, nowMs = Date.now()) {
     Boolean(String(event.name || event.shortName || "").trim());
   if (!hasIdentity) return EVENT_VALIDITY.UNKNOWN;
 
-  const startMs = parseEventStartMs(event.startDate);
-  let endMs = parseEventStartMs(event.endDate);
-  if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
-    endMs = startMs + 4 * 24 * 60 * 60 * 1000;
-  }
+  const startMs = golfEventStartMsForValidity(event);
+  let endMs = golfEventEndMsForValidity(event, startMs);
   if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
   if (state === "pre") {

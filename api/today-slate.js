@@ -19,7 +19,7 @@ import {
 } from "../shared/todaySlateInputBundle.js";
 
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
-const CACHE_KEY = "today_slate_cache";
+const CACHE_KEY = "today_slate_cache_v2";
 const CACHE_TTL_SECONDS = 300;
 const slateCache = {};
 

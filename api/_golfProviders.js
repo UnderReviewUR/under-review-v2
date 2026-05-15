@@ -831,7 +831,7 @@ function shouldSuppressStaleMergedEvent({
 function espnScoreboardEventLooksStale(event) {
   if (!event) return true;
   const st = event?.status?.type?.state;
-  const dateStr = event?.date || event?.end?.date || null;
+  const dateStr = event?.date || event?.startDate || event?.end?.date || null;
   const startMs = parseScheduleMs(dateStr);
   const endMs = inferPgaTourEndMsFromStart(startMs);
   const nowMs = Date.now();
@@ -1704,6 +1704,37 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     tourScheduleOut = injectEspnIntoTourScheduleIfMissing(tourScheduleOut, espnEvent);
   }
 
+  /**
+   * BDL window / suppress logic can drop both tournament and currentEvent while ESPN still
+   * shows a live major (e.g. PGA Championship). Re-hydrate from ESPN so Home + slate bundles stay valid.
+   */
+  if (!outCurrent && !outTournament && espnEvent) {
+    const espnState = String(espnEvent.state || "").toLowerCase();
+    const stale = espnScoreboardEventLooksStale({
+      ...espnEvent,
+      date: espnEvent.startDate || espnEvent.date,
+    });
+    if (!stale && espnState !== "post" && espnState !== "final") {
+      outCurrent = {
+        id: espnEvent.id ?? null,
+        name: espnEvent.name || espnEvent.shortName || "PGA Tour Event",
+        shortName: espnEvent.shortName || espnEvent.name || "PGA Tour",
+        course: espnEvent.course || "TBD",
+        location: espnEvent.location || "",
+        round: espnEvent.round || "Live",
+        state: espnEvent.state || "pre",
+        par: espnEvent.par ?? null,
+        startDate: espnEvent.startDate || null,
+        endDate: espnEvent.endDate || null,
+        displayDate: espnEvent.displayDate || null,
+        leaderboard: Array.isArray(espnEvent.leaderboard) ? espnEvent.leaderboard : [],
+      };
+      if (Array.isArray(tourScheduleOut)) {
+        tourScheduleOut = injectEspnIntoTourScheduleIfMissing(tourScheduleOut, espnEvent);
+      }
+    }
+  }
+
   return {
     currentEvent: outCurrent,
     leaderboard: outCurrent?.leaderboard ?? [],
@@ -1756,7 +1787,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v18";
+  const cacheKey = "unified_golf_board_v19";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 

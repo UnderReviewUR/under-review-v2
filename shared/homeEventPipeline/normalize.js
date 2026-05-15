@@ -215,8 +215,10 @@ export function normalizeGolfTournament(golfData, nowMs = Date.now()) {
   const id = golfSnapshotKey(golfData);
   if (!id) return null;
 
-  const startMs = parseEventStartMs(ev.startDate || ev.date);
-  let endMs = parseEventStartMs(ev.endDate);
+  const startMs = Number.isFinite(ev?.startTs)
+    ? ev.startTs
+    : parseEventStartMs(ev.startDate || ev.date);
+  let endMs = Number.isFinite(ev?.endTs) ? ev.endTs : parseEventStartMs(ev.endDate);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 4 * 24 * 60 * 60 * 1000;
   }
