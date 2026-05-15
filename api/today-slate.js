@@ -2,6 +2,7 @@ import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { safeParseSlateJson } from "./_todaySlateParse.js";
 import {
   classifyMlbGame,
   classifyNbaGame,
@@ -19,7 +20,7 @@ import {
 } from "../shared/todaySlateInputBundle.js";
 
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
-const CACHE_KEY = "today_slate_cache_v2";
+const CACHE_KEY = "today_slate_cache_v3";
 const CACHE_TTL_SECONDS = 300;
 const slateCache = {};
 
@@ -47,34 +48,6 @@ function extractAnthropicText(data) {
     .map((block) => block.text)
     .join("\n")
     .trim();
-}
-
-/**
- * Parse Anthropic output into slate JSON. Models often wrap JSON in ```json fences
- * despite instructions — strip all ``` / ```json fences, then extract the outermost `{...}` object.
- */
-function safeParseSlateJson(text) {
-  let raw = String(text || "").trim();
-  raw = raw.replace(/```json|```/gi, "").trim();
-
-  const tryParse = (s) => {
-    try {
-      const o = JSON.parse(s);
-      return o && typeof o === "object" ? o : null;
-    } catch {
-      return null;
-    }
-  };
-
-  let o = tryParse(raw);
-  if (o) return o;
-
-  const brace = raw.match(/\{[\s\S]*\}/);
-  if (brace) {
-    o = tryParse(brace[0]);
-    if (o) return o;
-  }
-  return null;
 }
 
 /** Cut token volume to Anthropic (same Haiku org TPM); full boards can exceed 50k TPM when Home polls often. */
@@ -420,7 +393,7 @@ Respond ONLY with raw JSON (no markdown, no code fences). The first character mu
     const anthropicResult = await fetchAnthropicMessages({
       apiKey: ANTHROPIC_API_KEY,
       model: ANTHROPIC_MODEL,
-      max_tokens: 260,
+      max_tokens: 1200,
       temperature: 0.35,
       system:
         "You output valid JSON only. Never wrap output in markdown or ``` code fences. Respond ONLY with raw JSON: the first character must be {. Keys must match the user schema exactly.",
