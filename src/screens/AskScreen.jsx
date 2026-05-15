@@ -5,53 +5,138 @@ import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helper
 import { logUrTakeMsgsRenderDiagnostics, logSavedTakesRenderDiagnostics, textOrEmpty } from "../lib/urTakeRenderSafe.js";
 import { getUrBuildFingerprint } from "../lib/urBuildFingerprint.js";
 
+/** Flip one at a time in production to bisect DISPLAY SAFE MODE without redeploying logic. */
+const DEBUG_HIDE_SESSION_HEADER = false;
+const DEBUG_HIDE_CHAT_THREAD = false;
+const DEBUG_HIDE_RETENTION_STRIP = false;
+
+function clipDiag(value, maxChars = 3500) {
+  const s = String(value ?? "");
+  if (s.length <= maxChars) return s;
+  return `${s.slice(0, maxChars)}… (${s.length} chars total)`;
+}
+
+function buildThreadDebugSummary(safeAskMsgs) {
+  const list = Array.isArray(safeAskMsgs) ? safeAskMsgs : [];
+  const last = list.length ? list[list.length - 1] : null;
+  let lastKeys = [];
+  let lastStructuredKeys = [];
+  if (last && typeof last === "object") {
+    try {
+      lastKeys = Object.keys(last).slice(0, 48);
+    } catch {
+      lastKeys = ["<Object.keys threw>"];
+    }
+    if (last.structured && typeof last.structured === "object") {
+      try {
+        lastStructuredKeys = Object.keys(last.structured).slice(0, 48);
+      } catch {
+        lastStructuredKeys = ["<Object.keys threw>"];
+      }
+    }
+  }
+  const roles = list.map((m) => (m && typeof m === "object" && m.role) || "?").join(",");
+  return {
+    length: list.length,
+    roles,
+    lastKeys,
+    lastRole: last && typeof last === "object" ? last.role ?? null : null,
+    lastLoading: last && typeof last === "object" && "loading" in last ? last.loading : null,
+    lastTextType: last == null ? "none" : typeof last.text,
+    lastStructuredKeys,
+  };
+}
+
 class UrTakeChatErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { error: null };
+    this.state = {
+      error: false,
+      errName: "",
+      errMessage: "",
+      errStack: "",
+      componentStack: "",
+    };
   }
 
-  static getDerivedStateFromError() {
-    return { error: true };
+  static getDerivedStateFromError(err) {
+    const name = err instanceof Error ? String(err.name) : typeof err;
+    const message =
+      err instanceof Error && err.message != null
+        ? String(err.message)
+        : String(err != null ? err : "unknown error");
+    const stack = err instanceof Error && err.stack != null ? clipDiag(err.stack, 4000) : "";
+    return {
+      error: true,
+      errName: name,
+      errMessage: message,
+      errStack: stack,
+      componentStack: "",
+    };
   }
 
   componentDidCatch(err, info) {
     console.error("[UrTakeChatErrorBoundary]", err, info?.componentStack);
+    const cs = info?.componentStack != null ? clipDiag(info.componentStack, 4000) : "";
+    this.setState({ componentStack: cs });
   }
 
   render() {
     if (this.state.error) {
+      const fp = getUrBuildFingerprint();
+      const thread = this.props.threadDebug ?? null;
+      const diag = {
+        errName: this.state.errName,
+        errMessage: this.state.errMessage,
+        errStack: this.state.errStack,
+        componentStack: this.state.componentStack,
+        buildFingerprint: fp,
+        threadDebug: thread,
+        debugFlags: {
+          DEBUG_HIDE_SESSION_HEADER,
+          DEBUG_HIDE_CHAT_THREAD,
+          DEBUG_HIDE_RETENTION_STRIP,
+        },
+      };
       return (
         <div
           className="ur-ask-thread-fallback"
           style={{
             minHeight: "min(40vh, 280px)",
+            maxHeight: "min(85vh, 720px)",
+            overflow: "auto",
             padding: "20px 18px",
             margin: "0 4px",
             borderRadius: 12,
             background: "rgba(15,18,21,0.96)",
             border: "1px solid rgba(0,245,233,0.22)",
             color: "#E8EAF0",
-            fontSize: 14,
-            lineHeight: 1.55,
+            fontSize: 13,
+            lineHeight: 1.5,
           }}
         >
           <div style={{ fontFamily: "var(--mono-font)", fontSize: 10, letterSpacing: 1.2, color: "#00F5E9", marginBottom: 10 }}>
             DISPLAY SAFE MODE
           </div>
-          That take couldn&apos;t render. Use the header <strong style={{ color: "#fff" }}>back</strong> arrow, then open UR Take again, or refresh the page.
+          <p style={{ marginBottom: 12 }}>
+            That take couldn&apos;t render. Use the header <strong style={{ color: "#fff" }}>back</strong> arrow, then open UR Take again, or refresh the page.
+          </p>
           <pre
             style={{
-              marginTop: 14,
+              marginTop: 4,
               fontFamily: "var(--mono-font, ui-monospace, monospace)",
               fontSize: 10,
-              letterSpacing: 0.4,
-              color: "rgba(232,234,240,0.55)",
+              letterSpacing: 0.3,
+              color: "rgba(232,234,240,0.88)",
               whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
+              wordBreak: "break-word",
+              background: "rgba(0,0,0,0.35)",
+              padding: 12,
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            {JSON.stringify(getUrBuildFingerprint(), null, 2)}
+            {JSON.stringify(diag, null, 2)}
           </pre>
         </div>
       );
@@ -114,6 +199,7 @@ export default function AskScreen({
   const inferredSport = inferUrTakeSportFromMessages(safeAskMsgs);
   const questionCount = safeAskMsgs.filter((m) => m.role === "user").length;
   const lockedLine = lockedContextLine(inferredSport);
+  const threadDebug = useMemo(() => buildThreadDebugSummary(safeAskMsgs), [safeAskMsgs]);
 
   /** Runs before `UrTakeChatErrorBoundary` children — survives outer safe-mode crashes. */
   useMemo(() => {
@@ -155,39 +241,48 @@ export default function AskScreen({
             ) : (
               <UrTakeChatErrorBoundary
                 key={String(safeAskMsgs.at(-1)?.msgId ?? safeAskMsgs.length)}
+                threadDebug={threadDebug}
               >
-                <div className="ur-session-context-header" aria-live="polite">
-                  <span className="ur-session-context-kicker">UR TAKE</span>
-                  <span className="ur-session-context-divider" aria-hidden>
-                    ·
-                  </span>
-                  <span className="ur-session-context-sport">{sessionSportLabel(inferredSport || "generic")}</span>
-                  <span className="ur-session-context-divider" aria-hidden>
-                    ·
-                  </span>
-                  <span className="ur-session-context-meta">
-                    {questionCount} {questionCount === 1 ? "question" : "questions"}
-                  </span>
-                </div>
-                {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
+                {!DEBUG_HIDE_SESSION_HEADER ? (
+                  <>
+                    <div className="ur-session-context-header" aria-live="polite">
+                      <span className="ur-session-context-kicker">UR TAKE</span>
+                      <span className="ur-session-context-divider" aria-hidden>
+                        ·
+                      </span>
+                      <span className="ur-session-context-sport">{sessionSportLabel(inferredSport || "generic")}</span>
+                      <span className="ur-session-context-divider" aria-hidden>
+                        ·
+                      </span>
+                      <span className="ur-session-context-meta">
+                        {questionCount} {questionCount === 1 ? "question" : "questions"}
+                      </span>
+                    </div>
+                    {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
+                  </>
+                ) : null}
                 <div className="ur-chat-scroll">
-                  <ChatThread
-                    msgs={safeAskMsgs}
-                    urTakeTrackPlay={urTakeTrackPlay}
-                    accessTier={accessTier}
-                    onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-                    onUpgradePromptClick={onUpgradePromptClick}
-                    hideFollowUpDock
-                    variant="urChatDocked"
-                  />
+                  {!DEBUG_HIDE_CHAT_THREAD ? (
+                    <ChatThread
+                      msgs={safeAskMsgs}
+                      urTakeTrackPlay={urTakeTrackPlay}
+                      accessTier={accessTier}
+                      onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+                      onUpgradePromptClick={onUpgradePromptClick}
+                      hideFollowUpDock
+                      variant="urChatDocked"
+                    />
+                  ) : null}
                 </div>
-                <AskUrTakeRetentionStrip
-                  askMsgs={safeAskMsgs}
-                  fileInputRef={fileInputRef}
-                  onSaveTake={onSaveLastUrTake}
-                  savedTakes={safeSavedTakes}
-                  onOpenSavedTake={onOpenSavedTake}
-                />
+                {!DEBUG_HIDE_RETENTION_STRIP ? (
+                  <AskUrTakeRetentionStrip
+                    askMsgs={safeAskMsgs}
+                    fileInputRef={fileInputRef}
+                    onSaveTake={onSaveLastUrTake}
+                    savedTakes={safeSavedTakes}
+                    onOpenSavedTake={onOpenSavedTake}
+                  />
+                ) : null}
               </UrTakeChatErrorBoundary>
             )}
           </main>
