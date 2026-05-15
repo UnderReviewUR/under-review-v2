@@ -121,6 +121,7 @@ import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx"
 import { readSavedTakes, pushSavedTake } from "./lib/savedTakes.js";
 import { trackFunnelEvent } from "./lib/funnelAnalytics.js";
 import { logUrTakeApiEnvelopeDev } from "./lib/urTakeRenderSafe.js";
+import { buildUrTakeClientFailureDebug } from "./lib/urTakeClientFailureDebug.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -1251,6 +1252,10 @@ ${themeCss}
   /** Filled synchronously inside the `setMsgs` updater (same turn as user + loading rows). */
   let effectiveSportHint = null;
   let hintForEnsure = null;
+  /** Populated in the `/api/ur-take` try path so the outer `catch` can attach client failure metadata. */
+  let hasGolfContextForDebug = false;
+  let serializedBodyLength = 0;
+  let lastResponseContentType = null;
 
   const pendingMsgId =
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -1397,6 +1402,8 @@ ${themeCss}
       };
     }
 
+    hasGolfContextForDebug = Boolean(body.golfContext);
+
     const sessionUserTurns = priorSnapshot.filter((m) => m.role === "user").length + 1;
     if (followUpTelemetry) {
       const roundStart = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -1440,6 +1447,7 @@ ${themeCss}
       const lean = { ...body, golfContext: { question: String(text || "").slice(0, 2000), boardTrimmed: true } };
       serialized = JSON.stringify(lean);
     }
+    serializedBodyLength = typeof serialized === "string" ? serialized.length : 0;
 
     let res;
     try {
@@ -1459,6 +1467,7 @@ ${themeCss}
     }
 
     const raw = await res.text();
+    lastResponseContentType = res.headers.get("content-type") || res.headers.get("Content-Type") || "";
 
     if (!res.ok) {
       let j = {};
@@ -1469,13 +1478,26 @@ ${themeCss}
       }
       const code = String(j.code || "");
       const fr = String(j.fallbackReason || "");
+      const dbgFetchNonOk = buildUrTakeClientFailureDebug({
+        phase: "fetch_non_ok",
+        res,
+        raw,
+        parsedErrorJson: j && typeof j === "object" && Object.keys(j).length ? j : null,
+        err: null,
+        effectiveSportHint,
+        hintForEnsure,
+        hasGolfContext: hasGolfContextForDebug,
+        serializedBodyLength,
+        contentType: lastResponseContentType,
+      });
       if (
         res.status === 503 &&
         (code === "upstream_unavailable" || fr === "upstream_rate_limit")
       ) {
+        console.error("[urTakeClientFailure]", dbgFetchNonOk);
         setMsgs((prev) => [
           ...prev.filter((m) => !m.loading),
-          { role: "ai", text: upstreamFailMsg },
+          { role: "ai", text: upstreamFailMsg, urTakeClientFailure: dbgFetchNonOk },
         ]);
         if (fuTelemetryState) {
           const end = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -1503,22 +1525,52 @@ ${themeCss}
       } catch {
         /* keep msg */
       }
-      throw new Error(msg);
+      const errOut = new Error(msg);
+      errOut.urTakeClientFailure = dbgFetchNonOk;
+      throw errOut;
     }
 
     let data;
     try {
       data = JSON.parse(raw);
-    } catch {
-      throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
+    } catch (parseErr) {
+      const dbgInvalidJson = buildUrTakeClientFailureDebug({
+        phase: "invalid_json",
+        res,
+        raw,
+        parsedErrorJson: null,
+        err: parseErr,
+        effectiveSportHint,
+        hintForEnsure,
+        hasGolfContext: hasGolfContextForDebug,
+        serializedBodyLength,
+        contentType: lastResponseContentType,
+      });
+      const errOut = new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
+      errOut.urTakeClientFailure = dbgInvalidJson;
+      errOut.cause = parseErr;
+      throw errOut;
     }
 
     logUrTakeApiEnvelopeDev(data);
 
     if (data.fallbackReason === "upstream_rate_limit") {
+      const dbgRate = buildUrTakeClientFailureDebug({
+        phase: "api_fallback_reason",
+        res,
+        raw,
+        parsedErrorJson: data && typeof data === "object" ? data : null,
+        err: null,
+        effectiveSportHint,
+        hintForEnsure,
+        hasGolfContext: hasGolfContextForDebug,
+        serializedBodyLength,
+        contentType: lastResponseContentType,
+      });
+      console.error("[urTakeClientFailure]", dbgRate);
       setMsgs((prev) => [
         ...prev.filter((m) => !m.loading),
-        { role: "ai", text: upstreamFailMsg },
+        { role: "ai", text: upstreamFailMsg, urTakeClientFailure: dbgRate },
       ]);
       if (fuTelemetryState) {
         const end = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -1664,11 +1716,29 @@ ${themeCss}
         error: err?.name === "AbortError" ? "abort" : "client_error",
       });
     }
+    const failureDbg =
+      err?.urTakeClientFailure ??
+      buildUrTakeClientFailureDebug({
+        phase: err?.name === "AbortError" ? "abort" : "client_catch",
+        res: null,
+        raw: "",
+        parsedErrorJson: null,
+        err,
+        effectiveSportHint,
+        hintForEnsure,
+        hasGolfContext: hasGolfContextForDebug,
+        serializedBodyLength,
+        contentType: lastResponseContentType,
+      });
+    console.error("[urTakeClientFailure]", failureDbg);
     const fallback =
       err?.name === "AbortError"
         ? "Request timed out — try again."
         : err?.message || "The feed hit a snag — try again or rephrase your question.";
-    setMsgs((prev) => [...prev.filter((m) => !m.loading), { role: "ai", text: fallback }]);
+    setMsgs((prev) => [
+      ...prev.filter((m) => !m.loading),
+      { role: "ai", text: fallback, urTakeClientFailure: failureDbg },
+    ]);
   } finally {
     setIsAsking(false);
     urTakeInFlightRef.current = false;

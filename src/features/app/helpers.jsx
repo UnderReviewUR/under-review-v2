@@ -16,6 +16,7 @@ import URTakeResponse from "../../components/URTakeResponse.jsx";
 import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
+import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 export { formatUrTakeSportTag };
@@ -1923,6 +1924,31 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
   );
 }
 
+/** Owner / dev / staging hosts only — see `App.jsx` `urTakeClientFailure` on failed `/api/ur-take` turns. */
+function UrTakeClientFailureDebugPre({ accessTier, payload }) {
+  if (!payload || !shouldShowUrTakeClientFailureDebug(accessTier)) return null;
+  return (
+    <pre
+      className="ur-take-client-failure-debug"
+      style={{
+        marginTop: 8,
+        padding: 8,
+        fontSize: 10,
+        fontFamily: "var(--mono-font)",
+        color: "var(--muted)",
+        background: "rgba(0,0,0,0.35)",
+        borderRadius: 8,
+        maxHeight: 220,
+        overflow: "auto",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+      }}
+    >
+      {JSON.stringify(payload, null, 2)}
+    </pre>
+  );
+}
+
 /** Free tier: after 2nd–3rd completed answer, eligible for one subtle Pro nudge (see ChatThread). */
 function computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradeClick) {
   if (typeof onUpgradeClick !== "function") return false;
@@ -2118,14 +2144,17 @@ export function ChatThread({
 
         const bubbleInner =
           m.role === "ai" ? (
-            <UrTakeAiBubble
-              m={m}
-              trackPlay={urTakeTrackPlay}
-              userQuestion={String(
-                [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
-              )}
-              getTakeAuthHeaders={getTakeAuthHeaders}
-            />
+            <>
+              <UrTakeAiBubble
+                m={m}
+                trackPlay={urTakeTrackPlay}
+                userQuestion={String(
+                  [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
+                )}
+                getTakeAuthHeaders={getTakeAuthHeaders}
+              />
+              <UrTakeClientFailureDebugPre accessTier={accessTier} payload={m.urTakeClientFailure} />
+            </>
           ) : (
             <>
               {m.image && <img src={m.image} alt="" className="bubble-img" />}
