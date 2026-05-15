@@ -2800,15 +2800,19 @@ ${themeCss}
       const el = screenRef?.current;
       if (!el) return;
       const inner = typeof el.querySelector === "function" ? el.querySelector(".ur-chat-scroll") : null;
+      /* Prefer scrollTop on the chat pane — scrollIntoView on nested overflow panes can scroll the wrong
+       * ancestor on mobile Safari and leave the thread viewport blank (solid background). */
+      if (inner && typeof inner.scrollHeight === "number") {
+        inner.scrollTop = inner.scrollHeight;
+        return;
+      }
       const anchor =
-        inner && typeof inner.querySelector === "function"
-          ? inner.querySelector(".ur-chat-thread-anchor")
-          : null;
+        typeof el.querySelector === "function" ? el.querySelector(".ur-chat-thread-anchor") : null;
       if (anchor) {
         anchor.scrollIntoView({ behavior: "smooth", block: "end" });
         return;
       }
-      const target = inner || el;
+      const target = el;
       if (typeof target.scrollHeight === "number") target.scrollTop = target.scrollHeight;
     };
     scroll();

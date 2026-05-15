@@ -1817,6 +1817,18 @@ export function ChatThread({
     requestAnimationFrame(() => {
       const node = dockScrollAnchorRef.current;
       if (!node) return;
+      const pane = node.closest(".ur-chat-scroll");
+      if (pane && typeof pane.scrollHeight === "number") {
+        if (last?.loading) {
+          pane.scrollTop = pane.scrollHeight;
+        } else if (last?.role === "ai" && !last?.loading) {
+          const nodeRect = node.getBoundingClientRect();
+          const paneRect = pane.getBoundingClientRect();
+          const delta = nodeRect.top - paneRect.top;
+          pane.scrollTop = Math.max(0, pane.scrollTop + delta - 12);
+        }
+        return;
+      }
       if (last?.loading) {
         node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       } else if (last?.role === "ai" && !last?.loading) {

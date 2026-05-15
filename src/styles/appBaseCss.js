@@ -266,6 +266,12 @@ export const baseCss = `
     padding-left:16px;
     padding-right:16px;
   }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .ur-session-locked-line{
+    flex-shrink:0;
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .ur-ask-retention-strip{
+    flex-shrink:0;
+  }
   .app.has-docked main.screen.screen--ur-chat.has-msgs > *:first-child{
     flex-shrink:0;
   }
@@ -281,8 +287,9 @@ export const baseCss = `
     box-sizing:border-box;
   }
   .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll{
-    flex:1;
-    min-height:0;
+    flex:1 1 auto;
+    /* Prevent flex min-height:0 chain from collapsing the thread to 0px (blank “black” Ask). */
+    min-height:min(360px,55dvh);
     display:flex;
     flex-direction:column;
     overflow-y:auto;
