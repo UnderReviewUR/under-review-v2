@@ -121,7 +121,10 @@ import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx"
 import { readSavedTakes, pushSavedTake } from "./lib/savedTakes.js";
 import { trackFunnelEvent } from "./lib/funnelAnalytics.js";
 import { logUrTakeApiEnvelopeDev } from "./lib/urTakeRenderSafe.js";
-import { buildUrTakeClientFailureDebug } from "./lib/urTakeClientFailureDebug.js";
+import {
+  buildUrTakeApiSuccessFallbackDebug,
+  buildUrTakeClientFailureDebug,
+} from "./lib/urTakeClientFailureDebug.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -1600,6 +1603,28 @@ ${themeCss}
     const structuredRaw = structuredPayloadFromApi(data);
     const structuredForBubble = structuredRaw ? sanitizeStructuredBubbleShape(structuredRaw) : null;
 
+    const snagPhrase = "The feed hit a snag on that one";
+    const isApiSuccessFallback =
+      data &&
+      typeof data === "object" &&
+      (data.fallback === true ||
+        (data.fallbackReason != null && String(data.fallbackReason).trim() !== "") ||
+        String(normalizedDisplay.response || "").includes(snagPhrase));
+
+    let apiSuccessFallbackDbg = null;
+    if (isApiSuccessFallback) {
+      apiSuccessFallbackDbg = buildUrTakeApiSuccessFallbackDebug(data, effectiveSportHint, {
+        effectiveSportHint,
+        hintForEnsure,
+        hasGolfContext: hasGolfContextForDebug,
+        serializedBodyLength,
+        status: res.status,
+        contentType: lastResponseContentType,
+        rawSlice: raw,
+      });
+      console.error("[urTakeClientFailure]", apiSuccessFallbackDbg);
+    }
+
     try {
       const sportTracked = String(
         sportForBubble || resolvedSport || effectiveSportHint || "generic",
@@ -1669,6 +1694,7 @@ ${themeCss}
         sport: sportTrackedForBubble,
         shownAt: Date.now(),
       },
+      ...(apiSuccessFallbackDbg ? { urTakeClientFailure: apiSuccessFallbackDbg } : {}),
     };
     setMsgs((prev) => {
       const idx = prev.findIndex(
