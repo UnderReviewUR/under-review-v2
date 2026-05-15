@@ -4258,6 +4258,19 @@ function logNbaUrTakeAuditIfDev(payload) {
   }
 }
 
+/** When true, `/api/ur-take` includes `fallbackDebug` on generic fallback JSON (mirrors client `VITE_UR_TAKE_CLIENT_DEBUG`). */
+function includeUrTakeApiFallbackDebugInJson() {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    String(process.env.VITE_UR_TAKE_CLIENT_DEBUG ?? "").trim() === "1" ||
+    String(process.env.UR_TAKE_CLIENT_DEBUG ?? "").trim() === "1"
+  );
+}
+
+function logUrTakeApiFallback(payload) {
+  console.error("[urTakeApiFallback]", payload);
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const requestStart = Date.now();
@@ -4267,20 +4280,69 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  const feedSnagResponse = (sportVal) => {
+  const feedSnagResponse = (sportVal, fallbackReason, logCtx = {}) => {
     const text =
       "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
-    return res.status(200).json({
+    const reason =
+      typeof fallbackReason === "string" && fallbackReason.trim()
+        ? fallbackReason.trim()
+        : "unknown_server_fallback";
+    const sportOut = sportVal || "unknown";
+    const q = String(logCtx.question ?? req.body?.question ?? "").slice(0, 300);
+    logUrTakeApiFallback({
+      fallbackReason: reason,
+      sport: sportOut,
+      question: q,
+      providerStatus: logCtx.providerStatus ?? null,
+      providerErrorName: logCtx.providerErrorName ?? null,
+      providerErrorMessage: logCtx.providerErrorMessage ?? null,
+      rawModelTextSlice:
+        logCtx.rawModelTextSlice != null ? String(logCtx.rawModelTextSlice).slice(0, 1200) : null,
+      parsedKeys: logCtx.parsedKeys ?? null,
+      responseKeys: logCtx.responseKeys ?? null,
+      structuredKeys: logCtx.structuredKeys ?? null,
+      validationErrors: logCtx.validationErrors ?? null,
+      parseErrorMessage: logCtx.parseErrorMessage ?? null,
+      authReason: logCtx.authReason ?? null,
+      sanitizeCode: logCtx.sanitizeCode ?? null,
+      sanitizeError: logCtx.sanitizeError ?? null,
+      stack: logCtx.err?.stack ? String(logCtx.err.stack).slice(0, 2000) : undefined,
+      extra: logCtx.extra ?? undefined,
+    });
+    const base = {
       response: text,
       take: text,
       confidence: "none",
-      sport: sportVal || "unknown",
+      sport: sportOut,
       fallback: true,
-    });
+      fallbackReason: reason,
+    };
+    if (includeUrTakeApiFallbackDebugInJson()) {
+      base.fallbackDebug = {
+        fallbackReason: reason,
+        question: q,
+        providerStatus: logCtx.providerStatus ?? null,
+        providerErrorName: logCtx.providerErrorName ?? null,
+        providerErrorMessage: logCtx.providerErrorMessage ?? null,
+        rawModelTextSlice:
+          logCtx.rawModelTextSlice != null ? String(logCtx.rawModelTextSlice).slice(0, 1200) : null,
+        parsedKeys: logCtx.parsedKeys ?? null,
+        responseKeys: logCtx.responseKeys ?? null,
+        structuredKeys: logCtx.structuredKeys ?? null,
+        validationErrors: logCtx.validationErrors ?? null,
+        parseErrorMessage: logCtx.parseErrorMessage ?? null,
+        authReason: logCtx.authReason ?? null,
+        sanitizeCode: logCtx.sanitizeCode ?? null,
+        sanitizeError: logCtx.sanitizeError ?? null,
+        stack: logCtx.err?.stack ? String(logCtx.err.stack).slice(0, 2000) : undefined,
+        extra: logCtx.extra ?? undefined,
+      };
+    }
+    return res.status(200).json(base);
   };
 
   if (req.method !== "POST") {
-    return feedSnagResponse(null);
+    return feedSnagResponse(null, "http_method_not_post");
   }
 
   const dailyTakePipeline =
@@ -4290,7 +4352,7 @@ export default async function handler(req, res) {
 
   const clientIp = getClientIp(req);
   if (!dailyTakePipeline && !allowRateLimit(`urtake:ip:${clientIp}`, ipLimit())) {
-    return feedSnagResponse(null);
+    return feedSnagResponse(null, "ip_rate_limited");
   }
 
   /** @type {{ ok: true, email: string | null, tier: string } | { ok: false, reason: string } | null} */
@@ -4301,12 +4363,14 @@ export default async function handler(req, res) {
     urAuth = verifyBearerForUrTake(req.headers.authorization);
     if (!urAuth.ok) {
       if (urAuth.reason === "server_misconfigured") {
-        return feedSnagResponse(null);
+        return feedSnagResponse(null, "auth_server_misconfigured");
       }
-      return feedSnagResponse(null);
+      return feedSnagResponse(null, "auth_verify_failed", { authReason: urAuth.reason });
     }
     if (urAuth.email && !allowRateLimit(`urtake:email:${urAuth.email}`, emailLimit())) {
-      return feedSnagResponse(null);
+      return feedSnagResponse(null, "email_rate_limited", {
+        extra: { emailDomain: String(urAuth.email).split("@")[1] || "" },
+      });
     }
   }
 
@@ -4316,9 +4380,12 @@ export default async function handler(req, res) {
       req.body && typeof req.body === "object" && req.body !== null && "sportHint" in req.body
         ? /** @type {{ sportHint?: string }} */ (req.body).sportHint
         : null;
-    return feedSnagResponse(
-      typeof hint === "string" && hint.trim() ? hint.trim() : null,
-    );
+    const sportForSnag =
+      typeof hint === "string" && hint.trim() ? hint.trim() : null;
+    return feedSnagResponse(sportForSnag, `request_body_${String(sanitized.code || "invalid")}`, {
+      sanitizeCode: sanitized.code ?? null,
+      sanitizeError: sanitized.error ?? null,
+    });
   }
   req.body = sanitized.body;
 
@@ -4337,6 +4404,7 @@ export default async function handler(req, res) {
       typeof req.body?.sportHint === "string" && req.body.sportHint.trim()
         ? req.body.sportHint.trim()
         : null,
+      "missing_provider_key",
     );
   }
 
@@ -4388,6 +4456,7 @@ export default async function handler(req, res) {
       typeof incomingSportHint === "string" && incomingSportHint.trim()
         ? incomingSportHint.trim()
         : null,
+      "empty_question",
     );
   }
 
@@ -6515,7 +6584,21 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           requestId: result.requestId,
         });
 
-        return feedSnagResponse(sportHint);
+        let rawSlice = null;
+        try {
+          rawSlice = JSON.stringify(result.data).slice(0, 1200);
+        } catch {
+          rawSlice = String(result.data).slice(0, 1200);
+        }
+        return feedSnagResponse(sportHint, "provider_non_ok", {
+          question: String(question || "").slice(0, 300),
+          providerStatus: result.status,
+          providerErrorName: upstreamType,
+          providerErrorMessage:
+            result.data?.error?.message || result.data?.message || `HTTP ${result.status}`,
+          rawModelTextSlice: rawSlice,
+          extra: { requestId: result.requestId },
+        });
       }
 
       // If structured mode was requested, extract and validate JSON
@@ -6541,6 +6624,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             console.error("[STRUCTURED_UR_TAKE_VALIDATION_ERROR]", {
               errors: validation.errors,
             });
+            logUrTakeApiFallback({
+              fallbackReason: "response_shape_validation_failed",
+              sport: sportHint || "unknown",
+              question: String(question || "").slice(0, 300),
+              validationErrors: validation.errors,
+              rawModelTextSlice: String(responseTextRaw || "").slice(0, 1200),
+              structuredKeys:
+                structuredResponse && typeof structuredResponse === "object"
+                  ? Object.keys(structuredResponse)
+                  : null,
+            });
 
             try {
               globalThis.Sentry?.captureException(new Error("Structured UR Take validation failed"), {
@@ -6559,6 +6653,13 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           console.error("[STRUCTURED_UR_TAKE_PARSE_ERROR]", {
             error: parseError.message,
             responsePreview: extractAnthropicText(result.data).slice(0, 200),
+          });
+          logUrTakeApiFallback({
+            fallbackReason: "model_parse_failed",
+            sport: sportHint || "unknown",
+            question: String(question || "").slice(0, 300),
+            parseErrorMessage: parseError?.message,
+            rawModelTextSlice: extractAnthropicText(result.data).slice(0, 1200),
           });
 
           try {
@@ -6584,7 +6685,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       const text = extractAnthropicText(result.data);
 
       if (!text) {
-        return feedSnagResponse(sportHint);
+        let rawSlice = null;
+        try {
+          rawSlice = JSON.stringify(result.data).slice(0, 1200);
+        } catch {
+          rawSlice = String(result?.data).slice(0, 1200);
+        }
+        return feedSnagResponse(sportHint, "model_empty_text", {
+          question: String(question || "").slice(0, 300),
+          providerStatus: result.status,
+          rawModelTextSlice: rawSlice,
+        });
       }
 
       responseText = text;
@@ -6798,7 +6909,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (!responseText || responseText.trim().length === 0) {
       console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
-      return feedSnagResponse(sportHint);
+      return feedSnagResponse(sportHint, "empty_response_after_processing", {
+        question: String(question || "").slice(0, 300),
+        rawModelTextSlice: String(responseDeep || "").slice(0, 1200),
+        extra: { responseDeepLen: String(responseDeep || "").length },
+      });
     }
 
     if (userEmail && isPro && !isConversationFollowUp) {
@@ -6952,6 +7067,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     console.error("UR TAKE error:", err);
     const s =
       req.body && typeof req.body.sportHint === "string" ? req.body.sportHint.trim() : null;
-    return feedSnagResponse(s);
+    return feedSnagResponse(s, "exception_caught", {
+      question: String(req.body?.question || "").slice(0, 300),
+      err,
+      providerErrorName: err?.name,
+      providerErrorMessage: err?.message,
+    });
   }
 }

@@ -33,6 +33,16 @@ export function buildUrTakeApiSuccessFallbackDebug(data, effectiveSportHint, ctx
     status: typeof ctx.status === "number" ? ctx.status : 200,
     contentType: ctx.contentType != null && ctx.contentType !== "" ? String(ctx.contentType) : null,
     rawSlice: rawStr.slice(0, 1000),
+    serverFallbackDebug:
+      data?.fallbackDebug && typeof data.fallbackDebug === "object"
+        ? (() => {
+            try {
+              return JSON.parse(JSON.stringify(data.fallbackDebug));
+            } catch {
+              return { _note: "server fallbackDebug not serializable" };
+            }
+          })()
+        : null,
   };
 }
 
