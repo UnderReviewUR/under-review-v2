@@ -1,10 +1,13 @@
 import { telemetryUrTakeFollowUpClick } from "../lib/urTakeTelemetry.js";
+import { textOrEmpty } from "../lib/urTakeRenderSafe.js";
 
 /**
  * Follow-up suggestion chips — parent places this above the Ask bar (fixed docked bar or matchup input).
  */
 export default function UrTakeDockedFollowUps({ source, onPick }) {
-  const pills = Array.isArray(source?.followUps) ? source.followUps.slice(0, 3) : [];
+  const pills = Array.isArray(source?.followUps)
+    ? source.followUps.slice(0, 3).map((q) => textOrEmpty(q, 320).trim()).filter(Boolean)
+    : [];
   if (!pills.length) return null;
   return (
     <div className="ur-docked-follow-ups" role="group" aria-label="Suggested follow-ups">

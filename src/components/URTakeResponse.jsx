@@ -9,27 +9,7 @@ import {
   pickSharpBriefHeadline,
 } from "../lib/urTakeSharpBriefUi.js";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
-
-function formatTimestamp(ts) {
-  if (!ts) return null;
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return null;
-  try {
-    const base = d
-      .toLocaleString("en-US", {
-        timeZone: "America/New_York",
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })
-      .replace(",", " ·");
-    return `${base} ET`;
-  } catch {
-    return null;
-  }
-}
+import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -79,7 +59,7 @@ export default function URTakeResponse({
   const [bodyExpandable, setBodyExpandable] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
 
-  const formattedTimestamp = formatTimestamp(timestamp);
+  const formattedTimestamp = formatUrTakeTimestampEt(timestamp);
   const sportTag = formatUrTakeSportTag(sport, callType);
   const liveRibbon = String(liveScore || "").trim() || String(gameStateLine || "").trim() || "";
   const showLiveRibbon = liveRibbon.length > 0;
@@ -155,7 +135,7 @@ export default function URTakeResponse({
       </div>
 
       <div className="ur-v2-headline-wrap">
-        <h2 className="ur-v2-headline">{headline}</h2>
+        <h2 className="ur-v2-headline">{String(headline ?? "")}</h2>
       </div>
 
       <div className="ur-v2-pill-row">
@@ -172,8 +152,8 @@ export default function URTakeResponse({
                 key={slot.key}
                 className={`ur-v2-stat-cell${slot.highlight ? " ur-v2-stat-cell--hi" : ""}`}
               >
-                <div className="ur-v2-stat-label">{slot.label}</div>
-                <div className="ur-v2-stat-value">{slot.value}</div>
+                <div className="ur-v2-stat-label">{String(slot.label ?? "")}</div>
+                <div className="ur-v2-stat-value">{String(slot.value ?? "")}</div>
               </div>
             ))}
           </div>
@@ -192,17 +172,18 @@ export default function URTakeResponse({
         {ee && eeModel ? (
           <div className="ur-v2-ee-prose">
             <p className="ur-v2-body-p ur-v2-muted">
-              <span className="ur-v2-inline-label">Why this tier</span> {eeModel.whyTierBody}
+              <span className="ur-v2-inline-label">Why this tier</span> {String(eeModel.whyTierBody ?? "")}
             </p>
             {eeModel.layout === "thin" ? (
               <>
                 <p className="ur-v2-body-p">
-                  <span className="ur-v2-inline-label">{eeModel.leanHeading}</span> {eeModel.leanBody}
+                  <span className="ur-v2-inline-label">{String(eeModel.leanHeading ?? "")}</span>{" "}
+                  {String(eeModel.leanBody ?? "")}
                 </p>
                 {eeModel.drivers.length > 0 ? (
                   <ul className="ur-v2-driver-list">
                     {eeModel.drivers.map((d, i) => (
-                      <li key={i}>{d}</li>
+                      <li key={i}>{String(d ?? "")}</li>
                     ))}
                   </ul>
                 ) : null}
@@ -211,13 +192,13 @@ export default function URTakeResponse({
               <>
                 {eeModel.numericRows.map((row) => (
                   <p key={row.key} className="ur-v2-body-p">
-                    <span className="ur-v2-inline-label">{row.label}</span> {row.value}
+                    <span className="ur-v2-inline-label">{String(row.label ?? "")}</span> {String(row.value ?? "")}
                   </p>
                 ))}
                 {eeModel.drivers.length > 0 ? (
                   <ul className="ur-v2-driver-list">
                     {eeModel.drivers.map((d, i) => (
-                      <li key={i}>{d}</li>
+                      <li key={i}>{String(d ?? "")}</li>
                     ))}
                   </ul>
                 ) : null}
@@ -272,7 +253,7 @@ export default function URTakeResponse({
           </div>
           {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
             <div className="ur-v2-parlay-combined">
-              <div className="ur-v2-parlay-combined-label">Combined price {parlayTotalOdds}</div>
+              <div className="ur-v2-parlay-combined-label">Combined price {String(parlayTotalOdds)}</div>
               <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(safeParlayLegs, parlayTotalOdds)}</div>
             </div>
           ) : null}

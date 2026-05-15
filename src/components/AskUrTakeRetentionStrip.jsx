@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
+import { textOrEmpty } from "../lib/urTakeRenderSafe.js";
 
 /**
  * Post–first-answer retention: slip upload nudge + save take + minimal saved list.
@@ -12,19 +13,22 @@ export default function AskUrTakeRetentionStrip({
   savedTakes = [],
   onOpenSavedTake,
 }) {
+  const safeMsgs = Array.isArray(askMsgs) ? askMsgs.filter((m) => m && typeof m === "object") : [];
+  const safeSavedTakes = Array.isArray(savedTakes) ? savedTakes.filter((t) => t && typeof t === "object") : [];
+
   const [savedOpen, setSavedOpen] = useState(false);
 
   const lastCompleteAi = useMemo(() => {
-    for (let i = askMsgs.length - 1; i >= 0; i--) {
-      const m = askMsgs[i];
-      if (m?.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...") {
+    for (let i = safeMsgs.length - 1; i >= 0; i--) {
+      const m = safeMsgs[i];
+      if (m && m.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...") {
         return m;
       }
     }
     return null;
-  }, [askMsgs]);
+  }, [safeMsgs]);
 
-  const userTurns = useMemo(() => askMsgs.filter((m) => m.role === "user").length, [askMsgs]);
+  const userTurns = useMemo(() => safeMsgs.filter((m) => m.role === "user").length, [safeMsgs]);
 
   const slipDismissed = useMemo(() => {
     try {
@@ -40,7 +44,7 @@ export default function AskUrTakeRetentionStrip({
   if (!showRow) return null;
 
   const slipCopy =
-    askMsgs.filter((m) => m.role === "ai" && !m.loading).length % 2 === 1
+    safeMsgs.filter((m) => m.role === "ai" && !m.loading).length % 2 === 1
       ? "Want me to check a bet slip before you place it?"
       : "Upload a slip and I’ll flag the weakest leg — not a guarantee, just structure.";
 
@@ -61,10 +65,10 @@ export default function AskUrTakeRetentionStrip({
   const toggleSaved = useCallback(() => {
     setSavedOpen((o) => {
       const next = !o;
-      if (next) trackFunnelEvent("saved_take_view", { count: savedTakes.length });
+      if (next) trackFunnelEvent("saved_take_view", { count: safeSavedTakes.length });
       return next;
     });
-  }, [savedTakes.length]);
+  }, [safeSavedTakes.length]);
 
   return (
     <div className="ur-ask-retention-strip">
@@ -90,21 +94,21 @@ export default function AskUrTakeRetentionStrip({
           <button type="button" className="ur-ask-retention-btn" onClick={onSaveTake}>
             Save take
           </button>
-          {savedTakes.length > 0 ? (
+          {safeSavedTakes.length > 0 ? (
             <button type="button" className="ur-ask-retention-btn ur-ask-retention-btn--ghost" onClick={toggleSaved}>
-              Saved ({savedTakes.length})
+              Saved ({safeSavedTakes.length})
             </button>
           ) : null}
         </div>
       </div>
 
-      {savedOpen && savedTakes.length > 0 ? (
+          {savedOpen && safeSavedTakes.length > 0 ? (
         <ul className="ur-ask-saved-list">
-          {savedTakes.map((t) => (
-            <li key={t.id}>
+          {safeSavedTakes.map((t, idx) => (
+            <li key={String(t?.id ?? `saved-${idx}`)}>
               <button type="button" className="ur-ask-saved-item" onClick={() => onOpenSavedTake?.(t)}>
-                <span className="ur-ask-saved-sport">{t.sport || "Take"}</span>
-                <span className="ur-ask-saved-snippet">{t.headlineSnippet}</span>
+                <span className="ur-ask-saved-sport">{textOrEmpty(t.sport) || "Take"}</span>
+                <span className="ur-ask-saved-snippet">{textOrEmpty(t.headlineSnippet)}</span>
               </button>
             </li>
           ))}

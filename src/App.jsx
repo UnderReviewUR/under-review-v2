@@ -120,6 +120,7 @@ import UrTakeDockedFollowUps from "./components/UrTakeDockedFollowUps.jsx";
 import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
 import { readSavedTakes, pushSavedTake } from "./lib/savedTakes.js";
 import { trackFunnelEvent } from "./lib/funnelAnalytics.js";
+import { logUrTakeApiEnvelopeDev } from "./lib/urTakeRenderSafe.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -190,7 +191,32 @@ function structuredPayloadFromApi(data) {
 /** Prevent React crashes / stringify failures from odd API `structured` shapes (common after golf reads). */
 function sanitizeStructuredBubbleShape(raw) {
   if (!raw || typeof raw !== "object") return null;
+  const clip = (v, max) => {
+    if (v == null) return "";
+    if (typeof v === "string") return v.slice(0, max).trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v).slice(0, max).trim();
+    if (typeof v === "boolean") return String(v);
+    return "";
+  };
+
   const s = { ...raw };
+  s.call = clip(s.call, 8000) || "—";
+  s.whyNow = clip(s.whyNow, 8000);
+  s.edge = clip(s.edge, 8000);
+  s.confidence = clip(s.confidence, 120) || "Medium";
+  s.sport = clip(s.sport, 80).toLowerCase() || "generic";
+  s.callType = clip(s.callType, 48).toLowerCase() || "single";
+
+  if (typeof s.timestamp === "symbol" || typeof s.timestamp === "bigint") {
+    delete s.timestamp;
+  } else if (s.timestamp != null && typeof s.timestamp !== "number" && typeof s.timestamp !== "string") {
+    delete s.timestamp;
+  }
+
+  if (s.parlayTotalOdds != null && s.parlayTotalOdds !== "") {
+    s.parlayTotalOdds = String(s.parlayTotalOdds).slice(0, 48);
+  }
+
   if (Array.isArray(s.caveats)) {
     s.caveats = s.caveats
       .map((c) => {
@@ -1486,6 +1512,8 @@ ${themeCss}
     } catch {
       throw new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
     }
+
+    logUrTakeApiEnvelopeDev(data);
 
     if (data.fallbackReason === "upstream_rate_limit") {
       setMsgs((prev) => [

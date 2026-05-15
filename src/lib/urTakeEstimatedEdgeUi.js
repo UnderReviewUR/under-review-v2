@@ -62,7 +62,7 @@ export function buildEstimatedEdgeCardModel(ee) {
   if (isThin) {
     const lean = scrubStructuredFaceText(ee.leanRead);
     const drivers = Array.isArray(ee.drivers)
-      ? ee.drivers.map((d) => scrubStructuredFaceText(d)).filter((s) => s.trim())
+      ? ee.drivers.map((d) => scrubStructuredFaceText(String(d ?? ""))).filter((s) => s.trim())
       : [];
     return {
       sport: ee.sport,
@@ -97,7 +97,7 @@ export function buildEstimatedEdgeCardModel(ee) {
   }
 
   const drivers = Array.isArray(ee.drivers)
-    ? ee.drivers.map((d) => scrubStructuredFaceText(d)).filter((s) => s.trim())
+    ? ee.drivers.map((d) => scrubStructuredFaceText(String(d ?? ""))).filter((s) => s.trim())
     : [];
 
   return {

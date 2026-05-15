@@ -1,7 +1,9 @@
-import { Component } from "react";
+import { Component, useMemo } from "react";
 import AskBar from "../components/AskBar.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
+import { logUrTakeMsgsRenderDiagnostics, logSavedTakesRenderDiagnostics, textOrEmpty } from "../lib/urTakeRenderSafe.js";
+import { getUrBuildFingerprint } from "../lib/urBuildFingerprint.js";
 
 class UrTakeChatErrorBoundary extends Component {
   constructor(props) {
@@ -38,6 +40,19 @@ class UrTakeChatErrorBoundary extends Component {
             DISPLAY SAFE MODE
           </div>
           That take couldn&apos;t render. Use the header <strong style={{ color: "#fff" }}>back</strong> arrow, then open UR Take again, or refresh the page.
+          <pre
+            style={{
+              marginTop: 14,
+              fontFamily: "var(--mono-font, ui-monospace, monospace)",
+              fontSize: 10,
+              letterSpacing: 0.4,
+              color: "rgba(232,234,240,0.55)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+            }}
+          >
+            {JSON.stringify(getUrBuildFingerprint(), null, 2)}
+          </pre>
         </div>
       );
     }
@@ -46,7 +61,7 @@ class UrTakeChatErrorBoundary extends Component {
 }
 
 function sessionSportLabel(slug) {
-  const s = String(slug || "").toLowerCase();
+  const s = textOrEmpty(slug, 200).toLowerCase();
   const map = {
     nba: "NBA",
     nfl: "NFL",
@@ -62,7 +77,7 @@ function sessionSportLabel(slug) {
 
 /** Deterministic context chip; hidden when sport is unknown or generic. */
 function lockedContextLine(inferredSlug) {
-  const s = String(inferredSlug || "").trim().toLowerCase();
+  const s = textOrEmpty(inferredSlug, 200).trim().toLowerCase();
   if (!s || s === "generic") return null;
   return `Locked: ${sessionSportLabel(inferredSlug)} tonight`;
 }
@@ -87,16 +102,43 @@ export default function AskScreen({
   onSaveLastUrTake = null,
   onOpenSavedTake = null,
 }) {
-  const inferredSport = inferUrTakeSportFromMessages(askMsgs);
-  const questionCount = askMsgs.filter((m) => m.role === "user").length;
+  const safeAskMsgs = useMemo(
+    () => (Array.isArray(askMsgs) ? askMsgs.filter((m) => m && typeof m === "object") : []),
+    [askMsgs],
+  );
+  const safeSavedTakes = useMemo(
+    () => (Array.isArray(savedTakes) ? savedTakes.filter((t) => t && typeof t === "object") : []),
+    [savedTakes],
+  );
+
+  const inferredSport = inferUrTakeSportFromMessages(safeAskMsgs);
+  const questionCount = safeAskMsgs.filter((m) => m.role === "user").length;
   const lockedLine = lockedContextLine(inferredSport);
+
+  /** Runs before `UrTakeChatErrorBoundary` children — survives outer safe-mode crashes. */
+  useMemo(() => {
+    if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
+      console.warn("[AskScreen pre-render]", {
+        isArray: Array.isArray(askMsgs),
+        len: Array.isArray(askMsgs) ? askMsgs.length : null,
+        last: Array.isArray(askMsgs) ? askMsgs.at(-1) : askMsgs,
+        safeLen: safeAskMsgs.length,
+        savedTakesIsArray: Array.isArray(savedTakes),
+        savedTakesLen: Array.isArray(savedTakes) ? savedTakes.length : null,
+        safeSavedLen: safeSavedTakes.length,
+      });
+      logUrTakeMsgsRenderDiagnostics(safeAskMsgs);
+      logSavedTakesRenderDiagnostics(safeSavedTakes);
+    }
+    return null;
+  }, [askMsgs, savedTakes, safeAskMsgs, safeSavedTakes]);
 
   return (
           <main
             ref={askScreenRef}
-            className={`screen${askMsgs.length > 0 ? " has-msgs screen--ur-chat" : ""}`}
+            className={`screen${safeAskMsgs.length > 0 ? " has-msgs screen--ur-chat" : ""}`}
           >
-            {askMsgs.length === 0 ? (
+            {safeAskMsgs.length === 0 ? (
               <>
                 <section className="hero" style={{paddingTop:4}}><div className="hero-title">UR TAKE</div><div className="hero-sub">Ask in plain English. Paste a screenshot. Get weirdly specific.</div></section>
                 <AskBar
@@ -108,11 +150,11 @@ export default function AskScreen({
                   showPasteHint={false}
                   {...askBarCommon}
                 />
-                <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null, q.id)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
+                <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null, q.id)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{textOrEmpty(q.text, 400)}</div></div></button>)}</div></section>
               </>
             ) : (
               <UrTakeChatErrorBoundary
-                key={String(askMsgs.at(-1)?.msgId ?? askMsgs.length)}
+                key={String(safeAskMsgs.at(-1)?.msgId ?? safeAskMsgs.length)}
               >
                 <div className="ur-session-context-header" aria-live="polite">
                   <span className="ur-session-context-kicker">UR TAKE</span>
@@ -130,7 +172,7 @@ export default function AskScreen({
                 {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
                 <div className="ur-chat-scroll">
                   <ChatThread
-                    msgs={askMsgs}
+                    msgs={safeAskMsgs}
                     urTakeTrackPlay={urTakeTrackPlay}
                     accessTier={accessTier}
                     onUrTakeFollowUpPick={onUrTakeFollowUpPick}
@@ -140,10 +182,10 @@ export default function AskScreen({
                   />
                 </div>
                 <AskUrTakeRetentionStrip
-                  askMsgs={askMsgs}
+                  askMsgs={safeAskMsgs}
                   fileInputRef={fileInputRef}
                   onSaveTake={onSaveLastUrTake}
-                  savedTakes={savedTakes}
+                  savedTakes={safeSavedTakes}
                   onOpenSavedTake={onOpenSavedTake}
                 />
               </UrTakeChatErrorBoundary>

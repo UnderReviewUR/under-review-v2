@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
@@ -19,6 +19,30 @@ import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 export { formatUrTakeSportTag };
+
+/**
+ * Isolates premium UR Take UI so a single bad payload cannot trip the whole Ask thread
+ * (`UrTakeChatErrorBoundary` / DISPLAY SAFE MODE). Falls back to the same prose the model sent.
+ */
+class UrTakeSectionErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError() {
+    return { error: true };
+  }
+
+  componentDidCatch(err, info) {
+    console.error(`[UrTakeSectionErrorBoundary:${this.props.label || "section"}]`, err, info?.componentStack);
+  }
+
+  render() {
+    if (this.state.error) return this.props.fallback ?? null;
+    return this.props.children;
+  }
+}
 
 /** Last N user/assistant turns for `/api/ur-take` follow-ups (no loading rows). */
 /** Prefer explicit sport on stored AI bubbles (follow-up routing). */
@@ -797,6 +821,22 @@ export function parseUrTakeResponse(raw) {
   };
 }
 
+function safeParseUrTakeResponse(raw) {
+  try {
+    return parseUrTakeResponse(raw);
+  } catch (err) {
+    console.error("[parseUrTakeResponse]", err);
+    return {
+      gameState: "",
+      headline: "",
+      bodyChunks: [],
+      closing: "",
+      confidence: "",
+      hasVisual: false,
+    };
+  }
+}
+
 /** Legacy loose match (any characters after leg marker — avoids missing lowercase picks). */
 const PARLAY_LEG_PATTERN = /(?:leg\s*\d+|→)\s*:?\s*([^\n—]+)/gi;
 
@@ -1059,12 +1099,17 @@ export function getLastAiFollowUpDockSource(msgs) {
 export function stripEmbeddedFollowUpQuestions(text, followUps) {
   if (!Array.isArray(followUps) || followUps.length === 0) return String(text || "");
   let t = String(text || "");
-  for (const fu of followUps) {
-    const q = String(fu || "").trim();
-    if (q.length < 4) continue;
-    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    t = t.replace(new RegExp(`^\\s*[-•*\\d.)]*\\s*${esc}\\s*$`, "gim"), "");
-    t = t.replace(new RegExp(`\\n\\s*[-•*\\d.)]*\\s*${esc}\\s*(?=\\n|$)`, "gim"), "\n");
+  try {
+    for (const fu of followUps) {
+      const q = String(fu ?? "").trim();
+      if (q.length < 4) continue;
+      const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (esc.length > 800) continue;
+      t = t.replace(new RegExp(`^\\s*[-•*\\d.)]*\\s*${esc}\\s*$`, "gim"), "");
+      t = t.replace(new RegExp(`\\n\\s*[-•*\\d.)]*\\s*${esc}\\s*(?=\\n|$)`, "gim"), "\n");
+    }
+  } catch {
+    return t;
   }
   return t.replace(/\n{3,}/g, "\n\n").trimEnd();
 }
@@ -1346,11 +1391,15 @@ function UrTakeTrustChips({ trust }) {
     lineHeight: 1.25,
   };
 
-  const items = [`CTX·${trust.contextQuality}`];
+  const items = [`CTX·${String(trust.contextQuality ?? "")}`];
   if (trust.sparseQuestion) items.push("Sparse Q");
   if (trust.thinEvidence) items.push("Thin evidence");
 
-  const driverLine = drivers.slice(0, 4).join(" · ");
+  const driverLine = drivers
+    .slice(0, 4)
+    .map((d) => String(d ?? "").trim())
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div
@@ -1493,6 +1542,59 @@ function UrTakeNextContinuationLine() {
   );
 }
 
+/** Coerce API / promoted `structured` into primitives URTakeResponse can always render. */
+function coerceStructuredForUrTakeCard(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const toStr = (v) => {
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    return "";
+  };
+  const caveats = Array.isArray(raw.caveats)
+    ? raw.caveats
+        .map((c) => (typeof c === "string" || typeof c === "number" ? String(c).trim() : ""))
+        .filter(Boolean)
+    : [];
+  const parlayLegs = Array.isArray(raw.parlayLegs)
+    ? raw.parlayLegs
+        .filter((leg) => leg && typeof leg === "object")
+        .map((leg) => ({
+          play: String(leg.play ?? "").trim().slice(0, 240) || "Leg",
+          rationale:
+            typeof leg.rationale === "string"
+              ? leg.rationale
+              : leg.rationale != null && typeof leg.rationale !== "object"
+                ? String(leg.rationale)
+                : "",
+          odds: leg.odds != null && String(leg.odds).trim() !== "" ? String(leg.odds) : "TBD",
+        }))
+        .slice(0, 12)
+    : [];
+
+  const pto =
+    raw.parlayTotalOdds != null && raw.parlayTotalOdds !== ""
+      ? String(raw.parlayTotalOdds).slice(0, 48)
+      : null;
+
+  return {
+    sport: String(raw.sport ?? "generic"),
+    call: toStr(raw.call).trim() || "—",
+    confidence: String(raw.confidence ?? "Medium"),
+    whyNow: toStr(raw.whyNow),
+    edge: toStr(raw.edge),
+    callType: String(raw.callType ?? "single"),
+    caveats,
+    parlayLegs,
+    parlayTotalOdds: pto,
+    timestamp:
+      typeof raw.timestamp === "number" && Number.isFinite(raw.timestamp)
+        ? raw.timestamp
+        : typeof raw.timestamp === "string"
+          ? raw.timestamp
+          : null,
+  };
+}
+
 /** Same structured / promoted-parlay resolution as the `URTakeResponse` path inside `UrTakeAiBubble`. */
 function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText) {
   const plainParlayLegs =
@@ -1545,33 +1647,64 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
   const effectiveStructured = resolveEffectiveUrTakeStructuredFromSummary(m, summaryText);
 
   if (effectiveStructured) {
-    const parsedLiveRibbon = parseUrTakeResponse(summaryText);
+    const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
     const structuredGameStateLine = parsedLiveRibbon.gameState
       ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)
       : "";
 
-    const s = effectiveStructured;
+    const s = coerceStructuredForUrTakeCard(effectiveStructured);
+    const structuredFallback = (
+      <div
+        className="ur-take-section-fallback"
+        style={{
+          padding: "14px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(0,245,233,0.18)",
+          background: "rgba(8,12,16,0.92)",
+          marginBottom: 4,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 10,
+            letterSpacing: 1.1,
+            color: "#00F5E9",
+            marginBottom: 10,
+            opacity: 0.85,
+          }}
+        >
+          CARD LAYOUT FALLBACK · PLAIN TEXT
+        </div>
+        {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
+      </div>
+    );
     return (
       <>
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
-        <URTakeResponse
-          sport={s.sport}
-          question={userQuestion}
-          call={s.call}
-          confidence={s.confidence}
-          whyNow={s.whyNow}
-          edge={s.edge}
-          callType={s.callType}
-          analysis={s.analysis}
-          caveats={s.caveats}
-          parlayLegs={s.parlayLegs}
-          parlayTotalOdds={s.parlayTotalOdds}
-          timestamp={s.timestamp}
-          gameStateLine={structuredGameStateLine}
-          liveScore={String(m.liveScore || "").trim()}
-          estimatedEdge={m.estimatedEdge}
-          takeMeta={m.takeMeta}
-        />
+        <UrTakeSectionErrorBoundary
+          label="ur_take_structured_card"
+          key={String(m.msgId || `struct-${summaryText.slice(0, 48)}`)}
+          fallback={structuredFallback}
+        >
+          <URTakeResponse
+            sport={s.sport}
+            question={userQuestion}
+            call={s.call}
+            confidence={s.confidence}
+            whyNow={s.whyNow}
+            edge={s.edge}
+            callType={s.callType}
+            caveats={s.caveats}
+            parlayLegs={s.parlayLegs}
+            parlayTotalOdds={s.parlayTotalOdds}
+            timestamp={s.timestamp}
+            gameStateLine={structuredGameStateLine}
+            liveScore={String(m.liveScore || "").trim()}
+            estimatedEdge={m.estimatedEdge}
+            takeMeta={m.takeMeta}
+          />
+        </UrTakeSectionErrorBoundary>
         <UrTakeNextContinuationLine />
         {trustChips}
         {betSignalRow}
@@ -1580,7 +1713,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
     );
   }
 
-  const parsed = parseUrTakeResponse(summaryText);
+  const parsed = safeParseUrTakeResponse(summaryText);
 
   if (showBreakdown && m.deepText) {
     return (
@@ -1688,79 +1821,101 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
-      <div className="ur-take-ai-panel ur-take-ai-panel--visual">
-        <UrTakePlainTextVisual
-          sport={m.sport || "generic"}
-          callType={typeof m.structured?.callType === "string" ? m.structured.callType : undefined}
-          gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
-          headlineDisplay={parsed.headline}
-          bodyChunks={parsed.bodyChunks}
-          closingDisplay={parsed.closing}
-          confidence={parsed.confidence}
-          compactBubble={true}
-        />
-        <UrTakeNextContinuationLine />
-
-        {(m.deepText || showTrack) && (
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              marginTop: 12,
-              justifyContent: "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
-            {m.deepText ? (
-              <button
-                type="button"
-                onClick={() => setShowBreakdown(true)}
-                style={{
-                  background: "transparent",
-                  color: "#00F5E9",
-                  border: "1px solid #00F5E9",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontFamily: "var(--body-font)",
-                }}
-              >
-                See full breakdown
-              </button>
-            ) : null}
-            {showTrack ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
-                  setIsTracking(true);
-                  try {
-                    await Promise.resolve(trackPlay.onTrack(m));
-                  } finally {
-                    setIsTracking(false);
-                  }
-                }}
-                disabled={tracked || isTracking}
-                style={{
-                  background: "transparent",
-                  color: "#FF3D8F",
-                  border: "1px solid #FF3D8F",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  cursor: tracked || isTracking ? "default" : "pointer",
-                  fontSize: 12,
-                  textTransform: "uppercase",
-                  fontFamily: "var(--body-font)",
-                  opacity: isTracking ? 0.5 : 1,
-                }}
-              >
-                {tracked ? "✓ TRACKED" : isTracking ? "TRACKING..." : "TRACK THIS PLAY"}
-              </button>
-            ) : null}
+      <UrTakeSectionErrorBoundary
+        label="ur_take_plain_visual"
+        key={String(m.msgId || `visual-${summaryText.slice(0, 48)}`)}
+        fallback={
+          <div style={{ position: "relative", paddingBottom: 12 }}>
+            <div
+              style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 10,
+                letterSpacing: 1.1,
+                color: "#00F5E9",
+                marginBottom: 10,
+                opacity: 0.85,
+              }}
+            >
+              VISUAL LAYOUT FALLBACK · PLAIN TEXT
+            </div>
+            {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
           </div>
-        )}
-      </div>
+        }
+      >
+        <div className="ur-take-ai-panel ur-take-ai-panel--visual">
+          <UrTakePlainTextVisual
+            sport={m.sport || "generic"}
+            callType={typeof m.structured?.callType === "string" ? m.structured.callType : undefined}
+            gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
+            headlineDisplay={parsed.headline}
+            bodyChunks={parsed.bodyChunks}
+            closingDisplay={parsed.closing}
+            confidence={parsed.confidence}
+            compactBubble={true}
+          />
+          <UrTakeNextContinuationLine />
+
+          {(m.deepText || showTrack) && (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 12,
+                justifyContent: "flex-end",
+                flexWrap: "wrap",
+              }}
+            >
+              {m.deepText ? (
+                <button
+                  type="button"
+                  onClick={() => setShowBreakdown(true)}
+                  style={{
+                    background: "transparent",
+                    color: "#00F5E9",
+                    border: "1px solid #00F5E9",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontFamily: "var(--body-font)",
+                  }}
+                >
+                  See full breakdown
+                </button>
+              ) : null}
+              {showTrack ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
+                    setIsTracking(true);
+                    try {
+                      await Promise.resolve(trackPlay.onTrack(m));
+                    } finally {
+                      setIsTracking(false);
+                    }
+                  }}
+                  disabled={tracked || isTracking}
+                  style={{
+                    background: "transparent",
+                    color: "#FF3D8F",
+                    border: "1px solid #FF3D8F",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    cursor: tracked || isTracking ? "default" : "pointer",
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    fontFamily: "var(--body-font)",
+                    opacity: isTracking ? 0.5 : 1,
+                  }}
+                >
+                  {tracked ? "✓ TRACKED" : isTracking ? "TRACKING..." : "TRACK THIS PLAY"}
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </UrTakeSectionErrorBoundary>
       {trustChips}
       {betSignalRow}
       {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
@@ -1773,8 +1928,8 @@ function computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradeClick) {
   if (typeof onUpgradeClick !== "function") return false;
   if (accessTier !== "free") return false;
   if (!Array.isArray(msgs) || msgs.length === 0) return false;
-  const userTurns = msgs.filter((m) => m.role === "user").length;
-  const completedAi = msgs.filter((m) => m.role === "ai" && !m.loading).length;
+  const userTurns = msgs.filter((m) => m && m.role === "user").length;
+  const completedAi = msgs.filter((m) => m && m.role === "ai" && !m.loading).length;
   const last = msgs[msgs.length - 1];
   if (userTurns < 2 || userTurns > 3) return false;
   if (completedAi < 2 || completedAi !== userTurns) return false;
@@ -1931,6 +2086,9 @@ export function ChatThread({
       style={docked ? undefined : { marginBottom: 20 }}
     >
       {msgs.map((m, i) => {
+        if (!m || typeof m !== "object") {
+          return <div key={`invalid-row-${i}`} style={{ display: "none" }} aria-hidden />;
+        }
         if (m.loading) {
           if (!docked) {
             return <LoadingBubble key={rowKey(m, i)} sport={m.sport} variant="default" />;
