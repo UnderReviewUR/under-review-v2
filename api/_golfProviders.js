@@ -1501,6 +1501,90 @@ function injectEspnIntoTourScheduleIfMissing(tourSchedule, espnEvent) {
   return [injected, ...list].slice(0, SCHEDULE_WINDOW_MAX);
 }
 
+/** Canonical Thu–Sun window for a normalized schedule row. */
+function scheduleRowStartEndMs(row) {
+  if (!row || typeof row !== "object") return { startMs: NaN, endMs: NaN };
+  const startMs =
+    Number.isFinite(row.startTs) && row.startTs > 0
+      ? row.startTs
+      : parseScheduleMs(row.startDate);
+  let endMs =
+    Number.isFinite(row.endTs) && row.endTs > 0
+      ? row.endTs
+      : parseScheduleMs(row.endDate);
+  if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
+    endMs = inferPgaTourEndMsFromStart(startMs);
+  }
+  return { startMs, endMs };
+}
+
+function slugOverlapsSchedule(a, b) {
+  const x = slugify(a || "");
+  const y = slugify(b || "");
+  if (!x || !y) return false;
+  return x === y || x.includes(y) || y.includes(x);
+}
+
+/**
+ * Pick the schedule row that should drive Home / header copy (BDL + ESPN-injected list).
+ * Prefers ESPN id match, then BDL "picked" tournament id, then name overlap with ESPN,
+ * then live / in-window / purse heuristics.
+ */
+function pickPrimaryScheduleRow(tourScheduleOut, espnEvent, tournament, nowMs = Date.now()) {
+  const rows = Array.isArray(tourScheduleOut) ? tourScheduleOut.filter(Boolean) : [];
+  if (!rows.length) return null;
+
+  const espnId = espnEvent?.id != null ? String(espnEvent.id).trim() : "";
+  const espnLabel = espnEvent?.name || espnEvent?.shortName || "";
+  const bdlId = tournament?.id != null ? String(tournament.id).trim() : "";
+
+  const scored = rows.map((r) => {
+    const { startMs, endMs } = scheduleRowStartEndMs(r);
+    const st = normalizeString(r?.status || "");
+    let score = 0;
+    if (espnId && String(r?.id || "").trim() === espnId) score += 1_000_000;
+    if (bdlId && String(r?.id || "").trim() === bdlId) score += 500_000;
+    if (
+      espnLabel &&
+      (slugOverlapsSchedule(r?.name, espnLabel) || slugOverlapsSchedule(r?.shortName, espnLabel))
+    ) {
+      score += 250_000;
+    }
+    if (st.includes("live") || st.includes("progress")) score += 80_000;
+    if (Number.isFinite(startMs) && Number.isFinite(endMs) && nowMs >= startMs && nowMs <= endMs) {
+      score += 60_000;
+    }
+    if (Number.isFinite(startMs) && nowMs < startMs && startMs - nowMs <= 72 * 60 * 60 * 1000) {
+      score += 25_000;
+    }
+    const purse = Number(r?.purse || 0);
+    score += Math.min(purse / 1e5, 5000);
+    return { r, score, startMs };
+  });
+
+  scored.sort((a, b) => b.score - a.score || (a.startMs || 0) - (b.startMs || 0));
+  return scored[0]?.r || rows[0];
+}
+
+/** Keep ESPN/BDL scoring rows; replace marketing labels with the schedule row (fixes wrong week names on Home). */
+function overlayCurrentEventDisplayFromSchedule(ce, row) {
+  if (!ce || !row) return ce;
+  const courseLabel =
+    row.courseName ||
+    (typeof row.course === "string" ? row.course : null) ||
+    ce.course;
+  return {
+    ...ce,
+    name: row.name || ce.name,
+    shortName: row.shortName || row.name || ce.shortName,
+    displayDate: row.displayDate || ce.displayDate,
+    startDate: row.startDate || ce.startDate,
+    endDate: row.endDate != null && row.endDate !== "" ? row.endDate : ce.endDate,
+    course: courseLabel || ce.course,
+    location: row.location || ce.location,
+  };
+}
+
 function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   const tournament = bdlBundle?.tournament || null;
   const course = bdlBundle?.course || null;
@@ -1735,6 +1819,32 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     }
   }
 
+  const schedulePrimary = pickPrimaryScheduleRow(
+    tourScheduleOut,
+    espnEvent,
+    tournament,
+    Date.now(),
+  );
+  if (schedulePrimary) {
+    if (outCurrent) {
+      outCurrent = overlayCurrentEventDisplayFromSchedule(outCurrent, schedulePrimary);
+    }
+    const { startMs: spStart, endMs: spEnd } = scheduleRowStartEndMs(schedulePrimary);
+    const nowSched = Date.now();
+    const inSchedWindow =
+      Number.isFinite(spStart) &&
+      Number.isFinite(spEnd) &&
+      nowSched >= spStart &&
+      nowSched <= spEnd;
+    const schedLive = normalizeString(schedulePrimary.status || "").includes("live");
+    const schedMatchesEspn =
+      espnEvent?.id != null &&
+      String(schedulePrimary.id || "").trim() === String(espnEvent.id).trim();
+    if (schedMatchesEspn || inSchedWindow || schedLive || !outTournament) {
+      outTournament = schedulePrimary;
+    }
+  }
+
   return {
     currentEvent: outCurrent,
     leaderboard: outCurrent?.leaderboard ?? [],
@@ -1787,7 +1897,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v19";
+  const cacheKey = "unified_golf_board_v20";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
