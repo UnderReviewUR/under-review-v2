@@ -2882,21 +2882,24 @@ ${themeCss}
 
   const firePrompt = useCallback(
     (prompt, sportHint = null) => {
-      if (isAsking || prefetchingUrTakeContext) return;
+      if (isAsking || prefetchingUrTakeContext || urTakeInFlightRef.current) return;
+      const text = String(prompt ?? "").trim();
+      if (!text) return;
+      if (!canAsk()) return;
       if (screen !== "ask" || tab !== "ask") {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
       setTab("ask");
       setScreen("ask");
       setAskInput("");
-      askUrTake({ text: prompt, setMsgs: setAskMsgs, sportHint });
+      askUrTake({ text, setMsgs: setAskMsgs, sportHint });
       requestAnimationFrame(() => {
         scheduleChatScroll(askScreenRef);
         const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
         pendingScrollTimeoutIdsRef.current.push(t120);
       });
     },
-    [askUrTake, scheduleChatScroll, screen, tab, isAsking, prefetchingUrTakeContext],
+    [askUrTake, canAsk, scheduleChatScroll, screen, tab, isAsking, prefetchingUrTakeContext],
   );
 
   /** Navigate to UR Take with the question pre-filled (sport hint stored for submit). */
@@ -2922,7 +2925,8 @@ ${themeCss}
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome = useCallback(() => {
     const t = askInput.trim();
-    if (!t || isAsking || prefetchingUrTakeContext) return;
+    if (!t || isAsking || prefetchingUrTakeContext || urTakeInFlightRef.current) return;
+    if (!canAsk()) return;
     if (screen !== "ask" || tab !== "ask") {
       setNavHistory((h) => [...h, { screen, tab }]);
     }
@@ -2935,7 +2939,7 @@ ${themeCss}
       const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
       pendingScrollTimeoutIdsRef.current.push(t120);
     });
-  }, [askUrTake, askInput, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab]);
+  }, [askUrTake, askInput, canAsk, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab]);
   const submitAsk = useCallback(() => {
     const t = askInput.trim();
     if (!t || isAsking || prefetchingUrTakeContext) return;
