@@ -450,21 +450,23 @@ function UrTakePlainTextVisual({
               }
               style={{ opacity: mounted ? undefined : 0 }}
             >
-              {headlineDisplay}
+              {String(headlineDisplay)}
             </div>
           ) : null}
 
-        {bodyChunks.length > 0 ? (
+            {bodyChunks.length > 0 ? (
           <div className="pb-1">
             {bodyChunks.map((chunk, i) => {
               const isPick = chunk && typeof chunk === "object" && chunk.type === "pick";
               const isLabel = chunk && typeof chunk === "object" && chunk.type === "label";
-              const text =
+              const raw =
                 typeof chunk === "string"
                   ? chunk
                   : chunk && typeof chunk === "object"
                     ? chunk.text
                     : "";
+              const text =
+                typeof raw === "string" || typeof raw === "number" ? String(raw) : "";
               if (isLabel) {
                 return (
                   <div
@@ -498,7 +500,7 @@ function UrTakePlainTextVisual({
 
           {closingDisplay ? (
             <div className="ur-closing-share-row" style={{ opacity: mounted ? undefined : 0 }}>
-              <div className="ur-closing-block ur-response-closing">{closingDisplay}</div>
+              <div className="ur-closing-block ur-response-closing">{String(closingDisplay)}</div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 {showLiveHeader && confidencePillText ? (
                   <span className={pillCls}>{confidencePillText}</span>

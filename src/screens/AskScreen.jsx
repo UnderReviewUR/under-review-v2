@@ -13,20 +13,31 @@ class UrTakeChatErrorBoundary extends Component {
     return { error: true };
   }
 
+  componentDidCatch(err, info) {
+    console.error("[UrTakeChatErrorBoundary]", err, info?.componentStack);
+  }
+
   render() {
     if (this.state.error) {
       return (
         <div
           className="ur-ask-thread-fallback"
           style={{
-            padding: "16px 20px",
-            color: "var(--muted)",
+            minHeight: "min(40vh, 280px)",
+            padding: "20px 18px",
+            margin: "0 4px",
+            borderRadius: 12,
+            background: "rgba(15,18,21,0.96)",
+            border: "1px solid rgba(0,245,233,0.22)",
+            color: "#E8EAF0",
             fontSize: 14,
             lineHeight: 1.55,
           }}
         >
-          That take couldn&apos;t render in the app (display bug). Use the header back arrow, then open UR Take
-          again — or refresh the page. Your account data is fine.
+          <div style={{ fontFamily: "var(--mono-font)", fontSize: 10, letterSpacing: 1.2, color: "#00F5E9", marginBottom: 10 }}>
+            DISPLAY SAFE MODE
+          </div>
+          That take couldn&apos;t render. Use the header <strong style={{ color: "#fff" }}>back</strong> arrow, then open UR Take again, or refresh the page.
         </div>
       );
     }
@@ -100,7 +111,9 @@ export default function AskScreen({
                 <section className="section"><div className="section-label">TRY ONE</div><div className="q-list">{dynamicHomeQuestions.map(q=><button key={q.id} className="q-card" onClick={()=>firePrompt(q.prompt, q.sportHint || null, q.id)}><div className="q-top"><div className="q-accent" style={{background:q.color}}/><div className="q-text">{q.text}</div></div></button>)}</div></section>
               </>
             ) : (
-              <>
+              <UrTakeChatErrorBoundary
+                key={String(askMsgs.at(-1)?.msgId ?? askMsgs.length)}
+              >
                 <div className="ur-session-context-header" aria-live="polite">
                   <span className="ur-session-context-kicker">UR TAKE</span>
                   <span className="ur-session-context-divider" aria-hidden>
@@ -116,17 +129,15 @@ export default function AskScreen({
                 </div>
                 {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
                 <div className="ur-chat-scroll">
-                  <UrTakeChatErrorBoundary key={askMsgs.length}>
-                    <ChatThread
-                      msgs={askMsgs}
-                      urTakeTrackPlay={urTakeTrackPlay}
-                      accessTier={accessTier}
-                      onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-                      onUpgradePromptClick={onUpgradePromptClick}
-                      hideFollowUpDock
-                      variant="urChatDocked"
-                    />
-                  </UrTakeChatErrorBoundary>
+                  <ChatThread
+                    msgs={askMsgs}
+                    urTakeTrackPlay={urTakeTrackPlay}
+                    accessTier={accessTier}
+                    onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+                    onUpgradePromptClick={onUpgradePromptClick}
+                    hideFollowUpDock
+                    variant="urChatDocked"
+                  />
                 </div>
                 <AskUrTakeRetentionStrip
                   askMsgs={askMsgs}
@@ -135,7 +146,7 @@ export default function AskScreen({
                   savedTakes={savedTakes}
                   onOpenSavedTake={onOpenSavedTake}
                 />
-              </>
+              </UrTakeChatErrorBoundary>
             )}
           </main>
   );
