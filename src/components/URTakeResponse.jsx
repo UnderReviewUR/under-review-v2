@@ -88,6 +88,12 @@ export default function URTakeResponse({
   const edgeDisplay = scrubStructuredFaceText(edge) || "—";
   const callScrub = scrubStructuredFaceText(call);
 
+  const safeParlayLegs = Array.isArray(parlayLegs)
+    ? parlayLegs
+        .filter((leg) => leg && typeof leg === "object" && String(leg.play ?? "").trim().length > 0)
+        .slice(0, 12)
+    : [];
+
   const ee =
     estimatedEdge && typeof estimatedEdge === "object" && estimatedEdge.source === "estimated_edge"
       ? estimatedEdge
@@ -99,7 +105,7 @@ export default function URTakeResponse({
     estimatedEdge: ee,
     takeMeta,
     structured: { call: callScrub, confidence, callType },
-    parlayLegs,
+    parlayLegs: safeParlayLegs,
   });
 
   const contextLine = [
@@ -222,9 +228,14 @@ export default function URTakeResponse({
 
         {Array.isArray(caveats) && caveats.length > 0 ? (
           <ul className="ur-v2-caveats">
-            {caveats.map((c, idx) => (
-              <li key={idx}>{c}</li>
-            ))}
+            {caveats.map((c, idx) => {
+              if (c == null) return null;
+              if (typeof c === "string" || typeof c === "number") {
+                const line = String(c).trim();
+                return line ? <li key={idx}>{line}</li> : null;
+              }
+              return null;
+            })}
           </ul>
         ) : null}
       </div>
@@ -235,28 +246,34 @@ export default function URTakeResponse({
         </button>
       ) : null}
 
-      {Array.isArray(parlayLegs) && parlayLegs.length >= 2 ? (
+      {safeParlayLegs.length >= 2 ? (
         <div className="ur-v2-parlay-block">
           <div className="ur-v2-parlay-title">Parlay legs</div>
           <div className="ur-v2-parlay-legs">
-            {parlayLegs.slice(0, 12).map((leg, idx) => (
-              <div key={`${leg.play}-${idx}`} className="ur-v2-parlay-leg">
+            {safeParlayLegs.map((leg, idx) => {
+              const play = String(leg.play ?? "").trim() || "Leg";
+              const odds = leg.odds != null && String(leg.odds).trim() !== "" ? String(leg.odds) : "";
+              const rationale =
+                leg.rationale && String(leg.rationale).trim() ? String(leg.rationale).trim() : "";
+              return (
+              <div key={`${play}-${idx}`} className="ur-v2-parlay-leg">
                 <div className="ur-v2-parlay-leg-head">
-                  <span className="ur-v2-parlay-play">{leg.play}</span>
-                  {leg.odds && leg.odds !== "TBD" ? (
-                    <span className="ur-v2-parlay-odds">{leg.odds}</span>
+                  <span className="ur-v2-parlay-play">{play}</span>
+                  {odds && odds !== "TBD" ? (
+                    <span className="ur-v2-parlay-odds">{odds}</span>
                   ) : null}
                 </div>
-                {leg.rationale && String(leg.rationale).trim() ? (
-                  <div className="ur-v2-parlay-rationale">{leg.rationale}</div>
+                {rationale ? (
+                  <div className="ur-v2-parlay-rationale">{rationale}</div>
                 ) : null}
               </div>
-            ))}
+            );
+            })}
           </div>
           {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
             <div className="ur-v2-parlay-combined">
               <div className="ur-v2-parlay-combined-label">Combined price {parlayTotalOdds}</div>
-              <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(parlayLegs, parlayTotalOdds)}</div>
+              <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(safeParlayLegs, parlayTotalOdds)}</div>
             </div>
           ) : null}
         </div>

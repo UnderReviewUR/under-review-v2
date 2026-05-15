@@ -1,6 +1,38 @@
+import { Component } from "react";
 import AskBar from "../components/AskBar.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
+
+class UrTakeChatErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError() {
+    return { error: true };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          className="ur-ask-thread-fallback"
+          style={{
+            padding: "16px 20px",
+            color: "var(--muted)",
+            fontSize: 14,
+            lineHeight: 1.55,
+          }}
+        >
+          That take couldn&apos;t render in the app (display bug). Use the header back arrow, then open UR Take
+          again — or refresh the page. Your account data is fine.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function sessionSportLabel(slug) {
   const s = String(slug || "").toLowerCase();
@@ -84,15 +116,17 @@ export default function AskScreen({
                 </div>
                 {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
                 <div className="ur-chat-scroll">
-                  <ChatThread
-                    msgs={askMsgs}
-                    urTakeTrackPlay={urTakeTrackPlay}
-                    accessTier={accessTier}
-                    onUrTakeFollowUpPick={onUrTakeFollowUpPick}
-                    onUpgradePromptClick={onUpgradePromptClick}
-                    hideFollowUpDock
-                    variant="urChatDocked"
-                  />
+                  <UrTakeChatErrorBoundary key={askMsgs.length}>
+                    <ChatThread
+                      msgs={askMsgs}
+                      urTakeTrackPlay={urTakeTrackPlay}
+                      accessTier={accessTier}
+                      onUrTakeFollowUpPick={onUrTakeFollowUpPick}
+                      onUpgradePromptClick={onUpgradePromptClick}
+                      hideFollowUpDock
+                      variant="urChatDocked"
+                    />
+                  </UrTakeChatErrorBoundary>
                 </div>
                 <AskUrTakeRetentionStrip
                   askMsgs={askMsgs}

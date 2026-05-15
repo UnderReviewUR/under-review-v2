@@ -187,6 +187,31 @@ function structuredPayloadFromApi(data) {
   return null;
 }
 
+/** Prevent React crashes / stringify failures from odd API `structured` shapes (common after golf reads). */
+function sanitizeStructuredBubbleShape(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const s = { ...raw };
+  if (Array.isArray(s.caveats)) {
+    s.caveats = s.caveats
+      .map((c) => {
+        if (typeof c === "string" || typeof c === "number") return String(c).trim();
+        return "";
+      })
+      .filter(Boolean);
+  }
+  if (Array.isArray(s.parlayLegs)) {
+    s.parlayLegs = s.parlayLegs
+      .filter((leg) => leg && typeof leg === "object")
+      .map((leg) => ({
+        play: String(leg.play ?? "").trim().slice(0, 240) || "Leg",
+        rationale: typeof leg.rationale === "string" ? leg.rationale.slice(0, 1200) : "",
+        odds: leg.odds != null && String(leg.odds).trim() !== "" ? String(leg.odds) : "TBD",
+      }))
+      .slice(0, 12);
+  }
+  return s;
+}
+
 function normalizeUrTakeDisplay(data) {
   const parseMaybe = (raw) => {
     const s = String(raw || "").trim();
@@ -1099,6 +1124,18 @@ ${themeCss}
 
     const buildGolfContext = useCallback((questionText, golfDataOverride = null) => {
   const g = golfDataOverride ?? golfData;
+  const lb = (rows) => (Array.isArray(rows) ? rows.slice(0, 48) : []);
+  const slimTournament = (t) => {
+    if (!t || typeof t !== "object") return null;
+    return {
+      name: t.name ?? null,
+      shortName: t.shortName ?? null,
+      state: t.state ?? null,
+      round: t.round ?? null,
+      venue: t.venue ?? null,
+      leaderboard: lb(t.leaderboard),
+    };
+  };
   return {
     currentEvent: g?.currentEvent
       ? {
@@ -1108,16 +1145,22 @@ ${themeCss}
           location: g.currentEvent.location || null,
           round: g.currentEvent.round || null,
           state: g.currentEvent.state || null,
-          leaderboard: g.currentEvent.leaderboard || [],
+          leaderboard: lb(g.currentEvent.leaderboard),
         }
       : null,
-    tournament: g?.tournament || null,
+    tournament: slimTournament(g?.tournament),
     course: g?.course || null,
     rankings: (g?.rankings || []).slice(0, 12),
     odds: {
       outrights: (g?.odds?.outrights || []).slice(0, 16),
-      topFinish: g?.odds?.topFinish || {},
-      makeCut: g?.odds?.makeCut || {},
+      topFinish:
+        g?.odds?.topFinish && typeof g.odds.topFinish === "object"
+          ? Object.fromEntries(Object.entries(g.odds.topFinish).slice(0, 24))
+          : {},
+      makeCut:
+        g?.odds?.makeCut && typeof g.odds.makeCut === "object"
+          ? Object.fromEntries(Object.entries(g.odds.makeCut).slice(0, 24))
+          : {},
       linesUnavailable: Boolean(g?.odds?.linesUnavailable),
       hasPostedLines: Boolean(
         (g?.odds?.outrights || []).some(
@@ -1368,6 +1411,14 @@ ${themeCss}
 
     const authHeaders = await getTakeAuthHeaders();
 
+    let serialized;
+    try {
+      serialized = JSON.stringify(body);
+    } catch {
+      const lean = { ...body, golfContext: { question: String(text || "").slice(0, 2000), boardTrimmed: true } };
+      serialized = JSON.stringify(lean);
+    }
+
     let res;
     try {
       res = await fetch("/api/ur-take", {
@@ -1378,7 +1429,7 @@ ${themeCss}
           "X-UR-Take-Structured": "1",
           ...authHeaders,
         },
-        body: JSON.stringify(body),
+        body: serialized,
         signal: ctrl.signal,
       });
     } finally {
@@ -1470,7 +1521,8 @@ ${themeCss}
         ? resolvedSport
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
-    const structuredForBubble = structuredPayloadFromApi(data);
+    const structuredRaw = structuredPayloadFromApi(data);
+    const structuredForBubble = structuredRaw ? sanitizeStructuredBubbleShape(structuredRaw) : null;
 
     try {
       const sportTracked = String(
