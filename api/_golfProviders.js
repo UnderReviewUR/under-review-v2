@@ -6,6 +6,23 @@ import { PGA_PLAYERS } from "../src/components/data/golf/players.js";
 const GOLF_CUT_LINE_FEED_NOTE =
   "Cut line: not available in current feed. Do not project cut line. Reference make_cut odds only.";
 
+/** Shared major labels — ESPN scoring, BDL pick, and merge conflict resolution. */
+const GOLF_MAJOR_NAMES = [
+  "pga championship",
+  "u.s. open",
+  "us open",
+  "the open championship",
+  "british open",
+  "the open",
+  "masters",
+  "masters tournament",
+];
+
+function tournamentNameLooksMajor(name, shortName) {
+  const n = `${name || ""} ${shortName || ""}`.toLowerCase();
+  return GOLF_MAJOR_NAMES.some((m) => n.includes(m));
+}
+
 const PGA_COURSE_COORDS = {
   "Augusta National Golf Club": { lat: 33.5021, lon: -82.0232 },
   "TPC Sawgrass": { lat: 30.1975, lon: -81.3967 },
@@ -273,6 +290,8 @@ function scorePgaEspnEvent(e) {
   if (n.includes("invitational")) score += 250;
   if (n.includes("memorial")) score += 400;
   if (n.includes("players championship") || n.includes("the players")) score += 400;
+
+  if (tournamentNameLooksMajor(e?.name, e?.shortName)) score += 8000;
 
   const compCount = e?.competitions?.[0]?.competitors?.length || 0;
   if (compCount > 0) score += Math.min(compCount, 220);
@@ -1344,6 +1363,11 @@ async function getBdlTournamentBundle() {
   };
 
   const preferredFromPool = (() => {
+    const majorInRange = inRange.find((t) =>
+      tournamentNameLooksMajor(t?.name, t?.short_name),
+    );
+    if (majorInRange) return majorInRange;
+
     const rbcHeritage = pool.find((t) =>
       eventNameMatchesRbcHeritage(t?.name, t?.short_name)
     );
@@ -1629,6 +1653,12 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     ? eventNameMatchesRbcHeritage(tournament?.name, tournament?.shortName)
     : false;
 
+  const espnIsMajor = tournamentNameLooksMajor(espnEvent?.name, espnEvent?.shortName);
+  const bdlIsMajor = tournament
+    ? tournamentNameLooksMajor(tournament?.name, tournament?.shortName)
+    : false;
+  const majorConflict = Boolean(espnEvent && espnIsMajor && !sameEvent && !bdlIsMajor);
+
   /**
    * Finished tournaments (post/final) must still surface ESPN's final leaderboard when BDL
    * has no standings row — otherwise currentEvent.leaderboard is empty and UR Take invents dates.
@@ -1645,6 +1675,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
           (espnIsRbcHeritage && !bdlIsRbcHeritage))));
 
   const preferEspnDisplay =
+    majorConflict ||
     (shouldUseEspnLeaderboard &&
       (!sameEvent || bdlLooksTeamOrZurich || (espnIsRbcHeritage && !bdlIsRbcHeritage))) ||
     (espnIsRbcHeritage && !bdlIsRbcHeritage);
@@ -1671,8 +1702,10 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       }).filter((r) => r.name)
     : [];
   const hasOddsProxy = oddsTopThree.length > 0;
-  const useBdlLeaderboard = bdlHasLeaderboard;
-  const useEspnLeaderboard = !useBdlLeaderboard && shouldUseEspnLeaderboard;
+  const useBdlLeaderboard = bdlHasLeaderboard && !majorConflict;
+  const useEspnLeaderboard =
+    (majorConflict && espnHasLeaderboard) ||
+    (!useBdlLeaderboard && shouldUseEspnLeaderboard);
   const useOddsProxyLeaderboard = !useBdlLeaderboard && !useEspnLeaderboard && hasOddsProxy;
 
   const currentEvent = {
@@ -1841,8 +1874,42 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       espnEvent?.id != null &&
       String(schedulePrimary.id || "").trim() === String(espnEvent.id).trim();
     if (schedMatchesEspn || inSchedWindow || schedLive || !outTournament) {
-      outTournament = schedulePrimary;
+      if (!majorConflict) {
+        outTournament = schedulePrimary;
+      }
     }
+  }
+
+  if (majorConflict && outCurrent && espnEvent) {
+    outCurrent = {
+      ...outCurrent,
+      id: espnEvent.id ?? outCurrent.id,
+      name: espnEvent.name || outCurrent.name,
+      shortName: espnEvent.shortName || espnEvent.name || outCurrent.shortName,
+      course: espnEvent.course || outCurrent.course || "TBD",
+      location: espnEvent.location || outCurrent.location || "",
+      round: espnEvent.round || outCurrent.round,
+      state: espnEvent.state || outCurrent.state,
+      displayDate: espnEvent.displayDate || outCurrent.displayDate,
+      startDate: espnEvent.startDate || outCurrent.startDate,
+      leaderboard: useEspnLeaderboard
+        ? enrichLeaderboardRowsWithStaticSg(espnEvent.leaderboard || [])
+        : outCurrent.leaderboard,
+    };
+    outTournament =
+      (Array.isArray(tourScheduleOut) &&
+        tourScheduleOut.find((row) =>
+          slugOverlapsSchedule(row?.name, espnEvent.name || espnEvent.shortName),
+        )) ||
+      buildSyntheticScheduleRowFromEspn(espnEvent);
+    console.log(
+      JSON.stringify({
+        tag: "[golfMergeConflict]",
+        espnEvent: espnEvent.name,
+        bdlEvent: tournament?.name ?? null,
+        resolution: "espn_major_wins_display",
+      }),
+    );
   }
 
   return {
@@ -1897,7 +1964,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v20";
+  const cacheKey = "unified_golf_board_v21";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
