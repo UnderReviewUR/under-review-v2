@@ -2,6 +2,13 @@ import { bdlFetch } from "./_balldontlie.js";
 import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { PGA_PLAYERS } from "../src/components/data/golf/players.js";
+import {
+  buildCurrentEventFromScheduleRow,
+  extractGolfTournamentIntentFromQuestion,
+  findBestScheduleRowForIntent,
+  golfCurrentEventMatchesIntent,
+  golfLabelsMatchIntent,
+} from "../shared/golfTournamentIntent.js";
 
 const GOLF_CUT_LINE_FEED_NOTE =
   "Cut line: not available in current feed. Do not project cut line. Reference make_cut odds only.";
@@ -1169,34 +1176,54 @@ function buildGolfOddsFromEspnField(espnField, bdlBundle) {
   };
 }
 
-async function getEspnCurrentEvent() {
-  const cacheKey = "espn_current_event_v5";
+async function fetchEspnScoreboardRawEvents(ymdOptional) {
+  const ymd = ymdOptional || etDateStringToEspnYmd(getTodayEtDateString());
+  const cacheKey = `espn_scoreboard_events_${ymd}`;
   const cached = getCache(cacheKey);
-  if (cached) return cached;
+  if (Array.isArray(cached)) return cached;
 
-  const golfScoreboardYmd = etDateStringToEspnYmd(getTodayEtDateString());
-  const result = await safeFetchJson(
-    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${encodeURIComponent(golfScoreboardYmd)}`,
+  let result = await safeFetchJson(
+    `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?dates=${encodeURIComponent(ymd)}`,
     { timeoutMs: 7000 },
   );
-
-  if (!result.ok) {
-    setCache(cacheKey, null, 60 * 1000);
-    return null;
+  if (!result.ok || !(result.data?.events || []).length) {
+    result = await safeFetchJson(
+      "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard",
+      { timeoutMs: 7000 },
+    );
   }
 
-  const events = result.data?.events || [];
-  if (!events.length) {
-    setCache(cacheKey, null, 60 * 1000);
-    return null;
-  }
+  const events = result.ok ? result.data?.events || [] : [];
+  setCache(cacheKey, events, 2 * 60 * 1000);
+  return events;
+}
 
-  const selectedEvent = selectPrimaryPgaScoreboardEvent(events);
+function pickEspnRawEventForIntent(intent, events) {
+  if (!intent || !Array.isArray(events) || events.length === 0) return null;
 
-  if (!selectedEvent) {
-    setCache(cacheKey, null, 60 * 1000);
-    return null;
-  }
+  const matching = events.filter(
+    (e) =>
+      golfLabelsMatchIntent(e?.name, e?.shortName, intent) &&
+      !espnScoreboardEventLooksStale(e),
+  );
+  if (!matching.length) return null;
+
+  return [...matching].sort((a, b) => scorePgaEspnEvent(b) - scorePgaEspnEvent(a))[0];
+}
+
+function scheduleRowToEspnYmd(row) {
+  if (!row || typeof row !== "object") return null;
+  const ms =
+    Number.isFinite(row.startTs) && row.startTs > 0
+      ? row.startTs
+      : parseScheduleMs(row.startDate);
+  if (!Number.isFinite(ms)) return null;
+  const etYmd = new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return etDateStringToEspnYmd(etYmd);
+}
+
+async function normalizeEspnScoreboardEventToPayload(selectedEvent) {
+  if (!selectedEvent) return null;
 
   const comp = selectedEvent?.competitions?.[0] || {};
   const venue = comp?.venue || {};
@@ -1205,7 +1232,6 @@ async function getEspnCurrentEvent() {
 
   const hasMeaningfulApiLeaderboard = competitors.some(isMeaningfulEspnCompetitor);
 
-  /* Full field: every competitor ESPN returns (AI + UI need players off the first page too). */
   const apiLeaderboard = competitors
     .filter((c) => c?.athlete)
     .map((c) => {
@@ -1239,7 +1265,7 @@ async function getEspnCurrentEvent() {
   if (!hasMeaningfulApiLeaderboard && selectedEvent?.id) {
     const htmlRes = await safeFetchText(
       `https://www.espn.com/golf/leaderboard/_/tournamentId/${selectedEvent.id}`,
-      { timeoutMs: 9000 }
+      { timeoutMs: 9000 },
     );
 
     if (htmlRes.ok) {
@@ -1256,7 +1282,7 @@ async function getEspnCurrentEvent() {
   const rawState = String(status?.state || "pre").toLowerCase();
   const adjustedState = rawState === "in" && !hasMeaningfulLeaderboard ? "pre" : rawState;
 
-  const payload = {
+  return {
     id: selectedEvent?.id || null,
     name: selectedEvent?.name || selectedEvent?.shortName || "PGA Tour Event",
     shortName:
@@ -1274,9 +1300,126 @@ async function getEspnCurrentEvent() {
     leaderboardSource,
     raw: selectedEvent,
   };
+}
 
+async function getEspnCurrentEvent() {
+  const cacheKey = "espn_current_event_v5";
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  const events = await fetchEspnScoreboardRawEvents();
+  if (!events.length) {
+    setCache(cacheKey, null, 60 * 1000);
+    return null;
+  }
+
+  const selectedEvent = selectPrimaryPgaScoreboardEvent(events);
+  if (!selectedEvent) {
+    setCache(cacheKey, null, 60 * 1000);
+    return null;
+  }
+
+  const payload = await normalizeEspnScoreboardEventToPayload(selectedEvent);
   setCache(cacheKey, payload, 2 * 60 * 1000);
   return payload;
+}
+
+/**
+ * When the user names a specific tournament, align currentEvent to that week
+ * (ESPN board for that week, else BDL schedule row, else pre-market shell).
+ * @param {Record<string, unknown>} board
+ * @param {string} question
+ */
+export async function alignGolfBoardToQuestion(board, question) {
+  const intent = extractGolfTournamentIntentFromQuestion(question);
+  if (!intent || golfCurrentEventMatchesIntent(board?.currentEvent, intent)) {
+    return board;
+  }
+
+  const previousFeedEvent = board?.currentEvent?.name || null;
+  const schedule = Array.isArray(board?.tourSchedule) ? board.tourSchedule : [];
+  const row = findBestScheduleRowForIntent(schedule, intent);
+
+  let rawEv = pickEspnRawEventForIntent(intent, await fetchEspnScoreboardRawEvents());
+  if (!rawEv && row) {
+    const weekYmd = scheduleRowToEspnYmd(row);
+    if (weekYmd) {
+      rawEv = pickEspnRawEventForIntent(intent, await fetchEspnScoreboardRawEvents(weekYmd));
+    }
+  }
+
+  let espnPayload = null;
+  if (rawEv) {
+    espnPayload = await normalizeEspnScoreboardEventToPayload(rawEv);
+  }
+
+  let currentEvent;
+  let source = "intent_only";
+
+  if (
+    espnPayload &&
+    golfLabelsMatchIntent(espnPayload.name, espnPayload.shortName, intent)
+  ) {
+    source = "espn";
+    currentEvent = {
+      id: espnPayload.id,
+      name: espnPayload.name,
+      shortName: espnPayload.shortName,
+      course: espnPayload.course || row?.courseName || "TBD",
+      location: espnPayload.location || row?.location || "",
+      round: espnPayload.round,
+      state: espnPayload.state,
+      par: espnPayload.par,
+      startDate: espnPayload.startDate || row?.startDate || null,
+      endDate: row?.endDate ?? null,
+      displayDate: espnPayload.displayDate || row?.displayDate || null,
+      leaderboard: enrichLeaderboardRowsWithStaticSg(espnPayload.leaderboard || []),
+    };
+  } else if (row) {
+    source = "schedule";
+    currentEvent = buildCurrentEventFromScheduleRow(row, null);
+    currentEvent.leaderboard = enrichLeaderboardRowsWithStaticSg(
+      currentEvent.leaderboard || [],
+    );
+  } else {
+    currentEvent = {
+      id: null,
+      name: intent.label,
+      shortName: intent.label,
+      course: "TBD",
+      location: "",
+      round: "Upcoming",
+      state: "pre",
+      par: null,
+      startDate: null,
+      endDate: null,
+      displayDate: null,
+      leaderboard: [],
+    };
+  }
+
+  console.log(
+    JSON.stringify({
+      tag: "[golfQuestionAlign]",
+      requested: intent.label,
+      previousFeedEvent,
+      alignedTo: currentEvent?.name,
+      course: currentEvent?.course,
+      source,
+    }),
+  );
+
+  return {
+    ...board,
+    currentEvent,
+    tournament: row || board.tournament,
+    questionEventAlignment: {
+      requestedLabel: intent.label,
+      requestedSlug: intent.slug,
+      previousFeedEvent,
+      source,
+    },
+  };
 }
 
 async function getEspnWorldRankings() {
@@ -1590,9 +1733,23 @@ function pickPrimaryScheduleRow(tourScheduleOut, espnEvent, tournament, nowMs = 
   return scored[0]?.r || rows[0];
 }
 
-/** Keep ESPN/BDL scoring rows; replace marketing labels with the schedule row (fixes wrong week names on Home). */
+function scheduleRowMatchesCurrentEvent(ce, row) {
+  if (!ce || !row) return false;
+  if (ce.id != null && row.id != null && String(ce.id).trim() === String(row.id).trim()) {
+    return true;
+  }
+  return (
+    slugOverlapsSchedule(ce.name, row.name) ||
+    slugOverlapsSchedule(ce.shortName, row.shortName) ||
+    slugOverlapsSchedule(ce.name, row.shortName) ||
+    slugOverlapsSchedule(ce.shortName, row.name)
+  );
+}
+
+/** Keep ESPN/BDL scoring rows; replace marketing labels only when the schedule row is the same event. */
 function overlayCurrentEventDisplayFromSchedule(ce, row) {
   if (!ce || !row) return ce;
+  if (!scheduleRowMatchesCurrentEvent(ce, row)) return ce;
   const courseLabel =
     row.courseName ||
     (typeof row.course === "string" ? row.course : null) ||
@@ -1964,7 +2121,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v21";
+  const cacheKey = "unified_golf_board_v22";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 

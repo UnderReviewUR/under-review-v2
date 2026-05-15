@@ -49,6 +49,7 @@ import {
   f1EventKey,
 } from "../shared/homeEventDedup.js";
 import { golfKeyForLiveSnapshot } from "./lib/liveSnapshotEventKeys.js";
+import { alignGolfBoardSnapshotForQuestion } from "../shared/golfTournamentIntent.js";
 import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
@@ -1153,7 +1154,7 @@ ${themeCss}
 
 
     const buildGolfContext = useCallback((questionText, golfDataOverride = null) => {
-  const g = golfDataOverride ?? golfData;
+  const g = alignGolfBoardSnapshotForQuestion(golfDataOverride ?? golfData, questionText);
   const lb = (rows) => (Array.isArray(rows) ? rows.slice(0, 48) : []);
   const slimTournament = (t) => {
     if (!t || typeof t !== "object") return null;
@@ -1201,6 +1202,7 @@ ${themeCss}
     recentResults: (g?.recentResults || []).slice(0, 10),
     courseStats: (g?.courseStats || []).slice(0, 8),
     question: questionText || "",
+    questionEventAlignment: g?.questionEventAlignment || null,
   };
 }, [golfData]);
 
@@ -1278,6 +1280,7 @@ ${themeCss}
     effectiveSportHint = eff;
 
     let hEnsure = effectiveSportHint;
+    if (!hEnsure && detectSportFromQuestion(text, tab) === "golf") hEnsure = "golf";
     if (!hEnsure && questionSuggestsGolf(text)) hEnsure = "golf";
     if (!hEnsure && screenSport) hEnsure = screenSport;
     hintForEnsure = hEnsure;
@@ -1389,7 +1392,11 @@ ${themeCss}
       body.mlbContext = buildMlbContext(text, ov.mlbData ?? null);
     }
 
-    if (effectiveSportHint === "golf" || questionSuggestsGolf(text)) {
+    if (
+      effectiveSportHint === "golf" ||
+      detectSportFromQuestion(text, tab) === "golf" ||
+      questionSuggestsGolf(text)
+    ) {
       body.golfContext = buildGolfContext(text, ov.golfData ?? null);
     }
 
@@ -1694,6 +1701,14 @@ ${themeCss}
         sport: sportTrackedForBubble,
         shownAt: Date.now(),
       },
+      ...(data.fallback === true
+        ? {
+            urTakeFeedSnagDiag: {
+              requestId: String(data.requestId ?? "").trim().slice(0, 32),
+              fallbackReason: String(data.fallbackReason ?? "").trim().slice(0, 160),
+            },
+          }
+        : {}),
       ...(apiSuccessFallbackDbg ? { urTakeClientFailure: apiSuccessFallbackDbg } : {}),
     };
     setMsgs((prev) => {

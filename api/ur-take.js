@@ -45,6 +45,8 @@ import {
   questionMentionsPlayer,
 } from "./nba.js";
 import { buildMlbUrTakeBoard } from "./mlb.js";
+import { alignGolfBoardToQuestion, getUnifiedGolfBoard } from "./_golfProviders.js";
+import { golfQuestionNeedsEventRealign } from "../shared/golfTournamentIntent.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 import {
   slimNbaPlayerStatRowForUrTake,
@@ -4223,6 +4225,90 @@ ${sorted.join(", ")}
 You may ONLY name drivers from this list in F1 takes.`;
 }
 
+/** Same slim shape as client `buildGolfContext` (App.jsx) — keeps model JSON aligned with the browser path. */
+function slimUnifiedGolfBoardForUrTake(board, questionText) {
+  const g = board && typeof board === "object" ? board : null;
+  if (!g) return null;
+  const lb = (rows) => (Array.isArray(rows) ? rows.slice(0, 48) : []);
+  const slimTournament = (t) => {
+    if (!t || typeof t !== "object") return null;
+    return {
+      name: t.name ?? null,
+      shortName: t.shortName ?? null,
+      state: t.state ?? null,
+      round: t.round ?? null,
+      venue: t.venue ?? null,
+      leaderboard: lb(t.leaderboard),
+    };
+  };
+  return {
+    currentEvent: g.currentEvent
+      ? {
+          name: g.currentEvent.name || null,
+          shortName: g.currentEvent.shortName || null,
+          course: g.currentEvent.course || null,
+          location: g.currentEvent.location || null,
+          round: g.currentEvent.round || null,
+          state: g.currentEvent.state || null,
+          leaderboard: lb(g.currentEvent.leaderboard),
+        }
+      : null,
+    tournament: slimTournament(g.tournament),
+    course: g.course || null,
+    rankings: (g.rankings || []).slice(0, 12),
+    odds: {
+      outrights: (g.odds?.outrights || []).slice(0, 16),
+      topFinish:
+        g.odds?.topFinish && typeof g.odds.topFinish === "object"
+          ? Object.fromEntries(Object.entries(g.odds.topFinish).slice(0, 24))
+          : {},
+      makeCut:
+        g.odds?.makeCut && typeof g.odds.makeCut === "object"
+          ? Object.fromEntries(Object.entries(g.odds.makeCut).slice(0, 24))
+          : {},
+      linesUnavailable: Boolean(g.odds?.linesUnavailable),
+      hasPostedLines: Boolean(
+        (g.odds?.outrights || []).some(
+          (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
+        ),
+      ),
+    },
+    recentResults: (g.recentResults || []).slice(0, 10),
+    courseStats: (g.courseStats || []).slice(0, 8),
+    question: questionText || "",
+    questionEventAlignment: g.questionEventAlignment || null,
+  };
+}
+
+function buildGolfQuestionAlignmentPromptBlock(alignment) {
+  if (!alignment?.requestedLabel) return "";
+  const prev =
+    alignment.previousFeedEvent &&
+    alignment.previousFeedEvent !== alignment.requestedLabel
+      ? ` The live-feed default week was "${alignment.previousFeedEvent}" — ignore that event entirely.`
+      : "";
+  return `
+QUESTION EVENT ALIGNMENT (mandatory):
+The user asked about "${alignment.requestedLabel}".${prev}
+- Ground every answer in currentEvent for "${alignment.requestedLabel}" only.
+- If currentEvent.state is pre/upcoming or leaderboard is empty: treat as pre-tournament — do NOT cite live scores, positions, or course conditions from any other PGA Tour week.
+- Use the course listed on currentEvent for this event; do not substitute another venue (e.g. do not describe TPC Craig Ranch when the question is about the PGA Championship).`;
+}
+
+function golfClientContextLooksUsable(g) {
+  if (!g || typeof g !== "object") return false;
+  if (String(g.currentEvent?.name || "").trim()) return true;
+  if (Array.isArray(g.currentEvent?.leaderboard) && g.currentEvent.leaderboard.length > 0) return true;
+  if (
+    Array.isArray(g.odds?.outrights) &&
+    g.odds.outrights.some((o) => o?.odds != null && Number.isFinite(Number(o.odds)))
+  ) {
+    return true;
+  }
+  if (String(g.tournament?.name || "").trim()) return true;
+  return false;
+}
+
 function buildMessagesForAnthropic({ userPrompt, history, intent, hasImage, image }) {
   const prior = intent === "slip_review" ? [] : normalizeIncomingChatHistory(history);
 
@@ -4268,6 +4354,7 @@ function logNbaUrTakeAuditIfDev(payload) {
 function logUrTakeApiFallback(payload) {
   const raw = payload.rawModelText != null ? String(payload.rawModelText) : "";
   console.error("[urTakeApiFallback]", {
+    requestId: payload.requestId ?? null,
     fallbackReason: payload.fallbackReason,
     sport: payload.sport ?? null,
     providerStatus: payload.providerStatus ?? null,
@@ -4298,6 +4385,13 @@ export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
   if (req.method === "OPTIONS") return res.status(200).end();
 
+  const requestId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+      : `rq${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+  console.log(JSON.stringify({ tag: "[urTakeRequest]", requestId, event: "ur_take_request_start" }));
+
   const feedSnagResponse = (sportVal, fallbackReason, logCtx = {}) => {
     const text =
       "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
@@ -4314,6 +4408,7 @@ export default async function handler(req, res) {
           ? String(logCtx.rawModelTextSlice)
           : "";
     logUrTakeApiFallback({
+      requestId,
       fallbackReason: reason,
       sport: sportOut,
       providerStatus: logCtx.providerStatus ?? null,
@@ -4321,7 +4416,7 @@ export default async function handler(req, res) {
       providerErrorMessage: logCtx.providerErrorMessage ?? null,
       parseErrorMessage: logCtx.parseErrorMessage ?? null,
       validationErrors: logCtx.validationErrors ?? null,
-      responseKeys: ["response", "take", "confidence", "sport", "fallback", "fallbackReason"],
+      responseKeys: ["requestId", "response", "take", "confidence", "sport", "fallback", "fallbackReason"],
       structuredKeys: logCtx.structuredKeys ?? null,
       rawModelText,
       questionLength: q.length,
@@ -4333,6 +4428,7 @@ export default async function handler(req, res) {
       extra: logCtx.extra,
     });
     return res.status(200).json({
+      requestId,
       response: text,
       take: text,
       confidence: "none",
@@ -4624,6 +4720,37 @@ export default async function handler(req, res) {
       }
     } catch (e) {
       console.warn("[ur-take] MLB board refresh failed, using client context", e?.message || e);
+    }
+  }
+
+  if (sportHint === "golf") {
+    const clientGolf = golfContext && typeof golfContext === "object" ? golfContext : null;
+    const needsQuestionAlign = golfQuestionNeedsEventRealign(clientGolf, String(question || ""));
+    const needsHydrate = !golfClientContextLooksUsable(clientGolf);
+
+    if (needsQuestionAlign || needsHydrate) {
+      try {
+        const board = await getUnifiedGolfBoard();
+        const aligned = needsQuestionAlign
+          ? await alignGolfBoardToQuestion(board, String(question || ""))
+          : board;
+        const slim = slimUnifiedGolfBoardForUrTake(aligned, String(question || ""));
+        if (slim && golfClientContextLooksUsable(slim)) {
+          golfContextEffective = slim;
+          console.log(
+            JSON.stringify({
+              tag: "[urTakeGolfHydrate]",
+              requestId,
+              event: needsQuestionAlign
+                ? "golf_context_question_aligned"
+                : "golf_context_server_hydrated",
+              alignment: slim.questionEventAlignment || undefined,
+            }),
+          );
+        }
+      } catch (e) {
+        console.warn("[ur-take] server golf board hydrate failed:", e?.message || e);
+      }
     }
   }
 
@@ -4970,6 +5097,7 @@ ${nbaLiveNoPropSystemPromptBlock}`;
     });
     logNbaObservability(nbaMeta);
     return res.status(200).json({
+      requestId,
       response: availabilityPayload.response,
       responseDeep: null,
       responseFormat: "plain",
@@ -5041,6 +5169,7 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
     });
     logNbaObservability(nbaMeta);
     return res.status(200).json({
+      requestId,
       response: blockedResponse,
       responseDeep: null,
       responseFormat: "plain",
@@ -5460,6 +5589,7 @@ Golf context:
 ${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
+${buildGolfQuestionAlignmentPromptBlock(golfContextEffective?.questionEventAlignment)}
 
 TOURNAMENT STATUS: FINAL (currentEvent.state is post/final)
 - Do NOT frame this as live betting, pre-market, or "wait for lines / tee times."
@@ -5489,6 +5619,7 @@ Golf context:
 ${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
+${buildGolfQuestionAlignmentPromptBlock(golfContextEffective?.questionEventAlignment)}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
@@ -5897,6 +6028,7 @@ No bet now; re-run once verified player context is loaded.`;
       }
 
       return res.status(200).json({
+        requestId,
         response: unsupportedResponse,
         sport: sportHint || "generic",
         intent,
@@ -6311,6 +6443,7 @@ ${continuationRule}`;
       question,
     });
     return res.status(200).json({
+      requestId,
       response,
       responseDeep: null,
       responseFormat: "plain",
@@ -6319,6 +6452,7 @@ ${continuationRule}`;
       sport: "nba",
       intent,
       take: takeClientPayload(fallbackTake),
+      fallback: true,
       fallbackReason: "empty_nba_context",
     });
   }
@@ -6333,6 +6467,7 @@ ${continuationRule}`;
       question,
     });
     return res.status(200).json({
+      requestId,
       response,
       responseDeep: null,
       responseFormat: "plain",
@@ -6341,6 +6476,7 @@ ${continuationRule}`;
       sport: "golf",
       intent,
       take: takeClientPayload(fallbackTake),
+      fallback: true,
       fallbackReason: "empty_golf_context",
     });
   }
@@ -6558,8 +6694,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         if (result.rateLimitedExhausted) {
           const exhaustedFallbackReason = "upstream_rate_limit";
           console.error("[ur-take] upstream retries exhausted", {
+            requestId,
+            providerRequestId: result.requestId,
             status: result.status,
-            requestId: result.requestId,
             upstreamError: result.data?.error ?? null,
             data: result.data,
             fallbackReason: exhaustedFallbackReason,
@@ -6568,23 +6705,26 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             error: "Couldn't complete that read. Try again.",
             code: "upstream_unavailable",
             fallbackReason: exhaustedFallbackReason,
-            requestId: result.requestId,
+            requestId,
+            providerRequestId: result.requestId,
           });
         }
 
         console.error("Anthropic error:", {
+          requestId,
+          providerRequestId: result.requestId,
           status: result.status,
-          requestId: result.requestId,
           model: ANTHROPIC_MODEL,
           data: result.data,
         });
 
         const upstreamType = result.data?.error?.type || "anthropic_error";
         console.error("[ur-take] upstream Anthropic error:", {
+          requestId,
+          providerRequestId: result.requestId,
           status: result.status,
           type: upstreamType,
           message: result.data?.error?.message || result.data?.message || null,
-          requestId: result.requestId,
         });
 
         let rawSlice = null;
@@ -6600,7 +6740,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           providerErrorMessage:
             result.data?.error?.message || result.data?.message || `HTTP ${result.status}`,
           rawModelText: rawSlice,
-          extra: { requestId: result.requestId },
+          extra: { providerRequestId: result.requestId },
         });
       }
 
@@ -6625,9 +6765,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           const validation = validateStructuredURTakeResponse(structuredResponse);
           if (!validation.valid) {
             console.error("[STRUCTURED_UR_TAKE_VALIDATION_ERROR]", {
+              requestId,
               errors: validation.errors,
             });
             logUrTakeApiFallback({
+              requestId,
               fallbackReason: "response_shape_validation_failed",
               sport: sportHint || "unknown",
               validationErrors: validation.errors,
@@ -6654,10 +6796,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           }
         } catch (parseError) {
           console.error("[STRUCTURED_UR_TAKE_PARSE_ERROR]", {
+            requestId,
             error: parseError.message,
             responsePreview: extractAnthropicText(result.data).slice(0, 200),
           });
           logUrTakeApiFallback({
+            requestId,
             fallbackReason: "model_parse_failed",
             sport: sportHint || "unknown",
             parseErrorMessage: parseError?.message,
@@ -6922,13 +7066,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     if (!responseText || responseText.trim().length === 0) {
       if (lastNonEmptyRawModelText.trim()) {
         console.error("[ur-take] recovered_empty_post_process", {
+          requestId,
           sport: sportHint || "unknown",
           recoveredChars: lastNonEmptyRawModelText.length,
           questionLength: String(question || "").length,
         });
         responseText = lastNonEmptyRawModelText;
       } else {
-        console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
+        console.error("[ur-take] empty_response_after_processing", {
+          requestId,
+          questionHead: String(question || "").slice(0, 100),
+        });
         return feedSnagResponse(sportHint, "empty_response_after_processing", {
           questionLength: String(question || "").length,
           rawModelText: "",
@@ -7036,6 +7184,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     console.log(
       JSON.stringify({
+        requestId,
         event: "ur_take_complete",
         sport: sportHint,
         mode: nbaDecisionMode || "standard",
@@ -7060,6 +7209,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     );
 
     const responseBody = {
+      requestId,
       response: responseText,
       responseDeep,
       responseFormat,
@@ -7085,7 +7235,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     return res.status(200).json(responseBody);
   } catch (err) {
-    console.error("UR TAKE error:", err);
+    console.error("[urTakeApiException]", {
+      requestId,
+      name: err?.name,
+      message: err?.message,
+      stack: err?.stack ? String(err.stack).slice(0, 2000) : undefined,
+    });
     const s =
       req.body && typeof req.body.sportHint === "string" ? req.body.sportHint.trim() : null;
     return feedSnagResponse(s, "exception_caught", {
