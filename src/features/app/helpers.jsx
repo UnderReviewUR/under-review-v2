@@ -837,26 +837,34 @@ function extractParlayLegsFromLines(raw) {
     const play = matchParlayLegLineBody(t);
     if (play) sectionLegs.push({ play, rationale: "", odds: "TBD" });
   }
-  if (sectionLegs.length >= 2) return sectionLegs;
+  if (sectionLegs.length >= 2) return sectionLegs.slice(0, 12);
 
   const loose = [];
   for (const line of lines) {
     const play = matchParlayLegLineBody(line.trim());
     if (play) loose.push({ play, rationale: "", odds: "TBD" });
   }
-  return loose.length >= 2 ? loose : null;
+  return loose.length >= 2 ? loose.slice(0, 12) : null;
 }
 
 function attemptParlayConversion(text) {
   const raw = String(text || "");
   const re = new RegExp(PARLAY_LEG_PATTERN.source, PARLAY_LEG_PATTERN.flags);
   const legs = [...raw.matchAll(re)];
-  if (legs.length >= 2) {
-    return legs.map((match) => ({
-      play: match[1].trim(),
-      rationale: "",
-      odds: "TBD",
-    }));
+  /*
+   * Golf (and other sports) often use "→" for single picks or leaderboard rows. Without the word
+   * "parlay", those must not become synthetic parlay cards — dozens of false legs can freeze the
+   * thread and look like a black / blank screen.
+   */
+  if (legs.length >= 2 && /\bparlay\b/i.test(raw)) {
+    const trimmed = legs
+      .map((match) => ({
+        play: String(match[1] ?? "").trim(),
+        rationale: "",
+        odds: "TBD",
+      }))
+      .filter((leg) => leg.play.length >= 2);
+    if (trimmed.length >= 2) return trimmed.slice(0, 12);
   }
   return extractParlayLegsFromLines(raw);
 }
@@ -939,7 +947,7 @@ function buildPromotedParlayStructured(summaryText, sportHint, legs) {
     callType: "parlay",
     analysis: null,
     caveats: [],
-    parlayLegs: legs.map((leg) => ({
+    parlayLegs: legs.slice(0, 12).map((leg) => ({
       play: String(leg.play || "Leg").slice(0, 50),
       rationale:
         typeof leg.rationale === "string" && leg.rationale.trim().length > 0

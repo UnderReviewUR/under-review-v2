@@ -239,7 +239,7 @@ export default function URTakeResponse({
         <div className="ur-v2-parlay-block">
           <div className="ur-v2-parlay-title">Parlay legs</div>
           <div className="ur-v2-parlay-legs">
-            {parlayLegs.map((leg, idx) => (
+            {parlayLegs.slice(0, 12).map((leg, idx) => (
               <div key={`${leg.play}-${idx}`} className="ur-v2-parlay-leg">
                 <div className="ur-v2-parlay-leg-head">
                   <span className="ur-v2-parlay-play">{leg.play}</span>
