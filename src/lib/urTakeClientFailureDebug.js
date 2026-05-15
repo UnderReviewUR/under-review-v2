@@ -15,7 +15,10 @@ export function buildUrTakeApiSuccessFallbackDebug(data, effectiveSportHint, ctx
   };
   const serverMessage = pickMsg(data?.text) ?? pickMsg(data?.message) ?? pickMsg(data?.response) ?? null;
   const rawStr = typeof ctx.rawSlice === "string" ? ctx.rawSlice : "";
+  const requestId =
+    data?.requestId != null && String(data.requestId).trim() !== "" ? String(data.requestId).trim() : null;
   return {
+    requestId,
     phase: "api_success_fallback",
     fallbackReason:
       data?.fallbackReason != null && String(data.fallbackReason).trim() !== ""
@@ -71,7 +74,15 @@ export function buildUrTakeClientFailureDebug({
       safeParsed = { _note: "parsedErrorJson not serializable" };
     }
   }
+  const requestIdFromBody =
+    safeParsed &&
+    typeof safeParsed === "object" &&
+    safeParsed.requestId != null &&
+    String(safeParsed.requestId).trim() !== ""
+      ? String(safeParsed.requestId).trim()
+      : null;
   return {
+    requestId: requestIdFromBody,
     phase,
     status: res?.status ?? null,
     rawSlice: rawStr.slice(0, 1000),

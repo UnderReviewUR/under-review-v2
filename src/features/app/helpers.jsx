@@ -1949,6 +1949,30 @@ function UrTakeClientFailureDebugPre({ accessTier, payload }) {
   );
 }
 
+/** Product-visible correlation for `fallback: true` feed-snag style responses (no DevTools). */
+function UrTakeFeedSnagProductDiag({ diag }) {
+  if (!diag || typeof diag !== "object") return null;
+  const rid = String(diag.requestId || "").trim().slice(0, 32);
+  const reason = String(diag.fallbackReason || "").trim().slice(0, 160);
+  if (!rid && !reason) return null;
+  return (
+    <p
+      className="ur-take-feed-snag-product-diag"
+      style={{
+        marginTop: 10,
+        marginBottom: 0,
+        fontFamily: "var(--mono-font)",
+        fontSize: 10,
+        lineHeight: 1.4,
+        color: "rgba(0,245,233,0.5)",
+        wordBreak: "break-all",
+      }}
+    >
+      Debug: requestId={rid || "—"} reason={reason || "—"}
+    </p>
+  );
+}
+
 /** Free tier: after 2nd–3rd completed answer, eligible for one subtle Pro nudge (see ChatThread). */
 function computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradeClick) {
   if (typeof onUpgradeClick !== "function") return false;
@@ -2153,6 +2177,7 @@ export function ChatThread({
                 )}
                 getTakeAuthHeaders={getTakeAuthHeaders}
               />
+              {m.urTakeFeedSnagDiag ? <UrTakeFeedSnagProductDiag diag={m.urTakeFeedSnagDiag} /> : null}
               <UrTakeClientFailureDebugPre accessTier={accessTier} payload={m.urTakeClientFailure} />
             </>
           ) : (
