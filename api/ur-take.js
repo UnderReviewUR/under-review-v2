@@ -127,12 +127,18 @@ function getTodayStr() {
 
 // ── Helper: extract text from Anthropic response ───────────────────────────
 function extractAnthropicText(data) {
-  if (!data || !Array.isArray(data.content)) return "";
-  return data.content
-    .filter((block) => block?.type === "text" && block?.text)
-    .map((block) => block.text)
-    .join("\n")
-    .trim();
+  if (!data) return "";
+  if (Array.isArray(data.content)) {
+    const parts = [];
+    for (const block of data.content) {
+      if (!block || typeof block !== "object") continue;
+      if (block.type === "text" && typeof block.text === "string") parts.push(block.text);
+      else if (block.type === "output_text" && typeof block.text === "string") parts.push(block.text);
+    }
+    if (parts.length) return parts.join("\n").trim();
+  }
+  if (typeof data.text === "string" && data.text.trim()) return data.text.trim();
+  return "";
 }
 
 /** Dual-publish: turn validated structured JSON into prose so extractTakeFromResponse + UI still work. */
@@ -4258,17 +4264,29 @@ function logNbaUrTakeAuditIfDev(payload) {
   }
 }
 
-/** When true, `/api/ur-take` includes `fallbackDebug` on generic fallback JSON (mirrors client `VITE_UR_TAKE_CLIENT_DEBUG`). */
-function includeUrTakeApiFallbackDebugInJson() {
-  return (
-    process.env.NODE_ENV !== "production" ||
-    String(process.env.VITE_UR_TAKE_CLIENT_DEBUG ?? "").trim() === "1" ||
-    String(process.env.UR_TAKE_CLIENT_DEBUG ?? "").trim() === "1"
-  );
-}
-
+/** Production-safe: always log when `/api/ur-take` returns a generic feed snag (no env gates). */
 function logUrTakeApiFallback(payload) {
-  console.error("[urTakeApiFallback]", payload);
+  const raw = payload.rawModelText != null ? String(payload.rawModelText) : "";
+  console.error("[urTakeApiFallback]", {
+    fallbackReason: payload.fallbackReason,
+    sport: payload.sport ?? null,
+    providerStatus: payload.providerStatus ?? null,
+    providerErrorName: payload.providerErrorName ?? null,
+    providerErrorMessage: payload.providerErrorMessage ?? null,
+    parseErrorMessage: payload.parseErrorMessage ?? null,
+    validationErrors: payload.validationErrors ?? null,
+    responseKeys: payload.responseKeys ?? null,
+    structuredKeys: payload.structuredKeys ?? null,
+    rawModelTextPresent: Boolean(raw.length),
+    rawModelTextLength: raw.length,
+    questionLength: typeof payload.questionLength === "number" ? payload.questionLength : 0,
+    parsedKeys: payload.parsedKeys ?? null,
+    stack: payload.stack,
+    authReason: payload.authReason ?? null,
+    sanitizeCode: payload.sanitizeCode ?? null,
+    sanitizeError: payload.sanitizeError ?? null,
+    extra: payload.extra,
+  });
 }
 
 // ── Main Handler ────────────────────────────────────────────────────────────
@@ -4288,57 +4306,40 @@ export default async function handler(req, res) {
         ? fallbackReason.trim()
         : "unknown_server_fallback";
     const sportOut = sportVal || "unknown";
-    const q = String(logCtx.question ?? req.body?.question ?? "").slice(0, 300);
+    const q = String(logCtx.question ?? req.body?.question ?? "");
+    const rawModelText =
+      logCtx.rawModelText != null
+        ? String(logCtx.rawModelText)
+        : logCtx.rawModelTextSlice != null
+          ? String(logCtx.rawModelTextSlice)
+          : "";
     logUrTakeApiFallback({
       fallbackReason: reason,
       sport: sportOut,
-      question: q,
       providerStatus: logCtx.providerStatus ?? null,
       providerErrorName: logCtx.providerErrorName ?? null,
       providerErrorMessage: logCtx.providerErrorMessage ?? null,
-      rawModelTextSlice:
-        logCtx.rawModelTextSlice != null ? String(logCtx.rawModelTextSlice).slice(0, 1200) : null,
-      parsedKeys: logCtx.parsedKeys ?? null,
-      responseKeys: logCtx.responseKeys ?? null,
-      structuredKeys: logCtx.structuredKeys ?? null,
-      validationErrors: logCtx.validationErrors ?? null,
       parseErrorMessage: logCtx.parseErrorMessage ?? null,
+      validationErrors: logCtx.validationErrors ?? null,
+      responseKeys: ["response", "take", "confidence", "sport", "fallback", "fallbackReason"],
+      structuredKeys: logCtx.structuredKeys ?? null,
+      rawModelText,
+      questionLength: q.length,
+      parsedKeys: logCtx.parsedKeys ?? null,
+      stack: logCtx.err?.stack ? String(logCtx.err.stack).slice(0, 2000) : undefined,
       authReason: logCtx.authReason ?? null,
       sanitizeCode: logCtx.sanitizeCode ?? null,
       sanitizeError: logCtx.sanitizeError ?? null,
-      stack: logCtx.err?.stack ? String(logCtx.err.stack).slice(0, 2000) : undefined,
-      extra: logCtx.extra ?? undefined,
+      extra: logCtx.extra,
     });
-    const base = {
+    return res.status(200).json({
       response: text,
       take: text,
       confidence: "none",
       sport: sportOut,
       fallback: true,
       fallbackReason: reason,
-    };
-    if (includeUrTakeApiFallbackDebugInJson()) {
-      base.fallbackDebug = {
-        fallbackReason: reason,
-        question: q,
-        providerStatus: logCtx.providerStatus ?? null,
-        providerErrorName: logCtx.providerErrorName ?? null,
-        providerErrorMessage: logCtx.providerErrorMessage ?? null,
-        rawModelTextSlice:
-          logCtx.rawModelTextSlice != null ? String(logCtx.rawModelTextSlice).slice(0, 1200) : null,
-        parsedKeys: logCtx.parsedKeys ?? null,
-        responseKeys: logCtx.responseKeys ?? null,
-        structuredKeys: logCtx.structuredKeys ?? null,
-        validationErrors: logCtx.validationErrors ?? null,
-        parseErrorMessage: logCtx.parseErrorMessage ?? null,
-        authReason: logCtx.authReason ?? null,
-        sanitizeCode: logCtx.sanitizeCode ?? null,
-        sanitizeError: logCtx.sanitizeError ?? null,
-        stack: logCtx.err?.stack ? String(logCtx.err.stack).slice(0, 2000) : undefined,
-        extra: logCtx.extra ?? undefined,
-      };
-    }
-    return res.status(200).json(base);
+    });
   };
 
   if (req.method !== "POST") {
@@ -6461,6 +6462,8 @@ You are responding to a Pro subscriber. Apply the following:
     let prevQaCriticalCodes = [];
 
     let structuredResponse = null;
+    /** Last non-empty Anthropic text for this QA attempt — used if post-process strips everything. */
+    let lastNonEmptyRawModelText = "";
 
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
@@ -6591,12 +6594,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           rawSlice = String(result.data).slice(0, 1200);
         }
         return feedSnagResponse(sportHint, "provider_non_ok", {
-          question: String(question || "").slice(0, 300),
+          questionLength: String(question || "").length,
           providerStatus: result.status,
           providerErrorName: upstreamType,
           providerErrorMessage:
             result.data?.error?.message || result.data?.message || `HTTP ${result.status}`,
-          rawModelTextSlice: rawSlice,
+          rawModelText: rawSlice,
           extra: { requestId: result.requestId },
         });
       }
@@ -6627,9 +6630,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             logUrTakeApiFallback({
               fallbackReason: "response_shape_validation_failed",
               sport: sportHint || "unknown",
-              question: String(question || "").slice(0, 300),
               validationErrors: validation.errors,
-              rawModelTextSlice: String(responseTextRaw || "").slice(0, 1200),
+              rawModelText: String(responseTextRaw || "").slice(0, 4000),
+              questionLength: String(question || "").length,
               structuredKeys:
                 structuredResponse && typeof structuredResponse === "object"
                   ? Object.keys(structuredResponse)
@@ -6657,9 +6660,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           logUrTakeApiFallback({
             fallbackReason: "model_parse_failed",
             sport: sportHint || "unknown",
-            question: String(question || "").slice(0, 300),
             parseErrorMessage: parseError?.message,
-            rawModelTextSlice: extractAnthropicText(result.data).slice(0, 1200),
+            rawModelText: extractAnthropicText(result.data).slice(0, 4000),
+            questionLength: String(question || "").length,
           });
 
           try {
@@ -6683,6 +6686,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
 
       const text = extractAnthropicText(result.data);
+      if (text && String(text).trim()) {
+        lastNonEmptyRawModelText = String(text).trim();
+      }
 
       if (!text) {
         let rawSlice = null;
@@ -6691,10 +6697,15 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         } catch {
           rawSlice = String(result?.data).slice(0, 1200);
         }
+        const blockTypes = Array.isArray(result.data?.content)
+          ? result.data.content.map((b) => b?.type).filter(Boolean)
+          : [];
         return feedSnagResponse(sportHint, "model_empty_text", {
-          question: String(question || "").slice(0, 300),
+          questionLength: String(question || "").length,
           providerStatus: result.status,
-          rawModelTextSlice: rawSlice,
+          providerErrorName: result.data?.stop_reason || null,
+          rawModelText: rawSlice,
+          extra: { contentBlockTypes: blockTypes },
         });
       }
 
@@ -6703,7 +6714,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseFormat = "plain";
       responseStatusShift = null;
       if (structuredResponse && typeof structuredResponse === "object") {
-        responseText = formatStructuredResponseAsUrTakeProse(structuredResponse);
+        const formatted = formatStructuredResponseAsUrTakeProse(structuredResponse);
+        responseText = formatted.trim() ? formatted : text;
         responseDeep = null;
         responseFormat = "plain";
       } else if (outputJsonMode !== "plain") {
@@ -6908,12 +6920,21 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     }
 
     if (!responseText || responseText.trim().length === 0) {
-      console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
-      return feedSnagResponse(sportHint, "empty_response_after_processing", {
-        question: String(question || "").slice(0, 300),
-        rawModelTextSlice: String(responseDeep || "").slice(0, 1200),
-        extra: { responseDeepLen: String(responseDeep || "").length },
-      });
+      if (lastNonEmptyRawModelText.trim()) {
+        console.error("[ur-take] recovered_empty_post_process", {
+          sport: sportHint || "unknown",
+          recoveredChars: lastNonEmptyRawModelText.length,
+          questionLength: String(question || "").length,
+        });
+        responseText = lastNonEmptyRawModelText;
+      } else {
+        console.error("[ur-take] Empty response after processing — question:", question?.slice(0, 100));
+        return feedSnagResponse(sportHint, "empty_response_after_processing", {
+          questionLength: String(question || "").length,
+          rawModelText: "",
+          structuredKeys: structuredResponse && typeof structuredResponse === "object" ? Object.keys(structuredResponse) : null,
+        });
+      }
     }
 
     if (userEmail && isPro && !isConversationFollowUp) {
@@ -7068,10 +7089,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     const s =
       req.body && typeof req.body.sportHint === "string" ? req.body.sportHint.trim() : null;
     return feedSnagResponse(s, "exception_caught", {
-      question: String(req.body?.question || "").slice(0, 300),
+      questionLength: String(req.body?.question || "").length,
       err,
       providerErrorName: err?.name,
       providerErrorMessage: err?.message,
+      rawModelText: "",
     });
   }
 }
