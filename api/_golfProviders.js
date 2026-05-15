@@ -6,6 +6,8 @@ import {
   buildCurrentEventFromScheduleRow,
   extractGolfTournamentIntentFromQuestion,
   findBestScheduleRowForIntent,
+  golfContextNeedsCourseResolution,
+  golfCourseConflictsWithIntent,
   golfCurrentEventMatchesIntent,
   golfLabelsMatchIntent,
 } from "../shared/golfTournamentIntent.js";
@@ -870,6 +872,61 @@ function espnScoreboardEventLooksStale(event) {
   return false;
 }
 
+/** ESPN site scoreboard often omits venue in JSON; HTML header still lists the course. */
+function parseEspnCourseFromLeaderboardHtml(html) {
+  if (!html) return { course: null, location: "" };
+
+  const namedClub =
+    html.match(/(Aronimink Golf Club)/i) ||
+    html.match(/(Quail Hollow Club)/i) ||
+    html.match(/(Valhalla Golf Club)/i) ||
+    html.match(/(Southern Hills Country Club)/i) ||
+    html.match(/(TPC [A-Za-z0-9' .-]{2,42})/i) ||
+    html.match(
+      /([A-Z][A-Za-z0-9' .&-]{2,55}(?:Golf Club|Country Club|Golf Links|National Golf Club))/,
+    );
+
+  if (!namedClub) return { course: null, location: "" };
+
+  const course = String(namedClub[1] || "").trim();
+  const locMatch = html.match(
+    new RegExp(
+      `${course.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[-–]\\s*([^"<]+)`,
+      "i",
+    ),
+  );
+  const location = locMatch?.[1] ? String(locMatch[1]).trim() : "";
+  return { course: course || null, location };
+}
+
+async function fetchEspnLeaderboardHtml(eventId) {
+  if (eventId == null || String(eventId).trim() === "") return null;
+  const htmlRes = await safeFetchText(
+    `https://www.espn.com/golf/leaderboard/_/tournamentId/${eventId}`,
+    { timeoutMs: 9000 },
+  );
+  return htmlRes.ok ? htmlRes.text : null;
+}
+
+async function enrichEspnEventCourseFromHtml(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  const existing = String(payload.course || "").trim();
+  if (existing && existing !== "TBD") return payload;
+
+  const html = await fetchEspnLeaderboardHtml(payload.id);
+  if (!html) return payload;
+
+  const parsed = parseEspnCourseFromLeaderboardHtml(html);
+  if (!parsed.course) return payload;
+
+  return {
+    ...payload,
+    course: parsed.course,
+    location: parsed.location || payload.location || "",
+    courseSource: "espn_html",
+  };
+}
+
 function parseEspnLeaderboardFromHtml(html) {
   if (!html) return [];
 
@@ -1261,18 +1318,33 @@ async function normalizeEspnScoreboardEventToPayload(selectedEvent) {
 
   let leaderboard = apiLeaderboard;
   let leaderboardSource = hasMeaningfulApiLeaderboard ? "espn_api" : "none";
+  let courseLabel = venue?.fullName || venue?.shortName || null;
+  let locationLabel = [venue?.city, venue?.state || venue?.country]
+    .filter(Boolean)
+    .join(", ");
 
-  if (!hasMeaningfulApiLeaderboard && selectedEvent?.id) {
-    const htmlRes = await safeFetchText(
-      `https://www.espn.com/golf/leaderboard/_/tournamentId/${selectedEvent.id}`,
-      { timeoutMs: 9000 },
-    );
+  const needsHtml =
+    selectedEvent?.id &&
+    (!hasMeaningfulApiLeaderboard ||
+      !courseLabel ||
+      String(courseLabel).trim() === "TBD");
 
-    if (htmlRes.ok) {
-      const htmlLeaderboard = parseEspnLeaderboardFromHtml(htmlRes.text);
-      if (hasMeaningfulLeaderboardRows(htmlLeaderboard)) {
-        leaderboard = htmlLeaderboard;
-        leaderboardSource = "espn_html";
+  if (needsHtml) {
+    const html = await fetchEspnLeaderboardHtml(selectedEvent.id);
+    if (html) {
+      if (!hasMeaningfulApiLeaderboard) {
+        const htmlLeaderboard = parseEspnLeaderboardFromHtml(html);
+        if (hasMeaningfulLeaderboardRows(htmlLeaderboard)) {
+          leaderboard = htmlLeaderboard;
+          leaderboardSource = "espn_html";
+        }
+      }
+      if (!courseLabel || String(courseLabel).trim() === "TBD") {
+        const parsedCourse = parseEspnCourseFromLeaderboardHtml(html);
+        if (parsedCourse.course) {
+          courseLabel = parsedCourse.course;
+          if (parsedCourse.location) locationLabel = parsedCourse.location;
+        }
       }
     }
   }
@@ -1287,10 +1359,8 @@ async function normalizeEspnScoreboardEventToPayload(selectedEvent) {
     name: selectedEvent?.name || selectedEvent?.shortName || "PGA Tour Event",
     shortName:
       selectedEvent?.shortName || selectedEvent?.name || "PGA Tour Event",
-    course: venue?.fullName || venue?.shortName || null,
-    location: [venue?.city, venue?.state || venue?.country]
-      .filter(Boolean)
-      .join(", "),
+    course: courseLabel || "TBD",
+    location: locationLabel,
     round: cleanTournamentStatus(adjustedState || status?.description),
     state: adjustedState || "pre",
     par: comp?.format?.par || null,
@@ -1332,9 +1402,12 @@ async function getEspnCurrentEvent() {
  */
 export async function alignGolfBoardToQuestion(board, question) {
   const intent = extractGolfTournamentIntentFromQuestion(question);
-  if (!intent || golfCurrentEventMatchesIntent(board?.currentEvent, intent)) {
-    return board;
-  }
+  if (!intent) return board;
+
+  const alreadyAligned =
+    golfCurrentEventMatchesIntent(board?.currentEvent, intent) &&
+    !golfContextNeedsCourseResolution(board?.currentEvent, intent);
+  if (alreadyAligned) return board;
 
   const previousFeedEvent = board?.currentEvent?.name || null;
   const schedule = Array.isArray(board?.tourSchedule) ? board.tourSchedule : [];
@@ -1386,8 +1459,8 @@ export async function alignGolfBoardToQuestion(board, question) {
       id: null,
       name: intent.label,
       shortName: intent.label,
-      course: "TBD",
-      location: "",
+      course: row?.courseName || "TBD",
+      location: row?.location || "",
       round: "Upcoming",
       state: "pre",
       par: null,
@@ -1396,6 +1469,19 @@ export async function alignGolfBoardToQuestion(board, question) {
       displayDate: null,
       leaderboard: [],
     };
+  }
+
+  if (golfCourseConflictsWithIntent(currentEvent.course, intent)) {
+    currentEvent = {
+      ...currentEvent,
+      course: row?.courseName || "TBD",
+      location: row?.location || currentEvent.location || "",
+    };
+  }
+
+  if (golfContextNeedsCourseResolution(currentEvent, intent) && currentEvent?.id) {
+    const enriched = await enrichEspnEventCourseFromHtml(currentEvent);
+    currentEvent = { ...currentEvent, ...enriched };
   }
 
   console.log(
@@ -2121,7 +2207,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v22";
+  const cacheKey = "unified_golf_board_v23";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -2140,6 +2226,17 @@ export async function getUnifiedGolfBoard() {
     odds,
     rankings,
   });
+
+  if (merged?.currentEvent?.id) {
+    const enriched = await enrichEspnEventCourseFromHtml(merged.currentEvent);
+    if (enriched?.course && enriched.course !== merged.currentEvent.course) {
+      merged.currentEvent = {
+        ...merged.currentEvent,
+        course: enriched.course,
+        location: enriched.location || merged.currentEvent.location || "",
+      };
+    }
+  }
 
   let weatherAlert = null;
   let weatherSnapshot = null;

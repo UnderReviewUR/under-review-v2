@@ -4,6 +4,7 @@ import {
   alignGolfBoardSnapshotForQuestion,
   extractGolfTournamentIntentFromQuestion,
   findBestScheduleRowForIntent,
+  golfCourseConflictsWithIntent,
   golfCurrentEventMatchesIntent,
   golfQuestionNeedsEventRealign,
 } from "./golfTournamentIntent.js";
@@ -97,4 +98,41 @@ test("golfCurrentEventMatchesIntent when names align", () => {
     ),
     true,
   );
+});
+
+test("golfCourseConflictsWithIntent blocks wrong venue on correct name", () => {
+  const intent = extractGolfTournamentIntentFromQuestion("PGA Championship picks");
+  assert.equal(golfCourseConflictsWithIntent("TPC Craig Ranch", intent), true);
+  assert.equal(
+    golfCurrentEventMatchesIntent(
+      { name: "PGA Championship", course: "TPC Craig Ranch" },
+      intent,
+    ),
+    false,
+  );
+  assert.equal(
+    golfQuestionNeedsEventRealign(
+      { currentEvent: { name: "PGA Championship", course: "TPC Craig Ranch" } },
+      "PGA Championship picks",
+    ),
+    true,
+  );
+});
+
+test("intent_only client align does not keep Byron Nelson course", () => {
+  const board = {
+    currentEvent: {
+      name: "THE CJ CUP Byron Nelson",
+      course: "TPC Craig Ranch",
+      state: "in",
+      leaderboard: [{ name: "Smalley" }],
+    },
+    tourSchedule: [],
+  };
+  const aligned = alignGolfBoardSnapshotForQuestion(
+    board,
+    "PGA Championship outright angle?",
+  );
+  assert.notEqual(aligned.currentEvent.course, "TPC Craig Ranch");
+  assert.equal(aligned.currentEvent.course, "TBD");
 });

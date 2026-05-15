@@ -46,7 +46,11 @@ import {
 } from "./nba.js";
 import { buildMlbUrTakeBoard } from "./mlb.js";
 import { alignGolfBoardToQuestion, getUnifiedGolfBoard } from "./_golfProviders.js";
-import { golfQuestionNeedsEventRealign } from "../shared/golfTournamentIntent.js";
+import {
+  extractGolfTournamentIntentFromQuestion,
+  golfQuestionNeedsEventRealign,
+  GOLF_INTENT_WRONG_COURSE_FRAGMENTS,
+} from "../shared/golfTournamentIntent.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 import {
   slimNbaPlayerStatRowForUrTake,
@@ -4280,19 +4284,30 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
   };
 }
 
-function buildGolfQuestionAlignmentPromptBlock(alignment) {
+function buildGolfQuestionAlignmentPromptBlock(alignment, currentEvent) {
   if (!alignment?.requestedLabel) return "";
   const prev =
     alignment.previousFeedEvent &&
     alignment.previousFeedEvent !== alignment.requestedLabel
       ? ` The live-feed default week was "${alignment.previousFeedEvent}" — ignore that event entirely.`
       : "";
+  const slug = alignment.requestedSlug || "";
+  const forbidden = GOLF_INTENT_WRONG_COURSE_FRAGMENTS[slug] || [];
+  const forbiddenLine = forbidden.length
+    ? `- FORBIDDEN VENUES for this question (do not name or describe): ${forbidden.join(", ")}.`
+    : "";
+  const course = String(currentEvent?.course || "").trim();
+  const courseLine =
+    course && course !== "TBD"
+      ? `- Verified course for this event in payload: ${course}. Cite only this venue.`
+      : `- currentEvent.course is TBD — do NOT invent or recall a course name from memory; describe tournament/setup only from leaderboard and odds in the payload.`;
   return `
 QUESTION EVENT ALIGNMENT (mandatory):
 The user asked about "${alignment.requestedLabel}".${prev}
 - Ground every answer in currentEvent for "${alignment.requestedLabel}" only.
 - If currentEvent.state is pre/upcoming or leaderboard is empty: treat as pre-tournament — do NOT cite live scores, positions, or course conditions from any other PGA Tour week.
-- Use the course listed on currentEvent for this event; do not substitute another venue (e.g. do not describe TPC Craig Ranch when the question is about the PGA Championship).`;
+${courseLine}
+${forbiddenLine}`;
 }
 
 function golfClientContextLooksUsable(g) {
@@ -4725,26 +4740,33 @@ export default async function handler(req, res) {
 
   if (sportHint === "golf") {
     const clientGolf = golfContext && typeof golfContext === "object" ? golfContext : null;
-    const needsQuestionAlign = golfQuestionNeedsEventRealign(clientGolf, String(question || ""));
+    const questionStr = String(question || "");
+    const intent = extractGolfTournamentIntentFromQuestion(questionStr);
+    const needsQuestionAlign = golfQuestionNeedsEventRealign(clientGolf, questionStr);
     const needsHydrate = !golfClientContextLooksUsable(clientGolf);
 
-    if (needsQuestionAlign || needsHydrate) {
+    if (intent || needsQuestionAlign || needsHydrate) {
       try {
         const board = await getUnifiedGolfBoard();
-        const aligned = needsQuestionAlign
-          ? await alignGolfBoardToQuestion(board, String(question || ""))
-          : board;
-        const slim = slimUnifiedGolfBoardForUrTake(aligned, String(question || ""));
+        const aligned = intent
+          ? await alignGolfBoardToQuestion(board, questionStr)
+          : needsQuestionAlign
+            ? await alignGolfBoardToQuestion(board, questionStr)
+            : board;
+        const slim = slimUnifiedGolfBoardForUrTake(aligned, questionStr);
         if (slim && golfClientContextLooksUsable(slim)) {
           golfContextEffective = slim;
           console.log(
             JSON.stringify({
               tag: "[urTakeGolfHydrate]",
               requestId,
-              event: needsQuestionAlign
+              event: intent
                 ? "golf_context_question_aligned"
-                : "golf_context_server_hydrated",
+                : needsQuestionAlign
+                  ? "golf_context_question_aligned"
+                  : "golf_context_server_hydrated",
               alignment: slim.questionEventAlignment || undefined,
+              course: slim.currentEvent?.course || null,
             }),
           );
         }
@@ -5589,7 +5611,10 @@ Golf context:
 ${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
-${buildGolfQuestionAlignmentPromptBlock(golfContextEffective?.questionEventAlignment)}
+${buildGolfQuestionAlignmentPromptBlock(
+        golfContextEffective?.questionEventAlignment,
+        golfContextEffective?.currentEvent,
+      )}
 
 TOURNAMENT STATUS: FINAL (currentEvent.state is post/final)
 - Do NOT frame this as live betting, pre-market, or "wait for lines / tee times."
@@ -5619,7 +5644,10 @@ Golf context:
 ${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
-${buildGolfQuestionAlignmentPromptBlock(golfContextEffective?.questionEventAlignment)}
+${buildGolfQuestionAlignmentPromptBlock(
+        golfContextEffective?.questionEventAlignment,
+        golfContextEffective?.currentEvent,
+      )}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.

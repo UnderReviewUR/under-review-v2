@@ -92,6 +92,25 @@ export const GOLF_TOURNAMENT_INTENT_DEFS = [
   },
 ];
 
+/** Course name fragments that belong to a different week — never keep these on the wrong intent. */
+export const GOLF_INTENT_WRONG_COURSE_FRAGMENTS = {
+  pga_championship: [
+    "craig ranch",
+    "byron nelson",
+    "harbour town",
+    "hilton head",
+    "tpc scottsdale",
+    "riviera country",
+    "pebble beach",
+    "bay hill",
+  ],
+  masters: ["craig ranch", "byron nelson", "quail hollow", "tpc sawgrass"],
+  us_open: ["craig ranch", "augusta", "harbour town", "tpc sawgrass"],
+  the_open: ["craig ranch", "augusta", "quail hollow", "pebble beach"],
+  byron_nelson: ["quail hollow", "valhalla", "aronimink", "augusta national", "harbour town"],
+  rbc_heritage: ["craig ranch", "quail hollow", "valhalla", "aronimink"],
+};
+
 export function normalizeGolfIntentText(value) {
   return String(value || "")
     .toLowerCase()
@@ -169,10 +188,30 @@ export function golfLabelsMatchIntent(name, shortName, intent) {
  * @param {{ name?: string, shortName?: string } | null | undefined} currentEvent
  * @param {{ slug: string, label: string } | null} intent
  */
+export function golfCourseConflictsWithIntent(course, intent) {
+  if (!intent || !course) return false;
+  const c = slugifyGolfLabel(course);
+  if (!c || c === "tbd") return false;
+  const blocked = GOLF_INTENT_WRONG_COURSE_FRAGMENTS[intent.slug] || [];
+  return blocked.some((frag) => {
+    const f = slugifyGolfLabel(frag);
+    return f && (c.includes(f) || f.includes(c));
+  });
+}
+
 export function golfCurrentEventMatchesIntent(currentEvent, intent) {
   if (!intent) return true;
   if (!currentEvent) return false;
-  return golfLabelsMatchIntent(currentEvent.name, currentEvent.shortName, intent);
+  if (!golfLabelsMatchIntent(currentEvent.name, currentEvent.shortName, intent)) return false;
+  if (golfCourseConflictsWithIntent(currentEvent.course, intent)) return false;
+  return true;
+}
+
+export function golfContextNeedsCourseResolution(currentEvent, intent) {
+  if (!intent || !currentEvent) return false;
+  if (!golfLabelsMatchIntent(currentEvent.name, currentEvent.shortName, intent)) return false;
+  const course = String(currentEvent.course || "").trim();
+  return !course || course === "TBD" || golfCourseConflictsWithIntent(course, intent);
 }
 
 /**
@@ -209,7 +248,9 @@ export function findBestScheduleRowForIntent(tourSchedule, intent) {
 export function golfQuestionNeedsEventRealign(boardOrContext, question) {
   const intent = extractGolfTournamentIntentFromQuestion(question);
   if (!intent) return false;
-  return !golfCurrentEventMatchesIntent(boardOrContext?.currentEvent, intent);
+  const ev = boardOrContext?.currentEvent;
+  if (!golfCurrentEventMatchesIntent(ev, intent)) return true;
+  return golfContextNeedsCourseResolution(ev, intent);
 }
 
 /**
@@ -275,10 +316,11 @@ export function alignGolfBoardSnapshotForQuestion(golfData, question) {
   const alignedEvent = row
     ? buildCurrentEventFromScheduleRow(row, preserve)
     : {
-        ...(golfData.currentEvent || {}),
+        id: null,
         name: intent.label,
         shortName: intent.label,
-        course: golfData.currentEvent?.course || "TBD",
+        course: row?.courseName || "TBD",
+        location: row?.location || "",
         state: "pre",
         round: "Upcoming",
         leaderboard: [],
