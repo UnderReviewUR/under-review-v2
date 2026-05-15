@@ -62,7 +62,10 @@ export function classifyGolfEvent(event, nowMs = Date.now()) {
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
   if (state === "pre") {
     if (!Number.isFinite(startMs)) return EVENT_VALIDITY.UNKNOWN;
-    return nowMs < startMs ? EVENT_VALIDITY.UPCOMING : EVENT_VALIDITY.FINISHED;
+    if (nowMs < startMs) return EVENT_VALIDITY.UPCOMING;
+    /* Multi-day tournaments often stay `pre` while rounds run — treat as in-window active, not finished. */
+    if (Number.isFinite(endMs) && nowMs <= endMs) return EVENT_VALIDITY.ACTIVE;
+    return EVENT_VALIDITY.FINISHED;
   }
   if (Number.isFinite(startMs) && nowMs < startMs) {
     return EVENT_VALIDITY.UPCOMING;

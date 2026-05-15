@@ -67,7 +67,7 @@ export function rankSlateSportForBundle(sport, bundle, nowMs = Date.now()) {
     return isF1RaceWeekendWindow(bundle?.f1, sessions, nowMs) ? 50 : 900;
   }
   if (s === "golf") {
-    return bundle?.golf ? 60 : 900;
+    return bundle?.golf ? 32 : 900;
   }
   return 950;
 }

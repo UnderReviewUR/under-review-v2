@@ -8,8 +8,15 @@ export function useGolfData() {
     let active = true;
     async function loadGolf() {
       setGolfLoading(true);
+      let timeoutId;
       try {
-        const res = await fetch("/api/golf?view=board");
+        const controller = new AbortController();
+        timeoutId = window.setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`/api/golf?view=board&_ts=${Date.now()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
         if (!res.ok) throw new Error("Golf " + res.status);
         const data = await res.json();
         if (active) setGolfData(data);
@@ -17,12 +24,13 @@ export function useGolfData() {
         // Transient failures: keep last successful board so the rail does not blank out.
         if (active) setGolfData((prev) => prev);
       } finally {
+        if (timeoutId) window.clearTimeout(timeoutId);
         if (active) setGolfLoading(false);
       }
     }
     loadGolf();
     const poll = window.setInterval(() => {
-      fetch("/api/golf?view=board")
+      fetch(`/api/golf?view=board&_ts=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } })
         .then((r) => {
           if (!r.ok) throw new Error("Golf " + r.status);
           return r.json();

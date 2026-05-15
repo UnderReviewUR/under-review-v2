@@ -222,7 +222,8 @@ export function normalizeGolfTournament(golfData, nowMs = Date.now()) {
   }
   if (Number.isFinite(endMs) && endMs <= nowMs) return null;
 
-  const GOLF_HOME_UPCOMING_WINDOW_MS = 48 * 60 * 60 * 1000;
+  /* Majors / big events: show on Home up to 14 days before first tee (ET-relative via parseEventStartMs). */
+  const GOLF_HOME_UPCOMING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
   if (v === EVENT_VALIDITY.UPCOMING && Number.isFinite(startMs)) {
     const delta = startMs - nowMs;
     if (delta < 0 || delta > GOLF_HOME_UPCOMING_WINDOW_MS) return null;

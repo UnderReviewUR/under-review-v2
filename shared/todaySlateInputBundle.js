@@ -2,7 +2,7 @@
  * Today's Slate `/api/today-slate` board bundle — same displayability gates as Home
  * (`buildHomeEventPipeline` raw inputs: classify* + isDisplayableValidity).
  * Golf uses `normalizeGolfTournament` so slate policy matches Home golf visibility
- * (replaces the prior 72h tournament-only carve-out that could disagree with Home's 48h window).
+ * (replaces the prior 72h tournament-only carve-out that could disagree with Home's golf window).
  */
 
 import {

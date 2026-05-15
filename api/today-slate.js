@@ -221,14 +221,7 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         why: "Tonight's playoff slate — ask for props, totals, or live angles on any matchup.",
       };
 
-  const sharpAngle = nbaGame
-    ? {
-        sport: "nba",
-        event: nbaGame,
-        angle: "Series/game-total context over narrative",
-        why: "Prioritize playoffSeries + gameTotals + injuries before any player-level assumptions.",
-      }
-    : bundle?.golf
+  const sharpAngle = bundle?.golf
     ? {
         sport: "golf",
         event: String(
@@ -239,7 +232,14 @@ function buildFallbackSlate(bundle, reason = "fallback") {
             "Current event",
         ),
         angle: "Placement over outrights",
-        why: "Leaderboard context is usually more stable than volatile outright pricing.",
+        why: "Leaderboard context is usually more stable than volatile outright pricing during the event.",
+      }
+    : nbaGame
+    ? {
+        sport: "nba",
+        event: nbaGame,
+        angle: "Series/game-total context over narrative",
+        why: "Prioritize playoffSeries + gameTotals + injuries before any player-level assumptions.",
       }
     : {
         sport: "tennis",

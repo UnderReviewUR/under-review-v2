@@ -64,8 +64,8 @@ export const baseCss = `
     --ur-mag:var(--magenta);
     --ur-muted:rgba(148,163,184,0.62);
     --bottom-nav-height:72px;
-    /* Ask dock (follow-ups + AskBar) — summed with nav + safe area for UR chat scroll padding */
-    --ur-dock-askbar-est:60px;
+    /* Fallbacks when measured chrome vars are unset (see App.jsx ResizeObserver) */
+    --ur-dock-askbar-est:72px;
     --ur-dock-followups-est:56px;
     --ur-chat-scroll-dock-buffer:16px;
     --keyboard-height:0px;
@@ -290,20 +290,25 @@ export const baseCss = `
     overscroll-behavior:contain;
     padding-left:16px;
     padding-right:16px;
-    /* Follow-ups + AskBar + bottom nav + full safe-area + buffer — last bubble clears fixed chrome */
+    /*
+     * Clearance = max(fixed nav band, dock bottom offset + dock height).
+     * Do not sum nav + dock — the dock sits just above the nav offset band.
+     */
     padding-bottom:calc(
-      var(--ur-dock-followups-est)
-      + var(--ur-dock-askbar-est)
-      + var(--bottom-nav-height)
-      + env(safe-area-inset-bottom, 0px)
+      max(
+        var(--ur-nav-measured-h, var(--bottom-nav-height)),
+        calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
+      )
+      + var(--ur-vv-rise, 0px)
       + var(--ur-chat-scroll-dock-buffer)
       + var(--keyboard-height, 0px)
     );
     scroll-padding-bottom:calc(
-      var(--ur-dock-followups-est)
-      + var(--ur-dock-askbar-est)
-      + var(--bottom-nav-height)
-      + env(safe-area-inset-bottom, 0px)
+      max(
+        var(--ur-nav-measured-h, var(--bottom-nav-height)),
+        calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
+      )
+      + var(--ur-vv-rise, 0px)
       + var(--ur-chat-scroll-dock-buffer)
       + var(--keyboard-height, 0px)
     );

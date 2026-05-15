@@ -260,7 +260,7 @@ export default function App() {
 
   const css = `
 ${baseCss}
-/* UR Ask chat scroll bottom inset: --ur-dock-askbar-est, --ur-dock-followups-est, --bottom-nav-height in appBaseCss.js */
+/* UR docked chat scroll inset: max(nav, bottom-offset+dock) from --ur-dock-measured-h / --ur-nav-measured-h (App.jsx) + --ur-vv-rise + buffer — appBaseCss.js */
 ${themeCss}
 `;
 
@@ -1877,58 +1877,79 @@ ${themeCss}
   ]);
 
   const homeF1Cards = useMemo(() => {
-    const nextRace = displayableF1NextRace;
-    if (nextRace) {
-      const fk = f1EventKey(nextRace);
-      if (fk && cardExcludeSet.has(fk)) {
-        return [];
-      }
-      const raceStart = resolveF1RaceStart(nextRace, f1Data?.sessions || []);
+    const sessions = f1Data?.sessions || [];
+    const buildCard = (race, id) => {
+      if (!race || typeof race !== "object") return null;
+      const fk = f1EventKey(race);
+      if (fk && cardExcludeSet.has(fk)) return null;
+      const raceStart = resolveF1RaceStart(race, sessions);
       const dt = raceStart ? new Date(raceStart) : null;
-      const fallbackDate = nextRace?.race_date ? new Date(nextRace.race_date) : null;
+      const fallbackDate = race?.race_date ? new Date(race.race_date) : null;
       const hasConfirmedRaceStart = Boolean(dt && !Number.isNaN(dt.getTime()));
       const dateStr = dt
         ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
         : fallbackDate
           ? fallbackDate.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" })
-        : "TBD";
+          : "TBD";
       const fullDateStr = dt
         ? dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })
         : fallbackDate
           ? fallbackDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })
-        : "Date TBD";
+          : "Date TBD";
       const timeStr =
         hasConfirmedRaceStart
           ? dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })
           : "";
-      const blurbCore = `${nextRace.location || "Track TBD"} · ${fullDateStr}`;
-      const blurb =
-        hasConfirmedRaceStart && timeStr ? `${blurbCore} at ${timeStr}` : blurbCore;
-      return [{
-        id: "f1-next-1",
+      const blurbCore = `${race.location || "Track TBD"} · ${fullDateStr}`;
+      const blurb = hasConfirmedRaceStart && timeStr ? `${blurbCore} at ${timeStr}` : blurbCore;
+      return {
+        id,
         league: "F1",
         leagueColor: "#E10600",
-        title: nextRace.meeting_name || "Next Grand Prix",
+        title: race.meeting_name || race.name || "Next Grand Prix",
         time: dateStr,
-        network: nextRace.circuit_short_name || nextRace.location || "",
+        network: race.circuit_short_name || race.location || "",
         blurb,
         whatMatters: "Race Sunday only — winner, podium structure, or head-to-head reads.",
         quickHitters: ["Race winner vs field?", "Podium stack you trust?", "Best driver H2H?"],
-        confirmed: true
-      }];
+        confirmed: true,
+      };
+    };
+
+    const nextRace = displayableF1NextRace;
+    if (nextRace) {
+      const card = buildCard(nextRace, "f1-next-1");
+      return card ? [card] : [];
     }
-    return [{
-      id: "f1-default",
-      league: "F1",
-      leagueColor: "#E10600",
-      title: "Formula 1",
-      time: "Schedule pending",
-      network: "Grand Prix Racing",
-      blurb: "Next race card is still wiring — check back after schedule publish.",
-      whatMatters: "When the next GP locks, ask for race-only edges (no practice markets).",
-      quickHitters: ["Best WDC value right now?", "Next GP winner lean?", "Constructor vs driver gap?"],
-      confirmed: true
-    }];
+
+    const races = Array.isArray(f1Data?.schedule?.races) ? f1Data.schedule.races : [];
+    const loose = races.find((r) => r?.is_next) || races[0] || null;
+    if (loose) {
+      const card = buildCard(loose, "f1-next-preview");
+      if (card) {
+        return [
+          {
+            ...card,
+            whatMatters: "Next GP on the calendar — open F1 for full weekend sessions and live timing.",
+          },
+        ];
+      }
+    }
+
+    return [
+      {
+        id: "f1-default",
+        league: "F1",
+        leagueColor: "#E10600",
+        title: "Formula 1",
+        time: "Schedule pending",
+        network: "Grand Prix Racing",
+        blurb: "No upcoming race rows in the feed yet — try the F1 tab after the schedule bundle refreshes.",
+        whatMatters: "When the next GP locks, ask for race-only edges (no practice markets).",
+        quickHitters: ["Best WDC value right now?", "Next GP winner lean?", "Constructor vs driver gap?"],
+        confirmed: true,
+      },
+    ];
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
   const homeNbaCards = useMemo(() => {
@@ -3241,6 +3262,90 @@ ${themeCss}
     (screen === "mlb" && mlbMsgs.length > 0) ||
     (screen === "golf" && golfMsgs.length > 0) ||
     (screen === "ask" && askMsgs.length > 0);
+
+  /** Dock + bottom nav real heights → `--ur-dock-measured-h` / `--ur-nav-measured-h` for `.ur-chat-scroll` padding (follow-up chips render after first paint; remeasure on DOM + resize). */
+  useLayoutEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return undefined;
+    const root = document.documentElement;
+    if (!hasDockedBar) {
+      root.style.removeProperty("--ur-dock-measured-h");
+      root.style.removeProperty("--ur-nav-measured-h");
+      return undefined;
+    }
+    const measure = () => {
+      const dock = document.querySelector(".app .docked-bar.ur-docked-bar");
+      const nav = document.querySelector(".app nav.bottom-nav");
+      if (dock) {
+        const h = dock.getBoundingClientRect().height;
+        /* +28px: chip wrap / shadows / subpixel vs scroll-padding — avoids last board line sitting under the dock strip */
+        root.style.setProperty("--ur-dock-measured-h", `${Math.ceil(h) + 28}px`);
+      } else {
+        root.style.removeProperty("--ur-dock-measured-h");
+      }
+      if (nav) {
+        const h = nav.getBoundingClientRect().height;
+        root.style.setProperty("--ur-nav-measured-h", `${Math.ceil(h)}px`);
+      } else {
+        root.style.removeProperty("--ur-nav-measured-h");
+      }
+    };
+    measure();
+    requestAnimationFrame(measure);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(measure);
+    });
+    const t0 = window.setTimeout(measure, 0);
+    const t50 = window.setTimeout(measure, 50);
+    const t200 = window.setTimeout(measure, 200);
+    const t600 = window.setTimeout(measure, 600);
+
+    let roDock;
+    let roNav;
+    let moDock;
+    const dock = document.querySelector(".app .docked-bar.ur-docked-bar");
+    const nav = document.querySelector(".app nav.bottom-nav");
+    if (typeof ResizeObserver !== "undefined") {
+      roDock = dock ? new ResizeObserver(measure) : null;
+      roNav = nav ? new ResizeObserver(measure) : null;
+      if (roDock && dock) roDock.observe(dock);
+      if (roNav && nav) roNav.observe(nav);
+    }
+    if (typeof MutationObserver !== "undefined" && dock) {
+      moDock = new MutationObserver(measure);
+      moDock.observe(dock, { subtree: true, childList: true, attributes: true, characterData: true });
+    }
+    window.addEventListener("resize", measure);
+    return () => {
+      window.clearTimeout(t0);
+      window.clearTimeout(t50);
+      window.clearTimeout(t200);
+      window.clearTimeout(t600);
+      window.removeEventListener("resize", measure);
+      try {
+        const d = document.querySelector(".app .docked-bar.ur-docked-bar");
+        const n = document.querySelector(".app nav.bottom-nav");
+        if (roDock && d) roDock.unobserve(d);
+        if (roNav && n) roNav.unobserve(n);
+      } catch {
+        /* ignore */
+      }
+      roDock?.disconnect();
+      roNav?.disconnect();
+      moDock?.disconnect();
+      root.style.removeProperty("--ur-dock-measured-h");
+      root.style.removeProperty("--ur-nav-measured-h");
+    };
+  }, [
+    hasDockedBar,
+    screen,
+    askMsgs.length,
+    tennisMsgs.length,
+    nflMsgs.length,
+    f1Msgs.length,
+    nbaMsgs.length,
+    mlbMsgs.length,
+    golfMsgs.length,
+  ]);
 
   // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (

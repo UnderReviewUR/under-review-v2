@@ -29,7 +29,7 @@ function pickGolfUpcomingEvent(golfData, nowMs) {
 
 /** Align with api/_golfProviders merge + ESPN `state` (e.g. post = complete). */
 export function isGolfEventFinished(golfData) {
-  const validity = classifyGolfEvent(golfData?.currentEvent || null);
+  const validity = classifyGolfEvent(golfData?.currentEvent || golfData?.tournament || null);
   return validity === EVENT_VALIDITY.FINISHED;
 }
 
@@ -40,10 +40,11 @@ export function isGolfEventFinished(golfData) {
  * - invalid: stale/finished/missing identity
  */
 export function getGolfHomeValidity(golfData, nowMs = Date.now()) {
-  const event = golfData?.currentEvent || null;
-  const validity = classifyGolfEvent(event, nowMs);
+  const primary = golfData?.currentEvent || golfData?.tournament || null;
+  const validity = classifyGolfEvent(primary, nowMs);
   const upcomingEvent = pickGolfUpcomingEvent(golfData, nowMs);
-  const hasLeaderboard = Array.isArray(event?.leaderboard) && event.leaderboard.length > 0;
+  const lbSource = golfData?.currentEvent || primary;
+  const hasLeaderboard = Array.isArray(lbSource?.leaderboard) && lbSource.leaderboard.length > 0;
   const isActive = validity === EVENT_VALIDITY.ACTIVE;
   const isUpcoming = !isActive && Boolean(upcomingEvent);
   return {

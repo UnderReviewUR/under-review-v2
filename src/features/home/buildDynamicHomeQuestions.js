@@ -340,7 +340,7 @@ export function buildDynamicHomeQuestions({
       id: "q3field",
       color: "#FFFFFF",
       sportHint: "golf",
-      sortRank: ranks.golf,
+      sortRank: golfActive ? 4 : ranks.golf,
       ...golfTourneyPrompt,
     });
   }
@@ -370,7 +370,7 @@ export function buildDynamicHomeQuestions({
       id: "q3live",
       color: "#FFFFFF",
       sportHint: "golf",
-      sortRank: ranks.golfLive,
+      sortRank: golfActive ? 3 : ranks.golfLive,
       ...golfPrompt,
     });
   }
@@ -621,7 +621,7 @@ export function buildDynamicHomeQuestions({
         prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}. ${roundHint}`,
       });
     }
-  } else if (nflSeasonMode) {
+  } else if (nflSeasonMode && !golfActive) {
     const nflSeasonPrompt = rotate(
       [
         {
@@ -644,7 +644,7 @@ export function buildDynamicHomeQuestions({
       sortRank: ranks.nflSolo,
       ...nflSeasonPrompt,
     });
-  } else {
+  } else if (!golfActive) {
     const nflFuturePrompt = rotate(
       [
         {
