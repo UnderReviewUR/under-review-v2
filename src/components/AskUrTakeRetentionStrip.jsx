@@ -40,14 +40,6 @@ export default function AskUrTakeRetentionStrip({
 
   const [slipHidden, setSlipHidden] = useState(slipDismissed);
 
-  const showRow = Boolean(lastCompleteAi && userTurns >= 1);
-  if (!showRow) return null;
-
-  const slipCopy =
-    safeMsgs.filter((m) => m.role === "ai" && !m.loading).length % 2 === 1
-      ? "Want me to check a bet slip before you place it?"
-      : "Upload a slip and I’ll flag the weakest leg — not a guarantee, just structure.";
-
   const dismissSlip = useCallback(() => {
     setSlipHidden(true);
     try {
@@ -69,6 +61,14 @@ export default function AskUrTakeRetentionStrip({
       return next;
     });
   }, [safeSavedTakes.length]);
+
+  const showRow = Boolean(lastCompleteAi && userTurns >= 1);
+  if (!showRow) return null;
+
+  const slipCopy =
+    safeMsgs.filter((m) => m.role === "ai" && !m.loading).length % 2 === 1
+      ? "Want me to check a bet slip before you place it?"
+      : "Upload a slip and I’ll flag the weakest leg — not a guarantee, just structure.";
 
   return (
     <div className="ur-ask-retention-strip">
