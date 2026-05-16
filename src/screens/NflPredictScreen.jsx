@@ -18,6 +18,7 @@ import {
   clearAllPicks,
   clearTeamPicks,
   decodePicks,
+  encodePicks,
   loadPicks,
   loadPicksFromUrl,
 } from "../lib/nflPredictState.js";
@@ -53,7 +54,7 @@ export default function NflPredictScreen({
   const [resetPressed, setResetPressed] = useState(false);
   const [resetHover, setResetHover] = useState(false);
   const initRef = useRef(false);
-  const mainRef = useRef(null);
+  const containerRef = useRef(null);
   const completionShownRef = useRef(new Set());
   const completionTimerRef = useRef(null);
   const clearToastTimerRef = useRef(null);
@@ -62,6 +63,9 @@ export default function NflPredictScreen({
   const [sbOverlay, setSbOverlay] = useState(null);
   const bracketFingerprintRef = useRef(null);
   const sbOverlayTimerRef = useRef(null);
+  const sbShareDismissTimerRef = useRef(null);
+  const [sbShareBusy, setSbShareBusy] = useState(false);
+  const [sbShareLabel, setSbShareLabel] = useState("Share my prediction →");
 
   const buildBracketFromPicks = useCallback(
     (pickState) => {
@@ -86,14 +90,68 @@ export default function NflPredictScreen({
 
   const goToView = useCallback(
     (view) => {
-      if (view === "playoffs") hydrateBracket();
+      if (view === "playoffs") {
+        hydrateBracket();
+        setActiveView("playoffs");
+        queueMicrotask(() => {
+          containerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+        });
+        return;
+      }
       setActiveView(view);
       queueMicrotask(() => {
-        mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
+        containerRef.current?.scrollTo({ top: 0, behavior: "instant" });
       });
     },
     [hydrateBracket],
   );
+
+  const dismissSbOverlay = useCallback(() => {
+    setSbOverlay(null);
+    setSbShareBusy(false);
+    setSbShareLabel("Share my prediction →");
+    if (sbShareDismissTimerRef.current) clearTimeout(sbShareDismissTimerRef.current);
+  }, []);
+
+  const handleSbOverlayShare = useCallback(async () => {
+    if (sbShareBusy) return;
+    setSbShareBusy(true);
+    const currentPicks = loadPicks();
+    const enc = encodePicks(currentPicks);
+    const path = typeof window !== "undefined" ? window.location.pathname || "/nfl" : "/nfl";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const fallbackUrl = `${origin}${path}?predictor=1&picks=${encodeURIComponent(enc)}`;
+    try {
+      const res = await fetch("/api/nfl-predict-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ picksEncoded: enc }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const url = res.ok && data?.url ? data.url : fallbackUrl;
+      await navigator.clipboard.writeText(url);
+      setSbShareLabel("✓ Link copied!");
+      if (sbShareDismissTimerRef.current) clearTimeout(sbShareDismissTimerRef.current);
+      sbShareDismissTimerRef.current = setTimeout(() => {
+        dismissSbOverlay();
+      }, 1500);
+      setTimeout(() => setSbShareLabel("Share my prediction →"), 2000);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(fallbackUrl);
+        setSbShareLabel("✓ Link copied!");
+        if (sbShareDismissTimerRef.current) clearTimeout(sbShareDismissTimerRef.current);
+        sbShareDismissTimerRef.current = setTimeout(() => {
+          dismissSbOverlay();
+        }, 1500);
+        setTimeout(() => setSbShareLabel("Share my prediction →"), 2000);
+      } catch {
+        setSbShareLabel("Share my prediction →");
+      }
+    } finally {
+      setSbShareBusy(false);
+    }
+  }, [sbShareBusy, dismissSbOverlay]);
 
   const onViewPlayoffs = useCallback(() => goToView("playoffs"), [goToView]);
 
@@ -183,6 +241,7 @@ export default function NflPredictScreen({
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
       if (clearToastTimerRef.current) clearTimeout(clearToastTimerRef.current);
       if (sbOverlayTimerRef.current) clearTimeout(sbOverlayTimerRef.current);
+      if (sbShareDismissTimerRef.current) clearTimeout(sbShareDismissTimerRef.current);
     };
   }, []);
 
@@ -290,7 +349,7 @@ export default function NflPredictScreen({
 
   return (
     <main
-      ref={mainRef}
+      ref={containerRef}
       className="screen nfl-predict-screen"
       style={{
         background: "var(--nfl-predict-bg)",
@@ -383,7 +442,7 @@ export default function NflPredictScreen({
             </button>
           </div>
         ) : null}
-        <UrCtaPanel dismissible />
+        {activeView !== "playoffs" ? <UrCtaPanel dismissible /> : null}
         <div
           style={{
             display: "flex",
@@ -429,7 +488,19 @@ export default function NflPredictScreen({
       </div>
 
       <div style={{ overflowX: "hidden", willChange: "auto" }}>
-      {activeView === "teams" ? (
+      {activeView === "playoffs" ? (
+        <div style={{ padding: "4px 0 0" }}>
+          <PlayoffPicture bracket={bracket} onPickGame={handleBracketPick} showSbConfetti={showSbConfetti} />
+          <NflPredictPlayoffFooter
+            picks={picks}
+            isPro={isPro}
+            restoreProEntitlement={restoreProEntitlement}
+            setUserEmail={setUserEmail}
+            onSubscribePro={onSubscribePro}
+            onContinuePicking={() => goToView("playoffs")}
+          />
+        </div>
+      ) : activeView === "teams" ? (
         <TeamSelector
           picks={picks}
           schedule={schedule}
@@ -552,23 +623,9 @@ export default function NflPredictScreen({
           <DivisionStandings picks={picks} schedule={schedule} teams={teams} conference={selectedConference} />
         </div>
       ) : null}
-
-      {activeView === "playoffs" ? (
-        <div style={{ padding: "4px 0 0" }}>
-          <PlayoffPicture bracket={bracket} onPickGame={handleBracketPick} showSbConfetti={showSbConfetti} />
-          <NflPredictPlayoffFooter
-            picks={picks}
-            isPro={isPro}
-            restoreProEntitlement={restoreProEntitlement}
-            setUserEmail={setUserEmail}
-            onSubscribePro={onSubscribePro}
-            onContinuePicking={() => goToView("playoffs")}
-          />
-        </div>
-      ) : null}
       </div>
 
-      <div className="page-spacer" />
+      {activeView !== "playoffs" ? <div className="page-spacer" /> : null}
 
       {showShareModal ? (
         <ShareModal
@@ -607,57 +664,93 @@ export default function NflPredictScreen({
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
-          <h2 style={{ margin: "0 0 16px", fontSize: 22, fontWeight: 900, lineHeight: 1.3, color: "#fff" }}>
-            {sbOverlay.fullName} wins Super Bowl LXI!
-          </h2>
-          <img
-            src={sbOverlay.logoUrl}
-            alt=""
-            width={80}
-            height={80}
-            style={{ width: 80, height: 80, objectFit: "contain", marginBottom: 24 }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowShareModal(true)}
+          <div
             style={{
+              position: "relative",
               width: "100%",
-              maxWidth: 320,
-              minHeight: 48,
-              borderRadius: 12,
-              border: "none",
-              background: "var(--nfl-predict-accent)",
-              color: "#080808",
-              fontWeight: 800,
-              fontSize: 14,
-              cursor: "pointer",
-              marginBottom: 10,
+              maxWidth: 340,
+              padding: "24px 20px 20px",
+              borderRadius: 16,
+              background: "rgba(12,12,12,.92)",
+              border: "1px solid #333",
             }}
           >
-            Share your prediction →
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSbOverlay(null);
-              goToView("teams");
-            }}
-            style={{
-              width: "100%",
-              maxWidth: 320,
-              minHeight: 48,
-              borderRadius: 12,
-              border: "1px solid #444",
-              background: "transparent",
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: "pointer",
-            }}
-          >
-            See your full picks →
-          </button>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={dismissSbOverlay}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: "none",
+                background: "rgba(255,255,255,.08)",
+                color: "#fff",
+                fontSize: 20,
+                lineHeight: 1,
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>🏆</div>
+            <h2 style={{ margin: "0 0 12px", fontSize: 20, fontWeight: 900, lineHeight: 1.3, color: "#fff" }}>
+              {sbOverlay.fullName} wins Super Bowl LXI!
+            </h2>
+            <img
+              src={sbOverlay.logoUrl}
+              alt=""
+              width={80}
+              height={80}
+              style={{ width: 80, height: 80, objectFit: "contain", marginBottom: 20 }}
+            />
+            <button
+              type="button"
+              disabled={sbShareBusy}
+              onClick={handleSbOverlayShare}
+              style={{
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 12,
+                border: "none",
+                background: "var(--nfl-predict-accent)",
+                color: "#080808",
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: sbShareBusy ? "wait" : "pointer",
+                marginBottom: 10,
+                opacity: sbShareBusy ? 0.7 : 1,
+              }}
+            >
+              {sbShareBusy ? "Creating link…" : sbShareLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                dismissSbOverlay();
+                setActiveView("teams");
+                queueMicrotask(() => {
+                  containerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+                });
+              }}
+              style={{
+                width: "100%",
+                minHeight: 48,
+                borderRadius: 12,
+                border: "1px solid #444",
+                background: "transparent",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              See your full picks →
+            </button>
+          </div>
         </div>
       ) : null}
 
