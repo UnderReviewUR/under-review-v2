@@ -5,6 +5,7 @@ import { NFL_2026_TEAMS } from "../data/nfl2026Teams.js";
 import { getTeamSchedule } from "../lib/nflPredictDerived.js";
 import {
   clearAllPicks,
+  clearTeamPicks,
   decodePicks,
   loadPicks,
   loadPicksFromUrl,
@@ -31,10 +32,14 @@ export default function NflPredictScreen() {
   const [selectedConference, setSelectedConference] = useState("AFC");
   const [showShareModal, setShowShareModal] = useState(false);
   const [completionOverlayTeam, setCompletionOverlayTeam] = useState(null);
+  const [showClearToast, setShowClearToast] = useState(false);
+  const [resetPressed, setResetPressed] = useState(false);
+  const [resetHover, setResetHover] = useState(false);
   const initRef = useRef(false);
   const mainRef = useRef(null);
   const completionShownRef = useRef(new Set());
   const completionTimerRef = useRef(null);
+  const clearToastTimerRef = useRef(null);
 
   const goToView = useCallback((view) => {
     setActiveView(view);
@@ -129,8 +134,34 @@ export default function NflPredictScreen() {
   useEffect(() => {
     return () => {
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+      if (clearToastTimerRef.current) clearTimeout(clearToastTimerRef.current);
     };
   }, []);
+
+  const showPicksClearedToast = useCallback(() => {
+    setShowClearToast(true);
+    if (clearToastTimerRef.current) clearTimeout(clearToastTimerRef.current);
+    clearToastTimerRef.current = setTimeout(() => setShowClearToast(false), 1500);
+  }, []);
+
+  const handleResetAll = useCallback(() => {
+    clearAllPicks();
+    setPicks({});
+    setIsViewingShared(false);
+    setSelectedTeam(null);
+    setCompletionOverlayTeam(null);
+    completionShownRef.current.clear();
+    goToView("teams");
+    showPicksClearedToast();
+  }, [goToView, showPicksClearedToast]);
+
+  const handleClearTeamPicks = useCallback(() => {
+    if (!selectedTeam) return;
+    const newPicks = clearTeamPicks(selectedTeam, picks, schedule);
+    setPicks(newPicks);
+    completionShownRef.current.delete(selectedTeam);
+    if (completionOverlayTeam === selectedTeam) setCompletionOverlayTeam(null);
+  }, [selectedTeam, picks, schedule, completionOverlayTeam]);
 
   const handleCompletionViewPlayoffs = useCallback(() => {
     setCompletionOverlayTeam(null);
@@ -182,19 +213,47 @@ export default function NflPredictScreen() {
     >
       <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid var(--nfl-predict-border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div>
+          <button
+            type="button"
+            onClick={handleResetAll}
+            onMouseEnter={() => setResetHover(true)}
+            onMouseLeave={() => {
+              setResetHover(false);
+              setResetPressed(false);
+            }}
+            onMouseDown={() => setResetPressed(true)}
+            onMouseUp={() => setResetPressed(false)}
+            onTouchStart={() => setResetPressed(true)}
+            onTouchEnd={() => setResetPressed(false)}
+            style={{
+              flexShrink: 0,
+              fontSize: 12,
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #333",
+              background: "transparent",
+              color: resetPressed || resetHover ? "#FF2D6B" : "#666",
+              cursor: "pointer",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+          >
+            ↺ Reset
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: "var(--mono-font)", fontSize: 10, letterSpacing: "0.14em", color: "var(--nfl-predict-muted)" }}>
               PREDICTOR
             </div>
             <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: "-0.02em" }}>NFL 2026</div>
           </div>
-          <div style={{ fontSize: 13, color: "var(--nfl-predict-muted)" }}>
+          <div style={{ fontSize: 13, color: "var(--nfl-predict-muted)", flexShrink: 0 }}>
             {pickedCount}/272
           </div>
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
             style={{
+              flexShrink: 0,
               minHeight: 44,
               padding: "0 14px",
               borderRadius: 10,
@@ -318,8 +377,26 @@ export default function NflPredictScreen() {
                 >
                   ← Back
                 </button>
-                <div style={{ fontWeight: 800, fontSize: 18 }}>
-                  {teams.find((t) => t.abbr === selectedTeam)?.fullName || selectedTeam}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 18 }}>
+                    {teams.find((t) => t.abbr === selectedTeam)?.fullName || selectedTeam}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearTeamPicks}
+                    style={{
+                      marginTop: 4,
+                      padding: 0,
+                      border: "none",
+                      background: "none",
+                      fontSize: 11,
+                      color: "#666",
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear team picks
+                  </button>
                 </div>
               </div>
               {teamSchedule.map((g) => (
@@ -419,6 +496,31 @@ export default function NflPredictScreen() {
           onViewPlayoffs={handleCompletionViewPlayoffs}
           onContinue={handleCompletionContinue}
         />
+      ) : null}
+
+      {showClearToast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            top: 72,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            background: "#1a1a1a",
+            border: "1px solid #333",
+            color: "#fff",
+            fontSize: 13,
+            padding: "8px 16px",
+            borderRadius: 20,
+            pointerEvents: "none",
+            opacity: 1,
+            transition: "opacity 200ms ease",
+          }}
+        >
+          Picks cleared
+        </div>
       ) : null}
     </main>
   );

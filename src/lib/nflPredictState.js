@@ -155,3 +155,29 @@ export function clearAllPicks() {
   window.history.replaceState(null, "", path);
   window.dispatchEvent(new CustomEvent("nfl-pick-updated", { detail: { cleared: true } }));
 }
+
+/**
+ * Remove picks for all games involving `abbr`.
+ * @param {string} abbr
+ * @param {Record<string, { winner?: string, confidence?: number }>} picks
+ * @param {readonly { id: string, homeTeam: string, awayTeam: string }[]} schedule
+ * @returns {Record<string, { winner?: string, confidence?: number }>}
+ */
+export function clearTeamPicks(abbr, picks, schedule) {
+  const newPicks = { ...(picks || {}) };
+  for (const g of schedule) {
+    if (g.homeTeam !== abbr && g.awayTeam !== abbr) continue;
+    delete newPicks[g.id];
+  }
+  if (typeof window === "undefined") return newPicks;
+  try {
+    window.localStorage.setItem(LS_KEY, JSON.stringify(newPicks));
+  } catch {
+    /* ignore quota */
+  }
+  syncPicksToUrl(newPicks);
+  window.dispatchEvent(
+    new CustomEvent("nfl-pick-updated", { detail: { clearedTeam: abbr } }),
+  );
+  return newPicks;
+}
