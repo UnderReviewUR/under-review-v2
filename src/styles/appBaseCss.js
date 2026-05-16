@@ -76,6 +76,10 @@ export const baseCss = `
     --nfl-predict-magenta:#FF2D6B;
     --nfl-predict-text:#ffffff;
     --nfl-predict-muted:#666666;
+    --wc-gold:#F59E0B;
+    --wc-green:#22C55E;
+    --wc-red:#EF4444;
+    --wc-blue:#3B82F6;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -1570,6 +1574,7 @@ export const baseCss = `
   .nav-btn.nba-active::after,
   .nav-btn.mlb-active::after,
   .nav-btn.golf-active::after,
+  .nav-btn.wc-active::after,
   .nav-btn.nav-pro-on::after{
     content:"";
     position:absolute;
@@ -1660,6 +1665,135 @@ export const baseCss = `
 
   .page-spacer{height:20px;}
   .nav-btn.golf-active{color:#FFFFFF;}
+  .nav-btn.wc-active{color:#F59E0B;}
+  .nav-btn.wc-active::after{background:#F59E0B;}
+
+  .wc-live-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    background:#EF444420;
+    color:#EF4444;
+    font-size:11px;
+    font-weight:800;
+    padding:3px 8px;
+    border-radius:20px;
+    letter-spacing:0.08em;
+  }
+  .wc-live-dot{
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:#EF4444;
+    animation:wcLivePulse 1.2s ease-in-out infinite;
+  }
+  @keyframes wcLivePulse{
+    0%,100%{opacity:1;transform:scale(1);}
+    50%{opacity:0.4;transform:scale(0.8);}
+  }
+  .wc-group-advance{background:rgba(34,197,94,0.08);}
+  .wc-group-eliminated{opacity:0.5;}
+  .wc-odds-bar{
+    display:flex;
+    height:4px;
+    border-radius:2px;
+    overflow:hidden;
+    margin-top:6px;
+  }
+  .wc-odds-bar span{display:block;height:100%;}
+  .wc-screen{padding-top:4px;}
+  .wc-header{margin-bottom:14px;}
+  .wc-title{font-family:var(--display-font);font-size:28px;letter-spacing:2px;color:var(--wc-gold);line-height:1;}
+  .wc-subtitle{font-size:13px;color:var(--soft);margin-top:4px;}
+  .wc-dates{font-size:11px;color:var(--muted);font-family:var(--mono-font);margin-top:2px;}
+  .wc-main-tabs,.wc-sub-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px;}
+  .wc-main-tab,.wc-sub-tab{
+    flex:0 0 auto;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--soft);
+    border-radius:10px;
+    padding:8px 12px;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .wc-main-tab--on,.wc-sub-tab--on{border-color:var(--wc-gold);color:var(--wc-gold);background:rgba(245,158,11,0.08);}
+  .wc-groups-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  @media (max-width:520px){.wc-groups-grid{grid-template-columns:1fr;}}
+  .wc-group-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:0;}
+  .wc-group-card-head{font-family:var(--display-font);font-size:16px;letter-spacing:1px;margin-bottom:8px;}
+  .wc-group-proj{font-size:10px;font-family:var(--mono-font);opacity:0.7;}
+  .wc-group-table{width:100%;border-collapse:collapse;font-size:11px;}
+  .wc-group-table th,.wc-group-table td{padding:4px 2px;text-align:center;}
+  .wc-group-table th{color:var(--muted);font-weight:600;font-size:9px;}
+  .wc-group-team-name{text-align:left!important;font-weight:600;}
+  .wc-flag-sm{border-radius:2px;object-fit:cover;display:block;}
+  .wc-flag-lg{border-radius:4px;object-fit:cover;margin:12px 0;}
+  .wc-group-expand{width:100%;margin-top:6px;background:none;border:none;color:var(--wc-gold);font-size:11px;cursor:pointer;padding:4px;}
+  .wc-match-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+  .wc-match-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;}
+  .wc-match-teams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .wc-match-team{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex:1;}
+  .wc-match-vs{font-family:var(--mono-font);font-size:11px;color:var(--muted);flex:0 0 auto;}
+  .wc-match-score{font-size:16px;font-weight:700;color:var(--text);}
+  .wc-match-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--muted);font-family:var(--mono-font);margin-bottom:8px;}
+  .wc-odds-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--soft);margin-bottom:4px;}
+  .wc-ask-btn{
+    width:100%;
+    margin-top:8px;
+    padding:10px;
+    border:1px solid rgba(245,158,11,0.35);
+    background:rgba(245,158,11,0.08);
+    color:var(--wc-gold);
+    border-radius:10px;
+    font-weight:700;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .wc-live-score{margin-bottom:8px;}
+  .wc-live-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .wc-live-side{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex:1;}
+  .wc-live-side-away{justify-content:flex-end;text-align:right;}
+  .wc-live-mid{text-align:center;flex:0 0 auto;}
+  .wc-live-score-num{font-size:18px;font-weight:800;display:block;}
+  .wc-empty{color:var(--muted);font-size:12px;padding:16px 0;text-align:center;}
+  .wc-muted{color:var(--muted);font-size:11px;}
+  .wc-bracket-note{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
+  .wc-bracket-grid{display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;}
+  .wc-bracket-col{flex:0 0 140px;display:flex;flex-direction:column;gap:8px;}
+  .wc-bracket-round-label{font-family:var(--display-font);font-size:13px;color:var(--wc-gold);letter-spacing:1px;margin-bottom:4px;}
+  .wc-bracket-slot{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:10px;}
+  .wc-bracket-placeholder{color:var(--muted);font-size:9px;line-height:1.4;}
+  .wc-bracket-team{display:flex;align-items:center;gap:6px;justify-content:space-between;padding:2px 0;}
+  .wc-bracket-winner{color:var(--wc-gold);font-weight:700;}
+  .wc-bracket-score{font-family:var(--mono-font);}
+  .wc-conf-section{margin-bottom:16px;}
+  .wc-conf-title{font-family:var(--display-font);font-size:18px;color:var(--wc-gold);letter-spacing:1px;margin-bottom:8px;}
+  .wc-team-grid{display:flex;flex-direction:column;gap:8px;}
+  .wc-team-card{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    width:100%;
+    text-align:left;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:10px 12px;
+    cursor:pointer;
+  }
+  .wc-team-card-name{display:block;font-size:14px;font-weight:600;color:var(--text);}
+  .wc-team-card-meta{display:block;font-size:11px;color:var(--muted);margin-top:2px;}
+  .wc-team-detail{padding:8px 0 24px;}
+  .wc-team-detail-name{font-family:var(--display-font);font-size:26px;letter-spacing:1px;margin:8px 0;}
+  .wc-team-detail-stats{display:flex;gap:24px;margin:16px 0;}
+  .wc-stat-label{display:block;font-size:10px;color:var(--muted);font-family:var(--mono-font);text-transform:uppercase;}
+  .wc-stat-val{display:block;font-size:18px;font-weight:700;color:var(--wc-gold);margin-top:4px;}
+  .wc-ask-shell{margin-top:12px;padding-bottom:8px;}
+  .wc-chat-scroll{margin-bottom:12px;}
   .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
   .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
   .tennis-ask-shell{background:var(--surface);border:1px solid rgba(255,230,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}

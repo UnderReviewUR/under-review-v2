@@ -104,6 +104,7 @@ import { useF1Data } from "./hooks/useF1Data.js";
 import { useNbaData } from "./hooks/useNbaData.js";
 import { useMlbData } from "./hooks/useMlbData.js";
 import { useGolfData } from "./hooks/useGolfData.js";
+import { useWorldCupData } from "./hooks/useWorldCupData.js";
 import { useNflData } from "./hooks/useNflData.js";
 import { usePerformance } from "./hooks/usePerformance.js";
 import { useTakeAuthHeaders } from "./hooks/useTakeAuthHeaders.js";
@@ -117,6 +118,7 @@ import F1Screen from "./screens/F1Screen.jsx";
 import NbaScreen from "./screens/NbaScreen.jsx";
 import MlbScreen from "./screens/MlbScreen.jsx";
 import GolfScreen from "./screens/GolfScreen.jsx";
+import WorldCupScreen from "./screens/WorldCupScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
 import UrTakeDockedFollowUps from "./components/UrTakeDockedFollowUps.jsx";
 import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
@@ -360,6 +362,8 @@ ${themeCss}
   const [pastedImage, setPastedImage]   = useState(null);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
+  const [wcInput, setWcInput]           = useState("");
+  const [wcMsgs, setWcMsgs]             = useState([]);
   const [trackedPlays, setTrackedPlays] = useState([]);
   const [trackedUrTakeMessageIds, setTrackedUrTakeMessageIds] = useState([]);
   const [trackerLoaded, setTrackerLoaded] = useState(false);
@@ -382,7 +386,9 @@ ${themeCss}
   const nbaInputRef       = useRef(null);
   const mlbInputRef       = useRef(null);
   const golfInputRef      = useRef(null);
+  const wcInputRef        = useRef(null);
   const golfBarRef        = useRef(null);
+  const wcBarRef          = useRef(null);
   const tennisBarRef      = useRef(null);
   const nflBarRef         = useRef(null);
   const f1BarRef          = useRef(null);
@@ -395,6 +401,7 @@ ${themeCss}
   const nbaScreenRef      = useRef(null);
   const mlbScreenRef      = useRef(null);
   const golfScreenRef     = useRef(null);
+  const wcScreenRef       = useRef(null);
   const matchupScreenRef  = useRef(null);
   const matchupInputRef   = useRef(null);
   const playerInputRef    = useRef(null);
@@ -564,6 +571,7 @@ ${themeCss}
   const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
   const { golfData, golfLoading } = useGolfData();
+  const { wcLoading, groups, matches: wcMatches, liveMatches: wcLiveMatches, upcomingMatches: wcUpcomingMatches } = useWorldCupData();
   const { nflContextData } = useNflData();
   const {
     performanceData,
@@ -2892,6 +2900,17 @@ ${themeCss}
     setSelectedNflPlayer(null);
   }, [screen, tab]);
 
+  const goWorldCup = useCallback(() => {
+    if (screen !== "worldcup" || tab !== "worldcup") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("worldcup");
+    setScreen("worldcup");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
   const goUrTakeTab = useCallback(() => {
     if (screen !== "ask" || tab !== "ask") {
       setNavHistory((h) => [...h, { screen, tab }]);
@@ -3093,6 +3112,8 @@ ${themeCss}
           return mlbScreenRef.current;
         case "golf":
           return golfScreenRef.current;
+        case "worldcup":
+          return wcScreenRef.current;
         case "matchup":
           return matchupScreenRef.current;
         case "home":
@@ -3213,6 +3234,7 @@ ${themeCss}
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,mlbInput,scheduleChatScroll]);
 
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,golfInput,scheduleChatScroll]);
+  const submitWc = useCallback(forced=>{ const t=(forced??wcInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setWcInput(""); askUrTake({text:t,setMsgs:setWcMsgs,sportHint:"worldcup"}); scheduleChatScroll(wcScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,wcInput,scheduleChatScroll]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   /** Insert suggested live follow-up from thread pills and submit (matches each sport's ask flow). */
@@ -3511,6 +3533,7 @@ ${themeCss}
     (screen === "nba" && nbaMsgs.length > 0) ||
     (screen === "mlb" && mlbMsgs.length > 0) ||
     (screen === "golf" && golfMsgs.length > 0) ||
+    (screen === "worldcup" && wcMsgs.length > 0) ||
     (screen === "ask" && askMsgs.length > 0);
 
   /** Dock + bottom nav real heights → `--ur-dock-measured-h` / `--ur-nav-measured-h` for `.ur-chat-scroll` padding (follow-up chips render after first paint; remeasure on DOM + resize). */
@@ -4158,6 +4181,29 @@ ${themeCss}
           />
         )}
 
+
+
+        {/* ══ WORLD CUP ══ */}
+        {screen==="worldcup"&&(
+          <WorldCupScreen
+            wcScreenRef={wcScreenRef}
+            hasDockedBar={hasDockedBar}
+            wcLoading={wcLoading}
+            groups={groups}
+            matches={wcMatches}
+            liveMatches={wcLiveMatches}
+            upcomingMatches={wcUpcomingMatches}
+            wcMsgs={wcMsgs}
+            wcBarRef={wcBarRef}
+            wcInputRef={wcInputRef}
+            wcInput={wcInput}
+            setWcInput={setWcInput}
+            submitWc={submitWc}
+            askBarCommon={askBarCommon}
+            accessTier={accessTier}
+            onUpgradePromptClick={openUpgradeModal}
+          />
+        )}
 
 
         {/* ══ GOLF ══ */}
@@ -5417,6 +5463,7 @@ $9.99/month · cancel anytime`}
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
+          <button className={`nav-btn${tab==="worldcup"?" wc-active":""}`} onClick={goWorldCup}><span>World Cup</span></button>
           <button
             className={`nav-btn nav-btn--ur-take${tab === "ask" && screen === "ask" ? " active" : ""}`}
             onClick={goUrTakeTab}

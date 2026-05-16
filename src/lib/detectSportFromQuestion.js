@@ -1,6 +1,17 @@
 import { normalizeText } from "./normalizeText.js";
 
-const SPORT_TABS = new Set(["nba", "mlb", "nfl", "golf", "tennis", "f1"]);
+const SPORT_TABS = new Set(["nba", "mlb", "nfl", "golf", "tennis", "f1", "worldcup"]);
+
+const WORLD_CUP_TERMS = [
+  "world cup",
+  "fifa",
+  "soccer",
+  "football",
+  "group stage",
+  "knockout round",
+  "penalty kick",
+  "golden boot",
+];
 
 /** WTA-first names / signals — checked before ATP. */
 const WTA_NAMES = [
@@ -327,6 +338,14 @@ export function detectSportFromQuestion(question, currentTab) {
   if (containsAny(q, GOLF_TERMS)) return "golf";
   if (containsAny(q, MLB_TERMS)) return "mlb";
   if (containsAny(q, NFL_TERMS)) return "nfl";
+  if (
+    containsAny(q, WORLD_CUP_TERMS) &&
+    !q.includes("nfl") &&
+    !q.includes("touchdown") &&
+    !q.includes("quarterback")
+  ) {
+    return "worldcup";
+  }
   if (containsAny(q, NBA_TERMS)) return "nba";
 
   if (

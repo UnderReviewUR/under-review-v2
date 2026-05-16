@@ -21,6 +21,7 @@ import {
   ipLimit,
 } from "./_rateLimitUrTake.js";
 import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
+import { buildWorldCupContext } from "./_wcContext.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
@@ -693,6 +694,15 @@ export function detectIntent(question, hasImage) {
 }
 
 /** Sport inferred only from question text, matchup league, or slip image league — not client tab. */
+function questionMentionsWorldCup(question) {
+  const q = normalizeText(question);
+  if (q.includes("world cup") || q.includes("fifa") || q.includes("soccer")) return true;
+  if (q.includes("football") && !q.includes("nfl") && !q.includes("touchdown") && !q.includes("quarterback")) {
+    return true;
+  }
+  return false;
+}
+
 function inferSportFromQuestionText(question, matchupContext, hasImage) {
   const q = normalizeText(question);
 
@@ -752,6 +762,14 @@ function inferSportFromQuestionText(question, matchupContext, hasImage) {
     return "mlb";
   }
   if (q.includes("nfl") || q.includes("receiving") || q.includes("rushing")) return "nfl";
+  if (
+    q.includes("world cup") ||
+    q.includes("fifa") ||
+    q.includes("soccer") ||
+    (q.includes("football") && !q.includes("nfl") && !q.includes("touchdown"))
+  ) {
+    return "worldcup";
+  }
   if (q.includes("tennis")) return "tennis";
 
   if (hasImage && matchupContext?.league) {
@@ -6549,6 +6567,20 @@ Rules:
 - If the sport is ambiguous, answer conservatively and do not invent specifics.
 - Do not make up games, players, or props that are not supported by the prompt.
 ${continuationRule}`;
+  }
+
+  if (
+    sportHint === "worldcup" ||
+    questionMentionsWorldCup(question)
+  ) {
+    try {
+      const wcContext = await buildWorldCupContext();
+      if (wcContext) {
+        userPrompt = `${wcContext}\n\n${userPrompt}`;
+      }
+    } catch (err) {
+      console.warn("[ur-take] buildWorldCupContext failed:", err?.message || err);
+    }
   }
 
   const messages = buildMessagesForAnthropic({
