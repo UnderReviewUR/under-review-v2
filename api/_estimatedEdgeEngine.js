@@ -106,7 +106,10 @@ function golfSignalCount(golfContext, name) {
     );
     if (row) {
       if (row.position != null || row.score != null || row.total != null || row.thru != null) n++;
-      if (["sg_ott", "sg_app", "sg_arg", "sg_putt", "strokesGainedTotal"].some((k) => row[k] != null)) n++;
+      if (["sg_ott", "sg_app", "sg_arg", "sg_putt", "strokesGainedTotal", "sg_total"].some((k) => row[k] != null))
+        n++;
+      const cov = String(row?.statsCoverage || "").toLowerCase();
+      if (cov === "full" || cov === "partial") n++;
       if (String(row?.notes || row?.course_fit || "").trim().length > 8) n++;
     }
   }

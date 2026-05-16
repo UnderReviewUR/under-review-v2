@@ -13,6 +13,7 @@ import {
 } from "../shared/nbaUrTakeSlim.js";
 import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
+import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -3229,6 +3230,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     console.warn("[nba] playoffPathGrounding failed:", err?.message || err);
     board.playoffPathGrounding = null;
   }
+  board.dataCoverage = buildSportDataCoverage({ sport: "nba", board });
   compressNbaBoardForWire(board);
   console.log(
     JSON.stringify({

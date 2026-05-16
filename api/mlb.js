@@ -12,6 +12,7 @@ import {
   extractProbableStartersFromEspnCompetition,
   mergeEspnProbableStartersIntoGames,
 } from "./_mlbEspnProbables.js";
+import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 
 /** MLB BDL merge here is slate/games/props/injuries — no NBA-style `/v1/stats` per-player game log sort in this route; recent pitcher/hitter logs would need the same nested-date fallback pattern as `bdlNestedGameRowDateMs` in `_balldontlie.js`. */
@@ -721,7 +722,7 @@ export async function buildMlbUrTakeBoard(question = "") {
     slateRecovery,
   } = await assembleMlbBoardData();
 
-  return {
+  const payload = {
     seasonContext: buildMlbSeasonContextForBoard({
       gamesForPitcherText: gamesWithPark,
       propLines,
@@ -736,6 +737,8 @@ export async function buildMlbUrTakeBoard(question = "") {
     slateRecovery,
     urTakeAssembly: { gamesLength: games.length, scope: "ur_take_fresh" },
   };
+  payload.dataCoverage = buildSportDataCoverage({ sport: "mlb", board: payload });
+  return payload;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -807,6 +810,7 @@ export default async function handler(req, res) {
         fetchedAt: new Date().toISOString(),
         slateRecovery,
       };
+      board.dataCoverage = buildSportDataCoverage({ sport: "mlb", board });
 
       if (games.length > 0 || propLines.length > 0) {
         setCached("mlb_board_v4", board, 4 * 60 * 1000);

@@ -954,7 +954,7 @@ NBA: BDL season averages, last 5 game logs, injury reports, playoff series conte
 
 MLB: ESPN probable starters (ERA, K/9, handedness), BDL season stats, park factors, bullpen depth, injury reports
 
-PGA: BDL tournament results, strokes gained, course history, weather conditions
+PGA: BDL tournament results, strokes gained (per-row statsSource / statsCoverage in leaderboard — cite sg_* only when non-null), course history, weather conditions
 
 Tennis: BDL match history, surface record, head to head, tournament draw, fatigue from scheduling
 

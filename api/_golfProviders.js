@@ -2,6 +2,15 @@ import { bdlFetch } from "./_balldontlie.js";
 import { etDateStringToEspnYmd, getTodayEtDateString } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { PGA_PLAYERS } from "../src/components/data/golf/players.js";
+import { buildSportDataCoverage } from "./_dataCoverage.js";
+import {
+  buildNameToBdlPlayerIdMap,
+  enrichGolfLeaderboardWithStats,
+} from "./_golfBdlStats.js";
+import { normalizePlayerKey } from "./_playerIdentity.js";
+import { getStaticPlayerSG } from "./_golfStaticSg.js";
+
+export { getStaticPlayerSG };
 import {
   buildCurrentEventFromScheduleRow,
   extractGolfTournamentIntentFromQuestion,
@@ -237,52 +246,7 @@ export function resolveGolfPlayerInField(queryName, fieldNames) {
   return null;
 }
 
-/**
- * Static strokes-gained bundle from `PGA_PLAYERS` (season averages in repo).
- * Fuzzy match: exact display name, then last-name match vs canonical keys.
- */
-export function getStaticPlayerSG(playerName) {
-  const raw = String(playerName || "").trim();
-  if (!raw) return null;
-  if (PGA_PLAYERS[raw]) {
-    const sg = PGA_PLAYERS[raw]?.sg;
-    if (!sg || typeof sg !== "object") return null;
-    return {
-      sg_total: sg.total ?? null,
-      sg_app: sg.app ?? null,
-      sg_putt: sg.putt ?? null,
-    };
-  }
-  const rl = raw.toLowerCase();
-  for (const [canonical, row] of Object.entries(PGA_PLAYERS)) {
-    if (canonical.toLowerCase() === rl) {
-      const sg = row?.sg;
-      if (!sg || typeof sg !== "object") return null;
-      return {
-        sg_total: sg.total ?? null,
-        sg_app: sg.app ?? null,
-        sg_putt: sg.putt ?? null,
-      };
-    }
-  }
-  const parts = raw.split(/\s+/).filter(Boolean);
-  const last = parts.length ? parts[parts.length - 1].toLowerCase() : "";
-  if (!last || last.length < 3) return null;
-  for (const [canonical, row] of Object.entries(PGA_PLAYERS)) {
-    const ck = canonical.split(/\s+/).pop()?.toLowerCase() || "";
-    if (ck === last) {
-      const sg = row?.sg;
-      if (!sg || typeof sg !== "object") return null;
-      return {
-        sg_total: sg.total ?? null,
-        sg_app: sg.app ?? null,
-        sg_putt: sg.putt ?? null,
-      };
-    }
-  }
-  return null;
-}
-
+/** @deprecated — use enrichGolfLeaderboardWithStats via applyGolfBoardStatEnrichment */
 function enrichLeaderboardRowsWithStaticSg(rows) {
   if (!Array.isArray(rows)) return rows;
   return rows.map((row) => {
@@ -294,8 +258,53 @@ function enrichLeaderboardRowsWithStaticSg(rows) {
       sg_app: sg?.sg_app ?? null,
       sg_putt: sg?.sg_putt ?? null,
       sg_note: sg ? "season SG (static)" : "SG not available",
+      statsSource: sg ? "static_season" : "none",
+      statsCoverage: sg ? "full" : "leaderboard_only",
     };
   });
+}
+
+/**
+ * BDL + static SG enrichment for unified board (call after mergeGolfBoard).
+ * @param {object} board
+ */
+export async function applyGolfBoardStatEnrichment(board) {
+  if (!board?.currentEvent) return board;
+  const results = Array.isArray(board.recentResults) ? board.recentResults : [];
+  const nameToPlayerId = buildNameToBdlPlayerIdMap(results);
+  for (const row of board.currentEvent?.leaderboard || []) {
+    if (row?.playerId != null) {
+      const label = row?.name || row?.player || "";
+      if (label) {
+        nameToPlayerId.set(normalizePlayerKey(label), row.playerId);
+        const last = String(label).split(/\s+/).pop();
+        if (last) nameToPlayerId.set(normalizePlayerKey(last), row.playerId);
+      }
+    }
+  }
+  const tournamentId = board.tournament?.id ?? null;
+  const season =
+    board.tournament?.season ??
+    (board.currentEvent?.startDate
+      ? new Date(board.currentEvent.startDate).getFullYear()
+      : new Date().getFullYear());
+
+  const enriched = await enrichGolfLeaderboardWithStats(board.currentEvent.leaderboard || [], {
+    tournamentId,
+    season,
+    nameToPlayerId,
+    maxPlayers: 50,
+  });
+
+  board.currentEvent = { ...board.currentEvent, leaderboard: enriched };
+  board.dataCoverage = buildSportDataCoverage({ sport: "golf", board });
+  board.sourceMeta = {
+    ...(board.sourceMeta || {}),
+    playerStats: enriched.some((r) => String(r?.statsSource || "").startsWith("balldontlie"))
+      ? "balldontlie_enriched"
+      : board.sourceMeta?.playerStats || "static_or_none",
+  };
+  return board;
 }
 
 function getCourseCoords(courseName) {
@@ -913,6 +922,7 @@ function buildBdlLeaderboard(results) {
       return {
         position,
         name: row?.player || "",
+        playerId: row?.playerId ?? null,
         country: row?.country || "",
         score,
         today: "—",
@@ -2382,7 +2392,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v23";
+  const cacheKey = "unified_golf_board_v24";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -2468,13 +2478,20 @@ export async function getUnifiedGolfBoard() {
           weatherSnapshot: weatherSnapshot || null,
         };
 
-  const out = {
+  let out = {
     ...merged,
     course: courseAugmented,
     weatherAlert,
     weatherCoordsMatched: Boolean(coords),
     cutLineFeedNote: GOLF_CUT_LINE_FEED_NOTE,
   };
+
+  try {
+    out = await applyGolfBoardStatEnrichment(out);
+  } catch (err) {
+    console.warn("[golf] stat enrichment failed:", err?.message || err);
+    out.dataCoverage = buildSportDataCoverage({ sport: "golf", board: out });
+  }
 
   setCache(cacheKey, out, 2 * 60 * 1000);
   return out;

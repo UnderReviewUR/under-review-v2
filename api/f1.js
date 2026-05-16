@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { applyCors } from "./_cors.js";
+import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { getEnv } from "./_env.js";
 import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
 
@@ -618,7 +619,7 @@ async function assembleF1BoardBody() {
 
   const weather = await weatherForNextRace(schedule);
 
-  return {
+  const body = {
     schedule,
     standings: driverResult.standings,
     session: sessionPayload.session,
@@ -631,6 +632,8 @@ async function assembleF1BoardBody() {
     weather,
     ...openf1TimingUxFields(),
   };
+  body.dataCoverage = buildSportDataCoverage({ sport: "f1", board: body });
+  return body;
 }
 
 /**
