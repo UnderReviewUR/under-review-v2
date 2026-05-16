@@ -10,6 +10,7 @@ function pickedCount(picks) {
 export default function NflPredictPlayoffFooter({
   picks,
   onContinuePicking,
+  onSubscribePro,
   restoreProEntitlement,
   setUserEmail,
   isPro = false,
@@ -206,6 +207,7 @@ export default function NflPredictPlayoffFooter({
         isPro={isPro}
         restoreProEntitlement={restoreProEntitlement}
         setUserEmail={setUserEmail}
+        onSubscribePro={onSubscribePro}
       />
     </div>
   );

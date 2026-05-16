@@ -759,6 +759,7 @@ export default function NflPredictScreen({
               isPro={isPro}
               restoreProEntitlement={restoreProEntitlement}
               setUserEmail={setUserEmail}
+              onSubscribePro={onSubscribePro}
               showDivider
             />
           </div>

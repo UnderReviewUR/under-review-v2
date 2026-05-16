@@ -1,5 +1,20 @@
 import ProCheckoutCTA from "../ProCheckoutCTA.jsx";
 
+const SUBSCRIBE_BTN_STYLE = {
+  display: "block",
+  width: "100%",
+  padding: "14px 0",
+  background: "#00F5E9",
+  color: "#080a0c",
+  fontWeight: 800,
+  fontSize: 15,
+  borderRadius: 10,
+  textAlign: "center",
+  border: "none",
+  cursor: "pointer",
+  letterSpacing: "0.02em",
+};
+
 /**
  * Canonical SAMPLE PRO TAKE card — Super Bowl overlay + playoff footer.
  */
@@ -7,14 +22,25 @@ export default function NflProSampleTakeCard({
   isPro = false,
   restoreProEntitlement,
   setUserEmail,
+  onSubscribePro,
   showDivider = false,
 }) {
   if (isPro) return null;
-  if (!restoreProEntitlement || !setUserEmail) return null;
+
+  const subscribeControl =
+    restoreProEntitlement && setUserEmail ? (
+      <ProCheckoutCTA restoreProEntitlement={restoreProEntitlement} setUserEmail={setUserEmail}>
+        <span style={SUBSCRIBE_BTN_STYLE}>Subscribe to PRO →</span>
+      </ProCheckoutCTA>
+    ) : (
+      <button type="button" onClick={onSubscribePro} style={SUBSCRIBE_BTN_STYLE}>
+        Subscribe to PRO →
+      </button>
+    );
 
   return (
     <>
-      {showDivider ? <div style={{ borderTop: "1px solid #2a2a2a", margin: "20px 0" }} /> : null}
+      {showDivider ? <div style={{ borderTop: "1px solid #2a2a2a", margin: "20px 0 0", paddingTop: 20 }} /> : null}
 
       <div
         style={{
@@ -22,7 +48,8 @@ export default function NflProSampleTakeCard({
           border: "1px solid #00F5E940",
           borderRadius: 12,
           padding: 16,
-          marginBottom: 16,
+          marginTop: showDivider ? 0 : 16,
+          textAlign: "left",
         }}
       >
         <div
@@ -77,30 +104,9 @@ export default function NflProSampleTakeCard({
         <p style={{ fontSize: 12, color: "#666", marginTop: 8, marginBottom: 0 }}>
           Sub to chat with Under Review — get takes like this for NFL, NBA, MLB, tennis, F1, and golf.
         </p>
+
+        <div style={{ marginTop: 14 }}>{subscribeControl}</div>
       </div>
-
-      <ProCheckoutCTA restoreProEntitlement={restoreProEntitlement} setUserEmail={setUserEmail}>
-        <span
-          style={{
-            display: "block",
-            width: "100%",
-            padding: "14px 0",
-            background: "#00F5E9",
-            color: "#080a0c",
-            fontWeight: 800,
-            fontSize: 15,
-            borderRadius: 10,
-            textAlign: "center",
-            letterSpacing: "0.02em",
-          }}
-        >
-          Subscribe to PRO →
-        </span>
-      </ProCheckoutCTA>
-
-      <p style={{ fontSize: 11, color: "#666", textAlign: "center", marginTop: 8, marginBottom: 0 }}>
-        Unlock playoff props, live takes, and every sport.
-      </p>
     </>
   );
 }
