@@ -1830,4 +1830,5 @@ export const baseCss = `
   .nfl-predict-pick-btn.unselected { opacity: 0.4; }
   .nfl-predict-confidence { transition: opacity 150ms ease; }
   @media (prefers-reduced-motion: reduce) { .nfl-predict-pick-btn, .nfl-predict-confidence { transition: none; } }
+  .nfl-predict-pro-cta { width: 100%; display: block; border: none; background: transparent; padding: 0; cursor: pointer; }
 `;

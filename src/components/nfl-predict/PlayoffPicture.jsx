@@ -41,12 +41,60 @@ function RowLogo({ team, size = 40 }) {
   );
 }
 
+function BubbleCard({ row }) {
+  const t = row.team;
+  const r = row.record || { projectedWins: 0, projectedLosses: 17, wins: 0, losses: 0, remaining: 17 };
+  const winsOutLabel = row.winsOut != null ? `${row.winsOut.toFixed(1)} wins out` : "";
+
+  return (
+    <div
+      style={{
+        borderRadius: 10,
+        border: "1px solid rgba(245,158,11,.35)",
+        background: "rgba(245,158,11,.08)",
+        padding: "10px 12px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <RowLogo team={t} size={36} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#F59E0B", lineHeight: 1.25 }}>
+            {t?.shortName || t?.abbr || "?"}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--nfl-predict-muted)", marginTop: 4 }}>
+            <span style={{ opacity: 0.75 }}>proj. </span>
+            {formatProjectedRecordDecimal(r)}
+          </div>
+        </div>
+      </div>
+      {winsOutLabel ? (
+        <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#F59E0B",
+              background: "rgba(245,158,11,.15)",
+              border: "1px solid rgba(245,158,11,.35)",
+              borderRadius: 6,
+              padding: "4px 8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {winsOutLabel}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ConfColumn({ label, picks, schedule, teams }) {
   const pic = useMemo(() => getPlayoffPicture(picks, schedule, teams), [picks, schedule, teams]);
   const side = label === "AFC" ? pic.afc : pic.nfc;
 
   return (
-    <div style={{ flex: 1, minWidth: 0 }}>
+    <div style={{ flex: "1 1 280px", minWidth: 0, maxWidth: "100%" }}>
       <div
         style={{
           fontFamily: "var(--mono-font)",
@@ -102,7 +150,7 @@ function ConfColumn({ label, picks, schedule, teams }) {
                 </div>
                 <RowLogo team={t} size={40} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{t ? t.fullName : "?"}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.25 }}>{t ? t.fullName : "?"}</div>
                   <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>
                     <span style={{ color: "var(--nfl-predict-muted)", fontWeight: 500, fontSize: 11 }}>proj. </span>
                     {formatProjectedRecordDecimal(r)}
@@ -120,41 +168,13 @@ function ConfColumn({ label, picks, schedule, teams }) {
           );
         })}
       </div>
-      <div style={{ marginTop: 16, fontSize: 11, color: "var(--nfl-predict-muted)", marginBottom: 6 }}>
+      <div style={{ marginTop: 16, fontSize: 11, color: "var(--nfl-predict-muted)", marginBottom: 8, letterSpacing: "0.04em" }}>
         Wild card bubble
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {(side.bubble || []).map((row) => {
-          const t = row.team;
-          const r = row.record || { projectedWins: 0, projectedLosses: 17, wins: 0, losses: 0, remaining: 17 };
-          return (
-            <div
-              key={t?.abbr || "?"}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 10px",
-                borderRadius: 10,
-                border: "1px solid #F59E0B55",
-                background: "rgba(245,158,11,.08)",
-                fontSize: 13,
-              }}
-            >
-              <RowLogo team={t} size={32} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, color: "#F59E0B" }}>{t?.fullName || "?"}</div>
-                <div style={{ fontSize: 12, color: "var(--nfl-predict-muted)" }}>
-                  <span style={{ opacity: 0.8 }}>proj. </span>
-                  {formatProjectedRecordDecimal(r)}
-                </div>
-              </div>
-              <div style={{ textAlign: "right", fontSize: 11, color: "#F59E0B", fontWeight: 700, flexShrink: 0 }}>
-                {row.winsOut != null ? `${row.winsOut.toFixed(1)} wins out` : ""}
-              </div>
-            </div>
-          );
-        })}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {(side.bubble || []).map((row) => (
+          <BubbleCard key={row.team?.abbr || "?"} row={row} />
+        ))}
       </div>
     </div>
   );
@@ -164,10 +184,11 @@ export default function PlayoffPicture({ picks, schedule, teams }) {
   return (
     <div
       style={{
-        padding: "10px 12px 24px",
+        padding: "10px 12px 8px",
         display: "flex",
         gap: 16,
         flexWrap: "wrap",
+        alignItems: "flex-start",
       }}
     >
       <ConfColumn label="AFC" picks={picks} schedule={schedule} teams={teams} />

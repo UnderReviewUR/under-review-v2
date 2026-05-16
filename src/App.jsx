@@ -4039,7 +4039,12 @@ ${themeCss}
                 onUpgradePromptClick={openUpgradeModal}
               />
             ) : (
-              <NflPredictScreen />
+              <NflPredictScreen
+                isPro={isUnlimited}
+                restoreProEntitlement={restoreProEntitlement}
+                setUserEmail={setUserEmail}
+                onSubscribePro={goToPro}
+              />
             )}
           </>
         )}

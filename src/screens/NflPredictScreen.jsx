@@ -14,6 +14,7 @@ import {
 import DivisionStandings from "../components/nfl-predict/DivisionStandings.jsx";
 import GameCard from "../components/nfl-predict/GameCard.jsx";
 import PlayoffPicture from "../components/nfl-predict/PlayoffPicture.jsx";
+import NflPredictPlayoffFooter from "../components/nfl-predict/NflPredictPlayoffFooter.jsx";
 import SeasonCompleteOverlay from "../components/nfl-predict/SeasonCompleteOverlay.jsx";
 import ShareModal from "../components/nfl-predict/ShareModal.jsx";
 import TeamSelector from "../components/nfl-predict/TeamSelector.jsx";
@@ -21,7 +22,12 @@ import UrCtaPanel from "../components/nfl-predict/UrCtaPanel.jsx";
 
 const LS_KEY = "ur_nfl_2026_picks";
 
-export default function NflPredictScreen() {
+export default function NflPredictScreen({
+  isPro = false,
+  restoreProEntitlement,
+  setUserEmail,
+  onSubscribePro,
+}) {
   const schedule = NFL_2026_SCHEDULE;
   const teams = NFL_2026_TEAMS;
 
@@ -466,12 +472,20 @@ export default function NflPredictScreen() {
       ) : null}
 
       {activeView === "playoffs" ? (
-        <div style={{ padding: "4px 0 24px" }}>
+        <div style={{ padding: "4px 0 0" }}>
           <p style={{ fontSize: 13, color: "var(--nfl-predict-muted)", padding: "0 14px 10px", margin: 0, lineHeight: 1.45 }}>
-            Projected 14-team field from your picks and Vegas win totals. Pick games to override projections and move teams
-            in or out of the bracket.
+            Your projected 14-team field from picks + Vegas win totals. Keep picking the regular season to move teams in or
+            out — then share your board or go deeper on PRO.
           </p>
           <PlayoffPicture picks={picks} schedule={schedule} teams={teams} />
+          <NflPredictPlayoffFooter
+            picks={picks}
+            isPro={isPro}
+            restoreProEntitlement={restoreProEntitlement}
+            setUserEmail={setUserEmail}
+            onSubscribePro={onSubscribePro}
+            onContinuePicking={() => goToView("teams")}
+          />
         </div>
       ) : null}
       </div>
