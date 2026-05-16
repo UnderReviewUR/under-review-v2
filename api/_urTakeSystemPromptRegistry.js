@@ -1015,17 +1015,46 @@ Central player status is unresolved but a listed market exists. Frame every lean
   return blocks[m] || "";
 }
 
+/**
+ * MLB parlay shape — overrides generic PARLAY AND PROP REQUEST RULE closing (→ prop lines)
+ * when the user asks for a parlay; system + user prompts both inject this on parlay turns.
+ */
+export function buildMlbParlayResponseRule() {
+  return `MLB PARLAY RESPONSE RULE (mandatory — overrides generic PARLAY AND PROP REQUEST RULE format for MLB parlay requests this turn)
+
+PARLAY OPENING (mandatory):
+- Never open with scarcity, thin-data, "parlay construction is thin," missing odds, missing props, or a list of what is not in the payload.
+- When seasonContext.mlbPitcherStatsText, gameTotals (park/run environment), and pitcher/probable rows exist for matchups, that IS sufficient to build a sharp structural parlay — do not treat missing posted odds or empty propLines as missing data.
+- When ERA (and K/9, handedness when printed) exists for both starters in a matchup, the ERA gap IS the edge — use it; missing prices does not block the call.
+- Lead with the single strongest pitching mismatch on the slate (largest verified ERA gap plus park fit and handedness when present in JSON).
+
+REQUIRED RESPONSE FORMAT (follow exactly):
+1. Open with the strongest pitching mismatch (ERA gap, handedness, park/run environment fit) — no throat-clearing.
+2. Name each leg's lean immediately (team ML or structural side labels, e.g. PHI ML, CLE ML).
+3. One sentence of structural reasoning per leg (pitcher matchup and park context only).
+4. Close with exactly one sentence — "Confirm starters before placing." — only if any leg still has a TBD starter in games[] or probable/pitcher fields; otherwise omit that line.
+
+PRICING BAN (MLB parlays this turn):
+- Never mention odds, juice, lines, spreads, totals numbers, or market pricing — reason purely from pitcher matchup and park/run environment in context.
+
+Still apply PARLAY CORRELATION RULE for leg independence; do not stack correlated legs that share one game script hinge.`;
+}
+
+const MLB_PARLAY_SPINE_LINE = `PARLAY REQUESTS: Never open with thin-data, scarcity, or missing-odds statements — lead with the strongest verified pitching mismatch on the slate (ERA gap between starters is the parlay edge when both ERAs are in context). Follow MLB PARLAY RESPONSE RULE when attached.`;
+
 export function buildMlbUrTakeDecisionModeSpine(mode) {
   const m = String(mode || "structural_only");
   const blocks = {
     structural_only: `MLB DECISION MODE SPINE — structural_only
 Odds may or may not be in context — same bar for quality either way. Build from ESPN probable starters, BDL stats, park, bullpen, injuries, and run environment when present. When games/props/totals are thin or the question is not anchored to a listed market: still open with a confident structural lean (pace, park, leverage, handedness); never quote numbers not in JSON; never refuse because starters are TBD or the board is partial.
 For named MLB players missing from propLines (call-ups, recent IL returns), say "live slate data unavailable" and still analyze — never "not in verified field."
-STARTERS TBD: deliver the lean first; end with exactly one hedge when applicable: "Confirm starters before placing." Never say lines or odds are missing; never downgrade tone because markets are thin.`,
+STARTERS TBD: deliver the lean first; end with exactly one hedge when applicable: "Confirm starters before placing." Never say lines or odds are missing; never downgrade tone because markets are thin.
+${MLB_PARLAY_SPINE_LINE}`,
     actionable: `MLB DECISION MODE SPINE — actionable
 Verified prop or game-total anchor exists for the asked angle. Lead with posted structure; cite only numbers printed in context; keep pivots inside the same matchup when propRows tie to it.
 If a probable pitcher is still TBD, do not refuse — deliver the posted-structure lean first without opening on uncertainty; keep the call tied to the listed line still being valid at lock.
-When starters are still TBD, close with: "Confirm starters before placing." Never refuse or imply you cannot spot a mispricing — lean first, hedge last; never lead with TBD caveats.`,
+When starters are still TBD, close with: "Confirm starters before placing." Never refuse or imply you cannot spot a mispricing — lean first, hedge last; never lead with TBD caveats.
+${MLB_PARLAY_SPINE_LINE}`,
   };
   return blocks[m] || blocks.structural_only;
 }
@@ -1281,6 +1310,9 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
 
   const s = String(sportHint || "").toLowerCase();
   let composed = memorySection + core + surface + uncertaintySurface;
+  if (s === "mlb" && detectParlayIntent(question)) {
+    composed += `\n\n${buildMlbParlayResponseRule()}`;
+  }
   if (s === "nba") {
     composed += `\n\n${buildNbaBdlAvailabilityGroundingPrompt()}`;
   }

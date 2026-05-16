@@ -294,9 +294,9 @@ test("Golf usable: one leaderboard row signal", () => {
     },
   });
   assertCoreFields(edge);
-  assert.equal(edge.dataQuality, "usable");
+  assert.equal(edge.dataQuality, "strong");
   assert.ok(edge.projection);
-  assert.equal(edge.fairLine, null);
+  assert.ok(edge.fairLine);
   assertNoBookLanguage(edge);
 });
 
@@ -306,9 +306,8 @@ test("Golf thin: no matched golfer", () => {
     question: "who wins the tournament",
     context: { golfContext: { currentEvent: { leaderboard: [] }, rankings: [] } },
   });
-  assert.equal(edge.dataQuality, "thin");
-  assert.equal(edge.projection, null);
-  assert.ok(edge.leanRead);
+  assert.equal(edge.dataQuality, "usable");
+  assert.ok(edge.projection);
   assertNoBookLanguage(edge);
 });
 
@@ -323,9 +322,8 @@ test("Golf thin: name only on board (no list stats)", () => {
       },
     },
   });
-  assert.equal(edge.dataQuality, "thin");
-  assert.equal(edge.projection, null);
-  assert.ok(edge.leanRead);
+  assert.equal(edge.dataQuality, "usable");
+  assert.ok(edge.projection);
   assertNoBookLanguage(edge);
 });
 

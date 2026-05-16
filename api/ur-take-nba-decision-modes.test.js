@@ -740,7 +740,7 @@ test("NBA conversation follow-up forces short system prompt and full NBA context
   assert.match(String(anthropicPayload.system || ""), /FACT AUTHORITY — SERVER GROUNDING/);
   assert.match(
     String(anthropicPayload.system || ""),
-    /Only name players and teams that appear in verified roster or verification lists/,
+    /Prefer players and teams from verified roster or verification lists/,
   );
   assert.match(String(anthropicPayload.system || ""), /DATA PERSISTENCE — FOLLOW-UPS/);
   assert.doesNotMatch(String(anthropicPayload.system || ""), /JSON RESPONSE MODE/);

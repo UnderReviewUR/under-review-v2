@@ -81,8 +81,10 @@ import { buildF1UrTakeContext } from "./f1.js";
 import {
   buildCoreFrameworkPrompt,
   buildFactAuthorityPrompt,
+  buildMlbParlayResponseRule,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
+  detectParlayIntent,
   detectUrTakeLongFormIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
@@ -4029,6 +4031,11 @@ export function resolveMlbDecisionMode(mlbContext = {}, question = "") {
   return "structural_only";
 }
 
+function buildMlbParlayUserPromptAppendix(question) {
+  if (!detectParlayIntent(question)) return "";
+  return `\n\n${buildMlbParlayResponseRule()}`;
+}
+
 function buildMlbPreMarketUserPrompt({
   question,
   mlbContext,
@@ -4092,6 +4099,8 @@ Answer structure:
 
 CONFIDENCE — cap at Medium; align tone with ${derivedConfidence}.
 
+${buildMlbParlayUserPromptAppendix(question)}
+
 Rules:
 - Answer only as an MLB analyst.
 - Do not mention NBA, NFL, golf, F1, or tennis.
@@ -4129,6 +4138,8 @@ MLB ANTI-REFUSAL (mandatory)
 - Never refuse the take solely because a probable pitcher is still TBD in games[] — open with the grounded lean from listed lines and structure; do not open with pitcher-TBD disclaimers or conditional throat-clearing.
 - Never say "I can't call this mispriced" — commit to the lean from verified lines and structure, then hedge last.
 - When starters are still TBD, end with exactly one sentence: "Confirm starters before placing."
+
+${buildMlbParlayUserPromptAppendix(question)}
 
 Rules:
 - Answer only as an MLB analyst.
