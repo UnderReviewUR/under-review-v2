@@ -1394,7 +1394,6 @@ function UrTakeTrustChips({ trust }) {
 
   const items = [`CTX·${String(trust.contextQuality ?? "")}`];
   if (trust.sparseQuestion) items.push("Sparse Q");
-  if (trust.thinEvidence) items.push("Thin evidence");
 
   const driverLine = drivers
     .slice(0, 4)

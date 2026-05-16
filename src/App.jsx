@@ -112,6 +112,7 @@ import { isDerbyActive } from "./data/derby2026.js";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import TennisScreen from "./screens/TennisScreen.jsx";
 import NflScreen from "./screens/NflScreen.jsx";
+import NflPredictScreen from "./screens/NflPredictScreen.jsx";
 import F1Screen from "./screens/F1Screen.jsx";
 import NbaScreen from "./screens/NbaScreen.jsx";
 import MlbScreen from "./screens/MlbScreen.jsx";
@@ -322,6 +323,8 @@ ${themeCss}
 
   const [tab, setTab] = useState("home");
   const [screen, setScreen] = useState("home");
+  /** NFL tab: UR Take chat vs 2026 predictor (?predictor=1, ?share=, ?picks=, /predict-nfl, or /nfl path opens predictor). */
+  const [nflUrView, setNflUrView] = useState("take");
   /** Stack of { screen, tab } snapshots for header back + swipe-back. */
   const [navHistory, setNavHistory] = useState([]);
   const [selectedMatchup, setSelectedMatchup] = useState(null);
@@ -443,6 +446,29 @@ ${themeCss}
   });
   const proSuccess = proCheckoutState.success;
   const proCheckoutEmail = proCheckoutState.email;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const path = window.location.pathname || "";
+      if (
+        sp.has("predictor") ||
+        sp.get("share") ||
+        sp.get("picks") ||
+        /\/predict-nfl/i.test(path) ||
+        path.endsWith("/nfl")
+      ) {
+        /* eslint-disable react-hooks/set-state-in-effect -- NFL share/picks URL opens predictor on cold load */
+        setTab("nfl");
+        setScreen("nfl");
+        setNflUrView("predict");
+        /* eslint-enable react-hooks/set-state-in-effect */
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const [magicLinkError, setMagicLinkError] = useState("");
 
@@ -1079,8 +1105,8 @@ ${themeCss}
       todaysGamesTrustNote:
         mergedTodaysGames.length === 0
           ? getEtHour24() < 12
-            ? "Today's NBA slate hasn't posted yet — ask about player props or matchup history and I'll work with what's available."
-            : "The NBA board isn't showing games right now — could be a data delay. Try again in a few minutes or ask about a specific player."
+            ? "Opening NBA slate loads here first — ask about props, matchups, or history and we'll use what's in the bundle."
+            : "Opening NBA slate loads here first — try again shortly or ask about a specific player."
           : "todaysGames is restricted to the verified displayable slate (same gates as Home). Props/stats filtered to these games.",
       /** When the slate is empty but BDL responded OK — tells UR Take it is a real off day vs. pipeline failure */
       todaysGamesSlateMeta: slateMeta,
@@ -2131,7 +2157,7 @@ ${themeCss}
         title: "Formula 1",
         time: "Schedule pending",
         network: "Grand Prix Racing",
-        blurb: "No upcoming race rows in the feed yet — try the F1 tab after the schedule bundle refreshes.",
+        blurb: "Opening schedule loads here first — open F1 for full weekend sessions and timing.",
         whatMatters: "When the next GP locks, ask for race-only edges (no practice markets).",
         quickHitters: ["Best WDC value right now?", "Next GP winner lean?", "Constructor vs driver gap?"],
         confirmed: true,
@@ -2547,7 +2573,7 @@ ${themeCss}
           upcomingEvent?.course ||
           golfData?.course?.name ||
           "PGA Tour",
-        blurb: `Field not yet available — check back closer to tee time.\n${sourceLabel} · ${freshnessLabel}`,
+        blurb: `Pricing loads closer to tee time.\n${sourceLabel} · ${freshnessLabel}`,
         whatMatters: "Pre-tourney: map course fit, weather, and ownership before numbers tighten.",
         quickHitters: [
           "When does live scoring start?",
@@ -2728,7 +2754,36 @@ ${themeCss}
     setSelectedMatchup(null);
     setSelectedPlayer(null);
     setSelectedNflPlayer(null);
+    let openPredict = false;
+    try {
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        const path = window.location.pathname || "";
+        openPredict =
+          sp.has("predictor") ||
+          Boolean(sp.get("share") || sp.get("picks")) ||
+          /\/predict-nfl/i.test(path) ||
+          path.endsWith("/nfl");
+      }
+    } catch {
+      openPredict = false;
+    }
+    setNflUrView(openPredict ? "predict" : "take");
   }, [screen, tab]);
+
+  const syncNflSubViewQuery = useCallback((view) => {
+    if (typeof window === "undefined") return;
+    try {
+      const u = new URL(window.location.href);
+      if (view === "predict") u.searchParams.set("predictor", "1");
+      else u.searchParams.delete("predictor");
+      const q = u.searchParams.toString();
+      const path = u.pathname || "/";
+      window.history.replaceState(null, "", q ? `${path}?${q}` : path);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const goF1 = useCallback(() => {
     if (screen !== "f1" || tab !== "f1") {
@@ -3451,7 +3506,7 @@ ${themeCss}
   };
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||
-    (screen === "nfl" && nflMsgs.length > 0) ||
+    (screen === "nfl" && nflUrView === "take" && nflMsgs.length > 0) ||
     (screen === "f1" && f1Msgs.length > 0) ||
     (screen === "nba" && nbaMsgs.length > 0) ||
     (screen === "mlb" && mlbMsgs.length > 0) ||
@@ -3908,26 +3963,85 @@ ${themeCss}
 
         {/* ══ NFL ══ */}
         {screen==="nfl"&&(
-          <NflScreen
-            nflScreenRef={nflScreenRef}
-            hasDockedBar={hasDockedBar}
-            nflSeasonMode={nflSeasonMode}
-            nflMsgs={nflMsgs}
-            nflBarRef={nflBarRef}
-            nflInputRef={nflInputRef}
-            nflInput={nflInput}
-            setNflInput={setNflInput}
-            submitNfl={submitNfl}
-            askBarCommon={askBarCommon}
-            nflPosFilter={nflPosFilter}
-            setNflPosFilter={setNflPosFilter}
-            filteredNflPlayers={filteredNflPlayers}
-            openNflPlayer={openNflPlayer}
-            urTakeTrackPlay={urTakeTrackPlay}
-            accessTier={accessTier}
-            onUrTakeFollowUpPick={urTakeFollowUpNfl}
-            onUpgradePromptClick={openUpgradeModal}
-          />
+          <>
+            <div
+              className="nfl-ur-subtabs"
+              style={{
+                display: "flex",
+                gap: 8,
+                padding: "8px 14px 0",
+                background: "var(--bg)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <button
+                type="button"
+                className={`nfl-ur-subtab${nflUrView === "take" ? " nfl-ur-subtab--active" : ""}`}
+                onClick={() => {
+                  setNflUrView("take");
+                  syncNflSubViewQuery("take");
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  borderRadius: 10,
+                  border: nflUrView === "take" ? "1px solid rgba(74,144,217,.6)" : "1px solid var(--border)",
+                  background: nflUrView === "take" ? "rgba(74,144,217,.12)" : "var(--surface)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                UR Take
+              </button>
+              <button
+                type="button"
+                className={`nfl-ur-subtab${nflUrView === "predict" ? " nfl-ur-subtab--active" : ""}`}
+                onClick={() => {
+                  setNflUrView("predict");
+                  syncNflSubViewQuery("predict");
+                }}
+                style={{
+                  flex: 1,
+                  minHeight: 44,
+                  borderRadius: 10,
+                  border: nflUrView === "predict" ? "1px solid rgba(0,245,233,.55)" : "1px solid var(--border)",
+                  background: nflUrView === "predict" ? "rgba(0,245,233,.1)" : "var(--surface)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                2026 Predictor
+              </button>
+            </div>
+            {nflUrView === "take" ? (
+              <NflScreen
+                nflScreenRef={nflScreenRef}
+                hasDockedBar={hasDockedBar}
+                nflSeasonMode={nflSeasonMode}
+                nflMsgs={nflMsgs}
+                nflBarRef={nflBarRef}
+                nflInputRef={nflInputRef}
+                nflInput={nflInput}
+                setNflInput={setNflInput}
+                submitNfl={submitNfl}
+                askBarCommon={askBarCommon}
+                nflPosFilter={nflPosFilter}
+                setNflPosFilter={setNflPosFilter}
+                filteredNflPlayers={filteredNflPlayers}
+                openNflPlayer={openNflPlayer}
+                urTakeTrackPlay={urTakeTrackPlay}
+                accessTier={accessTier}
+                onUrTakeFollowUpPick={urTakeFollowUpNfl}
+                onUpgradePromptClick={openUpgradeModal}
+              />
+            ) : (
+              <NflPredictScreen />
+            )}
+          </>
         )}
 
 
@@ -5003,7 +5117,7 @@ fees. One price, unlimited reads.`,
             </div>
           </div>
         )}
-        {screen==="nfl"&&nflMsgs.length>0&&(
+        {screen==="nfl"&&nflUrView==="take"&&nflMsgs.length>0&&(
           <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(74,144,217,.25)" }}>
               <div className="docked-bar-label" style={{color:"#4A90D9"}}>NFL · Ask another</div>

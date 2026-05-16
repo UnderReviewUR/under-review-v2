@@ -257,6 +257,21 @@ test("composeRegisteredUrTakeSystemPrompt appends LIVE BET CONVICTION RULE when 
   assert.match(p, /LIVE BET CONVICTION RULE:/);
 });
 
+test("composeRegisteredUrTakeSystemPrompt appends live formatting when isEffectivelyLive without keyword", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "nba",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "actionable",
+    mlbDecisionMode: null,
+    intent: "general",
+    liveSignals: { hasLiveKeyword: false, isBoardLive: true, isEffectivelyLive: true },
+  });
+  assert.match(p, /LIVE BET CONVICTION RULE:/);
+  assert.match(p, /LIVE MODE OUTPUT SHAPE/);
+});
+
 test("buildLiveModeVoicePrompt includes Best look and Watch shape", () => {
   const p = buildLiveModeVoicePrompt();
   assert.match(p, /\bBest look:/);

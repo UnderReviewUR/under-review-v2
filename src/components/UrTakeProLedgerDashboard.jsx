@@ -303,7 +303,7 @@ export default function UrTakeProLedgerDashboard({
 
       {ee && ee.eeTakeCount > 0 ? (
         <>
-          <div className="ur-record-section-label">Estimated Edge (odds-off)</div>
+          <div className="ur-record-section-label">Estimated edge (structure)</div>
           <p className="ur-record-muted" style={{ margin: "0 0 8px" }}>
             {ee.eeTakeCount} EE take{ee.eeTakeCount === 1 ? "" : "s"} — bet signal rate (answered):{" "}
             {formatPct01(ee.overallBetYesRateAmongAnswered)}

@@ -429,11 +429,6 @@ export default function GolfScreen({
               <>
                 <div className="section-divider">
                   Tournament Field — ESPN
-                  {golfData.odds?.linesUnavailable ? (
-                    <span style={{ fontFamily: "var(--mono-font)", fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>
-                      Lines unavailable
-                    </span>
-                  ) : null}
                 </div>
                 {golfData.odds?.fieldUnavailableMessage &&
                 !(golfData.odds?.outrights?.length > 0) ? (
@@ -445,7 +440,7 @@ export default function GolfScreen({
                       lineHeight: 1.45,
                     }}
                   >
-                    {golfData.odds.fieldUnavailableMessage}
+                    Pricing loads closer to tee time.
                   </div>
                 ) : (
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:8}}>

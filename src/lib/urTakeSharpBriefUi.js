@@ -86,7 +86,6 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
     mode: "structural",
     slots: [
       { key: "p", label: "UR read", value: proj, highlight: false },
-      { key: "ln", label: "Line", value: "Odds-off — no posted line", highlight: false },
       { key: "d", label: "Lean", value: direction !== "Side" ? direction : "See body", highlight: false },
       { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
     ],

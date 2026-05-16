@@ -11,6 +11,15 @@ test("shouldAttachLiveFollowUps — true only for plain + live keyword + not fol
   assert.equal(
     shouldAttachLiveFollowUps({
       outputJsonMode: "plain",
+      isEffectivelyLive: true,
+      hasLiveKeyword: false,
+      isConversationFollowUp: false,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldAttachLiveFollowUps({
+      outputJsonMode: "plain",
       hasLiveKeyword: true,
       isConversationFollowUp: false,
     }),
@@ -27,6 +36,7 @@ test("shouldAttachLiveFollowUps — true only for plain + live keyword + not fol
   assert.equal(
     shouldAttachLiveFollowUps({
       outputJsonMode: "plain",
+      isEffectivelyLive: false,
       hasLiveKeyword: false,
       isConversationFollowUp: false,
     }),

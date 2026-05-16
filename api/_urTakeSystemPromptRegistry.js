@@ -649,6 +649,14 @@ SPORT CONTEXT RULE (mandatory):
 - Chat history may mention a different sport than this turn's payload. Answer the user's current question silently from whatever context is attached to this request — never refuse, lecture, or stop because of an apparent sport-ruleset conflict.
 - Never say "constraint conflict," ask the user to close or leave a thread (including F1/NBA/etc.), or decline a question for sport-routing reasons. If context is thin, use structural knowledge and still deliver a lean — never meta-decline.
 
+PAYLOAD VOCABULARY RULE (mandatory — all sports):
+- The JSON context is for your eyes only. Translate every field into natural language for the user.
+- Never echo raw payload keys as if they were spoken analysis: no camelCase or snake_case tokens such as
+  praFloor, praCeiling, praRecent, praSeason, recentGamesStale, playerId, tonightGame, propRaw, bdlAvailability,
+  hElo, hardElo, clayElo, grassElo, driver_number, circuitFullName, completedGamesCombinedPointsAverage, or similar.
+- If you need the idea, say it in words: e.g. "recent-form low for combined points + rebounds + assists" instead of "praFloor".
+- Underscores in a key name are still forbidden to quote verbatim — rewrite as plain English.
+
 INJURY MENTION RULE (mandatory, no exceptions):
 - Never open a response with an injured player's name.
 - Never use an injured player as the subject of your first sentence.
@@ -870,7 +878,7 @@ export function buildLiveBetAndSlipReviewConvictionPrompt() {
 
 /** Live-mode output shape only (formatting, not data/routing logic). */
 export function buildLiveModeVoicePrompt() {
-  return `LIVE MODE OUTPUT SHAPE (mandatory when liveSignals.hasLiveKeyword is true)
+  return `LIVE MODE OUTPUT SHAPE (mandatory when liveSignals.isEffectivelyLive is true — user live cue and/or board-in-progress)
 - Lead with the play immediately.
 - Use this structure exactly:
   Best look: [one actionable live angle + line/range if known]
@@ -1183,7 +1191,7 @@ Format behavior in this mode:
  * @param {boolean} [input.hasImage]
  * @param {boolean} [input.hasMatchupContext]
  * @param {{ sparseQuestion: boolean, thinEvidence: boolean }} [input.evidenceSparsityProfile] — when set, reuse (single compute in handler)
- * @param {{ hasLiveKeyword?: boolean }} [input.liveSignals] — live-keyword turns append LIVE BET CONVICTION RULE (with slip_review)
+ * @param {{ hasLiveKeyword?: boolean, isBoardLive?: boolean, isEffectivelyLive?: boolean }} [input.liveSignals] — effective live formatting (keyword and/or board); slip_review still adds conviction block
  * @param {string} [input.memoryBlock] — optional prior-session summary (prepended when non-empty)
  * @param {boolean} [input.longFormRequested] — when set, use expanded prompts; otherwise derived from `question` via detectUrTakeLongFormIntent
  */
@@ -1266,12 +1274,17 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     composed += String(tennisSystemPromptExtra || "");
   }
 
+  const effectivelyLive =
+    typeof liveSignals?.isEffectivelyLive === "boolean"
+      ? liveSignals.isEffectivelyLive
+      : Boolean(liveSignals?.hasLiveKeyword);
+
   const applyLiveBetSlipReviewConviction =
-    String(intent || "").trim() === "slip_review" || Boolean(liveSignals?.hasLiveKeyword);
+    String(intent || "").trim() === "slip_review" || effectivelyLive;
   if (applyLiveBetSlipReviewConviction) {
     composed += `\n\n${buildLiveBetAndSlipReviewConvictionPrompt()}`;
   }
-  if (Boolean(liveSignals?.hasLiveKeyword)) {
+  if (effectivelyLive) {
     composed += `\n\n${buildLiveModeVoicePrompt()}`;
   }
 

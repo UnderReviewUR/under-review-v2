@@ -65,7 +65,9 @@ export function collectPlayoffBracketTeamAbbrevs(playoffSeries) {
 }
 
 /**
- * Strip verbose player row fields for LLM JSON (PRA floor/ceiling per stat removed — praFloor/praCeiling cover range).
+ * Strip verbose player row fields for LLM JSON.
+ * Input rows still use attachPraFieldsToPlayerRow keys (praFloor, praCeiling, praSeason, praRecent).
+ * Output uses snake keys so accidental echoes read less like internal code.
  * @param {object} p
  */
 export function slimNbaPlayerStatRowForUrTake(p) {
@@ -92,10 +94,10 @@ export function slimNbaPlayerStatRowForUrTake(p) {
     statsNote: p.statsNote,
     tonightGame: p.tonightGame,
     recentGames: rg,
-    praSeason: p.praSeason ?? null,
-    praRecent: p.praRecent ?? null,
-    praFloor: p.praFloor ?? null,
-    praCeiling: p.praCeiling ?? null,
+    pra_season_sum: p.praSeason ?? null,
+    pra_recent_avg: p.praRecent ?? null,
+    pra_recent_low: p.praFloor ?? null,
+    pra_recent_high: p.praCeiling ?? null,
     recentGamesStale: p.recentGamesStale === true,
   };
 }

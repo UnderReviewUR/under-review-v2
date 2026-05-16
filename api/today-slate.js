@@ -20,7 +20,7 @@ import {
 } from "../shared/todaySlateInputBundle.js";
 
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
-const CACHE_KEY = "today_slate_cache_v3";
+const CACHE_KEY = "today_slate_cache_v4";
 const CACHE_TTL_SECONDS = 300;
 const slateCache = {};
 
@@ -120,14 +120,28 @@ function slimBundleForSlatePrompt(bundle) {
 
   if (bundle.f1) {
     const races = bundle.f1.schedule?.races || [];
+    const past = Array.isArray(bundle.f1.schedule?.past) ? bundle.f1.schedule.past : [];
+    const lastCompleted = past.length ? past[past.length - 1] : null;
+    const nextRace = races.find((r) => r.is_next) || races[0] || null;
     out.f1 = {
-      schedule: {
-        races: races.slice(0, 8).map((r) => ({
-          meeting_name: r.meeting_name,
-          is_next: r.is_next,
-          circuit_short_name: r.circuit_short_name,
-        })),
-      },
+      lastCompletedGrandPrix: lastCompleted
+        ? {
+            meeting_name: lastCompleted.meeting_name,
+            circuit_short_name: lastCompleted.circuit_short_name,
+          }
+        : null,
+      nextGrandPrix: nextRace
+        ? {
+            meeting_name: nextRace.meeting_name,
+            circuit_short_name: nextRace.circuit_short_name,
+            is_next: !!nextRace.is_next,
+          }
+        : null,
+      upcomingSchedulePreview: races.slice(0, 8).map((r) => ({
+        meeting_name: r.meeting_name,
+        is_next: !!r.is_next,
+        circuit_short_name: r.circuit_short_name,
+      })),
     };
   }
 
@@ -385,6 +399,7 @@ RULES
 - Use only facts visible in the JSON; do not invent games, scores, or prices.
 - If a sport has no usable slate in the payload, you may still reference it only if another field clearly supports it; otherwise favor sports with real rows.
 - "game" for golf can be the tournament short name; for tennis include player surnames vs; for F1 use next GP name from schedule if present.
+- F1 discipline: DATA may include f1.lastCompletedGrandPrix and f1.nextGrandPrix. If your angle compares the next venue to a prior Grand Prix, "last week," or recency / form carryover, you may name a specific previous GP only when f1.lastCompletedGrandPrix is non-null — use that object's meeting_name verbatim (same race). Do not name any other prior GP (for example do not assume Monaco) unless it appears as meeting_name inside f1.lastCompletedGrandPrix. If f1.lastCompletedGrandPrix is null, do not attribute market behavior to form from a named prior race; anchor the take in circuit traits, tyres, weather, or other fields present in the JSON instead.
 
 OUTPUT
 Respond ONLY with raw JSON (no markdown, no code fences). The first character must be {.

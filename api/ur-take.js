@@ -48,6 +48,7 @@ import { buildMlbUrTakeBoard } from "./mlb.js";
 import { alignGolfBoardToQuestion, getUnifiedGolfBoard } from "./_golfProviders.js";
 import {
   extractGolfTournamentIntentFromQuestion,
+  golfLabelsMatchIntent,
   golfQuestionNeedsEventRealign,
   GOLF_INTENT_WRONG_COURSE_FRAGMENTS,
 } from "../shared/golfTournamentIntent.js";
@@ -1736,6 +1737,47 @@ function findFocusedNbaGameFromBoard(nbaContext, matchup) {
   return null;
 }
 
+/**
+ * True when injected board/tournament state shows in-progress play for the resolved sport.
+ * NFL/F1: not wired here (always false).
+ *
+ * @param {{
+ *   sportHint: string,
+ *   nbaContext: object | null | undefined,
+ *   nbaMatchup: { awayAbbr?: string, homeAbbr?: string } | null,
+ *   mlbContext: object | null | undefined,
+ *   liveMatches: unknown[] | null | undefined,
+ *   golfContextEffective: object | null | undefined,
+ * }} p
+ */
+function computeIsBoardLive(p) {
+  const s = String(p?.sportHint || "").toLowerCase();
+  if (s === "nba") {
+    const games = Array.isArray(p?.nbaContext?.todaysGames) ? p.nbaContext.todaysGames : [];
+    const rowIsLiveOrHalftime = (g) => {
+      const ph = classifyNbaBoardGamePhase(g);
+      return ph === "live" || ph === "halftime";
+    };
+    const focused =
+      p?.nbaMatchup?.awayAbbr && p?.nbaMatchup?.homeAbbr
+        ? findFocusedNbaGameFromBoard(p.nbaContext, p.nbaMatchup)
+        : null;
+    if (focused) return rowIsLiveOrHalftime(focused);
+    return games.some(rowIsLiveOrHalftime);
+  }
+  if (s === "mlb") {
+    const games = Array.isArray(p?.mlbContext?.games) ? p.mlbContext.games : [];
+    return games.some((g) => String(g?.state || "").toLowerCase() === "in");
+  }
+  if (s === "tennis" || s === "tennis_wta_profile") {
+    return Array.isArray(p?.liveMatches) && p.liveMatches.length > 0;
+  }
+  if (s === "golf") {
+    return String(p?.golfContextEffective?.currentEvent?.state || "").toLowerCase() === "in";
+  }
+  return false;
+}
+
 function buildNbaGameStateGateSnapshot(nbaContext, matchup) {
   const focusedGame = findFocusedNbaGameFromBoard(nbaContext, matchup);
   const phase = classifyNbaBoardGamePhase(focusedGame);
@@ -1764,6 +1806,25 @@ function buildNbaGameStateAuthorityBlock(gate) {
   return `NBA GAME-STATE AUTHORITY (SERVER — obey; never quote this header)
 Focused matchup phase (board-derived): ${phaseLabel}. Verified box scores on focused row: ${verifiedBoxScore ? "yes" : "no"}.
 ${rules}`;
+}
+
+/** When the focused board row is final — recap-only framing for the user prompt. */
+function buildNbaPostGameUserPromptBlock(gate) {
+  if (!gate || String(gate.phase || "").toLowerCase() !== "final") return "";
+  return `NBA POST-GAME MODE (SERVER — focused matchup is FINAL)
+The game is finished. Write as a recap / results read, not a live betting card.
+- Do not use live-betting framing (no "best look / watch" live scaffold, no quarter-clock signature ending in "· Live.", no "live trigger" as if the book is still open on this outcome).
+- Do not give floor/ceiling or "lean the over/under if it posts" style **actionable** prop sizing on markets that are decided for this game — state what the box score and posted results show when present.
+- If the user asks for props, explain what hit or missed using numbers from context only; label the read as informational, not a ticket to place now.
+- If context rows still look in-progress but you have a verified final scoreline in this payload, trust the final scoreline and avoid forward-looking bet language.`;
+}
+
+function formatNbaGameStateBlocksForUserPrompt(gate) {
+  if (!gate || typeof gate !== "object") return "";
+  const authority = buildNbaGameStateAuthorityBlock(gate);
+  const postGame = buildNbaPostGameUserPromptBlock(gate);
+  const body = postGame ? `${authority}\n\n${postGame}` : authority;
+  return body ? `${body}\n\n` : "";
 }
 
 function buildNbaLiveNoPropSystemPromptBlock(gate, nbaContext) {
@@ -4284,13 +4345,24 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
   };
 }
 
+function resolveGolfQuestionAlignmentArg(golfContextEffective) {
+  const align = golfContextEffective?.questionEventAlignment;
+  if (!align?.requestedLabel || !align?.requestedSlug) return align ?? null;
+  const ce = golfContextEffective?.currentEvent;
+  if (
+    ce &&
+    golfLabelsMatchIntent(ce.name, ce.shortName, {
+      slug: align.requestedSlug,
+      label: align.requestedLabel,
+    })
+  ) {
+    return null;
+  }
+  return align;
+}
+
 function buildGolfQuestionAlignmentPromptBlock(alignment, currentEvent) {
   if (!alignment?.requestedLabel) return "";
-  const prev =
-    alignment.previousFeedEvent &&
-    alignment.previousFeedEvent !== alignment.requestedLabel
-      ? ` The live-feed default week was "${alignment.previousFeedEvent}" — ignore that event entirely.`
-      : "";
   const slug = alignment.requestedSlug || "";
   const forbidden = GOLF_INTENT_WRONG_COURSE_FRAGMENTS[slug] || [];
   const forbiddenLine = forbidden.length
@@ -4301,13 +4373,25 @@ function buildGolfQuestionAlignmentPromptBlock(alignment, currentEvent) {
     course && course !== "TBD"
       ? `- Verified course for this event in payload: ${course}. Cite only this venue.`
       : `- currentEvent.course is TBD — do NOT invent or recall a course name from memory; describe tournament/setup only from leaderboard and odds in the payload.`;
-  return `
+
+  const prevName = String(alignment.previousFeedEvent || "").trim();
+  const requested = String(alignment.requestedLabel || "").trim();
+  const realigned = prevName.length > 0 && prevName !== requested;
+
+  if (realigned) {
+    const prev = ` The live-feed default week was "${alignment.previousFeedEvent}" — ignore that event entirely.`;
+    return `
 QUESTION EVENT ALIGNMENT (mandatory):
 The user asked about "${alignment.requestedLabel}".${prev}
 - Ground every answer in currentEvent for "${alignment.requestedLabel}" only.
 - If currentEvent.state is pre/upcoming or leaderboard is empty: treat as pre-tournament — do NOT cite live scores, positions, or course conditions from any other PGA Tour week.
 ${courseLine}
 ${forbiddenLine}`;
+  }
+
+  const minimal = [courseLine, forbiddenLine].filter(Boolean).join("\n");
+  if (!minimal) return "";
+  return `\n${minimal}\n`;
 }
 
 function golfClientContextLooksUsable(g) {
@@ -4591,7 +4675,7 @@ export default async function handler(req, res) {
       }),
     );
   }
-  const liveSignals = detectLiveGameSignals(question, hasImage);
+  const liveKeywordSignals = detectLiveGameSignals(question, hasImage);
 
   let sportHint = resolveSportHint({
     incomingSportHint,
@@ -4912,6 +4996,23 @@ export default async function handler(req, res) {
     matchupContext,
   });
 
+  const nbaMatchup =
+    sportHint === "nba" ? resolveNbaMatchupFromQuestion(question, nbaContext || {}) : null;
+
+  const isBoardLive = computeIsBoardLive({
+    sportHint,
+    nbaContext,
+    nbaMatchup,
+    mlbContext,
+    liveMatches,
+    golfContextEffective,
+  });
+  const liveSignals = {
+    ...liveKeywordSignals,
+    isBoardLive,
+    isEffectivelyLive: Boolean(liveKeywordSignals.hasLiveKeyword) || isBoardLive,
+  };
+
   const baseDerivedConfidence = deriveConfidenceLabel({
     intent,
     sportHint,
@@ -4919,7 +5020,7 @@ export default async function handler(req, res) {
     matchupContext,
     question,
     contextQuality,
-    isLive: liveSignals.isLive,
+    isLive: liveKeywordSignals.isLive,
   });
   const nbaConfidenceModifier =
     sportHint === "nba"
@@ -4931,8 +5032,6 @@ export default async function handler(req, res) {
         })
       : { label: baseDerivedConfidence, reason: "" };
   const derivedConfidence = nbaConfidenceModifier.label;
-  const nbaMatchup =
-    sportHint === "nba" ? resolveNbaMatchupFromQuestion(question, nbaContext || {}) : null;
   const nbaMatchupPool =
     sportHint === "nba" && nbaMatchup
       ? buildAllowedMatchupPlayerPool(nbaMatchup, nbaContext || {})
@@ -5009,7 +5108,7 @@ export default async function handler(req, res) {
         chaseSignals,
         intent,
         hasImage,
-        liveSignals,
+        liveSignals: liveKeywordSignals,
         question,
         matchupContext,
         sportHint,
@@ -5612,7 +5711,7 @@ ${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
 ${buildGolfQuestionAlignmentPromptBlock(
-        golfContextEffective?.questionEventAlignment,
+        resolveGolfQuestionAlignmentArg(golfContextEffective),
         golfContextEffective?.currentEvent,
       )}
 
@@ -5645,7 +5744,7 @@ ${contextJsonForModel(golfContextEffective)}
 
 ${golfVerifiedBlock}
 ${buildGolfQuestionAlignmentPromptBlock(
-        golfContextEffective?.questionEventAlignment,
+        resolveGolfQuestionAlignmentArg(golfContextEffective),
         golfContextEffective?.currentEvent,
       )}
 
@@ -5718,7 +5817,7 @@ Target player: ${nbaInvalidation.targetedPlayer}
 Status: ${nbaInvalidation.statusDisplay || nbaInvalidation.statusClass}
 Rule: Do not give false certainty. Keep any take contingent on confirmed status.
 
-` : ""}NBA context (full board — same filtered payload as the opening turn; cite only numbers present):
+` : ""}${sportHint === "nba" && nbaGameStateGate ? formatNbaGameStateBlocksForUserPrompt(nbaGameStateGate) : ""}NBA context (full board — same filtered payload as the opening turn; cite only numbers present):
 ${contextJsonForModel(nbaContextForModel)}
 
 Default confidence should be ${derivedConfidence}.
@@ -5748,9 +5847,7 @@ ${sportHint === "nba" ? `INTERNAL NBA CONTROL (DO NOT QUOTE OR REPEAT VERBATIM)
 
 ` : ""}${firstSessionGuaranteeBlock ? `${firstSessionGuaranteeBlock}
 
-` : ""}${sportHint === "nba" && nbaGameStateGate ? `${buildNbaGameStateAuthorityBlock(nbaGameStateGate)}
-
-` : ""}${sportHint === "nba" && nbaPlayerResolutionBlock ? `${nbaPlayerResolutionBlock}
+` : ""}${sportHint === "nba" && nbaGameStateGate ? formatNbaGameStateBlocksForUserPrompt(nbaGameStateGate) : ""}${sportHint === "nba" && nbaPlayerResolutionBlock ? `${nbaPlayerResolutionBlock}
 
 ` : ""}${nbaConditionalPayload ? `INTERNAL CONDITIONAL PAYLOAD (DO NOT QUOTE OR REPEAT VERBATIM)
 - targetPlayer: ${nbaConditionalPayload.player}
@@ -6526,7 +6623,7 @@ ${continuationRule}`;
                 ? 700
                 : outputJsonMode === "plain" &&
                     !isConversationFollowUp &&
-                    Boolean(liveSignals?.hasLiveKeyword)
+                    Boolean(liveSignals?.isEffectivelyLive)
                   ? isPro
                     ? 700
                     : 500
@@ -6609,7 +6706,7 @@ You are responding to a Pro subscriber. Apply the following:
       question: String(question || ""),
       nbaContext: nbaContextForModel,
       intent,
-      liveMode: Boolean(liveSignals?.hasLiveKeyword),
+      liveMode: Boolean(liveSignals?.isEffectivelyLive),
       coherenceContext: qaCoherenceContext,
       nbaGroundingSnapshot: sportHint === "nba" ? nbaGroundingSnapshot : undefined,
       nbaInventedShadow,
@@ -7170,11 +7267,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         }
       : null;
 
-    /** Live-mode chips only: plain answer, live keyword, not a conversation follow-up turn. */
+    /** Live-mode chips only: plain answer, effective live (keyword and/or board), not a conversation follow-up turn. */
     let followUpsField;
     if (
       shouldAttachLiveFollowUps({
         outputJsonMode,
+        isEffectivelyLive: liveSignals?.isEffectivelyLive,
         hasLiveKeyword: liveSignals?.hasLiveKeyword,
         isConversationFollowUp,
       })
@@ -7191,7 +7289,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
     }
 
-    const liveModeFlag = Boolean(liveSignals?.hasLiveKeyword);
+    const liveModeFlag = Boolean(liveSignals?.isEffectivelyLive);
 
     const nbaPlayoffFocusLog =
       sportHint === "nba" && nbaContext?.urTakeParsing
@@ -7227,6 +7325,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         isPro,
         qa: qaSummaryForLog,
         liveMode: liveModeFlag,
+        hasLiveKeyword: Boolean(liveSignals?.hasLiveKeyword),
+        isBoardLive: Boolean(liveSignals?.isBoardLive),
+        isEffectivelyLive: Boolean(liveSignals?.isEffectivelyLive),
         followUpsAttached: Boolean(followUpsField?.length),
         followUpsCount: followUpsField?.length ?? 0,
         nbaBoardBuildMs,

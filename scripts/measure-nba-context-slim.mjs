@@ -34,6 +34,7 @@ function makeFatPlayer(i) {
     })),
     praSeason: 29,
     praRecent: 28,
+    /* attachPraFieldsToPlayerRow-style input keys (slim maps these to pra_recent_low / pra_recent_high on output) */
     praFloor: 20,
     praCeiling: 40,
     ptsRecent: 20,

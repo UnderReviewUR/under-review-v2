@@ -69,6 +69,13 @@ export const baseCss = `
     --ur-dock-followups-est:56px;
     --ur-chat-scroll-dock-buffer:16px;
     --keyboard-height:0px;
+    --nfl-predict-bg:#0a0a0a;
+    --nfl-predict-surface:#141414;
+    --nfl-predict-border:#2a2a2a;
+    --nfl-predict-accent:#00F5E9;
+    --nfl-predict-magenta:#FF2D6B;
+    --nfl-predict-text:#ffffff;
+    --nfl-predict-muted:#666666;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -1818,4 +1825,12 @@ export const baseCss = `
     .quick-btn{min-height:44px;font-size:12px;}
     .golf-leaderboard-card{padding:12px 14px;}
   }
+
+  .nfl-predict-game-card { transition: all 150ms ease; }
+  .nfl-predict-pick-btn { transition: transform 150ms ease, opacity 150ms ease, box-shadow 150ms ease; min-height: 44px; }
+  .nfl-predict-pick-btn.selected { transform: scale(1.02); }
+  .nfl-predict-pick-btn.unselected { opacity: 0.4; }
+  .nfl-predict-confidence { animation: nflConfIn 200ms ease forwards; }
+  @keyframes nflConfIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .nfl-predict-game-card, .nfl-predict-pick-btn { transition: none; } .nfl-predict-pick-btn, .nfl-predict-pick-btn.selected { transform: none !important; } .nfl-predict-confidence { animation: none; } }
 `;

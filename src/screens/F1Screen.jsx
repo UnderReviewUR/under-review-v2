@@ -125,9 +125,9 @@ export default function F1Screen({
                   ? `${f1Data.standings.length} drivers · ${f1Data.schedule?.races?.length||0} races`
                   : f1Loading
                     ? "Loading F1 data..."
-                    : "F1 data unavailable right now. Check back closer to race week."}
+                    : "Open the F1 tab for standings, schedule, and timing — the home card fills as the bundle loads."}
                 {(f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? (
-                  <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Using cached standings — live feed unavailable">Est.</span>
+                  <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Cached standings — updates when the live feed syncs">Est.</span>
                 ) : null}
                 {f1Data?.openf1TimingSource === "custom" ? (
                   <span

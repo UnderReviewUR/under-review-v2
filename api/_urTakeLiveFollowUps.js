@@ -39,12 +39,16 @@ export function parseFollowUpsJsonArray(raw) {
 }
 
 /**
- * @param {{ outputJsonMode?: string, hasLiveKeyword?: boolean, isConversationFollowUp?: boolean }} ctx
+ * @param {{ outputJsonMode?: string, isEffectivelyLive?: boolean, hasLiveKeyword?: boolean, isConversationFollowUp?: boolean }} ctx
  */
 export function shouldAttachLiveFollowUps(ctx) {
+  const effectivelyLive =
+    typeof ctx?.isEffectivelyLive === "boolean"
+      ? ctx.isEffectivelyLive
+      : Boolean(ctx?.hasLiveKeyword);
   return (
     ctx?.outputJsonMode === "plain" &&
-    Boolean(ctx?.hasLiveKeyword) &&
+    effectivelyLive &&
     !ctx?.isConversationFollowUp
   );
 }

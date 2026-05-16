@@ -27,11 +27,17 @@ function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   return `${tag} is the rolled-up American price for this parlay—leg lines compound into one number the book shows on the full ticket.`;
 }
 
+/** User questions that mirror follow-up CTAs — not useful as a “matchup” chip (repeat “parlay” noise). */
+const META_PARLAY_PROMPT = /^build\s+a\s+parlay\b/i;
+
 function matchupPillText(gameStateLine, userQuestion) {
   const g = String(gameStateLine || "").trim();
   if (g.length >= 6 && g.length <= 48) return g;
   const q = String(userQuestion || "").trim();
-  return q ? q.slice(0, 44) + (q.length > 44 ? "…" : "") : "Tonight";
+  if (q && !META_PARLAY_PROMPT.test(q)) {
+    return q.slice(0, 44) + (q.length > 44 ? "…" : "");
+  }
+  return "Tonight";
 }
 
 /**
@@ -88,8 +94,13 @@ export default function URTakeResponse({
     parlayLegs: safeParlayLegs,
   });
 
+  const edgeTypePill = inferEdgeTypePill(callType);
+  const marketPill = inferMarketPill(callScrub, callType);
+  const marketPillDistinct =
+    marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
+
   const contextLine = [
-    inferMarketPill(callScrub, callType),
+    marketPillDistinct ?? edgeTypePill,
     showLiveRibbon ? "Live" : "Tonight",
   ].join(" · ");
 
@@ -139,8 +150,8 @@ export default function URTakeResponse({
       </div>
 
       <div className="ur-v2-pill-row">
-        <span className="ur-v2-mini-pill">{inferEdgeTypePill(callType)}</span>
-        <span className="ur-v2-mini-pill">{inferMarketPill(callScrub, callType)}</span>
+        <span className="ur-v2-mini-pill">{edgeTypePill}</span>
+        {marketPillDistinct ? <span className="ur-v2-mini-pill">{marketPillDistinct}</span> : null}
         <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
       </div>
 
