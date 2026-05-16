@@ -4043,7 +4043,7 @@ ${themeCss}
                 isPro={isUnlimited}
                 restoreProEntitlement={restoreProEntitlement}
                 setUserEmail={setUserEmail}
-                onSubscribePro={goToPro}
+                onSubscribePro={goPro}
               />
             )}
           </>

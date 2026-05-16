@@ -22,6 +22,7 @@ function RowLogo({ team, size = 40 }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          flexShrink: 0,
         }}
       >
         {team.abbr}
@@ -35,7 +36,7 @@ function RowLogo({ team, size = 40 }) {
       height={size}
       src={team.logoUrl}
       alt=""
-      style={{ width: size, height: size, objectFit: "contain" }}
+      style={{ width: size, height: size, objectFit: "contain", flexShrink: 0 }}
       onError={() => setBad(true)}
     />
   );
@@ -49,26 +50,31 @@ function BubbleCard({ row }) {
   return (
     <div
       style={{
-        borderRadius: 10,
-        border: "1px solid rgba(245,158,11,.35)",
-        background: "rgba(245,158,11,.08)",
-        padding: "10px 12px",
+        width: "100%",
+        borderRadius: 12,
+        padding: "12px 14px",
+        background: "rgba(26, 18, 0, 0.45)",
+        border: "1px solid #F59E0B40",
+        boxSizing: "border-box",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <RowLogo team={t} size={36} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "#F59E0B", lineHeight: 1.25 }}>
-            {t?.shortName || t?.abbr || "?"}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--nfl-predict-muted)", marginTop: 4 }}>
-            <span style={{ opacity: 0.75 }}>proj. </span>
-            {formatProjectedRecordDecimal(r)}
-          </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <RowLogo team={t} size={40} />
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontWeight: 700,
+            fontSize: 14,
+            color: "#F59E0B",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {t?.shortName || t?.fullName || t?.abbr || "?"}
         </div>
-      </div>
-      {winsOutLabel ? (
-        <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+        {winsOutLabel ? (
           <span
             style={{
               fontSize: 11,
@@ -79,20 +85,53 @@ function BubbleCard({ row }) {
               borderRadius: 6,
               padding: "4px 8px",
               whiteSpace: "nowrap",
+              flexShrink: 0,
             }}
           >
             {winsOutLabel}
           </span>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+      <div style={{ marginTop: 8, fontSize: 12, color: "var(--nfl-predict-muted)" }}>
+        <span style={{ opacity: 0.75 }}>proj. </span>
+        {formatProjectedRecordDecimal(r)}
+      </div>
     </div>
   );
 }
 
-function ConfColumn({ label, picks, schedule, teams }) {
-  const pic = useMemo(() => getPlayoffPicture(picks, schedule, teams), [picks, schedule, teams]);
-  const side = label === "AFC" ? pic.afc : pic.nfc;
+function BubbleSection({ title, rows }) {
+  return (
+    <section style={{ width: "100%" }}>
+      <div
+        style={{
+          fontFamily: "var(--mono-font)",
+          fontSize: 11,
+          letterSpacing: "0.1em",
+          color: "#00F5E9",
+          marginBottom: 8,
+          textTransform: "uppercase",
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          width: "100%",
+        }}
+      >
+        {(rows || []).map((row) => (
+          <BubbleCard key={row.team?.abbr || "?"} row={row} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
+function SeedsColumn({ label, side, picks, schedule, teams }) {
   return (
     <div style={{ flex: "1 1 280px", minWidth: 0, maxWidth: "100%" }}>
       <div
@@ -168,31 +207,31 @@ function ConfColumn({ label, picks, schedule, teams }) {
           );
         })}
       </div>
-      <div style={{ marginTop: 16, fontSize: 11, color: "var(--nfl-predict-muted)", marginBottom: 8, letterSpacing: "0.04em" }}>
-        Wild card bubble
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {(side.bubble || []).map((row) => (
-          <BubbleCard key={row.team?.abbr || "?"} row={row} />
-        ))}
-      </div>
     </div>
   );
 }
 
 export default function PlayoffPicture({ picks, schedule, teams }) {
+  const pic = useMemo(() => getPlayoffPicture(picks, schedule, teams), [picks, schedule, teams]);
+
   return (
-    <div
-      style={{
-        padding: "10px 12px 8px",
-        display: "flex",
-        gap: 16,
-        flexWrap: "wrap",
-        alignItems: "flex-start",
-      }}
-    >
-      <ConfColumn label="AFC" picks={picks} schedule={schedule} teams={teams} />
-      <ConfColumn label="NFC" picks={picks} schedule={schedule} teams={teams} />
+    <div style={{ padding: "10px 12px 8px", width: "100%", boxSizing: "border-box" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 16,
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          marginBottom: 24,
+        }}
+      >
+        <SeedsColumn label="AFC" side={pic.afc} picks={picks} schedule={schedule} teams={teams} />
+        <SeedsColumn label="NFC" side={pic.nfc} picks={picks} schedule={schedule} teams={teams} />
+      </div>
+
+      <BubbleSection title="AFC Wild Card Bubble" rows={pic.afc?.bubble} />
+      <div style={{ height: 24 }} />
+      <BubbleSection title="NFC Wild Card Bubble" rows={pic.nfc?.bubble} />
     </div>
   );
 }
