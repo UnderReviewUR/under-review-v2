@@ -5,6 +5,12 @@
  */
 
 import { findFirstPlayerStatRowForQuestion, parseNbaRequestedMarket } from "./_nbaPropSanity.js";
+import {
+  buildCombinedVerifiedGolfField,
+  golfPlayerNamesMatch,
+  isKnownPgaTourPlayer,
+  normalizeGolfName,
+} from "./_golfProviders.js";
 import { isNbaRecentGameZeroStatDnpLike } from "../shared/nbaUrTakeSlim.js";
 
 /** @typedef {"Speculative"|"Medium"} UrEstimatedConfidence */
@@ -68,37 +74,23 @@ function stripNumericPrecision(o) {
   };
 }
 
-function collectGolfVerifiedNames(golfContext) {
-  const set = new Set();
-  const lb = golfContext?.currentEvent?.leaderboard;
-  if (Array.isArray(lb)) {
-    for (const row of lb) {
-      const n = String(row?.name || row?.player || "").trim();
-      if (n) set.add(n);
-    }
-  }
-  for (const r of golfContext?.rankings || []) {
-    const n = String(r?.name || "").trim();
-    if (n) set.add(n);
-  }
-  const oddsRows = golfContext?.odds?.outrights;
-  if (Array.isArray(oddsRows)) {
-    for (const row of oddsRows) {
-      const n = String(row?.player || "").trim();
-      if (n) set.add(n);
-    }
-  }
-  return set;
-}
-
 function pickGolfSubject(question, golfContext) {
   const ql = String(question || "").toLowerCase();
-  const names = [...collectGolfVerifiedNames(golfContext)].sort((a, b) => b.length - a.length);
+  const names = buildCombinedVerifiedGolfField(golfContext).sort((a, b) => b.length - a.length);
   for (const n of names) {
     const ln = n.toLowerCase();
     if (ln.length >= 4 && ql.includes(ln)) return n;
-    const last = ln.split(/\s+/).pop();
+    const last = normalizeGolfName(n).lastName;
     if (last && last.length >= 4 && new RegExp(`\\b${last}\\b`, "i").test(ql)) return n;
+  }
+  const parts = String(question || "").split(/\s+/).filter((w) => w.length >= 3);
+  for (let i = 0; i < parts.length - 1; i++) {
+    const two = `${parts[i]} ${parts[i + 1]}`;
+    if (isKnownPgaTourPlayer(two)) {
+      const hit = names.find((n) => golfPlayerNamesMatch(two, n));
+      if (hit) return hit;
+      return two;
+    }
   }
   return names[0] || null;
 }
@@ -106,11 +98,12 @@ function pickGolfSubject(question, golfContext) {
 /** Verified form / leaderboard / ranking / course-fit signals for a golfer name. */
 function golfSignalCount(golfContext, name) {
   if (!name) return 0;
-  const nl = String(name).toLowerCase();
   let n = 0;
   const lb = golfContext?.currentEvent?.leaderboard;
   if (Array.isArray(lb)) {
-    const row = lb.find((r) => String(r?.name || r?.player || "").toLowerCase() === nl);
+    const row = lb.find((r) =>
+      golfPlayerNamesMatch(name, String(r?.name || r?.player || "")),
+    );
     if (row) {
       if (row.position != null || row.score != null || row.total != null || row.thru != null) n++;
       if (["sg_ott", "sg_app", "sg_arg", "sg_putt", "strokesGainedTotal"].some((k) => row[k] != null)) n++;
@@ -118,12 +111,13 @@ function golfSignalCount(golfContext, name) {
     }
   }
   for (const r of golfContext?.rankings || []) {
-    if (String(r?.name || "").toLowerCase() === nl) {
+    if (golfPlayerNamesMatch(name, String(r?.name || ""))) {
       n++;
       if (r.rank != null || r.position != null) n++;
       break;
     }
   }
+  if (isKnownPgaTourPlayer(name)) n++;
   return n;
 }
 
@@ -467,7 +461,7 @@ function buildGolfEdge(question, golfContext) {
   const subj = pickGolfSubject(question, golfContext);
   if (!subj) {
     const lean = assertCleanCopy(
-      "Lean: pass — no verified golfer anchor in leaderboard/rankings. Playable only if the card lists a named player you are pricing.",
+      "Lean: pass — no matched golfer in field list. For named PGA Tour pros, still give a directional top-20 / make-cut read when the user names them.",
     );
     return emptyShape(sport, {
       marketType: "placement_read",

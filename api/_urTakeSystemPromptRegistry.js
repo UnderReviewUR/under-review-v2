@@ -1059,7 +1059,9 @@ NFL PROP LINE REASONING (when VEGAS 2026 PROP O/Us are present):
 
 export function buildGolfSurfaceAppendix() {
   return `GOLF SURFACE SPINE
-Leaderboard and VERIFIED GOLF PLAYERS lists are the name floor. Never invent golfers or prices. Final vs live tournament state in user prompt overrides casual "tonight" betting language — obey that state.
+Prefer the GOLF FIELD list and live leaderboard rows for position-specific questions (who's leading, cut line, live scores). For prop, top-20, top-10, and matchup questions about any known PGA Tour professional, provide analysis even when live leaderboard position is unavailable — note "leaderboard position not yet available" instead of refusing.
+Never invent golfers or book prices. Never say a legitimate PGA Tour pro is "not in the verified field" or "not in the field."
+Final vs live tournament state in user prompt overrides casual "tonight" betting language — obey that state.
 If the tournament state is final, respond in two sentences only: winner confirmation and next event pointer. Do not produce a full recap.`;
 }
 

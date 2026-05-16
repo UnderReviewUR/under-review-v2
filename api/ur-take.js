@@ -47,7 +47,14 @@ import {
   questionMentionsPlayer,
 } from "./nba.js";
 import { buildMlbUrTakeBoard } from "./mlb.js";
-import { alignGolfBoardToQuestion, getUnifiedGolfBoard } from "./_golfProviders.js";
+import {
+  alignGolfBoardToQuestion,
+  buildCombinedVerifiedGolfField,
+  getUnifiedGolfBoard,
+  isKnownPgaTourPlayer,
+  normalizeGolfName,
+  resolveGolfPlayerInField,
+} from "./_golfProviders.js";
 import {
   extractGolfTournamentIntentFromQuestion,
   golfLabelsMatchIntent,
@@ -4259,38 +4266,52 @@ For match-specific takes you may ONLY name players from this list.`;
 }
 
 function collectGolfVerifiedNames(golfContext) {
-  const set = new Set();
-  const lb = golfContext?.currentEvent?.leaderboard;
-  if (Array.isArray(lb)) {
-    for (const row of lb) {
-      const n = String(row?.name || row?.player || "").trim();
-      if (n) set.add(n);
-    }
+  return new Set(buildCombinedVerifiedGolfField(golfContext));
+}
+
+function extractGolfPlayerMentionFromQuestion(question, golfContext) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  const field = buildCombinedVerifiedGolfField(golfContext || {});
+  for (const name of field) {
+    const nl = name.toLowerCase();
+    if (nl.length >= 4 && q.toLowerCase().includes(nl)) return name;
+    const last = normalizeGolfName(name).lastName;
+    if (last && last.length >= 4 && new RegExp(`\\b${last}\\b`, "i").test(q)) return name;
   }
-  for (const r of golfContext?.rankings || []) {
-    const n = String(r?.name || "").trim();
-    if (n) set.add(n);
+  const parts = q.split(/\s+/).filter((w) => w.length >= 3);
+  for (let i = 0; i < parts.length - 1; i++) {
+    const two = `${parts[i]} ${parts[i + 1]}`;
+    if (isKnownPgaTourPlayer(two)) return two;
   }
-  const oddsRows = golfContext?.odds?.outrights;
-  if (Array.isArray(oddsRows)) {
-    for (const row of oddsRows) {
-      const n = String(row?.player || "").trim();
-      if (n) set.add(n);
-    }
-  }
-  return set;
+  return null;
 }
 
 function buildGolfVerifiedPlayerListBlock(golfContext) {
-  const set = collectGolfVerifiedNames(golfContext);
-  const sorted = [...set].sort();
-  if (sorted.length === 0) {
-    return `NO VERIFIED GOLF PLAYERS in leaderboard or rankings payloads. Do not invent golfers.`;
-  }
-  return `VERIFIED GOLF PLAYERS:
-${sorted.join(", ")}
+  const sorted = buildCombinedVerifiedGolfField(golfContext).sort();
+  const asked = extractGolfPlayerMentionFromQuestion(golfContext?.question, golfContext);
+  const askedKnown =
+    asked && isKnownPgaTourPlayer(asked)
+      ? resolveGolfPlayerInField(asked, sorted) || asked
+      : null;
 
-You may ONLY name golfers from this list in golf takes.`;
+  if (sorted.length === 0) {
+    return `GOLF FIELD NOTE: Live leaderboard and field lists are empty in this payload.
+For any known PGA Tour professional in the user's question, still provide course-fit and form analysis from season context — note "leaderboard position not yet available" instead of refusing.`;
+  }
+
+  const askedLine = askedKnown
+    ? `\nUser-mentioned golfer anchor: ${askedKnown} (known PGA Tour pro — analyze even if live position is missing from feed).`
+    : "";
+
+  return `GOLF FIELD (live leaderboard + rankings + odds field + major-championship fallback):
+${sorted.join(", ")}
+${askedLine}
+
+FIELD RULES:
+- Prefer this list for live position, cut-line, and "who's leading" questions.
+- For prop / top-20 / matchup questions about any known PGA Tour professional (including names in the user's question), provide analysis even when live leaderboard rows are missing — say "leaderboard position not yet available" rather than refusing.
+- Never tell the user a legitimate PGA Tour pro is "not in the field" or "not in the verified field."`;
 }
 
 function buildF1VerifiedDriverListBlock(f1Context) {
@@ -5776,16 +5797,17 @@ Rules:
 - Answer only as a golf analyst.
 - Do not mention NBA, NFL, MLB, F1, or tennis.
 - Use the tournament, odds, rankings, and player names in the provided golf context.
-- currentEvent.leaderboard is the full tournament field when the data feed provides it — find any golfer's position and scores there before claiming they are missing from the board.
+- currentEvent.leaderboard has live positions when the feed provides them — cite scores/positions from those rows when present.
+- If a golfer the user names is a known PGA Tour pro but missing from live leaderboard rows, do NOT refuse — note "leaderboard position not yet available" and analyze from rankings, season form, course fit, and static profile data in context.
+- Never say a legitimate PGA Tour pro is "not in the verified field", "not on the live leaderboard" as a refusal, or "not in the field."
 - Short follow-ups ("any sleepers?", "who else?", "best value longshot?") still apply to this same Golf context JSON — use the leaderboard and odds here; never tell the user to re-paste a screenshot or resend the board when this payload includes field data.
 - If data is limited, still stay within golf and give the best golf lean from the available board.
 ${
   golfHasVerifiedNames
-    ? `- Always name at least one specific golfer whose name appears in the VERIFIED GOLF PLAYERS list above.
-- For betting-market questions: if odds.outrights has numeric prices, THE PLAY must begin with one specific golfer name and market (example: "Collin Morikawa outright +2200") — golfer must be on the verified list. If there are no posted prices, lean on leaderboard / field / course context without inventing odds.`
-    : `- There are no verified golfer names in this payload — do NOT invent golfers. Give course-, field-, or odds-structure analysis only.`
+    ? `- Name the golfer(s) the user asked about when they are known PGA Tour professionals or appear in the GOLF FIELD list above.
+- For betting-market questions: if odds.outrights has numeric prices, THE PLAY must begin with one specific golfer name and market (example: "Collin Morikawa top-20") using prices from context only. If there are no posted prices, lean on form / course fit without inventing odds.`
+    : `- Live field list is thin — still analyze any known PGA Tour pro the user names; do not invent book prices.`
 }
-- Never return a generic team-level or archetype-only answer when the verified golfer list is non-empty without using a named golfer from that list.
 - Do not invent unrelated teams, games, or props.
 
 NO-MARKET FALLBACK RULE (mandatory when odds.outrights is empty or thin but leaderboard or event context exists)
@@ -5800,7 +5822,7 @@ Instead, do ALL of the following:
 
 ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each golfer (only when at least two verified names exist on the VERIFIED GOLF PLAYERS list above), state:
+3. For each golfer (when at least two names exist on the GOLF FIELD list above or the user named known pros), state:
    - The market shape to watch (top-10 / top-20 / make cut / first-round leader)
    - A verbal price band or "only if outright is +X or longer" when odds rows exist;
      if no numbers, give a range in words tied to world ranking and form
@@ -5810,7 +5832,7 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
 5. End with a live trigger: what hole range or round split would flip the lean.
 
-Never open with market-availability throat-clearing. Give monitoring hooks; name only verified golfers when the VERIFIED GOLF PLAYERS list above is non-empty.`;
+Never open with market-availability throat-clearing. Give monitoring hooks; name golfers from the GOLF FIELD list or known PGA Tour pros the user asked about.`;
     }
   } else if (sportHint === "nba") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.

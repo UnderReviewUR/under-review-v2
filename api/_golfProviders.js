@@ -59,6 +59,184 @@ function normalizeName(s) {
   return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
 }
 
+/** Top world-ranking players virtually always in major championship fields (fallback when live feed is thin). */
+export const MAJOR_FIELD_ALWAYS_INCLUDE = [
+  "Scottie Scheffler",
+  "Xander Schauffele",
+  "Rory McIlroy",
+  "Collin Morikawa",
+  "Viktor Hovland",
+  "Patrick Cantlay",
+  "Wyndham Clark",
+  "Ludvig Aberg",
+  "Tommy Fleetwood",
+  "Shane Lowry",
+  "Brooks Koepka",
+  "Jon Rahm",
+  "Bryson DeChambeau",
+  "Jordan Spieth",
+  "Justin Thomas",
+  "Tony Finau",
+  "Min Woo Lee",
+  "Hideki Matsuyama",
+  "Tom Kim",
+  "Jason Day",
+  "Adam Scott",
+  "Matt Fitzpatrick",
+  "Sungjae Im",
+  "Russell Henley",
+  "Sahith Theegala",
+  "Cameron Smith",
+  "Dustin Johnson",
+  "Phil Mickelson",
+  "Tiger Woods",
+  "Max Homa",
+  "Keegan Bradley",
+  "Billy Horschel",
+  "Chris Kirk",
+  "Harris English",
+  "Sepp Straka",
+  "Cameron Young",
+  "Nick Taylor",
+  "Corey Conners",
+  "Taylor Pendrith",
+  "Jake Knapp",
+];
+
+/**
+ * Normalize golfer display names for matching across feeds (ESPN, BDL, user text).
+ * @returns {{ full: string, lastName: string, firstInitial: string }}
+ */
+export function normalizeGolfName(name) {
+  const s = String(name || "").trim().toLowerCase();
+  const clean = s.replace(/\./g, "").replace(/\s+/g, " ").trim();
+  if (s.includes(",")) {
+    const [last, first] = s.split(",").map((p) => p.trim());
+    const full = `${first} ${last}`.replace(/\s+/g, " ").trim();
+    const parts = full.split(" ").filter(Boolean);
+    return {
+      full,
+      lastName: last || parts[parts.length - 1] || "",
+      firstInitial: parts[0]?.[0] || "",
+    };
+  }
+  const parts = clean.split(" ").filter(Boolean);
+  return {
+    full: clean,
+    lastName: parts[parts.length - 1] || "",
+    firstInitial: parts[0]?.[0] || "",
+  };
+}
+
+/** True when two golfer labels refer to the same player (full name or unambiguous last name). */
+export function golfPlayerNamesMatch(a, b, lastNameCounts = null) {
+  const na = normalizeGolfName(a);
+  const nb = normalizeGolfName(b);
+  if (!na.full || !nb.full) return false;
+  if (na.full === nb.full) return true;
+  if (na.lastName && na.lastName === nb.lastName) {
+    if (lastNameCounts && lastNameCounts.get(na.lastName) > 1) return false;
+    if (na.firstInitial && nb.firstInitial && na.firstInitial !== nb.firstInitial) return false;
+    return na.lastName.length >= 3;
+  }
+  return false;
+}
+
+function countGolfLastNames(names) {
+  const counts = new Map();
+  for (const n of names) {
+    const ln = normalizeGolfName(n).lastName;
+    if (!ln) continue;
+    counts.set(ln, (counts.get(ln) || 0) + 1);
+  }
+  return counts;
+}
+
+function dedupeGolfFieldNames(names) {
+  const list = [...names].filter(Boolean);
+  const lastCounts = countGolfLastNames(list);
+  const byLast = new Map();
+  for (const name of list) {
+    const ln = normalizeGolfName(name).lastName || normalizeGolfName(name).full;
+    if (!ln) continue;
+    if (!byLast.has(ln)) byLast.set(ln, []);
+    byLast.get(ln).push(name);
+  }
+  const out = [];
+  for (const [, group] of byLast) {
+    if (group.length === 1) {
+      out.push(group[0]);
+      continue;
+    }
+    const canonical = [...group].sort((a, b) => b.length - a.length)[0];
+    if (lastCounts.get(normalizeGolfName(canonical).lastName) === 1) {
+      out.push(canonical);
+    } else {
+      out.push(...group);
+    }
+  }
+  return out;
+}
+
+/** Known PGA Tour pro in static repo data or major-field fallback list. */
+export function isKnownPgaTourPlayer(playerName) {
+  const raw = String(playerName || "").trim();
+  if (!raw) return false;
+  if (getStaticPlayerSG(raw)) return true;
+  const nl = normalizeGolfName(raw);
+  for (const canonical of MAJOR_FIELD_ALWAYS_INCLUDE) {
+    if (golfPlayerNamesMatch(raw, canonical)) return true;
+  }
+  for (const canonical of Object.keys(PGA_PLAYERS)) {
+    if (golfPlayerNamesMatch(raw, canonical)) return true;
+  }
+  return false;
+}
+
+/**
+ * Build verified field: live leaderboard + rankings + odds field + major fallback.
+ * @param {object} golfContext
+ * @returns {string[]}
+ */
+export function buildCombinedVerifiedGolfField(golfContext) {
+  const names = [];
+  const lb = golfContext?.currentEvent?.leaderboard;
+  if (Array.isArray(lb)) {
+    for (const row of lb) {
+      const n = String(row?.name || row?.player || "").trim();
+      if (n) names.push(n);
+    }
+  }
+  for (const r of golfContext?.rankings || []) {
+    const n = String(r?.name || "").trim();
+    if (n) names.push(n);
+  }
+  const oddsRows = golfContext?.odds?.outrights;
+  if (Array.isArray(oddsRows)) {
+    for (const row of oddsRows) {
+      const n = String(row?.player || "").trim();
+      if (n) names.push(n);
+    }
+  }
+  names.push(...MAJOR_FIELD_ALWAYS_INCLUDE);
+  return dedupeGolfFieldNames(names);
+}
+
+/**
+ * Resolve a golfer name from user text against a field list.
+ * @returns {string|null}
+ */
+export function resolveGolfPlayerInField(queryName, fieldNames) {
+  const q = String(queryName || "").trim();
+  if (!q) return null;
+  const field = Array.isArray(fieldNames) ? fieldNames.filter(Boolean) : [];
+  const lastCounts = countGolfLastNames(field);
+  for (const n of field) {
+    if (golfPlayerNamesMatch(q, n, lastCounts)) return n;
+  }
+  return null;
+}
+
 /**
  * Static strokes-gained bundle from `PGA_PLAYERS` (season averages in repo).
  * Fuzzy match: exact display name, then last-name match vs canonical keys.
@@ -1195,18 +1373,15 @@ function buildGolfOddsFromEspnField(espnField, bdlBundle) {
     byNorm.set(normalizeName(ply), row);
   }
 
+  const bdlKeys = [...byNorm.keys()];
   const outrights = players.map((name) => {
     const nm = normalizeName(name);
     let row = byNorm.get(nm);
     if (!row) {
-      const parts = nm.split(" ").filter(Boolean);
-      const last = parts.length ? parts[parts.length - 1] : "";
-      if (last && last.length > 2) {
-        for (const [k, v] of byNorm) {
-          if (k.endsWith(last)) {
-            row = v;
-            break;
-          }
+      for (const [k, v] of byNorm) {
+        if (golfPlayerNamesMatch(name, k, countGolfLastNames(bdlKeys))) {
+          row = v;
+          break;
         }
       }
     }
