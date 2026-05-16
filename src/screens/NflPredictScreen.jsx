@@ -4,6 +4,17 @@ import { NFL_2026_SCHEDULE } from "../data/nfl2026Schedule.js";
 import { NFL_2026_TEAMS } from "../data/nfl2026Teams.js";
 import { getTeamSchedule } from "../lib/nflPredictDerived.js";
 import {
+  bracketSeedFingerprint,
+  clearSavedBracket,
+  getBracketWinner,
+  initBracket,
+  loadBracket,
+  mergeSavedBracket,
+  pickBracketGame,
+  saveBracket,
+} from "../lib/nflPredictBracket.js";
+import { getPlayoffPicture } from "../lib/nflPredictPlayoffs.js";
+import {
   clearAllPicks,
   clearTeamPicks,
   decodePicks,
@@ -46,13 +57,43 @@ export default function NflPredictScreen({
   const completionShownRef = useRef(new Set());
   const completionTimerRef = useRef(null);
   const clearToastTimerRef = useRef(null);
+  const [bracket, setBracket] = useState(null);
+  const [showSbConfetti, setShowSbConfetti] = useState(false);
+  const [sbOverlay, setSbOverlay] = useState(null);
+  const bracketFingerprintRef = useRef(null);
+  const sbOverlayTimerRef = useRef(null);
 
-  const goToView = useCallback((view) => {
-    setActiveView(view);
-    queueMicrotask(() => {
-      mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
-    });
-  }, []);
+  const buildBracketFromPicks = useCallback(
+    (pickState) => {
+      const pic = getPlayoffPicture(pickState, schedule, teams);
+      let next = initBracket(pic);
+      const saved = loadBracket();
+      if (saved && saved.seedFingerprint === next.seedFingerprint) {
+        next = mergeSavedBracket(next, saved);
+      }
+      return next;
+    },
+    [schedule, teams],
+  );
+
+  const hydrateBracket = useCallback(() => {
+    const next = buildBracketFromPicks(loadPicks());
+    setBracket(next);
+    bracketFingerprintRef.current = next.seedFingerprint;
+    setShowSbConfetti(false);
+    setSbOverlay(null);
+  }, [buildBracketFromPicks]);
+
+  const goToView = useCallback(
+    (view) => {
+      if (view === "playoffs") hydrateBracket();
+      setActiveView(view);
+      queueMicrotask(() => {
+        mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
+      });
+    },
+    [hydrateBracket],
+  );
 
   const onViewPlayoffs = useCallback(() => goToView("playoffs"), [goToView]);
 
@@ -141,7 +182,48 @@ export default function NflPredictScreen({
     return () => {
       if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
       if (clearToastTimerRef.current) clearTimeout(clearToastTimerRef.current);
+      if (sbOverlayTimerRef.current) clearTimeout(sbOverlayTimerRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    if (activeView !== "playoffs") return;
+    const onPick = () => {
+      const current = loadPicks();
+      const pic = getPlayoffPicture(current, schedule, teams);
+      const fp = bracketSeedFingerprint(pic);
+      if (bracketFingerprintRef.current && fp !== bracketFingerprintRef.current) {
+        clearSavedBracket();
+        const fresh = initBracket(pic);
+        setBracket(fresh);
+        bracketFingerprintRef.current = fresh.seedFingerprint;
+        setShowSbConfetti(false);
+        setSbOverlay(null);
+      }
+    };
+    window.addEventListener("nfl-pick-updated", onPick);
+    return () => window.removeEventListener("nfl-pick-updated", onPick);
+  }, [activeView, schedule, teams]);
+
+  const handleBracketPick = useCallback((gameId, winnerAbbr) => {
+    setBracket((prev) => {
+      if (!prev) return prev;
+      const hadSb = Boolean(prev.superBowl.winner);
+      const next = pickBracketGame(prev, gameId, winnerAbbr);
+      saveBracket(next);
+      if (!hadSb && next.superBowl.winner) {
+        const champ = getBracketWinner(next);
+        if (sbOverlayTimerRef.current) clearTimeout(sbOverlayTimerRef.current);
+        sbOverlayTimerRef.current = setTimeout(() => {
+          setShowSbConfetti(true);
+          setSbOverlay(champ);
+        }, 800);
+      } else if (!next.superBowl.winner) {
+        setShowSbConfetti(false);
+        setSbOverlay(null);
+      }
+      return next;
+    });
   }, []);
 
   const showPicksClearedToast = useCallback(() => {
@@ -473,18 +555,14 @@ export default function NflPredictScreen({
 
       {activeView === "playoffs" ? (
         <div style={{ padding: "4px 0 0" }}>
-          <p style={{ fontSize: 13, color: "var(--nfl-predict-muted)", padding: "0 14px 10px", margin: 0, lineHeight: 1.45 }}>
-            Your projected 14-team field from picks + Vegas win totals. Keep picking the regular season to move teams in or
-            out — then share your board or go deeper on PRO.
-          </p>
-          <PlayoffPicture picks={picks} schedule={schedule} teams={teams} />
+          <PlayoffPicture bracket={bracket} onPickGame={handleBracketPick} showSbConfetti={showSbConfetti} />
           <NflPredictPlayoffFooter
             picks={picks}
             isPro={isPro}
             restoreProEntitlement={restoreProEntitlement}
             setUserEmail={setUserEmail}
             onSubscribePro={onSubscribePro}
-            onContinuePicking={() => goToView("teams")}
+            onContinuePicking={() => goToView("playoffs")}
           />
         </div>
       ) : null}
@@ -510,6 +588,77 @@ export default function NflPredictScreen({
           onViewPlayoffs={handleCompletionViewPlayoffs}
           onContinue={handleCompletionContinue}
         />
+      ) : null}
+
+      {sbOverlay ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            background: `linear-gradient(165deg, ${sbOverlay.primaryColor}44, rgba(8,8,8,.97))`,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 28,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
+          <h2 style={{ margin: "0 0 16px", fontSize: 22, fontWeight: 900, lineHeight: 1.3, color: "#fff" }}>
+            {sbOverlay.fullName} wins Super Bowl LXI!
+          </h2>
+          <img
+            src={sbOverlay.logoUrl}
+            alt=""
+            width={80}
+            height={80}
+            style={{ width: 80, height: 80, objectFit: "contain", marginBottom: 24 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowShareModal(true)}
+            style={{
+              width: "100%",
+              maxWidth: 320,
+              minHeight: 48,
+              borderRadius: 12,
+              border: "none",
+              background: "var(--nfl-predict-accent)",
+              color: "#080808",
+              fontWeight: 800,
+              fontSize: 14,
+              cursor: "pointer",
+              marginBottom: 10,
+            }}
+          >
+            Share your prediction →
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSbOverlay(null);
+              goToView("teams");
+            }}
+            style={{
+              width: "100%",
+              maxWidth: 320,
+              minHeight: 48,
+              borderRadius: 12,
+              border: "1px solid #444",
+              background: "transparent",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            See your full picks →
+          </button>
+        </div>
       ) : null}
 
       {showClearToast ? (

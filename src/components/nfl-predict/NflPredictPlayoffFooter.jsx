@@ -20,7 +20,6 @@ export default function NflPredictPlayoffFooter({
   const [shareToast, setShareToast] = useState("");
 
   const count = useMemo(() => pickedCount(picks), [picks]);
-  const seasonDone = count >= 272;
 
   const fallbackUrl = useMemo(() => {
     const enc = encodePicks(picks);
@@ -87,20 +86,12 @@ export default function NflPredictPlayoffFooter({
           ROAD TO THE SUPER BOWL
         </div>
         <h3 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 800, lineHeight: 1.3 }}>
-          {seasonDone ? "Playoff field locked — what’s next?" : "Keep predicting to shape the bracket"}
+          Pick your way through the bracket
         </h3>
-        <ol style={{ margin: "0 0 14px", paddingLeft: 18, fontSize: 13, color: "var(--nfl-predict-muted)", lineHeight: 1.55 }}>
-          <li style={{ marginBottom: 6 }}>
-            <strong style={{ color: "var(--nfl-predict-text)" }}>Regular season</strong> — pick all 272 games (
-            <span style={{ color: "var(--nfl-predict-accent)" }}>{count}/272</span>)
-          </li>
-          <li style={{ marginBottom: 6 }}>
-            <strong style={{ color: "var(--nfl-predict-text)" }}>Playoff picture</strong> — seeds & wild-card race (you’re here)
-          </li>
-          <li>
-            <strong style={{ color: "var(--nfl-predict-text)" }}>Super Bowl & props</strong> — divisional through SB picks on PRO
-          </li>
-        </ol>
+        <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--nfl-predict-muted)", lineHeight: 1.55 }}>
+          Wild Card → Divisional → Championship → Super Bowl. Bracket picks are separate from your regular-season board (
+          <span style={{ color: "var(--nfl-predict-accent)" }}>{count}/272</span> games picked).
+        </p>
         <button
           type="button"
           onClick={onContinuePicking}
@@ -116,7 +107,7 @@ export default function NflPredictPlayoffFooter({
             cursor: "pointer",
           }}
         >
-          {seasonDone ? "Review & tweak picks →" : "Continue predicting →"}
+          Pick the bracket →
         </button>
       </section>
 

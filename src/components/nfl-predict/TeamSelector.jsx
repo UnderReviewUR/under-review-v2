@@ -161,20 +161,27 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam, onV
                       color: "var(--nfl-predict-text)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flexWrap: "nowrap" }}>
                       <CardTeamLogo team={team} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{team.shortName}</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, alignItems: "center" }}>
                           <span
                             style={{
-                              display: "inline-block",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                               background: pc,
                               color: sc,
                               borderRadius: 20,
-                              padding: "2px 8px",
+                              padding: "3px 8px",
                               fontSize: 11,
                               fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                              lineHeight: 1.2,
+                              minWidth: 60,
+                              textAlign: "center",
                             }}
                           >
                             O/U {team.winTotal}

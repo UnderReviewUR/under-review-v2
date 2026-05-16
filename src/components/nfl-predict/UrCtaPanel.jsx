@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { formatNflSeasonCountdownLine, getDaysUntilNfl2026SeasonStart } from "../../lib/nflSeasonCountdown.js";
+
 const LS_DISMISS = "ur_nfl_2026_cta_dismissed";
 
 export default function UrCtaPanel({ dismissible = true }) {
@@ -12,6 +14,15 @@ export default function UrCtaPanel({ dismissible = true }) {
     }
   });
 
+  const [daysUntil, setDaysUntil] = useState(() => getDaysUntilNfl2026SeasonStart());
+
+  useEffect(() => {
+    const tick = () => setDaysUntil(getDaysUntilNfl2026SeasonStart());
+    tick();
+    const id = window.setInterval(tick, 60 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!dismissible || !dismissed) return;
     try {
@@ -22,6 +33,8 @@ export default function UrCtaPanel({ dismissible = true }) {
   }, [dismissible, dismissed]);
 
   if (dismissible && dismissed) return null;
+
+  const countdownLine = formatNflSeasonCountdownLine(daysUntil);
 
   const body = (
     <div
@@ -60,7 +73,7 @@ export default function UrCtaPanel({ dismissible = true }) {
         </button>
       ) : null}
       <div style={{ fontSize: 14, lineHeight: 1.55, color: "var(--nfl-predict-text)", whiteSpace: "pre-line" }}>
-        {`The NFL season is 116 days away.
+        {`${countdownLine}
 
 While you're locking in your predictions, the sharpest bettors are already building their edge.
 
@@ -88,7 +101,7 @@ The people subbing now are the ones ready when it matters.`}
           textDecoration: "none",
         }}
       >
-        Get the edge now →
+        Try it free →
       </a>
     </div>
   );
