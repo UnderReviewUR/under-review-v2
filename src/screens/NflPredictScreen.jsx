@@ -13,6 +13,7 @@ import {
 import DivisionStandings from "../components/nfl-predict/DivisionStandings.jsx";
 import GameCard from "../components/nfl-predict/GameCard.jsx";
 import PlayoffPicture from "../components/nfl-predict/PlayoffPicture.jsx";
+import SeasonCompleteOverlay from "../components/nfl-predict/SeasonCompleteOverlay.jsx";
 import ShareModal from "../components/nfl-predict/ShareModal.jsx";
 import TeamSelector from "../components/nfl-predict/TeamSelector.jsx";
 import UrCtaPanel from "../components/nfl-predict/UrCtaPanel.jsx";
@@ -29,8 +30,11 @@ export default function NflPredictScreen() {
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [selectedConference, setSelectedConference] = useState("AFC");
   const [showShareModal, setShowShareModal] = useState(false);
+  const [completionOverlayTeam, setCompletionOverlayTeam] = useState(null);
   const initRef = useRef(false);
   const mainRef = useRef(null);
+  const completionShownRef = useRef(new Set());
+  const completionTimerRef = useRef(null);
 
   const goToView = useCallback((view) => {
     setActiveView(view);
@@ -106,6 +110,38 @@ export default function NflPredictScreen() {
     () => (selectedTeam ? getTeamSchedule(selectedTeam, schedule) : []),
     [selectedTeam, schedule],
   );
+
+  const handleGamePicked = useCallback(() => {
+    const current = loadPicks();
+    setPicks(current);
+    if (!selectedTeam || activeView !== "schedule") return;
+    const sched = getTeamSchedule(selectedTeam, schedule);
+    const count = sched.filter((g) => current[g.id]?.winner).length;
+    if (count < 17) return;
+    if (completionShownRef.current.has(selectedTeam)) return;
+    completionShownRef.current.add(selectedTeam);
+    if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+    completionTimerRef.current = setTimeout(() => {
+      setCompletionOverlayTeam(selectedTeam);
+    }, 600);
+  }, [selectedTeam, schedule, activeView]);
+
+  useEffect(() => {
+    return () => {
+      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+    };
+  }, []);
+
+  const handleCompletionViewPlayoffs = useCallback(() => {
+    setCompletionOverlayTeam(null);
+    goToView("playoffs");
+  }, [goToView]);
+
+  const handleCompletionContinue = useCallback(() => {
+    setCompletionOverlayTeam(null);
+    setSelectedTeam(null);
+    goToView("teams");
+  }, [goToView]);
 
   const makeOwn = useCallback(() => {
     clearAllPicks();
@@ -295,6 +331,7 @@ export default function NflPredictScreen() {
                     teams={teams}
                     focusTeam={selectedTeam}
                     onPick={syncFromStorage}
+                    onPicked={handleGamePicked}
                   />
                 </div>
               ))}
@@ -354,8 +391,8 @@ export default function NflPredictScreen() {
       {activeView === "playoffs" ? (
         <div style={{ padding: "4px 0 24px" }}>
           <p style={{ fontSize: 13, color: "var(--nfl-predict-muted)", padding: "0 14px 10px", margin: 0, lineHeight: 1.45 }}>
-            Projected 14-team field from your picks (seeds 1–7 per conference). Pick more games to move teams in or out
-            of the bracket.
+            Projected 14-team field from your picks and Vegas win totals. Pick games to override projections and move teams
+            in or out of the bracket.
           </p>
           <PlayoffPicture picks={picks} schedule={schedule} teams={teams} />
         </div>
@@ -370,6 +407,17 @@ export default function NflPredictScreen() {
           isViewingShared={isViewingShared}
           onMakeOwn={makeOwn}
           onClose={() => setShowShareModal(false)}
+        />
+      ) : null}
+
+      {completionOverlayTeam ? (
+        <SeasonCompleteOverlay
+          teamAbbr={completionOverlayTeam}
+          picks={picks}
+          schedule={schedule}
+          teams={teams}
+          onViewPlayoffs={handleCompletionViewPlayoffs}
+          onContinue={handleCompletionContinue}
         />
       ) : null}
     </main>

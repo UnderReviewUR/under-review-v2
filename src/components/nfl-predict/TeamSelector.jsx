@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { getTeamRecord } from "../../lib/nflPredictDerived.js";
+import { formatProjectedRecordDecimal, getProjectedRecord } from "../../lib/nflPredictDerived.js";
 import { getPlayoffPicture } from "../../lib/nflPredictPlayoffs.js";
 
 function CardTeamLogo({ team }) {
@@ -45,29 +45,26 @@ function CardTeamLogo({ team }) {
 
 const DIV_ORDER = ["AFC East", "AFC North", "AFC South", "AFC West", "NFC East", "NFC North", "NFC South", "NFC West"];
 
-/** @param {Record<string, number>} seedByAbbr */
-function playoffBadgeLabel(seedByAbbr, abbr) {
-  const seed = seedByAbbr[abbr];
-  if (seed == null) return null;
-  return `#${seed} Seed`;
-}
-
 export default function TeamSelector({ picks, schedule, teams, onSelectTeam, onViewPlayoffs }) {
   const [q, setQ] = useState("");
   const [hoverAbbr, setHoverAbbr] = useState(null);
 
   const pickedCount = useMemo(() => Object.keys(picks || {}).filter((id) => picks[id]?.winner).length, [picks]);
 
-  const seedByAbbr = useMemo(() => {
+  const { seedByAbbr, divLeaderSet } = useMemo(() => {
     const pic = getPlayoffPicture(picks, schedule, teams);
     const map = {};
+    const leaders = new Set();
     for (const side of [pic.afc, pic.nfc]) {
       for (const s of side.seeds || []) {
         const abbr = s.team?.abbr;
         if (abbr) map[abbr] = s.seed;
       }
+      for (const d of side.divisionWinners || []) {
+        if (d.abbr) leaders.add(d.abbr);
+      }
     }
-    return map;
+    return { seedByAbbr: map, divLeaderSet: leaders };
   }, [picks, schedule, teams]);
 
   const filtered = useMemo(() => {
@@ -133,13 +130,14 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam, onV
               }}
             >
               {inDiv.map((team) => {
-                const r = getTeamRecord(team.abbr, picks, schedule);
+                const r = getProjectedRecord(team.abbr, picks, schedule, teams);
                 const picked = r.wins + r.losses;
                 const pct = picked === 0 ? 0 : (picked / 17) * 100;
                 const hovered = hoverAbbr === team.abbr;
                 const pc = team.primaryColor;
                 const sc = team.secondaryColor;
-                const seedLabel = playoffBadgeLabel(seedByAbbr, team.abbr);
+                const seed = seedByAbbr[team.abbr];
+                const isDivLeader = divLeaderSet.has(team.abbr);
                 return (
                   <button
                     key={team.abbr}
@@ -181,19 +179,24 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam, onV
                           >
                             O/U {team.winTotal}
                           </span>
-                          {seedLabel ? (
+                          {seed != null ? (
+                            <span style={{ fontSize: 12 }} title={`#${seed} seed`}>
+                              🏆
+                            </span>
+                          ) : null}
+                          {isDivLeader ? (
                             <span
                               style={{
                                 display: "inline-block",
-                                border: `1px solid ${pc}`,
-                                color: pc,
+                                background: pc,
+                                color: sc,
                                 borderRadius: 20,
                                 padding: "2px 8px",
                                 fontSize: 10,
                                 fontWeight: 800,
                               }}
                             >
-                              🏆 {seedLabel}
+                              DIV
                             </span>
                           ) : null}
                         </div>
@@ -213,8 +216,11 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam, onV
                       </svg>
                     </div>
                     <div style={{ fontSize: 12, color: "var(--nfl-predict-muted)" }}>
-                      {r.wins}-{r.losses}
-                      {r.remaining ? ` (${r.remaining} left)` : ""}
+                      Proj: {formatProjectedRecordDecimal(r)}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--nfl-predict-muted)", opacity: 0.75 }}>
+                      Picked {r.wins}-{r.losses}
+                      {r.remaining ? ` · ${r.remaining} left` : ""}
                     </div>
                   </button>
                 );

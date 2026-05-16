@@ -73,7 +73,7 @@ function PickButtonLogo({ team }) {
   );
 }
 
-export default function GameCard({ game, picks, schedule, teams, onPick, focusTeam }) {
+export default function GameCard({ game, picks, schedule, teams, onPick, onPicked, focusTeam }) {
   const teamMap = useMemo(() => Object.fromEntries(teams.map((t) => [t.abbr, t])), [teams]);
   const away = teamMap[game.awayTeam];
   const home = teamMap[game.homeTeam];
@@ -90,8 +90,8 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
   const hypothetical = useMemo(() => {
     if (!pick?.winner || !focusTeam) return null;
     const merged = { ...picks, [game.id]: { winner: pick.winner, confidence: pick.confidence || 80 } };
-    return getTeamRecord(focusTeam, merged, schedule);
-  }, [pick, picks, game.id, focusTeam, schedule]);
+    return getTeamRecord(focusTeam, merged, schedule, teams);
+  }, [pick, picks, game.id, focusTeam, schedule, teams]);
 
   const net = networkStyle(game.network);
   const networkBadgeText = net.label ?? game.network;
@@ -105,6 +105,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
   const setWinner = (abbr) => {
     savePick(game.id, abbr, pick?.confidence ?? 80);
     onPick?.();
+    onPicked?.();
   };
 
   const confPills = [60, 70, 80, 90, 100];
@@ -114,7 +115,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
     const sc = team?.secondaryColor || "#fff";
     const isWinner = winner === sideAbbr;
     const isLoser = winner && winner !== sideAbbr;
-    const transition = "opacity 150ms ease, box-shadow 150ms ease";
+    const transition = "opacity 150ms ease, box-shadow 150ms ease, border-color 150ms ease";
     if (isWinner) {
       return {
         borderRadius: 12,
@@ -274,15 +275,20 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
         className="nfl-predict-confidence"
         style={{
           marginTop: 12,
-          minHeight: 76,
-          opacity: winner ? 1 : 0,
-          pointerEvents: winner ? "auto" : "none",
-          transition: "opacity 150ms ease",
+          height: 62,
         }}
         aria-hidden={!winner}
       >
+        <div
+          style={{
+            visibility: winner ? "visible" : "hidden",
+            opacity: winner ? 1 : 0,
+            pointerEvents: winner ? "auto" : "none",
+            transition: "opacity 150ms ease",
+          }}
+        >
           <div style={{ fontSize: 11, color: "var(--nfl-predict-muted)", marginBottom: 6 }}>Confidence</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, height: 44, alignItems: "center" }}>
             {confPills.map((c) => {
               const t = winner ? teams.find((x) => x.abbr === winner) : null;
               const active = winner && (pick?.confidence ?? 80) === c;
@@ -296,6 +302,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
                     if (!winner) return;
                     savePick(game.id, winner, c);
                     onPick?.();
+                    onPicked?.();
                   }}
                   style={{
                     minHeight: 44,
@@ -314,6 +321,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
               );
             })}
           </div>
+        </div>
       </div>
       {hypothetical && focusTeam ? (
         <div style={{ marginTop: 10, fontSize: 12, color: "var(--nfl-predict-muted)" }}>

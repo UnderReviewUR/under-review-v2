@@ -1,4 +1,9 @@
-import { getTeamRecord } from "./nflPredictDerived.js";
+import { getProjectedRecord, getTeamRecord } from "./nflPredictDerived.js";
+
+/** @param {number} n */
+function round1(n) {
+  return Math.round(n * 10) / 10;
+}
 
 /** @param {string} abbr @param {readonly import("../data/nfl2026Teams.js").Nfl2026Team[]} teams */
 function confOf(abbr, teams) {
@@ -102,10 +107,9 @@ function opponentsList(abbr, schedule) {
  * @param {Record<string, { winner?: string }>} picks
  * @param {readonly import("./nflPredictDerived.js").NflGame[]} schedule
  */
-function pickWinPct(abbr, picks, schedule) {
-  const r = getTeamRecord(abbr, picks, schedule);
-  const d = r.wins + r.losses;
-  return d === 0 ? 0 : r.wins / d;
+function pickWinPct(abbr, picks, schedule, teams) {
+  const r = getProjectedRecord(abbr, picks, schedule, teams);
+  return r.projectedWins / 17;
 }
 
 /**
@@ -114,7 +118,7 @@ function pickWinPct(abbr, picks, schedule) {
  * @param {Record<string, { winner?: string }>} picks
  * @param {readonly import("./nflPredictDerived.js").NflGame[]} schedule
  */
-function strengthOfVictory(abbr, picks, schedule) {
+function strengthOfVictory(abbr, picks, schedule, teams) {
   let acc = 0;
   let n = 0;
   for (const g of schedule) {
@@ -123,7 +127,7 @@ function strengthOfVictory(abbr, picks, schedule) {
     const pk = picks[g.id];
     if (!pk?.winner) continue;
     if (pk.winner !== abbr) continue;
-    acc += pickWinPct(opp, picks, schedule);
+    acc += pickWinPct(opp, picks, schedule, teams);
     n += 1;
   }
   return n === 0 ? 0 : acc / n;
@@ -135,11 +139,11 @@ function strengthOfVictory(abbr, picks, schedule) {
  * @param {Record<string, { winner?: string }>} picks
  * @param {readonly import("./nflPredictDerived.js").NflGame[]} schedule
  */
-function strengthOfSchedule(abbr, picks, schedule) {
+function strengthOfSchedule(abbr, picks, schedule, teams) {
   const opps = opponentsList(abbr, schedule);
   if (opps.length === 0) return 0;
   let s = 0;
-  for (const o of opps) s += pickWinPct(o, picks, schedule);
+  for (const o of opps) s += pickWinPct(o, picks, schedule, teams);
   return s / opps.length;
 }
 
@@ -215,7 +219,21 @@ function netPointsConference(abbr, picks, schedule, teams) {
  * Two-team, same division (NFL order per spec).
  * @returns {number} negative if `a` ranks above `b`
  */
+/**
+ * @returns {number} negative if `a` ranks above `b`
+ */
+export function compareProjectedWins(a, b, picks, schedule, teams) {
+  const ra = getProjectedRecord(a, picks, schedule, teams);
+  const rb = getProjectedRecord(b, picks, schedule, teams);
+  const cmp = rb.projectedWins - ra.projectedWins;
+  if (cmp !== 0) return cmp;
+  return ra.projectedLosses - rb.projectedLosses;
+}
+
 export function compareSameDivision(a, b, picks, schedule, teams, division) {
+  const proj = compareProjectedWins(a, b, picks, schedule, teams);
+  if (proj !== 0) return proj;
+
   const h2h = getHeadToHead(a, b, picks, schedule);
   const hcmp = h2h.winsB - h2h.winsA;
   if (hcmp !== 0) return hcmp;
@@ -236,12 +254,12 @@ export function compareSameDivision(a, b, picks, schedule, teams, division) {
   const confCmp = cbConf.wins - caConf.wins || caConf.losses - cbConf.losses;
   if (confCmp !== 0) return confCmp;
 
-  const sovA = strengthOfVictory(a, picks, schedule);
-  const sovB = strengthOfVictory(b, picks, schedule);
+  const sovA = strengthOfVictory(a, picks, schedule, teams);
+  const sovB = strengthOfVictory(b, picks, schedule, teams);
   if (sovA !== sovB) return sovB - sovA;
 
-  const sosA = strengthOfSchedule(a, picks, schedule);
-  const sosB = strengthOfSchedule(b, picks, schedule);
+  const sosA = strengthOfSchedule(a, picks, schedule, teams);
+  const sosB = strengthOfSchedule(b, picks, schedule, teams);
   if (sosA !== sosB) return sosB - sosA;
 
   const netDiv =
@@ -261,10 +279,8 @@ export function compareSameDivision(a, b, picks, schedule, teams, division) {
  * @returns {number} negative if `a` ranks above `b`
  */
 export function compareDifferentDivisionSameConference(a, b, picks, schedule, teams) {
-  const ra = getTeamRecord(a, picks, schedule);
-  const rb = getTeamRecord(b, picks, schedule);
-  const cmpWL = rb.wins - ra.wins || ra.losses - rb.losses;
-  if (cmpWL !== 0) return cmpWL;
+  const proj = compareProjectedWins(a, b, picks, schedule, teams);
+  if (proj !== 0) return proj;
 
   const h2h = getHeadToHead(a, b, picks, schedule);
   if (h2h.winsA + h2h.winsB > 0) {
@@ -285,12 +301,12 @@ export function compareDifferentDivisionSameConference(a, b, picks, schedule, te
     if (ccmp !== 0) return ccmp;
   }
 
-  const sovA = strengthOfVictory(a, picks, schedule);
-  const sovB = strengthOfVictory(b, picks, schedule);
+  const sovA = strengthOfVictory(a, picks, schedule, teams);
+  const sovB = strengthOfVictory(b, picks, schedule, teams);
   if (sovA !== sovB) return sovB - sovA;
 
-  const sosA = strengthOfSchedule(a, picks, schedule);
-  const sosB = strengthOfSchedule(b, picks, schedule);
+  const sosA = strengthOfSchedule(a, picks, schedule, teams);
+  const sosB = strengthOfSchedule(b, picks, schedule, teams);
   if (sosA !== sosB) return sosB - sosA;
 
   const netC =
@@ -361,7 +377,7 @@ export function getPlayoffPicture(picks, schedule, teams) {
     const divisionWinners = Object.entries(divTeams).map(([div, abbr]) => ({
       div,
       abbr,
-      record: getTeamRecord(abbr, picks, schedule),
+      record: getTeamRecord(abbr, picks, schedule, teams),
       team: teams.find((t) => t.abbr === abbr),
     }));
 
@@ -385,27 +401,29 @@ export function getPlayoffPicture(picks, schedule, teams) {
     const seedsWc = wcTop.map((abbr, i) => ({
       seed: i + 5,
       team: teams.find((t) => t.abbr === abbr),
-      record: getTeamRecord(abbr, picks, schedule),
+      record: getTeamRecord(abbr, picks, schedule, teams),
     }));
 
     const seeds = [...seedsDw, ...seedsWc];
 
     const playoffSet = new Set([...dwSet, ...wcTop]);
     const lastWc = wcTop[wcTop.length - 1];
-    const lastRec = lastWc ? getTeamRecord(lastWc, picks, schedule) : { wins: 0, losses: 0, remaining: 17 };
+    const lastRec = lastWc
+      ? getProjectedRecord(lastWc, picks, schedule, teams)
+      : { wins: 0, losses: 0, remaining: 17, projectedWins: 0, projectedLosses: 17 };
 
     const bubblePool = teams
       .filter((t) => t.conference === conf && !playoffSet.has(t.abbr))
       .map((t) => t.abbr)
       .sort((a, b) => compareConferenceTeams(a, b, picks, schedule, teams));
 
-    const bubble = bubblePool.slice(0, 4).map((abbr) => {
-      const r = getTeamRecord(abbr, picks, schedule);
-      const gb = ((lastRec.wins - r.wins) + (r.losses - lastRec.losses)) / 2;
+    const bubble = bubblePool.slice(0, 3).map((abbr) => {
+      const r = getProjectedRecord(abbr, picks, schedule, teams);
+      const winsOut = Math.max(0, round1(lastRec.projectedWins - r.projectedWins));
       return {
         team: teams.find((t) => t.abbr === abbr),
         record: r,
-        gamesBack: Math.max(0, gb),
+        winsOut,
       };
     });
 

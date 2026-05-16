@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { formatProjectedRecordDecimal } from "../../lib/nflPredictDerived.js";
 import { getDivisionStandings } from "../../lib/nflPredictStandings.js";
 import { getPlayoffPicture } from "../../lib/nflPredictPlayoffs.js";
 
@@ -102,7 +103,7 @@ export default function DivisionStandings({ picks, schedule, teams, conference }
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 36px 36px 52px 1fr",
+                  gridTemplateColumns: "1fr 72px 36px 36px 1fr",
                   gap: 4,
                   padding: "8px 10px",
                   background: "#101010",
@@ -112,9 +113,9 @@ export default function DivisionStandings({ picks, schedule, teams, conference }
                 }}
               >
                 <span>Team</span>
+                <span style={{ textAlign: "center" }}>Proj</span>
                 <span style={{ textAlign: "center" }}>W</span>
                 <span style={{ textAlign: "center" }}>L</span>
-                <span style={{ textAlign: "center" }}>Rem</span>
                 <span>Playoff</span>
               </div>
               {rows.map((row) => {
@@ -127,7 +128,7 @@ export default function DivisionStandings({ picks, schedule, teams, conference }
                     key={row.team.abbr}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 36px 36px 52px 1fr",
+                      gridTemplateColumns: "1fr 72px 36px 36px 1fr",
                       gap: 4,
                       padding: "10px 10px",
                       borderTop: "1px solid var(--nfl-predict-border)",
@@ -150,13 +151,22 @@ export default function DivisionStandings({ picks, schedule, teams, conference }
                         {row.team.shortName}
                       </span>
                     </div>
+                    <span
+                      style={{
+                        textAlign: "center",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--nfl-predict-accent)",
+                      }}
+                    >
+                      {formatProjectedRecordDecimal(row)}
+                    </span>
                     <span style={{ textAlign: "center", color: "var(--nfl-predict-muted)", transition: "color 200ms ease" }}>
                       {row.wins}
                     </span>
                     <span style={{ textAlign: "center", color: "var(--nfl-predict-muted)", transition: "color 200ms ease" }}>
                       {row.losses}
                     </span>
-                    <span style={{ textAlign: "center", color: "var(--nfl-predict-muted)" }}>{row.remaining}</span>
                     <span style={{ fontSize: 11, fontWeight: 700 }}>
                       {isDivLeader ? (
                         <span

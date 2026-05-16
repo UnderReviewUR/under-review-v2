@@ -1,4 +1,4 @@
-import { getTeamRecord } from "./nflPredictDerived.js";
+import { getProjectedRecord } from "./nflPredictDerived.js";
 import { compareTeamsForDivisionTable } from "./nflPredictPlayoffs.js";
 
 export function getAllDivisions() {
@@ -23,12 +23,22 @@ export function getAllDivisions() {
 export function getDivisionStandings(division, picks, schedule, teams) {
   const inDiv = teams.filter((t) => t.division === division);
   const rows = inDiv.map((team) => {
-    const r = getTeamRecord(team.abbr, picks, schedule);
+    const r = getProjectedRecord(team.abbr, picks, schedule, teams);
     const d = r.wins + r.losses;
     const pct = d === 0 ? 0 : r.wins / d;
-    return { team, wins: r.wins, losses: r.losses, remaining: r.remaining, pct };
+    return {
+      team,
+      wins: r.wins,
+      losses: r.losses,
+      remaining: r.remaining,
+      projectedWins: r.projectedWins,
+      projectedLosses: r.projectedLosses,
+      pct,
+    };
   });
   rows.sort((a, b) => {
+    if (b.projectedWins !== a.projectedWins) return b.projectedWins - a.projectedWins;
+    if (a.projectedLosses !== b.projectedLosses) return a.projectedLosses - b.projectedLosses;
     if (b.wins !== a.wins) return b.wins - a.wins;
     if (a.losses !== b.losses) return a.losses - b.losses;
     return compareTeamsForDivisionTable(a.team.abbr, b.team.abbr, picks, schedule, teams, division);
