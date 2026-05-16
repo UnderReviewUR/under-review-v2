@@ -11,9 +11,36 @@ import {
   getNflTeamAbbrFromName,
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
+import { formatPropContextForPlayers } from "./_nflPropLineContext.js";
 
 /** Hard ceiling for `promptContext` text sent with UR Take (Anthropic payload budget). */
 export const NFL_PROMPT_CONTEXT_BUDGET_CHARS = 20000;
+
+/**
+ * Extract player names already present in assembled NFL prompt text.
+ * @param {string} promptText
+ * @returns {string[]}
+ */
+export function extractNflPlayerNamesFromPromptText(promptText) {
+  const names = new Set();
+  const text = String(promptText || "");
+
+  const pipeRe = /^([^\n|]{2,})\s+\|\s+(RB|WR|TE|QB)\s+\|/gm;
+  let match;
+  while ((match = pipeRe.exec(text))) {
+    const name = String(match[1] || "").trim();
+    if (name) names.add(name);
+  }
+
+  const dbRe =
+    /^([A-Z][a-zA-Z'.-]+(?:\s+(?:Jr\.|Sr\.|[A-Z][a-zA-Z'.-]+)){0,3})\s+\([A-Z]{2,4}/gm;
+  while ((match = dbRe.exec(text))) {
+    const name = String(match[1] || "").trim();
+    if (name) names.add(name);
+  }
+
+  return [...names];
+}
 
 /** BallDontLie is not used for NFL game-by-game logs in this stack — no NBA-style recentGames sort path here. */
 
@@ -418,6 +445,13 @@ export async function buildCanonicalNflContext(options = {}) {
     if (injured.length) {
       promptContext += "\n\nNFL INJURY REPORT (ESPN, updated every 6hrs):\n" + injured.join("\n");
     }
+  }
+
+  // ── PROP LINE CONTEXT (before char budget trim) ─────────────────
+  const propPlayerNames = extractNflPlayerNamesFromPromptText(promptContext);
+  const propSlice = formatPropContextForPlayers(propPlayerNames, 4);
+  if (propSlice) {
+    promptContext += propSlice;
   }
 
   if (promptContext.length > NFL_PROMPT_CONTEXT_BUDGET_CHARS) {

@@ -25,6 +25,7 @@ import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
+import { formatPropContextForPlayers } from "./_nflPropLineContext.js";
 import {
   buildTeamDraftFocusBlock,
   getActiveDraftBundle,
@@ -6224,7 +6225,14 @@ No bet now; re-run once verified player context is loaded.`;
       (teamCapitalBlock ? `\n\n---\n\n${teamCapitalBlock}` : "");
     const nflVerifiedBlock = buildNflVerifiedPlayerListBlock(nflContextEffective);
 
-    userPrompt = `You are answering an NFL betting question.
+    const questionPropNames = [];
+    if (subject) questionPropNames.push(subject);
+    if (matchedPlayer && !questionPropNames.includes(matchedPlayer)) {
+      questionPropNames.push(matchedPlayer);
+    }
+    const questionPropSlice = formatPropContextForPlayers(questionPropNames, 3);
+
+    let nflUserPromptBody = `You are answering an NFL betting question.
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${question}
@@ -6359,7 +6367,9 @@ Rules:
 - Draft identity enforcement: for draft-centric questions, any prospect name outside VERIFIED 2026 DRAFT PROSPECT ANCHORS must be labeled "simulation-only (UDFA-range)" before analysis.
 - Do not invent unrelated games, props, role changes, or target-share claims.
 
-- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation — **except in NFL DRAFT TEAM SIMULATION (see below)**, where staleness belongs only in the single CONFIDENCE block at the end. Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.
+- Data staleness: If DATA FRESHNESS above shows isCurrentSeason: false, you MUST include exactly one short line acknowledging the limitation — **except in NFL DRAFT TEAM SIMULATION (see below)**, where staleness belongs only in the single CONFIDENCE block at the end. Example phrasings: "Working off 2024 QB stats and offseason tier data — this gets sharper once Week 1 posts." / "Offseason snapshot, not live 2026 — flagging uncertainty accordingly." Do not let this line dominate the answer, but do not omit it when the snapshot is not current-season.`;
+
+    nflUserPromptBody += `
 
 ${
   draftTeamSimulationInject
@@ -6462,6 +6472,10 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
 Never open with "props aren't out." Give named players and monitoring hooks.`
 }`;
+
+    userPrompt = questionPropSlice
+      ? `${questionPropSlice}\n\n${nflUserPromptBody}`
+      : nflUserPromptBody;
   } else if (sportHint === "derby") {
     userPrompt = `You are answering a Kentucky Derby 2026 betting question.
 

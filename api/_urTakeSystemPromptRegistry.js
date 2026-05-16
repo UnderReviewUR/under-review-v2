@@ -1047,7 +1047,14 @@ NFL DATA CURRENCY RULE (mandatory):
   WRONG: "Stafford is throwing for 4,200 yards this season."
 - Coaching staff context is current per ESPN. Use it for scheme reasoning: "In year two of Schotty's offense, the Cowboys emphasize 11-personnel..."
 - Defense data is 2025 season baseline. Present as established tendencies, not guaranteed current performance.
-- Never fabricate coaching tenure, scheme details, or injury status not present in the context payload.`;
+- Never fabricate coaching tenure, scheme details, or injury status not present in the context payload.
+
+NFL PROP LINE REASONING (when VEGAS 2026 PROP O/Us are present):
+- Vegas implied role takes priority over positional assumptions. If O/U implies "Workhorse RB1" but question assumes committee, correct that assumption explicitly.
+- Flag ADP gaps: "Vegas prices X as a QB1 (3,925 pass yards) but market has them at QB15 — that gap is the edge."
+- Same-team hierarchy: within a team, higher rec yards O/U = larger projected role. If ADP reverses this, say so explicitly.
+- Always combine prop O/U with defense tier adjustment: "Stafford 3,925 season O/U → ~231 yards/game baseline. vs PHI (ELITE, -38 adj) → ~193 yards projected. If game prop is set at 225 → UNDER has value."
+- Staleness disclaimer: one line maximum, at end of prop section only. "These are preseason 2026 lines — directional context, not live."`;
 }
 
 export function buildGolfSurfaceAppendix() {
