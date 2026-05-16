@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { getTeamRecord } from "../../lib/nflPredictDerived.js";
+import { getPlayoffPicture } from "../../lib/nflPredictPlayoffs.js";
 
 function CardTeamLogo({ team }) {
   const [bad, setBad] = useState(false);
@@ -44,11 +45,30 @@ function CardTeamLogo({ team }) {
 
 const DIV_ORDER = ["AFC East", "AFC North", "AFC South", "AFC West", "NFC East", "NFC North", "NFC South", "NFC West"];
 
-export default function TeamSelector({ picks, schedule, teams, onSelectTeam }) {
+/** @param {Record<string, number>} seedByAbbr */
+function playoffBadgeLabel(seedByAbbr, abbr) {
+  const seed = seedByAbbr[abbr];
+  if (seed == null) return null;
+  return `#${seed} Seed`;
+}
+
+export default function TeamSelector({ picks, schedule, teams, onSelectTeam, onViewPlayoffs }) {
   const [q, setQ] = useState("");
   const [hoverAbbr, setHoverAbbr] = useState(null);
 
   const pickedCount = useMemo(() => Object.keys(picks || {}).filter((id) => picks[id]?.winner).length, [picks]);
+
+  const seedByAbbr = useMemo(() => {
+    const pic = getPlayoffPicture(picks, schedule, teams);
+    const map = {};
+    for (const side of [pic.afc, pic.nfc]) {
+      for (const s of side.seeds || []) {
+        const abbr = s.team?.abbr;
+        if (abbr) map[abbr] = s.seed;
+      }
+    }
+    return map;
+  }, [picks, schedule, teams]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -64,7 +84,7 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam }) {
   }, [teams, q]);
 
   return (
-    <div className="nfl-predict-team-selector" style={{ padding: "12px 14px 24px" }}>
+    <div className="nfl-predict-team-selector" style={{ padding: "12px 14px 24px", paddingBottom: pickedCount > 0 ? 88 : 24 }}>
       <div style={{ fontSize: 13, color: "var(--nfl-predict-muted)", marginBottom: 10, textAlign: "center" }}>
         {pickedCount} / 272 games predicted
       </div>
@@ -119,6 +139,7 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam }) {
                 const hovered = hoverAbbr === team.abbr;
                 const pc = team.primaryColor;
                 const sc = team.secondaryColor;
+                const seedLabel = playoffBadgeLabel(seedByAbbr, team.abbr);
                 return (
                   <button
                     key={team.abbr}
@@ -146,20 +167,36 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam }) {
                       <CardTeamLogo team={team} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{team.shortName}</div>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            marginTop: 4,
-                            background: pc,
-                            color: sc,
-                            borderRadius: 20,
-                            padding: "2px 8px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                          }}
-                        >
-                          O/U {team.winTotal}
-                        </span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, alignItems: "center" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              background: pc,
+                              color: sc,
+                              borderRadius: 20,
+                              padding: "2px 8px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                            }}
+                          >
+                            O/U {team.winTotal}
+                          </span>
+                          {seedLabel ? (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                border: `1px solid ${pc}`,
+                                color: pc,
+                                borderRadius: 20,
+                                padding: "2px 8px",
+                                fontSize: 10,
+                                fontWeight: 800,
+                              }}
+                            >
+                              🏆 {seedLabel}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                       <svg width={36} height={36} viewBox="0 0 36 36" style={{ flexShrink: 0 }}>
                         <circle cx="18" cy="18" r="15" fill="none" stroke="#2a2a2a" strokeWidth="4" />
@@ -186,6 +223,39 @@ export default function TeamSelector({ picks, schedule, teams, onSelectTeam }) {
           </section>
         );
       })}
+      {pickedCount > 0 && typeof onViewPlayoffs === "function" ? (
+        <div
+          style={{
+            position: "sticky",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            marginTop: 16,
+            paddingTop: 12,
+            paddingBottom: 8,
+            background: "linear-gradient(180deg, transparent, var(--nfl-predict-bg) 24%)",
+            zIndex: 4,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onViewPlayoffs}
+            style={{
+              width: "100%",
+              minHeight: 48,
+              borderRadius: 12,
+              border: "1px solid var(--nfl-predict-accent)",
+              background: "rgba(0,245,233,.1)",
+              color: "var(--nfl-predict-accent)",
+              fontWeight: 800,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            📊 View Full Playoff Picture →
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

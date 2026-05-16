@@ -1826,11 +1826,8 @@ export const baseCss = `
     .golf-leaderboard-card{padding:12px 14px;}
   }
 
-  .nfl-predict-game-card { transition: all 150ms ease; }
-  .nfl-predict-pick-btn { transition: transform 150ms ease, opacity 150ms ease, box-shadow 150ms ease; min-height: 44px; }
-  .nfl-predict-pick-btn.selected { transform: scale(1.02); }
+  .nfl-predict-pick-btn { transition: opacity 150ms ease, box-shadow 150ms ease; min-height: 44px; }
   .nfl-predict-pick-btn.unselected { opacity: 0.4; }
-  .nfl-predict-confidence { animation: nflConfIn 200ms ease forwards; }
-  @keyframes nflConfIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-  @media (prefers-reduced-motion: reduce) { .nfl-predict-game-card, .nfl-predict-pick-btn { transition: none; } .nfl-predict-pick-btn, .nfl-predict-pick-btn.selected { transform: none !important; } .nfl-predict-confidence { animation: none; } }
+  .nfl-predict-confidence { transition: opacity 150ms ease; }
+  @media (prefers-reduced-motion: reduce) { .nfl-predict-pick-btn, .nfl-predict-confidence { transition: none; } }
 `;

@@ -114,6 +114,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
     const sc = team?.secondaryColor || "#fff";
     const isWinner = winner === sideAbbr;
     const isLoser = winner && winner !== sideAbbr;
+    const transition = "opacity 150ms ease, box-shadow 150ms ease";
     if (isWinner) {
       return {
         borderRadius: 12,
@@ -124,7 +125,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
         border: `2px solid ${pc}`,
         boxShadow: `0 0 16px ${pc}60`,
         color: winnerLabelColor(sc),
-        transform: "scale(1.02)",
+        transition,
         outline: focusTeam === sideAbbr ? "1px solid rgba(0,245,233,.35)" : "none",
       };
     }
@@ -138,7 +139,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
         border: `2px solid ${pc}20`,
         color: "#fff",
         opacity: 0.4,
-        transform: "scale(1.0)",
+        transition,
         outline: focusTeam === sideAbbr ? "1px solid rgba(0,245,233,.35)" : "none",
       };
     }
@@ -150,7 +151,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
       background: `${pc}15`,
       border: `2px solid ${pc}50`,
       color: "#fff",
-      transform: "scale(1.0)",
+      transition,
       outline: focusTeam === sideAbbr ? "1px solid rgba(0,245,233,.35)" : "none",
     };
   }
@@ -269,18 +270,30 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
           </div>
         </button>
       </div>
-      {winner ? (
-        <div className="nfl-predict-confidence" style={{ marginTop: 12 }}>
+      <div
+        className="nfl-predict-confidence"
+        style={{
+          marginTop: 12,
+          minHeight: 76,
+          opacity: winner ? 1 : 0,
+          pointerEvents: winner ? "auto" : "none",
+          transition: "opacity 150ms ease",
+        }}
+        aria-hidden={!winner}
+      >
           <div style={{ fontSize: 11, color: "var(--nfl-predict-muted)", marginBottom: 6 }}>Confidence</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {confPills.map((c) => {
-              const t = teams.find((x) => x.abbr === winner);
-              const active = (pick?.confidence ?? 80) === c;
+              const t = winner ? teams.find((x) => x.abbr === winner) : null;
+              const active = winner && (pick?.confidence ?? 80) === c;
               return (
                 <button
                   key={c}
                   type="button"
+                  tabIndex={winner ? 0 : -1}
+                  disabled={!winner}
                   onClick={() => {
+                    if (!winner) return;
                     savePick(game.id, winner, c);
                     onPick?.();
                   }}
@@ -293,7 +306,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
                     color: "#fff",
                     fontWeight: 700,
                     fontSize: 13,
-                    cursor: "pointer",
+                    cursor: winner ? "pointer" : "default",
                   }}
                 >
                   {c}%
@@ -301,8 +314,7 @@ export default function GameCard({ game, picks, schedule, teams, onPick, focusTe
               );
             })}
           </div>
-        </div>
-      ) : null}
+      </div>
       {hypothetical && focusTeam ? (
         <div style={{ marginTop: 10, fontSize: 12, color: "var(--nfl-predict-muted)" }}>
           {focusTeam} goes {hypothetical.wins}-{hypothetical.losses} after this

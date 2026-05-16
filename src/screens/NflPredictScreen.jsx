@@ -30,6 +30,16 @@ export default function NflPredictScreen() {
   const [selectedConference, setSelectedConference] = useState("AFC");
   const [showShareModal, setShowShareModal] = useState(false);
   const initRef = useRef(false);
+  const mainRef = useRef(null);
+
+  const goToView = useCallback((view) => {
+    setActiveView(view);
+    queueMicrotask(() => {
+      mainRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    });
+  }, []);
+
+  const onViewPlayoffs = useCallback(() => goToView("playoffs"), [goToView]);
 
   const pickedCount = useMemo(
     () => Object.keys(picks || {}).filter((id) => picks[id]?.winner).length,
@@ -110,8 +120,22 @@ export default function NflPredictScreen() {
     { id: "playoffs", label: "Playoffs" },
   ];
 
+  const playoffNavBtnStyle = {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 12,
+    border: "1px solid var(--nfl-predict-accent)",
+    background: "rgba(0,245,233,.08)",
+    color: "var(--nfl-predict-accent)",
+    fontWeight: 800,
+    fontSize: 14,
+    cursor: "pointer",
+    marginBottom: 12,
+  };
+
   return (
     <main
+      ref={mainRef}
       className="screen nfl-predict-screen"
       style={{
         background: "var(--nfl-predict-bg)",
@@ -199,7 +223,7 @@ export default function NflPredictScreen() {
             <button
               key={t.id}
               type="button"
-              onClick={() => setActiveView(t.id)}
+              onClick={() => goToView(t.id)}
               style={{
                 flex: "1 0 auto",
                 minWidth: 76,
@@ -221,14 +245,16 @@ export default function NflPredictScreen() {
         </div>
       </div>
 
+      <div style={{ overflowX: "hidden", willChange: "auto" }}>
       {activeView === "teams" ? (
         <TeamSelector
           picks={picks}
           schedule={schedule}
           teams={teams}
+          onViewPlayoffs={onViewPlayoffs}
           onSelectTeam={(abbr) => {
             setSelectedTeam(abbr);
-            setActiveView("schedule");
+            goToView("schedule");
           }}
         />
       ) : null}
@@ -242,7 +268,7 @@ export default function NflPredictScreen() {
                   type="button"
                   onClick={() => {
                     setSelectedTeam(null);
-                    setActiveView("teams");
+                    goToView("teams");
                   }}
                   style={{
                     minHeight: 44,
@@ -273,6 +299,9 @@ export default function NflPredictScreen() {
                 </div>
               ))}
               <div style={{ padding: "0 12px" }}>
+                <button type="button" onClick={onViewPlayoffs} style={playoffNavBtnStyle}>
+                  See Playoff Picture →
+                </button>
                 <UrCtaPanel dismissible={false} />
               </div>
             </>
@@ -285,6 +314,7 @@ export default function NflPredictScreen() {
                 picks={picks}
                 schedule={schedule}
                 teams={teams}
+                onViewPlayoffs={onViewPlayoffs}
                 onSelectTeam={(abbr) => {
                   setSelectedTeam(abbr);
                 }}
@@ -330,6 +360,7 @@ export default function NflPredictScreen() {
           <PlayoffPicture picks={picks} schedule={schedule} teams={teams} />
         </div>
       ) : null}
+      </div>
 
       <div className="page-spacer" />
 
