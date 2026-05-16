@@ -27,6 +27,7 @@ import DivisionStandings from "../components/nfl-predict/DivisionStandings.jsx";
 import GameCard from "../components/nfl-predict/GameCard.jsx";
 import PlayoffPicture from "../components/nfl-predict/PlayoffPicture.jsx";
 import NflPredictPlayoffFooter from "../components/nfl-predict/NflPredictPlayoffFooter.jsx";
+import NflProSampleTakeCard from "../components/nfl-predict/NflProSampleTakeCard.jsx";
 import SeasonCompleteOverlay from "../components/nfl-predict/SeasonCompleteOverlay.jsx";
 import ShareModal from "../components/nfl-predict/ShareModal.jsx";
 import TeamSelector from "../components/nfl-predict/TeamSelector.jsx";
@@ -671,7 +672,9 @@ export default function NflPredictScreen({
               position: "relative",
               width: "100%",
               maxWidth: 340,
-              padding: "24px 20px 20px",
+              maxHeight: "90dvh",
+              overflowY: "auto",
+              padding: "24px 20px 32px",
               borderRadius: 16,
               background: "rgba(12,12,12,.92)",
               border: "1px solid #333",
@@ -752,6 +755,12 @@ export default function NflPredictScreen({
             >
               See your full picks →
             </button>
+            <NflProSampleTakeCard
+              isPro={isPro}
+              restoreProEntitlement={restoreProEntitlement}
+              setUserEmail={setUserEmail}
+              showDivider
+            />
           </div>
         </div>
       ) : null}
@@ -783,3 +792,4 @@ export default function NflPredictScreen({
     </main>
   );
 }
+

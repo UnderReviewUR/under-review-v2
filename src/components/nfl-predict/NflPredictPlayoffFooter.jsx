@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
-import ProCheckoutCTA from "../ProCheckoutCTA.jsx";
 import { encodePicks } from "../../lib/nflPredictState.js";
+import NflProSampleTakeCard from "./NflProSampleTakeCard.jsx";
 
 function pickedCount(picks) {
   return Object.keys(picks || {}).filter((id) => picks[id]?.winner).length;
@@ -10,7 +10,6 @@ function pickedCount(picks) {
 export default function NflPredictPlayoffFooter({
   picks,
   onContinuePicking,
-  onSubscribePro,
   restoreProEntitlement,
   setUserEmail,
   isPro = false,
@@ -203,98 +202,11 @@ export default function NflPredictPlayoffFooter({
         ) : null}
       </section>
 
-      {!isPro ? (
-        <section
-          style={{
-            borderRadius: 14,
-            border: "1px solid rgba(255,45,107,.35)",
-            background: "linear-gradient(165deg, rgba(255,45,107,.12), rgba(20,20,20,.98))",
-            padding: "16px 14px",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--mono-font)",
-              fontSize: 10,
-              letterSpacing: "0.12em",
-              color: "#FF2D6B",
-              marginBottom: 8,
-            }}
-          >
-            SAMPLE PRO TAKE
-          </div>
-          <div style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.35, marginBottom: 10 }}>
-            Will Josh Allen throw over 2.5 passing TDs vs the Rams?
-          </div>
-          <p style={{ margin: "0 0 14px", fontSize: 14, lineHeight: 1.55, color: "var(--nfl-predict-text)" }}>
-            Allen vs Stafford sets up as a shootout on paper — but LA’s reworked secondary has been stingier in the red
-            zone. Count on Josh to land <strong>two TDs max</strong>; the fireworks come between the 20s, not always in the
-            end zone.
-          </p>
-          <div
-            style={{
-              display: "inline-block",
-              fontSize: 11,
-              fontWeight: 800,
-              letterSpacing: "0.06em",
-              color: "#FF2D6B",
-              border: "1px solid rgba(255,45,107,.45)",
-              borderRadius: 8,
-              padding: "6px 10px",
-              marginBottom: 14,
-            }}
-          >
-            LEAN: UNDER 2.5 PASS TDs
-          </div>
-          <p style={{ margin: "0 0 14px", fontSize: 12, color: "var(--nfl-predict-muted)", lineHeight: 1.45 }}>
-            PRO unlocks playoff-round picks, Super Bowl angles, and live prop takes like this every week — not just the
-            regular-season board.
-          </p>
-          {restoreProEntitlement && setUserEmail ? (
-            <ProCheckoutCTA
-              className="nfl-predict-pro-cta"
-              restoreProEntitlement={restoreProEntitlement}
-              setUserEmail={setUserEmail}
-            >
-              <span
-                style={{
-                  display: "block",
-                  width: "100%",
-                  minHeight: 48,
-                  lineHeight: "48px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "linear-gradient(90deg, #FF2D6B, #FF6B9D)",
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: 14,
-                  textAlign: "center",
-                }}
-              >
-                Subscribe to PRO →
-              </span>
-            </ProCheckoutCTA>
-          ) : (
-            <button
-              type="button"
-              onClick={onSubscribePro}
-              style={{
-                width: "100%",
-                minHeight: 48,
-                borderRadius: 12,
-                border: "none",
-                background: "linear-gradient(90deg, #FF2D6B, #FF6B9D)",
-                color: "#fff",
-                fontWeight: 800,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              Subscribe to PRO →
-            </button>
-          )}
-        </section>
-      ) : null}
+      <NflProSampleTakeCard
+        isPro={isPro}
+        restoreProEntitlement={restoreProEntitlement}
+        setUserEmail={setUserEmail}
+      />
     </div>
   );
 }
