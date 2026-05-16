@@ -147,16 +147,25 @@ function fillConferenceAdvancement(conf) {
   }
 }
 
+/** @param {ConferenceBracket} conf */
+function championshipWinnerSlot(conf) {
+  const c = conf.championship;
+  if (!c.winner) return null;
+  if (c.home?.team?.abbr === c.winner) return c.home;
+  if (c.away?.team?.abbr === c.winner) return c.away;
+  return null;
+}
+
 /** @param {BracketState} bracket */
 function fillAdvancementSlots(bracket) {
   fillConferenceAdvancement(bracket.afc);
   fillConferenceAdvancement(bracket.nfc);
 
   const sb = bracket.superBowl;
-  const afcChamp = bracket.afc.championship.winner ? winnerTeam(bracket.afc.championship) : null;
-  const nfcChamp = bracket.nfc.championship.winner ? winnerTeam(bracket.nfc.championship) : null;
-  sb.home = afcChamp ? { team: afcChamp, seed: 0 } : null;
-  sb.away = nfcChamp ? { team: nfcChamp, seed: 0 } : null;
+  const afcSlot = championshipWinnerSlot(bracket.afc);
+  const nfcSlot = championshipWinnerSlot(bracket.nfc);
+  sb.home = afcSlot ? { team: afcSlot.team, seed: afcSlot.seed } : null;
+  sb.away = nfcSlot ? { team: nfcSlot.team, seed: nfcSlot.seed } : null;
 
   return bracket;
 }

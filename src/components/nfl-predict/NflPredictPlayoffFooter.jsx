@@ -14,6 +14,8 @@ export default function NflPredictPlayoffFooter({
   restoreProEntitlement,
   setUserEmail,
   isPro = false,
+  bracketComplete = false,
+  bracketWinner = null,
 }) {
   const [shareBusy, setShareBusy] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
@@ -66,14 +68,31 @@ export default function NflPredictPlayoffFooter({
 
   return (
     <div style={{ padding: "8px 12px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
-      <section
-        style={{
-          borderRadius: 14,
-          border: "1px solid var(--nfl-predict-border)",
-          background: "linear-gradient(180deg, rgba(0,245,233,.08), rgba(20,20,20,.95))",
-          padding: "16px 14px",
-        }}
-      >
+      {bracketComplete ? (
+        <section
+          style={{
+            borderRadius: 14,
+            border: "1px solid rgba(245,158,11,.35)",
+            background: "linear-gradient(180deg, rgba(245,158,11,.1), rgba(20,20,20,.95))",
+            padding: "16px 14px",
+          }}
+        >
+          <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 800, lineHeight: 1.3 }}>
+            🏆 Bracket complete! {bracketWinner || "Champion"} wins Super Bowl LXI
+          </h3>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--nfl-predict-muted)", lineHeight: 1.45 }}>
+            Share your full prediction with friends below
+          </p>
+        </section>
+      ) : (
+        <section
+          style={{
+            borderRadius: 14,
+            border: "1px solid var(--nfl-predict-border)",
+            background: "linear-gradient(180deg, rgba(0,245,233,.08), rgba(20,20,20,.95))",
+            padding: "16px 14px",
+          }}
+        >
         <div
           style={{
             fontFamily: "var(--mono-font)",
@@ -109,7 +128,8 @@ export default function NflPredictPlayoffFooter({
         >
           Pick the bracket →
         </button>
-      </section>
+        </section>
+      )}
 
       <section
         style={{

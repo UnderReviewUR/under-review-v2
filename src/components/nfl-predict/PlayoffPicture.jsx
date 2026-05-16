@@ -42,6 +42,7 @@ function RowLogo({ team, size = 32 }) {
 }
 
 function SeedBadge({ seed }) {
+  if (seed == null || seed <= 0) return null;
   return (
     <span
       style={{

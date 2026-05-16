@@ -498,6 +498,8 @@ export default function NflPredictScreen({
             setUserEmail={setUserEmail}
             onSubscribePro={onSubscribePro}
             onContinuePicking={() => goToView("playoffs")}
+            bracketComplete={Boolean(bracket?.superBowl?.winner)}
+            bracketWinner={bracket?.superBowl?.winner ?? null}
           />
         </div>
       ) : activeView === "teams" ? (
