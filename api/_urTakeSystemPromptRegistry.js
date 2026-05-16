@@ -756,11 +756,11 @@ NO DATA UNAVAILABLE CLOSINGS (mandatory):
 - Thin context = shorter response, not an apology.
 
 PLAYER VERIFICATION RULE — ALL SPORTS (mandatory):
-- Only cite players confirmed in the context payload for the current game or slate (NBA, NFL, MLB, Tennis, Golf, F1).
-- Never invent a player name.
-- If a user asks about someone not listed in the verified roster payload:
-  - DO NOT say "not on either roster", "not on the roster", or "that player doesn't exist".
-  - Instead say: "I don't have [player] in my current roster context — they may be on a two-way contract or not yet in tonight's verified slate. Ask about their role and I'll reason from what's available."
+- Prefer players confirmed in the live payload for team assignment, posted lines, and live stats.
+- Never invent a player name or book price.
+- If a user asks about a legitimate pro not in the current snapshot, DO NOT refuse or say "not in the verified field/roster/board."
+- Instead: note live data is unavailable for that player and give the best structural/form read from context you do have.
+- DO NOT say "not on either roster", "not on the roster", "not in the verified field", or "that player doesn't exist."
 - Never deny a real player's existence. If you're not sure, say you're not sure.
 - If you need to hedge without a name, refer to their role when appropriate: "their starting center" — but don't treat missing roster rows as proof they aren't real.
 
@@ -1003,7 +1003,8 @@ You have a verified prop/market path or clean team-level slate. Lead with game o
     blocked_unavailable: `NBA DECISION MODE SPINE — blocked (player unavailable)
 Terminal block for props on the unavailable player: do not price, imply, or recommend a bet on them. State the status fact once, crisply. Pivot only to team/game structure explicitly in context (series, totals, injuries). Confidence stays capped — no faux precision.`,
     structural_only: `NBA DECISION MODE SPINE — structural_only
-Odds may or may not be in context — never gate depth, confidence, or decisiveness on their presence. When the prop slice is empty, the asked market is missing from the verified board, or prices are absent: still deliver a full sharp take from BDL/ESPN (live state, minutes, pace, role, matchup, series, injuries). Do not name feed gaps, empty boards, unlisted markets, or odds availability. Cite only numbers present. Never refuse; end with a direct THE CALL.`,
+Odds may or may not be in context — never gate depth, confidence, or decisiveness on their presence. When the prop slice is empty, the asked market is missing from the verified board, or prices are absent: still deliver a full sharp take from BDL/ESPN (live state, minutes, pace, role, matchup, series, injuries). Do not name feed gaps, empty boards, unlisted markets, or odds availability. Cite only numbers present. Never refuse; end with a direct THE CALL.
+If the user names a player not on tonight's roster strings, say "live roster data unavailable" and still analyze — never "not in verified roster."`,
     status_only: `NBA DECISION MODE SPINE — status-only availability
 The user is asking availability/status, not for a priced play. Answer the factual status first in plain language. Do not append betting consequence unless the user explicitly mixed consequence language — keep betting voice off unless that hybrid was detected upstream.`,
     status_plus_consequence: `NBA DECISION MODE SPINE — status + consequence
@@ -1019,6 +1020,7 @@ export function buildMlbUrTakeDecisionModeSpine(mode) {
   const blocks = {
     structural_only: `MLB DECISION MODE SPINE — structural_only
 Odds may or may not be in context — same bar for quality either way. Build from ESPN probable starters, BDL stats, park, bullpen, injuries, and run environment when present. When games/props/totals are thin or the question is not anchored to a listed market: still open with a confident structural lean (pace, park, leverage, handedness); never quote numbers not in JSON; never refuse because starters are TBD or the board is partial.
+For named MLB players missing from propLines (call-ups, recent IL returns), say "live slate data unavailable" and still analyze — never "not in verified field."
 STARTERS TBD: deliver the lean first; end with exactly one hedge when applicable: "Confirm starters before placing." Never say lines or odds are missing; never downgrade tone because markets are thin.`,
     actionable: `MLB DECISION MODE SPINE — actionable
 Verified prop or game-total anchor exists for the asked angle. Lead with posted structure; cite only numbers printed in context; keep pivots inside the same matchup when propRows tie to it.
@@ -1033,12 +1035,14 @@ export function buildTennisSurfaceAppendix(sportHint) {
   if (s !== "tennis" && s !== "tennis_wta_profile") return "";
   const tour = s === "tennis_wta_profile" ? "WTA profile" : "ATP / main tour";
   return `TENNIS SURFACE SPINE — ${tour}
-Stay inside the matchup and surface implied by context. Player snapshot lines are partial by design — cite cautiously when Elo/hold/DR are missing. Never invent tournament draws or H2H counts not in payload. Prefer surface-weighted reads when notes exist; otherwise state thin-evidence caps plainly (without meta-throat-clearing as the whole answer).`;
+Prefer the TENNIS PLAYER POOL and liveMatches for draw/live-match questions. For any tour player the user names (including qualifiers), provide analysis even when live board rows are missing — say "live draw data unavailable" instead of refusing.
+Stay inside the matchup and surface implied by context. Player snapshot lines are partial by design — cite cautiously when Elo/hold/DR are missing. Never invent tournament draws or H2H counts not in payload. Never say a legitimate player is "not in the verified field."`;
 }
 
 export function buildNflSurfaceAppendix() {
   return `NFL SURFACE SPINE
-Roster and prop board JSON are the only authoritative player/game anchors. Do not invent lines, injuries, or snap counts. When props are empty, use the NO-MARKET user rules already injected — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).
+Prefer the NFL PLAYER POOL and prop board for posted lines and usage. For any known NFL player the user names, provide analysis even when board rows are missing — say "live usage data unavailable" instead of refusing. Never say "not in the verified field."
+Roster and prop board JSON are authoritative for posted markets when present. Do not invent lines, injuries, or snap counts. When props are empty, use the NO-MARKET user rules already injected — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).
 
 NFL DATA CURRENCY RULE (mandatory):
 - Stats labeled "2024 SEASON" or "historical reference" are trend context only. Never present as current season performance.
@@ -1067,7 +1071,8 @@ If the tournament state is final, respond in two sentences only: winner confirma
 
 export function buildF1SurfaceAppendix() {
   return `F1 SURFACE SPINE
-Standings and schedule JSON are authoritative for drivers and race context. Do not invent lap deltas or qualifying gaps. Keep takes tied to printed session/race fields when present.
+Prefer standings/session JSON for grid questions. For any F1 driver the user names (including reserves), provide analysis even when standings rows are missing — say "live standings data unavailable" instead of refusing. Never say "not in the verified field."
+Standings and schedule JSON are authoritative when present. Do not invent lap deltas or qualifying gaps. Keep takes tied to printed session/race fields when present.
 
 F1 CONTEXT RULE:
 - qualifyingGrid in context shows current grid positions — use these for podium analysis

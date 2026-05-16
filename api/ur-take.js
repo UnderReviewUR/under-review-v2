@@ -28,6 +28,16 @@ import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
 import { formatPropContextForPlayers } from "./_nflPropLineContext.js";
 import {
+  extractMentionedPersonFromQuestion,
+  F1_ALWAYS_INCLUDE,
+  isNameInMergedList,
+  mergeVerifiedNamesWithFallback,
+  MLB_ALWAYS_INCLUDE,
+  NFL_ALWAYS_INCLUDE,
+  personNamesMatch,
+  TENNIS_ALWAYS_INCLUDE,
+} from "./_sportVerifiedFieldFallbacks.js";
+import {
   buildTeamDraftFocusBlock,
   getActiveDraftBundle,
   getNflTeamAbbrFromName,
@@ -423,18 +433,37 @@ function buildAcePropsDigest(aceProps, tournamentSurface) {
 }
 
 function extractNflPlayersFromContext(nflContext) {
+  const names = [];
+  const seen = new Set();
+
+  const add = (n) => {
+    const t = String(n || "").trim();
+    if (!t) return;
+    const k = t.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    names.push(t);
+  };
+
+  if (nflContext && typeof nflContext === "object" && !Array.isArray(nflContext)) {
+    const ui = nflContext.uiPlayers;
+    if (ui && typeof ui === "object") {
+      for (const k of Object.keys(ui)) add(k);
+    }
+  }
+
   const text =
     typeof nflContext === "string"
       ? nflContext
       : contextJsonForModel(nflContext);
 
-  const names = [];
   const regex = /^([^\n|]{2,})\s+\|\s+(RB|WR|TE|QB)\s+\|/gm;
   let match;
   while ((match = regex.exec(text))) {
-    const name = String(match[1] || "").trim();
-    if (name) names.push(name);
+    add(match[1]);
   }
+
+  for (const n of NFL_ALWAYS_INCLUDE) add(n);
   return names;
 }
 
@@ -458,6 +487,14 @@ function extractNflQuestionSubject(question) {
 function findNflPlayerMatch(questionSubject, playerNames) {
   if (!questionSubject || !Array.isArray(playerNames) || playerNames.length === 0) {
     return null;
+  }
+
+  if (isNameInMergedList(questionSubject, playerNames)) {
+    return (
+      playerNames.find((n) => personNamesMatch(questionSubject, n)) ||
+      extractMentionedPersonFromQuestion(questionSubject, playerNames) ||
+      questionSubject
+    );
   }
 
   const subject = normalizeText(questionSubject);
@@ -2093,7 +2130,7 @@ Do not invent players, teams, lines, scores, or stats that are not explicitly su
 Estimated prop thresholds derived from playerStats or analogous stat bundles in context when live odds are unavailable are authorized — label them clearly as season-average or estimate-tier reads, not as posted book lines.
 
 ROSTER ENFORCEMENT — MANDATORY
-Only name players and teams that appear in verified roster or verification lists in the user message for this sport. Never use training memory for identities.
+Prefer players and teams from verified roster or verification lists in the user message. For user-named pros missing from live lists, analyze with a live-data-unavailable note — never refuse as "not in verified field." Never use training memory for team assignments.
 
 ARITHMETIC RULE — MANDATORY
 When you reference pace math, totals, series scoring averages, or cumulative stats, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
@@ -3279,7 +3316,8 @@ function buildNbaRosterListInner(nbaContext, rosterOpts = {}) {
 ${hasImage ? "- An image is attached: read visible player names, prop lines, prices, and stat rows from the screenshot as primary evidence.\n" : ""}${namedInQuestion ? "- The Question targets a specific player by name — discuss that player directly.\n" : ""}- ${apiLine}
 
 You MUST use names and numbers from the image and/or the Question.
-Do not refuse to name a player who is visible in the image or clearly named in the Question solely because playersByTeamAbbrev is empty or incomplete.`;
+Do not refuse to name a player who is visible in the image or clearly named in the Question solely because playersByTeamAbbrev is empty or incomplete.
+If the named player is not on tonight's roster strings, say "live roster data unavailable for [player]" and still give role/form/matchup analysis — never say they are "not in the verified roster" or "not on the roster" as a refusal.`;
   }
 
   const thinOrAbsentBody = `INTERNAL ROSTER LIST: no authorized names in payload for these teams.
@@ -3396,6 +3434,8 @@ YOU MUST FOLLOW THESE RULES EXACTLY:
    any stats visible in the screenshot or stated in the Question are AUTHORIZED.
    Do not reply with “I can't cite [that player] without verification.” The user
    supplied the source. Use API roster lists only as a supplement.
+   If they are missing from playersByTeamAbbrev, note "live roster data unavailable
+   for [player]" and analyze from stats in context — never refuse as "not in verified roster."
 
 ROSTER DISCLOSURE RULE:
 Never tell the user which players are verified, partial, or loading.
@@ -4099,7 +4139,7 @@ Lead with the strongest grounded angle using verified lines from propLines. If s
 `;
 }
 
-function buildMlbVerifiedPlayerListBlock(mlbContext) {
+function buildMlbVerifiedPlayerListBlock(mlbContext, question = "") {
   const pitchers = [];
   const propListed = [];
   const pitSeen = new Set();
@@ -4134,42 +4174,57 @@ function buildMlbVerifiedPlayerListBlock(mlbContext) {
   propListed.sort();
   const pitcherList = pitcherListLines.length > 0 ? pitcherListLines.join("\n") : "(no games in payload)";
 
-  return `VERIFIED MLB PLAYERS TONIGHT:
+  const merged = mergeVerifiedNamesWithFallback(
+    [...pitchers, ...propListed],
+    MLB_ALWAYS_INCLUDE,
+  );
+  const asked = extractMentionedPersonFromQuestion(question, merged);
+
+  return `MLB SLATE (live probables + prop board + known-star fallback):
 Pitcher matchups:
 ${pitcherList}
 
 Pitchers: ${pitchers.length ? pitchers.join(", ") : "(none in games array)"}
 Prop-listed players: ${propListed.length ? propListed.join(", ") : "(none)"}
+Known active pool (fallback): ${merged.join(", ")}
+${asked ? `\nUser-mentioned player anchor: ${asked} — analyze even if not yet on tonight's prop board; say "live slate data unavailable for [player]" instead of refusing.` : ""}
 
-Do not name any batter or pitcher not on this list as playing tonight.
+FIELD RULES:
+- Prefer probables and prop-listed names for "playing tonight" and posted-line questions.
+- For any known MLB player the user names (including recent call-ups), give structural/form analysis even if absent from propLines — never say "not in the verified field" or refuse solely because they are missing from the list.
 When a pitcher shows as "TBD", still open with park, bullpen leverage, run environment, and game state — do not lead with "starter TBD for [team]" or similar upfront caveats; reserve starter uncertainty for the closing sentence "Confirm starters before placing." Never refuse solely because starters are unsettled.`;
 }
 
-function buildNflVerifiedPlayerListBlock(nflContextEffective) {
-  const set = new Set();
+function buildNflVerifiedPlayerListBlock(nflContextEffective, question = "") {
+  const live = [];
   if (nflContextEffective && typeof nflContextEffective === "object" && !Array.isArray(nflContextEffective)) {
     const ui = nflContextEffective.uiPlayers;
     if (ui && typeof ui === "object") {
       for (const k of Object.keys(ui)) {
         const t = String(k).trim();
-        if (t) set.add(t);
+        if (t) live.push(t);
       }
     }
   }
-  const sorted = [...set].sort();
+  const merged = mergeVerifiedNamesWithFallback(live, NFL_ALWAYS_INCLUDE).sort();
+  const asked = extractMentionedPersonFromQuestion(question, merged);
   const staleNote =
-    "This list is from the offseason knowledge base — treat as directional, not live-verified.";
-  if (sorted.length === 0) {
-    return `NO VERIFIED NFL PLAYERS (empty uiPlayers keys in context).
+    "Board names are directional when labeled offseason — treat usage/role from payload first.";
+  if (merged.length === 0) {
+    return `NFL PLAYER POOL NOTE: Live board is empty.
+For any known NFL player in the user's question, still give role/matchup analysis — say "live usage data unavailable for [player]" instead of refusing.
 
 ${staleNote}`;
   }
-  return `VERIFIED NFL PLAYERS (uiPlayers keys):
-${sorted.join(", ")}
+  return `NFL PLAYER POOL (board + known active fallback):
+${merged.join(", ")}
 
 ${staleNote}
+${asked ? `\nUser-mentioned player anchor: ${asked} — analyze even if missing from the live board; never refuse as "not in verified field."` : ""}
 
-Do not name any NFL player not on this list as active on this slate.`;
+FIELD RULES:
+- Prefer board names for posted prop/usage lines.
+- For any known NFL professional the user names, provide analysis even when board rows are missing — note "live usage data unavailable" rather than refusing.`;
 }
 
 function buildNflDraftProspectBlock(draftBundle) {
@@ -4253,16 +4308,22 @@ function collectTennisVerifiedNames(players, liveMatches) {
   return set;
 }
 
-function buildTennisVerifiedPlayerListBlock(players, liveMatches) {
-  const set = collectTennisVerifiedNames(players, liveMatches);
-  const sorted = [...set].sort();
-  if (sorted.length === 0) {
-    return `NO VERIFIED TENNIS PLAYERS in liveMatches (home_team/away_team) or ATP/WTA database keys. Do not invent players.`;
+function buildTennisVerifiedPlayerListBlock(players, liveMatches, question = "") {
+  const live = [...collectTennisVerifiedNames(players, liveMatches)];
+  const merged = mergeVerifiedNamesWithFallback(live, TENNIS_ALWAYS_INCLUDE).sort();
+  const asked = extractMentionedPersonFromQuestion(question, merged);
+  if (merged.length === 0) {
+    return `TENNIS PLAYER POOL NOTE: Live board and database keys are empty.
+For any player the user names, still give surface/form analysis — say "live draw data unavailable" instead of refusing.`;
   }
-  return `VERIFIED TENNIS PLAYERS (liveMatches home_team/away_team + ATP/WTA database keys):
-${sorted.join(", ")}
+  return `TENNIS PLAYER POOL (live board + ATP/WTA keys + tour fallback):
+${merged.join(", ")}
+${asked ? `\nUser-mentioned player anchor: ${asked} — analyze even if not on today's live board.` : ""}
 
-For match-specific takes you may ONLY name players from this list.`;
+FIELD RULES:
+- Prefer this list and liveMatches for draw-specific and live-match questions.
+- For any top/pro tour player the user names (including recent qualifiers), provide analysis even if missing from live board — note "live draw data unavailable" rather than refusing.
+- Never say a legitimate tour player is "not in the verified field."`;
 }
 
 function collectGolfVerifiedNames(golfContext) {
@@ -4314,20 +4375,26 @@ FIELD RULES:
 - Never tell the user a legitimate PGA Tour pro is "not in the field" or "not in the verified field."`;
 }
 
-function buildF1VerifiedDriverListBlock(f1Context) {
-  const names = new Set();
+function buildF1VerifiedDriverListBlock(f1Context, question = "") {
+  const live = [];
   for (const row of f1Context?.standings || []) {
     const n = String(row?.full_name || "").trim();
-    if (n) names.add(n);
+    if (n) live.push(n);
   }
-  const sorted = [...names].sort();
-  if (sorted.length === 0) {
-    return `NO VERIFIED F1 DRIVERS in standings payload. Do not invent drivers.`;
+  const merged = mergeVerifiedNamesWithFallback(live, F1_ALWAYS_INCLUDE).sort();
+  const asked = extractMentionedPersonFromQuestion(question, merged);
+  if (merged.length === 0) {
+    return `F1 DRIVER POOL NOTE: Standings payload is empty.
+For any F1 driver the user names, still give weekend/form analysis — say "live standings data unavailable" instead of refusing.`;
   }
-  return `VERIFIED F1 DRIVERS:
-${sorted.join(", ")}
+  return `F1 DRIVER POOL (standings + grid fallback):
+${merged.join(", ")}
+${asked ? `\nUser-mentioned driver anchor: ${asked} — analyze even if missing from standings (e.g. reserve/sub).` : ""}
 
-You may ONLY name drivers from this list in F1 takes.`;
+FIELD RULES:
+- Prefer standings/session fields for grid-position questions.
+- For any F1 driver the user names (including reserves/replacements), provide analysis even when standings rows are missing — note "live standings data unavailable" rather than refusing.
+- Never say a legitimate F1 driver is "not in the verified field."`;
 }
 
 /** Same slim shape as client `buildGolfContext` (App.jsx) — keeps model JSON aligned with the browser path. */
@@ -5510,7 +5577,7 @@ EXECUTION RULES — READ CAREFULLY
     const breakingNews = String(context?.breaking || "").trim();
 
     const hasLiveBoard = liveBoard.trim().length > 0;
-    const tennisVerifiedBlock = buildTennisVerifiedPlayerListBlock(players, liveMatches);
+    const tennisVerifiedBlock = buildTennisVerifiedPlayerListBlock(players, liveMatches, question);
     const fixtureHome = mxHome || "HOME_PLAYER";
     const fixtureAway = mxAway || "AWAY_PLAYER";
     const matchFocusBlock =
@@ -5679,7 +5746,7 @@ Instead, do ALL of the following:
 
 ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each player (only when at least two verified names exist on the VERIFIED TENNIS PLAYERS list above), state:
+3. For each player (when at least two names exist on the TENNIS PLAYER POOL above), state:
    - Market shape to watch (match winner band, spread in games, over/under games, ace prop)
    - A threshold in words ("only playable if implied favorite is under 65%")
    - Reasoning from surface Elo, serve/hold hints, DR, form strings, or round context on the board
@@ -6056,7 +6123,7 @@ If gameTotals in context shows 214.5, that band is the pace read: a line that lo
   } else if (sportHint === "mlb") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const mlbVerifiedBlock = buildMlbVerifiedPlayerListBlock(mlbContext);
+    const mlbVerifiedBlock = buildMlbVerifiedPlayerListBlock(mlbContext, question);
 
     userPrompt =
       mlbDecisionMode !== "actionable"
@@ -6077,7 +6144,7 @@ If gameTotals in context shows 214.5, that band is the pace read: a line that lo
   } else if (sportHint === "f1") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const f1VerifiedBlock = buildF1VerifiedDriverListBlock(f1Context);
+    const f1VerifiedBlock = buildF1VerifiedDriverListBlock(f1Context, question);
 
     userPrompt = `You are answering a Formula 1 betting question.
 
@@ -6114,7 +6181,7 @@ Instead, do ALL of the following:
 
 ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each driver (only when at least two verified names exist on the VERIFIED F1 DRIVERS list above), tie to:
+3. For each driver (when at least two names exist on the F1 DRIVER POOL above), tie to:
    - Podium or top-N finish framing from current points / form
    - Qualifying-to-race correlation when session data lists practice or qual gaps
    - Constructor teammate dynamic when both appear in context
@@ -6145,62 +6212,6 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
     const availableNflPlayers = extractNflPlayersFromContext(nflContextEffective);
     const subject = extractNflQuestionSubject(question);
     const matchedPlayer = findNflPlayerMatch(subject, availableNflPlayers);
-
-    // Audit note: tennis previously had a static "data-only" shortcut (removed). NFL is the only
-    // intentional non-Anthropic short-circuit here — guardrail when the question names a player
-    // absent from verified context. Golf / NBA / MLB / F1 always reach callAnthropic.
-    if (
-      shouldApplyNflUnsupportedGuard(question) &&
-      !isNflDraftAngleQuestion(question) &&
-      subject &&
-      availableNflPlayers.length > 0 &&
-      !matchedPlayer
-    ) {
-      const unsupportedResponse = `THE PLAY
-PASS — no verified edge on ${subject}
-
-MARKET MISTAKE
-The question targets a player not present in the current verified NFL board context.
-
-WHY MISPRICED
-I cannot validate this line with the provided player usage dataset, so forcing a side would be speculation.
-
-TIMING EDGE
-Wait until this player is in the board context or share a trusted line source.
-
-WHY IT FITS
-This protects bankroll quality by avoiding unsupported assumptions.
-
-FADE
-Fade any confident over/under call here until verified context is available.
-
-CONFIDENCE
-Speculative
-
-TIMING
-No bet now; re-run once verified player context is loaded.`;
-
-      const takeRecord = extractTakeFromResponse({
-        responseText: unsupportedResponse,
-        sport: sportHint || "generic",
-        intent,
-        question,
-      });
-
-      if (userEmail) {
-        appendTakeForUser(userEmail, takeRecord).catch((e) => {
-          console.warn("take logging failed:", e?.message || e);
-        });
-      }
-
-      return res.status(200).json({
-        requestId,
-        response: unsupportedResponse,
-        sport: sportHint || "generic",
-        intent,
-        take: takeClientPayload(takeRecord),
-      });
-    }
 
     const nflDraftAngle = isNflDraftAngleQuestion(question);
     const draftBundleForPrompt = getActiveDraftBundle();
@@ -6263,7 +6274,7 @@ No bet now; re-run once verified player context is loaded.`;
         ? nflContextEffective
         : contextJsonForModel(nflContextEffective)) +
       (teamCapitalBlock ? `\n\n---\n\n${teamCapitalBlock}` : "");
-    const nflVerifiedBlock = buildNflVerifiedPlayerListBlock(nflContextEffective);
+    const nflVerifiedBlock = buildNflVerifiedPlayerListBlock(nflContextEffective, question);
 
     const questionPropNames = [];
     if (subject) questionPropNames.push(subject);
@@ -6500,7 +6511,7 @@ Instead, do ALL of the following:
 
 ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
 
-3. For each player (only when at least two verified names exist on the VERIFIED NFL PLAYERS list above), state:
+3. For each player (when at least two names exist on the NFL PLAYER POOL above), state:
    - The prop type to watch
    - A pre-market band in words ("fade yards if the line opens above 275")
    - Reasoning from matchup defense tiers, red-zone role, or snap context in the payload
