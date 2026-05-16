@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/api/tennis",
@@ -25,6 +31,9 @@
     },
     "api/daily-take.js": {
       "maxDuration": 120
+    },
+    "api/nfl-predict-share.js": {
+      "maxDuration": 30
     }
   },
   "crons": [

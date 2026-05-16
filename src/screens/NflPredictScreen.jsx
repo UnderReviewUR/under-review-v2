@@ -180,12 +180,19 @@ export default function NflPredictScreen() {
         <div
           style={{
             display: "flex",
+            flexDirection: "row",
+            flexWrap: "nowrap",
             marginTop: 12,
             padding: 4,
             borderRadius: 12,
             background: "#101010",
             border: "1px solid var(--nfl-predict-border)",
             gap: 4,
+            overflowX: "auto",
+            overflowY: "hidden",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "thin",
+            maxWidth: "100%",
           }}
         >
           {tabs.map((t) => (
@@ -194,13 +201,16 @@ export default function NflPredictScreen() {
               type="button"
               onClick={() => setActiveView(t.id)}
               style={{
-                flex: 1,
+                flex: "1 0 auto",
+                minWidth: 76,
                 minHeight: 44,
                 borderRadius: 10,
                 border: "none",
                 cursor: "pointer",
                 fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12,
+                padding: "0 6px",
+                whiteSpace: "nowrap",
                 background: activeView === t.id ? "rgba(0,245,233,.15)" : "transparent",
                 color: activeView === t.id ? "var(--nfl-predict-accent)" : "var(--nfl-predict-muted)",
               }}
@@ -311,7 +321,15 @@ export default function NflPredictScreen() {
         </div>
       ) : null}
 
-      {activeView === "playoffs" ? <PlayoffPicture picks={picks} schedule={schedule} teams={teams} /> : null}
+      {activeView === "playoffs" ? (
+        <div style={{ padding: "4px 0 24px" }}>
+          <p style={{ fontSize: 13, color: "var(--nfl-predict-muted)", padding: "0 14px 10px", margin: 0, lineHeight: 1.45 }}>
+            Projected 14-team field from your picks (seeds 1–7 per conference). Pick more games to move teams in or out
+            of the bracket.
+          </p>
+          <PlayoffPicture picks={picks} schedule={schedule} teams={teams} />
+        </div>
+      ) : null}
 
       <div className="page-spacer" />
 

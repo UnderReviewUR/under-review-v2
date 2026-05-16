@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     await setDurableJson(STORE_PREFIX + id, payload, { ttlSeconds: TTL_SECONDS });
     return res.status(200).json({
       id,
-      url: `https://under-review.app/nfl?predictor=1&share=${id}`,
+      url: `https://under-review.app/nfl?share=${id}`,
     });
   }
 

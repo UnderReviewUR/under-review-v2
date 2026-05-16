@@ -41,7 +41,7 @@ export function applyApiNoStoreHeaders(res) {
   res.setHeader("Pragma", "no-cache");
 }
 
-export function applyCors(req, res, { methods = "GET, OPTIONS" } = {}) {
+export function applyCors(req, res, { methods = "GET, POST, OPTIONS" } = {}) {
   const allowedOrigin = getAllowedOrigin(req);
 
   if (allowedOrigin === false) {
