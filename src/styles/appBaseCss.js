@@ -818,7 +818,6 @@ export const baseCss = `
   }
   .ur-home-live-toggle-count{color:var(--ur-cyan);font-weight:700;}
   .ur-home-live-toggle-chev{color:var(--cyan-bright);font-size:12px;flex-shrink:0;}
-  .ur-public-stats--home-foot{margin-top:16px;margin-bottom:6px;}
   .home-ticker-quiet{
     min-height:52px;
     align-items:center;
@@ -1067,15 +1066,6 @@ export const baseCss = `
   button.ur-ask-saved-item:hover{border-color:rgba(0,245,233,0.25);}
   .ur-ask-saved-sport{font-family:var(--mono-font);font-size:9px;letter-spacing:0.12em;color:rgba(0,245,233,0.65);text-transform:uppercase;}
   .ur-ask-saved-snippet{font-size:13px;color:var(--soft);line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
-
-  .ur-public-stats{
-    font-family:monospace;
-    font-size:11px;
-    color:rgba(255,255,255,0.4);
-    text-align:center;
-    padding:4px 16px 12px;
-    letter-spacing:0.03em;
-  }
 
   .ur-record-dashboard-wrap{margin:16px 16px 0;padding:14px 16px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;}
   .ur-record-dashboard-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;}
