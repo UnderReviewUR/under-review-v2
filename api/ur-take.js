@@ -23,6 +23,11 @@ import {
 import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
 import { buildWorldCupContext } from "./_wcContext.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
+import {
+  appendSportTabNudge,
+  resolveSportHint as resolveSportHintShared,
+  stripUrTakeDeadEndCopy,
+} from "../shared/urTakeSportRouting.js";
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "./_takeLedger.js";
 import { buildCanonicalNflContext } from "./_nflContext.js";
@@ -115,7 +120,7 @@ import {
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
 
-/** Inline — _golfOddsApi.js is not deployed; keep UR Take loadable without that module. */
+/** Inline duplicate of _golfOddsApi.buildGolfOddsFreshnessPromptBlock — avoids ur-take importing scrape stack at module load. */
 function buildGolfOddsFreshnessPromptBlock(odds) {
   const fresh = odds?.freshness;
   if (!fresh?.isStale && !fresh?.staleWarning) {
@@ -766,134 +771,12 @@ function questionMentionsWorldCup(question) {
   return false;
 }
 
-function inferSportFromQuestionText(question, matchupContext, hasImage) {
-  const q = normalizeText(question);
-
-  if (matchupContext?.league) {
-    const league = normalizeText(matchupContext.league);
-    if (league.includes("golf") || league.includes("pga")) return "golf";
-    if (league.includes("nba")) return "nba";
-    if (league.includes("mlb")) return "mlb";
-    if (league.includes("nfl")) return "nfl";
-    if (league.includes("f1") || league.includes("formula 1")) return "f1";
-    if (league.includes("tennis")) return "tennis";
-  }
-
-  if (
-    q.includes("golf") ||
-    q.includes("outright") ||
-    q.includes("harbour town") ||
-    q.includes("rbc heritage") ||
-    q.includes("masters") ||
-    q.includes("pga")
-  ) {
-    return "golf";
-  }
-
-  /** Before NBA heuristics: avoid mistaking F1 "points" (championship / points finish) for basketball. */
-  if (
-    q.includes("f1") ||
-    q.includes("grand prix") ||
-    q.includes("formula 1") ||
-    q.includes("formula one") ||
-    q.includes("pole position") ||
-    q.includes("fastest lap") ||
-    /\bmiami\s+gp\b/.test(q)
-  ) {
-    return "f1";
-  }
-
-  if (
-    q.includes("nba") ||
-    /\bpra\b/.test(q) ||
-    (q.includes("points") &&
-      (q.includes("rebounds") ||
-        q.includes("assists") ||
-        q.includes("double-double") ||
-        /\bppg\b/.test(q) ||
-        /\bplayer\s+props?\b/.test(q)))
-  ) {
-    return "nba";
-  }
-  if (
-    q.includes("mlb") ||
-    q.includes("strikeout") ||
-    q.includes("home run") ||
-    q.includes("k prop") ||
-    (q.includes("pitcher") && q.includes("prop"))
-  ) {
-    return "mlb";
-  }
-  if (q.includes("nfl") || q.includes("receiving") || q.includes("rushing")) return "nfl";
-  if (
-    q.includes("world cup") ||
-    q.includes("fifa") ||
-    q.includes("soccer") ||
-    (q.includes("football") && !q.includes("nfl") && !q.includes("touchdown"))
-  ) {
-    return "worldcup";
-  }
-  if (q.includes("tennis")) return "tennis";
-
-  if (hasImage && matchupContext?.league) {
-    const league = normalizeText(matchupContext.league);
-    if (league.includes("nba")) return "nba";
-    if (league.includes("nfl")) return "nfl";
-    if (league.includes("mlb")) return "mlb";
-    if (league.includes("golf")) return "golf";
-    if (league.includes("f1")) return "f1";
-  }
-
-  return null;
-}
-
-export function resolveSportHint({ incomingSportHint, question, matchupContext, hasImage, golfContext }) {
-  const textualSport = inferSportFromQuestionText(question, matchupContext, hasImage);
-  const h =
-    typeof incomingSportHint === "string" && incomingSportHint.trim()
-      ? incomingSportHint.trim()
-      : "";
-
-  if (
-    textualSport &&
-    h &&
-    textualSport !== h &&
-    h !== "generic" &&
-    h !== "image_review"
-  ) {
-    return textualSport;
-  }
-
-  if (
-    isDerbyActive() &&
-    questionReferencesDerby(question) &&
-    (!h || h === "generic")
-  ) {
-    return "derby";
-  }
-
-  /** Client often sends sportHint "generic" on sport tabs; question text still anchors sport (e.g. Miami Grand Prix → f1). */
-  if ((!h || h === "generic" || h === "image_review") && textualSport) {
-    return textualSport;
-  }
-
-  if (h && h !== "generic" && h !== "image_review") return h;
-
-  if (
-    golfContext &&
-    (golfContext.currentEvent?.name ||
-      (Array.isArray(golfContext.currentEvent?.leaderboard) &&
-        golfContext.currentEvent.leaderboard.length > 0) ||
-      (Array.isArray(golfContext.odds?.outrights) && golfContext.odds.outrights.length > 0))
-  ) {
-    return "golf";
-  }
-
-  if (textualSport) return textualSport;
-
-  if (hasImage) return "generic";
-
-  return "generic";
+export function resolveSportHint(opts) {
+  return resolveSportHintShared({
+    ...opts,
+    derbyActive: isDerbyActive(),
+    questionIsDerby: questionReferencesDerby(String(opts?.question || "")),
+  });
 }
 
 function normalizeAvailabilityStatusClass(value) {
@@ -7358,6 +7241,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         };
       }
     }
+
+    responseText = stripUrTakeDeadEndCopy(responseText);
+    if (responseDeep) responseDeep = stripUrTakeDeadEndCopy(responseDeep);
+    responseText = appendSportTabNudge(responseText, {
+      answeredSport: sportHint,
+      uiSportHint: incomingSportHint,
+    });
+    if (responseDeep) {
+      responseDeep = appendSportTabNudge(responseDeep, {
+        answeredSport: sportHint,
+        uiSportHint: incomingSportHint,
+      });
+    }
+
     const nbaMeta =
       sportHint === "nba"
         ? buildNbaObservabilityMeta({

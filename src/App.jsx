@@ -1324,8 +1324,8 @@ ${themeCss}
   setMsgs((prev) => {
     priorSnapshot = [...prev];
     let eff =
-      explicitHint ??
       detected ??
+      explicitHint ??
       screenSport ??
       lastUrTakeSportRef.current ??
       inferUrTakeSportFromMessages(priorSnapshot) ??

@@ -1,8 +1,11 @@
 import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { stripUrTakeDeadEndCopy } from "../../../shared/urTakeSportRouting.js";
+
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
 import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
+import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { polishUrTakeFollowUpPhrase } from "../../lib/polishUrTakeFollowUpPhrase.js";
 import { CHASE_CALM_COPY } from "../../lib/chaseSignals.js";
@@ -13,6 +16,7 @@ import {
   takeFirstSentenceSpan,
 } from "../../lib/urTakeSentenceBoundaries.js";
 import URTakeResponse from "../../components/URTakeResponse.jsx";
+import { resolveStructuralEdgeChipForMessage } from "../../lib/urTakeStructuralEdgeChip.js";
 import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
@@ -63,14 +67,8 @@ export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
   const sanitizeForModel = (input) => {
     let s = String(input || "").trim();
     if (!s) return "";
-    s = s
-      .replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "")
-      .replace(/^WRONG SPORT\.[^\n]*\n?/im, "")
-      .replace(/^I'm locked into [^\n]*\n?/im, "")
-      .replace(/^For tennis prop analysis[^\n]*\n?/im, "")
-      .replace(/^What NBA game or player props[^\n]*\n?/im, "")
-      .trim();
-    return s;
+    s = s.replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "");
+    return stripUrTakeDeadEndCopy(s);
   };
   const cleaned = [];
   for (const m of msgs) {
@@ -78,7 +76,20 @@ export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
     const role = m.role === "ai" ? "assistant" : m.role === "user" ? "user" : null;
     const content = sanitizeForModel(m.text ?? m.content ?? "");
     if (!role || !content || /^ANALYZING/i.test(content)) continue;
-    cleaned.push({ role, content: content.slice(0, 3500) });
+    const row = { role, content: content.slice(0, 3500) };
+    const sport = String(m.sport || "").trim().toLowerCase();
+    if (sport) row.sport = sport;
+    if (m.structured && typeof m.structured === "object") {
+      const s = m.structured;
+      row.structured = {
+        call: s.call != null ? String(s.call).slice(0, 400) : undefined,
+        whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
+        edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
+        callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
+        confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
+      };
+    }
+    cleaned.push(row);
   }
   return cleaned.slice(-maxMessages);
 }
@@ -103,14 +114,8 @@ export function buildContextualQuestion(text, opts = {}) {
   const sanitizeForModel = (input) => {
     let s = String(input || "").trim();
     if (!s) return "";
-    s = s
-      .replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "")
-      .replace(/^WRONG SPORT\.[^\n]*\n?/im, "")
-      .replace(/^I'm locked into [^\n]*\n?/im, "")
-      .replace(/^For tennis prop analysis[^\n]*\n?/im, "")
-      .replace(/^What NBA game or player props[^\n]*\n?/im, "")
-      .trim();
-    return s;
+    s = s.replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "");
+    return stripUrTakeDeadEndCopy(s);
   };
 
   const snippets = priorMessages
@@ -370,14 +375,10 @@ export function golfScoreColor(score) {
 
 /** Display-time only: aligns first visible line with take.trust chips (same patterns as chatHistoryForApi). */
 export function stripLeadingUrTakeDisclaimersForDisplay(raw) {
-  return String(raw || "")
+  const s = String(raw || "")
     .replace(/^This is a .*? confidence take\.[^\n]*\n+/i, "")
-    .replace(/^This is a .*? confidence take\.[^\n]*$/im, "")
-    .replace(/^WRONG SPORT\.[^\n]*\n+/im, "")
-    .replace(/^I'm locked into [^\n]*\n+/im, "")
-    .replace(/^For tennis prop analysis[^\n]*\n+/im, "")
-    .replace(/^What NBA game or player props[^\n]*\n+/im, "")
-    .trimStart();
+    .replace(/^This is a .*? confidence take\.[^\n]*$/im, "");
+  return stripUrTakeDeadEndCopy(s);
 }
 
 /** Maps parsed confidence text to shared `.ur-conf-pill-*` tier classes in appBaseCss. */
@@ -1607,7 +1608,15 @@ function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText) {
   return effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null;
 }
 
-function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders }) {
+function UrTakeAiBubble({
+  m,
+  trackPlay,
+  userQuestion = "",
+  getTakeAuthHeaders,
+  msgs = [],
+  msgIndex = 0,
+  golfSessionBoard = null,
+}) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const dockFollowUps = getFollowUpSuggestions(m);
@@ -1653,6 +1662,12 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
       : "";
 
     const s = coerceStructuredForUrTakeCard(effectiveStructured);
+    const structuralEdgeChip = resolveStructuralEdgeChipForMessage({
+      msgs,
+      msgIndex,
+      sport: s.sport || m.sport,
+      golfSessionBoard,
+    });
     const structuredFallback = (
       <div
         className="ur-take-section-fallback"
@@ -1703,6 +1718,7 @@ function UrTakeAiBubble({ m, trackPlay, userQuestion = "", getTakeAuthHeaders })
             liveScore={String(m.liveScore || "").trim()}
             estimatedEdge={m.estimatedEdge}
             takeMeta={m.takeMeta}
+            structuralEdgeChip={structuralEdgeChip}
           />
         </UrTakeSectionErrorBoundary>
         <UrTakeNextContinuationLine />
@@ -1993,6 +2009,8 @@ export function ChatThread({
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
   hideFollowUpDock = false,
+  /** Live golf board for structural-edge chip (leaderboard + outrights). */
+  golfSessionBoard = null,
   /** When "urChatDocked", thread fills Ask screen above fixed dock (flex layout). */
   variant = "default",
 }) {
@@ -2170,6 +2188,9 @@ export function ChatThread({
             <>
               <UrTakeAiBubble
                 m={m}
+                msgs={msgs}
+                msgIndex={i}
+                golfSessionBoard={golfSessionBoard}
                 trackPlay={urTakeTrackPlay}
                 userQuestion={String(
                   [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
@@ -2254,7 +2275,7 @@ export function ChatThread({
       {proUpgradeNudgeVisible ? (
         <div className="ur-thread-upgrade-nudge" aria-live="polite">
           <span className="ur-thread-upgrade-nudge-text">
-            Go deeper on every game, every night — unlock Pro
+            {THREAD_UPGRADE_NUDGE_TEXT}
           </span>
           <button
             type="button"
@@ -2278,7 +2299,7 @@ export function ChatThread({
             padding: "8px 16px",
           }}
         >
-          ⚡ One follow-up left free — go deeper or ask another angle
+          ⚡ One free take left — Pro gives the full read with THE PLAY
         </div>
       ) : null}
       <div ref={bottomAnchorRef} className="ur-chat-thread-anchor" aria-hidden="true" />

@@ -11,6 +11,7 @@ import {
   buildSlipReviewVoicePrompt,
   buildUnderReviewVoicePrompt,
 } from "./_urTakeVoiceProfile.js";
+import { buildUrTakeNoDeadEndPrompt } from "../shared/urTakeSportRouting.js";
 
 export function buildCoreFrameworkPrompt() {
   return `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
@@ -313,7 +314,7 @@ export function buildSparseInputThinEvidenceAppendix(profile, sportHint = "") {
       );
     } else {
       lines.push(
-        "The user's question is short or underspecified for a full priced read. Deliver the tightest useful lean (slight lean or broad lean) and one explicit evidence-cap sentence, OR ask exactly one clarifying axis if nothing is actionable without it (market type, game/slate anchor, player, side/total, or line reference) — not a questionnaire.",
+        "The user's question is short or underspecified. Infer intent from session history, active event context, and the current sport payload — then deliver the tightest useful lean with one explicit evidence-cap sentence. Never ask the user to clarify player, sport, matchup, or market; pick the most likely read and commit.",
       );
     }
     lines.push(
@@ -332,7 +333,7 @@ export function buildSparseInputThinEvidenceAppendix(profile, sportHint = "") {
 
   if (sparse && thin) {
     lines.push(
-      "Both sparse question and thin evidence apply: shortest honest answer first, confidence cap in the opening cluster, then at most one clarifying hook if needed.",
+      "Both sparse question and thin evidence apply: shortest honest answer first, confidence cap in the opening cluster, then one forward hook the user can verify — never a clarification questionnaire.",
     );
   }
 
@@ -604,7 +605,9 @@ Strip any mention of missing lines, odds, books, or feeds from the closing sente
 
 export function buildGlobalQualityPrompt(contextQuality) {
   const cq = String(contextQuality ?? "").trim() || "unknown";
-  return `GLOBAL RESPONSE QUALITY RULES (all sports, mandatory)
+  return `${buildUrTakeNoDeadEndPrompt()}
+
+GLOBAL RESPONSE QUALITY RULES (all sports, mandatory)
 - PRODUCT SCOPE: Under Review covers NBA, NFL, Tennis, MLB, Golf, and F1. Never describe any of these six sports as outside scope.
 - Opener authority: the first sentence is governed by Step 1 of THE UNDERREVIEW RESPONSE FRAMEWORK above (the trigger condition, not the pick). No other rule may override Step 1.
 - EVIDENCE FLOOR: Context quality for this request is "${cq}". If context quality is low, you MUST keep the take as a watch-level read and include one explicit sentence that confidence is capped because evidence is thin.
@@ -1102,6 +1105,12 @@ Prefer the GOLF FIELD list and live leaderboard rows for position-specific quest
 Never invent golfers or book prices. Never say a legitimate PGA Tour pro is "not in the verified field" or "not in the field."
 Final vs live tournament state in user prompt overrides casual "tonight" betting language — obey that state.
 If the tournament state is final, respond in two sentences only: winner confirmation and next event pointer. Do not produce a full recap.
+
+GOLF LEADER vs STRUCTURAL EDGE (in-session):
+- Leaderboard leader = who is ahead on the board right now.
+- Structural edge / value play = where the betting thesis lives (course fit, approach, chase script, prices).
+- These can differ on Sunday — state both when relevant. Do NOT replace an established in-session structural edge with the live leader unless new evidence explicitly breaks the thesis.
+- Example framing: "Smalley has the lead; Rahm is the structural value we flagged."
 
 GOLF OUTRIGHT WINNER — MUTUALLY EXCLUSIVE SELECTIONS (always):
 Only one golfer wins the tournament. Multiple outright picks on the same event are separate bets (basket / coverage / multiple singles), not a parlay — never multiply winner odds together. Size with totalStake = stake × N and net profit after losing stakes when the user asks about "$1 on several players" or coming out ahead.`;

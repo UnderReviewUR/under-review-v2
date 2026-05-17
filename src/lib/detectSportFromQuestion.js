@@ -1,3 +1,4 @@
+import { inferSportFromQuestionText } from "../../shared/urTakeSportRouting.js";
 import { normalizeText } from "./normalizeText.js";
 
 const SPORT_TABS = new Set(["nba", "mlb", "nfl", "golf", "tennis", "f1", "worldcup"]);
@@ -317,49 +318,24 @@ export function detectNflTeamHint(question) {
 }
 
 /**
- * When user is on a sport tab, that sport wins (with tennis → WTA scan).
- * Otherwise keyword-scan the question. Returns a sport hint or "generic".
+ * Question text wins when it clearly signals a sport; otherwise the active tab is the default.
+ * Returns a sport hint or "generic".
  */
 export function detectSportFromQuestion(question, currentTab) {
   const tab = normalizeText(currentTab);
+  const fromQuestion = inferSportFromQuestionText(question);
 
   if (tab === "tennis") {
-    return detectWtaFromQuestion(question) ? "tennis_wta_profile" : "tennis";
-  }
-  if (SPORT_TABS.has(tab)) {
-    return tab;
+    if (detectWtaFromQuestion(question)) return "tennis_wta_profile";
+    if (fromQuestion && fromQuestion !== "tennis") return fromQuestion;
+    return fromQuestion || "tennis";
   }
 
-  const q = normalizeText(question);
+  if (fromQuestion) return fromQuestion;
+
+  if (SPORT_TABS.has(tab)) return tab;
 
   if (detectWtaFromQuestion(question)) return "tennis_wta_profile";
-
-  if (containsAny(q, F1_TERMS)) return "f1";
-  if (containsAny(q, GOLF_TERMS)) return "golf";
-  if (containsAny(q, MLB_TERMS)) return "mlb";
-  if (containsAny(q, NFL_TERMS)) return "nfl";
-  if (
-    containsAny(q, WORLD_CUP_TERMS) &&
-    !q.includes("nfl") &&
-    !q.includes("touchdown") &&
-    !q.includes("quarterback")
-  ) {
-    return "worldcup";
-  }
-  if (containsAny(q, NBA_TERMS)) return "nba";
-
-  if (
-    q.includes("tennis") ||
-    q.includes("atp") ||
-    q.includes("aces") ||
-    q.includes("double faults") ||
-    q.includes("break points") ||
-    q.includes("scoreline") ||
-    q.includes("match winner") ||
-    containsAny(q, ATP_HINT_NAMES)
-  ) {
-    return "tennis";
-  }
 
   return "generic";
 }

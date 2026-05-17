@@ -6,12 +6,19 @@ import {
   detectWtaFromQuestion,
 } from "./detectSportFromQuestion.js";
 
-test("tab nba forces nba regardless of question", () => {
-  assert.equal(detectSportFromQuestion("best Yankees prop", "nba"), "nba");
+test("nba tab + Yankees question routes to mlb from question text", () => {
+  assert.equal(detectSportFromQuestion("best Yankees prop", "nba"), "mlb");
 });
 
-test("tab mlb forces mlb", () => {
+test("mlb tab + vague question stays on tab", () => {
   assert.equal(detectSportFromQuestion("random words", "mlb"), "mlb");
+});
+
+test("golf tab + Lakers question routes to nba", () => {
+  assert.equal(
+    detectSportFromQuestion("Best Lakers player prop tonight?", "golf"),
+    "nba",
+  );
 });
 
 test("home + Spurs question → nba (primary regression)", () => {
