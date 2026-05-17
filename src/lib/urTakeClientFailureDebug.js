@@ -51,7 +51,7 @@ export function buildUrTakeApiSuccessFallbackDebug(data, effectiveSportHint, ctx
 
 /**
  * @param {object} p
- * @param {"fetch_non_ok" | "invalid_json" | "api_fallback_reason" | "abort" | "client_catch"} p.phase
+ * @param {"fetch_non_ok" | "invalid_json" | "api_fallback_reason" | "abort" | "network_load_failed" | "client_catch"} p.phase
  */
 export function buildUrTakeClientFailureDebug({
   phase,
@@ -64,6 +64,15 @@ export function buildUrTakeClientFailureDebug({
   hasGolfContext,
   serializedBodyLength,
   contentType,
+  elapsedMs = null,
+  navigatorOnLine = null,
+  visibilityState = null,
+  requestUrl = null,
+  sameOrigin = null,
+  golfContextMeta = null,
+  activePageTournamentLabel = null,
+  fetchAttempt = null,
+  golfContextMismatch = false,
 }) {
   const rawStr = typeof raw === "string" ? raw : "";
   let safeParsed = null;
@@ -95,6 +104,22 @@ export function buildUrTakeClientFailureDebug({
     serializedBodyLength: typeof serializedBodyLength === "number" ? serializedBodyLength : null,
     contentType: contentType != null && contentType !== "" ? String(contentType) : null,
     buildFingerprint: getUrBuildFingerprint(),
+    elapsedMs: typeof elapsedMs === "number" ? elapsedMs : null,
+    navigatorOnLine: navigatorOnLine === null ? null : Boolean(navigatorOnLine),
+    visibilityState:
+      visibilityState != null && String(visibilityState).trim() !== ""
+        ? String(visibilityState)
+        : null,
+    requestUrl: requestUrl != null && String(requestUrl).trim() !== "" ? String(requestUrl) : null,
+    sameOrigin: sameOrigin === null ? null : Boolean(sameOrigin),
+    golfContextMeta:
+      golfContextMeta && typeof golfContextMeta === "object" ? golfContextMeta : null,
+    activePageTournamentLabel:
+      activePageTournamentLabel != null && String(activePageTournamentLabel).trim() !== ""
+        ? String(activePageTournamentLabel)
+        : null,
+    fetchAttempt: typeof fetchAttempt === "number" ? fetchAttempt : null,
+    golfContextMismatch: Boolean(golfContextMismatch),
   };
 }
 

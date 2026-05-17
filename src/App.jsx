@@ -49,7 +49,11 @@ import {
   f1EventKey,
 } from "../shared/homeEventDedup.js";
 import { golfKeyForLiveSnapshot } from "./lib/liveSnapshotEventKeys.js";
-import { alignGolfBoardSnapshotForQuestion } from "../shared/golfTournamentIntent.js";
+import {
+  alignGolfBoardSnapshotForQuestion,
+  extractGolfTournamentIntentFromQuestion,
+  golfFeedUiMismatchesQuestionIntent,
+} from "../shared/golfTournamentIntent.js";
 import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
@@ -129,6 +133,13 @@ import {
   buildUrTakeApiSuccessFallbackDebug,
   buildUrTakeClientFailureDebug,
 } from "./lib/urTakeClientFailureDebug.js";
+import {
+  buildUrTakePreFetchLog,
+  classifyUrTakeClientCatchPhase,
+  fetchUrTakeWithNetworkRetry,
+  userMessageForUrTakeClientFailure,
+  UR_TAKE_PATH,
+} from "./lib/urTakeFetch.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -1295,6 +1306,10 @@ ${themeCss}
   let hasGolfContextForDebug = false;
   let serializedBodyLength = 0;
   let lastResponseContentType = null;
+  let golfContextMetaForDebug = null;
+  let activePageTournamentLabelForDebug = null;
+  let golfContextMismatchForDebug = false;
+  let urTakeFetchElapsedMs = null;
 
   const pendingMsgId =
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -1426,12 +1441,36 @@ ${themeCss}
       body.mlbContext = buildMlbContext(text, ov.mlbData ?? null);
     }
 
+    activePageTournamentLabelForDebug =
+      golfData?.currentEvent?.name ||
+      golfData?.currentEvent?.shortName ||
+      golfData?.tournament?.name ||
+      null;
+    golfContextMismatchForDebug = golfFeedUiMismatchesQuestionIntent(ov.golfData ?? golfData, text);
+
     if (
       effectiveSportHint === "golf" ||
       detectSportFromQuestion(text, tab) === "golf" ||
       questionSuggestsGolf(text)
     ) {
       body.golfContext = buildGolfContext(text, ov.golfData ?? null);
+      const gc = body.golfContext;
+      if (gc && typeof gc === "object") {
+        golfContextMetaForDebug = {
+          tournamentLabel:
+            gc.currentEvent?.name ||
+            gc.tournament?.name ||
+            gc.questionEventAlignment?.requestedLabel ||
+            null,
+          questionIntent: extractGolfTournamentIntentFromQuestion(text)?.label || null,
+          questionEventAlignment: gc.questionEventAlignment || null,
+          contextScope: gc.questionEventAlignment?.contextScope || null,
+          hasLeaderboard: Boolean(
+            (gc.currentEvent?.leaderboard?.length || 0) > 0 ||
+              (gc.tournament?.leaderboard?.length || 0) > 0,
+          ),
+        };
+      }
     }
 
     if (!effectiveSportHint) {
@@ -1493,19 +1532,58 @@ ${themeCss}
     }
     serializedBodyLength = typeof serialized === "string" ? serialized.length : 0;
 
+    const requestUrl =
+      typeof window !== "undefined"
+        ? new URL(UR_TAKE_PATH, window.location.href).href
+        : UR_TAKE_PATH;
+    const fetchHeaders = {
+      "Content-Type": "application/json",
+      /** Redundant with body.structured — ensures API enables structured mode even if JSON body is narrowed en route. */
+      "X-UR-Take-Structured": "1",
+      ...authHeaders,
+    };
+
+    console.log(
+      JSON.stringify(
+        buildUrTakePreFetchLog({
+          requestUrl,
+          method: "POST",
+          serializedBodyLength,
+          sportHint: effectiveSportHint,
+          golfContextMeta: golfContextMetaForDebug,
+          activePageTournamentLabel: activePageTournamentLabelForDebug,
+          abortController: ctrl,
+        }),
+      ),
+    );
+
     let res;
     try {
-      res = await fetch("/api/ur-take", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          /** Redundant with body.structured — ensures API enables structured mode even if JSON body is narrowed en route. */
-          "X-UR-Take-Structured": "1",
-          ...authHeaders,
-        },
-        body: serialized,
+      const fetched = await fetchUrTakeWithNetworkRetry({
+        serialized,
+        headers: fetchHeaders,
         signal: ctrl.signal,
+        onAttemptFailed: ({ attempt, err, elapsedMs }) => {
+          if (attempt === 1 && err) {
+            console.warn(
+              JSON.stringify({
+                event: "ur_take_fetch_attempt_failed",
+                attempt,
+                phase: classifyUrTakeClientCatchPhase(err),
+                errName: err?.name ?? null,
+                errMessage: err?.message ?? null,
+                elapsedMs,
+                navigatorOnLine:
+                  typeof navigator !== "undefined" ? navigator.onLine : null,
+                visibilityState:
+                  typeof document !== "undefined" ? document.visibilityState : null,
+              }),
+            );
+          }
+        },
       });
+      res = fetched.res;
+      urTakeFetchElapsedMs = fetched.elapsedMs;
     } finally {
       window.clearTimeout(abortTimer);
     }
@@ -1791,10 +1869,11 @@ ${themeCss}
         error: err?.name === "AbortError" ? "abort" : "client_error",
       });
     }
+    const catchPhase = classifyUrTakeClientCatchPhase(err);
     const failureDbg =
       err?.urTakeClientFailure ??
       buildUrTakeClientFailureDebug({
-        phase: err?.name === "AbortError" ? "abort" : "client_catch",
+        phase: catchPhase,
         res: null,
         raw: "",
         parsedErrorJson: null,
@@ -1804,12 +1883,30 @@ ${themeCss}
         hasGolfContext: hasGolfContextForDebug,
         serializedBodyLength,
         contentType: lastResponseContentType,
+        elapsedMs:
+          typeof err?.elapsedMs === "number"
+            ? err.elapsedMs
+            : urTakeFetchElapsedMs,
+        navigatorOnLine: typeof navigator !== "undefined" ? navigator.onLine : null,
+        visibilityState: typeof document !== "undefined" ? document.visibilityState : null,
+        requestUrl:
+          typeof window !== "undefined"
+            ? new URL(UR_TAKE_PATH, window.location.href).href
+            : UR_TAKE_PATH,
+        sameOrigin:
+          typeof window !== "undefined"
+            ? new URL(UR_TAKE_PATH, window.location.href).origin === window.location.origin
+            : null,
+        golfContextMeta: golfContextMetaForDebug,
+        activePageTournamentLabel: activePageTournamentLabelForDebug,
+        golfContextMismatch: golfContextMismatchForDebug,
       });
     console.error("[urTakeClientFailure]", failureDbg);
     const fallback =
-      err?.name === "AbortError"
-        ? "Request timed out — try again."
-        : err?.message || "The feed hit a snag — try again or rephrase your question.";
+      err?.userFacingMessage ||
+      userMessageForUrTakeClientFailure(catchPhase, {
+        golfContextMismatch: golfContextMismatchForDebug,
+      });
     setMsgs((prev) => [
       ...prev.filter((m) => !m.loading),
       { role: "ai", text: fallback, urTakeClientFailure: failureDbg },

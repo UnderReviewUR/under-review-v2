@@ -301,6 +301,62 @@ export function buildCurrentEventFromScheduleRow(row, preserveFrom = null) {
  * @param {Record<string, unknown> | null} golfData
  * @param {string} question
  */
+/**
+ * Drop leaderboard / odds tied to the wrong week when the question names a different event.
+ * @param {Record<string, unknown>} golfData
+ * @param {{ slug: string, label: string }} intent
+ * @param {{ name?: string, shortName?: string, course?: string } | null} alignedCurrentEvent
+ */
+export function stripStaleGolfWeekArtifactsForIntent(
+  golfData,
+  intent,
+  alignedCurrentEvent,
+  wasRealigned = false,
+) {
+  if (!golfData || !intent) return golfData;
+  const tournamentOk = golfLabelsMatchIntent(
+    golfData.tournament?.name,
+    golfData.tournament?.shortName,
+    intent,
+  );
+  const eventOk =
+    !wasRealigned && golfCurrentEventMatchesIntent(alignedCurrentEvent, intent);
+  const courseBlob = String(
+    (golfData.course && typeof golfData.course === "object"
+      ? golfData.course.name || golfData.course.course
+      : golfData.course) || "",
+  );
+  const courseOk = !golfCourseConflictsWithIntent(courseBlob, intent);
+
+  return {
+    ...golfData,
+    tournament: tournamentOk ? golfData.tournament : null,
+    odds: eventOk
+      ? golfData.odds
+      : {
+          outrights: [],
+          topFinish: {},
+          makeCut: {},
+          linesUnavailable: true,
+          hasPostedLines: false,
+          fieldUnavailableMessage:
+            "Lines for that week are not loaded yet — ask about a player or matchup and I'll use schedule context.",
+        },
+    recentResults: tournamentOk ? golfData.recentResults : [],
+    courseStats: courseOk ? golfData.courseStats : [],
+  };
+}
+
+export function golfFeedUiMismatchesQuestionIntent(golfData, question) {
+  const intent = extractGolfTournamentIntentFromQuestion(question);
+  if (!intent || !golfData?.currentEvent) return false;
+  return !golfCurrentEventMatchesIntent(golfData.currentEvent, intent);
+}
+
+/**
+ * @param {Record<string, unknown> | null} golfData
+ * @param {string} question
+ */
 export function alignGolfBoardSnapshotForQuestion(golfData, question) {
   if (!golfData || typeof golfData !== "object") return golfData;
   const intent = extractGolfTournamentIntentFromQuestion(question);
@@ -319,14 +375,14 @@ export function alignGolfBoardSnapshotForQuestion(golfData, question) {
         id: null,
         name: intent.label,
         shortName: intent.label,
-        course: row?.courseName || "TBD",
-        location: row?.location || "",
+        course: "TBD",
+        location: "",
         state: "pre",
         round: "Upcoming",
         leaderboard: [],
       };
 
-  return {
+  const aligned = {
     ...golfData,
     currentEvent: alignedEvent,
     questionEventAlignment: {
@@ -334,6 +390,9 @@ export function alignGolfBoardSnapshotForQuestion(golfData, question) {
       requestedSlug: intent.slug,
       previousFeedEvent: golfData.currentEvent?.name || null,
       source: row ? "schedule" : "intent_only",
+      contextScope: row ? "question_week" : "question_week_preview",
     },
   };
+
+  return stripStaleGolfWeekArtifactsForIntent(aligned, intent, alignedEvent, true);
 }

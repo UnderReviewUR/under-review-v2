@@ -119,6 +119,46 @@ test("golfCourseConflictsWithIntent blocks wrong venue on correct name", () => {
   );
 });
 
+test("align strips stale tournament when feed week differs from Byron Nelson question", () => {
+  const board = {
+    currentEvent: {
+      name: "PGA Championship",
+      shortName: "PGA Championship",
+      course: "Aronimink Golf Club",
+      state: "pre",
+      leaderboard: [],
+    },
+    tournament: {
+      name: "PGA Championship",
+      shortName: "PGA Championship",
+      state: "pre",
+      leaderboard: [{ name: "Scottie", score: "-4" }],
+    },
+    odds: {
+      outrights: [{ player: "Scottie", odds: 8 }],
+      topFinish: {},
+      makeCut: {},
+    },
+    tourSchedule: [
+      {
+        name: "THE CJ CUP Byron Nelson",
+        shortName: "Byron Nelson",
+        courseName: "TPC Craig Ranch",
+        status: "Upcoming",
+        startDate: "2026-05-21",
+      },
+    ],
+  };
+  const aligned = alignGolfBoardSnapshotForQuestion(
+    board,
+    "THE CJ CUP Byron Nelson — who has the best value?",
+  );
+  assert.match(String(aligned.currentEvent.name), /byron nelson/i);
+  assert.equal(aligned.tournament, null);
+  assert.equal((aligned.odds?.outrights || []).length, 0);
+  assert.equal(aligned.questionEventAlignment?.requestedSlug, "byron_nelson");
+});
+
 test("intent_only client align does not keep Byron Nelson course", () => {
   const board = {
     currentEvent: {

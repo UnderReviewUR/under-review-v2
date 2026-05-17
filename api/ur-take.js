@@ -4611,7 +4611,14 @@ export default async function handler(req, res) {
       ? crypto.randomUUID().replace(/-/g, "").slice(0, 12)
       : `rq${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-  console.log(JSON.stringify({ tag: "[urTakeRequest]", requestId, event: "ur_take_request_start" }));
+  console.log(
+    JSON.stringify({
+      tag: "[urTakeRequest]",
+      requestId,
+      event: "ur_take_request_start",
+      contentLength: Number(req.headers["content-length"]) || null,
+    }),
+  );
 
   const feedSnagResponse = (sportVal, fallbackReason, logCtx = {}) => {
     const text =
