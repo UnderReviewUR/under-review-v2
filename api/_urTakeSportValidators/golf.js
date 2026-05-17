@@ -1,3 +1,4 @@
+import { lintGolfOutrightParlayMisread } from "../_golfOutrightBasket.js";
 import { splitSentences } from "./_shared.js";
 
 const OUTRIGHT = /\b(?:outright|winner|to\s+win\s+the\s+tournament|lift\s+the\s+trophy)\b/i;
@@ -29,6 +30,8 @@ export function lintGolfOutput(text, _options = {}) {
   const issues = [];
   const raw = String(text || "");
   if (!raw.trim()) return issues;
+
+  issues.push(...lintGolfOutrightParlayMisread(raw));
 
   for (const s of splitSentences(raw)) {
     if (OUTRIGHT.test(s) && OUT_HYPE.test(s) && !outrightHypeNegated(s)) {

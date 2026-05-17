@@ -79,6 +79,10 @@ import {
 import { getSlipImageRouteMeta } from "./_slipImageIntent.js";
 import { buildF1UrTakeContext } from "./f1.js";
 import {
+  buildGolfOutrightBasketUserPromptAppendix,
+  classifyGolfBetStructure,
+} from "./_golfOutrightBasket.js";
+import {
   buildCoreFrameworkPrompt,
   buildFactAuthorityPrompt,
   buildMlbParlayResponseRule,
@@ -5817,6 +5821,11 @@ SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level 
     const golfIsFinal = golfState === "post" || golfState === "final";
     const golfVerifiedBlock = buildGolfVerifiedPlayerListBlock(golfContextEffective);
     const golfHasVerifiedNames = collectGolfVerifiedNames(golfContextEffective).size > 0;
+    const golfBetStructure = classifyGolfBetStructure(question, "golf");
+    const golfOutrightBasketBlock = buildGolfOutrightBasketUserPromptAppendix(
+      question,
+      golfContextEffective?.odds?.outrights,
+    );
 
     if (golfIsFinal) {
       userPrompt = `You are answering a golf question after the tournament has FINISHED.
@@ -5865,6 +5874,12 @@ ${buildGolfQuestionAlignmentPromptBlock(
         resolveGolfQuestionAlignmentArg(golfContextEffective),
         golfContextEffective?.currentEvent,
       )}
+${golfOutrightBasketBlock}
+
+BET STRUCTURE (server classification — obey for wording and math):
+- marketType: ${golfBetStructure.marketType}
+- structure: ${golfBetStructure.structure}
+${golfBetStructure.structure === "basket" ? "- This turn is NOT a parlay; use basket / coverage / multiple singles only." : ""}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.

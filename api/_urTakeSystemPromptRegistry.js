@@ -4,6 +4,10 @@
  */
 
 import {
+  buildGolfOutrightBasketSystemRule,
+  detectOutrightBasketIntent,
+} from "./_golfOutrightBasket.js";
+import {
   buildSlipReviewVoicePrompt,
   buildUnderReviewVoicePrompt,
 } from "./_urTakeVoiceProfile.js";
@@ -173,9 +177,11 @@ Confidence across all sports uses exactly three values — High, Medium, Specula
 - Medium: edge exists but depends on one or two assumptions holding.
 - Speculative: thin data or unresolved inputs — frame the read as a watch, not a bet.
 
-PARLAY CORRELATION RULE (mandatory):
+PARLAY CORRELATION RULE (mandatory — golf outright baskets excluded):
 
-Never build a parlay where multiple legs depend on the same single condition being true. Correlated legs are not independent edges — they are the same edge expressed twice, which inflates risk without adding value.
+Never build a parlay where multiple legs depend on the same single condition being true.
+
+Golf (and F1 race-winner) outright exception: multiple golfers/drivers to win the SAME event are mutually exclusive — that is a basket of separate singles (dutch/coverage), not a parlay. Never multiply their American odds. Follow GOLF OUTRIGHT BASKET RULE when injected. Correlated legs are not independent edges — they are the same edge expressed twice, which inflates risk without adding value.
 
 Examples of correlated legs to AVOID:
 - Two overs in the same game expected to go high-scoring (both live and die on pace together)
@@ -1095,8 +1101,13 @@ export function buildGolfSurfaceAppendix() {
 Prefer the GOLF FIELD list and live leaderboard rows for position-specific questions (who's leading, cut line, live scores). For prop, top-20, top-10, and matchup questions about any known PGA Tour professional, provide analysis even when live leaderboard position is unavailable — note "leaderboard position not yet available" instead of refusing.
 Never invent golfers or book prices. Never say a legitimate PGA Tour pro is "not in the verified field" or "not in the field."
 Final vs live tournament state in user prompt overrides casual "tonight" betting language — obey that state.
-If the tournament state is final, respond in two sentences only: winner confirmation and next event pointer. Do not produce a full recap.`;
+If the tournament state is final, respond in two sentences only: winner confirmation and next event pointer. Do not produce a full recap.
+
+GOLF OUTRIGHT WINNER — MUTUALLY EXCLUSIVE SELECTIONS (always):
+Only one golfer wins the tournament. Multiple outright picks on the same event are separate bets (basket / coverage / multiple singles), not a parlay — never multiply winner odds together. Size with totalStake = stake × N and net profit after losing stakes when the user asks about "$1 on several players" or coming out ahead.`;
 }
+
+export { detectOutrightBasketIntent, classifyGolfBetStructure } from "./_golfOutrightBasket.js";
 
 export function buildF1SurfaceAppendix() {
   return `F1 SURFACE SPINE
@@ -1131,7 +1142,12 @@ export function buildGenericSurfaceAppendix(sportHint) {
 Sport hint is non-specific or cross-sport. Stay conservative: no invented matchups or prices. Prefer one structural principle the question still supports; cap confidence when evidence is thin. Never refuse the question or treat sport-hint ambiguity as a reason to stop — answer from verified anchors in context. Never tell the user there is a sport conflict or ask them to switch threads.`;
 }
 
-export function buildSportSurfaceRegistryAppendix({ sportHint, nbaDecisionMode, mlbDecisionMode }) {
+export function buildSportSurfaceRegistryAppendix({
+  sportHint,
+  nbaDecisionMode,
+  mlbDecisionMode,
+  question = "",
+}) {
   const s = String(sportHint || "").toLowerCase();
   const parts = [];
   if (s === "nba") {
@@ -1157,6 +1173,9 @@ When playoffSeries and verified slate context clearly describe postseason matchu
   }
   if (s === "golf") parts.push(buildGolfSurfaceAppendix());
   if (s === "f1") parts.push(buildF1SurfaceAppendix());
+  if (s === "golf" && detectOutrightBasketIntent(question)) {
+    parts.push(buildGolfOutrightBasketSystemRule());
+  }
   const gen = buildGenericSurfaceAppendix(sportHint);
   if (gen) parts.push(gen);
   if (!parts.length) return "";
@@ -1305,6 +1324,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
     sportHint,
     nbaDecisionMode,
     mlbDecisionMode,
+    question: String(question || ""),
   });
   const uncertaintySurface = buildConditionalUncertaintyDirectionAppendix(sportHint);
 

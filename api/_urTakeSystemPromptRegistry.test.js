@@ -8,6 +8,7 @@ import {
   buildTakeTrustUiMetadata,
   mergeTrustWithQaHints,
   composeRegisteredUrTakeSystemPrompt,
+  detectOutrightBasketIntent,
   detectParlayIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
@@ -57,6 +58,12 @@ test("detectParlayIntent", () => {
   assert.equal(detectParlayIntent("best player props tonight"), false);
   assert.equal(detectParlayIntent("4 leg parlay lakers thunder"), true);
   assert.equal(detectParlayIntent("Give me an SGP for this game"), true);
+});
+
+test("detectOutrightBasketIntent — not confused with parlay detector", () => {
+  const q = "I could technically place $1 on 3 players and still come out ahead";
+  assert.equal(detectOutrightBasketIntent(q), true);
+  assert.equal(detectParlayIntent(q), false);
 });
 
 test("composeRegisteredUrTakeSystemPrompt prepends memoryBlock when provided", () => {
