@@ -202,9 +202,37 @@ function buildNbaLayer(question, nbaContextForModel) {
     baseline.push(`Player stats bundle: ${stats.length} row(s) — align names to rosterGrounding / question.`);
   }
 
-  limits.push("Line movement / sharp action: not tracked in UnderReview payloads — keep lineMovementEvidence false.");
+  const spreadMap = nbaContextForModel?.spreads;
+  const spreadRows =
+    spreadMap && typeof spreadMap === "object" && !Array.isArray(spreadMap)
+      ? Object.values(spreadMap)
+      : [];
+  const verifiedSpreads = spreadRows.filter((s) => s?.current?.displayLine && !s?.lineUnavailable);
+  const movementRows = spreadRows.filter((s) => s?.lineMovement?.hasMovement);
+
+  if (verifiedSpreads.length) {
+    verified.push(
+      `Game spread(s): ${verifiedSpreads.map((s) => s.current.displayLine).slice(0, 4).join("; ")} — cite only these numbers.`,
+    );
+  }
+  if (movementRows.length) {
+    flags.lineMovementEvidence = true;
+    for (const s of movementRows.slice(0, 2)) {
+      if (s?.lineMovement?.narrative) {
+        baseline.push(`Line movement (${s.gameKey || "game"}): ${s.lineMovement.narrative}`);
+      }
+    }
+  } else if (verifiedSpreads.length) {
+    limits.push(
+      "Spread posted but no verified movement between snapshots — use 'Line stable' or omit movement narrative.",
+    );
+    flags.lineMovementEvidence = false;
+  } else {
+    limits.push("No verified game spread in payload — do not invent spread numbers; say line unavailable once if asked.");
+    flags.lineMovementEvidence = false;
+  }
+
   limits.push("Weather: not in NBA board — keep weatherEvidence false.");
-  flags.lineMovementEvidence = false;
   flags.weatherEvidence = false;
 
   return {

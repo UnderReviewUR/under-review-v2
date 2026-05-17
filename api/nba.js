@@ -15,6 +15,7 @@ import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
+import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -3064,6 +3065,14 @@ function buildGameTotalsFromProps(propLines) {
 const NBA_INJURIES_CONTEXT_NOTE =
   "INJURY CONTEXT (BallDontLie feed — cite status/detail only from rows below; background only — do not open with this, do not frame as primary edge):";
 
+/** Slate games for scheduled spread snapshot cron (12h / 6h / 3h / 1h before tip). */
+export async function fetchNbaSlateGamesForOddsRefresh() {
+  const ODDS_KEY = getEnv("ODDS_API_KEY");
+  const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
+  const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
+  return Array.isArray(tgRes.games) ? tgRes.games : [];
+}
+
 /**
  * Fresh NBA payload for UR Take — **do not rely on the browser-cached board**.
  * Prioritizes Odds prop pulls + stat rows for teams named in the question (e.g. MIN @ DEN).
@@ -3147,6 +3156,8 @@ export async function buildNbaUrTakeBoard(question = "") {
     statsBundle.statsSource || "season_average",
   );
 
+  const { spreads, movementByGame } = await hydrateNbaGameSpreads(todaysGames, ODDS_KEY);
+
   const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
   const deepHydratedTeams = [
     ...new Set(
@@ -3182,6 +3193,8 @@ export async function buildNbaUrTakeBoard(question = "") {
     recentForm: "",
     h2hSplits: [],
     gameTotals: buildGameTotalsFromProps(propLines),
+    spreads,
+    spreadMovementByGame: movementByGame,
     bdlGrounding: buildBdlGroundingEnvelope({
       playerStats: playerStatsWithRecent,
       todaysGames,
@@ -3431,6 +3444,9 @@ export default async function handler(req, res) {
         statsBundle.statsSource || "season_average",
       );
 
+      const { spreads: warmupSpreads, movementByGame: warmupMovement } =
+        await hydrateNbaGameSpreads(todaysGames, ODDS_KEY);
+
       const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
       const deepHydratedTeams = [
         ...new Set(
@@ -3475,6 +3491,8 @@ export default async function handler(req, res) {
         recentForm: "",
         h2hSplits: [],
         gameTotals: buildGameTotalsFromProps(propLines),
+        spreads: warmupSpreads,
+        spreadMovementByGame: warmupMovement,
         bdlGrounding: buildBdlGroundingEnvelope({
           playerStats: playerStatsWithRecent,
           todaysGames,

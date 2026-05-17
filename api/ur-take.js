@@ -57,6 +57,7 @@ import {
   questionMentionsPlayer,
 } from "./nba.js";
 import { buildMlbUrTakeBoard } from "./mlb.js";
+import { buildGolfOddsFreshnessPromptBlock } from "./_golfOddsApi.js";
 import {
   alignGolfBoardToQuestion,
   buildCombinedVerifiedGolfField,
@@ -99,6 +100,7 @@ import {
   extractStructuredFromPlayText,
   saveSessionMemory,
 } from "./_urTakeMemory.js";
+import { appendSessionStructuralEdgeBlock } from "./_urTakeSessionStructuralEdge.js";
 import {
   validateStructuredURTakeResponse,
   normalizeStructuredUrTakeResponse,
@@ -1278,7 +1280,13 @@ function resolveOddsAvailabilityForSport({
   context,
 }) {
   if (sportHint === "nba") {
-    return Array.isArray(nbaContext?.propLines) && nbaContext.propLines.length > 0;
+    const hasProps = Array.isArray(nbaContext?.propLines) && nbaContext.propLines.length > 0;
+    const spreadRows =
+      nbaContext?.spreads && typeof nbaContext.spreads === "object" && !Array.isArray(nbaContext.spreads)
+        ? Object.values(nbaContext.spreads)
+        : [];
+    const hasSpread = spreadRows.some((s) => s?.current?.displayLine && !s?.lineUnavailable);
+    return hasProps || hasSpread;
   }
   if (sportHint === "mlb") {
     const hasProps = Array.isArray(mlbContext?.propLines) && mlbContext.propLines.length > 0;
@@ -1352,14 +1360,22 @@ function summarizePriorTakes(history) {
   const priorTakes = [];
   for (const turn of assistantTurns) {
     const text = String(turn.content || turn.text || "");
+    const structured =
+      turn.structured && typeof turn.structured === "object" ? turn.structured : null;
 
     // Extract THE PLAY line
     const playMatch = text.match(/THE PLAY\s*\n([^\n]+)/i);
     const confidenceMatch = text.match(/CONFIDENCE\s*\n([^\n]+)/i);
     const liveCallMatch = text.match(/LIVE CALL\s*\n([^\n]+)/i);
 
-    const play = playMatch?.[1]?.trim() || liveCallMatch?.[1]?.trim();
-    const confidence = confidenceMatch?.[1]?.trim() || "";
+    const play =
+      (structured?.call && String(structured.call).trim()) ||
+      playMatch?.[1]?.trim() ||
+      liveCallMatch?.[1]?.trim();
+    const confidence =
+      (structured?.confidence && String(structured.confidence).trim()) ||
+      confidenceMatch?.[1]?.trim() ||
+      "";
 
     if (play) {
       priorTakes.push({
@@ -1390,7 +1406,17 @@ ML adds correlated risk — size accordingly."
 
 Never silently contradict a prior take. If you're changing your read,
 acknowledge it explicitly. If the new question is unrelated, ignore the
-prior takes — don't force a connection.`;
+prior takes — don't force a connection.
+
+SESSION STRUCTURAL EDGE: When a SESSION STRUCTURAL EDGE block appears below,
+that player/angle is the established structural thesis for this chat. Maintain it
+on follow-ups unless new evidence explicitly flips the read — live leaderboard
+position alone is NOT sufficient to abandon the structural edge.`;
+}
+
+function summarizePriorTakesWithStructuralEdge(history, sportHint = "") {
+  const base = summarizePriorTakes(history);
+  return appendSessionStructuralEdgeBlock(base, history, sportHint);
 }
 
 function detectChaseSignals(question, history) {
@@ -1464,7 +1490,20 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
           : null;
     const content = String(h.content ?? h.text ?? "").trim();
     if (!role || !content || /^ANALYZING/i.test(content)) continue;
-    out.push({ role, content: content.slice(0, 4000) });
+    const row = { role, content: content.slice(0, 4000) };
+    const sport = String(h.sport || "").trim().toLowerCase();
+    if (sport) row.sport = sport;
+    if (h.structured && typeof h.structured === "object") {
+      const s = h.structured;
+      row.structured = {
+        call: s.call != null ? String(s.call).slice(0, 400) : undefined,
+        whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
+        edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
+        callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
+        confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
+      };
+    }
+    out.push(row);
   }
   const merged = [];
   for (const m of out) {
@@ -3398,6 +3437,10 @@ In Tier 2.5 summary, PROP PROJECTIONS must contain at least 4 specific lines.`;
 
 const SPREAD_AND_GAME_SIDE_BLOCK = `SPREAD AND GAME SIDE — when user asks about a spread, ATS, or which team covers:
 
+- Use only spreads.{gameKey}.current.displayLine from the NBA context JSON (favorite carries the minus, e.g. DET -4.5 at home). Never flip favorite/underdog.
+- If spreads[].lineMovement.hasMovement is true, cite lineMovement.narrative in analysis.lineMovement.
+- If lineUnavailable is true, say "line unavailable" once — no invented numbers.
+
 Answer the spread question directly in the first sentence. Do not pivot to a prop angle.
 Format: '[Team] covers at [number] if [specific condition]. The fragile assumption behind the other side: [one sentence].'
 Identify the specific game script that decides the cover — pace, foul trouble, bench depth, specific player performance threshold.
@@ -3719,6 +3762,15 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup, question = "") {
     if (Object.keys(o).length > 0) raw.gameTotals = o;
   }
 
+  if (matchupTeamSet && raw.spreads && typeof raw.spreads === "object" && !Array.isArray(raw.spreads)) {
+    const o = {};
+    for (const [k, v] of Object.entries(raw.spreads)) {
+      const ku = k.toUpperCase();
+      if (ku.includes(awayF) && ku.includes(homeF)) o[k] = v;
+    }
+    if (Object.keys(o).length > 0) raw.spreads = o;
+  }
+
   // Same filter for slate-resolved and playoffSeries-only matchups (isSeriesOnly): awayF/homeF scope the model.
   if (matchupTeamSet && Array.isArray(raw.playoffSeries)) {
     raw.playoffSeries = raw.playoffSeries.filter((row) => {
@@ -3754,6 +3806,7 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup, question = "") {
   delete raw.liveEdgeAlerts;
   delete raw.playoffPathGrounding;
   delete raw.oddsAvailable;
+  delete raw.spreadMovementByGame;
 
   return raw;
 }
@@ -4444,7 +4497,10 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
     course: g.course || null,
     rankings: (g.rankings || []).slice(0, 12),
     odds: {
-      outrights: (g.odds?.outrights || []).slice(0, 16),
+      outrights: (g.odds?.outrights || []).slice(
+        0,
+        g.odds?.hasPostedLines ? 48 : 16,
+      ),
       topFinish:
         g.odds?.topFinish && typeof g.odds.topFinish === "object"
           ? Object.fromEntries(Object.entries(g.odds.topFinish).slice(0, 24))
@@ -4455,10 +4511,14 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
           : {},
       linesUnavailable: Boolean(g.odds?.linesUnavailable),
       hasPostedLines: Boolean(
-        (g.odds?.outrights || []).some(
-          (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
-        ),
+        g.odds?.hasPostedLines ||
+          (g.odds?.outrights || []).some(
+            (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
+          ),
       ),
+      fetchedAt: g.odds?.fetchedAt || null,
+      freshness: g.odds?.freshness || null,
+      source: g.odds?.source || null,
     },
     recentResults: (g.recentResults || []).slice(0, 10),
     courseStats: (g.courseStats || []).slice(0, 8),
@@ -5287,7 +5347,7 @@ ${nbaLiveNoPropSystemPromptBlock}`;
     }
   }
 
-  const priorTakesSummary = summarizePriorTakes(incomingHistory);
+  const priorTakesSummary = summarizePriorTakesWithStructuralEdge(incomingHistory, sportHint);
   const nbaImpactSummary =
     sportHint === "nba" ? summarizeNbaNewsImpact(nbaNewsImpact) : "";
   const nbaStatusShiftLine =
@@ -5848,6 +5908,7 @@ ${buildGolfQuestionAlignmentPromptBlock(
         resolveGolfQuestionAlignmentArg(golfContextEffective),
         golfContextEffective?.currentEvent,
       )}
+${buildGolfOddsFreshnessPromptBlock(golfContextEffective?.odds)}
 
 TOURNAMENT STATUS: FINAL (currentEvent.state is post/final)
 - Do NOT frame this as live betting, pre-market, or "wait for lines / tee times."
@@ -5882,6 +5943,7 @@ ${buildGolfQuestionAlignmentPromptBlock(
         golfContextEffective?.currentEvent,
       )}
 ${golfOutrightBasketBlock}
+${buildGolfOddsFreshnessPromptBlock(golfContextEffective?.odds)}
 
 BET STRUCTURE (server classification — obey for wording and math):
 - marketType: ${golfBetStructure.marketType}
@@ -5928,9 +5990,14 @@ ${NO_MARKET_VERIFIED_PLAYER_STEP_2}
      if no numbers, give a range in words tied to world ranking and form
    - Reasoning from courseStats, recent rounds, or fit notes in context
 
-4. Tie reads to leaderboard position and volatility: chasing vs protecting a lead.
+4. Tie reads to leaderboard position and volatility: chasing vs protecting a lead — but separate "who leads" from "where the bet is" when a SESSION STRUCTURAL EDGE block is present.
 
 5. End with a live trigger: what hole range or round split would flip the lean.
+
+SESSION STRUCTURAL EDGE (when present in PRIOR TAKES / structural block above):
+- The established structural player is the primary betting angle; the leaderboard leader is context, not an automatic replacement for THE PLAY.
+- Dual framing when they differ: "[Leader] has the lead; [Structural player] is the value / structural play we flagged."
+- Only flip the structural edge if you name new evidence (WD, injury, weather, collapse) — not because the board changed.
 
 Never open with market-availability throat-clearing. Give monitoring hooks; name golfers from the GOLF FIELD list or known PGA Tour pros the user asked about.`;
     }
