@@ -33,6 +33,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
+import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
 import {
@@ -1228,7 +1229,7 @@ ${themeCss}
     course: g?.course || null,
     rankings: (g?.rankings || []).slice(0, 12),
     odds: {
-      outrights: (g?.odds?.outrights || []).slice(0, 16),
+      outrights: (g?.odds?.outrights || []).slice(0, g?.odds?.hasPostedLines ? 48 : 16),
       topFinish:
         g?.odds?.topFinish && typeof g.odds.topFinish === "object"
           ? Object.fromEntries(Object.entries(g.odds.topFinish).slice(0, 24))
@@ -1239,10 +1240,14 @@ ${themeCss}
           : {},
       linesUnavailable: Boolean(g?.odds?.linesUnavailable),
       hasPostedLines: Boolean(
-        (g?.odds?.outrights || []).some(
-          (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
-        ),
+        g?.odds?.hasPostedLines ||
+          (g?.odds?.outrights || []).some(
+            (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
+          ),
       ),
+      fetchedAt: g?.odds?.fetchedAt || null,
+      freshness: g?.odds?.freshness || null,
+      source: g?.odds?.source || null,
     },
     recentResults: (g?.recentResults || []).slice(0, 10),
     courseStats: (g?.courseStats || []).slice(0, 8),
@@ -2816,6 +2821,11 @@ ${themeCss}
     };
   }, [homePipeline?.nbaGamesForHome, nbaData]);
 
+  const pgaChampionshipOddsCard = useMemo(
+    () => buildPgaChampionshipOddsHomeCard(golfData),
+    [golfData],
+  );
+
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {
     setNavHistory((prevStack) => {
@@ -4018,6 +4028,7 @@ ${themeCss}
             goGolf={goGolf}
             dynamicHomeQuestions={dynamicHomeQuestions}
             dailyFeaturedAngleCard={dailyFeaturedAngleCard}
+            pgaChampionshipOddsCard={pgaChampionshipOddsCard}
             firePrompt={firePrompt}
             prefillUrTakeQuestion={prefillUrTakeQuestion}
             isNflSlateActive={isNflSlateActive}

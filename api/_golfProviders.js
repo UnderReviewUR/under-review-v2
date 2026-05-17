@@ -19,7 +19,9 @@ import {
   golfCourseConflictsWithIntent,
   golfCurrentEventMatchesIntent,
   golfLabelsMatchIntent,
+  stripStaleGolfWeekArtifactsForIntent,
 } from "../shared/golfTournamentIntent.js";
+import { hydrateGolfBoardOdds } from "./_golfOddsApi.js";
 
 const GOLF_CUT_LINE_FEED_NOTE =
   "Cut line: not available in current feed. Do not project cut line. Reference make_cut odds only.";
@@ -1680,17 +1682,25 @@ export async function alignGolfBoardToQuestion(board, question) {
     }),
   );
 
-  return {
-    ...board,
-    currentEvent,
-    tournament: row || board.tournament,
-    questionEventAlignment: {
-      requestedLabel: intent.label,
-      requestedSlug: intent.slug,
-      previousFeedEvent,
-      source,
+  const aligned = stripStaleGolfWeekArtifactsForIntent(
+    {
+      ...board,
+      currentEvent,
+      tournament: row || board.tournament,
+      questionEventAlignment: {
+        requestedLabel: intent.label,
+        requestedSlug: intent.slug,
+        previousFeedEvent,
+        source,
+        contextScope: source === "intent_only" ? "question_week_preview" : "question_week",
+      },
     },
-  };
+    intent,
+    currentEvent,
+    true,
+  );
+
+  return hydrateGolfBoardOdds(aligned);
 }
 
 async function getEspnWorldRankings() {
@@ -2372,13 +2382,15 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       tournament: tournament ? "balldontlie" : "none",
       course: course ? "balldontlie" : "none",
       odds:
-        odds?.outrights?.length > 0
-          ? odds?.linesUnavailable
-            ? "espn_field"
-            : "odds_api"
-          : odds?.fieldUnavailableMessage
-            ? "field_unavailable"
-            : "none",
+        odds?.hasPostedLines || (odds?.source === "odds_api" && !odds?.linesUnavailable)
+          ? "odds_api"
+          : odds?.outrights?.length > 0
+            ? odds?.linesUnavailable
+              ? "espn_field"
+              : "espn_field"
+            : odds?.fieldUnavailableMessage
+              ? "field_unavailable"
+              : "none",
       usedFallbackLeaderboard: !useBdlLeaderboard,
       bdlHadLeaderboard: bdlHasLeaderboard,
       espnHadLeaderboard: espnHasLeaderboard,
@@ -2485,6 +2497,8 @@ export async function getUnifiedGolfBoard() {
     weatherCoordsMatched: Boolean(coords),
     cutLineFeedNote: GOLF_CUT_LINE_FEED_NOTE,
   };
+
+  out = await hydrateGolfBoardOdds(out);
 
   try {
     out = await applyGolfBoardStatEnrichment(out);

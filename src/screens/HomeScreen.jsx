@@ -34,6 +34,7 @@ export default function HomeScreen({
   goGolf: _goGolf,
   dynamicHomeQuestions,
   dailyFeaturedAngleCard,
+  pgaChampionshipOddsCard,
   firePrompt,
   prefillUrTakeQuestion,
   isNflSlateActive,
@@ -315,6 +316,88 @@ export default function HomeScreen({
             Get the full take →
           </button>
         </section>
+      ) : null}
+
+      {pgaChampionshipOddsCard ? (
+        <button
+          type="button"
+          onClick={() =>
+            firePrompt(
+              pgaChampionshipOddsCard.prompt,
+              pgaChampionshipOddsCard.sportHint,
+              "pga_championship_odds",
+            )
+          }
+          style={{
+            width: "100%",
+            marginTop: 6,
+            marginBottom: 10,
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.14)",
+            borderLeft: `4px solid ${pgaChampionshipOddsCard.accentColor || "#C9A227"}`,
+            background: "linear-gradient(180deg, rgba(201,162,39,0.12), rgba(255,255,255,0.02))",
+            padding: "14px 14px 12px",
+            textAlign: "left",
+            cursor: "pointer",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 10,
+                letterSpacing: 1.2,
+                textTransform: "uppercase",
+                color: pgaChampionshipOddsCard.accentColor || "#C9A227",
+              }}
+            >
+              {pgaChampionshipOddsCard.sportBadge || "PGA"}
+            </span>
+            {pgaChampionshipOddsCard.fetchedLabel ? (
+              <span style={{ fontFamily: "var(--mono-font)", fontSize: 10, color: "var(--muted)" }}>
+                {pgaChampionshipOddsCard.fetchedLabel}
+              </span>
+            ) : null}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
+            {pgaChampionshipOddsCard.title}
+          </div>
+          {pgaChampionshipOddsCard.subtitle ? (
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>
+              {pgaChampionshipOddsCard.subtitle}
+            </div>
+          ) : null}
+          <ol
+            style={{
+              margin: 0,
+              padding: "0 0 0 18px",
+              listStyle: "decimal",
+              fontSize: 13,
+              color: "#fff",
+              lineHeight: 1.55,
+            }}
+          >
+            {pgaChampionshipOddsCard.leaders.map((row, i) => (
+              <li key={`${row.player}-${i}`} style={{ fontWeight: i === 0 ? 800 : 600 }}>
+                <span>{row.player}</span>
+                <span style={{ fontFamily: "var(--mono-font)", marginLeft: 8, color: "#C9A227" }}>
+                  {row.display}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div style={{ fontSize: 11, color: "var(--soft)", marginTop: 10 }}>
+            Tap for a full outright take →
+          </div>
+        </button>
       ) : null}
 
       {dailyFeaturedAngleCard ? (
