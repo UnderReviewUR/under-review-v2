@@ -35,10 +35,6 @@
     "api/nfl-predict-share.js": {
       "maxDuration": 30
     },
-    "api/golf-odds-scrape.js": {
-      "maxDuration": 60,
-      "memory": 1024
-    },
     "api/game-odds-refresh.js": {
       "maxDuration": 120
     }
@@ -63,10 +59,6 @@
     {
       "path": "/api/daily-take?refresh=1",
       "schedule": "30 11 * * *"
-    },
-    {
-      "path": "/api/golf-odds-scrape",
-      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/game-odds-refresh",
