@@ -52,7 +52,6 @@ export default function HomeScreen({
   onTodaySlateDisplayedKeys,
   slateFallbackSports,
   nbaLiveEdgeAlerts,
-  publicStats = null,
 }) {
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
@@ -451,13 +450,6 @@ export default function HomeScreen({
           </div>
           <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.4 }}>{dailyFeaturedAngleCard.reason}</div>
         </button>
-      ) : null}
-
-      {publicStats ? (
-        <div className="ur-public-stats ur-public-stats--home-foot">
-          {publicStats.totalTakes.toLocaleString()} edges analyzed ·{" "}
-          {Math.round(publicStats.highConfidenceWinRate * 100)}% win rate on high confidence calls
-        </div>
       ) : null}
 
       {homeCards

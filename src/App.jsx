@@ -592,7 +592,7 @@ ${themeCss}
     loadPerformanceSnapshot,
   } = usePerformance(userEmail, getTakeAuthHeaders);
 
-  /** Public aggregate from GET /api/performance (no auth) — social proof on Home only. */
+  /** Public aggregate from GET /api/performance (no auth) — Pro ledger headline only. */
   const [publicStats, setPublicStats] = useState(null);
   useEffect(() => {
     let cancel = false;
@@ -4049,7 +4049,6 @@ ${themeCss}
               "nfl",
             ]}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
-            publicStats={publicStats}
           />
           </>
         )}
