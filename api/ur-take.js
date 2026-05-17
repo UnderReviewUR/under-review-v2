@@ -57,7 +57,6 @@ import {
   questionMentionsPlayer,
 } from "./nba.js";
 import { buildMlbUrTakeBoard } from "./mlb.js";
-import { buildGolfOddsFreshnessPromptBlock } from "./_golfOddsApi.js";
 import {
   alignGolfBoardToQuestion,
   buildCombinedVerifiedGolfField,
@@ -100,7 +99,7 @@ import {
   extractStructuredFromPlayText,
   saveSessionMemory,
 } from "./_urTakeMemory.js";
-import { appendSessionStructuralEdgeBlock } from "./_urTakeSessionStructuralEdge.js";
+import { appendSessionStructuralEdgeBlock } from "../shared/urTakeSessionStructuralEdge.js";
 import {
   validateStructuredURTakeResponse,
   normalizeStructuredUrTakeResponse,
@@ -115,6 +114,18 @@ import {
 } from "./_nbaPropSanity.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
+
+/** Inline — _golfOddsApi.js is not deployed; keep UR Take loadable without that module. */
+function buildGolfOddsFreshnessPromptBlock(odds) {
+  const fresh = odds?.freshness;
+  if (!fresh?.isStale && !fresh?.staleWarning) {
+    if (odds?.fetchedAt) {
+      return `\nODDS FRESHNESS: Posted prices fetched at ${odds.fetchedAt} (${fresh?.ageMinutes ?? "?"} min ago). Cite only prices listed under odds.outrights / odds.topFinish / odds.makeCut.\n`;
+    }
+    return "";
+  }
+  return `\nODDS FRESHNESS (mandatory):\n${fresh.staleWarning}\nFetched at: ${fresh.fetchedAt || odds.fetchedAt || "unknown"}.\n`;
+}
 
 /** Closing when markets / lines are missing — structural only; no hypothetical prices (aligns with STRUCTURAL ANALYSIS MODE). */
 const NBA_STRUCTURAL_MARKET_CLOSING_RULE = `- Close with a direct structural call (THE CALL): name the edge and who benefits — grounded only in payload data. No hypothetical prices, no "if the line posts at X," no fabricated thresholds.`;
