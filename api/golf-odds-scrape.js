@@ -6,7 +6,15 @@ export const config = {
   maxDuration: 60,
 };
 
+/** TEMP: PGA final-round KV warm — auto-expires; remove this block after window ends. */
+const GOLF_ODDS_SCRAPE_AUTH_BYPASS_UNTIL_MS = Date.parse("2026-05-18T01:30:00.000Z");
+
+function isTempAuthBypassActive() {
+  return Date.now() < GOLF_ODDS_SCRAPE_AUTH_BYPASS_UNTIL_MS;
+}
+
 function isAuthorizedCron(req) {
+  if (isTempAuthBypassActive()) return true;
   const secret = getEnv("CRON_SECRET");
   if (!secret) return process.env.NODE_ENV !== "production";
   return req.headers.authorization === `Bearer ${secret}`;
