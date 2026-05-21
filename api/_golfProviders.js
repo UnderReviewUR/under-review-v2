@@ -494,6 +494,14 @@ function scorePgaEspnEvent(e) {
   const compCount = e?.competitions?.[0]?.competitors?.length || 0;
   if (compCount > 0) score += Math.min(compCount, 220);
 
+  const nowMs = Date.now();
+  const startMs = parseScheduleMs(e?.date || e?.startDate || e?.end?.date);
+  if (Number.isFinite(startMs) && startMs > nowMs) {
+    const delta = startMs - nowMs;
+    if (delta <= 72 * 60 * 60 * 1000) score += 80_000;
+    else if (delta <= 7 * 24 * 60 * 60 * 1000) score += 20_000;
+  }
+
   return score;
 }
 
@@ -1798,9 +1806,17 @@ async function getBdlTournamentBundle() {
     if (rbcHeritage) return rbcHeritage;
 
     const nonTeam = pool.filter((t) => !isTeamOrZurichWeek(t));
-    const ordered = [...(nonTeam.length ? nonTeam : pool)].sort(
-      (a, b) => Number(b?.purse || 0) - Number(a?.purse || 0)
-    );
+    const ordered = [...(nonTeam.length ? nonTeam : pool)].sort((a, b) => {
+      const tier = (t) => {
+        const start = t._startTs;
+        if (start > now && start - now <= 72 * 60 * 60 * 1000) return 0;
+        return 1;
+      };
+      const aTier = tier(a);
+      const bTier = tier(b);
+      if (aTier !== bTier) return aTier - bTier;
+      return a._startTs - b._startTs;
+    });
     return ordered[0] || null;
   })();
 
@@ -2002,8 +2018,10 @@ function pickPrimaryScheduleRow(tourScheduleOut, espnEvent, tournament, nowMs = 
     if (Number.isFinite(startMs) && Number.isFinite(endMs) && nowMs >= startMs && nowMs <= endMs) {
       score += 60_000;
     }
-    if (Number.isFinite(startMs) && nowMs < startMs && startMs - nowMs <= 72 * 60 * 60 * 1000) {
-      score += 25_000;
+    if (Number.isFinite(startMs) && nowMs < startMs) {
+      const untilStart = startMs - nowMs;
+      if (untilStart <= 72 * 60 * 60 * 1000) score += 80_000;
+      else if (untilStart <= 7 * 24 * 60 * 60 * 1000) score += 20_000;
     }
     const purse = Number(r?.purse || 0);
     score += Math.min(purse / 1e5, 5000);
