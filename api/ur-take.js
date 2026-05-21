@@ -4948,18 +4948,14 @@ export default async function handler(req, res) {
       if (!nbaBoardHasPostedPropMarkets(fresh)) {
         fresh = await hydrateNbaPropsOdds(fresh);
       }
-      const probeGameId =
-        fresh?.todaysGames?.find((g) => g?.actionNetworkGameId)?.actionNetworkGameId ??
-        fresh?.sourceMeta?.propsOddsGameId ??
-        null;
-      const kvProbe = probeGameId != null ? await getNbaPropsForBoard(probeGameId) : null;
+      const kvProbe291185 = await getNbaPropsForBoard(291185);
       console.log(
         JSON.stringify({
           event: "ur_take_nba_props_kv_probe",
-          gameId: probeGameId,
-          kvHit: Boolean(kvProbe),
-          hasPostedLines: Boolean(kvProbe?.hasPostedLines),
-          playerCount: kvProbe?.playerCount ?? 0,
+          gameId: 291185,
+          kvHit: Boolean(kvProbe291185),
+          hasPostedLines: Boolean(kvProbe291185?.hasPostedLines),
+          playerCount: kvProbe291185?.playerCount ?? 0,
           boardHasPropsOdds: Boolean(fresh?.propsOdds),
           boardHasPostedLines: Boolean(fresh?.propsOdds?.hasPostedLines),
           boardPropLinesCount: Array.isArray(fresh?.propLines) ? fresh.propLines.length : 0,

@@ -7,11 +7,6 @@ import { fetchMlbSlateGamesForScrapeSchedule } from "./mlb.js";
 import { getUnifiedGolfBoard } from "./_golfProviders.js";
 import { isPgaChampionshipEvent } from "./_golfPgaChampionshipOdds.js";
 import { resolveActionNetworkGameIdForBoardGame } from "./_nbaPropsApi.js";
-import { getNbaPlayoffSlateGamesForEtDates } from "./_nbaPropsGameId.js";
-import {
-  getEtDateString,
-  getTomorrowEtDateString,
-} from "../shared/nbaPlayoffSlateFromActionNetwork.js";
 import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
 import { buildGameSpreadKey, canonicalizeTeamAbbr } from "../shared/gameLineSpread.js";
 import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs, parseEventStartMs } from "../shared/eventStartTime.js";
@@ -55,35 +50,10 @@ function isUpcomingPreGame(game, gameStartMs, nowMs) {
  * @param {number} [nowMs]
  * @returns {Promise<ScrapeTarget[]>}
  */
-function nbaSlatePairKey(game) {
-  const aa = String(game?.awayTeam?.abbr || "").toUpperCase();
-  const ha = String(game?.homeTeam?.abbr || "").toUpperCase();
-  return aa && ha ? `${aa}|${ha}` : "";
-}
-
-function mergeNbaSlateGamesByPair(primary, extra) {
-  const seen = new Set((primary || []).map(nbaSlatePairKey).filter(Boolean));
-  const out = [...(primary || [])];
-  for (const g of extra || []) {
-    const k = nbaSlatePairKey(g);
-    if (!k || seen.has(k)) continue;
-    seen.add(k);
-    out.push(g);
-  }
-  return out;
-}
-
 export async function collectNbaScrapeTargets(nowMs = Date.now()) {
   /** @type {ScrapeTarget[]} */
   const out = [];
-  const todayET = getEtDateString(new Date(nowMs));
-  const tomorrowET = getTomorrowEtDateString(todayET);
-  const [boardGames, kvPlayoffGames] = await Promise.all([
-    fetchNbaSlateGamesForOddsRefresh(),
-    getNbaPlayoffSlateGamesForEtDates(todayET, tomorrowET),
-  ]);
-  const games = mergeNbaSlateGamesByPair(boardGames, kvPlayoffGames);
-  const propsAnIdsSeen = new Set();
+  const games = await fetchNbaSlateGamesForOddsRefresh();
 
   for (const game of games) {
     const gameStartMs = canonicalNbaStartUtcMs(game);
@@ -102,8 +72,7 @@ export async function collectNbaScrapeTargets(nowMs = Date.now()) {
     });
 
     const anId = resolveActionNetworkGameIdForBoardGame(game);
-    if (anId != null && !propsAnIdsSeen.has(anId)) {
-      propsAnIdsSeen.add(anId);
+    if (anId != null) {
       out.push({
         sport: "nba_props",
         gameId: String(anId),
@@ -118,29 +87,6 @@ export async function collectNbaScrapeTargets(nowMs = Date.now()) {
         },
       });
     }
-  }
-
-  for (const game of kvPlayoffGames) {
-    const anId = resolveActionNetworkGameIdForBoardGame(game);
-    if (anId == null || propsAnIdsSeen.has(anId)) continue;
-    propsAnIdsSeen.add(anId);
-    const gameStartMs = canonicalNbaStartUtcMs(game);
-    const homeAbbr = canonicalizeTeamAbbr(game?.homeTeam?.abbr);
-    const awayAbbr = canonicalizeTeamAbbr(game?.awayTeam?.abbr);
-    out.push({
-      sport: "nba_props",
-      gameId: String(anId),
-      gameStartMs: Number.isFinite(gameStartMs) ? gameStartMs : nowMs + 3 * 60 * 60 * 1000,
-      meta: {
-        gameId: anId,
-        homeAbbr,
-        awayAbbr,
-        dateYmd: gameStartMs
-          ? new Date(gameStartMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "")
-          : todayET.replace(/-/g, ""),
-        source: "kv_playoff_slate",
-      },
-    });
   }
 
   return out;
