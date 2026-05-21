@@ -20,9 +20,13 @@ import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 import {
   getEtDateString,
   getTomorrowEtDateString,
-  getYesterdayEtDateString,
-  readNbaPlayoffSlateGamesFromKv,
+  enrichSlateGamesWithActionNetworkEventIds,
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
+import {
+  filterBdlRowsToTonightSlate,
+  mapBdlGameToSlateRow,
+  readNbaPlayoffSlateGamesFromBdlKv,
+} from "../shared/nbaPlayoffSlateFromBdl.js";
 import {
   buildNbaStructuralPlayerIndex,
   classifyNbaRosterPosition,
@@ -326,61 +330,7 @@ function enrichNbaGamesWithEspn(games, espnGames) {
 
 /** Map a BallDontLie /games row to the same shape as Odds API games (UI + prompts). */
 function mapBdlGameRowToAppGame(g) {
-  const home = g.home_team || g.homeTeam;
-  const away = g.visitor_team || g.visitorTeam;
-  const homeName = home?.full_name || home?.name || "";
-  const awayName = away?.full_name || away?.name || "";
-  const homeAbbr = canonicalizeTeamAbbr(home?.abbreviation || (home?.full_name ? normalizeTeamAbbr(home.full_name) : "?")) || "?";
-  const awayAbbr = canonicalizeTeamAbbr(away?.abbreviation || (away?.full_name ? normalizeTeamAbbr(away.full_name) : "?")) || "?";
-
-  const hs = g.home_team_score != null ? Number(g.home_team_score) : null;
-  const vs = g.visitor_team_score != null ? Number(g.visitor_team_score) : null;
-  const stRaw = String(g.status || "").trim();
-  const stLower = stRaw.toLowerCase();
-  const period = Number(g.period) || 0;
-
-  let state;
-  let status;
-  let statusCode;
-
-  if (stLower === "final") {
-    state = "post";
-    status = "Final";
-    statusCode = 3;
-  } else if (period > 0 && stLower !== "final") {
-    state = "in";
-    status = stRaw || "Live";
-    statusCode = 2;
-  } else {
-    state = "pre";
-    status = /qtr|half|ot/i.test(stRaw) ? stRaw : "Scheduled";
-    statusCode = 1;
-  }
-
-  const periodNum = Number(g.period);
-  const clockRaw = g.time != null ? String(g.time).trim() : "";
-
-  return {
-    id: g.id,
-    status,
-    state,
-    statusCode,
-    period: Number.isFinite(periodNum) ? periodNum : null,
-    clock: clockRaw || null,
-    homeTeam: {
-      name: homeName,
-      abbr: homeAbbr,
-      score: Number.isFinite(hs) ? hs : null,
-    },
-    awayTeam: {
-      name: awayName,
-      abbr: awayAbbr,
-      score: Number.isFinite(vs) ? vs : null,
-    },
-    startTimeUtc: firstNonEmpty(g.start_time, g.datetime) || null,
-    startTimeSource: "bdl_start_time",
-    postseason: !!g.postseason,
-  };
+  return mapBdlGameToSlateRow(g);
 }
 
 /** Box score numbers present on the board row (server-trust gate for live/halftime reads). */
@@ -559,44 +509,62 @@ function mergePlayoffSlateIntoGames(games, playoffRows) {
   return out;
 }
 
-/** Action Network KV playoff slate + ESPN when upstream feeds return an empty ET slate. */
-async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
+/** BDL playoff slate (primary) + Action Network event IDs (odds) + ESPN when feeds are empty. */
+async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta, bdlKey) {
   const todayEtResolved = todayET || getEtDateString();
   const tomorrowEtResolved = tomorrowET || getTomorrowEtDateString(todayEtResolved);
-  const yesterdayEtResolved = getYesterdayEtDateString(todayEtResolved);
+  const seasonCtx = getNbaSeasonContext();
   console.log(
     JSON.stringify({
-      event: "nba_slate_action_network_dates",
+      event: "nba_slate_bdl_finalize",
       todayET: todayEtResolved,
       tomorrowET: tomorrowEtResolved,
-      yesterdayET: yesterdayEtResolved,
-      scoreboardYmd: [yesterdayEtResolved, todayEtResolved, tomorrowEtResolved].map((d) =>
-        String(d).replace(/-/g, ""),
-      ),
+      postseason: seasonCtx.postseason,
+      incomingGameCount: (games || []).length,
     }),
   );
 
   const store = { getDurableJson, setDurableJson };
-  const actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(
-    todayEtResolved,
-    tomorrowEtResolved,
-    store,
-  );
-  let merged = mergePlayoffSlateIntoGames(games, actionNetworkGames);
+  let bdlSlate = [];
+  if (bdlKey && seasonCtx.postseason) {
+    bdlSlate = await readNbaPlayoffSlateGamesFromBdlKv(
+      todayEtResolved,
+      tomorrowEtResolved,
+      store,
+      bdlKey,
+    );
+  }
+
+  let merged = mergePlayoffSlateIntoGames(bdlSlate, games || []);
   let checkedEspn = false;
+
+  if (merged.length > 0) {
+    merged = await enrichSlateGamesWithActionNetworkEventIds(
+      merged,
+      todayEtResolved,
+      tomorrowEtResolved,
+    );
+  }
 
   if (!merged.length) {
     checkedEspn = true;
     const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
     if (espnGames.length) {
-      merged = mergePlayoffSlateIntoGames(espnGames, actionNetworkGames);
+      merged = espnGames;
+      if (bdlKey && seasonCtx.postseason) {
+        merged = await enrichSlateGamesWithActionNetworkEventIds(
+          merged,
+          todayEtResolved,
+          tomorrowEtResolved,
+        );
+      }
       return {
         games: merged,
         slateMeta: {
           ...slateMeta,
           primarySource: slateMeta.primarySource === "none" ? "espn" : slateMeta.primarySource,
           enrichmentSource: "espn_scoreboard",
-          actionNetworkGameCount: actionNetworkGames.length,
+          bdlSlateGameCount: bdlSlate.length,
           note: merged.length ? null : slateMeta.note,
         },
       };
@@ -606,32 +574,46 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
   if (!merged.length && !checkedEspn) {
     const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
     if (espnGames.length) {
-      merged = mergePlayoffSlateIntoGames(espnGames, actionNetworkGames);
+      merged = espnGames;
+      if (bdlKey && seasonCtx.postseason) {
+        merged = await enrichSlateGamesWithActionNetworkEventIds(
+          merged,
+          todayEtResolved,
+          tomorrowEtResolved,
+        );
+      }
     }
   }
+
   if (merged.length > 0 && (!games || games.length === 0)) {
     console.log(
       JSON.stringify({
         event: "nba_slate_finalize_recovered",
         gameCount: merged.length,
-        primarySource: slateMeta.primarySource,
+        primarySource: bdlSlate.length ? "bdl" : slateMeta.primarySource,
         enrichmentSource: slateMeta.enrichmentSource,
-        actionNetworkGameCount: actionNetworkGames.length,
+        bdlSlateGameCount: bdlSlate.length,
         matchups: merged.map((g) => ({
           away: g?.awayTeam?.abbr,
           home: g?.homeTeam?.abbr,
           state: g?.state,
           startTimeUtc: g?.startTimeUtc,
+          bdlGameId: g?.bdlGameId,
           actionNetworkGameId: g?.actionNetworkGameId,
         })),
       }),
     );
   }
+
   return {
     games: merged,
     slateMeta: {
       ...slateMeta,
-      actionNetworkGameCount: actionNetworkGames.length,
+      primarySource: bdlSlate.length ? "bdl" : slateMeta.primarySource,
+      bdlSlateGameCount: bdlSlate.length,
+      enrichmentSource: merged.some((g) => g?.actionNetworkGameId)
+        ? "action_network_event_ids"
+        : slateMeta.enrichmentSource,
     },
   };
 }
@@ -645,7 +627,7 @@ const EMPTY_SLATE_CACHE_TTL_MS = 45 * 1000;
 async function getTodaysGames(oddsKey, bdlKey) {
   const todayET = getEtDateString();
   const tomorrowET = getTomorrowEtDateString();
-  const GAMES_TODAY_CACHE_KEY = `games_today_bdl_primary_${todayET}_${tomorrowET}`;
+  const GAMES_TODAY_CACHE_KEY = `games_today_bdl_v2_${todayET}_${tomorrowET}`;
   const cached = getCached(GAMES_TODAY_CACHE_KEY);
   if (cached) {
     const payload = Array.isArray(cached)
@@ -661,26 +643,35 @@ async function getTodaysGames(oddsKey, bdlKey) {
         }
       : cached;
     if (payload.games?.length > 0) {
-      return finalizeNbaTodaysSlate(payload.games, todayET, tomorrowET, payload.slateMeta);
+      return finalizeNbaTodaysSlate(
+        payload.games,
+        todayET,
+        tomorrowET,
+        payload.slateMeta,
+        bdlKey,
+      );
     }
   }
 
+  const seasonCtx = getNbaSeasonContext();
   const slateMeta = {
     primarySource: "none",
     bdlQueriedOk: false,
     bdlGameCount: 0,
     etDate: todayET,
-    etDateWindow: [todayET, tomorrowET],
+    etDateWindow: seasonCtx.postseason ? [todayET] : [todayET, tomorrowET],
     note: null,
   };
 
   if (bdlKey) {
     try {
-      const [todayRows, tomorrowRows] = await Promise.all([
-        fetchBdlGamesForDate(bdlKey, todayET),
-        fetchBdlGamesForDate(bdlKey, tomorrowET),
-      ]);
-      const bdlRows = [...todayRows, ...tomorrowRows];
+      const dateIsos = seasonCtx.postseason ? [todayET] : [todayET, tomorrowET];
+      const rowBatches = await Promise.all(
+        dateIsos.map((d) =>
+          fetchBdlGamesForDate(bdlKey, d, { postseason: seasonCtx.postseason }),
+        ),
+      );
+      const bdlRows = rowBatches.flat();
       const byId = new Map();
       for (const row of bdlRows) {
         const id = row?.id ?? `${row?.date || ""}_${row?.home_team?.id || ""}_${row?.visitor_team?.id || ""}`;
@@ -689,12 +680,23 @@ async function getTodaysGames(oddsKey, bdlKey) {
       const mergedRows = [...byId.values()];
       slateMeta.bdlQueriedOk = true;
       slateMeta.bdlGameCount = mergedRows.length;
-      if (mergedRows.length > 0) {
+      if (mergedRows.length > 0 || seasonCtx.postseason) {
         const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
-        const games = enrichNbaGamesWithEspn(mergedRows.map(mapBdlGameRowToAppGame), espnGames);
-        slateMeta.primarySource = "bdl";
+        const mapped = seasonCtx.postseason
+          ? filterBdlRowsToTonightSlate(mergedRows, todayET)
+          : mergedRows.map(mapBdlGameRowToAppGame);
+        const games = espnGames.length
+          ? enrichNbaGamesWithEspn(mapped, espnGames)
+          : mapped;
+        slateMeta.primarySource = mergedRows.length > 0 ? "bdl" : "none";
         slateMeta.enrichmentSource = espnGames.length > 0 ? "espn_scoreboard" : null;
-        const payload = await finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta);
+        const payload = await finalizeNbaTodaysSlate(
+          games,
+          todayET,
+          tomorrowET,
+          slateMeta,
+          bdlKey,
+        );
         setCached(GAMES_TODAY_CACHE_KEY, payload);
         return payload;
       }
@@ -714,7 +716,13 @@ async function getTodaysGames(oddsKey, bdlKey) {
   if (games.length > 0) {
     slateMeta.primarySource = oddsGames.length > 0 ? "odds" : "espn";
     slateMeta.enrichmentSource = espnGames.length > 0 ? "espn_scoreboard" : null;
-    const payload = await finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta);
+    const payload = await finalizeNbaTodaysSlate(
+      games,
+      todayET,
+      tomorrowET,
+      slateMeta,
+      bdlKey,
+    );
     setCached(GAMES_TODAY_CACHE_KEY, payload);
     return payload;
   }
@@ -732,7 +740,13 @@ async function getTodaysGames(oddsKey, bdlKey) {
     slateMeta.note = "No games returned for today.";
   }
 
-  const payload = await finalizeNbaTodaysSlate([], todayET, tomorrowET, slateMeta);
+  const payload = await finalizeNbaTodaysSlate(
+    [],
+    todayET,
+    tomorrowET,
+    slateMeta,
+    bdlKey,
+  );
   setCached(GAMES_TODAY_CACHE_KEY, payload, EMPTY_SLATE_CACHE_TTL_MS);
   return payload;
 }
@@ -1518,11 +1532,11 @@ async function fetchJsonOrNull(url, bdlKey, timeoutMs = 4000) {
   }
 }
 
-/** Paginated BDL games for one calendar date (ET). Tries /nba/v1/games then /v1/games. */
-async function fetchBdlGamesForDate(bdlKey, dateIso) {
+/** Paginated BDL games for one calendar date (ET). Tries /v1/games then /nba/v1/games. */
+async function fetchBdlGamesForDate(bdlKey, dateIso, opts = {}) {
   const bases = [
-    "https://api.balldontlie.io/nba/v1/games",
     "https://api.balldontlie.io/v1/games",
+    "https://api.balldontlie.io/nba/v1/games",
   ];
   for (const base of bases) {
     const all = [];
@@ -1533,6 +1547,7 @@ async function fetchBdlGamesForDate(bdlKey, dateIso) {
       const qs = new URLSearchParams();
       qs.append("dates[]", dateIso);
       qs.append("per_page", "100");
+      if (opts.postseason) qs.append("postseason", "true");
       if (cursor != null && cursor !== "") qs.append("cursor", String(cursor));
       const data = await fetchJsonOrNull(`${base}?${qs.toString()}`, bdlKey);
       if (!data || !Array.isArray(data.data)) break;

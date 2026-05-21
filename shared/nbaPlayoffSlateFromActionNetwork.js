@@ -1,5 +1,6 @@
 /**
- * Dynamic NBA playoff slate from Action Network scoreboard → KV `nba_playoff_games_{YYYYMMDD}`.
+ * Action Network NBA scoreboard — odds/props enrichment only (game IDs, tipoff).
+ * Slate discovery is BallDontLie-only (`nbaPlayoffSlateFromBdl.js`).
  */
 
 import {
@@ -7,19 +8,6 @@ import {
   NBA_PROPS_BOOK_IDS_QUERY,
 } from "./nbaPropsConstants.js";
 import { canonicalizeTeamAbbr } from "./gameLineSpread.js";
-import { isKvFresh } from "./selfHealingKv.js";
-
-const KV_PREFIX = "nba_playoff_games_";
-const KV_TTL_SECONDS = 6 * 60 * 60;
-const REFRESH_MAX_AGE_MS = 20 * 60 * 1000;
-
-/**
- * @param {string} dateYmd YYYYMMDD
- */
-export function nbaPlayoffGamesKvKey(dateYmd) {
-  const ymd = String(dateYmd || "").replace(/-/g, "").trim();
-  return `${KV_PREFIX}${ymd}`;
-}
 
 /**
  * @param {string} [dateYmd] YYYYMMDD
@@ -65,13 +53,31 @@ export function getYesterdayEtDateString(todayET) {
   return getEtDateString(prev);
 }
 
-function etDateTokens(todayET, tomorrowET) {
-  const yesterdayET = getYesterdayEtDateString(todayET);
-  return new Set(
-    [yesterdayET, todayET, tomorrowET]
-      .filter(Boolean)
-      .map((d) => String(d).replace(/-/g, "").trim()),
-  );
+function slatePairKey(g) {
+  const away = normAbbr(g?.awayTeam?.abbr);
+  const home = normAbbr(g?.homeTeam?.abbr);
+  return away && home ? `${away}|${home}` : "";
+}
+
+/**
+ * @param {Record<string, unknown>} g raw Action Network scoreboard row
+ */
+function actionNetworkPairKeyFromRaw(g) {
+  const teams = Array.isArray(g?.teams) ? g.teams : [];
+  let homeRow = null;
+  let awayRow = null;
+  if (g?.home_team_id != null) {
+    homeRow = teams.find((t) => t?.id === g.home_team_id) || null;
+    awayRow = teams.find((t) => t?.id !== g.home_team_id) || null;
+  }
+  if (!homeRow && teams.length >= 2) {
+    homeRow = teams[1];
+    awayRow = teams[0];
+  }
+  const homeAbbr = normAbbr(homeRow?.abbr || homeRow?.display_name);
+  const awayAbbr = normAbbr(awayRow?.abbr || awayRow?.display_name);
+  if (!homeAbbr || !awayAbbr || homeAbbr === "UNK" || awayAbbr === "UNK") return "";
+  return `${awayAbbr}|${homeAbbr}`;
 }
 
 /**
@@ -220,188 +226,105 @@ export async function fetchActionNetworkNbaScoreboardForDate(dateYmd) {
 }
 
 /**
+ * Fetch raw Action Network games for a date (no playable filter — used to match event IDs).
  * @param {string} dateYmd YYYYMMDD
- * @param {ReturnType<typeof mapActionNetworkGameToSlateGame>[]} games
  */
-export function buildNbaPlayoffGamesKvPayload(dateYmd, games) {
+export async function fetchActionNetworkNbaScoreboardRaw(dateYmd) {
   const ymd = etDateYmdFromDate(dateYmd);
-  return {
-    dateYmd: ymd,
-    refreshedAtMs: Date.now(),
-    games: (games || []).map((g) => ({
-      event_id: g.actionNetworkGameId,
-      gameId: g.actionNetworkGameId,
-      homeAbbr: g.homeTeam?.abbr,
-      awayAbbr: g.awayTeam?.abbr,
-      tipoffMs: g.startTimeUtc ? Date.parse(g.startTimeUtc) : null,
-      status: g.actionNetworkStatus || g.status,
-      startTimeUtc: g.startTimeUtc,
-    })),
-    slateGames: games || [],
-  };
+  if (!/^\d{8}$/.test(ymd)) return [];
+
+  const url = `${NBA_PROPS_API_BASE}/scoreboard/nba?date=${ymd}&bookIds=${NBA_PROPS_BOOK_IDS_QUERY}`;
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "UnderReview/1.0 (+https://under-review.app)",
+    },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) {
+    throw new Error(`Action Network scoreboard HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data?.games) ? data.games : [];
 }
 
 /**
- * @param {Record<string, unknown>|null|undefined} payload
- */
-export function slateGamesFromNbaPlayoffKvPayload(payload) {
-  if (!payload || typeof payload !== "object") return [];
-  if (Array.isArray(payload.slateGames) && payload.slateGames.length) return payload.slateGames;
-  if (!Array.isArray(payload.games)) return [];
-  return payload.games
-    .map((row) => {
-      const gameId = Number(row?.event_id ?? row?.gameId);
-      if (!Number.isFinite(gameId)) return null;
-      const homeAbbr = normAbbr(row?.homeAbbr);
-      const awayAbbr = normAbbr(row?.awayAbbr);
-      if (!homeAbbr || !awayAbbr) return null;
-      const tipoffMs = Number(row?.tipoffMs);
-      const startTimeUtc =
-        row?.startTimeUtc ||
-        (Number.isFinite(tipoffMs) ? new Date(tipoffMs).toISOString() : null);
-      const inProgress = /live|in_progress/i.test(String(row?.status || ""));
-      return {
-        id: gameId,
-        status: inProgress ? "Live" : "Scheduled",
-        state: inProgress ? "in" : "pre",
-        statusCode: inProgress ? 2 : 1,
-        period: null,
-        clock: null,
-        awayTeam: { name: awayAbbr, abbr: awayAbbr, score: null },
-        homeTeam: { name: homeAbbr, abbr: homeAbbr, score: null },
-        startTimeUtc,
-        startTimeSource: "action_network_kv",
-        postseason: true,
-        actionNetworkGameId: gameId,
-      };
-    })
-    .filter(Boolean);
-}
-
-/**
+ * Attach Action Network event IDs to BDL-driven slate rows (odds/props only).
+ * @param {Record<string, unknown>[]} slateGames
  * @param {string} todayET YYYY-MM-DD
  * @param {string} [tomorrowET] YYYY-MM-DD
- * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
- * @param {{ force?: boolean }} [opts]
  */
-export async function refreshNbaPlayoffGamesKvForEtDates(todayET, tomorrowET, store, opts = {}) {
-  const tokens = [...etDateTokens(todayET, tomorrowET)];
-  const results = [];
+export async function enrichSlateGamesWithActionNetworkEventIds(
+  slateGames,
+  todayET,
+  tomorrowET,
+) {
+  if (!Array.isArray(slateGames) || slateGames.length === 0) return slateGames || [];
 
-  for (const ymd of tokens) {
-    const key = nbaPlayoffGamesKvKey(ymd);
-    if (!opts.force && store?.getDurableJson) {
-      const existing = await store.getDurableJson(key);
-      const age = Date.now() - Number(existing?.refreshedAtMs || 0);
-      const cachedCount = Number(existing?.games?.length ?? 0);
-      if (existing?.refreshedAtMs && age < REFRESH_MAX_AGE_MS && cachedCount > 0) {
-        results.push({ dateYmd: ymd, key, cached: true, gameCount: cachedCount });
-        continue;
-      }
-    }
+  const tomorrow = tomorrowET || getTomorrowEtDateString(todayET);
+  const ymdTokens = [
+    String(todayET || "").replace(/-/g, ""),
+    String(tomorrow).replace(/-/g, ""),
+  ].filter((t) => /^\d{8}$/.test(t));
 
-    let slateGames = [];
+  /** @type {Map<string, { eventId: number, tipoffMs: number | null, status: string | null }>} */
+  const index = new Map();
+
+  for (const ymd of ymdTokens) {
+    let raw = [];
     try {
-      slateGames = await fetchActionNetworkNbaScoreboardForDate(ymd);
+      raw = await fetchActionNetworkNbaScoreboardRaw(ymd);
+      logActionNetworkScoreboardProbe(ymd, raw);
     } catch (err) {
       console.warn(
         JSON.stringify({
-          event: "nba_playoff_scoreboard_fetch_failed",
+          event: "nba_slate_action_network_enrich_failed",
           dateYmd: ymd,
           error: err?.message || String(err),
         }),
       );
+      continue;
     }
 
-    const payload = buildNbaPlayoffGamesKvPayload(ymd, slateGames);
-    if (store?.setDurableJson) {
-      try {
-        await store.setDurableJson(key, payload, { ttlSeconds: KV_TTL_SECONDS });
-      } catch {
-        /* KV optional locally */
-      }
+    for (const g of raw) {
+      const pair = actionNetworkPairKeyFromRaw(g);
+      const eventId = Number(g.id);
+      if (!pair || !Number.isFinite(eventId)) continue;
+      const tipoffMs = g.start_time ? Date.parse(String(g.start_time)) : null;
+      index.set(pair, {
+        eventId,
+        tipoffMs: Number.isFinite(tipoffMs) ? tipoffMs : null,
+        status: String(g.status || g.real_status || ""),
+      });
     }
-    results.push({ dateYmd: ymd, key, cached: false, gameCount: slateGames.length });
   }
 
-  return results;
-}
+  let enriched = 0;
+  const out = slateGames.map((row) => {
+    if (row?.actionNetworkGameId != null && Number.isFinite(Number(row.actionNetworkGameId))) {
+      return row;
+    }
+    const hit = index.get(slatePairKey(row));
+    if (!hit) return row;
+    enriched += 1;
+    return {
+      ...row,
+      actionNetworkGameId: hit.eventId,
+      actionNetworkStatus: hit.status,
+      actionNetworkEnriched: true,
+    };
+  });
 
-/**
- * Self-healing read for one scoreboard date: fresh KV → return; else fetch live → write KV → return.
- * @param {string} dateYmd YYYYMMDD
- * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
- */
-export async function resolveNbaPlayoffSlateForDateYmd(dateYmd, store) {
-  const ymd = etDateYmdFromDate(dateYmd);
-  const key = nbaPlayoffGamesKvKey(ymd);
-  let payload = null;
-  try {
-    payload = store?.getDurableJson ? await store.getDurableJson(key) : null;
-  } catch {
-    payload = null;
-  }
-
-  const cachedGames = slateGamesFromNbaPlayoffKvPayload(payload);
-  if (isKvFresh(payload?.refreshedAtMs, REFRESH_MAX_AGE_MS)) {
-    return cachedGames;
-  }
-
-  let slateGames = [];
-  try {
-    slateGames = await fetchActionNetworkNbaScoreboardForDate(ymd);
-  } catch (err) {
-    console.warn(
+  if (enriched > 0) {
+    console.log(
       JSON.stringify({
-        event: "nba_playoff_slate_self_heal_failed",
-        dateYmd: ymd,
-        error: err?.message || String(err),
+        event: "nba_slate_action_network_enriched",
+        slateCount: slateGames.length,
+        enrichedCount: enriched,
       }),
     );
-    if (cachedGames.length) return cachedGames;
-    return [];
   }
 
-  const nextPayload = buildNbaPlayoffGamesKvPayload(ymd, slateGames);
-  if (store?.setDurableJson) {
-    try {
-      await store.setDurableJson(key, nextPayload, { ttlSeconds: KV_TTL_SECONDS });
-    } catch {
-      /* KV optional locally */
-    }
-  }
-
-  console.log(
-    JSON.stringify({
-      event: "nba_playoff_slate_self_heal",
-      dateYmd: ymd,
-      gameCount: slateGames.length,
-      hadStaleCache: Boolean(payload?.refreshedAtMs),
-    }),
-  );
-
-  return slateGames;
-}
-
-/**
- * @param {string} todayET YYYY-MM-DD
- * @param {string} [tomorrowET] YYYY-MM-DD
- * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson?: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
- */
-export async function readNbaPlayoffSlateGamesFromKv(todayET, tomorrowET, store) {
-  const tokens = [...etDateTokens(todayET, tomorrowET)];
-  const seen = new Set();
-  /** @type {ReturnType<typeof mapActionNetworkGameToSlateGame>[]} */
-  const out = [];
-
-  for (const ymd of tokens) {
-    const games = await resolveNbaPlayoffSlateForDateYmd(ymd, store);
-    for (const g of games) {
-      const pair = `${g.awayTeam?.abbr}|${g.homeTeam?.abbr}`;
-      if (!pair || seen.has(pair)) continue;
-      seen.add(pair);
-      out.push(g);
-    }
-  }
   return out;
 }

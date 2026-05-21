@@ -5,8 +5,10 @@ import {
 import {
   getEtDateString,
   getTomorrowEtDateString,
-  readNbaPlayoffSlateGamesFromKv,
+  enrichSlateGamesWithActionNetworkEventIds,
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
+import { readNbaBdlPlayoffSlateForToday } from "../shared/nbaPlayoffSlateFromBdl.js";
+import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
 /**
@@ -82,8 +84,10 @@ export async function resolveNbaPlayoffGameIdFromScoreboard(homeTeam, awayTeam, 
 export async function getNbaPlayoffSlateGamesForEtDates(todayET, tomorrowET) {
   const today = todayET || getEtDateString();
   const tomorrow = tomorrowET || getTomorrowEtDateString(today);
+  const bdlKey = getEnv("BALLDONTLIE_API_KEY") || "";
   const store = { getDurableJson, setDurableJson };
-  return readNbaPlayoffSlateGamesFromKv(today, tomorrow, store);
+  const slate = await readNbaBdlPlayoffSlateForToday(today, store, bdlKey);
+  return enrichSlateGamesWithActionNetworkEventIds(slate, today, tomorrow);
 }
 
 /**
