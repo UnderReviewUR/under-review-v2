@@ -144,16 +144,6 @@ function getNbaSeasonContext() {
   return { phase: "NBA Offseason", season, postseason: false };
 }
 
-function getTodayEtDateString() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
-function getTomorrowEtDateString() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow.toLocaleDateString("en-CA", {
-    timeZone: "America/New_York",
-  });
-}
 function toEtDateString(isoString) {
   if (!isoString) return "";
   return new Date(isoString).toLocaleDateString("en-CA", {
@@ -653,7 +643,7 @@ const EMPTY_SLATE_CACHE_TTL_MS = 45 * 1000;
  * Returns { games, slateMeta } for prompts when the slate is empty but BDL responded OK.
  */
 async function getTodaysGames(oddsKey, bdlKey) {
-  const todayET = getTodayEtDateString();
+  const todayET = getEtDateString();
   const tomorrowET = getTomorrowEtDateString();
   const GAMES_TODAY_CACHE_KEY = `games_today_bdl_primary_${todayET}_${tomorrowET}`;
   const cached = getCached(GAMES_TODAY_CACHE_KEY);
@@ -876,7 +866,7 @@ async function getNbaPropLines(oddsKey, options = {}) {
       });
     }
 
-    const todayET = getTodayEtDateString();
+    const todayET = getEtDateString();
     const tomorrowET = getTomorrowEtDateString();
 
     console.log(
@@ -2381,7 +2371,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
   const focusTeamIds = bdlTeamIdsForAbbrevs(focusTeamAbbrevs);
 
   try {
-    const todayIso = getTodayEtDateString();
+    const todayIso = getEtDateString();
     const games = await fetchBdlGamesForDate(bdlKey, todayIso);
     const gameIds = [...new Set(games.map((g) => g.id).filter(Boolean))];
 
@@ -3087,7 +3077,7 @@ function extractFinishedHeadToHeadGameTotals(event, seriesAway, seriesHome) {
 /** Attach completed-game combined point totals per series row (ESPN scoreboard date range). */
 async function enrichPlayoffSeriesRowsWithCompletedGameTotals(seriesRows) {
   if (!Array.isArray(seriesRows) || seriesRows.length === 0) return seriesRows;
-  const endEt = getTodayEtDateString();
+  const endEt = getEtDateString();
   const startEt = addCalendarDaysEt(endEt, -28);
   const rangeToken = `${toEspnDateToken(startEt)}-${toEspnDateToken(endEt)}`;
   let events = [];
@@ -3160,7 +3150,7 @@ async function getNbaPlayoffSeries() {
   };
 
   const fromScoreboardEndpoint = async () => {
-    const todayYmd = toEspnDateToken(getTodayEtDateString());
+    const todayYmd = toEspnDateToken(getEtDateString());
     const res = await fetch(
       `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(todayYmd)}&groups=playoff`,
       { cache: "no-store" },
@@ -3642,7 +3632,7 @@ export default async function handler(req, res) {
         nonPlayoffTeamRequested: false,
       };
 
-      const board = {
+      let board = {
         seasonContext: seasonCtx,
         todaysGames,
         todaysGamesSlateMeta,
