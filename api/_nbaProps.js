@@ -136,29 +136,45 @@ export async function scrapeAndCacheNbaProps(gameId, opts = {}) {
 }
 
 /**
- * Read path — KV only, never scrapes.
+ * Self-healing read — KV hit when fresh; otherwise scrape Action Network live, write KV, return.
  * @param {number | string} gameId
+ * @param {{ homeTeam?: string, awayTeam?: string, date?: string }} [opts]
  */
-export async function getNbaPropsForBoard(gameId) {
+export async function getNbaPropsForBoard(gameId, opts = {}) {
   const gid = Number(gameId);
   if (!Number.isFinite(gid) || gid <= 0) return null;
 
   const nowMs = Date.now();
   const cached = await readCacheEntry(gid);
-  if (!cached?.payload) return null;
-
-  if (shouldRefreshNbaPropsCache(cached, nowMs)) {
-    console.log(
-      JSON.stringify({
-        event: "nba_props_stale_cache",
-        gameId: gid,
-        ageMinutes: Math.round((nowMs - cached.fetchedAtMs) / 60000),
-        note: "awaiting cron refresh",
-      }),
-    );
+  if (cached?.payload && !shouldRefreshNbaPropsCache(cached, nowMs)) {
+    return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs);
   }
 
-  return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs);
+  try {
+    const live = await scrapeAndCacheNbaProps(gid, opts);
+    console.log(
+      JSON.stringify({
+        event: "nba_props_self_heal",
+        gameId: gid,
+        hadCache: Boolean(cached?.payload),
+        posted: live?.hasPostedLines,
+        playerCount: live?.playerCount ?? 0,
+      }),
+    );
+    return live;
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "nba_props_self_heal_failed",
+        gameId: gid,
+        error: err?.message || String(err),
+      }),
+    );
+    if (cached?.payload) {
+      return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs);
+    }
+    return null;
+  }
 }
 
 /**
@@ -191,7 +207,7 @@ async function hydrateNbaGamePropsForBoard(gameId) {
 }
 
 /**
- * Read path — attach cached Action Network props to board (never scrapes on user request).
+ * Read path — attach Action Network props to board (self-healing per game).
  * @param {Record<string, unknown>} board
  */
 export async function hydrateNbaPropsOdds(board) {

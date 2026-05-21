@@ -95,7 +95,7 @@ export async function scrapeAndCachePgaChampionshipOdds(opts = {}) {
 }
 
 /**
- * Read path for UR Take / golf board — never launches Puppeteer.
+ * Self-healing read for UR Take / golf board — cold or stale KV triggers live scrape.
  * @param {{ name?: string, shortName?: string, startDate?: string, endDate?: string, state?: string } | null | undefined} currentEvent
  */
 export async function getPgaChampionshipOddsForBoard(currentEvent) {
@@ -104,19 +104,33 @@ export async function getPgaChampionshipOddsForBoard(currentEvent) {
   const nowMs = Date.now();
   const cached = await readCacheEntry();
 
-  if (!cached?.payload) return null;
-
-  if (shouldRefreshGolfOddsCache(cached, nowMs, currentEvent)) {
-    console.log(
-      JSON.stringify({
-        event: "pga_championship_odds_stale_cache",
-        ageMinutes: Math.round((nowMs - cached.fetchedAtMs) / 60000),
-        note: "awaiting cron refresh",
-      }),
-    );
+  if (cached?.payload && !shouldRefreshGolfOddsCache(cached, nowMs, currentEvent)) {
+    return decorateGolfOddsWithFreshness(cached.payload, cached.fetchedAtMs);
   }
 
-  return decorateGolfOddsWithFreshness(cached.payload, cached.fetchedAtMs);
+  try {
+    const live = await scrapeAndCachePgaChampionshipOdds();
+    console.log(
+      JSON.stringify({
+        event: "pga_championship_odds_self_heal",
+        hadCache: Boolean(cached?.payload),
+        posted: live?.hasPostedLines,
+        outrights: Array.isArray(live?.outrights) ? live.outrights.length : 0,
+      }),
+    );
+    return live;
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "pga_championship_odds_self_heal_failed",
+        error: err?.message || String(err),
+      }),
+    );
+    if (cached?.payload) {
+      return decorateGolfOddsWithFreshness(cached.payload, cached.fetchedAtMs);
+    }
+    return null;
+  }
 }
 
 /**

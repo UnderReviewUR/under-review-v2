@@ -209,7 +209,7 @@ function normalizeGroupStandings(data) {
   return groups;
 }
 
-async function getGroupsPayload() {
+export async function getGroupsPayload() {
   const cached = await getDurableJson("wc2026_groups");
   const res = await bdlFifaFetch("/group_standings");
   if (res.ok && res.data) {
@@ -222,7 +222,7 @@ async function getGroupsPayload() {
   return { groups: {}, fallback: true, error: res.error || "No group data" };
 }
 
-async function getMatchesPayload() {
+export async function getMatchesPayload() {
   const cached = await getDurableJson("wc2026_matches");
   const fetched = await fetchAllMatches();
   if (fetched.ok && fetched.matches.length) {

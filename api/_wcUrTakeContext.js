@@ -4,6 +4,11 @@
  */
 
 import { getDurableJson } from "./_durableStore.js";
+import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
+import { isKvFresh } from "../shared/selfHealingKv.js";
+
+const WC_GROUPS_TTL_MS = 300 * 1000;
+const WC_MATCHES_TTL_MS = 60 * 1000;
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { wcTeamsWithStrengthTags } from "../shared/wc2026Strength.js";
 
@@ -142,10 +147,26 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
  * Full World Cup board for UR Take — same role as buildNbaUrTakeBoard output.
  * @returns {Promise<object|null>}
  */
+async function loadWorldCupGroupsPayload() {
+  const cached = await getDurableJson("wc2026_groups");
+  if (cached?.groups && Object.keys(cached.groups).length && isKvFresh(cached.lastUpdated, WC_GROUPS_TTL_MS)) {
+    return cached;
+  }
+  return getGroupsPayload();
+}
+
+async function loadWorldCupMatchesPayload() {
+  const cached = await getDurableJson("wc2026_matches");
+  if (cached?.matches?.length && isKvFresh(cached.lastUpdated, WC_MATCHES_TTL_MS)) {
+    return cached;
+  }
+  return getMatchesPayload();
+}
+
 export async function buildWorldCupUrTakeContext() {
   const [groupsPayload, matchesPayload] = await Promise.all([
-    getDurableJson("wc2026_groups"),
-    getDurableJson("wc2026_matches"),
+    loadWorldCupGroupsPayload(),
+    loadWorldCupMatchesPayload(),
   ]);
 
   const staticGroups = buildStaticGroups();

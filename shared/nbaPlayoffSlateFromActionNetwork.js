@@ -7,6 +7,7 @@ import {
   NBA_PROPS_BOOK_IDS_QUERY,
 } from "./nbaPropsConstants.js";
 import { canonicalizeTeamAbbr } from "./gameLineSpread.js";
+import { isKvFresh } from "./selfHealingKv.js";
 
 const KV_PREFIX = "nba_playoff_games_";
 const KV_TTL_SECONDS = 6 * 60 * 60;
@@ -327,9 +328,65 @@ export async function refreshNbaPlayoffGamesKvForEtDates(todayET, tomorrowET, st
 }
 
 /**
+ * Self-healing read for one scoreboard date: fresh KV → return; else fetch live → write KV → return.
+ * @param {string} dateYmd YYYYMMDD
+ * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
+ */
+export async function resolveNbaPlayoffSlateForDateYmd(dateYmd, store) {
+  const ymd = etDateYmdFromDate(dateYmd);
+  const key = nbaPlayoffGamesKvKey(ymd);
+  let payload = null;
+  try {
+    payload = store?.getDurableJson ? await store.getDurableJson(key) : null;
+  } catch {
+    payload = null;
+  }
+
+  const cachedGames = slateGamesFromNbaPlayoffKvPayload(payload);
+  if (isKvFresh(payload?.refreshedAtMs, REFRESH_MAX_AGE_MS)) {
+    return cachedGames;
+  }
+
+  let slateGames = [];
+  try {
+    slateGames = await fetchActionNetworkNbaScoreboardForDate(ymd);
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "nba_playoff_slate_self_heal_failed",
+        dateYmd: ymd,
+        error: err?.message || String(err),
+      }),
+    );
+    if (cachedGames.length) return cachedGames;
+    return [];
+  }
+
+  const nextPayload = buildNbaPlayoffGamesKvPayload(ymd, slateGames);
+  if (store?.setDurableJson) {
+    try {
+      await store.setDurableJson(key, nextPayload, { ttlSeconds: KV_TTL_SECONDS });
+    } catch {
+      /* KV optional locally */
+    }
+  }
+
+  console.log(
+    JSON.stringify({
+      event: "nba_playoff_slate_self_heal",
+      dateYmd: ymd,
+      gameCount: slateGames.length,
+      hadStaleCache: Boolean(payload?.refreshedAtMs),
+    }),
+  );
+
+  return slateGames;
+}
+
+/**
  * @param {string} todayET YYYY-MM-DD
  * @param {string} [tomorrowET] YYYY-MM-DD
- * @param {{ getDurableJson: (key: string) => Promise<unknown> }} store
+ * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson?: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
  */
 export async function readNbaPlayoffSlateGamesFromKv(todayET, tomorrowET, store) {
   const tokens = [...etDateTokens(todayET, tomorrowET)];
@@ -338,14 +395,8 @@ export async function readNbaPlayoffSlateGamesFromKv(todayET, tomorrowET, store)
   const out = [];
 
   for (const ymd of tokens) {
-    const key = nbaPlayoffGamesKvKey(ymd);
-    let payload = null;
-    try {
-      payload = store?.getDurableJson ? await store.getDurableJson(key) : null;
-    } catch {
-      payload = null;
-    }
-    for (const g of slateGamesFromNbaPlayoffKvPayload(payload)) {
+    const games = await resolveNbaPlayoffSlateForDateYmd(ymd, store);
+    for (const g of games) {
       const pair = `${g.awayTeam?.abbr}|${g.homeTeam?.abbr}`;
       if (!pair || seen.has(pair)) continue;
       seen.add(pair);

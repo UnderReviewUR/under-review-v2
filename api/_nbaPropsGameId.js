@@ -6,7 +6,6 @@ import {
   getEtDateString,
   getTomorrowEtDateString,
   readNbaPlayoffSlateGamesFromKv,
-  refreshNbaPlayoffGamesKvForEtDates,
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
@@ -84,7 +83,6 @@ export async function getNbaPlayoffSlateGamesForEtDates(todayET, tomorrowET) {
   const today = todayET || getEtDateString();
   const tomorrow = tomorrowET || getTomorrowEtDateString(today);
   const store = { getDurableJson, setDurableJson };
-  await refreshNbaPlayoffGamesKvForEtDates(today, tomorrow, store);
   return readNbaPlayoffSlateGamesFromKv(today, tomorrow, store);
 }
 

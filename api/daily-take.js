@@ -6,6 +6,17 @@ import {
   readStoredDailyTake,
 } from "./_dailyTakePreview.js";
 
+const PREVIEW_TRIM_VERSION = 2;
+
+/**
+ * @param {Record<string, unknown> | null | undefined} cached
+ */
+function isDailyTakeCacheServable(cached) {
+  if (!cached?.ok) return false;
+  const trimVersion = Number(cached.previewTrimVersion || 0);
+  return trimVersion >= PREVIEW_TRIM_VERSION;
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
 
@@ -29,10 +40,35 @@ export default async function handler(req, res) {
     }
 
     try {
-      const cached = await readStoredDailyTake(dateKey);
-      const trimVersion = Number(cached?.previewTrimVersion || 0);
-      const staleTrim = cached?.ok && trimVersion < 2;
-      if (cached?.ok && !staleTrim) {
+      let cached = await readStoredDailyTake(dateKey);
+
+      if (!isDailyTakeCacheServable(cached)) {
+        const reason = !cached
+          ? "miss"
+          : cached.ok === false
+            ? "error_cached"
+            : "stale_trim";
+        console.log(
+          JSON.stringify({
+            event: "daily_take_self_heal",
+            dateKey,
+            reason,
+            previewTrimVersion: Number(cached?.previewTrimVersion || 0),
+          }),
+        );
+        try {
+          cached = await generateDailyTakePreview();
+        } catch (genErr) {
+          console.error("[daily-take self-heal]", genErr);
+          if (cached && cached.ok === false) {
+            res.setHeader("Cache-Control", "public, max-age=60");
+            return res.status(404).json({ ok: false, error: cached.error || "not_ready" });
+          }
+          return res.status(500).json({ ok: false, error: "generation_failed" });
+        }
+      }
+
+      if (cached?.ok) {
         const safe = sanitizeDailyTakePreviewPayload(cached);
         if (!safe?.ok) {
           res.setHeader("Cache-Control", "public, max-age=60");
@@ -44,19 +80,12 @@ export default async function handler(req, res) {
         );
         return res.status(200).json(safe);
       }
-      if (staleTrim) {
-        console.log(
-          JSON.stringify({
-            event: "daily_take_preview_trim_cache_bust",
-            dateKey,
-            previewTrimVersion: trimVersion,
-          }),
-        );
-      }
+
       if (cached && cached.ok === false) {
         res.setHeader("Cache-Control", "public, max-age=60");
         return res.status(404).json({ ok: false, error: cached.error || "not_ready" });
       }
+
       res.setHeader("Cache-Control", "public, max-age=30");
       return res.status(404).json({ ok: false, error: "not_ready" });
     } catch (err) {

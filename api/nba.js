@@ -22,7 +22,6 @@ import {
   getTomorrowEtDateString,
   getYesterdayEtDateString,
   readNbaPlayoffSlateGamesFromKv,
-  refreshNbaPlayoffGamesKvForEtDates,
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
 import {
   buildNbaStructuralPlayerIndex,
@@ -588,24 +587,11 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
   );
 
   const store = { getDurableJson, setDurableJson };
-  await refreshNbaPlayoffGamesKvForEtDates(todayEtResolved, tomorrowEtResolved, store, {
-    force: !games?.length,
-  });
-  let actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(
+  const actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(
     todayEtResolved,
     tomorrowEtResolved,
     store,
   );
-  if (!actionNetworkGames.length) {
-    await refreshNbaPlayoffGamesKvForEtDates(todayEtResolved, tomorrowEtResolved, store, {
-      force: true,
-    });
-    actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(
-      todayEtResolved,
-      tomorrowEtResolved,
-      store,
-    );
-  }
   let merged = mergePlayoffSlateIntoGames(games, actionNetworkGames);
   let checkedEspn = false;
 

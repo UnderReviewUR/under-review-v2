@@ -281,7 +281,7 @@ export async function scrapeAndCacheF1Odds(eventId) {
 }
 
 /**
- * Read path for UR Take — never scrapes.
+ * Self-healing read for UR Take — cold or stale KV triggers live Smarkets scrape.
  * @param {string | number} [eventId]
  */
 export async function getF1OddsForUrTake(eventId) {
@@ -295,10 +295,40 @@ export async function getF1OddsForUrTake(eventId) {
     }
   }
 
+  const nowMs = Date.now();
   const cached = await readCacheEntry(id);
-  if (!cached?.payload) return null;
+  const stale =
+    !cached?.payload ||
+    nowMs - Number(cached.fetchedAtMs || 0) >= F1_ODDS_STALE_MS;
 
-  return decorateF1OddsWithFreshness(cached.payload, cached.fetchedAtMs);
+  if (cached?.payload && !stale) {
+    return decorateF1OddsWithFreshness(cached.payload, cached.fetchedAtMs);
+  }
+
+  try {
+    const live = await scrapeAndCacheF1Odds(id);
+    console.log(
+      JSON.stringify({
+        event: "f1_odds_self_heal",
+        eventId: id,
+        hadCache: Boolean(cached?.payload),
+        raceWinnerCount: live?.markets?.raceWinner?.length ?? 0,
+      }),
+    );
+    return live;
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "f1_odds_self_heal_failed",
+        eventId: id,
+        error: err?.message || String(err),
+      }),
+    );
+    if (cached?.payload) {
+      return decorateF1OddsWithFreshness(cached.payload, cached.fetchedAtMs);
+    }
+    return null;
+  }
 }
 
 /**
