@@ -148,7 +148,13 @@ function UrTakeFollowUpDockStrip({ msgs, onPick }) {
   if (!Array.isArray(msgs) || msgs.length === 0 || typeof onPick !== "function") return null;
   const source = getLastAiFollowUpDockSource(msgs);
   if (!source?.followUps?.length) return null;
-  return <UrTakeDockedFollowUps source={source} onPick={onPick} />;
+  return (
+    <UrTakeDockedFollowUps
+      source={source}
+      onPick={onPick}
+      panelClassName="ur-take-follow-up-panel--dock"
+    />
+  );
 }
 
 function formatHomeSlateKvUpdatedEt(iso) {

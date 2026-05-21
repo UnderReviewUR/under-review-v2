@@ -83,7 +83,7 @@ export const baseCss = `
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
-  .nav-btn,.bottom-nav button,.send-btn,.attach-btn,.ur-take-follow-up-pill,.ur-dock-icon-btn,.quick-btn,button.q-card,.pill-tag,button.detail-back,button.ur-v2-body-expand{
+  .nav-btn,.bottom-nav button,.send-btn,.attach-btn,.ur-take-follow-up-chip,.ur-dock-icon-btn,.quick-btn,button.q-card,.pill-tag,button.detail-back,button.ur-v2-body-expand{
     touch-action:manipulation;
   }
   /* iOS: lock document scroll; scroll only designated panes (chat, screens) */
@@ -1266,7 +1266,81 @@ export const baseCss = `
     line-height:1.4;
   }
 
-  .ur-thread-follow-ups{margin-top:8px;padding:4px 2px 12px;}
+  .ur-thread-follow-ups{margin-top:-11px;padding:0;width:100%;}
+  .ur-imessage-assistant-row:has(.ur-take-response-bubble-host) + .ur-thread-follow-ups{
+    margin-top:-11px;
+  }
+  .ur-take-follow-up-panel{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+    width:100%;
+    box-sizing:border-box;
+    background:transparent;
+  }
+  .ur-take-follow-up-panel__kicker{
+    margin:0;
+    padding:0;
+    width:100%;
+    font-family:var(--mono-font);
+    font-size:10px;
+    font-weight:400;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,0.6);
+    line-height:1.3;
+  }
+  .ur-take-follow-up-panel__chips{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:8px;
+    width:100%;
+    max-width:100%;
+  }
+  button.ur-take-follow-up-chip{
+    flex-shrink:0;
+    max-width:100%;
+    margin:0;
+    padding:8px 16px;
+    border-radius:999px;
+    border:1px solid #00F5E9;
+    background:transparent;
+    color:#fff;
+    font-family:var(--body-font);
+    font-size:14px;
+    font-weight:400;
+    line-height:1.35;
+    cursor:pointer;
+    text-align:left;
+    white-space:normal;
+    transition:background 0.15s ease,border-color 0.15s ease,opacity 0.15s ease;
+  }
+  button.ur-take-follow-up-chip--cyan{border-color:#00F5E9;}
+  button.ur-take-follow-up-chip--magenta{border-color:#FF2D6B;}
+  button.ur-take-follow-up-chip--cyan:hover{background:rgba(0,245,233,0.15);}
+  button.ur-take-follow-up-chip--magenta:hover{background:rgba(255,45,107,0.15);}
+  button.ur-take-follow-up-chip:focus-visible{outline:2px solid currentColor;outline-offset:2px;}
+  button.ur-take-follow-up-chip--cyan:focus-visible{outline-color:#00F5E9;}
+  button.ur-take-follow-up-chip--magenta:focus-visible{outline-color:#FF2D6B;}
+  button.ur-take-follow-up-chip:active{opacity:0.88;}
+  .ur-take-follow-up-panel--thread{
+    margin-top:0;
+    padding:10px 16px 14px;
+    background:#080808;
+    border-top:0.5px solid #1a1a1a;
+    border-bottom:0.5px solid #1a1a1a;
+  }
+  .chat-thread--ur-chat-dock .ur-take-follow-up-panel--thread{
+    padding-left:0;
+    padding-right:0;
+  }
+  .ur-take-follow-up-panel--dock{
+    padding:8px 16px 10px;
+    border-top:1px solid rgba(255,255,255,0.06);
+    background:transparent;
+  }
   .ur-thread-upgrade-nudge{
     display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 12px;
     margin-top:6px;padding:8px 6px 10px;
@@ -1301,13 +1375,6 @@ export const baseCss = `
     text-decoration:underline;text-underline-offset:2px;
   }
   button.ur-free-limit-chip-unlock:hover{opacity:0.92;}
-  .ur-docked-follow-ups{display:flex;flex-wrap:nowrap;gap:8px;padding:10px 16px 10px;width:100%;max-width:none;max-height:none;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;border-top:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
-  .ur-docked-follow-ups::-webkit-scrollbar{display:none;}
-  button.ur-take-follow-up-pill{flex-shrink:0;border:none;cursor:pointer;font-family:var(--body-font);font-size:13px;line-height:1.35;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.9);transition:opacity .15s ease,background .15s ease,border-color .15s ease;}
-  button.ur-take-follow-up-pill:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.22);}
-  button.ur-take-follow-up-pill:focus-visible{outline:2px solid var(--cyan-bright);outline-offset:2px;}
-  button.ur-take-follow-up-pill:active{opacity:0.82;}
-
   .chat-thread{display:flex;flex-direction:column;gap:12px;margin-top:8px;flex:1;min-height:0;}
   .chat-thread--ur-chat-dock{gap:10px;}
   .ur-chat-thread-anchor{height:1px;width:100%;flex-shrink:0;margin:0;padding:0;pointer-events:none;overflow:hidden;opacity:0;}

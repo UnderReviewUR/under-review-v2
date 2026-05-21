@@ -2269,7 +2269,11 @@ export function ChatThread({
       })}
       {followUpDockSource?.followUps?.length ? (
         <div className="ur-thread-follow-ups">
-          <UrTakeDockedFollowUps source={followUpDockSource} onPick={onUrTakeFollowUpPick} />
+          <UrTakeDockedFollowUps
+            source={followUpDockSource}
+            onPick={onUrTakeFollowUpPick}
+            panelClassName="ur-take-follow-up-panel--thread"
+          />
         </div>
       ) : null}
       {proUpgradeNudgeVisible ? (
