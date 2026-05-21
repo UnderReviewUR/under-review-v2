@@ -107,7 +107,16 @@ export const GOLF_INTENT_WRONG_COURSE_FRAGMENTS = {
   masters: ["craig ranch", "byron nelson", "quail hollow", "tpc sawgrass"],
   us_open: ["craig ranch", "augusta", "harbour town", "tpc sawgrass"],
   the_open: ["craig ranch", "augusta", "quail hollow", "pebble beach"],
-  byron_nelson: ["quail hollow", "valhalla", "aronimink", "augusta national", "harbour town"],
+  byron_nelson: [
+    "quail hollow",
+    "valhalla",
+    "aronimink",
+    "augusta national",
+    "harbour town",
+    "colonial",
+    "colonial country",
+    "fort worth",
+  ],
   rbc_heritage: ["craig ranch", "quail hollow", "valhalla", "aronimink"],
 };
 

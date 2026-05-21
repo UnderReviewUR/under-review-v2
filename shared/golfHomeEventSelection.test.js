@@ -7,6 +7,7 @@ import {
   pickGolfUpcomingFromBoard,
   reconcileGolfBoardCurrentEvent,
   resolveGolfPrimaryEvent,
+  stripMisalignedGolfCourseArtifacts,
   isGolfBoardFinished,
   isGolfInPlayWindow,
   GOLF_CARD_UPCOMING_WINDOW_MS,
@@ -144,6 +145,29 @@ test("reconcileGolfBoardCurrentEvent replaces Schwab preview with this-week Byro
   });
   assert.match(String(reconciled?.name), /Byron Nelson/i);
   assert.equal(reconciled?.id, 1);
+});
+
+test("stripMisalignedGolfCourseArtifacts removes Colonial blob on Byron Nelson week", () => {
+  const board = {
+    currentEvent: {
+      id: 1,
+      name: "THE CJ CUP Byron Nelson",
+      course: "TPC Craig Ranch - McKinney",
+      state: "in",
+    },
+    tournament: {
+      id: 1,
+      name: "THE CJ CUP Byron Nelson",
+      shortName: "Byron Nelson",
+    },
+    course: { name: "Colonial Country Club", par: 70 },
+    courseStats: [{ hole: 1, par: 70 }],
+    recentResults: [{ player: "X" }],
+  };
+  const stripped = stripMisalignedGolfCourseArtifacts(board);
+  assert.equal(stripped.course?.name, "TPC Craig Ranch");
+  assert.equal(stripped.courseStats.length, 0);
+  assert.equal(stripped.recentResults.length, 0);
 });
 
 test("reconcileGolfBoardCurrentEvent swaps finished ESPN week for BDL upcoming", () => {

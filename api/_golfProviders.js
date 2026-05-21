@@ -26,6 +26,7 @@ import { classifyGolfEvent, EVENT_VALIDITY } from "../shared/eventValidity.js";
 import {
   isGolfInPlayWindow,
   reconcileGolfBoardCurrentEvent,
+  stripMisalignedGolfCourseArtifacts,
 } from "../shared/golfHomeEventSelection.js";
 import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
@@ -1736,7 +1737,7 @@ export async function alignGolfBoardToQuestion(board, question) {
     true,
   );
 
-  return hydrateGolfBoardOdds(aligned);
+  return stripMisalignedGolfCourseArtifacts(hydrateGolfBoardOdds(aligned));
 }
 
 async function getEspnWorldRankings() {
@@ -2437,6 +2438,16 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     }
   }
 
+  const mergedBeforeStrip = {
+    currentEvent: outCurrent,
+    tournament: outTournament,
+    tourSchedule: tourScheduleOut,
+    course,
+    recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
+    courseStats: Array.isArray(bdlBundle?.courseStats) ? bdlBundle.courseStats : [],
+  };
+  const artifactAligned = stripMisalignedGolfCourseArtifacts(mergedBeforeStrip);
+
   return {
     currentEvent: outCurrent,
     leaderboard: outCurrent?.leaderboard ?? [],
@@ -2451,11 +2462,9 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     },
     tournament: outTournament,
     tourSchedule: tourScheduleOut,
-    course,
-    recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
-    courseStats: Array.isArray(bdlBundle?.courseStats)
-      ? bdlBundle.courseStats
-      : [],
+    course: artifactAligned.course ?? null,
+    recentResults: artifactAligned.recentResults ?? [],
+    courseStats: artifactAligned.courseStats ?? [],
     sourceMeta: {
       board: useBdlLeaderboard
         ? "balldontlie_live_standings"
@@ -2497,7 +2506,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v26";
+  const cacheKey = "unified_golf_board_v27";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 

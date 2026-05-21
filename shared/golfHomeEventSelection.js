@@ -3,6 +3,7 @@
  */
 import { classifyGolfEvent, EVENT_VALIDITY } from "./eventValidity.js";
 import { parseEventStartMs } from "./eventStartTime.js";
+import { slugOverlapsGolfLabels } from "./golfTournamentIntent.js";
 
 /** Home pipeline + merge promotion window (matches normalizeGolfTournament). */
 export const GOLF_HOME_UPCOMING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
@@ -300,6 +301,68 @@ export function reconcileGolfBoardCurrentEvent(input) {
 /** @deprecated alias */
 export function promoteUpcomingOverFinishedCurrent(input) {
   return reconcileGolfBoardCurrentEvent(input);
+}
+
+function readGolfCourseLabel(courseBlob) {
+  if (!courseBlob) return "";
+  if (typeof courseBlob === "string") return String(courseBlob).trim();
+  if (typeof courseBlob === "object") {
+    return String(courseBlob.name || courseBlob.course || "").trim();
+  }
+  return "";
+}
+
+/**
+ * Drop BDL course / courseStats from a different week than the primary event (e.g. Colonial stats on Byron Nelson week).
+ * @param {Record<string, unknown> | null | undefined} board
+ */
+export function stripMisalignedGolfCourseArtifacts(board) {
+  if (!board || typeof board !== "object") return board;
+
+  const primary = resolveGolfPrimaryEvent(board);
+  if (!primary) return board;
+
+  const expectedCourse = String(primary.course || primary.courseName || "").trim();
+  const blobName = readGolfCourseLabel(board.course);
+  const bundleTournament = board.tournament;
+  const bundleMatchesPrimary =
+    !bundleTournament ||
+    (primary.id != null &&
+      bundleTournament.id != null &&
+      String(primary.id).trim() === String(bundleTournament.id).trim()) ||
+    slugOverlapsGolfLabels(bundleTournament.name, primary.name) ||
+    slugOverlapsGolfLabels(bundleTournament.shortName, primary.shortName);
+
+  const courseBlobAligned =
+    !blobName ||
+    !expectedCourse ||
+    expectedCourse === "TBD" ||
+    slugOverlapsGolfLabels(blobName, expectedCourse);
+
+  if (bundleMatchesPrimary && courseBlobAligned) return board;
+
+  const slimCourse = expectedCourse
+    ? { name: expectedCourse.split(/\s*[-–]\s*/)[0].trim() || expectedCourse }
+    : null;
+
+  console.log(
+    JSON.stringify({
+      event: "golf_strip_misaligned_course_artifacts",
+      primaryEvent: primary.name || primary.shortName,
+      expectedCourse: expectedCourse || null,
+      removedCourseBlob: blobName || null,
+      bundleTournament: bundleTournament?.name || null,
+      bundleMatchesPrimary,
+      courseBlobAligned,
+    }),
+  );
+
+  return {
+    ...board,
+    course: slimCourse,
+    courseStats: [],
+    recentResults: [],
+  };
 }
 
 /**

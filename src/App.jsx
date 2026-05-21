@@ -36,7 +36,10 @@ import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedA
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
-import { resolveGolfPrimaryEvent } from "../shared/golfHomeEventSelection.js";
+import {
+  resolveGolfPrimaryEvent,
+  stripMisalignedGolfCourseArtifacts,
+} from "../shared/golfHomeEventSelection.js";
 import {
   classifyMlbGame,
   classifyNbaGame,
@@ -1219,7 +1222,10 @@ ${themeCss}
 
 
     const buildGolfContext = useCallback((questionText, golfDataOverride = null) => {
-  const g = alignGolfBoardSnapshotForQuestion(golfDataOverride ?? golfData, questionText);
+  const g = stripMisalignedGolfCourseArtifacts(
+    alignGolfBoardSnapshotForQuestion(golfDataOverride ?? golfData, questionText),
+  );
+  const primary = resolveGolfPrimaryEvent(g);
   const lb = (rows) => (Array.isArray(rows) ? rows.slice(0, 48) : []);
   const slimTournament = (t) => {
     if (!t || typeof t !== "object") return null;
@@ -1233,15 +1239,15 @@ ${themeCss}
     };
   };
   return {
-    currentEvent: g?.currentEvent
+    currentEvent: primary
       ? {
-          name: g.currentEvent.name || null,
-          shortName: g.currentEvent.shortName || null,
-          course: g.currentEvent.course || null,
-          location: g.currentEvent.location || null,
-          round: g.currentEvent.round || null,
-          state: g.currentEvent.state || null,
-          leaderboard: lb(g.currentEvent.leaderboard),
+          name: primary.name || null,
+          shortName: primary.shortName || null,
+          course: primary.course || primary.courseName || null,
+          location: primary.location || null,
+          round: primary.round || null,
+          state: primary.state || null,
+          leaderboard: lb(primary.leaderboard || g?.currentEvent?.leaderboard),
         }
       : null,
     tournament: slimTournament(g?.tournament),
