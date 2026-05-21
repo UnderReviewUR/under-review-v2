@@ -77,6 +77,10 @@ import {
   golfQuestionNeedsEventRealign,
   GOLF_INTENT_WRONG_COURSE_FRAGMENTS,
 } from "../shared/golfTournamentIntent.js";
+import {
+  resolveGolfPrimaryEvent,
+  stripMisalignedGolfCourseArtifacts,
+} from "../shared/golfHomeEventSelection.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
 import { getNbaPropsForBoard, hydrateNbaPropsOdds } from "./_nbaProps.js";
 import {
@@ -4488,10 +4492,30 @@ FIELD RULES:
 - Never say a legitimate F1 driver is "not in the verified field."`;
 }
 
+function golfClientCourseArtifactsMisaligned(g) {
+  if (!g || typeof g !== "object") return false;
+  const beforeStats = Array.isArray(g.courseStats) ? g.courseStats.length : 0;
+  const stripped = stripMisalignedGolfCourseArtifacts(g);
+  const afterStats = Array.isArray(stripped.courseStats) ? stripped.courseStats.length : 0;
+  if (beforeStats > 0 && afterStats === 0) return true;
+  const beforeCourse =
+    g.course && typeof g.course === "object"
+      ? String(g.course.name || "").trim()
+      : String(g.course || "").trim();
+  const afterCourse =
+    stripped.course && typeof stripped.course === "object"
+      ? String(stripped.course.name || "").trim()
+      : String(stripped.course || "").trim();
+  return Boolean(beforeCourse && afterCourse && beforeCourse !== afterCourse);
+}
+
 /** Same slim shape as client `buildGolfContext` (App.jsx) — keeps model JSON aligned with the browser path. */
 function slimUnifiedGolfBoardForUrTake(board, questionText) {
-  const g = board && typeof board === "object" ? board : null;
+  const g = stripMisalignedGolfCourseArtifacts(
+    board && typeof board === "object" ? board : null,
+  );
   if (!g) return null;
+  const primary = resolveGolfPrimaryEvent(g);
   const lb = (rows) => (Array.isArray(rows) ? rows.slice(0, 48) : []);
   const slimTournament = (t) => {
     if (!t || typeof t !== "object") return null;
@@ -4505,15 +4529,15 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
     };
   };
   return {
-    currentEvent: g.currentEvent
+    currentEvent: primary
       ? {
-          name: g.currentEvent.name || null,
-          shortName: g.currentEvent.shortName || null,
-          course: g.currentEvent.course || null,
-          location: g.currentEvent.location || null,
-          round: g.currentEvent.round || null,
-          state: g.currentEvent.state || null,
-          leaderboard: lb(g.currentEvent.leaderboard),
+          name: primary.name || null,
+          shortName: primary.shortName || null,
+          course: primary.course || primary.courseName || null,
+          location: primary.location || null,
+          round: primary.round || null,
+          state: primary.state || null,
+          leaderboard: lb(primary.leaderboard || g.currentEvent?.leaderboard),
         }
       : null,
     tournament: slimTournament(g.tournament),
@@ -5074,13 +5098,18 @@ export default async function handler(req, res) {
   }
 
   if (sportHint === "golf") {
-    const clientGolf = golfContext && typeof golfContext === "object" ? golfContext : null;
+    const clientGolfRaw = golfContext && typeof golfContext === "object" ? golfContext : null;
+    const clientGolf = clientGolfRaw
+      ? stripMisalignedGolfCourseArtifacts(clientGolfRaw)
+      : null;
+    if (clientGolf) golfContextEffective = clientGolf;
     const questionStr = String(question || "");
     const intent = extractGolfTournamentIntentFromQuestion(questionStr);
     const needsQuestionAlign = golfQuestionNeedsEventRealign(clientGolf, questionStr);
     const needsHydrate = !golfClientContextLooksUsable(clientGolf);
+    const needsCourseArtifactAlign = golfClientCourseArtifactsMisaligned(clientGolfRaw);
 
-    if (intent || needsQuestionAlign || needsHydrate) {
+    if (intent || needsQuestionAlign || needsHydrate || needsCourseArtifactAlign) {
       try {
         const board = await getUnifiedGolfBoard();
         const aligned = intent
