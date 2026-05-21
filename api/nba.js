@@ -17,7 +17,10 @@ import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
-import { getPlayoffHomeSlateFallbackGames } from "../shared/nbaPlayoffHomeSlateFallback.js";
+import {
+  readNbaPlayoffSlateGamesFromKv,
+  refreshNbaPlayoffGamesKvForEtDates,
+} from "../shared/nbaPlayoffSlateFromActionNetwork.js";
 import {
   buildNbaStructuralPlayerIndex,
   classifyNbaRosterPosition,
@@ -551,12 +554,11 @@ function nbaSlatePairKey(g) {
   return aa && ha ? `${aa}|${ha}` : "";
 }
 
-function mergeHardcodedPlayoffIntoSlate(games, todayET, tomorrowET) {
-  const hardcoded = getPlayoffHomeSlateFallbackGames(todayET, tomorrowET);
-  if (!hardcoded.length) return games || [];
+function mergePlayoffSlateIntoGames(games, playoffRows) {
+  if (!playoffRows?.length) return games || [];
   const seen = new Set((games || []).map(nbaSlatePairKey).filter(Boolean));
   const out = [...(games || [])];
-  for (const g of hardcoded) {
+  for (const g of playoffRows) {
     const k = nbaSlatePairKey(g);
     if (!k || seen.has(k)) continue;
     seen.add(k);
@@ -565,22 +567,36 @@ function mergeHardcodedPlayoffIntoSlate(games, todayET, tomorrowET) {
   return out;
 }
 
-/** ESPN + hardcoded playoff rows when upstream feeds return an empty ET slate. */
+/** Action Network KV playoff slate + ESPN when upstream feeds return an empty ET slate. */
 async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
-  let merged = mergeHardcodedPlayoffIntoSlate(games, todayET, tomorrowET);
+  const store = { getDurableJson, setDurableJson };
+  await refreshNbaPlayoffGamesKvForEtDates(todayET, tomorrowET, store);
+  const actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(todayET, tomorrowET, store);
+  let merged = mergePlayoffSlateIntoGames(games, actionNetworkGames);
+  let checkedEspn = false;
+
   if (!merged.length) {
+    checkedEspn = true;
     const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
     if (espnGames.length) {
-      merged = mergeHardcodedPlayoffIntoSlate(espnGames, todayET, tomorrowET);
+      merged = mergePlayoffSlateIntoGames(espnGames, actionNetworkGames);
       return {
         games: merged,
         slateMeta: {
           ...slateMeta,
           primarySource: slateMeta.primarySource === "none" ? "espn" : slateMeta.primarySource,
           enrichmentSource: "espn_scoreboard",
+          actionNetworkGameCount: actionNetworkGames.length,
           note: merged.length ? null : slateMeta.note,
         },
       };
+    }
+  }
+
+  if (!merged.length && !checkedEspn) {
+    const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
+    if (espnGames.length) {
+      merged = mergePlayoffSlateIntoGames(espnGames, actionNetworkGames);
     }
   }
   if (merged.length > 0 && (!games || games.length === 0)) {
@@ -590,16 +606,24 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
         gameCount: merged.length,
         primarySource: slateMeta.primarySource,
         enrichmentSource: slateMeta.enrichmentSource,
+        actionNetworkGameCount: actionNetworkGames.length,
         matchups: merged.map((g) => ({
           away: g?.awayTeam?.abbr,
           home: g?.homeTeam?.abbr,
           state: g?.state,
           startTimeUtc: g?.startTimeUtc,
+          actionNetworkGameId: g?.actionNetworkGameId,
         })),
       }),
     );
   }
-  return { games: merged, slateMeta };
+  return {
+    games: merged,
+    slateMeta: {
+      ...slateMeta,
+      actionNetworkGameCount: actionNetworkGames.length,
+    },
+  };
 }
 
 const EMPTY_SLATE_CACHE_TTL_MS = 45 * 1000;

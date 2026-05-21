@@ -31,7 +31,7 @@ test("shouldRunScrapeForGame respects interval and first run", () => {
 });
 
 test("buildScrapeLastRunKvKey", () => {
-  assert.equal(buildScrapeLastRunKvKey("nba_props", "291185"), "scrape_last_run_nba_props_291185");
+  assert.equal(buildScrapeLastRunKvKey("nba_props", "12345678"), "scrape_last_run_nba_props_12345678");
 });
 
 test("getGolfRoundStartMsEt — 8am ET", () => {

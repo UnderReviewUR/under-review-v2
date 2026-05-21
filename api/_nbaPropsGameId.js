@@ -3,12 +3,12 @@ import {
   NBA_PROPS_BOOK_IDS_QUERY,
 } from "../shared/nbaPropsConstants.js";
 import {
-  getPlayoffHomeSlateFallbackGames,
-  NBA_PLAYOFF_HOME_SLATE_FALLBACK,
-} from "../shared/nbaPlayoffHomeSlateFallback.js";
-
-/** Hardcoded playoff lookups until full scoreboard resolver is wired everywhere. */
-const HARDCODED_GAMES = NBA_PLAYOFF_HOME_SLATE_FALLBACK;
+  getEtDateString,
+  getTomorrowEtDateString,
+  readNbaPlayoffSlateGamesFromKv,
+  refreshNbaPlayoffGamesKvForEtDates,
+} from "../shared/nbaPlayoffSlateFromActionNetwork.js";
+import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
 /**
  * @param {string} ymd YYYYMMDD
@@ -28,62 +28,12 @@ function normAbbr(abbr) {
 }
 
 /**
+ * Dynamic lookup via Action Network scoreboard.
  * @param {string | null | undefined} homeTeam
  * @param {string | null | undefined} awayTeam
  * @param {string | null | undefined} date YYYY-MM-DD or YYYYMMDD
  */
-/**
- * @param {number | string} gameId
- */
-export function getNbaPlayoffGameIdByGameId(gameId) {
-  const gid = Number(gameId);
-  if (!Number.isFinite(gid)) return null;
-  const row = HARDCODED_GAMES.find((g) => g.gameId === gid);
-  if (!row) return null;
-  return {
-    gameId: row.gameId,
-    tipoffMs: row.tipoffMs,
-    homeAbbr: row.homeAbbr,
-    awayAbbr: row.awayAbbr,
-    dateYmd: row.dateYmd,
-    source: "hardcoded",
-  };
-}
-
-export function getNbaPlayoffGameId(homeTeam, awayTeam, date) {
-  const home = normAbbr(homeTeam);
-  const away = normAbbr(awayTeam);
-  const ymd = normalizeDateYmd(date);
-
-  for (const row of HARDCODED_GAMES) {
-    const homeMatch = !home || home === normAbbr(row.homeAbbr);
-    const awayMatch = !away || away === normAbbr(row.awayAbbr);
-    const dateMatch = !ymd || ymd === row.dateYmd;
-    if (homeMatch && awayMatch && dateMatch) {
-      return {
-        gameId: row.gameId,
-        tipoffMs: row.tipoffMs,
-        homeAbbr: row.homeAbbr,
-        awayAbbr: row.awayAbbr,
-        dateYmd: row.dateYmd,
-        source: "hardcoded",
-      };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Dynamic lookup via Action Network scoreboard (follow-up path).
- * @param {string | null | undefined} homeTeam
- * @param {string | null | undefined} awayTeam
- * @param {string | null | undefined} date
- */
 export async function resolveNbaPlayoffGameIdFromScoreboard(homeTeam, awayTeam, date) {
-  const hardcoded = getNbaPlayoffGameId(homeTeam, awayTeam, date);
-  if (hardcoded) return hardcoded;
-
   const ymd = normalizeDateYmd(date);
   const home = normAbbr(homeTeam);
   const away = normAbbr(awayTeam);
@@ -127,19 +77,42 @@ export async function resolveNbaPlayoffGameIdFromScoreboard(homeTeam, awayTeam, 
 }
 
 /**
- * Default game for cron when no query params supplied.
- */
-export function getDefaultNbaPropsScrapeTarget() {
-  return getNbaPlayoffGameId("OKC", "SAS", "20260520");
-}
-
-/**
- * Inject known playoff scoreboard rows when BDL/Odds miss tonight's ET slate.
  * @param {string} todayET YYYY-MM-DD
  * @param {string} [tomorrowET] YYYY-MM-DD
  */
-export function getHardcodedPlayoffSlateGamesForEtDates(todayET, tomorrowET) {
-  return getPlayoffHomeSlateFallbackGames(todayET, tomorrowET);
+export async function getNbaPlayoffSlateGamesForEtDates(todayET, tomorrowET) {
+  const today = todayET || getEtDateString();
+  const tomorrow = tomorrowET || getTomorrowEtDateString(today);
+  const store = { getDurableJson, setDurableJson };
+  await refreshNbaPlayoffGamesKvForEtDates(today, tomorrow, store);
+  return readNbaPlayoffSlateGamesFromKv(today, tomorrow, store);
+}
+
+/**
+ * First scheduled/live KV game for manual cron when no query params supplied.
+ */
+export async function getDefaultNbaPropsScrapeTarget() {
+  const todayET = getEtDateString();
+  const tomorrowET = getTomorrowEtDateString(todayET);
+  const games = await getNbaPlayoffSlateGamesForEtDates(todayET, tomorrowET);
+  const pick =
+    games.find((g) => {
+      const s = String(g?.state || "").toLowerCase();
+      return s === "pre" || s === "scheduled";
+    }) || games[0];
+  if (!pick?.actionNetworkGameId) return null;
+  const tipoffMs = pick.startTimeUtc ? Date.parse(pick.startTimeUtc) : null;
+  const dateYmd = pick.startTimeUtc
+    ? new Date(pick.startTimeUtc).toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "")
+    : todayET.replace(/-/g, "");
+  return {
+    gameId: pick.actionNetworkGameId,
+    tipoffMs: Number.isFinite(tipoffMs) ? tipoffMs : null,
+    homeAbbr: pick.homeTeam?.abbr,
+    awayAbbr: pick.awayTeam?.abbr,
+    dateYmd,
+    source: "kv_playoff_slate",
+  };
 }
 
 /**
@@ -149,14 +122,5 @@ export function resolveActionNetworkGameIdForBoardGame(game) {
   if (!game || typeof game !== "object") return null;
   const preset = game.actionNetworkGameId ?? game.anGameId;
   if (preset != null && Number.isFinite(Number(preset))) return Number(preset);
-
-  const home = game?.homeTeam?.abbr;
-  const away = game?.awayTeam?.abbr;
-  const start = game.startTimeUtc || game.commenceTime || null;
-  let dateYmd = null;
-  if (start) {
-    dateYmd = new Date(start).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  }
-  const hit = getNbaPlayoffGameId(home, away, dateYmd);
-  return hit?.gameId ?? null;
+  return null;
 }

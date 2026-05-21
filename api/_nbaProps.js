@@ -13,8 +13,6 @@ import { NBA_UI_PLAYER_CHIPS } from "../shared/nbaUiPlayerChips.js";
 import { fetchAndParseActionNetworkGameProps } from "./_nbaPropsFetch.js";
 import {
   getDefaultNbaPropsScrapeTarget,
-  getNbaPlayoffGameId,
-  getNbaPlayoffGameIdByGameId,
   resolveActionNetworkGameIdForBoardGame,
   resolveNbaPlayoffGameIdFromScoreboard,
 } from "./_nbaPropsGameId.js";
@@ -69,28 +67,29 @@ export function decorateNbaPropsWithFreshness(payload, fetchedAtMs) {
 export async function resolveNbaPropsScrapeTarget(opts = {}) {
   if (opts.gameId != null && String(opts.gameId).trim()) {
     const gameId = Number(opts.gameId);
-    const fromHardcode =
-      getNbaPlayoffGameIdByGameId(gameId) ||
-      getNbaPlayoffGameId(opts.homeTeam, opts.awayTeam, opts.date);
+    const fromScoreboard = await resolveNbaPlayoffGameIdFromScoreboard(
+      opts.homeTeam,
+      opts.awayTeam,
+      opts.date,
+    );
     return {
       gameId,
-      tipoffMs: fromHardcode?.tipoffMs ?? null,
-      dateYmd: fromHardcode?.dateYmd || null,
+      tipoffMs: fromScoreboard?.tipoffMs ?? null,
+      dateYmd: fromScoreboard?.dateYmd || null,
       source: "query_gameId",
     };
   }
 
-  const fromQuery = getNbaPlayoffGameId(opts.homeTeam, opts.awayTeam, opts.date);
-  if (fromQuery) return { ...fromQuery, source: fromQuery.source };
+  if (opts.homeTeam && opts.awayTeam) {
+    const dynamic = await resolveNbaPlayoffGameIdFromScoreboard(
+      opts.homeTeam,
+      opts.awayTeam,
+      opts.date,
+    );
+    if (dynamic) return dynamic;
+  }
 
-  const dynamic = await resolveNbaPlayoffGameIdFromScoreboard(
-    opts.homeTeam,
-    opts.awayTeam,
-    opts.date,
-  );
-  if (dynamic) return dynamic;
-
-  const fallback = getDefaultNbaPropsScrapeTarget();
+  const fallback = await getDefaultNbaPropsScrapeTarget();
   if (fallback) return fallback;
 
   throw new Error("No NBA props scrape target resolved");
@@ -215,18 +214,6 @@ export async function hydrateNbaPropsOdds(board) {
     if (!primaryProps) {
       primaryProps = hydrated;
       primaryGameId = gid;
-    }
-  }
-
-  if (!primaryProps) {
-    const fallback = getNbaPlayoffGameId("OKC", "SAS", "20260520");
-    if (fallback?.gameId) {
-      const hydrated = await hydrateNbaGamePropsForBoard(fallback.gameId);
-      if (hydrated) {
-        primaryProps = hydrated;
-        primaryGameId = fallback.gameId;
-        propsOddsByGameId[String(fallback.gameId)] = hydrated;
-      }
     }
   }
 

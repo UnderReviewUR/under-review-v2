@@ -8,6 +8,11 @@ import {
   validateStructuralAngleCopy,
 } from "../shared/structuralAngleValidation.js";
 import { UR_TAKE_CORE_VOICE_PROMPT } from "./_urTakeCoreVoice.js";
+import {
+  HOME_FEATURED_LEAN_MAX_CHARS,
+  HOME_FEATURED_REASON_MAX_CHARS,
+  polishFeaturedAnglePreviewField,
+} from "../shared/nbaHomePreviewFilter.js";
 
 const CACHE_TTL_SECONDS = 2 * 60 * 60;
 
@@ -77,7 +82,10 @@ export default async function handler(req, res) {
     console.log('[angle-copy] durable', cached ? 'HIT' : 'MISS', kvCacheKey);
     if (cached?.lean && cached?.reason) {
       res.setHeader("Cache-Control", "private, max-age=120");
-      return res.status(200).json(cached);
+      return res.status(200).json({
+        lean: polishFeaturedAnglePreviewField(cached.lean, HOME_FEATURED_LEAN_MAX_CHARS),
+        reason: polishFeaturedAnglePreviewField(cached.reason, HOME_FEATURED_REASON_MAX_CHARS),
+      });
     }
 
     const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
@@ -218,8 +226,14 @@ RULES
       );
       return res.status(502).json({ error: "anthropic_call_failed" });
     }
-    const lean = String(parsed?.lean || "").trim();
-    const reason = String(parsed?.reason || "").trim();
+    const lean = polishFeaturedAnglePreviewField(
+      String(parsed?.lean || "").trim(),
+      HOME_FEATURED_LEAN_MAX_CHARS,
+    );
+    const reason = polishFeaturedAnglePreviewField(
+      String(parsed?.reason || "").trim(),
+      HOME_FEATURED_REASON_MAX_CHARS,
+    );
     if (!lean || !reason) {
       return res.status(502).json({ error: "bad_model_json" });
     }

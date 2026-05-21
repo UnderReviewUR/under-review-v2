@@ -8,11 +8,12 @@ import {
 
 test("trimPreviewTextToCompleteSentences avoids mid-word cut", () => {
   const text =
-    "The market is overweight on narrative while OKC's rim protection and pace control decide the cover.";
+    "OKC's rim protection sets the edge. The market is overweight on narrative while pace control decides the cover.";
   const out = trimPreviewTextToCompleteSentences(text, 72);
   assert.ok(!/\bCar\b/.test(out));
   assert.ok(!out.endsWith("Car"));
-  assert.ok(out.endsWith(".") || out.endsWith("…"));
+  assert.match(out, /[.!?]$/);
+  assert.ok(out.length <= 72);
 });
 
 test("filterIrrelevantPlayersFromPreviewText drops Biyombo sentences", () => {
