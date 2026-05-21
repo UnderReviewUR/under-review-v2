@@ -18,6 +18,14 @@ import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 import { getPlayoffHomeSlateFallbackGames } from "../shared/nbaPlayoffHomeSlateFallback.js";
+import {
+  buildNbaStructuralPlayerIndex,
+  classifyNbaRosterPosition,
+  enrichNbaInjuriesWithStructuralImpact,
+  fetchEspnDepthRotationKeysByTeam,
+  meetsNbaStructuralImpactThreshold,
+  sanitizeNbaNewsImpactForStructuralAngles,
+} from "../shared/structuralAngleValidation.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -2554,6 +2562,12 @@ function normalizeInjuryStatus(status, detail) {
   return "unknown";
 }
 
+function resolveStructuralRoleFromStats(playerStatsRow) {
+  const fromRoster = classifyNbaRosterPosition(playerStatsRow?.position);
+  if (fromRoster !== "unknown") return fromRoster;
+  return inferPlayerRoleFromStats(playerStatsRow);
+}
+
 function inferPlayerRoleFromStats(playerStatsRow) {
   const ast = Number(playerStatsRow?.ast || 0);
   const reb = Number(playerStatsRow?.reb || 0);
@@ -2851,6 +2865,7 @@ export function buildNbaNewsImpact(board = {}) {
       .filter((p) => p?.name)
       .map((p) => [String(p.name).trim().toLowerCase(), p]),
   );
+  const structuralIndex = buildNbaStructuralPlayerIndex({ playerStats, propLines });
 
   for (const row of injuries) {
     const team = String(row?.team || "").toUpperCase();
@@ -2867,8 +2882,14 @@ export function buildNbaNewsImpact(board = {}) {
     else if (statusClass === "questionable") bucket.questionable.push(player);
 
     const statsRow = statsByName.get(player.toLowerCase());
-    const role = inferPlayerRoleFromStats(statsRow);
+    const injuredProfile = structuralIndex.get(player.toLowerCase());
+    const role = resolveStructuralRoleFromStats(statsRow);
     const centrality = inferPlayerCentrality(statsRow, propLines, player);
+    const structuralVacancyEligible =
+      row.structuralImpact === true ||
+      (row.structuralImpact !== false &&
+        injuredProfile &&
+        meetsNbaStructuralImpactThreshold(injuredProfile));
 
     if (statusClass === "out") {
       bucket.invalidMarkets.push({
@@ -2876,22 +2897,27 @@ export function buildNbaNewsImpact(board = {}) {
         markets: ["points", "rebounds", "assists", "pra"],
         reason: "player out",
       });
-      const beneficiaries = buildBeneficiariesForRole({
-        role,
-        teamAbbr: team,
-        playerStats,
-        excludedNames: [...bucket.outs, ...bucket.doubtful],
-      });
-      bucket.beneficiaries.push(...beneficiaries);
-      if (centrality === "high") {
-        bucket.priority = "high";
-        bucket.notes.push("Primary usage vacated");
-      } else if (bucket.priority !== "high") {
-        bucket.priority = "medium";
+      if (structuralVacancyEligible) {
+        const beneficiaries = buildBeneficiariesForRole({
+          role,
+          teamAbbr: team,
+          playerStats,
+          excludedNames: [...bucket.outs, ...bucket.doubtful],
+        }).filter((b) => {
+          const bp = structuralIndex.get(String(b?.player || "").trim().toLowerCase());
+          return !bp || meetsNbaStructuralImpactThreshold(bp);
+        });
+        bucket.beneficiaries.push(...beneficiaries);
+        if (centrality === "high") {
+          bucket.priority = "high";
+          bucket.notes.push("Primary usage vacated");
+        } else if (bucket.priority !== "high") {
+          bucket.priority = "medium";
+        }
+        if (role === "big") bucket.notes.push("Frontcourt rebound share redistributed");
+        if (role === "guard") bucket.notes.push("Lead creation role likely expands");
+        if (role === "wing") bucket.notes.push("Perimeter volume reallocated");
       }
-      if (role === "big") bucket.notes.push("Frontcourt rebound share redistributed");
-      if (role === "guard") bucket.notes.push("Lead creation role likely expands");
-      if (role === "wing") bucket.notes.push("Perimeter volume reallocated");
       continue;
     }
 
@@ -2899,34 +2925,47 @@ export function buildNbaNewsImpact(board = {}) {
       if (centrality === "high") bucket.priority = "high";
       else if (bucket.priority !== "high") bucket.priority = "medium";
       bucket.notes.push(`${player} status unresolved pre-tip`);
-      const likely = buildBeneficiariesForRole({
-        role,
-        teamAbbr: team,
-        playerStats,
-        excludedNames: [...bucket.outs, ...bucket.doubtful, player],
-      }).map((b) => ({
-        ...b,
-        reason: `conditional: ${b.reason}`,
-      }));
-      bucket.beneficiaries.push(...likely);
+      if (structuralVacancyEligible) {
+        const likely = buildBeneficiariesForRole({
+          role,
+          teamAbbr: team,
+          playerStats,
+          excludedNames: [...bucket.outs, ...bucket.doubtful, player],
+        })
+          .filter((b) => {
+            const bp = structuralIndex.get(String(b?.player || "").trim().toLowerCase());
+            return !bp || meetsNbaStructuralImpactThreshold(bp);
+          })
+          .map((b) => ({
+            ...b,
+            reason: `conditional: ${b.reason}`,
+          }));
+        bucket.beneficiaries.push(...likely);
+      }
       continue;
     }
 
     if (statusClass === "questionable") {
       if (centrality === "high" && bucket.priority !== "high") bucket.priority = "medium";
       bucket.notes.push(`${player} questionable — monitor final status`);
-      const likely = buildBeneficiariesForRole({
-        role,
-        teamAbbr: team,
-        playerStats,
-        excludedNames: [...bucket.outs, ...bucket.questionable, player],
-      })
-        .slice(0, 1)
-        .map((b) => ({
-          ...b,
-          reason: `conditional: ${b.reason}`,
-        }));
-      bucket.beneficiaries.push(...likely);
+      if (structuralVacancyEligible) {
+        const likely = buildBeneficiariesForRole({
+          role,
+          teamAbbr: team,
+          playerStats,
+          excludedNames: [...bucket.outs, ...bucket.questionable, player],
+        })
+          .filter((b) => {
+            const bp = structuralIndex.get(String(b?.player || "").trim().toLowerCase());
+            return !bp || meetsNbaStructuralImpactThreshold(bp);
+          })
+          .slice(0, 1)
+          .map((b) => ({
+            ...b,
+            reason: `conditional: ${b.reason}`,
+          }));
+        bucket.beneficiaries.push(...likely);
+      }
     }
   }
 
@@ -2951,11 +2990,14 @@ export function buildNbaNewsImpact(board = {}) {
       return rank(b.priority) - rank(a.priority);
     });
 
-  return {
-    generatedAt: new Date().toISOString(),
-    affectedTeams,
-    globalFlags,
-  };
+  return sanitizeNbaNewsImpactForStructuralAngles(
+    {
+      generatedAt: new Date().toISOString(),
+      affectedTeams,
+      globalFlags,
+    },
+    structuralIndex,
+  );
 }
 
 /** True when series has at least one completed game worth of wins — for enrichment only, not for dropping rows. */
@@ -3204,7 +3246,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     propsReturnedBeforeSlateFilter: rawPropLines.length,
     propsActiveSlateCount: propLines.length,
   };
-  const injuries = await getNbaInjuries(BDL_KEY, todaysGames, question);
+  let injuries = await getNbaInjuries(BDL_KEY, todaysGames, question);
   const playerStatsWithTonight = attachTonightGamesFromProps(
     statsBundle.playerStats || [],
     propLines,
@@ -3225,6 +3267,13 @@ export async function buildNbaUrTakeBoard(question = "") {
     playerStatsWithRecent,
     statsBundle.statsSource || "season_average",
   );
+
+  const depthRotationByTeam = await fetchEspnDepthRotationKeysByTeam(effectiveFocusAbbrevs);
+  injuries = enrichNbaInjuriesWithStructuralImpact(injuries, {
+    playerStats: playerStatsWithRecent,
+    propLines,
+    depthRotationByTeam,
+  });
 
   const { spreads, movementByGame } = await hydrateNbaGameSpreads(todaysGames, ODDS_KEY);
 
@@ -3488,7 +3537,7 @@ export default async function handler(req, res) {
       };
 
       const inj0 = Date.now();
-      const injuries = await getNbaInjuries(BDL_KEY, todaysGames, "");
+      let injuries = await getNbaInjuries(BDL_KEY, todaysGames, "");
       const injuriesMs = Date.now() - inj0;
 
       const playerStatsWithTonight = attachTonightGamesFromProps(
@@ -3508,6 +3557,15 @@ export default async function handler(req, res) {
           ? recentGameLogsByPlayerId[String(playerId)] || []
           : [];
         return attachPraFieldsToPlayerRow({ ...p, recentGames });
+      });
+
+      const depthRotationByTeamWarm = await fetchEspnDepthRotationKeysByTeam(
+        effectiveFocusAbbrevs,
+      );
+      injuries = enrichNbaInjuriesWithStructuralImpact(injuries, {
+        playerStats: playerStatsWithRecent,
+        propLines,
+        depthRotationByTeam: depthRotationByTeamWarm,
       });
 
       const playerStatsTextMerged = buildPlayerStatsSummaryLines(

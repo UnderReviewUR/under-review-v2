@@ -4,6 +4,7 @@ import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { getEnv } from "./_env.js";
 import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
 import { attachF1SmarketsOddsToContext } from "./_f1Odds.js";
+import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const DEFAULT_OPENF1_BASE = "https://api.openf1.org/v1";
 
@@ -431,13 +432,23 @@ function buildStandings(drivers) {
 
   return FALLBACK_STANDINGS.map((fb) => {
     const live = byNumber.get(fb.driver_number);
-    return {
+    const reserve = /\b(reserve|test)\b/i.test(String(live?.full_name || fb.full_name || ""));
+    const base = {
       position: fb.position,
       points: fb.points,
       driver_number: fb.driver_number,
       full_name: (live && live.full_name) || fb.full_name,
       team_name: (live && live.team_name) || fb.team_name,
       team_colour: (live && live.team_colour) || null,
+      raceEntered: Boolean(live),
+      reserve,
+      testDriver: /\btest\b/i.test(String((live && live.full_name) || fb.full_name || "")),
+    };
+    const tagged = tagStructuralImpactAtIngestion(base, "f1", "vacancy");
+    return {
+      ...base,
+      structuralImpact: tagged.structuralImpact,
+      structuralImpactReason: tagged.structuralImpactReason,
     };
   });
 }

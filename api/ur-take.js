@@ -103,7 +103,15 @@ import {
   detectUrTakeLongFormIntent,
   resolveEvidenceSparsityProfile,
 } from "./_urTakeSystemPromptRegistry.js";
-import { buildNbaGroundingSnapshot, NBA_GROUNDING_REGENERATION_SUFFIX } from "./_urTakeNbaGroundingQA.js";
+import {
+  buildNbaGroundingSnapshot,
+  NBA_GROUNDING_REGENERATION_SUFFIX,
+  NBA_STRUCTURAL_REGENERATION_SUFFIX,
+} from "./_urTakeNbaGroundingQA.js";
+import {
+  UNIVERSAL_STRUCTURAL_REGENERATION_SUFFIX,
+  buildTennisStructuralQaContext,
+} from "../shared/structuralAngleValidation.js";
 import { buildAllowlistLowerSetFromSnapshot } from "./_urTakeNbaInventedPlayerShadow.js";
 import {
   buildEnrichedMemoryPrompt,
@@ -4524,6 +4532,7 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
     },
     recentResults: (g.recentResults || []).slice(0, 10),
     courseStats: (g.courseStats || []).slice(0, 8),
+    fieldRoster: Array.isArray(g.fieldRoster) ? g.fieldRoster.slice(0, 120) : [],
     question: questionText || "",
     questionEventAlignment: g.questionEventAlignment || null,
   };
@@ -6906,10 +6915,24 @@ You are responding to a Pro subscriber. Apply the following:
           }
         : undefined;
 
+    const tennisContextForQa =
+      sportHint === "tennis" || sportHint === "tennis_wta_profile"
+        ? buildTennisStructuralQaContext({ liveMatches, players })
+        : undefined;
+
     const qaPostOptsBase = {
       sport: sportHint,
       question: String(question || ""),
       nbaContext: nbaContextForModel,
+      mlbContext:
+        sportHint === "mlb" && mlbContext && typeof mlbContext === "object" ? mlbContext : undefined,
+      tennisContext: tennisContextForQa,
+      golfContext:
+        sportHint === "golf" && golfContextEffective && typeof golfContextEffective === "object"
+          ? golfContextEffective
+          : undefined,
+      f1Context:
+        sportHint === "f1" && f1Context && typeof f1Context === "object" ? f1Context : undefined,
       intent,
       liveMode: Boolean(liveSignals?.isEffectivelyLive),
       coherenceContext: qaCoherenceContext,
@@ -6935,9 +6958,22 @@ You are responding to a Pro subscriber. Apply the following:
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
       structuredResponse = null;
+      const universalStructuralRepairSuffix =
+        qaAttempt > 0 &&
+        prevQaCriticalCodes.some((c) => String(c || "").startsWith("structural_"))
+          ? UNIVERSAL_STRUCTURAL_REGENERATION_SUFFIX
+          : "";
+      const nbaStructuralRepairSuffix =
+        sportHint === "nba" &&
+        qaAttempt > 0 &&
+        !universalStructuralRepairSuffix &&
+        prevQaCriticalCodes.some((c) => String(c || "").startsWith("nba_structural"))
+          ? NBA_STRUCTURAL_REGENERATION_SUFFIX
+          : "";
       const nbaGroundingRepairSuffix =
         sportHint === "nba" &&
         qaAttempt > 0 &&
+        !nbaStructuralRepairSuffix &&
         prevQaCriticalCodes.some((c) => {
           const s = String(c || "");
           return s.startsWith("nba_grounding") || s === "nba_unverified_out_claim";
@@ -6947,7 +6983,7 @@ You are responding to a Pro subscriber. Apply the following:
       let systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
-          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${nbaGroundingRepairSuffix}`;
+          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}`;
       if (structuredModeRequested) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {

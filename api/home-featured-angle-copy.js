@@ -1,6 +1,12 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import {
+  buildNbaStructuralPlayerIndex,
+  fetchEspnDepthRotationKeysByTeam,
+  filterInjurySummaryForStructuralAngles,
+  validateStructuralAngleCopy,
+} from "../shared/structuralAngleValidation.js";
 
 const CACHE_TTL_SECONDS = 2 * 60 * 60;
 
@@ -56,6 +62,8 @@ export default async function handler(req, res) {
       injuryImpactCount = 0,
       seriesGameNumber = 0,
       injurySummary = [],
+      playerStats = [],
+      propLines = [],
     } = req.body || {};
     const dateKey = String(dateKeyEt || "").trim();
     const matchupLabel = String(matchup || "").trim();
@@ -76,6 +84,21 @@ export default async function handler(req, res) {
       return res.status(503).json({ error: "Missing ANTHROPIC_API_KEY" });
     }
 
+    const awayAbbr = String(game?.away || "").trim().toUpperCase();
+    const homeAbbr = String(game?.home || "").trim().toUpperCase();
+    const depthRotationByTeam = await fetchEspnDepthRotationKeysByTeam(
+      [awayAbbr, homeAbbr].filter(Boolean),
+    );
+    const structuralIndex = buildNbaStructuralPlayerIndex({
+      playerStats: Array.isArray(playerStats) ? playerStats : [],
+      propLines: Array.isArray(propLines) ? propLines : [],
+      depthRotationByTeam,
+    });
+    const filteredInjurySummary = filterInjurySummaryForStructuralAngles(
+      Array.isArray(injurySummary) ? injurySummary : [],
+      structuralIndex,
+    );
+
     const seed = {
       matchup: matchupLabel,
       game: {
@@ -87,10 +110,15 @@ export default async function handler(req, res) {
       },
       injuryImpactCount: Number(injuryImpactCount || 0),
       seriesGameNumber: Number(seriesGameNumber || 0),
-      injurySummary: Array.isArray(injurySummary) ? injurySummary.slice(0, 10) : [],
+      injurySummary: filteredInjurySummary.slice(0, 10),
     };
 
-    const prompt = `You are writing Home featured-card copy for UnderReview.
+    const buildPrompt = (excludedPlayers = []) => {
+      const excludeBlock =
+        excludedPlayers.length > 0
+          ? `\n- Do NOT mention these players (failed structural validation): ${excludedPlayers.join(", ")}.`
+          : "";
+      return `You are writing Home featured-card copy for UnderReview.
 Return ONLY valid JSON:
 {"lean":"...","reason":"..."}
 
@@ -107,11 +135,13 @@ RULES
 - Do not use markdown.
 - If injuryImpactCount > 0, make injuries part of the reason.
 - If seriesGameNumber > 0, include series leverage naturally.
-- Never name deep-bench players with minimal playoff minutes (e.g. Bismack Biyombo) as a structural angle — only starters and rotation players who move the market.
-- Respond with only a raw JSON object. No markdown, no code fences, no preamble, no explanation. First character must be { and last character must be }.`;
+- Never name deep-bench players with minimal playoff minutes (e.g. Bismack Biyombo, David Jones) as a structural angle — only starters and rotation players who move the market.
+- Never cite a guard (PG/SG/G) as creating an interior, frontcourt, paint, or rebound vacancy.
+- Only cite injured players with 15+ MPG (last 10), 3+ recent starts, ESPN depth-chart rotation role, or active prop markets.
+- Respond with only a raw JSON object. No markdown, no code fences, no preamble, no explanation. First character must be { and last character must be }.${excludeBlock}`;
+    };
 
-    let parsed = null;
-    try {
+    async function callAnthropic(userPrompt) {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -124,7 +154,7 @@ RULES
           max_tokens: 180,
           temperature: 0.35,
           system: "Output strict JSON only with keys lean and reason.",
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: userPrompt }],
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -134,9 +164,44 @@ RULES
           response.status,
           data?.error?.message || data?.error || data,
         );
-        return res.status(502).json({ error: "anthropic_upstream_error" });
+        return { error: "anthropic_upstream_error" };
       }
-      parsed = parseCopyJson(extractAnthropicText(data));
+      return { parsed: parseCopyJson(extractAnthropicText(data)) };
+    }
+
+    let parsed = null;
+    let excludedPlayers = [];
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await callAnthropic(buildPrompt(excludedPlayers));
+        if (result.error) return res.status(502).json({ error: result.error });
+        parsed = result.parsed;
+        const leanTry = String(parsed?.lean || "").trim();
+        const reasonTry = String(parsed?.reason || "").trim();
+        const validation = validateStructuralAngleCopy(
+          { lean: leanTry, reason: reasonTry },
+          structuralIndex,
+        );
+        if (validation.ok) break;
+        excludedPlayers = [
+          ...new Set(
+            (validation.violations || [])
+              .map((v) => String(v?.player || "").trim())
+              .filter(Boolean),
+          ),
+        ];
+        console.log(
+          JSON.stringify({
+            event: "home_featured_angle_structural_validation_failed",
+            attempt: attempt + 1,
+            codes: validation.criticalCodes || [],
+            excludedPlayers,
+          }),
+        );
+        if (attempt === 1) {
+          return res.status(502).json({ error: "structural_angle_validation_failed" });
+        }
+      }
     } catch (anthropicErr) {
       console.error(
         "[home-featured-angle-copy] anthropic call failed:",
@@ -148,6 +213,10 @@ RULES
     const reason = String(parsed?.reason || "").trim();
     if (!lean || !reason) {
       return res.status(502).json({ error: "bad_model_json" });
+    }
+    const finalValidation = validateStructuralAngleCopy({ lean, reason }, structuralIndex);
+    if (!finalValidation.ok) {
+      return res.status(502).json({ error: "structural_angle_validation_failed" });
     }
     const out = { lean, reason };
     await setDurableJson(kvCacheKey, out, { ttlSeconds: CACHE_TTL_SECONDS });

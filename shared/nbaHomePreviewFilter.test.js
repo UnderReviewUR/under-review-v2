@@ -23,6 +23,14 @@ test("filterIrrelevantPlayersFromPreviewText drops Biyombo sentences", () => {
   assert.match(out, /OKC|Wembanyama/i);
 });
 
+test("filterIrrelevantPlayersFromPreviewText drops David Jones sentences", () => {
+  const text =
+    "OKC length controls the paint. David Jones is not the angle. Watch Wembanyama foul rate.";
+  const out = filterIrrelevantPlayersFromPreviewText(text);
+  assert.ok(!/david\s+jones/i.test(out));
+  assert.match(out, /Wembanyama/i);
+});
+
 test("filterIrrelevantPlayersFromPreviewText clears chunk that is only Biyombo fragment", () => {
   const text = "Bismack Biyombo and Car";
   assert.equal(filterIrrelevantPlayersFromPreviewText(text), "");

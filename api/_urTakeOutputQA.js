@@ -9,6 +9,11 @@ import {
   sentenceFailsTripleDoubleLogic,
 } from "./_urTakeBetIntegrity.js";
 import { lintNbaHardGrounding } from "./_urTakeNbaGroundingQA.js";
+import {
+  buildNbaStructuralPlayerIndex,
+  lintCrossSportStructuralIntegrity,
+  lintNbaStructuralAngleViolations,
+} from "../shared/structuralAngleValidation.js";
 import { logNbaInventedPlayerShadowEvents, scanNbaInventedPlayerShadow } from "./_urTakeNbaInventedPlayerShadow.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
@@ -418,6 +423,8 @@ export function lintUrTakeOutput(text, options = {}) {
     critical.push("roster_coherence_violation");
   }
 
+  const nbaCtx = options.nbaContext;
+
   /** @type {Array<{ ruleCode: string, player?: string, expectedTeam?: string, mentionedTeam?: string, expectedStatus?: string, mentionedStatus?: string }>} */
   let groundingEvents = [];
   if (String(options.sport || "").toLowerCase() === "nba" && options.nbaGroundingSnapshot) {
@@ -429,7 +436,32 @@ export function lintUrTakeOutput(text, options = {}) {
     }
   }
 
-  const nbaCtx = options.nbaContext;
+  if (String(options.sport || "").toLowerCase() === "nba" && nbaCtx?.playerStats?.length) {
+    const structuralIndex = buildNbaStructuralPlayerIndex({
+      playerStats: nbaCtx.playerStats,
+      propLines: nbaCtx.propLines || [],
+    });
+    const structuralLint = lintNbaStructuralAngleViolations(raw, structuralIndex);
+    for (const code of structuralLint.criticalCodes || []) {
+      if (!critical.includes(code)) critical.push(code);
+      if (!issues.includes(code)) issues.push(code);
+    }
+    groundingEvents = groundingEvents.concat(structuralLint.events || []);
+  }
+
+  const crossStructural = lintCrossSportStructuralIntegrity(raw, {
+    sport: options.sport,
+    nbaContext: nbaCtx,
+    mlbContext: options.mlbContext,
+    tennisContext: options.tennisContext,
+    golfContext: options.golfContext,
+    f1Context: options.f1Context,
+  });
+  for (const code of crossStructural.criticalCodes || []) {
+    if (!critical.includes(code)) critical.push(code);
+    if (!issues.includes(code)) issues.push(code);
+  }
+  groundingEvents = groundingEvents.concat(crossStructural.events || []);
   if (extremeAssistPropVsAverage(raw, nbaCtx?.playerStats)) {
     issues.push("prop_line_extreme_vs_average");
     critical.push("prop_line_extreme_vs_average");
@@ -536,6 +568,12 @@ export function lintUrTakeOutput(text, options = {}) {
     "nba_grounding_player_off_matchup",
     "nba_grounding_injury_contradiction",
     "nba_unverified_out_claim",
+    "nba_structural_irrelevant_player",
+    "nba_structural_guard_interior_mismatch",
+    "nba_structural_low_impact_vacancy",
+    "structural_irrelevant_player",
+    "structural_guard_interior_mismatch",
+    "structural_low_impact_vacancy",
     "unsupported_line_movement_claim",
     "unsupported_weather_claim",
     "unsupported_injury_certainty",

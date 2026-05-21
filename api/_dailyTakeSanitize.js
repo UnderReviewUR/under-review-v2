@@ -21,7 +21,7 @@ export function sanitizeDailyTakePreviewPayload(payload) {
     filterIrrelevantPlayersFromPreviewText(String(payload.closing || "")),
     240,
   );
-  if (/biyombo/i.test(`${headline} ${bodyChunk} ${closing}`)) {
+  if (/biyombo|david\s+jones/i.test(`${headline} ${bodyChunk} ${closing}`)) {
     return { ...payload, ok: false, error: "preview_blocked_irrelevant_player" };
   }
   return { ...payload, headline, bodyChunk, closing };

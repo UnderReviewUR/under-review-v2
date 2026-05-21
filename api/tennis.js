@@ -4,6 +4,7 @@ import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
 import { fetchOddsAtpFixturesForBoard } from "./_tennisOddsAtpFallback.js";
 import { buildStaticWtaBoardRows } from "./_staticWtaBoard.js";
 import { shouldRetainRecentFinishedTennisFinals } from "../shared/tennisIntent.js";
+import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 function logOddsUnavailable(scope) {
   console.warn(`[odds] unavailable — running without lines (${scope})`);
@@ -372,6 +373,27 @@ function normalizeTennisBoardResponse({
             ? "bdl_fixture"
             : "other";
 
+      const homeImpact = tagStructuralImpactAtIngestion(
+        {
+          name: home,
+          ranking: Number(match.event_first_player_rank ?? match.first_player_rank) || undefined,
+          recentWinRate: Number(match.event_first_player_win_rate) || undefined,
+          recentMatches: Number(match.event_first_player_recent_matches) || undefined,
+        },
+        "tennis",
+        "draw_vacancy",
+      );
+      const awayImpact = tagStructuralImpactAtIngestion(
+        {
+          name: away,
+          ranking: Number(match.event_second_player_rank ?? match.second_player_rank) || undefined,
+          recentWinRate: Number(match.event_second_player_win_rate) || undefined,
+          recentMatches: Number(match.event_second_player_recent_matches) || undefined,
+        },
+        "tennis",
+        "draw_vacancy",
+      );
+
       return {
         id:
           match.bdl_match_id ||
@@ -392,6 +414,10 @@ function normalizeTennisBoardResponse({
         commence_time,
         home_team: home,
         away_team: away,
+        first_player_structural_impact: homeImpact.structuralImpact,
+        first_player_structural_impact_reason: homeImpact.structuralImpactReason,
+        second_player_structural_impact: awayImpact.structuralImpact,
+        second_player_structural_impact_reason: awayImpact.structuralImpactReason,
         tournament,
         round,
         status,

@@ -735,7 +735,9 @@ export async function buildMlbUrTakeBoard(question = "") {
     games: trimGamesForUrTakeContext(gamesWithPark),
     propLines: propLines.slice(0, 12),
     gameTotals: gameTotals || {},
-    injuries: (injuries || []).slice(0, 24),
+    injuries: (injuries || [])
+      .filter((r) => r?.structuralImpact !== false)
+      .slice(0, 24),
     primarySource: slateFromBdl ? "balldontlie_mlb" : "espn",
     question: String(question || ""),
     fetchedAt: new Date().toISOString(),

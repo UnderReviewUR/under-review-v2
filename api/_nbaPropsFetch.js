@@ -1,3 +1,7 @@
+/**
+ * Action Network props fetch only. NBA injury rows get `structuralImpact` at ingestion in
+ * `api/nba.js` via `enrichNbaInjuriesWithStructuralImpact` (BallDontLie + ESPN depth).
+ */
 import {
   NBA_PROPS_API_BASE,
   NBA_PROPS_BOOK_IDS_QUERY,

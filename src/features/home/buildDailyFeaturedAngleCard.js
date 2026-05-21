@@ -108,6 +108,8 @@ async function fetchGeneratedCopy(seed) {
     injuryImpactCount: Number(payload?.injuryImpactCount || 0),
     seriesGameNumber: Number(payload?.seriesGameNumber || 0),
     injurySummary: Array.isArray(payload?.injurySummary) ? payload.injurySummary : [],
+    playerStats: Array.isArray(payload?.playerStats) ? payload.playerStats : [],
+    propLines: Array.isArray(payload?.propLines) ? payload.propLines : [],
   });
 
   try {
@@ -168,6 +170,22 @@ export async function buildDailyFeaturedAngleCard({ nbaGames, nbaData }) {
     injuryImpactCount: selected.injuryImpactCount,
     seriesGameNumber: selected.seriesGameNumber,
     injurySummary,
+    playerStats: (nbaData?.playerStats || []).slice(0, 120).map((p) => ({
+      name: p?.name,
+      team: p?.team,
+      position: p?.position || "",
+      min: p?.min ?? null,
+      recentGames: Array.isArray(p?.recentGames) ? p.recentGames.slice(0, 10) : [],
+      contract: p?.contract,
+      statsNote: p?.statsNote,
+      espnStatus: p?.espnStatus,
+      source: p?.source,
+    })),
+    propLines: (nbaData?.propLines || []).slice(0, 120).map((pl) => ({
+      player: pl?.player,
+      prop: pl?.prop,
+      line: pl?.line,
+    })),
   });
   if (generated?.lean && generated?.reason) {
     lean = generated.lean;

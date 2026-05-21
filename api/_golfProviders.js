@@ -22,6 +22,7 @@ import {
   stripStaleGolfWeekArtifactsForIntent,
 } from "../shared/golfTournamentIntent.js";
 import { hydrateGolfBoardOdds } from "./_golfOddsApi.js";
+import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const GOLF_CUT_LINE_FEED_NOTE =
   "Cut line: not available in current feed. Do not project cut line. Reference make_cut odds only.";
@@ -1353,7 +1354,29 @@ async function fetchEspnGolfField() {
       return fail("no competitors for event");
     }
 
-    const payload = { eventName, eventId, players };
+    const rankings = await getEspnWorldRankings();
+    const rankByName = new Map(
+      (rankings || []).map((r) => [
+        String(r?.name || r?.player || "")
+          .trim()
+          .toLowerCase(),
+        Number(r?.rank ?? r?.position),
+      ]),
+    );
+    const fieldRoster = players.map((nm) => {
+      const key = String(nm || "").trim().toLowerCase();
+      const worldRank = rankByName.get(key);
+      return tagStructuralImpactAtIngestion(
+        {
+          name: nm,
+          worldRank: Number.isFinite(worldRank) ? worldRank : undefined,
+        },
+        "golf",
+        "field_strength",
+      );
+    });
+
+    const payload = { eventName, eventId, players, fieldRoster };
     console.log(
       `[golf] espn field → ${players.length} players, event: ${eventName || "(unnamed)"}`,
     );
@@ -2514,6 +2537,7 @@ export async function getUnifiedGolfBoard() {
     weatherAlert,
     weatherCoordsMatched: Boolean(coords),
     cutLineFeedNote: GOLF_CUT_LINE_FEED_NOTE,
+    fieldRoster: Array.isArray(espnField?.fieldRoster) ? espnField.fieldRoster : [],
   };
 
   out = await hydrateGolfBoardOdds(out);

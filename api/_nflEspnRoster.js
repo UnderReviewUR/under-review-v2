@@ -1,4 +1,5 @@
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const TEAMS = [
   "buf",
@@ -84,7 +85,7 @@ function parseRosterPlayers(json, teamAbbr) {
       const inj0 = injuries[0];
       const statusAbbrev = item.status?.abbreviation || item.status?.name || "";
       const injuryFromList = inj0?.status || "";
-      players.push({
+      const base = {
         name:
           item.displayName ||
           [item.firstName, item.lastName].filter(Boolean).join(" ").trim(),
@@ -93,7 +94,13 @@ function parseRosterPlayers(json, teamAbbr) {
         status: statusAbbrev,
         injuryStatus: injuryFromList || statusAbbrev || "",
         team: teamAbbr,
-      });
+        rosterStatus: statusAbbrev,
+      };
+      const tagged =
+        injuryFromList || (statusAbbrev && statusAbbrev !== "Active")
+          ? tagStructuralImpactAtIngestion(base, "nfl", "vacancy")
+          : { ...base, structuralImpact: true, structuralImpactReason: "active_roster" };
+      players.push(tagged);
     }
   }
   return players;

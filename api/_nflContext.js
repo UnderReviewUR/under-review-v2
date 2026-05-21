@@ -436,7 +436,12 @@ export async function buildCanonicalNflContext(options = {}) {
   }
 
   if (rosterData?.players?.length) {
-    let pool = rosterData.players.filter((p) => p.injuryStatus && p.injuryStatus !== "Active");
+    let pool = rosterData.players.filter(
+      (p) =>
+        p.injuryStatus &&
+        p.injuryStatus !== "Active" &&
+        p.structuralImpact !== false,
+    );
     if (scoped) {
       pool = pool.filter((p) => scopeMatchesTeam(scope, p.team));
     }

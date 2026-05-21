@@ -327,6 +327,18 @@ export function lintNbaHardGrounding(text, snapshot) {
   };
 }
 
+/** Appended on regeneration pass when NBA structural vacancy validation failed. */
+export const NBA_STRUCTURAL_REGENERATION_SUFFIX = `
+
+[NBA STRUCTURAL ANGLE — rewrite required]
+Your prior answer cited a player who fails structural vacancy rules.
+Rewrite from scratch:
+- Do not name blocklisted or deep-bench players (e.g. Bismack Biyombo, David Jones).
+- Never describe a guard (PG/SG/G) as creating an interior, frontcourt, paint, or rebound vacancy.
+- Only cite injured or replacement players with 15+ MPG in the last 10 games, 3+ recent starts, ESPN depth-chart rotation role, or active prop markets in context.
+- If the injured player is low-minute or two-way, describe team-level usage shift without naming them as a structural vacancy driver.
+`;
+
 /** Appended on regeneration pass when NBA grounding failed (sportHint nba). */
 export const NBA_GROUNDING_REGENERATION_SUFFIX = `
 

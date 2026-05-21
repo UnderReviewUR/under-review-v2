@@ -3,6 +3,7 @@
  * OpenAPI: https://www.balldontlie.io/openapi/mlb.yml
  */
 import { bdlFetch } from "./_balldontlie.js";
+import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const MAX_GAME_PAGES = 12;
 const MAX_LINEUP_PAGES = 8;
@@ -205,15 +206,22 @@ export async function fetchBdlMlbInjuriesForTeamIds(bdlKey, teamIds) {
       const name = String(p?.full_name || "").trim();
       if (!name) continue;
       const teamAbbr = pickTeamAbbr(p?.team || {}, "");
-      out.push({
-        player: name,
-        team: teamAbbr,
-        status: String(row.status || "").trim(),
-        detail: [String(row.type || "").trim(), String(row.detail || "").trim(), String(row.short_comment || "").trim()]
-          .filter(Boolean)
-          .join(" — "),
-        source: "balldontlie_mlb",
-      });
+      out.push(
+        tagStructuralImpactAtIngestion(
+          {
+            player: name,
+            team: teamAbbr,
+            position: String(p?.position || p?.primary_position || "").trim(),
+            status: String(row.status || "").trim(),
+            detail: [String(row.type || "").trim(), String(row.detail || "").trim(), String(row.short_comment || "").trim()]
+              .filter(Boolean)
+              .join(" — "),
+            source: "balldontlie_mlb",
+          },
+          "mlb",
+          "lineup_vacancy",
+        ),
+      );
     }
   }
   return out.slice(0, 80);
