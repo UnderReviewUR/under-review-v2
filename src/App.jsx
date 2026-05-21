@@ -2293,7 +2293,8 @@ ${themeCss}
     ];
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
-  const homeNbaCards = useMemo(() => {
+  /** Standalone NBA PLAYOFFS spotlight — built for diagnostics; not mounted on home (slate + preview). */
+  const homeNbaPlayoffsCards = useMemo(() => {
     const logHomeNbaCard = (branch, extra = {}) => {
       console.log(JSON.stringify({ event: "home_nba_card_branch", branch, ...extra }));
     };
@@ -2781,7 +2782,7 @@ ${themeCss}
 
   const homeCards = useMemo(() => {
     const modules = {
-      nba_cards: homeNbaCards,
+      nba_cards: [],
       mlb_cards: homeMlbCards,
       tracker_and_nfl_major: homeTrackerCards,
       tennis_spotlight: homeAtpSpotlightCards,
@@ -2793,7 +2794,7 @@ ${themeCss}
     homeAtpSpotlightCards,
     homeTrackerCards,
     homeGolfCards,
-    homeNbaCards,
+    homeNbaPlayoffsCards,
     homeMlbCards,
     homeF1Cards,
   ]);

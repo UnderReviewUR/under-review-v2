@@ -25,6 +25,10 @@ function isLikelyDraftWindow(now = new Date()) {
   return month === 4 && day >= 18 && day <= 28;
 }
 
+/**
+ * UR TRACKER + NFL draft cards for home. Standalone NBA PLAYOFFS spotlight is built in App.jsx
+ * (`homeNbaPlayoffsCards`) but intentionally omitted from the home stack — NBA shows in Today's Slate here.
+ */
 export function buildHomeTrackerCards({
   performanceData,
   nbaGames,
