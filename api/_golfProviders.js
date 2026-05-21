@@ -23,7 +23,10 @@ import {
 } from "../shared/golfTournamentIntent.js";
 import { hydrateGolfBoardOdds } from "./_golfOddsApi.js";
 import { classifyGolfEvent, EVENT_VALIDITY } from "../shared/eventValidity.js";
-import { promoteUpcomingOverFinishedCurrent } from "../shared/golfHomeEventSelection.js";
+import {
+  isGolfInPlayWindow,
+  reconcileGolfBoardCurrentEvent,
+} from "../shared/golfHomeEventSelection.js";
 import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const GOLF_CUT_LINE_FEED_NOTE =
@@ -1764,7 +1767,7 @@ async function getEspnWorldRankings() {
 }
 
 async function getBdlTournamentBundle() {
-  const cacheKey = "bdl_tournament_bundle_v8";
+  const cacheKey = "bdl_tournament_bundle_v9";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
@@ -1824,6 +1827,22 @@ async function getBdlTournamentBundle() {
       tournamentNameLooksMajor(t?.name, t?.short_name),
     );
     if (majorInRange) return majorInRange;
+
+    const inPlayThisWeek = pool.find((t) =>
+      isGolfInPlayWindow(
+        {
+          name: t?.name,
+          shortName: t?.short_name,
+          startDate: t?.start_date ?? t?.startDate,
+          endDate: t?.end_date ?? t?.endDate,
+          startTs: t?._startTs,
+          endTs: t?._endTs,
+          state: t?.status,
+        },
+        now,
+      ),
+    );
+    if (inPlayThisWeek) return inPlayThisWeek;
 
     const rbcHeritage = pool.find((t) =>
       eventNameMatchesRbcHeritage(t?.name, t?.short_name)
@@ -2031,21 +2050,28 @@ function pickPrimaryScheduleRow(tourScheduleOut, espnEvent, tournament, nowMs = 
     const { startMs, endMs } = scheduleRowStartEndMs(r);
     const st = normalizeString(r?.status || "");
     let score = 0;
-    if (espnId && String(r?.id || "").trim() === espnId) score += 1_000_000;
-    if (bdlId && String(r?.id || "").trim() === bdlId) score += 500_000;
+    const inSchedWindow =
+      Number.isFinite(startMs) &&
+      Number.isFinite(endMs) &&
+      nowMs >= startMs &&
+      nowMs <= endMs;
+    if (inSchedWindow) score += 2_000_000;
+    if (st.includes("live") || st.includes("progress")) score += 1_500_000;
+    if (espnId && String(r?.id || "").trim() === espnId) {
+      score += inSchedWindow || st.includes("live") || st.includes("progress") ? 800_000 : 100_000;
+    }
+    if (bdlId && String(r?.id || "").trim() === bdlId) {
+      score += inSchedWindow ? 600_000 : 150_000;
+    }
     if (
       espnLabel &&
       (slugOverlapsSchedule(r?.name, espnLabel) || slugOverlapsSchedule(r?.shortName, espnLabel))
     ) {
-      score += 250_000;
-    }
-    if (st.includes("live") || st.includes("progress")) score += 80_000;
-    if (Number.isFinite(startMs) && Number.isFinite(endMs) && nowMs >= startMs && nowMs <= endMs) {
-      score += 60_000;
+      score += inSchedWindow ? 400_000 : 80_000;
     }
     if (Number.isFinite(startMs) && nowMs < startMs) {
       const untilStart = startMs - nowMs;
-      if (untilStart <= 72 * 60 * 60 * 1000) score += 80_000;
+      if (untilStart <= 72 * 60 * 60 * 1000) score += 50_000;
       else if (untilStart <= 7 * 24 * 60 * 60 * 1000) score += 20_000;
     }
     const purse = Number(r?.purse || 0);
@@ -2394,16 +2420,20 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
   }
 
   const nowMergeMs = Date.now();
-  if (outCurrent && classifyGolfEvent(outCurrent, nowMergeMs) === EVENT_VALIDITY.FINISHED) {
-    const promoted = promoteUpcomingOverFinishedCurrent({
-      currentEvent: outCurrent,
-      tournament: outTournament,
-      tourSchedule: tourScheduleOut,
-      nowMs: nowMergeMs,
-      buildFromRow: buildCurrentEventFromScheduleRow,
-    });
-    if (promoted && promoted !== outCurrent) {
-      outCurrent = promoted;
+  const reconciled = reconcileGolfBoardCurrentEvent({
+    currentEvent: outCurrent,
+    tournament: outTournament,
+    tourSchedule: tourScheduleOut,
+    nowMs: nowMergeMs,
+    buildFromRow: buildCurrentEventFromScheduleRow,
+  });
+  if (reconciled && reconciled !== outCurrent) {
+    outCurrent = reconciled;
+    const matchRow = Array.isArray(tourScheduleOut)
+      ? tourScheduleOut.find((row) => scheduleRowMatchesCurrentEvent(reconciled, row))
+      : null;
+    if (matchRow && !majorConflict) {
+      outTournament = matchRow;
     }
   }
 
@@ -2467,7 +2497,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v25";
+  const cacheKey = "unified_golf_board_v26";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 

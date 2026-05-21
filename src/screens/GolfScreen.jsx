@@ -4,6 +4,7 @@ import { ChatThread } from "../features/app/helpers.jsx";
 import { buildGolfSessionBoardFromData } from "../lib/golfSessionBoard.js";
 import { classifyGolfEvent, EVENT_VALIDITY } from "../../shared/eventValidity.js";
 import { isGolfEventFinished } from "../lib/golfEventStatus.js";
+import { resolveGolfPrimaryEvent } from "../../shared/golfHomeEventSelection.js";
 import { deriveGolfEventState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
 const LIVE_QUICK_PRE = [
@@ -257,13 +258,14 @@ export default function GolfScreen({
     }
   }, [golfData?.currentEvent, golfData?.tournament]);
 
+  const featuredEvent = golfData ? resolveGolfPrimaryEvent(golfData) : null;
   const eventFinished = isGolfEventFinished(golfData);
   const golfPhase = deriveGolfEventState(golfData);
   const shellPrompts = getQuickPromptsForState("golf", eventFinished ? "final" : golfPhase);
   const quickAngles = !eventFinished && golfPhase === "live" ? LIVE_QUICK_LIVE : LIVE_QUICK_PRE;
   const scheduleRows = Array.isArray(golfData?.tourSchedule) ? golfData.tourSchedule : [];
   const fallbackEvent = scheduleRows[0] || null;
-  const ce = golfData?.currentEvent;
+  const ce = featuredEvent || golfData?.currentEvent;
   const validity = classifyGolfEvent(ce || null);
   const hasNamedFeatured =
     Boolean(ce && (ce.name || ce.shortName)) &&
@@ -301,8 +303,13 @@ export default function GolfScreen({
     headerMonoLabel = "NEXT ON TOUR";
   } else if (hasNamedFeatured) {
     headerEventName = ce?.name || fallbackEvent?.name || "PGA TOUR";
-    headerCourseLine = golfData?.currentEvent?.course
-      ? `${golfData.currentEvent.course} — ${golfData.currentEvent.round || "Live"}`
+    const featuredCourse =
+      ce?.course ||
+      ce?.courseName ||
+      (typeof ce?.course === "string" ? ce.course : null);
+    const featuredRound = ce?.round || (classifyGolfEvent(ce) === EVENT_VALIDITY.UPCOMING ? "Pre-Market" : "Live");
+    headerCourseLine = featuredCourse
+      ? `${featuredCourse} — ${featuredRound}`
       : fallbackEvent?.courseName
         ? `${fallbackEvent.courseName} — Upcoming`
         : "Ask about any player, tournament, or prop";
@@ -405,7 +412,7 @@ export default function GolfScreen({
             {golfData?.currentEvent?.leaderboard?.length > 0 && (
               <>
                 <div className="section-divider">
-                  {golfData.currentEvent.name} — {eventFinished ? "Final" : golfData.currentEvent.round}
+                  {(ce?.name || golfData.currentEvent.name)} — {eventFinished ? "Final" : (ce?.round || golfData.currentEvent.round)}
                   <span style={{ fontFamily: "var(--mono-font)", fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>
                     {golfData.currentEvent.leaderboard.length} players
                   </span>

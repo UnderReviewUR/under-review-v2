@@ -77,6 +77,101 @@ export function isWithinGolfUpcomingWindow(event, nowMs, windowMs) {
 }
 
 /**
+ * @param {Record<string, unknown>} event
+ * @param {number} [nowMs]
+ */
+export function golfEventEndMs(event, nowMs = Date.now()) {
+  if (!event || typeof event !== "object") return NaN;
+  if (Number.isFinite(event.endTs) && Number(event.endTs) > 0) {
+    return Number(event.endTs);
+  }
+  const end = parseEventStartMs(event.endDate);
+  if (Number.isFinite(end)) return end;
+  const start = golfEventStartMs(event, nowMs);
+  if (Number.isFinite(start)) return start + 4 * 24 * 60 * 60 * 1000;
+  return NaN;
+}
+
+function etYmdFromMs(nowMs) {
+  return new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+/**
+ * True when the tournament week includes today ET (Thu–Sun window) or feed marks live/active.
+ * @param {Record<string, unknown>} event
+ * @param {number} [nowMs]
+ */
+export function isGolfInPlayWindow(event, nowMs = Date.now()) {
+  if (!event || typeof event !== "object") return false;
+  if (classifyGolfEvent(event, nowMs) === EVENT_VALIDITY.ACTIVE) return true;
+
+  const start = golfEventStartMs(event, nowMs);
+  const end = golfEventEndMs(event, nowMs);
+  if (Number.isFinite(start) && Number.isFinite(end) && nowMs >= start && nowMs <= end) {
+    return true;
+  }
+
+  const todayEt = etYmdFromMs(nowMs);
+  const startEt = String(event.startDate || "").trim().slice(0, 10);
+  const endEt = String(event.endDate || "").trim().slice(0, 10);
+  if (startEt && endEt && todayEt >= startEt && todayEt <= endEt) return true;
+  if (startEt && !endEt && todayEt === startEt) return true;
+
+  return false;
+}
+
+/**
+ * Best week for board header: in-window (this week ET) beats a future upcoming event within 72h.
+ * @param {Record<string, unknown>[]} rows
+ * @param {number} [nowMs]
+ */
+export function pickBestGolfWeekPrimary(rows, nowMs = Date.now()) {
+  const list = (rows || []).filter((r) => r && typeof r === "object");
+  if (!list.length) return null;
+
+  const meta = list.map((r) => ({
+    r,
+    v: classifyGolfEvent(r, nowMs),
+    start: golfEventStartMs(r, nowMs),
+    inWindow: isGolfInPlayWindow(r, nowMs),
+  }));
+
+  const inWindow = meta.filter((m) => m.inWindow && m.v !== EVENT_VALIDITY.FINISHED);
+  if (inWindow.length) {
+    return inWindow.sort((a, b) => a.start - b.start)[0].r;
+  }
+
+  const active = meta.filter((m) => m.v === EVENT_VALIDITY.ACTIVE);
+  if (active.length) {
+    return active.sort((a, b) => a.start - b.start)[0].r;
+  }
+
+  const upcoming = meta.filter(
+    (m) =>
+      m.v === EVENT_VALIDITY.UPCOMING &&
+      isWithinGolfUpcomingWindow(m.r, nowMs, GOLF_HOME_UPCOMING_WINDOW_MS),
+  );
+  if (upcoming.length) {
+    return upcoming.sort((a, b) => a.start - b.start)[0].r;
+  }
+
+  return null;
+}
+
+function slugKey(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function sameGolfWeek(a, b) {
+  const ka = slugKey(a?.name || a?.shortName);
+  const kb = slugKey(b?.name || b?.shortName);
+  return ka && kb && (ka === kb || ka.includes(kb) || kb.includes(ka));
+}
+
+/**
  * @param {Record<string, unknown> | null | undefined} golfData
  * @param {number} [nowMs]
  * @param {number} [windowMs]
@@ -114,25 +209,14 @@ export function pickGolfUpcomingFromBoard(
  * @param {number} [nowMs]
  */
 export function resolveGolfPrimaryEvent(golfData, nowMs = Date.now()) {
-  const current = golfData?.currentEvent || null;
-  const tournament = golfData?.tournament || null;
-  if (!current) return tournament;
-  if (!tournament) return current;
-
-  const curV = classifyGolfEvent(current, nowMs);
-  const tourV = classifyGolfEvent(tournament, nowMs);
-  if (curV === EVENT_VALIDITY.FINISHED && tourV === EVENT_VALIDITY.UPCOMING) {
-    return tournament;
-  }
-  if (curV === EVENT_VALIDITY.FINISHED) {
-    const upcoming = pickGolfUpcomingFromBoard(
-      golfData,
-      nowMs,
-      GOLF_HOME_UPCOMING_WINDOW_MS,
-    );
-    if (upcoming) return upcoming;
-  }
-  return current;
+  const rows = [
+    ...(Array.isArray(golfData?.tourSchedule) ? golfData.tourSchedule : []),
+    golfData?.tournament,
+    golfData?.currentEvent,
+  ].filter(Boolean);
+  const best = pickBestGolfWeekPrimary(rows, nowMs);
+  if (best) return best;
+  return golfData?.currentEvent || golfData?.tournament || null;
 }
 
 /**
@@ -148,7 +232,7 @@ export function isGolfBoardFinished(golfData, nowMs = Date.now()) {
 }
 
 /**
- * After merge: replace a finished currentEvent with the nearest valid upcoming week.
+ * Align currentEvent with the best schedule row (in-window this week beats next week's preview).
  * @param {{
  *   currentEvent: Record<string, unknown> | null,
  *   tournament: Record<string, unknown> | null,
@@ -157,50 +241,65 @@ export function isGolfBoardFinished(golfData, nowMs = Date.now()) {
  *   buildFromRow?: (row: Record<string, unknown>, preserve: null) => Record<string, unknown> | null,
  * }} input
  */
-export function promoteUpcomingOverFinishedCurrent(input) {
+export function reconcileGolfBoardCurrentEvent(input) {
   const nowMs = input.nowMs ?? Date.now();
-  const current = input.currentEvent;
-  if (!current || typeof current !== "object") return current;
-  if (classifyGolfEvent(current, nowMs) !== EVENT_VALIDITY.FINISHED) return current;
+  const rows = [
+    ...(Array.isArray(input.tourSchedule) ? input.tourSchedule : []),
+    input.tournament,
+    input.currentEvent,
+  ].filter(Boolean);
 
-  const upcoming = pickGolfUpcomingFromBoard(
-    {
-      currentEvent: current,
-      tournament: input.tournament,
-      tourSchedule: input.tourSchedule,
-    },
-    nowMs,
-    GOLF_HOME_UPCOMING_WINDOW_MS,
-  );
-  if (!upcoming) return current;
+  const best = pickBestGolfWeekPrimary(rows, nowMs);
+  if (!best) return input.currentEvent;
+
+  if (input.currentEvent && sameGolfWeek(input.currentEvent, best)) {
+    return input.currentEvent;
+  }
 
   const built =
     typeof input.buildFromRow === "function"
-      ? input.buildFromRow(upcoming, null)
-      : scheduleRowToUpcomingCurrent(upcoming);
+      ? input.buildFromRow(best, null)
+      : scheduleRowToUpcomingCurrent(best);
 
-  if (!built?.id) {
-    console.warn(
-      JSON.stringify({
-        event: "golf_promote_upcoming_missing_id",
-        name: built?.name || upcoming?.name,
-        tournamentId: input.tournament?.id ?? null,
-      }),
-    );
-  }
+  const current = input.currentEvent;
+  const shouldReplace =
+    !current ||
+    classifyGolfEvent(current, nowMs) === EVENT_VALIDITY.FINISHED ||
+    (isGolfInPlayWindow(best, nowMs) && !isGolfInPlayWindow(current, nowMs)) ||
+    (() => {
+      const bestStart = golfEventStartMs(best, nowMs);
+      const curStart = golfEventStartMs(current, nowMs);
+      return (
+        Number.isFinite(bestStart) &&
+        Number.isFinite(curStart) &&
+        bestStart < curStart - 6 * 60 * 60 * 1000
+      );
+    })();
+
+  if (!shouldReplace) return current;
 
   console.log(
     JSON.stringify({
-      event: "golf_promote_upcoming_over_finished",
-      finishedEvent: current?.name || current?.shortName,
-      promotedEvent: built?.name || built?.shortName,
-      promotedId: built?.id ?? null,
-      startDate: built?.startDate ?? upcoming?.startDate,
-      startTs: built?.startTs ?? upcoming?.startTs,
+      event: "golf_reconcile_current_event",
+      previousEvent: current?.name || current?.shortName || null,
+      selectedEvent: built?.name || built?.shortName,
+      selectedId: built?.id ?? best?.id ?? null,
+      reason: !current
+        ? "missing"
+        : classifyGolfEvent(current, nowMs) === EVENT_VALIDITY.FINISHED
+          ? "finished"
+          : isGolfInPlayWindow(best, nowMs)
+            ? "in_window"
+            : "earlier_start",
     }),
   );
 
   return built || current;
+}
+
+/** @deprecated alias */
+export function promoteUpcomingOverFinishedCurrent(input) {
+  return reconcileGolfBoardCurrentEvent(input);
 }
 
 /**

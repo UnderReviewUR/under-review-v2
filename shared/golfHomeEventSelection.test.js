@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   golfEventStartMs,
   parseGolfDisplayDateStartMs,
+  pickBestGolfWeekPrimary,
   pickGolfUpcomingFromBoard,
-  promoteUpcomingOverFinishedCurrent,
+  reconcileGolfBoardCurrentEvent,
   resolveGolfPrimaryEvent,
   isGolfBoardFinished,
+  isGolfInPlayWindow,
   GOLF_CARD_UPCOMING_WINDOW_MS,
 } from "./golfHomeEventSelection.js";
 import { EVENT_VALIDITY, classifyGolfEvent } from "./eventValidity.js";
@@ -75,9 +77,78 @@ test("pickGolfUpcomingFromBoard requires id for Byron within 72h", () => {
   assert.equal(pick?.id, 42);
 });
 
-test("promoteUpcomingOverFinishedCurrent swaps finished ESPN week for BDL upcoming", () => {
+test("pickBestGolfWeekPrimary prefers in-window Byron Nelson over upcoming Schwab within 72h", () => {
+  const nowMs = Date.parse("2026-05-21T21:00:00.000Z");
+  const byron = {
+    id: 1,
+    name: "THE CJ CUP Byron Nelson",
+    shortName: "Byron Nelson",
+    state: "pre",
+    startDate: "2026-05-21",
+    endDate: "2026-05-24",
+    startTs: Date.parse("2026-05-21T11:00:00.000Z"),
+    courseName: "TPC Craig Ranch",
+  };
+  const schwab = {
+    id: 2,
+    name: "Charles Schwab Challenge",
+    shortName: "Schwab Challenge",
+    state: "pre",
+    startDate: "2026-05-27",
+    endDate: "2026-05-31",
+    startTs: Date.parse("2026-05-27T11:00:00.000Z"),
+    courseName: "Colonial Country Club",
+  };
+  assert.ok(isGolfInPlayWindow(byron, nowMs));
+  const best = pickBestGolfWeekPrimary([schwab, byron], nowMs);
+  assert.match(String(best?.name), /Byron Nelson/i);
+});
+
+test("reconcileGolfBoardCurrentEvent replaces Schwab preview with this-week Byron", () => {
+  const nowMs = Date.parse("2026-05-21T21:00:00.000Z");
+  const tourSchedule = [
+    {
+      id: 1,
+      name: "THE CJ CUP Byron Nelson",
+      shortName: "Byron Nelson",
+      state: "pre",
+      startDate: "2026-05-21",
+      endDate: "2026-05-24",
+      startTs: Date.parse("2026-05-21T11:00:00.000Z"),
+      courseName: "TPC Craig Ranch",
+    },
+    {
+      id: 2,
+      name: "Charles Schwab Challenge",
+      shortName: "Schwab Challenge",
+      state: "pre",
+      startDate: "2026-05-27",
+      endDate: "2026-05-31",
+      startTs: Date.parse("2026-05-27T11:00:00.000Z"),
+      courseName: "Colonial Country Club",
+    },
+  ];
+  const reconciled = reconcileGolfBoardCurrentEvent({
+    currentEvent: {
+      id: 2,
+      name: "Charles Schwab Challenge",
+      shortName: "Schwab Challenge",
+      state: "pre",
+      startDate: "2026-05-27",
+      round: "Pre-Market",
+      course: "Colonial Country Club",
+    },
+    tournament: tourSchedule[1],
+    tourSchedule,
+    nowMs,
+  });
+  assert.match(String(reconciled?.name), /Byron Nelson/i);
+  assert.equal(reconciled?.id, 1);
+});
+
+test("reconcileGolfBoardCurrentEvent swaps finished ESPN week for BDL upcoming", () => {
   const nowMs = Date.parse("2026-05-21T12:00:00.000Z");
-  const promoted = promoteUpcomingOverFinishedCurrent({
+  const promoted = reconcileGolfBoardCurrentEvent({
     currentEvent: {
       id: "espn-old",
       name: "RBC Heritage",

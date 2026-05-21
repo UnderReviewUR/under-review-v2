@@ -36,6 +36,7 @@ import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedA
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
+import { resolveGolfPrimaryEvent } from "../shared/golfHomeEventSelection.js";
 import {
   classifyMlbGame,
   classifyNbaGame,
@@ -2629,7 +2630,7 @@ ${themeCss}
       }];
     }
 
-    const currentEvent = golfData?.currentEvent || null;
+    const currentEvent = resolveGolfPrimaryEvent(golfData) || golfData?.currentEvent || null;
     const golfHomeValidity = getGolfHomeValidity(golfData);
     const upcomingEvent = golfHomeValidity.upcomingEvent || null;
     const readName = (entry) =>
