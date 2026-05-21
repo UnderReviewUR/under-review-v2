@@ -197,8 +197,8 @@ export function buildStructuralEdgeChipModel(opts = {}) {
     leader,
     oddsDisplay,
     label: oddsDisplay
-      ? `Structural edge: ${edge.player} ${oddsDisplay}`
-      : `Structural edge: ${edge.player}`,
+      ? `The angle: ${edge.player} ${oddsDisplay}`
+      : `The angle: ${edge.player}`,
   };
 }
 

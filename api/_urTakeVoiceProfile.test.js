@@ -36,11 +36,11 @@ test("buildUnderReviewVoicePrompt follow-up shares same voice header family", ()
     question: "",
   });
   assert.match(fu, /UNDERREVIEW VOICE — FOLLOW-UP/);
-  assert.match(fu, /sharp betting friend/);
+  assert.match(fu, /sharp sports bettor/);
 });
 
 test("buildSlipReviewVoicePrompt requires all legs acknowledgment", () => {
   const s = buildSlipReviewVoicePrompt();
   assert.match(s, /every leg/);
-  assert.match(s, /Never write like there's only one leg/);
+  assert.match(s, /same count and order/);
 });

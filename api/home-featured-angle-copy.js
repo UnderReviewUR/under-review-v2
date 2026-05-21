@@ -7,6 +7,7 @@ import {
   filterInjurySummaryForStructuralAngles,
   validateStructuralAngleCopy,
 } from "../shared/structuralAngleValidation.js";
+import { UR_TAKE_CORE_VOICE_PROMPT } from "./_urTakeCoreVoice.js";
 
 const CACHE_TTL_SECONDS = 2 * 60 * 60;
 
@@ -118,27 +119,34 @@ export default async function handler(req, res) {
         excludedPlayers.length > 0
           ? `\n- Do NOT mention these players (failed structural validation): ${excludedPlayers.join(", ")}.`
           : "";
-      return `You are writing Home featured-card copy for UnderReview.
+      return `${UR_TAKE_CORE_VOICE_PROMPT}
+
+You are writing the Home featured-card preview — the first two sentences of a text you'd send a friend before the game. Not a press release.
+
 Return ONLY valid JSON:
 {"lean":"...","reason":"..."}
 
 CONTEXT
 ${JSON.stringify(seed, null, 2)}
 
+GOOD EXAMPLE
+{"lean":"Wemby is the only guy on SAS who can grab a board right now.","reason":"Line's at 11.5 and he's been at 13 a game lately. Feels low."}
+
+BAD EXAMPLE (never write like this)
+{"lean":"The sharpest structural angle is the rotation vacancy SAS created by losing David Jones.","reason":"That's a permanent frontcourt rebound and spacing loss that OKC's interior will exploit."}
+
 RULES
-- Write one bold-style lean sentence and one supporting reason sentence.
-- Keep product voice sharp, conversational, and specific.
-- No template jargon ("availability tags", "reprice possessions", "pipeline", "context payload").
+- lean: one punchy sentence with the actual take.
+- reason: one follow-up sentence with the why (stats, matchup, injury impact) — still conversational.
+- No jargon: structural angle/vacancy, rotation vacancy, interior collapse, spacing loss, "from a betting perspective," "it is worth noting."
 - No odds-book references, no posted lines, no implied probabilities.
-- Ground wording in matchup script, injuries, series leverage, pace/rotation pressure.
-- Keep each field <= 24 words.
-- Do not use markdown.
-- If injuryImpactCount > 0, make injuries part of the reason.
-- If seriesGameNumber > 0, include series leverage naturally.
-- Never name deep-bench players with minimal playoff minutes (e.g. Bismack Biyombo, David Jones) as a structural angle — only starters and rotation players who move the market.
-- Never cite a guard (PG/SG/G) as creating an interior, frontcourt, paint, or rebound vacancy.
-- Only cite injured players with 15+ MPG (last 10), 3+ recent starts, ESPN depth-chart rotation role, or active prop markets.
-- Respond with only a raw JSON object. No markdown, no code fences, no preamble, no explanation. First character must be { and last character must be }.${excludeBlock}`;
+- Keep each field <= 24 words. No markdown.
+- If injuryImpactCount > 0, injuries can be part of the reason in plain language.
+- If seriesGameNumber > 0, mention series leverage naturally.
+- Never name deep-bench players (e.g. Bismack Biyombo, David Jones) as the driver of the take.
+- Never cite a guard (PG/SG/G) as creating an interior/rebound vacancy.
+- Only cite injured players with real rotation impact (15+ MPG last 10, depth-chart role, or active prop markets).
+- Respond with only a raw JSON object. First character must be { and last character must be }.${excludeBlock}`;
     };
 
     async function callAnthropic(userPrompt) {
@@ -153,7 +161,8 @@ RULES
           model: "claude-haiku-4-5-20251001",
           max_tokens: 180,
           temperature: 0.35,
-          system: "Output strict JSON only with keys lean and reason.",
+          system:
+            "Output strict JSON only with keys lean and reason. Bro-voice: sharp friend texting before the game — never press-release or injury-report tone.",
           messages: [{ role: "user", content: userPrompt }],
         }),
       });

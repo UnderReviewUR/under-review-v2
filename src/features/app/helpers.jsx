@@ -964,7 +964,7 @@ function buildPromotedParlayWhyEdge(parsed, summaryText) {
   }
   return {
     whyNow:
-      "These legs cluster angles from tonight's slate — each one below stands on its own structural read.",
+      "These legs cluster angles from tonight's slate — each one below is its own play.",
     edge:
       "Correlation still matters: if two legs need the same game script, size the ticket like one hinge, not two independent edges.",
   };
@@ -1307,7 +1307,7 @@ const SPORT_ACCENT = {
 /** Phased copy for UR Take loading — cycling text + progress bar (no dot animation). */
 const UR_TAKE_LOADING_PHASES = [
   { delay: 0, text: "Pulling live data..." },
-  { delay: 2500, text: "Reading the injury report..." },
+  { delay: 2500, text: "Pulling tonight's board..." },
   { delay: 5000, text: "Checking the line movement..." },
   { delay: 7500, text: "Building the take..." },
   { delay: 9500, text: "Almost there..." },

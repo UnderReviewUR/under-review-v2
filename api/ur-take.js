@@ -6,6 +6,7 @@ import { getEnv } from "./_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "./_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
 import {
+  BRO_TONE_REGENERATION_SUFFIX,
   QA_REGENERATION_SYSTEM_SUFFIX,
   qaRequiresRegeneration,
   runUnderReviewPostProcess,
@@ -112,6 +113,8 @@ import {
   UNIVERSAL_STRUCTURAL_REGENERATION_SUFFIX,
   buildTennisStructuralQaContext,
 } from "../shared/structuralAngleValidation.js";
+/** Core bro-voice system instructions — canonical text in ./_urTakeCoreVoice.js */
+export { UR_TAKE_CORE_VOICE_PROMPT } from "./_urTakeCoreVoice.js";
 import { buildAllowlistLowerSetFromSnapshot } from "./_urTakeNbaInventedPlayerShadow.js";
 import {
   buildEnrichedMemoryPrompt,
@@ -6958,14 +6961,21 @@ You are responding to a Pro subscriber. Apply the following:
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
       structuredResponse = null;
+      const broToneRepairSuffix =
+        qaAttempt > 0 &&
+        prevQaCriticalCodes.some((c) => String(c || "").startsWith("bro_tone_"))
+          ? BRO_TONE_REGENERATION_SUFFIX
+          : "";
       const universalStructuralRepairSuffix =
         qaAttempt > 0 &&
+        !broToneRepairSuffix &&
         prevQaCriticalCodes.some((c) => String(c || "").startsWith("structural_"))
           ? UNIVERSAL_STRUCTURAL_REGENERATION_SUFFIX
           : "";
       const nbaStructuralRepairSuffix =
         sportHint === "nba" &&
         qaAttempt > 0 &&
+        !broToneRepairSuffix &&
         !universalStructuralRepairSuffix &&
         prevQaCriticalCodes.some((c) => String(c || "").startsWith("nba_structural"))
           ? NBA_STRUCTURAL_REGENERATION_SUFFIX
@@ -6983,7 +6993,7 @@ You are responding to a Pro subscriber. Apply the following:
       let systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
-          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}`;
+          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}`;
       if (structuredModeRequested) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {

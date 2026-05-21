@@ -69,7 +69,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
       const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
       return {
         sportHint: "nba",
-        question: `What's the sharpest structural betting angle on ${away} @ ${home} tonight — matchup edges, injury leverage, and the best market read from the board?`,
+        question: `What's your sharpest lean on ${away} @ ${home} tonight — who you like, why, and what line or prop jumps out from the board?`,
         matchupLabel: `${away} @ ${home}`,
       };
     }
@@ -93,7 +93,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
         const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
         return {
           sportHint: "mlb",
-          question: `What's the sharpest structural betting angle on ${away} @ ${home} today — pitching matchup, bullpen leverage, and the best market edge from the board?`,
+          question: `What's your sharpest lean on ${away} @ ${home} today — pitching, bullpen, and the play you'd actually make from the board?`,
           matchupLabel: `${away} @ ${home}`,
         };
       }

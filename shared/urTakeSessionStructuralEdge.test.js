@@ -34,7 +34,7 @@ test("buildStructuralEdgeChipModel — Rahm edge vs Smalley leader", () => {
     formatOdds: (n) => (n > 0 ? `+${n}` : String(n)),
   });
   assert.ok(chip);
-  assert.match(chip.label, /Structural edge: Jon Rahm \+488/);
+  assert.match(chip.label, /The angle: Jon Rahm \+488/);
 });
 
 test("buildStructuralEdgeChipModel — hidden when leader matches edge", () => {

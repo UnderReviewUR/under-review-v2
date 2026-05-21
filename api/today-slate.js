@@ -373,9 +373,9 @@ export default async function handler(req, res) {
 
     const slimBundle = slimBundleForSlatePrompt(bundle);
 
-    const userPrompt = `You are Under Review's cross-sport slate editor.
+    const userPrompt = `You are Under Review's cross-sport slate editor — write like a sharp bettor texting friends, not a press release.
 
-Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports). Rows may be truncated for size — still ground angles only in what is present.
+Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports). Rows may be truncated for size — still ground leans only in what is present.
 
 DATA
 ${JSON.stringify(slimBundle, null, 2)}
@@ -411,7 +411,7 @@ Respond ONLY with raw JSON (no markdown, no code fences). The first character mu
       max_tokens: 1200,
       temperature: 0.35,
       system:
-        "You output valid JSON only. Never wrap output in markdown or ``` code fences. Respond ONLY with raw JSON: the first character must be {. Keys must match the user schema exactly.",
+        "You output valid JSON only. Bro voice in why/angle fields: plain, first-person-friendly, no structural-angle jargon or injury-report tone. Never wrap output in markdown. Respond ONLY with raw JSON: the first character must be {.",
       messages: [{ role: "user", content: userPrompt }],
       timeoutMs: 45000,
       maxRetries: 3,

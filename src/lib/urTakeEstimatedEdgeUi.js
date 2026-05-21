@@ -85,7 +85,7 @@ export function buildEstimatedEdgeCardModel(ee) {
   if (nonEmptyStr(ee.fairLine)) {
     rows.push({
       key: "fairRead",
-      label: "Structural fair read",
+      label: "The angle",
       value: String(ee.fairLine).trim(),
     });
   }

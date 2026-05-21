@@ -16,7 +16,13 @@ import {
 } from "../shared/structuralAngleValidation.js";
 import { logNbaInventedPlayerShadowEvents, scanNbaInventedPlayerShadow } from "./_urTakeNbaInventedPlayerShadow.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
+import {
+  BRO_TONE_BANNED_PHRASE_PATTERNS,
+  BRO_TONE_REGENERATION_SUFFIX,
+} from "./_urTakeCoreVoice.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
+
+export { BRO_TONE_REGENERATION_SUFFIX };
 import {
   findFirstPlayerStatRowForQuestion,
   inferNbaPropDirection,
@@ -38,7 +44,7 @@ Rewrite the entire response from scratch. Verify before you answer:
 - Include at least one explicit probability or confidence qualification (percentage, implied framing, or calibrated verbal probability).
 - Correct sport-specific betting logic for the league discussed; remove overconfidence on volatile markets (HR, TD, goal scorer, outrights, fastest lap, etc.).
 - Add explicit role, usage, matchup, weather, or pace context where relevant — do not present thin-context props as safe.
-- UnderReview voice: no "projection invalid" or cold "player unavailable" when status is still uncertain; no triple-decimal stat spam; no STATUS SHIFT / STRUCTURAL REALITY / PROP SHIFT headers in user text.
+- UnderReview bro voice: no "projection invalid" or cold "player unavailable" when status is still uncertain; no triple-decimal stat spam; no STATUS SHIFT / STRUCTURAL REALITY / PROP SHIFT headers; no AI jargon (structural angle/vacancy, rotation vacancy, interior collapse, "from a betting perspective," "it is worth noting"); keep every sentence under 40 words.
 `;
 
 /** Empty — internal QA must never prepend visible boilerplate; sanitizer strips echoes. */
@@ -64,6 +70,51 @@ function splitIntoSentences(block) {
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+const BRO_TONE_MAX_WORDS_PER_SENTENCE = 40;
+
+/**
+ * Bro-voice QA — flags AI injury-report jargon and run-on sentences.
+ * @param {string} text
+ * @returns {{ criticalCodes: string[], events: Array<{ ruleCode: string, detail?: string }> }}
+ */
+export function lintBroToneViolations(text) {
+  const raw = String(text || "").trim();
+  /** @type {string[]} */
+  const criticalCodes = [];
+  /** @type {Array<{ ruleCode: string, detail?: string }>} */
+  const events = [];
+
+  if (!raw) return { criticalCodes, events };
+
+  for (const re of BRO_TONE_BANNED_PHRASE_PATTERNS) {
+    const m = raw.match(re);
+    if (m) {
+      if (!criticalCodes.includes("bro_tone_ai_jargon")) criticalCodes.push("bro_tone_ai_jargon");
+      events.push({ ruleCode: "bro_tone_ai_jargon", detail: m[0] });
+      break;
+    }
+  }
+
+  for (const block of raw.split(/\n\n+/)) {
+    for (const sent of splitIntoSentences(block)) {
+      const words = sent.split(/\s+/).filter(Boolean);
+      if (words.length > BRO_TONE_MAX_WORDS_PER_SENTENCE) {
+        if (!criticalCodes.includes("bro_tone_sentence_too_long")) {
+          criticalCodes.push("bro_tone_sentence_too_long");
+        }
+        events.push({
+          ruleCode: "bro_tone_sentence_too_long",
+          detail: `${words.length} words`,
+        });
+        break;
+      }
+    }
+    if (criticalCodes.includes("bro_tone_sentence_too_long")) break;
+  }
+
+  return { criticalCodes, events };
 }
 
 /**
@@ -462,6 +513,13 @@ export function lintUrTakeOutput(text, options = {}) {
     if (!issues.includes(code)) issues.push(code);
   }
   groundingEvents = groundingEvents.concat(crossStructural.events || []);
+
+  const broTone = lintBroToneViolations(raw);
+  for (const code of broTone.criticalCodes || []) {
+    if (!critical.includes(code)) critical.push(code);
+    if (!issues.includes(code)) issues.push(code);
+  }
+  groundingEvents = groundingEvents.concat(broTone.events || []);
   if (extremeAssistPropVsAverage(raw, nbaCtx?.playerStats)) {
     issues.push("prop_line_extreme_vs_average");
     critical.push("prop_line_extreme_vs_average");
@@ -574,6 +632,8 @@ export function lintUrTakeOutput(text, options = {}) {
     "structural_irrelevant_player",
     "structural_guard_interior_mismatch",
     "structural_low_impact_vacancy",
+    "bro_tone_ai_jargon",
+    "bro_tone_sentence_too_long",
     "unsupported_line_movement_claim",
     "unsupported_weather_claim",
     "unsupported_injury_certainty",

@@ -140,6 +140,19 @@ test("QA: report-style headers echo", () => {
   assert.ok(lint.criticalRegenerationCodes.includes("report_style_header_echo"));
 });
 
+test("QA: bro tone flags AI jargon and long sentences", () => {
+  const jargon = lintUrTakeOutput(
+    "The sharpest structural angle is the rotation vacancy created by the injury.",
+    { betIntegrityIssues: [] },
+  );
+  assert.ok(jargon.criticalRegenerationCodes.includes("bro_tone_ai_jargon"));
+
+  const longSent =
+    "This is a single sentence that keeps going and going with filler words about the matchup and the injury report and the betting perspective and the line movement and the rotation and the usage and the pace and the scheme until it clearly exceeds forty words which should trigger regeneration.";
+  const longLint = lintUrTakeOutput(longSent, { betIntegrityIssues: [] });
+  assert.ok(longLint.criticalRegenerationCodes.includes("bro_tone_sentence_too_long"));
+});
+
 test("post-process strips triple decimals from user-facing output", () => {
   const post = runUnderReviewPostProcess("Model edge ~13.584 pts vs line.", {
     sport: "nba",

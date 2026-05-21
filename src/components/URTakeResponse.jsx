@@ -121,7 +121,7 @@ export default function URTakeResponse({
         Live odds
       </span>
     ) : (
-      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Structural read</span>
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">The angle</span>
     );
 
   const shareBody = [whyNowDisplay, edgeDisplay].filter(Boolean);
@@ -161,7 +161,7 @@ export default function URTakeResponse({
 
       {structuralEdgeChip?.label ? (
         <p className="ur-v2-structural-edge-chip" aria-label={structuralEdgeChip.label}>
-          <span className="ur-v2-structural-edge-chip-kicker">Structural edge</span>
+          <span className="ur-v2-structural-edge-chip-kicker">The angle</span>
           <span className="ur-v2-structural-edge-chip-player">{structuralEdgeChip.player}</span>
           {structuralEdgeChip.oddsDisplay ? (
             <span className="ur-v2-structural-edge-chip-odds">{structuralEdgeChip.oddsDisplay}</span>
@@ -218,7 +218,7 @@ export default function URTakeResponse({
         {ee && eeModel ? (
           <div className="ur-v2-ee-prose">
             <p className="ur-v2-body-p ur-v2-muted">
-              <span className="ur-v2-inline-label">Why this tier</span> {String(eeModel.whyTierBody ?? "")}
+              <span className="ur-v2-inline-label">Why I like this</span> {String(eeModel.whyTierBody ?? "")}
             </p>
             {eeModel.layout === "thin" ? (
               <>
