@@ -1653,6 +1653,22 @@ export const baseCss = `
   .nba-game-records{font-size:11px;color:var(--muted);}
   .nba-live-badge{color:var(--green);font-family:var(--mono-font);font-size:10px;}
 
+  .nba-player-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s ease;}
+  .nba-player-card:hover{border-color:rgba(255,107,0,.35);}
+  .nba-player-card--stale{opacity:.92;border-color:rgba(255,180,0,.25);}
+  .nba-player-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .nba-player-card-name{font-size:15px;font-weight:600;color:var(--text);}
+  .nba-player-card-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+  .nba-player-card-book{font-family:var(--mono-font);font-size:10px;color:var(--nba);text-align:right;}
+  .nba-player-card-book--muted{color:var(--muted);}
+  .nba-player-card-props{display:flex;flex-direction:column;gap:4px;}
+  .nba-player-prop-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px;}
+  .nba-player-prop-label{font-family:var(--mono-font);font-size:10px;color:var(--muted);width:28px;}
+  .nba-player-prop-line{font-family:var(--mono-font);color:var(--text);}
+  .nba-player-prop-ou{color:var(--muted);font-size:10px;}
+  .nba-player-card-freshness{margin-top:8px;font-size:10px;color:var(--muted);font-family:var(--mono-font);}
+  .nba-player-card-grid{display:flex;flex-direction:column;gap:0;padding:0 0 12px;}
+
   .page-spacer{height:20px;}
   .nav-btn.golf-active{color:#FFFFFF;}
   .nav-btn.wc-active{color:#F59E0B;}

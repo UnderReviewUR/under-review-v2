@@ -16,6 +16,7 @@ import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
+import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -1235,6 +1236,13 @@ function compressNbaBoardForWire(board) {
   board.playerStats = slimStats;
   board.playoffSeries = slimPlayoffSeriesForBoard(board.playoffSeries || []);
   board.propLines = (board.propLines || []).slice(0, 80);
+  if (board.propsOdds && typeof board.propsOdds === "object") {
+    const players = Array.isArray(board.propsOdds.players) ? board.propsOdds.players : [];
+    board.propsOdds = {
+      ...board.propsOdds,
+      players: players.slice(0, 40),
+    };
+  }
   board.bdlGrounding = buildBdlGroundingEnvelope({
     playerStats: slimStats,
     todaysGames: board.todaysGames || [],
@@ -3244,6 +3252,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     board.playoffPathGrounding = null;
   }
   board.dataCoverage = buildSportDataCoverage({ sport: "nba", board });
+  board = await hydrateNbaPropsOdds(board);
   compressNbaBoardForWire(board);
   console.log(
     JSON.stringify({
@@ -3510,6 +3519,7 @@ export default async function handler(req, res) {
         },
       };
       board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
+      board = await hydrateNbaPropsOdds(board);
       board.newsImpact = buildNbaNewsImpact(board);
       const le0 = Date.now();
       board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);

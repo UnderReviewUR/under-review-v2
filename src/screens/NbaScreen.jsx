@@ -1,7 +1,9 @@
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
+import { NbaPlayerCard } from "../components/cards/NbaPlayerCard.jsx";
 import { filterNbaUiChipsForSlateAndInjuries } from "../lib/nbaUiSurface.js";
+import { resolveStatRowForUiChip } from "../../shared/nbaPropsBoardDisplay.js";
 import { formatNbaTipoffLocal, getEtHour24 } from "../lib/nbaTime.js";
 import { nbaEventKey } from "../../shared/homeEventDedup.js";
 
@@ -26,6 +28,14 @@ export default function NbaScreen({
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
   const injuries = Array.isArray(nbaData?.injuries) ? nbaData.injuries : [];
   const playerChips = filterNbaUiChipsForSlateAndInjuries(gamesForState, injuries);
+  const playerStats = Array.isArray(nbaData?.playerStats) ? nbaData.playerStats : [];
+  const propsFreshness =
+    nbaData?.propsOdds?.freshness || nbaData?.sourceMeta?.propsOddsFetchedAt
+      ? {
+          stale: Boolean(nbaData?.propsOddsStale ?? nbaData?.propsOdds?.freshness?.isStale),
+          fetchedAt: nbaData?.propsOdds?.fetchedAt || nbaData?.sourceMeta?.propsOddsFetchedAt,
+        }
+      : null;
   const nbaQuickPrompts = getQuickPromptsForState("nba", deriveDominantGameState(gamesForState));
 
   const slateNote = String(nbaData?.todaysGamesSlateMeta?.note || "").trim();
@@ -149,11 +159,26 @@ export default function NbaScreen({
 
         {playerChips.length > 0 && (
           <>
-            <div className="section-divider">Ask About Tonight's Featured Players</div>
+            <div className="section-divider">
+              Tonight&apos;s Featured Players
+              {propsFreshness?.stale ? " · lines may be stale" : ""}
+            </div>
+            <div className="nba-player-card-grid">
+              {playerChips.map((row) => (
+                <NbaPlayerCard
+                  key={row.chip}
+                  chip={row.chip}
+                  fullName={row.fullName}
+                  teamAbbr={row.teamAbbr}
+                  statRow={resolveStatRowForUiChip(row, playerStats)}
+                  onAsk={submitNba}
+                />
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "0 0 8px" }}>
               {playerChips.map(({ chip }) => (
                 <button
-                  key={chip}
+                  key={`q-${chip}`}
                   className="quick-btn"
                   onClick={() => submitNba(`Best prop angle for ${chip} tonight? PRA line, floor, ceiling, and lean.`)}
                   style={{ fontSize: 11 }}

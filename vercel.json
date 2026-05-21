@@ -39,8 +39,14 @@
       "maxDuration": 60,
       "memory": 1024
     },
+    "api/nba-props-scrape.js": {
+      "maxDuration": 60
+    },
     "api/game-odds-refresh.js": {
       "maxDuration": 120
+    },
+    "api/scrape-scheduler.js": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -65,12 +71,8 @@
       "schedule": "30 11 * * *"
     },
     {
-      "path": "/api/golf-odds-scrape",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/game-odds-refresh",
-      "schedule": "*/15 * * * *"
+      "path": "/api/scrape-scheduler",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -1,3 +1,4 @@
+/** Manual warm only — production cadence is `/api/scrape-scheduler`. */
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";

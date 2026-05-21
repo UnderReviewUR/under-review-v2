@@ -1,40 +1,7 @@
 import { nbaEventKey } from "../../shared/homeEventDedup.js";
+import { NBA_UI_PLAYER_CHIPS } from "../../shared/nbaUiPlayerChips.js";
 
-/**
- * Same source as NBA tab "Ask About Any Player" chips — must stay in sync with product UI.
- * fullName + teamAbbr are injected into ur-take so the model authorizes the same names the UI offers.
- */
-export const NBA_UI_PLAYER_CHIPS = [
-  { chip: "Jokic", fullName: "Nikola Jokic", teamAbbr: "DEN" },
-  { chip: "SGA", fullName: "Shai Gilgeous-Alexander", teamAbbr: "OKC" },
-  { chip: "Luka", fullName: "Luka Dončić", teamAbbr: "LAL" },
-  { chip: "Tatum", fullName: "Jayson Tatum", teamAbbr: "BOS" },
-  { chip: "Giannis", fullName: "Giannis Antetokounmpo", teamAbbr: "MIL" },
-  { chip: "Wembanyama", fullName: "Victor Wembanyama", teamAbbr: "SAS" },
-  { chip: "Brunson", fullName: "Jalen Brunson", teamAbbr: "NYK" },
-  { chip: "Edwards", fullName: "Anthony Edwards", teamAbbr: "MIN" },
-  { chip: "KAT", fullName: "Karl-Anthony Towns", teamAbbr: "NYK" },
-  { chip: "Curry", fullName: "Stephen Curry", teamAbbr: "GSW" },
-  { chip: "Haliburton", fullName: "Tyrese Haliburton", teamAbbr: "IND" },
-  { chip: "Mitchell", fullName: "Donovan Mitchell", teamAbbr: "CLE" },
-  { chip: "KD", fullName: "Kevin Durant", teamAbbr: "HOU" },
-  { chip: "Booker", fullName: "Devin Booker", teamAbbr: "PHX" },
-  { chip: "Ja Morant", fullName: "Ja Morant", teamAbbr: "MEM" },
-  { chip: "Edgecombe", fullName: "VJ Edgecombe", teamAbbr: "PHI" },
-  { chip: "Risacher", fullName: "Zaccharie Risacher", teamAbbr: "ATL" },
-  { chip: "Sarr", fullName: "Alexandre Sarr", teamAbbr: "WAS" },
-  { chip: "Knecht", fullName: "Dalton Knecht", teamAbbr: "LAL" },
-  { chip: "Sheppard", fullName: "Reed Sheppard", teamAbbr: "HOU" },
-  { chip: "Castle", fullName: "Stephon Castle", teamAbbr: "SAS" },
-  { chip: "Dillingham", fullName: "Rob Dillingham", teamAbbr: "MIN" },
-  { chip: "Wells", fullName: "Jaylen Wells", teamAbbr: "MEM" },
-  { chip: "Bub", fullName: "Bub Carrington", teamAbbr: "WAS" },
-  { chip: "Salaun", fullName: "Tidjane Salaun", teamAbbr: "CHA" },
-  { chip: "Walter", fullName: "Ja'Kobe Walter", teamAbbr: "TOR" },
-  { chip: "Buzelis", fullName: "Matas Buzelis", teamAbbr: "CHI" },
-  { chip: "Topic", fullName: "Nikola Topic", teamAbbr: "OKC" },
-  { chip: "Missi", fullName: "Yves Missi", teamAbbr: "NOP" },
-];
+export { NBA_UI_PLAYER_CHIPS };
 
 /**
  * Union API board games + browser scoreboard (ESPN/NBA CDN) so Ask tab matches Today's Games.

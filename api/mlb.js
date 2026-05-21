@@ -707,6 +707,11 @@ async function assembleMlbBoardData() {
   };
 }
 
+/** Pre-game scrape scheduler — today's slate only (no scrape on user requests). */
+export async function fetchMlbSlateGamesForScrapeSchedule() {
+  return getMlbGamesWithPitchers();
+}
+
 /**
  * Fresh MLB payload for UR Take — mirrors view=board assembly without writing `mlb_board_v4`.
  * Shape aligns with `buildMlbContext` in App.jsx (trimmed games, capped propLines).

@@ -99,6 +99,15 @@ export function slimNbaPlayerStatRowForUrTake(p) {
     pra_recent_low: p.praFloor ?? null,
     pra_recent_high: p.praCeiling ?? null,
     recentGamesStale: p.recentGamesStale === true,
+    consensusProps: p.consensusProps
+      ? {
+          markets: p.consensusProps.markets,
+          fetchedAt: p.consensusProps.fetchedAt,
+          oddsStale: p.consensusProps.oddsStale,
+          freshnessLabel: p.consensusProps.freshnessLabel,
+          source: p.consensusProps.source,
+        }
+      : undefined,
   };
 }
 

@@ -112,10 +112,14 @@ import {
 } from "./types/urTakeResponse.js";
 import { getStructuredURTakePrompt } from "./prompts/urTakeStructuredPrompt.js";
 import {
+  applyNbaPropRecentFormContradiction,
   findFirstPlayerStatRowForQuestion,
   inferNbaPropDirection,
+  inferPropDirectionFromText,
+  nbaOverVsRecentFormContradiction,
   nbaUnderVsSeasonAverageImplausible,
   parseNbaRequestedMarket,
+  resolveNbaRequestedMarket,
 } from "./_nbaPropSanity.js";
 
 export { buildNbaUrTakeDecisionModeSpine } from "./_urTakeSystemPromptRegistry.js";
@@ -130,6 +134,72 @@ function buildGolfOddsFreshnessPromptBlock(odds) {
     return "";
   }
   return `\nODDS FRESHNESS (mandatory):\n${fresh.staleWarning}\nFetched at: ${fresh.fetchedAt || odds.fetchedAt || "unknown"}.\n`;
+}
+
+/** Inline duplicate of _nbaPropsApi.buildNbaPropsFreshnessPromptBlock — avoids ur-take importing scrape stack at module load. */
+function buildNbaPropsFreshnessPromptBlock(propsOdds) {
+  const fresh = propsOdds?.freshness;
+  if (!fresh?.isStale && !fresh?.staleWarning) {
+    if (propsOdds?.fetchedAt) {
+      return `\nODDS FRESHNESS: Posted NBA prop lines fetched at ${propsOdds.fetchedAt} (${fresh?.ageMinutes ?? "?"} min ago). Cite only prices listed under propsOdds.players[].props (points/rebounds/assists) and their books arrays.\n`;
+    }
+    return "";
+  }
+  return `\nODDS FRESHNESS (mandatory):\n${fresh.staleWarning}\nFetched at: ${fresh.fetchedAt || propsOdds.fetchedAt || "unknown"}.\n`;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} nbaContext
+ * @param {{ awayAbbr?: string, homeAbbr?: string } | null | undefined} nbaMatchup
+ */
+/** Inline duplicate of shared/nbaPropsBoardDisplay.formatKeyPropsLinesForPrompt */
+function buildNbaKeyPropsLinesPromptBlock(nbaContextForModel, propsOdds) {
+  const stale =
+    Boolean(nbaContextForModel?.propsOddsStale) ||
+    Boolean(propsOdds?.freshness?.isStale);
+  const stats = Array.isArray(nbaContextForModel?.playerStats)
+    ? nbaContextForModel.playerStats
+    : [];
+  const rows = stats
+    .filter((p) => p?.consensusProps?.markets && Object.keys(p.consensusProps.markets).length > 0)
+    .sort((a, b) => Number(b?.pts || 0) - Number(a?.pts || 0))
+    .slice(0, 10);
+  if (!rows.length) return "";
+  const lines = rows.map((p) => {
+    const m = p.consensusProps.markets || {};
+    const parts = [];
+    for (const [market, row] of Object.entries(m)) {
+      if (!row?.line) continue;
+      const o = row.overOdds != null ? `o${row.overOdds}` : "";
+      const u = row.underOdds != null ? `u${row.underOdds}` : "";
+      parts.push(`${market} ${row.line} (${o}/${u} ${row.book || ""})`.trim());
+    }
+    return `- ${p.name} (${p.team}): ${parts.join("; ") || "no lines"}`;
+  });
+  const header = stale
+    ? "KEY POSTED PROP LINES (stale — do not cite as live; describe relatively only):"
+    : "KEY POSTED PROP LINES (consensus — cite only when ODDS FRESHNESS allows):";
+  return `\n${header}\n${lines.join("\n")}\n`;
+}
+
+function resolveNbaPropsOddsForPrompt(nbaContext, nbaMatchup) {
+  const base = nbaContext?.propsOdds;
+  if (!base || typeof base !== "object") return null;
+  const away = String(nbaMatchup?.awayAbbr || "").toUpperCase();
+  const home = String(nbaMatchup?.homeAbbr || "").toUpperCase();
+  if (!away || !home) return base;
+
+  const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
+  const focus = games.find((g) => {
+    const a = String(g?.awayTeam?.abbr || "").toUpperCase();
+    const h = String(g?.homeTeam?.abbr || "").toUpperCase();
+    return (a === away && h === home) || (a === home && h === away);
+  });
+  const gid = focus?.actionNetworkGameId;
+  if (gid != null && nbaContext?.propsOddsByGameId?.[String(gid)]) {
+    return nbaContext.propsOddsByGameId[String(gid)];
+  }
+  return base;
 }
 
 /** Closing when markets / lines are missing — structural only; no hypothetical prices (aligns with STRUCTURAL ANALYSIS MODE). */
@@ -1180,7 +1250,8 @@ function resolveOddsAvailabilityForSport({
         ? Object.values(nbaContext.spreads)
         : [];
     const hasSpread = spreadRows.some((s) => s?.current?.displayLine && !s?.lineUnavailable);
-    return hasProps || hasSpread;
+    const hasAnProps = Boolean(nbaContext?.propsOdds?.hasPostedLines);
+    return hasProps || hasSpread || hasAnProps;
   }
   if (sportHint === "mlb") {
     const hasProps = Array.isArray(mlbContext?.propLines) && mlbContext.propLines.length > 0;
@@ -2502,6 +2573,20 @@ export function applyNbaConfidenceModifiers({
     };
   }
 
+  const effectiveDir = dir || inferPropDirectionFromText(q);
+  const resolvedMarket = resolveNbaRequestedMarket(q);
+  const overRecentContradiction = nbaOverVsRecentFormContradiction(
+    resolvedMarket,
+    effectiveDir,
+    playerRow,
+  );
+  if (overRecentContradiction) {
+    return {
+      label: "Speculative",
+      reason: `Recent ${overRecentContradiction.unit} form (${overRecentContradiction.recentAvg.toFixed(1)} last 5) sits ${Math.round(overRecentContradiction.gapPct * 100)}% below the ${overRecentContradiction.line} line — conflicting signals, not a clean over.`,
+    };
+  }
+
   let rank = confidenceLabelToRank(baseConfidence);
   const reasons = [];
   if (invalidation?.unresolved) {
@@ -3624,6 +3709,18 @@ export function buildNbaContextForModel(nbaContext, nbaMatchup, question = "") {
       return gup.includes(fa) && gup.includes(fh);
     });
   }
+
+  const focusedPropsOdds = resolveNbaPropsOddsForPrompt(nbaContext, nbaMatchup);
+  if (focusedPropsOdds && typeof focusedPropsOdds === "object") {
+    raw.propsOdds = focusedPropsOdds;
+  } else {
+    delete raw.propsOdds;
+  }
+  raw.propsOddsStale = Boolean(
+    nbaContext?.propsOddsStale ?? focusedPropsOdds?.freshness?.isStale,
+  );
+  delete raw.propsOddsByGameId;
+  delete raw.propsOddsMeta;
 
   if (matchupTeamSet && todays.length > 0) {
     raw.todaysGames = todays.map((g) => {
@@ -5896,8 +5993,6 @@ SESSION STRUCTURAL EDGE (when present in PRIOR TAKES / structural block above):
 Never open with market-availability throat-clearing. Give monitoring hooks; name golfers from the GOLF FIELD list or known PGA Tour pros the user asked about.`;
     }
   } else if (sportHint === "nba") {
-    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
-    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     const nbaQuestionForModel = sanitizeNbaQuestionForGeneration(question, nbaContext);
 
     if (isConversationFollowUp) {
@@ -5921,6 +6016,8 @@ Rule: Do not give false certainty. Keep any take contingent on confirmed status.
 
 ` : ""}${sportHint === "nba" && nbaGameStateGate ? formatNbaGameStateBlocksForUserPrompt(nbaGameStateGate) : ""}NBA context (full board — same filtered payload as the opening turn; cite only numbers present):
 ${contextJsonForModel(nbaContextForModel)}
+${buildNbaPropsFreshnessPromptBlock(resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
+${buildNbaKeyPropsLinesPromptBlock(nbaContextForModel, resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
 
 Default confidence should be ${derivedConfidence}.
 
@@ -5973,6 +6070,8 @@ Rule: Do not give false certainty. Keep any take contingent on confirmed status.
         : ""
     }NBA context:
 ${contextJsonForModel(nbaContextForModel)}
+${buildNbaPropsFreshnessPromptBlock(resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
+${buildNbaKeyPropsLinesPromptBlock(nbaContextForModel, resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
@@ -6045,6 +6144,10 @@ Rules:
 - When a player row includes "tonightGame", that matchup string comes from today's prop board (Odds API) and is more current than the "team" field from BallDontLie after trades — use it for who plays in which game tonight.
 - When "playerStatsText" is present and statsSource is "game_box", treat it as the primary roster truth for who played for which team today (from game box scores). When statsSource is "season_average", do not treat team abbreviations as tonight's lineup — they may lag trades.
 - If todaysGamesSlateNote is set, todaysGames is empty for the reason given (e.g. BallDontLie returned no games for that ET date). Trust that note instead of guessing a pipeline failure.
+- POSTED PROP LINES (propsOdds): when propsOdds.hasPostedLines is true, prefer
+  propsOdds.players[].props (points/rebounds/assists) and per-book prices over
+  legacy propLines for cited American lines. Obey ODDS FRESHNESS above — if stale,
+  do not cite specific prices as live.
 - PROP BOARD HYGIENE: propLines are filtered server-side to drop games that are
   already final (Odds event.completed and/or todaysGames.state === "post").
   Never use a prop row for a matchup that is Final in todaysGames as a "tonight"
@@ -6958,6 +7061,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           }
           structuredResponse = normalizeStructuredUrTakeResponse(parsedObj, sportHint);
           structuredResponse = repairStructuredForDelivery(structuredResponse, sportHint);
+          if (sportHint === "nba" && nbaContext) {
+            structuredResponse = applyNbaPropRecentFormContradiction(structuredResponse, {
+              question,
+              nbaContext,
+            });
+          }
 
           // Validate
           const validation = validateStructuredURTakeResponse(structuredResponse);

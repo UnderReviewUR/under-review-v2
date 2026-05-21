@@ -1,3 +1,6 @@
+/**
+ * Manual / legacy spread refresh — production cadence is `/api/scrape-scheduler` (every 5 min).
+ */
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { refreshDueNbaGameOddsSnapshots } from "./_gameOddsPipeline.js";

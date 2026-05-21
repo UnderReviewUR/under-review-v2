@@ -1140,6 +1140,17 @@ ${themeCss}
       playerStatsText: mergedTodaysGames.length === 0 ? "" : src?.playerStatsText || "",
       statsSource:     mergedTodaysGames.length === 0 ? "" : src?.statsSource || "",
       propLines:       filteredProps.slice(0, 120),
+      propsOdds:       src?.propsOdds || null,
+      propsOddsStale:  Boolean(src?.propsOddsStale ?? src?.propsOdds?.freshness?.isStale),
+      propsOddsByGameId: src?.propsOddsByGameId || null,
+      propsOddsMeta:   src?.sourceMeta
+        ? {
+            propsOdds: src.sourceMeta.propsOdds,
+            propsOddsFetchedAt: src.sourceMeta.propsOddsFetchedAt,
+            propsOddsStale: src.sourceMeta.propsOddsStale,
+            propsOddsGameId: src.sourceMeta.propsOddsGameId,
+          }
+        : null,
       injuries:        filteredInjuries,
       recentForm:      src?.recentForm    || "",
       h2hSplits:       src?.h2hSplits     || [],
