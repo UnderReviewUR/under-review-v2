@@ -17,6 +17,7 @@ import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
+import { getHardcodedPlayoffSlateGamesForEtDates } from "./_nbaPropsGameId.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -536,6 +537,49 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
   }
 }
 
+function nbaSlatePairKey(g) {
+  const aa = String(g?.awayTeam?.abbr || "").toUpperCase();
+  const ha = String(g?.homeTeam?.abbr || "").toUpperCase();
+  return aa && ha ? `${aa}|${ha}` : "";
+}
+
+function mergeHardcodedPlayoffIntoSlate(games, todayET, tomorrowET) {
+  const hardcoded = getHardcodedPlayoffSlateGamesForEtDates(todayET, tomorrowET);
+  if (!hardcoded.length) return games || [];
+  const seen = new Set((games || []).map(nbaSlatePairKey).filter(Boolean));
+  const out = [...(games || [])];
+  for (const g of hardcoded) {
+    const k = nbaSlatePairKey(g);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(g);
+  }
+  return out;
+}
+
+/** ESPN + hardcoded playoff rows when upstream feeds return an empty ET slate. */
+async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
+  let merged = mergeHardcodedPlayoffIntoSlate(games, todayET, tomorrowET);
+  if (!merged.length) {
+    const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
+    if (espnGames.length) {
+      merged = mergeHardcodedPlayoffIntoSlate(espnGames, todayET, tomorrowET);
+      return {
+        games: merged,
+        slateMeta: {
+          ...slateMeta,
+          primarySource: slateMeta.primarySource === "none" ? "espn" : slateMeta.primarySource,
+          enrichmentSource: "espn_scoreboard",
+          note: merged.length ? null : slateMeta.note,
+        },
+      };
+    }
+  }
+  return { games: merged, slateMeta };
+}
+
+const EMPTY_SLATE_CACHE_TTL_MS = 45 * 1000;
+
 /**
  * Primary: BallDontLie games for today (ET). Fallback: Odds API scores → odds list.
  * Returns { games, slateMeta } for prompts when the slate is empty but BDL responded OK.
@@ -546,19 +590,21 @@ async function getTodaysGames(oddsKey, bdlKey) {
   const GAMES_TODAY_CACHE_KEY = `games_today_bdl_primary_${todayET}_${tomorrowET}`;
   const cached = getCached(GAMES_TODAY_CACHE_KEY);
   if (cached) {
-    if (Array.isArray(cached)) {
-      return {
-        games: cached,
-        slateMeta: {
-          primarySource: "odds",
-          bdlQueriedOk: false,
-          bdlGameCount: 0,
-          etDate: getTodayEtDateString(),
-          note: null,
-        },
-      };
+    const payload = Array.isArray(cached)
+      ? {
+          games: cached,
+          slateMeta: {
+            primarySource: "odds",
+            bdlQueriedOk: false,
+            bdlGameCount: 0,
+            etDate: todayET,
+            note: null,
+          },
+        }
+      : cached;
+    if (payload.games?.length > 0) {
+      return finalizeNbaTodaysSlate(payload.games, todayET, tomorrowET, payload.slateMeta);
     }
-    if (cached.games && cached.slateMeta) return cached;
   }
 
   const slateMeta = {
@@ -590,7 +636,7 @@ async function getTodaysGames(oddsKey, bdlKey) {
         const games = enrichNbaGamesWithEspn(mergedRows.map(mapBdlGameRowToAppGame), espnGames);
         slateMeta.primarySource = "bdl";
         slateMeta.enrichmentSource = espnGames.length > 0 ? "espn_scoreboard" : null;
-        const payload = { games, slateMeta };
+        const payload = await finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta);
         setCached(GAMES_TODAY_CACHE_KEY, payload);
         return payload;
       }
@@ -610,7 +656,7 @@ async function getTodaysGames(oddsKey, bdlKey) {
   if (games.length > 0) {
     slateMeta.primarySource = oddsGames.length > 0 ? "odds" : "espn";
     slateMeta.enrichmentSource = espnGames.length > 0 ? "espn_scoreboard" : null;
-    const payload = { games, slateMeta };
+    const payload = await finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta);
     setCached(GAMES_TODAY_CACHE_KEY, payload);
     return payload;
   }
@@ -628,8 +674,8 @@ async function getTodaysGames(oddsKey, bdlKey) {
     slateMeta.note = "No games returned for today.";
   }
 
-  const payload = { games: [], slateMeta };
-  setCached(GAMES_TODAY_CACHE_KEY, payload);
+  const payload = await finalizeNbaTodaysSlate([], todayET, tomorrowET, slateMeta);
+  setCached(GAMES_TODAY_CACHE_KEY, payload, EMPTY_SLATE_CACHE_TTL_MS);
   return payload;
 }
 

@@ -15,10 +15,12 @@ import {
   isGolfTournamentEtDay,
 } from "../shared/golfOddsCachePolicy.js";
 import { getGolfRoundStartMsEt, GOLF_ROUND_START_HOUR_ET } from "../shared/scrapeCadencePolicy.js";
+import { SMARKETS_EVENTS_URL } from "../shared/f1OddsConstants.js";
+import { isF1MainRaceSmarketsEvent, pickUpcomingF1RaceEvent } from "./_f1Odds.js";
 
 /**
  * @typedef {Object} ScrapeTarget
- * @property {string} sport — KV segment (nba_props, nba_spreads, golf_odds, mlb_props, tennis_odds, nfl_props)
+ * @property {string} sport — KV segment (nba_props, nba_spreads, golf_odds, mlb_props, tennis_odds, f1_odds, nfl_props)
  * @property {string} gameId
  * @property {number} gameStartMs
  * @property {Record<string, unknown>} [meta]
@@ -218,6 +220,41 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
 }
 
 /**
+ * @param {number} [nowMs]
+ * @returns {Promise<ScrapeTarget[]>}
+ */
+export async function collectF1ScrapeTargets(nowMs = Date.now()) {
+  /** @type {ScrapeTarget[]} */
+  const out = [];
+
+  try {
+    const res = await fetch(SMARKETS_EVENTS_URL, {
+      headers: { Accept: "application/json", "User-Agent": "UnderReview/1.0" },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return out;
+    const body = await res.json();
+    const events = Array.isArray(body?.events) ? body.events : [];
+    const ev = pickUpcomingF1RaceEvent(events);
+    if (!ev || !isF1MainRaceSmarketsEvent(ev)) return out;
+
+    const gameStartMs = Date.parse(String(ev.start_datetime || ""));
+    if (!Number.isFinite(gameStartMs) || nowMs >= gameStartMs) return out;
+
+    out.push({
+      sport: "f1_odds",
+      gameId: String(ev.id),
+      gameStartMs,
+      meta: { eventId: ev.id, raceName: ev.name },
+    });
+  } catch (err) {
+    console.warn("[scrape-schedule] collectF1ScrapeTargets:", err?.message || err);
+  }
+
+  return out;
+}
+
+/**
  * NFL: no prop scrape pipeline yet — schedule hook reserved.
  * @returns {Promise<ScrapeTarget[]>}
  */
@@ -230,13 +267,14 @@ export async function collectNflScrapeTargets() {
  * @returns {Promise<ScrapeTarget[]>}
  */
 export async function collectAllScrapeTargets(nowMs = Date.now()) {
-  const [nba, mlb, golf, tennis, nfl] = await Promise.all([
+  const [nba, mlb, golf, tennis, f1, nfl] = await Promise.all([
     collectNbaScrapeTargets(nowMs),
     collectMlbScrapeTargets(nowMs),
     collectGolfScrapeTargets(nowMs),
     collectTennisScrapeTargets(nowMs),
+    collectF1ScrapeTargets(nowMs),
     collectNflScrapeTargets(nowMs),
   ]);
 
-  return [...nba, ...mlb, ...golf, ...tennis, ...nfl];
+  return [...nba, ...mlb, ...golf, ...tennis, ...f1, ...nfl];
 }

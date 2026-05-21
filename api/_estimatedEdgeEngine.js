@@ -4,7 +4,11 @@
  * Data quality gates: strong | usable | thin — thin never emits fake numeric precision.
  */
 
-import { findFirstPlayerStatRowForQuestion, parseNbaRequestedMarket } from "./_nbaPropSanity.js";
+import {
+  applyRecentFormContradictionToEstimatedEdge,
+  findFirstPlayerStatRowForQuestion,
+  parseNbaRequestedMarket,
+} from "./_nbaPropSanity.js";
 import {
   buildCombinedVerifiedGolfField,
   golfPlayerNamesMatch,
@@ -299,7 +303,7 @@ function buildNbaEdge(question, nbaContext) {
     drivers.push("Injury slate in payload — adjust volatility if usage shifts.");
   }
 
-  return emptyShape(sport, {
+  const baseEdge = emptyShape(sport, {
     marketType,
     subject: name,
     dataQuality,
@@ -314,6 +318,8 @@ function buildNbaEdge(question, nbaContext) {
     ],
     ...numericBlock,
   });
+
+  return applyRecentFormContradictionToEstimatedEdge(baseEdge, question, row);
 }
 
 function findMlbProbableStarters(games, question) {

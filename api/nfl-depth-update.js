@@ -7,143 +7,256 @@ export const config = {
 };
 
 import { applyCors } from "./_cors.js";
-import { setDurableJson } from "./_durableStore.js";
+import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { diagnoseOurladsHtml, parseOurladsQBs } from "./_nflOurladsDepthParse.js";
 
-// Simple in-memory cache (resets on each cold start, fine for cron use)
+const KV_KEY = "nfl_depth_chart";
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const PARSER_VERSION = "logo-thumb-v2";
+const OURLADS_QB_URL = "https://www.ourlads.com/nfldepthcharts/depthchartpos/QB";
+const HTML_LOG_PREVIEW_CHARS = 1200;
+
 let cachedDepth = null;
 let cacheTime = 0;
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
 
-  // GET: Vercel cron invokes GET — scrape fresh data then cache it.
-  //      Also serves cached data to other endpoints reading depth charts.
-  if (req.method === "GET") {
-    if (cachedDepth && Date.now() - cacheTime < CACHE_TTL) {
-      return res.status(200).json({ source: "cache", updatedAt: new Date(cacheTime).toISOString(), depth: cachedDepth });
-    }
-    const depth = await fetchOurladsQBs();
-    if (depth) {
-      cachedDepth = depth;
-      cacheTime = Date.now();
-      await setDurableJson(
-        "nfl_depth_chart",
-        { depth, fetchedAt: Date.now() },
-        { ttlSeconds: 60 * 60 * 24 * 7 },
-      );
-      console.log(`[nfl-depth-update] Updated at ${new Date().toISOString()} - ${Object.keys(depth).length} teams`);
-      return res.status(200).json({ source: "fresh", updatedAt: new Date(cacheTime).toISOString(), depth });
-    }
-    return res.status(500).json({ error: "Failed to fetch depth charts" });
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
-}
+  const diagQuery =
+    String(req.query?.diag || "").trim() === "1" ||
+    String(req.query?.debug || "").trim() === "1";
 
-async function fetchOurladsQBs() {
   try {
-    const response = await fetch("https://www.ourlads.com/nfldepthcharts/depthchartpos/QB", {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; UnderReview/1.0)",
-        "Accept": "text/html",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok) {
-      console.error(`[nfl-depth-update] Ourlads returned ${response.status}`);
-      return null;
+    if (cachedDepth && Date.now() - cacheTime < CACHE_TTL_MS) {
+      return res.status(200).json({
+        source: "cache",
+        parserVersion: PARSER_VERSION,
+        updatedAt: new Date(cacheTime).toISOString(),
+        depth: cachedDepth,
+      });
     }
 
-    const html = await response.text();
-    return parseOurladsQBs(html);
+    const scrape = await scrapeOurladsQbDepth();
+    if (scrape.depth) {
+      cachedDepth = scrape.depth;
+      cacheTime = Date.now();
+      await persistDepth(scrape.depth);
+      console.log(
+        `[nfl-depth-update] Updated at ${new Date().toISOString()} - ${Object.keys(scrape.depth).length} teams (ourlads HTTP ${scrape.status})`,
+      );
+      return res.status(200).json({
+        source: "fresh",
+        parserVersion: PARSER_VERSION,
+        updatedAt: new Date(cacheTime).toISOString(),
+        ourladsStatus: scrape.status,
+        depth: scrape.depth,
+        ...(diagQuery ? { scrapeDiag: scrape.publicDiag } : {}),
+      });
+    }
+
+    const stale = await loadPersistedDepth();
+    if (stale?.depth && Object.keys(stale.depth).length > 0) {
+      console.warn(
+        `[nfl-depth-update] Fresh scrape failed (${scrape.phase}) — returning stale KV (${Object.keys(stale.depth).length} teams)`,
+      );
+      return res.status(200).json({
+        source: "stale_kv",
+        parserVersion: PARSER_VERSION,
+        warning: "Fresh Ourlads scrape failed; serving last good depth chart",
+        failurePhase: scrape.phase,
+        ourladsStatus: scrape.status,
+        updatedAt: stale.fetchedAt
+          ? new Date(stale.fetchedAt).toISOString()
+          : null,
+        depth: stale.depth,
+        ...(diagQuery ? { scrapeDiag: scrape.publicDiag } : {}),
+      });
+    }
+
+    return res.status(500).json({
+      error: "Failed to fetch depth charts",
+      parserVersion: PARSER_VERSION,
+      failurePhase: scrape.phase,
+      ourladsStatus: scrape.status,
+      detail: scrape.detail,
+      ...(diagQuery ? { scrapeDiag: scrape.publicDiag } : {}),
+    });
   } catch (err) {
-    console.error("[nfl-depth-update] Fetch error:", err.message);
-    return null;
+    console.error("[nfl-depth-update] Handler error:", err?.message || err);
+    const stale = await loadPersistedDepth().catch(() => null);
+    if (stale?.depth && Object.keys(stale.depth).length > 0) {
+      return res.status(200).json({
+        source: "stale_kv",
+        parserVersion: PARSER_VERSION,
+        warning: "Handler error; serving last good depth chart",
+        updatedAt: stale.fetchedAt
+          ? new Date(stale.fetchedAt).toISOString()
+          : null,
+        depth: stale.depth,
+      });
+    }
+    return res.status(500).json({
+      error: "Failed to fetch depth charts",
+      parserVersion: PARSER_VERSION,
+      failurePhase: "handler_exception",
+      detail: String(err?.message || err).slice(0, 200),
+    });
   }
 }
 
-function parseOurladsQBs(html) {
-  // Ourlads table rows contain: | TEAM | QB | NO | Player Name ... |
-  // We parse Player 1 (QB1) and Player 2 (QB2) per team
-  const depth = {};
+async function persistDepth(depth) {
+  await setDurableJson(
+    KV_KEY,
+    { depth, fetchedAt: Date.now(), parserVersion: PARSER_VERSION },
+    { ttlSeconds: 60 * 60 * 24 * 7 },
+  );
+}
 
-  // Extract player name from Ourlads link format: "Last, First YEAR/ROUND"
-  function cleanName(raw) {
-    if (!raw) return "";
-    // Remove draft year/round suffix like "24/1", "U/Det", "SF25", "CC/Mia"
-    const cleaned = raw
-      .replace(/\s+\d{2}\/\d+$/, "")      // "24/1"
-      .replace(/\s+U\/\w+$/, "")           // "U/Det"
-      .replace(/\s+SF\d{2}$/, "")          // "SF25"
-      .replace(/\s+CF\d{2}$/, "")          // "CF25"
-      .replace(/\s+CC\/\w+$/, "")          // "CC/Mia"
-      .replace(/\s+W\/\w+$/, "")           // "W/Min"
-      .replace(/\s+T\/\w+$/, "")           // "T/LAR"
-      .replace(/\s+P\/\w+$/, "")           // "P/Dal"
-      .trim();
+async function loadPersistedDepth() {
+  const raw = await getDurableJson(KV_KEY);
+  if (!raw || typeof raw !== "object") return null;
+  const depth = raw.depth && typeof raw.depth === "object" ? raw.depth : null;
+  if (!depth || Object.keys(depth).length === 0) return null;
+  return {
+    depth,
+    fetchedAt: Number.isFinite(raw.fetchedAt) ? raw.fetchedAt : null,
+  };
+}
 
-    // Convert "Last, First" to "First Last"
-    if (cleaned.includes(",")) {
-      const parts = cleaned.split(",").map(s => s.trim());
-      return `${parts[1]} ${parts[0]}`;
-    }
+function ourladsBrowserHeaders() {
+  return {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    Accept:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    Referer: "https://www.ourlads.com/nfldepthcharts/",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+  };
+}
 
-    // Handle ALL CAPS names (new signings shown in caps on Ourlads)
-    if (cleaned === cleaned.toUpperCase() && cleaned.length > 3) {
-      return cleaned.split(" ").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
-    }
+/**
+ * Scrape Ourlads — always logs HTTP status before parse.
+ * @returns {Promise<{ depth: object | null, phase: string, status: number | null, detail: string, publicDiag: object }>}
+ */
+async function scrapeOurladsQbDepth() {
+  const baseDiag = { parserVersion: PARSER_VERSION, url: OURLADS_QB_URL };
 
-    return cleaned;
+  let response;
+  try {
+    response = await fetch(OURLADS_QB_URL, {
+      headers: ourladsBrowserHeaders(),
+      redirect: "follow",
+      signal: AbortSignal.timeout(25000),
+    });
+  } catch (err) {
+    const detail = `Ourlads fetch threw: ${String(err?.message || err).slice(0, 200)}`;
+    console.error(`[nfl-depth-update] ${detail}`);
+    return {
+      depth: null,
+      phase: "fetch_error",
+      status: null,
+      detail,
+      publicDiag: { ...baseDiag, fetchError: detail },
+    };
   }
 
-  // Team abbreviation mapping - Ourlads uses some non-standard codes
-  const teamMap = {
-    "BUF": "BUF", "MIA": "MIA", "NE": "NE", "NYJ": "NYJ",
-    "BAL": "BAL", "CIN": "CIN", "CLE": "CLE", "PIT": "PIT",
-    "HOU": "HOU", "IND": "IND", "JAX": "JAX", "TEN": "TEN",
-    "DEN": "DEN", "KC": "KC", "LV": "LV", "SD": "LAC",
-    "DAL": "DAL", "NYG": "NYG", "PHI": "PHI", "WAS": "WAS",
-    "CHI": "CHI", "DET": "DET", "GB": "GB", "MIN": "MIN",
-    "ATL": "ATL", "CAR": "CAR", "NO": "NO", "TB": "TB",
-    "ARZ": "ARZ", "RAM": "LAR", "SF": "SF", "SEA": "SEA",
+  const status = response.status;
+  const statusText = response.statusText || "";
+  const contentType = response.headers.get("content-type") || "";
+
+  console.log(
+    `[nfl-depth-update] Ourlads HTTP ${status} ${statusText} content-type=${contentType}`,
+  );
+
+  let html = "";
+  try {
+    html = await response.text();
+  } catch (err) {
+    const detail = `Ourlads body read failed after HTTP ${status}: ${String(err?.message || err).slice(0, 120)}`;
+    console.error(`[nfl-depth-update] ${detail}`);
+    return {
+      depth: null,
+      phase: "body_read_error",
+      status,
+      detail,
+      publicDiag: { ...baseDiag, status, contentType },
+    };
+  }
+
+  const htmlPreview = html.slice(0, HTML_LOG_PREVIEW_CHARS);
+  console.log(
+    `[nfl-depth-update] Ourlads raw HTML preview (${html.length} chars total):\n${htmlPreview}`,
+  );
+
+  const parseProbe = diagnoseOurladsHtml(html);
+  console.log("[nfl-depth-update] Ourlads parse probe:", JSON.stringify(parseProbe));
+
+  const publicDiag = {
+    ...baseDiag,
+    status,
+    statusText,
+    contentType,
+    htmlLength: html.length,
+    htmlPreview,
+    parseProbe,
   };
 
-  // Parse the QB position table
-  // Ourlads renders: <td>TEAM</td><td>QB</td><td>NO</td><td>Player 1 link</td>...
-  const tableMatch = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi);
-  if (!tableMatch) return null;
-
-  for (const table of tableMatch) {
-    // Find QB rows
-    const rowMatches = table.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
-    for (const row of rowMatches) {
-      if (!row.includes(">QB<")) continue;
-
-      // Extract team code
-      const teamMatch = row.match(/depthchart\/([A-Z]+)/);
-      const ourladsCode = teamMatch?.[1];
-      const team = ourladsCode ? (teamMap[ourladsCode] || ourladsCode) : null;
-      if (!team) continue;
-
-      // Extract player names from links - format: "Last, First YEAR/ROUND"
-      const playerLinks = row.match(/\/nfldepthcharts\/player\/\d+\/"[^>]*>([^<]+)<\/a>/g) || [];
-      const players = playerLinks.map(link => {
-        const nameMatch = link.match(/>([^<]+)<\/a>/);
-        return cleanName(nameMatch?.[1] || "");
-      }).filter(Boolean);
-
-      if (players.length > 0) {
-        depth[team] = {
-          qb1: players[0] || null,
-          qb2: players[1] || null,
-          qb3: players[2] || null,
-          fetchedAt: new Date().toISOString(),
-        };
-      }
-    }
+  if (!response.ok) {
+    const detail = `Ourlads HTTP ${status} ${statusText} — not attempting parse`;
+    console.error(`[nfl-depth-update] ${detail}`);
+    return {
+      depth: null,
+      phase: status === 403 ? "http_403" : status === 429 ? "http_429" : "http_error",
+      status,
+      detail,
+      publicDiag,
+    };
   }
 
-  return Object.keys(depth).length > 0 ? depth : null;
+  if (parseProbe.looksLikeBlock) {
+    const detail = "Ourlads HTML looks like a bot-block or challenge page";
+    console.error(`[nfl-depth-update] ${detail}`);
+    return {
+      depth: null,
+      phase: "bot_block_page",
+      status,
+      detail,
+      publicDiag,
+    };
+  }
+
+  const partial = parseOurladsQBs(html, { minTeams: 1 });
+  const teamCountPartial = partial ? Object.keys(partial).length : 0;
+  const depth = parseOurladsQBs(html);
+
+  if (!depth) {
+    const detail = `Ourlads HTTP ${status} OK but parse produced ${teamCountPartial} teams (need 28+)`;
+    console.error(`[nfl-depth-update] ${detail}`);
+    return {
+      depth: null,
+      phase: "parse_empty",
+      status,
+      detail,
+      publicDiag: { ...publicDiag, teamCountPartial },
+    };
+  }
+
+  return {
+    depth,
+    phase: "ok",
+    status,
+    detail: `parsed ${Object.keys(depth).length} teams`,
+    publicDiag: { ...publicDiag, teamCount: Object.keys(depth).length },
+  };
 }

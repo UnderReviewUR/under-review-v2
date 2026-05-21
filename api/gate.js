@@ -1,6 +1,7 @@
 // api/gate.js
 // Tracks free-tier query usage and handles email gate.
 // Free tier: N lifetime free questions per email (never resets). Match src/lib/freeTierLimits.js.
+// Conversion: lifetime=2 is aggressive; consider weekly/daily reset — see freeTierLimits.js note.
 // Uses Vercel KV if available, falls back to in-memory (resets on cold start).
 // No user accounts. Identity = email stored in localStorage.
 

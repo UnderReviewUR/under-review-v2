@@ -53,7 +53,10 @@ export function buildHomeTrackerCards({
   const candidates = [];
   const nbaUpcoming = (nbaGames || [])
     .filter((g) => isDisplayableValidity(classifyNbaGame(g)))
-    .filter((g) => g?.state === "pre");
+    .filter((g) => {
+      const s = String(g?.state || "").toLowerCase();
+      return s === "pre" || s === "scheduled";
+    });
   const mlbUpcoming = (mlbData?.games || [])
     .filter((g) => isDisplayableValidity(classifyMlbGame(g)))
     .filter((g) => g?.state === "pre");

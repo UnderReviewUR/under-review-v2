@@ -186,6 +186,7 @@ export default function AskScreen({
   savedTakes = [],
   onSaveLastUrTake = null,
   onOpenSavedTake = null,
+  golfSessionBoard = null,
 }) {
   const safeAskMsgs = useMemo(
     () => (Array.isArray(askMsgs) ? askMsgs.filter((m) => m && typeof m === "object") : []),
@@ -270,6 +271,7 @@ export default function AskScreen({
                       onUrTakeFollowUpPick={onUrTakeFollowUpPick}
                       onUpgradePromptClick={onUpgradePromptClick}
                       hideFollowUpDock
+                      golfSessionBoard={golfSessionBoard}
                       variant="urChatDocked"
                     />
                   ) : null}

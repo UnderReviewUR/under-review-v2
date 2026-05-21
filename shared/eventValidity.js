@@ -209,7 +209,11 @@ function classifyGameState({ game, nowMs, durationMs, sport }) {
       const delta = startMs - nowMs;
       const awayScore = Number(game?.awayTeam?.score);
       const homeScore = Number(game?.homeTeam?.score);
-      if (delta < 0 && delta > -NBA_TIP_FEED_LAG_GRACE_MS && awayScore === 0 && homeScore === 0) {
+      const scoresUnset =
+        (game?.awayTeam?.score == null || awayScore === 0) &&
+        (game?.homeTeam?.score == null || homeScore === 0);
+      const feedLagMs = game?.postseason ? 3 * 60 * 60 * 1000 : NBA_TIP_FEED_LAG_GRACE_MS;
+      if (delta < 0 && delta > -feedLagMs && scoresUnset) {
         return EVENT_VALIDITY.UPCOMING;
       }
     }

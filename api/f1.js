@@ -3,6 +3,7 @@ import { applyCors } from "./_cors.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { getEnv } from "./_env.js";
 import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
+import { attachF1SmarketsOddsToContext } from "./_f1Odds.js";
 
 const DEFAULT_OPENF1_BASE = "https://api.openf1.org/v1";
 
@@ -556,7 +557,7 @@ function buildFallbackBoard() {
  * @param {object} body
  * @param {string} question
  */
-function enrichF1ContextForQuery(body, question) {
+async function enrichF1ContextForQuery(body, question) {
   const q = String(question || "").toLowerCase();
   const races = body?.schedule?.races || [];
   let focusedRace =
@@ -574,7 +575,7 @@ function enrichF1ContextForQuery(body, question) {
     focusedRace = races.find((r) => r.is_next) || races[0] || null;
   }
 
-  return {
+  const enriched = {
     ...body,
     queryFocus: focusedRace
       ? {
@@ -599,6 +600,8 @@ function enrichF1ContextForQuery(body, question) {
         "If live odds/grid are thin, favor driver matchup or points-finish framing over naked outright/podium — still give a monitoring plan. Never ask the user to paste F1 data.",
     },
   };
+
+  return await attachF1SmarketsOddsToContext(enriched);
 }
 
 async function assembleF1BoardBody() {
@@ -645,7 +648,7 @@ export async function buildF1UrTakeContext(opts = {}) {
   try {
     const cached = getCached(f1CacheKey("f1_board_v7"));
     if (cached) {
-      return enrichF1ContextForQuery(
+      return await enrichF1ContextForQuery(
         {
           ...cached,
           urTakeAssembly: {
@@ -658,7 +661,7 @@ export async function buildF1UrTakeContext(opts = {}) {
     }
 
     const body = await assembleF1BoardBody();
-    sources.push("openf1_live_assembly");
+    const sources = ["openf1_live_assembly"];
     const full = {
       ...body,
       urTakeAssembly: {
@@ -666,10 +669,10 @@ export async function buildF1UrTakeContext(opts = {}) {
         assembledAt: new Date().toISOString(),
       },
     };
-    return enrichF1ContextForQuery(full, question);
+    return await enrichF1ContextForQuery(full, question);
   } catch (err) {
     console.error("[f1] buildF1UrTakeContext:", err?.message || err);
-    return enrichF1ContextForQuery(
+    return await enrichF1ContextForQuery(
       {
         ...buildFallbackBoard(),
         urTakeAssembly: { sources: ["fallback_board"], error: String(err?.message || err), assembledAt: new Date().toISOString() },

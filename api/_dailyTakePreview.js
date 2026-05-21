@@ -58,7 +58,10 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
   try {
     const board = await buildNbaUrTakeBoard("");
     const games = board?.todaysGames || [];
-    const playable = games.filter((g) => String(g?.state || "").toLowerCase() !== "post");
+    const playable = games.filter((g) => {
+      const st = String(g?.state || "").toLowerCase();
+      return st === "pre" || st === "scheduled" || st === "in";
+    });
     if (playable.length) {
       const g = [...playable].sort((a, b) => scoreNbaGame(b) - scoreNbaGame(a))[0];
       const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";

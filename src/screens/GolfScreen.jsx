@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
+import { buildGolfSessionBoardFromData } from "../lib/golfSessionBoard.js";
 import { classifyGolfEvent, EVENT_VALIDITY } from "../../shared/eventValidity.js";
 import { isGolfEventFinished } from "../lib/golfEventStatus.js";
 import { deriveGolfEventState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
@@ -330,6 +331,10 @@ export default function GolfScreen({
   const courseProfileLine = buildCourseStatsBlurb(golfData?.courseStats);
 
   const urDockedChat = hasDockedBar && golfMsgs.length > 0;
+  const golfSessionBoard = useMemo(
+    () => buildGolfSessionBoardFromData(golfData),
+    [golfData],
+  );
   const chatThreadProps = {
     msgs: golfMsgs,
     urTakeTrackPlay,
@@ -337,6 +342,7 @@ export default function GolfScreen({
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
     hideFollowUpDock: true,
+    golfSessionBoard,
   };
   const golfBoardBelow = (
     <>

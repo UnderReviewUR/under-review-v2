@@ -6,6 +6,7 @@ import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { scrapeAndCacheNbaProps } from "./_nbaProps.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";
+import { scrapeAndCacheF1Odds } from "./_f1Odds.js";
 import { resolveGameSpreadForSlateGame } from "./_gameOddsPipeline.js";
 import {
   buildScrapeLastRunKvKey,
@@ -46,6 +47,16 @@ const SCRAPE_HANDLERS = {
     return {
       posted: odds?.hasPostedLines,
       outrightCount: Array.isArray(odds?.outrights) ? odds.outrights.length : 0,
+      fetchedAt: odds?.fetchedAt,
+    };
+  },
+  f1_odds: async (target) => {
+    const eventId = target.meta?.eventId || target.gameId;
+    const odds = await scrapeAndCacheF1Odds(eventId);
+    return {
+      posted: odds?.hasPostedLines,
+      eventId: odds?.eventId,
+      raceWinnerCount: odds?.markets?.raceWinner?.length ?? 0,
       fetchedAt: odds?.fetchedAt,
     };
   },

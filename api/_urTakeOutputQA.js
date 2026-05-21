@@ -17,6 +17,7 @@ import {
   inferNbaPropDirection,
   nbaUnderVsSeasonAverageImplausible,
   parseNbaRequestedMarket,
+  scanNbaOverVsRecentFormContradictions,
 } from "./_nbaPropSanity.js";
 
 /** Appended to system prompt on regeneration attempt (Part 3 self-check as instructions). */
@@ -449,6 +450,12 @@ export function lintUrTakeOutput(text, options = {}) {
       issues.push(underImp.code);
       critical.push(underImp.code);
     }
+
+    const overRecentHits = scanNbaOverVsRecentFormContradictions(raw, nbaCtx.playerStats);
+    if (overRecentHits.length > 0) {
+      issues.push("over_vs_recent_form_contradiction");
+      critical.push("over_vs_recent_form_contradiction");
+    }
   }
 
   const sportResult = runSportSpecificValidators(raw, options);
@@ -522,6 +529,7 @@ export function lintUrTakeOutput(text, options = {}) {
     "extreme_rebound_under_vs_average",
     "extreme_points_under_vs_average",
     "extreme_assist_under_vs_average",
+    "over_vs_recent_form_contradiction",
     "bench_role_high_auxiliary_line",
     "suspicious_cross_game_sgp_language",
     "roster_coherence_violation",

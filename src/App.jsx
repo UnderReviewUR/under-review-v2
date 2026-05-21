@@ -2298,41 +2298,53 @@ ${themeCss}
         timeZone: "America/New_York",
       })} ET`;
     };
-    /** Rolling 24h slate from `homePipeline` (same gates as classifyNbaGame + normalize). */
-    const slateGames = homePipeline?.nbaGamesForHome
-      .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
-      .filter((g) => {
-        const k = nbaEventKey(g);
-        return !(k && cardExcludeSet.has(k));
-      })
-      .sort((a, b) => {
-        const ta = Number.isNaN(Date.parse(a?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(a?.startTimeUtc);
-        const tb = Number.isNaN(Date.parse(b?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(b?.startTimeUtc);
-        return ta - tb;
-      });
+    const isHomeNbaCardState = (g) => {
+      const s = String(g?.state || "").toLowerCase();
+      return s === "pre" || s === "scheduled" || s === "in" || s === "post";
+    };
+    const sortByTip = (a, b) => {
+      const ta = Number.isNaN(Date.parse(a?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(a?.startTimeUtc);
+      const tb = Number.isNaN(Date.parse(b?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(b?.startTimeUtc);
+      return ta - tb;
+    };
+    const notExcluded = (g) => {
+      const k = nbaEventKey(g);
+      return !(k && cardExcludeSet.has(k));
+    };
+    /** Pipeline-verified slate (classifyNbaGame + normalize). */
+    const pipelineGames = (homePipeline?.nbaGamesForHome || [])
+      .filter(isHomeNbaCardState)
+      .filter(notExcluded)
+      .sort(sortByTip);
 
     const rawApiTodaysGames = (nbaData?.todaysGames || [])
       .filter((g) => isDisplayableValidity(classifyNbaGame(g)))
-      .filter((g) => g?.state === "pre" || g?.state === "in" || g?.state === "post")
-      .filter((g) => {
-        const k = nbaEventKey(g);
-        return !(k && cardExcludeSet.has(k));
-      })
-      .sort((a, b) => {
-        const ta = Number.isNaN(Date.parse(a?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(a?.startTimeUtc);
-        const tb = Number.isNaN(Date.parse(b?.startTimeUtc)) ? Number.MAX_SAFE_INTEGER : Date.parse(b?.startTimeUtc);
-        return ta - tb;
-      });
+      .filter(isHomeNbaCardState)
+      .filter(notExcluded)
+      .sort(sortByTip);
 
-    if (!slateGames.length && !homePipeline?.nbaGamesForHome.length) {
-      if (rawApiTodaysGames.length > 0) {
+    const slateGames = pipelineGames.length > 0 ? pipelineGames : rawApiTodaysGames;
+
+    if (!slateGames.length) {
+      const looseApiGames = (nbaData?.todaysGames || [])
+        .filter(isHomeNbaCardState)
+        .filter(notExcluded)
+        .sort(sortByTip);
+      if (looseApiGames.length > 0) {
         const recoveryHint = nbaData?.slateRecovery?.fromLastKnownKv
           ? formatHomeSlateKvUpdatedEt(nbaData.slateRecovery.lastUpdated)
           : null;
-        const rows = rawApiTodaysGames.map((g, i) => {
+        const rows = looseApiGames.map((g, i) => {
           const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
           const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
-          const series = getSeriesLabel(away, home);
+          const seriesNum = getSeriesLabel(away, home);
+          const state = String(g?.state || "").toLowerCase();
+          const series =
+            state === "pre" || state === "scheduled"
+              ? seriesNum
+                ? `${seriesNum} tonight`
+                : "Playoff game tonight"
+              : seriesNum || "Playoff matchup";
           const evKey = nbaEventKey(g);
           const channel = String(g.channel || g.broadcast || "").trim();
           const tipEt = toEtTipLabel(g.startTimeUtc);
@@ -2342,7 +2354,7 @@ ${themeCss}
             away,
             home,
             tipEt,
-            series: series || "Playoff matchup",
+            series,
             channel,
           };
         });
@@ -2377,14 +2389,17 @@ ${themeCss}
       ];
     }
 
-    if (!slateGames.length) {
-      return [];
-    }
-
     const rows = slateGames.map((g, i) => {
       const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
       const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
-      const series = getSeriesLabel(away, home);
+      const seriesNum = getSeriesLabel(away, home);
+      const state = String(g?.state || "").toLowerCase();
+      const series =
+        state === "pre" || state === "scheduled"
+          ? seriesNum
+            ? `${seriesNum} tonight`
+            : "Playoff game tonight"
+          : seriesNum || "Playoff matchup";
       const evKey = nbaEventKey(g);
       const channel = String(g.channel || g.broadcast || "").trim();
       const tipEt = toEtTipLabel(g.startTimeUtc);
@@ -2394,17 +2409,22 @@ ${themeCss}
         away,
         home,
         tipEt,
-        series: series || "Playoff matchup",
+        series,
         channel,
       };
     });
+
+    const preCount = slateGames.filter((g) => {
+      const s = String(g?.state || "").toLowerCase();
+      return s === "pre" || s === "scheduled";
+    }).length;
 
     return [
       {
         id: "nba-playoffs-rows",
         league: "NBA PLAYOFFS",
         leagueColor: "#FF6B00",
-        title: "Tonight's games",
+        title: preCount > 0 ? "Tonight's games" : "NBA slate",
         time: `${rows.length} game${rows.length === 1 ? "" : "s"}`,
         network: "Tap a matchup",
         blurb: "",

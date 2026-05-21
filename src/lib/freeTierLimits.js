@@ -1,6 +1,9 @@
 /**
  * Free-tier question allowance for the client (`App.jsx` `canAsk`, localStorage `ur_free_used`).
  * Must stay in sync with `FREE_QUERIES_LIFETIME` in `api/gate.js`.
+ *
+ * Conversion note: lifetime cap of 2 is aggressive — users may hit the wall before they
+ * feel THE PLAY + session memory. Consider A/B: weekly reset (e.g. 2/week) or 3/day vs lifetime.
  */
 export const FREE_QUESTION_LIMIT = 2;
 

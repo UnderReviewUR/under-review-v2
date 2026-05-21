@@ -1,0 +1,600 @@
+﻿{
+  "probedAt": "2026-05-21T01:09:46.523Z",
+  "f1": {},
+  "tennis": {},
+  "htmlProbes": [
+    {
+      "label": "skysports-f1",
+      "url": "https://www.skysports.com/f1",
+      "status": 200,
+      "ms": 1033,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 349370,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://www.skysports.com/f1",
+        "https://promotions.skybet.com/skybet-super-sub",
+        "https://m.skybet.com/lp/safer-gambling",
+        "https://www.skysports.com/f1/news/12433/13478323/f1-2026-calendar-race-schedule-highlights-results-pre-season-testing-sprint-venues-driver-line-ups-new-regulations-live-sky-sports-coverage",
+        "https://www.nowtv.com/membership/watch-sky-sports?DCMP=ilc_NTV_skysports_marketing_watch_RHS",
+        "https://qrcode.skysports.com/skysports/ContentPromo",
+        "https://skybet.com/?rfr&#x3D;7009749&amp;utm_medium&#x3D;SSDM&amp;utm_source&#x3D;SS_web&amp;utm_content&#x3D;ss_nav",
+        "https://m.skybet.com/formula-1",
+        "https://e0.365dm.com/26/05/384x216/skysports-kimi-antonelli-lewis-hamilton_7253123.jpg?20260519135027",
+        "https://e0.365dm.com/26/05/768x432/skysports-kimi-antonelli-lewis-hamilton_7253123.jpg?20260519135027",
+        "http://www.nowtv.com/membership/watch-sky-sports?DCMP&#x3D;ilc_skysports_nc_articlelink",
+        "https://www.skysports.com/f1/news/12433/13542703/canadian-gp-2026-sprint-weekend-dates-schedule-weather-uk-start-time-and-how-to-watch-or-stream-f1-race-in-montreal-live-on-sky-sports",
+        "https://e0.365dm.com/26/04/384x216/skysports-f1-george-russell_7235820.jpg?20260430225709",
+        "https://e0.365dm.com/26/04/768x432/skysports-f1-george-russell_7235820.jpg?20260430225709",
+        "https://e0.365dm.com/26/04/192x144/skysports-f1-george-russell_7235820.jpg?20260430225709",
+        "https://e0.365dm.com/26/05/384x216/skysports-george-russell-mercedes_7253802.jpg?20260520102047",
+        "https://e0.365dm.com/26/05/768x432/skysports-george-russell-mercedes_7253802.jpg?20260520102047",
+        "https://e0.365dm.com/26/05/192x144/skysports-george-russell-mercedes_7253802.jpg?20260520102047",
+        "https://e0.365dm.com/26/05/384x216/skysports-f1-lando-norris_7252129.jpg?20260518103007",
+        "https://e0.365dm.com/26/05/768x432/skysports-f1-lando-norris_7252129.jpg?20260518103007",
+        "https://e0.365dm.com/26/05/192x144/skysports-f1-lando-norris_7252129.jpg?20260518103007",
+        "https://e0.365dm.com/26/05/384x216/skysports-f1-2026-japanese-gp_7253876.jpg?20260520114119",
+        "https://e0.365dm.com/26/05/768x432/skysports-f1-2026-japanese-gp_7253876.jpg?20260520114119",
+        "https://e0.365dm.com/26/05/192x144/skysports-f1-2026-japanese-gp_7253876.jpg?20260520114119",
+        "https://e0.365dm.com/26/05/384x216/skysports-christian-horner_7252291.jpg?20260518142149",
+        "https://e0.365dm.com/26/05/768x432/skysports-christian-horner_7252291.jpg?20260518142149",
+        "https://e0.365dm.com/26/05/192x144/skysports-christian-horner_7252291.jpg?20260518142149",
+        "https://e0.365dm.com/26/05/384x216/skysports-kimi-antonelli-mercedes_7251906.jpg?20260517233403",
+        "https://e0.365dm.com/26/05/768x432/skysports-kimi-antonelli-mercedes_7251906.jpg?20260517233403",
+        "https://e0.365dm.com/26/05/192x144/skysports-kimi-antonelli-mercedes_7251906.jpg?20260517233403"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html> <html lang=\"en\" data-territory=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <title>F1 News, Drivers, Results - Formula 1 Live Online | Sky Sports</title> <meta name=\"robots\" content=\"in"
+    },
+    {
+      "label": "skysports-f1-odds",
+      "url": "https://www.skysports.com/f1/odds",
+      "status": 404,
+      "ms": 502,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 149942,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://skybet.com/?rfr&#x3D;7009749&amp;utm_medium&#x3D;SSDM&amp;utm_source&#x3D;SS_web&amp;utm_content&#x3D;ss_nav",
+        "https://x.com/skysports",
+        "https://www.facebook.com/SkySports",
+        "https://www.tiktok.com/@skysports",
+        "https://www.instagram.com/skysports",
+        "https://www.youtube.com/@SkySports",
+        "https://www.skybet.com/",
+        "https://super6.skysports.com/",
+        "https://www.skysports.com/contact-us"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html> <html lang=\"en\" data-territory=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <title>Page Not Found</title> <meta name=\"robots\" content=\"index, follow, max-snippet:-1, max-image-preview:l"
+    },
+    {
+      "label": "bbc-f1",
+      "url": "https://www.bbc.com/sport/formula1",
+      "status": 200,
+      "ms": 472,
+      "contentType": "text/html",
+      "length": 718986,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://web-cdn.api.bbci.co.uk\\",
+        "https://webcore.bbc-reporting-api.app/report-endpoint\\"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html><html lang=\"en-GB\" class=\"no-js\"><head><meta charSet=\"utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /><title data-rh=\"true\">F1 - Latest News, Results &amp; Schedule - BBC Sport</title><meta data-rh=\"true\""
+    },
+    {
+      "label": "oddschecker-f1",
+      "url": "https://www.oddschecker.com/motor-racing/formula-1",
+      "status": 403,
+      "ms": 240,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "oddschecker-f1-winner",
+      "url": "https://www.oddschecker.com/motor-racing/formula-1/winner",
+      "status": 403,
+      "ms": 29,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "williamhill-motor",
+      "url": "https://sports.williamhill.com/betting/en-gb/motor-racing",
+      "status": 500,
+      "ms": 1292,
+      "contentType": "text/html",
+      "length": 29758,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://williamhill-lang.custhelp.com/app/answers/detail/a_id/9009",
+        "https://williamhill-lang.custhelp.com/app/answers/detail/a_id/2733",
+        "https://williamhill-lang.custhelp.com/app/answers/detail/a_id/2960",
+        "https://williamhill-lang.custhelp.com/euf/assets/css/RightNow.css",
+        "https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"UTF-8\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <meta http-equiv=\"refresh\" content=\"10\"> <title>Page temporarily unavailable</title> <style> "
+    },
+    {
+      "label": "paddypower-motor",
+      "url": "https://www.paddypower.com/sport/motor-racing",
+      "status": 403,
+      "ms": 388,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 3782,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://helpcenter.paddypower.com/app/contact_us/"
+      ],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <html manifest=\"\" lang=\"en-US\"> <head> <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" /> <title>Paddy Power</title> <meta name=\"theme-color\" content=\"#004833\" /> <style> * { margin: "
+    },
+    {
+      "label": "flashscore-f1",
+      "url": "https://www.flashscore.com/motorsport/formula-1/",
+      "status": 404,
+      "ms": 521,
+      "contentType": "text/html; charset=utf-8",
+      "length": 6077,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": " <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 5 Transitional//EN\"> <html> <head> <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\"> <meta name=\"robots\" content=\"nofollow,noindex\"> <meta http-equiv=\"cache-control\" content=\"no-c"
+    },
+    {
+      "label": "skysports-tennis-odds",
+      "url": "https://www.skysports.com/tennis/odds",
+      "status": 404,
+      "ms": 2860,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 149942,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://skybet.com/?rfr&#x3D;7009749&amp;utm_medium&#x3D;SSDM&amp;utm_source&#x3D;SS_web&amp;utm_content&#x3D;ss_nav",
+        "https://x.com/skysports",
+        "https://www.facebook.com/SkySports",
+        "https://www.tiktok.com/@skysports",
+        "https://www.instagram.com/skysports",
+        "https://www.youtube.com/@SkySports",
+        "https://www.skybet.com/",
+        "https://super6.skysports.com/",
+        "https://www.skysports.com/contact-us"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html> <html lang=\"en\" data-territory=\"en\" class=\"no-js\"> <head> <meta charset=\"utf-8\"> <title>Page Not Found</title> <meta name=\"robots\" content=\"index, follow, max-snippet:-1, max-image-preview:l"
+    },
+    {
+      "label": "oddschecker-tennis",
+      "url": "https://www.oddschecker.com/tennis/french-open",
+      "status": 403,
+      "ms": 190,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "oddschecker-aces",
+      "url": "https://www.oddschecker.com/tennis/french-open/aces",
+      "status": 403,
+      "ms": 23,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "oddschecker-games-hcap",
+      "url": "https://www.oddschecker.com/tennis/french-open/games-handicap",
+      "status": 403,
+      "ms": 35,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "flashscore-tennis",
+      "url": "https://www.flashscore.com/tennis/",
+      "status": 200,
+      "ms": 110,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 475894,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://2.ds.lsapp.eu/pq_graphql",
+        "https://2.flashscore.ninja",
+        "https://static.flashscore.com/res/font/LivesportFinderLatin-Regular_Static.woff2",
+        "https://static.flashscore.com/res/font/LivesportFinderLatin-Bold_Static.woff2",
+        "https://www.flashscore.mobi/",
+        "https://www.flashscore.com/tennis/",
+        "https://www.flashscore.com/res/_fs/image/og/flashscore.png",
+        "https://static.flashscore.com/res/_fs/image/4_favicons/_fs/favicon.ico?v=8",
+        "https://static.flashscore.com/res/_fs/image/4_favicons/_fs/touch-icon-180x180.png?v=8",
+        "https://static.flashscore.com/res/_fs/image/4_favicons/_fs/favicon-32x32.png?v=8",
+        "https://static.flashscore.com/res/_fs/image/4_favicons/_fs/favicon-16x16.png?v=8",
+        "https://static.flashscore.com/res/_fs/build/LivesportFinderLatin.c26ee7c.css",
+        "https://static.flashscore.com/res/_fs/build/core.7baab49.css",
+        "https://static.flashscore.com/res/_fs/build/variables.03a06d9.css",
+        "https://static.flashscore.com/res/_fs/build/themes.5d059f4.css",
+        "https://static.flashscore.com/res/_fs/build/common.2cce0fe.css",
+        "https://static.flashscore.com/res/_fs/build/components_shared.3f89484.css",
+        "https://static.flashscore.com/res/_fs/build/cookie.5722c22.css",
+        "https://static.flashscore.com/res/_fs/build/multiLang.412195c.css",
+        "https://static.flashscore.com/res/_fs/build/single_page_app_temp.06a65ea.css",
+        "https://static.flashscore.com/res/_fs/build/core_common.9d82c8e.css",
+        "https://static.flashscore.com/res/_fs/build/lsid.29f4026.css",
+        "https://static.flashscore.com/res/_fs/build/componentLibraryTheme2021.f8567fa.css",
+        "https://static.flashscore.com/res/_fs/build/live_header.ede05ac.css",
+        "https://static.flashscore.com/res/_fs/build/live_sidemenu.5748543.css",
+        "https://static.flashscore.com/res/_fs/build/live_sections.b38306c.css",
+        "https://static.flashscore.com/res/_fs/build/league_onboarding.db44fa8.css",
+        "https://static.flashscore.com/res/_fs/build/live_footer.3c7e926.css",
+        "https://static.flashscore.com/res/_fs/build/tabs_filters.fd402ec.css",
+        "https://static.flashscore.com/res/_fs/build/live_tabs.c7bbef2.css"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html> <html lang=\"en\"> <head> <meta charset=\"utf-8\"> <title>French Open 2026, Tennis Live Scores, Tennis Results - ATP, WTA | Flashscore.com</title> <script defer src=\"https://cdn.cookielaw.org/scripttemplates/ot"
+    }
+  ],
+  "apiProbes": [
+    {
+      "label": "smarkets-tennis-upcoming",
+      "url": "https://api.smarkets.com/v3/events/?type_domain=tennis&type_scope=single_event&state=upcoming",
+      "status": 200,
+      "ms": 280,
+      "contentType": "application/json",
+      "length": 16367,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": [
+        "events",
+        "pagination"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"events\": [{\"bet_allowed\": true, \"bettable\": true, \"chart_time_period\": null, \"created\": \"2026-05-17T10:00:08.233437Z\", \"description\": null, \"display_order\": 0, \"end_date\": null, \"full_slug\": \"/sport/tennis/challenger/atp-challenger-istanbul-turkey-",
+      "eventCount": 20,
+      "sampleEvent": {
+        "bet_allowed": true,
+        "bettable": true,
+        "chart_time_period": null,
+        "created": "2026-05-17T10:00:08.233437Z",
+        "description": null,
+        "display_order": 0,
+        "end_date": null,
+        "full_slug": "/sport/tennis/challenger/atp-challenger-istanbul-turkey-men-doubles/2026/05/21/11-30/duda-f-latinovic-s-vs-ingildsen-j-paris-j",
+        "hidden": false,
+        "id": "45080832",
+        "inplay_enabled": true,
+        "modified": "2026-05-20T23:30:55.652316Z",
+        "name": "Duda F / Latinovic S vs Ingildsen J / Paris J",
+        "parent_id": "41906760",
+        "seo_description": null,
+        "short_name": null,
+        "slug": "duda-f-latinovic-s-vs-ingildsen-j-paris-j",
+        "special_rules": null,
+        "start_date": "2026-05-21",
+        "start_datetime": "2026-05-21T11:30:00Z",
+        "state": "upcoming",
+        "super_sub_enabled": false,
+        "type": "tennis_match",
+        "venue": {
+          "city": "Sariyer",
+          "country_code": "TUR",
+          "country_name": "Turkiye",
+          "name": "Court 2",
+          "neutral": true
+        }
+      },
+      "marketsStatus": 404,
+      "marketCount": 0,
+      "sampleMarkets": []
+    },
+    {
+      "label": "smarkets-f1",
+      "url": "https://api.smarkets.com/v3/events/?type_domain=motor_sport&type_scope=single_event&state=upcoming",
+      "status": 400,
+      "ms": 175,
+      "contentType": "application/json",
+      "length": 797,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": [
+        "data",
+        "error_type"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"data\":\"data.type_domain[0] must be one of ['accumulator', 'american_football', 'australian_rules', 'baseball', 'basketball', 'basketball_esports', 'boxing', 'call_of_duty', 'chess', 'cricket', 'csgo', 'current_affairs', 'cycling', 'darts', 'dota_2'"
+    },
+    {
+      "label": "smarkets-motor",
+      "url": "https://api.smarkets.com/v3/events/?type_domain=motor&type_scope=single_event&state=upcoming",
+      "status": 400,
+      "ms": 342,
+      "contentType": "application/json",
+      "length": 797,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": [
+        "data",
+        "error_type"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"data\":\"data.type_domain[0] must be one of ['accumulator', 'american_football', 'australian_rules', 'baseball', 'basketball', 'basketball_esports', 'boxing', 'call_of_duty', 'chess', 'cricket', 'csgo', 'current_affairs', 'cycling', 'darts', 'dota_2'"
+    },
+    {
+      "label": "sofascore-tennis-live",
+      "url": "https://api.sofascore.com/api/v1/sport/tennis/events/live",
+      "status": 403,
+      "ms": 201,
+      "contentType": "application/json",
+      "length": 48,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": "0"
+      },
+      "jsonTopKeys": [
+        "error"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"error\": {\"code\": 403, \"reason\": \"Forbidden\" }}"
+    },
+    {
+      "label": "sofascore-tennis-scheduled",
+      "url": "https://www.sofascore.com/api/v1/sport/tennis/scheduled-events/2026-05-21",
+      "status": 403,
+      "ms": 372,
+      "contentType": "application/json",
+      "length": 48,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": "0"
+      },
+      "jsonTopKeys": [
+        "error"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"error\": {\"code\": 403, \"reason\": \"Forbidden\" }}"
+    },
+    {
+      "label": "sofascore-f1",
+      "url": "https://api.sofascore.com/api/v1/sport/motorsport/category/40/events/last/0",
+      "status": 404,
+      "ms": 203,
+      "contentType": "application/json",
+      "length": 44,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": [
+        "error"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"error\":{\"code\":404,\"message\":\"Not Found\"}}"
+    },
+    {
+      "label": "oc-api-guess-1",
+      "url": "https://api.oddschecker.com/v1/odds/motor-racing/formula-1/winner",
+      "status": 401,
+      "ms": 835,
+      "contentType": "application/json;charset=ISO-8859-1",
+      "length": 48,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": [
+        "errorId",
+        "errorMessage"
+      ],
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": false,
+      "preview": "{\"errorId\":\"1\",\"errorMessage\":\"API-KEY invalid\"}"
+    },
+    {
+      "label": "oc-api-guess-2",
+      "url": "https://www.oddschecker.com/api/odds/motor-racing/formula-1/winner",
+      "status": 403,
+      "ms": 89,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "oc-api-guess-3",
+      "url": "https://www.oddschecker.com/api/markets/motor-racing/formula-1",
+      "status": 403,
+      "ms": 26,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 5967,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    },
+    {
+      "label": "paddypower-buildyourbet",
+      "url": "https://buildyourbetapi.paddypower.com/sportsbook/v1/sports",
+      "status": 403,
+      "ms": 341,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 3782,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [
+        "https://helpcenter.paddypower.com/app/contact_us/"
+      ],
+      "isCloudflare": false,
+      "preview": "<!DOCTYPE html> <html manifest=\"\" lang=\"en-US\"> <head> <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" /> <title>Paddy Power</title> <meta name=\"theme-color\" content=\"#004833\" /> <style> * { margin: "
+    },
+    {
+      "label": "skybet-sb",
+      "url": "https://sb.skysports.com/football",
+      "error": "fetch failed"
+    },
+    {
+      "label": "api-skysports",
+      "url": "https://api.skysports.com/graphql",
+      "error": "fetch failed"
+    },
+    {
+      "label": "betfair-listEvents",
+      "url": "https://api.betfair.com/exchange/betting/rest/v1.0/listEvents/",
+      "status": 403,
+      "ms": 529,
+      "contentType": "text/html; charset=UTF-8",
+      "length": 4550,
+      "rateLimit": {
+        "remaining": null,
+        "retryAfter": null
+      },
+      "jsonTopKeys": null,
+      "hasNextData": false,
+      "nextDataKeys": null,
+      "apiUrlHints": [],
+      "isCloudflare": true,
+      "preview": "<!DOCTYPE html> <!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 7]> <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]--> <!--[if IE 8]> <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]--> <!--[if g"
+    }
+  ]
+}

@@ -107,6 +107,7 @@ RULES
 - Do not use markdown.
 - If injuryImpactCount > 0, make injuries part of the reason.
 - If seriesGameNumber > 0, include series leverage naturally.
+- Never name deep-bench players with minimal playoff minutes (e.g. Bismack Biyombo) as a structural angle — only starters and rotation players who move the market.
 - Respond with only a raw JSON object. No markdown, no code fences, no preamble, no explanation. First character must be { and last character must be }.`;
 
     let parsed = null;

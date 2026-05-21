@@ -137,6 +137,45 @@ export function getDefaultNbaPropsScrapeTarget() {
   return getNbaPlayoffGameId("OKC", "SAS", "20260520");
 }
 
+function mapHardcodedRowToSlateGame(row) {
+  return {
+    id: row.gameId,
+    status: "Scheduled",
+    state: "pre",
+    statusCode: 1,
+    period: null,
+    clock: null,
+    awayTeam: {
+      name: row.awayAbbr,
+      abbr: row.awayAbbr,
+      score: null,
+    },
+    homeTeam: {
+      name: row.homeAbbr,
+      abbr: row.homeAbbr,
+      score: null,
+    },
+    startTimeUtc: new Date(row.tipoffMs).toISOString(),
+    startTimeSource: "hardcoded_playoff",
+    postseason: true,
+    actionNetworkGameId: row.gameId,
+  };
+}
+
+/**
+ * Inject known playoff scoreboard rows when BDL/Odds miss tonight's ET slate.
+ * @param {string} todayET YYYY-MM-DD
+ * @param {string} [tomorrowET] YYYY-MM-DD
+ */
+export function getHardcodedPlayoffSlateGamesForEtDates(todayET, tomorrowET) {
+  const tokens = new Set(
+    [todayET, tomorrowET]
+      .filter(Boolean)
+      .map((d) => String(d).replace(/-/g, "").trim()),
+  );
+  return HARDCODED_GAMES.filter((row) => tokens.has(row.dateYmd)).map(mapHardcodedRowToSlateGame);
+}
+
 /**
  * @param {Record<string, unknown> | null | undefined} game
  */

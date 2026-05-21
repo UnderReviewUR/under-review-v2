@@ -30,8 +30,8 @@ export default async function handler(req, res) {
   const { tour = "atp" } = req.query;
 
   const sportKeys = tour === "wta"
-    ? ["tennis_wta_miami", "tennis_wta"]
-    : ["tennis_atp_miami", "tennis_atp"];
+    ? ["tennis_wta_french_open", "tennis_wta"]
+    : ["tennis_atp_french_open", "tennis_atp"];
 
   const BASE = "https://api.the-odds-api.com/v4";
   const REGIONS = "us,us2";

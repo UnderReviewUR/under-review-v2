@@ -11,11 +11,12 @@ export default function UrTakeDockedFollowUps({ source, onPick }) {
   if (!pills.length) return null;
   return (
     <div className="ur-docked-follow-ups" role="group" aria-label="Suggested follow-ups">
+      <p className="ur-docked-follow-ups-kicker">Go deeper</p>
       {pills.map((q, idx) => (
         <button
           key={`${q}-${idx}`}
           type="button"
-          className="ur-take-follow-up-pill"
+          className="ur-take-follow-up-cta"
           onMouseDown={(e) => {
             if (e.button === 0) e.preventDefault();
           }}

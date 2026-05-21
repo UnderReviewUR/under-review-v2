@@ -83,6 +83,7 @@ import {
 } from "../shared/nbaUrTakeSlim.js";
 import { getSlipImageRouteMeta } from "./_slipImageIntent.js";
 import { buildF1UrTakeContext } from "./f1.js";
+import { buildF1OddsPromptBlock } from "./_f1Odds.js";
 import {
   buildGolfOutrightBasketUserPromptAppendix,
   classifyGolfBetStructure,
@@ -1263,8 +1264,11 @@ function resolveOddsAvailabilityForSport({
     return rows.some((r) => r?.odds != null && Number.isFinite(Number(r.odds)));
   }
   if (sportHint === "f1") {
+    const sm = f1Context?.odds || f1Context?.smarketsOdds;
     return Boolean(
-      hasObjectKeys(f1Context?.odds) ||
+      sm?.hasPostedLines ||
+        (Array.isArray(sm?.markets?.raceWinner) && sm.markets.raceWinner.length > 0) ||
+        hasObjectKeys(f1Context?.odds) ||
         Array.isArray(f1Context?.markets) ||
         Array.isArray(f1Context?.outrights),
     );
@@ -6239,9 +6243,8 @@ If gameTotals in context shows 214.5, that band is the pace read: a line that lo
             mlbVerifiedBlock,
           });
   } else if (sportHint === "f1") {
-    // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
-    // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
     const f1VerifiedBlock = buildF1VerifiedDriverListBlock(f1Context, question);
+    const f1OddsBlock = buildF1OddsPromptBlock(f1Context?.odds || f1Context?.smarketsOdds);
 
     userPrompt = `You are answering a Formula 1 betting question.
 
@@ -6250,6 +6253,7 @@ ${question}
 
 F1 context:
 ${contextJsonForModel(f1Context)}
+${f1OddsBlock}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.

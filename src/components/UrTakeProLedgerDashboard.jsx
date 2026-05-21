@@ -3,6 +3,7 @@ import {
   normalizeConfidenceTier,
   sportDisplayLabel,
 } from "../lib/urTakePerformance.js";
+import { LEDGER_TEASER_UNLOCK } from "../lib/proUpgradeCopy.js";
 
 function mergeSportSnapshots(a, b) {
   if (!a && !b) return null;
@@ -150,7 +151,7 @@ export default function UrTakeProLedgerDashboard({
     return (
       <div className="ur-record-gate">
         <div className="ur-record-teaser">{teaserTotal} edges tracked this season</div>
-        <div className="ur-record-unlock">Full record unlocked with Pro</div>
+        <div className="ur-record-unlock">{LEDGER_TEASER_UNLOCK}</div>
         <button type="button" className="ur-upgrade-btn" onClick={() => onUpgrade?.()}>
           Upgrade to Pro
         </button>

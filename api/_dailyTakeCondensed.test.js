@@ -28,3 +28,15 @@ test("condensed preview handles empty input", () => {
   assert.equal(out.bodyChunk, "");
   assert.equal(out.closing, "");
 });
+
+test("condensed preview does not truncate body mid-word", () => {
+  const longPara =
+    "The market is overweight on star narrative while OKC's switching and rim deterrence set the halfcourt ceiling for San Antonio's drive-and-kick game.";
+  const raw = ["**SAS @ OKC — structural lean**", "", longPara, "", "Fade inflated totals if pace stalls."].join(
+    "\n",
+  );
+  const out = condensedPreviewFromUrTakeResponse(raw);
+  assert.ok(out.bodyChunk.length > 0);
+  assert.ok(!/\bCar\b/.test(out.bodyChunk));
+  assert.ok(out.bodyChunk.endsWith(".") || out.bodyChunk.endsWith("…"));
+});

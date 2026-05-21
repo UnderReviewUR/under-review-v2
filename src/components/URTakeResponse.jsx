@@ -10,6 +10,7 @@ import {
 } from "../lib/urTakeSharpBriefUi.js";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
+import { resolveParlayCombinedOddsDisplay } from "../lib/calculateParlayOdds.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -60,9 +61,10 @@ export default function URTakeResponse({
   liveScore,
   estimatedEdge,
   takeMeta = null,
+  structuralEdgeChip = null,
 }) {
-  const bodyWrapRef = useRef(null);
-  const [bodyExpandable, setBodyExpandable] = useState(false);
+  const primaryBodyRef = useRef(null);
+  const [primaryOverflow, setPrimaryOverflow] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
 
   const formattedTimestamp = formatUrTakeTimestampEt(timestamp);
@@ -79,6 +81,7 @@ export default function URTakeResponse({
         .filter((leg) => leg && typeof leg === "object" && String(leg.play ?? "").trim().length > 0)
         .slice(0, 12)
     : [];
+  const combinedParlayOdds = resolveParlayCombinedOddsDisplay(safeParlayLegs, parlayTotalOdds);
 
   const ee =
     estimatedEdge && typeof estimatedEdge === "object" && estimatedEdge.source === "estimated_edge"
@@ -123,15 +126,22 @@ export default function URTakeResponse({
 
   const shareBody = [whyNowDisplay, edgeDisplay].filter(Boolean);
 
+  const hasSecondaryBody =
+    Boolean(ee && eeModel) ||
+    (Array.isArray(caveats) && caveats.some((c) => String(c ?? "").trim())) ||
+    safeParlayLegs.length >= 2;
+
   useLayoutEffect(() => {
-    const el = bodyWrapRef.current;
+    const el = primaryBodyRef.current;
     if (!el) return;
     const cs = globalThis.getComputedStyle?.(el);
-    const lh = parseFloat(cs?.lineHeight || "0") || 23;
-    const threshold = lh * 4 + 2;
-    setBodyExpandable(el.scrollHeight > threshold);
-    if (el.scrollHeight <= threshold) setBodyExpanded(false);
-  }, [whyNowDisplay, edgeDisplay, caveats, ee]);
+    const lh = parseFloat(cs?.lineHeight || "0") || 28;
+    const threshold = lh * 3 + 2;
+    setPrimaryOverflow(el.scrollHeight > threshold);
+    if (el.scrollHeight <= threshold && !hasSecondaryBody) setBodyExpanded(false);
+  }, [whyNowDisplay, edgeDisplay, hasSecondaryBody]);
+
+  const showBodyExpand = !bodyExpanded && (primaryOverflow || hasSecondaryBody);
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">
@@ -148,6 +158,16 @@ export default function URTakeResponse({
       <div className="ur-v2-headline-wrap">
         <h2 className="ur-v2-headline">{String(headline ?? "")}</h2>
       </div>
+
+      {structuralEdgeChip?.label ? (
+        <p className="ur-v2-structural-edge-chip" aria-label={structuralEdgeChip.label}>
+          <span className="ur-v2-structural-edge-chip-kicker">Structural edge</span>
+          <span className="ur-v2-structural-edge-chip-player">{structuralEdgeChip.player}</span>
+          {structuralEdgeChip.oddsDisplay ? (
+            <span className="ur-v2-structural-edge-chip-odds">{structuralEdgeChip.oddsDisplay}</span>
+          ) : null}
+        </p>
+      ) : null}
 
       <div className="ur-v2-pill-row">
         <span className="ur-v2-mini-pill">{edgeTypePill}</span>
@@ -174,12 +194,27 @@ export default function URTakeResponse({
       ) : null}
 
       <div
-        ref={bodyWrapRef}
-        className={`ur-v2-body-copy${bodyExpandable && !bodyExpanded ? " ur-v2-body-prose-wrap--clamp" : ""}`}
+        ref={primaryBodyRef}
+        className={`ur-v2-body-primary${showBodyExpand ? " ur-v2-body-primary--clamp" : ""}`}
       >
         <p className="ur-v2-body-p">{whyNowDisplay}</p>
-        <p className="ur-v2-body-p">{edgeDisplay}</p>
+        <p className="ur-v2-body-p ur-v2-body-p--edge">{edgeDisplay}</p>
+      </div>
 
+      {showBodyExpand ? (
+        <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(true)}>
+          Full breakdown
+        </button>
+      ) : bodyExpanded && (primaryOverflow || hasSecondaryBody) ? (
+        <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(false)}>
+          Show less
+        </button>
+      ) : null}
+
+      <div
+        className={`ur-v2-body-secondary${bodyExpanded ? " ur-v2-body-secondary--open" : ""}`}
+        aria-hidden={!bodyExpanded}
+      >
         {ee && eeModel ? (
           <div className="ur-v2-ee-prose">
             <p className="ur-v2-body-p ur-v2-muted">
@@ -230,15 +265,8 @@ export default function URTakeResponse({
             })}
           </ul>
         ) : null}
-      </div>
 
-      {bodyExpandable && !bodyExpanded ? (
-        <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(true)}>
-          Full breakdown ↓
-        </button>
-      ) : null}
-
-      {safeParlayLegs.length >= 2 ? (
+        {safeParlayLegs.length >= 2 ? (
         <div className="ur-v2-parlay-block">
           <div className="ur-v2-parlay-title">Parlay legs</div>
           <div className="ur-v2-parlay-legs">
@@ -262,14 +290,15 @@ export default function URTakeResponse({
             );
             })}
           </div>
-          {parlayTotalOdds && parlayTotalOdds !== "TBD" ? (
+          {combinedParlayOdds ? (
             <div className="ur-v2-parlay-combined">
-              <div className="ur-v2-parlay-combined-label">Combined price {String(parlayTotalOdds)}</div>
-              <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(safeParlayLegs, parlayTotalOdds)}</div>
+              <div className="ur-v2-parlay-combined-label">Combined price {combinedParlayOdds}</div>
+              <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(safeParlayLegs, combinedParlayOdds)}</div>
             </div>
           ) : null}
         </div>
       ) : null}
+      </div>
 
       <div className="ur-v2-footer-row">
         {formattedTimestamp ? (
