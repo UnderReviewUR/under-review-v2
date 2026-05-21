@@ -3,7 +3,9 @@ import { condensedPreviewFromUrTakeResponse } from "./_dailyTakeCondensed.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { buildNbaUrTakeBoard } from "./nba.js";
 
-const STORAGE_PREFIX = "daily_take:v1:";
+/** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
+const STORAGE_PREFIX = "daily_take:v2:";
+const PREVIEW_TRIM_VERSION = 2;
 
 export function getEtDateKey(d = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -200,6 +202,7 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
   const payload = sanitizeDailyTakePreviewPayload({
     ok: true,
     dateKey,
+    previewTrimVersion: PREVIEW_TRIM_VERSION,
     generatedAt: new Date().toISOString(),
     sportHint: target.sportHint,
     question: target.question,

@@ -30,7 +30,9 @@ export default async function handler(req, res) {
 
     try {
       const cached = await readStoredDailyTake(dateKey);
-      if (cached?.ok) {
+      const trimVersion = Number(cached?.previewTrimVersion || 0);
+      const staleTrim = cached?.ok && trimVersion < 2;
+      if (cached?.ok && !staleTrim) {
         const safe = sanitizeDailyTakePreviewPayload(cached);
         if (!safe?.ok) {
           res.setHeader("Cache-Control", "public, max-age=60");
@@ -41,6 +43,15 @@ export default async function handler(req, res) {
           "public, s-maxage=3600, stale-while-revalidate=86400",
         );
         return res.status(200).json(safe);
+      }
+      if (staleTrim) {
+        console.log(
+          JSON.stringify({
+            event: "daily_take_preview_trim_cache_bust",
+            dateKey,
+            previewTrimVersion: trimVersion,
+          }),
+        );
       }
       if (cached && cached.ok === false) {
         res.setHeader("Cache-Control", "public, max-age=60");
