@@ -1,8 +1,11 @@
-import {
-  HOME_FEATURED_LEAN_MAX_CHARS,
-  HOME_FEATURED_REASON_MAX_CHARS,
-  polishFeaturedAnglePreviewField,
-} from "../../../shared/nbaHomePreviewFilter.js";
+import { trimToCompleteSentence } from "../../lib/textUtils.js";
+
+const HOME_FEATURED_LEAN_MAX_CHARS = 220;
+const HOME_FEATURED_REASON_MAX_CHARS = 420;
+
+function polishFeaturedAnglePreviewField(text, maxLen) {
+  return trimToCompleteSentence(String(text || "").trim(), maxLen);
+}
 
 function normalizeStatusClass(value) {
   const s = String(value || "").toLowerCase();

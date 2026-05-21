@@ -63,7 +63,6 @@ export function buildHomeTrackerCards({
       JSON.stringify({
         event: "home_tracker_nba_upcoming_empty",
         poolCount: nbaPool.length,
-        forcedPlayoffCount: forcedPlayoff.length,
         sample: nbaPool.slice(0, 2).map((g) => ({
           state: g?.state,
           validity: classifyNbaGame(g),

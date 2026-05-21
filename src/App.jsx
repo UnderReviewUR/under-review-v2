@@ -56,7 +56,7 @@ import {
   golfFeedUiMismatchesQuestionIntent,
 } from "../shared/golfTournamentIntent.js";
 import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
-import { trimToCompleteSentence } from "../shared/textUtils.js";
+import { trimToCompleteSentence } from "./lib/textUtils.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
