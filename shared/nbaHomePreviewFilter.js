@@ -61,8 +61,8 @@ export function filterIrrelevantPlayersFromPreviewText(text) {
     return IRRELEVANT_NAME_RE.test(joined) ? "" : joined;
   }
 
-  const redacted = raw.replace(IRRELEVANT_NAME_RE, "").replace(/\s+/g, " ").trim();
-  return IRRELEVANT_NAME_RE.test(redacted) ? "" : redacted;
+  // Entire chunk referenced a blocklisted player — drop it (no orphaned fragments like "and Car").
+  return "";
 }
 
 /**
