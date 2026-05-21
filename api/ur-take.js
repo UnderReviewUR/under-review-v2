@@ -77,6 +77,11 @@ import {
   GOLF_INTENT_WRONG_COURSE_FRAGMENTS,
 } from "../shared/golfTournamentIntent.js";
 import { augmentNbaRosterGroundingWithUi } from "../src/lib/nbaUiSurface.js";
+import { getNbaPropsForBoard, hydrateNbaPropsOdds } from "./_nbaProps.js";
+import {
+  countNbaActiveSlatePropSignals,
+  nbaBoardHasPostedPropMarkets,
+} from "../shared/nbaPostedPropMarkets.js";
 import {
   slimNbaPlayerStatRowForUrTake,
   slimPlayoffSeriesForBoard,
@@ -196,7 +201,7 @@ function resolveNbaPropsOddsForPrompt(nbaContext, nbaMatchup) {
     const h = String(g?.homeTeam?.abbr || "").toUpperCase();
     return (a === away && h === home) || (a === home && h === away);
   });
-  const gid = focus?.actionNetworkGameId;
+  const gid = focus?.actionNetworkGameId ?? base?.gameId ?? nbaContext?.sourceMeta?.propsOddsGameId;
   if (gid != null && nbaContext?.propsOddsByGameId?.[String(gid)]) {
     return nbaContext.propsOddsByGameId[String(gid)];
   }
@@ -1251,7 +1256,7 @@ function resolveOddsAvailabilityForSport({
         ? Object.values(nbaContext.spreads)
         : [];
     const hasSpread = spreadRows.some((s) => s?.current?.displayLine && !s?.lineUnavailable);
-    const hasAnProps = Boolean(nbaContext?.propsOdds?.hasPostedLines);
+    const hasAnProps = nbaBoardHasPostedPropMarkets(nbaContext);
     return hasProps || hasSpread || hasAnProps;
   }
   if (sportHint === "mlb") {
@@ -1912,7 +1917,10 @@ function buildNbaLiveNoPropSystemPromptBlock(gate, nbaContext) {
   const relevantPropCount = focusedGame
     ? props.filter((pl) => gameRowMatchesPropGame(pl?.game, focusedGame)).length
     : props.length;
-  if (!gate?.allowsLiveNarrative || !isLiveGame || relevantPropCount > 0) return "";
+  const hasPostedAnProps = nbaBoardHasPostedPropMarkets(nbaContext);
+  if (!gate?.allowsLiveNarrative || !isLiveGame || relevantPropCount > 0 || hasPostedAnProps) {
+    return "";
+  }
 
   return `NBA LIVE GAME RULE — PROP MARKETS UNAVAILABLE (SERVER — obey; never quote this header)
 Never surface technical errors, variable names, array names, HTTP status codes, or API details to users. Ever. No exceptions.
@@ -2025,13 +2033,12 @@ function hasNbaNoMarketHardFail(text) {
 }
 
 function isNbaNoMarketUpcomingSlate(nbaContext) {
-  const props = Array.isArray(nbaContext?.propLines) ? nbaContext.propLines : [];
   const games = Array.isArray(nbaContext?.todaysGames) ? nbaContext.todaysGames : [];
   const hasUpcoming = games.some((g) => {
     const state = String(g?.state || "").toLowerCase();
     return state !== "post";
   });
-  return props.length === 0 && hasUpcoming;
+  return !nbaBoardHasPostedPropMarkets(nbaContext) && hasUpcoming;
 }
 
 function buildNbaNoMarketHardFallback(question, nbaContext) {
@@ -2435,7 +2442,7 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
     hasMaterialNbaNewsImpact(newsImpact) &&
     (!targetedPlayer || (targetedTeam && affectedTeams.has(targetedTeam)));
   const directPropAsk = isDirectNbaPropAsk(question);
-  const activeSlatePropCount = Array.isArray(board?.propLines) ? board.propLines.length : 0;
+  const activeSlatePropCount = countNbaActiveSlatePropSignals(board);
   const hasTargetPlayerMarket = targetedPlayer
     ? (board?.propLines || []).some((pl) => propLineMatchesTargetedPlayer(pl, targetedPlayer))
     : false;
@@ -4899,7 +4906,25 @@ export default async function handler(req, res) {
   if (sportHint === "nba") {
     try {
       const nbaT0 = Date.now();
-      const fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
+      let fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
+      if (!nbaBoardHasPostedPropMarkets(fresh)) {
+        fresh = await hydrateNbaPropsOdds(fresh);
+      }
+      const kvProbe291185 = await getNbaPropsForBoard(291185);
+      console.log(
+        JSON.stringify({
+          event: "ur_take_nba_props_kv_probe",
+          gameId: 291185,
+          kvHit: Boolean(kvProbe291185),
+          hasPostedLines: Boolean(kvProbe291185?.hasPostedLines),
+          playerCount: kvProbe291185?.playerCount ?? 0,
+          boardHasPropsOdds: Boolean(fresh?.propsOdds),
+          boardHasPostedLines: Boolean(fresh?.propsOdds?.hasPostedLines),
+          boardPropLinesCount: Array.isArray(fresh?.propLines) ? fresh.propLines.length : 0,
+          boardTodaysGamesCount: Array.isArray(fresh?.todaysGames) ? fresh.todaysGames.length : 0,
+          hydrateCalled: true,
+        }),
+      );
       nbaBoardBuildMs = Date.now() - nbaT0;
       nbaContext = {
         ...fresh,
