@@ -1,3 +1,4 @@
+import { sanitizeDailyTakePreviewPayload } from "./_dailyTakeSanitize.js";
 import { condensedPreviewFromUrTakeResponse } from "./_dailyTakeCondensed.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { buildNbaUrTakeBoard } from "./nba.js";
@@ -196,7 +197,7 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
   const responseText = String(json.response ?? json.take ?? "").trim();
   const condensed = condensedPreviewFromUrTakeResponse(responseText);
 
-  const payload = {
+  const payload = sanitizeDailyTakePreviewPayload({
     ok: true,
     dateKey,
     generatedAt: new Date().toISOString(),
@@ -208,7 +209,21 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
     headline: condensed.headline,
     bodyChunk: condensed.bodyChunk,
     closing: condensed.closing,
-  };
+  });
+
+  if (!payload?.ok) {
+    await setDurableJson(
+      key,
+      {
+        ok: false,
+        dateKey,
+        error: payload?.error || "preview_blocked_irrelevant_player",
+        generatedAt: new Date().toISOString(),
+      },
+      { ttlSeconds: DAY_TTL_SECONDS },
+    );
+    return payload;
+  }
 
   await setDurableJson(key, payload, { ttlSeconds: DAY_TTL_SECONDS });
   return payload;

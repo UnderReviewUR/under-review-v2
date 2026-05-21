@@ -57,10 +57,12 @@ export function filterIrrelevantPlayersFromPreviewText(text) {
     .map((s) => s.trim())
     .filter((s) => s && !IRRELEVANT_NAME_RE.test(s));
   if (kept.length > 0) {
-    return kept.join(" ").replace(IRRELEVANT_NAME_RE, "").replace(/\s+/g, " ").trim();
+    const joined = kept.join(" ").replace(IRRELEVANT_NAME_RE, "").replace(/\s+/g, " ").trim();
+    return IRRELEVANT_NAME_RE.test(joined) ? "" : joined;
   }
 
-  return raw.replace(IRRELEVANT_NAME_RE, "").replace(/\s+/g, " ").trim();
+  const redacted = raw.replace(IRRELEVANT_NAME_RE, "").replace(/\s+/g, " ").trim();
+  return IRRELEVANT_NAME_RE.test(redacted) ? "" : redacted;
 }
 
 /**

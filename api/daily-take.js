@@ -1,4 +1,5 @@
 import { applyCors } from "./_cors.js";
+import { sanitizeDailyTakePreviewPayload } from "./_dailyTakeSanitize.js";
 import {
   generateDailyTakePreview,
   getEtDateKey,
@@ -30,11 +31,16 @@ export default async function handler(req, res) {
     try {
       const cached = await readStoredDailyTake(dateKey);
       if (cached?.ok) {
+        const safe = sanitizeDailyTakePreviewPayload(cached);
+        if (!safe?.ok) {
+          res.setHeader("Cache-Control", "public, max-age=60");
+          return res.status(404).json({ ok: false, error: safe?.error || "preview_sanitized_empty" });
+        }
         res.setHeader(
           "Cache-Control",
           "public, s-maxage=3600, stale-while-revalidate=86400",
         );
-        return res.status(200).json(cached);
+        return res.status(200).json(safe);
       }
       if (cached && cached.ok === false) {
         res.setHeader("Cache-Control", "public, max-age=60");

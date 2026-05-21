@@ -22,3 +22,8 @@ test("filterIrrelevantPlayersFromPreviewText drops Biyombo sentences", () => {
   assert.ok(!/biyombo/i.test(out));
   assert.match(out, /OKC|Wembanyama/i);
 });
+
+test("filterIrrelevantPlayersFromPreviewText clears chunk that is only Biyombo fragment", () => {
+  const text = "Bismack Biyombo and Car";
+  assert.equal(filterIrrelevantPlayersFromPreviewText(text), "");
+});
