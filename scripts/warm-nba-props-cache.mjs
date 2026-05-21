@@ -3,7 +3,7 @@
  *
  *   $env:CRON_SECRET="..."; $env:WARM_BASE_URL="https://under-review.app"; npm run warm:nba-props
  *   npm run warm:nba-props -- --direct
- *   npm run warm:nba-props -- --direct --gameId=291185
+ *   npm run warm:nba-props -- --direct --gameId=<action_network_event_id>
  */
 import "dotenv/config";
 import { scrapeAndCacheNbaProps } from "../api/_nbaProps.js";

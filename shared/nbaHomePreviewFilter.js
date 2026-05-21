@@ -3,6 +3,7 @@
  */
 
 import { isLowImpactBlocklisted, LOW_IMPACT_PLAYER_BLOCKLIST } from "./lowImpactPlayerBlocklist.js";
+import { trimToCompleteSentence } from "./textUtils.js";
 
 /** @deprecated Use LOW_IMPACT_PLAYER_BLOCKLIST */
 export const NBA_HOME_PREVIEW_IRRELEVANT_PLAYERS = LOW_IMPACT_PLAYER_BLOCKLIST;
@@ -16,31 +17,17 @@ const IRRELEVANT_NAME_RE = new RegExp(
   "i",
 );
 
+/** Home featured angle + daily take preview field limits. */
+export const HOME_FEATURED_LEAN_MAX_CHARS = 220;
+export const HOME_FEATURED_REASON_MAX_CHARS = 420;
+
 /**
- * Trim to maxLen without cutting mid-word; prefer ending on sentence punctuation.
+ * Trim to maxLen on a complete sentence boundary only.
  * @param {string} text
  * @param {number} maxLen
  */
 export function trimPreviewTextToCompleteSentences(text, maxLen) {
-  const raw = String(text || "").replace(/\s+/g, " ").trim();
-  if (!raw) return "";
-  if (raw.length <= maxLen) return raw;
-
-  const slice = raw.slice(0, maxLen);
-  const sentences = slice.match(/[^.!?]+[.!?]+/g);
-  if (sentences && sentences.length > 0) {
-    let out = "";
-    for (const s of sentences) {
-      const next = out ? `${out} ${s.trim()}` : s.trim();
-      if (next.length > maxLen) break;
-      out = next;
-    }
-    if (out.length >= 24) return out.trim();
-  }
-
-  const lastSpace = slice.lastIndexOf(" ");
-  if (lastSpace > 40) return `${slice.slice(0, lastSpace).trim()}…`;
-  return `${slice.trim()}…`;
+  return trimToCompleteSentence(text, maxLen);
 }
 
 /**
@@ -70,5 +57,14 @@ export function filterIrrelevantPlayersFromPreviewText(text) {
 export function polishHomePreviewField(text, maxLen) {
   const filtered = filterIrrelevantPlayersFromPreviewText(text);
   return trimPreviewTextToCompleteSentences(filtered, maxLen);
+}
+
+/**
+ * Featured angle card lean/reason — sentence-safe only.
+ * @param {string} text
+ * @param {number} maxLen
+ */
+export function polishFeaturedAnglePreviewField(text, maxLen) {
+  return trimToCompleteSentence(String(text || "").trim(), maxLen);
 }
 

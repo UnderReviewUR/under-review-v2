@@ -1,3 +1,9 @@
+import {
+  HOME_FEATURED_LEAN_MAX_CHARS,
+  HOME_FEATURED_REASON_MAX_CHARS,
+  polishFeaturedAnglePreviewField,
+} from "../../../shared/nbaHomePreviewFilter.js";
+
 function normalizeStatusClass(value) {
   const s = String(value || "").toLowerCase();
   if (!s) return "";
@@ -121,8 +127,8 @@ async function fetchGeneratedCopy(seed) {
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || typeof data !== "object") return null;
-    const lean = String(data.lean || "").trim();
-    const reason = String(data.reason || "").trim();
+    const lean = polishFeaturedAnglePreviewField(data.lean, HOME_FEATURED_LEAN_MAX_CHARS);
+    const reason = polishFeaturedAnglePreviewField(data.reason, HOME_FEATURED_REASON_MAX_CHARS);
     if (!lean || !reason) return null;
     return { lean, reason };
   } catch {
@@ -198,8 +204,8 @@ export async function buildDailyFeaturedAngleCard({ nbaGames, nbaData }) {
     accentColor: "#FF6B00",
     sportBadge: "NBA",
     matchup,
-    lean,
-    reason,
+    lean: polishFeaturedAnglePreviewField(lean, HOME_FEATURED_LEAN_MAX_CHARS),
+    reason: polishFeaturedAnglePreviewField(reason, HOME_FEATURED_REASON_MAX_CHARS),
     timestamp: `Today's read · updated ${updatedLabel}`,
     prompt: `Tonight the sharpest pre-tip angle is ${matchup}. Give me one best lean, one specific reason, and one live trigger to track at tip.`,
   };

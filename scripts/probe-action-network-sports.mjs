@@ -182,7 +182,15 @@ for (const sport of ["f1", "formula1", "formula-1", "nascar", "motorsports", "ra
   }
 }
 
-// NBA control
-report.sports.nba_control = await probeGameProps(291185, "nba_okc_sas");
+// NBA — first scheduled/live game from today's scoreboard
+const nbaSb = await probeScoreboard("nba", `&date=${today}`);
+report.sports.nba = { scoreboard: nbaSb };
+const nbaFull = await fetchJson(nbaSb.url);
+const nbaGames = Array.isArray(nbaFull.body?.games) ? nbaFull.body.games : [];
+const nbaPick =
+  nbaGames.find((g) => /sched|live/i.test(String(g.status || g.real_status || ""))) || nbaGames[0];
+if (nbaPick?.id) {
+  report.sports.nba.props = await probeGameProps(nbaPick.id, "scoreboard_pick");
+}
 
 console.log(JSON.stringify(report, null, 2));
