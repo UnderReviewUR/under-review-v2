@@ -52,27 +52,77 @@ export function getTomorrowEtDateString(todayET) {
   return getEtDateString(next);
 }
 
+/**
+ * @param {string} todayET YYYY-MM-DD
+ * @returns {string} YYYY-MM-DD
+ */
+export function getYesterdayEtDateString(todayET) {
+  const base = String(todayET || getEtDateString()).trim();
+  const [y, m, d] = base.split("-").map(Number);
+  const noonUtc = Date.UTC(y, m - 1, d, 17, 0, 0);
+  const prev = new Date(noonUtc - 24 * 60 * 60 * 1000);
+  return getEtDateString(prev);
+}
+
 function etDateTokens(todayET, tomorrowET) {
+  const yesterdayET = getYesterdayEtDateString(todayET);
   return new Set(
-    [todayET, tomorrowET]
+    [yesterdayET, todayET, tomorrowET]
       .filter(Boolean)
       .map((d) => String(d).replace(/-/g, "").trim()),
   );
 }
 
 /**
+ * Playable = not explicitly finished/cancelled. Empty/unknown status is included (playoff boards vary).
  * @param {string | null | undefined} status
  * @param {string | null | undefined} realStatus
  */
 export function isActionNetworkScheduledOrLive(status, realStatus) {
-  const s = `${status || ""} ${realStatus || ""}`.toLowerCase();
-  if (!s.trim()) return false;
-  if (/final|complete|closed|cancel|postpon|delay.*only|ended/.test(s)) return false;
+  const s = `${status || ""} ${realStatus || ""}`.toLowerCase().trim();
+  if (!s) return true;
+  if (/final|complete|closed|cancel|cancelled|abandon|postponed|ended|full.?time|ft\b/.test(s)) {
+    return false;
+  }
   if (/live|in_progress|in progress|halftime|half\b|quarter|\bq[1-4]\b|overtime|\bot\b/.test(s)) {
     return true;
   }
-  if (/sched|pregame|pre-game|pre\b|upcoming|not.?started/.test(s)) return true;
-  return s === "scheduled" || s === "live";
+  if (/sched|pregame|pre-game|pre\b|upcoming|not.?started|created|open|pending|delayed|time.?tbd|tbd/.test(s)) {
+    return true;
+  }
+  return !/complete|closed|final/.test(s);
+}
+
+/**
+ * @param {string} dateYmd
+ * @param {Record<string, unknown>[]} games
+ */
+export function logActionNetworkScoreboardProbe(dateYmd, games) {
+  const rows = (games || []).map((g) => {
+    const teams = Array.isArray(g?.teams) ? g.teams : [];
+    const homeRow = g?.home_team_id != null ? teams.find((t) => t?.id === g.home_team_id) : null;
+    const awayRow = teams.find((t) => t?.id !== g?.home_team_id) || teams[0];
+    const passesFilter = isActionNetworkScheduledOrLive(g.status, g.real_status);
+    return {
+      id: g.id,
+      status: g.status ?? null,
+      real_status: g.real_status ?? null,
+      start_time: g.start_time ?? null,
+      home_team_id: g.home_team_id ?? null,
+      away: awayRow?.abbr || awayRow?.display_name || null,
+      home: homeRow?.abbr || homeRow?.display_name || null,
+      passesFilter,
+    };
+  });
+  console.log(
+    JSON.stringify({
+      event: "nba_playoff_slate_action_network",
+      dateYmd,
+      rawGameCount: rows.length,
+      playableCount: rows.filter((r) => r.passesFilter).length,
+      games: rows,
+    }),
+  );
 }
 
 /**
@@ -156,6 +206,7 @@ export async function fetchActionNetworkNbaScoreboardForDate(dateYmd) {
   }
   const data = await res.json();
   const games = Array.isArray(data?.games) ? data.games : [];
+  logActionNetworkScoreboardProbe(ymd, games);
 
   /** @type {ReturnType<typeof mapActionNetworkGameToSlateGame>[]} */
   const out = [];
@@ -241,8 +292,9 @@ export async function refreshNbaPlayoffGamesKvForEtDates(todayET, tomorrowET, st
     if (!opts.force && store?.getDurableJson) {
       const existing = await store.getDurableJson(key);
       const age = Date.now() - Number(existing?.refreshedAtMs || 0);
-      if (existing?.refreshedAtMs && age < REFRESH_MAX_AGE_MS) {
-        results.push({ dateYmd: ymd, key, cached: true, gameCount: existing?.games?.length ?? 0 });
+      const cachedCount = Number(existing?.games?.length ?? 0);
+      if (existing?.refreshedAtMs && age < REFRESH_MAX_AGE_MS && cachedCount > 0) {
+        results.push({ dateYmd: ymd, key, cached: true, gameCount: cachedCount });
         continue;
       }
     }

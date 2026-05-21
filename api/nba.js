@@ -18,6 +18,9 @@ import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 import {
+  getEtDateString,
+  getTomorrowEtDateString,
+  getYesterdayEtDateString,
   readNbaPlayoffSlateGamesFromKv,
   refreshNbaPlayoffGamesKvForEtDates,
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
@@ -569,9 +572,40 @@ function mergePlayoffSlateIntoGames(games, playoffRows) {
 
 /** Action Network KV playoff slate + ESPN when upstream feeds return an empty ET slate. */
 async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
+  const todayEtResolved = todayET || getEtDateString();
+  const tomorrowEtResolved = tomorrowET || getTomorrowEtDateString(todayEtResolved);
+  const yesterdayEtResolved = getYesterdayEtDateString(todayEtResolved);
+  console.log(
+    JSON.stringify({
+      event: "nba_slate_action_network_dates",
+      todayET: todayEtResolved,
+      tomorrowET: tomorrowEtResolved,
+      yesterdayET: yesterdayEtResolved,
+      scoreboardYmd: [yesterdayEtResolved, todayEtResolved, tomorrowEtResolved].map((d) =>
+        String(d).replace(/-/g, ""),
+      ),
+    }),
+  );
+
   const store = { getDurableJson, setDurableJson };
-  await refreshNbaPlayoffGamesKvForEtDates(todayET, tomorrowET, store);
-  const actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(todayET, tomorrowET, store);
+  await refreshNbaPlayoffGamesKvForEtDates(todayEtResolved, tomorrowEtResolved, store, {
+    force: !games?.length,
+  });
+  let actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(
+    todayEtResolved,
+    tomorrowEtResolved,
+    store,
+  );
+  if (!actionNetworkGames.length) {
+    await refreshNbaPlayoffGamesKvForEtDates(todayEtResolved, tomorrowEtResolved, store, {
+      force: true,
+    });
+    actionNetworkGames = await readNbaPlayoffSlateGamesFromKv(
+      todayEtResolved,
+      tomorrowEtResolved,
+      store,
+    );
+  }
   let merged = mergePlayoffSlateIntoGames(games, actionNetworkGames);
   let checkedEspn = false;
 
