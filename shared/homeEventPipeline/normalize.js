@@ -17,6 +17,11 @@ import {
   getDisplayableF1NextRace,
   isDisplayableValidity,
 } from "../eventValidity.js";
+import {
+  GOLF_HOME_UPCOMING_WINDOW_MS,
+  golfEventStartMs,
+  resolveGolfPrimaryEvent,
+} from "../golfHomeEventSelection.js";
 import { isF1RaceWeekendWindow } from "../slateModulePriority.js";
 import {
   f1EventKey,
@@ -206,7 +211,7 @@ export function normalizeF1Race(race, f1Data, nowMs = Date.now()) {
 /** Golf tournament as one home event; null if finished or outside home validity window. */
 export function normalizeGolfTournament(golfData, nowMs = Date.now()) {
   if (!golfData || typeof golfData !== "object") return null;
-  const ev = golfData.currentEvent || golfData.tournament || null;
+  const ev = resolveGolfPrimaryEvent(golfData, nowMs);
   if (!ev) return null;
 
   const v = classifyGolfEvent(ev, nowMs);
@@ -215,17 +220,13 @@ export function normalizeGolfTournament(golfData, nowMs = Date.now()) {
   const id = golfSnapshotKey(golfData);
   if (!id) return null;
 
-  const startMs = Number.isFinite(ev?.startTs)
-    ? ev.startTs
-    : parseEventStartMs(ev.startDate || ev.date);
+  const startMs = golfEventStartMs(ev, nowMs);
   let endMs = Number.isFinite(ev?.endTs) ? ev.endTs : parseEventStartMs(ev.endDate);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
     endMs = startMs + 4 * 24 * 60 * 60 * 1000;
   }
   if (Number.isFinite(endMs) && endMs <= nowMs) return null;
 
-  /* Majors / big events: show on Home up to 14 days before first tee (ET-relative via parseEventStartMs). */
-  const GOLF_HOME_UPCOMING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
   if (v === EVENT_VALIDITY.UPCOMING && Number.isFinite(startMs)) {
     const delta = startMs - nowMs;
     if (delta < 0 || delta > GOLF_HOME_UPCOMING_WINDOW_MS) return null;

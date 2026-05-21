@@ -1,36 +1,21 @@
+import { classifyGolfEvent, EVENT_VALIDITY } from "../../shared/eventValidity.js";
 import {
-  classifyGolfEvent,
-  EVENT_VALIDITY,
-} from "../../shared/eventValidity.js";
+  GOLF_CARD_UPCOMING_WINDOW_MS,
+  golfEventStartMs,
+  isGolfBoardFinished,
+  pickGolfUpcomingFromBoard,
+  resolveGolfPrimaryEvent,
+} from "../../shared/golfHomeEventSelection.js";
 
-const GOLF_UPCOMING_WINDOW_MS = 72 * 60 * 60 * 1000;
-
-function parseMs(value) {
-  if (Number.isFinite(value)) return Number(value);
-  const ms = Date.parse(String(value || ""));
-  return Number.isNaN(ms) ? NaN : ms;
-}
-
-function isWithinUpcomingWindow(event, nowMs) {
-  const startMs = parseMs(event?.startDate || event?.date || event?.displayDate);
-  if (!Number.isFinite(startMs)) return false;
-  const delta = startMs - nowMs;
-  return delta >= 0 && delta <= GOLF_UPCOMING_WINDOW_MS;
-}
+export { golfEventStartMs, parseGolfDisplayDateStartMs } from "../../shared/golfHomeEventSelection.js";
 
 function pickGolfUpcomingEvent(golfData, nowMs) {
-  const candidates = [golfData?.tournament, golfData?.currentEvent]
-    .filter(Boolean)
-    .filter((e) => classifyGolfEvent(e, nowMs) === EVENT_VALIDITY.UPCOMING)
-    .filter((e) => isWithinUpcomingWindow(e, nowMs));
-  if (!candidates.length) return null;
-  return candidates.sort((a, b) => parseMs(a?.startDate) - parseMs(b?.startDate))[0];
+  return pickGolfUpcomingFromBoard(golfData, nowMs, GOLF_CARD_UPCOMING_WINDOW_MS);
 }
 
-/** Align with api/_golfProviders merge + ESPN `state` (e.g. post = complete). */
+/** Finished only when no upcoming tournament can replace a stale currentEvent. */
 export function isGolfEventFinished(golfData) {
-  const validity = classifyGolfEvent(golfData?.currentEvent || golfData?.tournament || null);
-  return validity === EVENT_VALIDITY.FINISHED;
+  return isGolfBoardFinished(golfData);
 }
 
 /**
@@ -40,7 +25,7 @@ export function isGolfEventFinished(golfData) {
  * - invalid: stale/finished/missing identity
  */
 export function getGolfHomeValidity(golfData, nowMs = Date.now()) {
-  const primary = golfData?.currentEvent || golfData?.tournament || null;
+  const primary = resolveGolfPrimaryEvent(golfData, nowMs);
   const validity = classifyGolfEvent(primary, nowMs);
   const upcomingEvent = pickGolfUpcomingEvent(golfData, nowMs);
   const lbSource = golfData?.currentEvent || primary;

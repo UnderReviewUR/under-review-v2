@@ -22,6 +22,8 @@ import {
   stripStaleGolfWeekArtifactsForIntent,
 } from "../shared/golfTournamentIntent.js";
 import { hydrateGolfBoardOdds } from "./_golfOddsApi.js";
+import { classifyGolfEvent, EVENT_VALIDITY } from "../shared/eventValidity.js";
+import { promoteUpcomingOverFinishedCurrent } from "../shared/golfHomeEventSelection.js";
 import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const GOLF_CUT_LINE_FEED_NOTE =
@@ -2391,6 +2393,20 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     );
   }
 
+  const nowMergeMs = Date.now();
+  if (outCurrent && classifyGolfEvent(outCurrent, nowMergeMs) === EVENT_VALIDITY.FINISHED) {
+    const promoted = promoteUpcomingOverFinishedCurrent({
+      currentEvent: outCurrent,
+      tournament: outTournament,
+      tourSchedule: tourScheduleOut,
+      nowMs: nowMergeMs,
+      buildFromRow: buildCurrentEventFromScheduleRow,
+    });
+    if (promoted && promoted !== outCurrent) {
+      outCurrent = promoted;
+    }
+  }
+
   return {
     currentEvent: outCurrent,
     leaderboard: outCurrent?.leaderboard ?? [],
@@ -2440,12 +2456,18 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
       fetchedAt: new Date().toISOString(),
       scheduleStaleSuppressed: suppressCurrent || undefined,
       bdlTournamentStaleDropped: tournament && !outTournament ? true : undefined,
+      upcomingPromotedOverFinished:
+        outCurrent &&
+        tournament &&
+        classifyGolfEvent(outCurrent, nowMergeMs) === EVENT_VALIDITY.UPCOMING
+          ? true
+          : undefined,
     },
   };
 }
 
 export async function getUnifiedGolfBoard() {
-  const cacheKey = "unified_golf_board_v24";
+  const cacheKey = "unified_golf_board_v25";
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
