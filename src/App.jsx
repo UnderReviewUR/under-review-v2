@@ -56,6 +56,7 @@ import {
   golfFeedUiMismatchesQuestionIntent,
 } from "../shared/golfTournamentIntent.js";
 import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
+import { getPlayoffHomeSlateFallbackGamesForNow } from "../shared/nbaPlayoffHomeSlateFallback.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
@@ -2287,6 +2288,9 @@ ${themeCss}
   }, [f1Data, displayableF1NextRace, cardExcludeSet]);
 
   const homeNbaCards = useMemo(() => {
+    const logHomeNbaCard = (branch, extra = {}) => {
+      console.log(JSON.stringify({ event: "home_nba_card_branch", branch, ...extra }));
+    };
     const toEtTipLabel = (startTimeUtc) => {
       const raw = String(startTimeUtc || "").trim();
       if (!raw) return "TBD ET";
@@ -2323,7 +2327,32 @@ ${themeCss}
       .filter(notExcluded)
       .sort(sortByTip);
 
-    const slateGames = pipelineGames.length > 0 ? pipelineGames : rawApiTodaysGames;
+    let slateGames = pipelineGames.length > 0 ? pipelineGames : rawApiTodaysGames;
+    const forcedPlayoffGames = getPlayoffHomeSlateFallbackGamesForNow();
+
+    logHomeNbaCard("inputs", {
+      pipelineCount: homePipeline?.nbaGamesForHome?.length ?? 0,
+      pipelineFilteredCount: pipelineGames.length,
+      rawApiCount: (nbaData?.todaysGames || []).length,
+      rawApiFilteredCount: rawApiTodaysGames.length,
+      forcedPlayoffCount: forcedPlayoffGames.length,
+      cardExcludeSize: cardExcludeSet.size,
+    });
+
+    if (!slateGames.length && forcedPlayoffGames.length > 0) {
+      slateGames = forcedPlayoffGames.filter(isHomeNbaCardState).filter(notExcluded).sort(sortByTip);
+      logHomeNbaCard("force_playoff_fallback", {
+        forcedGames: forcedPlayoffGames.map((g) => ({
+          id: g?.id,
+          state: g?.state,
+          away: g?.awayTeam?.abbr,
+          home: g?.homeTeam?.abbr,
+          startTimeUtc: g?.startTimeUtc,
+          validity: classifyNbaGame(g),
+        })),
+        slateAfterForce: slateGames.length,
+      });
+    }
 
     if (!slateGames.length) {
       const looseApiGames = (nbaData?.todaysGames || [])
@@ -2358,6 +2387,7 @@ ${themeCss}
             channel,
           };
         });
+        logHomeNbaCard("loose_api_recovery", { rowCount: rows.length });
         return [
           {
             id: "nba-playoffs-rows",
@@ -2373,6 +2403,53 @@ ${themeCss}
           },
         ];
       }
+      if (forcedPlayoffGames.length > 0) {
+        const rows = forcedPlayoffGames.map((g, i) => {
+          const away = g.awayTeam?.abbr || g.awayTeam?.name || "Away";
+          const home = g.homeTeam?.abbr || g.homeTeam?.name || "Home";
+          const seriesNum = getSeriesLabel(away, home);
+          const evKey = nbaEventKey(g);
+          const channel = String(g.channel || g.broadcast || "").trim();
+          const tipEt = toEtTipLabel(g.startTimeUtc);
+          return {
+            id: evKey || `nba-card-row-force-${i + 1}`,
+            nbaEventKey: evKey,
+            away,
+            home,
+            tipEt,
+            series: seriesNum ? `${seriesNum} tonight` : "Playoff game tonight",
+            channel,
+          };
+        });
+        logHomeNbaCard("off_day_blocked_by_forced_playoff", { rowCount: rows.length });
+        return [
+          {
+            id: "nba-playoffs-rows",
+            league: "NBA PLAYOFFS",
+            leagueColor: "#FF6B00",
+            title: "Tonight's games",
+            time: `${rows.length} game${rows.length === 1 ? "" : "s"}`,
+            network: "Tap a matchup",
+            blurb: "",
+            confirmed: true,
+            isNbaRowsCard: true,
+            nbaRows: rows,
+          },
+        ];
+      }
+      logHomeNbaCard("off_day_empty", {
+        sampleApiGames: (nbaData?.todaysGames || []).slice(0, 3).map((g) => ({
+          id: g?.id,
+          state: g?.state,
+          away: g?.awayTeam?.abbr,
+          home: g?.homeTeam?.abbr,
+          startTimeUtc: g?.startTimeUtc,
+          validity: classifyNbaGame(g),
+          displayable: isDisplayableValidity(classifyNbaGame(g)),
+          eventKey: nbaEventKey(g),
+          excluded: cardExcludeSet.has(nbaEventKey(g) || ""),
+        })),
+      });
       return [
         {
           id: "nba-default",
@@ -2418,6 +2495,8 @@ ${themeCss}
       const s = String(g?.state || "").toLowerCase();
       return s === "pre" || s === "scheduled";
     }).length;
+
+    logHomeNbaCard("tonight_rows", { rowCount: rows.length, preCount });
 
     return [
       {

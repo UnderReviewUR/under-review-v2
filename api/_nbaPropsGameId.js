@@ -2,17 +2,13 @@ import {
   NBA_PROPS_API_BASE,
   NBA_PROPS_BOOK_IDS_QUERY,
 } from "../shared/nbaPropsConstants.js";
+import {
+  getPlayoffHomeSlateFallbackGames,
+  NBA_PLAYOFF_HOME_SLATE_FALLBACK,
+} from "../shared/nbaPlayoffHomeSlateFallback.js";
 
 /** Hardcoded playoff lookups until full scoreboard resolver is wired everywhere. */
-const HARDCODED_GAMES = [
-  {
-    gameId: 291185,
-    homeAbbr: "OKC",
-    awayAbbr: "SAS",
-    dateYmd: "20260520",
-    tipoffMs: Date.parse("2026-05-21T00:30:00.000Z"),
-  },
-];
+const HARDCODED_GAMES = NBA_PLAYOFF_HOME_SLATE_FALLBACK;
 
 /**
  * @param {string} ymd YYYYMMDD
@@ -137,43 +133,13 @@ export function getDefaultNbaPropsScrapeTarget() {
   return getNbaPlayoffGameId("OKC", "SAS", "20260520");
 }
 
-function mapHardcodedRowToSlateGame(row) {
-  return {
-    id: row.gameId,
-    status: "Scheduled",
-    state: "pre",
-    statusCode: 1,
-    period: null,
-    clock: null,
-    awayTeam: {
-      name: row.awayAbbr,
-      abbr: row.awayAbbr,
-      score: null,
-    },
-    homeTeam: {
-      name: row.homeAbbr,
-      abbr: row.homeAbbr,
-      score: null,
-    },
-    startTimeUtc: new Date(row.tipoffMs).toISOString(),
-    startTimeSource: "hardcoded_playoff",
-    postseason: true,
-    actionNetworkGameId: row.gameId,
-  };
-}
-
 /**
  * Inject known playoff scoreboard rows when BDL/Odds miss tonight's ET slate.
  * @param {string} todayET YYYY-MM-DD
  * @param {string} [tomorrowET] YYYY-MM-DD
  */
 export function getHardcodedPlayoffSlateGamesForEtDates(todayET, tomorrowET) {
-  const tokens = new Set(
-    [todayET, tomorrowET]
-      .filter(Boolean)
-      .map((d) => String(d).replace(/-/g, "").trim()),
-  );
-  return HARDCODED_GAMES.filter((row) => tokens.has(row.dateYmd)).map(mapHardcodedRowToSlateGame);
+  return getPlayoffHomeSlateFallbackGames(todayET, tomorrowET);
 }
 
 /**

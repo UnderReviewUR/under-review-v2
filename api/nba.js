@@ -17,7 +17,7 @@ import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
-import { getHardcodedPlayoffSlateGamesForEtDates } from "./_nbaPropsGameId.js";
+import { getPlayoffHomeSlateFallbackGames } from "../shared/nbaPlayoffHomeSlateFallback.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -544,7 +544,7 @@ function nbaSlatePairKey(g) {
 }
 
 function mergeHardcodedPlayoffIntoSlate(games, todayET, tomorrowET) {
-  const hardcoded = getHardcodedPlayoffSlateGamesForEtDates(todayET, tomorrowET);
+  const hardcoded = getPlayoffHomeSlateFallbackGames(todayET, tomorrowET);
   if (!hardcoded.length) return games || [];
   const seen = new Set((games || []).map(nbaSlatePairKey).filter(Boolean));
   const out = [...(games || [])];
@@ -574,6 +574,22 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta) {
         },
       };
     }
+  }
+  if (merged.length > 0 && (!games || games.length === 0)) {
+    console.log(
+      JSON.stringify({
+        event: "nba_slate_finalize_recovered",
+        gameCount: merged.length,
+        primarySource: slateMeta.primarySource,
+        enrichmentSource: slateMeta.enrichmentSource,
+        matchups: merged.map((g) => ({
+          away: g?.awayTeam?.abbr,
+          home: g?.homeTeam?.abbr,
+          state: g?.state,
+          startTimeUtc: g?.startTimeUtc,
+        })),
+      }),
+    );
   }
   return { games: merged, slateMeta };
 }

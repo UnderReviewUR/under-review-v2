@@ -12,6 +12,7 @@ import {
   golfSnapshotKey,
 } from "../../../shared/homeEventDedup.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
+import { getPlayoffHomeSlateFallbackGamesForNow } from "../../../shared/nbaPlayoffHomeSlateFallback.js";
 
 function formatScore(value) {
   const n = Number(value || 0);
@@ -51,12 +52,43 @@ export function buildHomeTrackerCards({
       : `YTD · ${winRatePct}% hit rate · ROI ${roiLabel} · ${settled} settled`;
 
   const candidates = [];
-  const nbaUpcoming = (nbaGames || [])
+  let nbaPool = Array.isArray(nbaGames) ? nbaGames : [];
+  const forcedPlayoff = getPlayoffHomeSlateFallbackGamesForNow();
+  if (!nbaPool.length && forcedPlayoff.length > 0) {
+    console.log(
+      JSON.stringify({
+        event: "home_tracker_nba_force_playoff_fallback",
+        forcedCount: forcedPlayoff.length,
+        games: forcedPlayoff.map((g) => ({
+          id: g?.id,
+          state: g?.state,
+          away: g?.awayTeam?.abbr,
+          home: g?.homeTeam?.abbr,
+        })),
+      }),
+    );
+    nbaPool = forcedPlayoff;
+  }
+  const nbaUpcoming = nbaPool
     .filter((g) => isDisplayableValidity(classifyNbaGame(g)))
     .filter((g) => {
       const s = String(g?.state || "").toLowerCase();
       return s === "pre" || s === "scheduled";
     });
+  if (!nbaUpcoming.length) {
+    console.log(
+      JSON.stringify({
+        event: "home_tracker_nba_upcoming_empty",
+        poolCount: nbaPool.length,
+        forcedPlayoffCount: forcedPlayoff.length,
+        sample: nbaPool.slice(0, 2).map((g) => ({
+          state: g?.state,
+          validity: classifyNbaGame(g),
+          displayable: isDisplayableValidity(classifyNbaGame(g)),
+        })),
+      }),
+    );
+  }
   const mlbUpcoming = (mlbData?.games || [])
     .filter((g) => isDisplayableValidity(classifyMlbGame(g)))
     .filter((g) => g?.state === "pre");
