@@ -151,6 +151,16 @@ test("QA: bro tone flags AI jargon and long sentences", () => {
     "This is a single sentence that keeps going and going with filler words about the matchup and the injury report and the betting perspective and the line movement and the rotation and the usage and the pace and the scheme until it clearly exceeds forty words which should trigger regeneration.";
   const longLint = lintUrTakeOutput(longSent, { betIntegrityIssues: [] });
   assert.ok(longLint.criticalRegenerationCodes.includes("bro_tone_sentence_too_long"));
+
+  const bullets = lintUrTakeOutput(
+    "I'd need:\n- live odds\n- injury report\nWhat I can do instead: wait.",
+    { betIntegrityIssues: [] },
+  );
+  assert.ok(
+    bullets.criticalRegenerationCodes.some((c) =>
+      ["bro_tone_dash_bullet_line", "bro_tone_id_need_list", "bro_tone_what_instead"].includes(c),
+    ),
+  );
 });
 
 test("post-process strips triple decimals from user-facing output", () => {

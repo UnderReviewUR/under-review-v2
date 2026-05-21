@@ -1379,7 +1379,7 @@ function UrTakeTrustChips({ trust }) {
   const cq = String(trust.contextQuality || "").toLowerCase();
   const drivers = Array.isArray(trust.confidenceDrivers) ? trust.confidenceDrivers.filter(Boolean) : [];
   /** Hide routine metadata during normal reads — surface caution signals or confidence rationale. */
-  const show = cq === "low" || Boolean(trust.thinEvidence) || drivers.length > 0;
+  const show = cq === "low" || cq === "full" || Boolean(trust.thinEvidence) || drivers.length > 0;
   if (!show) return null;
 
   const chipStyle = {

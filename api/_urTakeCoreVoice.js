@@ -15,6 +15,15 @@ Never say: "structural angle," "rotation vacancy," "interior collapse," "from a 
 Always say what you actually think. If you're not sure, say you're not sure. If the line looks bad, say it looks bad. One clear thought per idea. Short sentences. Real language. Occasional mild profanity is fine when it fits — never corporate, never a press release.`;
 
 /** Phrase patterns that trigger bro-tone QA regeneration (display / output copy). */
+/** List-style / missing-data cop-out patterns (World Cup tone regression). */
+export const BRO_TONE_BANNED_FORMAT_PATTERNS = [
+  { code: "bro_tone_dash_bullet_line", re: /^\s*-\s+\S/m },
+  { code: "bro_tone_bullet_char_line", re: /^\s*•\s+\S/m },
+  { code: "bro_tone_id_need_list", re: /\bI'd need:\b[\s\S]{0,400}^\s*[-•]\s+/im },
+  { code: "bro_tone_what_instead", re: /\bWhat I can do instead:\b/i },
+  { code: "bro_tone_without_that_data", re: /\bWithout that data\b/i },
+];
+
 export const BRO_TONE_BANNED_PHRASE_PATTERNS = [
   /\bstructural angle\b/i,
   /\bstructural vacancy\b/i,
@@ -38,6 +47,6 @@ export const BRO_TONE_REGENERATION_SUFFIX = `
 
 [BRO VOICE — rewrite required]
 You sounded like an AI injury report. Rewrite in plain, direct, conversational English — like texting a friend who bets for real.
-No bullet lists. No formal section headers (no "STRUCTURAL REALITY", "MARKET READ", etc.). No banned jargon: structural angle/vacancy/edge, rotation vacancy, interior collapse, spacing loss, "from a betting perspective/standpoint," "it is worth noting/important to note," "this creates an opportunity."
+No bullet lists (no lines starting with "-" or "•"). No "I'd need:", "What I can do instead:", or "Without that data" cop-outs. No formal section headers (no "STRUCTURAL REALITY", "MARKET READ", etc.). No banned jargon: structural angle/vacancy/edge, rotation vacancy, interior collapse, spacing loss, "from a betting perspective/standpoint," "it is worth noting/important to note," "this creates an opportunity."
 Short sentences. One idea at a time. Say what you actually think. Keep every sentence under 40 words.
 `;

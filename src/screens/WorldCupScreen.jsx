@@ -4,7 +4,8 @@ import { ChatThread } from "../features/app/helpers.jsx";
 import WcGroupTable from "../components/world-cup/WcGroupTable.jsx";
 import WcMatchCard from "../components/world-cup/WcMatchCard.jsx";
 import WcBracket from "../components/world-cup/WcBracket.jsx";
-import { WC_2026_TEAMS } from "../data/wc2026Teams.js";
+import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
+import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
@@ -65,9 +66,20 @@ export default function WorldCupScreen({
   };
 
   const handleAskTeam = (team) => {
-    const prompt = `World Cup 2026: ${team.name} (Group ${team.group}) — Elo ${team.eloRating}, outright ${team.outrightOdds}. What's your UR Take on their path and best bets?`;
+    const groupTeams = getWcTeamsByGroup(team.group);
+    const rank = groupTeams.findIndex((t) => t.id === team.id);
+    const tier = wcStrengthTagForRank(rank >= 0 ? rank : 3);
+    const prompt = `World Cup 2026: ${team.name} (Group ${team.group}, ${tier}) — outright ${team.outrightOdds}. What's your UR Take on their path and best bets?`;
     submitWc(prompt);
   };
+
+  const wcQuickPrompts = [
+    "Who wins Group A?",
+    "Best group stage bet?",
+    "Dark horse to win it all?",
+    "Hardest group?",
+    "Who lifts the trophy?",
+  ];
 
   const renderMatchesList = (list, { fetchWeather = false } = {}) => {
     if (!list.length) {
@@ -227,8 +239,12 @@ export default function WorldCupScreen({
             </p>
             <div className="wc-team-detail-stats">
               <div>
-                <span className="wc-stat-label">Elo</span>
-                <span className="wc-stat-val">{selectedTeam.eloRating}</span>
+                <span className="wc-stat-label">Tier</span>
+                <span className="wc-stat-val">
+                  {wcStrengthTagForRank(
+                    getWcTeamsByGroup(selectedTeam.group).findIndex((t) => t.id === selectedTeam.id),
+                  )}
+                </span>
               </div>
               <div>
                 <span className="wc-stat-label">Outright</span>
@@ -258,7 +274,11 @@ export default function WorldCupScreen({
                       <div className="wc-team-card-body">
                         <span className="wc-team-card-name">{t.name}</span>
                         <span className="wc-team-card-meta">
-                          Grp {t.group} · Elo {t.eloRating} · {t.outrightOdds}
+                          Grp {t.group} ·{" "}
+                          {wcStrengthTagForRank(
+                            getWcTeamsByGroup(t.group).findIndex((x) => x.id === t.id),
+                          )}{" "}
+                          · {t.outrightOdds}
                         </span>
                       </div>
                     </button>
@@ -277,17 +297,26 @@ export default function WorldCupScreen({
       ) : null}
 
       <div className={urDockedChat ? "ur-docked-ask-shell" : "wc-ask-shell"}>
-        {urDockedChat ? (
-          <AskBar
-            inputRef={wcInputRef}
-            value={wcInput}
-            onChange={setWcInput}
-            onSubmit={() => submitWc()}
-            placeholder="Ask anything about the World Cup →"
-            btnColor="var(--wc-gold)"
-            {...askBarCommon}
-            dockedGradient
-          />
+        {!urDockedChat ? (
+          <>
+            <div className="wc-ask-label">Ask Anything — World Cup</div>
+            <AskBar
+              inputRef={wcInputRef}
+              value={wcInput}
+              onChange={setWcInput}
+              onSubmit={() => submitWc()}
+              placeholder="Ask anything about the World Cup →"
+              btnColor="var(--wc-gold)"
+              {...askBarCommon}
+            />
+            <div className="wc-quick-prompts" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {wcQuickPrompts.map((q) => (
+                <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)} style={{ fontSize: 11 }}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </>
         ) : (
           <AskBar
             inputRef={wcInputRef}
@@ -297,6 +326,7 @@ export default function WorldCupScreen({
             placeholder="Ask anything about the World Cup →"
             btnColor="var(--wc-gold)"
             {...askBarCommon}
+            dockedGradient
           />
         )}
       </div>

@@ -236,7 +236,7 @@ export function resolveEvidenceSparsityProfile({
 
   const cq = String(contextQuality || "").toLowerCase();
   const s = String(sportHint || "").toLowerCase();
-  const thinEvidence = cq === "low" || s === "generic" || s === "image_review";
+  const thinEvidence = cq === "low" || (s === "generic" && cq !== "full") || s === "image_review";
 
   return { sparseQuestion, thinEvidence };
 }

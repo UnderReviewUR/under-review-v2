@@ -146,6 +146,16 @@ export function getQuickPromptsForState(sport, eventState) {
     return ["Best mispriced match?", "Futures value on board?", "Surface specialist edge?", "Ace prop angle?"];
   }
 
+  if (sport === "worldcup") {
+    return [
+      "Who wins Group A?",
+      "Best group stage bet?",
+      "Dark horse to win it all?",
+      "Hardest group?",
+      "Who lifts the trophy?",
+    ];
+  }
+
   if (sport === "f1") {
     if (st === "live" || st === "mixed") {
       return ["Live race / session lean?", "SC restart angle?", "Points on offer?", "Team order play?"];

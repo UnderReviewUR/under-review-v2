@@ -17,6 +17,7 @@ import {
 import { logNbaInventedPlayerShadowEvents, scanNbaInventedPlayerShadow } from "./_urTakeNbaInventedPlayerShadow.js";
 import { runSportSpecificValidators } from "./_urTakeSportValidators/index.js";
 import {
+  BRO_TONE_BANNED_FORMAT_PATTERNS,
   BRO_TONE_BANNED_PHRASE_PATTERNS,
   BRO_TONE_REGENERATION_SUFFIX,
 } from "./_urTakeCoreVoice.js";
@@ -93,6 +94,14 @@ export function lintBroToneViolations(text) {
     if (m) {
       if (!criticalCodes.includes("bro_tone_ai_jargon")) criticalCodes.push("bro_tone_ai_jargon");
       events.push({ ruleCode: "bro_tone_ai_jargon", detail: m[0] });
+      break;
+    }
+  }
+
+  for (const { code, re } of BRO_TONE_BANNED_FORMAT_PATTERNS) {
+    if (re.test(raw)) {
+      if (!criticalCodes.includes(code)) criticalCodes.push(code);
+      events.push({ ruleCode: code });
       break;
     }
   }

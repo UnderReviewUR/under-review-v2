@@ -22,7 +22,7 @@ import {
   ipLimit,
 } from "./_rateLimitUrTake.js";
 import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
-import { buildWorldCupContext } from "./_wcContext.js";
+import { buildWorldCupUrTakeContext } from "./_wcUrTakeContext.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
   appendSportTabNudge,
@@ -1080,9 +1080,19 @@ function getContextQuality({
   mlbContext,
   nflContext,
   f1Context,
+  wcContext,
   matchupContext,
 }) {
   if (matchupContext) return "high";
+
+  if (
+    sportHint === "worldcup" &&
+    wcContext?.groups &&
+    typeof wcContext.groups === "object" &&
+    Object.keys(wcContext.groups).length >= 12
+  ) {
+    return "full";
+  }
 
   if (
     sportHint === "tennis_wta_profile" &&
@@ -1132,7 +1142,7 @@ function deriveConfidenceLabel({
   if (intent === "slip_review") score += 2;
   if (hasImage) score += 1;
   if (matchupContext) score += 1;
-  if (contextQuality === "high") score += 2;
+  if (contextQuality === "high" || contextQuality === "full") score += 2;
   if (contextQuality === "medium") score += 1;
 
   if (
@@ -4903,6 +4913,13 @@ export default async function handler(req, res) {
       console.warn("[ur-take] first-session guarantee board load failed:", err?.message || err);
     }
   }
+  if (
+    (sportHint === "generic" || sportHint === "image_review") &&
+    questionMentionsWorldCup(question)
+  ) {
+    sportHint = "worldcup";
+  }
+
   const detectedSport = sportHint;
   console.log("[ur-take] request:", {
     sport: detectedSport,
@@ -4915,6 +4932,15 @@ export default async function handler(req, res) {
   let mlbContext = mlbContextFromClient;
   let golfContextEffective = golfContext;
   let f1Context = f1ContextFromClient;
+  let wcContext = null;
+  if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
+    if (sportHint !== "worldcup") sportHint = "worldcup";
+    try {
+      wcContext = await buildWorldCupUrTakeContext();
+    } catch (err) {
+      console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
+    }
+  }
   if (sportHint === "nba") {
     try {
       const nbaT0 = Date.now();
@@ -5214,6 +5240,7 @@ export default async function handler(req, res) {
     mlbContext,
     nflContext,
     f1Context,
+    wcContext,
     matchupContext,
   });
 
@@ -6680,6 +6707,23 @@ Rules:
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
+  } else if (sportHint === "worldcup" && wcContext?.promptBlock) {
+    userPrompt = `You are answering a 2026 FIFA World Cup betting question.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcContext.promptBlock}
+
+Question:
+${question}
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Answer in plain conversational English — no bullet lists, no data-availability disclaimers.
+
+Rules:
+- Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
+- Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
+- Do not invent scores, lineups, or odds not supported by the context block.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -6738,20 +6782,6 @@ Rules:
 - If the sport is ambiguous, answer conservatively and do not invent specifics.
 - Do not make up games, players, or props that are not supported by the prompt.
 ${continuationRule}`;
-  }
-
-  if (
-    sportHint === "worldcup" ||
-    questionMentionsWorldCup(question)
-  ) {
-    try {
-      const wcContext = await buildWorldCupContext();
-      if (wcContext) {
-        userPrompt = `${wcContext}\n\n${userPrompt}`;
-      }
-    } catch (err) {
-      console.warn("[ur-take] buildWorldCupContext failed:", err?.message || err);
-    }
   }
 
   const messages = buildMessagesForAnthropic({
