@@ -5,7 +5,10 @@
 
 import { canonicalizeTeamAbbr } from "./gameLineSpread.js";
 import { isKvFresh } from "./selfHealingKv.js";
-import { getEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
+import {
+  getEtDateString,
+  getTomorrowEtDateString,
+} from "./nbaPlayoffSlateFromActionNetwork.js";
 
 /** Bust stale Action-Network-driven `nba_playoff_games_*` keys. */
 const KV_PREFIX = "nba_slate_bdl_v1_";
@@ -52,15 +55,18 @@ export function bdlGameStartEtDateYmd(g) {
 }
 
 /**
- * Tonight = not Final and tipoff calendar day is today ET.
+ * Playable on a given ET calendar day: not Final and tipoff date matches.
  * @param {Record<string, unknown>} mapped Slate row from mapBdlGameToSlateRow
- * @param {string} todayET YYYY-MM-DD
+ * @param {string} etDayYmd YYYY-MM-DD
  */
-export function isBdlTonightPlayableSlateGame(mapped, todayET) {
+export function isBdlEtDayPlayableSlateGame(mapped, etDayYmd) {
   if (!mapped || !isBdlStatusNotFinal(mapped.status)) return false;
   const startEt = bdlGameStartEtDateYmd(mapped);
-  return startEt === todayET;
+  return startEt === etDayYmd;
 }
+
+/** @deprecated alias — same as {@link isBdlEtDayPlayableSlateGame} */
+export const isBdlTonightPlayableSlateGame = isBdlEtDayPlayableSlateGame;
 
 function firstNonEmpty(...vals) {
   for (const v of vals) {
@@ -193,11 +199,19 @@ export async function fetchBdlGamesForDateIso(bdlKey, dateIso, opts = {}) {
 
 /**
  * @param {Record<string, unknown>[]} rows
+ * @param {string} etDayYmd YYYY-MM-DD
+ */
+export function filterBdlRowsForEtDay(rows, etDayYmd) {
+  const mapped = (rows || []).map(mapBdlGameToSlateRow);
+  return mapped.filter((g) => isBdlEtDayPlayableSlateGame(g, etDayYmd));
+}
+
+/**
+ * @param {Record<string, unknown>[]} rows
  * @param {string} todayET YYYY-MM-DD
  */
 export function filterBdlRowsToTonightSlate(rows, todayET) {
-  const mapped = (rows || []).map(mapBdlGameToSlateRow);
-  return mapped.filter((g) => isBdlTonightPlayableSlateGame(g, todayET));
+  return filterBdlRowsForEtDay(rows, todayET);
 }
 
 /**
@@ -226,17 +240,17 @@ export function slateGamesFromBdlKvPayload(payload) {
 /**
  * Self-healing: fresh KV → return; else BDL live → write KV → return.
  * @param {string} dateYmd YYYYMMDD
- * @param {string} todayET YYYY-MM-DD (for tonight filter)
+ * @param {string} etDayYmd YYYY-MM-DD calendar day for this KV key
  * @param {string} bdlKey
  * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
  */
-export async function resolveNbaBdlPlayoffSlateForDateYmd(dateYmd, todayET, bdlKey, store) {
+export async function resolveNbaBdlPlayoffSlateForDateYmd(dateYmd, etDayYmd, bdlKey, store) {
   const ymd = String(dateYmd || "").replace(/-/g, "").trim();
-  const todayEtResolved = todayET || getEtDateString();
+  const etDayResolved = etDayYmd || getEtDateString();
   const dateIso =
     ymd.length === 8
       ? `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`
-      : todayEtResolved;
+      : etDayResolved;
   const key = nbaBdlSlateKvKey(ymd);
 
   let payload = null;
@@ -248,7 +262,7 @@ export async function resolveNbaBdlPlayoffSlateForDateYmd(dateYmd, todayET, bdlK
 
   const cached = slateGamesFromBdlKvPayload(payload);
   if (isKvFresh(payload?.refreshedAtMs, REFRESH_MAX_AGE_MS) && cached.length) {
-    return cached.filter((g) => isBdlTonightPlayableSlateGame(g, todayEtResolved));
+    return cached.filter((g) => isBdlEtDayPlayableSlateGame(g, etDayResolved));
   }
 
   let rows = [];
@@ -263,19 +277,19 @@ export async function resolveNbaBdlPlayoffSlateForDateYmd(dateYmd, todayET, bdlK
       }),
     );
     if (cached.length) {
-      return cached.filter((g) => isBdlTonightPlayableSlateGame(g, todayEtResolved));
+      return cached.filter((g) => isBdlEtDayPlayableSlateGame(g, etDayResolved));
     }
     return [];
   }
 
-  const slateGames = filterBdlRowsToTonightSlate(rows, todayEtResolved);
+  const slateGames = filterBdlRowsForEtDay(rows, etDayResolved);
   console.log(
     JSON.stringify({
       event: "nba_playoff_slate_bdl",
       dateYmd: ymd,
       dateIso,
       rawGameCount: rows.length,
-      tonightCount: slateGames.length,
+      playableCount: slateGames.length,
       games: slateGames.map((g) => ({
         id: g.id,
         bdlGameId: g.bdlGameId,
@@ -323,11 +337,54 @@ export async function readNbaBdlPlayoffSlateForToday(todayET, store, bdlKey) {
 }
 
 /**
+ * 48h playoff window: today's ET slate first; if empty, tomorrow with slateDayLabel.
  * @param {string} todayET YYYY-MM-DD
- * @param {string} [tomorrowET] unused — kept for call-site compatibility
+ * @param {string} [tomorrowET] YYYY-MM-DD
+ * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson?: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
+ * @param {string} bdlKey
+ * @returns {Promise<{ games: ReturnType<typeof mapBdlGameToSlateRow>[], window: 'tonight'|'tomorrow'|'empty', primaryEtDate: string }>}
+ */
+export async function readNbaBdlPlayoffSlateWindow(todayET, tomorrowET, store, bdlKey) {
+  const today = todayET || getEtDateString();
+  const tomorrow = tomorrowET || getTomorrowEtDateString(today);
+  if (!bdlKey) {
+    return { games: [], window: "empty", primaryEtDate: today };
+  }
+
+  const todayGames = await resolveNbaBdlPlayoffSlateForDateYmd(
+    today.replace(/-/g, ""),
+    today,
+    bdlKey,
+    store,
+  );
+  if (todayGames.length > 0) {
+    return {
+      games: todayGames.map((g) => ({ ...g, slateDayLabel: "Tonight" })),
+      window: "tonight",
+      primaryEtDate: today,
+    };
+  }
+
+  const tomorrowGames = await resolveNbaBdlPlayoffSlateForDateYmd(
+    tomorrow.replace(/-/g, ""),
+    tomorrow,
+    bdlKey,
+    store,
+  );
+  return {
+    games: tomorrowGames.map((g) => ({ ...g, slateDayLabel: "Tomorrow" })),
+    window: tomorrowGames.length > 0 ? "tomorrow" : "empty",
+    primaryEtDate: tomorrow,
+  };
+}
+
+/**
+ * @param {string} todayET YYYY-MM-DD
+ * @param {string} [tomorrowET] YYYY-MM-DD
  * @param {{ getDurableJson: (key: string) => Promise<unknown>, setDurableJson?: (key: string, value: unknown, opts?: { ttlSeconds?: number }) => Promise<void> }} store
  * @param {string} bdlKey
  */
-export async function readNbaPlayoffSlateGamesFromBdlKv(todayET, _tomorrowET, store, bdlKey) {
-  return readNbaBdlPlayoffSlateForToday(todayET, store, bdlKey);
+export async function readNbaPlayoffSlateGamesFromBdlKv(todayET, tomorrowET, store, bdlKey) {
+  const window = await readNbaBdlPlayoffSlateWindow(todayET, tomorrowET, store, bdlKey);
+  return window.games;
 }

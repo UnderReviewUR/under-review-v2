@@ -23,6 +23,7 @@ import {
   enrichSlateGamesWithActionNetworkEventIds,
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
 import {
+  filterBdlRowsForEtDay,
   filterBdlRowsToTonightSlate,
   mapBdlGameToSlateRow,
   readNbaPlayoffSlateGamesFromBdlKv,
@@ -659,7 +660,7 @@ async function getTodaysGames(oddsKey, bdlKey) {
     bdlQueriedOk: false,
     bdlGameCount: 0,
     etDate: todayET,
-    etDateWindow: seasonCtx.postseason ? [todayET] : [todayET, tomorrowET],
+    etDateWindow: [todayET, tomorrowET],
     note: null,
   };
 
@@ -682,9 +683,27 @@ async function getTodaysGames(oddsKey, bdlKey) {
       slateMeta.bdlGameCount = mergedRows.length;
       if (mergedRows.length > 0 || seasonCtx.postseason) {
         const espnGames = await getNbaGamesFromEspnScoreboard(todayET, tomorrowET);
-        const mapped = seasonCtx.postseason
+        let mapped = seasonCtx.postseason
           ? filterBdlRowsToTonightSlate(mergedRows, todayET)
           : mergedRows.map(mapBdlGameRowToAppGame);
+        if (seasonCtx.postseason) {
+          mapped = mapped.map((g) => ({ ...g, slateDayLabel: "Tonight" }));
+          if (mapped.length === 0) {
+            const tomorrowRows = await fetchBdlGamesForDate(bdlKey, tomorrowET, {
+              postseason: true,
+            });
+            mapped = filterBdlRowsForEtDay(tomorrowRows, tomorrowET).map((g) => ({
+              ...g,
+              slateDayLabel: "Tomorrow",
+            }));
+            if (mapped.length > 0) {
+              slateMeta.etDateWindow = [todayET, tomorrowET];
+              slateMeta.slateTiming = "tomorrow";
+            }
+          } else {
+            slateMeta.slateTiming = "tonight";
+          }
+        }
         const games = espnGames.length
           ? enrichNbaGamesWithEspn(mapped, espnGames)
           : mapped;
@@ -729,15 +748,16 @@ async function getTodaysGames(oddsKey, bdlKey) {
 
   slateMeta.primarySource = slateMeta.bdlQueriedOk ? "bdl" : "none";
   if (slateMeta.bdlQueriedOk && slateMeta.bdlGameCount === 0) {
-    slateMeta.note = `BallDontLie returned no games for ${todayET} (ET).`;
-    if (oddsKey) slateMeta.note += " Odds API also returned no slate for today.";
+    slateMeta.note = `BallDontLie returned no games for ${todayET} or ${tomorrowET} (48h ET window).`;
+    if (oddsKey) slateMeta.note += " Odds API also returned no slate in that window.";
     else slateMeta.note += " Odds API was not queried (no key).";
   } else if (!bdlKey) {
-    slateMeta.note = "No BallDontLie API key; Odds API returned no games for today.";
+    slateMeta.note = "No BallDontLie API key; Odds API returned no games in the 48h ET window.";
   } else if (!slateMeta.bdlQueriedOk) {
-    slateMeta.note = "BallDontLie games request failed; Odds API returned no games for today.";
+    slateMeta.note =
+      "BallDontLie games request failed; Odds API returned no games in the 48h ET window.";
   } else {
-    slateMeta.note = "No games returned for today.";
+    slateMeta.note = "No verified NBA games in the next 48 hours (ET).";
   }
 
   const payload = await finalizeNbaTodaysSlate(

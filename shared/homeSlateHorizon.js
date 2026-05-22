@@ -1,49 +1,18 @@
 /**
  * Home + Live Snapshot time windows (single source of truth).
- * Home NBA/MLB slate uses milliseconds until end of current ET calendar day
- * (America/New_York), not a rolling 24h window — see getHomeSlateHorizonMs.
+ * Home NBA/MLB upcoming games use a rolling 48h lookahead (ET-oriented slate),
+ * not tonight-only / end-of-calendar-day.
  */
+
+/** Rolling pregame window for Home NBA/MLB classification. */
+export const HOME_SLATE_HORIZON_MS = 48 * 60 * 60 * 1000;
 
 /**
- * Milliseconds from now until the first instant of the next calendar day in
- * America/New_York, with a minimum of 1 hour so classification near midnight ET
- * does not drop games tipping very soon.
- * @param {number} [nowMs]
+ * @param {number} [_nowMs]
  * @returns {number}
  */
-export function getHomeSlateHorizonMs(nowMs = Date.now()) {
-  const tz = "America/New_York";
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  function etDayKey(ms) {
-    const parts = fmt.formatToParts(new Date(ms));
-    const y = parts.find((p) => p.type === "year")?.value;
-    const m = parts.find((p) => p.type === "month")?.value;
-    const d = parts.find((p) => p.type === "day")?.value;
-    return `${y}-${m}-${d}`;
-  }
-
-  const todayKey = etDayKey(nowMs);
-  let hi = nowMs + 25 * 60 * 60 * 1000;
-  while (etDayKey(hi) === todayKey && hi < nowMs + 96 * 60 * 60 * 1000) {
-    hi += 60 * 60 * 1000;
-  }
-
-  let left = nowMs;
-  let right = hi;
-  while (left < right) {
-    const mid = Math.floor((left + right) / 2);
-    if (etDayKey(mid) === todayKey) left = mid + 1;
-    else right = mid;
-  }
-
-  const rawHorizon = left - nowMs;
-  return Math.max(rawHorizon, 60 * 60 * 1000);
+export function getHomeSlateHorizonMs(_nowMs = Date.now()) {
+  return HOME_SLATE_HORIZON_MS;
 }
 
 /**

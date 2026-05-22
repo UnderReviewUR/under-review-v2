@@ -1,6 +1,6 @@
 /**
  * Home ingestion pipeline (partial centralization): normalizes feeds that power Home tab + Live Snapshot.
- * NBA/MLB rows use today's ET slate window (`getHomeSlateHorizonMs` in classify).
+ * NBA/MLB rows use a 48h ET lookahead (`getHomeSlateHorizonMs` in classify).
  * Today's Slate board filtering is aligned via `shared/todaySlateInputBundle.js` (same classify gates; golf uses `normalizeGolfTournament`).
  */
 

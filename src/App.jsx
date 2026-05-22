@@ -4326,6 +4326,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpNba}
             onUpgradePromptClick={openUpgradeModal}
+            getSeriesLabel={getSeriesLabel}
           />
         )}
 

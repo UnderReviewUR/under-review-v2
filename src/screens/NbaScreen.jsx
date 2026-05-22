@@ -4,7 +4,12 @@ import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuic
 import { NbaPlayerCard } from "../components/cards/NbaPlayerCard.jsx";
 import { filterNbaUiChipsForSlateAndInjuries } from "../lib/nbaUiSurface.js";
 import { resolveStatRowForUiChip } from "../../shared/nbaPropsBoardDisplay.js";
-import { formatNbaTipoffLocal, getEtHour24 } from "../lib/nbaTime.js";
+import {
+  formatNbaGameTipoffWithDay,
+  formatNbaSlateBannerLine,
+  formatNbaTipoffLocal,
+  getEtHour24,
+} from "../lib/nbaTime.js";
 import { nbaEventKey } from "../../shared/homeEventDedup.js";
 
 export default function NbaScreen({
@@ -24,8 +29,10 @@ export default function NbaScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  getSeriesLabel = null,
 }) {
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
+  const featuredGame = gamesForState[0] || null;
   const injuries = Array.isArray(nbaData?.injuries) ? nbaData.injuries : [];
   const playerChips = filterNbaUiChipsForSlateAndInjuries(gamesForState, injuries);
   const playerStats = Array.isArray(nbaData?.playerStats) ? nbaData.playerStats : [];
@@ -41,20 +48,39 @@ export default function NbaScreen({
   const slateNote = String(nbaData?.todaysGamesSlateMeta?.note || "").trim();
   const apiGamesLen = Array.isArray(nbaData?.todaysGames) ? nbaData.todaysGames.length : 0;
 
+  const featuredSeriesLabel =
+    featuredGame && typeof getSeriesLabel === "function"
+      ? getSeriesLabel(
+          featuredGame.awayTeam?.abbr,
+          featuredGame.homeTeam?.abbr,
+        )
+      : null;
+
   const bannerCounts =
-    gamesForState.length > 0
-      ? `${gamesForState.filter((g) => g.state === "in").length > 0 ? gamesForState.filter((g) => g.state === "in").length + " live · " : ""}${gamesForState.filter((g) => g.state === "pre").length > 0 ? gamesForState.filter((g) => g.state === "pre").length + " upcoming · " : ""}${gamesForState.length} on verified slate`
+    featuredGame
+      ? formatNbaSlateBannerLine(featuredGame, featuredSeriesLabel)
       : nbaLoading
         ? "Loading…"
         : !nbaData
           ? "Board loading — pull to refresh"
           : slateNote
-            ? "No NBA games in this window"
+            ? slateNote
             : apiGamesLen === 0
               ? getEtHour24() < 12
-                ? "Today's slate posts closer to tip — check back after noon"
-                : "No games tonight — next slate posts tomorrow"
-              : "Verified slate empty — off night or board still wiring";
+                ? "No verified NBA games in the next 48 hours — check back after noon ET"
+                : "NO VERIFIED NBA GAMES IN THIS WINDOW"
+              : "NO VERIFIED NBA GAMES IN THIS WINDOW";
+
+  const askPlaceholder = featuredGame
+    ? (() => {
+        const away = featuredGame.awayTeam?.abbr || featuredGame.awayTeam?.name || "Away";
+        const home = featuredGame.homeTeam?.abbr || featuredGame.homeTeam?.name || "Home";
+        const series = featuredSeriesLabel || "matchup";
+        const dayWord =
+          featuredGame.slateDayLabel === "Tomorrow" ? "tomorrow" : "tonight";
+        return `Ask about ${away} @ ${home} ${series} ${dayWord}`;
+      })()
+    : "Ask about any playoff matchup or prop in the next 48 hours";
 
   const urDockedChat = hasDockedBar && nbaMsgs.length > 0;
 
@@ -112,7 +138,17 @@ export default function NbaScreen({
                         <span className="nba-live-badge">● LIVE</span>
                       ) : (
                         <span className="nba-game-status">
-                          {isFinal ? "FINAL" : formatNbaTipoffLocal(g.startTimeUtc)}
+                          {isFinal
+                            ? "FINAL"
+                            : formatNbaGameTipoffWithDay(
+                                g,
+                                typeof getSeriesLabel === "function"
+                                  ? getSeriesLabel(
+                                      g.awayTeam?.abbr,
+                                      g.homeTeam?.abbr,
+                                    )
+                                  : null,
+                              )}
                         </span>
                       )}
                     </div>
@@ -135,7 +171,7 @@ export default function NbaScreen({
 
         {gamesForState.length === 0 && !nbaLoading && (
           <div className="section-divider" style={{ color: "var(--muted)", fontSize: 12 }}>
-            No verified NBA games in this window — UR Take will not attach tonight matchups or props.
+            NO VERIFIED NBA GAMES IN THIS WINDOW — nothing on the verified slate in the next 48 hours (ET).
           </div>
         )}
 
@@ -207,7 +243,7 @@ export default function NbaScreen({
             value={nbaInput}
             onChange={setNbaInput}
             onSubmit={() => submitNba()}
-            placeholder="Ask about any playoff matchup or prop tonight"
+            placeholder={askPlaceholder}
             btnColor="var(--nba)"
             {...askBarCommon}
           />
