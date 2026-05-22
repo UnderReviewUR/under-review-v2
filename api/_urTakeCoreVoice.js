@@ -43,6 +43,41 @@ export const BRO_TONE_BANNED_PHRASE_PATTERNS = [
   /\bmarket hasn't repriced\b/i,
 ];
 
+/** Strip banned jargon from structured `lean` (headline contract). */
+export function sanitizeLeanBroTone(lean) {
+  let s = String(lean || "").trim();
+  if (!s) return s;
+  const replacements = [
+    [/\bstructural angle\b/gi, "matchup edge"],
+    [/\bstructural vacancy\b/gi, "rotation hole"],
+    [/\bstructural edge\b/gi, "pricing edge"],
+    [/\brotation vacancy\b/gi, "rotation hole"],
+    [/\binterior collapse\b/gi, "paint mismatch"],
+    [/\bspacing loss\b/gi, "floor spacing hit"],
+    [/\bfrom a betting perspective\b/gi, "for bettors"],
+    [/\bfrom a betting standpoint\b/gi, "for bettors"],
+    [/\bit is worth noting\b/gi, ""],
+    [/\bit's worth noting\b/gi, ""],
+    [/\bit is important to note\b/gi, ""],
+    [/\bit's important to note\b/gi, ""],
+    [/\bthis creates an opportunity\b/gi, "that opens a spot"],
+    [/\bthe structural vacancy created by\b/gi, "the injury opened up"],
+    [/\bgiven the context of\b/gi, "with"],
+    [/\bmarket hasn't repriced\b/gi, "the line barely moved"],
+  ];
+  for (const [re, sub] of replacements) {
+    s = s.replace(re, sub);
+  }
+  s = s.replace(/\s{2,}/g, " ").replace(/\s+([.,!?])/g, "$1").trim();
+  if (s && !/^Lean:\s/i.test(s)) {
+    s = `Lean: ${s}`;
+  }
+  if (s && !/\.\s*$/.test(s)) {
+    s = `${s}.`;
+  }
+  return s.slice(0, 120);
+}
+
 export const BRO_TONE_REGENERATION_SUFFIX = `
 
 [BRO VOICE — rewrite required]

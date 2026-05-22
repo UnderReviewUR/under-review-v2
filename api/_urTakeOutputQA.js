@@ -20,6 +20,7 @@ import {
   BRO_TONE_BANNED_FORMAT_PATTERNS,
   BRO_TONE_BANNED_PHRASE_PATTERNS,
   BRO_TONE_REGENERATION_SUFFIX,
+  sanitizeLeanBroTone,
 } from "./_urTakeCoreVoice.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
 import { lintLeanContract } from "../shared/urTakeLean.js";
@@ -549,6 +550,18 @@ export function lintUrTakeOutput(text, options = {}) {
     if (!issues.includes(code)) issues.push(code);
   }
   groundingEvents = groundingEvents.concat(broTone.events || []);
+
+  const leanField = String(options.structuredLean || "").trim();
+  if (leanField) {
+    const leanBro = lintBroToneViolations(leanField);
+    for (const code of leanBro.criticalCodes || []) {
+      if (!critical.includes(code)) critical.push(code);
+      if (!issues.includes(code)) issues.push(code);
+    }
+    for (const ev of leanBro.events || []) {
+      groundingEvents.push({ ...ev, field: "lean" });
+    }
+  }
   if (extremeAssistPropVsAverage(raw, nbaCtx?.playerStats)) {
     issues.push("prop_line_extreme_vs_average");
     critical.push("prop_line_extreme_vs_average");

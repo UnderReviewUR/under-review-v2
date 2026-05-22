@@ -140,6 +140,24 @@ test("QA: report-style headers echo", () => {
   assert.ok(lint.criticalRegenerationCodes.includes("report_style_header_echo"));
 });
 
+test("QA: bro tone flags AI jargon on structured lean field", () => {
+  const leanLint = lintUrTakeOutput("THE PLAY: PASS", {
+    betIntegrityIssues: [],
+    structuredLean:
+      "Lean: structural angle on Scottie Scheffler. He's the only big name left.",
+  });
+  assert.ok(leanLint.criticalRegenerationCodes.includes("bro_tone_ai_jargon"));
+});
+
+test("sanitizeLeanBroTone strips banned jargon from lean headline", async () => {
+  const { sanitizeLeanBroTone } = await import("./_urTakeCoreVoice.js");
+  const out = sanitizeLeanBroTone(
+    "Lean: The structural angle on Scheffler is the play.",
+  );
+  assert.ok(!/\bstructural angle\b/i.test(out));
+  assert.match(out, /^Lean:/);
+});
+
 test("QA: bro tone flags AI jargon and long sentences", () => {
   const jargon = lintUrTakeOutput(
     "The sharpest structural angle is the rotation vacancy created by the injury.",

@@ -8,6 +8,7 @@
  */
 
 import { ensureLeanOnStructured } from '../../shared/urTakeLean.js';
+import { sanitizeLeanBroTone } from '../_urTakeCoreVoice.js';
 
 export const UR_TAKE_STRUCTURED_SCHEMA = {
   // Headline: "Lean: [direction]. [why in 15 words max]" or "Lean: Pass." / "Lean: No play."
@@ -269,7 +270,7 @@ export function repairStructuredForDelivery(response, sportHint) {
   base.call = clip(base.call, 100);
 
   const withLean = ensureLeanOnStructured(base);
-  base.lean = clip(String(withLean.lean || ''), 120);
+  base.lean = clip(sanitizeLeanBroTone(String(withLean.lean || '')), 120);
   if (base.lean.length < 8) {
     base.lean = clip('Lean: Pass.', 120);
   }

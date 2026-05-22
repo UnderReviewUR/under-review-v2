@@ -119,7 +119,8 @@ import {
   buildTennisStructuralQaContext,
 } from "../shared/structuralAngleValidation.js";
 /** Core bro-voice system instructions — canonical text in ./_urTakeCoreVoice.js */
-export { UR_TAKE_CORE_VOICE_PROMPT } from "./_urTakeCoreVoice.js";
+export { UR_TAKE_CORE_VOICE_PROMPT, sanitizeLeanBroTone } from "./_urTakeCoreVoice.js";
+import { tryBuildNbaGroundingRedirectStructured } from "./_urTakeGroundingRedirect.js";
 import { buildAllowlistLowerSetFromSnapshot } from "./_urTakeNbaInventedPlayerShadow.js";
 import {
   buildEnrichedMemoryPrompt,
@@ -7023,11 +7024,41 @@ You are responding to a Pro subscriber. Apply the following:
     let structuredResponse = null;
     /** Last non-empty Anthropic text for this QA attempt — used if post-process strips everything. */
     let lastNonEmptyRawModelText = "";
+    let nbaGroundingRedirectUsed = false;
+
+    if (
+      structuredModeRequested &&
+      sportHint === "nba" &&
+      nbaContext &&
+      nbaMatchup &&
+      nbaMatchupPool
+    ) {
+      const redirectStructured = tryBuildNbaGroundingRedirectStructured({
+        question: String(question || ""),
+        nbaContext,
+        nbaMatchup,
+        nbaMatchupPool,
+        nbaGroundingSnapshot,
+      });
+      if (redirectStructured) {
+        structuredResponse = redirectStructured;
+        nbaGroundingRedirectUsed = true;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_nba_grounding_redirect",
+            sport: "nba",
+            matchup: nbaMatchup?.label || null,
+          }),
+        );
+      }
+    }
 
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
-      structuredResponse = null;
+      if (!nbaGroundingRedirectUsed) {
+        structuredResponse = null;
+      }
       const broToneRepairSuffix =
         qaAttempt > 0 &&
         prevQaCriticalCodes.some((c) => String(c || "").startsWith("bro_tone_"))
@@ -7057,6 +7088,23 @@ You are responding to a Pro subscriber. Apply the following:
         })
           ? NBA_GROUNDING_REGENERATION_SUFFIX
           : "";
+      if (nbaGroundingRedirectUsed && structuredResponse) {
+        responseText = formatStructuredResponseAsUrTakeProse(structuredResponse);
+        responseDeep = null;
+        responseFormat = "plain";
+        const qaOptsRedirect = {
+          ...qaPostOptsBase,
+          structuredLean: String(structuredResponse.lean || ""),
+        };
+        lastQaPost = runUnderReviewPostProcess(responseText, qaOptsRedirect);
+        responseText = lastQaPost.text;
+        if (structuredResponse?.lean) {
+          structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
+        }
+        prevQaCriticalCodes = lastQaPost.qa.criticalRegenerationCodes || [];
+        break;
+      }
+
       let systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
@@ -7203,6 +7251,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           }
           structuredResponse = normalizeStructuredUrTakeResponse(parsedObj, sportHint);
           structuredResponse = repairStructuredForDelivery(structuredResponse, sportHint);
+          if (structuredResponse?.lean) {
+            structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
+          }
           if (sportHint === "nba" && nbaContext) {
             structuredResponse = applyNbaPropRecentFormContradiction(structuredResponse, {
               question,
@@ -7380,11 +7431,43 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           if (invalidAll.length > 0) {
             nbaPostValidationTriggered = true;
             nbaFallbackOrRepairUsed = true;
-            responseText = repairOrRegenerateInvalidMatchupOutput({
-              matchup: nbaMatchup,
-              pool: nbaMatchupPool,
-              invalidPlayers: invalidAll,
-            });
+            const firstInvalid = invalidAll[0];
+            const invalidKey = normalizePlayerNameKey(firstInvalid?.player);
+            const redirectStructured =
+              structuredModeRequested &&
+              nbaMatchupPool &&
+              invalidKey
+                ? tryBuildNbaGroundingRedirectStructured({
+                    question: String(question || ""),
+                    nbaContext,
+                    nbaMatchup,
+                    nbaMatchupPool,
+                    nbaGroundingSnapshot,
+                    forcedOffPlayer: {
+                      playerKey: invalidKey,
+                      teamAbbr: String(firstInvalid?.team || "").toUpperCase(),
+                      reason: "off_matchup",
+                    },
+                  })
+                : null;
+            if (redirectStructured) {
+              structuredResponse = redirectStructured;
+              responseText = formatStructuredResponseAsUrTakeProse(redirectStructured);
+              console.log(
+                JSON.stringify({
+                  event: "ur_take_nba_grounding_redirect",
+                  sport: "nba",
+                  source: "post_validation",
+                  invalidPlayers: invalidAll.slice(0, 3),
+                }),
+              );
+            } else {
+              responseText = repairOrRegenerateInvalidMatchupOutput({
+                matchup: nbaMatchup,
+                pool: nbaMatchupPool,
+                invalidPlayers: invalidAll,
+              });
+            }
             responseDeep = null;
             responseFormat = "plain";
             responseStatusShift = null;
@@ -7397,8 +7480,18 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseText = stripBannedPerformanceTrackerLines(responseText);
       if (responseDeep) responseDeep = stripBannedPerformanceTrackerLines(responseDeep);
 
-      lastQaPost = runUnderReviewPostProcess(responseText, qaPostOptsBase);
+      const qaOptsThisAttempt = {
+        ...qaPostOptsBase,
+        structuredLean:
+          structuredResponse && typeof structuredResponse === "object"
+            ? String(structuredResponse.lean || "")
+            : undefined,
+      };
+      lastQaPost = runUnderReviewPostProcess(responseText, qaOptsThisAttempt);
       responseText = lastQaPost.text;
+      if (structuredResponse?.lean) {
+        structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
+      }
       const groundingEvents = lastQaPost.qa.groundingEvents || [];
       if (sportHint === "nba" && groundingEvents.length > 0) {
         console.log(
