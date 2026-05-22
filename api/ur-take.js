@@ -8,6 +8,7 @@ import { sanitizeUrTakeBody } from "./_sanitizeUrTakeBody.js";
 import {
   BRO_TONE_REGENERATION_SUFFIX,
   QA_REGENERATION_SYSTEM_SUFFIX,
+  logLeanContractIfMissing,
   qaRequiresRegeneration,
   runUnderReviewPostProcess,
 } from "./_urTakeOutputQA.js";
@@ -285,9 +286,11 @@ function extractAnthropicText(data) {
 /** Dual-publish: turn validated structured JSON into prose so extractTakeFromResponse + UI still work. */
 function formatStructuredResponseAsUrTakeProse(s) {
   if (!s || typeof s !== "object") return "";
+  const lean = String(s.lean || "").trim();
   const call = String(s.call || "").trim();
   const conf = String(s.confidence || "").trim();
   const lines = [];
+  if (lean) lines.push(lean);
   if (call) lines.push(`THE PLAY: ${call}`);
   if (conf) lines.push(`CONFIDENCE\n${conf}`);
   if (s.whyNow) lines.push(String(s.whyNow).trim());
@@ -1495,6 +1498,7 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
     if (h.structured && typeof h.structured === "object") {
       const s = h.structured;
       row.structured = {
+        lean: s.lean != null ? String(s.lean).slice(0, 120) : undefined,
         call: s.call != null ? String(s.call).slice(0, 400) : undefined,
         whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
         edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
@@ -7208,6 +7212,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
           // Validate
           const validation = validateStructuredURTakeResponse(structuredResponse);
+          logLeanContractIfMissing(structuredResponse);
           if (!validation.valid) {
             console.error("[STRUCTURED_UR_TAKE_VALIDATION_ERROR]", {
               requestId,

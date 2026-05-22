@@ -1984,6 +1984,7 @@ export const baseCss = `
   .ur-v2-mode-ic{font-size:10px;line-height:1;}
   .ur-v2-headline-wrap{padding:10px 16px 8px;}
   .ur-v2-headline{font-family:var(--body-font);font-size:17px;line-height:1.2;font-weight:800;color:#fff;margin:0;letter-spacing:-0.02em;}
+  .ur-v2-headline.ur-v2-headline--lean{font-size:15px;font-weight:500;line-height:1.35;letter-spacing:0;color:#fff;}
   .ur-v2-pill-row{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px;}
   .ur-v2-mini-pill{font-size:10px;padding:4px 10px;border-radius:999px;background:#111;border:0.5px solid #1e1e1e;color:rgba(255,255,255,.72);font-family:var(--mono-font);letter-spacing:0.06em;text-transform:uppercase;}
   .ur-v2-mini-pill--muted{color:rgba(255,255,255,.45);}

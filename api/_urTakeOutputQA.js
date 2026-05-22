@@ -22,6 +22,7 @@ import {
   BRO_TONE_REGENERATION_SUFFIX,
 } from "./_urTakeCoreVoice.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
+import { lintLeanContract } from "../shared/urTakeLean.js";
 
 export { BRO_TONE_REGENERATION_SUFFIX };
 import {
@@ -80,6 +81,25 @@ const BRO_TONE_MAX_WORDS_PER_SENTENCE = 40;
  * @param {string} text
  * @returns {{ criticalCodes: string[], events: Array<{ ruleCode: string, detail?: string }> }}
  */
+
+/**
+ * Soft lean headline contract check (log only — no regeneration in Session 1a).
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function logLeanContractIfMissing(structured) {
+  const result = lintLeanContract(structured);
+  if (!result.ok) {
+    console.log(
+      JSON.stringify({
+        event: "lean_contract_missing",
+        code: result.code,
+        detail: result.detail || null,
+      }),
+    );
+  }
+  return result;
+}
+
 export function lintBroToneViolations(text) {
   const raw = String(text || "").trim();
   /** @type {string[]} */

@@ -15,6 +15,7 @@ import {
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
 import { FREE_QUESTION_LIMIT, freeTierApproachingLimit } from "./lib/freeTierLimits.js";
+import { synthesizeLeanLine } from "./lib/urTakeLean.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -231,6 +232,7 @@ function sanitizeStructuredBubbleShape(raw) {
   };
 
   const s = { ...raw };
+  s.lean = clip(s.lean, 120);
   s.call = clip(s.call, 8000) || "—";
   s.whyNow = clip(s.whyNow, 8000);
   s.edge = clip(s.edge, 8000);
@@ -266,6 +268,7 @@ function sanitizeStructuredBubbleShape(raw) {
       }))
       .slice(0, 12);
   }
+  s.lean = synthesizeLeanLine({ lean: s.lean, call: s.call, whyNow: s.whyNow });
   return s;
 }
 

@@ -5,6 +5,7 @@ import { stripUrTakeDeadEndCopy } from "../../../shared/urTakeSportRouting.js";
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
 import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
+import { synthesizeLeanLine } from "../../lib/urTakeLean.js";
 import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { polishUrTakeFollowUpPhrase } from "../../lib/polishUrTakeFollowUpPhrase.js";
@@ -1577,11 +1578,20 @@ function coerceStructuredForUrTakeCard(raw) {
       ? String(raw.parlayTotalOdds).slice(0, 48)
       : null;
 
+  const call = toStr(raw.call).trim() || "—";
+  const whyNow = toStr(raw.whyNow);
+  const lean = synthesizeLeanLine({
+    lean: toStr(raw.lean),
+    call,
+    whyNow,
+  });
+
   return {
     sport: String(raw.sport ?? "generic"),
-    call: toStr(raw.call).trim() || "—",
+    lean,
+    call,
     confidence: String(raw.confidence ?? "Medium"),
-    whyNow: toStr(raw.whyNow),
+    whyNow,
     edge: toStr(raw.edge),
     callType: String(raw.callType ?? "single"),
     caveats,
@@ -1705,6 +1715,7 @@ function UrTakeAiBubble({
           <URTakeResponse
             sport={s.sport}
             question={userQuestion}
+            lean={s.lean}
             call={s.call}
             confidence={s.confidence}
             whyNow={s.whyNow}

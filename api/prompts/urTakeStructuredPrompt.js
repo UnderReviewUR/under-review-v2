@@ -26,6 +26,7 @@ If the user or system requests structured output, respond with **ONLY** valid JS
 
 \`\`\`json
 {
+  "lean": "Lean: [direction]. [why in 15 words max — one sentence after the first period]. Or 'Lean: Pass.' / 'Lean: No play.' when signals conflict. Max 120 characters.",
   "call": "The specific play. E.g., 'ROBINSON O7.5 REB' or 'PARLAY: LAL -4.5, OKC +2.5'",
   "confidence": "High | Medium | Speculative (must match UR Take confidence tiers)",
   "whyNow": "One-line reason this play is valuable RIGHT NOW (specific to market state, not generic)",
@@ -53,10 +54,21 @@ If the user or system requests structured output, respond with **ONLY** valid JS
 }
 \`\`\`
 
+### lean (headline contract — required)
+
+- **Format:** \`Lean: [direction]. [why in 15 words max]\` as a single string, max **120 characters**.
+- **call** holds the bet market line only (player + line, side, or parlay label) — do **not** repeat the full lean essay in \`call\`.
+- **Pass / no edge:** use exactly \`Lean: Pass.\` or \`Lean: No play.\` when speculative or signals conflict (still set \`call\` to PASS or similar).
+
+Examples:
+- \`Lean: Wemby O11.5 REB. He's the only rebounder on SAS and the line hasn't moved.\`
+- \`Lean: Under 228.5. Both defenses are elite and this game will be slow.\`
+- \`Lean: Pass. Recent form and structural narrative are pointing in opposite directions.\`
+
 ### Enforcement Rules
 
 1. **ONLY return JSON.** No markdown backticks, no text before/after.
-2. **Every field required.** No omissions.
+2. **Every field required.** No omissions (including \`lean\`).
 3. **callType determines parlay fields:**
    - If \`callType === "parlay"\`: parlayLegs and parlayTotalOdds MUST be arrays/strings (not null)
    - If \`callType !== "parlay"\`: parlayLegs and parlayTotalOdds MUST be null
@@ -76,6 +88,7 @@ If the user or system requests structured output, respond with **ONLY** valid JS
 
 \`\`\`json
 {
+  "lean": "Lean: ROBINSON O7.5 REB. PHI is thin up front and he should see real minutes tonight.",
   "call": "ROBINSON O7.5 REB",
   "confidence": "High",
   "whyNow": "PHI's thin up front and Robinson should play real minutes tonight.",

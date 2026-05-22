@@ -8,6 +8,7 @@ import {
   inferMarketPill,
   pickSharpBriefHeadline,
 } from "../lib/urTakeSharpBriefUi.js";
+import { synthesizeLeanLine } from "../lib/urTakeLean.js";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 import { resolveParlayCombinedOddsDisplay } from "../lib/calculateParlayOdds.js";
@@ -47,6 +48,7 @@ function matchupPillText(gameStateLine, userQuestion) {
 export default function URTakeResponse({
   sport,
   question: userQuestion,
+  lean,
   call,
   confidence,
   whyNow,
@@ -89,7 +91,16 @@ export default function URTakeResponse({
       : null;
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
-  const headline = pickSharpBriefHeadline(callScrub, edgeDisplay, callType, sport);
+  const leanDisplay = scrubStructuredFaceText(
+    synthesizeLeanLine({ lean, call: callScrub, whyNow }),
+  );
+  const headline = pickSharpBriefHeadline(
+    leanDisplay,
+    callScrub,
+    edgeDisplay,
+    callType,
+    sport,
+  );
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
@@ -156,7 +167,7 @@ export default function URTakeResponse({
       </div>
 
       <div className="ur-v2-headline-wrap">
-        <h2 className="ur-v2-headline">{String(headline ?? "")}</h2>
+        <h2 className="ur-v2-headline ur-v2-headline--lean">{String(headline ?? "")}</h2>
       </div>
 
       {structuralEdgeChip?.label ? (

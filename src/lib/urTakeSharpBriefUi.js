@@ -95,8 +95,11 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
 const INJURY_LEAD =
   /^(out|questionable|doubtful|injury|injured|ruled|inactive|dnp|gtd|probable|game\s*time|downgraded|upgraded|status|roster|minutes\s*restriction)\b/i;
 
-/** Prefer edge-first headline; avoid opening on injury status lines. */
-export function pickSharpBriefHeadline(call, edge, callType, sport) {
+/** Prefer lean line, then call, then edge — avoid opening on injury status lines. */
+export function pickSharpBriefHeadline(lean, call, edge, callType, sport) {
+  const l = String(lean || "").trim();
+  if (l) return l.length > 140 ? `${l.slice(0, 137)}…` : l;
+
   const c = String(call || "").trim();
   const e = String(edge || "").trim();
   const firstCallLine = c.split("\n").map((l) => l.trim()).find(Boolean) || c;

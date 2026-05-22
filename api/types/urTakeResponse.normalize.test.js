@@ -27,9 +27,11 @@ test("normalize fixes confidence case and timestamp Z", () => {
     timestamp: "2026-05-07T18:00:00",
   };
   const n = normalizeStructuredUrTakeResponse(raw, "nba");
-  assert.equal(n.confidence, "High");
-  assert.match(n.timestamp, /Z$/);
-  const v = validateStructuredURTakeResponse(n);
+  const repaired = repairStructuredForDelivery(n, "nba");
+  assert.equal(repaired.confidence, "High");
+  assert.match(repaired.timestamp, /Z$/);
+  assert.match(String(repaired.lean), /^Lean:/);
+  const v = validateStructuredURTakeResponse(repaired);
   assert.equal(v.valid, true, v.errors?.join("; "));
 });
 
@@ -71,5 +73,7 @@ test("normalize maps sport from sportHint when enum wrong", () => {
     timestamp: "2026-05-07T18:00:00.000Z",
   };
   const n = normalizeStructuredUrTakeResponse(raw, "nba");
-  assert.equal(n.sport, "NBA");
+  const repaired = repairStructuredForDelivery(n, "nba");
+  assert.equal(repaired.sport, "NBA");
+  assert.match(String(repaired.lean), /^Lean:/);
 });

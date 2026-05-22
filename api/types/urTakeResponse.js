@@ -7,7 +7,16 @@
  * All fields required. Nullable fields explicitly marked.
  */
 
+import { ensureLeanOnStructured } from '../../shared/urTakeLean.js';
+
 export const UR_TAKE_STRUCTURED_SCHEMA = {
+  // Headline: "Lean: [direction]. [why in 15 words max]" or "Lean: Pass." / "Lean: No play."
+  lean: {
+    type: 'string',
+    minLength: 8,
+    maxLength: 120,
+  },
+
   // The specific play (e.g., "ROBINSON O7.5 REB")
   call: {
     type: 'string',
@@ -259,6 +268,12 @@ export function repairStructuredForDelivery(response, sportHint) {
   }
   base.call = clip(base.call, 100);
 
+  const withLean = ensureLeanOnStructured(base);
+  base.lean = clip(String(withLean.lean || ''), 120);
+  if (base.lean.length < 8) {
+    base.lean = clip('Lean: Pass.', 120);
+  }
+
   if (!['High', 'Medium', 'Speculative'].includes(base.confidence)) {
     base.confidence = 'Medium';
   }
@@ -351,6 +366,7 @@ export function validateStructuredURTakeResponse(response) {
 
   // Required top-level fields
   const requiredFields = [
+    'lean',
     'call',
     'confidence',
     'whyNow',
@@ -365,6 +381,19 @@ export function validateStructuredURTakeResponse(response) {
   for (const field of requiredFields) {
     if (!(field in response)) {
       errors.push(`Missing required field: ${field}`);
+    }
+  }
+
+  // Validate lean
+  if (response.lean !== undefined) {
+    if (typeof response.lean !== 'string') {
+      errors.push(`lean: must be string, got ${typeof response.lean}`);
+    } else if (response.lean.length < 8 || response.lean.length > 120) {
+      errors.push(
+        `lean: length must be 8-120, got ${response.lean.length}`
+      );
+    } else if (!/^Lean:\s*.+\./.test(response.lean.trim())) {
+      errors.push(`lean: must match Lean: [direction]. [why] format`);
     }
   }
 
