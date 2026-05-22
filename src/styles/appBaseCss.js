@@ -866,6 +866,60 @@ export const baseCss = `
     box-shadow:0 0 0 3px rgba(0,245,233,0.12);
     border-color:transparent;
   }
+  .ur-home-last-lean{
+    margin:14px 0 18px;
+    padding:14px 16px;
+    border-radius:14px;
+    border:0.5px solid rgba(0,245,233,0.22);
+    background:rgba(8,12,16,0.92);
+    box-sizing:border-box;
+  }
+  .ur-home-last-lean-label{
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:rgba(0,245,233,0.72);
+    margin:0 0 8px;
+  }
+  .ur-home-last-lean-body{
+    font-family:var(--body-font);
+    font-size:15px;
+    line-height:1.35;
+    font-weight:500;
+    color:#fff;
+    margin:0 0 8px;
+  }
+  .ur-home-last-lean-meta{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.06em;
+    color:rgba(255,255,255,0.45);
+    margin:0 0 10px;
+  }
+  .ur-home-last-lean-cta,
+  .ur-home-last-lean-upgrade-btn{
+    font-family:var(--mono-font);
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:none;
+    color:var(--cyan-bright);
+    background:transparent;
+    border:none;
+    padding:0;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .ur-home-last-lean-cta:hover,
+  .ur-home-last-lean-upgrade-btn:hover{opacity:0.88;}
+  .ur-home-last-lean-upgrade{margin-top:4px;}
+  .ur-home-last-lean-upgrade-text{
+    font-family:var(--body-font);
+    font-size:12px;
+    line-height:1.4;
+    color:rgba(255,255,255,0.55);
+    margin:0 0 8px;
+  }
   .home-surface-v1 .ask-bar::placeholder{
     font-size:15px;
     color:var(--muted);

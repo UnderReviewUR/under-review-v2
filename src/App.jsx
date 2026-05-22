@@ -15,6 +15,11 @@ import {
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
 import { FREE_QUESTION_LIMIT, freeTierApproachingLimit } from "./lib/freeTierLimits.js";
+import {
+  formatLastLeanSportLabel,
+  resolveMatchupLabelForLastLean,
+  saveUrLastLean,
+} from "./lib/urLastLean.js";
 import { synthesizeLeanLine } from "./lib/urTakeLean.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
@@ -633,6 +638,7 @@ ${themeCss}
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [freeUsedRevision, setFreeUsedRevision] = useState(0);
+  const [lastLeanRevision, setLastLeanRevision] = useState(0);
   const [freeLimitChipDismissedSession, setFreeLimitChipDismissedSession] = useState(() => {
     try {
       return sessionStorage.getItem("ur_free_limit_chip_dismissed") === "1";
@@ -1863,6 +1869,26 @@ ${themeCss}
       next[idx] = completeBubble;
       return next;
     });
+
+    if (!isUnlimited && structuredForBubble && !isApiSuccessFallback) {
+      const leanLine = String(structuredForBubble.lean || "").trim();
+      if (leanLine) {
+        const sportLabel =
+          formatLastLeanSportLabel(structuredForBubble.sport) ||
+          formatLastLeanSportLabel(sportForBubble || resolvedSport || effectiveSportHint);
+        const matchupLabel = resolveMatchupLabelForLastLean({
+          matchupContext: matchup || null,
+          sportHint: sportForBubble || resolvedSport || effectiveSportHint,
+          question: text,
+          nbaTodaysGames: nbaData?.todaysGames,
+          nbaFocusGameKey: nbaUrTakeFocusGameKey,
+        });
+        if (saveUrLastLean({ lean: leanLine, sport: sportLabel, matchup: matchupLabel, question: text })) {
+          setLastLeanRevision((n) => n + 1);
+        }
+      }
+    }
+
     if (fuTelemetryState) {
       const end = typeof performance !== "undefined" ? performance.now() : Date.now();
       telemetryUrTakeFollowUpResponseCompleted({
@@ -4058,6 +4084,11 @@ ${themeCss}
             pgaChampionshipOddsCard={pgaChampionshipOddsCard}
             firePrompt={firePrompt}
             prefillUrTakeQuestion={prefillUrTakeQuestion}
+            isUnlimited={isUnlimited}
+            freeUsedCount={freeUsedCount}
+            freeQuestionLimit={FREE_LIMIT}
+            lastLeanRevision={lastLeanRevision}
+            onOpenUpgrade={() => setShowUpgradeModal(true)}
             isNflSlateActive={isNflSlateActive}
             tickerNbaGames={tickerNbaGames}
             getSeriesLabel={getSeriesLabel}

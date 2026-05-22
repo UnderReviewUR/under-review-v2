@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import AskBar from "../components/AskBar.jsx";
+import HomeLastLeanCard from "../components/HomeLastLeanCard.jsx";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
@@ -37,6 +38,11 @@ export default function HomeScreen({
   pgaChampionshipOddsCard,
   firePrompt,
   prefillUrTakeQuestion,
+  isUnlimited = false,
+  freeUsedCount = 0,
+  freeQuestionLimit = 2,
+  lastLeanRevision = 0,
+  onOpenUpgrade,
   isNflSlateActive,
   tickerNbaGames,
   getSeriesLabel,
@@ -208,6 +214,15 @@ export default function HomeScreen({
           </button>
         </div>
       ) : null}
+
+      <HomeLastLeanCard
+        isUnlimited={isUnlimited}
+        freeUsedCount={freeUsedCount}
+        freeQuestionLimit={freeQuestionLimit}
+        lastLeanRevision={lastLeanRevision}
+        onAskAgain={(question, sportHint) => prefillUrTakeQuestion?.(question, sportHint || null)}
+        onOpenUpgrade={onOpenUpgrade}
+      />
 
       {starterQs.length > 0 ? (
         <section className="ur-home-starters" aria-labelledby="ur-home-starters-heading">
