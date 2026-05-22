@@ -4,7 +4,7 @@ import { stripUrTakeDeadEndCopy } from "../../../shared/urTakeSportRouting.js";
 
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
-import { FREE_QUESTION_LIMIT } from "../../lib/freeTierLimits.js";
+import { FREE_QUESTION_LIMIT, readFreeTierUsedToday } from "../../lib/freeTierLimits.js";
 import { synthesizeLeanLine } from "../../lib/urTakeLean.js";
 import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
 import { normalizeText } from "../../lib/normalizeText.js";
@@ -2101,15 +2101,7 @@ export function ChatThread({
     scrollBottom();
   }, [msgs, variant, bumpScrollToBottom]);
 
-  let weeklyUsed = 0;
-  try {
-    weeklyUsed = parseInt(
-      typeof localStorage !== "undefined" ? localStorage.getItem("ur_free_used") || "0" : "0",
-      10,
-    );
-  } catch {
-    weeklyUsed = 0;
-  }
+  const dailyUsed = readFreeTierUsedToday();
 
   const followUpDockSource =
     !hideFollowUpDock &&
@@ -2147,8 +2139,7 @@ export function ChatThread({
   const last = msgs?.length ? msgs[msgs.length - 1] : null;
   const showFreeFollowUpCue =
     accessTier === "free" &&
-    weeklyUsed === 1 &&
-    FREE_QUESTION_LIMIT === 2 &&
+    dailyUsed === FREE_QUESTION_LIMIT - 1 &&
     last &&
     last.role === "ai" &&
     !last.loading;

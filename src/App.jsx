@@ -14,7 +14,18 @@ import {
   telemetryUrTakeFollowUpSubmit,
   telemetryUrTakeFollowUpResponseCompleted,
 } from "./lib/urTakeTelemetry.js";
-import { FREE_QUESTION_LIMIT, freeTierApproachingLimit } from "./lib/freeTierLimits.js";
+import {
+  FREE_QUESTION_LIMIT,
+  freeTierApproachingLimit,
+  incrementFreeTierUsedToday,
+  isFreeTierQuotaAvailable,
+  readFreeTierUsedToday,
+} from "./lib/freeTierLimits.js";
+import {
+  UPGRADE_LIMIT_HIT_BODY,
+  UPGRADE_LIMIT_HIT_HEADLINE,
+  UPGRADE_MODAL_DAILY_TAGLINE,
+} from "./lib/proUpgradeCopy.js";
 import {
   formatLastLeanSportLabel,
   resolveMatchupLabelForLastLean,
@@ -661,11 +672,7 @@ ${themeCss}
 
   const freeUsedCount = useMemo(() => {
     void freeUsedRevision;
-    try {
-      return parseInt(localStorage.getItem("ur_free_used") || "0", 10);
-    } catch {
-      return 0;
-    }
+    return readFreeTierUsedToday();
   }, [freeUsedRevision]);
 
   const accessTierRef = useRef(accessTier);
@@ -1022,21 +1029,13 @@ ${themeCss}
   const canAsk = useCallback(() => {
     if (isUnlimited) return true;
 
-    const freeUsed = (() => {
-      try {
-        return parseInt(localStorage.getItem("ur_free_used") || "0", 10);
-      } catch {
-        return 0;
-      }
-    })();
-
-    if (freeUsed >= FREE_LIMIT) {
+    if (!isFreeTierQuotaAvailable(readFreeTierUsedToday(), FREE_LIMIT)) {
       setShowUpgradeModal(true);
       return false;
     }
 
     return true;
-  }, [isUnlimited]);
+  }, [isUnlimited, FREE_LIMIT]);
 
   // ── Image handling ─────────────────────────────────────────────────────────
   const processImageFile = useCallback(file => {
@@ -1809,13 +1808,8 @@ ${themeCss}
     }
 
     if (!isUnlimited) {
-      try {
-        const current = parseInt(localStorage.getItem("ur_free_used") || "0", 10);
-        localStorage.setItem("ur_free_used", String(current + 1));
-        setFreeUsedRevision((n) => n + 1);
-      } catch {
-        /* ignore */
-      }
+      incrementFreeTierUsedToday();
+      setFreeUsedRevision((n) => n + 1);
     }
 
     const sportTrackedForBubble = String(
@@ -5392,13 +5386,11 @@ fees. One price, unlimited reads.`,
           <div style={{position:"fixed",inset:0,background:"rgba(8,10,12,.92)",zIndex:101,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:24,maxWidth:380,width:"100%",textAlign:"center"}}>
               <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:16,whiteSpace:"pre-line"}}>
-                {`You've used your 2 free UR Takes.
+                {`${UPGRADE_LIMIT_HIT_HEADLINE}
 
-Pro unlocks unlimited takes, session memory,
-betting style personalization, and live game
-edge alerts.
+${UPGRADE_MODAL_DAILY_TAGLINE}
 
-$9.99/month · cancel anytime`}
+${UPGRADE_LIMIT_HIT_BODY}`}
               </div>
               <div style={{ marginBottom: 18, paddingBottom: 16, borderBottom: "1px solid var(--border-2)" }}>
                 <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontFamily: "var(--body-font)" }}>

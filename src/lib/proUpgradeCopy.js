@@ -3,15 +3,18 @@
  * Lead differentiators: full take + THE PLAY, session memory.
  */
 
-export const UPGRADE_LIMIT_HIT_HEADLINE = "You've used your 2 free UR Takes.";
+export const UPGRADE_LIMIT_HIT_HEADLINE =
+  "You've used your 3 free questions today — come back tomorrow or go Pro for unlimited access.";
 
 export const UPGRADE_LIMIT_HIT_BODY = `Pro members get the full take — not the summary. Session memory means the app knows your positions. THE PLAY block means it tells you exactly what to bet and why.
 
 $9.99/month · cancel anytime`;
 
+export const UPGRADE_MODAL_DAILY_TAGLINE = "3 free questions every day. Unlimited with Pro.";
+
 export function freeLimitChipMessage(remaining) {
-  const qWord = remaining === 1 ? "take" : "takes";
-  return `${remaining} free ${qWord} left — Pro gives the full read with THE PLAY, not the summary.`;
+  const qWord = remaining === 1 ? "question" : "questions";
+  return `${remaining} free ${qWord} left today — Pro gives the full read with THE PLAY, not the summary.`;
 }
 
 export const THREAD_UPGRADE_NUDGE_TEXT =

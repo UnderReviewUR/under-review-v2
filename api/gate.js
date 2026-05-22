@@ -1,7 +1,6 @@
 // api/gate.js
 // Tracks free-tier query usage and handles email gate.
-// Free tier: N lifetime free questions per email (never resets). Match src/lib/freeTierLimits.js.
-// Conversion: lifetime=2 is aggressive; consider weekly/daily reset — see freeTierLimits.js note.
+// Free tier: N questions per UTC calendar day per email. Client uses local midnight (src/lib/freeTierLimits.js).
 // Uses Vercel KV if available, falls back to in-memory (resets on cold start).
 // No user accounts. Identity = email stored in localStorage.
 
@@ -25,8 +24,20 @@ async function setRecord(email, record) {
   await setDurableJson(key, record, { ttlSeconds: GATE_TTL_SECONDS });
 }
 
-const FREE_QUERIES_LIFETIME = 2;
+const FREE_QUERIES_PER_DAY = 3;
 const TAKE_TOKEN_TTL_MS = 10 * 60 * 1000;
+
+function utcDateKey(ms = Date.now()) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function countQueriesToday(queries, nowMs = Date.now()) {
+  const day = utcDateKey(nowMs);
+  return (queries || []).filter((ts) => {
+    const n = Number(ts);
+    return Number.isFinite(n) && n > 0 && utcDateKey(n) === day;
+  }).length;
+}
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -90,13 +101,14 @@ export default async function handler(req, res) {
     const record = (await getRecord(email)) || { queries: [], emailVerified: true };
     const now = Date.now();
     const queries = record.queries || [];
+    const usedToday = countQueriesToday(queries, now);
 
-    if (queries.length >= FREE_QUERIES_LIFETIME) {
+    if (usedToday >= FREE_QUERIES_PER_DAY) {
       return res.status(200).json({
         ok: false,
         reason: "limit_reached",
-        used: queries.length,
-        limit: FREE_QUERIES_LIFETIME,
+        used: usedToday,
+        limit: FREE_QUERIES_PER_DAY,
       });
     }
 
@@ -124,21 +136,22 @@ export default async function handler(req, res) {
 
     const record = await getRecord(email) || { queries: [], emailVerified: true };
     const queries = record.queries || [];
+    const usedToday = countQueriesToday(queries);
 
-    if (queries.length >= FREE_QUERIES_LIFETIME) {
+    if (usedToday >= FREE_QUERIES_PER_DAY) {
       return res.status(200).json({
         allowed: false,
         reason: "limit_reached",
-        used: queries.length,
-        limit: FREE_QUERIES_LIFETIME,
+        used: usedToday,
+        limit: FREE_QUERIES_PER_DAY,
       });
     }
 
     return res.status(200).json({
       allowed: true,
-      used: queries.length,
-      remaining: FREE_QUERIES_LIFETIME - queries.length,
-      limit: FREE_QUERIES_LIFETIME,
+      used: usedToday,
+      remaining: FREE_QUERIES_PER_DAY - usedToday,
+      limit: FREE_QUERIES_PER_DAY,
     });
   }
 
@@ -151,13 +164,14 @@ export default async function handler(req, res) {
     const record = await getRecord(email) || { queries: [], emailVerified: true };
     const now = Date.now();
     const queries = [...(record.queries || []), now];
+    const usedToday = countQueriesToday(queries, now);
 
     await setRecord(email, { ...record, queries, lastSeen: now });
 
     return res.status(200).json({
       ok: true,
-      used: queries.length,
-      remaining: Math.max(0, FREE_QUERIES_LIFETIME - queries.length),
+      used: usedToday,
+      remaining: Math.max(0, FREE_QUERIES_PER_DAY - usedToday),
     });
   }
 

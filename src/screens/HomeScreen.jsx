@@ -40,7 +40,7 @@ export default function HomeScreen({
   prefillUrTakeQuestion,
   isUnlimited = false,
   freeUsedCount = 0,
-  freeQuestionLimit = 2,
+  freeQuestionLimit = 3,
   lastLeanRevision = 0,
   onOpenUpgrade,
   isNflSlateActive,
@@ -174,7 +174,7 @@ export default function HomeScreen({
               </button>
             ))}
           </div>
-          <p className="ur-first-session-foot">2 questions free · No card · No signup</p>
+          <p className="ur-first-session-foot">3 questions free per day · No card · No signup</p>
         </div>
       </main>
     );

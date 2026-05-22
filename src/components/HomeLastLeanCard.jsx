@@ -27,7 +27,7 @@ function sportHintFromLastLeanLabel(sport) {
 export default function HomeLastLeanCard({
   isUnlimited = false,
   freeUsedCount = 0,
-  freeQuestionLimit = 2,
+  freeQuestionLimit = 3,
   lastLeanRevision = 0,
   onAskAgain,
   onOpenUpgrade,
