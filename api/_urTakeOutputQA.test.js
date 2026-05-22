@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  lintBroToneViolations,
   lintUrTakeOutput,
   qaRequiresRegeneration,
   runUnderReviewPostProcess,
@@ -156,6 +157,13 @@ test("sanitizeLeanBroTone strips banned jargon from lean headline", async () => 
   );
   assert.ok(!/\bstructural angle\b/i.test(out));
   assert.match(out, /^Lean:/);
+});
+
+test("QA: bro tone flags cross-sport narration", () => {
+  const lint = lintBroToneViolations(
+    "I need to flag a cross-sport mismatch. Your first question was about golf and the context payload I have is golf only — paste the game context for SAS @ OKC.",
+  );
+  assert.ok(lint.criticalCodes.includes("bro_tone_cross_sport_mismatch"));
 });
 
 test("QA: bro tone flags AI jargon and long sentences", () => {

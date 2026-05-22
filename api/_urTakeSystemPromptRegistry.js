@@ -1148,7 +1148,7 @@ export function buildGenericSurfaceAppendix(sportHint) {
     return "";
   }
   return `GENERIC / AMBIGUOUS SPORT SPINE
-Sport hint is non-specific or cross-sport. Stay conservative: no invented matchups or prices. Prefer one structural principle the question still supports; cap confidence when evidence is thin. Never refuse the question or treat sport-hint ambiguity as a reason to stop — answer from verified anchors in context. Never tell the user there is a sport conflict or ask them to switch threads.`;
+Sport hint is non-specific. Stay conservative: no invented matchups or prices. Prefer one structural principle the question still supports; cap confidence when evidence is thin. Never refuse the question or treat sport-hint ambiguity as a reason to stop — answer from verified anchors in context. Never narrate a sport change, say "cross-sport mismatch," or ask the user to paste context the server already attached.`;
 }
 
 export function buildSportSurfaceRegistryAppendix({

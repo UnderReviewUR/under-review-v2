@@ -120,6 +120,23 @@ export function lintBroToneViolations(text) {
     }
   }
 
+  const crossSportNarration = [
+    { code: "bro_tone_cross_sport_mismatch", re: /\bcross[- ]sport mismatch\b/i },
+    { code: "bro_tone_first_question_was", re: /\byour first question was about\b/i },
+    { code: "bro_tone_context_payload_i_have", re: /\bthe context payload i have\b/i },
+    { code: "bro_tone_paste_game_context", re: /\bpaste(?:\s+the)?\s+game context\b/i },
+    { code: "bro_tone_ill_need_you_to", re: /\bi(?:'|')ll need you to\b/i },
+    { code: "bro_tone_need_to_flag", re: /\bi need to flag\b/i },
+  ];
+  for (const { code, re } of crossSportNarration) {
+    const m = raw.match(re);
+    if (m) {
+      if (!criticalCodes.includes(code)) criticalCodes.push(code);
+      events.push({ ruleCode: code, detail: m[0] });
+      break;
+    }
+  }
+
   for (const { code, re } of BRO_TONE_BANNED_FORMAT_PATTERNS) {
     if (re.test(raw)) {
       if (!criticalCodes.includes(code)) criticalCodes.push(code);

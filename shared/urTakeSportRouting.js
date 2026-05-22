@@ -211,6 +211,43 @@ const NBA_TERMS = [
   "anthony edwards",
 ];
 
+/** NBA team abbreviations — matchup slugs like "SAS @ OKC" route to NBA. */
+const NBA_TEAM_ABBREVS = new Set([
+  "atl",
+  "bos",
+  "bkn",
+  "brk",
+  "cha",
+  "chi",
+  "cle",
+  "dal",
+  "den",
+  "det",
+  "gsw",
+  "hou",
+  "ind",
+  "lac",
+  "lal",
+  "mem",
+  "mia",
+  "mil",
+  "min",
+  "nop",
+  "no",
+  "nyk",
+  "okc",
+  "orl",
+  "phi",
+  "phx",
+  "por",
+  "sac",
+  "sas",
+  "tor",
+  "uta",
+  "was",
+  "wsh",
+]);
+
 const WORLD_CUP_TERMS = [
   "world cup",
   "fifa",
@@ -250,6 +287,38 @@ const SPORT_TAB_NUDGE_COPY = {
 };
 
 /**
+ * @param {string} question
+ * @returns {boolean}
+ */
+export function inferNbaFromMatchupSlug(question) {
+  const q = normalizeText(question);
+  const m = q.match(/\b([a-z]{2,4})\s*(?:@|vs\.?|v)\s*([a-z]{2,4})\b/i);
+  if (!m) return false;
+  const a = m[1].toLowerCase();
+  const b = m[2].toLowerCase();
+  return NBA_TEAM_ABBREVS.has(a) && NBA_TEAM_ABBREVS.has(b);
+}
+
+/**
+ * @param {string} [a]
+ * @param {string} [b]
+ */
+export function sportsContextSwitched(a, b) {
+  const x = String(a || "")
+    .trim()
+    .toLowerCase();
+  const y = String(b || "")
+    .trim()
+    .toLowerCase();
+  if (!x || !y || x === "generic" || x === "image_review" || y === "generic" || y === "image_review") {
+    return false;
+  }
+  if (x === "tennis_wta_profile" && y === "tennis") return false;
+  if (x === "tennis" && y === "tennis_wta_profile") return false;
+  return x !== y;
+}
+
+/**
  * Keyword inference from question (+ optional matchup card). Returns a sport slug or null.
  * @param {string} question
  * @param {{ league?: string } | null} [matchupContext]
@@ -257,6 +326,8 @@ const SPORT_TAB_NUDGE_COPY = {
  */
 export function inferSportFromQuestionText(question, matchupContext, hasImage) {
   const q = normalizeText(question);
+
+  if (inferNbaFromMatchupSlug(q)) return "nba";
 
   if (matchupContext?.league) {
     const league = normalizeText(matchupContext.league);
@@ -400,7 +471,9 @@ export function buildUrTakeSportTurnScopeRules(sportHint) {
   const label = SPORT_TURN_LABELS[s] || s.replace(/_/g, " ") || "this sport";
   return `SPORT TURN SCOPE (mandatory)
 - This turn is routed to ${label}; use only the sport context JSON supplied in this message.
-- Prior chat may mention other sports — answer the user's current question from this payload. Never refuse, redirect, or ask them to switch tabs, threads, or screens.
+- Prior chat may mention other sports — answer silently from this payload. Never narrate, flag, or apologize for a sport change.
+- Never say "cross-sport mismatch", "your first question was about", "the context payload I have", "paste the game context", or "I'll need you to" (provide data the user should not supply).
+- Never refuse, redirect, or ask them to switch tabs, threads, screens, or paste context the app already loads server-side.
 - Never say "wrong sport", "locked into [sport]", "constraint conflict", or that they must leave this conversation.`;
 }
 
@@ -439,7 +512,12 @@ export function resolveSportHint({
   }
 
   const historySport = inferSportFromChatHistory(chatHistory);
-  if (historySport && Array.isArray(chatHistory) && chatHistory.length > 1) {
+  if (
+    historySport &&
+    Array.isArray(chatHistory) &&
+    chatHistory.length > 1 &&
+    !inferSportFromQuestionText(question, matchupContext, hasImage)
+  ) {
     return historySport;
   }
 
@@ -497,7 +575,8 @@ export function buildUrTakeNoDeadEndPrompt() {
 - Never say "[Name] isn't a verified player", "not on tonight's slate", "not in the verified field", or that a real pro "doesn't exist."
 - If a name is ambiguous, infer the most likely player from active rosters, current events, session history, and sport context — then answer. Do not ask the user to confirm spelling or identity.
 - If the question is vague ("Scottie's chances?", "how's he doing?", "what's the line?"), use session history plus current event context to infer intent and answer directly.
-- If sport context in the UI differs from the question, answer from the correct sport silently; do not lecture about mismatch.
+- If sport context in the UI differs from the question, answer from the correct sport silently — never narrate or flag the switch.
+- Never say "cross-sport mismatch", "your first question was about", "the context payload I have", "paste the game context", or "I'll need you to" paste or provide data.
 - Never ask the user to clarify something the app should infer (sport, player, matchup, or tab).
 - If live rows are thin, give the sharpest structural read you can and note data gaps only in passing — never as a refusal.
 - The burden of interpretation is on the app, not the user.`;
@@ -511,6 +590,12 @@ export function stripUrTakeDeadEndCopy(text) {
   const dropLinePatterns = [
     /^WRONG SPORT\.[^\n]*$/im,
     /^I'm locked into [^\n]*$/im,
+    /^[^\n]*\bcross[- ]sport mismatch\b[^\n]*$/im,
+    /^[^\n]*\byour first question was about\b[^\n]*$/im,
+    /^[^\n]*\bthe context payload i have\b[^\n]*$/im,
+    /^[^\n]*\bpaste(?:\s+the)?\s+game context\b[^\n]*$/im,
+    /^[^\n]*\bi(?:'|')ll need you to\b[^\n]*$/im,
+    /^[^\n]*\bi need to flag\b[^\n]*$/im,
     /^For tennis prop analysis[^\n]*$/im,
     /^What NBA game or player props[^\n]*$/im,
     /^I (?:can't|cannot|won't) (?:answer|help|provide)[^\n]*$/im,

@@ -5,9 +5,11 @@ import {
   appendSportTabNudge,
   buildSportTabNudgeLine,
   buildUrTakeNoDeadEndPrompt,
+  inferNbaFromMatchupSlug,
   inferSportFromChatHistory,
   inferSportFromQuestionText,
   resolveSportHint,
+  sportsContextSwitched,
   stripUrTakeDeadEndCopy,
 } from "./urTakeSportRouting.js";
 
@@ -91,4 +93,36 @@ test("buildUrTakeNoDeadEndPrompt mandates inference over clarification", () => {
 
 test("inferSportFromQuestionText: Yankees → mlb", () => {
   assert.equal(inferSportFromQuestionText("best Yankees prop tonight?"), "mlb");
+});
+
+test("inferNbaFromMatchupSlug: SAS @ OKC", () => {
+  assert.equal(inferNbaFromMatchupSlug("SAS @ OKC best angle?"), true);
+  assert.equal(inferSportFromQuestionText("SAS @ OKC best angle?"), "nba");
+});
+
+test("SAS @ OKC from golf session routes to NBA not golf history", () => {
+  const h = resolveSportHint({
+    incomingSportHint: "golf",
+    question: "SAS @ OKC spread and total",
+    matchupContext: null,
+    hasImage: false,
+    golfContext: { currentEvent: { name: "PGA Championship" } },
+    chatHistory: [
+      { role: "user", content: "Scheffler top 20?" },
+      { role: "assistant", content: "Lean Scheffler top 20.", sport: "golf" },
+    ],
+  });
+  assert.equal(h, "nba");
+});
+
+test("sportsContextSwitched detects golf → nba", () => {
+  assert.equal(sportsContextSwitched("golf", "nba"), true);
+  assert.equal(sportsContextSwitched("golf", "golf"), false);
+});
+
+test("stripUrTakeDeadEndCopy removes cross-sport narration", () => {
+  const s = stripUrTakeDeadEndCopy(
+    "I need to flag a cross-sport mismatch. Your first question was about golf.\n\nLean Thunder -4.5.",
+  );
+  assert.equal(s, "Lean Thunder -4.5.");
 });

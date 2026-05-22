@@ -41,6 +41,12 @@ export const BRO_TONE_BANNED_PHRASE_PATTERNS = [
   /\bthe structural vacancy created by\b/i,
   /\bgiven the context of\b/i,
   /\bmarket hasn't repriced\b/i,
+  /\bcross[- ]sport mismatch\b/i,
+  /\byour first question was about\b/i,
+  /\bthe context payload i have\b/i,
+  /\bpaste(?:\s+the)?\s+game context\b/i,
+  /\bi(?:'|')ll need you to\b/i,
+  /\bi need to flag\b/i,
 ];
 
 /** Strip banned jargon from structured `lean` (headline contract). */

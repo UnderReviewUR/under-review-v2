@@ -28,6 +28,7 @@ import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
   buildUrTakeSportTurnScopeRules,
   resolveSportHint as resolveSportHintShared,
+  sportsContextSwitched,
   stripUrTakeDeadEndCopy,
 } from "../shared/urTakeSportRouting.js";
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
@@ -877,6 +878,17 @@ export function resolveSportHint(opts) {
     derbyActive: isDerbyActive(),
     questionIsDerby: questionReferencesDerby(String(opts?.question || "")),
   });
+}
+
+function nbaUrTakeContextHasUsableData(ctx) {
+  if (!ctx || typeof ctx !== "object") return false;
+  return (
+    (Array.isArray(ctx.todaysGames) && ctx.todaysGames.length > 0) ||
+    (Array.isArray(ctx.playerStats) && ctx.playerStats.length > 0) ||
+    (Array.isArray(ctx.propLines) && ctx.propLines.length > 0) ||
+    !!ctx.liveBoxscore ||
+    (Array.isArray(ctx.injuries) && ctx.injuries.length > 0)
+  );
 }
 
 function normalizeAvailabilityStatusClass(value) {
@@ -2198,7 +2210,8 @@ FOLLOW-UP STYLE — MANDATORY
 Answer only the specific question asked. 3-5 sentences maximum. No section headers. No MATCH READ. No PROP PROJECTIONS. Speak like a sharp friend replying to a text.
 
 CROSS-SPORT & THREAD DISCIPLINE — MANDATORY
-Prior messages may be about a different sport than this request. Answer from the server context supplied for this turn only.
+Prior messages may be about a different sport than this request. Answer from the server context supplied for this turn only — silently, with no narration of the sport change.
+Never say "cross-sport mismatch," "your first question was about," "the context payload I have," "paste the game context," "I'll need you to," or "I need to flag." Never ask the user to paste or supply context the server already attached.
 Never tell the user there is a "constraint conflict," sport mismatch, or ruleset violation. Never ask them to close a thread (including F1), switch chats, or clarify sport routing. Never refuse or stop mid-answer for sport-context reasons.
 If the payload is thin or off-thread, still give structural insight and a sharp lean — never meta-decline or lecture.`;
 }
@@ -4939,13 +4952,8 @@ export default async function handler(req, res) {
     chatHistory: incomingHistory,
   });
 
-  if (
-    uiSportHintForRouting &&
-    sportHint &&
-    uiSportHintForRouting !== sportHint &&
-    uiSportHintForRouting !== "generic" &&
-    uiSportHintForRouting !== "image_review"
-  ) {
+  const sportSwitched = sportsContextSwitched(uiSportHintForRouting, sportHint);
+  if (sportSwitched) {
     console.log(
       JSON.stringify({
         event: "ur_take_sport_context_switch",
@@ -4985,11 +4993,15 @@ export default async function handler(req, res) {
   });
   const nbaDebugEnabled = isTruthyFlag(getEnv("UR_TAKE_NBA_DEBUG"));
 
-  /** Server-authoritative slate for NBA — client payload can be stale (poll interval) or omit games. */
-  let nbaContext = nbaContextFromClient;
-  let mlbContext = mlbContextFromClient;
-  let golfContextEffective = golfContext;
-  let f1Context = f1ContextFromClient;
+  /** Server-authoritative slate — drop stale client payloads when UI sport ≠ routed sport. */
+  let nbaContext =
+    sportSwitched && sportHint !== "nba" ? null : nbaContextFromClient;
+  let mlbContext =
+    sportSwitched && sportHint !== "mlb" ? null : mlbContextFromClient;
+  let golfContextEffective =
+    sportSwitched && sportHint !== "golf" ? null : golfContext;
+  let f1Context =
+    sportSwitched && sportHint !== "f1" ? null : f1ContextFromClient;
   let wcContext = null;
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
@@ -5000,63 +5012,84 @@ export default async function handler(req, res) {
     }
   }
   if (sportHint === "nba") {
+    const mustFetchNbaBoard =
+      sportSwitched || !nbaUrTakeContextHasUsableData(nbaContext);
     try {
       const nbaT0 = Date.now();
-      let fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
-      if (!nbaBoardHasPostedPropMarkets(fresh)) {
-        fresh = await hydrateNbaPropsOdds(fresh);
+      let fresh = null;
+      if (mustFetchNbaBoard) {
+        fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
+        if (!nbaBoardHasPostedPropMarkets(fresh)) {
+          fresh = await hydrateNbaPropsOdds(fresh);
+        }
       }
-      const probeGameId =
-        fresh?.todaysGames?.find((g) => g?.actionNetworkGameId)?.actionNetworkGameId ??
-        fresh?.sourceMeta?.propsOddsGameId ??
-        null;
-      const kvProbe = probeGameId != null ? await getNbaPropsForBoard(probeGameId) : null;
-      console.log(
-        JSON.stringify({
-          event: "ur_take_nba_props_kv_probe",
-          gameId: probeGameId,
-          kvHit: Boolean(kvProbe),
-          hasPostedLines: Boolean(kvProbe?.hasPostedLines),
-          playerCount: kvProbe?.playerCount ?? 0,
-          boardHasPropsOdds: Boolean(fresh?.propsOdds),
-          boardHasPostedLines: Boolean(fresh?.propsOdds?.hasPostedLines),
-          boardPropLinesCount: Array.isArray(fresh?.propLines) ? fresh.propLines.length : 0,
-          boardTodaysGamesCount: Array.isArray(fresh?.todaysGames) ? fresh.todaysGames.length : 0,
-          hydrateCalled: true,
-        }),
-      );
-      nbaBoardBuildMs = Date.now() - nbaT0;
-      nbaContext = {
-        ...fresh,
-        question: String(question || ""),
-        clientUiSurface: nbaContextFromClient?.clientUiSurface ?? fresh.clientUiSurface,
-      };
-      nbaContext.rosterGrounding = augmentNbaRosterGroundingWithUi(
-        nbaContext.rosterGrounding,
-        nbaContext.todaysGames || [],
-      );
-      if (
-        nbaContextFromClient &&
-        typeof nbaContextFromClient === "object" &&
-        Array.isArray(nbaContextFromClient.injuries) &&
-        nbaContextFromClient.injuries.length > 0
-      ) {
-        const merged = new Map();
-        for (const row of nbaContext.injuries || []) {
-          const k = String(row?.player || "").trim().toLowerCase();
-          if (k) merged.set(k, row);
+      if (!fresh && mustFetchNbaBoard) {
+        console.warn(
+          JSON.stringify({
+            event: "ur_take_nba_board_empty_after_fetch",
+            sportSwitched,
+            questionHead: String(question || "").slice(0, 120),
+          }),
+        );
+      }
+      if (fresh) {
+        const probeGameId =
+          fresh?.todaysGames?.find((g) => g?.actionNetworkGameId)?.actionNetworkGameId ??
+          fresh?.sourceMeta?.propsOddsGameId ??
+          null;
+        const kvProbe = probeGameId != null ? await getNbaPropsForBoard(probeGameId) : null;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_nba_props_kv_probe",
+            gameId: probeGameId,
+            kvHit: Boolean(kvProbe),
+            hasPostedLines: Boolean(kvProbe?.hasPostedLines),
+            playerCount: kvProbe?.playerCount ?? 0,
+            boardHasPropsOdds: Boolean(fresh?.propsOdds),
+            boardHasPostedLines: Boolean(fresh?.propsOdds?.hasPostedLines),
+            boardPropLinesCount: Array.isArray(fresh?.propLines) ? fresh.propLines.length : 0,
+            boardTodaysGamesCount: Array.isArray(fresh?.todaysGames) ? fresh.todaysGames.length : 0,
+            hydrateCalled: mustFetchNbaBoard,
+            sportSwitched,
+          }),
+        );
+        nbaBoardBuildMs = Date.now() - nbaT0;
+        nbaContext = {
+          ...fresh,
+          question: String(question || ""),
+          clientUiSurface: nbaContextFromClient?.clientUiSurface ?? fresh.clientUiSurface,
+        };
+        nbaContext.rosterGrounding = augmentNbaRosterGroundingWithUi(
+          nbaContext.rosterGrounding,
+          nbaContext.todaysGames || [],
+        );
+        if (
+          !sportSwitched &&
+          nbaContextFromClient &&
+          typeof nbaContextFromClient === "object" &&
+          Array.isArray(nbaContextFromClient.injuries) &&
+          nbaContextFromClient.injuries.length > 0
+        ) {
+          const merged = new Map();
+          for (const row of nbaContext.injuries || []) {
+            const k = String(row?.player || "").trim().toLowerCase();
+            if (k) merged.set(k, row);
+          }
+          for (const row of nbaContextFromClient.injuries) {
+            const k = String(row?.player || "").trim().toLowerCase();
+            if (k) merged.set(k, row);
+          }
+          nbaContext = { ...nbaContext, injuries: [...merged.values()] };
         }
-        for (const row of nbaContextFromClient.injuries) {
-          const k = String(row?.player || "").trim().toLowerCase();
-          if (k) merged.set(k, row);
-        }
-        nbaContext = { ...nbaContext, injuries: [...merged.values()] };
       }
     } catch (err) {
       console.warn("[ur-take] buildNbaUrTakeBoard failed:", err?.message || err);
-      nbaContext = nbaContextFromClient;
+      if (!sportSwitched) {
+        nbaContext = nbaContextFromClient;
+      }
     }
     if (
+      !sportSwitched &&
       isConversationFollowUp &&
       nbaContextFromClient &&
       typeof nbaContextFromClient === "object"
@@ -5117,7 +5150,8 @@ export default async function handler(req, res) {
       const freshMlb = await buildMlbUrTakeBoard(String(question || ""));
       if (
         freshMlb &&
-        ((Array.isArray(freshMlb.propLines) && freshMlb.propLines.length > 0) ||
+        (sportSwitched ||
+          (Array.isArray(freshMlb.propLines) && freshMlb.propLines.length > 0) ||
           Object.keys(freshMlb.gameTotals || {}).length > 0)
       ) {
         mlbContext = {
@@ -5140,7 +5174,7 @@ export default async function handler(req, res) {
     const questionStr = String(question || "");
     const intent = extractGolfTournamentIntentFromQuestion(questionStr);
     const needsQuestionAlign = golfQuestionNeedsEventRealign(clientGolf, questionStr);
-    const needsHydrate = !golfClientContextLooksUsable(clientGolf);
+    const needsHydrate = sportSwitched || !golfClientContextLooksUsable(clientGolf);
     const needsCourseArtifactAlign = golfClientCourseArtifactsMisaligned(clientGolfRaw);
 
     if (intent || needsQuestionAlign || needsHydrate || needsCourseArtifactAlign) {
