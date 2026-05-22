@@ -451,13 +451,11 @@ ${themeCss}
       }, 32);
     };
     vv.addEventListener("resize", syncKeyboardHeight);
-    vv.addEventListener("scroll", syncKeyboardHeight);
     window.addEventListener("orientationchange", syncKeyboardHeight);
     syncKeyboardHeight();
     return () => {
       if (debounceId) window.clearTimeout(debounceId);
       vv.removeEventListener("resize", syncKeyboardHeight);
-      vv.removeEventListener("scroll", syncKeyboardHeight);
       window.removeEventListener("orientationchange", syncKeyboardHeight);
     };
   }, []);
@@ -3270,52 +3268,6 @@ ${themeCss}
     pendingScrollTimeoutIdsRef.current.push(t48, t240, t720);
   }, []);
 
-  /** Scroll the active `<main class="screen">` so docked AskBar stays usable when the mobile keyboard opens. */
-  const scrollActiveScreenForKeyboard = useCallback(() => {
-    const scrollEl = (el) => {
-      if (!el || typeof el.scrollHeight !== "number") return;
-      const inner = typeof el.querySelector === "function" ? el.querySelector(".ur-chat-scroll") : null;
-      const target = inner || el;
-      target.scrollTop = target.scrollHeight;
-    };
-    const pickScrollParent = () => {
-      if (typeof document === "undefined") return null;
-      switch (screen) {
-        case "ask":
-          return askScreenRef.current;
-        case "tennis":
-          return tennisScreenRef.current;
-        case "nfl":
-          return nflScreenRef.current;
-        case "f1":
-          return f1ScreenRef.current;
-        case "nba":
-          return nbaScreenRef.current;
-        case "mlb":
-          return mlbScreenRef.current;
-        case "golf":
-          return golfScreenRef.current;
-        case "worldcup":
-          return wcScreenRef.current;
-        case "matchup":
-          return matchupScreenRef.current;
-        case "home":
-          return document.querySelector("main.screen.home-surface-premium");
-        case "player":
-        case "nflplayer":
-          return document.querySelector("main.screen");
-        default:
-          return document.querySelector("main.screen");
-      }
-    };
-    const el = pickScrollParent();
-    scrollEl(el);
-    requestAnimationFrame(() => scrollEl(el));
-    const t120 = setTimeout(() => scrollEl(el), 120);
-    const t320 = setTimeout(() => scrollEl(el), 320);
-    pendingScrollTimeoutIdsRef.current.push(t120, t320);
-  }, [screen]);
-
   const openPlayer = useCallback((name) => {
     setNavHistory((h) => [...h, { screen, tab }]);
     setSelectedPlayer(name);
@@ -3707,7 +3659,6 @@ ${themeCss}
     bettingStyle,
     isUnlimited,
     freeLimitChip,
-    onInputFocus: scrollActiveScreenForKeyboard,
   };
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||

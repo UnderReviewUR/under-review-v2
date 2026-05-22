@@ -41,8 +41,6 @@ const AskBar = memo(function AskBar({
   isUnlimited = false,
   /** Optional chip above the input (e.g. free-tier quota warning). */
   freeLimitChip = null,
-  /** Optional: scroll chat when input is focused (mobile keyboard). Wired from App via askBarCommon. */
-  onInputFocus,
   /** When true (only pass from fixed dock in App.jsx): logo-gradient border on text input; CSS scoped to `.docked-bar` / `.docked-interaction-zone`. */
   dockedGradient = false,
   /** Override paste/attach subline copy (default: PASTE IMAGE…). */
@@ -50,9 +48,13 @@ const AskBar = memo(function AskBar({
 }) {
   const busy = isAsking || prefetchingContext;
 
-  const handleInputFocus = useCallback(() => {
-    if (typeof onInputFocus === "function") onInputFocus();
-  }, [onInputFocus]);
+  const askInputProps = {
+    inputMode: "text",
+    autoComplete: "off",
+    autoCorrect: "off",
+    spellCheck: false,
+    enterKeyHint: "send",
+  };
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -128,9 +130,9 @@ const AskBar = memo(function AskBar({
                       value={value}
                       onChange={(e) => onChange(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      onFocus={handleInputFocus}
                       placeholder={pastedImage ? "Ask about this image..." : placeholder}
                       disabled={busy}
+                      {...askInputProps}
                     />
                   </div>
                 </div>
@@ -187,9 +189,9 @@ const AskBar = memo(function AskBar({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                onFocus={handleInputFocus}
                 placeholder={pastedImage ? "Ask about this image..." : placeholder}
                 disabled={busy}
+                {...askInputProps}
               />
 
               {!pastedImage && showPasteHint && (

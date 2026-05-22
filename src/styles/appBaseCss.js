@@ -358,7 +358,6 @@ export const baseCss = `
     backdrop-filter:none;
     -webkit-backdrop-filter:none;
     box-sizing:border-box;
-    transition:bottom 0.18s ease;
   }
   .docked-interaction-zone{
     width:100%;
@@ -448,21 +447,6 @@ export const baseCss = `
     height:48px;
     display:flex;
     align-items:stretch;
-    transition:min-height 0.16s ease,height 0.16s ease,border-radius 0.16s ease;
-  }
-  .docked-bar .ask-wrap--docked-gradient:focus-within .ask-bar-gradient-frame,
-  .docked-interaction-zone .ask-wrap--docked-gradient:focus-within .ask-bar-gradient-frame{
-    min-height:50px;
-    height:50px;
-    border-radius:25px;
-  }
-  .docked-bar .ask-wrap--docked-gradient:focus-within .ask-row--docked-triple,
-  .docked-interaction-zone .ask-wrap--docked-gradient:focus-within .ask-row--docked-triple{
-    min-height:58px;
-  }
-  .docked-bar .ask-wrap--docked-gradient:focus-within .ask-bar-docked-inner,
-  .docked-interaction-zone .ask-wrap--docked-gradient:focus-within .ask-bar-docked-inner{
-    border-radius:23px;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar-docked-inner,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar-docked-inner{
@@ -509,6 +493,7 @@ export const baseCss = `
   .docked-interaction-zone .ur-dock-input-mid textarea{
     font-size:16px;
     -webkit-text-size-adjust:100%;
+    touch-action:manipulation;
   }
   .docked-bar .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach,
   .docked-interaction-zone .ask-wrap--docked-gradient .ur-dock-icon-btn.ur-dock-attach{
@@ -864,7 +849,7 @@ export const baseCss = `
   .ask-img-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--border-2);}
   .ask-img-remove{background:rgba(255,45,107,.15);border:1px solid rgba(255,45,107,.3);color:var(--magenta);border-radius:6px;padding:3px 8px;font-family:var(--mono-font);font-size:10px;cursor:pointer;}
   /* 16px+ prevents iOS Safari from force-zooming the viewport on input focus */
-  .ask-bar{width:100%;border:none;background:transparent;padding:10px 14px;color:var(--text);font-size:16px;line-height:1.35;outline:none;font-family:var(--body-font);-webkit-text-size-adjust:100%;}
+  .ask-bar{width:100%;border:none;background:transparent;padding:10px 14px;color:var(--text);font-size:16px;line-height:1.35;outline:none;font-family:var(--body-font);-webkit-text-size-adjust:100%;touch-action:manipulation;}
   .ask-bar::placeholder{color:var(--ask-placeholder);opacity:1;}
   .ask-hint{font-family:var(--mono-font);font-size:9px;color:rgba(255,255,255,.52);letter-spacing:1px;padding:0 14px 8px;opacity:1;}
   .send-btn{width:44px;height:44px;border:none;border-radius:50%;background:var(--cyan-bright);color:#080A0C;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}

@@ -85,7 +85,7 @@ export default function HomeScreen({
     if (!strippedHomeSession) return;
     if (typeof window === "undefined") return;
     if (!window.matchMedia("(min-width: 768px)").matches) return;
-    const t = window.setTimeout(() => askInputRef?.current?.focus(), 0);
+    const t = window.setTimeout(() => askInputRef?.current?.focus({ preventScroll: true }), 0);
     return () => window.clearTimeout(t);
   }, [strippedHomeSession, askInputRef]);
 
