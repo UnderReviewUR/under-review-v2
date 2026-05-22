@@ -24,6 +24,7 @@ import {
 } from "./_urTakeCoreVoice.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
 import { lintLeanContract } from "../shared/urTakeLean.js";
+import { stripBrokenQuoteFragments } from "./types/urTakeResponse.js";
 
 export { BRO_TONE_REGENERATION_SUFFIX };
 import {
@@ -322,7 +323,7 @@ function enforceSlipCompleteness(text, options) {
 }
 
 function applyDeterministicQaEnforcement(text, options = {}) {
-  let s = String(text || "");
+  let s = stripBrokenQuoteFragments(String(text || ""));
   s = normalizeStatLikeDecimals(s);
   s = stripBannedHeaders(s);
   s = sanitizeRoboticPhrases(s);

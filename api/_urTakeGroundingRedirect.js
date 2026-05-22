@@ -5,6 +5,26 @@
 
 import { repairStructuredForDelivery } from "./types/urTakeResponse.js";
 import { sanitizeLeanBroTone } from "./_urTakeCoreVoice.js";
+import { resolveNbaNicknameMentionsFromQuestion } from "../shared/nbaNicknameMap.js";
+import { NBA_UI_PLAYER_CHIPS } from "../shared/nbaUiPlayerChips.js";
+
+/** Post-model prose patterns that must become structured redirect cards. */
+export const NBA_GROUNDING_PROSE_REFUSAL_PATTERNS = [
+  /can't identify[\s\S]{0,160}verified roster/i,
+  /authorized player pool doesn't include/i,
+  /I don't have a player named/i,
+  /not in tonight's[\s\S]{0,100}roster/i,
+];
+
+/**
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isNbaGroundingProseRefusal(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  return NBA_GROUNDING_PROSE_REFUSAL_PATTERNS.some((re) => re.test(raw));
+}
 
 function escapeRegExp(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -19,6 +39,55 @@ function prettyPlayerName(key) {
     .split(" ")
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join(" ");
+}
+
+/**
+ * @param {string} fullName
+ * @returns {string | null}
+ */
+function teamAbbrFromUiChips(fullName) {
+  const target = normalizePlayerNameKey(fullName);
+  const chip = NBA_UI_PLAYER_CHIPS.find(
+    (c) => normalizePlayerNameKey(c.fullName) === target,
+  );
+  return chip?.teamAbbr ? String(chip.teamAbbr).toUpperCase() : null;
+}
+
+/**
+ * Slate-wide verified names → team (all teams on tonight's board).
+ * @param {object} nbaContext
+ * @returns {Map<string, string>}
+ */
+export function buildSlateWidePlayerToTeam(nbaContext) {
+  /** @type {Map<string, string>} */
+  const map = new Map();
+  const slateTeams = collectSlateTeamAbbrevs(nbaContext);
+
+  const addName = (name, team) => {
+    const n = String(name || "").trim();
+    const tm = String(team || "").toUpperCase();
+    if (!n || !tm || tm === "UNK" || tm === "?") return;
+    const k = normalizePlayerNameKey(n);
+    if (!map.has(k)) map.set(k, tm);
+  };
+
+  for (const team of slateTeams) {
+    const abbr = String(team).toUpperCase();
+    for (const n of nbaContext?.rosterGrounding?.playersByTeamAbbrev?.[abbr] || []) {
+      addName(n, abbr);
+    }
+  }
+  for (const row of nbaContext?.playerStats || []) {
+    addName(row?.name, row?.team);
+  }
+  for (const row of nbaContext?.injuries || []) {
+    addName(row?.player, row?.team);
+  }
+  for (const chip of NBA_UI_PLAYER_CHIPS) {
+    addName(chip.fullName, chip.teamAbbr);
+  }
+
+  return map;
 }
 
 /**
@@ -88,7 +157,44 @@ function extractMentionedPlayersFromVerifiedMap(output, knownPlayerToTeam) {
 }
 
 /**
- * @param {string} teamAbbr
+ * @param {string} question
+ * @param {Map<string, string>} slateWideMap
+ * @returns {Array<{ playerKey: string, teamAbbr: string, source: string }>}
+ */
+function resolveQuestionPlayerMentions(question, slateWideMap) {
+  /** @type {Array<{ playerKey: string, teamAbbr: string, source: string }>} */
+  const out = [];
+  const seen = new Set();
+
+  const push = (fullName, teamAbbr, source) => {
+    const key = normalizePlayerNameKey(fullName);
+    if (!key || seen.has(key)) return;
+    const team =
+      String(teamAbbr || "").toUpperCase() ||
+      String(slateWideMap.get(key) || "").toUpperCase() ||
+      teamAbbrFromUiChips(fullName) ||
+      "";
+    if (!team) return;
+    seen.add(key);
+    out.push({ playerKey: key, teamAbbr: team, source });
+  };
+
+  for (const { fullName } of resolveNbaNicknameMentionsFromQuestion(question)) {
+    push(fullName, teamAbbrFromUiChips(fullName), "nickname");
+  }
+
+  for (const key of extractMentionedPlayersFromVerifiedMap(question, slateWideMap)) {
+    push(
+      prettyPlayerName(key),
+      slateWideMap.get(key),
+      "slate_index",
+    );
+  }
+
+  return out;
+}
+
+/**
  * @param {object} nbaContext
  */
 function collectSlateTeamAbbrevs(nbaContext) {
@@ -139,9 +245,31 @@ function isPlayerOnTeamRosterTonight(playerKey, teamAbbr, nbaContext) {
 }
 
 /**
+ * @param {string} playerKey
+ * @param {string} teamAbbr
+ * @param {object} nbaContext
+ * @param {Set<string>} focusTeams
+ * @param {Set<string>} slateTeams
+ */
+function classifyOffPlayer(playerKey, teamAbbr, nbaContext, focusTeams, slateTeams) {
+  const team = String(teamAbbr || "").toUpperCase();
+  if (!team) return null;
+  if (!slateTeams.has(team)) {
+    return { playerKey, teamAbbr: team, reason: "off_slate" };
+  }
+  if (!isPlayerOnTeamRosterTonight(playerKey, team, nbaContext)) {
+    return { playerKey, teamAbbr: team, reason: "off_roster" };
+  }
+  if (!focusTeams.has(team)) {
+    return { playerKey, teamAbbr: team, reason: "off_matchup" };
+  }
+  return null;
+}
+
+/**
  * @param {object} nbaContext
  * @param {{ awayAbbr?: string, homeAbbr?: string }} matchup
- * @param {ReturnType<import("./ur-take.js").buildAllowedMatchupPlayerPool>} pool
+ * @param {object | null} pool
  * @param {Set<string>} excludeKeys
  */
 function pickAlternateLeanPlayer(nbaContext, matchup, pool, excludeKeys) {
@@ -173,6 +301,10 @@ function pickAlternateLeanPlayer(nbaContext, matchup, pool, excludeKeys) {
       const key = normalizePlayerNameKey(n);
       if (key && !excludeKeys.has(key)) return String(n).trim();
     }
+    for (const n of nbaContext?.rosterGrounding?.playersByTeamAbbrev?.[team] || []) {
+      const key = normalizePlayerNameKey(n);
+      if (key && !excludeKeys.has(key)) return String(n).trim();
+    }
   }
   return null;
 }
@@ -182,7 +314,7 @@ function pickAlternateLeanPlayer(nbaContext, matchup, pool, excludeKeys) {
  * @param {string} params.question
  * @param {object} params.nbaContext
  * @param {{ awayAbbr?: string, homeAbbr?: string, label?: string } | null} params.nbaMatchup
- * @param {ReturnType<import("./ur-take.js").buildAllowedMatchupPlayerPool> | null} params.nbaMatchupPool
+ * @param {object | null} params.nbaMatchupPool
  * @param {{ verifiedPlayerToTeam?: Map<string, string> } | null} [params.nbaGroundingSnapshot]
  * @param {{ playerKey: string, teamAbbr: string, reason: 'off_slate' | 'off_roster' | 'off_matchup' } | null} [params.forcedOffPlayer]
  * @returns {Record<string, unknown> | null}
@@ -192,19 +324,14 @@ export function tryBuildNbaGroundingRedirectStructured({
   nbaContext,
   nbaMatchup,
   nbaMatchupPool,
-  nbaGroundingSnapshot,
+  nbaGroundingSnapshot: _nbaGroundingSnapshot,
   forcedOffPlayer = null,
 }) {
   if (!nbaContext || typeof nbaContext !== "object") return null;
   if (!nbaMatchup?.awayAbbr || !nbaMatchup?.homeAbbr) return null;
 
-  const knownMap =
-    nbaMatchupPool?.knownPlayerToTeam instanceof Map
-      ? nbaMatchupPool.knownPlayerToTeam
-      : nbaGroundingSnapshot?.verifiedPlayerToTeam instanceof Map
-        ? nbaGroundingSnapshot.verifiedPlayerToTeam
-        : null;
-  if (!knownMap || knownMap.size === 0) return null;
+  const slateWideMap = buildSlateWidePlayerToTeam(nbaContext);
+  if (slateWideMap.size === 0) return null;
 
   const focusTeams = new Set(
     [nbaMatchup.awayAbbr, nbaMatchup.homeAbbr].map((t) => String(t || "").toUpperCase()),
@@ -222,20 +349,17 @@ export function tryBuildNbaGroundingRedirectStructured({
     : null;
 
   if (!off) {
-    const mentioned = extractMentionedPlayersFromVerifiedMap(question, knownMap);
-    for (const key of mentioned) {
-      const team = String(knownMap.get(key) || "").toUpperCase();
-      if (!team) continue;
-      if (!slateTeams.has(team)) {
-        off = { playerKey: key, teamAbbr: team, reason: "off_slate" };
-        break;
-      }
-      if (!isPlayerOnTeamRosterTonight(key, team, nbaContext)) {
-        off = { playerKey: key, teamAbbr: team, reason: "off_roster" };
-        break;
-      }
-      if (!focusTeams.has(team)) {
-        off = { playerKey: key, teamAbbr: team, reason: "off_matchup" };
+    const mentions = resolveQuestionPlayerMentions(question, slateWideMap);
+    for (const m of mentions) {
+      const classified = classifyOffPlayer(
+        m.playerKey,
+        m.teamAbbr,
+        nbaContext,
+        focusTeams,
+        slateTeams,
+      );
+      if (classified) {
+        off = classified;
         break;
       }
     }

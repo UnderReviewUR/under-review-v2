@@ -120,7 +120,10 @@ import {
 } from "../shared/structuralAngleValidation.js";
 /** Core bro-voice system instructions — canonical text in ./_urTakeCoreVoice.js */
 export { UR_TAKE_CORE_VOICE_PROMPT, sanitizeLeanBroTone } from "./_urTakeCoreVoice.js";
-import { tryBuildNbaGroundingRedirectStructured } from "./_urTakeGroundingRedirect.js";
+import {
+  isNbaGroundingProseRefusal,
+  tryBuildNbaGroundingRedirectStructured,
+} from "./_urTakeGroundingRedirect.js";
 import { buildAllowlistLowerSetFromSnapshot } from "./_urTakeNbaInventedPlayerShadow.js";
 import {
   buildEnrichedMemoryPrompt,
@@ -132,6 +135,7 @@ import {
   validateStructuredURTakeResponse,
   normalizeStructuredUrTakeResponse,
   repairStructuredForDelivery,
+  stripBrokenQuoteFragments,
 } from "./types/urTakeResponse.js";
 import { getStructuredURTakePrompt } from "./prompts/urTakeStructuredPrompt.js";
 import {
@@ -7330,7 +7334,38 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         structuredResponse = previousStructured;
       }
 
-      const text = extractAnthropicText(result.data);
+      let text = stripBrokenQuoteFragments(extractAnthropicText(result.data));
+
+      if (
+        structuredModeRequested &&
+        !structuredResponse &&
+        sportHint === "nba" &&
+        nbaContext &&
+        nbaMatchup &&
+        nbaMatchupPool &&
+        isNbaGroundingProseRefusal(text)
+      ) {
+        const proseRedirect = tryBuildNbaGroundingRedirectStructured({
+          question: String(question || ""),
+          nbaContext,
+          nbaMatchup,
+          nbaMatchupPool,
+          nbaGroundingSnapshot,
+        });
+        if (proseRedirect) {
+          structuredResponse = proseRedirect;
+          text = formatStructuredResponseAsUrTakeProse(proseRedirect);
+          console.log(
+            JSON.stringify({
+              event: "ur_take_nba_grounding_redirect",
+              sport: "nba",
+              source: "prose_refusal_interceptor",
+              matchup: nbaMatchup?.label || null,
+            }),
+          );
+        }
+      }
+
       if (text && String(text).trim()) {
         lastNonEmptyRawModelText = String(text).trim();
       }

@@ -1,59 +1,79 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tryBuildNbaGroundingRedirectStructured } from "./_urTakeGroundingRedirect.js";
+import {
+  isNbaGroundingProseRefusal,
+  tryBuildNbaGroundingRedirectStructured,
+} from "./_urTakeGroundingRedirect.js";
 
-test("grounding redirect returns structured lean when user names off-matchup player", () => {
-  const nbaContext = {
-    todaysGames: [
-      {
-        awayTeam: { abbr: "CLE" },
-        homeTeam: { abbr: "NYK" },
-      },
-      {
-        awayTeam: { abbr: "SAS" },
-        homeTeam: { abbr: "OKC" },
-      },
-    ],
-    rosterGrounding: {
-      playersByTeamAbbrev: {
-        CLE: ["Jalen Brunson", "Donovan Mitchell"],
-        NYK: ["Karl-Anthony Towns", "Josh Hart"],
-        SAS: ["Victor Wembanyama", "De'Aaron Fox"],
-        OKC: ["Shai Gilgeous-Alexander", "Chet Holmgren"],
-      },
-    },
-    playerStats: [
-      { name: "Jalen Brunson", team: "NYK", pts: 28, reb: 4, ast: 7 },
-      { name: "Victor Wembanyama", team: "SAS", pts: 24, reb: 12, ast: 3 },
-    ],
-    injuries: [],
-  };
-
-  const nbaMatchup = { awayAbbr: "CLE", homeAbbr: "NYK", label: "CLE at NYK" };
-  const knownPlayerToTeam = new Map([
-    ["victor wembanyama", "SAS"],
-    ["jalen brunson", "NYK"],
-  ]);
-  const nbaMatchupPool = {
-    allowedTeams: ["CLE", "NYK"],
-    byTeam: {
+const baseNbaContext = () => ({
+  todaysGames: [
+    { awayTeam: { abbr: "CLE" }, homeTeam: { abbr: "NYK" } },
+    { awayTeam: { abbr: "SAS" }, homeTeam: { abbr: "OKC" } },
+  ],
+  rosterGrounding: {
+    playersByTeamAbbrev: {
       CLE: ["Donovan Mitchell"],
-      NYK: ["Jalen Brunson", "Karl-Anthony Towns"],
+      NYK: ["Jalen Brunson", "Karl-Anthony Towns", "Josh Hart"],
+      SAS: ["Victor Wembanyama", "De'Aaron Fox"],
+      OKC: ["Shai Gilgeous-Alexander", "Chet Holmgren"],
     },
-    knownPlayerToTeam,
-  };
+  },
+  playerStats: [
+    { name: "Jalen Brunson", team: "NYK", pts: 28, reb: 4, ast: 7 },
+    { name: "Donovan Mitchell", team: "CLE", pts: 26, reb: 3, ast: 5 },
+  ],
+  injuries: [],
+});
 
+const nbaMatchup = { awayAbbr: "CLE", homeAbbr: "NYK", label: "CLE at NYK" };
+const nbaMatchupPool = {
+  allowedTeams: ["CLE", "NYK"],
+  byTeam: {
+    CLE: ["Donovan Mitchell"],
+    NYK: ["Jalen Brunson", "Karl-Anthony Towns"],
+  },
+  knownPlayerToTeam: new Map([
+    ["jalen brunson", "NYK"],
+    ["donovan mitchell", "CLE"],
+  ]),
+};
+
+test("grounding redirect resolves Wemby nickname off focused matchup", () => {
   const out = tryBuildNbaGroundingRedirectStructured({
-    question: "What's the best prop on Wembanyama tonight?",
-    nbaContext,
+    question: "What's the best prop on Wemby tonight?",
+    nbaContext: baseNbaContext(),
     nbaMatchup,
     nbaMatchupPool,
-    nbaGroundingSnapshot: { verifiedPlayerToTeam: knownPlayerToTeam },
   });
 
   assert.ok(out);
   assert.match(String(out.lean), /^Lean:/);
   assert.match(String(out.lean), /Wembanyama/i);
   assert.match(String(out.whyNow), /Want that take instead/i);
+});
+
+test("grounding redirect returns structured lean when user names off-matchup player", () => {
+  const out = tryBuildNbaGroundingRedirectStructured({
+    question: "What's the best prop on Wembanyama tonight?",
+    nbaContext: baseNbaContext(),
+    nbaMatchup,
+    nbaMatchupPool,
+  });
+
+  assert.ok(out);
+  assert.match(String(out.lean), /Wembanyama/i);
   assert.equal(out.callType, "prop");
+});
+
+test("isNbaGroundingProseRefusal detects model roster wall", () => {
+  const prose = `I can't identify 'Wemby' from the verified roster for tonight's CLE @ NYK matchup.
+The authorized player pool doesn't include that name.`;
+  assert.equal(isNbaGroundingProseRefusal(prose), true);
+});
+
+test("isNbaGroundingProseRefusal ignores normal takes", () => {
+  assert.equal(
+    isNbaGroundingProseRefusal("Lean: Brunson O28.5 PTS. Line looks soft vs CLE."),
+    false,
+  );
 });

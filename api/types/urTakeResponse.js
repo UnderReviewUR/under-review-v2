@@ -10,6 +10,14 @@
 import { ensureLeanOnStructured } from '../../shared/urTakeLean.js';
 import { sanitizeLeanBroTone } from '../_urTakeCoreVoice.js';
 
+/** Strip model artifacts like leading `")` from user-facing strings. */
+export function stripBrokenQuoteFragments(text) {
+  return String(text || '')
+    .replace(/^\s*["')]+[\s.]*/g, '')
+    .replace(/(?:^|\n)\s*["')]+(?=\s)/gm, '')
+    .trim();
+}
+
 export const UR_TAKE_STRUCTURED_SCHEMA = {
   // Headline: "Lean: [direction]. [why in 15 words max]" or "Lean: Pass." / "Lean: No play."
   lean: {
@@ -254,7 +262,7 @@ export function repairStructuredForDelivery(response, sportHint) {
 
   if (!base || typeof base !== 'object') return base;
 
-  const clip = (s, max) => String(s || '').slice(0, max);
+  const clip = (s, max) => stripBrokenQuoteFragments(String(s || '')).slice(0, max);
   const padLen = (s, min, max, filler) => {
     let t = clip(s, max).trim();
     if (t.length >= min) return t;
