@@ -26,7 +26,7 @@ import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
 import { buildWorldCupUrTakeContext } from "./_wcUrTakeContext.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
-  appendSportTabNudge,
+  buildUrTakeSportTurnScopeRules,
   resolveSportHint as resolveSportHintShared,
   stripUrTakeDeadEndCopy,
 } from "../shared/urTakeSportRouting.js";
@@ -873,6 +873,7 @@ function questionMentionsWorldCup(question) {
 export function resolveSportHint(opts) {
   return resolveSportHintShared({
     ...opts,
+    chatHistory: opts?.chatHistory ?? opts?.history,
     derbyActive: isDerbyActive(),
     questionIsDerby: questionReferencesDerby(String(opts?.question || "")),
   });
@@ -4194,9 +4195,10 @@ CONFIDENCE — cap at Medium; align tone with ${derivedConfidence}.
 
 ${buildMlbParlayUserPromptAppendix(question)}
 
+${buildUrTakeSportTurnScopeRules("mlb")}
+
 Rules:
-- Answer only as an MLB analyst.
-- Do not mention NBA, NFL, golf, F1, or tennis.
+- Do not invent unrelated games or props.
 `;
 }
 
@@ -4234,9 +4236,9 @@ MLB ANTI-REFUSAL (mandatory)
 
 ${buildMlbParlayUserPromptAppendix(question)}
 
+${buildUrTakeSportTurnScopeRules("mlb")}
+
 Rules:
-- Answer only as an MLB analyst.
-- Do not mention golf, NBA, NFL, F1, or tennis.
 - Do not invent unrelated games or props.
 
 Lead with the strongest grounded angle using verified lines from propLines. If starters are still TBD in games[], keep the body of the answer committed to structure and listed lines; close with "Confirm starters before placing." — do not front-load TBD or "conditional on confirmation" at the top.
@@ -4923,13 +4925,36 @@ export default async function handler(req, res) {
   }
   const liveKeywordSignals = detectLiveGameSignals(question, hasImage);
 
+  const uiSportHintForRouting =
+    typeof incomingSportHint === "string" && incomingSportHint.trim()
+      ? incomingSportHint.trim()
+      : null;
+
   let sportHint = resolveSportHint({
     incomingSportHint,
     question,
     matchupContext,
     hasImage,
     golfContext,
+    chatHistory: incomingHistory,
   });
+
+  if (
+    uiSportHintForRouting &&
+    sportHint &&
+    uiSportHintForRouting !== sportHint &&
+    uiSportHintForRouting !== "generic" &&
+    uiSportHintForRouting !== "image_review"
+  ) {
+    console.log(
+      JSON.stringify({
+        event: "ur_take_sport_context_switch",
+        from: uiSportHintForRouting,
+        to: sportHint,
+        questionHead: String(question || "").slice(0, 120),
+      }),
+    );
+  }
   const firstSessionNoHistory = !Array.isArray(incomingHistory) || incomingHistory.length === 0;
   let firstSessionGuaranteeFeature = null;
   let preloadedNbaBoard = null;
@@ -6056,9 +6081,9 @@ Confidence guidance:
 - Only go above that if the input strongly justifies it.
 ${nbaConfidenceModifier.reason ? `- Confidence modifier: ${nbaConfidenceModifier.reason}` : ""}
 
+${buildUrTakeSportTurnScopeRules("golf")}
+
 Rules:
-- Answer only as a golf analyst.
-- Do not mention NBA, NFL, MLB, F1, or tennis.
 - Use the tournament, odds, rankings, and player names in the provided golf context.
 - currentEvent.leaderboard has live positions when the feed provides them — cite scores/positions from those rows when present.
 - If a golfer the user names is a known PGA Tour pro but missing from live leaderboard rows, do NOT refuse — note "leaderboard position not yet available" and analyze from rankings, season form, course fit, and static profile data in context.
@@ -6239,9 +6264,9 @@ column. If the response could apply to any two playoff teams, rewrite it.
 
 ${ROSTER_ENFORCEMENT_NBA}
 
+${buildUrTakeSportTurnScopeRules("nba")}
+
 Rules:
-- Answer only as an NBA analyst.
-- Do not mention golf, NFL, MLB, F1, or tennis.
 - Do not invent unrelated games or props.
 - Stats in the nbaContext are the ONLY stats you may cite with confidence.
   Never cite a specific percentage or compression rate unless it appears in the provided context payload. If grounded data does not contain a percentage, describe the pattern qualitatively instead. Do not apply estimated compression rates to multiple players in the same response — that is a fabrication pattern regardless of whether the percentages differ.
@@ -6367,9 +6392,9 @@ Confidence guidance:
 
 ${f1VerifiedBlock}
 
+${buildUrTakeSportTurnScopeRules("f1")}
+
 Rules:
-- Answer only as an F1 analyst.
-- Do not mention golf, NBA, NFL, MLB, or tennis — never reference NBA slates, playoff matchups, or basketball stats (no BOS-PHI, "double-double", PRA, etc.).
 - The F1 context JSON is server-assembled; **never** ask the user to paste F1 data, context, or screenshots to proceed.
 - Use the queryFocus and schedule.races fields in context for the event the user named (e.g. Miami Grand Prix) when present.
 - Whether odds grids or qualifying splits appear or not, deliver the same-caliber **race-only** read: head-to-head matchup, points finish, qualifying pace, tire or weather hooks — grounded only in fields present in context.
@@ -6617,9 +6642,9 @@ FOCUS TEAM: Only ${focusTeam || focusTeamAbbr || "[named team]"} slots/needs unl
     : ""
 }
 
+${buildUrTakeSportTurnScopeRules("nfl")}
+
 Rules:
-- Answer only as an NFL analyst.
-- Do not mention golf, NBA, MLB, F1, or tennis.
 - Use only players/teams/roles that exist in the provided NFL context — **except** the "NFL DRAFT BOARD" section: Round 1 pick numbers, team slot holders, trade notes on those slots, and OFFICIAL ROUND 1 PICKS (when populated) are authoritative for draft questions.
 - If the asked player is not in provided context, return PASS and explain missing context in one line — **unless** the question is draft-centric (see DRAFT / GM MODE below); then you may discuss well-known prospects qualitatively but must not fabricate who was selected at which slot.
 - Draft identity enforcement: for draft-centric questions, any prospect name outside VERIFIED 2026 DRAFT PROSPECT ANCHORS must be labeled "simulation-only (UDFA-range)" before analysis.
@@ -6781,9 +6806,10 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
 
+${buildUrTakeSportTurnScopeRules(matchupContext?.league ? String(matchupContext.league).toLowerCase() : "generic")}
+
 Rules:
 - Stay within the matchup and its sport.
-- Do not drift into unrelated sports.
 - Do not invent unrelated teams, players, or props.`;
   } else {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
@@ -6819,9 +6845,11 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 - Only go above that if the input strongly justifies it.
 
+${buildUrTakeSportTurnScopeRules(sportHint)}
+
 Rules:
-- Stay within the sport most clearly implied by the question.
-- If the sport is ambiguous, answer conservatively and do not invent specifics.
+- Stay within the sport most clearly implied by the question and the attached context.
+- If the sport is ambiguous, answer conservatively and do not invent specifics — never refuse or redirect for sport-routing reasons.
 - Do not make up games, players, or props that are not supported by the prompt.
 ${continuationRule}`;
   }
@@ -7624,16 +7652,6 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     responseText = stripUrTakeDeadEndCopy(responseText);
     if (responseDeep) responseDeep = stripUrTakeDeadEndCopy(responseDeep);
-    responseText = appendSportTabNudge(responseText, {
-      answeredSport: sportHint,
-      uiSportHint: incomingSportHint,
-    });
-    if (responseDeep) {
-      responseDeep = appendSportTabNudge(responseDeep, {
-        answeredSport: sportHint,
-        uiSportHint: incomingSportHint,
-      });
-    }
 
     const nbaMeta =
       sportHint === "nba"

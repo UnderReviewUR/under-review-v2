@@ -5,6 +5,7 @@ import {
   appendSportTabNudge,
   buildSportTabNudgeLine,
   buildUrTakeNoDeadEndPrompt,
+  inferSportFromChatHistory,
   inferSportFromQuestionText,
   resolveSportHint,
   stripUrTakeDeadEndCopy,
@@ -40,14 +41,40 @@ test("tab nudge points user to answered sport tab", () => {
   assert.equal(buildSportTabNudgeLine({ answeredSport: "golf", uiSportHint: "golf" }), null);
 });
 
-test("appendSportTabNudge adds line once", () => {
-  const out = appendSportTabNudge("Lean Celtics -4.5.", {
+test("appendSportTabNudge is a no-op (no tab redirect)", () => {
+  const base = "Lean Celtics -4.5.";
+  const out = appendSportTabNudge(base, {
     answeredSport: "nba",
     uiSportHint: "golf",
   });
-  assert.match(out, /tap the NBA tab\.$/);
-  const again = appendSportTabNudge(out, { answeredSport: "nba", uiSportHint: "golf" });
-  assert.equal((again.match(/tap the NBA tab/gi) || []).length, 1);
+  assert.equal(out, base);
+});
+
+test("LeBron prop on golf UI hint resolves to NBA", () => {
+  const h = resolveSportHint({
+    incomingSportHint: "golf",
+    question: "LeBron James points prop tonight?",
+    matchupContext: null,
+    hasImage: false,
+    golfContext: { currentEvent: { name: "PGA Championship" } },
+  });
+  assert.equal(h, "nba");
+});
+
+test("ambiguous follow-up inherits last assistant sport from history", () => {
+  const h = resolveSportHint({
+    incomingSportHint: "golf",
+    question: "what about the total?",
+    matchupContext: null,
+    hasImage: false,
+    golfContext: { currentEvent: { name: "PGA Championship" } },
+    chatHistory: [
+      { role: "user", content: "Celtics spread?" },
+      { role: "assistant", content: "Lean Celtics -4.5.", sport: "nba" },
+      { role: "user", content: "what about the total?" },
+    ],
+  });
+  assert.equal(h, "nba");
 });
 
 test("stripUrTakeDeadEndCopy removes WRONG SPORT and verified-player refusals", () => {

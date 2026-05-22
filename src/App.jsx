@@ -80,6 +80,10 @@ import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
 import { trimToCompleteSentence } from "./lib/textUtils.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
+import {
+  inferSportFromChatHistory,
+  inferSportFromQuestionText,
+} from "../shared/urTakeSportRouting.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
   alignMergedGamesToVerifiedSlate,
@@ -1354,8 +1358,16 @@ ${themeCss}
 
   setMsgs((prev) => {
     priorSnapshot = [...prev];
+    const historyForRoute = chatHistoryForApi(priorSnapshot);
+    const fromQuestion = inferSportFromQuestionText(text, matchup || null, !!imgToSend);
+    const fromHistory =
+      priorSnapshot.length > 0 && historyForRoute.length > 1
+        ? inferSportFromChatHistory(historyForRoute)
+        : null;
     let eff =
+      fromQuestion ??
       detected ??
+      fromHistory ??
       explicitHint ??
       screenSport ??
       lastUrTakeSportRef.current ??

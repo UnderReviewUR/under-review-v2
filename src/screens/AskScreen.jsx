@@ -160,11 +160,11 @@ function sessionSportLabel(slug) {
   return map[s] || (s ? s.replace(/_/g, " ").toUpperCase() : "Multi-sport");
 }
 
-/** Deterministic context chip; hidden when sport is unknown or generic. */
-function lockedContextLine(inferredSlug) {
+/** Soft context label (informational only — does not block cross-sport questions). */
+function sessionContextLine(inferredSlug) {
   const s = textOrEmpty(inferredSlug, 200).trim().toLowerCase();
   if (!s || s === "generic") return null;
-  return `Locked: ${sessionSportLabel(inferredSlug)} tonight`;
+  return `Context loaded: ${sessionSportLabel(inferredSlug)}`;
 }
 
 export default function AskScreen({
@@ -199,7 +199,7 @@ export default function AskScreen({
 
   const inferredSport = inferUrTakeSportFromMessages(safeAskMsgs);
   const questionCount = safeAskMsgs.filter((m) => m.role === "user").length;
-  const lockedLine = lockedContextLine(inferredSport);
+  const sessionContextLabel = sessionContextLine(inferredSport);
   const threadDebug = useMemo(() => buildThreadDebugSummary(safeAskMsgs), [safeAskMsgs]);
 
   /** Runs before `UrTakeChatErrorBoundary` children — survives outer safe-mode crashes. */
@@ -259,7 +259,11 @@ export default function AskScreen({
                         {questionCount} {questionCount === 1 ? "question" : "questions"}
                       </span>
                     </div>
-                    {lockedLine ? <div className="ur-session-locked-line">{lockedLine}</div> : null}
+                    {sessionContextLabel ? (
+                      <div className="ur-session-locked-line ur-session-context-soft">
+                        {sessionContextLabel}
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
                 <div className="ur-chat-scroll">

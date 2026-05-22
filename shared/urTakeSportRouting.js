@@ -188,6 +188,27 @@ const NBA_TERMS = [
   "pelicans",
   "raptors",
   "wizards",
+  "lebron",
+  "james",
+  "curry",
+  "stephen curry",
+  "jokic",
+  "nikola jokic",
+  "embiid",
+  "tatum",
+  "jaylen brown",
+  "luka",
+  "doncic",
+  "antetokounmpo",
+  "giannis",
+  "wembanyama",
+  "wemby",
+  "victor wembanyama",
+  "durant",
+  "booker",
+  "haliburton",
+  "edwards",
+  "anthony edwards",
 ];
 
 const WORLD_CUP_TERMS = [
@@ -340,6 +361,50 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
 }
 
 /**
+ * Last assistant sport on the thread (for ambiguous follow-ups).
+ * @param {Array<{ sport?: string, role?: string }>} [history]
+ * @returns {string | null}
+ */
+export function inferSportFromChatHistory(history) {
+  if (!Array.isArray(history) || history.length === 0) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const row = history[i];
+    if (!row || typeof row !== "object") continue;
+    const s = String(row.sport || "")
+      .trim()
+      .toLowerCase();
+    if (!s || s === "generic" || s === "image_review") continue;
+    return s;
+  }
+  return null;
+}
+
+const SPORT_TURN_LABELS = {
+  nba: "NBA",
+  nfl: "NFL",
+  mlb: "MLB",
+  golf: "Golf",
+  f1: "Formula 1",
+  tennis: "Tennis",
+  tennis_wta_profile: "WTA Tennis",
+  worldcup: "World Cup",
+  derby: "Kentucky Derby",
+};
+
+/**
+ * Prompt block: answer the routed sport; never refuse cross-sport questions.
+ * @param {string} [sportHint]
+ */
+export function buildUrTakeSportTurnScopeRules(sportHint) {
+  const s = String(sportHint || "generic").toLowerCase();
+  const label = SPORT_TURN_LABELS[s] || s.replace(/_/g, " ") || "this sport";
+  return `SPORT TURN SCOPE (mandatory)
+- This turn is routed to ${label}; use only the sport context JSON supplied in this message.
+- Prior chat may mention other sports — answer the user's current question from this payload. Never refuse, redirect, or ask them to switch tabs, threads, or screens.
+- Never say "wrong sport", "locked into [sport]", "constraint conflict", or that they must leave this conversation.`;
+}
+
+/**
  * @param {object} p
  * @param {string} [p.incomingSportHint]
  * @param {string} p.question
@@ -348,6 +413,7 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
  * @param {object} [p.golfContext]
  * @param {boolean} [p.derbyActive]
  * @param {boolean} [p.questionIsDerby]
+ * @param {Array<{ sport?: string }>} [p.chatHistory]
  */
 export function resolveSportHint({
   incomingSportHint,
@@ -357,6 +423,7 @@ export function resolveSportHint({
   golfContext,
   derbyActive = false,
   questionIsDerby = false,
+  chatHistory,
 }) {
   const textualSport = inferSportFromQuestionText(question, matchupContext, hasImage);
   const h =
@@ -364,22 +431,16 @@ export function resolveSportHint({
       ? incomingSportHint.trim()
       : "";
 
-  if (
-    textualSport &&
-    h &&
-    textualSport !== h &&
-    h !== "generic" &&
-    h !== "image_review"
-  ) {
-    return textualSport;
-  }
+  // Question text always wins — cross-sport questions are allowed mid-session.
+  if (textualSport) return textualSport;
 
   if (derbyActive && questionIsDerby && (!h || h === "generic")) {
     return "derby";
   }
 
-  if ((!h || h === "generic" || h === "image_review") && textualSport) {
-    return textualSport;
+  const historySport = inferSportFromChatHistory(chatHistory);
+  if (historySport && Array.isArray(chatHistory) && chatHistory.length > 1) {
+    return historySport;
   }
 
   if (h && h !== "generic" && h !== "image_review") return h;
@@ -394,15 +455,13 @@ export function resolveSportHint({
     return "golf";
   }
 
-  if (textualSport) return textualSport;
-
   if (hasImage) return "generic";
 
   return "generic";
 }
 
 /**
- * One-line forward guidance when the answer used a different sport than the UI session tab.
+ * @deprecated Tab nudges removed — cross-sport answers stay in-thread. Kept for tests.
  * @param {{ answeredSport?: string, uiSportHint?: string }} p
  * @returns {string | null}
  */
@@ -425,18 +484,9 @@ export function buildSportTabNudgeLine({ answeredSport, uiSportHint }) {
   return `For more ${copy.more} takes, tap the ${copy.tab} tab.`;
 }
 
-/**
- * Append tab nudge when UI sport differs from answered sport; avoids duplicate lines.
- * @param {string} text
- * @param {{ answeredSport?: string, uiSportHint?: string }} opts
- */
-export function appendSportTabNudge(text, opts) {
-  const base = String(text || "").trim();
-  const line = buildSportTabNudgeLine(opts);
-  if (!line) return base;
-  if (!base) return line;
-  if (base.toLowerCase().includes(line.toLowerCase())) return base;
-  return `${base}\n\n${line}`;
+/** @deprecated No-op — do not redirect users to another tab after cross-sport answers. */
+export function appendSportTabNudge(text, _opts) {
+  return String(text || "").trim();
 }
 
 /** Global UR Take rule block — injected into system prompts (all sports). */

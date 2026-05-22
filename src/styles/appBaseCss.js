@@ -1015,6 +1015,12 @@ export const baseCss = `
     margin:0;
     line-height:1.35;
   }
+  .ur-session-context-soft{
+    color:rgba(255,255,255,0.38);
+    letter-spacing:0.1em;
+    text-transform:none;
+    font-size:10px;
+  }
 
   .ur-first-session-home{
     display:flex;
