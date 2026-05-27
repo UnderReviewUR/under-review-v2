@@ -98,17 +98,39 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
     const intervalMs = getNextScrapeDelayMs(gameStartMs, nowMs);
 
     if (intervalMs == null) {
+      const reason = nowMs >= gameStartMs ? "live_or_started" : "imminent";
+      console.log(
+        JSON.stringify({
+          target_id: `${sport}/${gameId}`,
+          action: "skipped",
+          reason,
+          gameStartMs,
+          nowMs,
+          msUntilStart: gameStartMs - nowMs,
+        }),
+      );
       results.push({
         sport,
         gameId,
         action: "skip",
-        reason: nowMs >= gameStartMs ? "live_or_started" : "imminent",
+        reason,
       });
       continue;
     }
 
     const lastRunMs = await readLastRunMs(sport, gameId);
     if (!shouldRunScrapeForGame(gameStartMs, lastRunMs, nowMs)) {
+      console.log(
+        JSON.stringify({
+          target_id: `${sport}/${gameId}`,
+          action: "skipped",
+          reason: "cadence_not_due",
+          intervalMs,
+          lastRunMs,
+          timeSinceLastRun: lastRunMs ? nowMs - lastRunMs : null,
+          msUntilStart: gameStartMs - nowMs,
+        }),
+      );
       results.push({
         sport,
         gameId,
@@ -122,6 +144,13 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
 
     const handler = SCRAPE_HANDLERS[sport];
     if (!handler) {
+      console.log(
+        JSON.stringify({
+          target_id: `${sport}/${gameId}`,
+          action: "skipped",
+          reason: "no_handler",
+        }),
+      );
       results.push({
         sport,
         gameId,
@@ -135,6 +164,15 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
       const payload = await handler(target);
       await writeLastRunMs(sport, gameId, nowMs);
       executed += 1;
+      console.log(
+        JSON.stringify({
+          target_id: `${sport}/${gameId}`,
+          action: "ran",
+          intervalMs,
+          msUntilStart: gameStartMs - nowMs,
+          result: payload,
+        }),
+      );
       results.push({
         sport,
         gameId,
@@ -143,6 +181,13 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
         ...payload,
       });
     } catch (err) {
+      console.log(
+        JSON.stringify({
+          target_id: `${sport}/${gameId}`,
+          action: "error",
+          error: err?.message || "scrape_failed",
+        }),
+      );
       results.push({
         sport,
         gameId,
