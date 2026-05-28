@@ -1,5 +1,7 @@
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
+// TODO(post-deploy): Split DraftKings Puppeteer fallback into `api/_mlbOddsDkFallback.js`
+// so this file stays focused on ESPN-primary parsing and cache orchestration.
 const ESPN_MLB_SCOREBOARD_API =
   "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard";
 const DK_MLB_ODDS_PAGE_URL = "https://sportsbook.draftkings.com/leagues/baseball/mlb";
