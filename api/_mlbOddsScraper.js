@@ -1,6 +1,7 @@
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 
-const ESPN_MLB_ODDS_PAGE_URL = "https://www.espn.com/espn/betting/sport/_/name/mlb";
+const ESPN_MLB_SCOREBOARD_API =
+  "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard";
 const DK_MLB_ODDS_PAGE_URL = "https://sportsbook.draftkings.com/leagues/baseball/mlb";
 
 const MLB_ODDS_CACHE_TTL_SECONDS = 30 * 60;
@@ -8,24 +9,10 @@ const MLB_ODDS_STALE_MS = 10 * 60 * 1000;
 const memCache = new Map();
 
 /**
- * ESPN BET endpoint note (2026-05-28):
- * - This environment returns a 404 shell for the provided ESPN MLB URL.
- * - We could verify sportsbook host tokens in ESPN config (`espnsb.com`) but could not
- *   verify stable JSON path segments from live traffic in this environment.
- * - We therefore intercept JSON responses by host hint, and explicitly fall back to DK.
- */
-const ESPN_RESPONSE_URL_HINTS = [
-  "espnsb.com",
-  "sports-betting",
-  "/espn/betting/",
-  "/betting/",
-];
-
-/**
- * DraftKings endpoint note (verified from live MLB page bootstrap on 2026-05-28):
- * - sportsbook-nash.draftkings.com/api/sportscontent/dkusva/
- * - sportsbook-nash.draftkings.com/api/sportscontent/views/dkusva/
- * We still rely on Puppeteer response interception (not DOM selectors).
+ * Primary endpoint verification (2026-05-28):
+ * ESPN scoreboard includes odds at:
+ * event.competitions[0].odds[0].moneyline / pointSpread / total.
+ * We use this JSON API as primary and reserve Puppeteer for DK fallback only.
  */
 const DK_RESPONSE_URL_HINTS = [
   "sportsbook-nash.draftkings.com/api/sportscontent/",
@@ -153,6 +140,24 @@ function tokenize(value) {
     .filter(Boolean);
 }
 
+function parseDateFromGameId(gameId) {
+  const m = String(gameId || "").match(/_(\d{4})_(\d{2})_(\d{2})$/);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+function toEtYmd(value) {
+  const ms = Date.parse(String(value || ""));
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function toEspnDateParam(ymd) {
+  const v = String(ymd || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  return v.replace(/-/g, "");
+}
+
 /**
  * @param {Record<string, unknown>} meta
  */
@@ -188,18 +193,133 @@ function teamTokenMatches(text, token) {
   return qParts.every((part) => tParts.includes(part));
 }
 
+function parseScoreboardTotalLine(lineText) {
+  const s = String(lineText || "");
+  const m = s.match(/([+-]?\d+(?:\.\d+)?)/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * @param {Record<string, unknown>} event
+ */
+function parseEspnEventOdds(event) {
+  const comp = Array.isArray(event?.competitions) ? event.competitions[0] : null;
+  if (!comp || typeof comp !== "object") return null;
+
+  const competitors = Array.isArray(comp.competitors) ? comp.competitors : [];
+  const homeComp = competitors.find((c) => String(c?.homeAway || "").toLowerCase() === "home");
+  const awayComp = competitors.find((c) => String(c?.homeAway || "").toLowerCase() === "away");
+
+  const homeAbbr = String(homeComp?.team?.abbreviation || "").trim();
+  const awayAbbr = String(awayComp?.team?.abbreviation || "").trim();
+  const homeName = String(homeComp?.team?.displayName || homeComp?.team?.name || "").trim();
+  const awayName = String(awayComp?.team?.displayName || awayComp?.team?.name || "").trim();
+
+  const odds = Array.isArray(comp?.odds) ? comp.odds : [];
+  const row = odds[0];
+  if (!row || typeof row !== "object") return null;
+
+  const markets = {
+    moneyline: [],
+    runLine: [],
+    totalRuns: [],
+  };
+
+  const mlHome = parseAmericanOdds(row?.moneyline?.home?.close?.odds);
+  const mlAway = parseAmericanOdds(row?.moneyline?.away?.close?.odds);
+  if (mlHome != null) {
+    markets.moneyline.push({
+      team: homeAbbr || homeName || "HOME",
+      americanOdds: mlHome,
+      market: row?.moneyline?.displayName || "Moneyline",
+    });
+  }
+  if (mlAway != null) {
+    markets.moneyline.push({
+      team: awayAbbr || awayName || "AWAY",
+      americanOdds: mlAway,
+      market: row?.moneyline?.displayName || "Moneyline",
+    });
+  }
+
+  const rlHomeLine = parseNumber(row?.pointSpread?.home?.close?.line);
+  const rlAwayLine = parseNumber(row?.pointSpread?.away?.close?.line);
+  const rlHomeOdds = parseAmericanOdds(row?.pointSpread?.home?.close?.odds);
+  const rlAwayOdds = parseAmericanOdds(row?.pointSpread?.away?.close?.odds);
+
+  if (rlHomeOdds != null && rlHomeLine != null) {
+    markets.runLine.push({
+      team: homeAbbr || homeName || "HOME",
+      line: rlHomeLine,
+      americanOdds: rlHomeOdds,
+      market: row?.pointSpread?.displayName || "Runline",
+    });
+  }
+  if (rlAwayOdds != null && rlAwayLine != null) {
+    markets.runLine.push({
+      team: awayAbbr || awayName || "AWAY",
+      line: rlAwayLine,
+      americanOdds: rlAwayOdds,
+      market: row?.pointSpread?.displayName || "Runline",
+    });
+  }
+
+  const overOdds = parseAmericanOdds(row?.total?.over?.close?.odds);
+  const underOdds = parseAmericanOdds(row?.total?.under?.close?.odds);
+  const overLine = parseScoreboardTotalLine(row?.total?.over?.close?.line);
+  const underLine = parseScoreboardTotalLine(row?.total?.under?.close?.line);
+  const totalLine = overLine ?? underLine ?? parseNumber(row?.overUnder);
+
+  if (overOdds != null && totalLine != null) {
+    markets.totalRuns.push({
+      side: "over",
+      line: totalLine,
+      americanOdds: overOdds,
+      market: row?.total?.displayName || "Total Runs",
+    });
+  }
+  if (underOdds != null && totalLine != null) {
+    markets.totalRuns.push({
+      side: "under",
+      line: totalLine,
+      americanOdds: underOdds,
+      market: row?.total?.displayName || "Total Runs",
+    });
+  }
+
+  const count =
+    (markets.moneyline?.length || 0) +
+    (markets.runLine?.length || 0) +
+    (markets.totalRuns?.length || 0);
+
+  return {
+    source: "espn_scoreboard_api",
+    sourceEndpoint: ESPN_MLB_SCOREBOARD_API,
+    matchedEvent: {
+      eventId: String(event?.id || ""),
+      label: `${awayAbbr || awayName} @ ${homeAbbr || homeName}`,
+      homeTeam: homeName,
+      awayTeam: awayName,
+      homeAbbr,
+      awayAbbr,
+      startTime: event?.date || null,
+    },
+    markets,
+    hasPostedLines: count > 0,
+  };
+}
+
 /**
  * @param {Record<string, unknown>} ev
  * @param {{ homeTokens: string[], awayTokens: string[] }} hints
+ * @param {string | null} dateYmdHint
+ * @param {Record<string, unknown>} meta
  */
-function scoreEventMatch(ev, hints) {
-  const home = normalizeToken(ev?.homeTeam || "");
-  const away = normalizeToken(ev?.awayTeam || "");
-  if (!home && !away) return -1;
+function scoreEspnEvent(ev, hints, dateYmdHint, meta) {
+  const home = normalizeToken(`${ev?.matchedEvent?.homeAbbr || ""} ${ev?.matchedEvent?.homeTeam || ""}`);
+  const away = normalizeToken(`${ev?.matchedEvent?.awayAbbr || ""} ${ev?.matchedEvent?.awayTeam || ""}`);
 
   let score = 0;
-  if (hints.homeTokens.length === 0 && hints.awayTokens.length === 0) return 1;
-
   for (const token of hints.homeTokens) {
     if (teamTokenMatches(home, token)) score += 4;
     else if (teamTokenMatches(away, token)) score += 1;
@@ -208,7 +328,103 @@ function scoreEventMatch(ev, hints) {
     if (teamTokenMatches(away, token)) score += 4;
     else if (teamTokenMatches(home, token)) score += 1;
   }
+
+  const gameId = String(meta?.game?.id || "").trim();
+  if (gameId && String(ev?.matchedEvent?.eventId || "") === gameId) score += 100;
+
+  if (dateYmdHint) {
+    const evEt = toEtYmd(ev?.matchedEvent?.startTime);
+    if (evEt && evEt === dateYmdHint) score += 2;
+  }
+
   return score;
+}
+
+/**
+ * @param {string} gameId
+ * @param {Record<string, unknown>} meta
+ */
+function resolveEspnDateCandidates(gameId, meta = {}) {
+  const dates = new Set();
+  const fromGameId = parseDateFromGameId(gameId);
+  if (fromGameId) dates.add(fromGameId);
+
+  const fromMeta = [
+    meta?.startTimeUtc,
+    meta?.game?.startTimeUtc,
+    meta?.game?.date,
+    meta?.game?.startTime,
+  ];
+  for (const v of fromMeta) {
+    const ymd = toEtYmd(v);
+    if (ymd) dates.add(ymd);
+  }
+
+  const now = Date.now();
+  dates.add(new Date(now).toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+  dates.add(new Date(now + 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+
+  return [...dates].slice(0, 4);
+}
+
+/**
+ * @param {string} gameId
+ * @param {Record<string, unknown>} meta
+ */
+async function scrapeMlbOddsFromEspnScoreboard(gameId, meta = {}) {
+  const hints = collectTeamHints(meta);
+  const dateHint = parseDateFromGameId(gameId) || toEtYmd(meta?.startTimeUtc) || toEtYmd(meta?.game?.startTimeUtc);
+  const dateCandidates = resolveEspnDateCandidates(gameId, meta);
+
+  const candidates = [];
+  for (const ymd of dateCandidates) {
+    const dateParam = toEspnDateParam(ymd);
+    if (!dateParam) continue;
+
+    const url = `${ESPN_MLB_SCOREBOARD_API}?dates=${encodeURIComponent(dateParam)}`;
+    let body = null;
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "application/json", "User-Agent": "UnderReview/1.0" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!res.ok) continue;
+      body = await res.json();
+    } catch {
+      continue;
+    }
+
+    const events = Array.isArray(body?.events) ? body.events : [];
+    for (const event of events) {
+      const parsed = parseEspnEventOdds(event);
+      if (!parsed?.hasPostedLines) continue;
+      parsed.sourceEndpoint = url;
+      const score = scoreEspnEvent(parsed, hints, dateHint, meta);
+      candidates.push({
+        parsed,
+        score,
+        count:
+          (parsed.markets?.moneyline?.length || 0) +
+          (parsed.markets?.runLine?.length || 0) +
+          (parsed.markets?.totalRuns?.length || 0),
+      });
+    }
+  }
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.count - a.count;
+  });
+
+  const best = candidates[0]?.parsed || null;
+  if (!best) {
+    throw new Error("No MLB odds found in ESPN scoreboard API");
+  }
+  return {
+    ...best,
+    scrapeMethod: "espn_scoreboard_api",
+  };
 }
 
 /**
@@ -245,7 +461,7 @@ function collectObjects(root, maxNodes = 25000) {
 function parseEventCandidate(node) {
   if (!node || typeof node !== "object") return null;
 
-  const homeFromObject = firstText([
+  const homeTeam = firstText([
     node?.homeTeamName,
     node?.homeTeam,
     node?.home?.name,
@@ -254,7 +470,7 @@ function parseEventCandidate(node) {
     node?.teamName2,
   ]);
 
-  const awayFromObject = firstText([
+  const awayTeam = firstText([
     node?.awayTeamName,
     node?.awayTeam,
     node?.away?.name,
@@ -263,45 +479,20 @@ function parseEventCandidate(node) {
     node?.teamName1,
   ]);
 
-  let homeTeam = homeFromObject;
-  let awayTeam = awayFromObject;
-
-  const participants = Array.isArray(node?.participants) ? node.participants : [];
-  if ((!homeTeam || !awayTeam) && participants.length >= 2) {
-    const homeParticipant = participants.find((p) => String(p?.homeAway || "").toLowerCase() === "home");
-    const awayParticipant = participants.find((p) => String(p?.homeAway || "").toLowerCase() === "away");
-    homeTeam = homeTeam || firstText([homeParticipant?.name, participants[1]?.name, participants[1]?.teamName]);
-    awayTeam = awayTeam || firstText([awayParticipant?.name, participants[0]?.name, participants[0]?.teamName]);
-  }
-
   if (!homeTeam || !awayTeam) return null;
 
   const eventId = firstText([
     node?.eventId != null ? String(node.eventId) : null,
     node?.id != null ? String(node.id) : null,
     node?.event?.id != null ? String(node.event.id) : null,
-    node?.providerEventId != null ? String(node.providerEventId) : null,
-  ]);
-
-  const eventLabel = firstText([
-    node?.name,
-    node?.label,
-    node?.eventName,
-    `${awayTeam} @ ${homeTeam}`,
   ]);
 
   return {
     eventId: eventId || null,
-    label: eventLabel || `${awayTeam} @ ${homeTeam}`,
+    label: `${awayTeam} @ ${homeTeam}`,
     homeTeam,
     awayTeam,
-    startTime: firstText([
-      node?.startDate,
-      node?.startTime,
-      node?.commenceTime,
-      node?.date,
-      node?.eventDate,
-    ]),
+    startTime: firstText([node?.startDate, node?.startTime, node?.commenceTime, node?.date]),
   };
 }
 
@@ -343,7 +534,6 @@ function parseOutcomeCandidate(outcome) {
       outcome?.priceAmerican != null ? String(outcome.priceAmerican) : null,
       outcome?.odds != null ? String(outcome.odds) : null,
       outcome?.price != null ? String(outcome.price) : null,
-      outcome?.displayOdds?.american != null ? String(outcome.displayOdds.american) : null,
     ]),
   );
 
@@ -444,7 +634,23 @@ function extractMlbOddsFromPayload(payload, meta = {}) {
 
   const hints = collectTeamHints(meta);
   const scoredEvents = events
-    .map((ev) => ({ ev, score: scoreEventMatch(ev, hints) }))
+    .map((ev) => ({
+      ev,
+      score: (() => {
+        const home = normalizeToken(ev?.homeTeam || "");
+        const away = normalizeToken(ev?.awayTeam || "");
+        let s = 0;
+        for (const token of hints.homeTokens) {
+          if (teamTokenMatches(home, token)) s += 4;
+          else if (teamTokenMatches(away, token)) s += 1;
+        }
+        for (const token of hints.awayTokens) {
+          if (teamTokenMatches(away, token)) s += 4;
+          else if (teamTokenMatches(home, token)) s += 1;
+        }
+        return s;
+      })(),
+    }))
     .sort((a, b) => b.score - a.score);
 
   const targetEvent = scoredEvents[0]?.ev || null;
@@ -621,24 +827,6 @@ function selectBestCapture(captures, source, meta = {}) {
 /**
  * @param {Record<string, unknown>} meta
  */
-async function scrapeMlbOddsFromEspnBet(meta = {}) {
-  const captures = await captureJsonResponsesViaPuppeteer(
-    ESPN_MLB_ODDS_PAGE_URL,
-    ESPN_RESPONSE_URL_HINTS,
-  );
-  const best = selectBestCapture(captures, "espn_bet_public", meta);
-  if (!best) {
-    throw new Error("No MLB odds payload captured from ESPN BET response stream");
-  }
-  return {
-    ...best,
-    scrapeMethod: "puppeteer_network_intercept",
-  };
-}
-
-/**
- * @param {Record<string, unknown>} meta
- */
 async function scrapeMlbOddsFromDraftKings(meta = {}) {
   const captures = await captureJsonResponsesViaPuppeteer(
     DK_MLB_ODDS_PAGE_URL,
@@ -655,7 +843,7 @@ async function scrapeMlbOddsFromDraftKings(meta = {}) {
 }
 
 /**
- * Cron / manual refresh — ESPN BET public page primary, DraftKings public page fallback.
+ * Cron / manual refresh — ESPN scoreboard JSON primary, DraftKings public page fallback.
  * @param {string | number} gameId
  * @param {Record<string, unknown>} [meta]
  */
@@ -667,9 +855,9 @@ export async function scrapeAndCacheMlbOdds(gameId, meta = {}) {
   let payload = null;
 
   try {
-    payload = await scrapeMlbOddsFromEspnBet(meta);
+    payload = await scrapeMlbOddsFromEspnScoreboard(gid, meta);
   } catch (err) {
-    console.warn("[mlbOddsScraper] ESPN BET capture failed:", err?.message || err);
+    console.warn("[mlbOddsScraper] ESPN scoreboard scrape failed:", err?.message || err);
   }
 
   if (!payload || !payload.hasPostedLines) {
@@ -683,7 +871,7 @@ export async function scrapeAndCacheMlbOdds(gameId, meta = {}) {
   }
 
   if (!payload) {
-    throw new Error("No MLB odds payload captured from ESPN BET or DraftKings");
+    throw new Error("No MLB odds payload captured from ESPN scoreboard or DraftKings");
   }
 
   const entry = {
@@ -691,7 +879,7 @@ export async function scrapeAndCacheMlbOdds(gameId, meta = {}) {
       gameId: gid,
       source: payload.source,
       sourceEndpoint: payload.sourceEndpoint || null,
-      scrapeMethod: payload.scrapeMethod || "puppeteer_network_intercept",
+      scrapeMethod: payload.scrapeMethod || "espn_scoreboard_api",
       matchedEvent: payload.matchedEvent || null,
       markets: payload.markets || { moneyline: [], runLine: [], totalRuns: [] },
       hasPostedLines: Boolean(payload.hasPostedLines),

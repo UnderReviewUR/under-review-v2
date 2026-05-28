@@ -10,6 +10,14 @@ function isTransientAnthropicHttpStatus(status) {
   return status === 429 || status === 503 || status === 529;
 }
 
+function classifyAnthropicStatusFailure(status) {
+  if (status === 429) return "upstream_rate_limit";
+  if (status === 503 || status === 529) return "upstream_overloaded";
+  if (status === 401 || status === 403) return "upstream_auth_failure";
+  if (status === 408 || status === 504) return "timeout";
+  return "upstream_http_error";
+}
+
 export async function fetchAnthropicMessages({
   apiKey,
   model,
@@ -23,6 +31,7 @@ export async function fetchAnthropicMessages({
   let lastResponse = null;
   let lastRequestId = null;
   let lastData = {};
+  let lastStatus = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const controller = new AbortController();
@@ -49,6 +58,7 @@ export async function fetchAnthropicMessages({
         lastResponse.headers.get("request-id") ||
         lastResponse.headers.get("anthropic-request-id") ||
         null;
+      lastStatus = lastResponse.status;
 
       lastData = await lastResponse.json().catch(() => ({}));
 
@@ -59,6 +69,9 @@ export async function fetchAnthropicMessages({
           requestId: lastRequestId,
           data: lastData,
           rateLimitedExhausted: false,
+          attemptsUsed: attempt + 1,
+          lastStatus,
+          failureClass: null,
         };
       }
 
@@ -69,6 +82,9 @@ export async function fetchAnthropicMessages({
           requestId: lastRequestId,
           data: lastData,
           rateLimitedExhausted: false,
+          attemptsUsed: attempt + 1,
+          lastStatus,
+          failureClass: classifyAnthropicStatusFailure(lastResponse.status),
         };
       }
 
@@ -78,16 +94,28 @@ export async function fetchAnthropicMessages({
       }
     } catch (err) {
       lastData = { error: { message: err?.message || "fetch_failed" } };
+      lastStatus = 0;
       if (attempt < maxRetries - 1) {
         const delay = Math.pow(2, attempt) * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
+        const errName = String(err?.name || "").toLowerCase();
+        const errMsg = String(err?.message || "").toLowerCase();
+        const timeoutLike =
+          errName.includes("abort") ||
+          errName.includes("timeout") ||
+          errMsg.includes("abort") ||
+          errMsg.includes("timeout") ||
+          errMsg.includes("timed out");
         return {
           ok: false,
           status: 0,
           requestId: lastRequestId,
           data: lastData,
           rateLimitedExhausted: true,
+          attemptsUsed: attempt + 1,
+          lastStatus,
+          failureClass: timeoutLike ? "timeout" : "network_error",
         };
       }
     } finally {
@@ -101,5 +129,8 @@ export async function fetchAnthropicMessages({
     requestId: lastRequestId,
     data: lastData,
     rateLimitedExhausted: true,
+    attemptsUsed: maxRetries,
+    lastStatus,
+    failureClass: classifyAnthropicStatusFailure(lastResponse?.status ?? 429),
   };
 }

@@ -4725,8 +4725,70 @@ function logUrTakeApiFallback(payload) {
     authReason: payload.authReason ?? null,
     sanitizeCode: payload.sanitizeCode ?? null,
     sanitizeError: payload.sanitizeError ?? null,
+    failureClass: payload.failureClass ?? null,
+    attemptsUsed: payload.attemptsUsed ?? 0,
+    lastStatus: payload.lastStatus ?? null,
     extra: payload.extra,
   });
+}
+
+function classifyUrTakeFailure(reason, logCtx = {}) {
+  const r = String(reason || "unknown_server_fallback").trim() || "unknown_server_fallback";
+  if (r === "upstream_rate_limit") return "upstream_rate_limit";
+  if (r === "auth_verify_failed") return "auth_verify_failed";
+  if (r === "email_rate_limited") return "email_rate_limited";
+  if (r === "ip_rate_limited") return "ip_rate_limited";
+  if (r === "empty_question") return "empty_question";
+  if (r === "missing_provider_key" || r === "auth_server_misconfigured") return "server_config";
+  if (r.startsWith("request_body_")) return "request_invalid";
+  if (r === "model_empty_text" || r === "empty_response_after_processing") return "model_empty";
+
+  const status = Number(logCtx?.providerStatus);
+  const name = String(logCtx?.providerErrorName || "").toLowerCase();
+  const msg = String(logCtx?.providerErrorMessage || "").toLowerCase();
+  const timeoutLike =
+    status === 408 ||
+    status === 504 ||
+    name.includes("abort") ||
+    name.includes("timeout") ||
+    msg.includes("timeout") ||
+    msg.includes("timed out");
+  if (timeoutLike) return "timeout";
+  if (status === 429 || status === 503 || status === 529) return "upstream_rate_limit";
+  if (status === 401 || status === 403) return "upstream_auth_failure";
+  if (status === 402 || msg.includes("quota") || msg.includes("credit") || msg.includes("billing")) {
+    return "upstream_quota";
+  }
+  if (r === "provider_non_ok") return "anthropic_error";
+  if (r === "exception_caught") return timeoutLike ? "timeout" : "exception";
+  return "generic";
+}
+
+function buildUrTakeFailurePresentation(reason, logCtx = {}) {
+  const failureClass = classifyUrTakeFailure(reason, logCtx);
+  const defaultMsg =
+    "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
+  const messageByClass = {
+    upstream_rate_limit: "Servers are slammed right now. Try again in 30 seconds — your question is saved.",
+    auth_verify_failed: "Session expired. Refresh the page and try again.",
+    email_rate_limited: "You've hit your free question limit. Upgrade to Pro for unlimited.",
+    ip_rate_limited: "Too many requests right now. Wait a minute and try again.",
+    timeout: "That one took too long. Try a more specific question — UR Take works best on focused asks.",
+    server_config: "Something's wrong on our end. We're on it — try again in a minute.",
+    upstream_auth_failure: "Something's wrong on our end. We're on it — try again in a minute.",
+    upstream_quota: "Servers are slammed right now. Try again in 30 seconds — your question is saved.",
+    request_invalid: "That request was incomplete. Try one focused player or matchup question.",
+    model_empty: defaultMsg,
+    anthropic_error: defaultMsg,
+    exception: defaultMsg,
+    generic: defaultMsg,
+  };
+  const silent = failureClass === "empty_question";
+  return {
+    failureClass,
+    silent,
+    message: silent ? "" : messageByClass[failureClass] || defaultMsg,
+  };
 }
 
 // ── Main Handler ────────────────────────────────────────────────────────────
@@ -4735,13 +4797,55 @@ export default async function handler(req, res) {
   let nbaBoardBuildMs = 0;
   let anthropicMs = 0;
   let haikuFollowUpsMs = 0;
+  let anthropicAttemptsUsed = 0;
+  let anthropicLastStatus = null;
   if (!applyCors(req, res, { methods: "POST, OPTIONS" })) return;
-  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method === "OPTIONS") {
+    console.log(
+      JSON.stringify({
+        event: "ur_take_terminal",
+        requestId: null,
+        outcomeType: "preflight",
+        httpStatus: 200,
+        failureClass: null,
+        fallbackReason: null,
+        attemptsUsed: 0,
+        lastStatus: null,
+        durationMs: Date.now() - requestStart,
+      }),
+    );
+    return res.status(200).end();
+  }
 
   const requestId =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID().replace(/-/g, "").slice(0, 12)
       : `rq${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+  const logTerminalOutcome = ({
+    outcomeType,
+    httpStatus,
+    failureClass = null,
+    fallbackReason = null,
+    attemptsUsed = 0,
+    lastStatus = null,
+    extra = null,
+  }) => {
+    console.log(
+      JSON.stringify({
+        event: "ur_take_terminal",
+        requestId,
+        outcomeType: outcomeType || "unknown",
+        httpStatus: Number(httpStatus) || 200,
+        failureClass,
+        fallbackReason,
+        attemptsUsed: Number.isFinite(Number(attemptsUsed)) ? Number(attemptsUsed) : 0,
+        lastStatus: Number.isFinite(Number(lastStatus)) ? Number(lastStatus) : lastStatus ?? null,
+        durationMs: Date.now() - requestStart,
+        extra: extra || undefined,
+      }),
+    );
+  };
 
   console.log(
     JSON.stringify({
@@ -4753,12 +4857,11 @@ export default async function handler(req, res) {
   );
 
   const feedSnagResponse = (sportVal, fallbackReason, logCtx = {}) => {
-    const text =
-      "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
     const reason =
       typeof fallbackReason === "string" && fallbackReason.trim()
         ? fallbackReason.trim()
         : "unknown_server_fallback";
+    const presentation = buildUrTakeFailurePresentation(reason, logCtx);
     const sportOut = sportVal || "unknown";
     const q = String(logCtx.question ?? req.body?.question ?? "");
     const rawModelText =
@@ -4785,16 +4888,29 @@ export default async function handler(req, res) {
       authReason: logCtx.authReason ?? null,
       sanitizeCode: logCtx.sanitizeCode ?? null,
       sanitizeError: logCtx.sanitizeError ?? null,
+      failureClass: presentation.failureClass,
+      attemptsUsed: logCtx.attemptsUsed ?? anthropicAttemptsUsed ?? 0,
+      lastStatus: logCtx.lastStatus ?? logCtx.providerStatus ?? anthropicLastStatus ?? null,
       extra: logCtx.extra,
+    });
+    logTerminalOutcome({
+      outcomeType: "fallback",
+      httpStatus: 200,
+      failureClass: presentation.failureClass,
+      fallbackReason: reason,
+      attemptsUsed: logCtx.attemptsUsed ?? anthropicAttemptsUsed ?? 0,
+      lastStatus: logCtx.lastStatus ?? logCtx.providerStatus ?? anthropicLastStatus ?? null,
     });
     return res.status(200).json({
       requestId,
-      response: text,
-      take: text,
+      response: presentation.message,
+      take: presentation.message,
       confidence: "none",
       sport: sportOut,
       fallback: true,
       fallbackReason: reason,
+      failureClass: presentation.failureClass,
+      ...(presentation.silent ? { silent: true } : {}),
     });
   };
 
@@ -5566,6 +5682,13 @@ ${nbaLiveNoPropSystemPromptBlock}`;
       fallbackOrRepairUsed: false,
     });
     logNbaObservability(nbaMeta);
+    logTerminalOutcome({
+      outcomeType: "success_guardrail",
+      httpStatus: 200,
+      attemptsUsed: anthropicAttemptsUsed,
+      lastStatus: anthropicLastStatus,
+      extra: { reason: "nba_status_gate" },
+    });
     return res.status(200).json({
       requestId,
       response: availabilityPayload.response,
@@ -5638,6 +5761,13 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       fallbackOrRepairUsed: false,
     });
     logNbaObservability(nbaMeta);
+    logTerminalOutcome({
+      outcomeType: "success_guardrail",
+      httpStatus: 200,
+      attemptsUsed: anthropicAttemptsUsed,
+      lastStatus: anthropicLastStatus,
+      extra: { reason: "nba_blocked_unavailable_gate" },
+    });
     return res.status(200).json({
       requestId,
       response: blockedResponse,
@@ -6918,6 +7048,14 @@ ${continuationRule}`;
       intent,
       question,
     });
+    logTerminalOutcome({
+      outcomeType: "fallback_context_empty",
+      httpStatus: 200,
+      failureClass: "empty_context",
+      fallbackReason: "empty_nba_context",
+      attemptsUsed: anthropicAttemptsUsed,
+      lastStatus: anthropicLastStatus,
+    });
     return res.status(200).json({
       requestId,
       response,
@@ -6941,6 +7079,14 @@ ${continuationRule}`;
       sport: "golf",
       intent,
       question,
+    });
+    logTerminalOutcome({
+      outcomeType: "fallback_context_empty",
+      httpStatus: 200,
+      failureClass: "empty_context",
+      fallbackReason: "empty_golf_context",
+      attemptsUsed: anthropicAttemptsUsed,
+      lastStatus: anthropicLastStatus,
     });
     return res.status(200).json({
       requestId,
@@ -7246,10 +7392,27 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         max_tokens: tokenBudget,
       });
       anthropicMs += Date.now() - anthropicT0;
+      anthropicAttemptsUsed = Number(result?.attemptsUsed || 0);
+      anthropicLastStatus =
+        result?.lastStatus != null
+          ? result.lastStatus
+          : result?.status != null
+            ? result.status
+            : null;
 
       if (!result.ok) {
         if (result.rateLimitedExhausted) {
-          const exhaustedFallbackReason = "upstream_rate_limit";
+          const exhaustedFailureClass =
+            String(result?.failureClass || "").trim() === "timeout"
+              ? "timeout"
+              : "upstream_rate_limit";
+          const exhaustedFallbackReason =
+            exhaustedFailureClass === "timeout" ? "timeout" : "upstream_rate_limit";
+          const exhaustedPresentation = buildUrTakeFailurePresentation(exhaustedFallbackReason, {
+            providerStatus: result.status,
+            providerErrorName: result.data?.error?.type || null,
+            providerErrorMessage: result.data?.error?.message || result.data?.message || null,
+          });
           console.error("[ur-take] upstream retries exhausted", {
             requestId,
             providerRequestId: result.requestId,
@@ -7257,11 +7420,22 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             upstreamError: result.data?.error ?? null,
             data: result.data,
             fallbackReason: exhaustedFallbackReason,
+            failureClass: exhaustedFailureClass,
+          });
+          logTerminalOutcome({
+            outcomeType: "error_response",
+            httpStatus: 503,
+            failureClass: exhaustedFailureClass,
+            fallbackReason: exhaustedFallbackReason,
+            attemptsUsed: result.attemptsUsed ?? anthropicAttemptsUsed ?? 0,
+            lastStatus: result.lastStatus ?? result.status ?? anthropicLastStatus,
           });
           return res.status(503).json({
-            error: "Couldn't complete that read. Try again.",
+            error:
+              exhaustedPresentation.message || "Couldn't complete that read. Try again.",
             code: "upstream_unavailable",
             fallbackReason: exhaustedFallbackReason,
+            failureClass: exhaustedFailureClass,
             requestId,
             providerRequestId: result.requestId,
           });
@@ -7297,6 +7471,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           providerErrorMessage:
             result.data?.error?.message || result.data?.message || `HTTP ${result.status}`,
           rawModelText: rawSlice,
+          attemptsUsed: result.attemptsUsed ?? anthropicAttemptsUsed ?? 0,
+          lastStatus: result.lastStatus ?? result.status ?? anthropicLastStatus,
           extra: { providerRequestId: result.requestId },
         });
       }
@@ -7881,6 +8057,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseBody.structured = structuredResponse;
     }
 
+    logTerminalOutcome({
+      outcomeType: "success",
+      httpStatus: 200,
+      attemptsUsed: anthropicAttemptsUsed,
+      lastStatus: anthropicLastStatus,
+    });
     return res.status(200).json(responseBody);
   } catch (err) {
     console.error("[urTakeApiException]", {

@@ -52,10 +52,10 @@ function isUpcomingPreGame(game, gameStartMs, nowMs) {
 }
 
 const GOLF_EXCLUDED_TOUR_PATTERNS = [
-  /\bliv\b/i,
-  /\blpga\b/i,
-  /\bdp\s*world\b/i,
-  /\bkorn\s*ferry\b/i,
+  { reason: "liv", pattern: /\bliv\b/i },
+  { reason: "lpga", pattern: /\blpga\b/i },
+  { reason: "dp_world_tour", pattern: /\bdp\s*world\b/i },
+  { reason: "korn_ferry_tour", pattern: /\bkorn\s*ferry\b/i },
 ];
 
 const GOLF_MAJOR_PATTERNS = [
@@ -91,10 +91,18 @@ function golfEventBlob(ev) {
  * @param {Record<string, unknown>} ev
  */
 function isSupportedPgaTourEvent(ev) {
+  return getExcludedGolfTourReason(ev) == null && Boolean(golfEventBlob(ev));
+}
+
+/**
+ * @param {Record<string, unknown>} ev
+ * @returns {string | null}
+ */
+function getExcludedGolfTourReason(ev) {
   const blob = golfEventBlob(ev);
-  if (!blob) return false;
-  if (GOLF_EXCLUDED_TOUR_PATTERNS.some((rx) => rx.test(blob))) return false;
-  return true;
+  if (!blob) return "missing_event_blob";
+  const excluded = GOLF_EXCLUDED_TOUR_PATTERNS.find((row) => row.pattern.test(blob));
+  return excluded ? excluded.reason : null;
 }
 
 /**
@@ -298,7 +306,23 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
 
   const ev = board?.currentEvent || board?.tournament;
   if (!ev || typeof ev !== "object") return out;
-  if (!isSupportedPgaTourEvent(ev)) return out;
+  const excludedReason = getExcludedGolfTourReason(ev);
+  const isPgaTour = excludedReason == null;
+  if (!isPgaTour) {
+    // Temporary production diagnostic (remove after 7 days of stable golf scraping).
+    console.log(
+      JSON.stringify({
+        event: "golf_target_eval",
+        eventName: ev?.name || null,
+        eventShortName: ev?.shortName || null,
+        isMajor: false,
+        isPgaTour: false,
+        excluded: excludedReason,
+        targetGenerated: false,
+      }),
+    );
+    return out;
+  }
   const majorEvent = isMajorGolfEvent(ev);
 
   const todayEt = getEtYmdAt(nowMs);
@@ -329,6 +353,19 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
       },
     });
   }
+
+  // Temporary production diagnostic (remove after 7 days of stable golf scraping).
+  console.log(
+    JSON.stringify({
+      event: "golf_target_eval",
+      eventName: ev?.name || null,
+      eventShortName: ev?.shortName || null,
+      isMajor: majorEvent,
+      isPgaTour,
+      excluded: null,
+      targetGenerated: out.length > 0,
+    }),
+  );
 
   return out;
 }
