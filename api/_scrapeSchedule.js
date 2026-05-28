@@ -51,6 +51,61 @@ function isUpcomingPreGame(game, gameStartMs, nowMs) {
   return true;
 }
 
+const GOLF_EXCLUDED_TOUR_PATTERNS = [
+  /\bliv\b/i,
+  /\blpga\b/i,
+  /\bdp\s*world\b/i,
+  /\bkorn\s*ferry\b/i,
+];
+
+const GOLF_MAJOR_PATTERNS = [
+  /\bmasters\b/i,
+  /\bu\.?\s*s\.?\s*open\b/i,
+  /\bopen championship\b/i,
+  /\bthe open\b/i,
+];
+
+/**
+ * @param {Record<string, unknown>} ev
+ */
+function golfEventBlob(ev) {
+  const raw = ev?.raw && typeof ev.raw === "object" ? ev.raw : {};
+  return [
+    ev?.name,
+    ev?.shortName,
+    ev?.tour,
+    ev?.tourName,
+    raw?.tour,
+    raw?.tour_name,
+    raw?.tourName,
+    raw?.league?.name,
+    raw?.series?.name,
+  ]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+/**
+ * @param {Record<string, unknown>} ev
+ */
+function isSupportedPgaTourEvent(ev) {
+  const blob = golfEventBlob(ev);
+  if (!blob) return false;
+  if (GOLF_EXCLUDED_TOUR_PATTERNS.some((rx) => rx.test(blob))) return false;
+  return true;
+}
+
+/**
+ * @param {Record<string, unknown>} ev
+ */
+function isMajorGolfEvent(ev) {
+  if (isPgaChampionshipEvent(ev)) return true;
+  const blob = golfEventBlob(ev);
+  return GOLF_MAJOR_PATTERNS.some((rx) => rx.test(blob));
+}
+
 /**
  * @param {number} [nowMs]
  * @returns {Promise<ScrapeTarget[]>}
@@ -243,7 +298,8 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
 
   const ev = board?.currentEvent || board?.tournament;
   if (!ev || typeof ev !== "object") return out;
-  if (!isPgaChampionshipEvent(ev)) return out;
+  if (!isSupportedPgaTourEvent(ev)) return out;
+  const majorEvent = isMajorGolfEvent(ev);
 
   const todayEt = getEtYmdAt(nowMs);
   const days = [todayEt];
@@ -266,7 +322,11 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
       sport: "golf_odds",
       gameId: `${slug}_${etYmd}`,
       gameStartMs,
-      meta: { etYmd, eventName: ev.name || ev.shortName },
+      meta: {
+        etYmd,
+        eventName: ev.name || ev.shortName,
+        eventTier: majorEvent ? "major" : "pga_tour",
+      },
     });
   }
 

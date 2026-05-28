@@ -5,6 +5,7 @@
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { scrapeAndCacheNbaProps } from "./_nbaProps.js";
+import { scrapeAndCacheMlbOdds } from "./_mlbOddsScraper.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";
 import { scrapeAndCacheF1Odds } from "./_f1Odds.js";
 import { resolveGameSpreadForSlateGame } from "./_gameOddsPipeline.js";
@@ -32,6 +33,26 @@ const SCRAPE_HANDLERS = {
       fetchedAt: props.fetchedAt,
     };
   },
+  mlb_props: async (target) => {
+    const meta = target.meta || {};
+    const game = meta.game || {};
+    const odds = await scrapeAndCacheMlbOdds(target.gameId, {
+      game,
+      homeTeam: game?.homeTeam?.name,
+      awayTeam: game?.awayTeam?.name,
+      homeAbbr: game?.homeTeam?.abbr,
+      awayAbbr: game?.awayTeam?.abbr,
+      startTimeUtc: game?.startTimeUtc || game?.date || null,
+    });
+    return {
+      posted: odds?.hasPostedLines,
+      source: odds?.source || null,
+      moneylineCount: odds?.markets?.moneyline?.length ?? 0,
+      runLineCount: odds?.markets?.runLine?.length ?? 0,
+      totalRunsCount: odds?.markets?.totalRuns?.length ?? 0,
+      fetchedAt: odds?.fetchedAt,
+    };
+  },
   nba_spreads: async (target) => {
     const game = target.meta?.game;
     if (!game) return { skipped: true, reason: "missing_game" };
@@ -42,9 +63,12 @@ const SCRAPE_HANDLERS = {
       lineUnavailable: Boolean(resolved?.lineUnavailable),
     };
   },
-  golf_odds: async () => {
+  golf_odds: async (target) => {
+    const eventTier = String(target?.meta?.eventTier || "pga_tour");
+    const route = eventTier === "major" ? "major_existing_scraper" : "pga_tour_existing_scraper";
     const odds = await scrapeAndCachePgaChampionshipOdds();
     return {
+      route,
       posted: odds?.hasPostedLines,
       outrightCount: Array.isArray(odds?.outrights) ? odds.outrights.length : 0,
       fetchedAt: odds?.fetchedAt,
