@@ -17,6 +17,7 @@ import {
   hydratePgaChampionshipBoardOdds,
   isPgaChampionshipEvent,
 } from "./_golfPgaChampionshipOdds.js";
+import { hydratePgaTourBoardOdds } from "./_golfPgaTourOdds.js";
 
 const ODDS_BASE = "https://api.the-odds-api.com/v4";
 const REGIONS = "us,us2";
@@ -215,7 +216,8 @@ function parseGolfOddsFromEventPayload(eventPayload, bookKey) {
       topFinish.top_20.push(...rows);
     } else if (key === "make_cut") {
       for (const row of rows) {
-        if (row.player) makeCut[row.player] = { odds: row.odds, book: row.book, source: "odds_api" };
+        if (row.player)
+          makeCut[row.player] = { odds: row.odds, book: row.book, source: "odds_api" };
       }
     }
   }
@@ -229,7 +231,7 @@ function parseGolfOddsFromEventPayload(eventPayload, bookKey) {
  */
 export async function fetchFreshGolfOddsFromApi(apiKey, currentEvent) {
   const intent = extractGolfTournamentIntentFromQuestion(
-    `${currentEvent?.name || ""} ${currentEvent?.shortName || ""}`,
+    `${currentEvent?.name || ""} ${currentEvent?.shortName || ""}`
   );
   const sportKeys = resolveGolfOddsSportKeys(currentEvent, intent);
 
@@ -280,7 +282,7 @@ export function decorateGolfOddsWithFreshness(apiOdds, fetchedAtMs) {
     fetchedAt: freshness.fetchedAt,
     freshness,
     hasPostedLines: (apiOdds.outrights || []).some(
-      (o) => o?.odds != null && Number.isFinite(Number(o.odds)),
+      (o) => o?.odds != null && Number.isFinite(Number(o.odds))
     ),
   };
 }
@@ -344,7 +346,7 @@ export async function getGolfOddsFromOddsApi(currentEvent) {
   if (!apiKey || !currentEvent) return null;
 
   const intent = extractGolfTournamentIntentFromQuestion(
-    `${currentEvent.name || ""} ${currentEvent.shortName || ""}`,
+    `${currentEvent.name || ""} ${currentEvent.shortName || ""}`
   );
   const cacheKey = buildOddsCacheKey(currentEvent, intent);
   const nowMs = Date.now();
@@ -374,7 +376,7 @@ export async function getGolfOddsFromOddsApi(currentEvent) {
         eventId: fresh.eventId,
         outrights: fresh.outrights.length,
         posted: fresh.outrights.filter((o) => o.odds != null).length,
-      }),
+      })
     );
     return decorateGolfOddsWithFreshness(fresh, nowMs);
   }
@@ -388,7 +390,7 @@ export async function getGolfOddsFromOddsApi(currentEvent) {
 
 /**
  * Attach posted golf odds for supported tournaments.
- * PGA Championship uses the championship-site cache; regular PGA events use The Odds API when configured.
+ * Source priority: PGA Championship site -> PGA Tour site -> Odds API fallback.
  * @param {Record<string, unknown>} board
  */
 export async function hydrateGolfBoardOdds(board) {
@@ -397,6 +399,9 @@ export async function hydrateGolfBoardOdds(board) {
   if (isPgaChampionshipEvent(board.currentEvent)) {
     return hydratePgaChampionshipBoardOdds(board);
   }
+  const pgatourBoard = await hydratePgaTourBoardOdds(board);
+  if (pgatourBoard?.sourceMeta?.odds === "pgatour_site") return pgatourBoard;
+
   const espnOdds =
     board.odds && typeof board.odds === "object"
       ? board.odds

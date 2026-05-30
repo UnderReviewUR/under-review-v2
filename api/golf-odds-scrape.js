@@ -2,6 +2,7 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";
+import { scrapeAndCachePgaTourOdds } from "./_golfPgaTourOdds.js";
 
 export const config = {
   maxDuration: 60,
@@ -35,12 +36,19 @@ export default async function handler(req, res) {
   const forcePuppeteer =
     String(req.query?.puppeteer || "").trim() === "1" ||
     String(req.query?.forcePuppeteer || "").trim() === "1";
+  const tournamentId = String(req.query?.tournamentId || req.query?.pgatour || "").trim();
 
   try {
-    const odds = await scrapeAndCachePgaChampionshipOdds({ forcePuppeteer });
+    const odds = tournamentId
+      ? await scrapeAndCachePgaTourOdds(tournamentId)
+      : await scrapeAndCachePgaChampionshipOdds({ forcePuppeteer });
     return res.status(200).json({
       ok: true,
-      source: odds?.scrapeMethod || odds?.source || "pga_championship_site",
+      source:
+        odds?.source ||
+        odds?.scrapeMethod ||
+        (tournamentId ? "pgatour_site" : "pga_championship_site"),
+      tournamentId: odds?.tournamentId || tournamentId || null,
       fetchedAt: odds?.fetchedAt,
       posted: odds?.hasPostedLines,
       outrightCount: Array.isArray(odds?.outrights) ? odds.outrights.length : 0,
