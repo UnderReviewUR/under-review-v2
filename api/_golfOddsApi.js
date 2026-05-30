@@ -387,8 +387,8 @@ export async function getGolfOddsFromOddsApi(currentEvent) {
 }
 
 /**
- * Attach posted golf odds for supported tournaments (PGA Championship via pgachampionship.com cache).
- * Read path only — refresh runs on `/api/golf-odds-scrape` cron.
+ * Attach posted golf odds for supported tournaments.
+ * PGA Championship uses the championship-site cache; regular PGA events use The Odds API when configured.
  * @param {Record<string, unknown>} board
  */
 export async function hydrateGolfBoardOdds(board) {
@@ -397,7 +397,22 @@ export async function hydrateGolfBoardOdds(board) {
   if (isPgaChampionshipEvent(board.currentEvent)) {
     return hydratePgaChampionshipBoardOdds(board);
   }
-  return board;
+  const espnOdds =
+    board.odds && typeof board.odds === "object"
+      ? board.odds
+      : { outrights: [], topFinish: {}, makeCut: {}, linesUnavailable: true };
+  const apiOdds = await getGolfOddsFromOddsApi(board.currentEvent);
+  if (!apiOdds) return board;
+  return {
+    ...board,
+    odds: mergeGolfOddsWithEspnField(apiOdds, espnOdds),
+    sourceMeta: {
+      ...(board.sourceMeta || {}),
+      odds: apiOdds.hasPostedLines ? "odds_api" : board.sourceMeta?.odds,
+      oddsFetchedAt: apiOdds.fetchedAt,
+      oddsStale: Boolean(apiOdds.freshness?.isStale),
+    },
+  };
 }
 
 /**

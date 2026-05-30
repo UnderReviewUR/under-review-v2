@@ -538,6 +538,11 @@ export default function HomeScreen({
                       <span style={{ fontSize: 12, color: "var(--soft)" }}>
                         {row.rank}. {row.name}
                         {row.thru && row.thru !== "—" && row.thru !== "-" ? ` (${row.thru})` : ""}
+                        {row.oddsDisplay ? (
+                          <span style={{ fontFamily: "var(--mono-font)", marginLeft: 8, color: "#C9A227" }}>
+                            {row.oddsDisplay}
+                          </span>
+                        ) : null}
                       </span>
                       <span style={{ fontFamily: "var(--mono-font)", fontSize: 12, color: golfScoreColor(row.score) }}>
                         {row.score}

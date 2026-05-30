@@ -53,6 +53,8 @@ import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedA
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
+import { formatAmericanOddsDisplay } from "../shared/pgaChampionshipOddsLeaders.js";
+import { findOutrightOddsDisplayForGolfer } from "../shared/urTakeSessionStructuralEdge.js";
 import {
   resolveGolfPrimaryEvent,
   stripMisalignedGolfCourseArtifacts,
@@ -2680,6 +2682,16 @@ ${themeCss}
       return parts.length ? parts[parts.length - 1] : fullName;
     };
 
+    const outrightRows = Array.isArray(golfData?.odds?.outrights)
+      ? golfData.odds.outrights
+      : [];
+    const findOddsDisplay = (fullName) =>
+      findOutrightOddsDisplayForGolfer(
+        fullName,
+        outrightRows,
+        formatAmericanOddsDisplay,
+      );
+
     const formatScore = (value) => {
       const raw = String(value ?? "").trim();
       if (!raw || raw === "—") return "E";
@@ -2734,7 +2746,9 @@ ${themeCss}
         .map((p, i) => {
           const thru = String(p?.thru || "").trim();
           const thruLabel = thru && thru !== "—" && thru !== "-" ? ` (${thru})` : "";
-          return `${i + 1}. ${shortName(readName(p))} ${formatScore(p?.score)}${thruLabel}`;
+          const playerName = readName(p);
+          const oddsDisplay = findOddsDisplay(playerName);
+          return `${i + 1}. ${shortName(playerName)} ${formatScore(p?.score)}${thruLabel}${oddsDisplay ? ` · ${oddsDisplay}` : ""}`;
         })
         .join("\n");
 
@@ -2751,6 +2765,7 @@ ${themeCss}
           name: shortName(readName(p)),
           score: formatScore(p?.score),
           thru: String(p?.thru || "").trim(),
+          oddsDisplay: findOddsDisplay(readName(p)),
         })),
         sourceLine: `${sourceLabel} · ${freshnessLabel}`,
         whatMatters: isGolfFinal
