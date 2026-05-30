@@ -19,6 +19,7 @@ const HOME_PLACEHOLDER_ROTATION = [
 ];
 
 export default function HomeScreen({
+  homeScreenRef,
   strippedHomeSession = false,
   strippedSessionBusy = false,
   hasDockedBar,
@@ -138,7 +139,7 @@ export default function HomeScreen({
 
   if (strippedHomeSession) {
     return (
-      <main className="screen ur-first-session-home">
+      <main ref={homeScreenRef} className="screen ur-first-session-home">
         <div className="ur-first-session-stack">
           <h1 className="ur-first-session-headline">What do you want to know before you bet?</h1>
           <p className="ur-home-promise ur-home-promise--stripped">Sharp takes, backed by data.</p>
@@ -183,7 +184,7 @@ export default function HomeScreen({
   const askPlaceholder = HOME_PLACEHOLDER_ROTATION[placeholderIdx] ?? HOME_PLACEHOLDER_ROTATION[0];
 
   return (
-    <main className={`screen home-surface-premium home-surface-v1${hasDockedBar ? " has-msgs" : ""}`}>
+    <main ref={homeScreenRef} className={`screen home-surface-premium home-surface-v1${hasDockedBar ? " has-msgs" : ""}`}>
       <p className="ur-home-promise">Ask one question. Get a real take.</p>
 
       <AskBar

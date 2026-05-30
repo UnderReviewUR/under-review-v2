@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -16,60 +16,53 @@ export function useWorldCupData() {
   const [liveMatches, setLiveMatches] = useState([]);
   const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [fetchError, setFetchError] = useState(null);
+  const mountedRef = useRef(false);
+
+  const refreshWorldCup = useCallback(async () => {
+    setWcLoading(true);
+    try {
+      const [groupsRes, matchesRes] = await Promise.all([
+        fetch(`/api/world-cup?view=groups&_ts=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/world-cup?view=matches&_ts=${Date.now()}`, { cache: "no-store" }),
+      ]);
+      const groupsData = groupsRes.ok ? await groupsRes.json() : null;
+      const matchesData = matchesRes.ok ? await matchesRes.json() : null;
+      if (!mountedRef.current) return;
+      if (groupsData?.groups) setGroups(groupsData.groups);
+      if (matchesData?.matches) {
+        setMatches(matchesData.matches);
+        setLiveMatches(matchesData.matches.filter((m) => isLiveStatus(m.status)));
+        setUpcomingMatches(matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12));
+      }
+      setFetchError(groupsData?.error || matchesData?.error || null);
+    } catch (e) {
+      if (mountedRef.current) {
+        console.warn("[useWorldCupData] fetch failed:", e?.message);
+        setFetchError(e?.message || "fetch_failed");
+      }
+    } finally {
+      if (mountedRef.current) setWcLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let isCurrent = true;
-    let pollId = null;
-
-    async function loadAll() {
-      setWcLoading(true);
-      try {
-        const [groupsRes, matchesRes] = await Promise.all([
-          fetch("/api/world-cup?view=groups", { cache: "no-store" }),
-          fetch("/api/world-cup?view=matches", { cache: "no-store" }),
-        ]);
-        const groupsData = groupsRes.ok ? await groupsRes.json() : null;
-        const matchesData = matchesRes.ok ? await matchesRes.json() : null;
-        if (!isCurrent) return;
-        if (groupsData?.groups) setGroups(groupsData.groups);
-        if (matchesData?.matches) {
-          setMatches(matchesData.matches);
-          setLiveMatches(matchesData.matches.filter((m) => isLiveStatus(m.status)));
-          setUpcomingMatches(
-            matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12),
-          );
-        }
-        if (groupsData?.error || matchesData?.error) {
-          setFetchError(groupsData?.error || matchesData?.error);
-        } else {
-          setFetchError(null);
-        }
-      } catch (e) {
-        if (isCurrent) {
-          console.warn("[useWorldCupData] fetch failed:", e?.message);
-          setFetchError(e?.message || "fetch_failed");
-        }
-      } finally {
-        if (isCurrent) setWcLoading(false);
-      }
-    }
-
-    loadAll();
-    pollId = window.setInterval(() => {
+    mountedRef.current = true;
+    queueMicrotask(() => { void refreshWorldCup(); });
+    const pollId = window.setInterval(() => {
       fetch("/api/world-cup?view=live", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => {
-          if (!isCurrent) return;
+          if (!mountedRef.current) return;
           if (d?.live) setLiveMatches(d.live);
         })
         .catch(() => {});
     }, 60000);
 
     return () => {
-      isCurrent = false;
-      if (pollId) window.clearInterval(pollId);
+      mountedRef.current = false;
+      window.clearInterval(pollId);
     };
-  }, []);
+  }, [refreshWorldCup]);
 
   return {
     wcLoading,
@@ -78,5 +71,6 @@ export function useWorldCupData() {
     liveMatches,
     upcomingMatches,
     fetchError,
+    refreshWorldCup,
   };
 }

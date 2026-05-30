@@ -101,56 +101,46 @@ export function useTennisData() {
     contextRef.current = context;
   }, [context]);
 
+  const refreshTennis = useCallback(async () => {
+    setTennisLoading(true);
+    try {
+      const [pRes, cRes] = await Promise.all([
+        fetch(`/api/tennis-players?_ts=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/tennis-context?_ts=${Date.now()}`, { cache: "no-store" }),
+      ]);
+      const c = await cRes.json();
+      let parsedPlayers = null;
+      if (pRes.ok) {
+        try {
+          parsedPlayers = normalizePlayersPayload(await pRes.json());
+        } catch {
+          parsedPlayers = null;
+        }
+      }
+      const nextPlayers = parsedPlayers || playersRef.current || null;
+      setPlayers(nextPlayers);
+      setStaticIntelFetchFailed(!parsedPlayers);
+      setContext(c);
+      playersRef.current = nextPlayers;
+      const [board, home] = await Promise.all([
+        fetchTennisBoard(c, "board"),
+        fetchTennisBoard(c, "home"),
+      ]);
+      setLiveMatchesBoard(board);
+      setLiveMatchesHome(home);
+    } catch {
+      setStaticIntelFetchFailed(true);
+      setLiveMatchesBoard([]);
+      setLiveMatchesHome([]);
+    } finally {
+      setTennisLoading(false);
+    }
+  }, [fetchTennisBoard, refreshTennis]);
+
   useEffect(() => {
     let isCurrent = true;
     let pollId = null;
-    async function loadAll() {
-      if (!isCurrent) return;
-      setTennisLoading(true);
-      try {
-        const [pRes, cRes] = await Promise.all([
-          fetch("/api/tennis-players", { cache: "no-store" }),
-          fetch("/api/tennis-context", { cache: "no-store" }),
-        ]);
-        const c = await cRes.json();
-        let parsedPlayers = null;
-        if (pRes.ok) {
-          try {
-            parsedPlayers = normalizePlayersPayload(await pRes.json());
-          } catch {
-            parsedPlayers = null;
-          }
-        }
-        if (!isCurrent) return;
-        const nextPlayers = parsedPlayers || playersRef.current || null;
-        if (!isCurrent) return;
-        setPlayers(nextPlayers);
-        if (!isCurrent) return;
-        setStaticIntelFetchFailed(!parsedPlayers);
-        if (!isCurrent) return;
-        setContext(c);
-        playersRef.current = nextPlayers;
-        const [board, home] = await Promise.all([
-          fetchTennisBoard(c, "board"),
-          fetchTennisBoard(c, "home"),
-        ]);
-        if (!isCurrent) return;
-        setLiveMatchesBoard(board);
-        if (!isCurrent) return;
-        setLiveMatchesHome(home);
-      } catch {
-        if (!isCurrent) return;
-        setStaticIntelFetchFailed(true);
-        if (!isCurrent) return;
-        setLiveMatchesBoard([]);
-        if (!isCurrent) return;
-        setLiveMatchesHome([]);
-      } finally {
-        if (!isCurrent) return;
-        setTennisLoading(false);
-      }
-    }
-    loadAll();
+    queueMicrotask(() => { void refreshTennis(); });
     pollId = window.setInterval(() => {
       Promise.all([
         fetchTennisBoard(contextRef.current, "board"),
@@ -203,5 +193,6 @@ export function useTennisData() {
     tennisLoading,
     hasStaticTennisIntel,
     staticIntelFetchFailed,
+    refreshTennis,
   };
 }

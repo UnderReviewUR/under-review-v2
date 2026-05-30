@@ -146,6 +146,47 @@ export const baseCss = `
     gap:14px;
   }
 
+  .pull-refresh-indicator{
+    position:fixed;
+    top:calc(10px + env(safe-area-inset-top, 0px));
+    left:50%;
+    z-index:80;
+    min-width:112px;
+    height:36px;
+    border-radius:999px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    color:rgba(255,255,255,.78);
+    background:rgba(12,16,20,.88);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 12px 30px rgba(0,0,0,.34);
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .14s ease, border-color .14s ease, color .14s ease, transform .18s cubic-bezier(.2,.9,.2,1);
+    backdrop-filter:blur(12px);
+  }
+  .pull-refresh-indicator--visible{opacity:1;}
+  .pull-refresh-indicator--armed{
+    color:var(--cyan-bright);
+    border-color:rgba(0,245,233,.36);
+  }
+  .pull-refresh-spinner{
+    width:14px;
+    height:14px;
+    border-radius:999px;
+    border:2px solid rgba(255,255,255,.2);
+    border-top-color:currentColor;
+    transform:rotate(var(--ptr-spin, 0deg));
+  }
+  .pull-refresh-spinner--spinning{animation:ur-pull-refresh-spin .7s linear infinite;}
+  @keyframes ur-pull-refresh-spin{to{transform:rotate(360deg);}}
+
   .wordmark{
     display:flex;
     flex-direction:column;

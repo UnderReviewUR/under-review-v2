@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { isNbaTimeMismatch } from "../lib/nbaTime.js";
 
 export function useNbaData() {
   const [nbaData, setNbaData] = useState(null);
   const [nbaLoading, setNbaLoading] = useState(false);
   const [nbaGames, setNbaGames] = useState([]);
+  const mountedRef = useRef(false);
 
   const playoffSeries = useMemo(
     () => (Array.isArray(nbaData?.playoffSeries) ? nbaData.playoffSeries : []),
@@ -39,45 +40,49 @@ export function useNbaData() {
     });
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    async function fetchBoard({ bust = false } = {}) {
-      const qs = bust ? `&_ts=${Date.now()}` : "";
-      const res = await fetch(`/api/nba?view=board${qs}`, {
+  const fetchBoard = useCallback(async ({ bust = false } = {}) => {
+    const qs = bust ? `&_ts=${Date.now()}` : "";
+    const res = await fetch(`/api/nba?view=board${qs}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+    return res.json();
+  }, []);
+
+  const refreshNba = useCallback(async () => {
+    setNbaLoading(true);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`/api/nba?view=board&_ts=${Date.now()}`, {
+        signal: controller.signal,
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
-      return res.json();
-    }
-    async function loadNba() {
-      setNbaLoading(true);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(`/api/nba?view=board&_ts=${Date.now()}`, {
-          signal: controller.signal,
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
-        });
-        clearTimeout(timeout);
-        const data = await res.json();
-        if (!active) return;
-        let games = Array.isArray(data?.todaysGames) ? data.todaysGames : [];
-        let nextData = data;
-        /* Missing/unparseable pre-game start → bust CDN + refetch so bad times cannot persist */
-        if (games.some(isNbaTimeMismatch)) {
-          const refetched = await fetchBoard({ bust: true }).catch(() => null);
-          if (refetched && active) {
-            nextData = refetched;
-            games = Array.isArray(refetched?.todaysGames) ? refetched.todaysGames : games;
-          }
+      clearTimeout(timeout);
+      const data = await res.json();
+      if (!mountedRef.current) return;
+      let games = Array.isArray(data?.todaysGames) ? data.todaysGames : [];
+      let nextData = data;
+      if (games.some(isNbaTimeMismatch)) {
+        const refetched = await fetchBoard({ bust: true }).catch(() => null);
+        if (refetched && mountedRef.current) {
+          nextData = refetched;
+          games = Array.isArray(refetched?.todaysGames) ? refetched.todaysGames : games;
         }
-        setNbaData(nextData);
-        setNbaGames(games);
-      } catch { if (active) setNbaData(null); }
-      finally { if (active) setNbaLoading(false); }
+      }
+      setNbaData(nextData);
+      setNbaGames(games);
+    } catch {
+      if (mountedRef.current) setNbaData(null);
+    } finally {
+      if (mountedRef.current) setNbaLoading(false);
     }
-    loadNba();
+  }, [fetchBoard]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    queueMicrotask(() => { void refreshNba(); });
     const poll = window.setInterval(() => {
       fetch(`/api/nba?view=board&_ts=${Date.now()}`, {
         cache: "no-store",
@@ -85,12 +90,12 @@ export function useNbaData() {
       })
         .then((r) => r.json())
         .then((d) => {
-          if (!active) return;
+          if (!mountedRef.current) return;
           let games = Array.isArray(d?.todaysGames) ? d.todaysGames : [];
           if (games.some(isNbaTimeMismatch)) {
             fetchBoard({ bust: true })
               .then((refetched) => {
-                if (!active || !refetched) return;
+                if (!mountedRef.current || !refetched) return;
                 const nextGames = Array.isArray(refetched?.todaysGames) ? refetched.todaysGames : games;
                 setNbaData(refetched);
                 setNbaGames(nextGames);
@@ -106,8 +111,8 @@ export function useNbaData() {
         })
         .catch(() => {});
     }, 60000);
-    return () => { active=false; window.clearInterval(poll); };
-  }, []);
+    return () => { mountedRef.current=false; window.clearInterval(poll); };
+  }, [fetchBoard, refreshNba]);
 
-  return { nbaData, nbaLoading, nbaGames, getSeriesLabel };
+  return { nbaData, nbaLoading, nbaGames, getSeriesLabel, refreshNba };
 }
