@@ -6,9 +6,16 @@ import { bdlFetch } from "./_balldontlie.js";
 import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
 const MAX_GAME_PAGES = 12;
-const MAX_LINEUP_PAGES = 8;
 const MAX_INJURY_PAGES = 6;
 const MAX_ODDS_PAGES = 8;
+const MAX_STATS_PAGES = 8;
+const bdlTierSkipLogged = new Set();
+
+function logBdlTierSkipOnce(key, detail) {
+  if (bdlTierSkipLogged.has(key)) return;
+  bdlTierSkipLogged.add(key);
+  console.warn(JSON.stringify({ event: "bdl_tier_endpoint_skipped", sport: "mlb", key, detail }));
+}
 
 function etCalendarDate(isoString) {
   if (!isoString) return "";
@@ -108,33 +115,6 @@ export function mapBdlMlbGameToAppRow(g, pitchers = { home: null, away: null }) 
   };
 }
 
-function mergeProbablePitchersFromLineups(gameRow, lineupEntries) {
-  const hid = gameRow.home_team?.id;
-  const aid = gameRow.away_team?.id;
-  let home = null;
-  let away = null;
-  for (const row of lineupEntries || []) {
-    if (!row?.is_probable_pitcher) continue;
-    const tid = row.team?.id;
-    const pname = String(row.player?.full_name || "").trim();
-    if (!pname || tid == null) continue;
-    if (hid != null && tid === hid) home = pname;
-    if (aid != null && tid === aid) away = pname;
-  }
-  return { home, away };
-}
-
-function groupLineupsByGameId(lineupRows) {
-  const m = new Map();
-  for (const row of lineupRows || []) {
-    const gid = row.game_id;
-    if (gid == null) continue;
-    if (!m.has(gid)) m.set(gid, []);
-    m.get(gid).push(row);
-  }
-  return m;
-}
-
 /**
  * @returns {Promise<{ todayGames: object[], tomorrowGames: object[] }|null>}
  */
@@ -149,27 +129,11 @@ export async function fetchBdlMlbTodayTomorrowGames(bdlKey, todayEtYmd, tomorrow
   );
   if (!rawGames.length) return null;
 
-  const gameIds = [...new Set(rawGames.map((g) => g.id).filter((id) => id != null))];
-  let lineupRows = [];
-  if (gameIds.length > 0) {
-    const idChunks = [];
-    for (let i = 0; i < gameIds.length; i += 12) idChunks.push(gameIds.slice(i, i + 12));
-    for (const chunk of idChunks) {
-      const rows = await drainMlbPages(
-        "/mlb/v1/lineups",
-        { "game_ids[]": chunk, per_page: 100 },
-        bdlKey,
-        MAX_LINEUP_PAGES,
-      );
-      lineupRows.push(...rows);
-    }
-  }
-
-  const byGid = groupLineupsByGameId(lineupRows);
-  const mapped = rawGames.map((g) => {
-    const pitchers = mergeProbablePitchersFromLineups(g, byGid.get(g.id) || []);
-    return mapBdlMlbGameToAppRow(g, pitchers);
-  });
+  logBdlTierSkipOnce(
+    "lineups",
+    "Skipped /mlb/v1/lineups because current BDL plan is MLB All-Star; ESPN probable starters are merged later.",
+  );
+  const mapped = rawGames.map((g) => mapBdlMlbGameToAppRow(g, { home: null, away: null }));
 
   let todayGames = mapped.filter((row) => etCalendarDate(row.date) === todayEtYmd);
   let tomorrowGames = mapped.filter((row) => etCalendarDate(row.date) === tomorrowEtYmd);
@@ -227,6 +191,86 @@ export async function fetchBdlMlbInjuriesForTeamIds(bdlKey, teamIds) {
   return out.slice(0, 80);
 }
 
+export async function fetchBdlMlbActivePlayersForTeamIds(bdlKey, teamIds) {
+  const ids = [...new Set((teamIds || []).filter((id) => Number.isFinite(Number(id))))];
+  if (!bdlKey || !ids.length) return [];
+  const rows = await drainMlbPages("/mlb/v1/players/active", { "team_ids[]": ids, per_page: 100 }, bdlKey, 12);
+  return rows
+    .map((row) => ({
+      playerId: row?.id ?? null,
+      name: String(row?.full_name || [row?.first_name, row?.last_name].filter(Boolean).join(" ")).trim(),
+      team: pickTeamAbbr(row?.team || {}, ""),
+      position: String(row?.position || "").trim(),
+      batsThrows: String(row?.bats_throws || "").trim(),
+      active: row?.active !== false,
+      source: "balldontlie_mlb",
+    }))
+    .filter((row) => row.playerId != null && row.name);
+}
+
+function summarizeMlbStatRow(row) {
+  return {
+    gameId: row?.game_id ?? null,
+    batting: {
+      atBats: row?.at_bats ?? null, runs: row?.runs ?? null, hits: row?.hits ?? null,
+      rbi: row?.rbi ?? null, homeRuns: row?.hr ?? null, totalBases: row?.total_bases ?? null,
+      strikeouts: row?.k ?? null, walks: row?.bb ?? null,
+    },
+    pitching: {
+      inningsPitched: row?.ip ?? null, strikeouts: row?.p_k ?? null, walks: row?.p_bb ?? null,
+      earnedRuns: row?.er ?? null, hitsAllowed: row?.p_hits ?? null, pitchCount: row?.pitch_count ?? null,
+    },
+  };
+}
+
+export async function fetchBdlMlbRecentStatsForPlayers(bdlKey, activePlayers, { season } = {}) {
+  const players = Array.isArray(activePlayers) ? activePlayers : [];
+  const ids = [...new Set(players.map((row) => Number(row?.playerId)).filter(Number.isFinite))].slice(0, 80);
+  if (!bdlKey || !ids.length) return [];
+  const teamByPlayerId = new Map(players.map((row) => [Number(row.playerId), row.team]));
+  const nameByPlayerId = new Map(players.map((row) => [Number(row.playerId), row.name]));
+  const rows = [];
+  for (let i = 0; i < ids.length; i += 12) {
+    const chunk = ids.slice(i, i + 12);
+    rows.push(...(await drainMlbPages("/mlb/v1/stats", { "player_ids[]": chunk, ...(season ? { "seasons[]": [season] } : {}), per_page: 100 }, bdlKey, MAX_STATS_PAGES)));
+  }
+  const byPlayer = new Map();
+  for (const row of rows) {
+    const playerId = Number(row?.player?.id ?? row?.player_id);
+    if (!Number.isFinite(playerId)) continue;
+    if (!byPlayer.has(playerId)) {
+      byPlayer.set(playerId, {
+        playerId,
+        player: String(row?.player?.full_name || nameByPlayerId.get(playerId) || "").trim(),
+        team: pickTeamAbbr(row?.player?.team || {}, teamByPlayerId.get(playerId) || ""),
+        games: [],
+        source: "balldontlie_mlb",
+      });
+    }
+    byPlayer.get(playerId).games.push(summarizeMlbStatRow(row));
+  }
+  return [...byPlayer.values()]
+    .map((entry) => ({ ...entry, games: entry.games.slice(0, 5), gamesReturned: entry.games.length }))
+    .filter((entry) => entry.player && entry.games.length > 0)
+    .slice(0, 80);
+}
+
+export async function fetchBdlMlbStandings(bdlKey, season) {
+  if (!bdlKey || !season) return [];
+  const rows = await drainMlbPages("/mlb/v1/standings", { season, per_page: 100 }, bdlKey, 4);
+  return rows
+    .map((row) => ({
+      team: pickTeamAbbr(row?.team || {}, row?.team?.display_name || ""),
+      teamName: String(row?.team?.display_name || row?.team?.name || "").trim(),
+      wins: row?.wins ?? null, losses: row?.losses ?? null, winPercent: row?.win_percent ?? null,
+      divisionRank: row?.division_rank ?? null, leagueRank: row?.league_rank ?? null,
+      gamesBehind: row?.games_behind ?? null, streak: row?.streak ?? null,
+      lastTenGames: row?.last_ten_games ?? null, runDifferential: row?.run_differential ?? null,
+      source: "balldontlie_mlb",
+    }))
+    .filter((row) => row.team);
+}
+
 function gameLabelFromAppRow(row) {
   const a = row?.awayTeam?.name || "";
   const h = row?.homeTeam?.name || "";
@@ -269,94 +313,12 @@ export async function fetchBdlMlbGameTotalsMap(bdlKey, todayEtYmd, gamesForPark)
 /**
  * @returns propLines matching api/mlb.js Odds shape (partial).
  */
-export async function fetchBdlMlbPlayerPropsForSlate(bdlKey, appGames, { concurrency = 3, maxGames = 10 } = {}) {
-  if (!bdlKey || !Array.isArray(appGames) || !appGames.length) return [];
-
-  const targets = appGames.slice(0, maxGames);
-  const propLines = [];
-
-  const allowedVendors = new Set(["draftkings", "fanduel", "betmgm", "fanatics"]);
-
-  async function handleGame(game) {
-    const gid = game.id;
-    if (gid == null) return;
-    const res = await bdlFetch("/mlb/v1/odds/player_props", { game_id: gid }, { apiKey: bdlKey, timeoutMs: 12000 });
-    if (!res.ok || !Array.isArray(res.data?.data)) return;
-
-    const glabel = gameLabelFromAppRow(game);
-    const tIso = game.startTimeUtc || game.date;
-    const gameTime =
-      tIso &&
-      new Date(tIso).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: "America/New_York",
-      }) + " ET";
-
-    for (const row of res.data.data) {
-      const vendor = String(row.vendor || "").toLowerCase();
-      if (vendor && !allowedVendors.has(vendor)) continue;
-
-      const player = String(row.player?.full_name || "").trim();
-      if (!player) continue;
-      const propRaw = String(row.prop_type || "prop").trim();
-      const prop = propRaw.replace(/_/g, " ");
-      const market = row.market && typeof row.market === "object" ? row.market : {};
-      const lineVal = row.line_value != null ? parseFloat(String(row.line_value)) : NaN;
-
-      if (market.type === "over_under" && Number.isFinite(lineVal)) {
-        if (market.over_odds != null) {
-          propLines.push({
-            game: glabel,
-            player,
-            prop,
-            propRaw,
-            line: lineVal,
-            side: "Over",
-            odds: market.over_odds,
-            book: vendor || "unknown",
-            eventId: String(gid),
-            gameTime: gameTime || "",
-            source: "balldontlie_mlb",
-          });
-        }
-        if (market.under_odds != null) {
-          propLines.push({
-            game: glabel,
-            player,
-            prop,
-            propRaw,
-            line: lineVal,
-            side: "Under",
-            odds: market.under_odds,
-            book: vendor || "unknown",
-            eventId: String(gid),
-            gameTime: gameTime || "",
-            source: "balldontlie_mlb",
-          });
-        }
-      } else if (market.type === "milestone" && market.odds != null) {
-        propLines.push({
-          game: glabel,
-          player,
-          prop: `${prop} (milestone)`,
-          propRaw,
-          line: Number.isFinite(lineVal) ? lineVal : null,
-          side: "Yes",
-          odds: market.odds,
-          book: vendor || "unknown",
-          eventId: String(gid),
-          gameTime: gameTime || "",
-          source: "balldontlie_mlb",
-        });
-      }
-    }
+export async function fetchBdlMlbPlayerPropsForSlate(bdlKey, appGames) {
+  if (bdlKey && Array.isArray(appGames) && appGames.length) {
+    logBdlTierSkipOnce(
+      "odds_player_props",
+      "Skipped /mlb/v1/odds/player_props because current BDL plan is MLB All-Star.",
+    );
   }
-
-  for (let i = 0; i < targets.length; i += concurrency) {
-    const chunk = targets.slice(i, i + concurrency);
-    await Promise.all(chunk.map((g) => handleGame(g)));
-  }
-
-  return propLines;
+  return [];
 }

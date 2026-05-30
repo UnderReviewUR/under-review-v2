@@ -361,6 +361,7 @@ export function stripMisalignedGolfCourseArtifacts(board) {
     ...board,
     course: slimCourse,
     courseStats: [],
+    courseHoles: [],
     recentResults: [],
   };
 }

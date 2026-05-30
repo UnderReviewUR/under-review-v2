@@ -4593,6 +4593,7 @@ function slimUnifiedGolfBoardForUrTake(board, questionText) {
     },
     recentResults: (g.recentResults || []).slice(0, 10),
     courseStats: (g.courseStats || []).slice(0, 8),
+    courseHoles: (g.courseHoles || []).slice(0, 18),
     fieldRoster: Array.isArray(g.fieldRoster) ? g.fieldRoster.slice(0, 120) : [],
     question: questionText || "",
     questionEventAlignment: g.questionEventAlignment || null,

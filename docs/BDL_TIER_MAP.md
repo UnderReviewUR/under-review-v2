@@ -1,0 +1,44 @@
+# BallDontLie tier-aware endpoint map
+
+This project currently pays for BallDontLie **All-Star** on NBA, MLB, and PGA Tour.
+Do not add GOAT/All-Access endpoints without an explicit product decision.
+
+| Sport | Endpoint                                           | Tier                                    | Currently called                  | Action taken                                                                    |
+| ----- | -------------------------------------------------- | --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| NBA   | `/v1/games`, `/nba/v1/games`                       | Free/All-Star accessible                | Yes                               | Keep. Drives slate, scores, playoff context.                                    |
+| NBA   | `/v1/player_injuries`, `/nba/v1/player_injuries`   | All-Star                                | Yes                               | Keep. Added diagnostic logs for raw BDL count and slate filtering.              |
+| NBA   | `/v1/stats`, `/nba/v1/stats`                       | All-Star                                | Yes                               | Keep. Used for box scores and recent game logs.                                 |
+| NBA   | `/v1/players/active`                               | All-Star                                | Yes                               | Keep. Used for roster grounding.                                                |
+| NBA   | `/v1/season_averages`                              | GOAT                                    | No network call after this change | Skipped with one-time log; replaced by active roster + `/v1/stats` recent logs. |
+| NBA   | `/nba/v1/stats/advanced`, `/nba/v2/stats/advanced` | GOAT                                    | No                                | Leave unwired.                                                                  |
+| NBA   | `/nba/v1/standings`                                | GOAT                                    | No                                | Leave unwired.                                                                  |
+| NBA   | `/nba/v1/box_scores/live`, `/nba/v1/box_scores`    | GOAT                                    | No                                | Leave unwired.                                                                  |
+| NBA   | `/nba/v1/plays`                                    | GOAT                                    | No                                | Leave unwired.                                                                  |
+| NBA   | `/nba/v2/odds/player_props`                        | GOAT                                    | No                                | Leave unwired; Action Network remains NBA props source.                         |
+| NBA   | `/nba/v1/lineups`                                  | GOAT                                    | No                                | Leave unwired.                                                                  |
+| MLB   | `/mlb/v1/games`                                    | Free/All-Star accessible                | Yes                               | Keep. Drives slate and live team scores.                                        |
+| MLB   | `/mlb/v1/player_injuries`                          | All-Star                                | Yes                               | Keep. Used for slate-team injury context.                                       |
+| MLB   | `/mlb/v1/odds`                                     | All-Star/available in current code path | Yes                               | Keep as game totals fallback.                                                   |
+| MLB   | `/mlb/v1/players/active`                           | All-Star                                | Yes after this change             | Added for roster grounding and player IDs.                                      |
+| MLB   | `/mlb/v1/stats`                                    | All-Star                                | Yes after this change             | Added for player recent-form/game-log context.                                  |
+| MLB   | `/mlb/v1/standings`                                | All-Star                                | Yes after this change             | Added for team form, last 10, streaks, standings context.                       |
+| MLB   | `/mlb/v1/lineups`                                  | GOAT                                    | No network call after this change | Skipped with one-time log; ESPN probable starters are merged instead.           |
+| MLB   | `/mlb/v1/odds/player_props`                        | GOAT                                    | No network call after this change | Skipped with one-time log; no All-Star BDL prop alternative.                    |
+| MLB   | `/mlb/v1/season_stats`                             | GOAT                                    | No                                | Leave unwired.                                                                  |
+| MLB   | `/mlb/v1/team_season_stats`                        | GOAT                                    | No                                | Leave unwired.                                                                  |
+| MLB   | `/mlb/v1/plays`                                    | GOAT                                    | No                                | Leave unwired.                                                                  |
+| MLB   | `/mlb/v1/plate_appearances`                        | GOAT                                    | No                                | Leave unwired.                                                                  |
+| PGA   | `/pga/v1/tournaments`                              | Free/All-Star accessible                | Yes                               | Keep. Drives schedule/current tournament.                                       |
+| PGA   | `/pga/v2/tournaments`                              | Free                                    | No                                | Leave unwired; current v1 path remains.                                         |
+| PGA   | `/pga/v1/courses`                                  | Free                                    | Yes                               | Keep. Course metadata.                                                          |
+| PGA   | `/pga/v1/tournament_results`                       | All-Star                                | Yes                               | Keep. Leaderboard/recent results.                                               |
+| PGA   | `/pga/v1/tournament_course_stats`                  | All-Star                                | Yes                               | Keep. Hole difficulty/course stats.                                             |
+| PGA   | `/pga/v1/course_holes`                             | All-Star                                | Yes after this change             | Added to golf board and UR Take context.                                        |
+| PGA   | `/pga/v1/players`                                  | Free                                    | Yes                               | Keep. Player ID lookup only.                                                    |
+| PGA   | `/pga/v1/player_round_stats`                       | GOAT                                    | No network call after this change | Skipped with one-time log; static SG fallback remains.                          |
+| PGA   | `/pga/v1/player_season_stats`                      | GOAT                                    | No network call after this change | Skipped with one-time log; static SG fallback remains.                          |
+| PGA   | `/pga/v1/player_round_results`                     | GOAT                                    | No                                | Leave unwired.                                                                  |
+| PGA   | `/pga/v1/player_scorecards`                        | GOAT                                    | No                                | Leave unwired.                                                                  |
+| PGA   | `/pga/v1/tournament_field`                         | GOAT                                    | No                                | Leave unwired.                                                                  |
+| PGA   | `/pga/v1/tee_times`                                | GOAT                                    | No                                | Leave unwired.                                                                  |
+| PGA   | `/pga/v1/futures`                                  | GOAT                                    | No                                | Leave unwired; PGA Tour site odds scraper is used for regular-event odds.       |

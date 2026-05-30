@@ -9,9 +9,13 @@ import { getStaticPlayerSG } from "./_golfStaticSg.js";
 import { attachPlayerIdsToRows, normalizePlayerKey, resolveIdFromNameLookup } from "./_playerIdentity.js";
 
 const ID_CACHE_TTL = 7 * 24 * 60 * 60;
-const STAT_CACHE_TTL = 6 * 60 * 60;
-const MAX_IDS_PER_ROUND_STATS = 12;
-const MAX_IDS_PER_SEASON_STATS = 15;
+const bdlTierSkipLogged = new Set();
+
+function logBdlTierSkipOnce(key, detail) {
+  if (bdlTierSkipLogged.has(key)) return;
+  bdlTierSkipLogged.add(key);
+  console.warn(JSON.stringify({ event: "bdl_tier_endpoint_skipped", sport: "pga", key, detail }));
+}
 
 async function safeBdlFetch(path, params = {}) {
   const apiKey = getEnv("BALLDONTLIE_API_KEY") || "";
@@ -52,20 +56,6 @@ export function pivotBdlSeasonStatRows(dataRows) {
     }
   }
   return byPlayer;
-}
-
-function mapRoundStatRow(row) {
-  if (!row || typeof row !== "object") return null;
-  const sg_total = row.sg_total != null ? Number(row.sg_total) : null;
-  const sg_app = row.sg_approach != null ? Number(row.sg_approach) : null;
-  const sg_putt = row.sg_putting != null ? Number(row.sg_putting) : null;
-  if (![sg_total, sg_app, sg_putt].some((v) => Number.isFinite(v))) return null;
-  return {
-    sg_total: Number.isFinite(sg_total) ? sg_total : null,
-    sg_app: Number.isFinite(sg_app) ? sg_app : null,
-    sg_putt: Number.isFinite(sg_putt) ? sg_putt : null,
-    statsSource: "balldontlie_tournament",
-  };
 }
 
 /**
@@ -119,74 +109,6 @@ async function resolveBdlPlayerIdBySearch(name) {
   if (!best?.id) return null;
   await setDurableJson(cacheKey, { id: best.id, display_name: best.display_name }, { ttlSeconds: ID_CACHE_TTL });
   return Number(best.id);
-}
-
-async function fetchTournamentSgByPlayerIds(tournamentId, playerIds) {
-  const map = new Map();
-  if (tournamentId == null || !playerIds.length) return map;
-
-  const chunks = [];
-  for (let i = 0; i < playerIds.length; i += MAX_IDS_PER_ROUND_STATS) {
-    chunks.push(playerIds.slice(i, i + MAX_IDS_PER_ROUND_STATS));
-  }
-
-  for (const chunk of chunks) {
-    const params = {
-      "tournament_ids[]": [tournamentId],
-      "player_ids[]": chunk,
-      round_number: -1,
-      per_page: 100,
-    };
-    const res = await safeBdlFetch("/player_round_stats", params);
-    if (!res.ok || !Array.isArray(res.data?.data)) continue;
-    for (const row of res.data.data) {
-      const pid = row?.player?.id;
-      if (pid == null) continue;
-      const mapped = mapRoundStatRow(row);
-      if (mapped) map.set(Number(pid), mapped);
-    }
-  }
-  return map;
-}
-
-async function fetchSeasonSgByPlayerIds(playerIds, season) {
-  const map = new Map();
-  if (!playerIds.length) return map;
-  const yr = Number(season) || new Date().getFullYear();
-
-  const chunks = [];
-  for (let i = 0; i < playerIds.length; i += MAX_IDS_PER_SEASON_STATS) {
-    chunks.push(playerIds.slice(i, i + MAX_IDS_PER_SEASON_STATS));
-  }
-
-  for (const chunk of chunks) {
-    const cacheKey = `golf_bdl_season_sg:${yr}:${chunk.sort((a, b) => a - b).join(",")}`;
-    const cached = await getDurableJson(cacheKey);
-    if (cached && typeof cached === "object") {
-      for (const [k, v] of Object.entries(cached)) {
-        map.set(Number(k), v);
-      }
-      continue;
-    }
-
-    const res = await safeBdlFetch("/player_season_stats", {
-      "player_ids[]": chunk,
-      season: yr,
-      per_page: 100,
-    });
-    if (!res.ok || !Array.isArray(res.data?.data)) continue;
-
-    const pivoted = pivotBdlSeasonStatRows(res.data.data);
-    const serial = {};
-    for (const [pid, bundle] of pivoted.entries()) {
-      map.set(pid, bundle);
-      serial[pid] = bundle;
-    }
-    if (Object.keys(serial).length > 0) {
-      await setDurableJson(cacheKey, serial, { ttlSeconds: STAT_CACHE_TTL });
-    }
-  }
-  return map;
 }
 
 function applyStaticFallback(row) {
@@ -249,8 +171,6 @@ function mergeSgOntoRow(row, bundle) {
 export async function enrichGolfLeaderboardWithStats(rows, opts = {}) {
   if (!Array.isArray(rows) || rows.length === 0) return [];
 
-  const season = Number(opts.season) || new Date().getFullYear();
-  const tournamentId = opts.tournamentId != null ? Number(opts.tournamentId) : null;
   const nameToPlayerId = opts.nameToPlayerId instanceof Map ? opts.nameToPlayerId : new Map();
   const maxPlayers = Number(opts.maxPlayers) > 0 ? Number(opts.maxPlayers) : 40;
 
@@ -258,7 +178,7 @@ export async function enrichGolfLeaderboardWithStats(rows, opts = {}) {
 
   const unresolved = withIds
     .filter((r) => r.playerId == null && (r.name || r.player))
-    .slice(0, 20);
+    .slice(0, Math.min(20, maxPlayers));
   for (const row of unresolved) {
     const label = row?.name || row?.player;
     const id = await resolveBdlPlayerIdBySearch(label);
@@ -270,39 +190,14 @@ export async function enrichGolfLeaderboardWithStats(rows, opts = {}) {
   }
   withIds = attachPlayerIdsToRows(withIds, nameToPlayerId);
 
-  const priorityIds = [];
-  const seen = new Set();
-  for (const row of withIds.slice(0, maxPlayers)) {
-    const id = row?.playerId;
-    if (id == null || seen.has(id)) continue;
-    seen.add(id);
-    priorityIds.push(Number(id));
-  }
-
-  let tournamentSg = new Map();
-  if (tournamentId != null && priorityIds.length > 0) {
-    try {
-      tournamentSg = await fetchTournamentSgByPlayerIds(tournamentId, priorityIds);
-    } catch (err) {
-      console.warn("[golf] BDL tournament SG fetch:", err?.message || err);
-    }
-  }
-
-  const needSeason = priorityIds.filter((id) => !tournamentSg.has(id));
-  let seasonSg = new Map();
-  if (needSeason.length > 0) {
-    try {
-      seasonSg = await fetchSeasonSgByPlayerIds(needSeason, season);
-    } catch (err) {
-      console.warn("[golf] BDL season SG fetch:", err?.message || err);
-    }
-  }
+  logBdlTierSkipOnce(
+    "player_round_and_season_stats",
+    "Skipped /pga/v1/player_round_stats and /pga/v1/player_season_stats because current BDL plan is PGA All-Star; using leaderboard plus static SG fallback.",
+  );
 
   return withIds.map((row) => {
     const pid = row?.playerId != null ? Number(row.playerId) : null;
-    let bundle = pid != null ? tournamentSg.get(pid) : null;
-    if (!bundle && pid != null) bundle = seasonSg.get(pid);
-    const enriched = mergeSgOntoRow(row, bundle);
+    const enriched = mergeSgOntoRow(row, null);
     if (pid != null && enriched.playerId == null) {
       return { ...enriched, playerId: pid };
     }
