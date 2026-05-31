@@ -3,9 +3,12 @@ import { getEnv } from "./_env.js";
 import { etDateStringToEspnYmd, getTodayEtDateString, getTomorrowEtDateString } from "./_espnEtDates.js";
 import { persistLastKnownHomeMlbGames, recoverLastKnownHomeMlbGames } from "./_homeLastKnownGames.js";
 import {
+  fetchBdlMlbActivePlayersForTeamIds,
   fetchBdlMlbGameTotalsMap,
   fetchBdlMlbInjuriesForTeamIds,
   fetchBdlMlbPlayerPropsForSlate,
+  fetchBdlMlbRecentStatsForPlayers,
+  fetchBdlMlbStandings,
   fetchBdlMlbTodayTomorrowGames,
 } from "./_mlbBdl.js";
 import {
@@ -664,20 +667,31 @@ async function assembleMlbBoardData() {
   let propLines = propLinesOdds;
   let gameTotals = gameTotalsOdds;
   let injuries = [];
+  let activePlayers = [];
+  let playerRecentForm = [];
+  let standings = [];
 
   const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
   const slateHasOddsProps = propLinesOdds.length > 0;
   const slateHasOddsTotals = Object.keys(gameTotalsOdds || {}).length > 0;
   const shouldTryBdl = Boolean(BDL_KEY && gamesWithPark.length > 0);
   const slateFromBdl = gamesWithPark.some((g) => g.source === "balldontlie_mlb");
-  if (shouldTryBdl && (!slateHasOddsProps || !slateHasOddsTotals)) {
+  if (shouldTryBdl) {
     const bundle = await getMlbBdlSlateBundle(BDL_KEY);
     const teamIds = bundle?.teamIds || [];
-    const [bdlProps, bdlTotals, bdlInj] = await Promise.all([
-      fetchBdlMlbPlayerPropsForSlate(BDL_KEY, gamesWithPark),
-      fetchBdlMlbGameTotalsMap(BDL_KEY, getTodayEtDateString(), gamesWithPark),
+    const season = getMlbSeasonContext().season;
+    const [bdlProps, bdlTotals, bdlInj, bdlActive, bdlStandings] = await Promise.all([
+      !slateHasOddsProps ? fetchBdlMlbPlayerPropsForSlate(BDL_KEY, gamesWithPark) : Promise.resolve([]),
+      !slateHasOddsTotals ? fetchBdlMlbGameTotalsMap(BDL_KEY, getTodayEtDateString(), gamesWithPark) : Promise.resolve({}),
       teamIds.length ? fetchBdlMlbInjuriesForTeamIds(BDL_KEY, teamIds) : Promise.resolve([]),
+      teamIds.length ? fetchBdlMlbActivePlayersForTeamIds(BDL_KEY, teamIds) : Promise.resolve([]),
+      fetchBdlMlbStandings(BDL_KEY, season),
     ]);
+    activePlayers = Array.isArray(bdlActive) ? bdlActive : [];
+    standings = Array.isArray(bdlStandings) ? bdlStandings : [];
+    playerRecentForm = activePlayers.length
+      ? await fetchBdlMlbRecentStatsForPlayers(BDL_KEY, activePlayers, { season })
+      : [];
     if (bdlProps.length > 0) propLines = bdlProps;
     if (Object.keys(bdlTotals).length > 0) gameTotals = bdlTotals;
     injuries = Array.isArray(bdlInj) ? bdlInj : [];
@@ -691,6 +705,9 @@ async function assembleMlbBoardData() {
         bdlProps: bdlProps.length,
         bdlTotals: Object.keys(bdlTotals || {}).length,
         injuries: injuries.length,
+        activePlayers: activePlayers.length,
+        recentFormPlayers: playerRecentForm.length,
+        standings: standings.length,
       }),
     );
   }
@@ -702,6 +719,9 @@ async function assembleMlbBoardData() {
     propLines,
     gameTotals,
     injuries,
+    activePlayers,
+    playerRecentForm,
+    standings,
     slateFromBdl,
     slateRecovery,
   };
@@ -723,6 +743,9 @@ export async function buildMlbUrTakeBoard(question = "") {
     propLines,
     gameTotals,
     injuries,
+    activePlayers,
+    playerRecentForm,
+    standings,
     slateFromBdl,
     slateRecovery,
   } = await assembleMlbBoardData();
@@ -738,6 +761,9 @@ export async function buildMlbUrTakeBoard(question = "") {
     injuries: (injuries || [])
       .filter((r) => r?.structuralImpact !== false)
       .slice(0, 24),
+    activePlayers: (activePlayers || []).slice(0, 80),
+    playerRecentForm: (playerRecentForm || []).slice(0, 40),
+    standings: (standings || []).slice(0, 30),
     primarySource: slateFromBdl ? "balldontlie_mlb" : "espn",
     question: String(question || ""),
     fetchedAt: new Date().toISOString(),
@@ -798,6 +824,9 @@ export default async function handler(req, res) {
         propLines,
         gameTotals,
         injuries,
+        activePlayers,
+        playerRecentForm,
+        standings,
         slateFromBdl,
         slateRecovery,
       } = await assembleMlbBoardData();
@@ -812,6 +841,9 @@ export default async function handler(req, res) {
         propLines: propLines.slice(0, 100),
         gameTotals,
         injuries,
+        activePlayers: activePlayers.slice(0, 120),
+        playerRecentForm: playerRecentForm.slice(0, 80),
+        standings,
         primarySource: slateFromBdl ? "balldontlie_mlb" : "espn",
         parkFactors: PARK_FACTORS,
         fetchedAt: new Date().toISOString(),

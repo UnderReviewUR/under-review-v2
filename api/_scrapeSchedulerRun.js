@@ -6,6 +6,7 @@ import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { scrapeAndCacheNbaProps } from "./_nbaProps.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";
+import { scrapeAndCachePgaTourOdds } from "./_golfPgaTourOdds.js";
 import { scrapeAndCacheF1Odds } from "./_f1Odds.js";
 import { resolveGameSpreadForSlateGame } from "./_gameOddsPipeline.js";
 import {
@@ -42,8 +43,12 @@ const SCRAPE_HANDLERS = {
       lineUnavailable: Boolean(resolved?.lineUnavailable),
     };
   },
-  golf_odds: async () => {
-    const odds = await scrapeAndCachePgaChampionshipOdds();
+  golf_odds: async (target) => {
+    const tournamentId = target.meta?.tournamentId;
+    const odds =
+      target.meta?.source === "pgatour_site" && tournamentId
+        ? await scrapeAndCachePgaTourOdds(tournamentId)
+        : await scrapeAndCachePgaChampionshipOdds();
     return {
       posted: odds?.hasPostedLines,
       outrightCount: Array.isArray(odds?.outrights) ? odds.outrights.length : 0,
@@ -107,7 +112,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
           gameStartMs,
           nowMs,
           msUntilStart: gameStartMs - nowMs,
-        }),
+        })
       );
       results.push({
         sport,
@@ -129,7 +134,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
           lastRunMs,
           timeSinceLastRun: lastRunMs ? nowMs - lastRunMs : null,
           msUntilStart: gameStartMs - nowMs,
-        }),
+        })
       );
       results.push({
         sport,
@@ -149,7 +154,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
           target_id: `${sport}/${gameId}`,
           action: "skipped",
           reason: "no_handler",
-        }),
+        })
       );
       results.push({
         sport,
@@ -171,7 +176,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
           intervalMs,
           msUntilStart: gameStartMs - nowMs,
           result: payload,
-        }),
+        })
       );
       results.push({
         sport,
@@ -186,7 +191,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
           target_id: `${sport}/${gameId}`,
           action: "error",
           error: err?.message || "scrape_failed",
-        }),
+        })
       );
       results.push({
         sport,

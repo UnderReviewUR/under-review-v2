@@ -39,9 +39,7 @@ import {
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
-const BDL_SEASON_AVG_INTERVAL_MS = 1200;
-const bdlSeasonAverageCache = new Map();
-let bdlSeasonAverageQueueTail = Promise.resolve();
+const bdlTierSkipLogged = new Set();
 const rosterDiag = {
   firstDurableGetError: null,
   firstDurableGetChecked: false,
@@ -55,21 +53,10 @@ function logOddsUnavailable(status, scope) {
   );
 }
 
-function enqueueBdlSeasonAverageRequest(task) {
-  const run = bdlSeasonAverageQueueTail.then(async () => {
-    const startedAt = Date.now();
-    try {
-      return await task();
-    } finally {
-      const elapsed = Date.now() - startedAt;
-      const waitMs = Math.max(0, BDL_SEASON_AVG_INTERVAL_MS - elapsed);
-      if (waitMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-      }
-    }
-  });
-  bdlSeasonAverageQueueTail = run.catch(() => null);
-  return run;
+function logBdlTierSkipOnce(key, detail) {
+  if (bdlTierSkipLogged.has(key)) return;
+  bdlTierSkipLogged.add(key);
+  console.warn(JSON.stringify({ event: "bdl_tier_endpoint_skipped", sport: "nba", key, detail }));
 }
 
 /**
@@ -1458,6 +1445,8 @@ export async function fetchPlayerInjuries(bdlKey) {
       let cursor = null;
       let pages = 0;
       let sawOk = false;
+      let rawRows = 0;
+      let normalizedRows = 0;
       while (pages < 40) {
         const qs = new URLSearchParams();
         qs.append("per_page", "100");
@@ -1467,9 +1456,11 @@ export async function fetchPlayerInjuries(bdlKey) {
         sawOk = true;
         const payload = await res.json().catch(() => ({}));
         const rows = Array.isArray(payload?.data) ? payload.data : [];
+        rawRows += rows.length;
         for (const row of rows) {
           const normalized = normalizePlayerInjuryMapEntry(row);
           if (!normalized) continue;
+          normalizedRows += 1;
           out[String(normalized.playerId)] = {
             status: normalized.status || "unknown",
             description: normalized.description || "",
@@ -1484,6 +1475,15 @@ export async function fetchPlayerInjuries(bdlKey) {
         pages += 1;
       }
       if (!sawOk) continue;
+      console.log(
+        JSON.stringify({
+          event: "nba_bdl_injuries_fetch",
+          endpoint: url.replace("https://api.balldontlie.io", ""),
+          rawRows,
+          normalizedRows,
+          uniquePlayers: Object.keys(out).length,
+        }),
+      );
       await setDurableJson(NBA_PLAYER_INJURIES_CACHE_KEY, out, {
         ttlSeconds: NBA_PLAYER_INJURIES_TTL_SECONDS,
       });
@@ -1842,48 +1842,25 @@ async function fetchActiveRosterPlayers(bdlKey, teamIds) {
   }));
 }
 
-/** Per-player season averages via the new BDL contract: ?season=YYYY&player_id=<single integer>. */
-async function fetchSeasonAverageForPlayer(bdlKey, season, playerId) {
-  if (!playerId) return null;
-  const cacheKey = `${playerId}_${season}`;
-  if (bdlSeasonAverageCache.has(cacheKey)) {
-    return bdlSeasonAverageCache.get(cacheKey);
+/**
+ * BDL season averages are GOAT-tier in the current docs. We pay for All-Star,
+ * so keep the function as a no-network compatibility shim and rely on
+ * /players/active + /stats recent logs instead.
+ */
+async function fetchSeasonAverageForPlayer(_bdlKey, _season, playerId) {
+  if (playerId) {
+    logBdlTierSkipOnce(
+      "season_averages",
+      "Skipped /v1/season_averages because current BDL plan is NBA All-Star; recent form uses /v1/stats.",
+    );
   }
-  const durableCacheKey = `nba_season_avg_${season}_${playerId}`;
-  let cached = null;
-  try {
-    cached = await getDurableJson(durableCacheKey);
-  } catch (err) {
-    if (!rosterDiag.firstDurableGetChecked) {
-      rosterDiag.firstDurableGetError = err?.message || String(err);
-    }
-  } finally {
-    rosterDiag.firstDurableGetChecked = true;
-  }
-  if (cached?._empty) return null;
-  if (cached !== null && cached !== undefined) return cached;
-  const url = `https://api.balldontlie.io/v1/season_averages?season=${season}&player_id=${playerId}`;
-  const row = await enqueueBdlSeasonAverageRequest(async () => {
-    const data = await fetchJsonOrNull(url, bdlKey, 3000);
-    if (!data) {
-      console.log(`[diag] fetchSeasonAverageForPlayer player_id=${playerId} url=${url} status=null hasData0=false`);
-      return null;
-    }
-    const dataRow = Array.isArray(data?.data) && data.data[0] ? data.data[0] : null;
-    console.log(`[diag] fetchSeasonAverageForPlayer player_id=${playerId} url=${url} status=ok hasData0=${Boolean(dataRow)}`);
-    return dataRow || null;
-  });
-  if (row) await setDurableJson(durableCacheKey, row, { ttlSeconds: 86400 });
-  else await setDurableJson(durableCacheKey, { _empty: true }, { ttlSeconds: 86400 });
-  bdlSeasonAverageCache.set(cacheKey, row);
-  return row;
+  return null;
 }
 
 /**
- * Pregame roster + per-player season averages.
+ * Pregame roster context on All-Star tier.
  * Step 1: pull active rosters via /v1/players/active for the supplied teamIds (1 batched call).
- * Step 2: fetch per-player season averages via /v1/season_averages?season=YYYY&player_id=N
- *         (parallelized with a small concurrency cap to respect BDL rate limits).
+ * Step 2: leave stat baselines empty until /v1/stats recent logs are attached downstream.
  * Output shape stays compatible with existing consumers (statRowsToPlayers / playerStats).
  *
  * @param {string} bdlKey
@@ -1957,7 +1934,7 @@ async function fetchSeasonAveragePlayerStats(bdlKey, season, teamIds = []) {
         source: avg ? "season_average" : "active_roster",
         statsNote: avg
           ? `${season} season avg (${avg.games_played} games)`
-          : "season avg unavailable",
+          : "BDL All-Star active roster — season averages are GOAT-tier; use recent logs when present.",
       };
     }
   }
@@ -2011,7 +1988,7 @@ function mergeGameBoxWithPregameSeasonAverages(gameBoxPlayers, todaysGames, seas
   if (!Array.isArray(todaysGames) || todaysGames.length === 0 || !Array.isArray(seasonPlayers) || !seasonPlayers.length) {
     return {
       players: gameBoxPlayers,
-      statsSource: gameBoxPlayers.length ? "game_box" : "season_average",
+      statsSource: gameBoxPlayers.length ? "game_box" : "active_roster_recent_form",
     };
   }
 
@@ -2029,7 +2006,7 @@ function mergeGameBoxWithPregameSeasonAverages(gameBoxPlayers, todaysGames, seas
   if (preTeams.size === 0) {
     return {
       players: gameBoxPlayers,
-      statsSource: gameBoxPlayers.length ? "game_box" : "season_average",
+      statsSource: gameBoxPlayers.length ? "game_box" : "active_roster_recent_form",
     };
   }
 
@@ -2041,7 +2018,7 @@ function mergeGameBoxWithPregameSeasonAverages(gameBoxPlayers, todaysGames, seas
     if (!preTeams.has(team)) continue;
     supplemental.push({
       ...p,
-      statsNote: `${p.statsNote || ""} [Pregame: season average — game not started yet.]`.trim(),
+      statsNote: `${p.statsNote || ""} [Pregame: active roster/recent-log context — game not started yet.]`.trim(),
     });
     seen.add(p.playerId);
   }
@@ -2055,7 +2032,7 @@ function mergeGameBoxWithPregameSeasonAverages(gameBoxPlayers, todaysGames, seas
       ? "hybrid_game_box_plus_pregame_season"
       : (gameBoxPlayers || []).length
         ? "game_box"
-        : "season_average";
+        : "active_roster_recent_form";
 
   return { players: merged, statsSource };
 }
@@ -2416,7 +2393,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
     }
 
     let playerStats = [];
-    let statsSource = "season_average";
+    let statsSource = "active_roster_recent_form";
 
     if (statRows.length > 0) {
       const gameLabelMap = buildGameLabelMap(games);
@@ -2436,7 +2413,7 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
         season,
         focusTeamIds.length ? focusTeamIds : bdlTeamIdsForSlate(todaysGames),
       );
-      statsSource = "season_average";
+      statsSource = "active_roster_recent_form";
     }
 
     playerStats = playerStats.map(attachPraFieldsToPlayerRow);
@@ -2453,8 +2430,8 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
     const fallbackWithPra = fallback.map(attachPraFieldsToPlayerRow);
     return {
       playerStats: fallbackWithPra,
-      playerStatsText: buildPlayerStatsSummaryLines(fallbackWithPra, "season_average"),
-      statsSource: "season_average",
+      playerStatsText: buildPlayerStatsSummaryLines(fallbackWithPra, "active_roster_recent_form"),
+      statsSource: "active_roster_recent_form",
     };
   }
 }
@@ -2494,11 +2471,34 @@ async function getNbaInjuries(bdlKey, todaysGames, question = "") {
       detail: String(meta?.description || "").trim(),
       returnDate: String(meta?.returnDate || "").trim(),
     }));
+    let keptByTeam = 0;
+    let keptByQuestion = 0;
+    let droppedNoTeam = 0;
+    let droppedNonSlate = 0;
     const injuries = rows.filter((i) => {
       const lower = String(i.player || "").toLowerCase();
       const team = canonicalizeTeamAbbr(i.team) || String(i.team || "").trim().toUpperCase();
-      return (team && gameTeams.has(team)) || questionMentionsPlayer(question, lower);
+      const teamHit = Boolean(team && gameTeams.has(team));
+      const questionHit = questionMentionsPlayer(question, lower);
+      if (teamHit) keptByTeam += 1;
+      else if (questionHit) keptByQuestion += 1;
+      else if (!team) droppedNoTeam += 1;
+      else droppedNonSlate += 1;
+      return teamHit || questionHit;
     });
+
+    console.log(
+      JSON.stringify({
+        event: "nba_bdl_injuries_filter",
+        rawMappedRows: rows.length,
+        slateTeams: [...gameTeams].sort(),
+        kept: injuries.length,
+        keptByTeam,
+        keptByQuestion,
+        droppedNoTeam,
+        droppedNonSlate,
+      }),
+    );
 
     return injuries;
   } catch (err) {
@@ -2794,11 +2794,9 @@ function pickLiveEdgeBeneficiary({
 
 /**
  * Phase 1 foul-trouble alerts from confirmed BDL box `pf` only (no inference).
- * Star gate: season PPG ≥ 15 from BDL season_averages (cached).
+ * Star gate uses already-populated box/recent stats; BDL season averages are GOAT-tier.
  */
 export async function buildNbaLiveEdgeAlerts(board = {}) {
-  const bdlKey = getEnv("BALLDONTLIE_API_KEY");
-  const season = getNbaSeasonContext().season;
   const todaysGames = Array.isArray(board.todaysGames) ? board.todaysGames : [];
   const playerStats = Array.isArray(board.playerStats) ? board.playerStats : [];
   const playersByTeamAbbrev =
@@ -2807,7 +2805,7 @@ export async function buildNbaLiveEdgeAlerts(board = {}) {
       ? board.rosterGrounding.playersByTeamAbbrev
       : {};
 
-  if (!bdlKey || !todaysGames.length || !playerStats.length) return [];
+  if (!todaysGames.length || !playerStats.length) return [];
 
   const liveGames = todaysGames.filter((g) => String(g?.state || "").toLowerCase() === "in");
   if (!liveGames.length) return [];
@@ -2819,17 +2817,13 @@ export async function buildNbaLiveEdgeAlerts(board = {}) {
     return list.some((n) => String(n || "").trim().toLowerCase() === pk);
   };
 
-  const ppgCache = new Map();
-  const seasonPpg = async (playerId) => {
-    const id = Number(playerId);
-    if (!Number.isFinite(id)) return null;
-    const key = String(id);
-    if (ppgCache.has(key)) return ppgCache.get(key);
-    const row = await fetchSeasonAverageForPlayer(bdlKey, season, id);
-    const v = row?.pts != null ? Number(row.pts) : null;
-    ppgCache.set(key, v);
-    return v;
-  };
+  const scoringByPlayerId = new Map();
+  for (const row of playerStats) {
+    const id = Number(row?.playerId);
+    if (!Number.isFinite(id)) continue;
+    const v = row?.ptsRecent != null ? Number(row.ptsRecent) : row?.pts != null ? Number(row.pts) : null;
+    if (Number.isFinite(v)) scoringByPlayerId.set(String(id), v);
+  }
 
   /** Stage 1 — foul + lineup gates only (no season avg yet). */
   const pending = [];
@@ -2868,14 +2862,9 @@ export async function buildNbaLiveEdgeAlerts(board = {}) {
     }
   }
 
-  const starIds = [...new Set(pending.map((x) => Number(x.playerId)).filter(Number.isFinite))];
-  for (const id of starIds) {
-    await seasonPpg(id);
-  }
-
   const alerts = [];
   for (const row of pending) {
-    const ppg = ppgCache.get(String(row.playerId));
+    const ppg = scoringByPlayerId.get(String(row.playerId));
     if (ppg == null || ppg < 15) continue;
 
     const ben = pickLiveEdgeBeneficiary({

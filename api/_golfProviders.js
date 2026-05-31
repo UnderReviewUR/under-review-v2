@@ -1198,6 +1198,21 @@ function summarizeCourseStats(rows) {
   }));
 }
 
+function summarizeCourseHoles(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  return [...rows]
+    .sort((a, b) => Number(a?.hole_number || 0) - Number(b?.hole_number || 0))
+    .slice(0, 18)
+    .map((r) => ({
+      hole: r?.hole_number ?? null,
+      par: r?.par ?? null,
+      yardage: r?.yardage ?? null,
+      courseId: r?.course?.id ?? null,
+      source: "balldontlie_pga",
+    }))
+    .filter((r) => r.hole != null);
+}
+
 /** Same primary-event pick as `getEspnCurrentEvent` (Zurich filter, scoring, stale guard). */
 function selectPrimaryPgaScoreboardEvent(events) {
   if (!Array.isArray(events) || events.length === 0) return null;
@@ -1877,6 +1892,7 @@ async function getBdlTournamentBundle() {
       course: null,
       results: [],
       courseStats: [],
+      courseHoles: [],
       schedule: scheduleWindow,
       bdlAvailable: tournamentsRes.ok,
     };
@@ -1922,6 +1938,15 @@ async function getBdlTournamentBundle() {
   const courseStats = courseStatsRes.ok
     ? summarizeCourseStats(courseStatsRes.data?.data || [])
     : [];
+  const courseHolesRes = matchedCourse?.id
+    ? await safeBdlFetch("/course_holes", {
+        "course_ids[]": matchedCourse.id,
+        per_page: 18,
+      })
+    : { ok: false, data: null };
+  const courseHoles = courseHolesRes.ok
+    ? summarizeCourseHoles(courseHolesRes.data?.data || [])
+    : [];
 
   const bundle = {
     tournament: normalizedTournament,
@@ -1929,6 +1954,7 @@ async function getBdlTournamentBundle() {
     results,
     leaderboard: buildBdlLeaderboard(results),
     courseStats,
+    courseHoles,
     schedule: scheduleWindow,
     bdlAvailable: tournamentsRes.ok,
   };
@@ -2445,6 +2471,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     course,
     recentResults: Array.isArray(bdlBundle?.results) ? bdlBundle.results : [],
     courseStats: Array.isArray(bdlBundle?.courseStats) ? bdlBundle.courseStats : [],
+    courseHoles: Array.isArray(bdlBundle?.courseHoles) ? bdlBundle.courseHoles : [],
   };
   const artifactAligned = stripMisalignedGolfCourseArtifacts(mergedBeforeStrip);
 
@@ -2465,6 +2492,7 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     course: artifactAligned.course ?? null,
     recentResults: artifactAligned.recentResults ?? [],
     courseStats: artifactAligned.courseStats ?? [],
+    courseHoles: artifactAligned.courseHoles ?? [],
     sourceMeta: {
       board: useBdlLeaderboard
         ? "balldontlie_live_standings"

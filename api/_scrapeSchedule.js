@@ -6,6 +6,7 @@ import { fetchNbaSlateGamesForOddsRefresh } from "./nba.js";
 import { fetchMlbSlateGamesForScrapeSchedule } from "./mlb.js";
 import { getUnifiedGolfBoard } from "./_golfProviders.js";
 import { isPgaChampionshipEvent } from "./_golfPgaChampionshipOdds.js";
+import { resolvePgaTourTournamentIdForEvent } from "./_golfPgaTourOdds.js";
 import { resolveActionNetworkGameIdForBoardGame } from "./_nbaPropsApi.js";
 import { getNbaPlayoffSlateGamesForEtDates } from "./_nbaPropsGameId.js";
 import {
@@ -14,11 +15,12 @@ import {
 } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
 import { fetchBdlAtpFixturesForBoard } from "./_tennisAtpBdl.js";
 import { buildGameSpreadKey, canonicalizeTeamAbbr } from "../shared/gameLineSpread.js";
-import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs, parseEventStartMs } from "../shared/eventStartTime.js";
 import {
-  getEtYmdAt,
-  isGolfTournamentEtDay,
-} from "../shared/golfOddsCachePolicy.js";
+  canonicalMlbStartUtcMs,
+  canonicalNbaStartUtcMs,
+  parseEventStartMs,
+} from "../shared/eventStartTime.js";
+import { getEtYmdAt, isGolfTournamentEtDay } from "../shared/golfOddsCachePolicy.js";
 import { getGolfRoundStartMsEt, GOLF_ROUND_START_HOUR_ET } from "../shared/scrapeCadencePolicy.js";
 import { SMARKETS_EVENTS_URL } from "../shared/f1OddsConstants.js";
 import { isF1MainRaceSmarketsEvent, pickUpcomingF1RaceEvent } from "./_f1Odds.js";
@@ -113,7 +115,9 @@ export async function collectNbaScrapeTargets(nowMs = Date.now()) {
           homeAbbr,
           awayAbbr,
           dateYmd: gameStartMs
-            ? new Date(gameStartMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "")
+            ? new Date(gameStartMs)
+                .toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+                .replace(/-/g, "")
             : null,
         },
       });
@@ -136,7 +140,9 @@ export async function collectNbaScrapeTargets(nowMs = Date.now()) {
         homeAbbr,
         awayAbbr,
         dateYmd: gameStartMs
-          ? new Date(gameStartMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "")
+          ? new Date(gameStartMs)
+              .toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+              .replace(/-/g, "")
           : todayET.replace(/-/g, ""),
         source: "kv_playoff_slate",
       },
@@ -200,7 +206,9 @@ export async function collectTennisScrapeTargets(nowMs = Date.now()) {
     const commence =
       match.commence_iso ||
       match.commence_time ||
-      (match.event_date && match.event_time ? `${match.event_date}T${match.event_time}` : match.event_date);
+      (match.event_date && match.event_time
+        ? `${match.event_date}T${match.event_time}`
+        : match.event_date);
     const gameStartMs = parseEventStartMs(commence);
     if (!Number.isFinite(gameStartMs) || nowMs >= gameStartMs) continue;
 
@@ -217,7 +225,9 @@ export async function collectTennisScrapeTargets(nowMs = Date.now()) {
 
     out.push({
       sport: "tennis_odds",
-      gameId: String(id).replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 80),
+      gameId: String(id)
+        .replace(/[^A-Za-z0-9_-]+/g, "_")
+        .slice(0, 80),
       gameStartMs,
       meta: { match },
     });
@@ -243,7 +253,16 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
 
   const ev = board?.currentEvent || board?.tournament;
   if (!ev || typeof ev !== "object") return out;
-  if (!isPgaChampionshipEvent(ev)) return out;
+  const isChampionship = isPgaChampionshipEvent(ev);
+  let pgaTourTournamentId = null;
+  if (!isChampionship) {
+    try {
+      pgaTourTournamentId = await resolvePgaTourTournamentIdForEvent(ev);
+    } catch {
+      pgaTourTournamentId = null;
+    }
+  }
+  if (!isChampionship && !pgaTourTournamentId) return out;
 
   const todayEt = getEtYmdAt(nowMs);
   const days = [todayEt];
@@ -264,9 +283,14 @@ export async function collectGolfScrapeTargets(nowMs = Date.now()) {
 
     out.push({
       sport: "golf_odds",
-      gameId: `${slug}_${etYmd}`,
+      gameId: `${pgaTourTournamentId || slug}_${etYmd}`,
       gameStartMs,
-      meta: { etYmd, eventName: ev.name || ev.shortName },
+      meta: {
+        etYmd,
+        eventName: ev.name || ev.shortName,
+        source: pgaTourTournamentId ? "pgatour_site" : "pga_championship_site",
+        tournamentId: pgaTourTournamentId,
+      },
     });
   }
 

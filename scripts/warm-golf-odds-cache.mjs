@@ -13,8 +13,11 @@
  */
 import "dotenv/config";
 import { scrapeAndCachePgaChampionshipOdds } from "../api/_golfPgaChampionshipOdds.js";
+import { scrapeAndCachePgaTourOdds } from "../api/_golfPgaTourOdds.js";
 
 const direct = process.argv.includes("--direct");
+const tournamentIdArg = process.argv.find((arg) => arg.startsWith("--tournamentId="));
+const tournamentId = tournamentIdArg ? tournamentIdArg.split("=").slice(1).join("=").trim() : "";
 
 async function warmViaHttp() {
   const base = (
@@ -26,7 +29,7 @@ async function warmViaHttp() {
   const secret = process.env.CRON_SECRET;
   const headers = secret ? { Authorization: `Bearer ${secret}` } : {};
 
-  const url = `${base}/api/golf-odds-scrape`;
+  const url = `${base}/api/golf-odds-scrape${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ""}`;
   const res = await fetch(url, { method: "GET", headers, cache: "no-store" });
   const body = await res.json().catch(() => ({}));
 
@@ -41,10 +44,16 @@ async function warmViaHttp() {
 }
 
 async function warmDirect() {
-  const odds = await scrapeAndCachePgaChampionshipOdds({ forcePuppeteer: false });
+  const odds = tournamentId
+    ? await scrapeAndCachePgaTourOdds(tournamentId)
+    : await scrapeAndCachePgaChampionshipOdds({ forcePuppeteer: false });
   return {
     mode: "direct",
-    source: odds?.scrapeMethod || odds?.source || "pga_championship_site",
+    source:
+      odds?.source ||
+      odds?.scrapeMethod ||
+      (tournamentId ? "pgatour_site" : "pga_championship_site"),
+    tournamentId: odds?.tournamentId || tournamentId || null,
     fetchedAt: odds?.fetchedAt,
     posted: odds?.hasPostedLines,
     outrightCount: Array.isArray(odds?.outrights) ? odds.outrights.length : 0,

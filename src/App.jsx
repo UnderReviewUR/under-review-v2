@@ -53,6 +53,9 @@ import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedA
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
 import { getGolfHomeValidity, isGolfEventFinished } from "./lib/golfEventStatus.js";
+import { formatAmericanOddsDisplay } from "../shared/pgaChampionshipOddsLeaders.js";
+import { findOutrightOddsDisplayForGolfer } from "../shared/urTakeSessionStructuralEdge.js";
+import { usePullToRefresh } from "./hooks/usePullToRefresh.js";
 import {
   resolveGolfPrimaryEvent,
   stripMisalignedGolfCourseArtifacts,
@@ -441,6 +444,7 @@ ${themeCss}
   const nbaBarRef         = useRef(null);
   const mlbBarRef         = useRef(null);
   const askScreenRef      = useRef(null);
+  const homeScreenRef     = useRef(null);
   const tennisScreenRef   = useRef(null);
   const nflScreenRef      = useRef(null);
   const f1ScreenRef       = useRef(null);
@@ -608,15 +612,16 @@ ${themeCss}
     tennisLoading,
     hasStaticTennisIntel,
     staticIntelFetchFailed,
+    refreshTennis,
   } = useTennisData();
-  const { f1Data, f1Loading } = useF1Data();
-  const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData();
+  const { f1Data, f1Loading, refreshF1 } = useF1Data();
+  const { nbaData, nbaLoading, nbaGames, getSeriesLabel, refreshNba } = useNbaData();
   /** Latest verified NBA slate for UR Take — filled after `homePipeline` runs (see below). */
   const verifiedNbaSlateForTakeRef = useRef([]);
-  const { mlbData, mlbLoading, mlbGames } = useMlbData();
-  const { golfData, golfLoading } = useGolfData();
-  const { wcLoading, groups, matches: wcMatches, liveMatches: wcLiveMatches, upcomingMatches: wcUpcomingMatches } = useWorldCupData();
-  const { nflContextData } = useNflData();
+  const { mlbData, mlbLoading, mlbGames, refreshMlb } = useMlbData();
+  const { golfData, golfLoading, refreshGolf } = useGolfData();
+  const { wcLoading, groups, matches: wcMatches, liveMatches: wcLiveMatches, upcomingMatches: wcUpcomingMatches, refreshWorldCup } = useWorldCupData();
+  const { nflContextData, refreshNfl } = useNflData();
   const {
     performanceData,
     performanceLoading,
@@ -2680,6 +2685,16 @@ ${themeCss}
       return parts.length ? parts[parts.length - 1] : fullName;
     };
 
+    const outrightRows = Array.isArray(golfData?.odds?.outrights)
+      ? golfData.odds.outrights
+      : [];
+    const findOddsDisplay = (fullName) =>
+      findOutrightOddsDisplayForGolfer(
+        fullName,
+        outrightRows,
+        formatAmericanOddsDisplay,
+      );
+
     const formatScore = (value) => {
       const raw = String(value ?? "").trim();
       if (!raw || raw === "—") return "E";
@@ -2734,7 +2749,9 @@ ${themeCss}
         .map((p, i) => {
           const thru = String(p?.thru || "").trim();
           const thruLabel = thru && thru !== "—" && thru !== "-" ? ` (${thru})` : "";
-          return `${i + 1}. ${shortName(readName(p))} ${formatScore(p?.score)}${thruLabel}`;
+          const playerName = readName(p);
+          const oddsDisplay = findOddsDisplay(playerName);
+          return `${i + 1}. ${shortName(playerName)} ${formatScore(p?.score)}${thruLabel}${oddsDisplay ? ` · ${oddsDisplay}` : ""}`;
         })
         .join("\n");
 
@@ -2751,6 +2768,7 @@ ${themeCss}
           name: shortName(readName(p)),
           score: formatScore(p?.score),
           thru: String(p?.thru || "").trim(),
+          oddsDisplay: findOddsDisplay(readName(p)),
         })),
         sourceLine: `${sourceLabel} · ${freshnessLabel}`,
         whatMatters: isGolfFinal
@@ -3870,6 +3888,61 @@ ${themeCss}
     [performanceData, performanceLoading, performanceError, loadPerformanceSnapshot],
   );
 
+  const refreshHome = useCallback(async () => {
+    featuredCardFetchedRef.current = null;
+    setPromptRefreshTick((t) => t + 1);
+    await Promise.all([
+      refreshNba?.(),
+      refreshMlb?.(),
+      refreshTennis?.(),
+      refreshF1?.(),
+      refreshGolf?.(),
+      loadPerformanceSnapshot?.(),
+    ].filter(Boolean));
+    recomputeLiveEdgeAlerts();
+  }, [
+    loadPerformanceSnapshot,
+    recomputeLiveEdgeAlerts,
+    refreshF1,
+    refreshGolf,
+    refreshMlb,
+    refreshNba,
+    refreshTennis,
+  ]);
+
+  const pullRefreshConfig = useMemo(() => {
+    if (screen === "ask" || screen === "matchup" || screen === "player" || screen === "nflplayer") {
+      return { ref: null, onRefresh: null, key: screen };
+    }
+    if (screen === "home") return { ref: homeScreenRef, onRefresh: refreshHome, key: "home" };
+    if (screen === "tennis") return { ref: tennisScreenRef, onRefresh: refreshTennis, key: "tennis" };
+    if (screen === "nfl") return { ref: nflScreenRef, onRefresh: refreshNfl, key: `nfl:${nflUrView}` };
+    if (screen === "f1") return { ref: f1ScreenRef, onRefresh: refreshF1, key: "f1" };
+    if (screen === "nba") return { ref: nbaScreenRef, onRefresh: refreshNba, key: "nba" };
+    if (screen === "mlb") return { ref: mlbScreenRef, onRefresh: refreshMlb, key: "mlb" };
+    if (screen === "golf") return { ref: golfScreenRef, onRefresh: refreshGolf, key: "golf" };
+    if (screen === "worldcup") return { ref: wcScreenRef, onRefresh: refreshWorldCup, key: "worldcup" };
+    return { ref: null, onRefresh: null, key: screen };
+  }, [
+    nflUrView,
+    refreshF1,
+    refreshGolf,
+    refreshHome,
+    refreshMlb,
+    refreshNba,
+    refreshNfl,
+    refreshTennis,
+    refreshWorldCup,
+    screen,
+  ]);
+
+  const pullToRefresh = usePullToRefresh({
+    scrollRef: pullRefreshConfig.ref,
+    enabled: Boolean(pullRefreshConfig.ref && pullRefreshConfig.onRefresh),
+    onRefresh: pullRefreshConfig.onRefresh,
+    targetKey: pullRefreshConfig.key,
+  });
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <PerformanceContext.Provider value={performanceContextValue}>
@@ -3941,6 +4014,16 @@ ${themeCss}
             {headerPill}
           </div>
         </header>
+        <div
+          className={`pull-refresh-indicator${pullToRefresh.visible ? " pull-refresh-indicator--visible" : ""}${pullToRefresh.armed || pullToRefresh.refreshing ? " pull-refresh-indicator--armed" : ""}`}
+          style={{
+            transform: `translate3d(-50%, ${Math.max(-52, pullToRefresh.pullDistance - 52)}px, 0)`,
+          }}
+          aria-hidden="true"
+        >
+          <span className={`pull-refresh-spinner${pullToRefresh.refreshing ? " pull-refresh-spinner--spinning" : ""}`} />
+          <span>{pullToRefresh.refreshing ? "Refreshing" : pullToRefresh.armed ? "Release" : "Pull"}</span>
+        </div>
 
         {/* Post-checkout entitlement (?pro=success) — global so it shows on any landing screen */}
         {proSuccess && postCheckoutBanner && (
@@ -4073,6 +4156,7 @@ ${themeCss}
         {screen==="home"&&(
           <>
             <HomeScreen
+            homeScreenRef={homeScreenRef}
             hasDockedBar={hasDockedBar}
             askInput={askInput}
             setAskInput={setAskInput}
