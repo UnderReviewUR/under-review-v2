@@ -67,20 +67,20 @@ function isNbaPlayoffToneEt(etNow, nbaGames) {
 /**
  * Sort ranks — lower first. When `nflTop`, NFL bumps above all else; golf stays in the top band after NFL blocks.
  */
-function computeSortRanks(nflTop) {
+function computeSortRanks(nflTop, { nbaFinalsCapOne = false } = {}) {
   if (nflTop) {
     return {
       nflA: 7,
       nflB: 8,
       nflC: 9,
       nflSolo: 8,
-      golf: 11,
-      golfLive: 10,
-      nbaLive: 14,
-      nbaUp: 15,
-      nbaSeason: 16,
+      golf: 9,
+      golfLive: 8,
+      nbaLive: nbaFinalsCapOne ? 18 : 14,
+      nbaUp: nbaFinalsCapOne ? 19 : 15,
+      nbaSeason: nbaFinalsCapOne ? 20 : 16,
       mlb: 28,
-      f1: 32,
+      f1: 9,
       tennisLive: 38,
       tennisUp: 39,
       tennisTourney: 40,
@@ -92,13 +92,13 @@ function computeSortRanks(nflTop) {
     nflB: 21,
     nflC: 22,
     nflSolo: 20,
-    nbaLive: 7,
-    nbaUp: 8,
-    nbaSeason: 9,
-    golf: 11,
-    golfLive: 10,
+    nbaLive: nbaFinalsCapOne ? 12 : 7,
+    nbaUp: nbaFinalsCapOne ? 13 : 8,
+    nbaSeason: nbaFinalsCapOne ? 14 : 9,
+    golf: 6,
+    golfLive: 5,
     mlb: 28,
-    f1: 32,
+    f1: 6,
     tennisLive: 38,
     tennisUp: 39,
     tennisTourney: 40,
@@ -181,7 +181,6 @@ export function buildDynamicHomeQuestions({
 
   const nflTop = isNflPriorityMonthsEt(etNow);
   const wcPromo = isWcHomePromoWindow(promoNowMs);
-  const ranks = computeSortRanks(nflTop);
 
   const teamNeeds =
     nflDraftMeta?.teamNeeds && typeof nflDraftMeta.teamNeeds === "object"
@@ -223,6 +222,15 @@ export function buildDynamicHomeQuestions({
   const hasNbaSlateToday = Boolean(nbaLiveGame || nbaUpcomingGame);
   const nbaPlayoffTone = isNbaPlayoffToneEt(etNow, nbaGames);
   const nbaSeason = isNbaSeasonMonthEt(etNow);
+  const nbaFinalsCapOne = nbaPlayoffTone && etNow.getMonth() === 5;
+  const ranks = computeSortRanks(nflTop, { nbaFinalsCapOne });
+
+  let nbaPromptPushed = false;
+  const pushNba = (item) => {
+    if (nbaFinalsCapOne && nbaPromptPushed) return;
+    push(item);
+    if (nbaFinalsCapOne) nbaPromptPushed = true;
+  };
 
   const golfValidity = getGolfHomeValidity(golfData, promoNowMs);
   const golfEventName =
@@ -355,7 +363,7 @@ export function buildDynamicHomeQuestions({
       id: "q3field",
       color: "#FFFFFF",
       sportHint: "golf",
-      sortRank: golfActive ? 4 : ranks.golf,
+      sortRank: golfActive ? 3 : ranks.golf,
       ...golfTourneyPrompt,
     });
   }
@@ -385,14 +393,14 @@ export function buildDynamicHomeQuestions({
       id: "q3live",
       color: "#FFFFFF",
       sportHint: "golf",
-      sortRank: golfActive ? 3 : ranks.golfLive,
+      sortRank: golfActive ? 2 : ranks.golfLive,
       ...golfPrompt,
     });
   }
 
   if (nbaSeason && !hasNbaSlateToday) {
     const playoff = nbaPlayoffTone;
-    push({
+    pushNba({
       id: "q4season",
       color: "#FF6B00",
       sportHint: "nba",
@@ -436,7 +444,7 @@ export function buildDynamicHomeQuestions({
           5,
         );
     if (nbaLivePrompt) {
-      push({
+      pushNba({
         id: "q4a",
         color: "#FF6B00",
         sportHint: "nba",
@@ -480,7 +488,7 @@ export function buildDynamicHomeQuestions({
           54,
         );
     if (nbaPrePrompt) {
-      push({
+      pushNba({
         id: "q4b",
         color: "#FF6B00",
         sportHint: "nba",
@@ -518,7 +526,8 @@ export function buildDynamicHomeQuestions({
   }
 
   const nextRace = getF1NextRaceForHomePrompts(f1Data);
-  if (nextRace && isF1GpRaceWeekendEt(f1Data, promoNowMs)) {
+  const f1RaceWeek = Boolean(nextRace && isF1GpRaceWeekendEt(f1Data, promoNowMs));
+  if (f1RaceWeek) {
     const raceName = nextRace.meeting_name || "next Grand Prix";
     const f1Prompt = rotate(
       [
@@ -537,7 +546,7 @@ export function buildDynamicHomeQuestions({
       id: "q5",
       color: "#E10600",
       sportHint: "f1",
-      sortRank: ranks.f1,
+      sortRank: f1RaceWeek ? 3 : ranks.f1,
       ...f1Prompt,
     });
   }

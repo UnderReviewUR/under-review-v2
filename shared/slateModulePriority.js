@@ -1,10 +1,12 @@
 import {
   classifyF1Race,
+  classifyGolfEvent,
   getDisplayableF1NextRace,
   isDisplayableValidity,
   EVENT_VALIDITY,
 } from "./eventValidity.js";
 import { resolveF1RaceStart } from "./f1RaceStart.js";
+import { resolveGolfPrimaryEvent } from "./golfHomeEventSelection.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 
 /** NFL regular season months (same heuristic as client `isNflInSeason`). */
@@ -78,10 +80,14 @@ export function rankSlateSportForBundle(sport, bundle, nowMs = Date.now()) {
   }
   if (s === "f1") {
     const sessions = bundle?.f1?.sessions || [];
-    return isF1RaceWeekendWindow(bundle?.f1, sessions, nowMs) ? 50 : 900;
+    return isF1RaceWeekendWindow(bundle?.f1, sessions, nowMs) ? (wcPromo ? 16 : 12) : 900;
   }
   if (s === "golf") {
     if (!bundle?.golf) return 900;
+    const primary = resolveGolfPrimaryEvent(bundle.golf, nowMs);
+    const golfLive =
+      primary && classifyGolfEvent(primary, nowMs) === EVENT_VALIDITY.ACTIVE;
+    if (golfLive) return wcPromo ? 15 : 11;
     return wcPromo ? 28 : 32;
   }
   return 950;

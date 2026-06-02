@@ -101,6 +101,38 @@ test("tennis home: stale live match does not produce named live prompt", () => {
   assert.equal(namedLive, undefined);
 });
 
+test("NBA Finals window caps to one home prompt", () => {
+  const prompts = buildDynamicHomeQuestions({
+    activeTournamentMatches: [],
+    tennisLiveMatches: [],
+    tennisUpcomingMatches: [],
+    nflSeasonMode: false,
+    nflDraftMeta: null,
+    userCity: "",
+    context: null,
+    golfData: null,
+    nbaGames: [
+      {
+        state: "in",
+        postseason: true,
+        awayTeam: { abbr: "BOS" },
+        homeTeam: { abbr: "NYK" },
+      },
+      {
+        state: "pre",
+        postseason: true,
+        awayTeam: { abbr: "LAL" },
+        homeTeam: { abbr: "DEN" },
+      },
+    ],
+    mlbGames: [],
+    f1Data: null,
+    promoNowMs: Date.parse("2026-06-05T16:00:00.000Z"),
+  });
+  const nba = prompts.filter((p) => p.sportHint === "nba");
+  assert.equal(nba.length, 1);
+});
+
 test("World Cup promo window adds group stage value prompt", () => {
   const prompts = buildDynamicHomeQuestions({
     activeTournamentMatches: [],
