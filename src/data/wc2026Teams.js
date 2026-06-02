@@ -1,9 +1,9 @@
 /**
  * FIFA World Cup 2026 — 48 qualified nations (draw Dec 5, 2025).
- * Playoff slots use path favorites: DEN (EUR D), ITA (EUR A), TUR (EUR C),
- * UKR (EUR B), COD (IC 1), IRQ (IC 2).
+ * UEFA playoffs resolved Mar 31, 2026: CZE (EUR D), BIH (EUR A), TUR (EUR C),
+ * SWE (EUR B). Inter-confed: COD (IC 1), IRQ (IC 2).
  * Elo: international-football.net May 2026 + estimates for smaller nations.
- * Outright odds: DraftKings via DK Network, May 16, 2026.
+ * Outright odds: live via wc2026_outrights KV (cron); static values below are cold-start fallback only.
  */
 
 export const WC_2026_TEAMS = [
@@ -45,15 +45,15 @@ export const WC_2026_TEAMS = [
     isHost: false,
   },
   {
-    id: "den",
-    name: "Denmark",
-    shortName: "Denmark",
-    abbreviation: "DEN",
+    id: "cze",
+    name: "Czechia",
+    shortName: "Czechia",
+    abbreviation: "CZE",
     group: "A",
     confederation: "UEFA",
-    flagUrl: "https://flagcdn.com/w80/dk.png",
-    eloRating: 1870,
-    outrightOdds: "+15000",
+    flagUrl: "https://flagcdn.com/w80/cz.png",
+    eloRating: 1825, // estimate — refine when updated Elo publishes
+    outrightOdds: null,
     isHost: false,
   },
 
@@ -71,15 +71,15 @@ export const WC_2026_TEAMS = [
     isHost: true,
   },
   {
-    id: "ita",
-    name: "Italy",
-    shortName: "Italy",
-    abbreviation: "ITA",
+    id: "bih",
+    name: "Bosnia and Herzegovina",
+    shortName: "Bosnia",
+    abbreviation: "BIH",
     group: "B",
     confederation: "UEFA",
-    flagUrl: "https://flagcdn.com/w80/it.png",
-    eloRating: 1856,
-    outrightOdds: "+12000",
+    flagUrl: "https://flagcdn.com/w80/ba.png",
+    eloRating: 1745, // estimate — mid-tier UEFA playoff winner
+    outrightOdds: null,
     isHost: false,
   },
   {
@@ -283,15 +283,15 @@ export const WC_2026_TEAMS = [
     isHost: false,
   },
   {
-    id: "ukr",
-    name: "Ukraine",
-    shortName: "Ukraine",
-    abbreviation: "UKR",
+    id: "swe",
+    name: "Sweden",
+    shortName: "Sweden",
+    abbreviation: "SWE",
     group: "F",
     confederation: "UEFA",
-    flagUrl: "https://flagcdn.com/w80/ua.png",
-    eloRating: 1767,
-    outrightOdds: "+10000",
+    flagUrl: "https://flagcdn.com/w80/se.png",
+    eloRating: 1855, // estimate — comparable to prior slot strength
+    outrightOdds: null,
     isHost: false,
   },
   {

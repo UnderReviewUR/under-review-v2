@@ -22,6 +22,12 @@ import {
 import { getGolfRoundStartMsEt, GOLF_ROUND_START_HOUR_ET } from "../shared/scrapeCadencePolicy.js";
 import { SMARKETS_EVENTS_URL } from "../shared/f1OddsConstants.js";
 import { isF1MainRaceSmarketsEvent, pickUpcomingF1RaceEvent } from "./_f1Odds.js";
+import {
+  isWcTournamentWindow,
+  WC_OUTRIGHTS_SCRAPE_INTERVAL_MS,
+  WC_STANDINGS_SCRAPE_INTERVAL_MS,
+} from "../shared/wc2026Constants.js";
+import { readWcMatchesFromKv } from "./_wcData.js";
 
 /**
  * @typedef {Object} ScrapeTarget
@@ -309,6 +315,56 @@ export async function collectF1ScrapeTargets(nowMs = Date.now()) {
 }
 
 /**
+ * @param {number} [nowMs]
+ * @returns {Promise<ScrapeTarget[]>}
+ */
+export async function collectWcScrapeTargets(nowMs = Date.now()) {
+  /** @type {ScrapeTarget[]} */
+  const out = [];
+
+  if (!isWcTournamentWindow(nowMs)) return out;
+
+  const noonEtMs = Date.UTC(2026, 5, 11, 16, 0, 0);
+
+  out.push({
+    sport: "wc_data",
+    gameId: "standings_fixtures",
+    gameStartMs: noonEtMs,
+    meta: { kind: "standings_fixtures", fixedIntervalMs: WC_STANDINGS_SCRAPE_INTERVAL_MS },
+  });
+
+  out.push({
+    sport: "wc_outrights",
+    gameId: "futures",
+    gameStartMs: noonEtMs,
+    meta: { kind: "outrights", fixedIntervalMs: WC_OUTRIGHTS_SCRAPE_INTERVAL_MS },
+  });
+
+  const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
+  const matches = Array.isArray(kv?.matches) ? kv.matches : [];
+
+  for (const match of matches) {
+    const commenceTs = Number(match?.commenceTs);
+    if (!Number.isFinite(commenceTs) || nowMs >= commenceTs) continue;
+    const status = String(match?.status || "").toLowerCase();
+    if (status === "ft" || status === "live" || status === "ht") continue;
+
+    out.push({
+      sport: "wc_match_odds",
+      gameId: String(match.id),
+      gameStartMs: commenceTs,
+      meta: {
+        date: match.date,
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+      },
+    });
+  }
+
+  return out;
+}
+
+/**
  * NFL: no prop scrape pipeline yet — schedule hook reserved.
  * @returns {Promise<ScrapeTarget[]>}
  */
@@ -321,14 +377,15 @@ export async function collectNflScrapeTargets() {
  * @returns {Promise<ScrapeTarget[]>}
  */
 export async function collectAllScrapeTargets(nowMs = Date.now()) {
-  const [nba, mlb, golf, tennis, f1, nfl] = await Promise.all([
+  const [nba, mlb, golf, tennis, f1, nfl, wc] = await Promise.all([
     collectNbaScrapeTargets(nowMs),
     collectMlbScrapeTargets(nowMs),
     collectGolfScrapeTargets(nowMs),
     collectTennisScrapeTargets(nowMs),
     collectF1ScrapeTargets(nowMs),
     collectNflScrapeTargets(nowMs),
+    collectWcScrapeTargets(nowMs),
   ]);
 
-  return [...nba, ...mlb, ...golf, ...tennis, ...f1, ...nfl];
+  return [...nba, ...mlb, ...golf, ...tennis, ...f1, ...nfl, ...wc];
 }

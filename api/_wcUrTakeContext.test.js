@@ -9,7 +9,7 @@ test("formatWorldCupUrTakePromptBlock includes groups without Elo label", () => 
     dateRange: "June 11 — July 19, 2026",
     groups: {
       A: [
-        { name: "Denmark", abbreviation: "DEN", strengthTag: "Favorite" },
+        { name: "Czechia", abbreviation: "CZE", strengthTag: "Favorite" },
         { name: "Mexico", abbreviation: "MEX", strengthTag: "Contender" },
       ],
     },
@@ -18,8 +18,8 @@ test("formatWorldCupUrTakePromptBlock includes groups without Elo label", () => 
     upcoming: [{ homeTeam: "MEX", awayTeam: "RSA", group: "A", date: "2026-06-11", time: "14:00" }],
   });
   assert.match(block, /2026 FIFA World Cup/);
-  assert.match(block, /Group A:.*Denmark.*Favorite/);
+  assert.match(block, /Group A:.*Czechia.*Favorite/);
   assert.match(block, /UPCOMING FIXTURES/);
-  assert.match(block, /Denmark \(Favorite\)/);
+  assert.match(block, /Czechia \(Favorite\)/);
   assert.doesNotMatch(block, /eloRating|elo proj/i);
 });

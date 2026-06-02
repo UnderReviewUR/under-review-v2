@@ -5,6 +5,7 @@ import WcGroupTable from "../components/world-cup/WcGroupTable.jsx";
 import WcMatchCard from "../components/world-cup/WcMatchCard.jsx";
 import WcBracket from "../components/world-cup/WcBracket.jsx";
 import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
+import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
@@ -69,7 +70,8 @@ export default function WorldCupScreen({
     const groupTeams = getWcTeamsByGroup(team.group);
     const rank = groupTeams.findIndex((t) => t.id === team.id);
     const tier = wcStrengthTagForRank(rank >= 0 ? rank : 3);
-    const prompt = `World Cup 2026: ${team.name} (Group ${team.group}, ${tier}) — outright ${team.outrightOdds}. What's your UR Take on their path and best bets?`;
+    const outrightLabel = formatWcOutrightOdds(team.outrightOdds);
+    const prompt = `World Cup 2026: ${team.name} (Group ${team.group}, ${tier}) — outright ${outrightLabel}. What's your UR Take on their path and best bets?`;
     submitWc(prompt);
   };
 
@@ -248,7 +250,7 @@ export default function WorldCupScreen({
               </div>
               <div>
                 <span className="wc-stat-label">Outright</span>
-                <span className="wc-stat-val">{selectedTeam.outrightOdds}</span>
+                <span className="wc-stat-val">{formatWcOutrightOdds(selectedTeam.outrightOdds)}</span>
               </div>
             </div>
             <button type="button" className="wc-ask-btn" onClick={() => handleAskTeam(selectedTeam)}>
@@ -278,7 +280,7 @@ export default function WorldCupScreen({
                           {wcStrengthTagForRank(
                             getWcTeamsByGroup(t.group).findIndex((x) => x.id === t.id),
                           )}{" "}
-                          · {t.outrightOdds}
+                          · {formatWcOutrightOdds(t.outrightOdds)}
                         </span>
                       </div>
                     </button>

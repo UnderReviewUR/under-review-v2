@@ -13,6 +13,11 @@ import {
   getNextScrapeDelayMs,
   shouldRunScrapeForGame,
 } from "../shared/scrapeCadencePolicy.js";
+import {
+  scrapeAndCacheWcMatchOdds,
+  scrapeAndCacheWcOutrights,
+  scrapeAndCacheWcStandingsAndFixtures,
+} from "./_wcData.js";
 
 const LAST_RUN_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_SCRAPES_PER_TICK = 12;
@@ -60,6 +65,37 @@ const SCRAPE_HANDLERS = {
       fetchedAt: odds?.fetchedAt,
     };
   },
+  wc_data: async () => {
+    const result = await scrapeAndCacheWcStandingsAndFixtures();
+    return {
+      ok: result.ok,
+      groups: result.groupsPayload ? Object.keys(result.groupsPayload.groups).length : 0,
+      matches: result.matchesPayload?.matches?.length ?? 0,
+      error: result.error,
+    };
+  },
+  wc_match_odds: async (target) => {
+    const meta = target.meta || {};
+    const result = await scrapeAndCacheWcMatchOdds(target.gameId, {
+      date: meta.date,
+      homeTeam: meta.homeTeam,
+      awayTeam: meta.awayTeam,
+    });
+    return {
+      ok: result.ok,
+      eventId: target.gameId,
+      error: result.error,
+    };
+  },
+  wc_outrights: async () => {
+    const result = await scrapeAndCacheWcOutrights();
+    return {
+      ok: result.ok,
+      count: Object.keys(result.outrights || {}).length,
+      servedStale: Boolean(result.servedStale),
+      error: result.error,
+    };
+  },
 };
 
 /**
@@ -95,9 +131,12 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
     if (executed >= MAX_SCRAPES_PER_TICK) break;
 
     const { sport, gameId, gameStartMs } = target;
-    const intervalMs = getNextScrapeDelayMs(gameStartMs, nowMs);
+    const fixedIntervalMs = Number(target.meta?.fixedIntervalMs);
+    const useFixedInterval = Number.isFinite(fixedIntervalMs) && fixedIntervalMs > 0;
 
-    if (intervalMs == null) {
+    let intervalMs = useFixedInterval ? fixedIntervalMs : getNextScrapeDelayMs(gameStartMs, nowMs);
+
+    if (!useFixedInterval && intervalMs == null) {
       const reason = nowMs >= gameStartMs ? "live_or_started" : "imminent";
       console.log(
         JSON.stringify({
@@ -119,7 +158,11 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
     }
 
     const lastRunMs = await readLastRunMs(sport, gameId);
-    if (!shouldRunScrapeForGame(gameStartMs, lastRunMs, nowMs)) {
+    const due = useFixedInterval
+      ? !Number.isFinite(lastRunMs) || lastRunMs <= 0 || nowMs - lastRunMs >= fixedIntervalMs
+      : shouldRunScrapeForGame(gameStartMs, lastRunMs, nowMs);
+
+    if (!due) {
       console.log(
         JSON.stringify({
           target_id: `${sport}/${gameId}`,

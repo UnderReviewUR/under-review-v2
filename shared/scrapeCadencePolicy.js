@@ -6,7 +6,7 @@
 const MS_MIN = 60 * 1000;
 const MS_HOUR = 60 * MS_MIN;
 
-/** @typedef {"nba_props"|"nba_spreads"|"golf_odds"|"mlb_props"|"tennis_odds"|"f1_odds"|"nfl_props"} ScrapeKind */
+/** @typedef {"nba_props"|"nba_spreads"|"golf_odds"|"mlb_props"|"tennis_odds"|"f1_odds"|"nfl_props"|"wc_data"|"wc_match_odds"|"wc_outrights"} ScrapeKind */
 
 /**
  * Milliseconds until gameStartMs from now. Positive = not yet started.

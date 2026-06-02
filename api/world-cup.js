@@ -1,10 +1,21 @@
 import { applyApiNoStoreHeaders, applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import {
+  buildStaticGroupsFallback,
+  readWcGroupsFromKv,
+  readWcMatchesFromKv,
+  readWcOutrightsFromKv,
+  scrapeAndCacheWcStandingsAndFixtures,
+} from "./_wcData.js";
+import {
+  WC_GROUPS_TTL_SECONDS,
+  WC_MATCHES_TTL_SECONDS,
+} from "../shared/wc2026Constants.js";
 
 const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
-const GROUPS_TTL = 300;
-const MATCHES_TTL = 60;
+const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
+const MATCHES_TTL = WC_MATCHES_TTL_SECONDS;
 
 function buildQueryString(params = {}) {
   const parts = [];
@@ -123,10 +134,11 @@ function normalizeMatchRow(row) {
       .replace(/^GROUP\s*/i, ""),
     round: String(row.round || row.stage || row.phase || "").trim(),
     commenceTs: Date.parse(String(dateRaw)) || null,
+    odds: row.odds || undefined,
   };
 }
 
-async function fetchAllMatches() {
+async function fetchAllMatchesBdl() {
   const rows = [];
   let cursor = null;
   let guard = 0;
@@ -209,36 +221,100 @@ function normalizeGroupStandings(data) {
   return groups;
 }
 
+function buildStaticGroupsPayload() {
+  return {
+    groups: buildStaticGroupsFallback(),
+    lastUpdated: Date.now(),
+    source: "static",
+    fallback: true,
+  };
+}
+
 export async function getGroupsPayload() {
-  const cached = await getDurableJson("wc2026_groups");
-  const res = await bdlFifaFetch("/group_standings");
-  if (res.ok && res.data) {
-    const groups = normalizeGroupStandings(res.data);
-    const payload = { groups, lastUpdated: Date.now(), source: "balldontlie" };
-    await setDurableJson("wc2026_groups", payload, { ttlSeconds: GROUPS_TTL });
-    return payload;
+  const kv = await readWcGroupsFromKv(GROUPS_TTL * 1000);
+  if (kv?.groups && Object.keys(kv.groups).length >= 12) {
+    return {
+      groups: kv.groups,
+      lastUpdated: kv.lastUpdated,
+      source: kv.source || "espn",
+      fallback: Boolean(kv.stale),
+      stale: Boolean(kv.stale),
+    };
   }
-  if (cached?.groups) return { ...cached, fallback: true, error: res.error };
-  return { groups: {}, fallback: true, error: res.error || "No group data" };
+
+  const bdlRes = await bdlFifaFetch("/group_standings");
+  if (bdlRes.ok && bdlRes.data) {
+    const groups = normalizeGroupStandings(bdlRes.data);
+    if (Object.keys(groups).length) {
+      const payload = { groups, lastUpdated: Date.now(), source: "balldontlie" };
+      await setDurableJson("wc2026_groups", payload, { ttlSeconds: GROUPS_TTL });
+      return payload;
+    }
+  }
+
+  if (kv?.groups && Object.keys(kv.groups).length) {
+    return {
+      ...kv,
+      fallback: true,
+      error: bdlRes.error || kv.error || "stale_kv",
+    };
+  }
+
+  return {
+    ...buildStaticGroupsPayload(),
+    error: bdlRes.error || "no_live_groups",
+  };
 }
 
 export async function getMatchesPayload() {
-  const cached = await getDurableJson("wc2026_matches");
-  const fetched = await fetchAllMatches();
-  if (fetched.ok && fetched.matches.length) {
+  const kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
+  if (kv?.matches?.length) {
+    return {
+      matches: kv.matches,
+      lastUpdated: kv.lastUpdated,
+      source: kv.source || "espn",
+      fallback: Boolean(kv.stale),
+      stale: Boolean(kv.stale),
+    };
+  }
+
+  const bdlFetched = await fetchAllMatchesBdl();
+  if (bdlFetched.ok && bdlFetched.matches.length) {
     const payload = {
-      matches: fetched.matches,
+      matches: bdlFetched.matches,
       lastUpdated: Date.now(),
       source: "balldontlie",
     };
     await setDurableJson("wc2026_matches", payload, { ttlSeconds: MATCHES_TTL });
     return payload;
   }
-  if (cached?.matches?.length) {
-    return { ...cached, fallback: true, error: fetched.error };
+
+  if (kv?.matches?.length) {
+    return {
+      ...kv,
+      fallback: true,
+      error: bdlFetched.error || "stale_kv",
+    };
   }
-  return { matches: [], fallback: true, error: fetched.error || "No match data" };
+
+  return { matches: [], fallback: true, error: bdlFetched.error || "No match data", source: "none" };
 }
+
+export async function getOutrightsPayload() {
+  const kv = await readWcOutrightsFromKv();
+  if (kv?.outrights && Object.keys(kv.outrights).length) {
+    return {
+      outrights: kv.outrights,
+      lastUpdated: kv.lastUpdated,
+      source: kv.source || "espn",
+      fallback: false,
+    };
+  }
+  return { outrights: {}, fallback: true, source: "none" };
+}
+
+/** Cron-only live ESPN refresh (never called from user GET handlers). */
+export { scrapeAndCacheWcStandingsAndFixtures };
 
 function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -307,6 +383,11 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    if (view === "outrights") {
+      const payload = await getOutrightsPayload();
+      return res.status(200).json(payload);
+    }
+
     if (view === "upcoming") {
       const payload = await getMatchesPayload();
       const now = Date.now();
@@ -324,22 +405,26 @@ export default async function handler(req, res) {
 
     if (view === "context") {
       const [groupsPayload, matchesPayload] = await Promise.all([
-        getDurableJson("wc2026_groups").then((c) => c || getGroupsPayload()),
-        getDurableJson("wc2026_matches").then((c) => c || getMatchesPayload()),
+        getGroupsPayload(),
+        getMatchesPayload(),
       ]);
       const context = buildContextText(groupsPayload, matchesPayload);
       return res.status(200).json({ context, chars: context.length });
     }
 
-    return res.status(400).json({ error: "Invalid view — use groups, matches, upcoming, live, or context." });
+    return res.status(400).json({ error: "Invalid view — use groups, matches, outrights, upcoming, live, or context." });
   } catch (err) {
     console.error("[world-cup]", err);
     const cachedGroups = await getDurableJson("wc2026_groups");
     const cachedMatches = await getDurableJson("wc2026_matches");
+    const staticGroups = buildStaticGroupsFallback();
     return res.status(200).json({
       error: "fetch_failed",
       fallback: true,
-      groups: cachedGroups?.groups || {},
+      groups:
+        cachedGroups?.groups && Object.keys(cachedGroups.groups).length
+          ? cachedGroups.groups
+          : staticGroups,
       matches: cachedMatches?.matches || [],
     });
   }

@@ -12,9 +12,9 @@ test("wcStrengthTagForRank maps ranks to plain-English tiers", () => {
 test("wcTeamsWithStrengthTags never exposes Elo", () => {
   const rows = wcTeamsWithStrengthTags([
     { name: "Mexico", abbreviation: "MEX", eloRating: 1858 },
-    { name: "Denmark", abbreviation: "DEN", eloRating: 1980 },
+    { name: "Czechia", abbreviation: "CZE", eloRating: 1980 },
   ]);
-  assert.equal(rows[0].name, "Denmark");
+  assert.equal(rows[0].name, "Czechia");
   assert.equal(rows[0].strengthTag, "Favorite");
   assert.equal(rows[1].strengthTag, "Contender");
   assert.equal("eloRating" in rows[0], false);

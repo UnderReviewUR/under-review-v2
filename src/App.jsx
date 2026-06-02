@@ -615,7 +615,7 @@ ${themeCss}
   const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
   const { golfData, golfLoading } = useGolfData();
-  const { wcLoading, groups, matches: wcMatches, liveMatches: wcLiveMatches, upcomingMatches: wcUpcomingMatches } = useWorldCupData();
+  const { wcLoading, groups, matches: wcMatches, liveMatches: wcLiveMatches, upcomingMatches: wcUpcomingMatches, teams: wcTeams } = useWorldCupData();
   const { nflContextData } = useNflData();
   const {
     performanceData,
@@ -4365,6 +4365,7 @@ ${themeCss}
             matches={wcMatches}
             liveMatches={wcLiveMatches}
             upcomingMatches={wcUpcomingMatches}
+            teams={wcTeams}
             wcMsgs={wcMsgs}
             wcBarRef={wcBarRef}
             wcInputRef={wcInputRef}

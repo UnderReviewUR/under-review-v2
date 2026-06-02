@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { WC_2026_TEAMS } from "../data/wc2026Teams.js";
+import { mergeWcTeamsWithOutrights } from "../../shared/wc2026OutrightOdds.js";
 
 function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -15,7 +17,13 @@ export function useWorldCupData() {
   const [matches, setMatches] = useState([]);
   const [liveMatches, setLiveMatches] = useState([]);
   const [upcomingMatches, setUpcomingMatches] = useState([]);
+  const [outrightsKv, setOutrightsKv] = useState(null);
   const [fetchError, setFetchError] = useState(null);
+
+  const teams = useMemo(
+    () => mergeWcTeamsWithOutrights(WC_2026_TEAMS, outrightsKv),
+    [outrightsKv],
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -24,12 +32,14 @@ export function useWorldCupData() {
     async function loadAll() {
       setWcLoading(true);
       try {
-        const [groupsRes, matchesRes] = await Promise.all([
+        const [groupsRes, matchesRes, outrightsRes] = await Promise.all([
           fetch("/api/world-cup?view=groups", { cache: "no-store" }),
           fetch("/api/world-cup?view=matches", { cache: "no-store" }),
+          fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
         ]);
         const groupsData = groupsRes.ok ? await groupsRes.json() : null;
         const matchesData = matchesRes.ok ? await matchesRes.json() : null;
+        const outrightsData = outrightsRes.ok ? await outrightsRes.json() : null;
         if (!isCurrent) return;
         if (groupsData?.groups) setGroups(groupsData.groups);
         if (matchesData?.matches) {
@@ -39,6 +49,7 @@ export function useWorldCupData() {
             matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12),
           );
         }
+        if (outrightsData?.outrights) setOutrightsKv(outrightsData.outrights);
         if (groupsData?.error || matchesData?.error) {
           setFetchError(groupsData?.error || matchesData?.error);
         } else {
@@ -77,6 +88,7 @@ export function useWorldCupData() {
     matches,
     liveMatches,
     upcomingMatches,
+    teams,
     fetchError,
   };
 }
