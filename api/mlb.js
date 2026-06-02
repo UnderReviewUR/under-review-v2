@@ -14,6 +14,8 @@ import {
 } from "./_mlbEspnProbables.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
+import { getMlbOddsForBoard } from "./_mlbOddsScraper.js";
+import { canonicalMlbStartUtcMs } from "../shared/eventStartTime.js";
 
 /** MLB BDL merge here is slate/games/props/injuries — no NBA-style `/v1/stats` per-player game log sort in this route; recent pitcher/hitter logs would need the same nested-date fallback pattern as `bdlNestedGameRowDateMs` in `_balldontlie.js`. */
 
@@ -624,6 +626,46 @@ function trimGamesForUrTakeContext(gamesWithPark) {
   }));
 }
 
+function buildMlbScrapeGameId(game) {
+  const home = String(game?.homeTeam?.abbr || game?.homeTeam?.name || "").trim();
+  const away = String(game?.awayTeam?.abbr || game?.awayTeam?.name || "").trim();
+  const gameStartMs = canonicalMlbStartUtcMs(game);
+  const day = Number.isFinite(gameStartMs)
+    ? new Date(gameStartMs).toISOString().slice(0, 10)
+    : "unknown";
+  return `${away}_at_${home}_${day}`.replace(/[^A-Za-z0-9_]+/g, "_");
+}
+
+async function buildMlbScrapedOddsContext(gamesWithPark, maxGames = 8) {
+  const byGameId = {};
+  const seen = new Set();
+  let primary = null;
+  let attached = 0;
+
+  for (const game of gamesWithPark || []) {
+    if (attached >= maxGames) break;
+    const gameId = buildMlbScrapeGameId(game);
+    if (!gameId || seen.has(gameId)) continue;
+    seen.add(gameId);
+
+    const odds = await getMlbOddsForBoard(gameId, {
+      game,
+      homeTeam: game?.homeTeam?.name,
+      awayTeam: game?.awayTeam?.name,
+      homeAbbr: game?.homeTeam?.abbr,
+      awayAbbr: game?.awayTeam?.abbr,
+      startTimeUtc: game?.startTimeUtc || game?.date || null,
+    });
+    if (!odds) continue;
+
+    byGameId[gameId] = odds;
+    attached += 1;
+    if (!primary) primary = odds;
+  }
+
+  return { primary, byGameId };
+}
+
 /**
  * Core MLB board assembly (games, odds, optional BDL merge) — no mlb_board_v4 cache write.
  * Used by GET view=board and by `buildMlbUrTakeBoard` for fresh UR Take context.
@@ -726,6 +768,7 @@ export async function buildMlbUrTakeBoard(question = "") {
     slateFromBdl,
     slateRecovery,
   } = await assembleMlbBoardData();
+  const scrapedOdds = await buildMlbScrapedOddsContext(gamesWithPark);
 
   const payload = {
     seasonContext: buildMlbSeasonContextForBoard({
@@ -734,6 +777,9 @@ export async function buildMlbUrTakeBoard(question = "") {
     }),
     games: trimGamesForUrTakeContext(gamesWithPark),
     propLines: propLines.slice(0, 12),
+    mlbScrapedOdds: scrapedOdds.primary,
+    mlbScrapedOddsByGameId: scrapedOdds.byGameId,
+    mlbScrapedOddsStale: Boolean(scrapedOdds.primary?.freshness?.isStale),
     gameTotals: gameTotals || {},
     injuries: (injuries || [])
       .filter((r) => r?.structuralImpact !== false)
