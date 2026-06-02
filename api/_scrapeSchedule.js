@@ -27,7 +27,12 @@ import {
   WC_OUTRIGHTS_SCRAPE_INTERVAL_MS,
   WC_STANDINGS_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026Constants.js";
-import { readWcMatchesFromKv } from "./_wcData.js";
+import { loadFinalizedWcMatchDetailIds, readWcMatchesFromKv } from "./_wcData.js";
+import {
+  selectWcMatchDetailTargets,
+  selectWcMatchOddsTargets,
+} from "../shared/wcMatchDetailTargets.js";
+import { WC_MATCH_DETAIL_LIVE_INTERVAL_MS } from "../shared/wc2026Constants.js";
 
 /**
  * @typedef {Object} ScrapeTarget
@@ -342,26 +347,61 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
 
   const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
   const matches = Array.isArray(kv?.matches) ? kv.matches : [];
+  const matchTargets = await buildWcMatchScrapeTargetsFromMatches(matches, nowMs);
 
-  for (const match of matches) {
-    const commenceTs = Number(match?.commenceTs);
-    if (!Number.isFinite(commenceTs) || nowMs >= commenceTs) continue;
-    const status = String(match?.status || "").toLowerCase();
-    if (status === "ft" || status === "live" || status === "ht") continue;
+  for (const row of matchTargets.detail) out.push(row);
+  for (const row of matchTargets.odds) out.push(row);
 
-    out.push({
-      sport: "wc_match_odds",
-      gameId: String(match.id),
-      gameStartMs: commenceTs,
+  return out;
+}
+
+/**
+ * Build wc_match_detail + wc_match_odds scheduler rows from a matches array.
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {number} nowMs
+ */
+export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date.now()) {
+  const finalizedIds = await loadFinalizedWcMatchDetailIds(matches);
+  const detailTargets = selectWcMatchDetailTargets(matches, nowMs, { finalizedEventIds: finalizedIds });
+  const oddsTargets = selectWcMatchOddsTargets(matches, nowMs);
+
+  /** @type {ScrapeTarget[]} */
+  const detail = [];
+  for (const t of detailTargets) {
+    const fixedIntervalMs =
+      t.scrapeMode === "live"
+        ? WC_MATCH_DETAIL_LIVE_INTERVAL_MS
+        : t.scrapeMode === "finalize"
+          ? 5 * 60 * 1000
+          : undefined;
+
+    detail.push({
+      sport: "wc_match_detail",
+      gameId: t.eventId,
+      gameStartMs: t.commenceTs,
       meta: {
-        date: match.date,
-        homeTeam: match.homeTeam,
-        awayTeam: match.awayTeam,
+        date: t.date,
+        homeTeam: t.homeTeam,
+        awayTeam: t.awayTeam,
+        commenceTs: t.commenceTs,
+        scrapeMode: t.scrapeMode,
+        ...(fixedIntervalMs != null ? { fixedIntervalMs } : {}),
       },
     });
   }
 
-  return out;
+  const odds = oddsTargets.map((t) => ({
+    sport: "wc_match_odds",
+    gameId: t.eventId,
+    gameStartMs: t.commenceTs,
+    meta: {
+      date: t.date,
+      homeTeam: t.homeTeam,
+      awayTeam: t.awayTeam,
+    },
+  }));
+
+  return { detail, odds };
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   fetchEspnOutrights,
   fetchEspnStandings,
 } from "./_wcEspn.js";
+import { fetchEspnMatchSummary, normalizeEspnMatchSummary } from "./_wcEspnMatchDetail.js";
 import { fetchOddsApiWcOutrights } from "./_wcOutrightsFallback.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import {
@@ -18,8 +19,13 @@ import {
   WC_MATCHES_TTL_SECONDS,
   WC_OUTRIGHTS_KV_KEY,
   WC_OUTRIGHTS_TTL_SECONDS,
+  WC_MATCH_DETAIL_FT_TTL_SECONDS,
+  WC_MATCH_DETAIL_LIVE_TTL_SECONDS,
+  WC_MATCH_DETAIL_PRE_TTL_SECONDS,
   isWcTournamentWindow,
+  wcMatchDetailKvKey,
 } from "../shared/wc2026Constants.js";
+import { isWcMatchFtStatus } from "../shared/wcMatchDetailTargets.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
@@ -246,6 +252,112 @@ export async function readWcMatchesFromKv(maxAgeMs = WC_MATCHES_TTL_SECONDS * 10
 
 export async function readWcOutrightsFromKv() {
   return getDurableJson(WC_OUTRIGHTS_KV_KEY);
+}
+
+/**
+ * @param {string | number} eventId
+ */
+export async function readWcMatchDetailFromKv(eventId) {
+  const key = wcMatchDetailKvKey(eventId);
+  const row = await getDurableJson(key);
+  if (!row || typeof row !== "object") return null;
+  return row;
+}
+
+/**
+ * @param {import("../shared/wcMatchDetailTargets.js").WcMatchDetailScrapeTarget} detail
+ */
+function ttlSecondsForMatchDetail(detail) {
+  if (detail.phase === "post" || detail.finalized || detail.status === "FT") {
+    return WC_MATCH_DETAIL_FT_TTL_SECONDS;
+  }
+  if (detail.phase === "live" || detail.status === "live" || detail.status === "HT") {
+    return WC_MATCH_DETAIL_LIVE_TTL_SECONDS;
+  }
+  return WC_MATCH_DETAIL_PRE_TTL_SECONDS;
+}
+
+/**
+ * Cron: ESPN match summary → wc_match_detail:{eventId} KV.
+ * @param {string | number} eventId
+ * @param {{ date?: string, homeTeam?: string, awayTeam?: string, scrapeMode?: string }} [meta]
+ */
+export async function scrapeAndCacheWcMatchDetail(eventId, meta = {}) {
+  const id = String(eventId);
+  const summaryRes = await fetchEspnMatchSummary(id);
+  if (!summaryRes.ok || !summaryRes.json) {
+    console.log(
+      JSON.stringify({
+        event: "wc_match_detail_skip",
+        eventId: id,
+        scrapeMode: meta.scrapeMode,
+        error: summaryRes.error,
+      }),
+    );
+    return { ok: false, eventId: id, error: summaryRes.error };
+  }
+
+  const cached = await readWcMatchDetailFromKv(id);
+  const detail = normalizeEspnMatchSummary(summaryRes.json, {
+    eventId: id,
+    homeTeam: meta.homeTeam,
+    awayTeam: meta.awayTeam,
+    date: meta.date,
+    commenceTs: meta.commenceTs,
+  });
+
+  if (!detail.homeTeam || !detail.awayTeam) {
+    return { ok: false, eventId: id, error: "missing_teams" };
+  }
+
+  if (meta.scrapeMode === "finalize" || detail.status === "FT") {
+    detail.finalized = true;
+    detail.phase = "post";
+  } else if (cached?.finalized) {
+    detail.finalized = true;
+  }
+
+  const ttlSeconds = ttlSecondsForMatchDetail(detail);
+  await setDurableJson(wcMatchDetailKvKey(id), detail, { ttlSeconds });
+
+  console.log(
+    JSON.stringify({
+      event: "wc_match_detail_cached",
+      eventId: id,
+      scrapeMode: meta.scrapeMode,
+      status: detail.status,
+      phase: detail.phase,
+      lineupConfirmed: detail.lineupConfirmed,
+      injuryCount: detail.injuries?.length ?? 0,
+      finalized: detail.finalized,
+      ttlSeconds,
+    }),
+  );
+
+  return {
+    ok: true,
+    eventId: id,
+    status: detail.status,
+    lineupConfirmed: detail.lineupConfirmed,
+    finalized: detail.finalized,
+  };
+}
+
+/**
+ * Event IDs already written with finalized=true (for scheduler dedupe).
+ * @param {Array<Record<string, unknown>>} matches
+ */
+export async function loadFinalizedWcMatchDetailIds(matches) {
+  const ft = (matches || []).filter((m) => isWcMatchFtStatus(m?.status));
+  /** @type {Set<string>} */
+  const ids = new Set();
+  await Promise.all(
+    ft.map(async (m) => {
+      const row = await readWcMatchDetailFromKv(m.id);
+      if (row?.finalized) ids.add(String(m.id));
+    }),
+  );
+  return ids;
 }
 
 /**

@@ -4,6 +4,12 @@ export const WC_GROUPS_KV_KEY = "wc2026_groups";
 export const WC_MATCHES_KV_KEY = "wc2026_matches";
 export const WC_OUTRIGHTS_KV_KEY = "wc2026_outrights";
 
+export const WC_MATCH_DETAIL_KV_PREFIX = "wc_match_detail:";
+export const WC_MATCH_DETAIL_PRE_TTL_SECONDS = 900;
+export const WC_MATCH_DETAIL_LIVE_TTL_SECONDS = 300;
+export const WC_MATCH_DETAIL_FT_TTL_SECONDS = 30 * 24 * 3600;
+export const WC_MATCH_DETAIL_LIVE_INTERVAL_MS = 90 * 1000;
+
 /** Inclusive ET calendar bounds for cron + self-healing refresh. */
 export const WC_TOURNAMENT_START_ET = "2026-06-10";
 export const WC_TOURNAMENT_END_ET = "2026-07-20";
@@ -19,6 +25,13 @@ export const WC_OUTRIGHTS_TTL_SECONDS = 6 * 3600; // 6 h KV TTL
 /** Cron fixed intervals (standings vs futures). */
 export const WC_STANDINGS_SCRAPE_INTERVAL_MS = 12 * 60 * 1000;
 export const WC_OUTRIGHTS_SCRAPE_INTERVAL_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * @param {string | number} eventId
+ */
+export function wcMatchDetailKvKey(eventId) {
+  return `${WC_MATCH_DETAIL_KV_PREFIX}${String(eventId)}`;
+}
 
 /**
  * @param {number} [nowMs]

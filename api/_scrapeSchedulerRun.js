@@ -14,6 +14,7 @@ import {
   shouldRunScrapeForGame,
 } from "../shared/scrapeCadencePolicy.js";
 import {
+  scrapeAndCacheWcMatchDetail,
   scrapeAndCacheWcMatchOdds,
   scrapeAndCacheWcOutrights,
   scrapeAndCacheWcStandingsAndFixtures,
@@ -84,6 +85,23 @@ const SCRAPE_HANDLERS = {
     return {
       ok: result.ok,
       eventId: target.gameId,
+      error: result.error,
+    };
+  },
+  wc_match_detail: async (target) => {
+    const meta = target.meta || {};
+    const result = await scrapeAndCacheWcMatchDetail(target.gameId, {
+      date: meta.date,
+      homeTeam: meta.homeTeam,
+      awayTeam: meta.awayTeam,
+      commenceTs: meta.commenceTs,
+      scrapeMode: meta.scrapeMode,
+    });
+    return {
+      ok: result.ok,
+      eventId: target.gameId,
+      lineupConfirmed: result.lineupConfirmed,
+      finalized: result.finalized,
       error: result.error,
     };
   },
