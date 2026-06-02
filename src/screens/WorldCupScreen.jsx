@@ -157,6 +157,41 @@ export default function WorldCupScreen({
         ))}
       </div>
 
+      <div className={urDockedChat ? "ur-docked-ask-shell wc-ask-top" : "wc-ask-shell"}>
+        {!urDockedChat ? (
+          <>
+            <div className="wc-ask-label">Ask Anything — World Cup</div>
+            <AskBar
+              inputRef={wcInputRef}
+              value={wcInput}
+              onChange={setWcInput}
+              onSubmit={() => submitWc()}
+              placeholder="Ask anything about the World Cup →"
+              btnColor="var(--wc-gold)"
+              {...askBarCommon}
+            />
+            <div className="wc-quick-prompts" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {wcQuickPrompts.map((q) => (
+                <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)} style={{ fontSize: 11 }}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <AskBar
+            inputRef={wcInputRef}
+            value={wcInput}
+            onChange={setWcInput}
+            onSubmit={() => submitWc()}
+            placeholder="Ask anything about the World Cup →"
+            btnColor="var(--wc-gold)"
+            {...askBarCommon}
+            dockedGradient
+          />
+        )}
+      </div>
+
       {wcLoading ? (
         <div className="loading-state">
           <div className="loading-text">LOADING WORLD CUP DATA...</div>
@@ -297,41 +332,6 @@ export default function WorldCupScreen({
           <ChatThread {...chatThreadProps} />
         </div>
       ) : null}
-
-      <div className={urDockedChat ? "ur-docked-ask-shell" : "wc-ask-shell"}>
-        {!urDockedChat ? (
-          <>
-            <div className="wc-ask-label">Ask Anything — World Cup</div>
-            <AskBar
-              inputRef={wcInputRef}
-              value={wcInput}
-              onChange={setWcInput}
-              onSubmit={() => submitWc()}
-              placeholder="Ask anything about the World Cup →"
-              btnColor="var(--wc-gold)"
-              {...askBarCommon}
-            />
-            <div className="wc-quick-prompts" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {wcQuickPrompts.map((q) => (
-                <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)} style={{ fontSize: 11 }}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <AskBar
-            inputRef={wcInputRef}
-            value={wcInput}
-            onChange={setWcInput}
-            onSubmit={() => submitWc()}
-            placeholder="Ask anything about the World Cup →"
-            btnColor="var(--wc-gold)"
-            {...askBarCommon}
-            dockedGradient
-          />
-        )}
-      </div>
     </main>
   );
 }
