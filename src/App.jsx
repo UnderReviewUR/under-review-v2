@@ -53,6 +53,10 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import {
+  buildWcHomePromoCard,
+  ensureWorldCupInHomeQuestions,
+} from "./features/home/buildWcHomePromoCard.js";
 import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
@@ -2943,7 +2947,8 @@ ${themeCss}
       hourEt: hourEt ?? 12,
     });
     const cap = isWcHomePromoWindow() ? 4 : 3;
-    return Array.isArray(list) ? list.slice(0, cap) : [];
+    const capped = Array.isArray(list) ? list.slice(0, cap) : [];
+    return ensureWorldCupInHomeQuestions(capped);
   }, [
     activeTournamentMatches,
     tennisLiveMatches,
@@ -3007,6 +3012,8 @@ ${themeCss}
     () => buildPgaChampionshipOddsHomeCard(golfData),
     [golfData],
   );
+
+  const wcHomePromoCard = useMemo(() => buildWcHomePromoCard(), [promptRefreshTick]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {
@@ -4164,6 +4171,8 @@ ${themeCss}
             dynamicHomeQuestions={dynamicHomeQuestions}
             dailyFeaturedAngleCard={dailyFeaturedAngleCard}
             pgaChampionshipOddsCard={pgaChampionshipOddsCard}
+            wcHomePromoCard={wcHomePromoCard}
+            goWorldCup={goWorldCup}
             firePrompt={firePrompt}
             prefillUrTakeQuestion={prefillUrTakeQuestion}
             isUnlimited={isUnlimited}

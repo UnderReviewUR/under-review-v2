@@ -205,7 +205,7 @@ export function buildDynamicHomeQuestions({
       id: "q-wc-promo",
       color: "#00F5E9",
       sportHint: "worldcup",
-      sortRank: 5,
+      sortRank: 1,
       text: "Best group stage value bet right now?",
       prompt:
         "Before the 2026 FIFA World Cup kicks off, what is the best group-stage value bet on the board — group winner, advancement, or a specific fixture — and which mispriced longshot (e.g. Norway, Paraguay) has the cleanest path?",
@@ -694,6 +694,14 @@ export function buildDynamicHomeQuestions({
   }
 
   prompts.sort((a, b) => (a.sortRank ?? 999) - (b.sortRank ?? 999));
+
+  if (wcPromo) {
+    const wcIdx = prompts.findIndex((p) => p.sportHint === "worldcup");
+    if (wcIdx > 0) {
+      const [wcRow] = prompts.splice(wcIdx, 1);
+      prompts.unshift(wcRow);
+    }
+  }
 
   let out = prompts.slice(0, 7);
   let fb = 0;

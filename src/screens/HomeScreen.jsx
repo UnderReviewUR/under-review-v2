@@ -36,6 +36,8 @@ export default function HomeScreen({
   dynamicHomeQuestions,
   dailyFeaturedAngleCard,
   pgaChampionshipOddsCard,
+  wcHomePromoCard,
+  goWorldCup,
   firePrompt,
   prefillUrTakeQuestion,
   isUnlimited = false,
@@ -83,8 +85,15 @@ export default function HomeScreen({
 
   const starterQs = useMemo(() => {
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
-    if (dq.length > 1) return narrowHome ? dq.slice(1, 3) : dq.slice(1, 4);
-    return narrowHome ? dq.slice(0, 2) : dq.slice(0, 3);
+    const wc = dq.find((q) => String(q?.sportHint || "").toLowerCase() === "worldcup");
+    const maxStarters = narrowHome ? 2 : 3;
+    const offset = dq.length > 1 ? 1 : 0;
+    let picks = dq.slice(offset, offset + maxStarters);
+    if (wc && !picks.some((q) => q.id === wc.id)) {
+      picks = [wc, ...picks.filter((q) => q.id !== wc.id)].slice(0, maxStarters);
+    }
+    if (dq.length <= 1) return narrowHome ? dq.slice(0, 2) : dq.slice(0, 3);
+    return picks;
   }, [dynamicHomeQuestions, narrowHome]);
 
   useLayoutEffect(() => {
@@ -223,6 +232,106 @@ export default function HomeScreen({
         onAskAgain={(question, sportHint) => prefillUrTakeQuestion?.(question, sportHint || null)}
         onOpenUpgrade={onOpenUpgrade}
       />
+
+      {wcHomePromoCard ? (
+        <div
+          className="ur-wc-home-promo"
+          style={{
+            marginTop: 6,
+            marginBottom: 10,
+            padding: "14px 14px 12px",
+            borderRadius: 14,
+            border: "1px solid rgba(0,245,233,0.35)",
+            borderLeft: `4px solid ${wcHomePromoCard.accentColor || "#00F5E9"}`,
+            background: "linear-gradient(180deg, rgba(0,245,233,0.1), rgba(255,255,255,0.02))",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginBottom: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 10,
+                letterSpacing: 1.2,
+                textTransform: "uppercase",
+                color: wcHomePromoCard.accentColor || "#00F5E9",
+                fontWeight: 700,
+              }}
+            >
+              {wcHomePromoCard.sportBadge || "WORLD CUP"}
+            </span>
+            {goWorldCup ? (
+              <button
+                type="button"
+                onClick={goWorldCup}
+                style={{
+                  fontFamily: "var(--mono-font)",
+                  fontSize: 10,
+                  letterSpacing: 0.08,
+                  color: "var(--cyan-bright)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3,
+                  padding: 0,
+                }}
+              >
+                Open hub →
+              </button>
+            ) : null}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
+            {wcHomePromoCard.title}
+          </div>
+          {wcHomePromoCard.subtitle ? (
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>
+              {wcHomePromoCard.subtitle}
+            </div>
+          ) : null}
+          <ul
+            style={{
+              margin: "0 0 10px",
+              padding: "0 0 0 18px",
+              fontSize: 12,
+              color: "var(--soft)",
+              lineHeight: 1.5,
+            }}
+          >
+            {(wcHomePromoCard.highlights || []).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() =>
+              firePrompt(wcHomePromoCard.prompt, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id)
+            }
+            style={{
+              width: "100%",
+              textAlign: "left",
+              background: "rgba(0,245,233,0.12)",
+              border: "1px solid rgba(0,245,233,0.28)",
+              borderRadius: 10,
+              padding: "10px 12px",
+              cursor: "pointer",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {wcHomePromoCard.text}
+          </button>
+        </div>
+      ) : null}
 
       {starterQs.length > 0 ? (
         <section className="ur-home-starters" aria-labelledby="ur-home-starters-heading">
