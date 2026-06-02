@@ -7,7 +7,7 @@ import {
 } from "./eventValidity.js";
 import { resolveF1RaceStart } from "./f1RaceStart.js";
 import { resolveGolfPrimaryEvent } from "./golfHomeEventSelection.js";
-import { isWcHomePromoWindow } from "./wc2026Constants.js";
+import { isWcHomePromoWindow, isWcSlateFeaturingWindow } from "./wc2026Constants.js";
 
 /** NFL regular season months (same heuristic as client `isNflInSeason`). */
 export function isNflMonthInSeason(now = new Date()) {
@@ -55,9 +55,10 @@ export function rankSlateSportForBundle(sport, bundle, nowMs = Date.now()) {
     const hasLive = Array.isArray(wc.live) && wc.live.length > 0;
     const hasUpcoming = Array.isArray(wc.upcoming) && wc.upcoming.length > 0;
     const hasGroups = Array.isArray(wc.groups) && wc.groups.length > 0;
-    if (hasLive) return 4;
-    if (hasUpcoming || hasGroups) return 5;
-    return 6;
+    const wcFeaturing = isWcSlateFeaturingWindow(nowMs);
+    if (hasLive) return wcFeaturing ? 3 : 4;
+    if (hasUpcoming || hasGroups) return wcFeaturing ? 4 : 5;
+    return wcFeaturing ? 5 : 6;
   }
 
   if (s === "nba") {

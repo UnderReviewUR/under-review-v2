@@ -20,6 +20,7 @@ import {
   sanitizeWorldCupBoard,
 } from "../shared/todaySlateInputBundle.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { ensureWorldCupInSlateOutput } from "../shared/wcSlateFeaturing.js";
 import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
 
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
@@ -330,21 +331,22 @@ function sportHasValidData(bundle, sport) {
   return false;
 }
 
-function applySlateRowOrder(out, bundle) {
+function applySlateRowOrder(out, bundle, nowMs = Date.now()) {
   const rows = [
     { key: "safeLean", item: out.safeLean },
     { key: "sharpAngle", item: out.sharpAngle },
     { key: "contrarian", item: out.contrarian },
   ];
-  rows.sort((a, b) => compareSlateRowsBySport(a, b, bundle));
+  rows.sort((a, b) => compareSlateRowsBySport(a, b, bundle, nowMs));
   return {
     ...out,
     _slateRowOrder: rows.map((r) => r.key),
   };
 }
 
-function attachSlateOutputEventKeys(out, bundle) {
-  const base = applySlateRowOrder(out, bundle);
+function attachSlateOutputEventKeys(out, bundle, nowMs = Date.now()) {
+  const withWc = ensureWorldCupInSlateOutput(out, bundle, nowMs);
+  const base = applySlateRowOrder(withWc, bundle, nowMs);
   return {
     ...base,
     safeLean: attachSlateRowEventKeys(base.safeLean, bundle),

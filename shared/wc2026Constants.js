@@ -65,3 +65,14 @@ export function isWcHomePromoWindow(nowMs = Date.now()) {
   return isWcTournamentWindow(nowMs) || ymd < WC_KICKOFF_ET;
 }
 
+/** Jun 11–Jul 19 ET — Today's Slate must include a World Cup row when board data exists. */
+export const WC_SLATE_FEATURING_END_ET = "2026-07-19";
+
+/**
+ * @param {number} [nowMs]
+ */
+export function isWcSlateFeaturingWindow(nowMs = Date.now()) {
+  const ymd = getEtYmdAt(nowMs);
+  return ymd >= WC_KICKOFF_ET && ymd <= WC_SLATE_FEATURING_END_ET;
+}
+
