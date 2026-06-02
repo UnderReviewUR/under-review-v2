@@ -1334,8 +1334,15 @@ ${themeCss}
   const screenSport =
     scr === "nfl" || scr === "nflplayer"
       ? "nfl"
-      : scr === "mlb" || scr === "nba" || scr === "golf" || scr === "tennis" || scr === "f1"
-        ? scr
+      : scr === "mlb" ||
+          scr === "nba" ||
+          scr === "golf" ||
+          scr === "tennis" ||
+          scr === "f1" ||
+          scr === "worldcup"
+        ? scr === "nflplayer"
+          ? "nfl"
+          : scr
         : null;
 
   let priorSnapshot = [];

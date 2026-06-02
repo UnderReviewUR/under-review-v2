@@ -2,6 +2,10 @@
  * Shared UR Take sport routing: infer sport from question text, resolve vs UI hint, tab nudge copy.
  */
 
+import { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
+
+export { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
+
 function normalizeText(value) {
   return String(value || "")
     .trim()
@@ -248,17 +252,6 @@ const NBA_TEAM_ABBREVS = new Set([
   "wsh",
 ]);
 
-const WORLD_CUP_TERMS = [
-  "world cup",
-  "fifa",
-  "soccer",
-  "football",
-  "group stage",
-  "knockout round",
-  "penalty kick",
-  "golden boot",
-];
-
 const ATP_HINT_NAMES = [
   "alcaraz",
   "sinner",
@@ -380,19 +373,6 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
   }
 
   if (
-    q.includes("world cup") ||
-    q.includes("fifa") ||
-    q.includes("soccer") ||
-    (q.includes("football") && !q.includes("nfl") && !q.includes("touchdown")) ||
-    (containsAny(q, WORLD_CUP_TERMS) &&
-      !q.includes("nfl") &&
-      !q.includes("touchdown") &&
-      !q.includes("quarterback"))
-  ) {
-    return "worldcup";
-  }
-
-  if (
     q.includes("nba") ||
     /\bpra\b/.test(q) ||
     (q.includes("points") &&
@@ -404,6 +384,10 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
     containsAny(q, NBA_TERMS)
   ) {
     return "nba";
+  }
+
+  if (questionMentionsWorldCup(question)) {
+    return "worldcup";
   }
 
   if (

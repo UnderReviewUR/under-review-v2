@@ -28,6 +28,7 @@ import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
   buildUrTakeSportTurnScopeRules,
   resolveSportHint as resolveSportHintShared,
+  questionMentionsWorldCup,
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
 } from "../shared/urTakeSportRouting.js";
@@ -859,16 +860,6 @@ export function detectIntent(question, hasImage) {
   if (q.includes("prop")) return "prop";
 
   return "general";
-}
-
-/** Sport inferred only from question text, matchup league, or slip image league — not client tab. */
-function questionMentionsWorldCup(question) {
-  const q = normalizeText(question);
-  if (q.includes("world cup") || q.includes("fifa") || q.includes("soccer")) return true;
-  if (q.includes("football") && !q.includes("nfl") && !q.includes("touchdown") && !q.includes("quarterback")) {
-    return true;
-  }
-  return false;
 }
 
 export function resolveSportHint(opts) {

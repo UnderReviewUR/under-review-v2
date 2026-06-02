@@ -3,17 +3,6 @@ import { normalizeText } from "./normalizeText.js";
 
 const SPORT_TABS = new Set(["nba", "mlb", "nfl", "golf", "tennis", "f1", "worldcup"]);
 
-const WORLD_CUP_TERMS = [
-  "world cup",
-  "fifa",
-  "soccer",
-  "football",
-  "group stage",
-  "knockout round",
-  "penalty kick",
-  "golden boot",
-];
-
 /** WTA-first names / signals — checked before ATP. */
 const WTA_NAMES = [
   "sabalenka",
