@@ -9,6 +9,7 @@ import {
   fetchEspnOutrights,
   fetchEspnStandings,
 } from "./_wcEspn.js";
+import { fetchOddsApiWcOutrights } from "./_wcOutrightsFallback.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import {
   WC_GROUPS_KV_KEY,
@@ -160,50 +161,63 @@ export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
   return { ok: true, eventId: id, odds: oddsRes.odds };
 }
 
+async function writeWcOutrightsKv(outrights, source, nowMs = Date.now()) {
+  const payload = { outrights, lastUpdated: nowMs, source };
+  await setDurableJson(WC_OUTRIGHTS_KV_KEY, payload, { ttlSeconds: WC_OUTRIGHTS_TTL_SECONDS });
+  console.log(
+    JSON.stringify({
+      event: "wc_outrights_cached",
+      count: Object.keys(outrights).length,
+      source,
+    }),
+  );
+  return payload;
+}
+
 /**
- * Cron: tournament winner futures from ESPN core API (free, no key).
+ * Cron: tournament winner outrights — ESPN futures, then Odds API, then stale KV.
  */
 export async function scrapeAndCacheWcOutrights() {
-  const res = await fetchEspnOutrights();
   const nowMs = Date.now();
+  const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
 
-  if (res.ok && Object.keys(res.outrights).length) {
-    const payload = {
-      outrights: res.outrights,
-      lastUpdated: nowMs,
-      source: "espn",
-    };
-    await setDurableJson(WC_OUTRIGHTS_KV_KEY, payload, { ttlSeconds: WC_OUTRIGHTS_TTL_SECONDS });
-    console.log(
-      JSON.stringify({
-        event: "wc_outrights_cached",
-        count: Object.keys(res.outrights).length,
-        source: "espn",
-      }),
-    );
-    return { ok: true, outrights: res.outrights, fetchedAt: nowMs };
+  const espn = await fetchEspnOutrights();
+  if (espn.ok && Object.keys(espn.outrights).length) {
+    await writeWcOutrightsKv(espn.outrights, "espn", nowMs);
+    return { ok: true, outrights: espn.outrights, fetchedAt: nowMs, source: "espn" };
   }
 
-  const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
+  const oddsApi = await fetchOddsApiWcOutrights();
+  if (oddsApi.ok && Object.keys(oddsApi.outrights).length) {
+    await writeWcOutrightsKv(oddsApi.outrights, "odds_api", nowMs);
+    return { ok: true, outrights: oddsApi.outrights, fetchedAt: nowMs, source: "odds_api" };
+  }
+
+  // Smarkets diagnostic (Jun 2026): no FIFA WC 2026 winner market — cricket "World Cup" only.
+
+  const reasons = [espn.error, oddsApi.error].filter(Boolean).join("; ");
   console.log(
     JSON.stringify({
       event: "wc_outrights_skip",
-      error: res.error,
+      espnError: espn.error,
+      oddsApiError: oddsApi.error,
+      smarkets: "no_fifa_wc_winner_market",
       hadCache: Boolean(cached?.outrights && Object.keys(cached.outrights).length),
     }),
   );
 
-  if (cached?.outrights) {
+  if (cached?.outrights && Object.keys(cached.outrights).length) {
     return {
       ok: false,
       outrights: cached.outrights,
       fetchedAt: cached.lastUpdated,
-      error: res.error,
+      source: cached.source,
+      error: reasons || "all_sources_empty",
       servedStale: true,
     };
   }
 
-  return { ok: false, outrights: {}, error: res.error };
+  return { ok: false, outrights: {}, error: reasons || "all_sources_empty" };
 }
 
 /**
