@@ -41,6 +41,20 @@ export function sanitizeTennisBoard(tennis) {
   return tennis.filter((m) => isDisplayableValidity(classifyTennisMatch(m)));
 }
 
+/**
+ * @param {Record<string, unknown> | null} wc
+ */
+export function sanitizeWorldCupBoard(wc) {
+  if (!wc || typeof wc !== "object") return null;
+  const hasGroups = Array.isArray(wc.groups) && wc.groups.length > 0;
+  const hasFixtures = Array.isArray(wc.upcoming) && wc.upcoming.length > 0;
+  const hasOutrights =
+    wc.outrightsSample && typeof wc.outrightsSample === "object" && Object.keys(wc.outrightsSample).length > 0;
+  const hasShell = wc.source === "static_shell" || wc.tournament;
+  if (!hasGroups && !hasFixtures && !hasOutrights && !hasShell) return null;
+  return wc;
+}
+
 export function sanitizeF1Board(f1) {
   if (!f1 || typeof f1 !== "object") return null;
   const races = Array.isArray(f1?.schedule?.races) ? f1.schedule.races : [];

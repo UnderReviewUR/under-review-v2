@@ -17,7 +17,10 @@ import {
   sanitizeMlbBoard,
   sanitizeNbaBoard,
   sanitizeTennisBoard,
+  sanitizeWorldCupBoard,
 } from "../shared/todaySlateInputBundle.js";
+import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
 
 /** Anthropic-backed slate JSON — short TTL so Home polls don’t contend with user UR Take quota. */
 const CACHE_KEY = "today_slate_cache_v4";
@@ -149,6 +152,21 @@ function slimBundleForSlatePrompt(bundle) {
     out.nfl = bundle.nfl;
   }
 
+  if (bundle.worldcup) {
+    const wc = bundle.worldcup;
+    out.worldcup = {
+      tournament: wc.tournament,
+      hosts: wc.hosts,
+      kickoff: wc.kickoff,
+      groups: (wc.groups || []).slice(0, 12),
+      upcoming: (wc.upcoming || []).slice(0, 6),
+      live: wc.live || [],
+      outrightsSample: wc.outrightsSample || {},
+      valueOutrights: (wc.valueOutrights || []).slice(0, 6),
+      favorites: (wc.favorites || []).slice(0, 12),
+    };
+  }
+
   return out;
 }
 
@@ -185,13 +203,49 @@ function summarizeF1(f1) {
   return String(nextRace?.meeting_name || nextRace?.name || "Next Grand Prix");
 }
 
+function summarizeWorldCup(wc) {
+  if (!wc) return null;
+  const upcoming = Array.isArray(wc.upcoming) ? wc.upcoming[0] : null;
+  if (upcoming?.homeTeam && upcoming?.awayTeam) {
+    return `${upcoming.homeTeam} vs ${upcoming.awayTeam}${upcoming.group ? ` (Group ${upcoming.group})` : ""}`;
+  }
+  return "2026 FIFA World Cup group stage";
+}
+
+function pickWcContrarianFallback(wc) {
+  const value = Array.isArray(wc?.valueOutrights) ? wc.valueOutrights : [];
+  const nor = value.find((t) => t.team === "NOR") || { team: "NOR", name: "Norway", odds: "+2500" };
+  const par =
+    value.find((t) => t.team === "PAR") || { team: "PAR", name: "Paraguay", odds: "+8000" };
+  const pick = value[0] || par;
+  return {
+    sport: "worldcup",
+    match: `${pick.name} (${pick.team}) group-stage path`,
+    angle: pick.team === "NOR" ? "Norway group value" : "Longshot advancement misprice",
+    why:
+      pick.team === "PAR"
+        ? `Paraguay at ${pick.odds || "+8000"} to advance still looks wide vs a soft Group L path if the market is pricing them like a pure outsider.`
+        : `Norway at ${nor.odds || "+2500"} group-stage value — the board may still be underpricing their ceiling in a winnable opening group.`,
+  };
+}
+
 function buildFallbackSlate(bundle, reason = "fallback") {
   const generatedAt = new Date().toISOString();
+  const wcPromo = isWcHomePromoWindow();
+  const wcBoard = bundle?.worldcup;
   const nbaGame = summarizeNba(bundle?.nba);
   const mlb = summarizeMlb(bundle?.mlb);
   const f1Race = summarizeF1(bundle?.f1);
+  const wcEvent = summarizeWorldCup(wcBoard);
 
-  const safeLean = mlb
+  const safeLean = wcPromo && wcBoard
+    ? {
+        sport: "worldcup",
+        game: wcEvent || "World Cup 2026",
+        angle: "Group favorite to control the table",
+        why: "Pre-tournament group favorites with host-path leverage still look like the cleanest low-volatility entry before kickoff.",
+      }
+    : mlb
     ? {
         sport: "mlb",
         game: mlb.label,
@@ -208,7 +262,14 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         why: "Tonight's playoff slate — ask for props, totals, or live angles on any matchup.",
       };
 
-  const sharpAngle = bundle?.golf
+  const sharpAngle = wcPromo && wcBoard
+    ? {
+        sport: "worldcup",
+        event: wcEvent || "World Cup 2026 groups",
+        angle: "Host-path scheduling edge",
+        why: "USA/Mexico/Canada path and travel density can misprice group totals and advancement — look where the schedule compresses rest edges.",
+      }
+    : bundle?.golf
     ? {
         sport: "golf",
         event: String(
@@ -235,7 +296,9 @@ function buildFallbackSlate(bundle, reason = "fallback") {
         why: "Hold/break profile usually carries more signal than recent highlight outcomes.",
       };
 
-  const contrarian = f1Race
+  const contrarian = wcPromo && wcBoard
+    ? pickWcContrarianFallback(wcBoard)
+    : f1Race
     ? {
         sport: "f1",
         match: f1Race,
@@ -263,6 +326,7 @@ function sportHasValidData(bundle, sport) {
   if (s === "golf") return Boolean(bundle?.golf);
   if (s === "tennis") return Array.isArray(bundle?.tennis) && bundle.tennis.length > 0;
   if (s === "f1") return Boolean(summarizeF1(bundle?.f1));
+  if (s === "worldcup") return Boolean(bundle?.worldcup && isWcHomePromoWindow());
   return false;
 }
 
@@ -346,14 +410,21 @@ export default async function handler(req, res) {
 
     const base = originFromReq(req);
 
-    const [nba, mlb, golf, tennis, f1, nfl] = await Promise.all([
+    const [nba, mlb, golf, tennis, f1, nfl, worldcupKv, worldcupHttp] = await Promise.all([
       fetchBoardJson(base, "/api/nba?view=board"),
       fetchBoardJson(base, "/api/mlb?view=board"),
       fetchBoardJson(base, "/api/golf?view=board"),
       fetchBoardJson(base, "/api/tennis?tour=atp"),
       fetchBoardJson(base, "/api/f1?view=board"),
       fetchBoardJson(base, "/api/nfl-context"),
+      loadWorldCupSlateBoard(),
+      isWcHomePromoWindow() ? fetchBoardJson(base, "/api/world-cup") : Promise.resolve({ ok: false, data: null }),
     ]);
+
+    const worldcupFromApi = isWcHomePromoWindow()
+      ? sanitizeWorldCupBoard(worldcupKv) ||
+        (worldcupHttp.ok ? sanitizeWorldCupBoard(worldcupHttp.data) : null)
+      : null;
 
     const bundle = {
       fetchedAt: new Date().toISOString(),
@@ -369,13 +440,14 @@ export default async function handler(req, res) {
               meta: nfl.data?.meta ? { nflDraftPhase: nfl.data.meta.nflDraftPhase } : null,
             }
           : null,
+      worldcup: worldcupFromApi,
     };
 
     const slimBundle = slimBundleForSlatePrompt(bundle);
 
     const userPrompt = `You are Under Review's cross-sport slate editor — write like a sharp bettor texting friends, not a press release.
 
-Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, and F1 (may be partial or empty for some sports). Rows may be truncated for size — still ground leans only in what is present.
+Below is JSON with live-ish board snapshots from NBA, NFL context, MLB, Golf, ATP tennis, F1, and World Cup 2026 (worldcup) when present. Rows may be truncated for size — still ground leans only in what is present.
 
 DATA
 ${JSON.stringify(slimBundle, null, 2)}
@@ -385,14 +457,14 @@ Return ONLY a single JSON object (no markdown, no prose outside JSON) with exact
 
 {
   "generatedAt": "<ISO-8601 UTC timestamp for when you authored this>",
-  "safeLean": { "sport": "nba|nfl|mlb|golf|tennis|f1", "game": "AWAY @ HOME or event label", "angle": "short label", "why": "one sentence" },
+  "safeLean": { "sport": "nba|nfl|mlb|golf|tennis|f1|worldcup", "game": "AWAY @ HOME or event label", "angle": "short label", "why": "one sentence" },
   "sharpAngle": { "sport": "...", "event": "tournament or slate label", "angle": "...", "why": "one sentence" },
   "contrarian": { "sport": "...", "match": "optional — player or matchup string", "angle": "...", "why": "one sentence" }
 }
 
 RULES
-- Ordering priority for which sport to lead with (when multiple sports have real rows): (1) NBA during playoffs if today has games in the payload, (2) NFL when in-season or draft is live, (3) MLB with a live game, (4) tennis with matchups, (5) F1 on race weekend, (6) golf when active/upcoming is valid.
-- If NBA playoffs with games exist, the first row you want users to read must be NBA (set safeLean to NBA in that case unless data clearly favors another sport — default to NBA first).
+- Ordering priority for which sport to lead with (when multiple sports have real rows): (1) worldcup when worldcup object is present (2026 FIFA World Cup promo through Jul 19 — lead with this over NBA/MLB), (2) NBA during playoffs if today has games, (3) NFL when in-season or draft is live, (4) MLB with a live game, (5) tennis with matchups, (6) F1 on race weekend, (7) golf when active/upcoming is valid.
+- When worldcup is in DATA, safeLean should default to worldcup unless another sport has a clearly stronger live edge right now.
 - safeLean: the most reliable edge on tonight's slate across all sports (pick the strongest single lean grounded in the data).
 - sharpAngle: a non-obvious but data-supported angle most casual users would miss.
 - contrarian: an angle nobody's talking about — fade of chalk, live trigger, or correlated underpriced situation.
@@ -456,13 +528,14 @@ Respond ONLY with raw JSON (no markdown, no code fences). The first character mu
     console.error("today-slate handler error:", err);
     try {
       const base = originFromReq(req);
-      const [nba, mlb, golf, tennis, f1, nfl] = await Promise.all([
+      const [nba, mlb, golf, tennis, f1, nfl, worldcupKv] = await Promise.all([
         fetchBoardJson(base, "/api/nba?view=board"),
         fetchBoardJson(base, "/api/mlb?view=board"),
         fetchBoardJson(base, "/api/golf?view=board"),
         fetchBoardJson(base, "/api/tennis?tour=atp"),
         fetchBoardJson(base, "/api/f1?view=board"),
         fetchBoardJson(base, "/api/nfl-context"),
+        loadWorldCupSlateBoard(),
       ]);
       const bundle = {
         fetchedAt: new Date().toISOString(),
@@ -478,6 +551,7 @@ Respond ONLY with raw JSON (no markdown, no code fences). The first character mu
                 meta: nfl.data?.meta ? { nflDraftPhase: nfl.data.meta.nflDraftPhase } : null,
               }
             : null,
+        worldcup: sanitizeWorldCupBoard(worldcupKv),
       };
       const fb = buildFallbackSlate(bundle, "server_error");
       await setDurableJson(CACHE_KEY, fb, { ttlSeconds: CACHE_TTL_SECONDS });

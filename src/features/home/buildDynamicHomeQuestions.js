@@ -13,6 +13,7 @@ import {
   isDisplayableValidity,
 } from "../../../shared/eventValidity.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
+import { isWcHomePromoWindow } from "../../../shared/wc2026Constants.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -179,6 +180,7 @@ export function buildDynamicHomeQuestions({
     (!draftPhase && isLikelyDraftWindowEt(etNow));
 
   const nflTop = isNflPriorityMonthsEt(etNow);
+  const wcPromo = isWcHomePromoWindow(promoNowMs);
   const ranks = computeSortRanks(nflTop);
 
   const teamNeeds =
@@ -198,6 +200,18 @@ export function buildDynamicHomeQuestions({
     if (pk) usedPromptKeys.add(pk);
     prompts.push(item);
   };
+
+  if (wcPromo) {
+    push({
+      id: "q-wc-promo",
+      color: "#00F5E9",
+      sportHint: "worldcup",
+      sortRank: 5,
+      text: "Best group stage value bet right now?",
+      prompt:
+        "Before the 2026 FIFA World Cup kicks off, what is the best group-stage value bet on the board — group winner, advancement, or a specific fixture — and which mispriced longshot (e.g. Norway, Paraguay) has the cleanest path?",
+    });
+  }
 
   const validNbaGames = (nbaGames || []).filter((g) =>
     isDisplayableValidity(classifyNbaGame(g, promoNowMs)),

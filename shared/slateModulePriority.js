@@ -5,6 +5,7 @@ import {
   EVENT_VALIDITY,
 } from "./eventValidity.js";
 import { resolveF1RaceStart } from "./f1RaceStart.js";
+import { isWcHomePromoWindow } from "./wc2026Constants.js";
 
 /** NFL regular season months (same heuristic as client `isNflInSeason`). */
 export function isNflMonthInSeason(now = new Date()) {
@@ -43,6 +44,19 @@ export function rankSlateSportForBundle(sport, bundle, nowMs = Date.now()) {
   const nba = bundle?.nba;
   const hasNbaGames = Array.isArray(nba?.todaysGames) && nba.todaysGames.length > 0;
   const nbaPlayoffs = Boolean(nba?.seasonContext?.postseason) && hasNbaGames;
+  const wcPromo = isWcHomePromoWindow(nowMs);
+
+  if (s === "worldcup") {
+    if (!wcPromo) return 900;
+    const wc = bundle?.worldcup;
+    if (!wc) return 900;
+    const hasLive = Array.isArray(wc.live) && wc.live.length > 0;
+    const hasUpcoming = Array.isArray(wc.upcoming) && wc.upcoming.length > 0;
+    const hasGroups = Array.isArray(wc.groups) && wc.groups.length > 0;
+    if (hasLive) return 4;
+    if (hasUpcoming || hasGroups) return 5;
+    return 6;
+  }
 
   if (s === "nba") {
     if (nbaPlayoffs) return 10;
@@ -67,7 +81,8 @@ export function rankSlateSportForBundle(sport, bundle, nowMs = Date.now()) {
     return isF1RaceWeekendWindow(bundle?.f1, sessions, nowMs) ? 50 : 900;
   }
   if (s === "golf") {
-    return bundle?.golf ? 32 : 900;
+    if (!bundle?.golf) return 900;
+    return wcPromo ? 28 : 32;
   }
   return 950;
 }

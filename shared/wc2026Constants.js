@@ -14,6 +14,12 @@ export const WC_MATCH_DETAIL_LIVE_INTERVAL_MS = 90 * 1000;
 export const WC_TOURNAMENT_START_ET = "2026-06-10";
 export const WC_TOURNAMENT_END_ET = "2026-07-20";
 
+/** First kickoff calendar day (ET) — used for home/slate promo lead-in. */
+export const WC_KICKOFF_ET = "2026-06-11";
+
+/** Show WC on home + slate from this ET date through tournament end (10 days pre-kickoff). */
+export const WC_HOME_PROMO_START_ET = "2026-06-01";
+
 /** First/last scoreboard dates to fetch (YYYYMMDD, UTC calendar). */
 export const WC_SCOREBOARD_START_YMD = "20260611";
 export const WC_SCOREBOARD_END_YMD = "20260719";
@@ -48,3 +54,14 @@ export function isWcTournamentWindow(nowMs = Date.now()) {
   const ymd = getEtYmdAt(nowMs);
   return ymd >= WC_TOURNAMENT_START_ET && ymd <= WC_TOURNAMENT_END_ET;
 }
+
+/**
+ * Home slate + START HERE promo: in-tournament cron window or within 10 days of kickoff through Jul 19.
+ * @param {number} [nowMs]
+ */
+export function isWcHomePromoWindow(nowMs = Date.now()) {
+  const ymd = getEtYmdAt(nowMs);
+  if (ymd < WC_HOME_PROMO_START_ET || ymd > WC_TOURNAMENT_END_ET) return false;
+  return isWcTournamentWindow(nowMs) || ymd < WC_KICKOFF_ET;
+}
+

@@ -7,6 +7,7 @@ const SPORT_COLOR = {
   tennis: "#0891B2",
   f1: "#E10600",
   nfl: "#4A90D9",
+  worldcup: "#00F5E9",
 };
 
 function formatUpdatedLabel(iso) {
@@ -51,7 +52,7 @@ function SlateRow({ label, item, fallbackSports }) {
             textTransform: "uppercase",
           }}
         >
-          {sport}
+          {sport === "worldcup" ? "WORLD CUP" : sport}
         </span>
         {isFallbackSource ? (
           <span

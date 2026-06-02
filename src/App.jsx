@@ -52,6 +52,7 @@ import StripeSubscriptionSync from "./components/StripeSubscriptionSync.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
+import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
 import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
@@ -2941,7 +2942,8 @@ ${themeCss}
       f1Data,
       hourEt: hourEt ?? 12,
     });
-    return Array.isArray(list) ? list.slice(0, 3) : [];
+    const cap = isWcHomePromoWindow() ? 4 : 3;
+    return Array.isArray(list) ? list.slice(0, cap) : [];
   }, [
     activeTournamentMatches,
     tennisLiveMatches,

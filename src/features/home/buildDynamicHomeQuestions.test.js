@@ -101,6 +101,26 @@ test("tennis home: stale live match does not produce named live prompt", () => {
   assert.equal(namedLive, undefined);
 });
 
+test("World Cup promo window adds group stage value prompt", () => {
+  const prompts = buildDynamicHomeQuestions({
+    activeTournamentMatches: [],
+    tennisLiveMatches: [],
+    tennisUpcomingMatches: [],
+    nflSeasonMode: false,
+    nflDraftMeta: null,
+    userCity: "",
+    context: null,
+    golfData: null,
+    nbaGames: [],
+    mlbGames: [],
+    f1Data: null,
+    promoNowMs: Date.parse("2026-06-02T16:00:00.000Z"),
+  });
+  const wc = prompts.find((p) => p.sportHint === "worldcup");
+  assert.ok(wc);
+  assert.equal(wc.text, "Best group stage value bet right now?");
+});
+
 test("Rounds 2–3 calendar day swaps NFL draft prompt rail", () => {
   const prompts = buildDynamicHomeQuestions({
     activeTournamentMatches: [],
