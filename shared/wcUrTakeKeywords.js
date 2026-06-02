@@ -82,6 +82,25 @@ function buildWcTeamPhrases() {
 
 const WC_TEAM_PHRASES = buildWcTeamPhrases();
 
+/** phrase → FIFA abbreviation */
+const WC_PHRASE_TO_ABBR = (() => {
+  /** @type {Map<string, string>} */
+  const m = new Map();
+  for (const t of WC_2026_TEAMS) {
+    const abbr = String(t.abbreviation || "").toUpperCase();
+    for (const raw of [t.name, t.shortName, t.abbreviation, t.id]) {
+      const p = normalizeText(raw);
+      if (p) m.set(p, abbr);
+    }
+    const key = normalizeText(t.name);
+    const aliases = WC_TEAM_ALIASES[key];
+    if (aliases) {
+      for (const a of aliases) m.set(normalizeText(a), abbr);
+    }
+  }
+  return m;
+})();
+
 const WC_GROUP_STAGE_RE = /\bgroup\s+([a-l])\b/i;
 const WC_SOCCER_FOOTBALL_RE =
   /\b(football|soccer)\b/i;
@@ -122,4 +141,32 @@ export function questionMentionsWorldCup(question) {
   }
 
   return false;
+}
+
+/**
+ * FIFA abbreviations for teams mentioned in question text (longest phrase match first).
+ * @param {string} question
+ * @returns {string[]}
+ */
+export function extractMentionedWcTeams(question) {
+  const q = normalizeText(question);
+  if (!q) return [];
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (const phrase of WC_TEAM_PHRASES) {
+    if (!containsPhrase(q, phrase)) continue;
+    if (WC_AMBIGUOUS_TEAM_PHRASES.has(phrase)) {
+      const coSignal =
+        WC_GROUP_STAGE_RE.test(q) ||
+        q.includes("world cup") ||
+        q.includes("fifa") ||
+        q.includes("soccer") ||
+        (q.includes("football") && !WC_NFL_EXCLUDE_RE.test(q)) ||
+        /\bvs\.?\b/.test(q);
+      if (!coSignal) continue;
+    }
+    const abbr = WC_PHRASE_TO_ABBR.get(phrase);
+    if (abbr) found.add(abbr);
+  }
+  return [...found];
 }

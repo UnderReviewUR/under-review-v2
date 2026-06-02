@@ -5017,7 +5017,7 @@ export default async function handler(req, res) {
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     try {
-      wcContext = await buildWorldCupUrTakeContext();
+      wcContext = await buildWorldCupUrTakeContext(String(question || ""));
     } catch (err) {
       console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
     }
@@ -7892,6 +7892,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (structuredResponse) {
       responseBody.structured = structuredResponse;
+    }
+
+    if (sportHint === "worldcup" && wcContext?.dataConfidence) {
+      responseBody.dataConfidence = wcContext.dataConfidence;
     }
 
     return res.status(200).json(responseBody);
