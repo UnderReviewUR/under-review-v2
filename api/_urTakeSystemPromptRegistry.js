@@ -1118,6 +1118,11 @@ Only one golfer wins the tournament. Multiple outright picks on the same event a
 
 export { detectOutrightBasketIntent, classifyGolfBetStructure } from "./_golfOutrightBasket.js";
 
+export function buildWorldCupSurfaceAppendix() {
+  return `WORLD CUP RESPONSE FORMAT (mandatory):
+Always answer the user's question directly in your first sentence. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow it with 2-3 sentences of supporting reasoning only. Keep the full response under 150 words unless the user asks to go deeper.`;
+}
+
 export function buildF1SurfaceAppendix() {
   return `F1 SURFACE SPINE
 Prefer standings/session JSON for grid questions. For any F1 driver the user names (including reserves), provide analysis even when standings rows are missing — say "live standings data unavailable" instead of refusing. Never say "not in the verified field."
@@ -1143,7 +1148,8 @@ export function buildGenericSurfaceAppendix(sportHint) {
     s === "tennis_wta_profile" ||
     s === "nfl" ||
     s === "golf" ||
-    s === "f1"
+    s === "f1" ||
+    s === "worldcup"
   ) {
     return "";
   }
@@ -1182,6 +1188,7 @@ When playoffSeries and verified slate context clearly describe postseason matchu
   }
   if (s === "golf") parts.push(buildGolfSurfaceAppendix());
   if (s === "f1") parts.push(buildF1SurfaceAppendix());
+  if (s === "worldcup") parts.push(buildWorldCupSurfaceAppendix());
   if (s === "golf" && detectOutrightBasketIntent(question)) {
     parts.push(buildGolfOutrightBasketSystemRule());
   }
