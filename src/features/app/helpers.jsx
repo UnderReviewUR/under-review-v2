@@ -21,6 +21,7 @@ import { resolveStructuralEdgeChipForMessage } from "../../lib/urTakeStructuralE
 import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
+import { wcDataConfidenceChipLabel } from "../../../shared/wcDataConfidence.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
@@ -1645,6 +1646,26 @@ function UrTakeAiBubble({
   const takeId = String(m.takeMeta?.id || "").trim();
   const showBetSignal = Boolean(takeId && hasThePlay);
   const trustChips = m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null;
+  const wcConfidenceChip =
+    String(m.sport || "").toLowerCase() === "worldcup" && m.dataConfidence ? (
+      <span
+        style={{
+          display: "inline-block",
+          marginTop: 8,
+          marginRight: 8,
+          padding: "4px 8px",
+          borderRadius: 6,
+          border: "1px solid rgba(0,245,233,0.25)",
+          fontFamily: "var(--mono-font)",
+          fontSize: 9,
+          letterSpacing: 1.2,
+          textTransform: "uppercase",
+          color: "rgba(0,245,233,0.75)",
+        }}
+      >
+        {wcDataConfidenceChipLabel(m.dataConfidence)}
+      </span>
+    ) : null;
   const betSignalRow = (
     <UrTakeBetSignalPrompt
       takeId={takeId}
@@ -1733,6 +1754,7 @@ function UrTakeAiBubble({
           />
         </UrTakeSectionErrorBoundary>
         <UrTakeNextContinuationLine />
+        {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
@@ -1765,6 +1787,7 @@ function UrTakeAiBubble({
           <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
         </div>
         <UrTakeNextContinuationLine />
+        {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
@@ -1792,6 +1815,7 @@ function UrTakeAiBubble({
           </div>
         </div>
         <UrTakeNextContinuationLine />
+        {wcConfidenceChip}
         {trustChips}
         {showTrack ? (
           <button
@@ -1943,6 +1967,7 @@ function UrTakeAiBubble({
           )}
         </div>
       </UrTakeSectionErrorBoundary>
+      {wcConfidenceChip}
       {trustChips}
       {betSignalRow}
       {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}

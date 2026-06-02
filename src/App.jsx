@@ -1918,6 +1918,7 @@ ${themeCss}
             }
           : null,
       deepText: normalizedDisplay.responseDeep,
+      ...(data.dataConfidence ? { dataConfidence: data.dataConfidence } : {}),
       ...(structuredForBubble ? { structured: structuredForBubble } : {}),
       ...(data.estimatedEdge && typeof data.estimatedEdge === "object"
         ? { estimatedEdge: data.estimatedEdge }
