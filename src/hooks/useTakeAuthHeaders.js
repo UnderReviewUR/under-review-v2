@@ -1,4 +1,8 @@
 import { useCallback } from "react";
+import {
+  applyFreeTierLimitReachedFromServer,
+  syncFreeTierFromServer,
+} from "../lib/freeTierLimits.js";
 
 const TAKE_SKEW_MS = 45_000;
 
@@ -30,7 +34,13 @@ export function useTakeAuthHeaders() {
       });
       const d = await r.json().catch(() => ({}));
       if (!d.takeToken) {
+        if (d.reason === "limit_reached" || d.code === "limit_reached") {
+          applyFreeTierLimitReachedFromServer(d.freeQuota || d);
+        }
         return {};
+      }
+      if (d.freeQuota) {
+        syncFreeTierFromServer(d.freeQuota);
       }
       tok = d.takeToken;
       const ttlSec = Number(d.expiresInSeconds) || 540;

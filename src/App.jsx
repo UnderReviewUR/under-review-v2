@@ -16,10 +16,13 @@ import {
 } from "./lib/urTakeTelemetry.js";
 import {
   FREE_QUESTION_LIMIT,
+  UR_FREE_QUOTA_LIMIT_EVENT,
   freeTierApproachingLimit,
+  hydrateFreeTierFromGateCheck,
   incrementFreeTierUsedToday,
   isFreeTierQuotaAvailable,
   readFreeTierUsedToday,
+  syncFreeTierFromServer,
 } from "./lib/freeTierLimits.js";
 import {
   UPGRADE_LIMIT_HIT_BODY,
@@ -683,6 +686,27 @@ ${themeCss}
   useEffect(() => {
     accessTierRef.current = accessTier;
   }, [accessTier]);
+
+  useEffect(() => {
+    const onLimit = () => {
+      setFreeUsedRevision((n) => n + 1);
+      setShowUpgradeModal(true);
+    };
+    window.addEventListener(UR_FREE_QUOTA_LIMIT_EVENT, onLimit);
+    return () => window.removeEventListener(UR_FREE_QUOTA_LIMIT_EVENT, onLimit);
+  }, []);
+
+  useEffect(() => {
+    if (isUnlimited) return;
+    const email =
+      (typeof localStorage !== "undefined" && localStorage.getItem("ur_email")) ||
+      userEmail ||
+      "";
+    if (!String(email).includes("@")) return;
+    hydrateFreeTierFromGateCheck(email).then((used) => {
+      if (used != null) setFreeUsedRevision((n) => n + 1);
+    });
+  }, [isUnlimited, userEmail]);
 
   /** Post–Stripe redirect (?pro=success): awaiting magic email → unlocked, or stuck after timeout */
   const [postCheckoutBanner, setPostCheckoutBanner] = useState(null);
@@ -1731,6 +1755,44 @@ ${themeCss}
 
     logUrTakeApiEnvelopeDev(data);
 
+    if (
+      data &&
+      typeof data === "object" &&
+      (data.limitReached === true ||
+        data.code === "limit_reached" ||
+        data.code === "free_quota_exceeded")
+    ) {
+      if (data.freeQuota) {
+        syncFreeTierFromServer(data.freeQuota);
+      } else {
+        syncFreeTierFromServer({
+          used: FREE_QUESTION_LIMIT,
+          limit: FREE_QUESTION_LIMIT,
+          remaining: 0,
+        });
+      }
+      setFreeUsedRevision((n) => n + 1);
+      setMsgs((prev) => prev.filter((m) => !m.loading));
+      setShowUpgradeModal(true);
+      if (fuTelemetryState) {
+        const end = typeof performance !== "undefined" ? performance.now() : Date.now();
+        telemetryUrTakeFollowUpResponseCompleted({
+          success: false,
+          roundTripMs: Math.max(0, Math.round(end - fuTelemetryState.roundStart)),
+          sport: fuTelemetryState.sportResolved,
+          intent: String(fuTelemetryState.tel.intent || ""),
+          liveMode: Boolean(fuTelemetryState.tel.liveMode),
+          followUpText: String(fuTelemetryState.tel.followUpText || "").slice(0, 160),
+          sourceMsgId: String(fuTelemetryState.tel.sourceMsgId || ""),
+          sessionUserTurns: fuTelemetryState.sessionUserTurns,
+          followUpIndex: fuTelemetryState.tel.followUpIndex ?? -1,
+          followUpCount: fuTelemetryState.tel.followUpCount ?? 0,
+          error: "limit_reached",
+        });
+      }
+      return;
+    }
+
     if (data.fallbackReason === "upstream_rate_limit") {
       const dbgRate = buildUrTakeClientFailureDebug({
         phase: "api_fallback_reason",
@@ -1827,7 +1889,11 @@ ${themeCss}
     }
 
     if (!isUnlimited) {
-      incrementFreeTierUsedToday();
+      if (data.freeQuota) {
+        syncFreeTierFromServer(data.freeQuota);
+      } else if (!isApiSuccessFallback) {
+        incrementFreeTierUsedToday();
+      }
       setFreeUsedRevision((n) => n + 1);
     }
 

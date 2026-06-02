@@ -57,3 +57,41 @@ export function emailLimit() {
 export function proStatusIpLimit() {
   return limitFromEnv("PRO_STATUS_RATE_IP_PER_MIN", 3);
 }
+
+/** POST /api/gate — all actions (override via GATE_IP_PER_MIN). */
+export function gateIpPerMin() {
+  return limitFromEnv("GATE_IP_PER_MIN", 30);
+}
+
+/** POST /api/gate issue_take_token only (override via GATE_ISSUE_TAKE_TOKEN_IP_PER_HOUR). */
+export function gateIssueTakeTokenIpPerHour() {
+  return limitFromEnv("GATE_ISSUE_TAKE_TOKEN_IP_PER_HOUR", 10);
+}
+
+const windowBuckets = new Map();
+
+/**
+ * Sliding-window rate limit with configurable duration.
+ * @param {string} key
+ * @param {number} maxPerWindow
+ * @param {number} windowMs
+ * @returns {boolean} true if allowed
+ */
+export function allowRateLimitWindow(key, maxPerWindow, windowMs) {
+  if (!key || maxPerWindow <= 0) return true;
+  const win = Number(windowMs) > 0 ? Number(windowMs) : WINDOW_MS;
+  const now = Date.now();
+  if (windowBuckets.size > 5000) {
+    for (const [k, b] of windowBuckets) {
+      if (now > b.reset) windowBuckets.delete(k);
+    }
+  }
+
+  let b = windowBuckets.get(key);
+  if (!b || now > b.reset) {
+    b = { count: 0, reset: now + win };
+  }
+  b.count += 1;
+  windowBuckets.set(key, b);
+  return b.count <= maxPerWindow;
+}
