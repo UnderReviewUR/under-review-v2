@@ -1120,7 +1120,7 @@ export { detectOutrightBasketIntent, classifyGolfBetStructure } from "./_golfOut
 
 export function buildWorldCupSurfaceAppendix() {
   return `WORLD CUP RESPONSE FORMAT (mandatory):
-Always answer the user's question directly in your first sentence. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow it with 2-3 sentences of supporting reasoning only. Keep the full response under 150 words unless the user asks to go deeper.`;
+Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Summary: 2-3 sentences of supporting reasoning only, 150 words max. Deep field: full reasoning with no word limit — do not repeat the summary verbatim.`;
 }
 
 export function buildF1SurfaceAppendix() {

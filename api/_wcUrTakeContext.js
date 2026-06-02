@@ -136,7 +136,7 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
 
   lines.push(
     "",
-    "VOICE: Lead with the answer in sentence one — name the team and verdict, no setup. Then 2-3 sentences of support only; stay under 150 words unless the user asks to go deeper. Plain sentences, no bullet lists, no 'I'd need' / 'without that data' disclaimers. Name teams and groups from this block.",
+    "VOICE: JSON summary — lead with the answer in sentence one (team + verdict, no setup), then 2-3 support sentences, 150 words max. JSON deep — full reasoning, no word limit. Plain sentences in summary, no bullet lists, no disclaimers. Name teams and groups from this block.",
   );
 
   const text = lines.join("\n");

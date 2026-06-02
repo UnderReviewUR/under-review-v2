@@ -3199,6 +3199,7 @@ function resolveOutputJsonMode({
   matchupContext,
   sportHint,
 }) {
+  if (String(sportHint || "").toLowerCase() === "worldcup") return "tier2_5_json";
   if (chaseSignals?.isChase) return "plain";
   if (intent === "slip_review") return "plain";
   if (intent === "prop_projection") return "tier2_5_json";
@@ -3313,6 +3314,24 @@ CRITICAL
 
   const tier25Spec = longFormRequested ? tier25SpecLongForm : tier25SpecDefault;
 
+  const worldCupTier25Spec = `TIER 2.5 — WORLD CUP 2026 (summary + deep)
+
+summary field (plain text inside the JSON string, no markdown):
+- Punchy direct answer: first sentence states the verdict and names the team(s). No setup or context in the opener.
+- Max 150 words for summary total. Plain sentences only — no bullet lists, no ALL-CAPS section headers, no ">>" line.
+- After the lead, at most 2-3 sentences of supporting reasoning.
+
+deep field (same JSON object):
+- Full reasoning with no word limit — group paths, risks, alt angles, fixture context, anything useful.
+- Do NOT paste or repeat the summary verbatim; expand with new detail.
+- Plain text inside the JSON string, no markdown.
+
+CRITICAL
+- Never say "limited profile", "held back", or apologize for thin data.
+- Never invent scores, lineups, or odds not in context.
+- Never include the phrase "Full Breakdown" in any field (UI handles that).
+- Reference strength as Favorite / Contender / Longshot only — never cite Elo or numeric power ratings.`;
+
   if (mode === "tier1_json") {
     return `OUTPUT CONTRACT — TIER 1 (mandatory)
 Return ONLY valid JSON on a single line or pretty-printed:
@@ -3328,11 +3347,12 @@ No other keys. No markdown.`;
   }
 
   if (mode === "tier2_5_json") {
+    const tier25Body = sport === "worldcup" ? worldCupTier25Spec : tier25Spec;
     return `OUTPUT CONTRACT — TIER 2.5 + DEEP (mandatory)
 Return ONLY valid JSON with exactly these keys:
 ${sport === "nba" && requireStatusShift ? '{"summary":"...","deep":"...","statusShift":"..."}' : '{"summary":"...","deep":"..."}'}
 
-${tier25Spec}`;
+${tier25Body}`;
   }
 
   return "";
@@ -5451,17 +5471,18 @@ export default async function handler(req, res) {
     longFormRequested,
   });
 
-  const outputJsonMode = isConversationFollowUp
-    ? "plain"
-    : resolveOutputJsonMode({
-        chaseSignals,
-        intent,
-        hasImage,
-        liveSignals: liveKeywordSignals,
-        question,
-        matchupContext,
-        sportHint,
-      });
+  const outputJsonMode =
+    isConversationFollowUp && String(sportHint || "").toLowerCase() !== "worldcup"
+      ? "plain"
+      : resolveOutputJsonMode({
+          chaseSignals,
+          intent,
+          hasImage,
+          liveSignals: liveKeywordSignals,
+          question,
+          matchupContext,
+          sportHint,
+        });
   const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint, {
     requireStatusShift:
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
@@ -6818,10 +6839,10 @@ ${question}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
-- Answer in plain conversational English — no bullet lists, no data-availability disclaimers.
 
 Rules:
-- Always answer the user's question directly in your first sentence. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow it with 2-3 sentences of supporting reasoning only. Keep the full response under 150 words unless the user asks to go deeper.
+- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
+- Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - Do not invent scores, lineups, or odds not supported by the context block.

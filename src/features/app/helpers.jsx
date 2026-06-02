@@ -1830,7 +1830,7 @@ function UrTakeAiBubble({
         {m.deepText ? (
           <div style={{ marginTop: 12 }}>
             <button type="button" className="quick-btn" onClick={() => setShowBreakdown(true)} style={{ fontSize: 11 }}>
-              See full breakdown
+              Full Breakdown
             </button>
           </div>
         ) : null}
@@ -1907,7 +1907,7 @@ function UrTakeAiBubble({
                     fontFamily: "var(--body-font)",
                   }}
                 >
-                  See full breakdown
+                  Full Breakdown
                 </button>
               ) : null}
               {showTrack ? (
