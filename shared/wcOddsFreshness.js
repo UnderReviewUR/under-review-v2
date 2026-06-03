@@ -4,6 +4,10 @@
 
 export const WC_OUTRIGHTS_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 export const WC_MATCH_ML_MAX_AGE_MS = 30 * 60 * 1000;
+export const WC_MATCH_ML_RAMP_TIGHT_MAX_AGE_MS = 10 * 60 * 1000;
+export const WC_MATCH_ML_LIVE_MAX_AGE_MS = 5 * 60 * 1000;
+
+const WC_RAMP_T90_MS = 90 * 60 * 1000;
 
 const WC_OUTRIGHTS_MISPRICED_RULE =
   'When claiming a team is "mispriced", you MUST cite the exact odds from CURRENT OUTRIGHT ODDS above (team abbreviation + price).';
@@ -89,6 +93,47 @@ export function attachOutrightsFreshness(kvOutrights, nowMs = Date.now()) {
 
 /**
  * @param {Record<string, unknown> | null | undefined} match
+ * @param {number} [nowMs]
+ */
+export function resolveMatchMlMaxAgeMs(match, nowMs = Date.now()) {
+  const status = String(match?.status || "").toLowerCase();
+  if (["live", "ht", "1h", "2h", "in_progress"].includes(status)) {
+    return WC_MATCH_ML_LIVE_MAX_AGE_MS;
+  }
+
+  const commenceTs = Number(match?.commenceTs);
+  if (Number.isFinite(commenceTs)) {
+    const untilKickMs = commenceTs - nowMs;
+    if (untilKickMs > 0 && untilKickMs <= WC_RAMP_T90_MS) {
+      return WC_MATCH_ML_RAMP_TIGHT_MAX_AGE_MS;
+    }
+  }
+
+  return WC_MATCH_ML_MAX_AGE_MS;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} odds
+ * @param {string} [homeTeam]
+ * @param {string} [awayTeam]
+ */
+export function formatMatchOddsForPrompt(odds, homeTeam = "HOME", awayTeam = "AWAY") {
+  if (!odds || typeof odds !== "object") return null;
+
+  const home = odds.home?.moneyline;
+  const draw = odds.draw?.moneyline;
+  const away = odds.away?.moneyline;
+  const parts = [];
+
+  if (home != null && String(home).trim()) parts.push(`${homeTeam} ${String(home).trim()}`);
+  if (draw != null && String(draw).trim()) parts.push(`Draw ${String(draw).trim()}`);
+  if (away != null && String(away).trim()) parts.push(`${awayTeam} ${String(away).trim()}`);
+
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} match
  * @param {number | null | undefined} [kvLastUpdatedMs]
  * @param {number} [nowMs]
  */
@@ -96,7 +141,43 @@ export function buildMatchOddsFreshness(match, kvLastUpdatedMs, nowMs = Date.now
   if (!match?.odds) return null;
 
   const updatedAt = Number(match.oddsUpdatedAt ?? kvLastUpdatedMs);
-  return calculateOddsFreshness(updatedAt, WC_MATCH_ML_MAX_AGE_MS, nowMs);
+  const maxAgeMs = resolveMatchMlMaxAgeMs(match, nowMs);
+  return calculateOddsFreshness(updatedAt, maxAgeMs, nowMs);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} match
+ * @param {number} [nowMs]
+ * @returns {string | null}
+ */
+export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
+  if (!match?.odds) return null;
+
+  const updatedAt = Number(match.oddsUpdatedAt);
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0) return null;
+
+  const maxAgeMs = resolveMatchMlMaxAgeMs(match, nowMs);
+  const freshness = calculateOddsFreshness(updatedAt, maxAgeMs, nowMs);
+  const line = formatMatchOddsForPrompt(match.odds, match.homeTeam, match.awayTeam);
+  if (!line) return null;
+
+  const block = [
+    `MATCH ODDS — ${match.homeTeam} vs ${match.awayTeam} (ESPN 1X2 moneylines):`,
+    `  ${line}`,
+    `  Last updated: ${freshness.fetchedAt || "unknown"}`,
+    `  Freshness: ${freshness.ageText} (max ${freshness.maxAgeMinutes} min)`,
+  ];
+
+  if (freshness.isStale) {
+    block.push(`  ODDS FRESHNESS (mandatory): ${freshness.staleWarning}`);
+    block.push(
+      "  Do not cite these match odds as live lines — use Elo-derived win/draw/loss structure only.",
+    );
+  } else {
+    block.push("  When citing match moneylines, quote only the prices listed above.");
+  }
+
+  return block.join("\n");
 }
 
 /**

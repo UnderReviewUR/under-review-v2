@@ -30,7 +30,6 @@ import {
 import { loadFinalizedWcMatchDetailIds, readWcMatchesFromKv } from "./_wcData.js";
 import {
   selectWcMatchDetailTargets,
-  selectWcMatchOddsTargets,
 } from "../shared/wcMatchDetailTargets.js";
 import { WC_MATCH_DETAIL_LIVE_INTERVAL_MS } from "../shared/wc2026Constants.js";
 
@@ -349,24 +348,22 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
   const matches = Array.isArray(kv?.matches) ? kv.matches : [];
   const matchTargets = await buildWcMatchScrapeTargetsFromMatches(matches, nowMs);
 
-  for (const row of matchTargets.detail) out.push(row);
-  for (const row of matchTargets.odds) out.push(row);
+  for (const row of matchTargets.bundle) out.push(row);
 
   return out;
 }
 
 /**
- * Build wc_match_detail + wc_match_odds scheduler rows from a matches array.
+ * Build wc_match_bundle scheduler rows from a matches array.
  * @param {Array<Record<string, unknown>>} matches
  * @param {number} nowMs
  */
 export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date.now()) {
   const finalizedIds = await loadFinalizedWcMatchDetailIds(matches);
   const detailTargets = selectWcMatchDetailTargets(matches, nowMs, { finalizedEventIds: finalizedIds });
-  const oddsTargets = selectWcMatchOddsTargets(matches, nowMs);
 
-  /** @type {ScrapeTarget[]} */
-  const detail = [];
+  /** @type {import("./_scrapeSchedule.js").ScrapeTarget[]} */
+  const bundle = [];
   for (const t of detailTargets) {
     const fixedIntervalMs =
       t.scrapeMode === "live"
@@ -375,8 +372,8 @@ export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date
           ? 5 * 60 * 1000
           : undefined;
 
-    detail.push({
-      sport: "wc_match_detail",
+    bundle.push({
+      sport: "wc_match_bundle",
       gameId: t.eventId,
       gameStartMs: t.commenceTs,
       meta: {
@@ -390,18 +387,7 @@ export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date
     });
   }
 
-  const odds = oddsTargets.map((t) => ({
-    sport: "wc_match_odds",
-    gameId: t.eventId,
-    gameStartMs: t.commenceTs,
-    meta: {
-      date: t.date,
-      homeTeam: t.homeTeam,
-      awayTeam: t.awayTeam,
-    },
-  }));
-
-  return { detail, odds };
+  return { bundle };
 }
 
 /**

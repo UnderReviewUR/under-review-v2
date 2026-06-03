@@ -3,8 +3,10 @@ import test from "node:test";
 import {
   attachOutrightsFreshness,
   buildMatchOddsFreshness,
+  buildMatchOddsFreshnessPromptBlock,
   buildWcOutrightsFreshnessPromptBlock,
   calculateOddsFreshness,
+  formatMatchOddsForPrompt,
   formatWcOutrightsStaleChipLabel,
   WC_OUTRIGHTS_MAX_AGE_MS,
 } from "./wcOddsFreshness.js";
@@ -57,18 +59,47 @@ test("buildWcOutrightsFreshnessPromptBlock allows mispriced citation when fresh"
   assert.doesNotMatch(block, /ODDS FRESHNESS \(mandatory\)/);
 });
 
-test("buildMatchOddsFreshness uses oddsUpdatedAt when present", () => {
+test("buildMatchOddsFreshness uses tighter max age when live", () => {
   const now = Date.parse("2026-06-03T12:00:00.000Z");
   const fresh = buildMatchOddsFreshness(
     {
+      status: "live",
       odds: { home: { moneyline: "-110" } },
-      oddsUpdatedAt: now - 10 * 60 * 1000,
+      oddsUpdatedAt: now - 4 * 60 * 1000,
     },
-    now - 60 * 60 * 1000,
+    null,
     now,
   );
   assert.equal(fresh?.isStale, false);
-  assert.equal(fresh?.ageMinutes, 10);
+});
+
+test("buildMatchOddsFreshnessPromptBlock formats 1X2 lines", () => {
+  const now = Date.parse("2026-06-03T12:00:00.000Z");
+  const block = buildMatchOddsFreshnessPromptBlock(
+    {
+      homeTeam: "NOR",
+      awayTeam: "FRA",
+      status: "NS",
+      commenceTs: now + 2 * 60 * 60 * 1000,
+      odds: {
+        home: { moneyline: "+250" },
+        draw: { moneyline: "+220" },
+        away: { moneyline: "-110" },
+      },
+      oddsUpdatedAt: now - 5 * 60 * 1000,
+    },
+    now,
+  );
+  assert.ok(block);
+  assert.match(block, /NOR \+250/);
+  assert.match(block, /Draw \+220/);
+  assert.match(block, /FRA -110/);
+  assert.match(block, /When citing match moneylines/);
+});
+
+test("formatMatchOddsForPrompt returns null when empty", () => {
+  assert.equal(formatMatchOddsForPrompt(null), null);
+  assert.equal(formatMatchOddsForPrompt({}), null);
 });
 
 test("formatWcOutrightsStaleChipLabel returns label for stale meta", () => {

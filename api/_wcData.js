@@ -113,14 +113,15 @@ export async function scrapeAndCacheWcStandingsAndFixtures() {
 }
 
 /**
- * Cron: refresh embedded moneyline for one scheduled match (ramp-gated by scheduler).
+ * Cron: ESPN match summary + embedded moneylines in one bundled pass.
  * @param {string | number} eventId
- * @param {{ date?: string, homeTeam?: string, awayTeam?: string }} [meta]
+ * @param {{ date?: string, homeTeam?: string, awayTeam?: string, commenceTs?: number, scrapeMode?: string }} [meta]
  */
-export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
+export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
+  const id = String(eventId);
+  const nowMs = Date.now();
   const cached = await getDurableJson(WC_MATCHES_KV_KEY);
   const matches = Array.isArray(cached?.matches) ? [...cached.matches] : [];
-  const id = String(eventId);
   const idx = matches.findIndex((m) => String(m?.id) === id);
 
   const dateYmd =
@@ -128,51 +129,132 @@ export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
     (idx >= 0 ? matches[idx]?.date : null) ||
     null;
 
-  const oddsRes = await fetchEspnMatchOddsForEvent(id, dateYmd);
-  if (!oddsRes.ok || !oddsRes.odds) {
+  const fetchOdds = meta.scrapeMode !== "finalize";
+
+  const [summaryRes, oddsRes] = await Promise.all([
+    fetchEspnMatchSummary(id),
+    fetchOdds && dateYmd
+      ? fetchEspnMatchOddsForEvent(id, dateYmd)
+      : Promise.resolve({ ok: false, odds: null, error: "odds_skipped" }),
+  ]);
+
+  /** @type {{ ok: boolean, error?: string, lineupConfirmed?: boolean, finalized?: boolean, status?: string }} */
+  let detailResult = { ok: false, error: "summary_failed" };
+  /** @type {{ ok: boolean, error?: string, odds?: Record<string, unknown> }} */
+  let oddsResult = { ok: false, error: oddsRes.error || "odds_unavailable" };
+
+  if (summaryRes.ok && summaryRes.json) {
+    const cachedDetail = await readWcMatchDetailFromKv(id);
+    const detail = normalizeEspnMatchSummary(summaryRes.json, {
+      eventId: id,
+      homeTeam: meta.homeTeam,
+      awayTeam: meta.awayTeam,
+      date: meta.date,
+      commenceTs: meta.commenceTs,
+    });
+
+    if (!detail.homeTeam || !detail.awayTeam) {
+      detailResult = { ok: false, error: "missing_teams" };
+    } else {
+      if (meta.scrapeMode === "finalize" || detail.status === "FT") {
+        detail.finalized = true;
+        detail.phase = "post";
+      } else if (cachedDetail?.finalized) {
+        detail.finalized = true;
+      }
+
+      const ttlSeconds = ttlSecondsForMatchDetail(detail);
+      await setDurableJson(wcMatchDetailKvKey(id), detail, { ttlSeconds });
+
+      detailResult = {
+        ok: true,
+        status: detail.status,
+        lineupConfirmed: detail.lineupConfirmed,
+        finalized: detail.finalized,
+      };
+    }
+  } else {
+    detailResult = { ok: false, error: summaryRes.error || "summary_failed" };
+  }
+
+  if (oddsRes.ok && oddsRes.odds) {
+    if (idx >= 0) {
+      matches[idx] = { ...matches[idx], odds: oddsRes.odds, oddsUpdatedAt: nowMs };
+    } else {
+      matches.push({
+        id,
+        homeTeam: meta.homeTeam || "",
+        awayTeam: meta.awayTeam || "",
+        date: dateYmd,
+        status: "NS",
+        odds: oddsRes.odds,
+        oddsUpdatedAt: nowMs,
+        commenceTs: meta.commenceTs || (dateYmd ? Date.parse(`${dateYmd}T12:00:00Z`) : null),
+      });
+    }
+
+    await setDurableJson(
+      WC_MATCHES_KV_KEY,
+      {
+        matches,
+        lastUpdated: nowMs,
+        source: cached?.source || "espn",
+      },
+      { ttlSeconds: WC_MATCHES_TTL_SECONDS },
+    );
+
+    oddsResult = { ok: true, odds: oddsRes.odds };
+  }
+
+  if (!detailResult.ok && !oddsResult.ok) {
     console.log(
       JSON.stringify({
-        event: "wc_match_odds_skip",
+        event: "wc_match_bundle_skip",
         eventId: id,
-        error: oddsRes.error,
+        scrapeMode: meta.scrapeMode,
+        detailError: detailResult.error,
+        oddsError: oddsResult.error,
       }),
     );
-    return { ok: false, eventId: id, error: oddsRes.error };
+    return {
+      ok: false,
+      eventId: id,
+      error: [detailResult.error, oddsResult.error].filter(Boolean).join("; "),
+    };
   }
-
-  if (idx >= 0) {
-    matches[idx] = { ...matches[idx], odds: oddsRes.odds, oddsUpdatedAt: Date.now() };
-  } else {
-    matches.push({
-      id,
-      homeTeam: meta.homeTeam || "",
-      awayTeam: meta.awayTeam || "",
-      date: dateYmd,
-      status: "NS",
-      odds: oddsRes.odds,
-      oddsUpdatedAt: Date.now(),
-      commenceTs: dateYmd ? Date.parse(`${dateYmd}T12:00:00Z`) : null,
-    });
-  }
-
-  const payload = {
-    matches,
-    lastUpdated: Date.now(),
-    source: cached?.source || "espn",
-  };
-  await setDurableJson(WC_MATCHES_KV_KEY, payload, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
 
   console.log(
     JSON.stringify({
-      event: "wc_match_odds_cached",
+      event: "wc_match_bundle_cached",
       eventId: id,
-      home: meta.homeTeam,
-      away: meta.awayTeam,
-      provider: oddsRes.odds?.provider,
+      scrapeMode: meta.scrapeMode,
+      detailOk: detailResult.ok,
+      oddsOk: oddsResult.ok,
+      lineupConfirmed: detailResult.lineupConfirmed,
+      finalized: detailResult.finalized,
+      provider: oddsResult.odds?.provider,
     }),
   );
 
-  return { ok: true, eventId: id, odds: oddsRes.odds };
+  return {
+    ok: true,
+    eventId: id,
+    detail: detailResult,
+    odds: oddsResult,
+    lineupConfirmed: detailResult.lineupConfirmed,
+    finalized: detailResult.finalized,
+  };
+}
+
+/**
+ * Back-compat wrapper — delegates to scrapeAndCacheWcMatchBundle.
+ */
+export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
+  const result = await scrapeAndCacheWcMatchBundle(eventId, meta);
+  if (result.ok && result.odds?.ok) {
+    return { ok: true, eventId: result.eventId, odds: result.odds.odds };
+  }
+  return { ok: false, eventId: String(eventId), error: result.error || result.odds?.error };
 }
 
 async function writeWcOutrightsKv(outrights, source, nowMs = Date.now()) {
@@ -378,69 +460,20 @@ function ttlSecondsForMatchDetail(detail) {
 }
 
 /**
- * Cron: ESPN match summary → wc_match_detail:{eventId} KV.
- * @param {string | number} eventId
- * @param {{ date?: string, homeTeam?: string, awayTeam?: string, scrapeMode?: string }} [meta]
+ * Back-compat wrapper — delegates to scrapeAndCacheWcMatchBundle.
  */
 export async function scrapeAndCacheWcMatchDetail(eventId, meta = {}) {
-  const id = String(eventId);
-  const summaryRes = await fetchEspnMatchSummary(id);
-  if (!summaryRes.ok || !summaryRes.json) {
-    console.log(
-      JSON.stringify({
-        event: "wc_match_detail_skip",
-        eventId: id,
-        scrapeMode: meta.scrapeMode,
-        error: summaryRes.error,
-      }),
-    );
-    return { ok: false, eventId: id, error: summaryRes.error };
+  const result = await scrapeAndCacheWcMatchBundle(eventId, meta);
+  if (result.ok && result.detail?.ok) {
+    return {
+      ok: true,
+      eventId: result.eventId,
+      status: result.detail.status,
+      lineupConfirmed: result.detail.lineupConfirmed,
+      finalized: result.detail.finalized,
+    };
   }
-
-  const cached = await readWcMatchDetailFromKv(id);
-  const detail = normalizeEspnMatchSummary(summaryRes.json, {
-    eventId: id,
-    homeTeam: meta.homeTeam,
-    awayTeam: meta.awayTeam,
-    date: meta.date,
-    commenceTs: meta.commenceTs,
-  });
-
-  if (!detail.homeTeam || !detail.awayTeam) {
-    return { ok: false, eventId: id, error: "missing_teams" };
-  }
-
-  if (meta.scrapeMode === "finalize" || detail.status === "FT") {
-    detail.finalized = true;
-    detail.phase = "post";
-  } else if (cached?.finalized) {
-    detail.finalized = true;
-  }
-
-  const ttlSeconds = ttlSecondsForMatchDetail(detail);
-  await setDurableJson(wcMatchDetailKvKey(id), detail, { ttlSeconds });
-
-  console.log(
-    JSON.stringify({
-      event: "wc_match_detail_cached",
-      eventId: id,
-      scrapeMode: meta.scrapeMode,
-      status: detail.status,
-      phase: detail.phase,
-      lineupConfirmed: detail.lineupConfirmed,
-      injuryCount: detail.injuries?.length ?? 0,
-      finalized: detail.finalized,
-      ttlSeconds,
-    }),
-  );
-
-  return {
-    ok: true,
-    eventId: id,
-    status: detail.status,
-    lineupConfirmed: detail.lineupConfirmed,
-    finalized: detail.finalized,
-  };
+  return { ok: false, eventId: String(eventId), error: result.error || result.detail?.error };
 }
 
 /**

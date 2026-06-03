@@ -270,9 +270,10 @@ export async function getGroupsPayload() {
 }
 
 export async function getMatchesPayload() {
+  const nowMs = Date.now();
   const kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
   if (kv?.matches?.length) {
-    const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated);
+    const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated, nowMs);
     return {
       matches,
       lastUpdated: kv.lastUpdated,

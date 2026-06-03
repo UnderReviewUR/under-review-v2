@@ -110,3 +110,37 @@ test("formatWorldCupUrTakePromptBlock injects fresh outrights block when present
   assert.match(block, /When claiming a team is "mispriced"/);
   assert.doesNotMatch(block, /No live outright odds available/);
 });
+
+test("formatWorldCupUrTakePromptBlock injects fixture match odds when present", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: { I: [{ name: "Norway", abbreviation: "NOR", strengthTag: "Contender" }] },
+    live: [],
+    results: [],
+    upcoming: [],
+    fixtures: [{ id: "1", homeTeam: "NOR", awayTeam: "FRA" }],
+    fixtureOddsBlocks: [
+      "MATCH ODDS — NOR vs FRA (ESPN 1X2 moneylines):\n  NOR +250 · Draw +220 · FRA -110",
+    ],
+  });
+  assert.match(block, /FIXTURE MATCH ODDS/);
+  assert.match(block, /NOR \+250/);
+});
+
+test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odds missing", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: { I: [{ name: "Norway", abbreviation: "NOR", strengthTag: "Contender" }] },
+    live: [],
+    results: [],
+    upcoming: [],
+    fixtures: [{ id: "1", homeTeam: "NOR", awayTeam: "FRA" }],
+    fixtureOddsBlocks: [],
+  });
+  assert.match(block, /No live 1X2 lines/);
+  assert.match(block, /Elo win\/draw\/loss structure only/);
+});

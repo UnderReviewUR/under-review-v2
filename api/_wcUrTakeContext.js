@@ -13,7 +13,7 @@ import {
   wcDataConfidenceChipLabel,
 } from "../shared/wcDataConfidence.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
-import { buildWcOutrightsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
+import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -389,6 +389,19 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("", "INJURY / AVAILABILITY:", `  ${WC_INJURY_UNCERTAINTY_RULE}`);
   }
 
+  if (Array.isArray(ctx.fixtureOddsBlocks) && ctx.fixtureOddsBlocks.length) {
+    lines.push("", "FIXTURE MATCH ODDS (question-scoped):");
+    for (const block of ctx.fixtureOddsBlocks) {
+      lines.push(block);
+    }
+  } else if (Array.isArray(ctx.fixtures) && ctx.fixtures.length) {
+    lines.push(
+      "",
+      "FIXTURE MATCH ODDS: No live 1X2 lines in verified feed for cited fixture(s).",
+      "  Use Elo win/draw/loss structure only — do not invent match prices.",
+    );
+  }
+
   lines.push("");
   if (ctx.outrightsBlock) {
     lines.push(ctx.outrightsBlock);
@@ -431,10 +444,11 @@ async function loadWorldCupMatchesPayload() {
 }
 
 export async function buildWorldCupUrTakeContext(question = "") {
+  const nowMs = Date.now();
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
     loadWorldCupGroupsPayload(),
     loadWorldCupMatchesPayload(),
-    readWcOutrightsFromKv(),
+    readWcOutrightsFromKv(nowMs),
   ]);
 
   const staticGroups = buildStaticGroups();
@@ -454,6 +468,10 @@ export async function buildWorldCupUrTakeContext(question = "") {
     if (detail) matchDetails.push(detail);
   }
 
+  const fixtureOddsBlocks = fixtures
+    .map((fx) => buildMatchOddsFreshnessPromptBlock(fx, nowMs))
+    .filter(Boolean);
+
   const dataConfidence = deriveWcDataConfidence(matchDetails);
   const outrightsBlock = formatOutrightsForPrompt(outrightsKv);
 
@@ -466,7 +484,9 @@ export async function buildWorldCupUrTakeContext(question = "") {
     live,
     results,
     upcoming,
+    fixtures,
     matchDetails,
+    fixtureOddsBlocks,
     dataConfidence,
     outrightsKv: outrightsKv?.outrights || null,
     outrightsBlock,

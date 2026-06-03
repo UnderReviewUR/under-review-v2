@@ -15,8 +15,7 @@ import {
   shouldRunScrapeForGame,
 } from "../shared/scrapeCadencePolicy.js";
 import {
-  scrapeAndCacheWcMatchDetail,
-  scrapeAndCacheWcMatchOdds,
+  scrapeAndCacheWcMatchBundle,
   scrapeAndCacheWcOutrights,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
@@ -76,22 +75,9 @@ const SCRAPE_HANDLERS = {
       error: result.error,
     };
   },
-  wc_match_odds: async (target) => {
+  wc_match_bundle: async (target) => {
     const meta = target.meta || {};
-    const result = await scrapeAndCacheWcMatchOdds(target.gameId, {
-      date: meta.date,
-      homeTeam: meta.homeTeam,
-      awayTeam: meta.awayTeam,
-    });
-    return {
-      ok: result.ok,
-      eventId: target.gameId,
-      error: result.error,
-    };
-  },
-  wc_match_detail: async (target) => {
-    const meta = target.meta || {};
-    const result = await scrapeAndCacheWcMatchDetail(target.gameId, {
+    const result = await scrapeAndCacheWcMatchBundle(target.gameId, {
       date: meta.date,
       homeTeam: meta.homeTeam,
       awayTeam: meta.awayTeam,
@@ -103,6 +89,8 @@ const SCRAPE_HANDLERS = {
       eventId: target.gameId,
       lineupConfirmed: result.lineupConfirmed,
       finalized: result.finalized,
+      detailOk: Boolean(result.detail?.ok),
+      oddsOk: Boolean(result.odds?.ok),
       error: result.error,
     };
   },
@@ -155,10 +143,13 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
 
     let intervalMs = useFixedInterval ? fixedIntervalMs : getNextScrapeDelayMs(gameStartMs, nowMs);
 
+    const scrapeMode = String(target.meta?.scrapeMode || "");
+    const isWcMatchBundle = sport === "wc_match_bundle";
+
     if (
       !useFixedInterval &&
-      sport === "wc_match_detail" &&
-      String(target.meta?.scrapeMode || "") === "ramp"
+      isWcMatchBundle &&
+      scrapeMode === "ramp"
     ) {
       const wcRampMs = getWcRampScrapeDelayMs(gameStartMs, nowMs);
       if (wcRampMs != null) intervalMs = wcRampMs;
@@ -188,8 +179,8 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
     const lastRunMs = await readLastRunMs(sport, gameId);
     const wcRampCadence =
       !useFixedInterval &&
-      sport === "wc_match_detail" &&
-      String(target.meta?.scrapeMode || "") === "ramp" &&
+      isWcMatchBundle &&
+      scrapeMode === "ramp" &&
       intervalMs != null;
     const due = useFixedInterval
       ? !Number.isFinite(lastRunMs) || lastRunMs <= 0 || nowMs - lastRunMs >= fixedIntervalMs
