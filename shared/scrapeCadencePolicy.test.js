@@ -5,6 +5,7 @@ import {
   etLocalTimeToUtcMs,
   getGolfRoundStartMsEt,
   getNextScrapeDelayMs,
+  getWcRampScrapeDelayMs,
   shouldRunScrapeForGame,
 } from "./scrapeCadencePolicy.js";
 
@@ -52,4 +53,13 @@ test("etLocalTimeToUtcMs round-trip", () => {
   const ms = etLocalTimeToUtcMs("2026-05-20", 8, 0);
   const ymd = new Date(ms).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   assert.equal(ymd, "2026-05-20");
+});
+
+test("getWcRampScrapeDelayMs — 5 min inside T-90 and through kickoff", () => {
+  const now = Date.parse("2026-06-11T18:00:00.000Z");
+  const kickoff = now + 45 * M;
+  assert.equal(getWcRampScrapeDelayMs(kickoff, now), 5 * M);
+  assert.equal(getWcRampScrapeDelayMs(now + 3 * M, now), 5 * M);
+  assert.equal(getWcRampScrapeDelayMs(now - 60 * 1000, now), null);
+  assert.equal(getWcRampScrapeDelayMs(now + 3 * H, now), 60 * M);
 });

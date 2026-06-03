@@ -1,6 +1,8 @@
 /**
- * World Cup match-detail scrape target selection (next 3 upcoming + all live).
+ * World Cup match-detail scrape target selection (all upcoming in 24h + all live).
  */
+
+import { WC_RAMP_HORIZON_MS } from "./wc2026Constants.js";
 
 const LIVE_STATUSES = new Set(["live", "ht", "1h", "2h", "in_progress"]);
 const UPCOMING_STATUSES = new Set(["ns", "scheduled", "not started", "upcoming"]);
@@ -76,6 +78,7 @@ export function selectWcMatchDetailTargets(matches, nowMs = Date.now(), opts = {
     }
   }
 
+  const rampCutoffMs = nowMs + WC_RAMP_HORIZON_MS;
   const upcoming = rows
     .filter((m) => {
       const id = String(m?.id || "").trim();
@@ -83,10 +86,9 @@ export function selectWcMatchDetailTargets(matches, nowMs = Date.now(), opts = {
       const status = String(m?.status || "").toLowerCase();
       if (!isWcMatchUpcomingStatus(status)) return false;
       const ts = Number(m?.commenceTs);
-      return Number.isFinite(ts) && ts > nowMs;
+      return Number.isFinite(ts) && ts > nowMs && ts <= rampCutoffMs;
     })
-    .sort((a, b) => Number(a.commenceTs) - Number(b.commenceTs))
-    .slice(0, 3);
+    .sort((a, b) => Number(a.commenceTs) - Number(b.commenceTs));
 
   for (const m of upcoming) {
     const eventId = String(m.id);

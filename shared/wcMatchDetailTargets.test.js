@@ -4,20 +4,28 @@ import { selectWcMatchDetailTargets } from "./wcMatchDetailTargets.js";
 
 const now = Date.parse("2026-06-10T18:00:00Z");
 
-test("selectWcMatchDetailTargets returns live plus next 3 upcoming only", () => {
+test("selectWcMatchDetailTargets returns live plus all upcoming within 24h", () => {
   const matches = [
     { id: "1", status: "live", commenceTs: now - 3600000, homeTeam: "MEX", awayTeam: "RSA", date: "2026-06-11" },
     { id: "2", status: "NS", commenceTs: now + 3600000, homeTeam: "USA", awayTeam: "PAR", date: "2026-06-12" },
     { id: "3", status: "NS", commenceTs: now + 7200000, homeTeam: "BRA", awayTeam: "MAR", date: "2026-06-12" },
     { id: "4", status: "NS", commenceTs: now + 10800000, homeTeam: "FRA", awayTeam: "SEN", date: "2026-06-13" },
     { id: "5", status: "NS", commenceTs: now + 14400000, homeTeam: "GER", awayTeam: "AUS", date: "2026-06-13" },
+    {
+      id: "6",
+      status: "NS",
+      commenceTs: now + 25 * 3600000,
+      homeTeam: "ESP",
+      awayTeam: "POR",
+      date: "2026-06-14",
+    },
   ];
 
   const targets = selectWcMatchDetailTargets(matches, now);
   const ids = targets.map((t) => t.eventId).sort();
-  assert.deepEqual(ids, ["1", "2", "3", "4"]);
+  assert.deepEqual(ids, ["1", "2", "3", "4", "5"]);
   assert.equal(targets.find((t) => t.eventId === "1")?.scrapeMode, "live");
-  assert.equal(targets.filter((t) => t.scrapeMode === "ramp").length, 3);
+  assert.equal(targets.filter((t) => t.scrapeMode === "ramp").length, 4);
 });
 
 test("selectWcMatchDetailTargets adds finalize for FT not yet finalized", () => {

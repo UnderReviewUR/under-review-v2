@@ -10,6 +10,12 @@ export const WC_MATCH_DETAIL_LIVE_TTL_SECONDS = 300;
 export const WC_MATCH_DETAIL_FT_TTL_SECONDS = 30 * 24 * 3600;
 export const WC_MATCH_DETAIL_LIVE_INTERVAL_MS = 90 * 1000;
 
+/** Pre-kickoff: poll all ramp targets within this window of commenceTs. */
+export const WC_RAMP_HORIZON_MS = 24 * 60 * 60 * 1000;
+
+/** T-90 → kickoff: ramp poll interval (see getWcRampScrapeDelayMs). */
+export const WC_RAMP_TIGHT_INTERVAL_MS = 5 * 60 * 1000;
+
 /** Inclusive ET calendar bounds for cron + self-healing refresh. */
 export const WC_TOURNAMENT_START_ET = "2026-06-10";
 export const WC_TOURNAMENT_END_ET = "2026-07-20";

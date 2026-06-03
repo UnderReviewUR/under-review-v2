@@ -6,8 +6,12 @@
 import { getDurableJson } from "./_durableStore.js";
 import { readWcMatchDetailFromKv } from "./_wcData.js";
 import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
+import { getEnv } from "./_env.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
-import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
+import {
+  deriveWcDataConfidence,
+  wcDataConfidenceChipLabel,
+} from "../shared/wcDataConfidence.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
@@ -19,6 +23,75 @@ const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 
 const WC_INJURY_UNCERTAINTY_RULE =
   "If injury or lineup data is not present in VERIFIED CONTEXT, explicitly state uncertainty. Do not invent player availability or starting status.";
+
+const WC_INJURY_NOT_XI_RULE =
+  "Injury / availability rows are not a confirmed starting XI. Do not infer starters from injury lists alone.";
+
+/** Override without deploy: set env `WC_BREAKING` (same format as TENNIS_BREAKING). */
+const WC_BREAKING = "";
+
+const WC_LINEUP_UNCONFIRMED_RULE =
+  "Starting XI is NOT confirmed in the verified feed. Do not name expected starters, do not recommend starter-specific or goal-scorer props. Say uncertain or Pass / no play until lineups are confirmed.";
+
+/**
+ * @param {number | string | undefined} ts
+ */
+function formatVerifiedAsOf(ts) {
+  const n = Number(ts);
+  if (!Number.isFinite(n) || n <= 0) return "unknown";
+  try {
+    return new Date(n).toISOString();
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Same-day breaking news for WC (env `WC_BREAKING` overrides file default).
+ */
+export function getWcBreakingLine() {
+  const fromEnv = getEnv("WC_BREAKING", { treatEmptyAsMissing: false });
+  const line = fromEnv !== undefined ? fromEnv : WC_BREAKING;
+  const trimmed = String(line || "").trim();
+  return trimmed || null;
+}
+
+/**
+ * @param {import("../shared/wcDataConfidence.js").WcDataConfidence} tier
+ * @param {Array<Record<string, unknown>>} matchDetails
+ */
+export function formatWcDataConfidencePromptBlock(tier, matchDetails = []) {
+  const label = wcDataConfidenceChipLabel(tier);
+  const lines = [
+    "DATA CONFIDENCE (binding for this response):",
+    `  Tier: ${tier} (${label})`,
+  ];
+
+  if (tier === "confirmed") {
+    lines.push(
+      "  Confirmed starting XIs are in VERIFIED CONTEXT for at least one cited fixture. Starter-specific angles are allowed only when MATCH INTEL shows lineupConfirmed: yes.",
+    );
+  } else if (tier === "limited_intel") {
+    lines.push(
+      `  ${WC_LINEUP_UNCONFIRMED_RULE}`,
+      `  ${WC_INJURY_NOT_XI_RULE}`,
+    );
+  } else {
+    lines.push(
+      `  ${WC_LINEUP_UNCONFIRMED_RULE}`,
+      "  Prefer team-level or tournament angles only. Use confidence Speculative or Pass on player-specific asks.",
+    );
+  }
+
+  const anyDetail = matchDetails.length > 0;
+  if (!anyDetail) {
+    lines.push(
+      "  No fixture-level MATCH INTEL loaded for this question — do not claim match-specific lineups or injuries.",
+    );
+  }
+
+  return lines.join("\n");
+}
 
 function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -119,10 +192,21 @@ export function selectFixturesForQuestion(matches, mentionedTeams) {
 }
 
 /**
- * @param {Record<string, unknown>} detail
+ * @param {string} label
+ * @param {Record<string, unknown> | null | undefined} side
+ * @param {{ lineupConfirmed: boolean, lastUpdated?: number | string }} opts
  */
-function formatLineupSide(label, side) {
+export function formatLineupSide(label, side, opts) {
+  const confirmed = opts?.lineupConfirmed === true;
+  const asOf = formatVerifiedAsOf(opts?.lastUpdated);
   const lines = [];
+
+  if (!confirmed) {
+    lines.push(`  Lineups: NOT CONFIRMED in verified ESPN feed (as of ${asOf}).`);
+    lines.push(`  ${WC_LINEUP_UNCONFIRMED_RULE}`);
+    return `${label}:\n${lines.join("\n")}`;
+  }
+
   if (side?.formation) lines.push(`  Formation: ${side.formation}`);
   if (Array.isArray(side?.starters) && side.starters.length) {
     lines.push(
@@ -134,7 +218,7 @@ function formatLineupSide(label, side) {
       `  Bench: ${side.bench.map((p) => `${p.name}${p.jersey ? ` #${p.jersey}` : ""}`).join(", ")}`,
     );
   }
-  if (!lines.length) lines.push("  Lineups: not yet posted in verified feed.");
+  if (!lines.length) lines.push("  Lineups: confirmed flag set but no player rows in feed.");
   return `${label}:\n${lines.join("\n")}`;
 }
 
@@ -143,13 +227,17 @@ function formatLineupSide(label, side) {
  */
 function formatMatchIntelBlock(detail) {
   const id = detail.eventId || "unknown";
+  const lineupConfirmed = detail.lineupConfirmed === true;
+  const asOf = formatVerifiedAsOf(detail.lastUpdated);
   const lines = [
     `MATCH INTEL (event ${id}) — ${detail.homeTeam} vs ${detail.awayTeam}`,
     `Status: ${detail.status}${detail.homeScore != null ? ` · Score ${detail.homeScore}-${detail.awayScore}` : ""}${detail.venue ? ` · ${detail.venue}` : ""}`,
+    `  Verified feed: ESPN summary · truth_layer: espn_summary · lineupConfirmed: ${lineupConfirmed ? "yes" : "no"} · as of ${asOf}`,
   ];
 
-  lines.push(formatLineupSide(detail.homeTeam, detail.lineups?.home));
-  lines.push(formatLineupSide(detail.awayTeam, detail.lineups?.away));
+  const lineupOpts = { lineupConfirmed, lastUpdated: detail.lastUpdated };
+  lines.push(formatLineupSide(detail.homeTeam, detail.lineups?.home, lineupOpts));
+  lines.push(formatLineupSide(detail.awayTeam, detail.lineups?.away, lineupOpts));
 
   const th = detail.teamStats?.home;
   const ta = detail.teamStats?.away;
@@ -207,6 +295,7 @@ function formatInjuryBlock(matchDetails) {
   if (rows.length) lines.push(...rows);
   else lines.push("  No structured injury data in verified feed for this fixture.");
   lines.push(`  ${WC_INJURY_UNCERTAINTY_RULE}`);
+  lines.push(`  ${WC_INJURY_NOT_XI_RULE}`);
   return lines.join("\n");
 }
 
@@ -217,17 +306,30 @@ function formatInjuryBlock(matchDetails) {
 export function formatWorldCupUrTakePromptBlock(ctx) {
   if (!ctx || typeof ctx !== "object") return "";
 
+  const tier =
+    ctx.dataConfidence || deriveWcDataConfidence(ctx.matchDetails);
+  const breaking = getWcBreakingLine();
+
   const lines = [
     "WORLD CUP 2026 — VERIFIED CONTEXT (use for all answers; do not claim missing tournament data)",
     `Tournament: ${ctx.tournament}`,
     `Hosts: ${(ctx.hosts || []).join(", ")}`,
     `Dates: ${ctx.dateRange}`,
     "",
+    formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
+    "",
+  ];
+
+  if (breaking) {
+    lines.push("WC BREAKING (manual override — treat as authoritative over stale feed):", `  ${breaking}`, "");
+  }
+
+  lines.push(
     "STRENGTH TAGS (pre-tournament / baseline — never cite numeric power ratings or rating points):",
     "Favorite = group favorite · Contender = realistic knockout team · Longshot = upset/long-shot profile",
     "",
     "GROUPS (12 × 4 teams):",
-  ];
+  );
 
   for (const letter of GROUP_LETTERS) {
     const teams = ctx.groups?.[letter];

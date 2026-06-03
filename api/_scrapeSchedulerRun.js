@@ -11,6 +11,7 @@ import { resolveGameSpreadForSlateGame } from "./_gameOddsPipeline.js";
 import {
   buildScrapeLastRunKvKey,
   getNextScrapeDelayMs,
+  getWcRampScrapeDelayMs,
   shouldRunScrapeForGame,
 } from "../shared/scrapeCadencePolicy.js";
 import {
@@ -154,6 +155,15 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
 
     let intervalMs = useFixedInterval ? fixedIntervalMs : getNextScrapeDelayMs(gameStartMs, nowMs);
 
+    if (
+      !useFixedInterval &&
+      sport === "wc_match_detail" &&
+      String(target.meta?.scrapeMode || "") === "ramp"
+    ) {
+      const wcRampMs = getWcRampScrapeDelayMs(gameStartMs, nowMs);
+      if (wcRampMs != null) intervalMs = wcRampMs;
+    }
+
     if (!useFixedInterval && intervalMs == null) {
       const reason = nowMs >= gameStartMs ? "live_or_started" : "imminent";
       console.log(
@@ -176,9 +186,16 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
     }
 
     const lastRunMs = await readLastRunMs(sport, gameId);
+    const wcRampCadence =
+      !useFixedInterval &&
+      sport === "wc_match_detail" &&
+      String(target.meta?.scrapeMode || "") === "ramp" &&
+      intervalMs != null;
     const due = useFixedInterval
       ? !Number.isFinite(lastRunMs) || lastRunMs <= 0 || nowMs - lastRunMs >= fixedIntervalMs
-      : shouldRunScrapeForGame(gameStartMs, lastRunMs, nowMs);
+      : wcRampCadence
+        ? !Number.isFinite(lastRunMs) || lastRunMs <= 0 || nowMs - lastRunMs >= intervalMs
+        : shouldRunScrapeForGame(gameStartMs, lastRunMs, nowMs);
 
     if (!due) {
       console.log(

@@ -38,6 +38,26 @@ export function getNextScrapeDelayMs(gameStartMs, nowMs = Date.now()) {
   return 3 * MS_HOUR;
 }
 
+const WC_RAMP_T90_MS = 90 * MS_MIN;
+const WC_RAMP_TIGHT_MS = 5 * MS_MIN;
+
+/**
+ * WC match-detail ramp cadence: ~5 min from T-90 through kickoff (no stop at T-5).
+ * @param {number} gameStartMs
+ * @param {number} [nowMs]
+ * @returns {number | null}
+ */
+export function getWcRampScrapeDelayMs(gameStartMs, nowMs = Date.now()) {
+  const T = msUntilGameStart(gameStartMs, nowMs);
+  if (!Number.isFinite(T)) return null;
+  if (T < 0) return null;
+  if (T <= WC_RAMP_T90_MS) return WC_RAMP_TIGHT_MS;
+  if (T < 2 * MS_HOUR) return 30 * MS_MIN;
+  if (T < 6 * MS_HOUR) return 60 * MS_MIN;
+  if (T <= 24 * MS_HOUR) return 60 * MS_MIN;
+  return 3 * MS_HOUR;
+}
+
 /**
  * @param {number} gameStartMs
  * @param {number | null | undefined} lastRunMs

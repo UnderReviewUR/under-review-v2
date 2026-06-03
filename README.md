@@ -43,6 +43,15 @@ Inject same-day withdrawals or scheduling shocks so UR TAKE does not recommend i
 
 Clear the line after the event so stale news does not affect unrelated tournaments.
 
+### World Cup breaking news
+
+Inject same-day lineup shocks, injuries, or scheduling updates so UR TAKE does not rely on stale ESPN KV:
+
+1. **Fast (no deploy):** set env var `WC_BREAKING` in Vercel to a dated line, e.g. `2026-06-11 | Starters confirmed — key midfielder out`.
+2. **Repo default:** edit `WC_BREAKING` in `api/_wcUrTakeContext.js` (keep empty string when nothing is active).
+
+Clear the line after the event.
+
 ### Access codes
 
 Configure `OWNER_CODE`, `FRIEND_CODES`, and **`ACCESS_TOKEN_SECRET`** in Vercel — never rely on demo defaults in production (`api/access.js`, `api/pro-status.js`).
