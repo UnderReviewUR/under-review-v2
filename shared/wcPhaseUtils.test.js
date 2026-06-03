@@ -5,6 +5,9 @@ import {
   isKnockoutPhase,
   selectGroupsForPrompt,
   formatKnockoutBracketPrompt,
+  formatKnockoutUrTakeAppendix,
+  formatKnockoutPhasePromptRules,
+  getTeamKnockoutStatus,
   filterOutrightsForQuestion,
 } from "./wcPhaseUtils.js";
 
@@ -45,14 +48,80 @@ test("selectGroupsForPrompt omits all groups in knockout when no mentions", () =
   assert.deepEqual(scoped, {});
 });
 
-test("formatKnockoutBracketPrompt includes ET/pens rule", () => {
+test("formatKnockoutBracketPrompt lists verified fixtures by round", () => {
   const block = formatKnockoutBracketPrompt(
     [{ round: "Quarterfinal", homeTeam: "NOR", awayTeam: "ESP", status: "NS", date: "2026-07-10" }],
     ["NOR"],
   );
   assert.ok(block);
-  assert.match(block, /away goals rule does NOT apply/i);
+  assert.match(block, /KNOCKOUT BRACKET/);
   assert.match(block, /NOR.*ESP/);
+});
+
+test("formatKnockoutUrTakeAppendix includes ET/pens and away-goals abolition", () => {
+  const matches = [
+    { round: "Quarterfinal", homeTeam: "NOR", awayTeam: "ESP", status: "NS", date: "2026-07-10" },
+  ];
+  const block = formatKnockoutUrTakeAppendix("QUARTERFINALS", matches, ["NOR"], "Can Norway still win?");
+  assert.ok(block);
+  assert.match(block, /KNOCKOUT STAGE RULES/);
+  assert.match(block, /extra time.*penalty/i);
+  assert.match(block, /away goals rule does NOT apply/i);
+  assert.match(block, /Quarterfinals/);
+  assert.match(block, /CITED TEAM PATH/);
+  assert.match(block, /NOR: Active/);
+});
+
+test("formatKnockoutUrTakeAppendix marks eliminated teams on tournament-winner questions", () => {
+  const matches = [
+    {
+      round: "Round of 16",
+      homeTeam: "NOR",
+      awayTeam: "FRA",
+      status: "FT",
+      homeScore: 0,
+      awayScore: 2,
+      date: "2026-07-05",
+    },
+    { round: "Quarterfinal", homeTeam: "ESP", awayTeam: "BRA", status: "NS", date: "2026-07-10" },
+  ];
+  const block = formatKnockoutUrTakeAppendix(
+    "QUARTERFINALS",
+    matches,
+    ["NOR"],
+    "Can Norway still win the tournament?",
+  );
+  assert.match(block, /NOR: Eliminated/);
+  assert.match(block, /cannot win the tournament/i);
+});
+
+test("formatKnockoutUrTakeAppendix covers advancement questions with ET/pens guidance", () => {
+  const matches = [
+    { round: "Round of 16", homeTeam: "NOR", awayTeam: "FRA", status: "NS", date: "2026-07-05" },
+  ];
+  const block = formatKnockoutUrTakeAppendix(
+    "ROUND_OF_16",
+    matches,
+    ["NOR", "FRA"],
+    "Norway vs France — who advances?",
+  );
+  assert.match(block, /advancement angles/i);
+  assert.match(block, /do not treat a draw price as a safe push/i);
+  assert.match(block, /\[R16\] NOR vs FRA/);
+});
+
+test("getTeamKnockoutStatus returns active with next fixture", () => {
+  const matches = [
+    { round: "Quarterfinal", homeTeam: "NOR", awayTeam: "ESP", status: "NS", date: "2026-07-10" },
+  ];
+  const status = getTeamKnockoutStatus("NOR", matches);
+  assert.equal(status.state, "active");
+  assert.ok(status.nextFixture);
+});
+
+test("formatKnockoutPhasePromptRules returns null outside knockout", () => {
+  assert.equal(formatKnockoutPhasePromptRules("GROUP_STAGE"), null);
+  assert.match(formatKnockoutPhasePromptRules("QUARTERFINALS"), /KNOCKOUT PHASE/);
 });
 
 test("filterOutrightsForQuestion keeps only mentioned teams", () => {

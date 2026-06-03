@@ -18,6 +18,41 @@ export const WC_KNOCKOUT_ROUND_COUNTS = {
 
 /** @typedef {"PRE_GROUP"|"GROUP_STAGE"|"ROUND_OF_32"|"ROUND_OF_16"|"QUARTERFINALS"|"SEMIFINALS"|"FINAL"|"POST_TOURNAMENT"} WcTournamentPhase */
 
+/** @typedef {"active"|"eliminated"|"champion"|"not_in_knockout"|"unknown"} WcKnockoutTeamState */
+
+const KNOCKOUT_ROUND_ORDER = { r32: 1, r16: 2, qf: 3, sf: 4, final: 5 };
+
+const PHASE_ROUND_LABEL = {
+  ROUND_OF_32: "Round of 32",
+  ROUND_OF_16: "Round of 16",
+  QUARTERFINALS: "Quarterfinals",
+  SEMIFINALS: "Semifinals",
+  FINAL: "Final",
+  POST_TOURNAMENT: "Post-tournament",
+};
+
+const ROUND_PHASE_NOTES = {
+  ROUND_OF_32:
+    "Round of 32: first knockout gate — 16 matches, no second chances. Upset variance is highest here.",
+  ROUND_OF_16:
+    "Round of 16: field narrowing to 8 — favor teams with reliable 90-minute control and bench depth.",
+  QUARTERFINALS:
+    "Quarterfinals: true title-contender tier — margins tighten; set pieces and keeper performance swing games.",
+  SEMIFINALS:
+    "Semifinals: two wins from the trophy — fatigue and card accumulation from prior rounds matter.",
+  FINAL:
+    "Final: single match for the title — treat 90-minute lines as regulation-only; ET/pens live if level.",
+  POST_TOURNAMENT: "Tournament complete — cite final results only.",
+};
+
+const ROUNDS_TO_WIN_FROM = {
+  ROUND_OF_32: ["R16", "QF", "SF", "Final"],
+  ROUND_OF_16: ["QF", "SF", "Final"],
+  QUARTERFINALS: ["SF", "Final"],
+  SEMIFINALS: ["Final"],
+  FINAL: [],
+};
+
 /**
  * @param {string | null | undefined} raw
  * @returns {"group"|"r32"|"r16"|"qf"|"sf"|"final"|"unknown"}
@@ -106,7 +141,244 @@ function maxKnockoutRoundKey(rows) {
  * @param {WcTournamentPhase} phase
  */
 export function isKnockoutPhase(phase) {
-  return !["PRE_GROUP", "GROUP_STAGE"].includes(phase);
+  return !["PRE_GROUP", "GROUP_STAGE", "POST_TOURNAMENT"].includes(phase);
+}
+
+/**
+ * @param {WcTournamentPhase} phase
+ */
+export function getKnockoutRoundLabel(phase) {
+  return PHASE_ROUND_LABEL[phase] || String(phase || "").replace(/_/g, " ");
+}
+
+/**
+ * @param {string} question
+ */
+export function isKnockoutAdvancementQuestion(question) {
+  return /\b(advance|advances|who wins|win the match|go through|knockout|eliminated|elimination|penalties|extra time|et\b|aet\b)\b/i.test(
+    String(question || ""),
+  );
+}
+
+/**
+ * @param {string} question
+ */
+export function isTournamentWinnerQuestion(question) {
+  return /\b(win (the )?(world cup|tournament|trophy|it all)|lift the trophy|outright|still win|path to|can .+ win)\b/i.test(
+    String(question || ""),
+  );
+}
+
+/**
+ * @param {Record<string, unknown>} match
+ * @param {string} abbr
+ */
+export function teamParticipatesInMatch(match, abbr) {
+  const key = String(abbr || "").toUpperCase();
+  return (
+    String(match?.homeTeam || "").toUpperCase() === key ||
+    String(match?.awayTeam || "").toUpperCase() === key
+  );
+}
+
+/**
+ * @param {Record<string, unknown>} match
+ * @param {string} abbr
+ */
+export function teamWonKnockoutMatch(match, abbr) {
+  if (!isKnockoutRound(match?.round) || !isWcFinishedStatus(match?.status)) return false;
+  if (!teamParticipatesInMatch(match, abbr)) return false;
+  const key = String(abbr).toUpperCase();
+  const home = String(match.homeTeam).toUpperCase();
+  const hs = Number(match.homeScore);
+  const as = Number(match.awayScore);
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) return false;
+  if (hs === as) return false;
+  if (home === key) return hs > as;
+  return as > hs;
+}
+
+/**
+ * @param {Record<string, unknown>} match
+ * @param {string} abbr
+ */
+export function teamLostKnockoutMatch(match, abbr) {
+  if (!isKnockoutRound(match?.round) || !isWcFinishedStatus(match?.status)) return false;
+  if (!teamParticipatesInMatch(match, abbr)) return false;
+  const key = String(abbr).toUpperCase();
+  const home = String(match.homeTeam).toUpperCase();
+  const hs = Number(match.homeScore);
+  const as = Number(match.awayScore);
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) return false;
+  if (hs === as) return false;
+  if (home === key) return hs < as;
+  return as < hs;
+}
+
+/**
+ * @param {string} abbr
+ * @param {Array<Record<string, unknown>>} matches
+ */
+export function getNextKnockoutFixtureForTeam(abbr, matches) {
+  const key = String(abbr || "").toUpperCase();
+  const rows = (matches || [])
+    .filter(
+      (m) =>
+        isKnockoutRound(m.round) &&
+        (String(m.status || "").toLowerCase() === "ns" ||
+          String(m.status || "").toLowerCase() === "scheduled" ||
+          String(m.status || "").toLowerCase() === "upcoming"),
+    )
+    .filter((m) => teamParticipatesInMatch(m, key))
+    .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0));
+  return rows[0] || null;
+}
+
+/**
+ * @param {string} abbr
+ * @param {Array<Record<string, unknown>>} matches
+ * @returns {{ state: WcKnockoutTeamState, eliminatedAt?: string, nextFixture?: Record<string, unknown>, lastWin?: Record<string, unknown> }}
+ */
+export function getTeamKnockoutStatus(abbr, matches) {
+  const key = String(abbr || "").toUpperCase();
+  const koMatches = (matches || []).filter(
+    (m) => isKnockoutRound(m.round) && teamParticipatesInMatch(m, key),
+  );
+
+  if (!koMatches.length) {
+    return { state: "not_in_knockout" };
+  }
+
+  const loss = koMatches.find((m) => teamLostKnockoutMatch(m, key));
+  if (loss) {
+    return { state: "eliminated", eliminatedAt: wcRoundKey(loss.round).toUpperCase() };
+  }
+
+  const nextFixture = getNextKnockoutFixtureForTeam(key, matches);
+  if (nextFixture) {
+    return { state: "active", nextFixture };
+  }
+
+  const wins = koMatches.filter((m) => teamWonKnockoutMatch(m, key));
+  const lastWin = wins.sort((a, b) => (Number(b.commenceTs) || 0) - (Number(a.commenceTs) || 0))[0];
+  if (lastWin && wcRoundKey(lastWin.round) === "final") {
+    return { state: "champion", lastWin };
+  }
+  if (lastWin) {
+    return { state: "active", lastWin };
+  }
+
+  const tiedFt = koMatches.find(
+    (m) =>
+      isWcFinishedStatus(m.status) &&
+      Number(m.homeScore) === Number(m.awayScore) &&
+      teamParticipatesInMatch(m, key),
+  );
+  if (tiedFt) {
+    return { state: "unknown", lastWin: tiedFt };
+  }
+
+  return { state: "unknown" };
+}
+
+/**
+ * @param {string} abbr
+ * @param {WcTournamentPhase} phase
+ * @param {ReturnType<typeof getTeamKnockoutStatus>} status
+ */
+function formatTeamPathLine(abbr, phase, status) {
+  const key = String(abbr).toUpperCase();
+  if (status.state === "not_in_knockout") {
+    return `  ${key}: Not on a verified knockout fixture yet — do not claim elimination or advancement without feed data.`;
+  }
+  if (status.state === "eliminated") {
+    return `  ${key}: Eliminated at ${status.eliminatedAt || "knockout"} — cannot win the tournament.`;
+  }
+  if (status.state === "champion") {
+    return `  ${key}: Won the Final — tournament champion per verified results.`;
+  }
+
+  const roundsLeft = ROUNDS_TO_WIN_FROM[phase] || [];
+  const roundsText = roundsLeft.length ? roundsLeft.join(" → ") : "Final only";
+
+  if (status.nextFixture) {
+    const fx = status.nextFixture;
+    const rk = wcRoundKey(fx.round).toUpperCase();
+    const opp =
+      String(fx.homeTeam).toUpperCase() === key ? fx.awayTeam : fx.homeTeam;
+    return `  ${key}: Active — next ${rk} vs ${opp} (${fx.date || "TBD"}). Wins needed to lift trophy: ${roundsText || "verify bracket"}.`;
+  }
+
+  if (status.lastWin) {
+    const rk = wcRoundKey(status.lastWin.round).toUpperCase();
+    return `  ${key}: Advanced through ${rk} — awaiting next verified knockout opponent. Wins still needed: ${roundsText || "verify bracket"}.`;
+  }
+
+  return `  ${key}: Knockout status uncertain — use verified fixtures only; do not invent advancement.`;
+}
+
+/**
+ * @param {WcTournamentPhase} phase
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {string[]} [mentionedTeams]
+ * @param {string} [question]
+ * @returns {string | null}
+ */
+export function formatKnockoutUrTakeAppendix(phase, matches, mentionedTeams = [], question = "") {
+  if (!isKnockoutPhase(phase)) return null;
+
+  const lines = [
+    "KNOCKOUT STAGE RULES (binding):",
+    "  Single elimination — one loss ends the run (except where feed shows a separate third-place match).",
+    "  Regulation draw → extra time → penalty shootout if still level. 90-minute moneylines do NOT settle as a draw for advancement purposes.",
+    "  Away goals rule does NOT apply in 2026.",
+    "  For match 1X2 bets in knockout: cite FIXTURE MATCH ODDS as regulation-time prices only unless the feed states otherwise.",
+    "  For advancement or \"who wins the match\" questions: factor ET/pens — do not treat a draw price as a safe push.",
+    `  Current tournament round: ${getKnockoutRoundLabel(phase)} (${phase}).`,
+  ];
+
+  const roundNote = ROUND_PHASE_NOTES[phase];
+  if (roundNote) lines.push(`  Round note: ${roundNote}`);
+
+  if (isTournamentWinnerQuestion(question) || isKnockoutAdvancementQuestion(question)) {
+    lines.push(
+      "  For \"can X still win?\" or advancement angles: use CITED TEAM PATH below + remaining bracket — do not rely on group-stage strength tags alone.",
+    );
+  }
+
+  const teams = mentionedTeams.length
+    ? mentionedTeams.map((t) => String(t).toUpperCase())
+    : [];
+
+  if (teams.length) {
+    lines.push("", "CITED TEAM PATH (verified knockout feed):");
+    for (const abbr of teams) {
+      lines.push(formatTeamPathLine(abbr, phase, getTeamKnockoutStatus(abbr, matches)));
+    }
+  }
+
+  const bracket = formatKnockoutBracketPrompt(matches, mentionedTeams);
+  if (bracket) {
+    lines.push("", bracket);
+  } else {
+    lines.push("", "KNOCKOUT BRACKET: No verified knockout fixtures loaded yet.");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * @param {WcTournamentPhase} phase
+ */
+export function formatKnockoutPhasePromptRules(phase) {
+  if (!isKnockoutPhase(phase)) return null;
+  return [
+    "KNOCKOUT PHASE (mandatory):",
+    "  Do not answer as if the group stage is still undecided unless VERIFIED CONTEXT shows open group matches.",
+    "  Use KNOCKOUT STAGE RULES and bracket path for advancement and tournament-winner questions.",
+    "  Match draw percentages from Elo are regulation-oriented — in knockout, ties go to extra time and penalties.",
+    `  Active round: ${getKnockoutRoundLabel(phase)}.`,
+  ].join("\n");
 }
 
 /**
@@ -164,21 +436,47 @@ export function formatKnockoutBracketPrompt(matches, mentionedTeams = []) {
       : rows;
 
   const use = filtered.length ? filtered : rows;
+  const byRound = { r32: [], r16: [], qf: [], sf: [], final: [] };
+  for (const m of use) {
+    const rk = wcRoundKey(m.round);
+    if (byRound[rk]) byRound[rk].push(m);
+  }
+
   const lines = [
     "KNOCKOUT BRACKET (verified fixtures):",
-    "  Extra time + penalties if level after 90 — away goals rule does NOT apply (2026).",
   ];
 
-  for (const m of use.slice(0, 16)) {
-    const rk = wcRoundKey(m.round);
-    const label = rk.toUpperCase();
-    const score =
-      isWcFinishedStatus(m.status) && m.homeScore != null
-        ? ` ${m.homeScore}-${m.awayScore}`
-        : "";
-    lines.push(
-      `  [${label}] ${m.homeTeam}${score} vs ${m.awayTeam} — ${m.date || ""} ${m.status || "NS"}`.trim(),
-    );
+  for (const [key, label] of [
+    ["r32", "R32"],
+    ["r16", "R16"],
+    ["qf", "QF"],
+    ["sf", "SF"],
+    ["final", "FINAL"],
+  ]) {
+    const roundRows = byRound[key];
+    if (!roundRows.length) continue;
+    for (const m of roundRows.slice(0, 8)) {
+      const score =
+        isWcFinishedStatus(m.status) && m.homeScore != null
+          ? ` ${m.homeScore}-${m.awayScore}`
+          : "";
+      lines.push(
+        `  [${label}] ${m.homeTeam}${score} vs ${m.awayTeam} — ${m.date || ""} ${m.status || "NS"}`.trim(),
+      );
+    }
+  }
+
+  if (lines.length === 1) {
+    for (const m of use.slice(0, 16)) {
+      const rk = wcRoundKey(m.round).toUpperCase();
+      const score =
+        isWcFinishedStatus(m.status) && m.homeScore != null
+          ? ` ${m.homeScore}-${m.awayScore}`
+          : "";
+      lines.push(
+        `  [${rk}] ${m.homeTeam}${score} vs ${m.awayTeam} — ${m.date || ""} ${m.status || "NS"}`.trim(),
+      );
+    }
   }
 
   return lines.join("\n");

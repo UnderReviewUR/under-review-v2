@@ -16,7 +16,8 @@ import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 import {
   filterOutrightsForQuestion,
-  formatKnockoutBracketPrompt,
+  formatKnockoutPhasePromptRules,
+  formatKnockoutUrTakeAppendix,
   formatWorldCupPhaseRules,
   getWorldCupPhase,
   isKnockoutPhase,
@@ -366,16 +367,23 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     "",
     formatWorldCupPhaseRules(phase),
     "",
+  ];
+
+  if (ctx.knockoutAppendix) {
+    lines.push(ctx.knockoutAppendix, "");
+  }
+
+  if (ctx.knockoutPhaseRules) {
+    lines.push(ctx.knockoutPhaseRules, "");
+  }
+
+  lines.push(
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
     "",
-  ];
+  );
 
   if (breaking) {
     lines.push("WC BREAKING (manual override — treat as authoritative over stale feed):", `  ${breaking}`, "");
-  }
-
-  if (ctx.knockoutBlock) {
-    lines.push(ctx.knockoutBlock, "");
   }
 
   const groupLetters = Object.keys(groupsForPrompt).sort();
@@ -445,10 +453,13 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
       lines.push(block);
     }
   } else if (Array.isArray(ctx.fixtures) && ctx.fixtures.length) {
+    const koFixture = ctx.fixtures.some((fx) => isKnockoutRound(fx.round));
     lines.push(
       "",
       "FIXTURE MATCH ODDS: No live 1X2 lines in verified feed for cited fixture(s).",
-      "  Use Elo win/draw/loss structure only — do not invent match prices.",
+      koFixture
+        ? "  Knockout fixture — use Elo structure for regulation lean only; advancement may require ET/pens (see KNOCKOUT STAGE RULES)."
+        : "  Use Elo win/draw/loss structure only — do not invent match prices.",
     );
   }
 
@@ -524,9 +535,10 @@ export async function buildWorldCupUrTakeContext(question = "") {
     mentionedTeams,
     fixtures,
   });
-  const knockoutBlock = isKnockoutPhase(phase)
-    ? formatKnockoutBracketPrompt(matches, mentionedTeams)
+  const knockoutAppendix = isKnockoutPhase(phase)
+    ? formatKnockoutUrTakeAppendix(phase, matches, mentionedTeams, question)
     : null;
+  const knockoutPhaseRules = formatKnockoutPhasePromptRules(phase);
 
   const resultsForPrompt = selectResultsForPrompt(results, phase);
   const upcomingForPrompt = selectUpcomingForPrompt(upcoming, matches, phase);
@@ -547,7 +559,8 @@ export async function buildWorldCupUrTakeContext(question = "") {
     phase,
     groups,
     groupsForPrompt,
-    knockoutBlock,
+    knockoutAppendix,
+    knockoutPhaseRules,
     live,
     results: resultsForPrompt,
     upcoming: upcomingForPrompt,

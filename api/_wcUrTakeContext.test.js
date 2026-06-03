@@ -4,6 +4,7 @@ import {
   formatOutrightsForPrompt,
   formatWorldCupUrTakePromptBlock,
 } from "./_wcUrTakeContext.js";
+import { formatKnockoutUrTakeAppendix } from "../shared/wcPhaseUtils.js";
 
 test("formatWorldCupUrTakePromptBlock includes groups without Elo label", () => {
   const block = formatWorldCupUrTakePromptBlock({
@@ -146,6 +147,12 @@ test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odd
 });
 
 test("formatWorldCupUrTakePromptBlock slim knockout context for Norway path question", () => {
+  const knockoutAppendix = formatKnockoutUrTakeAppendix(
+    "QUARTERFINALS",
+    [{ round: "Quarterfinal", homeTeam: "NOR", awayTeam: "ESP", status: "NS", date: "2026-07-10" }],
+    ["NOR"],
+    "Can Norway still win the tournament?",
+  );
   const block = formatWorldCupUrTakePromptBlock({
     tournament: "2026 FIFA World Cup",
     hosts: ["USA"],
@@ -158,8 +165,8 @@ test("formatWorldCupUrTakePromptBlock slim knockout context for Norway path ques
     groupsForPrompt: {
       I: [{ name: "Norway", strengthTag: "Contender" }],
     },
-    knockoutBlock:
-      "KNOCKOUT BRACKET (verified fixtures):\n  [QF] NOR vs ESP — 2026-07-10 NS",
+    knockoutAppendix,
+    knockoutPhaseRules: "KNOCKOUT PHASE (mandatory):\n  Active round: Quarterfinals.",
     live: [],
     results: [],
     upcoming: [{ homeTeam: "NOR", awayTeam: "ESP", round: "Quarterfinal", date: "2026-07-10" }],
@@ -168,8 +175,30 @@ test("formatWorldCupUrTakePromptBlock slim knockout context for Norway path ques
     outrightsBlock: "CURRENT OUTRIGHT ODDS:\n  NOR: +2500",
   });
   assert.match(block, /Phase: QUARTERFINALS/);
-  assert.match(block, /KNOCKOUT BRACKET/);
+  assert.match(block, /KNOCKOUT STAGE RULES/);
+  assert.match(block, /KNOCKOUT PHASE \(mandatory\)/);
+  assert.match(block, /CITED TEAM PATH/);
   assert.match(block, /question-scoped/i);
   assert.doesNotMatch(block, /Group A:/);
   assert.match(block, /Group I:/);
+});
+
+test("formatWorldCupUrTakePromptBlock knockout fixture odds fallback mentions ET/pens", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_16",
+    groups: { I: [{ name: "Norway", abbreviation: "NOR", strengthTag: "Contender" }] },
+    groupsForPrompt: { I: [{ name: "Norway", strengthTag: "Contender" }] },
+    knockoutAppendix: "KNOCKOUT STAGE RULES (binding):\n  Away goals rule does NOT apply in 2026.",
+    knockoutPhaseRules: "KNOCKOUT PHASE (mandatory):",
+    live: [],
+    results: [],
+    upcoming: [],
+    fixtures: [{ id: "1", homeTeam: "NOR", awayTeam: "FRA", round: "Round of 16" }],
+    fixtureOddsBlocks: [],
+  });
+  assert.match(block, /Knockout fixture — use Elo structure for regulation lean only/);
+  assert.match(block, /ET\/pens/);
 });
