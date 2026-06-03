@@ -4,6 +4,7 @@
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
+import { stripRulesThreadBleed } from "./wcUrTakeRules.js";
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value)\b/i;
@@ -26,10 +27,12 @@ export function normalizeWcStructuredForDelivery(
   const out = { ...structured, sport: structured.sport || "worldcup" };
 
   if (intent === WC_INTENT.RULES) {
-    const summary = String(out.whyNow || out.lean || out.call || "").trim();
+    const rawSummary = String(out.whyNow || out.lean || out.call || "").trim();
+    const summary = stripRulesThreadBleed(rawSummary, requiredEntities);
     out.callType = "rules";
     out.call = summary.slice(0, 240) || "Knockout rules reference";
     out.lean = summary.replace(/^lean:\s*/i, "").slice(0, 240);
+    out.whyNow = summary;
     out.edge = "Factual tournament rules — not a betting pick.";
     out.confidence = "High";
     return out;

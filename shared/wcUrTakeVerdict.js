@@ -18,10 +18,12 @@ const RULES_QUESTION_RE =
  * @param {object | null | undefined} message
  * @returns {string | null}
  */
-export function resolveWcIntentFromMessage(message) {
+export function resolveWcIntentFromMessage(message, userQuestion = "") {
   const direct = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
   if (direct) return String(direct);
-  const q = String(message?.question || message?.userQuestion || "").trim();
+  const q = String(
+    message?.question || message?.userQuestion || userQuestion || "",
+  ).trim();
   if (RULES_QUESTION_RE.test(q)) return WC_INTENT.RULES;
   if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
   if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
@@ -32,8 +34,8 @@ export function resolveWcIntentFromMessage(message) {
  * @param {object | null | undefined} message
  * @returns {WcUrTakeVerdict}
  */
-export function classifyWcVerdictForUi(message) {
-  const wcIntent = resolveWcIntentFromMessage(message);
+export function classifyWcVerdictForUi(message, userQuestion = "") {
+  const wcIntent = resolveWcIntentFromMessage(message, userQuestion);
   const s = message?.structured && typeof message.structured === "object" ? message.structured : null;
   const callType = String(s?.callType || "").toLowerCase();
 
@@ -66,7 +68,9 @@ export function classifyWcVerdictForUi(message) {
   if (FAIR_PRICE_RE.test(parts)) return "FAIR_PRICE";
   if (EDGE_RE.test(parts)) return "HAS_EDGE";
 
-  if (/\b(vs\.?|versus|advances)\b/i.test(String(message?.question || message?.userQuestion || ""))) {
+  if (/\b(vs\.?|versus|advances)\b/i.test(
+    String(message?.question || message?.userQuestion || userQuestion || ""),
+  )) {
     return "MATCHUP";
   }
 

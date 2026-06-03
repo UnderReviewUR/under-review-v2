@@ -2007,7 +2007,18 @@ ${themeCss}
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
     const structuredRaw = structuredPayloadFromApi(data);
-    const structuredForBubble = structuredRaw ? sanitizeStructuredBubbleShape(structuredRaw) : null;
+    let structuredForBubble = structuredRaw ? sanitizeStructuredBubbleShape(structuredRaw) : null;
+    if (
+      structuredForBubble &&
+      String(data.wcIntent || "").toUpperCase() === "RULES"
+    ) {
+      structuredForBubble = {
+        ...structuredForBubble,
+        callType: "rules",
+        sport: "worldcup",
+        edge: structuredForBubble.edge || "Factual tournament rules — not a betting pick.",
+      };
+    }
 
     const snagPhrase = "The feed hit a snag on that one";
     const isApiSuccessFallback =

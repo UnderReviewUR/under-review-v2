@@ -1042,13 +1042,15 @@ function polishFollowUpList(list) {
 }
 
 /** Prefer API followUps when present; otherwise derive three chips from answer text (parlay / O-U / slate / default). */
-export function getFollowUpSuggestions(message) {
+export function getFollowUpSuggestions(message, userQuestion = "") {
   const apiRaw = Array.isArray(message?.followUps) ? message.followUps : [];
   const api = apiRaw.map((t) => String(t).trim()).filter(Boolean);
 
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
   if (sport === "worldcup") {
-    const verdictChips = getVerdictFollowUpChips(classifyWcVerdictForUi(message));
+    const verdictChips = getVerdictFollowUpChips(
+      classifyWcVerdictForUi(message, userQuestion),
+    );
     const wcIntentKnown = Boolean(message?.wcIntent || message?.urTakeTelemetry?.wcIntent);
     if (wcIntentKnown) return polishFollowUpList(verdictChips);
     if (api.length >= 3) return polishFollowUpList(api.slice(0, 3));
@@ -1097,13 +1099,23 @@ export function getFollowUpSuggestions(message) {
   return polishFollowUpList(mergeFollowUpChips(api, fallback));
 }
 
+/** @param {object[]} msgs @param {number} aiIndex */
+function resolvePriorUserQuestionForAi(msgs, aiIndex) {
+  if (!Array.isArray(msgs)) return "";
+  for (let j = aiIndex - 1; j >= 0; j -= 1) {
+    const row = msgs[j];
+    if (row?.role === "user") return String(row.text || "").trim();
+  }
+  return "";
+}
+
 /** Last AI bubble + suggestions for docked follow-up chips (Ask + sport surfaces). */
 export function getLastAiFollowUpDockSource(msgs) {
   if (!Array.isArray(msgs)) return null;
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i];
     if (!m || m.loading || m.role !== "ai") continue;
-    const followUps = getFollowUpSuggestions(m);
+    const followUps = getFollowUpSuggestions(m, resolvePriorUserQuestionForAi(msgs, i));
     return {
       msgId: m.msgId,
       followUps,
@@ -1557,11 +1569,11 @@ function UrTakeChaseCalmInset() {
 }
 
 /** Inline continuation nudge after a completed UR Take (all answer shapes). */
-function UrTakeNextContinuationLine({ message = null }) {
+function UrTakeNextContinuationLine({ message = null, userQuestion = "" }) {
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
   const line =
     sport === "worldcup"
-      ? getVerdictNextLine(classifyWcVerdictForUi(message))
+      ? getVerdictNextLine(classifyWcVerdictForUi(message, userQuestion))
       : "Next: what's one thing that could break this?";
   return <p className="ur-take-next-line">{line}</p>;
 }
@@ -1693,7 +1705,7 @@ function UrTakeAiBubble({
 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
-  const dockFollowUps = getFollowUpSuggestions(m);
+  const dockFollowUps = getFollowUpSuggestions(m, userQuestion);
   const summaryText = stripEmbeddedFollowUpQuestions(
     stripLeadingUrTakeDisclaimersForDisplay(m.text),
     dockFollowUps,
@@ -1823,7 +1835,7 @@ function UrTakeAiBubble({
           onViewWcMatch={onViewWcMatch}
           message={m}
         />
-        <UrTakeNextContinuationLine message={m} />
+        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
         {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
@@ -1872,7 +1884,7 @@ function UrTakeAiBubble({
           </button>
           <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
         </div>
-        <UrTakeNextContinuationLine message={m} />
+        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
         {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
@@ -1900,7 +1912,7 @@ function UrTakeAiBubble({
             <UrTakeShareButton headline={plainHeadline} bodyChunks={[summaryText]} />
           </div>
         </div>
-        <UrTakeNextContinuationLine message={m} />
+        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
         {wcConfidenceChip}
         {trustChips}
         {showTrack ? (
@@ -1990,7 +2002,7 @@ function UrTakeAiBubble({
             confidence={parsed.confidence}
             compactBubble={true}
           />
-          <UrTakeNextContinuationLine message={m} />
+          <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
 
           {(m.deepText || showTrack) && (
             <div
@@ -2289,9 +2301,10 @@ export function ChatThread({
 
         let showUrTakeResponseBubbleHost = false;
         if (m.role === "ai" && !m.loading) {
+          const priorUserQuestion = resolvePriorUserQuestionForAi(msgs, i);
           const hostSummary = stripEmbeddedFollowUpQuestions(
             stripLeadingUrTakeDisclaimersForDisplay(m.text),
-            getFollowUpSuggestions(m),
+            getFollowUpSuggestions(m, priorUserQuestion),
           );
           showUrTakeResponseBubbleHost = Boolean(
             resolveEffectiveUrTakeStructuredFromSummary(m, hostSummary),

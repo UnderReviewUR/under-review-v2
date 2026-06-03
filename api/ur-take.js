@@ -60,6 +60,7 @@ import {
 } from "../shared/wcUrTakeMatchup.js";
 import { buildPriceBindingPromptBlock } from "../shared/wcUrTakePricing.js";
 import { normalizeWcStructuredForDelivery } from "../shared/wcUrTakeStructured.js";
+import { stripRulesThreadBleed, WC_RULES_TURN_APPENDIX } from "../shared/wcUrTakeRules.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
   buildUrTakeSportTurnScopeRules,
@@ -5559,7 +5560,7 @@ export default async function handler(req, res) {
     : "";
   /** Structured mode must NOT also attach summary/deep JSON contract — model would return wrong shape and validation always fails. */
   const attachTieredJsonContract =
-    outputJsonMode !== "plain" && Boolean(jsonContract) && !structuredModeRequested;
+    outputJsonMode !== "plain" && Boolean(jsonContract) && !effectiveStructuredModeRequested;
   let systemPromptForModel = attachTieredJsonContract
       ? `${systemPrompt}
 
@@ -5585,6 +5586,9 @@ ${nbaLiveNoPropSystemPromptBlock}`;
       systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
       systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
     }
+  }
+  if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+    systemPromptForModel = `${systemPromptForModel}\n\n${WC_RULES_TURN_APPENDIX}`;
   }
 
   if (
@@ -6929,7 +6933,8 @@ Confidence guidance:
     const wcIntentRules = isWcRulesIntent
       ? `- Answer with tournament rules only. Do NOT lead with a betting take or group-stage prediction.
 - Lead sentence one with the direct answer about extra time, penalties, or the specific rule asked.
-- No team advancement picks unless the user asked about a specific matchup.`
+- No team advancement picks unless the user asked about a specific matchup.
+- Do NOT reference prior chat turns, teams, or pricing/matchup questions — this turn is rules-only.`
       : isWcMatchupIntent
         ? `- Return JSON per OUTPUT CONTRACT: summary = balanced advancement read (150 words max); deep = full reasoning (no word limit).
 - Sentence one must name BOTH required teams and their strength tags from VERIFIED CONTEXT.
@@ -7899,24 +7904,49 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     }
 
     if (sportHint === "worldcup") {
-      if (structuredResponse && typeof structuredResponse === "object") {
+      const bleedForbidden = [...wcForbiddenEntities, ...wcRequiredEntities];
+      if (wcIntent === WC_INTENT.RULES) {
+        const cleanedSummary = stripRulesThreadBleed(
+          String(responseText || ""),
+          bleedForbidden,
+        );
+        const cleanedDeep = responseDeep
+          ? stripRulesThreadBleed(String(responseDeep), bleedForbidden)
+          : null;
+        responseText = cleanedSummary || responseText;
+        if (cleanedDeep) responseDeep = cleanedDeep;
+
         structuredResponse = normalizeWcStructuredForDelivery(
-          structuredResponse,
+          structuredResponse && typeof structuredResponse === "object"
+            ? {
+                ...structuredResponse,
+                whyNow: stripRulesThreadBleed(
+                  String(structuredResponse.whyNow || structuredResponse.lean || responseText),
+                  bleedForbidden,
+                ),
+              }
+            : {
+                sport: "worldcup",
+                call: responseText.slice(0, 240),
+                lean:
+                  responseText
+                    .split("\n")
+                    .map((l) => l.trim())
+                    .find(Boolean)
+                    ?.slice(0, 240) || responseText.slice(0, 240),
+                whyNow: responseText,
+                edge: "Factual tournament rules — not a betting pick.",
+                confidence: "High",
+              },
           wcIntent,
           String(question || ""),
           wcRequiredEntities,
         );
-      } else if (wcIntent === WC_INTENT.RULES) {
-        const summary = String(responseText || "").trim();
+        const formattedRules = formatStructuredResponseAsUrTakeProse(structuredResponse);
+        if (formattedRules.trim()) responseText = formattedRules;
+      } else if (structuredResponse && typeof structuredResponse === "object") {
         structuredResponse = normalizeWcStructuredForDelivery(
-          {
-            sport: "worldcup",
-            call: summary.slice(0, 240),
-            lean: summary.split("\n").map((l) => l.trim()).find(Boolean)?.slice(0, 240) || summary.slice(0, 240),
-            whyNow: summary,
-            edge: "Factual tournament rules — not a betting pick.",
-            confidence: "High",
-          },
+          structuredResponse,
           wcIntent,
           String(question || ""),
           wcRequiredEntities,

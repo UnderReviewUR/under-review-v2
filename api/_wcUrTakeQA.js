@@ -5,6 +5,7 @@
 import { textMentionsAnyWcTeam, textMentionsWcTeam } from "../shared/wcUrTakeEntityBinding.js";
 import { detectContenderAheadOfFavoriteClaim } from "../shared/wcUrTakeMatchup.js";
 import { detectUncitedAmericanOdds } from "../shared/wcUrTakePricing.js";
+import { detectRulesThreadBleed } from "../shared/wcUrTakeRules.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 
 const BETTING_LEAD_RE =
@@ -75,6 +76,14 @@ export function runWcUrTakeQA(opts = {}) {
   if (wcIntent === WC_INTENT.RULES) {
     if (BETTING_LEAD_RE.test(headline)) issueCodes.push("wc_rules_betting_lead");
     if (!RULES_CONTENT_RE.test(body)) issueCodes.push("wc_rules_missing_content");
+    if (
+      detectRulesThreadBleed(body, String(opts.question || ""), [
+        ...forbiddenEntities,
+        ...requiredEntities,
+      ])
+    ) {
+      issueCodes.push("wc_rules_thread_bleed");
+    }
   }
 
   if (wcIntent === WC_INTENT.ENTITY_PRICING) {
@@ -138,6 +147,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_entity_missing",
       "wc_forbidden_entity_headline",
       "wc_rules_betting_lead",
+      "wc_rules_thread_bleed",
       "wc_matchup_contender_ahead_of_favorite",
       "wc_matchup_missing_team_headline",
       "wc_price_uncited_citation",
@@ -150,7 +160,7 @@ export const WC_QA_REGENERATION_SUFFIX = `
 WC QA REGENERATION (mandatory — prior answer failed relevance checks):
 - Answer ONLY the user's current question and REQUIRED ENTITIES from the user message.
 - Do not recycle a prior thread thesis or a different team/group.
-- For rules questions: lead with extra time and penalty shootout facts — no group-stage betting take.
+- For rules questions: lead with extra time and penalty shootout facts — no group-stage betting take; do not reference prior thread teams or "you asked about…" narration.
 - For group-stage MATCHUP questions: both teams can advance — frame 1st/2nd place paths; do not claim a Contender finishes ahead of the group Favorite without verified odds or form.
 - For ENTITY_PRICING: never cite a +XXXX price unless it appears in the current question or VERIFIED CONTEXT for that exact team.
 - Sentence one must directly answer the question with the correct team(s) named and strength tags acknowledged.`;

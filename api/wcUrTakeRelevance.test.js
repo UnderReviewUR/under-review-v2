@@ -171,6 +171,24 @@ test("runWcUrTakeQA — Brazil answer with Norway +2500 bleed fails", () => {
   assert.equal(wcQaRequiresRegeneration(qa), true);
 });
 
+test("runWcUrTakeQA — rules answer with prior thread bleed fails", () => {
+  const qa = runWcUrTakeQA({
+    responseText:
+      "You asked about Norway vs France advancement. Extra time is two 15-minute periods, then penalties.",
+    structured: {
+      lean: "Lean: Knockout rules apply after regulation.",
+      whyNow: "You asked about Norway vs France advancement.",
+    },
+    question: WC_RELEVANCE_REGRESSION_TURNS[3].question,
+    wcIntent: WC_INTENT.RULES,
+    requiredEntities: [],
+    forbiddenEntities: ["NOR", "FRA", "BRA"],
+  });
+  assert.equal(qa.passed, false);
+  assert.ok(qa.issueCodes.includes("wc_rules_thread_bleed"));
+  assert.equal(wcQaRequiresRegeneration(qa), true);
+});
+
 test("buildWcSessionMemoryPrompt — RULES intent skips prior takes", () => {
   const history = [
     { role: "user", content: "Norway at +2500 — mispriced?" },
