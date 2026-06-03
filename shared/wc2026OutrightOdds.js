@@ -40,8 +40,18 @@ export function resolveWcOutrightOdds(abbr, kvOutrights, staticOutright) {
  * @param {Record<string, string> | null | undefined} kvOutrights
  */
 export function mergeWcTeamsWithOutrights(teams, kvOutrights) {
-  return (teams || []).map((t) => ({
-    ...t,
-    outrightOdds: resolveWcOutrightOdds(t.abbreviation, kvOutrights, t.outrightOdds),
-  }));
+  return (teams || []).map((t) => {
+    const key = String(t.abbreviation || "")
+      .trim()
+      .toUpperCase();
+    const live = key ? kvOutrights?.[key] : null;
+    const hasLive = live != null && String(live).trim();
+    const hasStatic = t.outrightOdds != null && String(t.outrightOdds).trim();
+
+    return {
+      ...t,
+      outrightOdds: resolveWcOutrightOdds(t.abbreviation, kvOutrights, t.outrightOdds),
+      outrightOddsSource: hasLive ? "kv" : hasStatic ? "static" : "none",
+    };
+  });
 }

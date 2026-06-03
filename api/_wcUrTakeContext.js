@@ -4,7 +4,7 @@
  */
 
 import { getDurableJson } from "./_durableStore.js";
-import { readWcMatchDetailFromKv } from "./_wcData.js";
+import { readWcMatchDetailFromKv, readWcOutrightsFromKv } from "./_wcData.js";
 import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
 import { getEnv } from "./_env.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
@@ -32,6 +32,44 @@ const WC_BREAKING = "";
 
 const WC_LINEUP_UNCONFIRMED_RULE =
   "Starting XI is NOT confirmed in the verified feed. Do not name expected starters, do not recommend starter-specific or goal-scorer props. Say uncertain or Pass / no play until lineups are confirmed.";
+
+const WC_OUTRIGHTS_MISPRICED_RULE =
+  'When claiming a team is "mispriced", you MUST cite the exact odds from CURRENT OUTRIGHT ODDS above (team abbreviation + price).';
+
+const WC_OUTRIGHTS_NO_MISPRICED_RULE =
+  'If CURRENT OUTRIGHT ODDS says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength and tournament structure, this team should be priced...").';
+
+const WC_OUTRIGHTS_NO_INVENT_RULE = "Do not invent odds under any circumstances.";
+
+/**
+ * @param {{ outrights?: Record<string, string>, lastUpdated?: number, source?: string } | null | undefined} outrightsKv
+ * @returns {string | null}
+ */
+export function formatOutrightsForPrompt(outrightsKv) {
+  if (!outrightsKv?.outrights || Object.keys(outrightsKv.outrights).length === 0) {
+    return null;
+  }
+
+  const lines = Object.entries(outrightsKv.outrights)
+    .sort((a, b) => {
+      const oddsA = Number.parseInt(String(a[1]).replace(/[+-]/, ""), 10) || 99999;
+      const oddsB = Number.parseInt(String(b[1]).replace(/[+-]/, ""), 10) || 99999;
+      return oddsA - oddsB;
+    })
+    .slice(0, 20)
+    .map(([abbr, odds]) => `  ${abbr}: ${odds}`);
+
+  const updatedIso = formatVerifiedAsOf(outrightsKv.lastUpdated);
+  const source = String(outrightsKv.source || "espn").toUpperCase();
+
+  return `CURRENT OUTRIGHT ODDS (ESPN primary + Odds API fallback, refreshed ~every 3 hours):
+${lines.join("\n")}
+Last updated: ${updatedIso}
+Source: ${source}
+${WC_OUTRIGHTS_MISPRICED_RULE}
+${WC_OUTRIGHTS_NO_MISPRICED_RULE}
+${WC_OUTRIGHTS_NO_INVENT_RULE}`;
+}
 
 /**
  * @param {number | string | undefined} ts
@@ -380,6 +418,17 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("", "INJURY / AVAILABILITY:", `  ${WC_INJURY_UNCERTAINTY_RULE}`);
   }
 
+  lines.push("");
+  if (ctx.outrightsBlock) {
+    lines.push(ctx.outrightsBlock);
+  } else {
+    lines.push(
+      "CURRENT OUTRIGHT ODDS: No live outright odds available at this time.",
+      `  ${WC_OUTRIGHTS_NO_MISPRICED_RULE}`,
+      `  ${WC_OUTRIGHTS_NO_INVENT_RULE}`,
+    );
+  }
+
   lines.push(
     "",
     "VOICE: JSON summary — lead with the answer in sentence one (team + verdict, no setup), then 2-3 support sentences, 150 words max. JSON deep — full reasoning, no word limit. Plain sentences in summary, no bullet lists, no disclaimers. Name teams and groups from this block.",
@@ -411,9 +460,10 @@ async function loadWorldCupMatchesPayload() {
 }
 
 export async function buildWorldCupUrTakeContext(question = "") {
-  const [groupsPayload, matchesPayload] = await Promise.all([
+  const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
     loadWorldCupGroupsPayload(),
     loadWorldCupMatchesPayload(),
+    readWcOutrightsFromKv(),
   ]);
 
   const staticGroups = buildStaticGroups();
@@ -434,6 +484,7 @@ export async function buildWorldCupUrTakeContext(question = "") {
   }
 
   const dataConfidence = deriveWcDataConfidence(matchDetails);
+  const outrightsBlock = formatOutrightsForPrompt(outrightsKv);
 
   const ctx = {
     source: "world_cup_2026",
@@ -446,9 +497,12 @@ export async function buildWorldCupUrTakeContext(question = "") {
     upcoming,
     matchDetails,
     dataConfidence,
+    outrightsKv: outrightsKv?.outrights || null,
+    outrightsBlock,
     lastUpdated: Math.max(
       Number(groupsPayload?.lastUpdated) || 0,
       Number(matchesPayload?.lastUpdated) || 0,
+      Number(outrightsKv?.lastUpdated) || 0,
       ...matchDetails.map((d) => Number(d.lastUpdated) || 0),
     ),
   };

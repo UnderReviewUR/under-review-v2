@@ -24,4 +24,11 @@ test("mergeWcTeamsWithOutrights overlays live prices", () => {
     { CZE: "+18000" },
   );
   assert.equal(merged[0].outrightOdds, "+18000");
+  assert.equal(merged[0].outrightOddsSource, "kv");
+});
+
+test("mergeWcTeamsWithOutrights marks static fallback when KV missing", () => {
+  const merged = mergeWcTeamsWithOutrights([{ abbreviation: "NOR", outrightOdds: "+2500" }], {});
+  assert.equal(merged[0].outrightOdds, "+2500");
+  assert.equal(merged[0].outrightOddsSource, "static");
 });

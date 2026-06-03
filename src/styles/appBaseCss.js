@@ -1955,6 +1955,7 @@ export const baseCss = `
   .wc-live-score-num{font-size:18px;font-weight:800;display:block;}
   .wc-empty{color:var(--muted);font-size:12px;padding:16px 0;text-align:center;}
   .wc-muted{color:var(--muted);font-size:11px;}
+  .wc-outright-fallback{color:#d97706;font-size:10px;font-weight:500;}
   .wc-bracket-note{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
   .wc-bracket-grid{display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;}
   .wc-bracket-col{flex:0 0 140px;display:flex;flex-direction:column;gap:8px;}

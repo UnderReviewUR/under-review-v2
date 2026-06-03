@@ -311,7 +311,12 @@ export default function WorldCupScreen({
               </div>
               <div>
                 <span className="wc-stat-label">Outright</span>
-                <span className="wc-stat-val">{formatWcOutrightOdds(selectedTeam.outrightOdds)}</span>
+                <span className="wc-stat-val">
+                  {formatWcOutrightOdds(selectedTeam.outrightOdds)}
+                  {selectedTeam.outrightOddsSource === "static" && selectedTeam.outrightOdds ? (
+                    <span className="wc-outright-fallback"> (static fallback)</span>
+                  ) : null}
+                </span>
               </div>
             </div>
             <button type="button" className="wc-ask-btn" onClick={() => handleAskTeam(selectedTeam)}>
@@ -342,6 +347,9 @@ export default function WorldCupScreen({
                             getWcTeamsByGroup(t.group).findIndex((x) => x.id === t.id),
                           )}{" "}
                           · {formatWcOutrightOdds(t.outrightOdds)}
+                          {t.outrightOddsSource === "static" && t.outrightOdds ? (
+                            <span className="wc-outright-fallback"> (static)</span>
+                          ) : null}
                         </span>
                       </div>
                     </button>
