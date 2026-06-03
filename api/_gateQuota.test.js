@@ -8,8 +8,13 @@ import {
   isGateServerQuotaEnforce,
   releaseGateQuota,
   reserveGateQuota,
+  shouldEnforceGateQuotaForTake,
   utcDateKey,
 } from "./_gateQuota.js";
+import {
+  resolveUrTakeFailSoftFromResponse,
+  UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE,
+} from "../src/lib/urTakeFailSoft.js";
 
 /**
  * UTC calendar day quota helpers — shared by api/gate.js and api/ur-take.js.
@@ -78,4 +83,51 @@ test("fourth reserve same UTC day hits limit", async () => {
   const fourth = await reserveGateQuota(email, now + 3);
   assert.equal(fourth.limitReached, true);
   assert.equal(fourth.freeQuota.used, 3);
+});
+
+test("free user fourth question gets limit_reached and quota wall message", async () => {
+  const prevEnforce = process.env.GATE_SERVER_QUOTA_ENFORCE;
+  const prevAuth = process.env.UR_TAKE_REQUIRE_AUTH;
+  process.env.GATE_SERVER_QUOTA_ENFORCE = "1";
+  process.env.UR_TAKE_REQUIRE_AUTH = "true";
+
+  try {
+    assert.equal(
+      shouldEnforceGateQuotaForTake({
+        enforceFlag: true,
+        dailyTakePipeline: false,
+        urAuth: { ok: true, email: "free-user@example.com", tier: "free" },
+      }),
+      true,
+    );
+
+    const email = `quota-wall-${Date.now()}@example.com`;
+    const now = Date.now();
+    for (let i = 0; i < FREE_QUERIES_PER_DAY; i++) {
+      const ok = await reserveGateQuota(email, now + i);
+      assert.equal(ok.limitReached, false, `question ${i + 1} should be allowed`);
+    }
+
+    const blocked = await reserveGateQuota(email, now + FREE_QUERIES_PER_DAY);
+    assert.equal(blocked.limitReached, true);
+
+    const urTakePayload = {
+      requestId: "test-request",
+      limitReached: true,
+      code: "limit_reached",
+      freeQuota: blocked.freeQuota,
+    };
+    assert.equal(urTakePayload.code, "limit_reached");
+    assert.equal(urTakePayload.freeQuota.remaining, 0);
+
+    const presentation = resolveUrTakeFailSoftFromResponse(200, urTakePayload);
+    assert.equal(presentation.message, UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE);
+    assert.equal(presentation.retryable, false);
+    assert.equal(presentation.showUpgrade, true);
+  } finally {
+    if (prevEnforce === undefined) delete process.env.GATE_SERVER_QUOTA_ENFORCE;
+    else process.env.GATE_SERVER_QUOTA_ENFORCE = prevEnforce;
+    if (prevAuth === undefined) delete process.env.UR_TAKE_REQUIRE_AUTH;
+    else process.env.UR_TAKE_REQUIRE_AUTH = prevAuth;
+  }
 });

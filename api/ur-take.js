@@ -22,6 +22,13 @@ import {
   getClientIp,
   ipLimit,
 } from "./_rateLimitUrTake.js";
+import {
+  getFreeQuotaStatus,
+  isGateServerQuotaEnforce,
+  releaseGateQuota,
+  reserveGateQuota,
+  shouldEnforceGateQuotaForTake,
+} from "./_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
 import { buildWorldCupUrTakeContext } from "./_wcUrTakeContext.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
@@ -6970,6 +6977,37 @@ ${continuationRule}`;
     });
   }
 
+  /** Gate quota: reserve before Anthropic; release in `finally` unless take is delivered. */
+  let gateQuotaReservation = null;
+  let gateQuotaDelivered = false;
+  const gateQuotaEnforce = shouldEnforceGateQuotaForTake({
+    enforceFlag: isGateServerQuotaEnforce(),
+    dailyTakePipeline,
+    urAuth,
+  });
+  const gateQuotaEmail =
+    gateQuotaEnforce && urAuth?.ok && urAuth.email
+      ? String(urAuth.email).toLowerCase().trim()
+      : null;
+
+  if (gateQuotaEmail) {
+    const reserved = await reserveGateQuota(gateQuotaEmail);
+    if (reserved.limitReached) {
+      return res.status(200).json({
+        requestId,
+        limitReached: true,
+        code: "limit_reached",
+        freeQuota: reserved.freeQuota,
+      });
+    }
+    if (reserved.reservationTs != null) {
+      gateQuotaReservation = {
+        email: gateQuotaEmail,
+        reservationTs: reserved.reservationTs,
+      };
+    }
+  }
+
   try {
     const factualQuestion = isSettledFactQuestion(question);
     const selectedTemperature = factualQuestion ? 0.2 : 0.45;
@@ -7898,6 +7936,15 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseBody.dataConfidence = wcContext.dataConfidence;
     }
 
+    if (gateQuotaEmail) {
+      gateQuotaDelivered = true;
+      try {
+        responseBody.freeQuota = await getFreeQuotaStatus(gateQuotaEmail);
+      } catch {
+        /* optional mirror payload */
+      }
+    }
+
     return res.status(200).json(responseBody);
   } catch (err) {
     console.error("[urTakeApiException]", {
@@ -7915,5 +7962,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       providerErrorMessage: err?.message,
       rawModelText: "",
     });
+  } finally {
+    if (gateQuotaReservation && !gateQuotaDelivered) {
+      await releaseGateQuota(
+        gateQuotaReservation.email,
+        gateQuotaReservation.reservationTs,
+      );
+    }
   }
 }
