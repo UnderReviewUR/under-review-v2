@@ -13,6 +13,11 @@ import {
   wcDataConfidenceChipLabel,
 } from "../shared/wcDataConfidence.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
+import {
+  shouldInjectStaticRules,
+  WC_INTENT,
+  WC_STATIC_RULES_BLOCK,
+} from "../shared/wcUrTakeIntent.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 import {
   filterOutrightsForQuestion,
@@ -377,6 +382,10 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push(ctx.knockoutPhaseRules, "");
   }
 
+  if (ctx.staticRulesBlock) {
+    lines.push(ctx.staticRulesBlock, "");
+  }
+
   lines.push(
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
     "",
@@ -484,6 +493,31 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
 }
 
 /**
+ * Rules-only prompt slice — no group tables or betting context bloat.
+ * @param {object} ctx
+ */
+export function formatWcRulesOnlyPromptBlock(ctx) {
+  if (!ctx || typeof ctx !== "object") return "";
+  const lines = [
+    "WORLD CUP 2026 — TOURNAMENT RULES (factual reference — rules questions only)",
+    `Tournament: ${ctx.tournament}`,
+    `Hosts: ${(ctx.hosts || []).join(", ")}`,
+    `Dates: ${ctx.dateRange}`,
+    `Phase: ${ctx.phase || "PRE_GROUP"}`,
+    "",
+    ctx.staticRulesBlock || WC_STATIC_RULES_BLOCK,
+  ];
+  if (ctx.knockoutAppendix) {
+    lines.push("", ctx.knockoutAppendix);
+  }
+  lines.push(
+    "",
+    "VOICE: JSON summary — lead with the direct factual answer in sentence one. No betting recommendations. No group-stage predictions unless the user asked about a specific team matchup.",
+  );
+  return lines.join("\n");
+}
+
+/**
  * Full World Cup board for UR Take — same role as buildNbaUrTakeBoard output.
  * @param {string} [question]
  * @returns {Promise<object|null>}
@@ -504,7 +538,14 @@ async function loadWorldCupMatchesPayload() {
   return getMatchesPayload();
 }
 
-export async function buildWorldCupUrTakeContext(question = "") {
+/**
+ * @param {string} [question]
+ * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean }} [opts]
+ */
+export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
+  const wcIntent = opts.wcIntent || null;
+  const injectStaticRules =
+    opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
     loadWorldCupGroupsPayload(),
@@ -520,7 +561,10 @@ export async function buildWorldCupUrTakeContext(question = "") {
   const results = matches.filter((m) => isFinished(m?.status));
   const upcoming = matches.filter((m) => isScheduled(m?.status));
 
-  const mentionedTeams = extractMentionedWcTeams(question);
+  const mentionedTeams =
+    Array.isArray(opts.requiredEntities) && opts.requiredEntities.length
+      ? opts.requiredEntities.map((t) => String(t).toUpperCase())
+      : extractMentionedWcTeams(question);
   const phase = getWorldCupPhase(matches);
   const fixtures = selectFixturesForQuestion(matches, mentionedTeams);
   /** @type {Array<Record<string, unknown>>} */
@@ -557,6 +601,9 @@ export async function buildWorldCupUrTakeContext(question = "") {
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",
     phase,
+    wcIntent,
+    requiredEntities: mentionedTeams,
+    staticRulesBlock: injectStaticRules ? WC_STATIC_RULES_BLOCK : null,
     groups,
     groupsForPrompt,
     knockoutAppendix,
@@ -577,6 +624,11 @@ export async function buildWorldCupUrTakeContext(question = "") {
       ...matchDetails.map((d) => Number(d.lastUpdated) || 0),
     ),
   };
+
+  if (wcIntent === WC_INTENT.RULES) {
+    ctx.promptBlock = formatWcRulesOnlyPromptBlock(ctx);
+    return ctx.promptBlock ? ctx : null;
+  }
 
   ctx.promptBlock = formatWorldCupUrTakePromptBlock(ctx);
   if (!ctx.promptBlock || Object.keys(groups).length < 12) return null;

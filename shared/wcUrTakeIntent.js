@@ -1,0 +1,135 @@
+/**
+ * World Cup UR Take — question intent classification + static rules corpus.
+ */
+
+import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
+
+/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"UNCLASSIFIED"} WcUrTakeIntent */
+
+export const WC_INTENT = {
+  RULES: "RULES",
+  ENTITY_PRICING: "ENTITY_PRICING",
+  MATCHUP: "MATCHUP",
+  STRUCTURAL: "STRUCTURAL",
+  CONTINUATION: "CONTINUATION",
+  UNCLASSIFIED: "UNCLASSIFIED",
+};
+
+const RULES_SIGNAL_RE =
+  /\b(extra time|penalties|penalty shootout|tiebreaker|tie-break|tie break|how does knockout|knockout rules|knockout format|away goals|advancement rules|what are the rules)\b/i;
+
+const PRICING_SIGNAL_RE =
+  /\b(mispriced|outright|fairly priced|fair price|overpriced|underpriced)\b/i;
+
+const MATCHUP_SIGNAL_RE = /\b(vs\.?|versus|who advances|advance from|go through)\b/i;
+
+const STRUCTURAL_SIGNAL_RE =
+  /\b(best value|longshot|cleanest|structural|group [a-l]\b|contender|favorite)\b/i;
+
+const CONTINUATION_SIGNAL_RE =
+  /\b(what about|tell me more|go deeper|what kills|other side|build a parlay|that take|this edge|them|they)\b/i;
+
+/** Static tournament rules — always available regardless of live phase. */
+export const WC_STATIC_RULES_BLOCK = `WC TOURNAMENT RULES (binding — factual reference for rules questions):
+  Group stage: 12 groups of 4. Top two from each group advance (24 teams) plus eight best third-place teams (32 total) to Round of 32.
+  Group tiebreakers (in order): points, goal difference, goals scored, fair play, then drawing of lots.
+  Knockout format: Single elimination from Round of 32 through Final.
+  Regulation: 90 minutes. If level after 90 minutes in knockout → extra time (two 15-minute periods).
+  If still level after extra time → penalty shootout to determine the winner.
+  Away goals rule does NOT apply at the 2026 World Cup.
+  Betting settlement (knockout): 90-minute moneylines are regulation-only and do NOT settle advancement.
+  For "to advance" or "who wins the match" in knockout: factor extra time and penalties — a draw price is not a safe push.
+  Third-place match (if scheduled): separate fixture; does not affect the main knockout bracket path to the title.`;
+
+/**
+ * @param {string} question
+ * @param {WcUrTakeIntent} intent
+ */
+export function shouldInjectStaticRules(question, intent) {
+  if (intent === WC_INTENT.RULES) return true;
+  if (RULES_SIGNAL_RE.test(String(question || ""))) return true;
+  return isKnockoutAdvancementQuestion(question);
+}
+
+/**
+ * @param {string} question
+ * @param {object[]} [history]
+ * @returns {WcUrTakeIntent}
+ */
+export function classifyWcQuestionIntent(question, history = []) {
+  const q = String(question || "").trim();
+  const ql = q.toLowerCase();
+  if (!q) return WC_INTENT.UNCLASSIFIED;
+
+  const mentioned = extractMentionedWcTeams(q);
+  const hasPricingCue =
+    PRICING_SIGNAL_RE.test(ql) || /\+\d{3,}/.test(ql) || /\bto win the (world cup|tournament)\b/i.test(ql);
+
+  if (RULES_SIGNAL_RE.test(ql) && !hasPricingCue) {
+    return WC_INTENT.RULES;
+  }
+
+  if (MATCHUP_SIGNAL_RE.test(ql) && mentioned.length >= 1) {
+    return WC_INTENT.MATCHUP;
+  }
+
+  if (hasPricingCue && mentioned.length >= 1) {
+    return WC_INTENT.ENTITY_PRICING;
+  }
+
+  if (hasPricingCue) {
+    return WC_INTENT.ENTITY_PRICING;
+  }
+
+  if (mentioned.length >= 2 && MATCHUP_SIGNAL_RE.test(ql)) {
+    return WC_INTENT.MATCHUP;
+  }
+
+  if (STRUCTURAL_SIGNAL_RE.test(ql)) {
+    return WC_INTENT.STRUCTURAL;
+  }
+
+  if (
+    mentioned.length === 0 &&
+    CONTINUATION_SIGNAL_RE.test(ql) &&
+    Array.isArray(history) &&
+    history.length > 0
+  ) {
+    return WC_INTENT.CONTINUATION;
+  }
+
+  if (mentioned.length === 1) {
+    return WC_INTENT.ENTITY_PRICING;
+  }
+
+  if (mentioned.length >= 2) {
+    return WC_INTENT.MATCHUP;
+  }
+
+  return WC_INTENT.STRUCTURAL;
+}
+
+/**
+ * @param {object[]} history
+ * @returns {string[]}
+ */
+export function resolveContinuationEntities(history) {
+  if (!Array.isArray(history)) return [];
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const turn = history[i];
+    if (turn?.role !== "user") continue;
+    const text = String(turn.content || turn.text || "");
+    const teams = extractMentionedWcTeams(text);
+    if (teams.length) return teams;
+  }
+  return [];
+}
+
+export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same chat, this sport only):
+- Answer only the specific World Cup question asked. 3–5 sentences in summary unless structured JSON mode applies.
+- REQUIRED ENTITIES from the user message are binding — do not substitute a prior thread thesis or a different team.
+- Use only WORLD CUP 2026 — VERIFIED CONTEXT in the user message. Never claim data is missing if it appears there.
+- Never narrate sport routing, context switches, or prior takes unless the user asks about them directly.
+- For rules questions: factual answer only — no betting recommendation as the lead.
+- For pricing questions: cite odds from VERIFIED CONTEXT when claiming mispriced; never use "mispriced" when odds are STALE or absent.`;

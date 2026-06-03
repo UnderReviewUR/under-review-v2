@@ -25,6 +25,11 @@ import {
   wcDataConfidenceChipLabel,
   wcDataConfidenceNeedsCaution,
 } from "../../../shared/wcDataConfidence.js";
+import {
+  classifyWcVerdictForUi,
+  getVerdictFollowUpChips,
+  getVerdictNextLine,
+} from "../../../shared/wcUrTakeVerdict.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
@@ -1039,6 +1044,14 @@ export function getFollowUpSuggestions(message) {
   const apiRaw = Array.isArray(message?.followUps) ? message.followUps : [];
   const api = apiRaw.map((t) => String(t).trim()).filter(Boolean);
 
+  const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
+  if (sport === "worldcup") {
+    const verdictChips = getVerdictFollowUpChips(classifyWcVerdictForUi(message));
+    if (api.length >= 3) return polishFollowUpList(api.slice(0, 3));
+    if (api.length === 0) return polishFollowUpList(verdictChips);
+    return polishFollowUpList(mergeFollowUpChips(api, verdictChips));
+  }
+
   const contentStr =
     typeof message?.content === "string"
       ? message.content
@@ -1540,12 +1553,13 @@ function UrTakeChaseCalmInset() {
 }
 
 /** Inline continuation nudge after a completed UR Take (all answer shapes). */
-function UrTakeNextContinuationLine() {
-  return (
-    <p className="ur-take-next-line">
-      Next: what&apos;s one thing that could break this?
-    </p>
-  );
+function UrTakeNextContinuationLine({ message = null }) {
+  const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
+  const line =
+    sport === "worldcup"
+      ? getVerdictNextLine(classifyWcVerdictForUi(message))
+      : "Next: what's one thing that could break this?";
+  return <p className="ur-take-next-line">{line}</p>;
 }
 
 /** Coerce API / promoted `structured` into primitives URTakeResponse can always render. */
@@ -1803,7 +1817,7 @@ function UrTakeAiBubble({
           wcEventId={m.wcEventId}
           onViewWcMatch={onViewWcMatch}
         />
-        <UrTakeNextContinuationLine />
+        <UrTakeNextContinuationLine message={m} />
         {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
@@ -1852,7 +1866,7 @@ function UrTakeAiBubble({
           </button>
           <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
         </div>
-        <UrTakeNextContinuationLine />
+        <UrTakeNextContinuationLine message={m} />
         {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
@@ -1880,7 +1894,7 @@ function UrTakeAiBubble({
             <UrTakeShareButton headline={plainHeadline} bodyChunks={[summaryText]} />
           </div>
         </div>
-        <UrTakeNextContinuationLine />
+        <UrTakeNextContinuationLine message={m} />
         {wcConfidenceChip}
         {trustChips}
         {showTrack ? (
@@ -1970,7 +1984,7 @@ function UrTakeAiBubble({
             confidence={parsed.confidence}
             compactBubble={true}
           />
-          <UrTakeNextContinuationLine />
+          <UrTakeNextContinuationLine message={m} />
 
           {(m.deepText || showTrack) && (
             <div
