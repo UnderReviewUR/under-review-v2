@@ -1,14 +1,19 @@
 /**
  * Free-tier gate quota — shared by api/gate.js and api/ur-take.js.
- * Daily window: UTC calendar day (matches historical gate.js behavior).
+ * Anonymous: up to 3 questions per sessionId (wc_quota:session:*).
+ * Identified: 3 questions per UTC calendar day per email (wc_quota:email:*).
  */
 
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { shouldRequireUrTakeAuth } from "./_urTakeAuth.js";
 
 const GATE_TTL_SECONDS = 60 * 60 * 24 * 8;
+const SESSION_KEY_PREFIX = "wc_quota:session:";
+const EMAIL_KEY_PREFIX = "wc_quota:email:";
+const LEGACY_EMAIL_KEY_PREFIX = "gate:";
 
 export const FREE_QUERIES_PER_DAY = 3;
+export const FREE_SESSION_QUERIES = 3;
 
 export function isGateServerQuotaEnforce() {
   const v = String(process.env.GATE_SERVER_QUOTA_ENFORCE ?? "")
@@ -19,6 +24,23 @@ export function isGateServerQuotaEnforce() {
 
 export function utcDateKey(ms = Date.now()) {
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function normalizeQuotaEmail(email) {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+}
+
+export function normalizeSessionId(sessionId) {
+  return String(sessionId || "")
+    .trim()
+    .slice(0, 128);
+}
+
+export function isValidSessionId(sessionId) {
+  const s = normalizeSessionId(sessionId);
+  return s.length >= 16 && s.length <= 128;
 }
 
 export function countQueriesToday(queries, nowMs = Date.now()) {
@@ -40,17 +62,62 @@ export function buildFreeQuotaPayload(queries, nowMs = Date.now()) {
     limit: FREE_QUERIES_PER_DAY,
     remaining: Math.max(0, FREE_QUERIES_PER_DAY - used),
     dayKey: utcDateKey(nowMs),
+    scope: "email",
   };
 }
 
-async function getRecord(email) {
-  const key = "gate:" + String(email || "").toLowerCase().trim();
-  return await getDurableJson(key);
+/**
+ * @param {unknown[]} queries
+ */
+export function buildSessionQuotaPayload(queries) {
+  const used = Array.isArray(queries) ? queries.length : 0;
+  const capped = Math.min(used, FREE_SESSION_QUERIES);
+  return {
+    used: capped,
+    limit: FREE_SESSION_QUERIES,
+    remaining: Math.max(0, FREE_SESSION_QUERIES - capped),
+    scope: "session",
+  };
 }
 
-async function setRecord(email, record) {
-  const key = "gate:" + String(email || "").toLowerCase().trim();
-  await setDurableJson(key, record, { ttlSeconds: GATE_TTL_SECONDS });
+function sessionStorageKey(sessionId) {
+  return SESSION_KEY_PREFIX + normalizeSessionId(sessionId);
+}
+
+function emailStorageKey(email) {
+  return EMAIL_KEY_PREFIX + normalizeQuotaEmail(email);
+}
+
+function legacyEmailStorageKey(email) {
+  return LEGACY_EMAIL_KEY_PREFIX + normalizeQuotaEmail(email);
+}
+
+async function getSessionRecord(sessionId) {
+  const key = sessionStorageKey(sessionId);
+  return (await getDurableJson(key)) || { queries: [] };
+}
+
+async function setSessionRecord(sessionId, record) {
+  await setDurableJson(sessionStorageKey(sessionId), record, {
+    ttlSeconds: GATE_TTL_SECONDS,
+  });
+}
+
+async function getEmailRecord(email) {
+  const normalized = normalizeQuotaEmail(email);
+  if (!normalized) return { queries: [] };
+  const modern = await getDurableJson(emailStorageKey(normalized));
+  if (modern) return modern;
+  const legacy = await getDurableJson(legacyEmailStorageKey(normalized));
+  return legacy || { queries: [] };
+}
+
+async function setEmailRecord(email, record) {
+  const normalized = normalizeQuotaEmail(email);
+  if (!normalized) return;
+  await setDurableJson(emailStorageKey(normalized), record, {
+    ttlSeconds: GATE_TTL_SECONDS,
+  });
 }
 
 /**
@@ -59,13 +126,11 @@ async function setRecord(email, record) {
  */
 export async function getFreeQuotaStatus(email, nowMs = Date.now()) {
   try {
-    const normalized = String(email || "")
-      .trim()
-      .toLowerCase();
+    const normalized = normalizeQuotaEmail(email);
     if (!normalized) {
       return buildFreeQuotaPayload([], nowMs);
     }
-    const record = (await getRecord(normalized)) || { queries: [] };
+    const record = await getEmailRecord(normalized);
     return buildFreeQuotaPayload(record.queries || [], nowMs);
   } catch (err) {
     console.warn("[gate-quota] getFreeQuotaStatus failed open:", err?.message || err);
@@ -74,10 +139,26 @@ export async function getFreeQuotaStatus(email, nowMs = Date.now()) {
 }
 
 /**
+ * @param {string} sessionId
+ */
+export async function getSessionQuotaStatus(sessionId) {
+  try {
+    if (!isValidSessionId(sessionId)) {
+      return buildSessionQuotaPayload([]);
+    }
+    const record = await getSessionRecord(sessionId);
+    return buildSessionQuotaPayload(record.queries || []);
+  } catch (err) {
+    console.warn("[gate-quota] getSessionQuotaStatus failed open:", err?.message || err);
+    return buildSessionQuotaPayload([]);
+  }
+}
+
+/**
  * @param {object} opts
  * @param {boolean} [opts.enforceFlag]
  * @param {boolean} [opts.dailyTakePipeline]
- * @param {{ ok?: boolean, email?: string | null, tier?: string } | null} [opts.urAuth]
+ * @param {{ ok?: boolean, email?: string | null, sessionId?: string | null, tier?: string } | null} [opts.urAuth]
  */
 export function shouldEnforceGateQuotaForTake(opts = {}) {
   const enforceFlag = opts.enforceFlag ?? isGateServerQuotaEnforce();
@@ -85,26 +166,21 @@ export function shouldEnforceGateQuotaForTake(opts = {}) {
   if (opts.dailyTakePipeline) return false;
   if (!shouldRequireUrTakeAuth()) return false;
   const urAuth = opts.urAuth;
-  if (!urAuth?.ok || !urAuth.email) return false;
+  if (!urAuth?.ok) return false;
   const tier = String(urAuth.tier || "free").toLowerCase();
   if (tier === "pro" || tier === "owner" || tier === "friend") return false;
-  return true;
+  if (urAuth.email || urAuth.sessionId) return true;
+  return false;
 }
 
 /**
- * Reserve one free-tier unit before an Anthropic call.
- * Fail open on infra errors (skipped reservation).
- *
  * @param {string} email
  * @param {number} [nowMs]
- * @returns {Promise<{ limitReached: boolean, reservationTs: number | null, skipped?: boolean, freeQuota: ReturnType<typeof buildFreeQuotaPayload> }>}
  */
 export async function reserveGateQuota(email, nowMs = Date.now()) {
   try {
-    const normalized = String(email || "")
-      .trim()
-      .toLowerCase();
-    const record = (await getRecord(normalized)) || { queries: [], emailVerified: true };
+    const normalized = normalizeQuotaEmail(email);
+    const record = (await getEmailRecord(normalized)) || { queries: [], emailVerified: true };
     const queries = Array.isArray(record.queries) ? [...record.queries] : [];
     const used = countQueriesToday(queries, nowMs);
 
@@ -118,7 +194,7 @@ export async function reserveGateQuota(email, nowMs = Date.now()) {
 
     const reservationTs = nowMs;
     queries.push(reservationTs);
-    await setRecord(normalized, { ...record, queries, lastSeen: nowMs });
+    await setEmailRecord(normalized, { ...record, queries, lastSeen: nowMs });
 
     return {
       limitReached: false,
@@ -137,8 +213,54 @@ export async function reserveGateQuota(email, nowMs = Date.now()) {
 }
 
 /**
- * Refund a reserved unit when the take was not delivered.
- *
+ * @param {string} sessionId
+ * @param {number} [nowMs]
+ */
+export async function reserveSessionQuota(sessionId, nowMs = Date.now()) {
+  try {
+    if (!isValidSessionId(sessionId)) {
+      return {
+        limitReached: true,
+        emailRequired: true,
+        reservationTs: null,
+        freeQuota: buildSessionQuotaPayload([]),
+      };
+    }
+    const record = (await getSessionRecord(sessionId)) || { queries: [] };
+    const queries = Array.isArray(record.queries) ? [...record.queries] : [];
+
+    if (queries.length >= FREE_SESSION_QUERIES) {
+      return {
+        limitReached: true,
+        emailRequired: true,
+        reservationTs: null,
+        freeQuota: buildSessionQuotaPayload(queries),
+      };
+    }
+
+    const reservationTs = nowMs;
+    queries.push(reservationTs);
+    await setSessionRecord(sessionId, { ...record, queries, lastSeen: nowMs });
+
+    return {
+      limitReached: false,
+      emailRequired: false,
+      reservationTs,
+      freeQuota: buildSessionQuotaPayload(queries),
+    };
+  } catch (err) {
+    console.warn("[gate-quota] reserveSession failed open:", err?.message || err);
+    return {
+      limitReached: false,
+      emailRequired: false,
+      reservationTs: null,
+      skipped: true,
+      freeQuota: buildSessionQuotaPayload([]),
+    };
+  }
+}
+
+/**
  * @param {string} email
  * @param {number | null} reservationTs
  * @param {number} [nowMs]
@@ -146,17 +268,72 @@ export async function reserveGateQuota(email, nowMs = Date.now()) {
 export async function releaseGateQuota(email, reservationTs, nowMs = Date.now()) {
   if (reservationTs == null || !Number.isFinite(Number(reservationTs))) return;
   try {
-    const normalized = String(email || "")
-      .trim()
-      .toLowerCase();
-    const record = await getRecord(normalized);
+    const normalized = normalizeQuotaEmail(email);
+    const record = await getEmailRecord(normalized);
     if (!record) return;
     const target = Number(reservationTs);
     const queries = (record.queries || []).filter((ts) => Number(ts) !== target);
-    await setRecord(normalized, { ...record, queries, lastSeen: nowMs });
+    await setEmailRecord(normalized, { ...record, queries, lastSeen: nowMs });
   } catch (err) {
     console.warn("[gate-quota] release failed:", err?.message || err);
   }
+}
+
+/**
+ * @param {string} sessionId
+ * @param {number | null} reservationTs
+ * @param {number} [nowMs]
+ */
+export async function releaseSessionQuota(sessionId, reservationTs, nowMs = Date.now()) {
+  if (reservationTs == null || !Number.isFinite(Number(reservationTs))) return;
+  try {
+    if (!isValidSessionId(sessionId)) return;
+    const record = await getSessionRecord(sessionId);
+    if (!record) return;
+    const target = Number(reservationTs);
+    const queries = (record.queries || []).filter((ts) => Number(ts) !== target);
+    await setSessionRecord(sessionId, { ...record, queries, lastSeen: nowMs });
+  } catch (err) {
+    console.warn("[gate-quota] releaseSession failed:", err?.message || err);
+  }
+}
+
+/**
+ * Merge anonymous session usage into email quota (wc_quota:email).
+ * @param {string} sessionId
+ * @param {string} email
+ * @param {number} [nowMs]
+ */
+export async function migrateSessionQuotaToEmail(sessionId, email, nowMs = Date.now()) {
+  const normalizedEmail = normalizeQuotaEmail(email);
+  const sid = normalizeSessionId(sessionId);
+  if (!normalizedEmail || !isValidSessionId(sid)) {
+    return { ok: false, freeQuota: buildFreeQuotaPayload([], nowMs) };
+  }
+
+  const sessionRecord = await getSessionRecord(sid);
+  const emailRecord = (await getEmailRecord(normalizedEmail)) || { queries: [] };
+  const sessionQueries = Array.isArray(sessionRecord?.queries) ? sessionRecord.queries : [];
+  const emailQueries = Array.isArray(emailRecord.queries) ? [...emailRecord.queries] : [];
+  const merged = [...new Set([...emailQueries.map(Number), ...sessionQueries.map(Number)])].filter(
+    (n) => Number.isFinite(n) && n > 0,
+  );
+  merged.sort((a, b) => a - b);
+
+  await setEmailRecord(normalizedEmail, {
+    ...emailRecord,
+    queries: merged,
+    migratedFromSession: sid,
+    migratedAt: nowMs,
+    lastSeen: nowMs,
+  });
+
+  await setSessionRecord(sid, { queries: [], migratedToEmail: normalizedEmail, migratedAt: nowMs });
+
+  return {
+    ok: true,
+    freeQuota: buildFreeQuotaPayload(merged, nowMs),
+  };
 }
 
 /**
@@ -164,12 +341,10 @@ export async function releaseGateQuota(email, reservationTs, nowMs = Date.now())
  * @param {number} [nowMs]
  */
 export async function appendGateQuery(email, nowMs = Date.now()) {
-  const r = await reserveGateQuota(email, nowMs);
-  return r;
+  return await reserveGateQuota(email, nowMs);
 }
 
 /**
- * Legacy consume — append without prior reserve (gate action: consume).
  * @param {string} email
  * @param {number} [nowMs]
  */
@@ -184,15 +359,28 @@ export async function consumeGateQuery(email, nowMs = Date.now()) {
 }
 
 /**
+ * @param {string} sessionId
+ * @param {number} [nowMs]
+ */
+export async function consumeSessionQuery(sessionId, nowMs = Date.now()) {
+  const r = await reserveSessionQuota(sessionId, nowMs);
+  return {
+    ok: !r.limitReached,
+    used: r.freeQuota?.used ?? 0,
+    remaining: r.freeQuota?.remaining ?? 0,
+    freeQuota: r.freeQuota,
+    emailRequired: Boolean(r.emailRequired),
+  };
+}
+
+/**
  * @param {string} email
  * @param {number} [nowMs]
  */
 export async function checkGateQuotaAllowed(email, nowMs = Date.now()) {
   try {
-    const normalized = String(email || "")
-      .trim()
-      .toLowerCase();
-    const record = (await getRecord(normalized)) || { queries: [] };
+    const normalized = normalizeQuotaEmail(email);
+    const record = (await getEmailRecord(normalized)) || { queries: [] };
     const freeQuota = buildFreeQuotaPayload(record.queries || [], nowMs);
     if (freeQuota.used >= FREE_QUERIES_PER_DAY) {
       return { allowed: false, reason: "limit_reached", freeQuota };
@@ -201,5 +389,21 @@ export async function checkGateQuotaAllowed(email, nowMs = Date.now()) {
   } catch (err) {
     console.warn("[gate-quota] check failed open:", err?.message || err);
     return { allowed: true, freeQuota: buildFreeQuotaPayload([], nowMs), skipped: true };
+  }
+}
+
+/**
+ * @param {string} sessionId
+ */
+export async function checkSessionQuotaAllowed(sessionId) {
+  try {
+    const freeQuota = await getSessionQuotaStatus(sessionId);
+    if (freeQuota.used >= FREE_SESSION_QUERIES) {
+      return { allowed: false, reason: "email_required", freeQuota };
+    }
+    return { allowed: true, freeQuota };
+  } catch (err) {
+    console.warn("[gate-quota] checkSession failed open:", err?.message || err);
+    return { allowed: true, freeQuota: buildSessionQuotaPayload([]), skipped: true };
   }
 }

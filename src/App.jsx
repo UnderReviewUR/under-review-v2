@@ -16,19 +16,30 @@ import {
 } from "./lib/urTakeTelemetry.js";
 import {
   FREE_QUESTION_LIMIT,
+  FREE_SESSION_QUESTION_LIMIT,
+  UR_EMAIL_GATE_EVENT,
   UR_FREE_QUOTA_LIMIT_EVENT,
   freeTierApproachingLimit,
+  hasStoredFreeTierEmail,
   hydrateFreeTierFromGateCheck,
+  hydrateSessionQuotaFromGateCheck,
   incrementFreeTierUsedToday,
+  incrementSessionQuotaUsed,
   isFreeTierQuotaAvailable,
+  isSessionQuotaAvailable,
   readFreeTierUsedToday,
+  readSessionQuotaUsed,
+  syncQuotaFromServer,
   syncFreeTierFromServer,
 } from "./lib/freeTierLimits.js";
 import {
+  EMAIL_GATE_BODY,
+  EMAIL_GATE_HEADLINE,
   UPGRADE_LIMIT_HIT_BODY,
   UPGRADE_LIMIT_HIT_HEADLINE,
   UPGRADE_MODAL_DAILY_TAGLINE,
 } from "./lib/proUpgradeCopy.js";
+import { getOrCreateUrSessionId } from "./lib/urSessionId.js";
 import {
   formatLastLeanSportLabel,
   resolveMatchupLabelForLastLean,
@@ -674,6 +685,11 @@ ${themeCss}
   }, []);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showEmailGateModal, setShowEmailGateModal] = useState(false);
+  const [emailGateInput, setEmailGateInput] = useState("");
+  const [emailGateError, setEmailGateError] = useState("");
+  const [emailGateLoading, setEmailGateLoading] = useState(false);
+  const emailGateRetryPromptRef = useRef(null);
   const [freeUsedRevision, setFreeUsedRevision] = useState(0);
   const [lastLeanRevision, setLastLeanRevision] = useState(0);
   const [freeLimitChipDismissedSession, setFreeLimitChipDismissedSession] = useState(() => {
@@ -698,8 +714,13 @@ ${themeCss}
 
   const freeUsedCount = useMemo(() => {
     void freeUsedRevision;
-    return readFreeTierUsedToday();
+    if (hasStoredFreeTierEmail()) {
+      return readFreeTierUsedToday();
+    }
+    return readSessionQuotaUsed();
   }, [freeUsedRevision]);
+
+  const freeQuotaLimit = hasStoredFreeTierEmail() ? FREE_LIMIT : FREE_SESSION_QUESTION_LIMIT;
 
   const accessTierRef = useRef(accessTier);
   useEffect(() => {
@@ -709,10 +730,23 @@ ${themeCss}
   useEffect(() => {
     const onLimit = () => {
       setFreeUsedRevision((n) => n + 1);
-      setShowUpgradeModal(true);
+      if (hasStoredFreeTierEmail()) {
+        setShowUpgradeModal(true);
+      } else {
+        setShowEmailGateModal(true);
+      }
     };
     window.addEventListener(UR_FREE_QUOTA_LIMIT_EVENT, onLimit);
     return () => window.removeEventListener(UR_FREE_QUOTA_LIMIT_EVENT, onLimit);
+  }, []);
+
+  useEffect(() => {
+    const onEmailGate = () => {
+      setFreeUsedRevision((n) => n + 1);
+      setShowEmailGateModal(true);
+    };
+    window.addEventListener(UR_EMAIL_GATE_EVENT, onEmailGate);
+    return () => window.removeEventListener(UR_EMAIL_GATE_EVENT, onEmailGate);
   }, []);
 
   useEffect(() => {
@@ -721,8 +755,13 @@ ${themeCss}
       (typeof localStorage !== "undefined" && localStorage.getItem("ur_email")) ||
       userEmail ||
       "";
-    if (!String(email).includes("@")) return;
-    hydrateFreeTierFromGateCheck(email).then((used) => {
+    if (String(email).includes("@")) {
+      hydrateFreeTierFromGateCheck(email).then((used) => {
+        if (used != null) setFreeUsedRevision((n) => n + 1);
+      });
+      return;
+    }
+    hydrateSessionQuotaFromGateCheck(getOrCreateUrSessionId()).then((used) => {
       if (used != null) setFreeUsedRevision((n) => n + 1);
     });
   }, [isUnlimited, userEmail]);
@@ -1076,8 +1115,16 @@ ${themeCss}
   const canAsk = useCallback(() => {
     if (isUnlimited) return true;
 
-    if (!isFreeTierQuotaAvailable(readFreeTierUsedToday(), FREE_LIMIT)) {
-      setShowUpgradeModal(true);
+    if (hasStoredFreeTierEmail()) {
+      if (!isFreeTierQuotaAvailable(readFreeTierUsedToday(), FREE_LIMIT)) {
+        setShowUpgradeModal(true);
+        return false;
+      }
+      return true;
+    }
+
+    if (!isSessionQuotaAvailable(readSessionQuotaUsed(), FREE_SESSION_QUESTION_LIMIT)) {
+      setShowEmailGateModal(true);
       return false;
     }
 
@@ -1816,17 +1863,65 @@ ${themeCss}
     if (
       data &&
       typeof data === "object" &&
+      (data.code === "email_required" || data.reason === "email_required")
+    ) {
+      if (data.freeQuota) {
+        syncQuotaFromServer(data.freeQuota);
+      } else {
+        syncQuotaFromServer({
+          used: FREE_SESSION_QUESTION_LIMIT,
+          limit: FREE_SESSION_QUESTION_LIMIT,
+          remaining: 0,
+          scope: "session",
+        });
+      }
+      setFreeUsedRevision((n) => n + 1);
+      const failSoftEmail = resolveUrTakeFailSoftFromResponse(200, data);
+      emailGateRetryPromptRef.current = text;
+      setMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        {
+          role: "ai",
+          text: failSoftEmail.message,
+          urTakeFailSoft: failSoftEmail,
+          urTakeRetryPrompt: text,
+        },
+      ]);
+      setShowEmailGateModal(true);
+      if (fuTelemetryState) {
+        const end = typeof performance !== "undefined" ? performance.now() : Date.now();
+        telemetryUrTakeFollowUpResponseCompleted({
+          success: false,
+          roundTripMs: Math.max(0, Math.round(end - fuTelemetryState.roundStart)),
+          sport: fuTelemetryState.sportResolved,
+          intent: String(fuTelemetryState.tel.intent || ""),
+          liveMode: Boolean(fuTelemetryState.tel.liveMode),
+          followUpText: String(fuTelemetryState.tel.followUpText || "").slice(0, 160),
+          sourceMsgId: String(fuTelemetryState.tel.sourceMsgId || ""),
+          sessionUserTurns: fuTelemetryState.sessionUserTurns,
+          followUpIndex: fuTelemetryState.tel.followUpIndex ?? -1,
+          followUpCount: fuTelemetryState.tel.followUpCount ?? 0,
+          error: "email_required",
+        });
+      }
+      return;
+    }
+
+    if (
+      data &&
+      typeof data === "object" &&
       (data.limitReached === true ||
         data.code === "limit_reached" ||
         data.code === "free_quota_exceeded")
     ) {
       if (data.freeQuota) {
-        syncFreeTierFromServer(data.freeQuota);
+        syncQuotaFromServer(data.freeQuota);
       } else {
-        syncFreeTierFromServer({
+        syncQuotaFromServer({
           used: FREE_QUESTION_LIMIT,
           limit: FREE_QUESTION_LIMIT,
           remaining: 0,
+          scope: "email",
         });
       }
       setFreeUsedRevision((n) => n + 1);
@@ -1964,9 +2059,13 @@ ${themeCss}
 
     if (!isUnlimited) {
       if (data.freeQuota) {
-        syncFreeTierFromServer(data.freeQuota);
+        syncQuotaFromServer(data.freeQuota);
       } else if (!isApiSuccessFallback) {
-        incrementFreeTierUsedToday();
+        if (hasStoredFreeTierEmail()) {
+          incrementFreeTierUsedToday();
+        } else {
+          incrementSessionQuotaUsed();
+        }
       }
       setFreeUsedRevision((n) => n + 1);
     }
@@ -3224,6 +3323,62 @@ ${themeCss}
     setShowUpgradeModal(true);
   }, []);
 
+  const submitEmailGate = useCallback(async () => {
+    const email = String(emailGateInput || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailGateError("Enter a valid email address.");
+      return;
+    }
+    setEmailGateLoading(true);
+    setEmailGateError("");
+    try {
+      const sessionId = getOrCreateUrSessionId();
+      const r = await fetch("/api/gate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "bind_email", email, sessionId }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.takeToken) {
+        if (d.reason === "limit_reached" || d.code === "limit_reached") {
+          if (d.freeQuota) syncQuotaFromServer(d.freeQuota);
+          setFreeUsedRevision((n) => n + 1);
+          setShowEmailGateModal(false);
+          setShowUpgradeModal(true);
+          return;
+        }
+        setEmailGateError(d.error || "Could not save your email. Try again.");
+        return;
+      }
+      try {
+        localStorage.setItem("ur_email", email);
+      } catch {
+        /* ignore */
+      }
+      setUserEmail(email);
+      if (d.freeQuota) syncQuotaFromServer(d.freeQuota);
+      setFreeUsedRevision((n) => n + 1);
+      sessionStorage.setItem("ur_take_token", d.takeToken);
+      const ttlSec = Number(d.expiresInSeconds) || 540;
+      sessionStorage.setItem("ur_take_exp", String(Date.now() + ttlSec * 1000));
+      setShowEmailGateModal(false);
+      setEmailGateInput("");
+      const retry = emailGateRetryPromptRef.current;
+      emailGateRetryPromptRef.current = null;
+      if (retry && !isUnlimited && !isFreeTierQuotaAvailable(readFreeTierUsedToday(), FREE_LIMIT)) {
+        setShowUpgradeModal(true);
+        return;
+      }
+      if (retry) {
+        askUrTake({ text: retry, setMsgs: setAskMsgs });
+      }
+    } catch {
+      setEmailGateError("Something went wrong. Try again.");
+    } finally {
+      setEmailGateLoading(false);
+    }
+  }, [emailGateInput, isUnlimited, FREE_LIMIT, askUrTake]);
+
   const dismissFreeLimitChip = useCallback(() => {
     try {
       sessionStorage.setItem("ur_free_limit_chip_dismissed", "1");
@@ -3236,8 +3391,8 @@ ${themeCss}
   const freeLimitChip = useMemo(() => {
     if (accessTier !== "free") return null;
     if (freeLimitChipDismissedSession) return null;
-    if (!freeTierApproachingLimit(freeUsedCount, FREE_LIMIT)) return null;
-    const remaining = Math.max(0, FREE_LIMIT - freeUsedCount);
+    if (!freeTierApproachingLimit(freeUsedCount, freeQuotaLimit)) return null;
+    const remaining = Math.max(0, freeQuotaLimit - freeUsedCount);
     const qWord = remaining === 1 ? "question" : "questions";
     return (
       <div className="ur-free-limit-chip" role="status">
@@ -3264,6 +3419,7 @@ ${themeCss}
     dismissFreeLimitChip,
     freeLimitChipDismissedSession,
     freeUsedCount,
+    freeQuotaLimit,
     openUpgradeModal,
   ]);
 
@@ -5664,6 +5820,145 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
               <button
                 onClick={() => setShowUpgradeModal(false)}
                 style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",fontSize:12,fontFamily:"var(--body-font)"}}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ EMAIL GATE MODAL (anonymous session limit — question 4) ══ */}
+        {showEmailGateModal && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(8,10,12,.92)",
+              zIndex: 101,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+            }}
+          >
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border-2)",
+                borderRadius: 20,
+                padding: 24,
+                maxWidth: 400,
+                width: "100%",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "var(--display-font)",
+                  fontSize: 20,
+                  letterSpacing: 0.5,
+                  marginBottom: 10,
+                  color: "var(--text)",
+                }}
+              >
+                {EMAIL_GATE_HEADLINE}
+              </div>
+              <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, marginBottom: 16 }}>
+                {EMAIL_GATE_BODY}
+              </p>
+              <label
+                htmlFor="email-gate-input"
+                style={{
+                  fontSize: 11,
+                  fontFamily: "var(--mono-font)",
+                  color: "var(--muted)",
+                  letterSpacing: 1,
+                  display: "block",
+                  marginBottom: 6,
+                  textAlign: "left",
+                }}
+              >
+                Email
+              </label>
+              <input
+                id="email-gate-input"
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={emailGateInput}
+                onChange={(e) => setEmailGateInput(e.target.value)}
+                placeholder="you@example.com"
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border-2)",
+                  background: "var(--bg)",
+                  color: "var(--text)",
+                  fontSize: 14,
+                  marginBottom: 8,
+                  boxSizing: "border-box",
+                }}
+              />
+              {emailGateError ? (
+                <div style={{ fontSize: 12, color: "#ff6b6b", marginBottom: 10, textAlign: "left" }}>
+                  {emailGateError}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                disabled={emailGateLoading}
+                onClick={submitEmailGate}
+                style={{
+                  width: "100%",
+                  padding: "13px",
+                  border: "none",
+                  borderRadius: 10,
+                  background: "var(--cyan-bright)",
+                  color: "#080A0C",
+                  fontFamily: "var(--display-font)",
+                  fontSize: 16,
+                  letterSpacing: 1,
+                  cursor: emailGateLoading ? "wait" : "pointer",
+                  marginBottom: 10,
+                  opacity: emailGateLoading ? 0.7 : 1,
+                }}
+              >
+                {emailGateLoading ? "Saving…" : "Continue with email"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmailGateModal(false);
+                  goPro();
+                }}
+                style={{
+                  width: "100%",
+                  padding: "13px",
+                  border: "1px solid var(--border-2)",
+                  borderRadius: 10,
+                  background: "transparent",
+                  color: "var(--text)",
+                  fontFamily: "var(--display-font)",
+                  fontSize: 16,
+                  letterSpacing: 1,
+                  cursor: "pointer",
+                  marginBottom: 10,
+                }}
+              >
+                Unlock Pro — $9.99/mo
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEmailGateModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontFamily: "var(--body-font)",
+                }}
               >
                 Not now
               </button>

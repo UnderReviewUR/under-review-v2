@@ -12,6 +12,12 @@ $9.99/month · cancel anytime`;
 
 export const UPGRADE_MODAL_DAILY_TAGLINE = "3 free questions every day. Unlimited with Pro.";
 
+export const EMAIL_GATE_HEADLINE =
+  "Enter your email to keep asking questions or upgrade to Pro";
+
+export const EMAIL_GATE_BODY =
+  "You've used your 3 free questions for this visit. Add your email to unlock 3 questions every day, or go Pro for unlimited reads.";
+
 export function freeLimitChipMessage(remaining) {
   const qWord = remaining === 1 ? "question" : "questions";
   return `${remaining} free ${qWord} left today — Pro gives the full read with THE PLAY, not the summary.`;

@@ -6,6 +6,9 @@ export const UR_TAKE_FAIL_SOFT_RETRY_MESSAGE =
 export const UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE =
   "You've used your free UR Takes for this week. Upgrade for unlimited reads, or try again after your quota resets.";
 
+export const UR_TAKE_FAIL_SOFT_EMAIL_GATE_MESSAGE =
+  "Enter your email to keep asking questions or upgrade to Pro.";
+
 /**
  * @param {{ phase?: string, code?: string, status?: number }} input
  * @returns {{ message: string, retryable: boolean, showUpgrade: boolean }}
@@ -23,6 +26,15 @@ export function resolveUrTakeFailSoftPresentation(input = {}) {
       message: UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE,
       retryable: false,
       showUpgrade: true,
+    };
+  }
+
+  if (code === "email_required" || input.emailRequired === true) {
+    return {
+      message: UR_TAKE_FAIL_SOFT_EMAIL_GATE_MESSAGE,
+      retryable: false,
+      showUpgrade: true,
+      showEmailGate: true,
     };
   }
 
@@ -67,6 +79,9 @@ export function resolveUrTakeFailSoftFromError(err) {
  */
 export function resolveUrTakeFailSoftFromResponse(status, json) {
   const code = String(json?.code || "");
+  if (code === "email_required" || json?.reason === "email_required") {
+    return resolveUrTakeFailSoftPresentation({ code: "email_required", emailRequired: true });
+  }
   if (
     json?.limitReached === true ||
     code === "limit_reached" ||

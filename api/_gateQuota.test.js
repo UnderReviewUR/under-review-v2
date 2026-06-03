@@ -2,17 +2,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildFreeQuotaPayload,
+  buildSessionQuotaPayload,
   countQueriesToday,
   FREE_QUERIES_PER_DAY,
+  FREE_SESSION_QUERIES,
   getFreeQuotaStatus,
   isGateServerQuotaEnforce,
+  isValidSessionId,
+  migrateSessionQuotaToEmail,
   releaseGateQuota,
+  releaseSessionQuota,
   reserveGateQuota,
+  reserveSessionQuota,
   shouldEnforceGateQuotaForTake,
   utcDateKey,
 } from "./_gateQuota.js";
 import {
   resolveUrTakeFailSoftFromResponse,
+  UR_TAKE_FAIL_SOFT_EMAIL_GATE_MESSAGE,
   UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE,
 } from "../src/lib/urTakeFailSoft.js";
 
@@ -130,4 +137,68 @@ test("free user fourth question gets limit_reached and quota wall message", asyn
     if (prevAuth === undefined) delete process.env.UR_TAKE_REQUIRE_AUTH;
     else process.env.UR_TAKE_REQUIRE_AUTH = prevAuth;
   }
+});
+
+test("anonymous session allows three questions then requires email", async () => {
+  const sessionId = `test-session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  assert.ok(isValidSessionId(sessionId));
+  assert.equal((await reserveSessionQuota(sessionId)).limitReached, false);
+  assert.equal((await reserveSessionQuota(sessionId)).limitReached, false);
+  assert.equal((await reserveSessionQuota(sessionId)).limitReached, false);
+  const fourth = await reserveSessionQuota(sessionId);
+  assert.equal(fourth.limitReached, true);
+  assert.equal(fourth.emailRequired, true);
+  assert.equal(fourth.freeQuota.scope, "session");
+
+  const presentation = resolveUrTakeFailSoftFromResponse(200, {
+    limitReached: true,
+    code: "email_required",
+    freeQuota: fourth.freeQuota,
+  });
+  assert.equal(presentation.message, UR_TAKE_FAIL_SOFT_EMAIL_GATE_MESSAGE);
+  assert.equal(presentation.showEmailGate, true);
+});
+
+test("migrate session quota to email merges usage", async () => {
+  const sessionId = `migrate-session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const email = `migrate-${Date.now()}@example.com`;
+  const now = Date.now();
+  await reserveSessionQuota(sessionId, now);
+  await reserveSessionQuota(sessionId, now + 1);
+  await reserveSessionQuota(sessionId, now + 2);
+  const migrated = await migrateSessionQuotaToEmail(sessionId, email, now + 3);
+  assert.equal(migrated.ok, true);
+  assert.equal(migrated.freeQuota.used, 3);
+  assert.equal(migrated.freeQuota.scope, "email");
+  const after = await getFreeQuotaStatus(email, now + 3);
+  assert.equal(after.used, 3);
+});
+
+test("shouldEnforceGateQuotaForTake applies to anonymous session tokens", () => {
+  assert.equal(
+    shouldEnforceGateQuotaForTake({
+      enforceFlag: true,
+      dailyTakePipeline: false,
+      urAuth: { ok: true, email: null, sessionId: "abc1234567890123", tier: "free" },
+    }),
+    true,
+  );
+});
+
+test("session reserve then release restores quota", async () => {
+  const sessionId = `session-release-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const reserved = await reserveSessionQuota(sessionId);
+  assert.equal(reserved.limitReached, false);
+  await releaseSessionQuota(sessionId, reserved.reservationTs);
+  const again = await reserveSessionQuota(sessionId);
+  assert.equal(again.limitReached, false);
+  assert.equal(again.freeQuota.used, 1);
+});
+
+test("buildSessionQuotaPayload tracks lifetime session count", () => {
+  const q = buildSessionQuotaPayload([1, 2]);
+  assert.equal(q.used, 2);
+  assert.equal(q.remaining, 1);
+  assert.equal(q.scope, "session");
+  assert.equal(FREE_SESSION_QUERIES, 3);
 });

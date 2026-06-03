@@ -29,12 +29,23 @@ export function verifyBearerForUrTake(authHeader) {
   }
 
   if (payload.purpose === "ur-take") {
-    if (!payload.email) return { ok: false, reason: "invalid_take_token" };
-    return {
-      ok: true,
-      email: String(payload.email).toLowerCase().trim(),
-      tier: String(payload.tier || "free"),
-    };
+    if (payload.email) {
+      return {
+        ok: true,
+        email: String(payload.email).toLowerCase().trim(),
+        sessionId: payload.sessionId ? String(payload.sessionId).trim() : null,
+        tier: String(payload.tier || "free"),
+      };
+    }
+    if (payload.sessionId) {
+      return {
+        ok: true,
+        email: null,
+        sessionId: String(payload.sessionId).trim(),
+        tier: String(payload.tier || "free"),
+      };
+    }
+    return { ok: false, reason: "invalid_take_token" };
   }
 
   if (payload.tier === "pro" && payload.email) {

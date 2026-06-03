@@ -1,0 +1,20 @@
+## Summary
+
+- **Server-side quota on `/api/ur-take`**: Free-tier users now hit a durable daily limit (3 UTC) before Anthropic is called — reserve on entry, release on failure, attach `freeQuota` on success.
+- **Foundation already on `main`** (`c1a78d4`): Shared `api/_gateQuota.js`, refactored `api/gate.js`, client sync via `freeTierLimits.js` / `App.jsx` / `useTakeAuthHeaders.js`.
+- **This branch adds the missing bypass fix**: Direct API calls can no longer skip quota when `GATE_SERVER_QUOTA_ENFORCE=1`.
+
+## What it guards against
+
+Free users bypassing the paywall by clearing localStorage, skipping client `consume`, or calling `/api/ur-take` with a valid bearer after exhausting allowance. Quota is tied to verified email in KV and enforced on the take path.
+
+## Test plan
+
+- [x] `node --test api/_gateQuota.test.js` — fourth reserve returns `limit_reached` + quota message
+- [x] Staging gate smoke: 4× `POST /api/gate` `{ action: "consume" }` — 4th returns `ok: false`
+- [ ] Enable `GATE_SERVER_QUOTA_ENFORCE=1` on preview/staging and confirm 4th `/api/ur-take` returns `{ limitReached: true, code: "limit_reached" }` without Anthropic spend
+- [ ] Manual: free user asks 4 questions in app — 4th shows upgrade modal + quota copy
+
+## Rollout
+
+Merge to `main`, enable `GATE_SERVER_QUOTA_ENFORCE=1` on production when ready (flag defaults off).

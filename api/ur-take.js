@@ -24,9 +24,12 @@ import {
 } from "./_rateLimitUrTake.js";
 import {
   getFreeQuotaStatus,
+  getSessionQuotaStatus,
   isGateServerQuotaEnforce,
   releaseGateQuota,
+  releaseSessionQuota,
   reserveGateQuota,
+  reserveSessionQuota,
   shouldEnforceGateQuotaForTake,
 } from "./_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "./_derby2026.js";
@@ -6989,6 +6992,10 @@ ${continuationRule}`;
     gateQuotaEnforce && urAuth?.ok && urAuth.email
       ? String(urAuth.email).toLowerCase().trim()
       : null;
+  const gateQuotaSessionId =
+    gateQuotaEnforce && urAuth?.ok && !gateQuotaEmail && urAuth.sessionId
+      ? String(urAuth.sessionId).trim()
+      : null;
 
   if (gateQuotaEmail) {
     const reserved = await reserveGateQuota(gateQuotaEmail);
@@ -7002,7 +7009,26 @@ ${continuationRule}`;
     }
     if (reserved.reservationTs != null) {
       gateQuotaReservation = {
-        email: gateQuotaEmail,
+        kind: "email",
+        id: gateQuotaEmail,
+        reservationTs: reserved.reservationTs,
+      };
+    }
+  } else if (gateQuotaSessionId) {
+    const reserved = await reserveSessionQuota(gateQuotaSessionId);
+    if (reserved.limitReached) {
+      return res.status(200).json({
+        requestId,
+        limitReached: true,
+        code: "email_required",
+        reason: "email_required",
+        freeQuota: reserved.freeQuota,
+      });
+    }
+    if (reserved.reservationTs != null) {
+      gateQuotaReservation = {
+        kind: "session",
+        id: gateQuotaSessionId,
         reservationTs: reserved.reservationTs,
       };
     }
@@ -7943,6 +7969,13 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       } catch {
         /* optional mirror payload */
       }
+    } else if (gateQuotaSessionId) {
+      gateQuotaDelivered = true;
+      try {
+        responseBody.freeQuota = await getSessionQuotaStatus(gateQuotaSessionId);
+      } catch {
+        /* optional mirror payload */
+      }
     }
 
     return res.status(200).json(responseBody);
@@ -7964,10 +7997,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     });
   } finally {
     if (gateQuotaReservation && !gateQuotaDelivered) {
-      await releaseGateQuota(
-        gateQuotaReservation.email,
-        gateQuotaReservation.reservationTs,
-      );
+      if (gateQuotaReservation.kind === "session") {
+        await releaseSessionQuota(
+          gateQuotaReservation.id,
+          gateQuotaReservation.reservationTs,
+        );
+      } else {
+        await releaseGateQuota(
+          gateQuotaReservation.id,
+          gateQuotaReservation.reservationTs,
+        );
+      }
     }
   }
 }

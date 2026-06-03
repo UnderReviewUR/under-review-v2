@@ -1,14 +1,19 @@
 /**
  * Free-tier question allowance for the client (`App.jsx` `canAsk`, localStorage daily keys).
- * When GATE_SERVER_QUOTA_ENFORCE=1, server UTC day + `freeQuota` payloads are authoritative.
- * Client mirrors via syncFreeTierFromServer().
+ * Anonymous: 3 questions per sessionId before email is required.
+ * Identified: 3 questions per UTC day per email when GATE_SERVER_QUOTA_ENFORCE=1.
  */
 
+import { getOrCreateUrSessionId } from "./urSessionId.js";
+
 export const FREE_QUESTION_LIMIT = 3;
+export const FREE_SESSION_QUESTION_LIMIT = 3;
 
 const FREE_USED_KEY_PREFIX = "ur_free_used_";
 const FREE_QUOTA_SNAPSHOT_KEY = "ur_free_quota_snapshot";
+const SESSION_QUOTA_SNAPSHOT_KEY = "ur_session_quota_snapshot";
 export const UR_FREE_QUOTA_LIMIT_EVENT = "ur-free-quota-limit";
+export const UR_EMAIL_GATE_EVENT = "ur-email-gate-required";
 
 /**
  * UTC calendar day key (matches api/_gateQuota.js).
@@ -73,11 +78,85 @@ export function readFreeTierUsedToday() {
 }
 
 /**
+ * @returns {number}
+ */
+export function readSessionQuotaUsed() {
+  try {
+    if (typeof localStorage === "undefined") return 0;
+    const sessionId = getOrCreateUrSessionId();
+    const snapRaw = localStorage.getItem(SESSION_QUOTA_SNAPSHOT_KEY);
+    if (snapRaw) {
+      const snap = JSON.parse(snapRaw);
+      if (snap && snap.sessionId === sessionId) {
+        const n = parseInt(String(snap.used ?? "0"), 10);
+        if (Number.isFinite(n) && n > 0) return Math.min(FREE_SESSION_QUESTION_LIMIT, n);
+        return 0;
+      }
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * @returns {boolean}
+ */
+export function hasStoredFreeTierEmail() {
+  try {
+    if (typeof localStorage === "undefined") return false;
+    const email = String(localStorage.getItem("ur_email") || "").trim();
+    return email.includes("@");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mirror server session quota into localStorage.
+ * @param {{ used?: number, limit?: number, remaining?: number, scope?: string } | null | undefined} freeQuota
+ * @returns {number}
+ */
+export function syncSessionQuotaFromServer(freeQuota) {
+  if (!freeQuota || typeof freeQuota !== "object") {
+    return readSessionQuotaUsed();
+  }
+  const limit = Math.max(0, Number(freeQuota.limit) || FREE_SESSION_QUESTION_LIMIT);
+  const used = Math.min(limit, Math.max(0, Number(freeQuota.used) || 0));
+  try {
+    if (typeof localStorage !== "undefined") {
+      const sessionId = getOrCreateUrSessionId();
+      localStorage.setItem(
+        SESSION_QUOTA_SNAPSHOT_KEY,
+        JSON.stringify({ sessionId, used, limit, scope: "session" }),
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+  return used;
+}
+
+/**
+ * @param {{ used?: number, limit?: number, remaining?: number, dayKey?: string, scope?: string } | null | undefined} freeQuota
+ * @returns {number}
+ */
+export function syncQuotaFromServer(freeQuota) {
+  if (freeQuota?.scope === "session") {
+    return syncSessionQuotaFromServer(freeQuota);
+  }
+  return syncFreeTierFromServer(freeQuota);
+}
+
+/**
  * Mirror server-authoritative quota into localStorage.
- * @param {{ used?: number, limit?: number, remaining?: number, dayKey?: string } | null | undefined} freeQuota
+ * @param {{ used?: number, limit?: number, remaining?: number, dayKey?: string, scope?: string } | null | undefined} freeQuota
  * @returns {number}
  */
 export function syncFreeTierFromServer(freeQuota) {
+  if (freeQuota?.scope === "session") {
+    return syncSessionQuotaFromServer(freeQuota);
+  }
   if (!freeQuota || typeof freeQuota !== "object") {
     return readFreeTierUsedToday();
   }
@@ -100,6 +179,13 @@ export function syncFreeTierFromServer(freeQuota) {
 
 /** Force client cache to daily limit and open the existing upgrade modal. */
 export function applyFreeTierLimitReachedFromServer(freeQuota) {
+  if (freeQuota?.scope === "session") {
+    syncSessionQuotaFromServer(freeQuota);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(UR_EMAIL_GATE_EVENT));
+    }
+    return;
+  }
   const payload =
     freeQuota && typeof freeQuota === "object"
       ? freeQuota
@@ -134,6 +220,45 @@ export function incrementFreeTierUsedToday() {
     /* ignore */
   }
   return next;
+}
+
+/**
+ * @returns {number}
+ */
+export function incrementSessionQuotaUsed() {
+  const used = readSessionQuotaUsed();
+  const next = Math.min(FREE_SESSION_QUESTION_LIMIT, used + 1);
+  try {
+    if (typeof localStorage !== "undefined") {
+      const sessionId = getOrCreateUrSessionId();
+      localStorage.setItem(
+        SESSION_QUOTA_SNAPSHOT_KEY,
+        JSON.stringify({
+          sessionId,
+          used: next,
+          limit: FREE_SESSION_QUESTION_LIMIT,
+          scope: "session",
+        }),
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+  return next;
+}
+
+/**
+ * @param {number} [used]
+ * @param {number} [limit]
+ * @returns {boolean}
+ */
+export function isSessionQuotaAvailable(
+  used = readSessionQuotaUsed(),
+  limit = FREE_SESSION_QUESTION_LIMIT,
+) {
+  const lim = Math.max(0, Number(limit) || 0);
+  const u = Math.min(Math.max(0, Number(used) || 0), lim);
+  return u < lim;
 }
 
 /**
@@ -185,6 +310,36 @@ export async function hydrateFreeTierFromGateCheck(email) {
         limit: d.limit ?? FREE_QUESTION_LIMIT,
         remaining: d.remaining,
         dayKey: getUtcDateKey(),
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/**
+ * Hydrate anonymous session quota from POST /api/gate action:check.
+ * @param {string} [sessionId]
+ * @returns {Promise<number | null>}
+ */
+export async function hydrateSessionQuotaFromGateCheck(sessionId) {
+  const sid = String(sessionId || getOrCreateUrSessionId()).trim();
+  if (sid.length < 16) return null;
+  try {
+    const r = await fetch("/api/gate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "check", sessionId: sid }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (d?.freeQuota) return syncSessionQuotaFromServer(d.freeQuota);
+    if (d?.used != null) {
+      return syncSessionQuotaFromServer({
+        used: d.used,
+        limit: d.limit ?? FREE_SESSION_QUESTION_LIMIT,
+        remaining: d.remaining,
+        scope: "session",
       });
     }
   } catch {
