@@ -185,6 +185,10 @@ async function fetchPayloadForSport(sport) {
     const liveMatches = await buildAtpLiveMatches(context);
     return packTennisAtp(players, context, liveMatches);
   }
+  if (sport === "worldcup") {
+    await fetchJson("/api/world-cup?view=context");
+    return { warmed: true };
+  }
   return null;
 }
 

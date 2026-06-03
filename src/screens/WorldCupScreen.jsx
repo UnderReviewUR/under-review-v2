@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import WcGroupTable from "../components/world-cup/WcGroupTable.jsx";
@@ -37,11 +37,34 @@ export default function WorldCupScreen({
   askBarCommon,
   accessTier,
   onUpgradePromptClick,
+  wcScreenNav = null,
+  onWcScreenNavConsumed,
+  onUrTakeRetry = null,
+  onViewWcMatch = null,
 }) {
   const [mainTab, setMainTab] = useState("groups");
   const [matchSubTab, setMatchSubTab] = useState("live");
+  const [highlightEventId, setHighlightEventId] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [expandedGroup, setExpandedGroup] = useState(null);
+
+  useEffect(() => {
+    if (!wcScreenNav) return;
+    if (wcScreenNav.mainTab) setMainTab(wcScreenNav.mainTab);
+    if (wcScreenNav.matchSubTab) setMatchSubTab(wcScreenNav.matchSubTab);
+    if (wcScreenNav.highlightEventId) setHighlightEventId(String(wcScreenNav.highlightEventId));
+    onWcScreenNavConsumed?.();
+  }, [wcScreenNav, onWcScreenNavConsumed]);
+
+  useEffect(() => {
+    if (!highlightEventId || wcLoading) return;
+    const id = `wc-match-${highlightEventId}`;
+    const t = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => setHighlightEventId(null), 4000);
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [highlightEventId, wcLoading, mainTab, matchSubTab]);
 
   const today = todayEt();
   const todayMatches = useMemo(
@@ -59,11 +82,13 @@ export default function WorldCupScreen({
     accessTier,
     onUpgradePromptClick,
     hideFollowUpDock: true,
+    onUrTakeRetry,
+    onViewWcMatch,
   };
 
   const handleAskMatch = (match) => {
     const prompt = `World Cup 2026: ${match.homeTeam} vs ${match.awayTeam}${match.group ? ` (Group ${match.group})` : ""} — give me your UR Take on angles, goals, and live betting value.`;
-    submitWc(prompt);
+    submitWc(prompt, { eventId: match?.id });
   };
 
   const handleAskTeam = (team) => {
@@ -96,6 +121,7 @@ export default function WorldCupScreen({
             teams={teams}
             onAskUrTake={handleAskMatch}
             fetchWeather={fetchWeather}
+            highlight={highlightEventId != null && String(m.id) === String(highlightEventId)}
           />
         ))}
       </div>

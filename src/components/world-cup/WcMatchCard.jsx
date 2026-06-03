@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
 import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
@@ -10,9 +10,14 @@ import {
 } from "../../../shared/wcXiStatus.js";
 import WcLiveScore from "./WcLiveScore.jsx";
 
+const WC_XI_HELP =
+  "ESPN lineup data refreshes every 90s near kickoff. Don't place starter props until this shows green.";
+
 function WcMatchXiTrust({ match }) {
   const xiStatus = resolveWcXiStatus(match);
   const asOf = formatWcDetailAsOfEt(match?.lastUpdated);
+  const popoverId = useId();
+  const [helpOpen, setHelpOpen] = useState(false);
   return (
     <div className="wc-xi-trust">
       <span className={`wc-xi-chip wc-xi-chip--${xiStatus}`}>
@@ -20,7 +25,22 @@ function WcMatchXiTrust({ match }) {
           {WC_XI_STATUS_ICON[xiStatus]}
         </span>
         {wcXiStatusChipLabel(xiStatus)}
+        <button
+          type="button"
+          className="wc-xi-help-btn"
+          aria-label="Why is lineup status pending?"
+          aria-expanded={helpOpen}
+          aria-controls={popoverId}
+          onClick={() => setHelpOpen((o) => !o)}
+        >
+          ?
+        </button>
       </span>
+      {helpOpen ? (
+        <p id={popoverId} className="wc-xi-help-popover" role="tooltip">
+          {WC_XI_HELP}
+        </p>
+      ) : null}
       {asOf ? <span className="wc-xi-asof">as of {asOf}</span> : null}
     </div>
   );
@@ -56,7 +76,14 @@ function OddsBar({ odds }) {
   );
 }
 
-export default function WcMatchCard({ match, teams, onAskUrTake, showOdds = true, fetchWeather = false }) {
+export default function WcMatchCard({
+  match,
+  teams,
+  onAskUrTake,
+  showOdds = true,
+  fetchWeather = false,
+  highlight = false,
+}) {
   const [weather, setWeather] = useState(null);
   const home = getWcTeamByAbbr(match?.homeTeam) || teams?.find((t) => t.abbreviation === match?.homeTeam);
   const away = getWcTeamByAbbr(match?.awayTeam) || teams?.find((t) => t.abbreviation === match?.awayTeam);
@@ -87,8 +114,13 @@ export default function WcMatchCard({ match, teams, onAskUrTake, showOdds = true
 
   const kickoff = [match?.date, match?.time].filter(Boolean).join(" ");
 
+  const cardId = match?.id != null ? `wc-match-${String(match.id).trim()}` : undefined;
+
   return (
-    <div className="wc-match-card">
+    <div
+      id={cardId}
+      className={`wc-match-card${highlight ? " wc-match-card--highlight" : ""}`}
+    >
       <WcMatchXiTrust match={match} />
       {live ? (
         <WcLiveScore match={match} />

@@ -9,6 +9,8 @@ test("buildWcHomePromoCard returns card during promo window", () => {
   const card = buildWcHomePromoCard(Date.parse("2026-06-02T16:00:00Z"));
   assert.ok(card);
   assert.equal(card.sportHint, "worldcup");
+  assert.ok(card.trustLine?.includes("Starting XIs"));
+  assert.equal(card.matchesCta, "See today's matches");
 });
 
 test("ensureWorldCupInHomeQuestions pins WC first", () => {

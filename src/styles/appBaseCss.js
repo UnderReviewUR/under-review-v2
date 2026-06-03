@@ -1890,6 +1890,49 @@ export const baseCss = `
     background:rgba(255,255,255,0.03);
   }
   .wc-xi-asof{font-size:9px;color:var(--muted);font-family:var(--mono-font);letter-spacing:0.3px;}
+  .wc-xi-help-btn{
+    margin-left:4px;padding:0 5px;min-width:16px;height:16px;
+    border-radius:50%;border:1px solid rgba(255,255,255,0.2);
+    background:transparent;color:inherit;font-size:10px;font-weight:700;cursor:pointer;line-height:1;
+  }
+  .wc-xi-help-popover{
+    flex:1 1 100%;margin:6px 0 0;font-size:10px;line-height:1.45;color:var(--soft);
+    font-family:var(--body-font);letter-spacing:0;
+    text-transform:none;
+  }
+  .wc-match-card--highlight{border-color:rgba(0,245,233,0.55);box-shadow:0 0 0 1px rgba(0,245,233,0.2);}
+  .wc-xi-confirmed-banner{
+    display:flex;align-items:stretch;gap:0;margin:8px 0 10px;
+    border-radius:10px;border:1px solid rgba(34,197,94,0.4);
+    background:rgba(34,197,94,0.1);overflow:hidden;
+  }
+  .wc-xi-confirmed-banner-body{
+    flex:1;text-align:left;padding:10px 12px;background:transparent;border:none;cursor:pointer;color:#fff;
+  }
+  .wc-xi-confirmed-banner-kicker{
+    display:block;font-family:var(--mono-font);font-size:9px;letter-spacing:1.1px;
+    text-transform:uppercase;color:rgba(34,197,94,0.95);margin-bottom:4px;
+  }
+  .wc-xi-confirmed-banner-text{display:block;font-size:12px;font-weight:600;}
+  .wc-xi-confirmed-banner-dismiss{
+    flex:0 0 36px;border:none;border-left:1px solid rgba(34,197,94,0.25);
+    background:transparent;color:rgba(255,255,255,0.6);font-size:18px;cursor:pointer;
+  }
+  .wc-ur-take-pending-nudge{
+    margin:8px 16px 4px;font-size:11px;line-height:1.45;color:var(--muted);
+    font-family:var(--mono-font);
+  }
+  .wc-ur-take-pending-link{
+    margin-left:6px;padding:0;border:none;background:none;
+    color:var(--wc-gold);font:inherit;font-size:11px;text-decoration:underline;cursor:pointer;
+  }
+  .ur-take-fail-soft-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .ur-take-fail-soft-chip{
+    font-family:var(--mono-font);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;
+    padding:6px 12px;border-radius:999px;border:1px solid rgba(0,245,233,0.35);
+    background:rgba(0,245,233,0.1);color:var(--cyan-bright);cursor:pointer;
+  }
+  .ur-take-fail-soft-chip--upgrade{border-color:rgba(245,158,11,0.4);color:var(--wc-gold);background:rgba(245,158,11,0.1);}
   .wc-match-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--muted);font-family:var(--mono-font);margin-bottom:8px;}
   .wc-odds-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--soft);margin-bottom:4px;}
   .wc-ask-btn{

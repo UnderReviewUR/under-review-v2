@@ -13,6 +13,8 @@ export function buildWcHomePromoCard(nowMs = Date.now()) {
     accentColor: "#00F5E9",
     title: "2026 FIFA World Cup",
     subtitle: "Group-stage value before kickoff",
+    trustLine: "Starting XIs only when confirmed — see status on every match.",
+    matchesCta: "See today's matches",
     highlights: [
       "Norway & Paraguay longshot paths",
       "Group winner / advancement misprices",

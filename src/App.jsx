@@ -172,9 +172,13 @@ import {
   buildUrTakePreFetchLog,
   classifyUrTakeClientCatchPhase,
   fetchUrTakeWithNetworkRetry,
-  userMessageForUrTakeClientFailure,
   UR_TAKE_PATH,
 } from "./lib/urTakeFetch.js";
+import {
+  resolveUrTakeFailSoftFromError,
+  resolveUrTakeFailSoftFromResponse,
+} from "./lib/urTakeFailSoft.js";
+import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -623,7 +627,17 @@ ${themeCss}
   const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
   const { golfData, golfLoading } = useGolfData();
-  const { wcLoading, groups, matches: wcMatches, liveMatches: wcLiveMatches, upcomingMatches: wcUpcomingMatches, teams: wcTeams } = useWorldCupData();
+  const {
+    wcLoading,
+    groups,
+    matches: wcMatches,
+    liveMatches: wcLiveMatches,
+    upcomingMatches: wcUpcomingMatches,
+    teams: wcTeams,
+    xiConfirmedNotice,
+    dismissXiConfirmedNotice,
+  } = useWorldCupData();
+  const [wcScreenNav, setWcScreenNav] = useState(null);
   const { nflContextData } = useNflData();
   const {
     performanceData,
@@ -1336,7 +1350,7 @@ ${themeCss}
   }, []);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
-  const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry }) => {
+  const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry, wcEventId }) => {
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
   if (urTakeInFlightRef.current) return;
@@ -1422,7 +1436,14 @@ ${themeCss}
 
     return [
       ...prev,
-      { role: "user", text, image: imgToSend?.previewUrl || null },
+      {
+        role: "user",
+        text,
+        image: imgToSend?.previewUrl || null,
+        ...(wcEventId != null && String(wcEventId).trim()
+          ? { wcEventId: String(wcEventId).trim() }
+          : {}),
+      },
       {
         role: "ai",
         text: "ANALYZING...",
@@ -1684,6 +1705,32 @@ ${themeCss}
       }
       const code = String(j.code || "");
       const fr = String(j.fallbackReason || "");
+      if (code === "server_misconfigured" || code === "auth_server_misconfigured") {
+        const failSoftAuth = resolveUrTakeFailSoftFromResponse(res.status, j);
+        const dbgAuth = buildUrTakeClientFailureDebug({
+          phase: "fetch_non_ok",
+          res,
+          raw,
+          parsedErrorJson: j,
+          err: null,
+          effectiveSportHint,
+          hintForEnsure,
+          hasGolfContext: hasGolfContextForDebug,
+          serializedBodyLength,
+          contentType: lastResponseContentType,
+        });
+        setMsgs((prev) => [
+          ...prev.filter((m) => !m.loading),
+          {
+            role: "ai",
+            text: failSoftAuth.message,
+            urTakeFailSoft: failSoftAuth,
+            urTakeRetryPrompt: text,
+            urTakeClientFailure: dbgAuth,
+          },
+        ]);
+        return;
+      }
       const dbgFetchNonOk = buildUrTakeClientFailureDebug({
         phase: "fetch_non_ok",
         res,
@@ -1701,9 +1748,16 @@ ${themeCss}
         (code === "upstream_unavailable" || fr === "upstream_rate_limit")
       ) {
         console.error("[urTakeClientFailure]", dbgFetchNonOk);
+        const failSoft503 = resolveUrTakeFailSoftFromResponse(503, j);
         setMsgs((prev) => [
           ...prev.filter((m) => !m.loading),
-          { role: "ai", text: upstreamFailMsg, urTakeClientFailure: dbgFetchNonOk },
+          {
+            role: "ai",
+            text: failSoft503.message,
+            urTakeFailSoft: failSoft503,
+            urTakeRetryPrompt: text,
+            urTakeClientFailure: dbgFetchNonOk,
+          },
         ]);
         if (fuTelemetryState) {
           const end = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -1777,7 +1831,16 @@ ${themeCss}
         });
       }
       setFreeUsedRevision((n) => n + 1);
-      setMsgs((prev) => prev.filter((m) => !m.loading));
+      const failSoftQuota = resolveUrTakeFailSoftFromResponse(200, data);
+      setMsgs((prev) => [
+        ...prev.filter((m) => !m.loading),
+        {
+          role: "ai",
+          text: failSoftQuota.message,
+          urTakeFailSoft: failSoftQuota,
+          urTakeRetryPrompt: text,
+        },
+      ]);
       setShowUpgradeModal(true);
       if (fuTelemetryState) {
         const end = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -1812,9 +1875,16 @@ ${themeCss}
         contentType: lastResponseContentType,
       });
       console.error("[urTakeClientFailure]", dbgRate);
+      const failSoftRate = resolveUrTakeFailSoftFromResponse(200, data);
       setMsgs((prev) => [
         ...prev.filter((m) => !m.loading),
-        { role: "ai", text: upstreamFailMsg, urTakeClientFailure: dbgRate },
+        {
+          role: "ai",
+          text: failSoftRate.message,
+          urTakeFailSoft: failSoftRate,
+          urTakeRetryPrompt: text,
+          urTakeClientFailure: dbgRate,
+        },
       ]);
       if (fuTelemetryState) {
         const end = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -1905,11 +1975,16 @@ ${themeCss}
     const sportTrackedForBubble = String(
       sportForBubble || resolvedSport || effectiveSportHint || "generic",
     ).toLowerCase();
+    const lastUserWcEventId = [...priorSnapshot]
+      .reverse()
+      .find((x) => x.role === "user" && x.wcEventId)?.wcEventId;
+
     const completeBubble = {
       role: "ai",
       msgId: pendingMsgId,
       text: normalizedDisplay.response,
       sport: sportForBubble || undefined,
+      ...(lastUserWcEventId ? { wcEventId: String(lastUserWcEventId).trim() } : {}),
       takeMeta:
         data.take && typeof data.take === "object"
           ? {
@@ -2044,14 +2119,20 @@ ${themeCss}
         golfContextMismatch: golfContextMismatchForDebug,
       });
     console.error("[urTakeClientFailure]", failureDbg);
-    const fallback =
-      err?.userFacingMessage ||
-      userMessageForUrTakeClientFailure(catchPhase, {
-        golfContextMismatch: golfContextMismatchForDebug,
-      });
+    const failSoft =
+      err?.parsedCode != null
+        ? resolveUrTakeFailSoftFromResponse(0, { code: err.parsedCode })
+        : resolveUrTakeFailSoftFromError(err);
+    const fallback = failSoft.message;
     setMsgs((prev) => [
       ...prev.filter((m) => !m.loading),
-      { role: "ai", text: fallback, urTakeClientFailure: failureDbg },
+      {
+        role: "ai",
+        text: fallback,
+        urTakeFailSoft: failSoft,
+        urTakeRetryPrompt: text,
+        urTakeClientFailure: failureDbg,
+      },
     ]);
   } finally {
     setIsAsking(false);
@@ -3196,16 +3277,41 @@ ${themeCss}
     setSelectedNflPlayer(null);
   }, [screen, tab]);
 
-  const goWorldCup = useCallback(() => {
-    if (screen !== "worldcup" || tab !== "worldcup") {
-      setNavHistory((h) => [...h, { screen, tab }]);
-    }
-    setTab("worldcup");
-    setScreen("worldcup");
-    setSelectedMatchup(null);
-    setSelectedPlayer(null);
-    setSelectedNflPlayer(null);
-  }, [screen, tab]);
+  const goWorldCup = useCallback(
+    (nav = null) => {
+      if (screen !== "worldcup" || tab !== "worldcup") {
+        setNavHistory((h) => [...h, { screen, tab }]);
+      }
+      if (nav && typeof nav === "object") {
+        setWcScreenNav({
+          mainTab: nav.mainTab || "matches",
+          matchSubTab: nav.matchSubTab || "live",
+          highlightEventId: nav.highlightEventId || null,
+        });
+      }
+      setTab("worldcup");
+      setScreen("worldcup");
+      setSelectedMatchup(null);
+      setSelectedPlayer(null);
+      setSelectedNflPlayer(null);
+    },
+    [screen, tab],
+  );
+
+  const goWorldCupMatchesToday = useCallback(() => {
+    goWorldCup({ mainTab: "matches", matchSubTab: "today" });
+  }, [goWorldCup]);
+
+  const openWcMatchFromTake = useCallback(
+    (eventId) => {
+      const id = String(eventId || "").trim();
+      if (!id) return;
+      goWorldCup({ mainTab: "matches", matchSubTab: "today", highlightEventId: id });
+    },
+    [goWorldCup],
+  );
+
+  const clearWcScreenNav = useCallback(() => setWcScreenNav(null), []);
 
   const goUrTakeTab = useCallback(() => {
     if (screen !== "ask" || tab !== "ask") {
@@ -3484,7 +3590,21 @@ ${themeCss}
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,mlbInput,scheduleChatScroll]);
 
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,golfInput,scheduleChatScroll]);
-  const submitWc = useCallback(forced=>{ const t=(forced??wcInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setWcInput(""); askUrTake({text:t,setMsgs:setWcMsgs,sportHint:"worldcup"}); scheduleChatScroll(wcScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,wcInput,scheduleChatScroll]);
+  const submitWc = useCallback(
+    (forced, opts = {}) => {
+      const t = (typeof forced === "string" ? forced : wcInput).trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (typeof forced !== "string") setWcInput("");
+      askUrTake({
+        text: t,
+        setMsgs: setWcMsgs,
+        sportHint: "worldcup",
+        wcEventId: opts.eventId,
+      });
+      scheduleChatScroll(wcScreenRef);
+    },
+    [askUrTake, isAsking, prefetchingUrTakeContext, wcInput, scheduleChatScroll],
+  );
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   /** Insert suggested live follow-up from thread pills and submit (matches each sport's ask flow). */
@@ -4173,6 +4293,16 @@ ${themeCss}
             pgaChampionshipOddsCard={pgaChampionshipOddsCard}
             wcHomePromoCard={wcHomePromoCard}
             goWorldCup={goWorldCup}
+            goWorldCupMatchesToday={goWorldCupMatchesToday}
+            wcXiConfirmedNotice={xiConfirmedNotice}
+            onDismissWcXiNotice={dismissXiConfirmedNotice}
+            onOpenWcXiNotice={(notice) =>
+              goWorldCup({
+                mainTab: "matches",
+                matchSubTab: "today",
+                highlightEventId: notice?.eventId,
+              })
+            }
             firePrompt={firePrompt}
             prefillUrTakeQuestion={prefillUrTakeQuestion}
             isUnlimited={isUnlimited}
@@ -4460,6 +4590,10 @@ ${themeCss}
             askBarCommon={askBarCommon}
             accessTier={accessTier}
             onUpgradePromptClick={openUpgradeModal}
+            wcScreenNav={wcScreenNav}
+            onWcScreenNavConsumed={clearWcScreenNav}
+            onUrTakeRetry={(prompt) => submitWc(prompt)}
+            onViewWcMatch={openWcMatchFromTake}
           />
         )}
 

@@ -21,7 +21,10 @@ import { resolveStructuralEdgeChipForMessage } from "../../lib/urTakeStructuralE
 import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
-import { wcDataConfidenceChipLabel } from "../../../shared/wcDataConfidence.js";
+import {
+  wcDataConfidenceChipLabel,
+  wcDataConfidenceNeedsCaution,
+} from "../../../shared/wcDataConfidence.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
@@ -1619,6 +1622,44 @@ function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText) {
   return effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null;
 }
 
+function UrTakeFailSoftActions({ m, onUrTakeRetry, onUpgradePromptClick }) {
+  const fail = m?.urTakeFailSoft;
+  if (!fail || m.loading) return null;
+  return (
+    <div className="ur-take-fail-soft-actions">
+      {fail.retryable && m.urTakeRetryPrompt && typeof onUrTakeRetry === "function" ? (
+        <button
+          type="button"
+          className="ur-take-fail-soft-chip"
+          onClick={() => onUrTakeRetry(m.urTakeRetryPrompt)}
+        >
+          Try again
+        </button>
+      ) : null}
+      {fail.showUpgrade && typeof onUpgradePromptClick === "function" ? (
+        <button type="button" className="ur-take-fail-soft-chip ur-take-fail-soft-chip--upgrade" onClick={onUpgradePromptClick}>
+          See Pro
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function WcUrTakePendingNudge({ dataConfidence, wcEventId, onViewWcMatch }) {
+  if (!wcDataConfidenceNeedsCaution(dataConfidence)) return null;
+  const id = wcEventId != null ? String(wcEventId).trim() : "";
+  return (
+    <p className="wc-ur-take-pending-nudge">
+      Lineups still pending — check the match card before you bet.{" "}
+      {id && typeof onViewWcMatch === "function" ? (
+        <button type="button" className="wc-ur-take-pending-link" onClick={() => onViewWcMatch(id)}>
+          View match
+        </button>
+      ) : null}
+    </p>
+  );
+}
+
 function UrTakeAiBubble({
   m,
   trackPlay,
@@ -1627,6 +1668,9 @@ function UrTakeAiBubble({
   msgs = [],
   msgIndex = 0,
   golfSessionBoard = null,
+  onUrTakeRetry = null,
+  onUpgradePromptClick = null,
+  onViewWcMatch = null,
 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
@@ -1754,11 +1798,32 @@ function UrTakeAiBubble({
             dataConfidence={m.dataConfidence}
           />
         </UrTakeSectionErrorBoundary>
+        <WcUrTakePendingNudge
+          dataConfidence={m.dataConfidence}
+          wcEventId={m.wcEventId}
+          onViewWcMatch={onViewWcMatch}
+        />
         <UrTakeNextContinuationLine />
         {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
+      </>
+    );
+  }
+
+  if (m.urTakeFailSoft) {
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        <div className="bubble ai">
+          {renderMessage(summaryText)}
+          <UrTakeFailSoftActions
+            m={m}
+            onUrTakeRetry={onUrTakeRetry}
+            onUpgradePromptClick={onUpgradePromptClick}
+          />
+        </div>
       </>
     );
   }
@@ -2045,6 +2110,8 @@ export function ChatThread({
   accessTier = null,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onUrTakeRetry = null,
+  onViewWcMatch = null,
   hideFollowUpDock = false,
   /** Live golf board for structural-edge chip (leaderboard + outrights). */
   golfSessionBoard = null,
@@ -2224,6 +2291,9 @@ export function ChatThread({
                   [...msgs.slice(0, i)].reverse().find((x) => x.role === "user")?.text || "",
                 )}
                 getTakeAuthHeaders={getTakeAuthHeaders}
+                onUrTakeRetry={onUrTakeRetry}
+                onUpgradePromptClick={onUpgradePromptClick}
+                onViewWcMatch={onViewWcMatch}
               />
               {m.urTakeFeedSnagDiag ? <UrTakeFeedSnagProductDiag diag={m.urTakeFeedSnagDiag} /> : null}
               <UrTakeClientFailureDebugPre accessTier={accessTier} payload={m.urTakeClientFailure} />

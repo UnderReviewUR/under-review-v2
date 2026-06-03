@@ -6,6 +6,7 @@ import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
+import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
 
 const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
@@ -38,6 +39,10 @@ export default function HomeScreen({
   pgaChampionshipOddsCard,
   wcHomePromoCard,
   goWorldCup,
+  goWorldCupMatchesToday,
+  wcXiConfirmedNotice,
+  onDismissWcXiNotice,
+  onOpenWcXiNotice,
   firePrompt,
   prefillUrTakeQuestion,
   isUnlimited = false,
@@ -233,6 +238,14 @@ export default function HomeScreen({
         onOpenUpgrade={onOpenUpgrade}
       />
 
+      {wcXiConfirmedNotice ? (
+        <WcXiConfirmedHomeBanner
+          notice={wcXiConfirmedNotice}
+          onOpenMatch={onOpenWcXiNotice}
+          onDismiss={onDismissWcXiNotice}
+        />
+      ) : null}
+
       {wcHomePromoCard ? (
         <div
           className="ur-wc-home-promo"
@@ -271,7 +284,7 @@ export default function HomeScreen({
             {goWorldCup ? (
               <button
                 type="button"
-                onClick={goWorldCup}
+                onClick={() => goWorldCup()}
                 style={{
                   fontFamily: "var(--mono-font)",
                   fontSize: 10,
@@ -293,9 +306,41 @@ export default function HomeScreen({
             {wcHomePromoCard.title}
           </div>
           {wcHomePromoCard.subtitle ? (
-            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
               {wcHomePromoCard.subtitle}
             </div>
+          ) : null}
+          {wcHomePromoCard.trustLine ? (
+            <div
+              style={{
+                fontSize: 11,
+                color: "rgba(245,158,11,0.9)",
+                marginBottom: 10,
+                lineHeight: 1.45,
+              }}
+            >
+              {wcHomePromoCard.trustLine}
+            </div>
+          ) : null}
+          {goWorldCupMatchesToday ? (
+            <button
+              type="button"
+              onClick={goWorldCupMatchesToday}
+              style={{
+                width: "100%",
+                marginBottom: 10,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(0,245,233,0.45)",
+                background: "rgba(0,245,233,0.14)",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {wcHomePromoCard.matchesCta || "See today's matches"}
+            </button>
           ) : null}
           <ul
             style={{
