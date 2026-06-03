@@ -645,6 +645,7 @@ ${themeCss}
     liveMatches: wcLiveMatches,
     upcomingMatches: wcUpcomingMatches,
     teams: wcTeams,
+    outrightsMeta: wcOutrightsMeta,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,
   } = useWorldCupData();
@@ -4738,6 +4739,7 @@ ${themeCss}
             liveMatches={wcLiveMatches}
             upcomingMatches={wcUpcomingMatches}
             teams={wcTeams}
+            outrightsMeta={wcOutrightsMeta}
             wcMsgs={wcMsgs}
             wcBarRef={wcBarRef}
             wcInputRef={wcInputRef}

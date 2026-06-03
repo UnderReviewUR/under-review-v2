@@ -144,8 +144,9 @@ export function extractEspnMatchOdds(oddsBlock) {
 
 /**
  * @param {Record<string, unknown>} event
+ * @param {number} [nowMs]
  */
-export function normalizeEspnScoreboardEvent(event) {
+export function normalizeEspnScoreboardEvent(event, nowMs = Date.now()) {
   if (!event || typeof event !== "object") return null;
   const comp = event.competitions?.[0];
   if (!comp) return null;
@@ -198,6 +199,7 @@ export function normalizeEspnScoreboardEvent(event) {
     round: String(event.season?.type?.name || event.season?.slug || "").trim(),
     commenceTs,
     odds,
+    ...(odds ? { oddsUpdatedAt: nowMs } : {}),
   };
 }
 
@@ -234,6 +236,7 @@ export async function fetchEspnAllMatches() {
   /** @type {Map<string, Record<string, unknown>>} */
   const byId = new Map();
   const errors = [];
+  const nowMs = Date.now();
 
   const start = new Date(`${WC_SCOREBOARD_START_YMD.slice(0, 4)}-${WC_SCOREBOARD_START_YMD.slice(4, 6)}-${WC_SCOREBOARD_START_YMD.slice(6, 8)}T12:00:00Z`);
   const end = new Date(`${WC_SCOREBOARD_END_YMD.slice(0, 4)}-${WC_SCOREBOARD_END_YMD.slice(4, 6)}-${WC_SCOREBOARD_END_YMD.slice(6, 8)}T12:00:00Z`);
@@ -250,7 +253,7 @@ export async function fetchEspnAllMatches() {
       continue;
     }
     for (const ev of res.events) {
-      const row = normalizeEspnScoreboardEvent(ev);
+      const row = normalizeEspnScoreboardEvent(ev, nowMs);
       if (!row?.id) continue;
       byId.set(String(row.id), row);
     }

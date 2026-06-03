@@ -45,11 +45,21 @@ test("formatOutrightsForPrompt formats KV outrights with freshness and mispriced
   assert.match(block, /Do not invent odds/);
 });
 
-test("formatWorldCupUrTakePromptBlock injects live outrights block when present", () => {
+test("formatWorldCupUrTakePromptBlock injects stale outrights block without mispriced citation rule", () => {
+  const now = Date.parse("2026-06-03T12:00:00.000Z");
   const outrightsBlock = formatOutrightsForPrompt({
     outrights: { NOR: "+2500" },
-    lastUpdated: Date.parse("2026-06-03T12:00:00.000Z"),
-    source: "odds_api",
+    lastUpdated: now - 7 * 60 * 60 * 1000,
+    source: "espn",
+    stale: true,
+    freshness: {
+      fetchedAt: new Date(now - 7 * 60 * 60 * 1000).toISOString(),
+      isStale: true,
+      ageMinutes: 420,
+      ageText: "STALE (420 min ago)",
+      maxAgeMinutes: 360,
+      staleWarning: "Odds data is more than 360 minutes old",
+    },
   });
   const block = formatWorldCupUrTakePromptBlock({
     tournament: "2026 FIFA World Cup",
@@ -62,6 +72,41 @@ test("formatWorldCupUrTakePromptBlock injects live outrights block when present"
     outrightsBlock,
   });
   assert.match(block, /NOR: \+2500/);
+  assert.match(block, /ODDS FRESHNESS \(mandatory\)/);
+  assert.match(block, /never use the word "mispriced"/i);
+});
+
+test("formatWorldCupUrTakePromptBlock injects fresh outrights block when present", () => {
+  const now = Date.parse("2026-06-03T12:00:00.000Z");
+  const outrightsBlock = formatOutrightsForPrompt(
+    {
+      outrights: { NOR: "+2500" },
+      lastUpdated: now - 30 * 60 * 1000,
+      source: "odds_api",
+      stale: false,
+      freshness: {
+        fetchedAt: new Date(now - 30 * 60 * 1000).toISOString(),
+        isStale: false,
+        ageMinutes: 30,
+        ageText: "30 min ago",
+        maxAgeMinutes: 360,
+        staleWarning: null,
+      },
+    },
+    now,
+  );
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: { I: [{ name: "Norway", abbreviation: "NOR", strengthTag: "Contender" }] },
+    live: [],
+    results: [],
+    upcoming: [],
+    outrightsBlock,
+  });
+  assert.match(block, /NOR: \+2500/);
   assert.match(block, /Source: ODDS_API/);
+  assert.match(block, /When claiming a team is "mispriced"/);
   assert.doesNotMatch(block, /No live outright odds available/);
 });

@@ -1956,6 +1956,7 @@ export const baseCss = `
   .wc-empty{color:var(--muted);font-size:12px;padding:16px 0;text-align:center;}
   .wc-muted{color:var(--muted);font-size:11px;}
   .wc-outright-fallback{color:#d97706;font-size:10px;font-weight:500;}
+  .wc-outright-stale-banner{color:#d97706;font-size:11px;font-weight:600;margin:0 0 12px;padding:8px 10px;border:1px solid rgba(217,119,6,.35);border-radius:6px;background:rgba(217,119,6,.08);}
   .wc-bracket-note{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
   .wc-bracket-grid{display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;}
   .wc-bracket-col{flex:0 0 140px;display:flex;flex-direction:column;gap:8px;}

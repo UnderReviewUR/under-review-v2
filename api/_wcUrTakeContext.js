@@ -13,6 +13,7 @@ import {
   wcDataConfidenceChipLabel,
 } from "../shared/wcDataConfidence.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
+import { buildWcOutrightsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -33,42 +34,12 @@ const WC_BREAKING = "";
 const WC_LINEUP_UNCONFIRMED_RULE =
   "Starting XI is NOT confirmed in the verified feed. Do not name expected starters, do not recommend starter-specific or goal-scorer props. Say uncertain or Pass / no play until lineups are confirmed.";
 
-const WC_OUTRIGHTS_MISPRICED_RULE =
-  'When claiming a team is "mispriced", you MUST cite the exact odds from CURRENT OUTRIGHT ODDS above (team abbreviation + price).';
-
-const WC_OUTRIGHTS_NO_MISPRICED_RULE =
-  'If CURRENT OUTRIGHT ODDS says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength and tournament structure, this team should be priced...").';
-
-const WC_OUTRIGHTS_NO_INVENT_RULE = "Do not invent odds under any circumstances.";
-
 /**
- * @param {{ outrights?: Record<string, string>, lastUpdated?: number, source?: string } | null | undefined} outrightsKv
+ * @param {{ outrights?: Record<string, string>, lastUpdated?: number, source?: string, stale?: boolean, freshness?: { isStale?: boolean } } | null | undefined} outrightsKv
  * @returns {string | null}
  */
 export function formatOutrightsForPrompt(outrightsKv) {
-  if (!outrightsKv?.outrights || Object.keys(outrightsKv.outrights).length === 0) {
-    return null;
-  }
-
-  const lines = Object.entries(outrightsKv.outrights)
-    .sort((a, b) => {
-      const oddsA = Number.parseInt(String(a[1]).replace(/[+-]/, ""), 10) || 99999;
-      const oddsB = Number.parseInt(String(b[1]).replace(/[+-]/, ""), 10) || 99999;
-      return oddsA - oddsB;
-    })
-    .slice(0, 20)
-    .map(([abbr, odds]) => `  ${abbr}: ${odds}`);
-
-  const updatedIso = formatVerifiedAsOf(outrightsKv.lastUpdated);
-  const source = String(outrightsKv.source || "espn").toUpperCase();
-
-  return `CURRENT OUTRIGHT ODDS (ESPN primary + Odds API fallback, refreshed ~every 3 hours):
-${lines.join("\n")}
-Last updated: ${updatedIso}
-Source: ${source}
-${WC_OUTRIGHTS_MISPRICED_RULE}
-${WC_OUTRIGHTS_NO_MISPRICED_RULE}
-${WC_OUTRIGHTS_NO_INVENT_RULE}`;
+  return buildWcOutrightsFreshnessPromptBlock(outrightsKv);
 }
 
 /**
@@ -424,8 +395,8 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   } else {
     lines.push(
       "CURRENT OUTRIGHT ODDS: No live outright odds available at this time.",
-      `  ${WC_OUTRIGHTS_NO_MISPRICED_RULE}`,
-      `  ${WC_OUTRIGHTS_NO_INVENT_RULE}`,
+      '  If CURRENT OUTRIGHT ODDS is missing, stale, or says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength and tournament structure, this team should be priced...").',
+      "  Do not invent odds under any circumstances.",
     );
   }
 

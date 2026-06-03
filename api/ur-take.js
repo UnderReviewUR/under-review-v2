@@ -6846,8 +6846,8 @@ Rules:
 - Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
-- When claiming a team is "mispriced" you MUST cite the exact odds from the CURRENT OUTRIGHT ODDS block in VERIFIED CONTEXT (team abbreviation + price).
-- If CURRENT OUTRIGHT ODDS is missing or says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength...").
+- When claiming a team is "mispriced" you MUST cite the exact odds from the CURRENT OUTRIGHT ODDS block in VERIFIED CONTEXT (team abbreviation + price) and the block must not be marked STALE.
+- If CURRENT OUTRIGHT ODDS is missing, marked STALE, or says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength...").
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
   } else if (matchupContext) {

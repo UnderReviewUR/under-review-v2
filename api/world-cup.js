@@ -14,6 +14,7 @@ import {
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_TTL_SECONDS,
 } from "../shared/wc2026Constants.js";
+import { attachMatchListOddsFreshness } from "../shared/wcOddsFreshness.js";
 
 const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
@@ -271,12 +272,16 @@ export async function getGroupsPayload() {
 export async function getMatchesPayload() {
   const kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
   if (kv?.matches?.length) {
+    const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated);
     return {
-      matches: kv.matches,
+      matches,
       lastUpdated: kv.lastUpdated,
       source: kv.source || "espn",
       fallback: Boolean(kv.stale),
       stale: Boolean(kv.stale),
+      ageMinutes: kv.stale && kv.lastUpdated
+        ? Math.round((Date.now() - Number(kv.lastUpdated)) / 60000)
+        : 0,
     };
   }
 
@@ -309,10 +314,20 @@ export async function getOutrightsPayload() {
       outrights: kv.outrights,
       lastUpdated: kv.lastUpdated,
       source: kv.source || "espn",
-      fallback: false,
+      fallback: Boolean(kv.stale),
+      stale: Boolean(kv.stale),
+      ageMinutes: kv.freshness?.ageMinutes ?? null,
+      freshness: kv.freshness ?? null,
     };
   }
-  return { outrights: {}, fallback: true, source: "none" };
+  return {
+    outrights: {},
+    fallback: true,
+    source: "none",
+    stale: true,
+    ageMinutes: null,
+    freshness: null,
+  };
 }
 
 /** Cron-only live ESPN refresh (never called from user GET handlers). */

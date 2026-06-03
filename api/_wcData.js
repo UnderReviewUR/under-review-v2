@@ -27,6 +27,7 @@ import {
 } from "../shared/wc2026Constants.js";
 import { isWcMatchFtStatus } from "../shared/wcMatchDetailTargets.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
+import { attachOutrightsFreshness } from "../shared/wcOddsFreshness.js";
 import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
 
 /** Max parallel KV reads when enriching match lists for /api/world-cup. */
@@ -140,7 +141,7 @@ export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
   }
 
   if (idx >= 0) {
-    matches[idx] = { ...matches[idx], odds: oddsRes.odds };
+    matches[idx] = { ...matches[idx], odds: oddsRes.odds, oddsUpdatedAt: Date.now() };
   } else {
     matches.push({
       id,
@@ -149,6 +150,7 @@ export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
       date: dateYmd,
       status: "NS",
       odds: oddsRes.odds,
+      oddsUpdatedAt: Date.now(),
       commenceTs: dateYmd ? Date.parse(`${dateYmd}T12:00:00Z`) : null,
     });
   }
@@ -256,8 +258,9 @@ export async function readWcMatchesFromKv(maxAgeMs = WC_MATCHES_TTL_SECONDS * 10
   };
 }
 
-export async function readWcOutrightsFromKv() {
-  return getDurableJson(WC_OUTRIGHTS_KV_KEY);
+export async function readWcOutrightsFromKv(nowMs = Date.now()) {
+  const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
+  return attachOutrightsFreshness(cached, nowMs);
 }
 
 /**

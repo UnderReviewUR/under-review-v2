@@ -58,6 +58,7 @@ export function useWorldCupData() {
   const [liveMatches, setLiveMatches] = useState([]);
   const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [outrightsKv, setOutrightsKv] = useState(null);
+  const [outrightsMeta, setOutrightsMeta] = useState(null);
   const [fetchError, setFetchError] = useState(null);
   const [xiConfirmedNotice, setXiConfirmedNotice] = useState(null);
   const xiStatusMapRef = useRef(new Map());
@@ -123,7 +124,17 @@ export function useWorldCupData() {
             matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12),
           );
         }
-        if (outrightsData?.outrights) setOutrightsKv(outrightsData.outrights);
+        if (outrightsData?.outrights && Object.keys(outrightsData.outrights).length) {
+          setOutrightsKv(outrightsData.outrights);
+        } else {
+          setOutrightsKv(null);
+        }
+        setOutrightsMeta({
+          stale: Boolean(outrightsData?.stale),
+          ageMinutes: outrightsData?.ageMinutes ?? null,
+          lastUpdated: outrightsData?.lastUpdated ?? null,
+          source: outrightsData?.source ?? null,
+        });
         if (groupsData?.error || matchesData?.error) {
           setFetchError(groupsData?.error || matchesData?.error);
         } else {
@@ -176,6 +187,7 @@ export function useWorldCupData() {
     liveMatches,
     upcomingMatches,
     teams,
+    outrightsMeta,
     fetchError,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,

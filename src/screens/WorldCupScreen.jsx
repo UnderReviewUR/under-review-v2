@@ -6,6 +6,7 @@ import WcMatchCard from "../components/world-cup/WcMatchCard.jsx";
 import WcBracket from "../components/world-cup/WcBracket.jsx";
 import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
 import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
+import { formatWcOutrightsStaleChipLabel } from "../../shared/wcOddsFreshness.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
@@ -28,6 +29,7 @@ export default function WorldCupScreen({
   liveMatches,
   upcomingMatches,
   teams = WC_2026_TEAMS,
+  outrightsMeta = null,
   wcMsgs,
   wcBarRef,
   wcInputRef,
@@ -85,6 +87,8 @@ export default function WorldCupScreen({
     onUrTakeRetry,
     onViewWcMatch,
   };
+
+  const outrightsStaleLabel = formatWcOutrightsStaleChipLabel(outrightsMeta);
 
   const handleAskMatch = (match) => {
     const prompt = `World Cup 2026: ${match.homeTeam} vs ${match.awayTeam}${match.group ? ` (Group ${match.group})` : ""} — give me your UR Take on angles, goals, and live betting value.`;
@@ -324,7 +328,11 @@ export default function WorldCupScreen({
             </button>
           </div>
         ) : (
-          CONFEDS.map((conf) => {
+          <>
+            {outrightsStaleLabel ? (
+              <p className="wc-outright-stale-banner">{outrightsStaleLabel}</p>
+            ) : null}
+            {CONFEDS.map((conf) => {
             const confTeams = teams.filter((t) => t.confederation === conf);
             if (!confTeams.length) return null;
             return (
@@ -357,7 +365,8 @@ export default function WorldCupScreen({
                 </div>
               </section>
             );
-          })
+          })}
+          </>
         )
       ) : null}
 
