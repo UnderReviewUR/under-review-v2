@@ -1354,7 +1354,6 @@ ${themeCss}
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
   if (urTakeInFlightRef.current) return;
-  const upstreamFailMsg = "Couldn't complete that read. Try again.";
   urTakeInFlightRef.current = true;
   setIsAsking(true);
 
