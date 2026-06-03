@@ -14,6 +14,7 @@ import {
   getWcRampScrapeDelayMs,
   shouldRunScrapeForGame,
 } from "../shared/scrapeCadencePolicy.js";
+import { sortScrapeTargetsByPriority } from "../shared/wcScrapePriority.js";
 import {
   scrapeAndCacheWcMatchBundle,
   scrapeAndCacheWcOutrights,
@@ -134,7 +135,9 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
   const results = [];
   let executed = 0;
 
-  for (const target of targets) {
+  const sortedTargets = sortScrapeTargetsByPriority(targets);
+
+  for (const target of sortedTargets) {
     if (executed >= MAX_SCRAPES_PER_TICK) break;
 
     const { sport, gameId, gameStartMs } = target;

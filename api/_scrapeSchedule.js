@@ -32,12 +32,17 @@ import {
   selectWcMatchDetailTargets,
 } from "../shared/wcMatchDetailTargets.js";
 import { WC_MATCH_DETAIL_LIVE_INTERVAL_MS } from "../shared/wc2026Constants.js";
+import {
+  WC_SCRAPE_PRIORITY,
+  priorityForWcMatchBundleTarget,
+} from "../shared/wcScrapePriority.js";
 
 /**
  * @typedef {Object} ScrapeTarget
  * @property {string} sport — KV segment (nba_props, nba_spreads, golf_odds, mlb_props, tennis_odds, f1_odds, nfl_props)
  * @property {string} gameId
  * @property {number} gameStartMs
+ * @property {number} [priority] — higher = runs first when scheduler cap applies
  * @property {Record<string, unknown>} [meta]
  */
 
@@ -334,6 +339,7 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     sport: "wc_data",
     gameId: "standings_fixtures",
     gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.STANDINGS,
     meta: { kind: "standings_fixtures", fixedIntervalMs: WC_STANDINGS_SCRAPE_INTERVAL_MS },
   });
 
@@ -341,6 +347,7 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     sport: "wc_outrights",
     gameId: "futures",
     gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.OUTRIGHTS,
     meta: { kind: "outrights", fixedIntervalMs: WC_OUTRIGHTS_SCRAPE_INTERVAL_MS },
   });
 
@@ -376,6 +383,10 @@ export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date
       sport: "wc_match_bundle",
       gameId: t.eventId,
       gameStartMs: t.commenceTs,
+      priority: priorityForWcMatchBundleTarget(
+        { gameStartMs: t.commenceTs, meta: { scrapeMode: t.scrapeMode } },
+        nowMs,
+      ),
       meta: {
         date: t.date,
         homeTeam: t.homeTeam,

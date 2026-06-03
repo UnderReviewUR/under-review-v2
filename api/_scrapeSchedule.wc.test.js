@@ -21,3 +21,14 @@ test("buildWcMatchScrapeTargetsFromMatches emits wc_match_bundle with live 90s i
   assert.equal(bundle.filter((t) => t.meta?.scrapeMode === "ramp").length, 4);
   assert.ok(bundle.every((t) => t.sport === "wc_match_bundle"));
 });
+
+test("buildWcMatchScrapeTargetsFromMatches assigns priority on bundle rows", async () => {
+  const nowMs = Date.parse("2026-06-10T18:00:00Z");
+  const matches = [
+    { id: "live1", status: "live", commenceTs: nowMs - 3600000, homeTeam: "MEX", awayTeam: "RSA", date: "2026-06-11" },
+    { id: "u1", status: "NS", commenceTs: nowMs + 45 * 60 * 1000, homeTeam: "USA", awayTeam: "PAR", date: "2026-06-12" },
+  ];
+  const { bundle } = await buildWcMatchScrapeTargetsFromMatches(matches, nowMs);
+  assert.equal(bundle[0].priority, 100);
+  assert.equal(bundle[1].priority, 90);
+});

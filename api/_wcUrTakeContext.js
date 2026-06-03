@@ -14,6 +14,15 @@ import {
 } from "../shared/wcDataConfidence.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
+import {
+  filterOutrightsForQuestion,
+  formatKnockoutBracketPrompt,
+  formatWorldCupPhaseRules,
+  getWorldCupPhase,
+  isKnockoutPhase,
+  isKnockoutRound,
+  selectGroupsForPrompt,
+} from "../shared/wcPhaseUtils.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -309,6 +318,33 @@ function formatInjuryBlock(matchDetails) {
 }
 
 /**
+ * @param {Array<Record<string, unknown>>} results
+ * @param {import("../shared/wcPhaseUtils.js").WcTournamentPhase} phase
+ */
+function selectResultsForPrompt(results, phase) {
+  const rows = Array.isArray(results) ? results : [];
+  if (!isKnockoutPhase(phase)) return rows.slice(-12);
+  const knockout = rows.filter((m) => isKnockoutRound(m.round));
+  return (knockout.length ? knockout : rows).slice(-8);
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} upcoming
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {import("../shared/wcPhaseUtils.js").WcTournamentPhase} phase
+ */
+function selectUpcomingForPrompt(upcoming, matches, phase) {
+  if (!isKnockoutPhase(phase)) {
+    return (Array.isArray(upcoming) ? upcoming : []).slice(0, 10);
+  }
+  const ko = (matches || [])
+    .filter((m) => isKnockoutRound(m.round) && isScheduled(m.status))
+    .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0));
+  if (ko.length) return ko.slice(0, 10);
+  return (Array.isArray(upcoming) ? upcoming : []).slice(0, 6);
+}
+
+/**
  * @param {object} ctx
  * @returns {string}
  */
@@ -318,12 +354,17 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   const tier =
     ctx.dataConfidence || deriveWcDataConfidence(ctx.matchDetails);
   const breaking = getWcBreakingLine();
+  const phase = ctx.phase || "PRE_GROUP";
+  const groupsForPrompt = ctx.groupsForPrompt ?? ctx.groups ?? {};
 
   const lines = [
     "WORLD CUP 2026 — VERIFIED CONTEXT (use for all answers; do not claim missing tournament data)",
     `Tournament: ${ctx.tournament}`,
     `Hosts: ${(ctx.hosts || []).join(", ")}`,
     `Dates: ${ctx.dateRange}`,
+    `Phase: ${phase}`,
+    "",
+    formatWorldCupPhaseRules(phase),
     "",
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
     "",
@@ -333,23 +374,32 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("WC BREAKING (manual override — treat as authoritative over stale feed):", `  ${breaking}`, "");
   }
 
-  lines.push(
-    "STRENGTH TAGS (pre-tournament / baseline — never cite numeric power ratings or rating points):",
-    "Favorite = group favorite · Contender = realistic knockout team · Longshot = upset/long-shot profile",
-    "",
-    "GROUPS (12 × 4 teams):",
-  );
+  if (ctx.knockoutBlock) {
+    lines.push(ctx.knockoutBlock, "");
+  }
 
-  for (const letter of GROUP_LETTERS) {
-    const teams = ctx.groups?.[letter];
-    if (!Array.isArray(teams) || !teams.length) continue;
-    const teamBits = teams.map((t) => {
-      const rec = t.hasResults
-        ? `${t.name} (${t.strengthTag}, ${t.points} pts, ${t.won}W-${t.drawn}D-${t.lost}L)`
-        : `${t.name} (${t.strengthTag})`;
-      return rec;
-    });
-    lines.push(`  Group ${letter}: ${teamBits.join(" · ")}`);
+  const groupLetters = Object.keys(groupsForPrompt).sort();
+  if (groupLetters.length) {
+    lines.push(
+      "STRENGTH TAGS (pre-tournament / baseline — never cite numeric power ratings or rating points):",
+      "Favorite = group favorite · Contender = realistic knockout team · Longshot = upset/long-shot profile",
+      "",
+      groupLetters.length >= 12 ? "GROUPS (12 × 4 teams):" : "GROUPS (question-scoped):",
+    );
+
+    for (const letter of groupLetters) {
+      const teams = groupsForPrompt[letter];
+      if (!Array.isArray(teams) || !teams.length) continue;
+      const teamBits = teams.map((t) => {
+        const rec = t.hasResults
+          ? `${t.name} (${t.strengthTag}, ${t.points} pts, ${t.won}W-${t.drawn}D-${t.lost}L)`
+          : `${t.name} (${t.strengthTag})`;
+        return rec;
+      });
+      lines.push(`  Group ${letter}: ${teamBits.join(" · ")}`);
+    }
+  } else if (!isKnockoutPhase(phase)) {
+    lines.push("GROUPS: No group rows loaded for this question.");
   }
 
   if (Array.isArray(ctx.live) && ctx.live.length) {
@@ -363,7 +413,7 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
 
   if (Array.isArray(ctx.results) && ctx.results.length) {
     lines.push("", "RESULTS (completed):");
-    for (const m of ctx.results.slice(-12)) {
+    for (const m of ctx.results) {
       lines.push(
         `  ${m.homeTeam} ${m.homeScore}-${m.awayScore} ${m.awayTeam}${m.group ? ` Group ${m.group}` : ""} — ${m.date}`,
       );
@@ -371,8 +421,8 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   }
 
   if (Array.isArray(ctx.upcoming) && ctx.upcoming.length) {
-    lines.push("", "UPCOMING FIXTURES:");
-    for (const m of ctx.upcoming.slice(0, 8)) {
+    lines.push("", isKnockoutPhase(phase) ? "UPCOMING KNOCKOUT FIXTURES:" : "UPCOMING FIXTURES:");
+    for (const m of ctx.upcoming) {
       lines.push(
         `  ${m.homeTeam} vs ${m.awayTeam}${m.group ? ` (Group ${m.group})` : ""} — ${m.date} ${m.time || ""} ${m.stadium || m.city || ""}`.trim(),
       );
@@ -460,6 +510,7 @@ export async function buildWorldCupUrTakeContext(question = "") {
   const upcoming = matches.filter((m) => isScheduled(m?.status));
 
   const mentionedTeams = extractMentionedWcTeams(question);
+  const phase = getWorldCupPhase(matches);
   const fixtures = selectFixturesForQuestion(matches, mentionedTeams);
   /** @type {Array<Record<string, unknown>>} */
   const matchDetails = [];
@@ -468,22 +519,38 @@ export async function buildWorldCupUrTakeContext(question = "") {
     if (detail) matchDetails.push(detail);
   }
 
+  const groupsForPrompt = selectGroupsForPrompt(groups, {
+    phase,
+    mentionedTeams,
+    fixtures,
+  });
+  const knockoutBlock = isKnockoutPhase(phase)
+    ? formatKnockoutBracketPrompt(matches, mentionedTeams)
+    : null;
+
+  const resultsForPrompt = selectResultsForPrompt(results, phase);
+  const upcomingForPrompt = selectUpcomingForPrompt(upcoming, matches, phase);
+
   const fixtureOddsBlocks = fixtures
     .map((fx) => buildMatchOddsFreshnessPromptBlock(fx, nowMs))
     .filter(Boolean);
 
+  const scopedOutrightsKv = filterOutrightsForQuestion(outrightsKv, mentionedTeams);
   const dataConfidence = deriveWcDataConfidence(matchDetails);
-  const outrightsBlock = formatOutrightsForPrompt(outrightsKv);
+  const outrightsBlock = formatOutrightsForPrompt(scopedOutrightsKv);
 
   const ctx = {
     source: "world_cup_2026",
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",
+    phase,
     groups,
+    groupsForPrompt,
+    knockoutBlock,
     live,
-    results,
-    upcoming,
+    results: resultsForPrompt,
+    upcoming: upcomingForPrompt,
     fixtures,
     matchDetails,
     fixtureOddsBlocks,

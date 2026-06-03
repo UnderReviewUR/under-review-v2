@@ -144,3 +144,32 @@ test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odd
   assert.match(block, /No live 1X2 lines/);
   assert.match(block, /Elo win\/draw\/loss structure only/);
 });
+
+test("formatWorldCupUrTakePromptBlock slim knockout context for Norway path question", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "QUARTERFINALS",
+    groups: {
+      A: [{ name: "Mexico", strengthTag: "Favorite" }],
+      I: [{ name: "Norway", strengthTag: "Contender" }],
+    },
+    groupsForPrompt: {
+      I: [{ name: "Norway", strengthTag: "Contender" }],
+    },
+    knockoutBlock:
+      "KNOCKOUT BRACKET (verified fixtures):\n  [QF] NOR vs ESP — 2026-07-10 NS",
+    live: [],
+    results: [],
+    upcoming: [{ homeTeam: "NOR", awayTeam: "ESP", round: "Quarterfinal", date: "2026-07-10" }],
+    fixtures: [],
+    fixtureOddsBlocks: [],
+    outrightsBlock: "CURRENT OUTRIGHT ODDS:\n  NOR: +2500",
+  });
+  assert.match(block, /Phase: QUARTERFINALS/);
+  assert.match(block, /KNOCKOUT BRACKET/);
+  assert.match(block, /question-scoped/i);
+  assert.doesNotMatch(block, /Group A:/);
+  assert.match(block, /Group I:/);
+});

@@ -6849,6 +6849,7 @@ Rules:
 - When claiming a team is "mispriced" you MUST cite the exact odds from the CURRENT OUTRIGHT ODDS block in VERIFIED CONTEXT (team abbreviation + price) and the block must not be marked STALE.
 - If CURRENT OUTRIGHT ODDS is missing, marked STALE, or says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength...").
 - For match 1X2 moneylines, cite only prices from FIXTURE MATCH ODDS when present and not marked STALE; otherwise use Elo win/draw/loss structure only.
+- Only include data relevant to the current tournament phase and the specific question; do not bloat with irrelevant groups or matches.
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
   } else if (matchupContext) {
