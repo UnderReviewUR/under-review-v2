@@ -29,16 +29,14 @@ export function normalizeWcStructuredForDelivery(
   if (intent === WC_INTENT.RULES) {
     const rawSummary = String(out.whyNow || out.lean || out.call || "").trim();
     const summary = stripRulesThreadBleed(rawSummary, requiredEntities);
-    const headline = summary
-      .split("\n")
-      .map((l) => l.trim())
-      .find((l) => l && !/^lean:/i.test(l))
-      ?.replace(/^lean:\s*/i, "")
-      ?.trim() || summary.replace(/^lean:\s*/i, "").trim();
+    const normalized = summary.replace(/\s+/g, " ").trim();
+    const sentences = normalized.match(/[^.!?]+[.!?]+/g) || [normalized];
+    const headline = String(sentences[0] || normalized).trim();
+    const bodyOnly = sentences.slice(1).join(" ").trim();
     out.callType = "rules";
     out.call = headline.slice(0, 240) || "Knockout rules reference";
     out.lean = headline.slice(0, 500);
-    out.whyNow = summary;
+    out.whyNow = bodyOnly;
     out.edge = "Factual tournament rules — not a betting pick.";
     out.confidence = "High";
     return out;

@@ -80,10 +80,21 @@ export default function URTakeResponse({
   const liveRibbon = String(liveScore || "").trim() || String(gameStateLine || "").trim() || "";
   const showLiveRibbon = liveRibbon.length > 0;
 
-  const whyNowDisplay = scrubStructuredFaceText(whyNow) || "—";
-  const edgeDisplay = scrubStructuredFaceText(edge) || "—";
   const callScrub = scrubStructuredFaceText(call);
   const rulesCallType = String(callType || "").toLowerCase() === "rules";
+
+  const rulesHeadline = scrubStructuredFaceText(String(lean || callScrub || "").trim());
+  const rulesBodyRaw = scrubStructuredFaceText(String(whyNow || "").trim());
+  const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const rulesBody =
+    rulesBodyRaw && norm(rulesBodyRaw) !== norm(rulesHeadline) && !norm(rulesBodyRaw).startsWith(norm(rulesHeadline))
+      ? rulesBodyRaw
+      : rulesBodyRaw && norm(rulesBodyRaw).startsWith(norm(rulesHeadline))
+        ? rulesBodyRaw.slice(rulesHeadline.length).trim()
+        : "";
+
+  const whyNowDisplay = rulesCallType ? rulesBody || "—" : scrubStructuredFaceText(whyNow) || "—";
+  const edgeDisplay = rulesCallType ? "" : scrubStructuredFaceText(edge) || "—";
 
   const safeParlayLegs = Array.isArray(parlayLegs)
     ? parlayLegs
@@ -99,13 +110,11 @@ export default function URTakeResponse({
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
   const leanDisplay = scrubStructuredFaceText(
-    rulesCallType
-      ? String(whyNow || lean || callScrub || "").trim()
-      : synthesizeLeanLine({ lean, call: callScrub, whyNow }),
+    rulesCallType ? rulesHeadline : synthesizeLeanLine({ lean, call: callScrub, whyNow }),
   );
   const headline = pickSharpBriefHeadline(
     leanDisplay,
-    rulesCallType ? leanDisplay : callScrub,
+    rulesCallType ? rulesHeadline : callScrub,
     edgeDisplay,
     callType,
     sport,
@@ -128,10 +137,12 @@ export default function URTakeResponse({
 
   const contextLine = rulesCallType
     ? "Knockout rules · Reference"
-    : [
-        marketPillDistinct ?? edgeTypePill,
-        showLiveRibbon ? "Live" : "Tonight",
-      ].join(" · ");
+    : String(callType || "").toLowerCase() === "matchup"
+      ? [edgeTypePill, marketPillDistinct ?? "Group stage"].join(" · ")
+      : [
+          marketPillDistinct ?? edgeTypePill,
+          showLiveRibbon ? "Live" : "Tonight",
+        ].join(" · ");
 
   const modePill =
     rulesCallType ? (
@@ -235,7 +246,7 @@ export default function URTakeResponse({
         className={`ur-v2-body-primary${showBodyExpand ? " ur-v2-body-primary--clamp" : ""}`}
       >
         <p className="ur-v2-body-p">{whyNowDisplay}</p>
-        <p className="ur-v2-body-p ur-v2-body-p--edge">{edgeDisplay}</p>
+        {edgeDisplay ? <p className="ur-v2-body-p ur-v2-body-p--edge">{edgeDisplay}</p> : null}
       </div>
 
       {showBodyExpand ? (

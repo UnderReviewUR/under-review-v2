@@ -4,6 +4,7 @@ import {
   classifyWcVerdictForUi,
   getVerdictFollowUpChips,
   getVerdictNextLine,
+  resolveWcVerdictFromQuestion,
 } from "./wcUrTakeVerdict.js";
 
 test("classifyWcVerdictForUi — HAS_EDGE", () => {
@@ -62,4 +63,14 @@ test("getVerdictFollowUpChips — RULES_FACTUAL", () => {
 test("getVerdictNextLine — differs by verdict", () => {
   assert.notEqual(getVerdictNextLine("HAS_EDGE"), getVerdictNextLine("FAIR_PRICE"));
   assert.match(getVerdictNextLine("RULES_FACTUAL"), /knockout bet/i);
+});
+
+test("resolveWcVerdictFromQuestion — rules question overrides stale matchup intent", () => {
+  const verdict = resolveWcVerdictFromQuestion(
+    "What are the knockout rules for extra time and penalties?",
+    { wcIntent: "MATCHUP", structured: { callType: "matchup" } },
+  );
+  assert.equal(verdict, "RULES_FACTUAL");
+  const chips = getVerdictFollowUpChips(verdict);
+  assert.ok(chips.some((c) => /betting/i.test(c)));
 });

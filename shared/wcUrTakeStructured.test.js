@@ -13,13 +13,14 @@ test("isWcRulesQuestion — knockout rules turn", () => {
   );
 });
 
-test("buildWcRulesStructuredFromProse — preserves full whyNow", () => {
-  const long =
-    "In 2026 World Cup knockout matches, if the score is level after 90 minutes of regulation, the match proceeds to extra time: two 15-minute periods played consecutively.";
+test("buildWcRulesStructuredFromProse — splits headline and body", () => {
+  const headline = "Knockout matches go to extra time when tied after 90 minutes.";
+  const body = "If still level, a penalty shootout decides the winner.";
+  const long = `${headline} ${body}`;
   const structured = buildWcRulesStructuredFromProse(long, null, long, []);
   assert.equal(structured.callType, "rules");
-  assert.equal(structured.whyNow, long);
-  assert.ok(structured.lean.length > 120);
+  assert.match(structured.lean, /extra time/i);
+  assert.match(structured.whyNow, /penalty shootout/i);
 });
 
 test("formatWcRulesResponseAsProse — no THE PLAY prefix", () => {

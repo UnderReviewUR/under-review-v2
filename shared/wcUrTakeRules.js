@@ -23,9 +23,10 @@ export function stripRulesThreadBleed(text, forbiddenEntities = []) {
   if (!out.trim()) return out;
 
   out = out.replace(
-    /\bYou asked about[^.!?\n]*(?:advancement|mispriced|pricing|matchup)[^.!?\n]*[.!?]?\s*/gi,
+    /\bYou asked about[^.!?\n]*(?:advancement|mispriced|pricing|matchup|knockout rules)[^.!?\n]*[.!?]?\s*/gi,
     "",
   );
+  out = out.replace(/\bYou asked about knockout rules[^.!?\n]*[.!?]?\s*/gi, "");
   out = out.replace(
     /\bKnockout rules matter for settlement and betting strategy[^.!?\n]*[.!?]?\s*/gi,
     (m) => (forbiddenEntities.length ? "" : m),
@@ -52,6 +53,7 @@ export function detectRulesThreadBleed(body, question, forbiddenEntities = []) {
 
   const text = String(body || "");
   if (PRIOR_THREAD_NARRATION_RE.test(text)) return true;
+  if (/\byou asked about\b/i.test(text)) return true;
 
   const mentioned = extractMentionedWcTeams(text);
   if (!mentioned.length) return false;

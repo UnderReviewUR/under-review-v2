@@ -2,7 +2,7 @@
  * World Cup UR Take — verdict + chip routing (intent-first).
  */
 
-import { WC_INTENT, isWcRulesQuestion } from "./wcUrTakeIntent.js";
+import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "./wcUrTakeIntent.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"GENERAL"} WcUrTakeVerdict */
 
@@ -16,15 +16,46 @@ const EDGE_RE = /\b(mispriced|structural value|longshot value|actionable edge)\b
  * @returns {string | null}
  */
 export function resolveWcIntentFromMessage(message, userQuestion = "") {
-  const direct = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
-  if (direct) return String(direct);
   const q = String(
     message?.question || message?.userQuestion || userQuestion || "",
   ).trim();
+
   if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
   if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
-  if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
+  if (
+    /\bmispriced\b/i.test(q) ||
+    /\+\d{3,}/.test(q) ||
+    /\bto win the (world cup|tournament)\b/i.test(q)
+  ) {
+    return WC_INTENT.ENTITY_PRICING;
+  }
+
+  const direct = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
+  if (direct) return String(direct);
+
+  const classified = classifyWcQuestionIntent(q);
+  if (
+    classified !== WC_INTENT.UNCLASSIFIED &&
+    classified !== WC_INTENT.CONTINUATION
+  ) {
+    return classified;
+  }
   return null;
+}
+
+/** @param {string} question @param {object | null | undefined} message */
+export function resolveWcVerdictFromQuestion(question, message = null) {
+  const q = String(question || message?.userQuestion || message?.question || "").trim();
+  const wcIntent = resolveWcIntentFromMessage(message, q);
+
+  if (wcIntent === WC_INTENT.RULES) return "RULES_FACTUAL";
+  if (wcIntent === WC_INTENT.MATCHUP) return "MATCHUP";
+  if (wcIntent === WC_INTENT.ENTITY_PRICING) {
+    const verdict = classifyWcVerdictForUi({ ...message, wcIntent }, q);
+    if (verdict === "FAIR_PRICE" || verdict === "HAS_EDGE") return verdict;
+    return "GENERAL";
+  }
+  return classifyWcVerdictForUi(message, q);
 }
 
 /**

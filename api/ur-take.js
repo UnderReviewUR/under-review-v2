@@ -58,7 +58,12 @@ import {
   buildWcMatchupIntentRules,
   getWcTeamStrengthTags,
 } from "../shared/wcUrTakeMatchup.js";
-import { buildPriceBindingPromptBlock } from "../shared/wcUrTakePricing.js";
+import {
+  buildPriceBindingPromptBlock,
+  extractSessionAmericanOdds,
+  stripSessionBleedPrices,
+  stripWcStructuredSessionPrices,
+} from "../shared/wcUrTakePricing.js";
 import { normalizeWcStructuredForDelivery } from "../shared/wcUrTakeStructured.js";
 import {
   buildWcRulesStructuredFromProse,
@@ -7585,6 +7590,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               String(question || ""),
               wcRequiredEntities,
             );
+            if (wcIntent === WC_INTENT.ENTITY_PRICING) {
+              const sessionPrices = extractSessionAmericanOdds(incomingHistory);
+              structuredResponse = stripWcStructuredSessionPrices(
+                structuredResponse,
+                String(question || ""),
+                sessionPrices,
+              );
+            }
           }
           if (structuredResponse?.lean) {
             structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
@@ -8011,6 +8024,26 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         String(question || ""),
         wcRequiredEntities,
       );
+      if (wcIntent === WC_INTENT.ENTITY_PRICING) {
+        const sessionPrices = extractSessionAmericanOdds(incomingHistory);
+        structuredResponse = stripWcStructuredSessionPrices(
+          structuredResponse,
+          String(question || ""),
+          sessionPrices,
+        );
+        responseText = stripSessionBleedPrices(
+          responseText,
+          String(question || ""),
+          sessionPrices,
+        );
+        if (responseDeep) {
+          responseDeep = stripSessionBleedPrices(
+            responseDeep,
+            String(question || ""),
+            sessionPrices,
+          );
+        }
+      }
     }
 
     let takeRecord = extractTakeFromResponse({

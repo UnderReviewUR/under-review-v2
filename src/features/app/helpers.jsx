@@ -30,8 +30,9 @@ import {
   getVerdictFollowUpChips,
   getVerdictNextLine,
   resolveWcIntentFromMessage,
+  resolveWcVerdictFromQuestion,
 } from "../../../shared/wcUrTakeVerdict.js";
-import { WC_INTENT, isWcRulesQuestion } from "../../../shared/wcUrTakeIntent.js";
+import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "../../../shared/wcUrTakeIntent.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
@@ -1048,14 +1049,9 @@ export function getFollowUpSuggestions(message, userQuestion = "") {
 
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
   if (sport === "worldcup") {
-    const verdictChips = getVerdictFollowUpChips(
-      classifyWcVerdictForUi(message, userQuestion),
-    );
-    const wcIntentKnown = Boolean(message?.wcIntent || message?.urTakeTelemetry?.wcIntent);
-    if (wcIntentKnown) return polishFollowUpList(verdictChips);
-    if (api.length >= 3) return polishFollowUpList(api.slice(0, 3));
-    if (api.length === 0) return polishFollowUpList(verdictChips);
-    return polishFollowUpList(mergeFollowUpChips(verdictChips, api));
+    const q = String(userQuestion || message?.userQuestion || "").trim();
+    const verdict = resolveWcVerdictFromQuestion(q, message);
+    return polishFollowUpList(getVerdictFollowUpChips(verdict));
   }
 
   const contentStr =
@@ -1571,9 +1567,10 @@ function UrTakeChaseCalmInset() {
 /** Inline continuation nudge after a completed UR Take (all answer shapes). */
 function UrTakeNextContinuationLine({ message = null, userQuestion = "" }) {
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
+  const q = String(userQuestion || message?.userQuestion || "").trim();
   const line =
     sport === "worldcup"
-      ? getVerdictNextLine(classifyWcVerdictForUi(message, userQuestion))
+      ? getVerdictNextLine(resolveWcVerdictFromQuestion(q, message))
       : "Next: what's one thing that could break this?";
   return <p className="ur-take-next-line">{line}</p>;
 }
@@ -1640,21 +1637,37 @@ function coerceStructuredForUrTakeCard(raw) {
   };
 }
 
-/** Coerce rules-shaped delivery when question is rules but API sent betting card. */
-function coerceWcRulesStructuredIfNeeded(structured, userQuestion = "", message = null) {
+/** Coerce WC structured card shape from question intent when API/card shape drifts. */
+function coerceWcStructuredForIntent(structured, userQuestion = "", message = null) {
   if (!structured || typeof structured !== "object") return structured;
   const q = String(userQuestion || message?.userQuestion || message?.question || "").trim();
-  const intent = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
-  const isRules =
-    String(intent || "").toUpperCase() === WC_INTENT.RULES ||
-    isWcRulesQuestion(q);
-  if (!isRules) return structured;
-  return {
-    ...structured,
-    sport: "worldcup",
-    callType: "rules",
-    edge: structured.edge || "Factual tournament rules — not a betting pick.",
-  };
+  const intent =
+    resolveWcIntentFromMessage(message, q) ||
+    (isWcRulesQuestion(q) ? WC_INTENT.RULES : classifyWcQuestionIntent(q));
+
+  if (intent === WC_INTENT.RULES || isWcRulesQuestion(q)) {
+    return {
+      ...structured,
+      sport: "worldcup",
+      callType: "rules",
+      edge: structured.edge || "Factual tournament rules — not a betting pick.",
+    };
+  }
+  if (intent === WC_INTENT.MATCHUP || /\b(vs\.?|versus|who advances)\b/i.test(q)) {
+    return {
+      ...structured,
+      sport: "worldcup",
+      callType: "matchup",
+    };
+  }
+  if (intent === WC_INTENT.ENTITY_PRICING) {
+    return {
+      ...structured,
+      sport: "worldcup",
+      callType: "analysis",
+    };
+  }
+  return structured;
 }
 
 /** Same structured / promoted-parlay resolution as the `URTakeResponse` path inside `UrTakeAiBubble`. */
@@ -1666,7 +1679,7 @@ function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestio
     : null;
   const effectiveStructured =
     m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
-  return coerceWcRulesStructuredIfNeeded(
+  return coerceWcStructuredForIntent(
     effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null,
     userQuestion,
     m,

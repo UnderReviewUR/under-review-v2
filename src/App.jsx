@@ -64,7 +64,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
-import { isWcRulesQuestion } from "../shared/wcUrTakeIntent.js";
+import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import {
   buildWcHomePromoCard,
   orderHomeQuestionsForWcPromo,
@@ -265,12 +265,26 @@ function structuredPayloadFromApi(data) {
   return null;
 }
 
+function resolveWcIntentForBubble(question, apiIntent = "") {
+  const q = String(question || "").trim();
+  if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
+  if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
+  if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
+  const fromApi = String(apiIntent || "").toUpperCase();
+  if (fromApi) return fromApi;
+  const classified = classifyWcQuestionIntent(q);
+  return classified !== WC_INTENT.UNCLASSIFIED ? classified : "";
+}
+
 /** Prevent React crashes / stringify failures from odd API `structured` shapes (common after golf reads). */
 function sanitizeStructuredBubbleShape(raw, opts = {}) {
   if (!raw || typeof raw !== "object") return null;
-  const isRules =
-    String(opts.wcIntent || raw.callType || "")
-      .toLowerCase() === "rules";
+  const wcIntent = String(opts.wcIntent || "").toUpperCase();
+  const callType = String(raw.callType || "").toLowerCase();
+  const isRules = wcIntent === WC_INTENT.RULES || callType === "rules";
+  const isMatchup = wcIntent === WC_INTENT.MATCHUP || callType === "matchup";
+  const isAnalysis = wcIntent === WC_INTENT.ENTITY_PRICING || callType === "analysis";
+  const extendedLean = isRules || isMatchup || isAnalysis;
   const clip = (v, max) => {
     if (v == null) return "";
     if (typeof v === "string") return v.slice(0, max).trim();
@@ -289,13 +303,15 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     s.call = clip(s.call, 800) || "Knockout rules reference";
     s.confidence = clip(s.confidence, 120) || "High";
   } else {
-    s.lean = clip(s.lean, 120);
+    s.lean = clip(s.lean, extendedLean ? 800 : 120);
     s.call = clip(s.call, 8000) || "—";
     s.whyNow = clip(s.whyNow, 8000);
     s.edge = clip(s.edge, 8000);
     s.confidence = clip(s.confidence, 120) || "Medium";
     s.sport = clip(s.sport, 80).toLowerCase() || "generic";
-    s.callType = clip(s.callType, 48).toLowerCase() || "single";
+    if (isMatchup) s.callType = "matchup";
+    else if (isAnalysis) s.callType = "analysis";
+    else s.callType = clip(s.callType, 48).toLowerCase() || "single";
   }
 
   if (typeof s.timestamp === "symbol" || typeof s.timestamp === "bigint") {
@@ -326,9 +342,8 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
       }))
       .slice(0, 12);
   }
-  s.lean = synthesizeLeanLine({ lean: s.lean, call: s.call, whyNow: s.whyNow });
-  if (isRules) {
-    s.lean = s.whyNow || s.lean;
+  if (!isRules) {
+    s.lean = synthesizeLeanLine({ lean: s.lean, call: s.call, whyNow: s.whyNow });
   }
   return s;
 }
@@ -2026,18 +2041,30 @@ ${themeCss}
     const normalizedDisplay = normalizeUrTakeDisplay(data);
     const structuredRaw = structuredPayloadFromApi(data);
     const wcIntentFromApi = String(data.wcIntent || "").toUpperCase();
-    const resolvedWcIntent = wcIntentFromApi || (isWcRulesQuestion(text) ? "RULES" : "");
+    const resolvedWcIntent = resolveWcIntentForBubble(text, wcIntentFromApi);
     let structuredForBubble = structuredRaw
       ? sanitizeStructuredBubbleShape(structuredRaw, {
           wcIntent: resolvedWcIntent,
         })
       : null;
-    if (structuredForBubble && resolvedWcIntent === "RULES") {
+    if (structuredForBubble && resolvedWcIntent === WC_INTENT.RULES) {
       structuredForBubble = {
         ...structuredForBubble,
         callType: "rules",
         sport: "worldcup",
         edge: structuredForBubble.edge || "Factual tournament rules — not a betting pick.",
+      };
+    } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.MATCHUP) {
+      structuredForBubble = {
+        ...structuredForBubble,
+        callType: "matchup",
+        sport: "worldcup",
+      };
+    } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.ENTITY_PRICING) {
+      structuredForBubble = {
+        ...structuredForBubble,
+        callType: "analysis",
+        sport: "worldcup",
       };
     }
 

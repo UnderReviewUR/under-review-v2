@@ -4,6 +4,8 @@ import {
   buildPriceBindingPromptBlock,
   detectUncitedAmericanOdds,
   extractAmericanOddsFromQuestion,
+  stripSessionBleedPrices,
+  stripWcStructuredSessionPrices,
 } from "./wcUrTakePricing.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
@@ -33,4 +35,24 @@ test("detectUncitedAmericanOdds — cited price ok", () => {
     WC_INTENT.ENTITY_PRICING,
   );
   assert.equal(ok, false);
+});
+
+test("stripSessionBleedPrices — removes prior-turn +2500 on Brazil question", () => {
+  const stripped = stripSessionBleedPrices(
+    "Brazil at +2500 to win the World Cup is fairly valued, not mispriced.",
+    "Is Brazil mispriced to win the tournament?",
+    ["+2500"],
+  );
+  assert.doesNotMatch(stripped, /\+2500/);
+  assert.match(stripped, /Brazil/i);
+});
+
+test("stripWcStructuredSessionPrices — structured fields", () => {
+  const out = stripWcStructuredSessionPrices(
+    { lean: "Brazil at +2500 is fair.", whyNow: "Still +2500 in copy." },
+    "Is Brazil mispriced?",
+    ["+2500"],
+  );
+  assert.doesNotMatch(out.lean, /\+2500/);
+  assert.doesNotMatch(out.whyNow, /\+2500/);
 });

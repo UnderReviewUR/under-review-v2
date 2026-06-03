@@ -64,3 +64,54 @@ export function detectUncitedAmericanOdds(text, question, wcIntent) {
 
   return citedInAnswer.some((price) => !citedInQuestion.includes(price));
 }
+
+/**
+ * @param {string} text
+ * @param {string} question
+ * @param {string[]} sessionPrices — +XXXX cited in prior user turns
+ */
+export function stripSessionBleedPrices(text, question, sessionPrices = []) {
+  const citedInQuestion = extractAmericanOddsFromQuestion(question);
+  if (citedInQuestion.length) return String(text || "");
+
+  let out = String(text || "");
+  const bleedPrices = (sessionPrices || []).filter(
+    (p) => p && !citedInQuestion.includes(p),
+  );
+  for (const price of bleedPrices) {
+    const esc = price.replace(/[+]/g, "\\+");
+    out = out.replace(new RegExp(`\\bat\\s+${esc}(?=\\s|[,.!?]|$)`, "gi"), "");
+    out = out.replace(new RegExp(`${esc}(?=\\s|[,.!?]|$)`, "g"), "");
+  }
+  out = out.replace(/\b(at\s+)?to win the (World Cup|tournament)\b/gi, "to win the World Cup");
+  out = out.replace(/\s{2,}/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
+  return out;
+}
+
+/**
+ * @param {object | null | undefined} structured
+ * @param {string} question
+ * @param {string[]} sessionPrices
+ */
+export function stripWcStructuredSessionPrices(structured, question, sessionPrices = []) {
+  if (!structured || typeof structured !== "object") return structured;
+  const out = { ...structured };
+  for (const key of ["lean", "whyNow", "call", "edge"]) {
+    if (out[key]) {
+      out[key] = stripSessionBleedPrices(String(out[key]), question, sessionPrices);
+    }
+  }
+  return out;
+}
+
+/** @param {object[]} history */
+export function extractSessionAmericanOdds(history) {
+  if (!Array.isArray(history)) return [];
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (const turn of history) {
+    const text = String(turn?.content ?? turn?.text ?? "");
+    for (const p of extractAmericanOddsFromQuestion(text)) found.add(p);
+  }
+  return [...found];
+}
