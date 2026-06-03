@@ -8,6 +8,7 @@ import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
+import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
 
 const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
@@ -90,9 +91,12 @@ export default function HomeScreen({
 
   const starterQs = useMemo(() => {
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
-    const wc = dq.find((q) => String(q?.sportHint || "").toLowerCase() === "worldcup");
     const maxStarters = narrowHome ? 2 : 3;
     const offset = dq.length > 1 ? 1 : 0;
+    if (isWcHomePromoWindow()) {
+      return dq.slice(offset, offset + maxStarters);
+    }
+    const wc = dq.find((q) => String(q?.sportHint || "").toLowerCase() === "worldcup");
     let picks = dq.slice(offset, offset + maxStarters);
     if (wc && !picks.some((q) => q.id === wc.id)) {
       picks = [wc, ...picks.filter((q) => q.id !== wc.id)].slice(0, maxStarters);
@@ -417,12 +421,6 @@ export default function HomeScreen({
         f1Data={f1Data}
       />
 
-      <TodaySlatePanel
-        excludeEventKeys={liveSnapshotEventKeys}
-        onDisplayedEventKeysChange={onTodaySlateDisplayedKeys}
-        fallbackSports={slateFallbackSports}
-      />
-
       {dailyPreview && prefillUrTakeQuestion ? (
         <section
           className="daily-edge-preview"
@@ -485,6 +483,12 @@ export default function HomeScreen({
           </button>
         </section>
       ) : null}
+
+      <TodaySlatePanel
+        excludeEventKeys={liveSnapshotEventKeys}
+        onDisplayedEventKeysChange={onTodaySlateDisplayedKeys}
+        fallbackSports={slateFallbackSports}
+      />
 
       {pgaChampionshipOddsCard ? (
         <button

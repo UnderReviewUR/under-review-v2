@@ -14,6 +14,10 @@ import {
 } from "../../../shared/eventValidity.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
 import { isWcHomePromoWindow } from "../../../shared/wc2026Constants.js";
+import {
+  buildNbaFinalsHomePrompt,
+  isNbaFinalsWindowEt,
+} from "../../../shared/nbaFinalsHomePrompt.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -151,6 +155,7 @@ export function buildDynamicHomeQuestions({
   context,
   golfData,
   nbaGames,
+  nbaPlayoffSeries = [],
   mlbGames = [],
   f1Data,
   hourEt: _hourEt = 12,
@@ -210,6 +215,15 @@ export function buildDynamicHomeQuestions({
       prompt:
         "Before the 2026 FIFA World Cup kicks off, what is the best group-stage value bet on the board — group winner, advancement, or a specific fixture — and which mispriced longshot (e.g. Norway, Paraguay) has the cleanest path?",
     });
+    push({
+      id: "q-wc-group-misprice",
+      color: "#00F5E9",
+      sportHint: "worldcup",
+      sortRank: 3,
+      text: "Which World Cup group is most mispriced?",
+      prompt:
+        "Which 2026 World Cup group stage group is most mispriced on advancement or group-winner markets — and which second-place path is still a coin flip the books have wrong?",
+    });
   }
 
   const validNbaGames = (nbaGames || []).filter((g) =>
@@ -223,14 +237,30 @@ export function buildDynamicHomeQuestions({
   const nbaPlayoffTone = isNbaPlayoffToneEt(etNow, nbaGames);
   const nbaSeason = isNbaSeasonMonthEt(etNow);
   const nbaFinalsCapOne = nbaPlayoffTone && etNow.getMonth() === 5;
+  const nbaFinalsActive = isNbaFinalsWindowEt(etNow, nbaPlayoffTone);
   const ranks = computeSortRanks(nflTop, { nbaFinalsCapOne });
 
   let nbaPromptPushed = false;
   const pushNba = (item) => {
+    if (wcPromo && nbaFinalsActive && item?.id !== "q-nba-finals") return;
     if (nbaFinalsCapOne && nbaPromptPushed) return;
     push(item);
-    if (nbaFinalsCapOne) nbaPromptPushed = true;
+    if (nbaFinalsCapOne || (wcPromo && nbaFinalsActive)) nbaPromptPushed = true;
   };
+
+  if (wcPromo && nbaFinalsActive && hasNbaSlateToday) {
+    const finalsPrompt = buildNbaFinalsHomePrompt(validNbaGames, nbaPlayoffSeries);
+    if (finalsPrompt) {
+      push({
+        id: "q-nba-finals",
+        color: "#FF6B00",
+        sportHint: "nba",
+        sortRank: 2,
+        ...finalsPrompt,
+      });
+      nbaPromptPushed = true;
+    }
+  }
 
   const golfValidity = getGolfHomeValidity(golfData, promoNowMs);
   const golfEventName =
@@ -694,14 +724,6 @@ export function buildDynamicHomeQuestions({
   }
 
   prompts.sort((a, b) => (a.sortRank ?? 999) - (b.sortRank ?? 999));
-
-  if (wcPromo) {
-    const wcIdx = prompts.findIndex((p) => p.sportHint === "worldcup");
-    if (wcIdx > 0) {
-      const [wcRow] = prompts.splice(wcIdx, 1);
-      prompts.unshift(wcRow);
-    }
-  }
 
   let out = prompts.slice(0, 7);
   let fb = 0;

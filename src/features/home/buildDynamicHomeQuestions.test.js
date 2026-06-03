@@ -153,6 +153,37 @@ test("World Cup promo window adds group stage value prompt", () => {
   assert.equal(wc.text, "Best group stage value bet right now?");
 });
 
+test("WC promo + NBA Finals overlap adds finals prompt and second WC angle", () => {
+  const prompts = buildDynamicHomeQuestions({
+    activeTournamentMatches: [],
+    tennisLiveMatches: [],
+    tennisUpcomingMatches: [],
+    nflSeasonMode: false,
+    nflDraftMeta: null,
+    userCity: "",
+    context: null,
+    golfData: null,
+    nbaGames: [
+      {
+        state: "in",
+        postseason: true,
+        awayTeam: { abbr: "BOS" },
+        homeTeam: { abbr: "NYK" },
+      },
+    ],
+    nbaPlayoffSeries: [{ away: "BOS", home: "NYK", awayWins: 1, homeWins: 0 }],
+    mlbGames: [],
+    f1Data: null,
+    promoNowMs: Date.parse("2026-06-05T16:00:00.000Z"),
+  });
+  const ids = prompts.map((p) => p.id);
+  assert.ok(ids.includes("q-wc-promo"));
+  assert.ok(ids.includes("q-wc-group-misprice"));
+  assert.ok(ids.includes("q-nba-finals"));
+  const finals = prompts.find((p) => p.id === "q-nba-finals");
+  assert.ok(finals.text.includes("Game 2"));
+});
+
 test("Rounds 2–3 calendar day swaps NFL draft prompt rail", () => {
   const prompts = buildDynamicHomeQuestions({
     activeTournamentMatches: [],

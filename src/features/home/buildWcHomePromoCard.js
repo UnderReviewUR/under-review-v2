@@ -16,9 +16,9 @@ export function buildWcHomePromoCard(nowMs = Date.now()) {
     trustLine: "Starting XIs only when confirmed — see status on every match.",
     matchesCta: "See today's matches",
     highlights: [
-      "Norway & Paraguay longshot paths",
-      "Group winner / advancement misprices",
-      "Host-path scheduling edges",
+      "Norway mispriced at +2500 — model says Contender, books say Longshot",
+      "Paraguay has a 50-50 shot at advancing that their odds don't reflect",
+      "Group I is the hardest draw by a mile — second place is a coin flip",
     ],
     text: "Best group stage value bet right now?",
     prompt:
@@ -28,18 +28,38 @@ export function buildWcHomePromoCard(nowMs = Date.now()) {
 }
 
 /**
- * Keep World Cup in the capped home prompt list during promo (Try chip + Start here).
+ * Order Try + START HERE during WC promo: WC value → NBA Finals (when active) → WC group angle → rest.
  * @param {Array<Record<string, unknown>>} list
  * @param {number} [nowMs]
  */
-export function ensureWorldCupInHomeQuestions(list, nowMs = Date.now()) {
+export function orderHomeQuestionsForWcPromo(list, nowMs = Date.now()) {
   if (!isWcHomePromoWindow(nowMs) || !Array.isArray(list) || list.length === 0) {
     return list;
   }
-  const wcIdx = list.findIndex((p) => String(p?.sportHint || "").toLowerCase() === "worldcup");
-  if (wcIdx < 0) return list;
-  if (wcIdx === 0) return list;
-  const wc = list[wcIdx];
-  const rest = list.filter((_, i) => i !== wcIdx);
-  return [wc, ...rest];
+  const wcPrimary =
+    list.find((p) => p.id === "q-wc-promo") ||
+    list.find((p) => String(p?.sportHint || "").toLowerCase() === "worldcup");
+  const wcSecondary = list.find((p) => p.id === "q-wc-group-misprice");
+  const nbaFinals = list.find((p) => p.id === "q-nba-finals");
+  const used = new Set();
+  /** @type {Array<Record<string, unknown>>} */
+  const ordered = [];
+  for (const item of [wcPrimary, nbaFinals, wcSecondary]) {
+    if (item?.id && !used.has(item.id)) {
+      ordered.push(item);
+      used.add(item.id);
+    }
+  }
+  for (const item of list) {
+    if (item?.id && !used.has(item.id)) {
+      ordered.push(item);
+      used.add(item.id);
+    }
+  }
+  return ordered;
+}
+
+/** @deprecated use orderHomeQuestionsForWcPromo */
+export function ensureWorldCupInHomeQuestions(list, nowMs = Date.now()) {
+  return orderHomeQuestionsForWcPromo(list, nowMs);
 }

@@ -55,7 +55,7 @@ import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuest
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
 import {
   buildWcHomePromoCard,
-  ensureWorldCupInHomeQuestions,
+  orderHomeQuestionsForWcPromo,
 } from "./features/home/buildWcHomePromoCard.js";
 import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
@@ -3022,13 +3022,14 @@ ${themeCss}
       context,
       golfData,
       nbaGames: homePipeline?.nbaGamesForHome,
+      nbaPlayoffSeries: nbaData?.playoffSeries,
       mlbGames: homePipeline?.mlbGamesForHome,
       f1Data,
       hourEt: hourEt ?? 12,
     });
     const cap = isWcHomePromoWindow() ? 4 : 3;
     const capped = Array.isArray(list) ? list.slice(0, cap) : [];
-    return ensureWorldCupInHomeQuestions(capped);
+    return orderHomeQuestionsForWcPromo(capped);
   }, [
     activeTournamentMatches,
     tennisLiveMatches,
@@ -3039,6 +3040,7 @@ ${themeCss}
     context,
     golfData,
     homePipeline?.nbaGamesForHome,
+    nbaData?.playoffSeries,
     homePipeline?.mlbGamesForHome,
     f1Data,
     hourEt,
