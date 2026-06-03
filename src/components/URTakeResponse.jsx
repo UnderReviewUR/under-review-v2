@@ -12,6 +12,11 @@ import { synthesizeLeanLine } from "../lib/urTakeLean.js";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 import { resolveParlayCombinedOddsDisplay } from "../lib/calculateParlayOdds.js";
+import {
+  capWcStructuredConfidence,
+  wcDataConfidenceCautionBanner,
+  wcDataConfidenceNeedsCaution,
+} from "../../shared/wcDataConfidence.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -64,6 +69,7 @@ export default function URTakeResponse({
   estimatedEdge,
   takeMeta = null,
   structuralEdgeChip = null,
+  dataConfidence = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -101,10 +107,13 @@ export default function URTakeResponse({
     callType,
     sport,
   );
+  const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
+  const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
+  const showWcCaution = wcDataConfidenceNeedsCaution(dataConfidence) && Boolean(wcCautionText);
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
-    structured: { call: callScrub, confidence, callType },
+    structured: { call: callScrub, confidence: displayConfidence, callType },
     parlayLegs: safeParlayLegs,
   });
 
@@ -165,6 +174,15 @@ export default function URTakeResponse({
         <span className="ur-v2-sport-bar-spacer" />
         {modePill}
       </div>
+
+      {showWcCaution ? (
+        <div className="ur-v2-wc-caution" role="status">
+          <span className="ur-v2-wc-caution-icon" aria-hidden>
+            ◷
+          </span>
+          <span className="ur-v2-wc-caution-text">{wcCautionText}</span>
+        </div>
+      ) : null}
 
       <div className="ur-v2-headline-wrap">
         <h2 className="ur-v2-headline ur-v2-headline--lean">{String(headline ?? "")}</h2>

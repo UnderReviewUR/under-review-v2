@@ -1866,6 +1866,30 @@ export const baseCss = `
   .wc-match-team{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex:1;}
   .wc-match-vs{font-family:var(--mono-font);font-size:11px;color:var(--muted);flex:0 0 auto;}
   .wc-match-score{font-size:16px;font-weight:700;color:var(--text);}
+  .wc-xi-trust{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  .wc-xi-chip{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:4px 9px;border-radius:6px;
+    font-family:var(--mono-font);font-size:9px;letter-spacing:1.1px;
+    text-transform:uppercase;font-weight:600;
+  }
+  .wc-xi-chip-icon{font-size:10px;line-height:1;opacity:0.9;}
+  .wc-xi-chip--confirmed{
+    color:rgba(34,197,94,0.95);
+    border:1px solid rgba(34,197,94,0.35);
+    background:rgba(34,197,94,0.08);
+  }
+  .wc-xi-chip--pending{
+    color:rgba(245,158,11,0.95);
+    border:1px solid rgba(245,158,11,0.35);
+    background:rgba(245,158,11,0.08);
+  }
+  .wc-xi-chip--unavailable{
+    color:var(--muted);
+    border:1px solid var(--border-2);
+    background:rgba(255,255,255,0.03);
+  }
+  .wc-xi-asof{font-size:9px;color:var(--muted);font-family:var(--mono-font);letter-spacing:0.3px;}
   .wc-match-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--muted);font-family:var(--mono-font);margin-bottom:8px;}
   .wc-odds-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--soft);margin-bottom:4px;}
   .wc-ask-btn{
@@ -2027,6 +2051,17 @@ export const baseCss = `
   .ur-v2-mode-pill--ee{border-color:rgba(0,245,233,.35);color:#5eead4;}
   .ur-v2-mode-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;flex-shrink:0;}
   .ur-v2-mode-ic{font-size:10px;line-height:1;}
+  .ur-v2-wc-caution{
+    display:flex;align-items:flex-start;gap:8px;
+    margin:10px 16px 0;padding:10px 12px;
+    border-radius:8px;
+    border:1px solid rgba(245,158,11,0.35);
+    background:rgba(245,158,11,0.08);
+    font-family:var(--mono-font);font-size:10px;line-height:1.45;
+    letter-spacing:0.04em;color:rgba(245,158,11,0.95);
+  }
+  .ur-v2-wc-caution-icon{font-size:11px;line-height:1.2;flex-shrink:0;opacity:0.9;}
+  .ur-v2-wc-caution-text{flex:1;}
   .ur-v2-headline-wrap{padding:10px 16px 8px;}
   .ur-v2-headline{font-family:var(--body-font);font-size:17px;line-height:1.2;font-weight:800;color:#fff;margin:0;letter-spacing:-0.02em;}
   .ur-v2-headline.ur-v2-headline--lean{font-size:15px;font-weight:500;line-height:1.35;letter-spacing:0;color:#fff;}

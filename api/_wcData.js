@@ -27,6 +27,12 @@ import {
 } from "../shared/wc2026Constants.js";
 import { isWcMatchFtStatus } from "../shared/wcMatchDetailTargets.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
+import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
+
+/** Max parallel KV reads when enriching match lists for /api/world-cup. */
+export const WC_MATCH_DETAIL_ENRICH_CONCURRENCY = 12;
+
+/** @typedef {"confirmed" | "pending" | "unavailable"} WcXiStatus */
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 
@@ -262,6 +268,97 @@ export async function readWcMatchDetailFromKv(eventId) {
   const row = await getDurableJson(key);
   if (!row || typeof row !== "object") return null;
   return row;
+}
+
+/**
+ * Per-match trust fields for WC UI (no full lineups).
+ * @param {Record<string, unknown> | null | undefined} detail
+ */
+export function buildMatchDetailMeta(detail) {
+  if (!detail || typeof detail !== "object") {
+    return {
+      lineupConfirmed: false,
+      xiStatus: /** @type {WcXiStatus} */ ("unavailable"),
+      lastUpdated: null,
+      dataConfidence: /** @type {import("../shared/wcDataConfidence.js").WcDataConfidence} */ (
+        "pre_match_estimate"
+      ),
+    };
+  }
+
+  const lineupConfirmed = detail.lineupConfirmed === true;
+  const lastUpdated = Number(detail.lastUpdated);
+  return {
+    lineupConfirmed,
+    xiStatus: lineupConfirmed
+      ? /** @type {WcXiStatus} */ ("confirmed")
+      : /** @type {WcXiStatus} */ ("pending"),
+    lastUpdated: Number.isFinite(lastUpdated) && lastUpdated > 0 ? lastUpdated : null,
+    dataConfidence: deriveWcDataConfidence([detail]),
+  };
+}
+
+/**
+ * Attach lineupConfirmed / xiStatus / lastUpdated / dataConfidence from wc_match_detail KV.
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {{ concurrency?: number }} [opts]
+ */
+export async function enrichMatchesWithDetailMeta(matches, opts = {}) {
+  const rows = Array.isArray(matches) ? matches : [];
+  const concurrency = Math.max(
+    1,
+    Math.min(Number(opts.concurrency) || WC_MATCH_DETAIL_ENRICH_CONCURRENCY, 24),
+  );
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+
+  for (let i = 0; i < rows.length; i += concurrency) {
+    const chunk = rows.slice(i, i + concurrency);
+    const batch = await Promise.all(
+      chunk.map(async (m) => {
+        const eventId = m?.id != null ? String(m.id).trim() : "";
+        if (!eventId) {
+          return { ...m, ...buildMatchDetailMeta(null) };
+        }
+        const detail = await readWcMatchDetailFromKv(eventId);
+        return { ...m, ...buildMatchDetailMeta(detail) };
+      }),
+    );
+    out.push(...batch);
+  }
+
+  return out;
+}
+
+/**
+ * Lightweight single-match detail for view=detail (no starter names in response).
+ * @param {string | number} eventId
+ */
+export async function getWcMatchDetailPayload(eventId) {
+  const id = String(eventId || "").trim();
+  if (!id) {
+    return { ok: false, error: "missing_event_id" };
+  }
+
+  const detail = await readWcMatchDetailFromKv(id);
+  if (!detail) {
+    return { ok: false, eventId: id, error: "no_detail", ...buildMatchDetailMeta(null) };
+  }
+
+  const meta = buildMatchDetailMeta(detail);
+  return {
+    ok: true,
+    eventId: id,
+    homeTeam: detail.homeTeam,
+    awayTeam: detail.awayTeam,
+    status: detail.status,
+    homeScore: detail.homeScore ?? null,
+    awayScore: detail.awayScore ?? null,
+    venue: detail.venue ?? null,
+    phase: detail.phase ?? null,
+    injuryCount: Array.isArray(detail.injuries) ? detail.injuries.length : 0,
+    ...meta,
+  };
 }
 
 /**

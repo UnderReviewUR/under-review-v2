@@ -1751,6 +1751,7 @@ function UrTakeAiBubble({
             estimatedEdge={m.estimatedEdge}
             takeMeta={m.takeMeta}
             structuralEdgeChip={structuralEdgeChip}
+            dataConfidence={m.dataConfidence}
           />
         </UrTakeSectionErrorBoundary>
         <UrTakeNextContinuationLine />

@@ -3,6 +3,8 @@ import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import {
   buildStaticGroupsFallback,
+  enrichMatchesWithDetailMeta,
+  getWcMatchDetailPayload,
   readWcGroupsFromKv,
   readWcMatchesFromKv,
   readWcOutrightsFromKv,
@@ -380,7 +382,8 @@ export default async function handler(req, res) {
 
     if (view === "matches") {
       const payload = await getMatchesPayload();
-      return res.status(200).json(payload);
+      const matches = await enrichMatchesWithDetailMeta(payload.matches || []);
+      return res.status(200).json({ ...payload, matches });
     }
 
     if (view === "outrights") {
@@ -391,16 +394,35 @@ export default async function handler(req, res) {
     if (view === "upcoming") {
       const payload = await getMatchesPayload();
       const now = Date.now();
-      const upcoming = (payload.matches || [])
+      const upcomingRaw = (payload.matches || [])
         .filter((m) => isScheduled(m.status) && (m.commenceTs == null || m.commenceTs >= now - 86400000))
         .slice(0, 8);
-      return res.status(200).json({ upcoming, lastUpdated: payload.lastUpdated, fallback: payload.fallback });
+      const upcoming = await enrichMatchesWithDetailMeta(upcomingRaw);
+      return res.status(200).json({
+        upcoming,
+        lastUpdated: payload.lastUpdated,
+        fallback: payload.fallback,
+      });
     }
 
     if (view === "live") {
       const payload = await getMatchesPayload();
-      const live = (payload.matches || []).filter((m) => isLiveStatus(m.status));
-      return res.status(200).json({ live, lastUpdated: payload.lastUpdated, fallback: payload.fallback });
+      const liveRaw = (payload.matches || []).filter((m) => isLiveStatus(m.status));
+      const live = await enrichMatchesWithDetailMeta(liveRaw);
+      return res.status(200).json({
+        live,
+        lastUpdated: payload.lastUpdated,
+        fallback: payload.fallback,
+      });
+    }
+
+    if (view === "detail") {
+      const eventId = req.query?.eventId ?? req.query?.id;
+      const detailPayload = await getWcMatchDetailPayload(eventId);
+      if (!detailPayload.ok) {
+        return res.status(detailPayload.error === "missing_event_id" ? 400 : 404).json(detailPayload);
+      }
+      return res.status(200).json(detailPayload);
     }
 
     if (view === "context") {
@@ -412,7 +434,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ context, chars: context.length });
     }
 
-    return res.status(400).json({ error: "Invalid view — use groups, matches, outrights, upcoming, live, or context." });
+    return res.status(400).json({
+      error: "Invalid view — use groups, matches, outrights, upcoming, live, detail, or context.",
+    });
   } catch (err) {
     console.error("[world-cup]", err);
     const cachedGroups = await getDurableJson("wc2026_groups");

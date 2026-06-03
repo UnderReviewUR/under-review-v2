@@ -32,19 +32,25 @@ export function useWorldCupData() {
     async function loadAll() {
       setWcLoading(true);
       try {
-        const [groupsRes, matchesRes, outrightsRes] = await Promise.all([
+        const [groupsRes, matchesRes, outrightsRes, upcomingRes] = await Promise.all([
           fetch("/api/world-cup?view=groups", { cache: "no-store" }),
           fetch("/api/world-cup?view=matches", { cache: "no-store" }),
           fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
+          fetch("/api/world-cup?view=upcoming", { cache: "no-store" }),
         ]);
         const groupsData = groupsRes.ok ? await groupsRes.json() : null;
         const matchesData = matchesRes.ok ? await matchesRes.json() : null;
         const outrightsData = outrightsRes.ok ? await outrightsRes.json() : null;
+        const upcomingData = upcomingRes.ok ? await upcomingRes.json() : null;
         if (!isCurrent) return;
         if (groupsData?.groups) setGroups(groupsData.groups);
         if (matchesData?.matches) {
           setMatches(matchesData.matches);
           setLiveMatches(matchesData.matches.filter((m) => isLiveStatus(m.status)));
+        }
+        if (upcomingData?.upcoming) {
+          setUpcomingMatches(upcomingData.upcoming);
+        } else if (matchesData?.matches) {
           setUpcomingMatches(
             matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12),
           );

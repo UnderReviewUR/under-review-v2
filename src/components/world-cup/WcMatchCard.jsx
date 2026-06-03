@@ -2,7 +2,29 @@ import { useEffect, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
 import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
+import {
+  WC_XI_STATUS_ICON,
+  formatWcDetailAsOfEt,
+  resolveWcXiStatus,
+  wcXiStatusChipLabel,
+} from "../../../shared/wcXiStatus.js";
 import WcLiveScore from "./WcLiveScore.jsx";
+
+function WcMatchXiTrust({ match }) {
+  const xiStatus = resolveWcXiStatus(match);
+  const asOf = formatWcDetailAsOfEt(match?.lastUpdated);
+  return (
+    <div className="wc-xi-trust">
+      <span className={`wc-xi-chip wc-xi-chip--${xiStatus}`}>
+        <span className="wc-xi-chip-icon" aria-hidden>
+          {WC_XI_STATUS_ICON[xiStatus]}
+        </span>
+        {wcXiStatusChipLabel(xiStatus)}
+      </span>
+      {asOf ? <span className="wc-xi-asof">as of {asOf}</span> : null}
+    </div>
+  );
+}
 
 function isLive(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -67,6 +89,7 @@ export default function WcMatchCard({ match, teams, onAskUrTake, showOdds = true
 
   return (
     <div className="wc-match-card">
+      <WcMatchXiTrust match={match} />
       {live ? (
         <WcLiveScore match={match} />
       ) : (

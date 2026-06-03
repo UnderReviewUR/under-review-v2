@@ -32,3 +32,42 @@ export function deriveWcDataConfidence(matchDetails) {
 export function wcDataConfidenceChipLabel(tier) {
   return WC_DATA_CONFIDENCE_CHIP[tier] || WC_DATA_CONFIDENCE_CHIP.pre_match_estimate;
 }
+
+/**
+ * @param {WcDataConfidence | string | null | undefined} dataConfidence
+ */
+export function wcDataConfidenceNeedsCaution(dataConfidence) {
+  const tier = String(dataConfidence || "").trim();
+  return tier.length > 0 && tier !== "confirmed";
+}
+
+/**
+ * @param {WcDataConfidence | string | null | undefined} dataConfidence
+ * @returns {string | null}
+ */
+export function wcDataConfidenceCautionBanner(dataConfidence) {
+  if (!wcDataConfidenceNeedsCaution(dataConfidence)) return null;
+  if (dataConfidence === "limited_intel") {
+    return "Starting XIs not confirmed — take with caution. No starter-specific plays.";
+  }
+  return "Lineups not yet confirmed — take with caution. No starter-specific plays.";
+}
+
+const STRUCTURED_CONFIDENCE_TIERS = ["High", "Medium", "Speculative"];
+
+/**
+ * Cap model/API structured confidence when WC intel is not lineup-confirmed.
+ * @param {string | null | undefined} confidence
+ * @param {WcDataConfidence | string | null | undefined} dataConfidence
+ * @returns {"High" | "Medium" | "Speculative"}
+ */
+export function capWcStructuredConfidence(confidence, dataConfidence) {
+  const raw = String(confidence || "Medium").trim();
+  const base = STRUCTURED_CONFIDENCE_TIERS.includes(raw) ? raw : "Medium";
+  if (!wcDataConfidenceNeedsCaution(dataConfidence)) return base;
+  if (base === "High") {
+    return dataConfidence === "limited_intel" ? "Speculative" : "Medium";
+  }
+  if (dataConfidence === "limited_intel" && base === "Medium") return "Speculative";
+  return base;
+}

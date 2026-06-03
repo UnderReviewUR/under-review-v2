@@ -52,6 +52,30 @@ Inject same-day lineup shocks, injuries, or scheduling updates so UR TAKE does n
 
 Clear the line after the event.
 
+### World Cup 2026 Trust & Transparency (Go-Time Features)
+
+UnderReview enforces strict lineup discipline for WC 2026:
+
+- **Prompt gating:** Claude never sees or uses unconfirmed starters. `formatMatchIntelBlock` in `api/_wcUrTakeContext.js` hides starter names until `lineupConfirmed === true` on the ESPN KV detail row; unconfirmed fixtures show explicit “NOT CONFIRMED” rules in the prompt.
+- **API enrichment (`/api/world-cup`):** List views (`view=matches`, `live`, `upcoming`) attach per-match trust fields from `wc_match_detail` KV (no full lineups in payloads):
+  - `lineupConfirmed` (boolean)
+  - `xiStatus`: `confirmed` | `pending` | `unavailable`
+  - `lastUpdated` (ms)
+  - `dataConfidence`: `confirmed` | `pre_match_estimate` | `limited_intel` (via `shared/wcDataConfidence.js`)
+  - Optional: `view=detail&eventId=<ESPN_EVENT_ID>` for a single slim detail payload
+- **XI status on cards:** Every `WcMatchCard` shows a color-coded chip:
+  - **Starting XI confirmed** (green)
+  - **XI pending** (amber) — KV row exists, XI not confirmed
+  - **Lineup data pending** (muted) — no KV detail yet  
+  Plus **as of …** ET when `lastUpdated` is present.
+- **UR TAKE caution banner:** When `dataConfidence !== 'confirmed'`, the structured card shows an amber warning (driven by response `dataConfidence`, not re-parsed prose) and caps displayed confidence (`High` → `Medium` or `Speculative` depending on tier). See `URTakeResponse.jsx` + `capWcStructuredConfidence()`.
+- **`WC_BREAKING`:** Manual override env var for late news (same pattern as `TENNIS_BREAKING`). Injected at the top of the World Cup prompt block.
+- **Ramp polling:** `selectWcMatchDetailTargets` scrapes all upcoming fixtures within **24h** (not just top 3). Pre-kickoff cadence tightens to **5 min** from T-90 through kickoff (`getWcRampScrapeDelayMs` in `shared/scrapeCadencePolicy.js`, wired in `api/_scrapeSchedulerRun.js`).
+
+**Product promise:** We only claim what we know. Transparency first.
+
+**Smoke checklist (friendlies / go-live):** [docs/WC_SMOKE_TEST.md](docs/WC_SMOKE_TEST.md)
+
 ### Access codes
 
 Configure `OWNER_CODE`, `FRIEND_CODES`, and **`ACCESS_TOKEN_SECRET`** in Vercel — never rely on demo defaults in production (`api/access.js`, `api/pro-status.js`).
