@@ -1,28 +1,54 @@
 /**
- * World Cup UR Take — verdict classification for follow-up UX.
+ * World Cup UR Take — verdict + chip routing (intent-first).
  */
+
+import { WC_INTENT } from "./wcUrTakeIntent.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"GENERAL"} WcUrTakeVerdict */
 
 const FAIR_PRICE_RE =
-  /\b(not mispriced|fairly priced|fair price|no edge|no mispricing|correctly priced|generous given|not a value|pass\b|no play\b)\b/i;
+  /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value|no actionable)\b/i;
 
-const EDGE_RE = /\b(mispriced|value|edge|longshot value|structural value|target)\b/i;
+const EDGE_RE = /\b(mispriced|structural value|longshot value|actionable edge)\b|\bedge\b/i;
 
-const RULES_RE =
-  /\b(extra time|penalty shootout|penalties|single elimination|away goals|tiebreaker|90.?minute)\b/i;
+const RULES_QUESTION_RE =
+  /\b(extra time|penalties|penalty shootout|knockout rules|tiebreaker|how does knockout)\b/i;
+
+/**
+ * @param {object | null | undefined} message
+ * @returns {string | null}
+ */
+export function resolveWcIntentFromMessage(message) {
+  const direct = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
+  if (direct) return String(direct);
+  const q = String(message?.question || message?.userQuestion || "").trim();
+  if (RULES_QUESTION_RE.test(q)) return WC_INTENT.RULES;
+  if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
+  if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
+  return null;
+}
 
 /**
  * @param {object | null | undefined} message
  * @returns {WcUrTakeVerdict}
  */
 export function classifyWcVerdictForUi(message) {
-  const structured = message?.structured && typeof message.structured === "object" ? message.structured : null;
+  const wcIntent = resolveWcIntentFromMessage(message);
+  const s = message?.structured && typeof message.structured === "object" ? message.structured : null;
+  const callType = String(s?.callType || "").toLowerCase();
+
+  if (wcIntent === WC_INTENT.RULES || callType === "rules") {
+    return "RULES_FACTUAL";
+  }
+  if (wcIntent === WC_INTENT.MATCHUP || callType === "matchup") {
+    return "MATCHUP";
+  }
+
   const parts = [
-    structured?.lean,
-    structured?.whyNow,
-    structured?.edge,
-    structured?.call,
+    s?.lean,
+    s?.whyNow,
+    s?.edge,
+    s?.call,
     message?.content,
     message?.text,
     message?.deepText,
@@ -31,15 +57,16 @@ export function classifyWcVerdictForUi(message) {
     .map(String)
     .join("\n");
 
-  if (RULES_RE.test(parts) && !EDGE_RE.test(String(structured?.edge || ""))) {
-    return "RULES_FACTUAL";
+  if (wcIntent === WC_INTENT.ENTITY_PRICING) {
+    if (FAIR_PRICE_RE.test(parts)) return "FAIR_PRICE";
+    if (EDGE_RE.test(parts)) return "HAS_EDGE";
+    return "GENERAL";
   }
 
   if (FAIR_PRICE_RE.test(parts)) return "FAIR_PRICE";
   if (EDGE_RE.test(parts)) return "HAS_EDGE";
 
-  const sport = String(message?.sport || "").toLowerCase();
-  if (sport === "worldcup" && /\b(vs\.?|versus|advances)\b/i.test(String(message?.question || ""))) {
+  if (/\b(vs\.?|versus|advances)\b/i.test(String(message?.question || message?.userQuestion || ""))) {
     return "MATCHUP";
   }
 
@@ -66,8 +93,8 @@ export function getVerdictFollowUpChips(verdict) {
     case "MATCHUP":
       return [
         "What's the other side?",
-        "Give me a specific number to target.",
         "What breaks this read?",
+        "Give me a specific number to target.",
       ];
     default:
       return [

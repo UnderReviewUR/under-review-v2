@@ -54,6 +54,39 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
     return { mode: "parlay", slots: [] };
   }
 
+  if (callType === "rules") {
+    const proj = call.slice(0, 80) || "Rules reference";
+    return {
+      mode: "rules",
+      slots: [
+        { key: "p", label: "Answer", value: proj, highlight: false },
+        { key: "c", label: "Confidence", value: conf || "High", highlight: false },
+      ],
+    };
+  }
+
+  if (callType === "matchup") {
+    const proj = call.slice(0, 80) || "Advancement paths";
+    return {
+      mode: "matchup",
+      slots: [
+        { key: "p", label: "Read", value: proj, highlight: false },
+        { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+      ],
+    };
+  }
+
+  if (callType === "analysis") {
+    const proj = call.slice(0, 80) || "Outright read";
+    return {
+      mode: "analysis",
+      slots: [
+        { key: "p", label: "Verdict", value: proj, highlight: false },
+        { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+      ],
+    };
+  }
+
   const snap = takeMeta?.openingLineSnapshot;
   const lineVal =
     snap?.line != null && String(snap.line).trim() !== ""
@@ -112,6 +145,10 @@ export function pickSharpBriefHeadline(lean, call, edge, callType, sport) {
 }
 
 export function inferMarketPill(call, callType) {
+  const ct = String(callType || "").toLowerCase();
+  if (ct === "rules") return "Reference";
+  if (ct === "matchup") return "Group stage";
+  if (ct === "analysis") return "Outright";
   const t = String(call || "").toLowerCase();
   if (String(callType || "").toLowerCase() === "parlay") return "Parlay";
   if (/\bpra\b|\bpoints\s*\+?\s*rebounds\s*\+?\s*assists\b/i.test(t)) return "PRA";
@@ -124,6 +161,9 @@ export function inferMarketPill(call, callType) {
 
 export function inferEdgeTypePill(callType) {
   const c = String(callType || "single").toLowerCase();
+  if (c === "rules") return "Rules";
+  if (c === "matchup") return "Paths";
+  if (c === "analysis") return "Read";
   if (c === "parlay") return "Parlay";
   if (c === "live") return "Live";
   return "Edge";

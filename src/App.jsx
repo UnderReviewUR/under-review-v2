@@ -2108,7 +2108,10 @@ ${themeCss}
         liveMode: Boolean(data.liveMode),
         sport: sportTrackedForBubble,
         shownAt: Date.now(),
+        ...(data.wcIntent ? { wcIntent: String(data.wcIntent) } : {}),
       },
+      ...(data.userQuestion ? { userQuestion: String(data.userQuestion).trim() } : { userQuestion: text }),
+      ...(data.wcIntent ? { wcIntent: String(data.wcIntent) } : {}),
       ...(data.fallback === true
         ? {
             urTakeFeedSnagDiag: {

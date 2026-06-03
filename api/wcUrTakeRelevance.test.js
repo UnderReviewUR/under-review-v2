@@ -140,7 +140,7 @@ test("runWcUrTakeQA — rules answer passes", () => {
 
 test("runWcUrTakeQA — Brazil answer passes entity check", () => {
   const qa = runWcUrTakeQA({
-    responseText: "Brazil at +500 is not mispriced given Group C strength.",
+    responseText: "Brazil is not mispriced given Group C strength.",
     structured: {
       lean: "Lean: Brazil fairly priced.",
       whyNow: "Brazil is the Group C favorite.",
@@ -152,7 +152,23 @@ test("runWcUrTakeQA — Brazil answer passes entity check", () => {
   });
   assert.equal(qa.passed, true);
   assert.equal(qa.qaEntityMatch, "pass");
-  assert.ok(textMentionsWcTeam("Brazil is fairly priced", "BRA"));
+});
+
+test("runWcUrTakeQA — Brazil answer with Norway +2500 bleed fails", () => {
+  const qa = runWcUrTakeQA({
+    responseText: "Brazil at +2500 is not mispriced.",
+    structured: {
+      lean: "Lean: Brazil fairly priced at +2500.",
+      whyNow: "Recycled Norway price.",
+    },
+    question: WC_RELEVANCE_REGRESSION_TURNS[1].question,
+    wcIntent: WC_INTENT.ENTITY_PRICING,
+    requiredEntities: ["BRA"],
+    forbiddenEntities: ["NOR"],
+  });
+  assert.equal(qa.passed, false);
+  assert.ok(qa.issueCodes.includes("wc_price_uncited_citation"));
+  assert.equal(wcQaRequiresRegeneration(qa), true);
 });
 
 test("buildWcSessionMemoryPrompt — RULES intent skips prior takes", () => {

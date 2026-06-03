@@ -3,7 +3,10 @@
  */
 export function formatUrTakeSportTag(sport, callType) {
   const sp = String(sport || "generic").toUpperCase();
-  if (String(callType || "").toLowerCase() === "parlay") return `${sp} · PARLAY`;
+  const ct = String(callType || "").toLowerCase();
+  if (ct === "parlay") return `${sp} · PARLAY`;
+  if (ct === "rules") return `${sp} · RULES`;
+  if (ct === "matchup") return `${sp} · MATCHUP`;
   return sp;
 }
 

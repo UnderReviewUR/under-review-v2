@@ -121,14 +121,19 @@ export default function URTakeResponse({
   const marketPill = inferMarketPill(callScrub, callType);
   const marketPillDistinct =
     marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
+  const rulesCallType = String(callType || "").toLowerCase() === "rules";
 
-  const contextLine = [
-    marketPillDistinct ?? edgeTypePill,
-    showLiveRibbon ? "Live" : "Tonight",
-  ].join(" · ");
+  const contextLine = rulesCallType
+    ? "Knockout rules · Reference"
+    : [
+        marketPillDistinct ?? edgeTypePill,
+        showLiveRibbon ? "Live" : "Tonight",
+      ].join(" · ");
 
   const modePill =
-    ee && eeModel ? (
+    rulesCallType ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Reference</span>
+    ) : ee && eeModel ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--ee">
         <span className="ur-v2-mode-ic" aria-hidden>
           ◈

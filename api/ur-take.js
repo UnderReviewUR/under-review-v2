@@ -58,6 +58,8 @@ import {
   buildWcMatchupIntentRules,
   getWcTeamStrengthTags,
 } from "../shared/wcUrTakeMatchup.js";
+import { buildPriceBindingPromptBlock } from "../shared/wcUrTakePricing.js";
+import { normalizeWcStructuredForDelivery } from "../shared/wcUrTakeStructured.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
   buildUrTakeSportTurnScopeRules,
@@ -3223,8 +3225,12 @@ function resolveOutputJsonMode({
   question,
   matchupContext,
   sportHint,
+  wcIntent,
 }) {
-  if (String(sportHint || "").toLowerCase() === "worldcup") return "tier2_5_json";
+  if (String(sportHint || "").toLowerCase() === "worldcup") {
+    if (String(wcIntent || "") === WC_INTENT.RULES) return "tier1_json";
+    return "tier2_5_json";
+  }
   if (chaseSignals?.isChase) return "plain";
   if (intent === "slip_review") return "plain";
   if (intent === "prop_projection") return "tier2_5_json";
@@ -5085,6 +5091,10 @@ export default async function handler(req, res) {
     }
     wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
   }
+  let effectiveStructuredModeRequested = structuredModeRequested;
+  if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+    effectiveStructuredModeRequested = false;
+  }
   if (sportHint === "nba") {
     const mustFetchNbaBoard =
       sportSwitched || !nbaUrTakeContextHasUsableData(nbaContext);
@@ -5536,6 +5546,7 @@ export default async function handler(req, res) {
           question,
           matchupContext,
           sportHint,
+          wcIntent,
         });
   const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint, {
     requireStatusShift:
@@ -6899,6 +6910,11 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
   } else if (sportHint === "worldcup" && wcContext?.promptBlock) {
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
+    const priceBindingBlock = buildPriceBindingPromptBlock(
+      String(question || ""),
+      wcRequiredEntities,
+      wcIntent,
+    );
     const wcMatchupBlock =
       wcIntent === WC_INTENT.MATCHUP
         ? buildWcMatchupIntentRules({ phase: wcContext?.phase || "GROUP_STAGE" })
@@ -6937,7 +6953,7 @@ Confidence guidance:
 
     userPrompt = `${wcRoleLine}
 
-${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcContext.promptBlock}
+${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcContext.promptBlock}
 
 Question:
 ${question}
@@ -7140,7 +7156,7 @@ ${continuationRule}`;
     const tokenBudget =
       draftTeamSimulationInject
         ? 2600
-        : structuredModeRequested
+        : effectiveStructuredModeRequested
           ? 4200
           : outputJsonMode === "tier2_5_json"
             ? 4200
@@ -7353,7 +7369,7 @@ You are responding to a Pro subscriber. Apply the following:
         qaAttempt === 0
           ? systemPromptWithProAppendix
           : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}${wcQaRepairSuffix}`;
-      if (structuredModeRequested) {
+      if (effectiveStructuredModeRequested) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {
           systemForAttempt += `
@@ -7480,7 +7496,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
 
       // If structured mode was requested, extract and validate JSON
-      if (structuredModeRequested) {
+      if (effectiveStructuredModeRequested) {
         try {
           const responseTextRaw = extractAnthropicText(result.data).trim();
           const parsedObj =
@@ -7495,6 +7511,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           }
           structuredResponse = normalizeStructuredUrTakeResponse(parsedObj, sportHint);
           structuredResponse = repairStructuredForDelivery(structuredResponse, sportHint);
+          if (sportHint === "worldcup" && structuredResponse) {
+            structuredResponse = normalizeWcStructuredForDelivery(
+              structuredResponse,
+              wcIntent,
+              String(question || ""),
+              wcRequiredEntities,
+            );
+          }
           if (structuredResponse?.lean) {
             structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
           }
@@ -7570,14 +7594,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         }
       }
 
-      if (structuredModeRequested && !structuredResponse && previousStructured) {
+      if (effectiveStructuredModeRequested && !structuredResponse && previousStructured) {
         structuredResponse = previousStructured;
       }
 
       let text = stripBrokenQuoteFragments(extractAnthropicText(result.data));
 
       if (
-        structuredModeRequested &&
+        effectiveStructuredModeRequested &&
         !structuredResponse &&
         sportHint === "nba" &&
         nbaContext &&
@@ -7874,6 +7898,32 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseText = responseDeep || responseText;
     }
 
+    if (sportHint === "worldcup") {
+      if (structuredResponse && typeof structuredResponse === "object") {
+        structuredResponse = normalizeWcStructuredForDelivery(
+          structuredResponse,
+          wcIntent,
+          String(question || ""),
+          wcRequiredEntities,
+        );
+      } else if (wcIntent === WC_INTENT.RULES) {
+        const summary = String(responseText || "").trim();
+        structuredResponse = normalizeWcStructuredForDelivery(
+          {
+            sport: "worldcup",
+            call: summary.slice(0, 240),
+            lean: summary.split("\n").map((l) => l.trim()).find(Boolean)?.slice(0, 240) || summary.slice(0, 240),
+            whyNow: summary,
+            edge: "Factual tournament rules — not a betting pick.",
+            confidence: "High",
+          },
+          wcIntent,
+          String(question || ""),
+          wcRequiredEntities,
+        );
+      }
+    }
+
     let takeRecord = extractTakeFromResponse({
       responseText,
       sport: sportHint || "generic",
@@ -8090,6 +8140,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       take: takeClientPayload(takeRecord),
       ...(qaSummaryForLog ? { qaSummary: qaSummaryForLog } : {}),
       ...(followUpsField ? { followUps: followUpsField } : {}),
+      ...(sportHint === "worldcup" && wcIntent
+        ? { wcIntent, userQuestion: String(question || "").trim() }
+        : {}),
     };
 
     if (structuredResponse) {

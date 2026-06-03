@@ -29,7 +29,9 @@ import {
   classifyWcVerdictForUi,
   getVerdictFollowUpChips,
   getVerdictNextLine,
+  resolveWcIntentFromMessage,
 } from "../../../shared/wcUrTakeVerdict.js";
+import { WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
@@ -1047,9 +1049,11 @@ export function getFollowUpSuggestions(message) {
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
   if (sport === "worldcup") {
     const verdictChips = getVerdictFollowUpChips(classifyWcVerdictForUi(message));
+    const wcIntentKnown = Boolean(message?.wcIntent || message?.urTakeTelemetry?.wcIntent);
+    if (wcIntentKnown) return polishFollowUpList(verdictChips);
     if (api.length >= 3) return polishFollowUpList(api.slice(0, 3));
     if (api.length === 0) return polishFollowUpList(verdictChips);
-    return polishFollowUpList(mergeFollowUpChips(api, verdictChips));
+    return polishFollowUpList(mergeFollowUpChips(verdictChips, api));
   }
 
   const contentStr =
@@ -1659,7 +1663,8 @@ function UrTakeFailSoftActions({ m, onUrTakeRetry, onUpgradePromptClick }) {
   );
 }
 
-function WcUrTakePendingNudge({ dataConfidence, wcEventId, onViewWcMatch }) {
+function WcUrTakePendingNudge({ dataConfidence, wcEventId, onViewWcMatch, message = null }) {
+  if (resolveWcIntentFromMessage(message) === WC_INTENT.RULES) return null;
   if (!wcDataConfidenceNeedsCaution(dataConfidence)) return null;
   const id = wcEventId != null ? String(wcEventId).trim() : "";
   return (
@@ -1816,6 +1821,7 @@ function UrTakeAiBubble({
           dataConfidence={m.dataConfidence}
           wcEventId={m.wcEventId}
           onViewWcMatch={onViewWcMatch}
+          message={m}
         />
         <UrTakeNextContinuationLine message={m} />
         {wcConfidenceChip}
