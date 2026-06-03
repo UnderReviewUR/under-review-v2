@@ -3,6 +3,7 @@
  */
 
 import { textMentionsAnyWcTeam, textMentionsWcTeam } from "../shared/wcUrTakeEntityBinding.js";
+import { detectContenderAheadOfFavoriteClaim } from "../shared/wcUrTakeMatchup.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 
 const BETTING_LEAD_RE =
@@ -54,6 +55,7 @@ export function extractWcResponseBody(responseText, structured) {
  *   wcIntent?: string,
  *   requiredEntities?: string[],
  *   forbiddenEntities?: string[],
+ *   strengthTags?: Record<string, string>,
  * }} opts
  */
 export function runWcUrTakeQA(opts = {}) {
@@ -62,6 +64,7 @@ export function runWcUrTakeQA(opts = {}) {
   const wcIntent = String(opts.wcIntent || WC_INTENT.UNCLASSIFIED);
   const requiredEntities = (opts.requiredEntities || []).map((t) => String(t).toUpperCase());
   const forbiddenEntities = (opts.forbiddenEntities || []).map((t) => String(t).toUpperCase());
+  const strengthTags = opts.strengthTags && typeof opts.strengthTags === "object" ? opts.strengthTags : {};
 
   const headline = extractWcResponseHeadline(responseText, structured);
   const body = extractWcResponseBody(responseText, structured);
@@ -71,6 +74,14 @@ export function runWcUrTakeQA(opts = {}) {
   if (wcIntent === WC_INTENT.RULES) {
     if (BETTING_LEAD_RE.test(headline)) issueCodes.push("wc_rules_betting_lead");
     if (!RULES_CONTENT_RE.test(body)) issueCodes.push("wc_rules_missing_content");
+  }
+
+  if (wcIntent === WC_INTENT.MATCHUP && requiredEntities.length >= 2) {
+    const missingInHeadline = requiredEntities.filter((abbr) => !textMentionsWcTeam(headline, abbr));
+    if (missingInHeadline.length > 0) issueCodes.push("wc_matchup_missing_team_headline");
+    if (detectContenderAheadOfFavoriteClaim(headline, strengthTags)) {
+      issueCodes.push("wc_matchup_contender_ahead_of_favorite");
+    }
   }
 
   if (requiredEntities.length > 0) {
@@ -116,7 +127,13 @@ export function runWcUrTakeQA(opts = {}) {
 export function wcQaRequiresRegeneration(qaResult) {
   if (!qaResult || qaResult.passed) return false;
   return (qaResult.issueCodes || []).some((c) =>
-    ["wc_entity_missing", "wc_forbidden_entity_headline", "wc_rules_betting_lead"].includes(c),
+    [
+      "wc_entity_missing",
+      "wc_forbidden_entity_headline",
+      "wc_rules_betting_lead",
+      "wc_matchup_contender_ahead_of_favorite",
+      "wc_matchup_missing_team_headline",
+    ].includes(c),
   );
 }
 
@@ -126,4 +143,5 @@ WC QA REGENERATION (mandatory — prior answer failed relevance checks):
 - Answer ONLY the user's current question and REQUIRED ENTITIES from the user message.
 - Do not recycle a prior thread thesis or a different team/group.
 - For rules questions: lead with extra time and penalty shootout facts — no group-stage betting take.
-- Sentence one must directly answer the question with the correct team(s) named.`;
+- For group-stage MATCHUP questions: both teams can advance — frame 1st/2nd place paths; do not claim a Contender finishes ahead of the group Favorite without verified odds or form.
+- Sentence one must directly answer the question with the correct team(s) named and strength tags acknowledged.`;

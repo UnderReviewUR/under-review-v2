@@ -47,7 +47,8 @@ export function buildEntityBindingPromptBlock(requiredEntities = []) {
     return `REQUIRED ENTITY (binding):
   Primary: ${list[0]} (${names})
   You MUST answer about ${list[0]} only. Do not discuss any other teams unless making a direct comparison to ${list[0]}.
-  If you cannot answer about ${list[0]} from VERIFIED CONTEXT, say so — do not substitute another team.`;
+  If you cannot answer about ${list[0]} from VERIFIED CONTEXT, say so — do not substitute another team.
+  Do not carry strong opinions or narratives from previous questions about different matchups or teams.`;
   }
 
   const labels = list
@@ -60,7 +61,8 @@ export function buildEntityBindingPromptBlock(requiredEntities = []) {
   return `REQUIRED ENTITIES (binding):
   Teams: ${labels}
   You MUST answer about these teams only. Do not introduce unrelated teams or groups.
-  If the question is who advances, address both teams explicitly in sentence one.`;
+  If the question is who advances, address both teams explicitly in sentence one.
+  Do not carry strong opinions or narratives from previous questions about different matchups or teams.`;
 }
 
 /**

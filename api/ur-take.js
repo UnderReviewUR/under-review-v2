@@ -54,6 +54,10 @@ import {
   buildWcSessionMemoryPrompt,
   extractSessionWcEntities,
 } from "../shared/wcUrTakeSessionMemory.js";
+import {
+  buildWcMatchupIntentRules,
+  getWcTeamStrengthTags,
+} from "../shared/wcUrTakeMatchup.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
   buildUrTakeSportTurnScopeRules,
@@ -5057,6 +5061,8 @@ export default async function handler(req, res) {
   let wcIntent = null;
   let wcRequiredEntities = [];
   let wcForbiddenEntities = [];
+  /** @type {Record<string, string>} */
+  let wcStrengthTags = {};
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     wcIntent = classifyWcQuestionIntent(String(question || ""), incomingHistory);
@@ -5077,6 +5083,7 @@ export default async function handler(req, res) {
     } catch (err) {
       console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
     }
+    wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
   }
   if (sportHint === "nba") {
     const mustFetchNbaBoard =
@@ -6892,15 +6899,30 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
   } else if (sportHint === "worldcup" && wcContext?.promptBlock) {
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
+    const wcMatchupBlock =
+      wcIntent === WC_INTENT.MATCHUP
+        ? buildWcMatchupIntentRules({ phase: wcContext?.phase || "GROUP_STAGE" })
+        : "";
     const isWcRulesIntent = wcIntent === WC_INTENT.RULES;
+    const isWcMatchupIntent = wcIntent === WC_INTENT.MATCHUP;
     const wcRoleLine = isWcRulesIntent
       ? "You are answering a factual 2026 FIFA World Cup rules question."
-      : "You are answering a 2026 FIFA World Cup betting question.";
+      : isWcMatchupIntent
+        ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
+        : "You are answering a 2026 FIFA World Cup betting question.";
     const wcIntentRules = isWcRulesIntent
       ? `- Answer with tournament rules only. Do NOT lead with a betting take or group-stage prediction.
 - Lead sentence one with the direct answer about extra time, penalties, or the specific rule asked.
 - No team advancement picks unless the user asked about a specific matchup.`
-      : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
+      : isWcMatchupIntent
+        ? `- Return JSON per OUTPUT CONTRACT: summary = balanced advancement read (150 words max); deep = full reasoning (no word limit).
+- Sentence one must name BOTH required teams and their strength tags from VERIFIED CONTEXT.
+- Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
+- Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
+- If CURRENT OUTRIGHT ODDS is missing or STALE, use cautious structural language — no overconfident winner picks.
+- Do not invent scores, lineups, or odds not supported by the context block.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+        : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
 - Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
@@ -6915,7 +6937,7 @@ Confidence guidance:
 
     userPrompt = `${wcRoleLine}
 
-${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${wcContext.promptBlock}
+${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcContext.promptBlock}
 
 Question:
 ${question}
@@ -7755,6 +7777,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           wcIntent,
           requiredEntities: wcRequiredEntities,
           forbiddenEntities: wcForbiddenEntities,
+          strengthTags: wcStrengthTags,
         });
         wcRelevanceLog.qaEntityMatch = wcQaResult.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcQaResult.qaIntentMatch;
