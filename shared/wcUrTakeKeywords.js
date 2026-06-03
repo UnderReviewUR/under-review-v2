@@ -38,6 +38,8 @@ const WC_TOURNAMENT_TERMS = [
   "group stage",
   "knockout stage",
   "knockout round",
+  "knockout rules",
+  "extra time",
   "round of 32",
   "round of 16",
   "quarterfinal",

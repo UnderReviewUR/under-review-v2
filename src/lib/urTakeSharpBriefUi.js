@@ -55,14 +55,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
   }
 
   if (callType === "rules") {
-    const proj = call.slice(0, 80) || "Rules reference";
-    return {
-      mode: "rules",
-      slots: [
-        { key: "p", label: "Answer", value: proj, highlight: false },
-        { key: "c", label: "Confidence", value: conf || "High", highlight: false },
-      ],
-    };
+    return { mode: "rules", slots: [] };
   }
 
   if (callType === "matchup") {
@@ -130,6 +123,12 @@ const INJURY_LEAD =
 
 /** Prefer lean line, then call, then edge — avoid opening on injury status lines. */
 export function pickSharpBriefHeadline(lean, call, edge, callType, sport) {
+  const ct = String(callType || "").toLowerCase();
+  if (ct === "rules") {
+    const w = String(lean || call || edge || "").trim();
+    if (w) return w.length > 200 ? `${w.slice(0, 197)}…` : w;
+  }
+
   const l = String(lean || "").trim();
   if (l) return l.length > 140 ? `${l.slice(0, 137)}…` : l;
 

@@ -60,6 +60,10 @@ import {
 } from "../shared/wcUrTakeMatchup.js";
 import { buildPriceBindingPromptBlock } from "../shared/wcUrTakePricing.js";
 import { normalizeWcStructuredForDelivery } from "../shared/wcUrTakeStructured.js";
+import {
+  buildWcRulesStructuredFromProse,
+  formatWcRulesResponseAsProse,
+} from "../shared/wcUrTakeStructured.js";
 import { stripRulesThreadBleed, WC_RULES_TURN_APPENDIX } from "../shared/wcUrTakeRules.js";
 import { questionReferencesDerby } from "../shared/derbyIntent.js";
 import {
@@ -325,6 +329,58 @@ function extractAnthropicText(data) {
   }
   if (typeof data.text === "string" && data.text.trim()) return data.text.trim();
   return "";
+}
+
+/** When RULES turn leaks betting-shaped JSON, recover prose for tier1/rules delivery. */
+function coerceWcRulesModelText(text, responseDeep = null) {
+  const raw = String(text || "").trim();
+  const parsed = tryParseJsonObject(raw);
+  if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
+    return {
+      text: parsed.summary.trim(),
+      deep: typeof parsed.deep === "string" ? parsed.deep.trim() : responseDeep,
+    };
+  }
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    !parsed.summary &&
+    (parsed.whyNow || parsed.lean || parsed.call)
+  ) {
+    const parts = [parsed.lean, parsed.whyNow, parsed.edge, parsed.call]
+      .filter((v) => typeof v === "string" && v.trim())
+      .map((v) => String(v).trim());
+    const prose = parts.join("\n\n");
+    return { text: prose || raw, deep: responseDeep };
+  }
+  return { text: raw, deep: responseDeep };
+}
+
+function finalizeWcRulesDelivery({
+  responseText,
+  responseDeep,
+  question,
+  bleedForbidden,
+  structuredResponse,
+}) {
+  const coerced = coerceWcRulesModelText(responseText, responseDeep);
+  let text = stripRulesThreadBleed(coerced.text, bleedForbidden);
+  let deep = coerced.deep ? stripRulesThreadBleed(String(coerced.deep), bleedForbidden) : null;
+
+  const structured = buildWcRulesStructuredFromProse(
+    text,
+    deep,
+    String(question || ""),
+    bleedForbidden,
+  );
+  const formatted = formatWcRulesResponseAsProse(structured);
+  if (formatted.trim()) text = formatted;
+
+  return {
+    responseText: text,
+    responseDeep: deep,
+    structuredResponse: structured,
+  };
 }
 
 /** Dual-publish: turn validated structured JSON into prose so extractTakeFromResponse + UI still work. */
@@ -5581,7 +5637,13 @@ ${nbaLiveNoPropSystemPromptBlock}`;
   }
   if (isConversationFollowUp) {
     if (sportHint === "worldcup") {
-      systemPromptForModel = `${systemPromptForModel}\n\n${WC_FOLLOW_UP_SYSTEM_APPENDIX}`;
+      const wcFollowUpAppendix =
+        wcIntent === WC_INTENT.RULES
+          ? `${WC_FOLLOW_UP_SYSTEM_APPENDIX}
+
+WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier1 summary (+ optional deep) factual rules only — no Lean/Edge/Prop card.`
+          : WC_FOLLOW_UP_SYSTEM_APPENDIX;
+      systemPromptForModel = `${systemPromptForModel}\n\n${wcFollowUpAppendix}`;
     } else {
       systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
       systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
@@ -7663,10 +7725,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseFormat = "plain";
       responseStatusShift = null;
       if (structuredResponse && typeof structuredResponse === "object") {
-        const formatted = formatStructuredResponseAsUrTakeProse(structuredResponse);
-        responseText = formatted.trim() ? formatted : text;
-        responseDeep = null;
-        responseFormat = "plain";
+        if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+          structuredResponse = null;
+        } else {
+          const formatted = formatStructuredResponseAsUrTakeProse(structuredResponse);
+          responseText = formatted.trim() ? formatted : text;
+          responseDeep = null;
+          responseFormat = "plain";
+        }
       } else if (outputJsonMode !== "plain") {
         const parsed = tryParseJsonObject(text) || tryExtractSummaryDeepFromLooseText(text);
         if (parsed && typeof parsed.summary === "string" && parsed.summary.trim()) {
@@ -7677,11 +7743,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             responseStatusShift = parsed.statusShift.trim();
           }
           responseFormat = outputJsonMode;
+        } else if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+          const coerced = coerceWcRulesModelText(text, null);
+          responseText = coerced.text;
+          responseDeep = coerced.deep;
+          responseFormat = outputJsonMode;
         } else if (outputJsonMode === "tier2_5_json") {
           const normalized = normalizeSummaryDeepPayload(text, null);
           responseText = normalized.summary || text;
           responseDeep = normalized.deep;
         }
+      } else if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+        const coerced = coerceWcRulesModelText(text, null);
+        responseText = coerced.text;
+        responseDeep = coerced.deep;
       }
 
       if (sportHint === "nba") {
@@ -7870,6 +7945,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         responseText = responseDeep || responseText;
       }
 
+      if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+        const bleedForbidden = [...wcForbiddenEntities, ...wcRequiredEntities];
+        const finalized = finalizeWcRulesDelivery({
+          responseText,
+          responseDeep,
+          question: String(question || ""),
+          bleedForbidden,
+          structuredResponse,
+        });
+        responseText = finalized.responseText;
+        responseDeep = finalized.responseDeep;
+        structuredResponse = finalized.structuredResponse;
+      }
+
       if (
         (!qaRequiresRegeneration(lastQaPost.qa) && !wcQaRequiresRegeneration(wcQaResult)) ||
         qaAttempt >= 1
@@ -7903,55 +7992,25 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseText = responseDeep || responseText;
     }
 
-    if (sportHint === "worldcup") {
+    if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
       const bleedForbidden = [...wcForbiddenEntities, ...wcRequiredEntities];
-      if (wcIntent === WC_INTENT.RULES) {
-        const cleanedSummary = stripRulesThreadBleed(
-          String(responseText || ""),
-          bleedForbidden,
-        );
-        const cleanedDeep = responseDeep
-          ? stripRulesThreadBleed(String(responseDeep), bleedForbidden)
-          : null;
-        responseText = cleanedSummary || responseText;
-        if (cleanedDeep) responseDeep = cleanedDeep;
-
-        structuredResponse = normalizeWcStructuredForDelivery(
-          structuredResponse && typeof structuredResponse === "object"
-            ? {
-                ...structuredResponse,
-                whyNow: stripRulesThreadBleed(
-                  String(structuredResponse.whyNow || structuredResponse.lean || responseText),
-                  bleedForbidden,
-                ),
-              }
-            : {
-                sport: "worldcup",
-                call: responseText.slice(0, 240),
-                lean:
-                  responseText
-                    .split("\n")
-                    .map((l) => l.trim())
-                    .find(Boolean)
-                    ?.slice(0, 240) || responseText.slice(0, 240),
-                whyNow: responseText,
-                edge: "Factual tournament rules — not a betting pick.",
-                confidence: "High",
-              },
-          wcIntent,
-          String(question || ""),
-          wcRequiredEntities,
-        );
-        const formattedRules = formatStructuredResponseAsUrTakeProse(structuredResponse);
-        if (formattedRules.trim()) responseText = formattedRules;
-      } else if (structuredResponse && typeof structuredResponse === "object") {
-        structuredResponse = normalizeWcStructuredForDelivery(
-          structuredResponse,
-          wcIntent,
-          String(question || ""),
-          wcRequiredEntities,
-        );
-      }
+      const finalized = finalizeWcRulesDelivery({
+        responseText,
+        responseDeep,
+        question: String(question || ""),
+        bleedForbidden,
+        structuredResponse,
+      });
+      responseText = finalized.responseText;
+      responseDeep = finalized.responseDeep;
+      structuredResponse = finalized.structuredResponse;
+    } else if (sportHint === "worldcup" && structuredResponse && typeof structuredResponse === "object") {
+      structuredResponse = normalizeWcStructuredForDelivery(
+        structuredResponse,
+        wcIntent,
+        String(question || ""),
+        wcRequiredEntities,
+      );
     }
 
     let takeRecord = extractTakeFromResponse({

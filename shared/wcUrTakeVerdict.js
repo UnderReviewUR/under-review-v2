@@ -2,7 +2,7 @@
  * World Cup UR Take — verdict + chip routing (intent-first).
  */
 
-import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_INTENT, isWcRulesQuestion } from "./wcUrTakeIntent.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"GENERAL"} WcUrTakeVerdict */
 
@@ -10,9 +10,6 @@ const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value|no actionable)\b/i;
 
 const EDGE_RE = /\b(mispriced|structural value|longshot value|actionable edge)\b|\bedge\b/i;
-
-const RULES_QUESTION_RE =
-  /\b(extra time|penalties|penalty shootout|knockout rules|tiebreaker|how does knockout)\b/i;
 
 /**
  * @param {object | null | undefined} message
@@ -24,7 +21,7 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
   const q = String(
     message?.question || message?.userQuestion || userQuestion || "",
   ).trim();
-  if (RULES_QUESTION_RE.test(q)) return WC_INTENT.RULES;
+  if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
   if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
   if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
   return null;

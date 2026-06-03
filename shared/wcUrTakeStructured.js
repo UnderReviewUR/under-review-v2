@@ -29,9 +29,15 @@ export function normalizeWcStructuredForDelivery(
   if (intent === WC_INTENT.RULES) {
     const rawSummary = String(out.whyNow || out.lean || out.call || "").trim();
     const summary = stripRulesThreadBleed(rawSummary, requiredEntities);
+    const headline = summary
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l && !/^lean:/i.test(l))
+      ?.replace(/^lean:\s*/i, "")
+      ?.trim() || summary.replace(/^lean:\s*/i, "").trim();
     out.callType = "rules";
-    out.call = summary.slice(0, 240) || "Knockout rules reference";
-    out.lean = summary.replace(/^lean:\s*/i, "").slice(0, 240);
+    out.call = headline.slice(0, 240) || "Knockout rules reference";
+    out.lean = headline.slice(0, 500);
     out.whyNow = summary;
     out.edge = "Factual tournament rules — not a betting pick.";
     out.confidence = "High";
@@ -66,4 +72,52 @@ export function normalizeWcStructuredForDelivery(
   }
 
   return out;
+}
+
+/**
+ * Build rules-only structured card from prose (never betting shape).
+ * @param {string} responseText
+ * @param {string|null|undefined} responseDeep
+ * @param {string} question
+ * @param {string[]} forbiddenEntities
+ */
+export function buildWcRulesStructuredFromProse(
+  responseText,
+  responseDeep = null,
+  question = "",
+  forbiddenEntities = [],
+) {
+  const bleedForbidden = forbiddenEntities || [];
+  const bodyParts = [String(responseText || "").trim(), String(responseDeep || "").trim()].filter(Boolean);
+  const combined = stripRulesThreadBleed(bodyParts.join("\n\n"), bleedForbidden);
+  const firstLine =
+    combined
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l && !/^lean:/i.test(l)) || combined;
+
+  return normalizeWcStructuredForDelivery(
+    {
+      sport: "worldcup",
+      call: firstLine.slice(0, 240),
+      lean: firstLine.replace(/^lean:\s*/i, "").slice(0, 500),
+      whyNow: combined,
+      edge: "Factual tournament rules — not a betting pick.",
+      confidence: "High",
+    },
+    WC_INTENT.RULES,
+    question,
+    [],
+  );
+}
+
+/** Prose for rules turns — no THE PLAY / betting scaffolding. */
+export function formatWcRulesResponseAsProse(structured) {
+  if (!structured || typeof structured !== "object") return "";
+  const lines = [];
+  const whyNow = String(structured.whyNow || "").trim();
+  const edge = String(structured.edge || "").trim();
+  if (whyNow) lines.push(whyNow);
+  if (edge && !/^factual tournament rules/i.test(edge)) lines.push(edge);
+  return lines.filter(Boolean).join("\n\n");
 }

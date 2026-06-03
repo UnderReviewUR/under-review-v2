@@ -83,6 +83,7 @@ export default function URTakeResponse({
   const whyNowDisplay = scrubStructuredFaceText(whyNow) || "—";
   const edgeDisplay = scrubStructuredFaceText(edge) || "—";
   const callScrub = scrubStructuredFaceText(call);
+  const rulesCallType = String(callType || "").toLowerCase() === "rules";
 
   const safeParlayLegs = Array.isArray(parlayLegs)
     ? parlayLegs
@@ -98,18 +99,21 @@ export default function URTakeResponse({
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
   const leanDisplay = scrubStructuredFaceText(
-    synthesizeLeanLine({ lean, call: callScrub, whyNow }),
+    rulesCallType
+      ? String(whyNow || lean || callScrub || "").trim()
+      : synthesizeLeanLine({ lean, call: callScrub, whyNow }),
   );
   const headline = pickSharpBriefHeadline(
     leanDisplay,
-    callScrub,
+    rulesCallType ? leanDisplay : callScrub,
     edgeDisplay,
     callType,
     sport,
   );
   const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
   const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
-  const showWcCaution = wcDataConfidenceNeedsCaution(dataConfidence) && Boolean(wcCautionText);
+  const showWcCaution =
+    !rulesCallType && wcDataConfidenceNeedsCaution(dataConfidence) && Boolean(wcCautionText);
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
@@ -121,7 +125,6 @@ export default function URTakeResponse({
   const marketPill = inferMarketPill(callScrub, callType);
   const marketPillDistinct =
     marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
-  const rulesCallType = String(callType || "").toLowerCase() === "rules";
 
   const contextLine = rulesCallType
     ? "Knockout rules · Reference"

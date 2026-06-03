@@ -19,6 +19,15 @@ export const WC_INTENT = {
 const RULES_SIGNAL_RE =
   /\b(extra time|penalties|penalty shootout|tiebreaker|tie-break|tie break|how does knockout|knockout rules|knockout format|away goals|advancement rules|what are the rules)\b/i;
 
+/** @param {string} question */
+export function isWcRulesQuestion(question) {
+  const ql = String(question || "").trim().toLowerCase();
+  if (!ql) return false;
+  const hasPricingCue =
+    PRICING_SIGNAL_RE.test(ql) || /\+\d{3,}/.test(ql) || /\bto win the (world cup|tournament)\b/i.test(ql);
+  return RULES_SIGNAL_RE.test(ql) && !hasPricingCue;
+}
+
 const PRICING_SIGNAL_RE =
   /\b(mispriced|outright|fairly priced|fair price|overpriced|underpriced)\b/i;
 

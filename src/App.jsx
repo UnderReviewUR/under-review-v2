@@ -64,6 +64,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { isWcRulesQuestion } from "../shared/wcUrTakeIntent.js";
 import {
   buildWcHomePromoCard,
   orderHomeQuestionsForWcPromo,
@@ -235,6 +236,7 @@ function stripResponseCodeFences(raw) {
 /** When API omits `structured` but model returned raw JSON in `response`, recover stages 1–5 UI. */
 function structuredPayloadFromApi(data) {
   if (data?.structured && typeof data.structured === "object") return data.structured;
+  if (String(data?.wcIntent || "").toUpperCase() === "RULES") return null;
   let raw = stripResponseCodeFences(String(data?.response ?? ""));
   if (!raw.startsWith("{")) {
     const brace = raw.indexOf("{");
@@ -264,8 +266,11 @@ function structuredPayloadFromApi(data) {
 }
 
 /** Prevent React crashes / stringify failures from odd API `structured` shapes (common after golf reads). */
-function sanitizeStructuredBubbleShape(raw) {
+function sanitizeStructuredBubbleShape(raw, opts = {}) {
   if (!raw || typeof raw !== "object") return null;
+  const isRules =
+    String(opts.wcIntent || raw.callType || "")
+      .toLowerCase() === "rules";
   const clip = (v, max) => {
     if (v == null) return "";
     if (typeof v === "string") return v.slice(0, max).trim();
@@ -275,13 +280,23 @@ function sanitizeStructuredBubbleShape(raw) {
   };
 
   const s = { ...raw };
-  s.lean = clip(s.lean, 120);
-  s.call = clip(s.call, 8000) || "—";
-  s.whyNow = clip(s.whyNow, 8000);
-  s.edge = clip(s.edge, 8000);
-  s.confidence = clip(s.confidence, 120) || "Medium";
-  s.sport = clip(s.sport, 80).toLowerCase() || "generic";
-  s.callType = clip(s.callType, 48).toLowerCase() || "single";
+  if (isRules) {
+    s.callType = "rules";
+    s.sport = clip(s.sport, 80).toLowerCase() || "worldcup";
+    s.whyNow = clip(s.whyNow, 8000);
+    s.edge = clip(s.edge, 8000) || "Factual tournament rules — not a betting pick.";
+    s.lean = clip(s.lean, 800);
+    s.call = clip(s.call, 800) || "Knockout rules reference";
+    s.confidence = clip(s.confidence, 120) || "High";
+  } else {
+    s.lean = clip(s.lean, 120);
+    s.call = clip(s.call, 8000) || "—";
+    s.whyNow = clip(s.whyNow, 8000);
+    s.edge = clip(s.edge, 8000);
+    s.confidence = clip(s.confidence, 120) || "Medium";
+    s.sport = clip(s.sport, 80).toLowerCase() || "generic";
+    s.callType = clip(s.callType, 48).toLowerCase() || "single";
+  }
 
   if (typeof s.timestamp === "symbol" || typeof s.timestamp === "bigint") {
     delete s.timestamp;
@@ -312,6 +327,9 @@ function sanitizeStructuredBubbleShape(raw) {
       .slice(0, 12);
   }
   s.lean = synthesizeLeanLine({ lean: s.lean, call: s.call, whyNow: s.whyNow });
+  if (isRules) {
+    s.lean = s.whyNow || s.lean;
+  }
   return s;
 }
 
@@ -2007,11 +2025,14 @@ ${themeCss}
         : effectiveSportHint || null;
     const normalizedDisplay = normalizeUrTakeDisplay(data);
     const structuredRaw = structuredPayloadFromApi(data);
-    let structuredForBubble = structuredRaw ? sanitizeStructuredBubbleShape(structuredRaw) : null;
-    if (
-      structuredForBubble &&
-      String(data.wcIntent || "").toUpperCase() === "RULES"
-    ) {
+    const wcIntentFromApi = String(data.wcIntent || "").toUpperCase();
+    const resolvedWcIntent = wcIntentFromApi || (isWcRulesQuestion(text) ? "RULES" : "");
+    let structuredForBubble = structuredRaw
+      ? sanitizeStructuredBubbleShape(structuredRaw, {
+          wcIntent: resolvedWcIntent,
+        })
+      : null;
+    if (structuredForBubble && resolvedWcIntent === "RULES") {
       structuredForBubble = {
         ...structuredForBubble,
         callType: "rules",
@@ -2119,10 +2140,10 @@ ${themeCss}
         liveMode: Boolean(data.liveMode),
         sport: sportTrackedForBubble,
         shownAt: Date.now(),
-        ...(data.wcIntent ? { wcIntent: String(data.wcIntent) } : {}),
+        ...(resolvedWcIntent ? { wcIntent: resolvedWcIntent } : {}),
       },
       ...(data.userQuestion ? { userQuestion: String(data.userQuestion).trim() } : { userQuestion: text }),
-      ...(data.wcIntent ? { wcIntent: String(data.wcIntent) } : {}),
+      ...(resolvedWcIntent ? { wcIntent: resolvedWcIntent } : {}),
       ...(data.fallback === true
         ? {
             urTakeFeedSnagDiag: {

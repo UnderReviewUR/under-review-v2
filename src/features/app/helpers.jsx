@@ -31,7 +31,7 @@ import {
   getVerdictNextLine,
   resolveWcIntentFromMessage,
 } from "../../../shared/wcUrTakeVerdict.js";
-import { WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
+import { WC_INTENT, isWcRulesQuestion } from "../../../shared/wcUrTakeIntent.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 export { normalizeText };
 export { isSubstantiveClosing };
@@ -1640,8 +1640,25 @@ function coerceStructuredForUrTakeCard(raw) {
   };
 }
 
+/** Coerce rules-shaped delivery when question is rules but API sent betting card. */
+function coerceWcRulesStructuredIfNeeded(structured, userQuestion = "", message = null) {
+  if (!structured || typeof structured !== "object") return structured;
+  const q = String(userQuestion || message?.userQuestion || message?.question || "").trim();
+  const intent = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
+  const isRules =
+    String(intent || "").toUpperCase() === WC_INTENT.RULES ||
+    isWcRulesQuestion(q);
+  if (!isRules) return structured;
+  return {
+    ...structured,
+    sport: "worldcup",
+    callType: "rules",
+    edge: structured.edge || "Factual tournament rules — not a betting pick.",
+  };
+}
+
 /** Same structured / promoted-parlay resolution as the `URTakeResponse` path inside `UrTakeAiBubble`. */
-function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText) {
+function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestion = "") {
   const plainParlayLegs =
     m.structured && typeof m.structured === "object" ? null : attemptParlayConversion(summaryText);
   const promotedParlayStructured = plainParlayLegs
@@ -1649,7 +1666,11 @@ function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText) {
     : null;
   const effectiveStructured =
     m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
-  return effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null;
+  return coerceWcRulesStructuredIfNeeded(
+    effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null,
+    userQuestion,
+    m,
+  );
 }
 
 function UrTakeFailSoftActions({ m, onUrTakeRetry, onUpgradePromptClick }) {
@@ -1759,7 +1780,7 @@ function UrTakeAiBubble({
    * 4. Else legacy `renderMessage` typography.
    * Breakdown toggles `renderUrTakeAiMessage` on `deepText` when present.
    */
-  const effectiveStructured = resolveEffectiveUrTakeStructuredFromSummary(m, summaryText);
+  const effectiveStructured = resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestion);
 
   if (effectiveStructured) {
     const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
@@ -2307,7 +2328,7 @@ export function ChatThread({
             getFollowUpSuggestions(m, priorUserQuestion),
           );
           showUrTakeResponseBubbleHost = Boolean(
-            resolveEffectiveUrTakeStructuredFromSummary(m, hostSummary),
+            resolveEffectiveUrTakeStructuredFromSummary(m, hostSummary, priorUserQuestion),
           );
         }
 
