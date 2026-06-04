@@ -5140,6 +5140,10 @@ export default async function handler(req, res) {
     chatHistory: incomingHistory,
   });
 
+  if (uiSportHintForRouting === "worldcup" || questionMentionsWorldCup(question)) {
+    sportHint = "worldcup";
+  }
+
   const sportSwitched = sportsContextSwitched(uiSportHintForRouting, sportHint);
   if (sportSwitched) {
     console.log(
@@ -5154,7 +5158,13 @@ export default async function handler(req, res) {
   const firstSessionNoHistory = !Array.isArray(incomingHistory) || incomingHistory.length === 0;
   let firstSessionGuaranteeFeature = null;
   let preloadedNbaBoard = null;
-  if (firstSessionNoHistory && (sportHint === "generic" || sportHint === "image_review")) {
+  if (
+    firstSessionNoHistory &&
+    (sportHint === "generic" || sportHint === "image_review") &&
+    uiSportHintForRouting !== "worldcup" &&
+    !questionMentionsWorldCup(question) &&
+    !incomingWcEventId
+  ) {
     try {
       const fresh = await buildNbaUrTakeBoard(String(question || ""));
       const featured = selectTopNbaSlateGameForGuarantee(fresh);

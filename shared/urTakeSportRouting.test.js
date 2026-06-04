@@ -63,6 +63,35 @@ test("LeBron prop on golf UI hint resolves to NBA", () => {
   assert.equal(h, "nba");
 });
 
+test("group-stage value bet on World Cup tab resolves to worldcup", () => {
+  const q =
+    "What's the best group-stage value bet right now — one pick, direct answer?";
+  assert.equal(inferSportFromQuestionText(q), "worldcup");
+  const h = resolveSportHint({
+    incomingSportHint: "worldcup",
+    question: q,
+    matchupContext: null,
+    hasImage: false,
+    golfContext: null,
+    chatHistory: [],
+  });
+  assert.equal(h, "worldcup");
+});
+
+test("World Cup tab hint wins over NBA thread history", () => {
+  const h = resolveSportHint({
+    incomingSportHint: "worldcup",
+    question: "Best group stage bet?",
+    matchupContext: null,
+    hasImage: false,
+    chatHistory: [
+      { role: "user", content: "Stephon Castle over 16.5?" },
+      { role: "assistant", content: "Castle over is the play.", sport: "nba" },
+    ],
+  });
+  assert.equal(h, "worldcup");
+});
+
 test("ambiguous follow-up inherits last assistant sport from history", () => {
   const h = resolveSportHint({
     incomingSportHint: "golf",

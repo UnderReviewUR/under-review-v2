@@ -372,6 +372,10 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
     return "nfl";
   }
 
+  if (questionMentionsWorldCup(question)) {
+    return "worldcup";
+  }
+
   if (
     q.includes("nba") ||
     /\bpra\b/.test(q) ||
@@ -384,10 +388,6 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
     containsAny(q, NBA_TERMS)
   ) {
     return "nba";
-  }
-
-  if (questionMentionsWorldCup(question)) {
-    return "worldcup";
   }
 
   if (
@@ -488,7 +488,9 @@ export function resolveSportHint({
       ? incomingSportHint.trim()
       : "";
 
-  // Question text always wins — cross-sport questions are allowed mid-session.
+  if (h === "worldcup") return "worldcup";
+
+  // Question text wins for clear cross-sport pivots (except locked World Cup tab hint above).
   if (textualSport) return textualSport;
 
   if (derbyActive && questionIsDerby && (!h || h === "generic")) {

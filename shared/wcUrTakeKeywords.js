@@ -104,6 +104,7 @@ const WC_PHRASE_TO_ABBR = (() => {
 })();
 
 const WC_GROUP_STAGE_RE = /\bgroup\s+([a-l])\b/i;
+const WC_GROUP_STAGE_PHASE_RE = /\bgroup[\s-]*stage\b/i;
 const WC_SOCCER_FOOTBALL_RE =
   /\b(football|soccer)\b/i;
 const WC_NFL_EXCLUDE_RE = /\b(nfl|touchdown|quarterback|super bowl)\b/i;
@@ -117,6 +118,7 @@ export function questionMentionsWorldCup(question) {
   if (!q) return false;
 
   if (WC_GROUP_STAGE_RE.test(q)) return true;
+  if (WC_GROUP_STAGE_PHASE_RE.test(q)) return true;
 
   for (const term of WC_TOURNAMENT_TERMS) {
     if (containsPhrase(q, term)) return true;

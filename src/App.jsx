@@ -1549,15 +1549,24 @@ ${themeCss}
       priorSnapshot.length > 0 && historyForRoute.length > 1
         ? inferSportFromChatHistory(historyForRoute)
         : null;
+    const pinnedExplicit =
+      typeof sportHint === "string" && sportHint.trim() && sportHint.trim() !== "generic"
+        ? sportHint.trim()
+        : null;
+    const pinnedScreen =
+      screenSport && screenSport !== "generic" ? screenSport : null;
     let eff =
+      pinnedExplicit ??
+      pinnedScreen ??
       fromQuestion ??
       detected ??
       fromHistory ??
-      explicitHint ??
-      screenSport ??
       lastUrTakeSportRef.current ??
       inferUrTakeSportFromMessages(priorSnapshot) ??
       null;
+    if (pinnedExplicit === "worldcup" || pinnedScreen === "worldcup") {
+      eff = "worldcup";
+    }
     if (eff === "generic") eff = null;
     effectiveSportHint = eff;
 
