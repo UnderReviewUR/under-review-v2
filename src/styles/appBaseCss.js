@@ -1942,6 +1942,7 @@ export const baseCss = `
   .ur-take-fail-soft-chip--upgrade{border-color:rgba(245,158,11,0.4);color:var(--wc-gold);background:rgba(245,158,11,0.1);}
   .wc-match-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--muted);font-family:var(--mono-font);margin-bottom:8px;}
   .wc-odds-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--soft);margin-bottom:4px;}
+  .wc-empty-cta{ margin-top:12px; width:100%; max-width:320px; }
   .wc-ask-btn{
     width:100%;
     margin-top:8px;

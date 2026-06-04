@@ -20,9 +20,8 @@ export function buildWcHomePromoCard(nowMs = Date.now()) {
       "Paraguay has a 50-50 shot at advancing that their odds don't reflect",
       "Group I is the hardest draw by a mile — second place is a coin flip",
     ],
-    text: "Best group stage value bet right now?",
-    prompt:
-      "Before the 2026 FIFA World Cup kicks off, what is the best group-stage value bet on the board — group winner, advancement, or a specific fixture — and which mispriced longshot (e.g. Norway, Paraguay) has the cleanest path?",
+    text: "Best group stage value bet?",
+    prompt: "What's the best group-stage value bet right now — one pick, direct answer?",
     sportHint: "worldcup",
   };
 }

@@ -191,6 +191,7 @@ import {
   resolveUrTakeFailSoftFromResponse,
 } from "./lib/urTakeFailSoft.js";
 import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
+import UrTakeOnboardingOverlay from "./components/UrTakeOnboardingOverlay.jsx";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
 function UrTakeFollowUpDockStrip({ msgs, onPick }) {
@@ -582,6 +583,8 @@ ${themeCss}
   const proSuccess = proCheckoutState.success;
   const proCheckoutEmail = proCheckoutState.email;
 
+  const [wcPendingSharePrompt, setWcPendingSharePrompt] = useState(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -598,6 +601,20 @@ ${themeCss}
         setTab("nfl");
         setScreen("nfl");
         setNflUrView("predict");
+        /* eslint-enable react-hooks/set-state-in-effect */
+      } else if (sp.get("wc") === "1" || sp.get("wc") === "true") {
+        const q = String(sp.get("q") || "").trim();
+        /* eslint-disable react-hooks/set-state-in-effect -- WC share link opens hub */
+        setTab("worldcup");
+        setScreen("worldcup");
+        if (q) {
+          try {
+            setWcPendingSharePrompt(decodeURIComponent(q));
+          } catch {
+            setWcPendingSharePrompt(q);
+          }
+        }
+        window.history.replaceState({}, "", window.location.pathname);
         /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
@@ -1459,7 +1476,7 @@ ${themeCss}
   }, []);
 
   // ── Core AI call ───────────────────────────────────────────────────────────
-  const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry, wcEventId }) => {
+  const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry, wcEventId, wcMatchTeams }) => {
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
   if (urTakeInFlightRef.current) return;
@@ -1550,6 +1567,16 @@ ${themeCss}
         image: imgToSend?.previewUrl || null,
         ...(wcEventId != null && String(wcEventId).trim()
           ? { wcEventId: String(wcEventId).trim() }
+          : {}),
+        ...(wcMatchTeams &&
+        typeof wcMatchTeams === "object" &&
+        (wcMatchTeams.home || wcMatchTeams.away)
+          ? {
+              wcMatchTeams: {
+                home: String(wcMatchTeams.home || "").trim(),
+                away: String(wcMatchTeams.away || "").trim(),
+              },
+            }
           : {}),
       },
       {
@@ -2190,9 +2217,9 @@ ${themeCss}
     const sportTrackedForBubble = String(
       sportForBubble || resolvedSport || effectiveSportHint || "generic",
     ).toLowerCase();
-    const lastUserWcEventId = [...priorSnapshot]
-      .reverse()
-      .find((x) => x.role === "user" && x.wcEventId)?.wcEventId;
+    const lastUserWcRow = [...priorSnapshot].reverse().find((x) => x.role === "user");
+    const lastUserWcEventId = lastUserWcRow?.wcEventId;
+    const lastUserWcMatchTeams = lastUserWcRow?.wcMatchTeams;
 
     const completeBubble = {
       role: "ai",
@@ -2200,6 +2227,11 @@ ${themeCss}
       text: normalizedDisplay.response,
       sport: sportForBubble || undefined,
       ...(lastUserWcEventId ? { wcEventId: String(lastUserWcEventId).trim() } : {}),
+      ...(lastUserWcMatchTeams &&
+      typeof lastUserWcMatchTeams === "object" &&
+      (lastUserWcMatchTeams.home || lastUserWcMatchTeams.away)
+        ? { wcMatchTeams: lastUserWcMatchTeams }
+        : {}),
       takeMeta:
         data.take && typeof data.take === "object"
           ? {
@@ -3878,16 +3910,63 @@ ${themeCss}
       const t = (typeof forced === "string" ? forced : wcInput).trim();
       if (!t || isAsking || prefetchingUrTakeContext) return;
       if (typeof forced !== "string") setWcInput("");
+      let wcMatchTeams = null;
+      const eid = opts.eventId != null ? String(opts.eventId).trim() : "";
+      if (eid && Array.isArray(wcMatches)) {
+        const m = wcMatches.find((row) => String(row?.id) === eid);
+        if (m?.homeTeam && m?.awayTeam) {
+          wcMatchTeams = { home: m.homeTeam, away: m.awayTeam };
+        }
+      }
       askUrTake({
         text: t,
         setMsgs: setWcMsgs,
         sportHint: "worldcup",
         wcEventId: opts.eventId,
+        wcMatchTeams,
       });
       scheduleChatScroll(wcScreenRef);
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, wcInput, scheduleChatScroll],
+    [askUrTake, isAsking, prefetchingUrTakeContext, wcInput, scheduleChatScroll, wcMatches],
   );
+
+  const askWorldCup = useCallback(
+    (prompt, nav = null) => {
+      if (nav && typeof nav === "object") {
+        setWcScreenNav({
+          mainTab: nav.mainTab || "matches",
+          matchSubTab: nav.matchSubTab || "live",
+          highlightEventId: nav.highlightEventId || null,
+        });
+      }
+      if (screen !== "worldcup" || tab !== "worldcup") {
+        setNavHistory((h) => [...h, { screen, tab }]);
+      }
+      setTab("worldcup");
+      setScreen("worldcup");
+      setSelectedMatchup(null);
+      setSelectedPlayer(null);
+      setSelectedNflPlayer(null);
+      const text = String(prompt || "").trim();
+      if (text) {
+        requestAnimationFrame(() => {
+          submitWc(text);
+          scheduleChatScroll(wcScreenRef);
+        });
+      }
+    },
+    [screen, tab, submitWc, scheduleChatScroll],
+  );
+
+  useEffect(() => {
+    if (screen !== "worldcup" || !wcPendingSharePrompt || isAsking || prefetchingUrTakeContext) {
+      return;
+    }
+    const t = String(wcPendingSharePrompt).trim();
+    setWcPendingSharePrompt(null);
+    if (!t) return;
+    submitWc(t);
+  }, [screen, wcPendingSharePrompt, isAsking, prefetchingUrTakeContext, submitWc]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   /** Insert suggested live follow-up from thread pills and submit (matches each sport's ask flow). */
@@ -3923,46 +4002,71 @@ ${themeCss}
   }, []);
 
   useEffect(() => {
-    if (screen !== "ask") return;
+    if (screen !== "ask" && screen !== "worldcup") return;
     refreshSavedTakes();
-  }, [screen, askMsgs.length, refreshSavedTakes]);
+  }, [screen, askMsgs.length, wcMsgs.length, refreshSavedTakes]);
+
+  const saveTakeFromMsgs = useCallback(
+    (msgs) => {
+      const last = [...msgs].reverse().find(
+        (m) => m.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...",
+      );
+      if (!last) return;
+      let headlineSnippet = "";
+      if (last.structured && typeof last.structured.call === "string" && last.structured.call.trim()) {
+        headlineSnippet = last.structured.call.trim();
+      } else {
+        headlineSnippet =
+          String(last.text || "")
+            .split("\n")
+            .map((l) => l.trim())
+            .find(Boolean) || String(last.text || "");
+      }
+      headlineSnippet = trimToCompleteSentence(headlineSnippet, 120);
+      const entry = pushSavedTake({
+        headlineSnippet,
+        sport: last.sport || last.urTakeTelemetry?.sport,
+        msgId: last.msgId,
+        takeId: last.takeMeta?.id,
+      });
+      if (entry) {
+        refreshSavedTakes();
+        trackFunnelEvent("saved_take_push", { sport: entry.sport || "unknown" });
+      }
+    },
+    [refreshSavedTakes],
+  );
 
   const onSaveLastUrTake = useCallback(() => {
-    const last = [...askMsgs].reverse().find(
-      (m) => m.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...",
-    );
-    if (!last) return;
-    let headlineSnippet = "";
-    if (last.structured && typeof last.structured.call === "string" && last.structured.call.trim()) {
-      headlineSnippet = last.structured.call.trim();
-    } else {
-      headlineSnippet =
-        String(last.text || "")
-          .split("\n")
-          .map((l) => l.trim())
-          .find(Boolean) || String(last.text || "");
-    }
-    headlineSnippet = trimToCompleteSentence(headlineSnippet, 120);
-    const entry = pushSavedTake({
-      headlineSnippet,
-      sport: last.sport || last.urTakeTelemetry?.sport,
-      msgId: last.msgId,
-      takeId: last.takeMeta?.id,
-    });
-    if (entry) {
-      refreshSavedTakes();
-      trackFunnelEvent("saved_take_push", { sport: entry.sport || "unknown" });
-    }
-  }, [askMsgs, refreshSavedTakes]);
+    saveTakeFromMsgs(askMsgs);
+  }, [askMsgs, saveTakeFromMsgs]);
 
-  const onOpenSavedTake = useCallback((t) => {
-    trackFunnelEvent("saved_take_open", { id: String(t?.id || "") });
-    const snippet = trimToCompleteSentence(String(t?.headlineSnippet || "").trim(), 120);
-    if (snippet) setAskInput(`About my saved take: ${snippet} — `);
-    requestAnimationFrame(() => {
-      askInputRef.current?.focus({ preventScroll: true });
-    });
-  }, []);
+  const onSaveLastWcUrTake = useCallback(() => {
+    saveTakeFromMsgs(wcMsgs);
+  }, [wcMsgs, saveTakeFromMsgs]);
+
+  const onOpenSavedTake = useCallback(
+    (t) => {
+      trackFunnelEvent("saved_take_open", { id: String(t?.id || "") });
+      const snippet = trimToCompleteSentence(String(t?.headlineSnippet || "").trim(), 120);
+      if (!snippet) return;
+      const sport = String(t?.sport || "").toLowerCase();
+      if (sport === "worldcup") {
+        askWorldCup(`About my saved take: ${snippet} — `);
+        return;
+      }
+      if (screen !== "ask" || tab !== "ask") {
+        setNavHistory((h) => [...h, { screen, tab }]);
+      }
+      setTab("ask");
+      setScreen("ask");
+      setAskInput(`About my saved take: ${snippet} — `);
+      requestAnimationFrame(() => {
+        askInputRef.current?.focus({ preventScroll: true });
+      });
+    },
+    [askWorldCup, screen, tab],
+  );
 
   const urTakeFollowUpTennis = useCallback(
     (text, meta) => {
@@ -4618,6 +4722,7 @@ ${themeCss}
               })
             }
             firePrompt={firePrompt}
+            askWorldCup={askWorldCup}
             prefillUrTakeQuestion={prefillUrTakeQuestion}
             isUnlimited={isUnlimited}
             freeUsedCount={freeUsedCount}
@@ -4642,6 +4747,10 @@ ${themeCss}
               "nfl",
             ]}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
+          />
+          <UrTakeOnboardingOverlay
+            visible={isWcHomePromoWindow()}
+            worldCupLine="World Cup tab: one question, one verdict — Full breakdown only if you want more."
           />
           </>
         )}
@@ -4909,6 +5018,20 @@ ${themeCss}
             onWcScreenNavConsumed={clearWcScreenNav}
             onUrTakeRetry={(prompt) => submitWc(prompt)}
             onViewWcMatch={openWcMatchFromTake}
+            onUrTakeFollowUpPick={urTakeFollowUpWc}
+            urTakeTrackPlay={urTakeTrackPlay}
+            onSaveLastUrTake={onSaveLastWcUrTake}
+            savedTakes={savedTakes}
+            onOpenSavedTake={onOpenSavedTake}
+            wcXiConfirmedNotice={xiConfirmedNotice}
+            onDismissWcXiNotice={dismissXiConfirmedNotice}
+            onOpenWcXiNotice={(notice) =>
+              goWorldCup({
+                mainTab: "matches",
+                matchSubTab: "today",
+                highlightEventId: notice?.eventId,
+              })
+            }
           />
         )}
 

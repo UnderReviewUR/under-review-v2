@@ -25,9 +25,9 @@ import {
   wcDataConfidenceChipLabel,
   wcDataConfidenceNeedsCaution,
 } from "../../../shared/wcDataConfidence.js";
+import { mergeWcFollowUpChips } from "../../../shared/wcUrTakeFollowUps.js";
 import {
   classifyWcVerdictForUi,
-  getVerdictFollowUpChips,
   getVerdictNextLine,
   resolveWcIntentFromMessage,
   resolveWcVerdictFromQuestion,
@@ -1058,7 +1058,11 @@ export function getFollowUpSuggestions(message, userQuestion = "") {
   if (sport === "worldcup") {
     const q = String(userQuestion || message?.userQuestion || "").trim();
     const verdict = resolveWcVerdictFromQuestion(q, message);
-    return polishFollowUpList(getVerdictFollowUpChips(verdict));
+    const merged = mergeWcFollowUpChips(verdict, message, q);
+    if (api.length >= 2) {
+      return polishFollowUpList(mergeFollowUpChips(api.slice(0, 3), merged).slice(0, 3));
+    }
+    return polishFollowUpList(merged);
   }
 
   if (sport === "nba") {

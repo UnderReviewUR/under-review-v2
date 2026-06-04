@@ -45,6 +45,7 @@ export default function HomeScreen({
   onDismissWcXiNotice,
   onOpenWcXiNotice,
   firePrompt,
+  askWorldCup = null,
   prefillUrTakeQuestion,
   isUnlimited = false,
   freeUsedCount = 0,
@@ -361,9 +362,11 @@ export default function HomeScreen({
           </ul>
           <button
             type="button"
-            onClick={() =>
-              firePrompt(wcHomePromoCard.prompt, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id)
-            }
+            onClick={() => {
+              const p = wcHomePromoCard.prompt;
+              if (askWorldCup) askWorldCup(p);
+              else firePrompt(p, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id);
+            }}
             style={{
               width: "100%",
               textAlign: "left",

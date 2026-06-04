@@ -5,7 +5,7 @@ const STORAGE_KEY = "ur_visited";
 /**
  * One-time overlay on first visit to the app (home); dismissed state stored in `ur_visited`.
  */
-export default function UrTakeOnboardingOverlay({ visible }) {
+export default function UrTakeOnboardingOverlay({ visible, worldCupLine = null }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -48,8 +48,9 @@ export default function UrTakeOnboardingOverlay({ visible }) {
           and live angles — without digging through feeds.
         </p>
         <ul className="ur-onboarding-list">
+          <li>First line is the answer — tap Full breakdown only if you want more.</li>
+          {worldCupLine ? <li>{worldCupLine}</li> : null}
           <li>Use suggested chips after answers to go deeper in one tap.</li>
-          <li>Follow-ups stay in thread so context carries forward.</li>
         </ul>
         <button type="button" className="ur-onboarding-cta" onClick={dismiss}>
           Got it

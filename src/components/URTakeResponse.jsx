@@ -129,16 +129,19 @@ export default function URTakeResponse({
   const isWcPlayerMarketCard =
     sportLower === "worldcup" &&
     (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
+  const isWcDirectCard = sportLower === "worldcup" && !rulesCallType;
   const headline =
-    isWcPlayerMarketCard && callScrub && callScrub !== "—"
+    isWcDirectCard && callScrub && callScrub !== "—"
       ? callScrub
-      : pickSharpBriefHeadline(
-          leanDisplay,
-          rulesCallType ? rulesHeadline : callScrub,
-          edgeDisplay,
-          callType,
-          sport,
-        );
+      : isWcPlayerMarketCard && callScrub && callScrub !== "—"
+        ? callScrub
+        : pickSharpBriefHeadline(
+            leanDisplay,
+            rulesCallType ? rulesHeadline : callScrub,
+            edgeDisplay,
+            callType,
+            sport,
+          );
   const playerMarketPass =
     isWcPlayerMarketCard &&
     (callTypeLower === "player_market_pass" || callTypeLower === "player_market_thin");
@@ -157,12 +160,14 @@ export default function URTakeResponse({
     !isWcPlayerMarketCard &&
     wcDataConfidenceNeedsCaution(dataConfidence) &&
     Boolean(wcCautionText);
-  const statGrid = buildSharpBriefStatGrid({
-    estimatedEdge: ee,
-    takeMeta,
-    structured: { call: callScrub, confidence: displayConfidence, callType },
-    parlayLegs: safeParlayLegs,
-  });
+  const statGrid = isWcDirectCard
+    ? { slots: [] }
+    : buildSharpBriefStatGrid({
+        estimatedEdge: ee,
+        takeMeta,
+        structured: { call: callScrub, confidence: displayConfidence, callType },
+        parlayLegs: safeParlayLegs,
+      });
 
   const edgeTypePill = inferEdgeTypePill(callType);
   const marketPill = inferMarketPill(callScrub, callType);
@@ -208,6 +213,9 @@ export default function URTakeResponse({
     );
 
   const shareBody = [whyNowDisplay, edgeDisplay].filter(Boolean);
+  const wcHasBreakdownBody =
+    isWcDirectCard &&
+    ((whyNowDisplay && whyNowDisplay !== "—") || (edgeDisplay && edgeDisplay !== "—"));
 
   const hasSecondaryBody =
     Boolean(ee && eeModel) ||
@@ -215,6 +223,11 @@ export default function URTakeResponse({
     safeParlayLegs.length >= 2;
 
   useLayoutEffect(() => {
+    if (isWcDirectCard) {
+      setPrimaryOverflow(Boolean(wcHasBreakdownBody));
+      if (!wcHasBreakdownBody) setBodyExpanded(false);
+      return;
+    }
     const el = primaryBodyRef.current;
     if (!el) return;
     const cs = globalThis.getComputedStyle?.(el);
@@ -222,9 +235,17 @@ export default function URTakeResponse({
     const threshold = lh * 3 + 2;
     setPrimaryOverflow(el.scrollHeight > threshold);
     if (el.scrollHeight <= threshold && !hasSecondaryBody) setBodyExpanded(false);
-  }, [whyNowDisplay, edgeDisplay, hasSecondaryBody]);
+  }, [whyNowDisplay, edgeDisplay, hasSecondaryBody, isWcDirectCard, wcHasBreakdownBody]);
 
-  const showBodyExpand = !bodyExpanded && (primaryOverflow || hasSecondaryBody);
+  const showBodyExpand =
+    isWcDirectCard && wcHasBreakdownBody
+      ? !bodyExpanded
+      : !bodyExpanded && (primaryOverflow || hasSecondaryBody);
+
+  const shareQuery =
+    isWcDirectCard && headline
+      ? `?wc=1&q=${encodeURIComponent(String(headline).slice(0, 120))}`
+      : "";
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">
@@ -267,11 +288,15 @@ export default function URTakeResponse({
         </p>
       ) : null}
 
-      <div className="ur-v2-pill-row">
-        <span className="ur-v2-mini-pill">{edgeTypePill}</span>
-        {marketPillDistinct ? <span className="ur-v2-mini-pill">{marketPillDistinct}</span> : null}
-        <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">{matchupPillText(gameStateLine, userQuestion)}</span>
-      </div>
+      {!isWcDirectCard ? (
+        <div className="ur-v2-pill-row">
+          <span className="ur-v2-mini-pill">{edgeTypePill}</span>
+          {marketPillDistinct ? <span className="ur-v2-mini-pill">{marketPillDistinct}</span> : null}
+          <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">
+            {matchupPillText(gameStateLine, userQuestion)}
+          </span>
+        </div>
+      ) : null}
 
       {statGrid.slots.length > 0 ? (
         <>
@@ -291,13 +316,21 @@ export default function URTakeResponse({
         </>
       ) : null}
 
-      <div
-        ref={primaryBodyRef}
-        className={`ur-v2-body-primary${showBodyExpand ? " ur-v2-body-primary--clamp" : ""}`}
-      >
-        <p className="ur-v2-body-p">{whyNowDisplay}</p>
-        {edgeDisplay ? <p className="ur-v2-body-p ur-v2-body-p--edge">{edgeDisplay}</p> : null}
-      </div>
+      {(!isWcDirectCard || bodyExpanded) && (whyNowDisplay !== "—" || edgeDisplay !== "—") ? (
+        <div
+          ref={primaryBodyRef}
+          className={`ur-v2-body-primary${showBodyExpand && !isWcDirectCard ? " ur-v2-body-primary--clamp" : ""}`}
+        >
+          {whyNowDisplay && whyNowDisplay !== "—" ? (
+            <p className="ur-v2-body-p">{whyNowDisplay}</p>
+          ) : null}
+          {edgeDisplay && edgeDisplay !== "—" ? (
+            <p className="ur-v2-body-p ur-v2-body-p--edge">{edgeDisplay}</p>
+          ) : null}
+        </div>
+      ) : isWcDirectCard && wcHasBreakdownBody ? (
+        <div ref={primaryBodyRef} className="ur-v2-body-primary" aria-hidden />
+      ) : null}
 
       {showBodyExpand ? (
         <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(true)}>
@@ -404,7 +437,7 @@ export default function URTakeResponse({
         ) : (
           <span />
         )}
-        <UrTakeShareButton headline={headline} bodyChunks={shareBody} />
+        <UrTakeShareButton headline={headline} bodyChunks={shareBody} sharePath={shareQuery} />
       </div>
     </div>
   );

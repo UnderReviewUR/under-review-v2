@@ -8,6 +8,9 @@ import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
 import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
 import { formatWcOutrightsStaleChipLabel } from "../../shared/wcOddsFreshness.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
+import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
+import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
+import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
@@ -43,6 +46,14 @@ export default function WorldCupScreen({
   onWcScreenNavConsumed,
   onUrTakeRetry = null,
   onViewWcMatch = null,
+  onUrTakeFollowUpPick = null,
+  urTakeTrackPlay = null,
+  onSaveLastUrTake = null,
+  savedTakes = [],
+  onOpenSavedTake = null,
+  wcXiConfirmedNotice = null,
+  onDismissWcXiNotice = null,
+  onOpenWcXiNotice = null,
 }) {
   const [mainTab, setMainTab] = useState("groups");
   const [matchSubTab, setMatchSubTab] = useState("live");
@@ -86,31 +97,33 @@ export default function WorldCupScreen({
     hideFollowUpDock: true,
     onUrTakeRetry,
     onViewWcMatch,
+    onUrTakeFollowUpPick,
+    urTakeTrackPlay,
   };
 
   const outrightsStaleLabel = formatWcOutrightsStaleChipLabel(outrightsMeta);
 
   const handleAskMatch = (match) => {
-    const prompt = `World Cup 2026: ${match.homeTeam} vs ${match.awayTeam}${match.group ? ` (Group ${match.group})` : ""} — give me your UR Take on angles, goals, and live betting value.`;
+    const groupBit = match.group ? ` (Group ${match.group})` : "";
+    const prompt = `Who wins ${match.homeTeam} vs ${match.awayTeam}${groupBit}?`;
     submitWc(prompt, { eventId: match?.id });
   };
 
   const handleAskTeam = (team) => {
-    const groupTeams = getWcTeamsByGroup(team.group);
-    const rank = groupTeams.findIndex((t) => t.id === team.id);
-    const tier = wcStrengthTagForRank(rank >= 0 ? rank : 3);
     const outrightLabel = formatWcOutrightOdds(team.outrightOdds);
-    const prompt = `World Cup 2026: ${team.name} (Group ${team.group}, ${tier}) — outright ${outrightLabel}. What's your UR Take on their path and best bets?`;
+    const prompt = `Is ${team.name} mispriced at ${outrightLabel} to win the World Cup?`;
     submitWc(prompt);
   };
 
-  const wcQuickPrompts = [
-    "Who wins Group A?",
-    "Best group stage bet?",
-    "Dark horse to win it all?",
-    "Hardest group?",
-    "Who lifts the trophy?",
-  ];
+  const wcQuickPrompts = useMemo(
+    () =>
+      getWcQuickPrompts({
+        liveCount: liveMatches.length,
+        todayCount: todayMatches.length,
+        xiConfirmed: Boolean(wcXiConfirmedNotice),
+      }),
+    [liveMatches.length, todayMatches.length, wcXiConfirmedNotice],
+  );
 
   const renderMatchesList = (list, { fetchWeather = false } = {}) => {
     if (!list.length) {
@@ -140,9 +153,14 @@ export default function WorldCupScreen({
           <div className="wc-empty">
             <p>No matches in progress.</p>
             {next ? (
-              <p className="wc-muted">
-                Next: {next.homeTeam} vs {next.awayTeam} — {next.date} {next.time}
-              </p>
+              <>
+                <p className="wc-muted">
+                  Next: {next.homeTeam} vs {next.awayTeam} — {next.date} {next.time}
+                </p>
+                <button type="button" className="wc-ask-btn wc-empty-cta" onClick={() => handleAskMatch(next)}>
+                  Ask about next match →
+                </button>
+              </>
             ) : null}
           </div>
         );
@@ -321,6 +339,14 @@ export default function WorldCupScreen({
         <p className="wc-dates">June 11 — July 19, 2026</p>
       </header>
 
+      {wcXiConfirmedNotice ? (
+        <WcXiConfirmedHomeBanner
+          notice={wcXiConfirmedNotice}
+          onOpenMatch={onOpenWcXiNotice}
+          onDismiss={onDismissWcXiNotice}
+        />
+      ) : null}
+
       <div className="wc-main-tabs" role="tablist">
         {[
           ["groups", "Groups"],
@@ -348,7 +374,7 @@ export default function WorldCupScreen({
         <div className="wc-ask-shell" ref={wcBarRef}>
             <div className="wc-ask-label">Ask Anything — World Cup</div>
             <p className="wc-ask-hint">
-              Team &amp; tournament angles · Player props when lineups confirmed
+              Plain question in — verdict first out. Player props when XIs are confirmed.
             </p>
             <AskBar
               inputRef={wcInputRef}
@@ -372,6 +398,14 @@ export default function WorldCupScreen({
       {urDockedChat ? (
         <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
           <ChatThread {...chatThreadProps} variant="urChatDocked" />
+          {onSaveLastUrTake ? (
+            <AskUrTakeRetentionStrip
+              askMsgs={wcMsgs}
+              onSaveTake={onSaveLastUrTake}
+              savedTakes={savedTakes}
+              onOpenSavedTake={onOpenSavedTake}
+            />
+          ) : null}
           {wcBrowseBelow}
         </div>
       ) : (

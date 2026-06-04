@@ -16,16 +16,19 @@ const getShareBody = (bodyChunks) => {
  * Subtle share / copy for UR Take cards (Web Share API or clipboard).
  * Format: headline, first complete sentence from body, URL (no confidence line).
  */
-export default function UrTakeShareButton({ headline, bodyChunks }) {
+export default function UrTakeShareButton({ headline, bodyChunks, sharePath = "" }) {
   const [copied, setCopied] = useState(false);
+  const shareUrl = sharePath
+    ? `${SHARE_URL}${String(sharePath).startsWith("?") ? sharePath : `?${sharePath}`}`
+    : SHARE_URL;
 
   const handleShare = async () => {
     const head = String(headline || "").trim();
     const body = getShareBody(bodyChunks);
 
     const finalText = body
-      ? `${head}\n\n${body}\n\n${SHARE_URL}`
-      : `${head}\n\n${SHARE_URL}`;
+      ? `${head}\n\n${body}\n\n${shareUrl}`
+      : `${head}\n\n${shareUrl}`;
 
     try {
       if (navigator.share) {
