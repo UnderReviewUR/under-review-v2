@@ -37,6 +37,7 @@ import { buildWorldCupUrTakeContext } from "./_wcUrTakeContext.js";
 import {
   runWcUrTakeQA,
   wcQaRequiresRegeneration,
+  WC_PLAYER_MARKET_QA_SUFFIX,
   WC_QA_REGENERATION_SUFFIX,
 } from "./_wcUrTakeQA.js";
 import {
@@ -66,6 +67,10 @@ import {
   resolveRequiredEntities,
 } from "../shared/wcUrTakeEntityBinding.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
+import {
+  isWcPlayerMarketIntent,
+  resolveWcPlayerMarketResponse,
+} from "../shared/wcUrTakePlayerMarket.js";
 import {
   buildWcSessionMemoryPrompt,
   extractSessionWcEntities,
@@ -5062,6 +5067,7 @@ export default async function handler(req, res) {
     matchupContext,
     image,
     history: incomingHistory,
+    wcEventId: incomingWcEventId,
   } = req.body || {};
   const bettingStyle =
     req.body?.bettingStyle === "limits"
@@ -5166,15 +5172,18 @@ export default async function handler(req, res) {
   let f1Context =
     sportSwitched && sportHint !== "f1" ? null : f1ContextFromClient;
   let wcContext = null;
-  /** @type {{ wcIntent: string | null, mentionedTeams: string[], requiredEntities: string[], knockoutRulesInjected: boolean, structuralEdgeInjected: boolean, qaEntityMatch: string | null, qaIntentMatch: string | null }} */
+  /** @type {{ wcIntent: string | null, mentionedTeams: string[], requiredEntities: string[], knockoutRulesInjected: boolean, structuralEdgeInjected: boolean, playerPropDetected: boolean, wcEventId: string | null, qaEntityMatch: string | null, qaIntentMatch: string | null, qaPlayerMatch: string | null }} */
   const wcRelevanceLog = {
     wcIntent: null,
     mentionedTeams: [],
     requiredEntities: [],
     knockoutRulesInjected: false,
     structuralEdgeInjected: false,
+    playerPropDetected: false,
+    wcEventId: null,
     qaEntityMatch: null,
     qaIntentMatch: null,
+    qaPlayerMatch: null,
   };
   let nbaRelevanceMustFetch = null;
   let nbaRelevanceServerBoardFetched = false;
@@ -5200,6 +5209,12 @@ export default async function handler(req, res) {
     wcRelevanceLog.mentionedTeams = extractMentionedWcTeams(String(question || ""));
     wcRelevanceLog.requiredEntities = wcRequiredEntities;
     wcRelevanceLog.knockoutRulesInjected = shouldInjectStaticRules(String(question || ""), wcIntent);
+    wcRelevanceLog.playerPropDetected = isWcPlayerMarketIntent(wcIntent);
+    const wcEventIdTrimmed =
+      incomingWcEventId != null && String(incomingWcEventId).trim()
+        ? String(incomingWcEventId).trim()
+        : null;
+    wcRelevanceLog.wcEventId = wcEventIdTrimmed;
     const sessionEntities = extractSessionWcEntities(incomingHistory);
     const reqSet = new Set(wcRequiredEntities);
     wcForbiddenEntities = sessionEntities.filter((e) => !reqSet.has(e));
@@ -5208,6 +5223,7 @@ export default async function handler(req, res) {
         wcIntent,
         requiredEntities: wcRequiredEntities,
         injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
+        wcEventId: wcEventIdTrimmed,
       });
     } catch (err) {
       console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
@@ -7167,11 +7183,21 @@ Confidence guidance:
         : "";
     const isWcRulesIntent = wcIntent === WC_INTENT.RULES;
     const isWcMatchupIntent = wcIntent === WC_INTENT.MATCHUP;
+    const isWcPlayerMarketIntentFlag = isWcPlayerMarketIntent(wcIntent);
+    const wcPlayerMarketResolved = isWcPlayerMarketIntentFlag
+      ? resolveWcPlayerMarketResponse(String(question || ""), wcIntent, wcContext)
+      : null;
+    const wcPlayerMarketBlock =
+      wcPlayerMarketResolved?.promptAppendix && !wcPlayerMarketResolved.forcePass
+        ? `${wcPlayerMarketResolved.promptAppendix}\n\n`
+        : "";
     const wcRoleLine = isWcRulesIntent
       ? "You are answering a factual 2026 FIFA World Cup rules question."
       : isWcMatchupIntent
         ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
-        : "You are answering a 2026 FIFA World Cup betting question.";
+        : isWcPlayerMarketIntentFlag
+          ? "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
+          : "You are answering a 2026 FIFA World Cup betting question.";
     const wcIntentRules = isWcRulesIntent
       ? `- Answer with tournament rules only. Do NOT lead with a betting take or group-stage prediction.
 - Lead sentence one with the direct answer about extra time, penalties, or the specific rule asked.
@@ -7185,7 +7211,13 @@ Confidence guidance:
 - If CURRENT OUTRIGHT ODDS is missing or STALE, use cautious structural language — no overconfident winner picks.
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-        : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
+        : isWcPlayerMarketIntentFlag
+          ? `- Return JSON per OUTPUT CONTRACT: summary = player-market read (150 words max); deep = full reasoning (no word limit).
+- Sentence one must name a PLAYER from VERIFIED CONTEXT — never only a country/national team as the scorer pick.
+- If no verified starter/scorer rows exist, honest pass — offer team-level tournament context only as secondary framing, not as the player answer.
+- Do not invent player names, goal counts, or Golden Boot prices not in VERIFIED CONTEXT.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+          : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
 - Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
@@ -7200,7 +7232,7 @@ Confidence guidance:
 
     userPrompt = `${wcRoleLine}
 
-${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcContext.promptBlock}
+${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcPlayerMarketBlock}${wcContext.promptBlock}
 
 Question:
 ${question}
@@ -7530,6 +7562,30 @@ You are responding to a Pro subscriber. Apply the following:
     /** Last non-empty Anthropic text for this QA attempt — used if post-process strips everything. */
     let lastNonEmptyRawModelText = "";
     let nbaGroundingRedirectUsed = false;
+    let wcPlayerMarketPassUsed = false;
+
+    if (sportHint === "worldcup" && isWcPlayerMarketIntent(wcIntent)) {
+      const wcPlayerResolved = resolveWcPlayerMarketResponse(
+        String(question || ""),
+        wcIntent,
+        wcContext,
+      );
+      if (wcPlayerResolved.forcePass) {
+        structuredResponse = wcPlayerResolved.structured;
+        responseText = wcPlayerResolved.responseText;
+        responseDeep = wcPlayerResolved.responseDeep;
+        responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+        wcPlayerMarketPassUsed = true;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_player_market_pass",
+            sport: "worldcup",
+            wcIntent,
+            dataConfidence: wcContext?.dataConfidence || null,
+          }),
+        );
+      }
+    }
 
     if (
       structuredModeRequested &&
@@ -7561,7 +7617,7 @@ You are responding to a Pro subscriber. Apply the following:
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
-      if (!nbaGroundingRedirectUsed) {
+      if (!nbaGroundingRedirectUsed && !wcPlayerMarketPassUsed) {
         structuredResponse = null;
       }
       const broToneRepairSuffix =
@@ -7594,7 +7650,13 @@ You are responding to a Pro subscriber. Apply the following:
           ? NBA_GROUNDING_REGENERATION_SUFFIX
           : "";
       const wcQaRepairSuffix =
-        sportHint === "worldcup" && qaAttempt > 0 ? WC_QA_REGENERATION_SUFFIX : "";
+        sportHint === "worldcup" && qaAttempt > 0
+          ? `${WC_QA_REGENERATION_SUFFIX}${
+              prevQaCriticalCodes.includes("wc_player_question_team_lead")
+                ? WC_PLAYER_MARKET_QA_SUFFIX
+                : ""
+            }`
+          : "";
       if (nbaGroundingRedirectUsed && structuredResponse) {
         responseText = formatStructuredResponseAsUrTakeProse(structuredResponse);
         responseDeep = null;
@@ -7609,6 +7671,31 @@ You are responding to a Pro subscriber. Apply the following:
           structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
         }
         prevQaCriticalCodes = lastQaPost.qa.criticalRegenerationCodes || [];
+        break;
+      }
+
+      if (wcPlayerMarketPassUsed && structuredResponse) {
+        responseText =
+          responseText || formatStructuredResponseAsUrTakeProse(structuredResponse);
+        responseDeep = null;
+        responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+        lastQaPost = runUnderReviewPostProcess(responseText, {
+          ...qaPostOptsBase,
+          structuredLean: String(structuredResponse.lean || ""),
+        });
+        responseText = lastQaPost.text;
+        const wcPassQa = runWcUrTakeQA({
+          responseText,
+          structured: structuredResponse,
+          question: String(question || ""),
+          wcIntent,
+          requiredEntities: wcRequiredEntities,
+          forbiddenEntities: wcForbiddenEntities,
+          strengthTags: wcStrengthTags,
+        });
+        wcRelevanceLog.qaEntityMatch = wcPassQa.qaEntityMatch;
+        wcRelevanceLog.qaIntentMatch = wcPassQa.qaIntentMatch;
+        wcRelevanceLog.qaPlayerMatch = wcPassQa.qaPlayerMatch;
         break;
       }
 
@@ -8073,6 +8160,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         });
         wcRelevanceLog.qaEntityMatch = wcQaResult.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcQaResult.qaIntentMatch;
+        wcRelevanceLog.qaPlayerMatch = wcQaResult.qaPlayerMatch;
         if (!wcQaResult.passed) {
           console.log(
             JSON.stringify({
@@ -8082,6 +8170,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               issueCodes: wcQaResult.issueCodes,
               qaEntityMatch: wcQaResult.qaEntityMatch,
               qaIntentMatch: wcQaResult.qaIntentMatch,
+              qaPlayerMatch: wcQaResult.qaPlayerMatch,
+              playerPropDetected: wcRelevanceLog.playerPropDetected,
               regenerationAttempt: qaAttempt,
               headlinePreview: wcQaResult.headlinePreview,
             }),
@@ -8178,6 +8268,32 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (!responseText || responseText.trim().length < 50) {
       responseText = responseDeep || responseText;
+    }
+
+    if (
+      sportHint === "worldcup" &&
+      isWcPlayerMarketIntent(wcIntent) &&
+      wcQaResult &&
+      !wcQaResult.passed &&
+      (wcQaResult.issueCodes || []).includes("wc_player_question_team_lead")
+    ) {
+      const forcedPlayerPass = resolveWcPlayerMarketResponse(
+        String(question || ""),
+        wcIntent,
+        wcContext,
+      );
+      structuredResponse = forcedPlayerPass.structured;
+      responseText = forcedPlayerPass.responseText;
+      responseDeep = null;
+      wcRelevanceLog.qaPlayerMatch = "pass";
+      console.log(
+        JSON.stringify({
+          event: "ur_take_wc_player_market_pass_forced",
+          sport: "worldcup",
+          wcIntent,
+          priorIssueCodes: wcQaResult.issueCodes,
+        }),
+      );
     }
 
     if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {

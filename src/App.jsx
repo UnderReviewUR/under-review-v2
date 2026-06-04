@@ -1677,6 +1677,19 @@ ${themeCss}
       };
     }
 
+    const wcEventIdForBody =
+      wcEventId != null && String(wcEventId).trim()
+        ? String(wcEventId).trim()
+        : [...priorSnapshot]
+            .reverse()
+            .find((m) => m.role === "user" && m.wcEventId)?.wcEventId;
+    if (
+      (effectiveSportHint === "worldcup" || sportHint === "worldcup") &&
+      wcEventIdForBody
+    ) {
+      body.wcEventId = String(wcEventIdForBody).trim();
+    }
+
     hasGolfContextForDebug = Boolean(body.golfContext);
 
     const sessionUserTurns = priorSnapshot.filter((m) => m.role === "user").length + 1;
@@ -4080,6 +4093,37 @@ ${themeCss}
     },
     [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
   );
+  const urTakeFollowUpWc = useCallback(
+    (text, meta) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking || prefetchingUrTakeContext) return;
+      setWcInput("");
+      const threadWcEventId = [...wcMsgs]
+        .reverse()
+        .find((m) => m.role === "user" && m.wcEventId)?.wcEventId;
+      askUrTake({
+        text: t,
+        setMsgs: setWcMsgs,
+        sportHint: "worldcup",
+        ...(threadWcEventId ? { wcEventId: String(threadWcEventId).trim() } : {}),
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "worldcup",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(wcScreenRef);
+      requestAnimationFrame(() => {
+        wcInputRef.current?.focus({ preventScroll: true });
+      });
+    },
+    [askUrTake, isAsking, prefetchingUrTakeContext, wcMsgs, scheduleChatScroll],
+  );
   const urTakeFollowUpMatchup = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
@@ -5840,6 +5884,24 @@ fees. One price, unlimited reads.`,
               <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
               <UrTakeFollowUpDockStrip msgs={golfMsgs} onPick={urTakeFollowUpGolf} />
               <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#DCE6F2" {...askBarCommon} dockedGradient />
+            </div>
+          </div>
+        )}
+        {screen==="worldcup"&&wcMsgs.length>0&&(
+          <div className="docked-bar ur-docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(245,158,11,.28)" }}>
+              <div className="docked-bar-label" style={{color:"var(--wc-gold)"}}>World Cup · Ask another</div>
+              <UrTakeFollowUpDockStrip msgs={wcMsgs} onPick={urTakeFollowUpWc} />
+              <AskBar
+                inputRef={wcInputRef}
+                value={wcInput}
+                onChange={setWcInput}
+                onSubmit={() => submitWc()}
+                placeholder="Team & tournament angles · player props when XIs confirmed"
+                btnColor="var(--wc-gold)"
+                {...askBarCommon}
+                dockedGradient
+              />
             </div>
           </div>
         )}

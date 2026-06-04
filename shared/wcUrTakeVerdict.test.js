@@ -65,6 +65,21 @@ test("getVerdictNextLine — differs by verdict", () => {
   assert.match(getVerdictNextLine("RULES_FACTUAL"), /knockout bet/i);
 });
 
+test("classifyWcVerdictForUi — PLAYER_MARKET_PASS chips", () => {
+  const verdict = classifyWcVerdictForUi({
+    sport: "worldcup",
+    wcIntent: "TOP_SCORER",
+    structured: {
+      callType: "player_market_pass",
+      lean: "Player-specific markets need confirmed starting XIs.",
+    },
+  });
+  assert.equal(verdict, "PLAYER_MARKET_PASS");
+  const chips = getVerdictFollowUpChips(verdict);
+  assert.ok(chips.some((c) => /Group A/i.test(c)));
+  assert.match(getVerdictNextLine(verdict), /team or group/i);
+});
+
 test("resolveWcVerdictFromQuestion — rules question overrides stale matchup intent", () => {
   const verdict = resolveWcVerdictFromQuestion(
     "What are the knockout rules for extra time and penalties?",

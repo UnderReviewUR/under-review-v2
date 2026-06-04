@@ -30,4 +30,18 @@ export const WC_RELEVANCE_REGRESSION_TURNS = [
     expectedIntent: "RULES",
     forbiddenEntities: ["NOR", "BRA", "FRA", "PAR"],
   },
+  {
+    question: "who will score the most goals?",
+    expectedEntities: [],
+    expectedIntent: "TOP_SCORER",
+    forbiddenEntities: [],
+    expectPlayerPass: true,
+  },
+  {
+    question: "which player will score the most goals?",
+    expectedEntities: [],
+    expectedIntent: "PLAYER_PROP",
+    forbiddenEntities: [],
+    expectPlayerPass: true,
+  },
 ];

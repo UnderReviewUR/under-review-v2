@@ -1698,6 +1698,18 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
       callType: "analysis",
     };
   }
+  if (
+    structured.callType === "player_market_pass" ||
+    intent === WC_INTENT.PLAYER_PROP ||
+    intent === WC_INTENT.GOLDEN_BOOT ||
+    intent === WC_INTENT.TOP_SCORER
+  ) {
+    return {
+      ...structured,
+      sport: "worldcup",
+      callType: structured.callType || "player_market_pass",
+    };
+  }
   return structured;
 }
 

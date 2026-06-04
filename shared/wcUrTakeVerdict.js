@@ -3,8 +3,9 @@
  */
 
 import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "./wcUrTakeIntent.js";
+import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 
-/** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"GENERAL"} WcUrTakeVerdict */
+/** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"GENERAL"} WcUrTakeVerdict */
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value|no actionable)\b/i;
@@ -70,6 +71,12 @@ export function classifyWcVerdictForUi(message, userQuestion = "") {
   if (wcIntent === WC_INTENT.RULES || callType === "rules") {
     return "RULES_FACTUAL";
   }
+  if (
+    callType === "player_market_pass" ||
+    isWcPlayerMarketIntent(wcIntent)
+  ) {
+    return "PLAYER_MARKET_PASS";
+  }
   if (wcIntent === WC_INTENT.MATCHUP || callType === "matchup") {
     return "MATCHUP";
   }
@@ -128,6 +135,12 @@ export function getVerdictFollowUpChips(verdict) {
         "What breaks this read?",
         "Give me a specific number to target.",
       ];
+    case "PLAYER_MARKET_PASS":
+      return [
+        "Who wins Group A?",
+        "Best group stage bet?",
+        "Who lifts the trophy?",
+      ];
     default:
       return [
         "Give me a specific number to target.",
@@ -148,6 +161,8 @@ export function getVerdictNextLine(verdict) {
       return "Next: how does this apply to a specific knockout bet?";
     case "MATCHUP":
       return "Next: what's the clearest angle on this matchup?";
+    case "PLAYER_MARKET_PASS":
+      return "Next: try a team or group angle while lineups are pending.";
     default:
       return "Next: what's one thing that could break this?";
   }

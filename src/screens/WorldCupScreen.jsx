@@ -156,72 +156,8 @@ export default function WorldCupScreen({
     return renderMatchesList(resultsMatches);
   };
 
-  return (
-    <main ref={wcScreenRef} className={`screen wc-screen${hasDockedBar ? " has-msgs" : ""}`}>
-      <header className="wc-header">
-        <h1 className="wc-title">WORLD CUP 2026</h1>
-        <p className="wc-subtitle">🌍 USA · Mexico · Canada</p>
-        <p className="wc-dates">June 11 — July 19, 2026</p>
-      </header>
-
-      <div className="wc-main-tabs" role="tablist">
-        {[
-          ["groups", "Groups"],
-          ["matches", "Matches"],
-          ["bracket", "Bracket"],
-          ["teams", "Teams"],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={mainTab === key}
-            className={`wc-main-tab${mainTab === key ? " wc-main-tab--on" : ""}`}
-            onClick={() => {
-              setMainTab(key);
-              setSelectedTeam(null);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className={urDockedChat ? "ur-docked-ask-shell wc-ask-top" : "wc-ask-shell"}>
-        {!urDockedChat ? (
-          <>
-            <div className="wc-ask-label">Ask Anything — World Cup</div>
-            <AskBar
-              inputRef={wcInputRef}
-              value={wcInput}
-              onChange={setWcInput}
-              onSubmit={() => submitWc()}
-              placeholder="Ask anything about the World Cup →"
-              btnColor="var(--wc-gold)"
-              {...askBarCommon}
-            />
-            <div className="wc-quick-prompts" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {wcQuickPrompts.map((q) => (
-                <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)} style={{ fontSize: 11 }}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <AskBar
-            inputRef={wcInputRef}
-            value={wcInput}
-            onChange={setWcInput}
-            onSubmit={() => submitWc()}
-            placeholder="Ask anything about the World Cup →"
-            btnColor="var(--wc-gold)"
-            {...askBarCommon}
-            dockedGradient
-          />
-        )}
-      </div>
-
+  const wcBrowseBelow = (
+    <>
       {wcLoading ? (
         <div className="loading-state">
           <div className="loading-text">LOADING WORLD CUP DATA...</div>
@@ -333,48 +269,114 @@ export default function WorldCupScreen({
               <p className="wc-outright-stale-banner">{outrightsStaleLabel}</p>
             ) : null}
             {CONFEDS.map((conf) => {
-            const confTeams = teams.filter((t) => t.confederation === conf);
-            if (!confTeams.length) return null;
-            return (
-              <section key={conf} className="wc-conf-section">
-                <h3 className="wc-conf-title">{conf}</h3>
-                <div className="wc-team-grid">
-                  {confTeams.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      className="wc-team-card"
-                      onClick={() => setSelectedTeam(t)}
-                    >
-                      <img src={t.flagUrl} alt="" width={48} height={32} loading="lazy" />
-                      <div className="wc-team-card-body">
-                        <span className="wc-team-card-name">{t.name}</span>
-                        <span className="wc-team-card-meta">
-                          Grp {t.group} ·{" "}
-                          {wcStrengthTagForRank(
-                            getWcTeamsByGroup(t.group).findIndex((x) => x.id === t.id),
-                          )}{" "}
-                          · {formatWcOutrightOdds(t.outrightOdds)}
-                          {t.outrightOddsSource === "static" && t.outrightOdds ? (
-                            <span className="wc-outright-fallback"> (static)</span>
-                          ) : null}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+              const confTeams = teams.filter((t) => t.confederation === conf);
+              if (!confTeams.length) return null;
+              return (
+                <section key={conf} className="wc-conf-section">
+                  <h3 className="wc-conf-title">{conf}</h3>
+                  <div className="wc-team-grid">
+                    {confTeams.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className="wc-team-card"
+                        onClick={() => setSelectedTeam(t)}
+                      >
+                        <img src={t.flagUrl} alt="" width={48} height={32} loading="lazy" />
+                        <div className="wc-team-card-body">
+                          <span className="wc-team-card-name">{t.name}</span>
+                          <span className="wc-team-card-meta">
+                            Grp {t.group} ·{" "}
+                            {wcStrengthTagForRank(
+                              getWcTeamsByGroup(t.group).findIndex((x) => x.id === t.id),
+                            )}{" "}
+                            · {formatWcOutrightOdds(t.outrightOdds)}
+                            {t.outrightOddsSource === "static" && t.outrightOdds ? (
+                              <span className="wc-outright-fallback"> (static)</span>
+                            ) : null}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </>
         )
       ) : null}
 
-      {urDockedChat ? (
-        <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
-          <ChatThread {...chatThreadProps} />
+      {urDockedChat ? <div className="page-spacer" /> : null}
+    </>
+  );
+
+  return (
+    <main
+      ref={wcScreenRef}
+      className={`screen wc-screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}
+    >
+      <header className="wc-header">
+        <h1 className="wc-title">WORLD CUP 2026</h1>
+        <p className="wc-subtitle">🌍 USA · Mexico · Canada</p>
+        <p className="wc-dates">June 11 — July 19, 2026</p>
+      </header>
+
+      <div className="wc-main-tabs" role="tablist">
+        {[
+          ["groups", "Groups"],
+          ["matches", "Matches"],
+          ["bracket", "Bracket"],
+          ["teams", "Teams"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={mainTab === key}
+            className={`wc-main-tab${mainTab === key ? " wc-main-tab--on" : ""}`}
+            onClick={() => {
+              setMainTab(key);
+              setSelectedTeam(null);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {wcMsgs.length === 0 ? (
+        <div className="wc-ask-shell" ref={wcBarRef}>
+            <div className="wc-ask-label">Ask Anything — World Cup</div>
+            <p className="wc-ask-hint">
+              Team &amp; tournament angles · Player props when lineups confirmed
+            </p>
+            <AskBar
+              inputRef={wcInputRef}
+              value={wcInput}
+              onChange={setWcInput}
+              onSubmit={() => submitWc()}
+              placeholder="Ask about groups, teams, or matches →"
+            btnColor="var(--wc-gold)"
+            {...askBarCommon}
+          />
+          <div className="wc-quick-prompts">
+            {wcQuickPrompts.map((q) => (
+              <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)}>
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
+
+      {urDockedChat ? (
+        <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
+          <ChatThread {...chatThreadProps} variant="urChatDocked" />
+          {wcBrowseBelow}
+        </div>
+      ) : (
+        wcBrowseBelow
+      )}
     </main>
   );
 }

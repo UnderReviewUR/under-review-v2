@@ -20,6 +20,8 @@ const ALLOWED_KEYS = new Set([
   /** Client asks for structured JSON + URTakeResponse card (must not be stripped). */
   "structured",
   "bettingStyle",
+  /** World Cup — ESPN event id from match card / thread for fixture-scoped context */
+  "wcEventId",
 ]);
 
 const DEFAULT_MAX_QUESTION = 12000;
@@ -80,6 +82,14 @@ function sanitizeValue(key, val, depth, limits) {
 
   if (key === "teamHint") {
     return typeof val === "string" ? val.slice(0, 8).toUpperCase() : null;
+  }
+
+  if (key === "wcEventId") {
+    const id = String(val ?? "")
+      .trim()
+      .replace(/[^\w-]/g, "")
+      .slice(0, 48);
+    return id || null;
   }
 
   if (key === "history") {

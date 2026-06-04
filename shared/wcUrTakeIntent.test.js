@@ -56,3 +56,18 @@ test("resolveRequiredEntities — matchup returns both teams", () => {
   );
   assert.deepEqual(entities.sort(), ["FRA", "NOR"]);
 });
+
+test("classifyWcQuestionIntent — player market intents", () => {
+  assert.equal(classifyWcQuestionIntent("who will score the most goals?"), WC_INTENT.TOP_SCORER);
+  assert.equal(
+    classifyWcQuestionIntent("which player will score the most goals?"),
+    WC_INTENT.PLAYER_PROP,
+  );
+});
+
+test("resolveRequiredEntities — player market returns no teams", () => {
+  assert.deepEqual(
+    resolveRequiredEntities("which player will score the most goals?", [], WC_INTENT.PLAYER_PROP),
+    [],
+  );
+});

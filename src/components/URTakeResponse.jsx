@@ -124,10 +124,17 @@ export default function URTakeResponse({
     callType,
     sport,
   );
+  const sportLower = String(sport || "").toLowerCase();
   const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
   const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
+  const playerMarketPass =
+    sportLower === "worldcup" &&
+    String(callType || "").toLowerCase() === "player_market_pass";
   const showWcCaution =
-    !rulesCallType && wcDataConfidenceNeedsCaution(dataConfidence) && Boolean(wcCautionText);
+    !rulesCallType &&
+    !playerMarketPass &&
+    wcDataConfidenceNeedsCaution(dataConfidence) &&
+    Boolean(wcCautionText);
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
@@ -140,12 +147,13 @@ export default function URTakeResponse({
   const marketPillDistinct =
     marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
 
-  const sportLower = String(sport || "").toLowerCase();
   const liveLeanCap = sportLower === "nba" && showLiveRibbon ? 220 : null;
 
   const contextLine =
     String(nbaContextBar || "").trim() ||
-    (rulesCallType
+    (playerMarketPass
+      ? "Player market · Pre-match pass"
+      : rulesCallType
       ? "Knockout rules · Reference"
       : String(callType || "").toLowerCase() === "matchup"
         ? [edgeTypePill, marketPillDistinct ?? "Group stage"].join(" · ")
@@ -155,7 +163,9 @@ export default function URTakeResponse({
           ].join(" · "));
 
   const modePill =
-    rulesCallType ? (
+    playerMarketPass ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Pre-match pass</span>
+    ) : rulesCallType ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Reference</span>
     ) : ee && eeModel ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--ee">
@@ -203,6 +213,12 @@ export default function URTakeResponse({
         <span className="ur-v2-sport-bar-spacer" />
         {modePill}
       </div>
+
+      {playerMarketPass ? (
+        <p className="wc-player-pass-note" role="note">
+          Player props need confirmed lineups — team-level angles only for now.
+        </p>
+      ) : null}
 
       {showWcCaution ? (
         <div className="ur-v2-wc-caution" role="status">

@@ -5,7 +5,7 @@
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
 
-/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"UNCLASSIFIED"} WcUrTakeIntent */
+/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"UNCLASSIFIED"} WcUrTakeIntent */
 
 export const WC_INTENT = {
   RULES: "RULES",
@@ -13,6 +13,9 @@ export const WC_INTENT = {
   MATCHUP: "MATCHUP",
   STRUCTURAL: "STRUCTURAL",
   CONTINUATION: "CONTINUATION",
+  PLAYER_PROP: "PLAYER_PROP",
+  GOLDEN_BOOT: "GOLDEN_BOOT",
+  TOP_SCORER: "TOP_SCORER",
   UNCLASSIFIED: "UNCLASSIFIED",
 };
 
@@ -38,6 +41,38 @@ const STRUCTURAL_SIGNAL_RE =
 
 const CONTINUATION_SIGNAL_RE =
   /\b(what about|tell me more|go deeper|what kills|other side|build a parlay|that take|this edge|them|they)\b/i;
+
+const WC_TEAM_GOALS_RE =
+  /\b(which team|what team|team will|nation will|country will|national team|teams score)\b/i;
+
+const WC_GOLDEN_BOOT_RE = /\b(golden boot|boot winner|top goalscorer|top goal scorer)\b/i;
+
+const WC_TOP_SCORER_RE =
+  /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
+
+const WC_PLAYER_PROP_RE =
+  /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score)\b/i;
+
+const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
+
+/**
+ * @param {string} question
+ * @returns {typeof WC_INTENT.PLAYER_PROP | typeof WC_INTENT.GOLDEN_BOOT | typeof WC_INTENT.TOP_SCORER | null}
+ */
+export function classifyWcPlayerMarketIntent(question) {
+  const q = String(question || "").trim();
+  const ql = q.toLowerCase();
+  if (!q) return null;
+  if (WC_TEAM_GOALS_RE.test(ql)) return null;
+
+  if (WC_PLAYER_PROP_RE.test(ql)) return WC_INTENT.PLAYER_PROP;
+  if (WC_GOLDEN_BOOT_RE.test(ql)) return WC_INTENT.GOLDEN_BOOT;
+  if (WC_TOP_SCORER_RE.test(ql)) return WC_INTENT.TOP_SCORER;
+  if (WC_WHO_WILL_SCORE_RE.test(ql)) return WC_INTENT.TOP_SCORER;
+  if (/\b(goal scorer|score more goals)\b/i.test(ql)) return WC_INTENT.TOP_SCORER;
+
+  return null;
+}
 
 /** Static tournament rules — always available regardless of live phase. */
 export const WC_STATIC_RULES_BLOCK = `WC TOURNAMENT RULES (binding — factual reference for rules questions):
@@ -77,6 +112,11 @@ export function classifyWcQuestionIntent(question, history = []) {
 
   if (RULES_SIGNAL_RE.test(ql) && !hasPricingCue) {
     return WC_INTENT.RULES;
+  }
+
+  const playerMarketIntent = classifyWcPlayerMarketIntent(q);
+  if (playerMarketIntent) {
+    return playerMarketIntent;
   }
 
   if (MATCHUP_SIGNAL_RE.test(ql) && mentioned.length >= 1) {

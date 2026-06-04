@@ -7,6 +7,11 @@ import { detectContenderAheadOfFavoriteClaim } from "../shared/wcUrTakeMatchup.j
 import { detectUncitedAmericanOdds } from "../shared/wcUrTakePricing.js";
 import { detectRulesThreadBleed } from "../shared/wcUrTakeRules.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import {
+  detectTeamAnswerToPlayerQuestion,
+  isWcPlayerMarketIntent,
+  questionAsksForWcPlayerMarket,
+} from "../shared/wcUrTakePlayerMarket.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -114,6 +119,17 @@ export function runWcUrTakeQA(opts = {}) {
     }
   }
 
+  const question = String(opts.question || "");
+  let qaPlayerMatch = null;
+  if (questionAsksForWcPlayerMarket(question) || isWcPlayerMarketIntent(wcIntent)) {
+    if (detectTeamAnswerToPlayerQuestion(headline, body, question)) {
+      issueCodes.push("wc_player_question_team_lead");
+      qaPlayerMatch = "fail";
+    } else {
+      qaPlayerMatch = "pass";
+    }
+  }
+
   const qaEntityMatch =
     requiredEntities.length === 0
       ? null
@@ -133,6 +149,7 @@ export function runWcUrTakeQA(opts = {}) {
     issueCodes,
     qaEntityMatch,
     qaIntentMatch,
+    qaPlayerMatch,
     headlinePreview: headline.slice(0, 160),
   };
 }
@@ -151,9 +168,17 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_matchup_contender_ahead_of_favorite",
       "wc_matchup_missing_team_headline",
       "wc_price_uncited_citation",
+      "wc_player_question_team_lead",
     ].includes(c),
   );
 }
+
+export const WC_PLAYER_MARKET_QA_SUFFIX = `
+
+WC PLAYER MARKET QA (mandatory — prior answer treated a nation as the player pick):
+- The user asked for a PLAYER, Golden Boot, or top scorer — not which country scores the most team goals.
+- Do NOT name only France, Brazil, or any national team as the answer to a player question.
+- If verified player rows are unavailable, lead with an honest pass: player markets need confirmed lineups; offer team-level tournament angles only as secondary context — never as a substitute player pick.`;
 
 export const WC_QA_REGENERATION_SUFFIX = `
 

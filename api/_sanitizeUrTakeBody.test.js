@@ -12,6 +12,16 @@ test("sanitizeUrTakeBody strips unknown keys", () => {
   assert.equal("hacker" in body, false);
 });
 
+test("sanitizeUrTakeBody preserves wcEventId for World Cup match scope", () => {
+  const { ok, body } = sanitizeUrTakeBody({
+    question: "World Cup 2026: Mexico vs South Africa",
+    sportHint: "worldcup",
+    wcEventId: "760415",
+  });
+  assert.equal(ok, true);
+  assert.equal(body.wcEventId, "760415");
+});
+
 test("sanitizeUrTakeBody preserves structured flag and bettingStyle", () => {
   const { ok, body } = sanitizeUrTakeBody({
     question: "Edge?",

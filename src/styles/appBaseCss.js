@@ -291,11 +291,17 @@ export const baseCss = `
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .nfl-banner,
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .f1-banner,
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .tour-banner,
-  .app.has-docked main.screen.screen--ur-chat.has-msgs > .sport-board-header{
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .sport-board-header,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .wc-header,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .wc-main-tabs{
     margin-left:16px;
     margin-right:16px;
     width:auto;
     box-sizing:border-box;
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .wc-header,
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .wc-main-tabs{
+    flex-shrink:0;
   }
   .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll{
     flex:1 1 auto;
@@ -836,6 +842,7 @@ export const baseCss = `
   .mlb-ask-shell .ask-row,
   .golf-ask-shell .ask-row,
   .tennis-ask-shell .ask-row,
+  .wc-ask-shell .ask-row,
   .wta-ask-inline .ask-row,
   .home-surface-premium .ask-wrap .ask-row,
   .screen > .detail-card ~ .ask-wrap .ask-row,
@@ -1988,8 +1995,48 @@ export const baseCss = `
   .wc-team-detail-stats{display:flex;gap:24px;margin:16px 0;}
   .wc-stat-label{display:block;font-size:10px;color:var(--muted);font-family:var(--mono-font);text-transform:uppercase;}
   .wc-stat-val{display:block;font-size:18px;font-weight:700;color:var(--wc-gold);margin-top:4px;}
-  .wc-ask-shell{margin-top:12px;padding-bottom:8px;}
-  .wc-chat-scroll{margin-bottom:12px;}
+  .wc-ask-shell{
+    width:100%;
+    box-sizing:border-box;
+    background:var(--surface);
+    border:1px solid rgba(245,158,11,.22);
+    border-radius:14px;
+    padding:14px;
+    margin:0 0 16px;
+  }
+  .wc-ask-label{
+    font-family:var(--mono-font);
+    font-size:11px;
+    color:var(--wc-gold);
+    letter-spacing:2px;
+    margin-bottom:4px;
+    text-transform:uppercase;
+    opacity:.9;
+  }
+  .wc-ask-hint{
+    font-size:12px;
+    line-height:1.4;
+    color:var(--soft);
+    margin:0 0 10px;
+  }
+  .wc-player-pass-note{
+    margin:10px 0 4px;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1px solid rgba(245,158,11,.28);
+    background:rgba(245,158,11,.08);
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+    color:var(--wc-gold);
+    line-height:1.45;
+  }
+  .wc-quick-prompts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .wc-quick-prompts .quick-btn{font-size:11px;}
+  .wc-chat-scroll .wc-groups-grid{margin-top:16px;}
+  .wc-chat-scroll .section-divider,
+  .wc-chat-scroll .wc-conf-section:first-of-type{margin-top:8px;}
   .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
   .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
   .tennis-ask-shell{background:var(--surface);border:1px solid rgba(255,230,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}

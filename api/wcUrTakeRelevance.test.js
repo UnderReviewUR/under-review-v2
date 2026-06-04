@@ -12,6 +12,7 @@ import {
   WC_INTENT,
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
+import { resolveWcPlayerMarketResponse } from "../shared/wcUrTakePlayerMarket.js";
 import {
   buildEntityBindingPromptBlock,
   resolveRequiredEntities,
@@ -24,10 +25,12 @@ import {
   getVerdictNextLine,
 } from "../shared/wcUrTakeVerdict.js";
 
-test("WC regression fixture has four turns with expected metadata", () => {
-  assert.equal(WC_RELEVANCE_REGRESSION_TURNS.length, 4);
+test("WC regression fixture has six turns with expected metadata", () => {
+  assert.equal(WC_RELEVANCE_REGRESSION_TURNS.length, 6);
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[1].expectedEntities[0], "BRA");
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[3].expectedIntent, "RULES");
+  assert.equal(WC_RELEVANCE_REGRESSION_TURNS[4].expectedIntent, "TOP_SCORER");
+  assert.equal(WC_RELEVANCE_REGRESSION_TURNS[5].expectedIntent, "PLAYER_PROP");
 });
 
 test("classifyWcQuestionIntent — regression thread intents", () => {
@@ -240,6 +243,48 @@ test("verdict-aware chips — fair price avoids edge killer", () => {
   assert.match(getVerdictNextLine("FAIR_PRICE"), /what would need to change/i);
 });
 
+test("player regression turns — pre-match pass template", () => {
+  for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerPass)) {
+    const intent = classifyWcQuestionIntent(turn.question);
+    assert.equal(intent, turn.expectedIntent, turn.question);
+    const resolved = resolveWcPlayerMarketResponse(turn.question, intent, {
+      dataConfidence: "pre_match_estimate",
+      matchDetails: [],
+    });
+    assert.equal(resolved.forcePass, true, turn.question);
+    assert.match(resolved.structured?.lean || "", /Player-specific markets/i);
+    const qa = runWcUrTakeQA({
+      responseText: resolved.responseText,
+      structured: resolved.structured,
+      question: turn.question,
+      wcIntent: intent,
+      requiredEntities: [],
+      forbiddenEntities: [],
+    });
+    assert.equal(qa.qaPlayerMatch, "pass", turn.question);
+    assert.equal(qa.passed, true, turn.question);
+  }
+});
+
+test("runWcUrTakeQA — player turns reject France-as-scorer headline", () => {
+  for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerPass)) {
+    const intent = classifyWcQuestionIntent(turn.question);
+    const qa = runWcUrTakeQA({
+      responseText: "France will score the most goals in the tournament.",
+      structured: {
+        lean: "Lean: France will score the most goals in the tournament.",
+        whyNow: "France is the structural favorite.",
+      },
+      question: turn.question,
+      wcIntent: intent,
+      requiredEntities: [],
+      forbiddenEntities: [],
+    });
+    assert.equal(qa.passed, false, turn.question);
+    assert.ok(qa.issueCodes.includes("wc_player_question_team_lead"), turn.question);
+  }
+});
+
 test("instrumentation shape — Brazil question log fields", () => {
   const question = WC_RELEVANCE_REGRESSION_TURNS[1].question;
   const wcIntent = classifyWcQuestionIntent(question);
@@ -253,8 +298,10 @@ test("instrumentation shape — Brazil question log fields", () => {
       requiredEntities,
       knockoutRulesInjected: shouldInjectStaticRules(question, wcIntent),
       structuralEdgeInjected: false,
+      playerPropDetected: false,
       qaEntityMatch: null,
       qaIntentMatch: null,
+      qaPlayerMatch: null,
     },
   };
   assert.equal(logLine.wcRelevance.wcIntent, "ENTITY_PRICING");

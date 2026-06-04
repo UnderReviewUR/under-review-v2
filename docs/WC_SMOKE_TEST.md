@@ -36,6 +36,7 @@ Open **World Cup** tab → **Matches** (Live / Today / Upcoming / group fixtures
 - [ ] **as of … ET** appears when `lastUpdated` is set
 - [ ] Chip copy matches API: *Starting XI confirmed* / *XI pending* / *Lineup data pending*
 - [ ] Live tab poll (~60s) still updates scores; chips refresh with enriched `view=live`
+- [ ] **Ask UR Take** on a match card pins fixture context (`wcEventId` in request body — check network tab)
 
 ## 3. UR TAKE — prompt gating (server)
 
@@ -61,7 +62,36 @@ When `dataConfidence: "confirmed"`:
 - [ ] No caution banner
 - [ ] Confidence displays uncapped (e.g. **High** stays **High**)
 
-## 5. `WC_BREAKING` override
+## 5. Player / Golden Boot question contract (Phase 2)
+
+Pre-match (default before confirmed XIs):
+
+- [ ] Ask: `who will score the most goals?` → **pass card**, not a country as the player pick (no “France will score…” headline)
+- [ ] Ask: `which player will score the most goals?` → same honest pass
+- [ ] Card shows **Pre-match pass** mode + gold note: player props need confirmed lineups
+- [ ] Follow-up dock chips steer to team angles (e.g. Group A, group stage bet, trophy)
+- [ ] **Next** line mentions team/group while lineups pending
+
+Ask `which team will score the most goals?` (team-level):
+
+- [ ] Still routes to structural/team answer — **not** forced player pass
+
+Logs (`ur_take_complete`):
+
+- [ ] `wcRelevance.playerPropDetected: true`
+- [ ] `wcRelevance.qaPlayerMatch: "pass"` on pass template
+- [ ] Event `ur_take_wc_player_market_pass` when LLM skipped
+
+## 6. UX layout + dock (Phase 1)
+
+With at least one UR Take message on World Cup:
+
+- [ ] Chat thread appears **above** groups/matches browse content (no scroll past 12 groups to read latest answer)
+- [ ] Bottom dock: full-width ask bar + **World Cup · Ask another** label
+- [ ] Placeholder / kicker: team & tournament angles; player props when lineups confirmed
+- [ ] Follow-up chips visible in dock strip; tapping one submits and scrolls thread
+
+## 7. `WC_BREAKING` override
 
 1. Set `WC_BREAKING=2026-06-02 | Smoke test — verify breaking block appears` in Vercel or `.env`
 2. Redeploy / restart dev API
@@ -70,7 +100,7 @@ When `dataConfidence: "confirmed"`:
 - [ ] Take references or respects the breaking line in reasoning (prompt block at top)
 4. Clear `WC_BREAKING` after test
 
-## 6. Ramp polling (ops / logs)
+## 8. Ramp polling (ops / logs)
 
 During a friendly within **24h** of kickoff:
 
@@ -79,7 +109,7 @@ During a friendly within **24h** of kickoff:
 
 Optional: trigger `POST /api/scrape-scheduler` (if enabled in your env) and confirm `wc_match_detail:<eventId>` KV updates `lastUpdated`.
 
-## 7. Regression tests (CI)
+## 9. Regression tests (CI)
 
 ```bash
 npm test
@@ -89,17 +119,25 @@ WC-related suites to watch:
 
 - `api/_wcData.test.js`
 - `api/_wcUrTakeContext.gating.test.js`
+- `api/_wcUrTakeContext.matchDetail.test.js`
+- `api/wcUrTakeRelevance.test.js`
+- `shared/wcUrTakeIntent.test.js`
+- `shared/wcUrTakePlayerMarket.test.js`
+- `shared/wcUrTakeVerdict.test.js`
 - `shared/wcDataConfidence.test.js`
 - `shared/wcXiStatus.test.js`
 - `shared/wcMatchDetailTargets.test.js`
 - `shared/scrapeCadencePolicy.test.js`
+- `api/_sanitizeUrTakeBody.test.js` (wcEventId allowlist)
 
 ## Sign-off
 
 | Area | Owner | Date | Notes |
 |------|-------|------|-------|
 | API enrichment | | | |
-| Match cards | | | |
+| Match cards + wcEventId | | | Match-card Ask sends `wcEventId` in `/api/ur-take` body |
 | UR TAKE gating | | | |
+| Player / Golden Boot contract | | | Pass card + QA; no team-as-player headline |
+| UX layout + bottom dock | | | Chat-first; full-width dock |
 | Caution + confidence cap | | | |
 | WC_BREAKING | | | |

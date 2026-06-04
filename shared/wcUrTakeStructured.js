@@ -3,6 +3,7 @@
  */
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 import { stripRulesThreadBleed } from "./wcUrTakeRules.js";
 
@@ -56,6 +57,11 @@ export function normalizeWcStructuredForDelivery(
     if (FAIR_PRICE_RE.test(`${out.lean} ${out.whyNow}`)) {
       out.edge = out.edge || "Structural paths — no single knockout winner pick in group stage.";
     }
+    return out;
+  }
+
+  if (isWcPlayerMarketIntent(intent)) {
+    out.callType = out.callType || "player_market_pass";
     return out;
   }
 

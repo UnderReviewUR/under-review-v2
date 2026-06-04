@@ -181,10 +181,18 @@ function mergeStandingsIntoGroups(staticGroups, apiGroups) {
 
 /**
  * Pick fixture(s) relevant to mentioned teams (max one unless two-team matchup).
+ * When `wcEventId` is set (match-card UR Take), that fixture wins if present in the slate.
  * @param {Array<Record<string, unknown>>} matches
  * @param {string[]} mentionedTeams
+ * @param {string | null | undefined} [wcEventId]
  */
-export function selectFixturesForQuestion(matches, mentionedTeams) {
+export function selectFixturesForQuestion(matches, mentionedTeams, wcEventId) {
+  const eventId = String(wcEventId || "").trim();
+  if (eventId) {
+    const pinned = (matches || []).find((m) => String(m?.id ?? "") === eventId);
+    if (pinned) return [pinned];
+  }
+
   if (!mentionedTeams.length) return [];
   const set = new Set(mentionedTeams.map((t) => t.toUpperCase()));
   const relevant = (matches || []).filter(
@@ -540,7 +548,7 @@ async function loadWorldCupMatchesPayload() {
 
 /**
  * @param {string} [question]
- * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean }} [opts]
+ * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null }} [opts]
  */
 export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   const wcIntent = opts.wcIntent || null;
@@ -566,7 +574,7 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
       ? opts.requiredEntities.map((t) => String(t).toUpperCase())
       : extractMentionedWcTeams(question);
   const phase = getWorldCupPhase(matches);
-  const fixtures = selectFixturesForQuestion(matches, mentionedTeams);
+  const fixtures = selectFixturesForQuestion(matches, mentionedTeams, opts.wcEventId);
   /** @type {Array<Record<string, unknown>>} */
   const matchDetails = [];
   for (const fx of fixtures) {

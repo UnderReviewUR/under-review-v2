@@ -5,6 +5,16 @@ import {
   selectFixturesForQuestion,
 } from "./_wcUrTakeContext.js";
 
+test("selectFixturesForQuestion pins wcEventId when present", () => {
+  const matches = [
+    { id: "760415", homeTeam: "MEX", awayTeam: "RSA", status: "NS", commenceTs: 1 },
+    { id: "760416", homeTeam: "USA", awayTeam: "PAR", status: "NS", commenceTs: 2 },
+  ];
+  const picked = selectFixturesForQuestion(matches, [], "760416");
+  assert.equal(picked.length, 1);
+  assert.equal(picked[0].id, "760416");
+});
+
 test("selectFixturesForQuestion picks two-team matchup", () => {
   const matches = [
     { id: "1", homeTeam: "MEX", awayTeam: "RSA", status: "NS", commenceTs: 1 },
