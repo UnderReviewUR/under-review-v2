@@ -27,8 +27,8 @@ import {
   getVerdictNextLine,
 } from "../shared/wcUrTakeVerdict.js";
 
-test("WC regression fixture has seven turns with expected metadata", () => {
-  assert.equal(WC_RELEVANCE_REGRESSION_TURNS.length, 7);
+test("WC regression fixture has eight turns with expected metadata", () => {
+  assert.equal(WC_RELEVANCE_REGRESSION_TURNS.length, 8);
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[1].expectedEntities[0], "BRA");
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[3].expectedIntent, "RULES");
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[4].expectedIntent, "TOP_SCORER");
@@ -249,15 +249,26 @@ test("player regression turns — market tier with KV (no default pass)", () => 
   for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerNames)) {
     const intent = classifyWcQuestionIntent(turn.question);
     assert.equal(intent, turn.expectedIntent, turn.question);
-    const ctx = mockWcContextWithPlayerMarkets({ wcIntent: intent });
+    const ctx = mockWcContextWithPlayerMarkets({
+      wcIntent: intent,
+      wcEventId: turn.wcEventId || null,
+    });
     const resolved = resolveWcPlayerMarketResponse(turn.question, intent, ctx);
     assert.equal(resolved.forcePass, false, turn.question);
+    assert.equal(resolved.playerMarketTier, turn.expectPlayerMarketTier, turn.question);
     assert.ok(resolved.promptAppendix?.includes("PLAYER MARKETS"), turn.question);
+    if (turn.expectMatchPlayerProps) {
+      assert.ok(resolved.promptAppendix?.includes("MATCH PLAYER PROPS"), turn.question);
+    }
     const prebuilt = buildWcPlayerMarketPrebuiltStructured(
       turn.question,
       intent,
       resolved.playerMarketTier,
       ctx.playerMarketKv.goldenBoot,
+      {
+        matchPlayerProps: ctx.playerMarketKv.matchPlayerProps,
+        wcEventId: ctx.wcEventId,
+      },
     );
     assert.ok(prebuilt, turn.question);
     const qa = runWcUrTakeQA({

@@ -1,0 +1,9 @@
+{
+  "marketName": "Anytime Goalscorer",
+  "entries": [
+    { "participantName": "Kylian Mbappé", "americanOdds": "+180", "teamAbbr": "FRA" },
+    { "participantName": "Vinícius Júnior", "americanOdds": "+220", "teamAbbr": "BRA" },
+    { "participantName": "Rodrygo", "americanOdds": "+350", "teamAbbr": "BRA" },
+    { "participantName": "Ousmane Dembélé", "americanOdds": "+400", "teamAbbr": "FRA" }
+  ]
+}

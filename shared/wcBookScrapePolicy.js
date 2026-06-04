@@ -85,3 +85,60 @@ export function resolveWcGoldenBootBookUrl(bookKey) {
 export function listEnabledWcGoldenBootBooks() {
   return Object.keys(WC_GOLDEN_BOOT_BOOKS).filter((k) => isWcGoldenBootBookEnabled(k));
 }
+
+/** @type {Record<string, { urlTemplateEnv: string, defaultTemplate?: string }>} */
+export const WC_MATCH_PLAYER_PROP_BOOKS = {
+  draftkings: {
+    urlTemplateEnv: "WC_SCRAPE_DK_MATCH_URL_TEMPLATE",
+    defaultTemplate:
+      "https://sportsbook.draftkings.com/leagues/soccer/world-cup-2026?category=goalscorer&subcategory=anytime-goalscorer",
+  },
+  fanduel: {
+    urlTemplateEnv: "WC_SCRAPE_FD_MATCH_URL_TEMPLATE",
+    defaultTemplate: "https://sportsbook.fanduel.com/soccer?tab=world-cup",
+  },
+  betmgm: {
+    urlTemplateEnv: "WC_SCRAPE_MGM_MATCH_URL_TEMPLATE",
+    defaultTemplate: "https://sports.betmgm.com/en/sports/soccer-4/fifa-world-cup-2026",
+  },
+};
+
+/**
+ * @param {string} bookKey
+ * @param {{ homeTeam?: string, awayTeam?: string, eventId?: string }} meta
+ */
+export function resolveWcMatchPlayerPropsBookUrl(bookKey, meta = {}) {
+  if (!isWcGoldenBootBookEnabled(bookKey)) return null;
+  const cfg = WC_MATCH_PLAYER_PROP_BOOKS[bookKey];
+  if (!cfg) return resolveWcGoldenBootBookUrl(bookKey);
+
+  const fromEnv = cfg.urlTemplateEnv
+    ? getEnv(cfg.urlTemplateEnv, { treatEmptyAsMissing: false })
+    : undefined;
+  const template =
+    fromEnv && String(fromEnv).trim()
+      ? String(fromEnv).trim()
+      : cfg.defaultTemplate || resolveWcGoldenBootBookUrl(bookKey);
+
+  if (!template) return null;
+
+  const slug = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+  return template
+    .replace(/\{eventId\}/gi, String(meta.eventId || ""))
+    .replace(/\{home\}/gi, slug(meta.homeTeam))
+    .replace(/\{away\}/gi, slug(meta.awayTeam))
+    .replace(/\{homeAbbr\}/gi, String(meta.homeTeam || "").toUpperCase().slice(0, 3))
+    .replace(/\{awayAbbr\}/gi, String(meta.awayTeam || "").toUpperCase().slice(0, 3));
+}
+
+/**
+ * @returns {string[]}
+ */
+export function listEnabledWcMatchPlayerPropBooks() {
+  return Object.keys(WC_MATCH_PLAYER_PROP_BOOKS).filter((k) => isWcGoldenBootBookEnabled(k));
+}

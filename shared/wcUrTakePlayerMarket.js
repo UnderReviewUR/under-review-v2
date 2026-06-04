@@ -92,7 +92,8 @@ export function formatWcPlayerMarketPromptRules(wcIntent) {
   const label = formatWcPlayerMarketPassLabel(wcIntent);
   return `PLAYER MARKET (${label}) — binding:
   Answer with a named PLAYER from PLAYER MARKETS — VERIFIED CONTEXT (never only a country/national team as the scorer pick).
-  Cite the player full name in sentence one. When GOLDEN BOOT / TOP SCORER ODDS rows exist, cite American prices from that block.
+  Cite the player full name in sentence one. When MATCH PLAYER PROPS exist for the pinned fixture, prefer those anytime/first goalscorer prices over tournament Golden Boot rows.
+  When only GOLDEN BOOT / TOP SCORER ODDS exist, cite American prices from that block.
   If tier is Early Contenders or lineups are not confirmed, say so once — still list named players with available odds or form.`;
 }
 
@@ -103,15 +104,15 @@ export function formatWcPlayerMarketPromptRules(wcIntent) {
  */
 export function resolveWcPlayerMarketResponse(question, wcIntent, wcContext) {
   const kvBlocks = wcContext?.playerMarketKv || null;
-  const tier =
-    wcContext?.playerMarketTier ||
-    resolveWcPlayerMarketTier({
-      goldenBoot: kvBlocks?.goldenBoot,
-      players: kvBlocks?.players,
-      injuries: kvBlocks?.injuries,
-      wcContext,
-      wcIntent,
-    });
+  const tier = resolveWcPlayerMarketTier({
+    goldenBoot: kvBlocks?.goldenBoot,
+    players: kvBlocks?.players,
+    injuries: kvBlocks?.injuries,
+    matchPlayerProps: kvBlocks?.matchPlayerProps,
+    wcEventId: wcContext?.wcEventId || kvBlocks?.wcEventId,
+    wcContext,
+    wcIntent,
+  });
   const meta = tierMetaFor(tier);
 
   const resolved = resolveWcPlayerMarketAnswer(question, wcIntent, wcContext, kvBlocks);

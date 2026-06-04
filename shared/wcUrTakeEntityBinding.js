@@ -25,7 +25,13 @@ export function wcTeamDisplayNames(abbr) {
 export function resolveRequiredEntities(question, history = [], wcIntent) {
   const intent = wcIntent || classifyWcQuestionIntent(question, history);
   if (intent === WC_INTENT.RULES) return [];
-  if (isWcPlayerMarketIntent(intent)) return [];
+  if (isWcPlayerMarketIntent(intent)) {
+    const entities = extractMentionedWcTeams(String(question || ""));
+    if (/\bvs\.?\b|\bversus\b/i.test(String(question || "")) && entities.length >= 2) {
+      return [...new Set(entities.map((t) => String(t).toUpperCase()))];
+    }
+    return [];
+  }
 
   let entities = extractMentionedWcTeams(String(question || ""));
   if (intent === WC_INTENT.CONTINUATION && entities.length === 0) {

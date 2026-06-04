@@ -54,4 +54,14 @@ export const WC_RELEVANCE_REGRESSION_TURNS = [
     expectPlayerNames: ["Mbappé"],
     expectPlayerMarketTier: "market_only",
   },
+  {
+    question: "Best anytime goalscorer in France vs Brazil — is Mbappé worth the price?",
+    wcEventId: "760416",
+    expectedEntities: ["FRA", "BRA"],
+    expectedIntent: "PLAYER_PROP",
+    forbiddenEntities: [],
+    expectPlayerNames: ["Mbappé"],
+    expectPlayerMarketTier: "verified",
+    expectMatchPlayerProps: true,
+  },
 ];

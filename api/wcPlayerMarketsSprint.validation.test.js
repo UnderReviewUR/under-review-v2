@@ -8,6 +8,7 @@ import { formatWcPlayerMarketsPromptBlock } from "./_wcPlayerUrTakeContext.js";
 import { WC_RELEVANCE_REGRESSION_TURNS } from "./wcUrTakeRelevance.fixture.js";
 import {
   MOCK_WC_PLAYER_MARKET_KV,
+  MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
   mockWcContextWithPlayerMarkets,
 } from "./wcPlayerMarkets.fixture.js";
 import { runWcUrTakeQA } from "./_wcUrTakeQA.js";
@@ -27,10 +28,15 @@ test("Phase B — player fixture turns use market tier with KV", () => {
   for (const turn of PLAYER_TURNS) {
     const intent = classifyWcQuestionIntent(turn.question);
     assert.equal(intent, turn.expectedIntent, turn.question);
-    const ctx = mockWcContextWithPlayerMarkets({ wcIntent: intent });
+    const ctx = mockWcContextWithPlayerMarkets({
+      wcIntent: intent,
+      wcEventId: turn.wcEventId || null,
+    });
     const tier = resolveWcPlayerMarketTier({
       goldenBoot: ctx.playerMarketKv.goldenBoot,
       players: ctx.playerMarketKv.players,
+      matchPlayerProps: ctx.playerMarketKv.matchPlayerProps,
+      wcEventId: ctx.wcEventId,
       wcContext: ctx,
       wcIntent: intent,
     });
@@ -47,8 +53,14 @@ test("Phase B — prebuilt answer passes player QA", () => {
     const prebuilt = buildWcPlayerMarketPrebuiltStructured(
       turn.question,
       intent,
-      "market_only",
+      turn.expectPlayerMarketTier || "market_only",
       MOCK_WC_PLAYER_MARKET_KV.goldenBoot,
+      turn.wcEventId
+        ? {
+            matchPlayerProps: MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+            wcEventId: turn.wcEventId,
+          }
+        : {},
     );
     assert.ok(prebuilt, turn.question);
     const qa = runWcUrTakeQA({
@@ -86,6 +98,41 @@ test("Phase B — prompt block includes golden boot rows", () => {
   assert.match(block, /GOLDEN BOOT/);
   assert.match(block, /Mbapp/);
   assert.match(block, /\+600/);
+});
+
+test("Phase C — prompt block includes match player props when event pinned", () => {
+  const block = formatWcPlayerMarketsPromptBlock({
+    tier: "verified",
+    tierLabel: "Market Odds · Verified",
+    tierDisclaimer: "test",
+    wcIntent: "PLAYER_PROP",
+    goldenBoot: MOCK_WC_PLAYER_MARKET_KV.goldenBoot,
+    players: MOCK_WC_PLAYER_MARKET_KV.players,
+    injuries: MOCK_WC_PLAYER_MARKET_KV.injuries,
+    matchDetails: [],
+    matchPlayerProps: MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+    wcEventId: "760416",
+  });
+  assert.match(block, /MATCH PLAYER PROPS/);
+  assert.match(block, /ANYTIME GOALSCORER/);
+  assert.match(block, /Mbapp/);
+  assert.match(block, /\+180/);
+});
+
+test("Phase C — verified tier when match props fresh + wcEventId", () => {
+  const ctx = mockWcContextWithPlayerMarkets({
+    wcIntent: "PLAYER_PROP",
+    wcEventId: "760416",
+  });
+  const tier = resolveWcPlayerMarketTier({
+    goldenBoot: ctx.playerMarketKv.goldenBoot,
+    players: ctx.playerMarketKv.players,
+    matchPlayerProps: ctx.playerMarketKv.matchPlayerProps,
+    wcEventId: "760416",
+    wcContext: ctx,
+    wcIntent: "PLAYER_PROP",
+  });
+  assert.equal(tier, "verified");
 });
 
 test("Phase B — team pricing turn unchanged (no player tier)", () => {

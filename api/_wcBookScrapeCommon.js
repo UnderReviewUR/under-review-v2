@@ -12,6 +12,15 @@ import { isNationOnlyOutcome, parseAmericanOddsNumber, formatAmericanOdds } from
 const GOLDEN_BOOT_LABEL =
   /\b(golden boot|top goal\s*scorer|top goalscorer|world cup top scorer|most goals|leading goalscorer)\b/i;
 
+const MATCH_ANYTIME_SCORER_LABEL =
+  /\b(anytime goal\s*scorer|anytime scorer|to score at any time|player to score(?! the most)|goalscorer market)\b/i;
+
+const MATCH_FIRST_SCORER_LABEL =
+  /\b(first goal\s*scorer|first goalscorer|to score first|1st goal\s*scorer)\b/i;
+
+const MATCH_LAST_SCORER_LABEL =
+  /\b(last goal\s*scorer|last goalscorer|to score last)\b/i;
+
 /**
  * @param {unknown} value
  */
@@ -203,6 +212,149 @@ export function parseGoldenBootRowsFromHtml(html) {
   }
 
   return regexRows.length ? regexRows : fromJson;
+}
+
+/**
+ * @param {Record<string, unknown>} obj
+ * @returns {"anytime_scorer" | "first_goalscorer" | "last_goalscorer" | null}
+ */
+function matchPropMarketFromLabel(obj) {
+  const label = labelFromObject(obj);
+  if (MATCH_FIRST_SCORER_LABEL.test(label)) return "first_goalscorer";
+  if (MATCH_LAST_SCORER_LABEL.test(label)) return "last_goalscorer";
+  if (MATCH_ANYTIME_SCORER_LABEL.test(label)) return "anytime_scorer";
+  return null;
+}
+
+/**
+ * @param {unknown} json
+ * @param {{ homeTeam?: string, awayTeam?: string }} [filter]
+ */
+export function parseMatchPlayerPropRowsFromJson(json, filter = {}) {
+  /** @type {Record<string, Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string }>>} */
+  const byMarket = {
+    anytime_scorer: [],
+    first_goalscorer: [],
+    last_goalscorer: [],
+  };
+  const seen = new Set();
+
+  const tryPush = (row, market) => {
+    if (!row || !market) return;
+    const key = `${market}|${row.name}|${row.americanOdds}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    byMarket[market].push({ ...row, market });
+  };
+
+  const walkMarketNode = (node) => {
+    if (!node || typeof node !== "object") return;
+    const obj = /** @type {Record<string, unknown>} */ (node);
+    const market = matchPropMarketFromLabel(obj);
+    if (!market) return;
+
+    const entries =
+      obj.entries || obj.participants || obj.selections || obj.outcomes || obj.runners;
+    if (!Array.isArray(entries)) return;
+
+    for (const ent of entries) {
+      const row = rowFromGenericEntry(ent);
+      if (row) tryPush(row, market);
+    }
+  };
+
+  if (typeof json === "object" && json) {
+    walkMarketNode(json);
+  }
+
+  const arrays = collectCandidateArrays(json);
+  for (const arr of arrays) {
+    let marketish = 0;
+    for (const item of arr) {
+      if (item && typeof item === "object" && rowFromGenericEntry(item)) marketish += 1;
+    }
+    if (marketish < 3) continue;
+    for (const item of arr) {
+      const row = rowFromGenericEntry(item);
+      if (!row) continue;
+      const parentMarket = matchPropMarketFromLabel(
+        typeof item === "object" && item ? /** @type {Record<string, unknown>} */ (item) : {},
+      );
+      tryPush(row, parentMarket || "anytime_scorer");
+    }
+  }
+
+  for (const key of Object.keys(byMarket)) {
+    byMarket[key] = filterMatchPropRowsForTeams(byMarket[key], filter).slice(0, 40);
+  }
+
+  return byMarket;
+}
+
+/**
+ * @param {Array<{ name: string, americanOdds: string, nationAbbr?: string }>} rows
+ * @param {{ homeTeam?: string, awayTeam?: string }} filter
+ */
+function filterMatchPropRowsForTeams(rows, filter) {
+  const home = String(filter.homeTeam || "").toUpperCase().slice(0, 3);
+  const away = String(filter.awayTeam || "").toUpperCase().slice(0, 3);
+  if (!home && !away) return rows;
+  const filtered = rows.filter((r) => {
+    const abbr = String(r.nationAbbr || "").toUpperCase().slice(0, 3);
+    return !abbr || abbr === home || abbr === away;
+  });
+  return filtered.length >= 3 ? filtered : rows;
+}
+
+/**
+ * @param {string} html
+ * @param {{ homeTeam?: string, awayTeam?: string }} [filter]
+ */
+export function parseMatchPlayerPropRowsFromHtml(html, filter = {}) {
+  const fromJson = extractEmbeddedJsonBlobs(html).map((b) =>
+    parseMatchPlayerPropRowsFromJson(b, filter),
+  );
+
+  /** @type {Record<string, Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string }>>} */
+  const merged = {
+    anytime_scorer: [],
+    first_goalscorer: [],
+    last_goalscorer: [],
+  };
+
+  for (const block of fromJson) {
+    for (const key of Object.keys(merged)) {
+      merged[key].push(...(block[key] || []));
+    }
+  }
+
+  const totalAnytime = merged.anytime_scorer.length;
+  if (totalAnytime < 3) {
+    const re =
+      /([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:['\s.-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)+)\s{0,24}(\+\d{3,5}|\-\d{2,4})/g;
+    let m;
+    while ((m = re.exec(html)) && merged.anytime_scorer.length < 30) {
+      const name = normalizeWcPlayerName(m[1]);
+      const odds = formatAmericanOddsFromRaw(m[2]);
+      if (!name || !odds || isNationOnlyOutcome(name)) continue;
+      merged.anytime_scorer.push({ name, americanOdds: odds, market: "anytime_scorer" });
+    }
+  }
+
+  for (const key of Object.keys(merged)) {
+    const seen = new Set();
+    merged[key] = merged[key]
+      .filter((r) => {
+        const k = `${r.name}|${r.americanOdds}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .slice(0, 40);
+    merged[key] = filterMatchPropRowsForTeams(merged[key], filter);
+  }
+
+  return merged;
 }
 
 /**

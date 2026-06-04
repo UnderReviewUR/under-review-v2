@@ -71,3 +71,12 @@ test("resolveRequiredEntities — player market returns no teams", () => {
     [],
   );
 });
+
+test("resolveRequiredEntities — match-scoped player prop binds both teams", () => {
+  const entities = resolveRequiredEntities(
+    "Best anytime goalscorer in France vs Brazil?",
+    [],
+    WC_INTENT.PLAYER_PROP,
+  );
+  assert.deepEqual(entities.sort(), ["BRA", "FRA"]);
+});

@@ -5,6 +5,10 @@
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
 import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
 import {
+  isMatchPlayerPropsFresh,
+  matchPlayerPropRowsFromEvent,
+} from "./wcMatchPlayerProps.js";
+import {
   countRegistryPlayers,
   normalizeWcPlayerName,
   topRegistryScorers,
@@ -76,6 +80,13 @@ export function extractKnownPlayerNamesFromKv(kvBlocks) {
       if (p?.name) names.add(normalizeWcPlayerName(p.name));
     }
   }
+  const eventProps = kvBlocks?.matchPlayerProps;
+  for (const r of matchPlayerPropRowsFromEvent(eventProps, "anytime_scorer", 30)) {
+    if (r?.name) names.add(normalizeWcPlayerName(r.name));
+  }
+  for (const r of matchPlayerPropRowsFromEvent(eventProps, "first_goalscorer", 15)) {
+    if (r?.name) names.add(normalizeWcPlayerName(r.name));
+  }
   return [...names].filter(Boolean);
 }
 
@@ -103,12 +114,27 @@ export function resolveWcPlayerMarketTier(opts = {}) {
   const players = opts.players;
   const wcContext = opts.wcContext;
   const wcIntent = String(opts.wcIntent || "");
+  const wcEventId = String(opts.wcEventId || "").trim();
+  const matchPlayerProps = opts.matchPlayerProps;
   const gbCount = goldenBootRowCount(goldenBoot);
   const gbFresh = Boolean(goldenBoot && !goldenBoot.stale && gbCount >= 5);
   const lineupConfirmed = wcContextHasVerifiedScorerGrounding(wcContext);
+  const matchPropsFresh =
+    wcEventId &&
+    isMatchPlayerPropsFresh(matchPlayerProps) &&
+    matchPlayerPropRowsFromEvent(matchPlayerProps, "anytime_scorer", 3).length >= 3;
   const topScorers = topRegistryScorers(players, 8);
   const hasGoalLeaders = topScorers.some((p) => (Number(p.goalsTournament) || 0) > 0);
   const { playerCount } = countRegistryPlayers(players || {});
+
+  if (
+    wcIntent === WC_INTENT.PLAYER_PROP &&
+    wcEventId &&
+    matchPropsFresh &&
+    (lineupConfirmed || gbCount >= 3)
+  ) {
+    return WC_PLAYER_MARKET_TIER.VERIFIED;
+  }
 
   if (
     wcIntent === WC_INTENT.PLAYER_PROP &&
@@ -178,8 +204,32 @@ export function buildWcPlayerMarketEmptyStructured(question, wcIntent) {
  * @param {WcPlayerMarketTier} tier
  * @param {object | null | undefined} goldenBoot
  */
-export function buildWcPlayerMarketPrebuiltStructured(question, wcIntent, tier, goldenBoot) {
-  const rows = goldenBootRowsFromKv(goldenBoot, 6);
+export function buildWcPlayerMarketPrebuiltStructured(
+  question,
+  wcIntent,
+  tier,
+  goldenBoot,
+  opts = {},
+) {
+  const matchPlayerProps = opts.matchPlayerProps;
+  const wcEventId = String(opts.wcEventId || "").trim();
+  let rows = goldenBootRowsFromKv(goldenBoot, 6);
+  let label = formatWcPlayerMarketPassLabel(wcIntent);
+  let contextNote = "Based on current betting markets and form in VERIFIED CONTEXT.";
+
+  if (
+    wcIntent === WC_INTENT.PLAYER_PROP &&
+    wcEventId &&
+    isMatchPlayerPropsFresh(matchPlayerProps)
+  ) {
+    const matchRows = matchPlayerPropRowsFromEvent(matchPlayerProps, "anytime_scorer", 6);
+    if (matchRows.length) {
+      rows = matchRows;
+      label = "anytime goalscorer (this match)";
+      contextNote = `Match-scoped lines for event ${wcEventId} in VERIFIED CONTEXT.`;
+    }
+  }
+
   if (!rows.length) return null;
 
   const meta = tierMetaFor(tier);
@@ -187,7 +237,6 @@ export function buildWcPlayerMarketPrebuiltStructured(question, wcIntent, tier, 
     .slice(0, 4)
     .map((r) => `${r.name} ${r.americanOdds}`)
     .join(", ");
-  const label = formatWcPlayerMarketPassLabel(wcIntent);
   const lineupNote =
     tier === WC_PLAYER_MARKET_TIER.MARKET_ONLY || tier === WC_PLAYER_MARKET_TIER.THIN
       ? " Lineups may not be confirmed — prices are market reference only."
@@ -197,9 +246,10 @@ export function buildWcPlayerMarketPrebuiltStructured(question, wcIntent, tier, 
     sport: "worldcup",
     callType: meta.callType,
     playerMarketTier: tier,
+    wcEventId: wcEventId || undefined,
     call: `${rows[0].name} ${rows[0].americanOdds} — ${label}`,
     lean: `Lean: ${rows[0].name} leads the ${label} board at ${rows[0].americanOdds} (${meta.label}).${lineupNote}`,
-    whyNow: `Top contenders by price: ${lead}. Based on current betting markets and form in VERIFIED CONTEXT.`,
+    whyNow: `Top contenders by price: ${lead}. ${contextNote}`,
     edge: rows.length >= 2 ? `Gap behind ${rows[1].name} at ${rows[1].americanOdds}.` : "Thin market depth.",
     confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
     analysis: String(question || "").trim(),
@@ -224,6 +274,8 @@ export function resolveWcPlayerMarketAnswer(
     goldenBoot: kvBlocks?.goldenBoot,
     players: kvBlocks?.players,
     injuries: kvBlocks?.injuries,
+    matchPlayerProps: kvBlocks?.matchPlayerProps,
+    wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
     wcContext,
     wcIntent,
   });
@@ -261,6 +313,10 @@ export function resolveWcPlayerMarketAnswer(
       wcIntent,
       tier,
       kvBlocks?.goldenBoot,
+      {
+        matchPlayerProps: kvBlocks?.matchPlayerProps,
+        wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
+      },
     );
     if (structured) {
       return {

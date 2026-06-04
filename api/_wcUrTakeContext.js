@@ -645,11 +645,18 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   }
 
   if (isWcPlayerMarketIntent(wcIntent)) {
-    const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs);
+    const wcEventIdTrimmed = String(opts.wcEventId || "").trim() || null;
+    ctx.wcEventId = wcEventIdTrimmed;
+    const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {
+      wcEventId: wcEventIdTrimmed,
+      wcIntent,
+    });
     const playerMarketTier = resolveWcPlayerMarketTier({
       goldenBoot: playerMarketKv.goldenBoot,
       players: playerMarketKv.players,
       injuries: playerMarketKv.injuries,
+      matchPlayerProps: playerMarketKv.matchPlayerProps,
+      wcEventId: wcEventIdTrimmed,
       wcContext: ctx,
       wcIntent,
     });
@@ -665,6 +672,8 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
       players: playerMarketKv.players,
       injuries: playerMarketKv.injuries,
       matchDetails,
+      matchPlayerProps: playerMarketKv.matchPlayerProps,
+      wcEventId: wcEventIdTrimmed,
     });
   }
 

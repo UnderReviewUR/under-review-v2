@@ -189,6 +189,25 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
           }),
         );
       }
+
+      if (fetchOdds) {
+        try {
+          const { scrapeAndCacheWcMatchPlayerProps } = await import("./_wcMatchPlayerProps.js");
+          await scrapeAndCacheWcMatchPlayerProps(id, {
+            homeTeam: meta.homeTeam || detail.homeTeam,
+            awayTeam: meta.awayTeam || detail.awayTeam,
+            scrapeMode: meta.scrapeMode,
+          });
+        } catch (propsErr) {
+          console.log(
+            JSON.stringify({
+              event: "wc_match_bundle_props_fail",
+              eventId: id,
+              error: propsErr?.message || "props_failed",
+            }),
+          );
+        }
+      }
     }
   } else {
     detailResult = { ok: false, error: summaryRes.error || "summary_failed" };

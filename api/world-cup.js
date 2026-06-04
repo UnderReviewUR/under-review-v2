@@ -14,6 +14,10 @@ import { getWcGoldenBootPayload, scrapeAndCacheWcGoldenBoot } from "./_wcGoldenB
 import { getWcInjuriesPayload, scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { getWcPlayersPayload, scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import {
+  getWcMatchPlayerPropsPayload,
+  scrapeAndCacheWcMatchPlayerProps,
+} from "./_wcMatchPlayerProps.js";
+import {
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_TTL_SECONDS,
 } from "../shared/wc2026Constants.js";
@@ -477,9 +481,23 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    if (view === "match_player_props" || view === "match-player-props") {
+      const eventId = req.query?.eventId ?? req.query?.id;
+      if (String(req.query?.refresh || "") === "1" && eventId) {
+        const cached = await readWcMatchesFromKv();
+        const match = (cached?.matches || []).find((m) => String(m?.id) === String(eventId));
+        await scrapeAndCacheWcMatchPlayerProps(eventId, {
+          homeTeam: match?.homeTeam,
+          awayTeam: match?.awayTeam,
+        });
+      }
+      const payload = await getWcMatchPlayerPropsPayload(eventId);
+      return res.status(200).json(payload);
+    }
+
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, or injuries.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, or match_player_props.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

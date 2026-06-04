@@ -8299,6 +8299,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         wcIntent,
         tier,
         wcContext?.playerMarketKv?.goldenBoot,
+        {
+          matchPlayerProps: wcContext?.playerMarketKv?.matchPlayerProps,
+          wcEventId: wcRelevanceLog.wcEventId || wcContext?.wcEventId,
+        },
       );
       if (prebuilt) {
         structuredResponse = prebuilt;

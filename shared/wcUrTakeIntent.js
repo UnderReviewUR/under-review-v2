@@ -51,7 +51,7 @@ const WC_TOP_SCORER_RE =
   /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
 
 const WC_PLAYER_PROP_RE =
-  /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score)\b/i;
+  /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal\s*scorer|score in this match|score tonight)\b/i;
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 

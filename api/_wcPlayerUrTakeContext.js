@@ -5,22 +5,36 @@
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
+import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
 import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
 import { topRegistryScorers, countRegistryPlayers } from "../shared/wcPlayerRegistry.js";
-import { WC_GOLDEN_BOOT_MAX_AGE_MS } from "../shared/wc2026PlayerConstants.js";
+import {
+  WC_GOLDEN_BOOT_MAX_AGE_MS,
+  WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
+} from "../shared/wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
 import { formatWcPlayerMarketPromptRules } from "../shared/wcUrTakePlayerMarket.js";
+import {
+  matchPlayerPropRowsFromEvent,
+} from "../shared/wcMatchPlayerProps.js";
+import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 
 /**
- * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null }>}
+ * @param {number} [nowMs]
+ * @param {{ wcEventId?: string | null, wcIntent?: string }} [opts]
+ * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, wcEventId: string | null }>}
  */
-export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now()) {
-  const [players, goldenBoot, injuries] = await Promise.all([
+export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
+  const wcEventId = String(opts.wcEventId || "").trim() || null;
+  const loadMatchProps = wcEventId && opts.wcIntent === WC_INTENT.PLAYER_PROP;
+
+  const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
     readWcPlayersFromKv(),
     readWcGoldenBootFromKv(nowMs),
     readWcInjuriesFromKv(),
+    loadMatchProps ? readWcMatchPlayerPropsForEvent(wcEventId, nowMs) : Promise.resolve(null),
   ]);
-  return { players, goldenBoot, injuries };
+  return { players, goldenBoot, injuries, matchPlayerProps, wcEventId };
 }
 
 /**
@@ -70,6 +84,8 @@ function formatSquadLeadersForPrompt(players) {
  * @param {object | null | undefined} opts.players
  * @param {object | null | undefined} opts.injuries
  * @param {Array<Record<string, unknown>>} [opts.matchDetails]
+ * @param {object | null | undefined} [opts.matchPlayerProps]
+ * @param {string | null | undefined} [opts.wcEventId]
  */
 export function formatWcPlayerMarketsPromptBlock(opts = {}) {
   const {
@@ -81,6 +97,8 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     players,
     injuries,
     matchDetails = [],
+    matchPlayerProps = null,
+    wcEventId = null,
   } = opts;
 
   const gbRows = goldenBootRowsFromKv(goldenBoot, 15);
@@ -97,6 +115,40 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     formatWcPlayerMarketPromptRules(wcIntent),
     "",
   ];
+
+  const eventId = String(wcEventId || matchPlayerProps?.eventId || "").trim();
+  const anytimeRows = matchPlayerPropRowsFromEvent(matchPlayerProps, "anytime_scorer", 18);
+  const firstRows = matchPlayerPropRowsFromEvent(matchPlayerProps, "first_goalscorer", 10);
+
+  if (eventId && anytimeRows.length) {
+    const mpFresh =
+      matchPlayerProps?.freshness ||
+      calculateOddsFreshness(
+        matchPlayerProps?.lastUpdated,
+        WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
+      );
+    lines.push(
+      `MATCH PLAYER PROPS — event ${eventId} (binding for this fixture; prefer over tournament Golden Boot when answering match-scoped asks):`,
+      `  Source: ${String(matchPlayerProps?.source || "consensus")}`,
+      `  Books: ${(matchPlayerProps?.booksUsed || []).join(", ") || "unknown"}`,
+      `  Fixture: ${matchPlayerProps?.awayTeam || "?"} @ ${matchPlayerProps?.homeTeam || "?"}`,
+      `  Freshness: ${mpFresh.ageText}${mpFresh.isStale ? " — STALE" : ""}`,
+      "",
+      "  ANYTIME GOALSCORER (cite only prices below):",
+    );
+    for (const r of anytimeRows) {
+      const team = r.nationAbbr ? ` (${r.nationAbbr})` : "";
+      lines.push(`    ${r.name}${team}: ${r.americanOdds}`);
+    }
+    if (firstRows.length) {
+      lines.push("", "  FIRST GOALSCORER:");
+      for (const r of firstRows.slice(0, 8)) {
+        const team = r.nationAbbr ? ` (${r.nationAbbr})` : "";
+        lines.push(`    ${r.name}${team}: ${r.americanOdds}`);
+      }
+    }
+    lines.push("");
+  }
 
   if (gbRows.length) {
     lines.push(

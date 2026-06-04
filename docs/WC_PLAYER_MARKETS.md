@@ -9,6 +9,7 @@ Permanent player intelligence for Golden Boot, top scorers, and injuries. **No O
 | `wc2026_players` | Tournament player registry | 24h | 12h |
 | `wc2026_golden_boot` | Consensus Golden Boot odds | 6h | 4h |
 | `wc2026_injuries` | Injury board + `starsOut` | 2h | 2h |
+| `wc2026_match_player_props` | Per-event anytime/first goalscorer (`byEventId`) | 12h | bundle ramp |
 
 Match bundles also incrementally upsert players/injuries into KV.
 
@@ -60,6 +61,13 @@ During `isWcHomePromoWindow` (Jun 1 – Jul 19 ET): `wc_players`, `wc_golden_boo
 - Default pass card removed when KV has player names; thin tier shows **Early Contenders** with odds when available.
 - QA: `wc_player_missing_names`, `wc_player_odds_uncited`, `wc_player_question_team_lead`.
 
-## Phase C (not started)
+## Phase C — match-level props
 
-Per-event anytime scorer props from match pages.
+- KV `wc2026_match_player_props` keyed by ESPN `eventId` in `byEventId`.
+- Scraped on every `wc_match_bundle` pass (T-24h ramp → live) from DK/FD/BetMGM match pages.
+- UR Take: `PLAYER_PROP` + `wcEventId` injects `MATCH PLAYER PROPS` block; tier `verified` when props fresh + confirmed XI.
+- Debug: `GET /api/world-cup?view=match_player_props&eventId=760416` (`&refresh=1` to scrape).
+
+## Phase D (not started)
+
+UK/aggregator hardening, monitoring, expanded book parsers.
