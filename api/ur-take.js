@@ -41,7 +41,9 @@ import {
   WC_QA_REGENERATION_SUFFIX,
 } from "./_wcUrTakeQA.js";
 import {
+  buildWcTurnScopeBlock,
   classifyWcQuestionIntent,
+  isWcGroupSlateQuestion,
   shouldInjectStaticRules,
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
@@ -7192,6 +7194,7 @@ Rules:
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
   } else if (sportHint === "worldcup" && wcContext?.promptBlock) {
+    const wcTurnScopeBlock = buildWcTurnScopeBlock(String(question || ""), wcIntent);
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
     const priceBindingBlock = buildPriceBindingPromptBlock(
       String(question || ""),
@@ -7239,7 +7242,12 @@ Confidence guidance:
 - Never answer with only a country/national team as the scorer.
 - Cite only prices from PLAYER MARKETS — VERIFIED CONTEXT.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-          : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
+          : isWcGroupSlateQuestion(String(question || "")) || wcIntent === WC_INTENT.STRUCTURAL
+            ? `- Return JSON per OUTPUT CONTRACT: summary max 60 words — sentence one names the group-stage pick (team + market).
+- Answer the group/slate question only — not Golden Boot or a named player from earlier turns.
+- Cite team abbreviations and odds from CURRENT OUTRIGHT ODDS or FIXTURE MATCH ODDS when claiming value.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+            : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
 - Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
@@ -7254,7 +7262,7 @@ Confidence guidance:
 
     userPrompt = `${wcRoleLine}
 
-${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcPlayerMarketBlock}${wcContext.promptBlock}
+${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcPlayerMarketBlock}${wcContext.promptBlock}
 
 Question:
 ${question}

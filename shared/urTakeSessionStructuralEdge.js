@@ -133,6 +133,7 @@ export function findOutrightOddsDisplayForGolfer(player, outrights, formatOdds) 
 export function findEstablishedSessionStructuralEdge(history, sportHint = "") {
   if (!Array.isArray(history) || history.length === 0) return null;
   const sport = String(sportHint || "").trim().toLowerCase();
+  if (sport === "worldcup") return null;
   const golfSession =
     sport === "golf" || history.some((h) => String(h?.sport || "").toLowerCase() === "golf");
 

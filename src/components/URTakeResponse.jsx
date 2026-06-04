@@ -249,17 +249,19 @@ export default function URTakeResponse({
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">
-      <div className="ur-v2-sport-bar">
-        <span className="ur-v2-sport-bar-tag">{sportTag}</span>
-        <span className="ur-v2-sport-bar-dot" aria-hidden>
-          ·
-        </span>
-        <span className="ur-v2-sport-bar-ctx">{contextLine}</span>
-        <span className="ur-v2-sport-bar-spacer" />
-        {modePill}
-      </div>
+      {!isWcDirectCard ? (
+        <div className="ur-v2-sport-bar">
+          <span className="ur-v2-sport-bar-tag">{sportTag}</span>
+          <span className="ur-v2-sport-bar-dot" aria-hidden>
+            ·
+          </span>
+          <span className="ur-v2-sport-bar-ctx">{contextLine}</span>
+          <span className="ur-v2-sport-bar-spacer" />
+          {modePill}
+        </div>
+      ) : null}
 
-      {playerMarketPass ? (
+      {playerMarketPass && !isWcDirectCard ? (
         <p className="wc-player-pass-note" role="note">
           Lineups may not be confirmed — ranked early contenders use current betting markets and squad data.
         </p>
@@ -275,7 +277,13 @@ export default function URTakeResponse({
       ) : null}
 
       <div className="ur-v2-headline-wrap">
-        <h2 className="ur-v2-headline ur-v2-headline--lean">{String(headline ?? "")}</h2>
+        <h2
+          className={
+            isWcDirectCard ? "ur-v2-headline" : "ur-v2-headline ur-v2-headline--lean"
+          }
+        >
+          {String(headline ?? "")}
+        </h2>
       </div>
 
       {structuralEdgeChip?.label ? (

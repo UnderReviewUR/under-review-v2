@@ -85,6 +85,12 @@ export function normalizeWcStructuredForDelivery(
     return out;
   }
 
+  if (intent === WC_INTENT.STRUCTURAL) {
+    out.callType = "analysis";
+    delete out.playerMarketTier;
+    return out;
+  }
+
   return out;
 }
 

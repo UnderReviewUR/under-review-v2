@@ -1678,9 +1678,12 @@ function coerceStructuredForUrTakeCard(raw) {
 function coerceWcStructuredForIntent(structured, userQuestion = "", message = null) {
   if (!structured || typeof structured !== "object") return structured;
   const q = String(userQuestion || message?.userQuestion || message?.question || "").trim();
+  const classified = classifyWcQuestionIntent(q);
   const intent =
-    resolveWcIntentFromMessage(message, q) ||
-    (isWcRulesQuestion(q) ? WC_INTENT.RULES : classifyWcQuestionIntent(q));
+    classified !== WC_INTENT.UNCLASSIFIED && classified !== WC_INTENT.CONTINUATION
+      ? classified
+      : resolveWcIntentFromMessage(message, q) ||
+        (isWcRulesQuestion(q) ? WC_INTENT.RULES : classified);
 
   if (intent === WC_INTENT.RULES || isWcRulesQuestion(q)) {
     return {

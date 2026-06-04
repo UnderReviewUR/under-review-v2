@@ -269,11 +269,21 @@ function structuredPayloadFromApi(data) {
 function resolveWcIntentForBubble(question, apiIntent = "") {
   const q = String(question || "").trim();
   if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
+  const classified = classifyWcQuestionIntent(q);
+  if (
+    classified === WC_INTENT.GOLDEN_BOOT ||
+    classified === WC_INTENT.TOP_SCORER ||
+    classified === WC_INTENT.PLAYER_PROP
+  ) {
+    return classified;
+  }
   if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
   if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
+  if (classified === WC_INTENT.STRUCTURAL || classified === WC_INTENT.RULES) {
+    return classified;
+  }
   const fromApi = String(apiIntent || "").toUpperCase();
   if (fromApi) return fromApi;
-  const classified = classifyWcQuestionIntent(q);
   return classified !== WC_INTENT.UNCLASSIFIED ? classified : "";
 }
 
@@ -2137,6 +2147,13 @@ ${themeCss}
         ...structuredForBubble,
         callType: "analysis",
         sport: "worldcup",
+      };
+    } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
+      const { playerMarketTier: _drop, ...rest } = structuredForBubble;
+      structuredForBubble = {
+        ...rest,
+        sport: "worldcup",
+        callType: "analysis",
       };
     } else if (
       structuredForBubble &&

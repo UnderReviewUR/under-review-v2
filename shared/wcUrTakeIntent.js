@@ -39,6 +39,20 @@ const MATCHUP_SIGNAL_RE = /\b(vs\.?|versus|who advances|advance from|go through)
 const STRUCTURAL_SIGNAL_RE =
   /\b(best value|longshot|cleanest|structural|group [a-l]\b|contender|favorite)\b/i;
 
+/** Group-stage / slate picks — never treat as Golden Boot continuation. */
+const WC_GROUP_SLATE_RE =
+  /\b(best|top|safest|sharp|value|single)\b.*\b(group\s*stage|group\s*winner|group\s*winners|to advance|advancement|advance)\b/i;
+
+/**
+ * @param {string} question
+ */
+export function isWcGroupSlateQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (WC_GOLDEN_BOOT_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) return false;
+  return WC_GROUP_SLATE_RE.test(q) || /\bgroup\s*stage\s*bet\b/i.test(q);
+}
+
 const CONTINUATION_SIGNAL_RE =
   /\b(what about|tell me more|go deeper|what kills|other side|build a parlay|that take|this edge|them|they)\b/i;
 
@@ -114,6 +128,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.RULES;
   }
 
+  if (isWcGroupSlateQuestion(q)) {
+    return WC_INTENT.STRUCTURAL;
+  }
+
   const playerMarketIntent = classifyWcPlayerMarketIntent(q);
   if (playerMarketIntent) {
     return playerMarketIntent;
@@ -173,6 +191,26 @@ export function resolveContinuationEntities(history) {
     if (teams.length) return teams;
   }
   return [];
+}
+
+/**
+ * @param {string} question
+ * @param {import("./wcUrTakeIntent.js").WcUrTakeIntent} [wcIntent]
+ */
+export function buildWcTurnScopeBlock(question, wcIntent) {
+  const intent = wcIntent || classifyWcQuestionIntent(String(question || ""));
+  if (isWcGroupSlateQuestion(question) || intent === WC_INTENT.STRUCTURAL) {
+    return `TURN SCOPE (binding):
+- Answer ONLY the current question: group-stage value, group winner, or advancement — name the team(s) and price if citing odds.
+- Do NOT repeat Golden Boot, top scorer, or named-player prop answers from earlier in this chat unless the user asked for them again.
+- Prior player-market PASS/lean lines are not the answer to this question — ignore SESSION STRUCTURAL EDGE if it names a player.`;
+  }
+  if (isWcPlayerMarketIntent(intent)) {
+    return `TURN SCOPE (binding):
+- Answer ONLY the named player market in the current question (Golden Boot / top scorer / prop).
+- Do not pivot to an unrelated group-stage pick unless the user asked for both.`;
+  }
+  return "";
 }
 
 export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same chat, this sport only):
