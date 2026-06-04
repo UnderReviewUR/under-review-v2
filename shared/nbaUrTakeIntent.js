@@ -3,7 +3,7 @@
  * No prompt behavior changes; used for nbaRelevance logging and regression fixtures.
  */
 
-import { extractNbaTeamAbbrevsFromQuestion } from "../api/nba.js";
+import { extractNbaTeamAbbrevsFromQuestion } from "./nbaTeamFromQuestion.js";
 
 /** @typedef {"PREGAME_MATCHUP"|"LIVE_IN_GAME"|"SERIES_WINNER"|"FINALS_MVP"|"PROP_PLAYER"|"CONTINUATION"|"UNCLASSIFIED"} NbaUrTakeIntent */
 

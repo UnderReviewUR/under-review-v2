@@ -42,6 +42,12 @@ import {
   nbaGameIsLiveOrHalftimeForRefresh,
   resolveNbaMatchupProbeFromContext,
 } from "../shared/nbaLiveBoardRefresh.js";
+import {
+  classifyNbaBoardGamePhase,
+  nbaGameHasVerifiedBoxScore,
+} from "../shared/nbaBoardGamePhase.js";
+import { extractNbaTeamAbbrevsFromQuestion } from "../shared/nbaTeamFromQuestion.js";
+export { classifyNbaBoardGamePhase, nbaGameHasVerifiedBoxScore, extractNbaTeamAbbrevsFromQuestion };
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -338,48 +344,6 @@ function enrichNbaGamesWithEspn(games, espnGames) {
 /** Map a BallDontLie /games row to the same shape as Odds API games (UI + prompts). */
 function mapBdlGameRowToAppGame(g) {
   return mapBdlGameToSlateRow(g);
-}
-
-/** Box score numbers present on the board row (server-trust gate for live/halftime reads). */
-export function nbaGameHasVerifiedBoxScore(game) {
-  if (!game || typeof game !== "object") return false;
-  const hs = game.homeTeam?.score;
-  const vs = game.awayTeam?.score;
-  if (hs == null || vs == null) return false;
-  return Number.isFinite(Number(hs)) && Number.isFinite(Number(vs));
-}
-
-/**
- * Classify game phase from API-shaped rows only (no inference from user text).
- * Returns: pregame | live | halftime | final | unknown
- */
-export function classifyNbaBoardGamePhase(game) {
-  if (!game || typeof game !== "object") return "unknown";
-  const state = String(game.state || "").toLowerCase();
-  const statusRaw = String(game.status || "");
-  const statusLower = statusRaw.toLowerCase();
-
-  if (state === "post" || statusLower.includes("final")) return "final";
-
-  if (state === "pre") return "pregame";
-
-  if (state === "in") {
-    if (!nbaGameHasVerifiedBoxScore(game)) return "unknown";
-
-    if (/\bhalftime\b/i.test(statusRaw) || /\bhalf\s*time\b/i.test(statusLower)) {
-      return "halftime";
-    }
-
-    const period = Number(game.period);
-    if (Number.isFinite(period) && period >= 1) {
-      return "live";
-    }
-
-    // Odds live rows may omit period but still carry scores while state is "in"
-    return "live";
-  }
-
-  return "unknown";
 }
 
 /** Odds API only — used when BDL returns no rows or is unavailable. */
@@ -2064,51 +2028,6 @@ function mergeGameBoxWithPregameSeasonAverages(gameBoxPlayers, todaysGames, seas
         : "season_average";
 
   return { players: merged, statsSource };
-}
-
-const NBA_QUERY_TEAM_ALIASES = {
-  "timberwolves": "MIN",
-  "wolves": "MIN",
-  nuggets: "DEN",
-  nugget: "DEN",
-  lakers: "LAL",
-  warriors: "GSW",
-  "trail blazers": "POR",
-  blazers: "POR",
-  mavericks: "DAL",
-  mavs: "DAL",
-  grizzlies: "MEM",
-  hornets: "CHA",
-  thunder: "OKC",
-  jazz: "UTA",
-  pelicans: "NOP",
-  bucks: "MIL",
-  pistons: "DET",
-  magic: "ORL",
-  kings: "SAC",
-  suns: "PHX",
-  rockets: "HOU",
-  spurs: "SAS",
-  knicks: "NYK",
-  celtics: "BOS",
-  heat: "MIA",
-  clippers: "LAC",
-};
-
-/** Pull team abbreviations from user text so Odds prop fetch + board sorting hit the asked matchup first. */
-export function extractNbaTeamAbbrevsFromQuestion(question) {
-  const q = String(question || "");
-  const out = new Set();
-  const re =
-    /\b(ATL|BOS|BKN|CHA|CHI|CLE|DAL|DEN|DET|GSW|HOU|IND|LAC|LAL|MEM|MIA|MIL|MIN|NOP|NYK|OKC|ORL|PHI|PHX|POR|SAC|SAS|TOR|UTA|WAS)\b/gi;
-  let m;
-  while ((m = re.exec(q)) !== null) out.add(m[1].toUpperCase());
-
-  const ql = q.toLowerCase();
-  for (const [nick, abbr] of Object.entries(NBA_QUERY_TEAM_ALIASES)) {
-    if (ql.includes(nick)) out.add(abbr);
-  }
-  return [...out];
 }
 
 /**

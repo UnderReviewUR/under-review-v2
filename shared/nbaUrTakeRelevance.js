@@ -2,9 +2,9 @@
  * NBA UR Take — nbaRelevance log snapshot (instrumentation only).
  */
 
-import { classifyNbaBoardGamePhase } from "../api/nba.js";
+import { classifyNbaBoardGamePhase } from "./nbaBoardGamePhase.js";
 import { classifyNbaQuestionIntent, resolveRequiredNbaEntities } from "./nbaUrTakeIntent.js";
-import { extractNbaTeamAbbrevsFromQuestion } from "../api/nba.js";
+import { extractNbaTeamAbbrevsFromQuestion } from "./nbaTeamFromQuestion.js";
 
 /**
  * @param {string | null | undefined} iso
