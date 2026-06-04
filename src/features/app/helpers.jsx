@@ -1665,6 +1665,8 @@ function coerceStructuredForUrTakeCard(raw) {
         : typeof raw.timestamp === "string"
           ? raw.timestamp
           : null,
+    playerMarketTier:
+      raw.playerMarketTier != null ? String(raw.playerMarketTier) : null,
   };
 }
 
@@ -1871,18 +1873,20 @@ function UrTakeAiBubble({
           marginBottom: 4,
         }}
       >
-        <div
-          style={{
-            fontFamily: "var(--mono-font)",
-            fontSize: 10,
-            letterSpacing: 1.1,
-            color: "#00F5E9",
-            marginBottom: 10,
-            opacity: 0.85,
-          }}
-        >
-          CARD LAYOUT FALLBACK · PLAIN TEXT
-        </div>
+        {import.meta.env?.DEV ? (
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 10,
+              letterSpacing: 1.1,
+              color: "#00F5E9",
+              marginBottom: 10,
+              opacity: 0.85,
+            }}
+          >
+            CARD LAYOUT FALLBACK · PLAIN TEXT
+          </div>
+        ) : null}
         {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
       </div>
     );

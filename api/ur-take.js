@@ -73,6 +73,10 @@ import {
 } from "../shared/wcUrTakePlayerMarket.js";
 import { buildWcPlayerMarketPrebuiltStructured } from "../shared/wcPlayerMarketResolve.js";
 import {
+  buildWcCompactStructured,
+  formatWcCompactDisplayText,
+} from "../shared/wcUrTakeCompactDelivery.js";
+import {
   buildWcSessionMemoryPrompt,
   extractSessionWcEntities,
 } from "../shared/wcUrTakeSessionMemory.js";
@@ -3368,7 +3372,7 @@ function resolveOutputJsonMode({
 function buildJsonOutputContract(
   mode,
   sportHint,
-  { requireStatusShift = false, longFormRequested = false } = {},
+  { requireStatusShift = false, longFormRequested = false, wcIntent = null } = {},
 ) {
   const sport = String(sportHint || "generic").toLowerCase();
 
@@ -3464,17 +3468,25 @@ CRITICAL
 
   const tier25Spec = longFormRequested ? tier25SpecLongForm : tier25SpecDefault;
 
+  const worldCupPlayerMarketTier25Spec = `TIER 2.5 — WORLD CUP PLAYER MARKET (summary + deep)
+
+summary (max 40 words, plain text):
+- Sentence one answers the question directly: name the PLAYER, price, and verdict (PASS / lean / value / no edge).
+- Optional second sentence: one concrete reason only.
+- No section headers, no team-as-top-scorer pick, no multi-paragraph setup.
+
+deep (max 100 words, plain text):
+- Only extra detail for "Full breakdown" in the app — 2-3 short sentences (alt prices, one risk, lineup caveat).
+- Do not repeat the summary. No MATCH READ / MARKET / STAT EDGE blocks.`;
+
   const worldCupTier25Spec = `TIER 2.5 — WORLD CUP 2026 (summary + deep)
 
-summary field (plain text inside the JSON string, no markdown):
-- Punchy direct answer: first sentence states the verdict and names the team(s). No setup or context in the opener.
-- Max 150 words for summary total. Plain sentences only — no bullet lists, no ALL-CAPS section headers, no ">>" line.
-- After the lead, at most 2-3 sentences of supporting reasoning.
+summary (max 50 words, plain text):
+- Sentence one = direct answer (team, group, or price verdict). No setup.
+- At most one follow-up sentence of support.
 
-deep field (same JSON object):
-- Full reasoning with no word limit — group paths, risks, alt angles, fixture context, anything useful.
-- Do NOT paste or repeat the summary verbatim; expand with new detail.
-- Plain text inside the JSON string, no markdown.
+deep (max 120 words, plain text):
+- Short extra context only — not a thesis. No section headers. UI shows this on "Full breakdown" tap.
 
 CRITICAL
 - Never say "limited profile", "held back", or apologize for thin data.
@@ -3497,7 +3509,10 @@ No other keys. No markdown.`;
   }
 
   if (mode === "tier2_5_json") {
-    const tier25Body = sport === "worldcup" ? worldCupTier25Spec : tier25Spec;
+    const wcPlayer =
+      sport === "worldcup" && isWcPlayerMarketIntent(String(wcIntent || ""));
+    const tier25Body =
+      sport === "worldcup" ? (wcPlayer ? worldCupPlayerMarketTier25Spec : worldCupTier25Spec) : tier25Spec;
     return `OUTPUT CONTRACT — TIER 2.5 + DEEP (mandatory)
 Return ONLY valid JSON with exactly these keys:
 ${sport === "nba" && requireStatusShift ? '{"summary":"...","deep":"...","statusShift":"..."}' : '{"summary":"...","deep":"..."}'}
@@ -5236,7 +5251,7 @@ export default async function handler(req, res) {
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
   }
   let effectiveStructuredModeRequested = structuredModeRequested;
-  if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+  if (sportHint === "worldcup") {
     effectiveStructuredModeRequested = false;
   }
   if (sportHint === "nba") {
@@ -5808,6 +5823,7 @@ export default async function handler(req, res) {
     requireStatusShift:
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
     longFormRequested,
+    wcIntent,
   });
   const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
   const spreadAndGameSideBlock = isSpreadOrGameSideQuestion(question)
@@ -7217,11 +7233,11 @@ Confidence guidance:
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
         : isWcPlayerMarketIntentFlag
-          ? `- Return JSON per OUTPUT CONTRACT: summary = player-market read (150 words max); deep = full reasoning (no word limit).
-- Sentence one must name a PLAYER from PLAYER MARKETS — VERIFIED CONTEXT — never only a country/national team as the scorer pick.
-- Use GOLDEN BOOT / TOP SCORER ODDS rows when present — cite American prices (e.g. Mbappé +600).
-- If lineups are not confirmed, say so once — still rank named early contenders with available odds or squad form.
-- Do not invent player names, goal counts, or Golden Boot prices not in VERIFIED CONTEXT.
+          ? `- Return JSON per OUTPUT CONTRACT only (summary + deep keys).
+- summary max 40 words: direct answer to the question — PLAYER name, price, PASS or lean. No thesis, no section headers.
+- deep max 100 words: optional extra detail for Full breakdown only — do not repeat summary.
+- Never answer with only a country/national team as the scorer.
+- Cite only prices from PLAYER MARKETS — VERIFIED CONTEXT.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
           : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
 - Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
@@ -8019,6 +8035,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       if (structuredResponse && typeof structuredResponse === "object") {
         if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
           structuredResponse = null;
+        } else if (sportHint === "worldcup") {
+          responseText = formatWcCompactDisplayText(structuredResponse, text);
+          responseDeep = null;
+          responseFormat = "plain";
         } else {
           const formatted = formatStructuredResponseAsUrTakeProse(structuredResponse);
           responseText = formatted.trim() ? formatted : text;
@@ -8367,6 +8387,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
     }
 
+    if (sportHint === "worldcup") {
+      const tier =
+        wcContext?.playerMarketTier || wcRelevanceLog.playerMarketTier || null;
+      structuredResponse = buildWcCompactStructured({
+        question: String(question || ""),
+        wcIntent,
+        summary: responseText,
+        deep: responseDeep,
+        playerMarketTier: tier,
+        structuredSeed: structuredResponse,
+      });
+      responseText = formatWcCompactDisplayText(structuredResponse, responseText);
+    }
+
     let takeRecord = extractTakeFromResponse({
       responseText,
       sport: sportHint || "generic",
@@ -8622,6 +8656,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (sportHint === "worldcup" && wcContext?.dataConfidence) {
       responseBody.dataConfidence = wcContext.dataConfidence;
+    }
+    if (sportHint === "worldcup" && structuredResponse?.playerMarketTier) {
+      responseBody.playerMarketTier = structuredResponse.playerMarketTier;
     }
 
     if (gateQuotaEmail) {

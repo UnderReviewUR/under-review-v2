@@ -111,6 +111,9 @@ export default function URTakeResponse({
       : null;
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
+  const sportLowerEarly = String(sport || "").toLowerCase();
+  const liveLeanCap = sportLowerEarly === "nba" && String(liveScore || gameStateLine || "").trim() ? 220 : null;
+
   let leanMerged = synthesizeLeanLine({ lean, call: callScrub, whyNow });
   if (liveLeanCap != null && leanMerged.length > liveLeanCap) {
     leanMerged = `${leanMerged.slice(0, liveLeanCap - 1).trim()}…`;
@@ -118,14 +121,7 @@ export default function URTakeResponse({
   const leanDisplay = scrubStructuredFaceText(
     rulesCallType ? rulesHeadline : leanMerged,
   );
-  const headline = pickSharpBriefHeadline(
-    leanDisplay,
-    rulesCallType ? rulesHeadline : callScrub,
-    edgeDisplay,
-    callType,
-    sport,
-  );
-  const sportLower = String(sport || "").toLowerCase();
+  const sportLower = sportLowerEarly;
   const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
   const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
   const callTypeLower = String(callType || "").toLowerCase();
@@ -133,6 +129,16 @@ export default function URTakeResponse({
   const isWcPlayerMarketCard =
     sportLower === "worldcup" &&
     (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
+  const headline =
+    isWcPlayerMarketCard && callScrub && callScrub !== "—"
+      ? callScrub
+      : pickSharpBriefHeadline(
+          leanDisplay,
+          rulesCallType ? rulesHeadline : callScrub,
+          edgeDisplay,
+          callType,
+          sport,
+        );
   const playerMarketPass =
     isWcPlayerMarketCard &&
     (callTypeLower === "player_market_pass" || callTypeLower === "player_market_thin");
@@ -162,8 +168,6 @@ export default function URTakeResponse({
   const marketPill = inferMarketPill(callScrub, callType);
   const marketPillDistinct =
     marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
-
-  const liveLeanCap = sportLower === "nba" && showLiveRibbon ? 220 : null;
 
   const contextLine =
     String(nbaContextBar || "").trim() ||

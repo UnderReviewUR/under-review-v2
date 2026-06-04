@@ -291,6 +291,10 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     nbaIntent === "PREGAME_MATCHUP" ||
     nbaIntent === "SERIES_WINNER" ||
     nbaIntent === "FINALS_MVP";
+  const isWcPlayerMarket =
+    wcIntent === WC_INTENT.PLAYER_PROP ||
+    wcIntent === WC_INTENT.GOLDEN_BOOT ||
+    wcIntent === WC_INTENT.TOP_SCORER;
   const extendedLean = isRules || isMatchup || isAnalysis || isNbaExtended;
   const clip = (v, max) => {
     if (v == null) return "";
@@ -309,6 +313,23 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     s.lean = clip(s.lean, 800);
     s.call = clip(s.call, 800) || "Knockout rules reference";
     s.confidence = clip(s.confidence, 120) || "High";
+  } else if (isWcPlayerMarket) {
+    s.sport = "worldcup";
+    s.lean = clip(s.lean, 120);
+    s.call = clip(s.call, 100) || "—";
+    s.whyNow = clip(s.whyNow, 320);
+    s.edge = clip(s.edge, 160);
+    s.confidence = clip(s.confidence, 120) || "Speculative";
+    s.callType =
+      clip(s.callType, 48).toLowerCase() ||
+      (s.playerMarketTier === "verified"
+        ? "player_market_verified"
+        : s.playerMarketTier === "squad"
+          ? "player_market_squad"
+          : "player_market_odds");
+    if (s.playerMarketTier) {
+      s.playerMarketTier = clip(s.playerMarketTier, 24);
+    }
   } else {
     s.lean = clip(s.lean, isNbaLive ? 220 : extendedLean ? 800 : 120);
     s.call = clip(s.call, 8000) || "—";
@@ -2089,6 +2110,18 @@ ${themeCss}
         ...structuredForBubble,
         callType: "analysis",
         sport: "worldcup",
+      };
+    } else if (
+      structuredForBubble &&
+      (resolvedWcIntent === WC_INTENT.GOLDEN_BOOT ||
+        resolvedWcIntent === WC_INTENT.TOP_SCORER ||
+        resolvedWcIntent === WC_INTENT.PLAYER_PROP)
+    ) {
+      const tier = String(data.playerMarketTier || structuredForBubble.playerMarketTier || "");
+      structuredForBubble = {
+        ...structuredForBubble,
+        sport: "worldcup",
+        playerMarketTier: tier || structuredForBubble.playerMarketTier,
       };
     }
 
