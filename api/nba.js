@@ -15,7 +15,7 @@ import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
-import { hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
+import { buildGameTotalsFromSlate, hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 import {
   getEtDateString,
@@ -36,6 +36,12 @@ import {
   meetsNbaStructuralImpactThreshold,
   sanitizeNbaNewsImpactForStructuralAngles,
 } from "../shared/structuralAngleValidation.js";
+import {
+  findFocusedNbaGameOnSlate,
+  nbaBoardCacheTtlMs,
+  nbaGameIsLiveOrHalftimeForRefresh,
+  resolveNbaMatchupProbeFromContext,
+} from "../shared/nbaLiveBoardRefresh.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 const cache = new Map();
@@ -2083,6 +2089,9 @@ const NBA_QUERY_TEAM_ALIASES = {
   suns: "PHX",
   rockets: "HOU",
   spurs: "SAS",
+  knicks: "NYK",
+  celtics: "BOS",
+  heat: "MIA",
   clippers: "LAC",
 };
 
@@ -3233,13 +3242,29 @@ async function getNbaPlayoffSeries() {
   }
 }
 
+/** @deprecated — use buildGameTotalsFromSlate; kept as fallback when Odds API unavailable. */
 function buildGameTotalsFromProps(propLines) {
   const totals = {};
-  for (const line of propLines||[]) {
+  for (const line of propLines || []) {
     if (!line.game) continue;
-    if (!totals[line.game]) totals[line.game] = { total:null, pace:"NEUTRAL" };
+    if (!totals[line.game]) totals[line.game] = { total: null, pace: "NEUTRAL" };
   }
   return totals;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} todaysGames
+ * @param {string | null} [oddsKey]
+ */
+async function resolveGameTotalsForBoard(todaysGames, oddsKey) {
+  try {
+    const fromOdds = await buildGameTotalsFromSlate(todaysGames, oddsKey);
+    const hasAny = Object.values(fromOdds).some((r) => r?.total != null);
+    if (hasAny) return fromOdds;
+  } catch (err) {
+    console.warn("[nba] buildGameTotalsFromSlate failed:", err?.message || err);
+  }
+  return buildGameTotalsFromProps([]);
 }
 
 /** Prepended in board JSON immediately before `injuries` so UR Take stringified context lists injuries last. */
@@ -3252,6 +3277,56 @@ export async function fetchNbaSlateGamesForOddsRefresh() {
   const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
   const tgRes = await getTodaysGames(ODDS_KEY, BDL_KEY);
   return Array.isArray(tgRes.games) ? tgRes.games : [];
+}
+
+/**
+ * Live in-game box snapshot for UR Take + home live-edge helper (BDL game_box rows only).
+ * @param {object} board
+ * @param {string} [question]
+ */
+export function buildNbaLiveBoxscoreFromBoard(board, question = "") {
+  const games = Array.isArray(board?.todaysGames) ? board.todaysGames : [];
+  const liveGames = games.filter(nbaGameIsLiveOrHalftimeForRefresh);
+  if (!liveGames.length) return null;
+
+  const matchup = resolveNbaMatchupProbeFromContext(board, question);
+  const focused =
+    findFocusedNbaGameOnSlate(board, matchup) ||
+    (liveGames.length === 1 ? liveGames[0] : liveGames[0]);
+  if (!focused || !nbaGameIsLiveOrHalftimeForRefresh(focused)) return null;
+
+  const gid = focused?.id;
+  if (gid == null) return null;
+
+  const playerStats = Array.isArray(board?.playerStats) ? board.playerStats : [];
+  const players = playerStats
+    .filter((p) => Number(p?.gameId) === Number(gid))
+    .map((p) => ({
+      name: p?.name,
+      team: p?.team,
+      pf: p?.pf,
+      pts: p?.pts,
+      reb: p?.reb,
+      ast: p?.ast,
+      min: p?.min,
+      playerId: p?.playerId,
+      period: focused?.period,
+    }))
+    .filter((p) => p?.name);
+
+  if (!players.length) return null;
+
+  return {
+    gameId: gid,
+    period: focused?.period ?? null,
+    quarter: focused?.period ?? null,
+    status: focused?.status ?? null,
+    state: focused?.state ?? null,
+    awayTeam: focused?.awayTeam ?? null,
+    homeTeam: focused?.homeTeam ?? null,
+    players,
+    fetchedAt: board?.fetchedAt ?? new Date().toISOString(),
+  };
 }
 
 /**
@@ -3344,7 +3419,10 @@ export async function buildNbaUrTakeBoard(question = "") {
     depthRotationByTeam,
   });
 
-  const { spreads, movementByGame } = await hydrateNbaGameSpreads(todaysGames, ODDS_KEY);
+  const [{ spreads, movementByGame }, gameTotals] = await Promise.all([
+    hydrateNbaGameSpreads(todaysGames, ODDS_KEY),
+    resolveGameTotalsForBoard(todaysGames, ODDS_KEY),
+  ]);
 
   const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
   const deepHydratedTeams = [
@@ -3380,7 +3458,7 @@ export async function buildNbaUrTakeBoard(question = "") {
     playoffSeries,
     recentForm: "",
     h2hSplits: [],
-    gameTotals: buildGameTotalsFromProps(propLines),
+    gameTotals,
     spreads,
     spreadMovementByGame: movementByGame,
     bdlGrounding: buildBdlGroundingEnvelope({
@@ -3424,6 +3502,7 @@ export async function buildNbaUrTakeBoard(question = "") {
 
   board.newsImpact = buildNbaNewsImpact(board);
   board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
+  board.liveBoxscore = buildNbaLiveBoxscoreFromBoard(board, question);
   board = prioritizeNbaBoardForQuestion(board, directAbbrevs, playoffOnlyAbbrevs);
   try {
     board.playoffPathGrounding = await buildNbaPlayoffPathGrounding(board.playoffSeries || [], boost);
@@ -3474,6 +3553,12 @@ export default async function handler(req, res) {
         if (rec?.games?.length) games = rec.games;
       }
       return res.status(200).json(games);
+    }
+
+    if (view === "outrights") {
+      const { getNbaOutrightsPayload } = await import("./_nbaOutrightsData.js");
+      const payload = await getNbaOutrightsPayload();
+      return res.status(200).json(payload);
     }
 
     if (view === "board") {
@@ -3642,8 +3727,11 @@ export default async function handler(req, res) {
         statsBundle.statsSource || "season_average",
       );
 
-      const { spreads: warmupSpreads, movementByGame: warmupMovement } =
-        await hydrateNbaGameSpreads(todaysGames, ODDS_KEY);
+      const [{ spreads: warmupSpreads, movementByGame: warmupMovement }, warmupGameTotals] =
+        await Promise.all([
+          hydrateNbaGameSpreads(todaysGames, ODDS_KEY),
+          resolveGameTotalsForBoard(todaysGames, ODDS_KEY),
+        ]);
 
       const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
       const deepHydratedTeams = [
@@ -3688,7 +3776,7 @@ export default async function handler(req, res) {
         playoffSeries,
         recentForm: "",
         h2hSplits: [],
-        gameTotals: buildGameTotalsFromProps(propLines),
+        gameTotals: warmupGameTotals,
         spreads: warmupSpreads,
         spreadMovementByGame: warmupMovement,
         bdlGrounding: buildBdlGroundingEnvelope({
@@ -3712,6 +3800,7 @@ export default async function handler(req, res) {
       board.newsImpact = buildNbaNewsImpact(board);
       const le0 = Date.now();
       board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);
+      board.liveBoxscore = buildNbaLiveBoxscoreFromBoard(board, "");
       const liveEdgeAlertsMs = Date.now() - le0;
       compressNbaBoardForWire(board);
 
@@ -3751,12 +3840,12 @@ export default async function handler(req, res) {
         injuries.length > 0 ||
         (statsBundle.playerStats || []).length > 0
       ) {
-        setCached(boardCacheKey, board);
+        setCached(boardCacheKey, board, nbaBoardCacheTtlMs(todaysGames, CACHE_TTL));
       }
       return res.status(200).json(board);
     }
 
-    return res.status(400).json({ error:"Invalid view", allowed:["board","games"] });
+    return res.status(400).json({ error:"Invalid view", allowed:["board","games","outrights"] });
   } catch (err) {
     console.error("NBA API error:", err);
     return res.status(500).json({ error: "Something went wrong. Please try again." });

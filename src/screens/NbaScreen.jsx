@@ -11,6 +11,7 @@ import {
   getEtHour24,
 } from "../lib/nbaTime.js";
 import { nbaEventKey } from "../../shared/homeEventDedup.js";
+import { formatNbaLiveContextLabel } from "../lib/nbaLiveContextLabel.js";
 
 export default function NbaScreen({
   nbaScreenRef,
@@ -44,6 +45,7 @@ export default function NbaScreen({
         }
       : null;
   const nbaQuickPrompts = getQuickPromptsForState("nba", deriveDominantGameState(gamesForState));
+  const slateHasLive = gamesForState.some((g) => g.state === "in");
 
   const slateNote = String(nbaData?.todaysGamesSlateMeta?.note || "").trim();
   const apiGamesLen = Array.isArray(nbaData?.todaysGames) ? nbaData.todaysGames.length : 0;
@@ -56,8 +58,13 @@ export default function NbaScreen({
         )
       : null;
 
+  const liveGame = gamesForState.find((g) => g.state === "in") || null;
+  const liveContextLabel = formatNbaLiveContextLabel(liveGame, playoffSeries);
+
   const bannerCounts =
-    featuredGame
+    liveContextLabel
+      ? liveContextLabel
+      : featuredGame
       ? formatNbaSlateBannerLine(featuredGame, featuredSeriesLabel)
       : nbaLoading
         ? "Loading…"
@@ -196,8 +203,12 @@ export default function NbaScreen({
         {playerChips.length > 0 && (
           <>
             <div className="section-divider">
-              Tonight&apos;s Featured Players
-              {propsFreshness?.stale ? " · lines may be stale" : ""}
+              {slateHasLive ? "Live prop angles" : "Tonight\u2019s Featured Players"}
+              {propsFreshness?.stale
+                ? " · lines may be stale"
+                : slateHasLive
+                  ? " · refreshed ~18s"
+                  : ""}
             </div>
             <div className="nba-player-card-grid">
               {playerChips.map((row) => (
@@ -208,6 +219,7 @@ export default function NbaScreen({
                   teamAbbr={row.teamAbbr}
                   statRow={resolveStatRowForUiChip(row, playerStats)}
                   onAsk={submitNba}
+                  isLiveSlate={slateHasLive}
                 />
               ))}
             </div>

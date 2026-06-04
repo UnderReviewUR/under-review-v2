@@ -45,6 +45,22 @@ import {
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
 } from "../shared/wcUrTakeIntent.js";
+import { buildNbaRelevanceLog } from "../shared/nbaUrTakeRelevance.js";
+import { nbaRequiresLiveUrTakeBoardRefresh } from "../shared/nbaLiveBoardRefresh.js";
+import {
+  classifyNbaQuestionIntent,
+  NBA_INTENT,
+  resolveRequiredNbaEntities,
+} from "../shared/nbaUrTakeIntent.js";
+import {
+  formatNbaOutrightsForPrompt,
+  nbaOutrightsInjectedForContext,
+} from "../shared/nbaOutrightsFreshness.js";
+import { resolveNbaFinalsUrTakeContext } from "../shared/nbaFinalsUtils.js";
+import {
+  readNbaFinalsMvpFromKv,
+  readNbaFinalsSeriesFromKv,
+} from "./_nbaOutrightsData.js";
 import {
   buildEntityBindingPromptBlock,
   resolveRequiredEntities,
@@ -214,13 +230,47 @@ function buildGolfOddsFreshnessPromptBlock(odds) {
 /** Inline duplicate of _nbaPropsApi.buildNbaPropsFreshnessPromptBlock — avoids ur-take importing scrape stack at module load. */
 function buildNbaPropsFreshnessPromptBlock(propsOdds) {
   const fresh = propsOdds?.freshness;
+  const liveTag = propsOdds?.isLive || fresh?.maxAgeMinutes === 15 ? " (live game — max 15 min)" : "";
   if (!fresh?.isStale && !fresh?.staleWarning) {
     if (propsOdds?.fetchedAt) {
-      return `\nODDS FRESHNESS: Posted NBA prop lines fetched at ${propsOdds.fetchedAt} (${fresh?.ageMinutes ?? "?"} min ago). Cite only prices listed under propsOdds.players[].props (points/rebounds/assists) and their books arrays.\n`;
+      return `\nODDS FRESHNESS: Posted NBA prop lines fetched at ${propsOdds.fetchedAt} (${fresh?.ageMinutes ?? "?"} min ago${liveTag}). Cite only prices listed under propsOdds.players[].props (points/rebounds/assists) and their books arrays.\n`;
     }
     return "";
   }
-  return `\nODDS FRESHNESS (mandatory):\n${fresh.staleWarning}\nFetched at: ${fresh.fetchedAt || propsOdds.fetchedAt || "unknown"}.\n`;
+  return `\nODDS FRESHNESS (mandatory):\n${fresh.staleWarning}\nFetched at: ${fresh.fetchedAt || propsOdds.fetchedAt || "unknown"}${liveTag}.\n`;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} nbaContext
+ * @param {{ awayAbbr?: string, homeAbbr?: string } | null | undefined} nbaMatchup
+ */
+function buildNbaGameTotalsPromptBlock(nbaContext, nbaMatchup) {
+  const totals =
+    nbaContext?.gameTotals && typeof nbaContext.gameTotals === "object" && !Array.isArray(nbaContext.gameTotals)
+      ? nbaContext.gameTotals
+      : {};
+  const away = String(nbaMatchup?.awayAbbr || "").toUpperCase();
+  const home = String(nbaMatchup?.homeAbbr || "").toUpperCase();
+  let row = null;
+  let label = null;
+  for (const [k, v] of Object.entries(totals)) {
+    const ku = String(k).toUpperCase();
+    if (away && home && ku.includes(away) && ku.includes(home)) {
+      row = v;
+      label = k;
+      break;
+    }
+  }
+  if (!row && Object.keys(totals).length === 1) {
+    label = Object.keys(totals)[0];
+    row = totals[label];
+  }
+  if (row?.total != null && Number.isFinite(Number(row.total))) {
+    const pace = row.pace || "NEUTRAL";
+    const src = row.source ? ` source=${row.source}` : "";
+    return `\nGAME TOTAL (posted): ${label} — ${Number(row.total)} (pace: ${pace}${src}). Cite this number verbatim for pace/total reads; do not invent a different total.\n`;
+  }
+  return `\nGAME TOTAL: No posted total in gameTotals for this matchup — discuss pace qualitatively; do not invent a total line.\n`;
 }
 
 /**
@@ -5126,6 +5176,17 @@ export default async function handler(req, res) {
     qaEntityMatch: null,
     qaIntentMatch: null,
   };
+  let nbaRelevanceMustFetch = null;
+  let nbaRelevanceServerBoardFetched = false;
+  let nbaRelevanceClientContextUsable = null;
+  let nbaLiveBoardRefreshForced = false;
+  let nbaClientContextIgnored = false;
+  let nbaFinalsOutrightsBlock = null;
+  let nbaFinalsContextBlock = null;
+  /** @type {{ finalsMode: boolean, seriesState: object | null }} */
+  let nbaFinalsModeMeta = { finalsMode: false, seriesState: null };
+  /** @type {{ outrightsInjected: boolean, seriesStale: boolean, mvpStale: boolean, seriesAgeMinutes: number | null, mvpAgeMinutes: number | null } | null} */
+  let nbaFinalsOutrightsMeta = null;
   let wcIntent = null;
   let wcRequiredEntities = [];
   let wcForbiddenEntities = [];
@@ -5158,13 +5219,28 @@ export default async function handler(req, res) {
     effectiveStructuredModeRequested = false;
   }
   if (sportHint === "nba") {
+    const liveBoardRefreshForced = nbaRequiresLiveUrTakeBoardRefresh(
+      nbaContextFromClient || nbaContext,
+      String(question || ""),
+    );
+    nbaLiveBoardRefreshForced = liveBoardRefreshForced;
     const mustFetchNbaBoard =
-      sportSwitched || !nbaUrTakeContextHasUsableData(nbaContext);
+      sportSwitched ||
+      liveBoardRefreshForced ||
+      !nbaUrTakeContextHasUsableData(nbaContext);
+    nbaRelevanceMustFetch = mustFetchNbaBoard;
+    nbaRelevanceClientContextUsable = liveBoardRefreshForced
+      ? false
+      : nbaUrTakeContextHasUsableData(nbaContextFromClient);
     try {
       const nbaT0 = Date.now();
       let fresh = null;
       if (mustFetchNbaBoard) {
-        fresh = preloadedNbaBoard || (await buildNbaUrTakeBoard(String(question || "")));
+        const usePreloaded =
+          !liveBoardRefreshForced && preloadedNbaBoard && !sportSwitched;
+        fresh =
+          (usePreloaded ? preloadedNbaBoard : null) ||
+          (await buildNbaUrTakeBoard(String(question || "")));
         if (!nbaBoardHasPostedPropMarkets(fresh)) {
           fresh = await hydrateNbaPropsOdds(fresh);
         }
@@ -5179,6 +5255,7 @@ export default async function handler(req, res) {
         );
       }
       if (fresh) {
+        nbaRelevanceServerBoardFetched = true;
         const probeGameId =
           fresh?.todaysGames?.find((g) => g?.actionNetworkGameId)?.actionNetworkGameId ??
           fresh?.sourceMeta?.propsOddsGameId ??
@@ -5200,10 +5277,13 @@ export default async function handler(req, res) {
           }),
         );
         nbaBoardBuildMs = Date.now() - nbaT0;
+        nbaClientContextIgnored = liveBoardRefreshForced;
         nbaContext = {
           ...fresh,
           question: String(question || ""),
-          clientUiSurface: nbaContextFromClient?.clientUiSurface ?? fresh.clientUiSurface,
+          clientUiSurface: liveBoardRefreshForced
+            ? fresh.clientUiSurface
+            : (nbaContextFromClient?.clientUiSurface ?? fresh.clientUiSurface),
         };
         nbaContext.rosterGrounding = augmentNbaRosterGroundingWithUi(
           nbaContext.rosterGrounding,
@@ -5230,12 +5310,13 @@ export default async function handler(req, res) {
       }
     } catch (err) {
       console.warn("[ur-take] buildNbaUrTakeBoard failed:", err?.message || err);
-      if (!sportSwitched) {
+      if (!sportSwitched && !liveBoardRefreshForced) {
         nbaContext = nbaContextFromClient;
       }
     }
     if (
       !sportSwitched &&
+      !liveBoardRefreshForced &&
       isConversationFollowUp &&
       nbaContextFromClient &&
       typeof nbaContextFromClient === "object"
@@ -5288,6 +5369,73 @@ export default async function handler(req, res) {
           },
         };
       }
+    }
+    const nbaIntentForOutrights = classifyNbaQuestionIntent(
+      String(question || ""),
+      incomingHistory,
+    );
+    const nbaMatchupProbe =
+      resolveNbaMatchupFromQuestion(String(question || ""), nbaContext || {}) || null;
+    const finalsCtxProbe = resolveNbaFinalsUrTakeContext({
+      nbaContext,
+      nbaMatchup: nbaMatchupProbe,
+      question: String(question || ""),
+      nbaIntent: nbaIntentForOutrights,
+    });
+    nbaFinalsModeMeta = {
+      finalsMode: finalsCtxProbe.finalsMode,
+      seriesState: finalsCtxProbe.seriesState,
+    };
+    nbaFinalsContextBlock = finalsCtxProbe.contextBlock;
+
+    const needsOutrights =
+      finalsCtxProbe.finalsMode ||
+      nbaIntentForOutrights === NBA_INTENT.SERIES_WINNER ||
+      nbaIntentForOutrights === NBA_INTENT.FINALS_MVP;
+
+    if (needsOutrights) {
+      const requiredEntities = resolveRequiredNbaEntities(
+        String(question || ""),
+        incomingHistory,
+        nbaIntentForOutrights,
+      );
+      const [seriesKv, mvpKv] = await Promise.all([
+        readNbaFinalsSeriesFromKv(),
+        readNbaFinalsMvpFromKv(),
+      ]);
+      nbaFinalsOutrightsBlock = formatNbaOutrightsForPrompt({
+        nbaIntent: nbaIntentForOutrights,
+        question: String(question || ""),
+        requiredEntities,
+        seriesKv,
+        mvpKv,
+      });
+      nbaFinalsOutrightsMeta = {
+        outrightsInjected: nbaOutrightsInjectedForContext(seriesKv, mvpKv),
+        seriesStale: Boolean(seriesKv?.stale),
+        mvpStale: Boolean(mvpKv?.stale),
+        seriesAgeMinutes: seriesKv?.freshness?.ageMinutes ?? null,
+        mvpAgeMinutes: mvpKv?.freshness?.ageMinutes ?? null,
+      };
+      if (nbaContext) {
+        nbaContext = {
+          ...nbaContext,
+          finalsMode: finalsCtxProbe.finalsMode,
+          finalsSeriesState: finalsCtxProbe.seriesState,
+          ...(nbaFinalsOutrightsBlock
+            ? {
+                finalsOutrightsBlock: nbaFinalsOutrightsBlock,
+                finalsOutrights: { series: seriesKv, mvp: mvpKv },
+              }
+            : {}),
+        };
+      }
+    } else if (nbaContext && finalsCtxProbe.finalsMode) {
+      nbaContext = {
+        ...nbaContext,
+        finalsMode: true,
+        finalsSeriesState: finalsCtxProbe.seriesState,
+      };
     }
   }
 
@@ -5493,6 +5641,31 @@ export default async function handler(req, res) {
 
   const nbaMatchup =
     sportHint === "nba" ? resolveNbaMatchupFromQuestion(question, nbaContext || {}) : null;
+
+  if (sportHint === "nba") {
+    const nbaIntentForFinals = classifyNbaQuestionIntent(
+      String(question || ""),
+      incomingHistory,
+    );
+    const finalsCtxFinal = resolveNbaFinalsUrTakeContext({
+      nbaContext,
+      nbaMatchup,
+      question: String(question || ""),
+      nbaIntent: nbaIntentForFinals,
+    });
+    nbaFinalsModeMeta = {
+      finalsMode: finalsCtxFinal.finalsMode,
+      seriesState: finalsCtxFinal.seriesState,
+    };
+    nbaFinalsContextBlock = finalsCtxFinal.contextBlock;
+    if (nbaContext && finalsCtxFinal.finalsMode) {
+      nbaContext = {
+        ...nbaContext,
+        finalsMode: true,
+        finalsSeriesState: finalsCtxFinal.seriesState,
+      };
+    }
+  }
 
   const isBoardLive = computeIsBoardLive({
     sportHint,
@@ -6354,10 +6527,11 @@ Target player: ${nbaInvalidation.targetedPlayer}
 Status: ${nbaInvalidation.statusDisplay || nbaInvalidation.statusClass}
 Rule: Do not give false certainty. Keep any take contingent on confirmed status.
 
-` : ""}${sportHint === "nba" && nbaGameStateGate ? formatNbaGameStateBlocksForUserPrompt(nbaGameStateGate) : ""}NBA context (full board — same filtered payload as the opening turn; cite only numbers present):
+` : ""}${sportHint === "nba" && nbaGameStateGate ? formatNbaGameStateBlocksForUserPrompt(nbaGameStateGate) : ""}${nbaFinalsContextBlock ? `${nbaFinalsContextBlock}\n` : ""}${nbaFinalsOutrightsBlock ? `${nbaFinalsOutrightsBlock}\n\n` : ""}NBA context (full board — same filtered payload as the opening turn; cite only numbers present):
 ${contextJsonForModel(nbaContextForModel)}
 ${buildNbaPropsFreshnessPromptBlock(resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
 ${buildNbaKeyPropsLinesPromptBlock(nbaContextForModel, resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
+${buildNbaGameTotalsPromptBlock(nbaContextForModel, nbaMatchup)}
 
 Default confidence should be ${derivedConfidence}.
 
@@ -6408,10 +6582,11 @@ Rule: Do not give false certainty. Keep any take contingent on confirmed status.
       nbaContextForModel?.focusedSeriesSnapshot?.serverSummaryOneLiner
         ? `FOCUSED PLAYOFF SERIES (board-verified — mirror this in series framing; do not invent wins/game number)\n${nbaContextForModel.focusedSeriesSnapshot.serverSummaryOneLiner}\n\n`
         : ""
-    }NBA context:
+    }${nbaFinalsContextBlock ? `${nbaFinalsContextBlock}\n` : ""}${nbaFinalsOutrightsBlock ? `${nbaFinalsOutrightsBlock}\n\n` : ""}NBA context:
 ${contextJsonForModel(nbaContextForModel)}
 ${buildNbaPropsFreshnessPromptBlock(resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
 ${buildNbaKeyPropsLinesPromptBlock(nbaContextForModel, resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
+${buildNbaGameTotalsPromptBlock(nbaContextForModel, nbaMatchup)}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
@@ -8213,6 +8388,33 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           }
         : {};
 
+    const nbaRelevanceLog =
+      sportHint === "nba"
+        ? buildNbaRelevanceLog({
+            question: String(question || ""),
+            history: incomingHistory,
+            nbaContext,
+            nbaContextFromClient,
+            mustFetchNbaBoard: nbaRelevanceMustFetch,
+            serverBoardFetched: nbaRelevanceServerBoardFetched,
+            clientContextUsable: nbaRelevanceClientContextUsable,
+            liveBoardRefreshForced: nbaLiveBoardRefreshForced,
+            clientContextIgnored: nbaClientContextIgnored,
+            outrightsInjected: Boolean(nbaFinalsOutrightsMeta?.outrightsInjected),
+            seriesOutrightsStale: nbaFinalsOutrightsMeta?.seriesStale ?? null,
+            mvpOutrightsStale: nbaFinalsOutrightsMeta?.mvpStale ?? null,
+            seriesOutrightsAgeMinutes: nbaFinalsOutrightsMeta?.seriesAgeMinutes ?? null,
+            mvpOutrightsAgeMinutes: nbaFinalsOutrightsMeta?.mvpAgeMinutes ?? null,
+            finalsMode: nbaFinalsModeMeta?.finalsMode ?? null,
+            finalsSeriesSummary: nbaFinalsModeMeta?.seriesState?.seriesScoreLabel ?? null,
+            finalsGameNumber: nbaFinalsModeMeta?.seriesState?.gameNumber ?? null,
+            finalsContextInjected: Boolean(nbaFinalsContextBlock),
+            nbaMatchup,
+            isConversationFollowUp,
+            qaSummary: qaSummaryForLog,
+          })
+        : null;
+
     console.log(
       JSON.stringify({
         requestId,
@@ -8240,6 +8442,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         haikuFollowUpsMs,
         ...nbaPlayoffFocusLog,
         ...(sportHint === "worldcup" ? { wcRelevance: wcRelevanceLog } : {}),
+        ...(nbaRelevanceLog ? { nbaRelevance: nbaRelevanceLog } : {}),
       }),
     );
 

@@ -54,6 +54,28 @@ function gameFromOddsApiEvent(event) {
   };
 }
 
+function totalsFromOddsApiEvent(event) {
+  const meta = gameFromOddsApiEvent(event);
+  if (!meta) return null;
+  const book = pickBookmaker(event?.bookmakers);
+  const market = book?.markets?.find((m) => m?.key === "totals");
+  if (!market?.outcomes?.length) return null;
+
+  const over = market.outcomes.find((o) => String(o?.name || "").toLowerCase() === "over");
+  const point = over?.point ?? market.outcomes.find((o) => o?.point != null)?.point;
+  const total = point != null && Number.isFinite(Number(point)) ? Number(point) : null;
+  if (total == null) return null;
+
+  return {
+    ...meta,
+    total,
+    pace: "NEUTRAL",
+    book: book?.key || null,
+    capturedAt: new Date().toISOString(),
+    source: "odds_api",
+  };
+}
+
 function spreadFromOddsApiEvent(event) {
   const meta = gameFromOddsApiEvent(event);
   if (!meta) return null;
@@ -81,6 +103,27 @@ function spreadFromOddsApiEvent(event) {
  * @param {string} oddsKey
  * @param {string} [sportKey]
  */
+export async function fetchNbaTotalsFromOddsApi(oddsKey, sportKey = "basketball_nba") {
+  if (!oddsKey) return { ok: false, byGameKey: new Map() };
+  try {
+    const url = `${ODDS_BASE}/sports/${sportKey}/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`;
+    const res = await fetch(url);
+    logOddsApiUsage({ label: "gameOdds.fetchNbaTotalsFromOddsApi", url, response: res });
+    if (!res.ok) return { ok: false, byGameKey: new Map() };
+    const data = await res.json();
+    if (!Array.isArray(data)) return { ok: false, byGameKey: new Map() };
+
+    const byGameKey = new Map();
+    for (const event of data) {
+      const row = totalsFromOddsApiEvent(event);
+      if (row?.gameKey && row.total != null) byGameKey.set(row.gameKey, row);
+    }
+    return { ok: true, byGameKey };
+  } catch {
+    return { ok: false, byGameKey: new Map() };
+  }
+}
+
 export async function fetchNbaSpreadsFromOddsApi(oddsKey, sportKey = "basketball_nba") {
   if (!oddsKey) return { ok: false, byGameKey: new Map() };
   try {
@@ -292,6 +335,37 @@ export async function hydrateNbaGameSpreads(todaysGames = [], oddsKey = null) {
   );
 
   return { spreads, movementByGame };
+}
+
+/**
+ * Build gameTotals map keyed by "AWY @ HOM" for board / UR Take.
+ * @param {Array<Record<string, unknown>>} todaysGames
+ * @param {string | null} [oddsKey]
+ */
+export async function buildGameTotalsFromSlate(todaysGames = [], oddsKey = null) {
+  const key = oddsKey || getEnv("ODDS_API_KEY");
+  const games = Array.isArray(todaysGames) ? todaysGames : [];
+  const api = await fetchNbaTotalsFromOddsApi(key);
+  /** @type {Record<string, { total: number | null, pace: string, source?: string }>} */
+  const totals = {};
+
+  for (const game of games) {
+    const meta = slateGameMeta(game);
+    if (!meta) continue;
+    const label = `${meta.awayAbbr} @ ${meta.homeAbbr}`;
+    const row = api.ok ? api.byGameKey.get(meta.gameKey) : null;
+    if (row?.total != null) {
+      totals[label] = {
+        total: row.total,
+        pace: row.pace || "NEUTRAL",
+        source: row.source || "odds_api",
+      };
+    } else {
+      totals[label] = { total: null, pace: "NEUTRAL" };
+    }
+  }
+
+  return totals;
 }
 
 /**

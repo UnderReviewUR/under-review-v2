@@ -32,8 +32,15 @@ import {
   resolveWcIntentFromMessage,
   resolveWcVerdictFromQuestion,
 } from "../../../shared/wcUrTakeVerdict.js";
+import {
+  filterNbaFollowUpsForVerdict,
+  getNbaVerdictFollowUpChips,
+  getNbaVerdictNextLine,
+  resolveNbaVerdictFromQuestion,
+} from "../../../shared/nbaUrTakeVerdict.js";
 import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "../../../shared/wcUrTakeIntent.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
+import { buildNbaUrTakeContextBar } from "../../lib/nbaUrTakeContextBar.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 export { formatUrTakeSportTag };
@@ -1054,6 +1061,28 @@ export function getFollowUpSuggestions(message, userQuestion = "") {
     return polishFollowUpList(getVerdictFollowUpChips(verdict));
   }
 
+  if (sport === "nba") {
+    const q = String(userQuestion || message?.userQuestion || "").trim();
+    const nbaIntent =
+      message?.nbaRelevance?.nbaIntent || message?.urTakeTelemetry?.nbaIntent || null;
+    const verdict = resolveNbaVerdictFromQuestion(q, message);
+    const chips = filterNbaFollowUpsForVerdict(
+      getNbaVerdictFollowUpChips(verdict, nbaIntent),
+      verdict,
+    );
+    if (api.length >= 3) {
+      return polishFollowUpList(
+        filterNbaFollowUpsForVerdict(mergeFollowUpChips(api, chips), verdict).slice(0, 3),
+      );
+    }
+    if (api.length > 0) {
+      return polishFollowUpList(
+        filterNbaFollowUpsForVerdict(mergeFollowUpChips(api, chips), verdict),
+      );
+    }
+    return polishFollowUpList(chips);
+  }
+
   const contentStr =
     typeof message?.content === "string"
       ? message.content
@@ -1571,7 +1600,9 @@ function UrTakeNextContinuationLine({ message = null, userQuestion = "" }) {
   const line =
     sport === "worldcup"
       ? getVerdictNextLine(resolveWcVerdictFromQuestion(q, message))
-      : "Next: what's one thing that could break this?";
+      : sport === "nba"
+        ? getNbaVerdictNextLine(resolveNbaVerdictFromQuestion(q, message))
+        : "Next: what's one thing that could break this?";
   return <p className="ur-take-next-line">{line}</p>;
 }
 
@@ -1861,6 +1892,18 @@ function UrTakeAiBubble({
             takeMeta={m.takeMeta}
             structuralEdgeChip={structuralEdgeChip}
             dataConfidence={m.dataConfidence}
+            nbaRelevance={m.nbaRelevance ?? null}
+            nbaContextBar={buildNbaUrTakeContextBar({
+              sport: s.sport,
+              call: s.call,
+              callType: s.callType,
+              showLiveRibbon: Boolean(structuredGameStateLine || m.liveScore),
+              gameStateLine: structuredGameStateLine,
+              liveScore: String(m.liveScore || "").trim(),
+              nbaRelevance: m.nbaRelevance ?? null,
+              userQuestion,
+              message: m,
+            })}
           />
         </UrTakeSectionErrorBoundary>
         <WcUrTakePendingNudge

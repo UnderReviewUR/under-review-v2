@@ -70,6 +70,7 @@ export default function URTakeResponse({
   takeMeta = null,
   structuralEdgeChip = null,
   dataConfidence = null,
+  nbaContextBar = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -109,8 +110,12 @@ export default function URTakeResponse({
       : null;
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
+  let leanMerged = synthesizeLeanLine({ lean, call: callScrub, whyNow });
+  if (liveLeanCap != null && leanMerged.length > liveLeanCap) {
+    leanMerged = `${leanMerged.slice(0, liveLeanCap - 1).trim()}…`;
+  }
   const leanDisplay = scrubStructuredFaceText(
-    rulesCallType ? rulesHeadline : synthesizeLeanLine({ lean, call: callScrub, whyNow }),
+    rulesCallType ? rulesHeadline : leanMerged,
   );
   const headline = pickSharpBriefHeadline(
     leanDisplay,
@@ -135,14 +140,19 @@ export default function URTakeResponse({
   const marketPillDistinct =
     marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
 
-  const contextLine = rulesCallType
-    ? "Knockout rules · Reference"
-    : String(callType || "").toLowerCase() === "matchup"
-      ? [edgeTypePill, marketPillDistinct ?? "Group stage"].join(" · ")
-      : [
-          marketPillDistinct ?? edgeTypePill,
-          showLiveRibbon ? "Live" : "Tonight",
-        ].join(" · ");
+  const sportLower = String(sport || "").toLowerCase();
+  const liveLeanCap = sportLower === "nba" && showLiveRibbon ? 220 : null;
+
+  const contextLine =
+    String(nbaContextBar || "").trim() ||
+    (rulesCallType
+      ? "Knockout rules · Reference"
+      : String(callType || "").toLowerCase() === "matchup"
+        ? [edgeTypePill, marketPillDistinct ?? "Group stage"].join(" · ")
+        : [
+            marketPillDistinct ?? edgeTypePill,
+            showLiveRibbon ? "Live" : "Tonight",
+          ].join(" · "));
 
   const modePill =
     rulesCallType ? (

@@ -10,6 +10,7 @@ import {
   nbaPropsBookLabel,
 } from "../shared/nbaPropsBoardDisplay.js";
 import { NBA_UI_PLAYER_CHIPS } from "../shared/nbaUiPlayerChips.js";
+import { nbaGameIsLiveOrHalftimeForRefresh } from "../shared/nbaLiveBoardRefresh.js";
 import { fetchAndParseActionNetworkGameProps } from "./_nbaPropsFetch.js";
 import {
   getDefaultNbaPropsScrapeTarget,
@@ -37,7 +38,9 @@ async function writeCacheEntry(gameId, entry) {
   const key = nbaPropsCacheKey(gameId);
   memCache.set(key, entry);
   const ttlSeconds = Math.ceil(
-    nbaPropsCacheTtlMs(entry.fetchedAtMs, entry.tipoffMs ?? null) / 1000,
+    nbaPropsCacheTtlMs(entry.fetchedAtMs, entry.tipoffMs ?? null, {
+      isLive: Boolean(entry.isLive),
+    }) / 1000,
   );
   try {
     await setDurableJson(key, entry, { ttlSeconds });
@@ -50,13 +53,14 @@ async function writeCacheEntry(gameId, entry) {
  * @param {Record<string, unknown>} payload
  * @param {number} fetchedAtMs
  */
-export function decorateNbaPropsWithFreshness(payload, fetchedAtMs) {
-  const freshness = buildNbaPropsFreshness(fetchedAtMs);
+export function decorateNbaPropsWithFreshness(payload, fetchedAtMs, opts = {}) {
+  const freshness = buildNbaPropsFreshness(fetchedAtMs, Date.now(), opts);
   return {
     ...payload,
     fetchedAtMs,
     fetchedAt: freshness.fetchedAt,
     freshness,
+    isLive: Boolean(opts?.isLive),
   };
 }
 
@@ -113,10 +117,12 @@ export async function scrapeAndCacheNbaProps(gameId, opts = {}) {
     dateYmd: target.dateYmd || undefined,
   });
 
+  const isLive = Boolean(opts.isLive);
   const entry = {
     payload: { ...payload, scrapeMethod: payload.scrapeMethod || "rest" },
     fetchedAtMs: nowMs,
     tipoffMs: target.tipoffMs ?? null,
+    isLive,
   };
 
   await writeCacheEntry(target.gameId, entry);
@@ -132,7 +138,7 @@ export async function scrapeAndCacheNbaProps(gameId, opts = {}) {
     }),
   );
 
-  return decorateNbaPropsWithFreshness(entry.payload, nowMs);
+  return decorateNbaPropsWithFreshness(entry.payload, nowMs, { isLive });
 }
 
 /**
@@ -146,12 +152,15 @@ export async function getNbaPropsForBoard(gameId, opts = {}) {
 
   const nowMs = Date.now();
   const cached = await readCacheEntry(gid);
-  if (cached?.payload && !shouldRefreshNbaPropsCache(cached, nowMs)) {
-    return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs);
+  const isLive = Boolean(opts.isLive);
+  if (cached?.payload && !shouldRefreshNbaPropsCache({ ...cached, isLive: cached.isLive ?? isLive }, nowMs)) {
+    return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs, {
+      isLive: cached.isLive ?? isLive,
+    });
   }
 
   try {
-    const live = await scrapeAndCacheNbaProps(gid, opts);
+    const live = await scrapeAndCacheNbaProps(gid, { ...opts, isLive });
     console.log(
       JSON.stringify({
         event: "nba_props_self_heal",
@@ -171,7 +180,9 @@ export async function getNbaPropsForBoard(gameId, opts = {}) {
       }),
     );
     if (cached?.payload) {
-      return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs);
+      return decorateNbaPropsWithFreshness(cached.payload, cached.fetchedAtMs, {
+        isLive: cached.isLive ?? isLive,
+      });
     }
     return null;
   }
@@ -199,9 +210,11 @@ export function slimNbaPropsOddsForWire(propsOdds, maxPlayers = 48) {
 
 /**
  * @param {number | string} gameId
+ * @param {Record<string, unknown> | null | undefined} [slateGame]
  */
-async function hydrateNbaGamePropsForBoard(gameId) {
-  const siteProps = await getNbaPropsForBoard(gameId);
+async function hydrateNbaGamePropsForBoard(gameId, slateGame) {
+  const isLive = nbaGameIsLiveOrHalftimeForRefresh(slateGame);
+  const siteProps = await getNbaPropsForBoard(gameId, { isLive });
   if (!siteProps) return null;
   return slimNbaPropsOddsForWire(siteProps);
 }
@@ -224,7 +237,7 @@ export async function hydrateNbaPropsOdds(board) {
     const gid = resolveActionNetworkGameIdForBoardGame(game);
     if (gid == null || seen.has(gid)) continue;
     seen.add(gid);
-    const hydrated = await hydrateNbaGamePropsForBoard(gid);
+    const hydrated = await hydrateNbaGamePropsForBoard(gid, game);
     if (!hydrated) continue;
     propsOddsByGameId[String(gid)] = hydrated;
     if (!primaryProps) {

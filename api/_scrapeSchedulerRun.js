@@ -14,12 +14,14 @@ import {
   getWcRampScrapeDelayMs,
   shouldRunScrapeForGame,
 } from "../shared/scrapeCadencePolicy.js";
+import { getNbaFinalsPregamePropsScrapeDelayMs } from "../shared/nbaFinalsPropsCadence.js";
 import { sortScrapeTargetsByPriority } from "../shared/wcScrapePriority.js";
 import {
   scrapeAndCacheWcMatchBundle,
   scrapeAndCacheWcOutrights,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
+import { scrapeAndCacheNbaFinalsOutrights } from "./_nbaOutrightsData.js";
 
 const LAST_RUN_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_SCRAPES_PER_TICK = 12;
@@ -32,11 +34,27 @@ const SCRAPE_HANDLERS = {
       homeTeam: meta.homeAbbr,
       awayTeam: meta.awayAbbr,
       date: meta.dateYmd,
+      isLive: Boolean(meta.isLive),
     });
     return {
       posted: props.hasPostedLines,
       playerCount: props.playerCount,
       fetchedAt: props.fetchedAt,
+    };
+  },
+  nba_finals_props: async (target) => {
+    const meta = target.meta || {};
+    const props = await scrapeAndCacheNbaProps(meta.gameId, {
+      homeTeam: meta.homeAbbr,
+      awayTeam: meta.awayAbbr,
+      date: meta.dateYmd,
+      isLive: true,
+    });
+    return {
+      posted: props.hasPostedLines,
+      playerCount: props.playerCount,
+      fetchedAt: props.fetchedAt,
+      finalsLive: true,
     };
   },
   nba_spreads: async (target) => {
@@ -104,6 +122,16 @@ const SCRAPE_HANDLERS = {
       error: result.error,
     };
   },
+  nba_finals_outrights: async () => {
+    const result = await scrapeAndCacheNbaFinalsOutrights();
+    return {
+      ok: result.ok,
+      seriesCount: Object.keys(result.series || {}).length,
+      mvpCount: Object.keys(result.mvp?.outrights || {}).length,
+      servedStale: Boolean(result.servedStale),
+      error: result.error,
+    };
+  },
 };
 
 /**
@@ -146,6 +174,11 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
 
     let intervalMs = useFixedInterval ? fixedIntervalMs : getNextScrapeDelayMs(gameStartMs, nowMs);
 
+    if (!useFixedInterval && sport === "nba_finals_props") {
+      const finalsMs = getNbaFinalsPregamePropsScrapeDelayMs(gameStartMs, nowMs);
+      if (finalsMs != null) intervalMs = finalsMs;
+    }
+
     const scrapeMode = String(target.meta?.scrapeMode || "");
     const isWcMatchBundle = sport === "wc_match_bundle";
 
@@ -159,7 +192,12 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
     }
 
     if (!useFixedInterval && intervalMs == null) {
-      const reason = nowMs >= gameStartMs ? "live_or_started" : "imminent";
+      const reason =
+        sport === "nba_finals_props"
+          ? "finals_props_window_ended"
+          : nowMs >= gameStartMs
+            ? "live_or_started"
+            : "imminent";
       console.log(
         JSON.stringify({
           target_id: `${sport}/${gameId}`,

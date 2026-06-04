@@ -22,12 +22,14 @@ function PropMarketRow({ label, market }) {
   );
 }
 
-export function NbaPlayerCard({ chip, fullName, teamAbbr, statRow, onAsk }) {
+export function NbaPlayerCard({ chip, fullName, teamAbbr, statRow, onAsk, isLiveSlate = false }) {
   const consensus = statRow?.consensusProps;
   const markets = consensus?.markets || {};
   const hasLines = Boolean(markets.points || markets.rebounds || markets.assists);
   const stale = Boolean(consensus?.oddsStale);
-  const freshnessLabel = String(consensus?.freshnessLabel || "").trim();
+  const freshnessLabel =
+    String(consensus?.freshnessLabel || "").trim() ||
+    (isLiveSlate ? "Prop · Live" : "Prop · Tonight");
   const book =
     markets.points?.book ||
     markets.rebounds?.book ||

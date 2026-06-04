@@ -27,6 +27,13 @@ import {
   WC_OUTRIGHTS_SCRAPE_INTERVAL_MS,
   WC_STANDINGS_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026Constants.js";
+import { isNbaFinalsWindowEt } from "../shared/nbaFinalsHomePrompt.js";
+import {
+  isNba2026FinalsMatchupGame,
+  shouldScrapeNbaFinalsLiveProps,
+} from "../shared/nbaFinalsPropsCadence.js";
+import { nbaGameIsLiveOrHalftimeForRefresh } from "../shared/nbaLiveBoardRefresh.js";
+import { NBA_OUTRIGHTS_SCRAPE_INTERVAL_MS } from "../shared/nba2026Constants.js";
 import { loadFinalizedWcMatchDetailIds, readWcMatchesFromKv } from "./_wcData.js";
 import {
   selectWcMatchDetailTargets,
@@ -156,6 +163,48 @@ export async function collectNbaScrapeTargets(nowMs = Date.now()) {
         source: "kv_playoff_slate",
       },
     });
+  }
+
+  if (isNbaFinalsWindowEt(new Date(nowMs), true)) {
+    out.push({
+      sport: "nba_finals_outrights",
+      gameId: "finals_futures",
+      gameStartMs: nowMs,
+      priority: 4,
+      meta: { kind: "outrights", fixedIntervalMs: NBA_OUTRIGHTS_SCRAPE_INTERVAL_MS },
+    });
+
+    const finalsLiveSeen = new Set();
+    for (const game of games) {
+      if (!isNba2026FinalsMatchupGame(game)) continue;
+      const gameStartMs = canonicalNbaStartUtcMs(game);
+      if (!shouldScrapeNbaFinalsLiveProps(game, gameStartMs, nowMs)) continue;
+      if (!nbaGameIsLiveOrHalftimeForRefresh(game)) continue;
+
+      const anId = resolveActionNetworkGameIdForBoardGame(game);
+      if (anId == null || finalsLiveSeen.has(anId)) continue;
+      finalsLiveSeen.add(anId);
+
+      const homeAbbr = canonicalizeTeamAbbr(game?.homeTeam?.abbr);
+      const awayAbbr = canonicalizeTeamAbbr(game?.awayTeam?.abbr);
+      out.push({
+        sport: "nba_finals_props",
+        gameId: String(anId),
+        gameStartMs: Number.isFinite(gameStartMs) ? gameStartMs : nowMs,
+        priority: 6,
+        meta: {
+          gameId: anId,
+          homeAbbr,
+          awayAbbr,
+          finalsProps: true,
+          isLive: true,
+          game,
+          dateYmd: gameStartMs
+            ? new Date(gameStartMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "")
+            : todayET.replace(/-/g, ""),
+        },
+      });
+    }
   }
 
   return out;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { isNbaTimeMismatch } from "../lib/nbaTime.js";
+import { nbaBoardPollIntervalMs } from "../lib/nbaLiveContextLabel.js";
 
 export function useNbaData() {
   const [nbaData, setNbaData] = useState(null);
@@ -41,6 +42,43 @@ export function useNbaData() {
 
   useEffect(() => {
     let active = true;
+    let pollId = null;
+    function schedulePoll(games) {
+      if (pollId != null) window.clearInterval(pollId);
+      const intervalMs = nbaBoardPollIntervalMs(games);
+      pollId = window.setInterval(() => {
+        fetch(`/api/nba?view=board&_ts=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (!active) return;
+            let nextGames = Array.isArray(d?.todaysGames) ? d.todaysGames : [];
+            if (nextGames.some(isNbaTimeMismatch)) {
+              fetchBoard({ bust: true })
+                .then((refetched) => {
+                  if (!active || !refetched) return;
+                  const refGames = Array.isArray(refetched?.todaysGames)
+                    ? refetched.todaysGames
+                    : nextGames;
+                  setNbaData(refetched);
+                  setNbaGames(refGames);
+                  schedulePoll(refGames);
+                })
+                .catch(() => {
+                  setNbaData(d);
+                  setNbaGames(nextGames);
+                });
+              return;
+            }
+            setNbaData(d);
+            setNbaGames(nextGames);
+            schedulePoll(nextGames);
+          })
+          .catch(() => {});
+      }, intervalMs);
+    }
     async function fetchBoard({ bust = false } = {}) {
       const qs = bust ? `&_ts=${Date.now()}` : "";
       const res = await fetch(`/api/nba?view=board${qs}`, {
@@ -74,39 +112,15 @@ export function useNbaData() {
         }
         setNbaData(nextData);
         setNbaGames(games);
+        schedulePoll(games);
       } catch { if (active) setNbaData(null); }
       finally { if (active) setNbaLoading(false); }
     }
     loadNba();
-    const poll = window.setInterval(() => {
-      fetch(`/api/nba?view=board&_ts=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (!active) return;
-          let games = Array.isArray(d?.todaysGames) ? d.todaysGames : [];
-          if (games.some(isNbaTimeMismatch)) {
-            fetchBoard({ bust: true })
-              .then((refetched) => {
-                if (!active || !refetched) return;
-                const nextGames = Array.isArray(refetched?.todaysGames) ? refetched.todaysGames : games;
-                setNbaData(refetched);
-                setNbaGames(nextGames);
-              })
-              .catch(() => {
-                setNbaData(d);
-                setNbaGames(games);
-              });
-            return;
-          }
-          setNbaData(d);
-          setNbaGames(games);
-        })
-        .catch(() => {});
-    }, 60000);
-    return () => { active=false; window.clearInterval(poll); };
+    return () => {
+      active = false;
+      if (pollId != null) window.clearInterval(pollId);
+    };
   }, []);
 
   return { nbaData, nbaLoading, nbaGames, getSeriesLabel };

@@ -280,11 +280,18 @@ function resolveWcIntentForBubble(question, apiIntent = "") {
 function sanitizeStructuredBubbleShape(raw, opts = {}) {
   if (!raw || typeof raw !== "object") return null;
   const wcIntent = String(opts.wcIntent || "").toUpperCase();
+  const nbaIntent = String(opts.nbaIntent || "").toUpperCase();
   const callType = String(raw.callType || "").toLowerCase();
   const isRules = wcIntent === WC_INTENT.RULES || callType === "rules";
   const isMatchup = wcIntent === WC_INTENT.MATCHUP || callType === "matchup";
   const isAnalysis = wcIntent === WC_INTENT.ENTITY_PRICING || callType === "analysis";
-  const extendedLean = isRules || isMatchup || isAnalysis;
+  const isNbaLive = nbaIntent === "LIVE_IN_GAME" || Boolean(opts.nbaLiveMode);
+  const isNbaExtended =
+    isNbaLive ||
+    nbaIntent === "PREGAME_MATCHUP" ||
+    nbaIntent === "SERIES_WINNER" ||
+    nbaIntent === "FINALS_MVP";
+  const extendedLean = isRules || isMatchup || isAnalysis || isNbaExtended;
   const clip = (v, max) => {
     if (v == null) return "";
     if (typeof v === "string") return v.slice(0, max).trim();
@@ -303,7 +310,7 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     s.call = clip(s.call, 800) || "Knockout rules reference";
     s.confidence = clip(s.confidence, 120) || "High";
   } else {
-    s.lean = clip(s.lean, extendedLean ? 800 : 120);
+    s.lean = clip(s.lean, isNbaLive ? 220 : extendedLean ? 800 : 120);
     s.call = clip(s.call, 8000) || "—";
     s.whyNow = clip(s.whyNow, 8000);
     s.edge = clip(s.edge, 8000);
@@ -2045,6 +2052,10 @@ ${themeCss}
     let structuredForBubble = structuredRaw
       ? sanitizeStructuredBubbleShape(structuredRaw, {
           wcIntent: resolvedWcIntent,
+          nbaIntent: String(data.nbaRelevance?.nbaIntent || "").toUpperCase(),
+          nbaLiveMode:
+            Boolean(data.liveMode) ||
+            String(data.nbaRelevance?.focusedGamePhase || "").toLowerCase() === "live",
         })
       : null;
     if (structuredForBubble && resolvedWcIntent === WC_INTENT.RULES) {
@@ -2162,12 +2173,18 @@ ${themeCss}
         ? { estimatedEdge: data.estimatedEdge }
         : {}),
       followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
+      ...(data.nbaRelevance && typeof data.nbaRelevance === "object"
+        ? { nbaRelevance: data.nbaRelevance }
+        : {}),
       urTakeTelemetry: {
         intent: String(data.intent || ""),
         liveMode: Boolean(data.liveMode),
         sport: sportTrackedForBubble,
         shownAt: Date.now(),
         ...(resolvedWcIntent ? { wcIntent: resolvedWcIntent } : {}),
+        ...(data.nbaRelevance?.nbaIntent
+          ? { nbaIntent: String(data.nbaRelevance.nbaIntent) }
+          : {}),
       },
       ...(data.userQuestion ? { userQuestion: String(data.userQuestion).trim() } : { userQuestion: text }),
       ...(resolvedWcIntent ? { wcIntent: resolvedWcIntent } : {}),
