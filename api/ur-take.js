@@ -189,7 +189,8 @@ import {
   buildTennisStructuralQaContext,
 } from "../shared/structuralAngleValidation.js";
 /** Core bro-voice system instructions — canonical text in ./_urTakeCoreVoice.js */
-export { UR_TAKE_CORE_VOICE_PROMPT, sanitizeLeanBroTone } from "./_urTakeCoreVoice.js";
+import { UR_TAKE_CORE_VOICE_PROMPT, sanitizeLeanBroTone } from "./_urTakeCoreVoice.js";
+export { UR_TAKE_CORE_VOICE_PROMPT, sanitizeLeanBroTone };
 import {
   isNbaGroundingProseRefusal,
   tryBuildNbaGroundingRedirectStructured,
@@ -5232,6 +5233,7 @@ export default async function handler(req, res) {
       console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
     }
     wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
+    wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
   }
   let effectiveStructuredModeRequested = structuredModeRequested;
   if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
@@ -7567,6 +7569,8 @@ You are responding to a Pro subscriber. Apply the following:
     let lastNonEmptyRawModelText = "";
     let nbaGroundingRedirectUsed = false;
     let wcPlayerMarketPassUsed = false;
+    /** World Cup relevance QA — declared outside QA loop for post-loop player-market repair. */
+    let wcQaResult = null;
 
     if (sportHint === "worldcup" && isWcPlayerMarketIntent(wcIntent)) {
       const wcPlayerResolved = resolveWcPlayerMarketResponse(
@@ -8160,7 +8164,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
       }
 
-      let wcQaResult = null;
+      wcQaResult = null;
       if (sportHint === "worldcup") {
         wcQaResult = runWcUrTakeQA({
           responseText,

@@ -7,6 +7,7 @@ import {
   parseAmericanOddsNumber,
 } from "./wcGoldenBootConsensus.js";
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
+import { goldenBootRowsFromKv, isPlausibleGoldenBootRow } from "./wcPlayerOddsFreshness.js";
 
 test("mergeGoldenBootConsensus — median across books", () => {
   const merged = mergeGoldenBootConsensus(
@@ -91,4 +92,23 @@ test("mergeGoldenBootWithSeed — fills gaps", () => {
 test("americanFromFractional — converts UK prices", () => {
   assert.equal(americanFromFractional("5/1"), "+500");
   assert.equal(americanFromFractional("2/1"), "+200");
+});
+
+test("isPlausibleGoldenBootRow — drops DK HTML parser junk", () => {
+  assert.equal(isPlausibleGoldenBootRow({ name: "Fworld-cup", americanOdds: "-2026" }), false);
+  assert.equal(
+    isPlausibleGoldenBootRow({ name: "Minimum leg odds of", americanOdds: "-200" }),
+    false,
+  );
+  assert.equal(
+    isPlausibleGoldenBootRow({ name: "Kylian Mbappé", americanOdds: "+600", nationAbbr: "FRA" }),
+    true,
+  );
+  const filtered = goldenBootRowsFromKv({
+    rows: [
+      { name: "Fworld-cup", americanOdds: "-2026", impliedRank: 1 },
+      { name: "Kylian Mbappé", americanOdds: "+600", nationAbbr: "FRA", impliedRank: 2 },
+    ],
+  });
+  assert.match(filtered[0].name, /Mbapp/);
 });

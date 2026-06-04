@@ -42,9 +42,25 @@ export function attachGoldenBootFreshness(kvGoldenBoot, nowMs = Date.now()) {
  * @param {import("./wc2026PlayerConstants.js").WcGoldenBootRow[]} rows
  * @param {number} [limit]
  */
+const GOLDEN_BOOT_JUNK_NAME_RE =
+  /\b(world[- ]?cup|fifa|minimum leg|the top|we often see|leg odds)\b/i;
+
+/**
+ * @param {import("./wc2026PlayerConstants.js").WcGoldenBootRow | Record<string, unknown>} row
+ */
+export function isPlausibleGoldenBootRow(row) {
+  const name = String(row?.name || "").trim();
+  if (!name || name.length < 4) return false;
+  if (GOLDEN_BOOT_JUNK_NAME_RE.test(name)) return false;
+  if (/^f[a-z]{3,}-/i.test(name)) return false;
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length < 2 && !row?.nationAbbr) return false;
+  return true;
+}
+
 export function sortGoldenBootRows(rows, limit = 20) {
   return [...(rows || [])]
-    .filter((r) => r?.name && r?.americanOdds)
+    .filter((r) => r?.name && r?.americanOdds && isPlausibleGoldenBootRow(r))
     .sort((a, b) => {
       const rankA = Number(a.impliedRank) || 999;
       const rankB = Number(b.impliedRank) || 999;
