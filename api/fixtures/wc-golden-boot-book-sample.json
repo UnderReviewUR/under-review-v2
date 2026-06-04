@@ -1,0 +1,11 @@
+{
+  "marketName": "FIFA World Cup 2026 - Golden Boot Winner",
+  "entries": [
+    { "participantName": "Kylian Mbappé", "americanOdds": "+550", "teamAbbr": "FRA" },
+    { "participantName": "Harry Kane", "americanOdds": "+700", "teamAbbr": "ENG" },
+    { "participantName": "Erling Haaland", "americanOdds": "+800", "teamAbbr": "NOR" },
+    { "participantName": "Lamine Yamal", "americanOdds": "+950", "teamAbbr": "ESP" },
+    { "participantName": "Vinícius Júnior", "americanOdds": "+1000", "teamAbbr": "BRA" },
+    { "participantName": "France", "americanOdds": "+5000", "teamAbbr": "FRA" }
+  ]
+}

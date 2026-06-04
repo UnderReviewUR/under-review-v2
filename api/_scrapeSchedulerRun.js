@@ -21,6 +21,9 @@ import {
   scrapeAndCacheWcOutrights,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
+import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
+import { scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
+import { scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import { scrapeAndCacheNbaFinalsOutrights } from "./_nbaOutrightsData.js";
 
 const LAST_RUN_TTL_SECONDS = 14 * 24 * 60 * 60;
@@ -120,6 +123,32 @@ const SCRAPE_HANDLERS = {
       count: Object.keys(result.outrights || {}).length,
       servedStale: Boolean(result.servedStale),
       error: result.error,
+    };
+  },
+  wc_players: async () => {
+    const result = await scrapeAndCacheWcPlayers();
+    return {
+      ok: result.ok,
+      teamCount: result.teamCount,
+      playerCount: result.playerCount,
+    };
+  },
+  wc_golden_boot: async () => {
+    const result = await scrapeAndCacheWcGoldenBoot();
+    return {
+      ok: result.ok,
+      rowCount: Array.isArray(result.rows) ? result.rows.length : 0,
+      booksUsed: result.booksUsed,
+      servedStale: Boolean(result.servedStale),
+      error: result.error,
+    };
+  },
+  wc_injuries: async () => {
+    const result = await scrapeAndCacheWcInjuries();
+    return {
+      ok: result.ok,
+      rowCount: result.rowCount,
+      starsOut: result.starsOut?.length ?? 0,
     };
   },
   nba_finals_outrights: async () => {

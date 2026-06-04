@@ -10,6 +10,9 @@ import {
   readWcOutrightsFromKv,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
+import { getWcGoldenBootPayload, scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
+import { getWcInjuriesPayload, scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
+import { getWcPlayersPayload, scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import {
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_TTL_SECONDS,
@@ -450,8 +453,33 @@ export default async function handler(req, res) {
       return res.status(200).json({ context, chars: context.length });
     }
 
+    if (view === "players") {
+      if (String(req.query?.refresh || "") === "1") {
+        await scrapeAndCacheWcPlayers();
+      }
+      const payload = await getWcPlayersPayload();
+      return res.status(200).json(payload);
+    }
+
+    if (view === "golden_boot" || view === "golden-boot") {
+      if (String(req.query?.refresh || "") === "1") {
+        await scrapeAndCacheWcGoldenBoot();
+      }
+      const payload = await getWcGoldenBootPayload();
+      return res.status(200).json(payload);
+    }
+
+    if (view === "injuries") {
+      if (String(req.query?.refresh || "") === "1") {
+        await scrapeAndCacheWcInjuries();
+      }
+      const payload = await getWcInjuriesPayload();
+      return res.status(200).json(payload);
+    }
+
     return res.status(400).json({
-      error: "Invalid view — use groups, matches, outrights, upcoming, live, detail, or context.",
+      error:
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, or injuries.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

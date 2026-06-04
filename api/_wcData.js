@@ -172,6 +172,23 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
         lineupConfirmed: detail.lineupConfirmed,
         finalized: detail.finalized,
       };
+
+      try {
+        const [{ upsertWcPlayersFromMatchDetail }, { upsertWcInjuriesFromMatchDetail }] =
+          await Promise.all([import("./_wcPlayersData.js"), import("./_wcInjuriesData.js")]);
+        await Promise.all([
+          upsertWcPlayersFromMatchDetail(detail),
+          upsertWcInjuriesFromMatchDetail(detail),
+        ]);
+      } catch (upsertErr) {
+        console.log(
+          JSON.stringify({
+            event: "wc_match_bundle_player_upsert_fail",
+            eventId: id,
+            error: upsertErr?.message || "upsert_failed",
+          }),
+        );
+      }
     }
   } else {
     detailResult = { ok: false, error: summaryRes.error || "summary_failed" };

@@ -130,6 +130,23 @@ WC-related suites to watch:
 - `shared/scrapeCadencePolicy.test.js`
 - `api/_sanitizeUrTakeBody.test.js` (wcEventId allowlist)
 
+## 6. Player markets KV (Phase A — data pipeline)
+
+See `docs/WC_PLAYER_MARKETS.md`.
+
+| Check | Command | Pass criteria |
+|-------|---------|---------------|
+| Players KV | `GET ?view=players` | `ok: true`, `playerCount` ≥ 20, teams with ≥2 players |
+| Golden Boot KV | `GET ?view=golden_boot` | `rowCount` ≥ 10, each row has `name` + `americanOdds` |
+| Injuries KV | `GET ?view=injuries` | `ok: true`; `rows` array present |
+| Force refresh | `GET ?view=golden_boot&refresh=1` | `source` is `consensus`, `consensus+seed`, or `seed`; no Odds API in logs |
+| Smoke script | `node scripts/scrape-wc-golden-boot-smoke.mjs` | Prints row counts without throw |
+
+```powershell
+Invoke-RestMethod "http://localhost:3001/api/world-cup?view=golden_boot&refresh=1" | Select-Object rowCount, booksUsed, source
+Invoke-RestMethod "http://localhost:3001/api/world-cup?view=players" | Select-Object playerCount, teamCount
+```
+
 ## Sign-off
 
 | Area | Owner | Date | Notes |
@@ -137,7 +154,8 @@ WC-related suites to watch:
 | API enrichment | | | |
 | Match cards + wcEventId | | | Match-card Ask sends `wcEventId` in `/api/ur-take` body |
 | UR TAKE gating | | | |
-| Player / Golden Boot contract | | | Pass card + QA; no team-as-player headline |
+| Player markets KV (Phase A) | | | players / golden_boot / injuries views |
+| Player / Golden Boot contract (Phase B) | | | UR Take tiers — after KV green |
 | UX layout + bottom dock | | | Chat-first; full-width dock |
 | Caution + confidence cap | | | |
 | WC_BREAKING | | | |
