@@ -95,8 +95,8 @@ export default function URTakeResponse({
         ? rulesBodyRaw.slice(rulesHeadline.length).trim()
         : "";
 
-  const whyNowDisplay = rulesCallType ? rulesBody || "—" : scrubStructuredFaceText(whyNow) || "—";
-  const edgeDisplay = rulesCallType ? "" : scrubStructuredFaceText(edge) || "—";
+  const whyNowRaw = rulesCallType ? rulesBody || "—" : scrubStructuredFaceText(whyNow) || "—";
+  const edgeRaw = rulesCallType ? "" : scrubStructuredFaceText(edge) || "—";
 
   const safeParlayLegs = Array.isArray(parlayLegs)
     ? parlayLegs
@@ -130,6 +130,27 @@ export default function URTakeResponse({
     sportLower === "worldcup" &&
     (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
   const isWcDirectCard = sportLower === "worldcup" && !rulesCallType;
+
+  const clampWcSentences = (text, max = 3) => {
+    const t = String(text || "").trim();
+    if (!t || t === "—") return t;
+    const sentences = t.match(/[^.!?]+[.!?]+/g) || [t];
+    return sentences.slice(0, max).join(" ").trim();
+  };
+
+  const whyNowDisplay =
+    rulesCallType || !isWcDirectCard
+      ? whyNowRaw
+      : bodyExpanded
+        ? clampWcSentences(whyNowRaw, 3)
+        : whyNowRaw;
+  const edgeDisplay =
+    rulesCallType || !isWcDirectCard
+      ? edgeRaw
+      : bodyExpanded
+        ? clampWcSentences(edgeRaw, 2)
+        : edgeRaw;
+
   const headline =
     isWcDirectCard && callScrub && callScrub !== "—"
       ? callScrub

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { WC_INTENT } from "./wcUrTakeIntent.js";
 import {
   getWcContextFollowUpChips,
   mergeWcFollowUpChips,
@@ -19,6 +20,19 @@ test("getWcContextFollowUpChips uses wcMatchTeams", () => {
   );
   assert.ok(chips[0].includes("France"));
   assert.ok(chips.length >= 2);
+});
+
+test("mergeWcFollowUpChips — group slate avoids parlay chips", () => {
+  const merged = mergeWcFollowUpChips(
+    "GROUP_SLATE",
+    {
+      wcIntent: WC_INTENT.STRUCTURAL,
+      structured: { call: "Paraguay in Group D offers the best group-stage value." },
+    },
+    "Best group stage bet?",
+  );
+  assert.ok(!merged.some((c) => /parlay/i.test(c)));
+  assert.ok(merged.some((c) => /Group D|Paraguay|group/i.test(c)));
 });
 
 test("mergeWcFollowUpChips prefers context", () => {

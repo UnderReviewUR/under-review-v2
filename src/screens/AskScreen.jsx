@@ -155,6 +155,7 @@ function sessionSportLabel(slug) {
     tennis_wta_profile: "WTA",
     golf: "Golf",
     f1: "F1",
+    worldcup: "World Cup",
     generic: "Multi-sport",
   };
   return map[s] || (s ? s.replace(/_/g, " ").toUpperCase() : "Multi-sport");

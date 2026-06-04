@@ -2,7 +2,7 @@
  * Contextual World Cup follow-up chips (match / team / player market).
  */
 
-import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_INTENT, isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
 
@@ -51,6 +51,27 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
       chips.push(`Who is mispriced instead of ${name}?`);
     }
     chips.push("Best group stage bet?");
+  } else if (wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(q)) {
+    const blob = [
+      message?.structured?.call,
+      message?.structured?.whyNow,
+      message?.content,
+      message?.text,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const team = (blob.match(/\b(Paraguay|Norway|USA|Mexico|France|Brazil|Argentina|England|Germany|Spain|Portugal|Netherlands|Italy|Canada|Croatia|Morocco|Japan|Korea|Colombia|Uruguay|Ecuador|Senegal|Ghana|Cameroon|Tunisia|Algeria|Australia|Saudi Arabia|Qatar|Iran|Wales|Scotland|Serbia|Switzerland|Belgium|Denmark|Poland|Austria|Czechia|Ukraine|Turkiye|Turkey)\b/i) || [])[1];
+    const group = (blob.match(/\bGroup\s+([A-L])\b/i) || [])[1];
+    if (team && group) {
+      chips.push(`Who else is live in Group ${group}?`);
+      chips.push(`Is ${team} mispriced to advance?`);
+    } else if (team) {
+      chips.push(`Can ${team} advance?`);
+      chips.push("Who is mispriced instead?");
+    } else if (group) {
+      chips.push(`Who wins Group ${group}?`);
+    }
+    chips.push("Who lifts the trophy?");
   } else if (wcIntent === WC_INTENT.ENTITY_PRICING) {
     const team = (q.match(/\b(France|Brazil|Argentina|England|Germany|Spain|Portugal|Netherlands|Italy|USA|Mexico|Canada|Norway)\b/i) || [])[1];
     if (team) {
@@ -78,6 +99,25 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
  * @param {string} [userQuestion]
  */
 export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
+  const q = String(userQuestion || message?.userQuestion || "").trim();
+  const wcIntent = String(message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "");
+  if (verdict === "GROUP_SLATE" || wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(q)) {
+    const context = getWcContextFollowUpChips(message, q);
+    const slate = getVerdictFollowUpChips("GROUP_SLATE");
+    const out = [];
+    const seen = new Set();
+    for (const t of [...context, ...slate]) {
+      const s = String(t || "").trim();
+      if (!s || /parlay/i.test(s)) continue;
+      const k = s.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(s);
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
   const context = getWcContextFollowUpChips(message, userQuestion);
   const generic = getVerdictFollowUpChips(verdict);
   const out = [];

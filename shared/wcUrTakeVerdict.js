@@ -2,10 +2,15 @@
  * World Cup UR Take — verdict + chip routing (intent-first).
  */
 
-import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "./wcUrTakeIntent.js";
+import {
+  WC_INTENT,
+  classifyWcQuestionIntent,
+  isWcGroupSlateQuestion,
+  isWcRulesQuestion,
+} from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 
-/** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"GENERAL"} WcUrTakeVerdict */
+/** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"GROUP_SLATE"|"GENERAL"} WcUrTakeVerdict */
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value|no actionable)\b/i;
@@ -100,6 +105,10 @@ export function classifyWcVerdictForUi(message, userQuestion = "") {
     .map(String)
     .join("\n");
 
+  if (wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(userQuestion)) {
+    return "GROUP_SLATE";
+  }
+
   if (wcIntent === WC_INTENT.ENTITY_PRICING) {
     if (FAIR_PRICE_RE.test(parts)) return "FAIR_PRICE";
     if (EDGE_RE.test(parts)) return "HAS_EDGE";
@@ -147,6 +156,12 @@ export function getVerdictFollowUpChips(verdict) {
         "Best group stage bet?",
         "Who lifts the trophy?",
       ];
+    case "GROUP_SLATE":
+      return [
+        "Who wins that group?",
+        "Who is mispriced instead?",
+        "Best matchup on today's slate?",
+      ];
     default:
       return [
         "Give me a specific number to target.",
@@ -169,6 +184,8 @@ export function getVerdictNextLine(verdict) {
       return "Next: what's the clearest angle on this matchup?";
     case "PLAYER_MARKET_PASS":
       return "Next: try a team or group angle while lineups are pending.";
+    case "GROUP_SLATE":
+      return "Next: what would need to change for this group pick?";
     default:
       return "Next: what's one thing that could break this?";
   }

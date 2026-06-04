@@ -1772,6 +1772,7 @@ function UrTakeFailSoftActions({ m, onUrTakeRetry, onUpgradePromptClick }) {
 
 function WcUrTakePendingNudge({ dataConfidence, wcEventId, onViewWcMatch, message = null }) {
   if (resolveWcIntentFromMessage(message) === WC_INTENT.RULES) return null;
+  if (String(message?.sport || "").toLowerCase() === "worldcup") return null;
   if (!wcDataConfidenceNeedsCaution(dataConfidence)) return null;
   const id = wcEventId != null ? String(wcEventId).trim() : "";
   return (
