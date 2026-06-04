@@ -1699,15 +1699,24 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
     };
   }
   if (
-    structured.callType === "player_market_pass" ||
     intent === WC_INTENT.PLAYER_PROP ||
     intent === WC_INTENT.GOLDEN_BOOT ||
     intent === WC_INTENT.TOP_SCORER
   ) {
+    const tier = String(structured.playerMarketTier || "");
+    const callType =
+      structured.callType ||
+      (tier === "verified"
+        ? "player_market_verified"
+        : tier === "market_only"
+          ? "player_market_odds"
+          : tier === "squad"
+            ? "player_market_squad"
+            : "player_market_thin");
     return {
       ...structured,
       sport: "worldcup",
-      callType: structured.callType || "player_market_pass",
+      callType,
     };
   }
   return structured;
@@ -1904,6 +1913,7 @@ function UrTakeAiBubble({
             takeMeta={m.takeMeta}
             structuralEdgeChip={structuralEdgeChip}
             dataConfidence={m.dataConfidence}
+            playerMarketTier={s.playerMarketTier ?? null}
             nbaRelevance={m.nbaRelevance ?? null}
             nbaContextBar={buildNbaUrTakeContextBar({
               sport: s.sport,

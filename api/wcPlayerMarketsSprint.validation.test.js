@@ -1,0 +1,115 @@
+/**
+ * Phase B — World Cup player markets UR Take sprint validation.
+ */
+
+import assert from "node:assert/strict";
+import test from "node:test";
+import { formatWcPlayerMarketsPromptBlock } from "./_wcPlayerUrTakeContext.js";
+import { WC_RELEVANCE_REGRESSION_TURNS } from "./wcUrTakeRelevance.fixture.js";
+import {
+  MOCK_WC_PLAYER_MARKET_KV,
+  mockWcContextWithPlayerMarkets,
+} from "./wcPlayerMarkets.fixture.js";
+import { runWcUrTakeQA } from "./_wcUrTakeQA.js";
+import {
+  buildWcPlayerMarketPrebuiltStructured,
+  resolveWcPlayerMarketAnswer,
+  resolveWcPlayerMarketTier,
+} from "../shared/wcPlayerMarketResolve.js";
+import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
+import { resolveWcPlayerMarketResponse } from "../shared/wcUrTakePlayerMarket.js";
+import { classifyWcVerdictForUi } from "../shared/wcUrTakeVerdict.js";
+
+const PLAYER_TURNS = WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerNames);
+
+test("Phase B — player fixture turns use market tier with KV", () => {
+  assert.ok(PLAYER_TURNS.length >= 3);
+  for (const turn of PLAYER_TURNS) {
+    const intent = classifyWcQuestionIntent(turn.question);
+    assert.equal(intent, turn.expectedIntent, turn.question);
+    const ctx = mockWcContextWithPlayerMarkets({ wcIntent: intent });
+    const tier = resolveWcPlayerMarketTier({
+      goldenBoot: ctx.playerMarketKv.goldenBoot,
+      players: ctx.playerMarketKv.players,
+      wcContext: ctx,
+      wcIntent: intent,
+    });
+    assert.equal(tier, turn.expectPlayerMarketTier, turn.question);
+    const resolved = resolveWcPlayerMarketResponse(turn.question, intent, ctx);
+    assert.equal(resolved.forcePass, false, turn.question);
+    assert.ok(resolved.promptAppendix?.includes("GOLDEN BOOT"), turn.question);
+  }
+});
+
+test("Phase B — prebuilt answer passes player QA", () => {
+  for (const turn of PLAYER_TURNS) {
+    const intent = classifyWcQuestionIntent(turn.question);
+    const prebuilt = buildWcPlayerMarketPrebuiltStructured(
+      turn.question,
+      intent,
+      "market_only",
+      MOCK_WC_PLAYER_MARKET_KV.goldenBoot,
+    );
+    assert.ok(prebuilt, turn.question);
+    const qa = runWcUrTakeQA({
+      responseText: `${prebuilt.lean}\n\n${prebuilt.whyNow}`,
+      structured: prebuilt,
+      question: turn.question,
+      wcIntent: intent,
+      playerMarketKv: MOCK_WC_PLAYER_MARKET_KV,
+      playerMarketTier: "market_only",
+    });
+    assert.equal(qa.passed, true, turn.question);
+    assert.equal(qa.qaPlayerMatch, "pass", turn.question);
+    const blob = `${prebuilt.lean} ${prebuilt.whyNow}`;
+    for (const name of turn.expectPlayerNames) {
+      const last = name.split(/\s+/).pop() || name;
+      assert.ok(
+        blob.includes(name) || blob.includes(last),
+        `${turn.question}: expected ${name} in response`,
+      );
+    }
+  }
+});
+
+test("Phase B — prompt block includes golden boot rows", () => {
+  const block = formatWcPlayerMarketsPromptBlock({
+    tier: "market_only",
+    tierLabel: "Market Odds",
+    tierDisclaimer: "test",
+    wcIntent: "GOLDEN_BOOT",
+    goldenBoot: MOCK_WC_PLAYER_MARKET_KV.goldenBoot,
+    players: MOCK_WC_PLAYER_MARKET_KV.players,
+    injuries: MOCK_WC_PLAYER_MARKET_KV.injuries,
+    matchDetails: [],
+  });
+  assert.match(block, /GOLDEN BOOT/);
+  assert.match(block, /Mbapp/);
+  assert.match(block, /\+600/);
+});
+
+test("Phase B — team pricing turn unchanged (no player tier)", () => {
+  const turn = WC_RELEVANCE_REGRESSION_TURNS[1];
+  const intent = classifyWcQuestionIntent(turn.question);
+  assert.equal(intent, "ENTITY_PRICING");
+  const resolved = resolveWcPlayerMarketAnswer(
+    turn.question,
+    intent,
+    { matchDetails: [] },
+    null,
+  );
+  assert.equal(resolved.forcePass, false);
+});
+
+test("Phase B — verdict uses player market call types", () => {
+  const message = {
+    sport: "worldcup",
+    structured: {
+      callType: "player_market_odds",
+      playerMarketTier: "market_only",
+      lean: "Lean: Kylian Mbappé leads at +600.",
+      whyNow: "Top contenders listed.",
+    },
+  };
+  assert.equal(classifyWcVerdictForUi(message), "PLAYER_MARKET_PASS");
+});

@@ -8,7 +8,11 @@ import {
   classifyWcPlayerMarketIntent,
 } from "./wcUrTakeIntent.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
-import { wcDataConfidenceNeedsCaution } from "./wcDataConfidence.js";
+import {
+  resolveWcPlayerMarketAnswer,
+  resolveWcPlayerMarketTier,
+  tierMetaFor,
+} from "./wcPlayerMarketResolve.js";
 
 const SCORING_PRED_RE =
   /\b(will score|scores the most|score the most|top scorer|most goals|golden boot|leading scorer)\b/i;
@@ -44,7 +48,6 @@ export function questionAsksForWcPlayerMarket(question) {
  */
 export function wcContextHasVerifiedScorerGrounding(wcContext) {
   if (!wcContext || typeof wcContext !== "object") return false;
-  if (wcDataConfidenceNeedsCaution(wcContext.dataConfidence)) return false;
   const details = Array.isArray(wcContext.matchDetails) ? wcContext.matchDetails : [];
   for (const d of details) {
     if (d?.lineupConfirmed !== true) continue;
@@ -59,12 +62,18 @@ export function wcContextHasVerifiedScorerGrounding(wcContext) {
 }
 
 /**
- * @param {{ dataConfidence?: string | null, wcContext?: object | null }} opts
+ * @deprecated Use resolveWcPlayerMarketAnswer — only true when KV has zero player names.
+ * @param {{ wcContext?: object | null }} opts
  */
 export function shouldForceWcPlayerMarketPass(opts = {}) {
-  const tier = opts.wcContext?.dataConfidence ?? opts.dataConfidence;
-  if (wcDataConfidenceNeedsCaution(tier)) return true;
-  return !wcContextHasVerifiedScorerGrounding(opts.wcContext);
+  const kv = opts.wcContext?.playerMarketKv;
+  const resolved = resolveWcPlayerMarketAnswer(
+    "",
+    opts.wcContext?.wcIntent || WC_INTENT.TOP_SCORER,
+    opts.wcContext,
+    kv,
+  );
+  return resolved.forcePass;
 }
 
 /**
@@ -77,34 +86,14 @@ export function formatWcPlayerMarketPassLabel(wcIntent) {
 }
 
 /**
- * @param {string} question
  * @param {string} wcIntent
  */
-export function buildWcPlayerMarketPassStructured(question, wcIntent) {
+export function formatWcPlayerMarketPromptRules(wcIntent) {
   const label = formatWcPlayerMarketPassLabel(wcIntent);
-  const lean =
-    `Player-specific markets (${label}) need confirmed starting XIs and verified scorer lines — not available for a firm pick yet.`;
-  const whyNow =
-    "For now, shift to team-level angles: group paths, tournament goal volume by nation, or outright value on favorites and longshots from VERIFIED CONTEXT. Re-ask for named players after lineups are confirmed.";
-  return {
-    sport: "worldcup",
-    callType: "player_market_pass",
-    call: `Pass — ${label} (pre-match)`,
-    lean,
-    whyNow,
-    edge: "No starter-specific or Golden Boot edge until XI confirmation.",
-    confidence: "Speculative",
-    analysis: String(question || "").trim(),
-  };
-}
-
-/**
- * @param {string} question
- * @param {string} wcIntent
- */
-export function buildWcPlayerMarketPassProse(question, wcIntent) {
-  const s = buildWcPlayerMarketPassStructured(question, wcIntent);
-  return `${s.lean}\n\n${s.whyNow}`;
+  return `PLAYER MARKET (${label}) — binding:
+  Answer with a named PLAYER from PLAYER MARKETS — VERIFIED CONTEXT (never only a country/national team as the scorer pick).
+  Cite the player full name in sentence one. When GOLDEN BOOT / TOP SCORER ODDS rows exist, cite American prices from that block.
+  If tier is Early Contenders or lineups are not confirmed, say so once — still list named players with available odds or form.`;
 }
 
 /**
@@ -113,36 +102,49 @@ export function buildWcPlayerMarketPassProse(question, wcIntent) {
  * @param {object | null | undefined} wcContext
  */
 export function resolveWcPlayerMarketResponse(question, wcIntent, wcContext) {
-  const forcePass = shouldForceWcPlayerMarketPass({ wcContext });
-  if (!forcePass) {
+  const kvBlocks = wcContext?.playerMarketKv || null;
+  const tier =
+    wcContext?.playerMarketTier ||
+    resolveWcPlayerMarketTier({
+      goldenBoot: kvBlocks?.goldenBoot,
+      players: kvBlocks?.players,
+      injuries: kvBlocks?.injuries,
+      wcContext,
+      wcIntent,
+    });
+  const meta = tierMetaFor(tier);
+
+  const resolved = resolveWcPlayerMarketAnswer(question, wcIntent, wcContext, kvBlocks);
+
+  if (resolved.forcePass) {
     return {
-      forcePass: false,
-      structured: null,
-      responseText: null,
+      forcePass: true,
+      tier: resolved.tier,
+      playerMarketTier: resolved.playerMarketTier,
+      tierLabel: resolved.tierLabel,
+      callType: resolved.callType,
+      structured: resolved.structured,
+      responseText: resolved.responseText,
       responseDeep: null,
-      promptAppendix: formatWcPlayerMarketPromptRules(wcIntent),
+      promptAppendix: null,
     };
   }
-  const structured = buildWcPlayerMarketPassStructured(question, wcIntent);
-  const responseText = buildWcPlayerMarketPassProse(question, wcIntent);
-  return {
-    forcePass: true,
-    structured,
-    responseText,
-    responseDeep: null,
-    promptAppendix: null,
-  };
-}
 
-/**
- * @param {string} wcIntent
- */
-export function formatWcPlayerMarketPromptRules(wcIntent) {
-  const label = formatWcPlayerMarketPassLabel(wcIntent);
-  return `PLAYER MARKET (${label}) — binding:
-  Answer with a named player from VERIFIED CONTEXT match intel only (confirmed starters / listed players).
-  Do NOT answer with only a country or national team as the "player" pick.
-  Cite the player full name in sentence one. If no verified player rows exist, state that clearly — do not substitute France or any nation as the top scorer.`;
+  const promptAppendix =
+    wcContext?.playerMarketPromptBlock || formatWcPlayerMarketPromptRules(wcIntent);
+
+  return {
+    forcePass: false,
+    tier,
+    playerMarketTier: tier,
+    tierLabel: meta.label,
+    tierDisclaimer: meta.disclaimer,
+    callType: meta.callType,
+    structured: null,
+    responseText: null,
+    responseDeep: null,
+    promptAppendix,
+  };
 }
 
 /**

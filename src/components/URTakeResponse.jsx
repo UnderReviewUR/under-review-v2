@@ -71,6 +71,7 @@ export default function URTakeResponse({
   structuralEdgeChip = null,
   dataConfidence = null,
   nbaContextBar = null,
+  playerMarketTier = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -127,12 +128,27 @@ export default function URTakeResponse({
   const sportLower = String(sport || "").toLowerCase();
   const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
   const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
-  const playerMarketPass =
+  const callTypeLower = String(callType || "").toLowerCase();
+  const playerMarketTierKey = String(playerMarketTier || "").toLowerCase();
+  const isWcPlayerMarketCard =
     sportLower === "worldcup" &&
-    String(callType || "").toLowerCase() === "player_market_pass";
+    (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
+  const playerMarketPass =
+    isWcPlayerMarketCard &&
+    (callTypeLower === "player_market_pass" || callTypeLower === "player_market_thin");
+  const playerMarketTierLabel =
+    playerMarketTierKey === "verified" || callTypeLower === "player_market_verified"
+      ? "Market Odds · Verified"
+      : playerMarketTierKey === "market_only" || callTypeLower === "player_market_odds"
+        ? "Market Odds"
+        : playerMarketTierKey === "squad" || callTypeLower === "player_market_squad"
+          ? "Squad & Form"
+          : playerMarketTierKey === "thin" || callTypeLower === "player_market_thin"
+            ? "Early Contenders"
+            : null;
   const showWcCaution =
     !rulesCallType &&
-    !playerMarketPass &&
+    !isWcPlayerMarketCard &&
     wcDataConfidenceNeedsCaution(dataConfidence) &&
     Boolean(wcCautionText);
   const statGrid = buildSharpBriefStatGrid({
@@ -151,9 +167,11 @@ export default function URTakeResponse({
 
   const contextLine =
     String(nbaContextBar || "").trim() ||
-    (playerMarketPass
-      ? "Player market · Pre-match pass"
-      : rulesCallType
+    (isWcPlayerMarketCard && playerMarketTierLabel
+      ? `Player market · ${playerMarketTierLabel}`
+      : playerMarketPass
+        ? "Player market · Early contenders"
+        : rulesCallType
       ? "Knockout rules · Reference"
       : String(callType || "").toLowerCase() === "matchup"
         ? [edgeTypePill, marketPillDistinct ?? "Group stage"].join(" · ")
@@ -163,8 +181,10 @@ export default function URTakeResponse({
           ].join(" · "));
 
   const modePill =
-    playerMarketPass ? (
-      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Pre-match pass</span>
+    isWcPlayerMarketCard && playerMarketTierLabel ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--odds">{playerMarketTierLabel}</span>
+    ) : playerMarketPass ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Early contenders</span>
     ) : rulesCallType ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Reference</span>
     ) : ee && eeModel ? (
@@ -216,7 +236,7 @@ export default function URTakeResponse({
 
       {playerMarketPass ? (
         <p className="wc-player-pass-note" role="note">
-          Player props need confirmed lineups — team-level angles only for now.
+          Lineups may not be confirmed — ranked early contenders use current betting markets and squad data.
         </p>
       ) : null}
 

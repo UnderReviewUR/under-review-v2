@@ -61,7 +61,17 @@ export function normalizeWcStructuredForDelivery(
   }
 
   if (isWcPlayerMarketIntent(intent)) {
-    out.callType = out.callType || "player_market_pass";
+    const tier = String(out.playerMarketTier || "");
+    if (!out.callType || out.callType === "player_market_pass") {
+      out.callType =
+        tier === "verified"
+          ? "player_market_verified"
+          : tier === "market_only"
+            ? "player_market_odds"
+            : tier === "squad"
+              ? "player_market_squad"
+              : "player_market_thin";
+    }
     return out;
   }
 

@@ -62,15 +62,15 @@ When `dataConfidence: "confirmed"`:
 - [ ] No caution banner
 - [ ] Confidence displays uncapped (e.g. **High** stays **High**)
 
-## 5. Player / Golden Boot question contract (Phase 2)
+## 5. Player / Golden Boot question contract (Phase B)
 
-Pre-match (default before confirmed XIs):
+With `?view=golden_boot` populated (Phase A):
 
-- [ ] Ask: `who will score the most goals?` → **pass card**, not a country as the player pick (no “France will score…” headline)
-- [ ] Ask: `which player will score the most goals?` → same honest pass
-- [ ] Card shows **Pre-match pass** mode + gold note: player props need confirmed lineups
-- [ ] Follow-up dock chips steer to team angles (e.g. Group A, group stage bet, trophy)
-- [ ] **Next** line mentions team/group while lineups pending
+- [ ] Ask: `who will score the most goals?` → **named players** (e.g. Mbappé, Kane) with cited odds — not France as the pick
+- [ ] Ask: `Best golden boot value?` → Golden Boot ladder from VERIFIED CONTEXT
+- [ ] Sport bar shows tier chip (**Market Odds**, **Early Contenders**, etc.)
+- [ ] Logs: `wcRelevance.playerMarketTier` = `market_only` | `verified` | `squad` | `thin`
+- [ ] Team question `Is Brazil mispriced…` still team-level (no regression)
 
 Ask `which team will score the most goals?` (team-level):
 

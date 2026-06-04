@@ -53,6 +53,13 @@ node scripts/scrape-wc-golden-boot-smoke.mjs
 
 During `isWcHomePromoWindow` (Jun 1 – Jul 19 ET): `wc_players`, `wc_golden_boot`, `wc_injuries` targets are collected alongside tournament-window match bundles.
 
-## Phase B (not started)
+## Phase B (UR Take integration)
 
-UR Take tiered answers + prompt blocks — do not enable until Phase A KV smoke is green.
+- Player intents load `wc2026_players`, `wc2026_golden_boot`, `wc2026_injuries` into `PLAYER MARKETS — VERIFIED CONTEXT`.
+- Tiers: `verified` → `market_only` → `squad` → `thin` (logged as `wcRelevance.playerMarketTier`).
+- Default pass card removed when KV has player names; thin tier shows **Early Contenders** with odds when available.
+- QA: `wc_player_missing_names`, `wc_player_odds_uncited`, `wc_player_question_team_lead`.
+
+## Phase C (not started)
+
+Per-event anytime scorer props from match pages.

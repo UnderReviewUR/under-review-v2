@@ -6,6 +6,8 @@ import {
   wcQaRequiresRegeneration,
 } from "./_wcUrTakeQA.js";
 import { WC_RELEVANCE_REGRESSION_TURNS } from "./wcUrTakeRelevance.fixture.js";
+import { mockWcContextWithPlayerMarkets } from "./wcPlayerMarkets.fixture.js";
+import { buildWcPlayerMarketPrebuiltStructured } from "../shared/wcPlayerMarketResolve.js";
 import {
   classifyWcQuestionIntent,
   shouldInjectStaticRules,
@@ -25,8 +27,8 @@ import {
   getVerdictNextLine,
 } from "../shared/wcUrTakeVerdict.js";
 
-test("WC regression fixture has six turns with expected metadata", () => {
-  assert.equal(WC_RELEVANCE_REGRESSION_TURNS.length, 6);
+test("WC regression fixture has seven turns with expected metadata", () => {
+  assert.equal(WC_RELEVANCE_REGRESSION_TURNS.length, 7);
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[1].expectedEntities[0], "BRA");
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[3].expectedIntent, "RULES");
   assert.equal(WC_RELEVANCE_REGRESSION_TURNS[4].expectedIntent, "TOP_SCORER");
@@ -243,23 +245,28 @@ test("verdict-aware chips — fair price avoids edge killer", () => {
   assert.match(getVerdictNextLine("FAIR_PRICE"), /what would need to change/i);
 });
 
-test("player regression turns — pre-match pass template", () => {
-  for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerPass)) {
+test("player regression turns — market tier with KV (no default pass)", () => {
+  for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerNames)) {
     const intent = classifyWcQuestionIntent(turn.question);
     assert.equal(intent, turn.expectedIntent, turn.question);
-    const resolved = resolveWcPlayerMarketResponse(turn.question, intent, {
-      dataConfidence: "pre_match_estimate",
-      matchDetails: [],
-    });
-    assert.equal(resolved.forcePass, true, turn.question);
-    assert.match(resolved.structured?.lean || "", /Player-specific markets/i);
+    const ctx = mockWcContextWithPlayerMarkets({ wcIntent: intent });
+    const resolved = resolveWcPlayerMarketResponse(turn.question, intent, ctx);
+    assert.equal(resolved.forcePass, false, turn.question);
+    assert.ok(resolved.promptAppendix?.includes("PLAYER MARKETS"), turn.question);
+    const prebuilt = buildWcPlayerMarketPrebuiltStructured(
+      turn.question,
+      intent,
+      resolved.playerMarketTier,
+      ctx.playerMarketKv.goldenBoot,
+    );
+    assert.ok(prebuilt, turn.question);
     const qa = runWcUrTakeQA({
-      responseText: resolved.responseText,
-      structured: resolved.structured,
+      responseText: `${prebuilt.lean}\n\n${prebuilt.whyNow}`,
+      structured: prebuilt,
       question: turn.question,
       wcIntent: intent,
-      requiredEntities: [],
-      forbiddenEntities: [],
+      playerMarketKv: ctx.playerMarketKv,
+      playerMarketTier: resolved.playerMarketTier,
     });
     assert.equal(qa.qaPlayerMatch, "pass", turn.question);
     assert.equal(qa.passed, true, turn.question);
@@ -267,7 +274,7 @@ test("player regression turns — pre-match pass template", () => {
 });
 
 test("runWcUrTakeQA — player turns reject France-as-scorer headline", () => {
-  for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerPass)) {
+  for (const turn of WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerNames)) {
     const intent = classifyWcQuestionIntent(turn.question);
     const qa = runWcUrTakeQA({
       responseText: "France will score the most goals in the tournament.",

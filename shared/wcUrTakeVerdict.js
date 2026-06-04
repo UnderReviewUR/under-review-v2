@@ -73,8 +73,14 @@ export function classifyWcVerdictForUi(message, userQuestion = "") {
   }
   if (
     callType === "player_market_pass" ||
-    isWcPlayerMarketIntent(wcIntent)
+    callType === "player_market_thin" ||
+    callType === "player_market_odds" ||
+    callType === "player_market_squad" ||
+    callType === "player_market_verified"
   ) {
+    return "PLAYER_MARKET_PASS";
+  }
+  if (isWcPlayerMarketIntent(wcIntent)) {
     return "PLAYER_MARKET_PASS";
   }
   if (wcIntent === WC_INTENT.MATCHUP || callType === "matchup") {

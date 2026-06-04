@@ -71,6 +71,7 @@ import {
   isWcPlayerMarketIntent,
   resolveWcPlayerMarketResponse,
 } from "../shared/wcUrTakePlayerMarket.js";
+import { buildWcPlayerMarketPrebuiltStructured } from "../shared/wcPlayerMarketResolve.js";
 import {
   buildWcSessionMemoryPrompt,
   extractSessionWcEntities,
@@ -5180,6 +5181,7 @@ export default async function handler(req, res) {
     knockoutRulesInjected: false,
     structuralEdgeInjected: false,
     playerPropDetected: false,
+    playerMarketTier: null,
     wcEventId: null,
     qaEntityMatch: null,
     qaIntentMatch: null,
@@ -5210,6 +5212,7 @@ export default async function handler(req, res) {
     wcRelevanceLog.requiredEntities = wcRequiredEntities;
     wcRelevanceLog.knockoutRulesInjected = shouldInjectStaticRules(String(question || ""), wcIntent);
     wcRelevanceLog.playerPropDetected = isWcPlayerMarketIntent(wcIntent);
+    wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
     const wcEventIdTrimmed =
       incomingWcEventId != null && String(incomingWcEventId).trim()
         ? String(incomingWcEventId).trim()
@@ -7213,8 +7216,9 @@ Confidence guidance:
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
         : isWcPlayerMarketIntentFlag
           ? `- Return JSON per OUTPUT CONTRACT: summary = player-market read (150 words max); deep = full reasoning (no word limit).
-- Sentence one must name a PLAYER from VERIFIED CONTEXT — never only a country/national team as the scorer pick.
-- If no verified starter/scorer rows exist, honest pass — offer team-level tournament context only as secondary framing, not as the player answer.
+- Sentence one must name a PLAYER from PLAYER MARKETS — VERIFIED CONTEXT — never only a country/national team as the scorer pick.
+- Use GOLDEN BOOT / TOP SCORER ODDS rows when present — cite American prices (e.g. Mbappé +600).
+- If lineups are not confirmed, say so once — still rank named early contenders with available odds or squad form.
 - Do not invent player names, goal counts, or Golden Boot prices not in VERIFIED CONTEXT.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
           : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
@@ -7576,11 +7580,14 @@ You are responding to a Pro subscriber. Apply the following:
         responseDeep = wcPlayerResolved.responseDeep;
         responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
         wcPlayerMarketPassUsed = true;
+        wcRelevanceLog.playerMarketTier =
+          wcPlayerResolved.playerMarketTier || wcRelevanceLog.playerMarketTier;
         console.log(
           JSON.stringify({
             event: "ur_take_wc_player_market_pass",
             sport: "worldcup",
             wcIntent,
+            playerMarketTier: wcPlayerResolved.playerMarketTier,
             dataConfidence: wcContext?.dataConfidence || null,
           }),
         );
@@ -7692,6 +7699,8 @@ You are responding to a Pro subscriber. Apply the following:
           requiredEntities: wcRequiredEntities,
           forbiddenEntities: wcForbiddenEntities,
           strengthTags: wcStrengthTags,
+          playerMarketKv: wcContext?.playerMarketKv,
+          playerMarketTier: wcRelevanceLog.playerMarketTier,
         });
         wcRelevanceLog.qaEntityMatch = wcPassQa.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcPassQa.qaIntentMatch;
@@ -7852,6 +7861,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               String(question || ""),
               wcRequiredEntities,
             );
+            if (isWcPlayerMarketIntent(wcIntent) && structuredResponse) {
+              structuredResponse.playerMarketTier =
+                wcRelevanceLog.playerMarketTier || wcContext?.playerMarketTier || null;
+            }
             if (wcIntent === WC_INTENT.ENTITY_PRICING) {
               const sessionPrices = extractSessionAmericanOdds(incomingHistory);
               structuredResponse = stripWcStructuredSessionPrices(
@@ -8157,6 +8170,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           requiredEntities: wcRequiredEntities,
           forbiddenEntities: wcForbiddenEntities,
           strengthTags: wcStrengthTags,
+          playerMarketKv: wcContext?.playerMarketKv,
+          playerMarketTier: wcRelevanceLog.playerMarketTier,
         });
         wcRelevanceLog.qaEntityMatch = wcQaResult.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcQaResult.qaIntentMatch;
@@ -8275,25 +8290,32 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       isWcPlayerMarketIntent(wcIntent) &&
       wcQaResult &&
       !wcQaResult.passed &&
-      (wcQaResult.issueCodes || []).includes("wc_player_question_team_lead")
+      ((wcQaResult.issueCodes || []).includes("wc_player_question_team_lead") ||
+        (wcQaResult.issueCodes || []).includes("wc_player_missing_names"))
     ) {
-      const forcedPlayerPass = resolveWcPlayerMarketResponse(
+      const tier = wcContext?.playerMarketTier || "market_only";
+      const prebuilt = buildWcPlayerMarketPrebuiltStructured(
         String(question || ""),
         wcIntent,
-        wcContext,
+        tier,
+        wcContext?.playerMarketKv?.goldenBoot,
       );
-      structuredResponse = forcedPlayerPass.structured;
-      responseText = forcedPlayerPass.responseText;
-      responseDeep = null;
-      wcRelevanceLog.qaPlayerMatch = "pass";
-      console.log(
-        JSON.stringify({
-          event: "ur_take_wc_player_market_pass_forced",
-          sport: "worldcup",
-          wcIntent,
-          priorIssueCodes: wcQaResult.issueCodes,
-        }),
-      );
+      if (prebuilt) {
+        structuredResponse = prebuilt;
+        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseDeep = null;
+        wcRelevanceLog.qaPlayerMatch = "pass";
+        wcRelevanceLog.playerMarketTier = prebuilt.playerMarketTier;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_player_market_repair",
+            sport: "worldcup",
+            wcIntent,
+            playerMarketTier: prebuilt.playerMarketTier,
+            priorIssueCodes: wcQaResult.issueCodes,
+          }),
+        );
+      }
     }
 
     if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {

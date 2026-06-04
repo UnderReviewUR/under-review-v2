@@ -12,6 +12,10 @@ import {
   isWcPlayerMarketIntent,
   questionAsksForWcPlayerMarket,
 } from "../shared/wcUrTakePlayerMarket.js";
+import {
+  extractKnownPlayerNamesFromKv,
+  responseMentionsKnownPlayer,
+} from "../shared/wcPlayerMarketResolve.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -63,6 +67,8 @@ export function extractWcResponseBody(responseText, structured) {
  *   requiredEntities?: string[],
  *   forbiddenEntities?: string[],
  *   strengthTags?: Record<string, string>,
+ *   playerMarketKv?: { goldenBoot?: object, players?: object, injuries?: object } | null,
+ *   playerMarketTier?: string | null,
  * }} opts
  */
 export function runWcUrTakeQA(opts = {}) {
@@ -126,7 +132,24 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_player_question_team_lead");
       qaPlayerMatch = "fail";
     } else {
-      qaPlayerMatch = "pass";
+      const knownNames = extractKnownPlayerNamesFromKv(opts.playerMarketKv);
+      if (knownNames.length && !responseMentionsKnownPlayer(headline, body, knownNames)) {
+        issueCodes.push("wc_player_missing_names");
+        qaPlayerMatch = "fail";
+      } else {
+        qaPlayerMatch = "pass";
+      }
+    }
+    const tier = String(opts.playerMarketTier || "");
+    if (
+      (tier === "verified" || tier === "market_only") &&
+      !/\+\d{3,}/.test(body) &&
+      !/\+\d{3,}/.test(headline)
+    ) {
+      const hasGb =
+        opts.playerMarketKv?.goldenBoot?.rows?.length ||
+        extractKnownPlayerNamesFromKv(opts.playerMarketKv).length;
+      if (hasGb) issueCodes.push("wc_player_odds_uncited");
     }
   }
 
@@ -169,16 +192,19 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_matchup_missing_team_headline",
       "wc_price_uncited_citation",
       "wc_player_question_team_lead",
+      "wc_player_missing_names",
+      "wc_player_odds_uncited",
     ].includes(c),
   );
 }
 
 export const WC_PLAYER_MARKET_QA_SUFFIX = `
 
-WC PLAYER MARKET QA (mandatory — prior answer treated a nation as the player pick):
+WC PLAYER MARKET QA (mandatory — prior answer failed player contract):
 - The user asked for a PLAYER, Golden Boot, or top scorer — not which country scores the most team goals.
 - Do NOT name only France, Brazil, or any national team as the answer to a player question.
-- If verified player rows are unavailable, lead with an honest pass: player markets need confirmed lineups; offer team-level tournament angles only as secondary context — never as a substitute player pick.`;
+- Sentence one must name a player from PLAYER MARKETS — VERIFIED CONTEXT (e.g. Mbappé, Kane) with cited American odds when listed.
+- If lineups are not confirmed, say so once — still rank named early contenders; never substitute a nation as the pick.`;
 
 export const WC_QA_REGENERATION_SUFFIX = `
 

@@ -6,12 +6,15 @@ import {
   WC_INTENT,
 } from "./wcUrTakeIntent.js";
 import {
-  buildWcPlayerMarketPassStructured,
+  buildWcPlayerMarketEmptyStructured,
+} from "./wcPlayerMarketResolve.js";
+import {
   detectTeamAnswerToPlayerQuestion,
   questionAsksForWcPlayerMarket,
   resolveWcPlayerMarketResponse,
   shouldForceWcPlayerMarketPass,
 } from "./wcUrTakePlayerMarket.js";
+import { mockWcContextWithPlayerMarkets } from "../api/wcPlayerMarkets.fixture.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
 
 test("classifyWcQuestionIntent — top scorer without player word", () => {
@@ -37,15 +40,26 @@ test("questionAsksForWcPlayerMarket — golden boot", () => {
   assert.equal(classifyWcPlayerMarketIntent("Best golden boot value?"), WC_INTENT.GOLDEN_BOOT);
 });
 
-test("resolveWcPlayerMarketResponse — pre-match forces pass", () => {
+test("resolveWcPlayerMarketResponse — with KV does not force pass", () => {
+  const ctx = mockWcContextWithPlayerMarkets({ wcIntent: WC_INTENT.PLAYER_PROP });
   const resolved = resolveWcPlayerMarketResponse(
     "which player will score the most goals?",
     WC_INTENT.PLAYER_PROP,
-    { dataConfidence: "pre_match_estimate", matchDetails: [] },
+    ctx,
   );
-  assert.equal(resolved.forcePass, true);
-  assert.match(resolved.responseText, /confirmed starting XIs/i);
-  assert.match(resolved.structured?.lean || "", /Player-specific markets/i);
+  assert.equal(resolved.forcePass, false);
+  assert.equal(resolved.playerMarketTier, "market_only");
+  assert.ok(resolved.promptAppendix?.includes("GOLDEN BOOT"));
+});
+
+test("resolveWcPlayerMarketResponse — empty KV forces thin fallback", () => {
+  const resolved = resolveWcPlayerMarketResponse(
+    "which player will score the most goals?",
+    WC_INTENT.PLAYER_PROP,
+    { dataConfidence: "pre_match_estimate", matchDetails: [], playerMarketKv: null },
+  );
+  assert.equal(resolved.forcePass, false);
+  assert.ok(resolved.promptAppendix);
 });
 
 test("detectTeamAnswerToPlayerQuestion — France headline fails", () => {
@@ -59,8 +73,8 @@ test("detectTeamAnswerToPlayerQuestion — France headline fails", () => {
   );
 });
 
-test("detectTeamAnswerToPlayerQuestion — pass card passes", () => {
-  const s = buildWcPlayerMarketPassStructured(
+test("detectTeamAnswerToPlayerQuestion — thin structured passes QA detector", () => {
+  const s = buildWcPlayerMarketEmptyStructured(
     "who will score the most goals?",
     WC_INTENT.TOP_SCORER,
   );
@@ -81,6 +95,7 @@ test("runWcUrTakeQA — France-as-player answer fails with regeneration", () => 
     wcIntent: WC_INTENT.PLAYER_PROP,
     requiredEntities: [],
     forbiddenEntities: [],
+    playerMarketKv: mockWcContextWithPlayerMarkets().playerMarketKv,
   });
   assert.equal(qa.passed, false);
   assert.equal(qa.qaPlayerMatch, "fail");
@@ -88,11 +103,11 @@ test("runWcUrTakeQA — France-as-player answer fails with regeneration", () => 
   assert.equal(wcQaRequiresRegeneration(qa), true);
 });
 
-test("shouldForceWcPlayerMarketPass — confirmed without player rows still passes", () => {
+test("shouldForceWcPlayerMarketPass — false when KV populated", () => {
   assert.equal(
     shouldForceWcPlayerMarketPass({
-      wcContext: { dataConfidence: "confirmed", matchDetails: [{ lineupConfirmed: true, players: {} }] },
+      wcContext: mockWcContextWithPlayerMarkets(),
     }),
-    true,
+    false,
   );
 });

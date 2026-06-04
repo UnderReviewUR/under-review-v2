@@ -19,6 +19,12 @@ import {
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
+import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
+import {
+  formatWcPlayerMarketsPromptBlock,
+  loadWcPlayerMarketKvBlocks,
+} from "./_wcPlayerUrTakeContext.js";
+import { resolveWcPlayerMarketTier, tierMetaFor } from "../shared/wcPlayerMarketResolve.js";
 import {
   filterOutrightsForQuestion,
   formatKnockoutPhasePromptRules,
@@ -636,6 +642,30 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   if (wcIntent === WC_INTENT.RULES) {
     ctx.promptBlock = formatWcRulesOnlyPromptBlock(ctx);
     return ctx.promptBlock ? ctx : null;
+  }
+
+  if (isWcPlayerMarketIntent(wcIntent)) {
+    const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs);
+    const playerMarketTier = resolveWcPlayerMarketTier({
+      goldenBoot: playerMarketKv.goldenBoot,
+      players: playerMarketKv.players,
+      injuries: playerMarketKv.injuries,
+      wcContext: ctx,
+      wcIntent,
+    });
+    const tierMeta = tierMetaFor(playerMarketTier);
+    ctx.playerMarketKv = playerMarketKv;
+    ctx.playerMarketTier = playerMarketTier;
+    ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
+      tier: playerMarketTier,
+      tierLabel: tierMeta.label,
+      tierDisclaimer: tierMeta.disclaimer,
+      wcIntent,
+      goldenBoot: playerMarketKv.goldenBoot,
+      players: playerMarketKv.players,
+      injuries: playerMarketKv.injuries,
+      matchDetails,
+    });
   }
 
   ctx.promptBlock = formatWorldCupUrTakePromptBlock(ctx);
