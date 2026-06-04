@@ -17,6 +17,12 @@ import {
   getWcMatchPlayerPropsPayload,
   scrapeAndCacheWcMatchPlayerProps,
 } from "./_wcMatchPlayerProps.js";
+import { buildWcPlayerMarketsStatus } from "./_wcPlayerMarketsStatus.js";
+import {
+  handleWcPlayerMarketsOverridePost,
+  readWcPlayerMarketsOverrideKv,
+} from "./_wcPlayerMarketsOverride.js";
+import { verifyWcPlayerMarketsAdminAuth } from "../shared/wcBookScrapePolicy.js";
 import {
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_TTL_SECONDS,
@@ -388,15 +394,34 @@ function buildContextText(groupsPayload, matchesPayload) {
 }
 
 export default async function handler(req, res) {
-  if (!applyCors(req, res)) return;
-  if (req.method !== "GET") {
-    applyApiNoStoreHeaders(res);
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (!applyCors(req, res, { methods: "GET, POST, OPTIONS" })) return;
   applyApiNoStoreHeaders(res);
 
+  const view = String(req.query?.view || "matches").toLowerCase();
+
+  if (req.method === "POST") {
+    if (
+      view === "player_markets_override" ||
+      view === "player-markets-override"
+    ) {
+      if (!verifyWcPlayerMarketsAdminAuth(req)) {
+        return res.status(401).json({ error: "unauthorized" });
+      }
+      const body = req.body && typeof req.body === "object" ? req.body : {};
+      const result = await handleWcPlayerMarketsOverridePost({ body });
+      if (!result.ok) {
+        return res.status(400).json(result);
+      }
+      return res.status(200).json(result);
+    }
+    return res.status(405).json({ error: "Method not allowed for this view" });
+  }
+
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
   try {
-    const view = String(req.query?.view || "matches").toLowerCase();
 
     if (view === "groups") {
       const payload = await getGroupsPayload();
@@ -481,6 +506,16 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    if (view === "player_markets_status" || view === "player-markets-status") {
+      const status = await buildWcPlayerMarketsStatus();
+      return res.status(200).json(status);
+    }
+
+    if (view === "player_markets_override" || view === "player-markets-override") {
+      const override = await readWcPlayerMarketsOverrideKv();
+      return res.status(200).json({ ok: true, override: override || null });
+    }
+
     if (view === "match_player_props" || view === "match-player-props") {
       const eventId = req.query?.eventId ?? req.query?.id;
       if (String(req.query?.refresh || "") === "1" && eventId) {
@@ -497,7 +532,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, or match_player_props.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

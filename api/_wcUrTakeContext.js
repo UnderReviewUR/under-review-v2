@@ -25,6 +25,7 @@ import {
   loadWcPlayerMarketKvBlocks,
 } from "./_wcPlayerUrTakeContext.js";
 import { resolveWcPlayerMarketTier, tierMetaFor } from "../shared/wcPlayerMarketResolve.js";
+import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 import {
   filterOutrightsForQuestion,
   formatKnockoutPhasePromptRules,
@@ -84,6 +85,15 @@ export function getWcBreakingLine() {
   const line = fromEnv !== undefined ? fromEnv : WC_BREAKING;
   const trimmed = String(line || "").trim();
   return trimmed || null;
+}
+
+/**
+ * KV override (wc2026_player_markets_override) then env WC_BREAKING.
+ */
+export async function resolveWcBreakingLine() {
+  const fromKv = await getWcBreakingLineWithOverride();
+  if (fromKv) return fromKv;
+  return getWcBreakingLine();
 }
 
 /**
@@ -373,7 +383,7 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
 
   const tier =
     ctx.dataConfidence || deriveWcDataConfidence(ctx.matchDetails);
-  const breaking = getWcBreakingLine();
+  const breaking = ctx.wcBreakingLine ?? getWcBreakingLine();
   const phase = ctx.phase || "PRE_GROUP";
   const groupsForPrompt = ctx.groupsForPrompt ?? ctx.groups ?? {};
 
@@ -638,6 +648,8 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
       ...matchDetails.map((d) => Number(d.lastUpdated) || 0),
     ),
   };
+
+  ctx.wcBreakingLine = await resolveWcBreakingLine();
 
   if (wcIntent === WC_INTENT.RULES) {
     ctx.promptBlock = formatWcRulesOnlyPromptBlock(ctx);

@@ -14,6 +14,10 @@ import {
 } from "../shared/wcInjuriesBoard.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
 import { loadAllWcMatchDetailsFromKv } from "./_wcPlayersData.js";
+import {
+  applyInjuriesManualPatches,
+  readWcPlayerMarketsOverrideKv,
+} from "./_wcPlayerMarketsOverride.js";
 
 /**
  * Incremental merge after match bundle.
@@ -70,9 +74,13 @@ export async function scrapeAndCacheWcInjuries() {
 export async function readWcInjuriesFromKv(maxAgeMs = WC_INJURIES_TTL_SECONDS * 1000) {
   const cached = await getDurableJson(WC_INJURIES_KV_KEY);
   if (!cached) return null;
+  const override = await readWcPlayerMarketsOverrideKv();
+  const merged = override?.injuryPatches?.length
+    ? applyInjuriesManualPatches(cached, override)
+    : cached;
   return {
-    ...cached,
-    stale: !isKvFresh(cached.lastUpdated, maxAgeMs),
+    ...merged,
+    stale: !isKvFresh(merged.lastUpdated, maxAgeMs),
   };
 }
 

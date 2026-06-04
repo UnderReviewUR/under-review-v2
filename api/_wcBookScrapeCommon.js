@@ -22,12 +22,31 @@ const MATCH_LAST_SCORER_LABEL =
   /\b(last goal\s*scorer|last goalscorer|to score last)\b/i;
 
 /**
+ * @param {string} raw
+ */
+export function americanFromFractional(raw) {
+  const s = String(raw || "").trim();
+  const m = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (!m) return null;
+  const num = Number(m[1]);
+  const den = Number(m[2]);
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return null;
+  const decimal = 1 + num / den;
+  if (decimal >= 2) return formatAmericanOdds(Math.round((decimal - 1) * 100));
+  return formatAmericanOdds(Math.round(-100 / (decimal - 1)));
+}
+
+/**
  * @param {unknown} value
  */
 export function formatAmericanOddsFromRaw(value) {
   if (value == null) return null;
-  if (typeof value === "string" && /^[+-]?\d/.test(value.trim())) {
-    const n = parseAmericanOddsNumber(value);
+  const str = String(value).trim();
+  if (/^\d+\s*\/\s*\d+$/.test(str)) {
+    return americanFromFractional(str);
+  }
+  if (/^[+-]?\d/.test(str)) {
+    const n = parseAmericanOddsNumber(str);
     return n != null ? formatAmericanOdds(n) : null;
   }
   const n = Number(value);
@@ -128,9 +147,14 @@ function rowFromGenericEntry(entry) {
   const odds = formatAmericanOddsFromRaw(
     e.americanOdds ??
       e.oddsAmerican ??
+      e.fractionalOdds ??
+      e.fractional ??
+      e.priceFractional ??
       e.price ??
       e.odds ??
-      (typeof e.odds === "object" && e.odds ? e.odds.american : null),
+      (typeof e.odds === "object" && e.odds
+        ? e.odds.american || e.odds.fractional
+        : null),
   );
 
   const nationAbbr =
@@ -212,6 +236,82 @@ export function parseGoldenBootRowsFromHtml(html) {
   }
 
   return regexRows.length ? regexRows : fromJson;
+}
+
+/**
+ * UK / aggregator HTML — name + fractional or American odds pairs.
+ * @param {string} html
+ */
+export function parseUkAggregatorGoldenBootRowsFromHtml(html) {
+  /** @type {Array<{ name: string, americanOdds: string, nationAbbr?: string }>} */
+  const rows = [];
+  const seen = new Set();
+
+  const fracRe =
+    /([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:['\s.-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)+)\s{0,20}(\d+\s*\/\s*\d+)/g;
+  let m;
+  while ((m = fracRe.exec(html)) && rows.length < 40) {
+    const name = normalizeWcPlayerName(m[1]);
+    const odds = americanFromFractional(m[2]);
+    if (!name || !odds || isNationOnlyOutcome(name)) continue;
+    const key = `${name}|${odds}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ name, americanOdds: odds });
+  }
+
+  if (rows.length >= 5) return rows;
+  return parseGoldenBootRowsFromHtml(html);
+}
+
+/**
+ * OddsChecker-style comparison rows embedded in page JSON/HTML.
+ * @param {string} html
+ */
+export function parseOddsCheckerGoldenBootRowsFromHtml(html) {
+  const fromJson = extractEmbeddedJsonBlobs(html).flatMap((b) => parseGoldenBootRowsFromJson(b));
+  if (fromJson.length >= 5) return fromJson;
+
+  const rows = [];
+  const seen = new Set();
+  const re =
+    /([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:['\s.-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)+)[^+\d]{0,40}(\+\d{3,5}|\-\d{2,4}|\d+\s*\/\s*\d+)/g;
+  let m;
+  while ((m = re.exec(html)) && rows.length < 40) {
+    const name = normalizeWcPlayerName(m[1]);
+    const odds = formatAmericanOddsFromRaw(m[2]);
+    if (!name || !odds || isNationOnlyOutcome(name)) continue;
+    const key = `${name}|${odds}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ name, americanOdds: odds });
+  }
+
+  return rows.length ? rows : fromJson;
+}
+
+/**
+ * Book-specific Golden Boot parse entry (US generic + UK fractional + aggregator tables).
+ * @param {string} html
+ * @param {string} bookKey
+ */
+export function parseGoldenBootRowsForBook(html, bookKey) {
+  const key = String(bookKey || "").toLowerCase();
+  if (key === "oddschecker" || key === "covers") {
+    return parseOddsCheckerGoldenBootRowsFromHtml(html);
+  }
+  if (key === "paddypower" || key === "bet365" || key === "williamhill") {
+    return parseUkAggregatorGoldenBootRowsFromHtml(html);
+  }
+  let rows = parseGoldenBootRowsFromHtml(html);
+  if (rows.length < 5 && html.trim().startsWith("{")) {
+    try {
+      rows = parseGoldenBootRowsFromJson(JSON.parse(html));
+    } catch {
+      /* ignore */
+    }
+  }
+  return rows;
 }
 
 /**

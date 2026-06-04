@@ -15,6 +15,10 @@ import {
 } from "../shared/wcGoldenBootConsensus.js";
 import { attachGoldenBootFreshness } from "../shared/wcPlayerOddsFreshness.js";
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
+import {
+  applyGoldenBootManualPatches,
+  readWcPlayerMarketsOverrideKv,
+} from "./_wcPlayerMarketsOverride.js";
 
 /**
  * @param {Record<string, unknown>} payload
@@ -119,7 +123,15 @@ export async function scrapeAndCacheWcGoldenBoot() {
  */
 export async function readWcGoldenBootFromKv(nowMs = Date.now()) {
   const cached = await getDurableJson(WC_GOLDEN_BOOT_KV_KEY);
-  return attachGoldenBootFreshness(cached, nowMs);
+  const override = await readWcPlayerMarketsOverrideKv();
+  let merged = cached;
+  if (override?.goldenBootPatches?.length) {
+    merged = applyGoldenBootManualPatches({
+      ...cached,
+      _manualPatches: override.goldenBootPatches,
+    });
+  }
+  return attachGoldenBootFreshness(merged, nowMs);
 }
 
 /**

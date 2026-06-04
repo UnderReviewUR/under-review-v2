@@ -20,6 +20,9 @@ import {
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
 import { resolveWcPlayerMarketResponse } from "../shared/wcUrTakePlayerMarket.js";
 import { classifyWcVerdictForUi } from "../shared/wcUrTakeVerdict.js";
+import { mergeGoldenBootConsensus } from "../shared/wcGoldenBootConsensus.js";
+import { buildWcPlayerMarketsStatus } from "./_wcPlayerMarketsStatus.js";
+import { applyGoldenBootManualPatches } from "./_wcPlayerMarketsOverride.js";
 
 const PLAYER_TURNS = WC_RELEVANCE_REGRESSION_TURNS.filter((t) => t.expectPlayerNames);
 
@@ -146,6 +149,43 @@ test("Phase B — team pricing turn unchanged (no player tier)", () => {
     null,
   );
   assert.equal(resolved.forcePass, false);
+});
+
+test("Phase D — UK/aggregator books improve consensus depth", () => {
+  const usOnly = mergeGoldenBootConsensus(
+    [
+      { book: "draftkings", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+600" }] },
+      { book: "fanduel", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+700" }] },
+    ],
+    [],
+  );
+  const withUk = mergeGoldenBootConsensus(
+    [
+      { book: "draftkings", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+600" }] },
+      { book: "fanduel", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+700" }] },
+      { book: "paddypower", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+620" }] },
+      { book: "oddschecker", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+680" }] },
+    ],
+    [],
+  );
+  assert.equal(Object.keys(usOnly.rows[0].bookOdds).length, 2);
+  assert.equal(Object.keys(withUk.rows[0].bookOdds).length, 4);
+  assert.ok(withUk.booksUsed.includes("paddypower"));
+});
+
+test("Phase D — manual golden boot patch applies on read path", () => {
+  const patched = applyGoldenBootManualPatches({
+    rows: MOCK_WC_PLAYER_MARKET_KV.goldenBoot.rows.slice(0, 3),
+    _manualPatches: [{ name: "Kylian Mbappé", americanOdds: "+425", nationAbbr: "FRA" }],
+  });
+  const row = patched.rows.find((r) => /Mbapp/i.test(r.name));
+  assert.equal(row.americanOdds, "+425");
+});
+
+test("Phase D — player markets status view shape", async () => {
+  const status = await buildWcPlayerMarketsStatus();
+  assert.ok(status.alerts.goldenBootStaleHours === null || status.alerts.goldenBootStaleHours >= 0);
+  assert.ok(typeof status.alerts.playerRegistryCoverage.playerCount === "number");
 });
 
 test("Phase B — verdict uses player market call types", () => {

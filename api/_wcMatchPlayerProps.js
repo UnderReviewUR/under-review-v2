@@ -9,9 +9,11 @@ import {
   parseMatchPlayerPropRowsFromJson,
 } from "./_wcBookScrapeCommon.js";
 import {
+  delayBetweenWcBookScrapes,
   listEnabledWcMatchPlayerPropBooks,
   resolveWcMatchPlayerPropsBookUrl,
 } from "../shared/wcBookScrapePolicy.js";
+import { runWcBookScrapeWithBackoff } from "../shared/wcBookScrapeRunner.js";
 import {
   WC_MATCH_PLAYER_PROPS_KV_KEY,
   WC_MATCH_PLAYER_PROPS_TTL_SECONDS,
@@ -30,52 +32,49 @@ const MIN_ANYTIME_ROWS = 3;
  * @param {string} bookKey
  * @param {{ eventId: string, homeTeam?: string, awayTeam?: string }} meta
  */
-export async function scrapeMatchPlayerPropsForBook(bookKey, meta) {
+export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0) {
   const url = resolveWcMatchPlayerPropsBookUrl(bookKey, meta);
   if (!url) {
     return { book: bookKey, ok: false, markets: {}, error: "missing_url" };
   }
 
-  const fetched = await fetchBookPageHtml(url);
-  if (!fetched.ok || !fetched.html) {
-    console.log(
-      JSON.stringify({
-        event: "wc_match_props_scrape_fail",
-        book: bookKey,
-        eventId: meta.eventId,
-        error: fetched.error,
-        status: fetched.status,
-      }),
-    );
-    return { book: bookKey, ok: false, markets: {}, error: fetched.error || "fetch_failed" };
-  }
-
   const filter = { homeTeam: meta.homeTeam, awayTeam: meta.awayTeam };
-  let markets = parseMatchPlayerPropRowsFromHtml(fetched.html, filter);
-  if ((markets.anytime_scorer || []).length < MIN_ANYTIME_ROWS && fetched.html.trim().startsWith("{")) {
-    try {
-      markets = parseMatchPlayerPropRowsFromJson(JSON.parse(fetched.html), filter);
-    } catch {
-      /* ignore */
-    }
-  }
 
-  const anytimeCount = (markets.anytime_scorer || []).length;
-  if (anytimeCount < MIN_ANYTIME_ROWS) {
-    return { book: bookKey, ok: false, markets, error: "parse_empty" };
-  }
+  return runWcBookScrapeWithBackoff({
+    market: "match_props",
+    bookKey,
+    bookIndex,
+    scrapeOnce: async () => {
+      const fetched = await fetchBookPageHtml(url);
+      if (!fetched.ok || !fetched.html) {
+        return {
+          book: bookKey,
+          ok: false,
+          markets: {},
+          error: fetched.error || "fetch_failed",
+        };
+      }
 
-  console.log(
-    JSON.stringify({
-      event: "wc_match_props_scrape_ok",
-      book: bookKey,
-      eventId: meta.eventId,
-      anytimeCount,
-      firstCount: (markets.first_goalscorer || []).length,
-    }),
-  );
+      let markets = parseMatchPlayerPropRowsFromHtml(fetched.html, filter);
+      if (
+        (markets.anytime_scorer || []).length < MIN_ANYTIME_ROWS &&
+        fetched.html.trim().startsWith("{")
+      ) {
+        try {
+          markets = parseMatchPlayerPropRowsFromJson(JSON.parse(fetched.html), filter);
+        } catch {
+          /* ignore */
+        }
+      }
 
-  return { book: bookKey, ok: true, markets, error: null };
+      const anytimeCount = (markets.anytime_scorer || []).length;
+      if (anytimeCount < MIN_ANYTIME_ROWS) {
+        return { book: bookKey, ok: false, markets, error: "parse_empty" };
+      }
+
+      return { book: bookKey, ok: true, markets, error: null };
+    },
+  });
 }
 
 /**
@@ -166,8 +165,9 @@ export async function scrapeAndCacheWcMatchPlayerProps(eventId, meta = {}) {
   const books = listEnabledWcMatchPlayerPropBooks();
   /** @type {Array<{ book: string, ok: boolean, markets: Record<string, unknown[]>, error: string | null }>} */
   const bookResults = [];
-  for (const book of books) {
-    bookResults.push(await scrapeMatchPlayerPropsForBook(book, scrapeMeta));
+  for (let i = 0; i < books.length; i++) {
+    if (i > 0) await delayBetweenWcBookScrapes(i - 1);
+    bookResults.push(await scrapeMatchPlayerPropsForBook(books[i], scrapeMeta, i));
   }
 
   let { markets, booksUsed } = mergeMatchPropsConsensus(bookResults);
