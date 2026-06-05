@@ -178,7 +178,8 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
   if (squadLines.length) {
     lines.push(...squadLines, "");
   } else if (counts.playerCount > 0) {
-    lines.push(`SQUAD INDEX: ${counts.playerCount} players across ${counts.teamCount} nations in KV.`, "");
+    const rosterNote = counts.playerCount >= 1248 ? "complete official FIFA 26-man rosters (static source)" : "players in KV";
+    lines.push(`SQUAD INDEX: ${counts.playerCount} players across ${counts.teamCount} nations — ${rosterNote}.`, "");
   }
 
   lines.push(...formatInjuriesBoardForPrompt(injuries), "");

@@ -62,6 +62,8 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       playerRegistryCoverage: {
         playerCount: registry.playerCount,
         teamCount: registry.teamCount,
+        rosterComplete: registry.playerCount >= 1248 && registry.teamCount >= 48,
+        rosterSource: players?.source || "unknown",
       },
       activeInjuriesCount: injuryRows.length,
       highImpactInjuriesCount: highImpact,
