@@ -18,6 +18,7 @@ import {
   matchPlayerPropRowsFromEvent,
 } from "../shared/wcMatchPlayerProps.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import { WC_SET_PIECE_TAKERS } from "../src/data/wc2026SetPieceTakers.js";
 
 /**
  * @param {number} [nowMs]
@@ -70,6 +71,34 @@ function formatSquadLeadersForPrompt(players) {
     lines.push(
       `  ${p.name} (${p.nationAbbr}) — ${goals} goal(s)${tag}${p.injuryStatus ? ` · ${p.injuryStatus}` : ""}`,
     );
+  }
+  return lines;
+}
+
+/**
+ * Set piece taker context for match-scoped or tournament player market prompts.
+ * @param {Array<Record<string, unknown>>} matchDetails
+ * @param {object | null | undefined} matchPlayerProps
+ */
+function formatSetPieceTakersForPrompt(matchDetails, matchPlayerProps) {
+  const teams = new Set();
+  for (const d of matchDetails || []) {
+    if (d?.homeTeam) teams.add(String(d.homeTeam).toUpperCase());
+    if (d?.awayTeam) teams.add(String(d.awayTeam).toUpperCase());
+  }
+  if (matchPlayerProps?.homeTeam) teams.add(String(matchPlayerProps.homeTeam).toUpperCase());
+  if (matchPlayerProps?.awayTeam) teams.add(String(matchPlayerProps.awayTeam).toUpperCase());
+
+  if (!teams.size) return [];
+  const rows = WC_SET_PIECE_TAKERS.filter((r) => teams.has(r.nationAbbr));
+  if (!rows.length) return [];
+
+  const lines = ["SET PIECE SPECIALISTS (seed — factor into scorer probability):"];
+  for (const r of rows) {
+    const parts = [`PK: ${r.penaltyTaker}`];
+    if (r.freeKick) parts.push(`FK: ${r.freeKick}`);
+    if (r.corners) parts.push(`CK: ${r.corners}`);
+    lines.push(`  ${r.nationAbbr}: ${parts.join(" · ")}`);
   }
   return lines;
 }
@@ -183,6 +212,8 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
   }
 
   lines.push(...formatInjuriesBoardForPrompt(injuries), "");
+
+  lines.push(...formatSetPieceTakersForPrompt(matchDetails, matchPlayerProps), "");
 
   const confirmed = (matchDetails || []).filter((d) => d?.lineupConfirmed === true);
   if (confirmed.length) {

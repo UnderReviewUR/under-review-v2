@@ -28,6 +28,7 @@ import { resolveWcPlayerMarketTier, tierMetaFor } from "../shared/wcPlayerMarket
 import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 import {
   filterOutrightsForQuestion,
+  formatGroupClinchWarnings,
   formatKnockoutPhasePromptRules,
   formatKnockoutUrTakeAppendix,
   formatWorldCupPhaseRules,
@@ -36,6 +37,7 @@ import {
   isKnockoutRound,
   selectGroupsForPrompt,
 } from "../shared/wcPhaseUtils.js";
+import { formatVenueWarningsForPrompt } from "../shared/wcVenueMetadata.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -443,6 +445,14 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("GROUPS: No group rows loaded for this question.");
   }
 
+  if (ctx.groupClinchBlock) {
+    lines.push("", ctx.groupClinchBlock);
+  }
+
+  if (ctx.venueBlock) {
+    lines.push("", ctx.venueBlock);
+  }
+
   if (Array.isArray(ctx.live) && ctx.live.length) {
     lines.push("", "LIVE NOW:");
     for (const m of ctx.live) {
@@ -641,6 +651,10 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const scopedOutrightsKv = filterOutrightsForQuestion(outrightsKv, mentionedTeams);
   const dataConfidence = deriveWcDataConfidence(matchDetails);
   const outrightsBlock = formatOutrightsForPrompt(scopedOutrightsKv);
+  const groupClinchBlock = !isKnockoutPhase(phase)
+    ? formatGroupClinchWarnings(groups, matches, mentionedTeams)
+    : null;
+  const venueBlock = formatVenueWarningsForPrompt(fixtures);
 
   const ctx = {
     source: "world_cup_2026",
@@ -655,6 +669,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     groupsForPrompt,
     knockoutAppendix,
     knockoutPhaseRules,
+    groupClinchBlock,
+    venueBlock,
     live,
     results: resultsForPrompt,
     upcoming: upcomingForPrompt,
