@@ -8,6 +8,7 @@ import {
 } from "../shared/wcBookScrapePolicy.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import { isNationOnlyOutcome, parseAmericanOddsNumber, formatAmericanOdds } from "../shared/wcGoldenBootConsensus.js";
+import { fetchWithTimeout } from "../shared/fetchWithTimeout.js";
 
 const GOLDEN_BOOT_LABEL =
   /\b(golden boot|top goal\s*scorer|top goalscorer|world cup top scorer|most goals|leading goalscorer)\b/i;
@@ -461,25 +462,13 @@ export function parseMatchPlayerPropRowsFromHtml(html, filter = {}) {
  * @param {string} url
  */
 export async function fetchBookPageHtml(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), WC_BOOK_SCRAPE_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": WC_BOOK_USER_AGENT,
-        Accept: "text/html,application/json",
-      },
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { ok: false, html: "", status: res.status, error: `http_${res.status}` };
-    }
-    const html = await res.text();
-    return { ok: true, html, status: res.status, error: null };
-  } catch (err) {
-    clearTimeout(timer);
-    return { ok: false, html: "", status: 0, error: err?.message || "fetch_failed" };
+  const res = await fetchWithTimeout(url, {
+    timeoutMs: WC_BOOK_SCRAPE_TIMEOUT_MS,
+    headers: { "User-Agent": WC_BOOK_USER_AGENT, Accept: "text/html,application/json" },
+    parseAs: "text",
+  });
+  if (!res.ok) {
+    return { ok: false, html: "", status: res.status, error: res.error || `http_${res.status}` };
   }
+  return { ok: true, html: res.data, status: res.status, error: null };
 }

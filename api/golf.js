@@ -1,11 +1,10 @@
 import { applyCors } from "./_cors.js";
 import { getUnifiedGolfBoard } from "./_golfProviders.js";
+import { allowMethods } from "../shared/methodGuard.js";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
-  if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (!allowMethods(req, res, ["GET"])) return;
 
   const view = String(req.query.view || "board").toLowerCase();
 

@@ -18,6 +18,7 @@ export const config = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { applyCors } from "./_cors.js";
+import { allowMethods } from "../shared/methodGuard.js";
 
 export const defenses = {
 
@@ -650,7 +651,7 @@ export const defenses = {
 
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (!allowMethods(req, res, ["GET"])) return;
 
   return res.status(200).json({
     defenses,

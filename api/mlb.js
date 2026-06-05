@@ -1,6 +1,7 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
-import { etDateStringToEspnYmd, getTodayEtDateString, getTomorrowEtDateString } from "./_espnEtDates.js";
+import { etDateStringToEspnYmd, getTodayEtDateString, getTomorrowEtDateString, toEtDateString } from "./_espnEtDates.js";
+import { firstNonEmpty } from "../shared/textUtils.js";
 import { persistLastKnownHomeMlbGames, recoverLastKnownHomeMlbGames } from "./_homeLastKnownGames.js";
 import {
   fetchBdlMlbGameTotalsMap,
@@ -199,25 +200,13 @@ function getMlbSeasonContext() {
   return { phase:"Offseason", season:2025 };
 }
 
-function toEtDateString(isoString) {
-  if (!isoString) return "";
-  return new Date(isoString).toLocaleDateString("en-CA", {
-    timeZone: "America/New_York",
-  });
-}
+
 
 // ── Fetch games with probable pitchers from ESPN ──────────────────────────────
-function firstString(values = []) {
-  for (const v of values) {
-    const s = typeof v === "string" ? v.trim() : "";
-    if (s) return s;
-  }
-  return null;
-}
 
 function extractPitcherFromCompetitor(competitor) {
   if (!competitor || typeof competitor !== "object") return null;
-  return firstString([
+  return firstNonEmpty(
     competitor?.probablePitcher?.athlete?.shortName,
     competitor?.probablePitcher?.athlete?.displayName,
     competitor?.probablePitcher?.displayName,
@@ -229,19 +218,19 @@ function extractPitcherFromCompetitor(competitor) {
     competitor?.pitcher?.athlete?.shortName,
     competitor?.pitcher?.athlete?.displayName,
     competitor?.pitcher?.displayName,
-  ]);
+  );
 }
 
 function extractLivePitcherHint(comp, event, homeAway) {
   const sideKey = homeAway === "home" ? "home" : "away";
-  return firstString([
+  return firstNonEmpty(
     comp?.situation?.[`${sideKey}Pitcher`]?.athlete?.shortName,
     comp?.situation?.[`${sideKey}Pitcher`]?.athlete?.displayName,
     comp?.situation?.[`${sideKey}Pitcher`]?.displayName,
     event?.situation?.[`${sideKey}Pitcher`]?.athlete?.shortName,
     event?.situation?.[`${sideKey}Pitcher`]?.athlete?.displayName,
     event?.situation?.[`${sideKey}Pitcher`]?.displayName,
-  ]);
+  );
 }
 
 async function getMlbGamesWithPitchers() {

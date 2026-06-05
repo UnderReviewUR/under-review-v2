@@ -3,17 +3,10 @@
  * https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard
  */
 import { etDateStringToEspnYmd } from "./_espnEtDates.js";
+import { firstNonEmpty } from "../shared/textUtils.js";
 
 const ESPN_PROBABLE_CACHE_MS = 120000;
 const cacheByYmd = new Map();
-
-function firstString(values = []) {
-  for (const v of values) {
-    const s = typeof v === "string" ? v.trim() : "";
-    if (s) return s;
-  }
-  return null;
-}
 
 /** Normalize ESPN-style abbreviations for matchup keys. */
 export function normalizeMlbAbbr(abbr) {
@@ -69,12 +62,12 @@ function pitcherThrowsAbbrev(athlete) {
 
 export function buildProbablePitcherDetailFromAthlete(athlete, statistics = []) {
   if (!athlete || typeof athlete !== "object") return null;
-  const name = firstString([
+  const name = firstNonEmpty(
     athlete.shortName,
     athlete.displayName,
     athlete.fullName,
     athlete.name,
-  ]);
+  );
   if (!name) return null;
   const statsSource = Array.isArray(statistics) && statistics.length ? statistics : athlete.statistics || [];
   const { era, k9 } = extractPitchingEraK9FromEspnStatistics(statsSource);

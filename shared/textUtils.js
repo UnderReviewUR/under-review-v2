@@ -1,3 +1,16 @@
+/**
+ * Return the first non-empty string value among the arguments.
+ * @param {...unknown} vals
+ * @returns {string | null}
+ */
+export function firstNonEmpty(...vals) {
+  for (const v of vals) {
+    const s = v != null ? String(v).trim() : "";
+    if (s) return s;
+  }
+  return null;
+}
+
 /** Sentence-terminal punctuation for preview trimming. */
 const TERMINAL_PUNCT_RE = /[.!?]/;
 

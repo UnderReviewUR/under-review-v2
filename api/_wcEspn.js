@@ -8,6 +8,7 @@ import {
   WC_SCOREBOARD_END_YMD,
   WC_SCOREBOARD_START_YMD,
 } from "../shared/wc2026Constants.js";
+import { fetchWithTimeout } from "../shared/fetchWithTimeout.js";
 
 export const ESPN_WC_STANDINGS_URL =
   "https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings";
@@ -208,25 +209,11 @@ export function normalizeEspnScoreboardEvent(event, nowMs = Date.now()) {
  */
 export async function fetchEspnScoreboardForDate(ymdCompact) {
   const url = `${ESPN_WC_SCOREBOARD_BASE}?dates=${encodeURIComponent(ymdCompact)}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { ok: false, status: res.status, events: [], error: `ESPN scoreboard ${res.status}` };
-    }
-    const json = await res.json();
-    return { ok: true, status: res.status, events: Array.isArray(json?.events) ? json.events : [] };
-  } catch (err) {
-    clearTimeout(timer);
-    return {
-      ok: false,
-      status: 0,
-      events: [],
-      error: err?.message || "ESPN scoreboard fetch failed",
-    };
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) {
+    return { ok: false, status: res.status, events: [], error: res.error || `ESPN scoreboard ${res.status}` };
   }
+  return { ok: true, status: res.status, events: Array.isArray(res.data?.events) ? res.data.events : [] };
 }
 
 /**
@@ -271,24 +258,15 @@ export async function fetchEspnAllMatches() {
 }
 
 export async function fetchEspnStandings() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetch(ESPN_WC_STANDINGS_URL, { cache: "no-store", signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { ok: false, groups: {}, error: `ESPN standings ${res.status}` };
-    }
-    const json = await res.json();
-    const groups = normalizeEspnStandings(json);
-    if (Object.keys(groups).length < 12) {
-      return { ok: false, groups, error: "ESPN standings incomplete" };
-    }
-    return { ok: true, groups, error: null };
-  } catch (err) {
-    clearTimeout(timer);
-    return { ok: false, groups: {}, error: err?.message || "ESPN standings fetch failed" };
+  const res = await fetchWithTimeout(ESPN_WC_STANDINGS_URL);
+  if (!res.ok) {
+    return { ok: false, groups: {}, error: res.error || `ESPN standings ${res.status}` };
   }
+  const groups = normalizeEspnStandings(res.data);
+  if (Object.keys(groups).length < 12) {
+    return { ok: false, groups, error: "ESPN standings incomplete" };
+  }
+  return { ok: true, groups, error: null };
 }
 
 /**
@@ -321,27 +299,15 @@ export function normalizeEspnFutures(json) {
 }
 
 export async function fetchEspnOutrights() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetch(`${ESPN_WC_FUTURES_URL}?limit=200`, {
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { ok: false, outrights: {}, error: `ESPN futures ${res.status}` };
-    }
-    const json = await res.json();
-    const outrights = normalizeEspnFutures(json);
-    if (!Object.keys(outrights).length) {
-      return { ok: false, outrights: {}, error: "ESPN futures empty" };
-    }
-    return { ok: true, outrights, error: null };
-  } catch (err) {
-    clearTimeout(timer);
-    return { ok: false, outrights: {}, error: err?.message || "ESPN futures fetch failed" };
+  const res = await fetchWithTimeout(`${ESPN_WC_FUTURES_URL}?limit=200`);
+  if (!res.ok) {
+    return { ok: false, outrights: {}, error: res.error || `ESPN futures ${res.status}` };
   }
+  const outrights = normalizeEspnFutures(res.data);
+  if (!Object.keys(outrights).length) {
+    return { ok: false, outrights: {}, error: "ESPN futures empty" };
+  }
+  return { ok: true, outrights, error: null };
 }
 
 /**

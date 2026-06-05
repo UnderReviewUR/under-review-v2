@@ -3,21 +3,12 @@
  * Shared by api/gate.js and the client (src/lib/freeTierUsage.js).
  */
 
-import { getEtYmdAt } from "./golfOddsCachePolicy.js";
+import { getEtYmdAt, parseYmd } from "./etDateUtils.js";
 
 export const FREE_QUESTIONS_PER_WEEK = 2;
 
 /** @deprecated Use FREE_QUESTIONS_PER_WEEK — kept for imports named FREE_QUESTION_LIMIT */
 export const FREE_QUESTION_LIMIT = FREE_QUESTIONS_PER_WEEK;
-
-/**
- * @param {string} ymd
- */
-function parseYmd(ymd) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
-  if (!m) return null;
-  return { y: parseInt(m[1], 10), mo: parseInt(m[2], 10), da: parseInt(m[3], 10) };
-}
 
 /**
  * Monday calendar date (YYYY-MM-DD) for the ET week containing nowMs.

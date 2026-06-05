@@ -5,6 +5,7 @@
 import { applyCors } from "./_cors.js";
 import Stripe from "stripe";
 import { getAccessTokenSecretSync, getEnv, resolveAccessTokenSecretForHandler } from "./_env.js";
+import { allowMethods } from "../shared/methodGuard.js";
 import { verifyToken } from "./_hmacToken.js";
 import { allowRateLimit, getClientIp, proStatusIpLimit } from "./_rateLimitUrTake.js";
 import { buildProStatusResponse } from "./_stripeProSync.js";
@@ -36,7 +37,7 @@ function bearerMatchesEmail(authHeader, requestedEmail) {
 
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (!allowMethods(req, res, ["GET"])) return;
 
   const email = emailFromRequest(req);
   if (!isValidEmail(email)) {
