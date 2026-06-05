@@ -33,14 +33,24 @@ function setMemEntry(key, value, ttlSeconds) {
   memStore.set(key, { value, expiresAt });
 }
 
+const KV_TIMEOUT_MS = 8000;
+
 async function kvGet(key) {
   const endpoint = `${KV_URL.replace(/\/$/, "")}/get/${encodeURIComponent(key)}`;
-  const res = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), KV_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${KV_TOKEN}`,
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     throw new Error(`KV get failed: HTTP ${res.status}`);
@@ -66,12 +76,20 @@ async function kvSet(key, value, ttlSeconds) {
     endpoint += `?EX=${Math.floor(ttlSeconds)}`;
   }
 
-  const res = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), KV_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${KV_TOKEN}`,
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     throw new Error(`KV set failed: HTTP ${res.status}`);
@@ -80,12 +98,20 @@ async function kvSet(key, value, ttlSeconds) {
 
 async function kvDel(key) {
   const endpoint = `${KV_URL.replace(/\/$/, "")}/del/${encodeURIComponent(key)}`;
-  const res = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), KV_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${KV_TOKEN}`,
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     throw new Error(`KV del failed: HTTP ${res.status}`);
@@ -140,12 +166,20 @@ export async function listKeysWithPrefix(prefix) {
   try {
     do {
       const url = `${base}/scan/${encodeURIComponent(cursor)}?match=${encodeURIComponent(matchPattern)}&count=500`;
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${KV_TOKEN}`,
-        },
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), KV_TIMEOUT_MS);
+      let res;
+      try {
+        res = await fetch(url, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${KV_TOKEN}`,
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) {
         throw new Error(`KV scan failed: HTTP ${res.status}`);
       }

@@ -566,15 +566,34 @@ async function loadWorldCupMatchesPayload() {
  * @param {string} [question]
  * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null }} [opts]
  */
+const WC_CONTEXT_TIMEOUT_MS = 25000;
+
 export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
+  const contextPromise = _buildWorldCupUrTakeContextInner(question, opts);
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("WC context build timed out")), WC_CONTEXT_TIMEOUT_MS),
+  );
+  return Promise.race([contextPromise, timeout]);
+}
+
+async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const wcIntent = opts.wcIntent || null;
   const injectStaticRules =
     opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
-    loadWorldCupGroupsPayload(),
-    loadWorldCupMatchesPayload(),
-    readWcOutrightsFromKv(nowMs),
+    loadWorldCupGroupsPayload().catch((err) => {
+      console.warn("[wc-context] loadWorldCupGroupsPayload failed:", err?.message);
+      return null;
+    }),
+    loadWorldCupMatchesPayload().catch((err) => {
+      console.warn("[wc-context] loadWorldCupMatchesPayload failed:", err?.message);
+      return null;
+    }),
+    readWcOutrightsFromKv(nowMs).catch((err) => {
+      console.warn("[wc-context] readWcOutrightsFromKv failed:", err?.message);
+      return null;
+    }),
   ]);
 
   const staticGroups = buildStaticGroups();
@@ -594,8 +613,12 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   /** @type {Array<Record<string, unknown>>} */
   const matchDetails = [];
   for (const fx of fixtures) {
-    const detail = await readWcMatchDetailFromKv(fx.id);
-    if (detail) matchDetails.push(detail);
+    try {
+      const detail = await readWcMatchDetailFromKv(fx.id);
+      if (detail) matchDetails.push(detail);
+    } catch (err) {
+      console.warn("[wc-context] readWcMatchDetailFromKv failed for", fx.id, err?.message);
+    }
   }
 
   const groupsForPrompt = selectGroupsForPrompt(groups, {
@@ -649,7 +672,12 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
     ),
   };
 
-  ctx.wcBreakingLine = await resolveWcBreakingLine();
+  try {
+    ctx.wcBreakingLine = await resolveWcBreakingLine();
+  } catch (err) {
+    console.warn("[wc-context] resolveWcBreakingLine failed:", err?.message);
+    ctx.wcBreakingLine = null;
+  }
 
   if (wcIntent === WC_INTENT.RULES) {
     ctx.promptBlock = formatWcRulesOnlyPromptBlock(ctx);
@@ -659,34 +687,38 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   if (isWcPlayerMarketIntent(wcIntent)) {
     const wcEventIdTrimmed = String(opts.wcEventId || "").trim() || null;
     ctx.wcEventId = wcEventIdTrimmed;
-    const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {
-      wcEventId: wcEventIdTrimmed,
-      wcIntent,
-    });
-    const playerMarketTier = resolveWcPlayerMarketTier({
-      goldenBoot: playerMarketKv.goldenBoot,
-      players: playerMarketKv.players,
-      injuries: playerMarketKv.injuries,
-      matchPlayerProps: playerMarketKv.matchPlayerProps,
-      wcEventId: wcEventIdTrimmed,
-      wcContext: ctx,
-      wcIntent,
-    });
-    const tierMeta = tierMetaFor(playerMarketTier);
-    ctx.playerMarketKv = playerMarketKv;
-    ctx.playerMarketTier = playerMarketTier;
-    ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
-      tier: playerMarketTier,
-      tierLabel: tierMeta.label,
-      tierDisclaimer: tierMeta.disclaimer,
-      wcIntent,
-      goldenBoot: playerMarketKv.goldenBoot,
-      players: playerMarketKv.players,
-      injuries: playerMarketKv.injuries,
-      matchDetails,
-      matchPlayerProps: playerMarketKv.matchPlayerProps,
-      wcEventId: wcEventIdTrimmed,
-    });
+    try {
+      const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {
+        wcEventId: wcEventIdTrimmed,
+        wcIntent,
+      });
+      const playerMarketTier = resolveWcPlayerMarketTier({
+        goldenBoot: playerMarketKv.goldenBoot,
+        players: playerMarketKv.players,
+        injuries: playerMarketKv.injuries,
+        matchPlayerProps: playerMarketKv.matchPlayerProps,
+        wcEventId: wcEventIdTrimmed,
+        wcContext: ctx,
+        wcIntent,
+      });
+      const tierMeta = tierMetaFor(playerMarketTier);
+      ctx.playerMarketKv = playerMarketKv;
+      ctx.playerMarketTier = playerMarketTier;
+      ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
+        tier: playerMarketTier,
+        tierLabel: tierMeta.label,
+        tierDisclaimer: tierMeta.disclaimer,
+        wcIntent,
+        goldenBoot: playerMarketKv.goldenBoot,
+        players: playerMarketKv.players,
+        injuries: playerMarketKv.injuries,
+        matchDetails,
+        matchPlayerProps: playerMarketKv.matchPlayerProps,
+        wcEventId: wcEventIdTrimmed,
+      });
+    } catch (err) {
+      console.warn("[wc-context] player market KV load failed:", err?.message);
+    }
   }
 
   ctx.promptBlock = formatWorldCupUrTakePromptBlock(ctx);
