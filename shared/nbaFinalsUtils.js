@@ -212,12 +212,25 @@ export function buildNbaFinalsToneRules(nbaIntent) {
   } else {
     lines.push(
       "- MATCHUP: Balanced preview — open with series state, then spread/total/prop edge.",
-      "- Respect series momentum; Game 1 pressure differs from elimination games — use game number from context.",
+      "- Respect series momentum; use game number from context (NOT Game 1 — reference only the game number that appears in contextBlock above).",
       "- Travel/rest: cross-country Finals legs matter for role-player minutes and pace — ground in injuries + recentGames only.",
     );
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Get today's date in ET for context injection.
+ */
+function getTodayStrEt() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "America/New_York",
+  });
 }
 
 /**
@@ -252,6 +265,14 @@ export function buildNbaFinalsContextBlock(seriesState, nbaIntent = NBA_INTENT.P
     "- Rest & travel: back-to-back or cross-time-zone legs can compress rotation — cite only when injuries or recentGames support it.",
     "- Back-to-back impact: role-player overs/unders and totals shift with pace — use gameTotals and posted props when present.",
     buildNbaFinalsToneRules(nbaIntent),
+  );
+
+  // Inject today's date and game number reminder
+  const todayStr = getTodayStrEt();
+  lines.push(
+    "",
+    `TODAY'S DATE: ${todayStr} (June 5, 2026). NBA Finals Game ${seriesState.gameNumber || "TBD"} is tonight.`,
+    "Do not reference Game 1 — use only the game number from the context block above.",
   );
 
   return `${lines.join("\n")}\n`;
