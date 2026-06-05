@@ -161,6 +161,106 @@ export function isKnockoutAdvancementQuestion(question) {
 }
 
 /**
+ * 2026 format: 12 groups × 4, top 2 qualify + 8 best 3rd-place = 32 to knockout.
+ * Max group-stage points = 9 (3 wins). Each team plays 3 matches.
+ *
+ * @param {Array<Record<string, unknown>>} groupStandings — sorted by points desc
+ * @param {Array<Record<string, unknown>>} groupMatches — group-stage matches for this group
+ * @param {string} teamAbbr
+ * @returns {{ clinched: boolean, eliminated: boolean, topTwo: boolean, thirdMayAdvance: boolean, matchesPlayed: number, matchesRemaining: number }}
+ */
+export function getGroupClinchStatus(groupStandings, groupMatches, teamAbbr) {
+  const abbr = String(teamAbbr || "").toUpperCase();
+  const standings = Array.isArray(groupStandings) ? groupStandings : [];
+  const matches = Array.isArray(groupMatches) ? groupMatches : [];
+
+  const row = standings.find((r) => String(r.team || r.abbreviation || "").toUpperCase() === abbr);
+  if (!row) return { clinched: false, eliminated: false, topTwo: false, thirdMayAdvance: false, matchesPlayed: 0, matchesRemaining: 3 };
+
+  const played = Number(row.played) || 0;
+  const points = Number(row.points) || 0;
+  const remaining = 3 - played;
+  const maxPossible = points + remaining * 3;
+
+  const idx = standings.findIndex((r) => String(r.team || r.abbreviation || "").toUpperCase() === abbr);
+
+  // Second-place team's points — if team can't catch 2nd, they can at best be 3rd.
+  const secondPlacePoints = standings.length >= 2 ? Number(standings[1].points) || 0 : 0;
+  // Third-place threshold: conservatively, 3rd with ≥4 points usually advances (8 of 12 thirds go through).
+  const thirdPlaceMinEstimate = 4;
+
+  const topTwo = idx <= 1 && played > 0;
+
+  // Clinched: guaranteed top 2 (no team below can catch you for 2nd)
+  let clinched = false;
+  if (played > 0 && idx <= 1) {
+    const thirdPoints = standings.length >= 3 ? Number(standings[2].points) || 0 : 0;
+    const thirdRemaining = standings.length >= 3 ? 3 - (Number(standings[2].played) || 0) : 0;
+    const thirdMax = thirdPoints + thirdRemaining * 3;
+    if (points > thirdMax) clinched = true;
+  }
+
+  // Eliminated: can't finish top 2 and can't realistically be a best 3rd
+  let eliminated = false;
+  if (played > 0) {
+    const cantReachSecond = maxPossible < secondPlacePoints;
+    const cantBeGoodThird = maxPossible < thirdPlaceMinEstimate && remaining === 0;
+    if (cantReachSecond && cantBeGoodThird) eliminated = true;
+    // Hard elimination: 0 points after 2 games with negative GD
+    if (played >= 2 && points === 0 && (Number(row.gd) || 0) <= -3) eliminated = true;
+  }
+
+  const thirdMayAdvance = idx === 2 && maxPossible >= thirdPlaceMinEstimate;
+
+  return { clinched, eliminated, topTwo, thirdMayAdvance, matchesPlayed: played, matchesRemaining: remaining };
+}
+
+/**
+ * Format rotation/clinch warnings for the UR Take prompt.
+ * @param {Record<string, Array<Record<string, unknown>>>} groups — group standings by letter
+ * @param {Array<Record<string, unknown>>} allMatches
+ * @param {string[]} mentionedTeams
+ * @returns {string | null}
+ */
+export function formatGroupClinchWarnings(groups, allMatches, mentionedTeams) {
+  const teams = (mentionedTeams || []).map((t) => String(t).toUpperCase());
+  if (!teams.length) return null;
+
+  const warnings = [];
+
+  for (const abbr of teams) {
+    const team = WC_2026_TEAMS.find((t) => String(t.abbreviation).toUpperCase() === abbr);
+    if (!team?.group) continue;
+    const standings = groups?.[team.group];
+    if (!Array.isArray(standings) || !standings.length) continue;
+
+    const groupMatches = (allMatches || []).filter(
+      (m) => String(m.group || "").toUpperCase() === team.group,
+    );
+
+    const status = getGroupClinchStatus(standings, groupMatches, abbr);
+    if (status.matchesPlayed === 0) continue;
+
+    if (status.clinched && status.matchesRemaining > 0) {
+      warnings.push(
+        `  ${abbr}: Clinched knockout qualification with ${status.matchesRemaining} group match(es) remaining — ROTATION RISK: manager may rest key starters. Factor into scorer/prop recommendations.`,
+      );
+    } else if (status.eliminated) {
+      warnings.push(
+        `  ${abbr}: Eliminated from knockout contention — dead rubber. Expect heavy rotation and lower motivation.`,
+      );
+    } else if (status.topTwo && status.matchesRemaining === 1) {
+      warnings.push(
+        `  ${abbr}: Currently in top 2 with final group match remaining — if already secured, may rotate.`,
+      );
+    }
+  }
+
+  if (!warnings.length) return null;
+  return ["GROUP STAGE STATUS (rotation/clinch — factor into player props):", ...warnings].join("\n");
+}
+
+/**
  * @param {string} question
  */
 export function isTournamentWinnerQuestion(question) {
