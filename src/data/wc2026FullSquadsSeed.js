@@ -4,11 +4,11 @@
  * Replaces the smaller notable-player seed for full pre-tournament coverage.
  */
 
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
+// @ts-ignore — JSON import attribute required by Node; Vite strips it during build.
+import fullSquadsRaw from "./wc2026FullSquads.json" with { type: "json" };
 
 /** @type {{ lastUpdated: string, source: string, teams: Record<string, { teamName: string, roster: Array<{ playerKey: string, name: string, firstName: string, lastName: string, nameOnShirt: string, dob: string, position: string, club: string, number: number, height?: number }>, count: number, complete: boolean }> }} */
-const fullSquads = require("./wc2026FullSquads.json");
+const fullSquads = /** @type {any} */ (fullSquadsRaw);
 
 /**
  * Title-case a single uppercase word: "MBAPPE" → "Mbappe", "DE" → "De".
