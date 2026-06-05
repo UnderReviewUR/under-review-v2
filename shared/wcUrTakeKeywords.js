@@ -47,6 +47,12 @@ const WC_TOURNAMENT_TERMS = [
   "penalty kick",
   "penalty shootout",
   "golden boot",
+  "boot winner",
+  "top goalscorer",
+  "top goal scorer",
+  "top scorer",
+  "most goals",
+  "leading scorer",
   "world cup 2026",
   "wc 2026",
 ];

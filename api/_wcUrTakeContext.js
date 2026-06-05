@@ -576,7 +576,7 @@ async function loadWorldCupMatchesPayload() {
  * @param {string} [question]
  * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null }} [opts]
  */
-const WC_CONTEXT_TIMEOUT_MS = 25000;
+const WC_CONTEXT_TIMEOUT_MS = 12000;
 
 export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   const contextPromise = _buildWorldCupUrTakeContextInner(question, opts);

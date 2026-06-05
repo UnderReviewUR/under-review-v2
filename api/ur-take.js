@@ -1509,8 +1509,11 @@ async function callAnthropic({
   messages,
   temperature = 0.45,
   max_tokens = 800,
+  timeoutMs,
 }) {
   /** Allow slow Claude completions when the host permits long functions (see vercel.json maxDuration). */
+  const effectiveTimeout =
+    Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 52000;
   return fetchAnthropicMessages({
     apiKey,
     model,
@@ -1518,8 +1521,8 @@ async function callAnthropic({
     temperature,
     system,
     messages,
-    timeoutMs: 52000,
-    maxRetries: 3,
+    timeoutMs: effectiveTimeout,
+    maxRetries: effectiveTimeout >= 30000 ? 3 : 1,
   });
 }
 
@@ -6565,6 +6568,9 @@ Never open with market-availability throat-clearing. Give monitoring hooks; name
       });
       userPrompt = `You are answering a short NBA betting follow-up.
 
+TODAY
+${getTodayStr()}
+
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${nbaQuestionForModel}
 
@@ -6598,6 +6604,9 @@ ${NBA_FOLLOW_UP_THREAD_RULE}`;
     const firstSessionGuaranteeBlock = buildFirstSessionGuaranteeInjection(firstSessionGuaranteeFeature);
 
     userPrompt = `You are answering an NBA betting question.
+
+TODAY
+${getTodayStr()}
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
 ${nbaQuestionForModel}
@@ -7812,6 +7821,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
 
       const anthropicT0 = Date.now();
+      const elapsedSoFar = anthropicT0 - requestStart;
+      const remainingBudgetMs = Math.max(55000 - elapsedSoFar, 8000);
+      const anthropicTimeoutMs = Math.min(remainingBudgetMs, 52000);
       const result = await callAnthropic({
         apiKey: ANTHROPIC_API_KEY,
         model: ANTHROPIC_MODEL,
@@ -7819,6 +7831,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         messages,
         temperature: temperatureForAttempt,
         max_tokens: tokenBudget,
+        timeoutMs: anthropicTimeoutMs,
       });
       anthropicMs += Date.now() - anthropicT0;
 
