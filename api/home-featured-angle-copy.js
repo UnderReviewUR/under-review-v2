@@ -1,6 +1,7 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { allowRateLimit, getClientIp } from "./_rateLimitUrTake.js";
 import {
   buildNbaStructuralPlayerIndex,
   fetchEspnDepthRotationKeysByTeam,
@@ -54,10 +55,23 @@ function parseCopyJson(text) {
   }
 }
 
+function isAuthorizedCron(req) {
+  const secret = getEnv("CRON_SECRET");
+  if (!secret) return process.env.NODE_ENV !== "production";
+  return req.headers.authorization === `Bearer ${secret}`;
+}
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!isAuthorizedCron(req)) {
+    const ip = getClientIp(req);
+    if (!allowRateLimit(`angle_copy:ip:${ip}`, 6)) {
+      return res.status(429).json({ error: "rate_limited" });
+    }
   }
 
   try {

@@ -12,13 +12,16 @@ const EXTRA_ORIGINS = (getEnv("ALLOWED_ORIGINS") || "")
 
 const ALL_ORIGINS = [...new Set([...CORE_ORIGINS, ...EXTRA_ORIGINS])];
 
+/** Vercel preview URLs for this project only (not any *.vercel.app subdomain). */
+const VERCEL_PREVIEW_RE = /^https:\/\/under-review[a-z0-9-]*\.vercel\.app$/;
+
 export function getAllowedOrigin(req) {
   const origin = req.headers?.origin || "";
 
   // Allow requests that do not send Origin (same-origin/server-side)
   if (!origin) return null;
 
-  if (origin.endsWith(".vercel.app")) return origin;
+  if (VERCEL_PREVIEW_RE.test(origin)) return origin;
 
   if (
     origin.startsWith("http://localhost") ||
