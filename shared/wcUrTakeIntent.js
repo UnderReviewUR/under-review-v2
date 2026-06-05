@@ -4,6 +4,7 @@
 
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
+import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"UNCLASSIFIED"} WcUrTakeIntent */
 
