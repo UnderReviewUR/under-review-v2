@@ -153,7 +153,7 @@ test("resolvePlayoffPriorityAbbrevs prefers series over slate when both match", 
 test("UI copy: playoff matchup hint without Playoff Mode branding", () => {
   const screenPath = join(__dirname, "../src/screens/NbaScreen.jsx");
   const jsx = readFileSync(screenPath, "utf8");
-  assert.match(jsx, /Ask about any playoff matchup or prop tonight/);
+  assert.match(jsx, /Ask about any playoff matchup or prop in the next 48 hours/);
   assert.match(jsx, /playoff matchup/i);
   assert.ok(!jsx.includes("Playoff Mode"));
 

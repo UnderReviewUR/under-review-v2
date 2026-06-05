@@ -76,7 +76,7 @@ test("classifyWcVerdictForUi — PLAYER_MARKET_PASS chips", () => {
   });
   assert.equal(verdict, "PLAYER_MARKET_PASS");
   const chips = getVerdictFollowUpChips(verdict);
-  assert.ok(chips.some((c) => /Group A/i.test(c)));
+  assert.ok(chips.some((c) => /group stage/i.test(c)));
   assert.match(getVerdictNextLine(verdict), /team or group/i);
 });
 

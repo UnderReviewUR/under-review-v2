@@ -2172,15 +2172,20 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
    * has no standings row — otherwise currentEvent.leaderboard is empty and UR Take invents dates.
    * Live events: keep alignment rules (same event / RBC vs Zurich, etc.).
    */
+  const espnLive = espnState === "in" || espnState === "live";
   const shouldUseEspnLeaderboard =
     !bdlHasLeaderboard &&
     espnHasLeaderboard &&
     (espnLooksFinished ||
+      espnLive ||
       (!espnLooksFinished &&
         (sameEvent ||
           !tournament ||
           bdlLooksTeamOrZurich ||
-          (espnIsRbcHeritage && !bdlIsRbcHeritage))));
+          (espnIsRbcHeritage && !bdlIsRbcHeritage) ||
+          (espnEvent?.id != null &&
+            tournament?.id != null &&
+            String(espnEvent.id) === String(tournament.id)))));
 
   const preferEspnDisplay =
     majorConflict ||
@@ -2436,6 +2441,22 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
     if (matchRow && !majorConflict) {
       outTournament = matchRow;
     }
+  }
+
+  if (
+    outCurrent &&
+    espnHasLeaderboard &&
+    (!Array.isArray(outCurrent.leaderboard) || !outCurrent.leaderboard.length) &&
+    (espnLive ||
+      String(outCurrent.id || "") === String(espnEvent?.id || "") ||
+      slugOverlapsSchedule(outCurrent.name, espnEvent?.name))
+  ) {
+    outCurrent = {
+      ...outCurrent,
+      leaderboard: enrichLeaderboardRowsWithStaticSg(espnEvent.leaderboard || []),
+      round: outCurrent.round || espnEvent?.round || "Live",
+      state: outCurrent.state || espnEvent?.state || "in",
+    };
   }
 
   const mergedBeforeStrip = {

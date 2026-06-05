@@ -24,9 +24,14 @@ import {
 } from "./_wcPlayerMarketsOverride.js";
 import { verifyWcPlayerMarketsAdminAuth } from "../shared/wcBookScrapePolicy.js";
 import {
+  isWcHomePromoWindow,
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_TTL_SECONDS,
 } from "../shared/wc2026Constants.js";
+import {
+  buildStaticPromoMatchesFallback,
+  isWcPreKickoffPromoOnly,
+} from "../shared/wc2026PromoFixtures.js";
 import { attachMatchListOddsFreshness } from "../shared/wcOddsFreshness.js";
 
 const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
@@ -276,8 +281,17 @@ export async function getGroupsPayload() {
     };
   }
 
+  const staticPayload = buildStaticGroupsPayload();
+  if (isWcPreKickoffPromoOnly()) {
+    return {
+      ...staticPayload,
+      promo: true,
+      kickoff: "2026-06-11",
+    };
+  }
+
   return {
-    ...buildStaticGroupsPayload(),
+    ...staticPayload,
     error: bdlRes.error || "no_live_groups",
   };
 }
@@ -315,6 +329,18 @@ export async function getMatchesPayload() {
       ...kv,
       fallback: true,
       error: bdlFetched.error || "stale_kv",
+    };
+  }
+
+  const promoMatches = buildStaticPromoMatchesFallback(nowMs);
+  if (promoMatches.length && isWcHomePromoWindow(nowMs)) {
+    return {
+      matches: promoMatches,
+      lastUpdated: nowMs,
+      source: "static_promo",
+      fallback: true,
+      promo: true,
+      kickoff: "2026-06-11",
     };
   }
 

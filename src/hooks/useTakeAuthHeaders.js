@@ -8,7 +8,7 @@ import { getOrCreateUrSessionId } from "../lib/urSessionId.js";
 const TAKE_SKEW_MS = 45_000;
 
 /**
- * Headers for `/api/ur-take`, `/api/performance`, `/api/take-bet-signal`, and `/api/estimated-edge-outcome`:
+ * Headers for `/api/ur-take`, `/api/performance`, `/api/billing-portal`, `/api/take-bet-signal`, and `/api/estimated-edge-outcome`:
  * prefers `ur_access_token`, else short-lived `issue_take_token` session token.
  * Anonymous users get session-scoped tokens (no email until after 3 questions).
  */

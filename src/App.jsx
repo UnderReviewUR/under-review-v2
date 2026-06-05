@@ -5117,17 +5117,27 @@ ${themeCss}
             }
             setOpeningBillingPortal(true);
             try {
+              const authHeaders = await getTakeAuthHeaders();
+              if (!authHeaders.Authorization) {
+                alert("Sign in again with your Pro email (Manage subscription needs your access token).");
+                return;
+              }
               const res = await fetch("/api/billing-portal", {
                 method: "POST",
                 headers: {
                   Accept: "application/json",
                   "Content-Type": "application/json",
+                  ...authHeaders,
                 },
                 body: JSON.stringify({ email: billEmail }),
               });
               const data = await res.json().catch(() => ({}));
               if (data.url) {
                 window.location.href = data.url;
+                return;
+              }
+              if (res.status === 401 || res.status === 403) {
+                alert("Could not verify your Pro access. Sign in again with the email you used for Pro.");
                 return;
               }
               alert(data.error || "Could not open subscription settings. Try again.");

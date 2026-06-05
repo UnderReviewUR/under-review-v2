@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   FREE_QUESTION_LIMIT,
   getFreeUsedStorageKey,
+  getFreeUsedStorageKeyForDay,
   getLocalDateKey,
+  getUtcDateKey,
   incrementFreeTierUsedToday,
   isFreeTierQuotaAvailable,
   readFreeTierUsedToday,
@@ -13,8 +15,8 @@ test("FREE_QUESTION_LIMIT is 3 per day", () => {
   assert.equal(FREE_QUESTION_LIMIT, 3);
 });
 
-test("daily storage key includes local date", () => {
-  const key = getFreeUsedStorageKey(new Date("2026-05-21T15:00:00"));
+test("daily storage key includes UTC calendar day", () => {
+  const key = getFreeUsedStorageKey(new Date("2026-05-21T15:00:00Z"));
   assert.equal(key, "ur_free_used_2026-05-21");
 });
 
@@ -27,10 +29,13 @@ test("readFreeTierUsedToday resets when date key changes", () => {
     removeItem: (k) => storage.delete(k),
   };
 
-  storage.set(getFreeUsedStorageKey(new Date("2026-05-20T12:00:00")), "2");
+  const yesterdayKey = getFreeUsedStorageKeyForDay(getUtcDateKey(new Date("2026-05-20T12:00:00Z")));
+  const todayKey = getFreeUsedStorageKeyForDay(getUtcDateKey());
+
+  storage.set(yesterdayKey, "2");
   assert.equal(readFreeTierUsedToday(), 0);
 
-  storage.set(getFreeUsedStorageKey(new Date("2026-05-21T12:00:00")), "2");
+  storage.set(todayKey, "2");
   assert.equal(readFreeTierUsedToday(), 2);
   assert.equal(isFreeTierQuotaAvailable(2, 3), true);
   assert.equal(isFreeTierQuotaAvailable(3, 3), false);

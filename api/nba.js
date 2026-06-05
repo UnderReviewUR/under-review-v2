@@ -47,6 +47,7 @@ import {
   nbaGameHasVerifiedBoxScore,
 } from "../shared/nbaBoardGamePhase.js";
 import { extractNbaTeamAbbrevsFromQuestion } from "../shared/nbaTeamFromQuestion.js";
+import { playoffSeriesRowsFromEspnScoreboardEvents } from "../shared/nbaEspnPlayoffSeries.js";
 export { classifyNbaBoardGamePhase, nbaGameHasVerifiedBoxScore, extractNbaTeamAbbrevsFromQuestion };
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -3115,31 +3116,13 @@ async function getNbaPlayoffSeries() {
   const fromScoreboardEndpoint = async () => {
     const todayYmd = toEspnDateToken(getEtDateString());
     const res = await fetch(
-      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(todayYmd)}&groups=playoff`,
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(todayYmd)}`,
       { cache: "no-store" },
     );
     if (!res.ok) return [];
     const data = await res.json();
     const events = data?.events || [];
-    const seriesMap = {};
-
-    for (const ev of events) {
-      const sid = ev.series?.id || ev.uid;
-      if (!sid || seriesMap[sid]) continue;
-      const comps = ev.competitions?.[0]?.competitors || [];
-      const home = comps.find((c) => c.homeAway === "home");
-      const away = comps.find((c) => c.homeAway === "away");
-      seriesMap[sid] = {
-        round: ev.series?.type?.text || ev.seriesStatus?.displayName || "",
-        home: canonicalizeTeamAbbr(home?.team?.abbreviation),
-        away: canonicalizeTeamAbbr(away?.team?.abbreviation),
-        homeWins: parseInt(home?.wins || ev.seriesStatus?.homeTeamWins || 0, 10) || 0,
-        awayWins: parseInt(away?.wins || ev.seriesStatus?.awayTeamWins || 0, 10) || 0,
-        status: ev.seriesStatus?.summary || ev.status?.type?.description || "",
-      };
-    }
-
-    return Object.values(seriesMap).filter((s) => s.home || s.away);
+    return playoffSeriesRowsFromEspnScoreboardEvents(events);
   };
 
   try {

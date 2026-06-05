@@ -16,6 +16,8 @@ import {
   extractKnownPlayerNamesFromKv,
   responseMentionsKnownPlayer,
 } from "../shared/wcPlayerMarketResolve.js";
+import { detectWcGroupMathMismatch } from "../shared/wcGroupComposition.js";
+import { isWcGroupSlateQuestion } from "../shared/wcUrTakeIntent.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -118,6 +120,16 @@ export function runWcUrTakeQA(opts = {}) {
     }
   }
 
+  if (
+    wcIntent === WC_INTENT.STRUCTURAL ||
+    isWcGroupSlateQuestion(String(opts.question || ""))
+  ) {
+    const groupMath = detectWcGroupMathMismatch(body, null);
+    if (groupMath?.issues?.length) {
+      issueCodes.push("wc_group_math_mismatch");
+    }
+  }
+
   for (const forbidden of forbiddenEntities) {
     if (textMentionsWcTeam(headline, forbidden)) {
       issueCodes.push("wc_forbidden_entity_headline");
@@ -194,9 +206,18 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_player_question_team_lead",
       "wc_player_missing_names",
       "wc_player_odds_uncited",
+      "wc_group_math_mismatch",
     ].includes(c),
   );
 }
+
+export const WC_GROUP_MATH_QA_SUFFIX = `
+
+WC GROUP MATH QA (mandatory — prior answer miscounted group tiers):
+- Every World Cup group has exactly FOUR teams: ONE Favorite, ONE Contender, TWO Longshots.
+- Group D example (binding): Türkiye = Favorite · Paraguay = Contender · Australia and USA = Longshots (two only).
+- Never say "three longshots" or list three longshot teams for a four-team group.
+- When describing a group, name all four teams with correct Favorite / Contender / Longshot tags from VERIFIED CONTEXT.`;
 
 export const WC_PLAYER_MARKET_QA_SUFFIX = `
 
@@ -214,4 +235,5 @@ WC QA REGENERATION (mandatory — prior answer failed relevance checks):
 - For rules questions: lead with extra time and penalty shootout facts — no group-stage betting take; do not reference prior thread teams or "you asked about…" narration.
 - For group-stage MATCHUP questions: both teams can advance — frame 1st/2nd place paths; do not claim a Contender finishes ahead of the group Favorite without verified odds or form.
 - For ENTITY_PRICING: never cite a +XXXX price unless it appears in the current question or VERIFIED CONTEXT for that exact team.
-- Sentence one must directly answer the question with the correct team(s) named and strength tags acknowledged.`;
+- Sentence one must directly answer the question with the correct team(s) named and strength tags acknowledged.
+- For group-stage slate answers: four teams per group — one Favorite, one Contender, two Longshots — count and name them correctly.`;

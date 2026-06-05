@@ -2,10 +2,11 @@ import { sanitizeDailyTakePreviewPayload } from "./_dailyTakeSanitize.js";
 import { condensedPreviewFromUrTakeResponse } from "./_dailyTakeCondensed.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { buildNbaUrTakeBoard } from "./nba.js";
+import { getNbaFinalsSeriesState } from "../shared/nbaFinalsUtils.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
 const STORAGE_PREFIX = "daily_take:v2:";
-const PREVIEW_TRIM_VERSION = 2;
+const PREVIEW_TRIM_VERSION = 3;
 
 export function getEtDateKey(d = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -165,6 +166,39 @@ async function callUrTakePipeline(origin, target, fetchImpl) {
 const DAY_TTL_SECONDS = 26 * 60 * 60;
 
 /**
+ * @param {Record<string, unknown> | null | undefined} board
+ */
+export function nbaSeriesFingerprintFromBoard(board) {
+  const games = Array.isArray(board?.todaysGames) ? board.todaysGames : [];
+  const playoffSeries = Array.isArray(board?.playoffSeries) ? board.playoffSeries : [];
+  const game =
+    games.find((g) => String(g?.state || "").toLowerCase() === "in") ||
+    games.find((g) => String(g?.state || "").toLowerCase() === "pre") ||
+    games[0] ||
+    null;
+  const state = getNbaFinalsSeriesState({ game, playoffSeries });
+  if (!state?.isFinals) return null;
+  return `${state.awayAbbr}|${state.homeAbbr}|${state.awayWins}-${state.homeWins}|g${state.gameNumber ?? 0}`;
+}
+
+/**
+ * Regenerate when Finals series score / game number drift vs cached preview.
+ * @param {Record<string, unknown> | null | undefined} cached
+ */
+export async function dailyTakeSeriesFingerprintStale(cached) {
+  if (!cached?.ok || cached.sportHint !== "nba") return false;
+  try {
+    const board = await buildNbaUrTakeBoard("");
+    const fp = nbaSeriesFingerprintFromBoard(board);
+    if (!fp) return false;
+    return cached.seriesFingerprint !== fp;
+  } catch (err) {
+    console.warn("[daily-take] series fingerprint check failed:", err?.message || err);
+    return false;
+  }
+}
+
+/**
  * @returns {Promise<object | null>}
  */
 export async function generateDailyTakePreview(fetchImpl = fetch) {
@@ -199,6 +233,16 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
   const responseText = String(json.response ?? json.take ?? "").trim();
   const condensed = condensedPreviewFromUrTakeResponse(responseText);
 
+  let seriesFingerprint = null;
+  if (target.sportHint === "nba") {
+    try {
+      const board = await buildNbaUrTakeBoard(target.question);
+      seriesFingerprint = nbaSeriesFingerprintFromBoard(board);
+    } catch (err) {
+      console.warn("[daily-take] series fingerprint capture failed:", err?.message || err);
+    }
+  }
+
   const payload = sanitizeDailyTakePreviewPayload({
     ok: true,
     dateKey,
@@ -212,6 +256,7 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
     headline: condensed.headline,
     bodyChunk: condensed.bodyChunk,
     closing: condensed.closing,
+    seriesFingerprint,
   });
 
   if (!payload?.ok) {

@@ -9,6 +9,8 @@ import {
   WC_PLAYERS_TTL_SECONDS,
 } from "../shared/wc2026PlayerConstants.js";
 import {
+  buildRegistryFromFifaStatic,
+  buildResolvedWcPlayerRegistry,
   countRegistryPlayers,
   createEmptyPlayerRegistry,
   seedRegistryFromStaticList,
@@ -54,10 +56,9 @@ export async function upsertWcPlayersFromMatchDetail(matchDetail) {
   if (!matchDetail || typeof matchDetail !== "object") return { ok: false, error: "no_detail" };
 
   const nowMs = Date.now();
-  const cached = (await getDurableJson(WC_PLAYERS_KV_KEY)) || createEmptyPlayerRegistry(nowMs);
-  if (!cached.teams || !Object.keys(cached.teams).length) {
-    seedRegistryFromStaticList(cached);
-  }
+  const cached =
+    buildResolvedWcPlayerRegistry(await getDurableJson(WC_PLAYERS_KV_KEY), nowMs) ||
+    buildRegistryFromFifaStatic(nowMs);
 
   upsertRegistryFromMatchDetail(cached, matchDetail);
   cached.lastUpdated = nowMs;
@@ -96,15 +97,11 @@ export async function scrapeAndCacheWcPlayers() {
  * @param {number} [maxAgeMs]
  */
 export async function readWcPlayersFromKv(maxAgeMs = WC_PLAYERS_TTL_SECONDS * 1000) {
-  let cached = await getDurableJson(WC_PLAYERS_KV_KEY);
-  if (!cached?.teams || !Object.keys(cached.teams).length) {
-    const seeded = createEmptyPlayerRegistry();
-    seedRegistryFromStaticList(seeded);
-    cached = seeded;
-  }
+  const kvRaw = await getDurableJson(WC_PLAYERS_KV_KEY);
+  const cached = buildResolvedWcPlayerRegistry(kvRaw);
   return {
     ...cached,
-    stale: !isKvFresh(cached.lastUpdated, maxAgeMs),
+    stale: kvRaw?.lastUpdated ? !isKvFresh(kvRaw.lastUpdated, maxAgeMs) : false,
   };
 }
 

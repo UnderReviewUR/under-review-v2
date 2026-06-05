@@ -202,11 +202,11 @@ export async function reserveGateQuota(email, nowMs = Date.now()) {
       freeQuota: buildFreeQuotaPayload(queries, nowMs),
     };
   } catch (err) {
-    console.warn("[gate-quota] reserve failed open:", err?.message || err);
+    console.warn("[gate-quota] reserve failed closed:", err?.message || err);
     return {
       limitReached: false,
       reservationTs: null,
-      skipped: true,
+      storageUnavailable: true,
       freeQuota: buildFreeQuotaPayload([], nowMs),
     };
   }
@@ -249,14 +249,120 @@ export async function reserveSessionQuota(sessionId, nowMs = Date.now()) {
       freeQuota: buildSessionQuotaPayload(queries),
     };
   } catch (err) {
-    console.warn("[gate-quota] reserveSession failed open:", err?.message || err);
+    console.warn("[gate-quota] reserveSession failed closed:", err?.message || err);
     return {
       limitReached: false,
       emailRequired: false,
       reservationTs: null,
-      skipped: true,
+      storageUnavailable: true,
       freeQuota: buildSessionQuotaPayload([]),
     };
+  }
+}
+
+/**
+ * Reserve free-tier quota once per /api/ur-take request (before any answer path).
+ * Caller sets `delivered` on success responses; otherwise release in `finally`.
+ *
+ * @param {{ urAuth: { ok?: boolean, email?: string | null, sessionId?: string | null, tier?: string } | null, dailyTakePipeline?: boolean }} opts
+ */
+export async function reserveUrTakeGateQuota(opts = {}) {
+  const { urAuth, dailyTakePipeline = false } = opts;
+  const enforce = shouldEnforceGateQuotaForTake({
+    enforceFlag: isGateServerQuotaEnforce(),
+    dailyTakePipeline,
+    urAuth,
+  });
+
+  if (!enforce) {
+    return { ok: true, enforced: false };
+  }
+
+  const gateQuotaEmail =
+    urAuth?.ok && urAuth.email ? String(urAuth.email).toLowerCase().trim() : null;
+  const gateQuotaSessionId =
+    urAuth?.ok && !gateQuotaEmail && urAuth.sessionId
+      ? String(urAuth.sessionId).trim()
+      : null;
+
+  if (gateQuotaEmail) {
+    const reserved = await reserveGateQuota(gateQuotaEmail);
+    if (reserved.storageUnavailable) {
+      return { ok: false, reason: "storage_unavailable" };
+    }
+    if (reserved.limitReached) {
+      return {
+        ok: false,
+        reason: "limit_reached",
+        statusBody: {
+          limitReached: true,
+          code: "limit_reached",
+          freeQuota: reserved.freeQuota,
+        },
+      };
+    }
+    const reservation =
+      reserved.reservationTs != null
+        ? { kind: "email", id: gateQuotaEmail, reservationTs: reserved.reservationTs }
+        : null;
+    return {
+      ok: true,
+      enforced: true,
+      gateQuotaEmail,
+      gateQuotaSessionId: null,
+      reservation,
+    };
+  }
+
+  if (gateQuotaSessionId) {
+    const reserved = await reserveSessionQuota(gateQuotaSessionId);
+    if (reserved.storageUnavailable) {
+      return { ok: false, reason: "storage_unavailable" };
+    }
+    if (reserved.limitReached) {
+      return {
+        ok: false,
+        reason: "email_required",
+        statusBody: {
+          limitReached: true,
+          code: "email_required",
+          reason: "email_required",
+          freeQuota: reserved.freeQuota,
+        },
+      };
+    }
+    const reservation =
+      reserved.reservationTs != null
+        ? { kind: "session", id: gateQuotaSessionId, reservationTs: reserved.reservationTs }
+        : null;
+    return {
+      ok: true,
+      enforced: true,
+      gateQuotaEmail: null,
+      gateQuotaSessionId,
+      reservation,
+    };
+  }
+
+  return { ok: true, enforced: false };
+}
+
+/**
+ * @param {{ gateQuotaEmail: string | null, gateQuotaSessionId: string | null }} ids
+ */
+export async function attachFreeQuotaMirrorToUrTakeResponse(body, ids) {
+  if (ids.gateQuotaEmail) {
+    try {
+      body.freeQuota = await getFreeQuotaStatus(ids.gateQuotaEmail);
+    } catch {
+      /* optional mirror payload */
+    }
+  } else if (ids.gateQuotaSessionId) {
+    try {
+      body.freeQuota = await getSessionQuotaStatus(ids.gateQuotaSessionId);
+    } catch {
+      /* optional mirror payload */
+    }
   }
 }
 
@@ -387,8 +493,13 @@ export async function checkGateQuotaAllowed(email, nowMs = Date.now()) {
     }
     return { allowed: true, freeQuota };
   } catch (err) {
-    console.warn("[gate-quota] check failed open:", err?.message || err);
-    return { allowed: true, freeQuota: buildFreeQuotaPayload([], nowMs), skipped: true };
+    console.warn("[gate-quota] check failed closed:", err?.message || err);
+    return {
+      allowed: false,
+      reason: "storage_unavailable",
+      freeQuota: buildFreeQuotaPayload([], nowMs),
+      storageUnavailable: true,
+    };
   }
 }
 
@@ -403,7 +514,12 @@ export async function checkSessionQuotaAllowed(sessionId) {
     }
     return { allowed: true, freeQuota };
   } catch (err) {
-    console.warn("[gate-quota] checkSession failed open:", err?.message || err);
-    return { allowed: true, freeQuota: buildSessionQuotaPayload([]), skipped: true };
+    console.warn("[gate-quota] checkSession failed closed:", err?.message || err);
+    return {
+      allowed: false,
+      reason: "storage_unavailable",
+      freeQuota: buildSessionQuotaPayload([]),
+      storageUnavailable: true,
+    };
   }
 }

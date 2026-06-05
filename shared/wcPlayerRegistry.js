@@ -114,6 +114,48 @@ export function upsertRegistryPlayer(registry, nationAbbr, player) {
 const POS_NORMALIZE = { G: "GK", D: "DF", M: "MF", F: "FW" };
 
 /**
+ * Full 48×26 FIFA squad registry from versioned static seed.
+ * @param {number} [nowMs]
+ */
+export function buildRegistryFromFifaStatic(nowMs = Date.now()) {
+  const registry = createEmptyPlayerRegistry(nowMs);
+  seedRegistryFromStaticList(registry);
+  registry.lastUpdated = nowMs;
+  return registry;
+}
+
+/**
+ * Static squads as baseline; overlay KV stats/lineup fields when present.
+ * @param {Record<string, unknown> | null | undefined} kvRegistry
+ * @param {number} [nowMs]
+ */
+export function buildResolvedWcPlayerRegistry(kvRegistry, nowMs = Date.now()) {
+  const base = buildRegistryFromFifaStatic(nowMs);
+  if (!kvRegistry?.teams || !Object.keys(kvRegistry.teams).length) {
+    return base;
+  }
+
+  for (const [abbr, team] of Object.entries(kvRegistry.teams)) {
+    for (const row of team?.players || []) {
+      if (!row?.name) continue;
+      upsertRegistryPlayer(base, abbr, row);
+    }
+  }
+
+  const kvUpdated = Number(kvRegistry.lastUpdated);
+  if (Number.isFinite(kvUpdated) && kvUpdated > 0) {
+    base.lastUpdated = kvUpdated;
+  }
+
+  const kvSource = String(kvRegistry.source || "").trim();
+  if (kvSource && kvSource !== base.source) {
+    base.source = kvSource.includes(base.source) ? kvSource : `${base.source}+${kvSource}`;
+  }
+
+  return base;
+}
+
+/**
  * Seed registry from official FIFA 26-man squad lists (1,248 players across 48 teams).
  * Falls back to the smaller notable-player seed if full squads are unavailable.
  * @param {Record<string, unknown>} registry

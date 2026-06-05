@@ -179,6 +179,30 @@ test("verifyMagicTokenAndIssuePro: token cannot be reused", async (t) => {
 
   const second = await verifyMagicTokenAndIssuePro(raw, stripe, secret);
   assert.equal(second.ok, false);
+  assert.equal(second.reason, "used");
+});
+
+test("verifyMagicTokenAndIssuePro: concurrent verify only issues one token", async () => {
+  const secret = "unit-test-access-token-secret-32b!!";
+  const raw = crypto.randomBytes(32).toString("hex");
+  const key = magicRecordKeyFromHash(sha256HexUtf8(raw));
+  const email = `race-${crypto.randomBytes(6).toString("hex")}@test.local`;
+  await setDurableJson(
+    key,
+    { email, expiresAt: Date.now() + 600_000, used: false },
+    { ttlSeconds: 120 },
+  );
+  const stripe = stripeWithSubscription(true);
+  const [first, second] = await Promise.all([
+    verifyMagicTokenAndIssuePro(raw, stripe, secret),
+    verifyMagicTokenAndIssuePro(raw, stripe, secret),
+  ]);
+  const winners = [first, second].filter((r) => r.ok);
+  const losers = [first, second].filter((r) => !r.ok);
+  assert.equal(winners.length, 1);
+  assert.equal(losers.length, 1);
+  assert.equal(losers[0].reason, "used");
+  assert.ok(winners[0].token);
 });
 
 test("verifyMagicTokenAndIssuePro: subscription inactive at verify time", async (t) => {

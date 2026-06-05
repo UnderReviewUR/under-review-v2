@@ -95,16 +95,16 @@ test("composeRegisteredUrTakeSystemPrompt includes UnderReview voice and follow-
   assert.match(p, /NO DATA UNAVAILABLE CLOSINGS \(mandatory\)/);
   assert.match(p, /PLAYER VERIFICATION RULE — ALL SPORTS \(mandatory\)/);
   assert.match(p, /FORWARD HOOK DISCIPLINE \(mandatory\)/);
-  assert.match(p, /UNDERREVIEW VOICE — SHARP FRIEND, NOT A REPORT/);
-  assert.match(p, /Never "suggests", "indicates"/);
-  assert.match(p, /THE ONE-LINE TEST/);
+  assert.match(p, /THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS/);
+  assert.match(p, /UNDERREVIEW VOICE — FULL TAKE \(mandatory\)/);
+  assert.match(p, /Never "suggests," "indicates," "given the context,"/);
   assert.match(p, /FOLLOW-UP RESPONSE RULE — MANDATORY/);
   assert.match(p, /Treat every follow-up like a text reply from a friend who already knows the context/);
   assert.match(p, /STAT TERM LOCK/);
   assert.match(
     p,
-    /STATUS & TRUTH/,
-    "injury/status realism lives in the unified UnderReview voice block",
+    /INJURY RELEVANCE TEST \(mandatory/,
+    "injury/status realism lives in the fact-authority block",
   );
 });
 
@@ -132,8 +132,8 @@ test("composeRegisteredUrTakeSystemPrompt appends slip review voice for slip_rev
     mlbDecisionMode: null,
     intent: "slip_review",
   });
-  assert.match(p, /SLIP REVIEW VOICE \(mandatory — slip_review route\)/);
-  assert.match(p, /Acknowledge every leg the deterministic vision block lists/);
+  assert.match(p, /SLIP REVIEW VOICE \(mandatory\)/);
+  assert.match(p, /Acknowledge every leg the vision block lists/);
 });
 
 test("composeRegisteredUrTakeSystemPrompt appends NBA decision spine for nba", () => {

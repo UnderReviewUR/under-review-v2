@@ -21,8 +21,6 @@ import {
 import {
   checkGateQuotaAllowed,
   checkSessionQuotaAllowed,
-  consumeGateQuery,
-  consumeSessionQuery,
   FREE_QUERIES_PER_DAY,
   getFreeQuotaStatus,
   getSessionQuotaStatus,
@@ -129,6 +127,13 @@ export default async function handler(req, res) {
       if (normalizedEmail && isValidEmail(normalizedEmail)) {
         if (isGateServerQuotaEnforce()) {
           const check = await checkGateQuotaAllowed(normalizedEmail);
+          if (!check.allowed && check.reason === "storage_unavailable") {
+            return res.status(503).json({
+              ok: false,
+              error: "quota_unavailable",
+              code: "quota_storage_unavailable",
+            });
+          }
           if (!check.allowed && check.reason === "limit_reached") {
             return res.status(200).json({
               ok: false,
@@ -164,6 +169,13 @@ export default async function handler(req, res) {
 
       if (isValidSessionId(normalizedSessionId)) {
         const check = await checkSessionQuotaAllowed(normalizedSessionId);
+        if (!check.allowed && check.reason === "storage_unavailable") {
+          return res.status(503).json({
+            ok: false,
+            error: "quota_unavailable",
+            code: "quota_storage_unavailable",
+          });
+        }
         if (!check.allowed) {
           return res.status(200).json({
             ok: false,
@@ -202,6 +214,13 @@ export default async function handler(req, res) {
 
       const migrated = await migrateSessionQuotaToEmail(normalizedSessionId, normalizedEmail);
       const check = await checkGateQuotaAllowed(normalizedEmail);
+      if (!check.allowed && check.reason === "storage_unavailable") {
+        return res.status(503).json({
+          ok: false,
+          error: "quota_unavailable",
+          code: "quota_storage_unavailable",
+        });
+      }
       if (!check.allowed && check.reason === "limit_reached") {
         return res.status(200).json({
           ok: false,
@@ -276,28 +295,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ allowed: true, reason: "anonymous", freeQuota: null });
     }
 
-    // ── action: "consume" — record that a query was used (legacy / debug) ─────
+    // ── action: "consume" — disabled (was unauthenticated; allowed quota griefing) ──
+    // Free-tier usage is reserved only in /api/ur-take via reserveUrTakeGateQuota.
     if (action === "consume") {
-      if (normalizedEmail && isValidEmail(normalizedEmail)) {
-        const result = await consumeGateQuery(normalizedEmail);
-        return res.status(200).json({
-          ok: result.ok,
-          used: result.used,
-          remaining: result.remaining,
-          freeQuota: result.freeQuota,
-        });
-      }
-      if (isValidSessionId(normalizedSessionId)) {
-        const result = await consumeSessionQuery(normalizedSessionId);
-        return res.status(200).json({
-          ok: result.ok,
-          used: result.used,
-          remaining: result.remaining,
-          emailRequired: result.emailRequired,
-          freeQuota: result.freeQuota,
-        });
-      }
-      return res.status(400).json({ error: "Valid email or sessionId required" });
+      return res.status(410).json({
+        error: "deprecated",
+        code: "consume_disabled",
+        reason: "Quota is applied when you submit a take, not via this action.",
+      });
     }
 
     // ── action: "register" — save email for first-time gate ──────────────────

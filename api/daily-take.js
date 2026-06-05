@@ -1,12 +1,13 @@
 import { applyCors } from "./_cors.js";
 import { sanitizeDailyTakePreviewPayload } from "./_dailyTakeSanitize.js";
 import {
+  dailyTakeSeriesFingerprintStale,
   generateDailyTakePreview,
   getEtDateKey,
   readStoredDailyTake,
 } from "./_dailyTakePreview.js";
 
-const PREVIEW_TRIM_VERSION = 2;
+const PREVIEW_TRIM_VERSION = 3;
 
 /**
  * @param {Record<string, unknown> | null | undefined} cached
@@ -65,6 +66,21 @@ export default async function handler(req, res) {
             return res.status(404).json({ ok: false, error: cached.error || "not_ready" });
           }
           return res.status(500).json({ ok: false, error: "generation_failed" });
+        }
+      }
+
+      if (cached?.ok && (await dailyTakeSeriesFingerprintStale(cached))) {
+        console.log(
+          JSON.stringify({
+            event: "daily_take_series_refresh",
+            dateKey,
+            priorFingerprint: cached.seriesFingerprint ?? null,
+          }),
+        );
+        try {
+          cached = await generateDailyTakePreview();
+        } catch (refreshErr) {
+          console.error("[daily-take series refresh]", refreshErr);
         }
       }
 

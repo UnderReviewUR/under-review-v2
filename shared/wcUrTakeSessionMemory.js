@@ -126,10 +126,10 @@ const PLAYER_MARKET_PRIOR_RE =
  * @param {string} priorSummary
  */
 function filterPriorTakesForWcGroupSlate(priorSummary) {
-  const raw = String(priorSummary || "").trim();
+  let raw = String(priorSummary || "").trim();
   if (!raw) return "";
   if (/SESSION STRUCTURAL EDGE/i.test(raw)) {
-    return raw
+    raw = raw
       .split(/\n\n+/)
       .filter((block) => !/SESSION STRUCTURAL EDGE/i.test(block))
       .join("\n\n")

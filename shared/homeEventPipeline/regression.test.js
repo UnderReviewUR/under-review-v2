@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildHomeEventPipeline } from "./buildHomeEventPipeline.js";
+import { HOME_SLATE_HORIZON_MS } from "../homeSlateHorizon.js";
 import { mergeTennisNormalizedByPairDate } from "./tennisMerge.js";
 import { PRIORITY_BASE } from "./priority.js";
 
-test("NBA tip within 24h yields non-empty nbaGamesForHome (Home card + off-day must not rely on calendar date)", () => {
+test("NBA tip within 48h yields non-empty nbaGamesForHome (Home card + off-day must not rely on calendar date)", () => {
   const nowMs = Date.UTC(2026, 3, 27, 17, 0, 0);
   const tipMs = nowMs + 7 * 60 * 60 * 1000;
   const game = {
@@ -26,12 +27,12 @@ test("NBA tip within 24h yields non-empty nbaGamesForHome (Home card + off-day m
     isNflSlateActive: false,
     golfSnapshotKeyFn: () => null,
   });
-  assert.ok(pipeline.nbaGamesForHome.length >= 1, "expected pipeline game within 24h window");
+  assert.ok(pipeline.nbaGamesForHome.length >= 1, "expected pipeline game within 48h window");
 });
 
-test("NBA tip beyond 24h is excluded from nbaGamesForHome", () => {
+test("NBA tip beyond 48h is excluded from nbaGamesForHome", () => {
   const nowMs = Date.UTC(2026, 3, 27, 17, 0, 0);
-  const tipMs = nowMs + 25 * 60 * 60 * 1000;
+  const tipMs = nowMs + HOME_SLATE_HORIZON_MS + 60 * 60 * 1000;
   const game = {
     id: "reg-nba-far",
     state: "pre",

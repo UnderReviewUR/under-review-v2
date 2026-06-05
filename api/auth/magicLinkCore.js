@@ -2,7 +2,12 @@
  * Resend magic-link helpers for Pro login (no passwords).
  */
 import crypto from "crypto";
-import { deleteDurableJson, getDurableJson, setDurableJson } from "../_durableStore.js";
+import {
+  deleteDurableJson,
+  getDurableJson,
+  setDurableJson,
+  setDurableJsonIfAbsent,
+} from "../_durableStore.js";
 import { getEnv } from "../_env.js";
 
 export const MAGIC_LINK_GENERIC_MESSAGE =
@@ -22,6 +27,11 @@ export function sha256HexUtf8(s) {
 
 export function magicRecordKeyFromHash(hexHash) {
   return `magic_${hexHash}`;
+}
+
+/** One-time claim slot — SET NX prevents parallel verify from both issuing Pro tokens. */
+export function magicClaimKeyFromHash(hexHash) {
+  return `magic_claim_${hexHash}`;
 }
 
 export function rateLimitEmailKey(email) {
@@ -125,26 +135,23 @@ If you didn't request this, ignore this email. Your account is safe.
 }
 
 /**
- * Verify raw token, delete record first (anti-replay), re-check Stripe, issue Pro JWT.
- * @returns {Promise<{ ok: true, token: string, email: string } | { ok: false, reason: string }>}
+ * Atomically claim a magic link before issuing Pro JWT (safe under parallel GETs).
+ * @returns {Promise<{ ok: true, email: string } | { ok: false, reason: string }>}
  */
-export async function verifyMagicTokenAndIssuePro(rawToken, stripe, tokenSecret) {
-  const raw = String(rawToken || "").trim();
-  if (!/^[a-f0-9]{64}$/i.test(raw)) {
-    return { ok: false, reason: "invalid" };
-  }
-  const hash = sha256HexUtf8(raw);
-  const key = magicRecordKeyFromHash(hash);
+async function claimMagicLinkRecord(hexHash) {
+  const recordKey = magicRecordKeyFromHash(hexHash);
+  const claimKey = magicClaimKeyFromHash(hexHash);
 
-  const record = await getDurableJson(key);
-  await deleteDurableJson(key).catch(() => {});
-
+  const record = await getDurableJson(recordKey);
   if (!record || typeof record !== "object") {
+    const priorClaim = await getDurableJson(claimKey);
+    if (priorClaim) return { ok: false, reason: "used" };
     return { ok: false, reason: "invalid" };
   }
   if (record.used === true) {
     return { ok: false, reason: "used" };
   }
+
   const email = String(record.email || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, reason: "invalid" };
@@ -153,6 +160,41 @@ export async function verifyMagicTokenAndIssuePro(rawToken, stripe, tokenSecret)
   if (!Number.isFinite(exp) || Date.now() > exp) {
     return { ok: false, reason: "expired" };
   }
+
+  const claimed = await setDurableJsonIfAbsent(
+    claimKey,
+    { claimedAt: Date.now(), email },
+    { ttlSeconds: MAGIC_TOKEN_TTL_SECONDS },
+  );
+  if (!claimed) {
+    return { ok: false, reason: "used" };
+  }
+
+  await setDurableJson(
+    recordKey,
+    { ...record, email, expiresAt: exp, used: true, claimedAt: Date.now() },
+    { ttlSeconds: MAGIC_TOKEN_TTL_SECONDS },
+  );
+
+  return { ok: true, email };
+}
+
+/**
+ * Verify raw token, atomically claim (anti-replay), re-check Stripe, issue Pro JWT.
+ * @returns {Promise<{ ok: true, token: string, email: string } | { ok: false, reason: string }>}
+ */
+export async function verifyMagicTokenAndIssuePro(rawToken, stripe, tokenSecret) {
+  const raw = String(rawToken || "").trim();
+  if (!/^[a-f0-9]{64}$/i.test(raw)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const hash = sha256HexUtf8(raw);
+
+  const claim = await claimMagicLinkRecord(hash);
+  if (!claim.ok) {
+    return { ok: false, reason: claim.reason };
+  }
+  const email = claim.email;
 
   const { hasActiveProSubscription, buildProStatusResponse } = await import("../_stripeProSync.js");
   const still = await hasActiveProSubscription(stripe, email);

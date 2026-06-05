@@ -96,6 +96,30 @@ async function kvSet(key, value, ttlSeconds) {
   }
 }
 
+/** @returns {Promise<boolean>} true when key was created (Redis SET NX) */
+async function kvSetNx(key, value, ttlSeconds) {
+  const encodedValue = encodeURIComponent(JSON.stringify(value));
+  let endpoint = `${KV_URL.replace(/\/$/, "")}/set/${encodeURIComponent(key)}/${encodedValue}/NX`;
+  if (Number.isFinite(ttlSeconds) && ttlSeconds > 0) {
+    endpoint += `/EX/${Math.floor(ttlSeconds)}`;
+  }
+
+  const res = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${KV_TOKEN}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`KV set NX failed: HTTP ${res.status}`);
+  }
+
+  const payload = await res.json();
+  const raw = payload?.result;
+  return raw === "OK" || raw === true;
+}
+
 async function kvDel(key) {
   const endpoint = `${KV_URL.replace(/\/$/, "")}/del/${encodeURIComponent(key)}`;
   const controller = new AbortController();
@@ -143,6 +167,29 @@ export async function setDurableJson(key, value, options = {}) {
   }
 
   setMemEntry(key, value, ttlSeconds);
+}
+
+/**
+ * Set JSON only if the key is absent (SET NX). Used for one-time claims (e.g. magic-link verify).
+ * @param {string} key
+ * @param {unknown} value
+ * @param {{ ttlSeconds?: number }} [options]
+ * @returns {Promise<boolean>} true if the key was created
+ */
+export async function setDurableJsonIfAbsent(key, value, options = {}) {
+  const ttlSeconds = Number(options.ttlSeconds || 0);
+
+  if (hasKvConfig()) {
+    try {
+      return await kvSetNx(key, value, ttlSeconds);
+    } catch (err) {
+      console.warn("[durableStore] KV set NX failed, using memory fallback:", err.message);
+    }
+  }
+
+  if (getMemEntry(key) != null) return false;
+  setMemEntry(key, value, ttlSeconds);
+  return true;
 }
 
 /** List keys with prefix (memory map or Redis SCAN). Used for aggregate-only server metrics. */

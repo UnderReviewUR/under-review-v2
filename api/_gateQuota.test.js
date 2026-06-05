@@ -14,6 +14,7 @@ import {
   releaseSessionQuota,
   reserveGateQuota,
   reserveSessionQuota,
+  reserveUrTakeGateQuota,
   shouldEnforceGateQuotaForTake,
   utcDateKey,
 } from "./_gateQuota.js";
@@ -201,4 +202,33 @@ test("buildSessionQuotaPayload tracks lifetime session count", () => {
   assert.equal(q.remaining, 1);
   assert.equal(q.scope, "session");
   assert.equal(FREE_SESSION_QUERIES, 3);
+});
+
+test("reserveUrTakeGateQuota blocks when email daily limit reached", async () => {
+  const prevEnforce = process.env.GATE_SERVER_QUOTA_ENFORCE;
+  const prevAuth = process.env.UR_TAKE_REQUIRE_AUTH;
+  process.env.GATE_SERVER_QUOTA_ENFORCE = "1";
+  process.env.UR_TAKE_REQUIRE_AUTH = "true";
+
+  try {
+    const email = `ur-take-reserve-${Date.now()}@example.com`;
+    const now = Date.now();
+    for (let i = 0; i < FREE_QUERIES_PER_DAY; i++) {
+      const ok = await reserveGateQuota(email, now + i);
+      assert.equal(ok.limitReached, false);
+    }
+
+    const blocked = await reserveUrTakeGateQuota({
+      urAuth: { ok: true, email, tier: "free" },
+      dailyTakePipeline: false,
+    });
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.reason, "limit_reached");
+    assert.equal(blocked.statusBody?.code, "limit_reached");
+  } finally {
+    if (prevEnforce === undefined) delete process.env.GATE_SERVER_QUOTA_ENFORCE;
+    else process.env.GATE_SERVER_QUOTA_ENFORCE = prevEnforce;
+    if (prevAuth === undefined) delete process.env.UR_TAKE_REQUIRE_AUTH;
+    else process.env.UR_TAKE_REQUIRE_AUTH = prevAuth;
+  }
 });
