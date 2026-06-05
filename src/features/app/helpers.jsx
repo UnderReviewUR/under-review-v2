@@ -1,6 +1,10 @@
 import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { stripUrTakeDeadEndCopy } from "../../../shared/urTakeSportRouting.js";
+import {
+  inferSportFromQuestionText,
+  sportsContextSwitched,
+  stripUrTakeDeadEndCopy,
+} from "../../../shared/urTakeSportRouting.js";
 
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
@@ -138,12 +142,18 @@ export function buildContextualQuestion(text, opts = {}) {
     return stripUrTakeDeadEndCopy(s);
   };
 
+  const currentSport = inferSportFromQuestionText(cleaned, opts.matchupContext || null);
+
   const snippets = priorMessages
     .filter((m) => m && !m.loading && m.role === "user")
     .slice(-8)
     .map((m) => {
       const content = sanitizeForModel(m.text ?? m.content ?? "");
       if (!content || /^ANALYZING/i.test(content)) return null;
+      if (currentSport) {
+        const priorSport = inferSportFromQuestionText(content, opts.matchupContext || null);
+        if (priorSport && sportsContextSwitched(priorSport, currentSport)) return null;
+      }
       const who = "User";
       return `${who}: ${content.slice(0, 1400)}`;
     })

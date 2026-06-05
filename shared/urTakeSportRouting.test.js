@@ -5,6 +5,7 @@ import {
   appendSportTabNudge,
   buildSportTabNudgeLine,
   buildUrTakeNoDeadEndPrompt,
+  extractLatestUserTurnForRouting,
   inferNbaFromMatchupSlug,
   inferSportFromChatHistory,
   inferSportFromQuestionText,
@@ -154,4 +155,33 @@ test("stripUrTakeDeadEndCopy removes cross-sport narration", () => {
     "I need to flag a cross-sport mismatch. Your first question was about golf.\n\nLean Thunder -4.5.",
   );
   assert.equal(s, "Lean Thunder -4.5.");
+});
+
+test("NBA Finals follow-up after golf thread routes to NBA not golf", () => {
+  const golfQ =
+    "On the Memorial Tournament pres. by Workday with live scoring moving, what is the one best live golf angle?";
+  const nbaQ =
+    "NBA Finals Game 2 tonight (NYK @ SAS): what is the sharpest angle — spread, total, or key prop — and what one thing flips the read?";
+  const combined = `User: ${golfQ}\n\nFollow-up:\n${nbaQ}`;
+
+  assert.equal(inferSportFromQuestionText(combined), "nba");
+  const h = resolveSportHint({
+    incomingSportHint: "nba",
+    question: combined,
+    matchupContext: null,
+    hasImage: false,
+    golfContext: { currentEvent: { name: "Memorial", leaderboard: [{ name: "Poston" }] } },
+    chatHistory: [
+      { role: "user", content: golfQ },
+      { role: "assistant", content: "Scheffler is the angle.", sport: "golf" },
+      { role: "user", content: nbaQ },
+    ],
+  });
+  assert.equal(h, "nba");
+});
+
+test("extractLatestUserTurnForRouting reads Follow-up block", () => {
+  const tail = "NBA Finals Game 2 tonight (NYK @ SAS)";
+  const q = `User: golf memorial angle\n\nFollow-up:\n${tail}`;
+  assert.equal(extractLatestUserTurnForRouting(q), tail);
 });

@@ -191,6 +191,7 @@ import { stripRulesThreadBleed, WC_RULES_TURN_APPENDIX } from "../../shared/wcUr
 import { questionReferencesDerby } from "../../shared/derbyIntent.js";
 import {
   buildUrTakeSportTurnScopeRules,
+  extractLatestUserTurnForRouting,
   questionMentionsWorldCup,
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
@@ -2402,10 +2403,11 @@ export default async function handler(req, res) {
   }
 
   const hasImage = !!image?.base64;
+  const routingQuestion = extractLatestUserTurnForRouting(String(question || ""));
 
-  const intent = detectIntent(question, hasImage);
-  const chaseSignals = detectChaseSignals(question, incomingHistory);
-  const shortMarketFollowUp = isShortMarketFollowUp(question);
+  const intent = detectIntent(routingQuestion, hasImage);
+  const chaseSignals = detectChaseSignals(routingQuestion, incomingHistory);
+  const shortMarketFollowUp = isShortMarketFollowUp(routingQuestion);
   const hasLiveTranscriptContext = hasRecentLiveScreenshotContext(incomingHistory);
   if (chaseSignals.isChase) {
     console.log(
@@ -2420,7 +2422,7 @@ export default async function handler(req, res) {
       }),
     );
   }
-  const liveKeywordSignals = detectLiveGameSignals(question, hasImage);
+  const liveKeywordSignals = detectLiveGameSignals(routingQuestion, hasImage);
 
   const uiSportHintForRouting =
     typeof incomingSportHint === "string" && incomingSportHint.trim()
@@ -2462,7 +2464,7 @@ export default async function handler(req, res) {
     !incomingWcEventId
   ) {
     try {
-      const fresh = await buildNbaUrTakeBoard(String(question || ""));
+      const fresh = await buildNbaUrTakeBoard(routingQuestion);
       const featured = selectTopNbaSlateGameForGuarantee(fresh);
       if (featured?.game) {
         preloadedNbaBoard = fresh;
@@ -2584,7 +2586,7 @@ export default async function handler(req, res) {
           !liveBoardRefreshForced && preloadedNbaBoard && !sportSwitched;
         fresh =
           (usePreloaded ? preloadedNbaBoard : null) ||
-          (await buildNbaUrTakeBoard(String(question || "")));
+          (await buildNbaUrTakeBoard(routingQuestion));
         if (!nbaBoardHasPostedPropMarkets(fresh)) {
           fresh = await hydrateNbaPropsOdds(fresh);
         }

@@ -312,13 +312,38 @@ export function sportsContextSwitched(a, b) {
 }
 
 /**
+ * Latest user utterance for routing — ignores prior turns prepended by buildContextualQuestion.
+ * @param {string} question
+ */
+export function extractLatestUserTurnForRouting(question) {
+  const q = String(question || "").trim();
+  if (!q) return "";
+
+  const followUpMarker = "\n\nFollow-up:\n";
+  const followIdx = q.lastIndexOf(followUpMarker);
+  if (followIdx >= 0) {
+    return q.slice(followIdx + followUpMarker.length).trim();
+  }
+
+  const lines = q.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (/^User:\s+/i.test(line)) {
+      return line.replace(/^User:\s+/i, "").trim();
+    }
+  }
+
+  return q;
+}
+
+/**
  * Keyword inference from question (+ optional matchup card). Returns a sport slug or null.
  * @param {string} question
  * @param {{ league?: string } | null} [matchupContext]
  * @param {boolean} [hasImage]
  */
 export function inferSportFromQuestionText(question, matchupContext, hasImage) {
-  const q = normalizeText(question);
+  const q = normalizeText(extractLatestUserTurnForRouting(question));
 
   if (inferNbaFromMatchupSlug(q)) return "nba";
 
@@ -378,6 +403,8 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
 
   if (
     q.includes("nba") ||
+    /\bnba finals\b/.test(q) ||
+    /\bfinals game\s*\d+/i.test(q) ||
     /\bpra\b/.test(q) ||
     (q.includes("points") &&
       (q.includes("rebounds") ||
@@ -455,7 +482,9 @@ export function buildUrTakeSportTurnScopeRules(sportHint) {
   const label = SPORT_TURN_LABELS[s] || s.replace(/_/g, " ") || "this sport";
   return `SPORT TURN SCOPE (mandatory)
 - This turn is routed to ${label}; use only the sport context JSON supplied in this message.
-- Prior chat may mention other sports — answer silently from this payload. Never narrate, flag, or apologize for a sport change.
+- Answer ONLY ${label} for this turn — even if prior chat messages were about another sport.
+- Never answer two sports in one reply. Never say you are answering one sport "first" and another "second."
+- Prior chat may mention other sports — ignore them for this answer. Never narrate, flag, or apologize for a sport change.
 - Never say "cross-sport mismatch", "your first question was about", "the context payload I have", "paste the game context", or "I'll need you to" (provide data the user should not supply).
 - Never refuse, redirect, or ask them to switch tabs, threads, screens, or paste context the app already loads server-side.
 - Never say "wrong sport", "locked into [sport]", "constraint conflict", or that they must leave this conversation.`;
@@ -482,7 +511,8 @@ export function resolveSportHint({
   questionIsDerby = false,
   chatHistory,
 }) {
-  const textualSport = inferSportFromQuestionText(question, matchupContext, hasImage);
+  const routingQuestion = extractLatestUserTurnForRouting(question);
+  const textualSport = inferSportFromQuestionText(routingQuestion, matchupContext, hasImage);
   const h =
     typeof incomingSportHint === "string" && incomingSportHint.trim()
       ? incomingSportHint.trim()
@@ -490,7 +520,7 @@ export function resolveSportHint({
 
   if (h === "worldcup") return "worldcup";
 
-  // Question text wins for clear cross-sport pivots (except locked World Cup tab hint above).
+  // Latest-turn question text wins for cross-sport pivots (except locked World Cup tab hint above).
   if (textualSport) return textualSport;
 
   if (derbyActive && questionIsDerby && (!h || h === "generic")) {
@@ -502,7 +532,7 @@ export function resolveSportHint({
     historySport &&
     Array.isArray(chatHistory) &&
     chatHistory.length > 1 &&
-    !inferSportFromQuestionText(question, matchupContext, hasImage)
+    !inferSportFromQuestionText(routingQuestion, matchupContext, hasImage)
   ) {
     return historySport;
   }
@@ -582,6 +612,14 @@ export function stripUrTakeDeadEndCopy(text) {
     /^[^\n]*\bpaste(?:\s+the)?\s+game context\b[^\n]*$/im,
     /^[^\n]*\bi(?:'|')ll need you to\b[^\n]*$/im,
     /^[^\n]*\bi need to flag\b[^\n]*$/im,
+    /^[^\n]*\b(?:you(?:'|')?ve got|you have) two separate questions\b[^\n]*$/im,
+    /^[^\n]*\b(?:i(?:'|')?m )?answering the [^\n]*follow-up first\b[^\n]*$/im,
+    /^---\s*GOLF FOLLOW-UP[^\n]*$/im,
+    /^---\s*NBA FOLLOW-UP[^\n]*$/im,
+    /^GOLF FOLLOW-UP[^\n]*$/im,
+    /^NBA FOLLOW-UP[^\n]*$/im,
+    /^[^\n]*\bpayload you sent is [^\n]*only\b[^\n]*$/im,
+    /^[^\n]*\bneed the live game context for this one\b[^\n]*$/im,
     /^For tennis prop analysis[^\n]*$/im,
     /^What NBA game or player props[^\n]*$/im,
     /^I (?:can't|cannot|won't) (?:answer|help|provide)[^\n]*$/im,
