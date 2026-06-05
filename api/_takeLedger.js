@@ -4,6 +4,7 @@ import {
   computeEstimatedEdgeDashboardStats,
   computeMissDistance,
 } from "./_estimatedEdgeObservability.js";
+import { fetchWithTimeout } from "../shared/fetchWithTimeout.js";
 
 const TAKE_TTL_SECONDS = 60 * 60 * 24 * 120; // 120 days
 const MAX_TAKES_PER_USER = 400;
@@ -321,13 +322,8 @@ function etDateOffsets(days) {
 }
 
 async function safeFetchJson(url) {
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
+  const res = await fetchWithTimeout(url);
+  return res.ok ? res.data : null;
 }
 
 function normalizeEspnFinalGames(data, sport) {

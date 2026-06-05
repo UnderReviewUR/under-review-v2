@@ -1,5 +1,7 @@
 /** @typedef {{ startDate?: string | null, endDate?: string | null, state?: string | null, name?: string | null }} GolfEventLike */
 
+import { getEtYmdAt, parseYmd } from "./etDateUtils.js";
+
 export const GOLF_ODDS_STALE_MS = 2 * 60 * 60 * 1000;
 export const GOLF_ODDS_ROUND_REFRESH_MS = 60 * 60 * 1000;
 export const GOLF_ODDS_OPENING_HOUR_ET = 8;
@@ -19,21 +21,8 @@ export function getEtHour24At(nowMs = Date.now()) {
   );
 }
 
-/**
- * @param {number} [nowMs]
- */
-export function getEtYmdAt(nowMs = Date.now()) {
-  return new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
-
-/**
- * @param {string} ymd YYYY-MM-DD
- */
-function parseEtYmd(ymd) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
-  if (!m) return null;
-  return { y: parseInt(m[1], 10), mo: parseInt(m[2], 10), da: parseInt(m[3], 10) };
-}
+// Re-export for existing consumers
+export { getEtYmdAt } from "./etDateUtils.js";
 
 /**
  * @param {GolfEventLike | null | undefined} ev
@@ -41,10 +30,10 @@ function parseEtYmd(ymd) {
  */
 export function isGolfTournamentEtDay(ev, etYmd) {
   if (!ev) return false;
-  const day = parseEtYmd(etYmd);
+  const day = parseYmd(etYmd);
   if (!day) return false;
-  const start = parseEtYmd(ev.startDate);
-  const end = parseEtYmd(ev.endDate || ev.startDate);
+  const start = parseYmd(ev.startDate);
+  const end = parseYmd(ev.endDate || ev.startDate);
   if (!start) return false;
   const endUse = end || start;
   const t = day.y * 10000 + day.mo * 100 + day.da;

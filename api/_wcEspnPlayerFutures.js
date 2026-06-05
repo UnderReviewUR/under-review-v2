@@ -5,6 +5,7 @@
 import { ESPN_WC_FUTURES_URL } from "./_wcEspn.js";
 import { normalizeEspnAbbr } from "./_wcEspn.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import { fetchWithTimeout } from "../shared/fetchWithTimeout.js";
 
 /** @type {Set<string>} */
 const TEAM_ABBRS = new Set(WC_2026_TEAMS.map((t) => String(t.abbreviation).toUpperCase()));
@@ -125,30 +126,13 @@ export function normalizeEspnGoldenBootFutures(json) {
  * @returns {Promise<{ ok: boolean, rows: import("../shared/wc2026PlayerConstants.js").WcGoldenBootRow[], market: string | null, error?: string | null }>}
  */
 export async function fetchEspnGoldenBootFutures() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetch(`${ESPN_WC_FUTURES_URL}?limit=200`, {
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { ok: false, rows: [], market: null, error: `ESPN futures ${res.status}` };
-    }
-    const json = await res.json();
-    const { rows, market } = normalizeEspnGoldenBootFutures(json);
-    if (!rows.length) {
-      return { ok: false, rows: [], market: null, error: "espn_golden_boot_empty" };
-    }
-    return { ok: true, rows, market: market || "golden_boot", error: null };
-  } catch (err) {
-    clearTimeout(timer);
-    return {
-      ok: false,
-      rows: [],
-      market: null,
-      error: err?.message || "ESPN golden boot fetch failed",
-    };
+  const res = await fetchWithTimeout(`${ESPN_WC_FUTURES_URL}?limit=200`);
+  if (!res.ok) {
+    return { ok: false, rows: [], market: null, error: res.error || `ESPN futures ${res.status}` };
   }
+  const { rows, market } = normalizeEspnGoldenBootFutures(res.data);
+  if (!rows.length) {
+    return { ok: false, rows: [], market: null, error: "espn_golden_boot_empty" };
+  }
+  return { ok: true, rows, market: market || "golden_boot", error: null };
 }

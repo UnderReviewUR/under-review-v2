@@ -4,6 +4,7 @@
 
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 import { ESPN_NBA_FUTURES_URL } from "../shared/nba2026Constants.js";
+import { fetchWithTimeout } from "../shared/fetchWithTimeout.js";
 
 const ESPN_ABBR_OVERRIDES = {
   NY: "NYK",
@@ -138,40 +139,13 @@ export function normalizeEspnNbaFutures(json) {
  * @returns {Promise<{ ok: boolean, series: Record<string, string>, mvpCandidates: Array<{ name: string, odds: string, team?: string }>, error?: string | null }>}
  */
 export async function fetchEspnNbaFutures() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
-  try {
-    const res = await fetch(`${ESPN_NBA_FUTURES_URL}?limit=200`, {
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return {
-        ok: false,
-        series: {},
-        mvpCandidates: [],
-        error: `ESPN NBA futures ${res.status}`,
-      };
-    }
-    const json = await res.json();
-    const { series, mvpCandidates } = normalizeEspnNbaFutures(json);
-    if (!Object.keys(series).length && !mvpCandidates.length) {
-      return {
-        ok: false,
-        series: {},
-        mvpCandidates: [],
-        error: "ESPN NBA futures empty",
-      };
-    }
-    return { ok: true, series, mvpCandidates, error: null };
-  } catch (err) {
-    clearTimeout(timer);
-    return {
-      ok: false,
-      series: {},
-      mvpCandidates: [],
-      error: err?.message || "ESPN NBA futures fetch failed",
-    };
+  const res = await fetchWithTimeout(`${ESPN_NBA_FUTURES_URL}?limit=200`, { timeoutMs: 12000 });
+  if (!res.ok) {
+    return { ok: false, series: {}, mvpCandidates: [], error: res.error || `ESPN NBA futures ${res.status}` };
   }
+  const { series, mvpCandidates } = normalizeEspnNbaFutures(res.data);
+  if (!Object.keys(series).length && !mvpCandidates.length) {
+    return { ok: false, series: {}, mvpCandidates: [], error: "ESPN NBA futures empty" };
+  }
+  return { ok: true, series, mvpCandidates, error: null };
 }

@@ -9,6 +9,7 @@ import {
   getEtDateString,
   getTomorrowEtDateString,
 } from "./nbaPlayoffSlateFromActionNetwork.js";
+import { firstNonEmpty } from "./textUtils.js";
 
 /** Bust stale Action-Network-driven `nba_playoff_games_*` keys. */
 const KV_PREFIX = "nba_slate_bdl_v1_";
@@ -68,13 +69,7 @@ export function isBdlEtDayPlayableSlateGame(mapped, etDayYmd) {
 /** @deprecated alias — same as {@link isBdlEtDayPlayableSlateGame} */
 export const isBdlTonightPlayableSlateGame = isBdlEtDayPlayableSlateGame;
 
-function firstNonEmpty(...vals) {
-  for (const v of vals) {
-    const s = v != null ? String(v).trim() : "";
-    if (s) return s;
-  }
-  return null;
-}
+
 
 /**
  * Map a BallDontLie /games row to the app slate shape (UI + prompts).

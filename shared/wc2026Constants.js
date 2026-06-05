@@ -1,5 +1,7 @@
 /** FIFA World Cup 2026 — shared KV keys and tournament window (America/New_York). */
 
+import { getEtYmdAt } from "./etDateUtils.js";
+
 export const WC_GROUPS_KV_KEY = "wc2026_groups";
 export const WC_MATCHES_KV_KEY = "wc2026_matches";
 export const WC_OUTRIGHTS_KV_KEY = "wc2026_outrights";
@@ -45,13 +47,8 @@ export function wcMatchDetailKvKey(eventId) {
   return `${WC_MATCH_DETAIL_KV_PREFIX}${String(eventId)}`;
 }
 
-/**
- * @param {number} [nowMs]
- * @returns {string} YYYY-MM-DD in America/New_York
- */
-export function getEtYmdAt(nowMs = Date.now()) {
-  return new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
+// Re-export for existing consumers
+export { getEtYmdAt } from "./etDateUtils.js";
 
 /**
  * @param {number} [nowMs]

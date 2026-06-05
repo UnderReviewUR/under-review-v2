@@ -1,6 +1,6 @@
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
-import { addCalendarDaysEt } from "./_espnEtDates.js";
+import { addCalendarDaysEt, etDateStringToEspnYmd, toEtDateString } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { persistLastKnownHomeNbaGames, recoverLastKnownHomeNbaGames } from "./_homeLastKnownGames.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
@@ -11,6 +11,7 @@ import {
   bdlStatRowHasPlayingTime,
   isNbaRecentGameZeroStatDnpLike,
 } from "../shared/nbaUrTakeSlim.js";
+import { firstNonEmpty } from "../shared/textUtils.js";
 import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
@@ -161,22 +162,8 @@ function getNbaSeasonContext() {
   return { phase: "NBA Offseason", season, postseason: false };
 }
 
-function toEtDateString(isoString) {
-  if (!isoString) return "";
-  return new Date(isoString).toLocaleDateString("en-CA", {
-    timeZone: "America/New_York",
-  });
-}
 function toEspnDateToken(etDateString) {
-  return String(etDateString || "").replace(/-/g, "");
-}
-
-function firstNonEmpty(...values) {
-  for (const value of values) {
-    const s = String(value || "").trim();
-    if (s) return s;
-  }
-  return "";
+  return etDateStringToEspnYmd(etDateString);
 }
 
 function extractEspnBroadcastChannel(event) {

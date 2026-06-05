@@ -3,6 +3,7 @@
  */
 
 import { normalizeEspnAbbr, normalizeEspnMatchStatus } from "./_wcEspn.js";
+import { fetchWithTimeout } from "../shared/fetchWithTimeout.js";
 
 export const ESPN_WC_SUMMARY_URL =
   "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary";
@@ -327,20 +328,11 @@ export async function fetchEspnMatchSummary(eventId) {
   if (!id) return { ok: false, json: null, error: "missing_event_id" };
 
   const url = `${ESPN_WC_SUMMARY_URL}?event=${encodeURIComponent(id)}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetch(url, { cache: "no-store", signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) {
-      return { ok: false, json: null, error: `ESPN summary ${res.status}` };
-    }
-    const json = await res.json();
-    return { ok: true, json, error: null };
-  } catch (err) {
-    clearTimeout(timer);
-    return { ok: false, json: null, error: err?.message || "ESPN summary fetch failed" };
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) {
+    return { ok: false, json: null, error: res.error || `ESPN summary ${res.status}` };
   }
+  return { ok: true, json: res.data, error: null };
 }
 
 /**

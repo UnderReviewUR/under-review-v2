@@ -1,5 +1,9 @@
 /** ESPN scoreboard `dates=` expects YYYYMMDD in US Eastern calendar sense. */
 
+import { toEtDateString } from "../shared/etDateUtils.js";
+
+export { toEtDateString };
+
 export function getTodayEtDateString() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
