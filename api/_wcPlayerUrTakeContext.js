@@ -19,6 +19,7 @@ import {
 } from "../shared/wcMatchPlayerProps.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { WC_SET_PIECE_TAKERS } from "../src/data/wc2026SetPieceTakers.js";
+import { adjustGoldenBootOdds, formatAdjustedGoldenBootForPrompt } from "../shared/wcGoldenBootAdjusted.js";
 
 /**
  * @param {number} [nowMs]
@@ -127,6 +128,7 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     injuries,
     matchDetails = [],
     matchPlayerProps = null,
+    simResults = null,
     wcEventId = null,
   } = opts;
 
@@ -196,6 +198,17 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
       );
     }
     lines.push("");
+
+    if (simResults?.teamStats && gbRows.length) {
+      try {
+        const adjusted = adjustGoldenBootOdds(gbRows, {
+          teamStats: simResults.teamStats,
+          playerRegistry: players || {},
+        });
+        const adjBlock = formatAdjustedGoldenBootForPrompt(adjusted, 12);
+        if (adjBlock) lines.push(adjBlock, "");
+      } catch { /* non-critical */ }
+    }
   } else {
     lines.push(
       "GOLDEN BOOT / TOP SCORER ODDS: No rows in KV — use SQUAD / FORM names only; do not invent prices.",

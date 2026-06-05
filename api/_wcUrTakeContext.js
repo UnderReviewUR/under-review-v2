@@ -38,6 +38,7 @@ import {
   selectGroupsForPrompt,
 } from "../shared/wcPhaseUtils.js";
 import { formatVenueWarningsForPrompt } from "../shared/wcVenueMetadata.js";
+import { simulateTournament, formatSimResultsForPrompt } from "../shared/wcTournamentSim.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -517,6 +518,10 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     );
   }
 
+  if (ctx.simBlock) {
+    lines.push("", ctx.simBlock);
+  }
+
   lines.push(
     "",
     "VOICE: JSON summary — lead with the answer in sentence one (team + verdict, no setup), then 2-3 support sentences, 150 words max. JSON deep — full reasoning, no word limit. Plain sentences in summary, no bullet lists, no disclaimers. Name teams and groups from this block.",
@@ -656,6 +661,16 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     : null;
   const venueBlock = formatVenueWarningsForPrompt(fixtures);
 
+  let simResults = null;
+  try {
+    simResults = simulateTournament(undefined, { simCount: 10000 });
+  } catch (err) {
+    console.warn("[wc-context] simulateTournament failed:", err?.message);
+  }
+  const simBlock = simResults
+    ? formatSimResultsForPrompt(simResults, mentionedTeams)
+    : null;
+
   const ctx = {
     source: "world_cup_2026",
     tournament: "2026 FIFA World Cup",
@@ -671,6 +686,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     knockoutPhaseRules,
     groupClinchBlock,
     venueBlock,
+    simBlock,
+    simResults,
     live,
     results: resultsForPrompt,
     upcoming: upcomingForPrompt,
@@ -731,6 +748,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         matchDetails,
         matchPlayerProps: playerMarketKv.matchPlayerProps,
         wcEventId: wcEventIdTrimmed,
+        simResults,
       });
     } catch (err) {
       console.warn("[wc-context] player market KV load failed:", err?.message);
