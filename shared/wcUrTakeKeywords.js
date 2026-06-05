@@ -49,6 +49,19 @@ const WC_TOURNAMENT_TERMS = [
   "golden boot",
   "world cup 2026",
   "wc 2026",
+  // Player market phrases (critical for routing "who will score the most goals?" to WC, not NBA)
+  "most goals",
+  "most goal",
+  "top scorer",
+  "leading scorer",
+  "score the most",
+  "score the most goals",
+  "top goalscorer",
+  "top goal scorer",
+  "will score the most",
+  "highest scorer",
+  "player with most goals",
+  "golden boot winner",
 ];
 
 /** Single-token nation names that collide with other sports — need a co-signal. */

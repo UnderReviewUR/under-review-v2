@@ -65,7 +65,7 @@ const WC_TOP_SCORER_RE =
   /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
 
 const WC_PLAYER_PROP_RE =
-  /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal\s*scorer|score in this match|score tonight)\b/i;
+  /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer)\b/i;
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 
@@ -86,6 +86,20 @@ export function classifyWcPlayerMarketIntent(question) {
   if (/\b(goal scorer|score more goals)\b/i.test(ql)) return WC_INTENT.TOP_SCORER;
 
   return null;
+}
+
+/**
+ * Check if intent is a player-market intent (for downstream routing/rules).
+ * Exported to fix wcUrTakePlayerMarket.js import gap and prevent 500 crashes.
+ * @param {string} intent
+ */
+export function isWcPlayerMarketIntent(intent) {
+  const i = String(intent || "");
+  return (
+    i === WC_INTENT.PLAYER_PROP ||
+    i === WC_INTENT.GOLDEN_BOOT ||
+    i === WC_INTENT.TOP_SCORER
+  );
 }
 
 /** Static tournament rules — always available regardless of live phase. */
