@@ -6,6 +6,7 @@ export function useNbaData() {
   const [nbaData, setNbaData] = useState(null);
   const [nbaLoading, setNbaLoading] = useState(false);
   const [nbaGames, setNbaGames] = useState([]);
+  const [nbaError, setNbaError] = useState(null);
 
   const playoffSeries = useMemo(
     () => (Array.isArray(nbaData?.playoffSeries) ? nbaData.playoffSeries : []),
@@ -76,7 +77,9 @@ export function useNbaData() {
             setNbaGames(nextGames);
             schedulePoll(nextGames);
           })
-          .catch(() => {});
+          .catch((err) => {
+            if (err?.name !== "AbortError") console.warn("[useNbaData] poll failed:", err?.message || err);
+          });
       }, intervalMs);
     }
     async function fetchBoard({ bust = false } = {}) {
@@ -113,7 +116,7 @@ export function useNbaData() {
         setNbaData(nextData);
         setNbaGames(games);
         schedulePoll(games);
-      } catch { if (active) setNbaData(null); }
+      } catch (err) { if (active) { setNbaData(null); setNbaError(err?.message || "fetch_failed"); console.warn("[useNbaData] initial load failed:", err?.message || err); } }
       finally { if (active) setNbaLoading(false); }
     }
     loadNba();
@@ -123,5 +126,5 @@ export function useNbaData() {
     };
   }, []);
 
-  return { nbaData, nbaLoading, nbaGames, getSeriesLabel };
+  return { nbaData, nbaLoading, nbaGames, nbaError, getSeriesLabel };
 }

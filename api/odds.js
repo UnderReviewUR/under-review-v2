@@ -56,7 +56,8 @@ export default async function handler(req, res) {
         usedSportKey = sportKey;
         break;
       }
-    } catch {
+    } catch (err) {
+      console.warn("[odds] fetch failed for", sportKey, err?.message || err);
       continue;
     }
   }

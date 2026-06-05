@@ -135,7 +135,7 @@ export default function ClerkSubscriptionSync({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, source: "post_checkout_10s_clerk" }),
-          }).catch(() => {});
+          }).catch((err) => { console.warn("[ClerkSubscriptionSync] entitlement alert failed:", err?.message || err); });
         }
       }
     }, 10_000);

@@ -162,7 +162,7 @@ export function useTennisData() {
           if (!isCurrent) return;
           setLiveMatchesHome(h);
         })
-        .catch(() => {});
+        .catch((err) => { console.warn("[useTennisData] poll failed:", err?.message || err); });
     }, 60000);
     return () => {
       isCurrent = false;
@@ -180,7 +180,7 @@ export function useTennisData() {
         if (!isCurrent) return;
         setLiveMatchesHome(h);
       })
-      .catch(() => {});
+      .catch((err) => { console.warn("[useTennisData] context refresh failed:", err?.message || err); });
     return () => {
       isCurrent = false;
     };

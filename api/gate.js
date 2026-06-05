@@ -324,7 +324,8 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({ error: "Unknown action" });
-  } catch {
+  } catch (err) {
+    console.error("[gate]", err?.message || err);
     return res.status(500).json({ error: "gate_error" });
   }
 }

@@ -4,6 +4,7 @@ export function useMlbData() {
   const [mlbData, setMlbData] = useState(null);
   const [mlbLoading, setMlbLoading] = useState(false);
   const [mlbGames, setMlbGames] = useState([]);
+  const [mlbError, setMlbError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -16,12 +17,12 @@ export function useMlbData() {
         clearTimeout(timeout);
         const data = await res.json();
         if (active) setMlbData(data);
-      } catch { if (active) setMlbData(null); }
+      } catch (err) { if (active) { setMlbData(null); setMlbError(err?.message || "fetch_failed"); console.warn("[useMlbData] initial load failed:", err?.message || err); } }
       finally { if (active) setMlbLoading(false); }
     }
     loadMlb();
     const poll = window.setInterval(() => {
-      fetch("/api/mlb?view=board").then(r=>r.json()).then(d=>{ if(active) setMlbData(d); }).catch(()=>{});
+      fetch("/api/mlb?view=board").then(r=>r.json()).then(d=>{ if(active) setMlbData(d); }).catch((err)=>{ console.warn("[useMlbData] poll failed:", err?.message || err); });
     }, 180000);
     return () => { active=false; window.clearInterval(poll); };
   }, []);
@@ -77,5 +78,5 @@ export function useMlbData() {
     return () => { active=false; window.clearInterval(poll); };
   }, []);
 
-  return { mlbData, mlbLoading, mlbGames };
+  return { mlbData, mlbLoading, mlbGames, mlbError };
 }

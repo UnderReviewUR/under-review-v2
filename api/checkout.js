@@ -61,7 +61,8 @@ export default async function handler(req, res) {
     let prior;
     try {
       prior = await getDurableJson(stateKey);
-    } catch {
+    } catch (err) {
+      console.error("[checkout] state read failed:", err?.message || err);
       return res.status(500).json({ error: "checkout_unavailable" });
     }
 
@@ -84,7 +85,8 @@ export default async function handler(req, res) {
         },
         { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS },
       );
-    } catch {
+    } catch (err) {
+      console.error("[checkout] state write failed:", err?.message || err);
       return res.status(500).json({ error: "checkout_unavailable" });
     }
 
@@ -137,7 +139,8 @@ export default async function handler(req, res) {
         },
         { ttlSeconds: CHECKOUT_STATE_TTL_SECONDS },
       );
-    } catch {
+    } catch (err) {
+      console.error("[checkout] session state write failed:", err?.message || err);
       return res.status(500).json({ error: "checkout_unavailable" });
     }
 

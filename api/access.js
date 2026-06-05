@@ -89,7 +89,8 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: "Method not allowed" });
-  } catch {
+  } catch (err) {
+    console.error("[access]", err?.message || err);
     return res.status(500).json({ error: "access_error" });
   }
 }

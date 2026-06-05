@@ -458,7 +458,8 @@ export default function handler(req, res) {
     matchSurfaceNoteTemplate: MATCH_SURFACE_NOTE_TEMPLATE,
     breaking: breakingOverride !== undefined ? breakingOverride : TENNIS_BREAKING,
   });
-  } catch {
+  } catch (err) {
+    console.error("[tennis-context]", err?.message || err);
     return res.status(500).json({ error: "tennis_context_error" });
   }
 }

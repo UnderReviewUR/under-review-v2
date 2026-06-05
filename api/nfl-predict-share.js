@@ -64,8 +64,8 @@ export default async function handler(req, res) {
           { ...row, viewCount: viewCount + 1 },
           { ttlSeconds: TTL_SECONDS },
         );
-      } catch {
-        /* best-effort */
+      } catch (err) {
+        console.warn("[nfl-predict-share] view count update failed:", err?.message || err);
       }
     })();
     return res.status(200).json({
