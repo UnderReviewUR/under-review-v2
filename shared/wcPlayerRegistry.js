@@ -4,6 +4,7 @@
 
 import { normalizeEspnAbbr } from "../api/_wcEspn.js";
 import { WC_PLAYER_SEED } from "../src/data/wc2026PlayerSeed.js";
+import { WC_FULL_SQUAD_SEED } from "../src/data/wc2026FullSquadsSeed.js";
 
 /**
  * @param {string} name
@@ -15,10 +16,18 @@ export function normalizeWcPlayerName(name) {
 }
 
 /**
+ * Strip diacritics for stable key matching (Mbappé → Mbappe, Aït-Nouri → Ait-Nouri).
+ * @param {string} s
+ */
+function stripDiacritics(s) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
  * @param {string} name
  */
 export function playerRegistryKey(name, nationAbbr) {
-  const n = normalizeWcPlayerName(name).toLowerCase();
+  const n = stripDiacritics(normalizeWcPlayerName(name)).toLowerCase();
   const team = normalizeEspnAbbr(nationAbbr);
   return `${team}|${n}`;
 }
@@ -101,21 +110,31 @@ export function upsertRegistryPlayer(registry, nationAbbr, player) {
   return registry;
 }
 
+/** Position normalizer: FIFA PDF uses GK/DF/MF/FW; ESPN uses single-letter codes. */
+const POS_NORMALIZE = { G: "GK", D: "DF", M: "MF", F: "FW" };
+
 /**
- * Seed registry from static player list when KV is empty.
+ * Seed registry from official FIFA 26-man squad lists (1,248 players across 48 teams).
+ * Falls back to the smaller notable-player seed if full squads are unavailable.
  * @param {Record<string, unknown>} registry
  */
 export function seedRegistryFromStaticList(registry) {
-  for (const row of WC_PLAYER_SEED) {
+  const hasFullSquads = WC_FULL_SQUAD_SEED.length > 0;
+  const seed = hasFullSquads ? WC_FULL_SQUAD_SEED : WC_PLAYER_SEED;
+
+  for (const row of seed) {
+    const pos = row.position ? (POS_NORMALIZE[row.position] || row.position) : null;
     upsertRegistryPlayer(registry, row.nationAbbr, {
       name: row.name,
-      position: row.position,
+      position: pos,
       isStarterLikely: false,
       goalsTournament: 0,
       assistsTournament: 0,
     });
   }
-  registry.source = registry.source === "static" ? "static" : `${registry.source}+seed`;
+  registry.source = hasFullSquads
+    ? (registry.source === "static" ? "fifa_static" : `${registry.source}+fifa_static`)
+    : (registry.source === "static" ? "static" : `${registry.source}+seed`);
   return registry;
 }
 
