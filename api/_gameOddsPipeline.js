@@ -119,7 +119,8 @@ export async function fetchNbaTotalsFromOddsApi(oddsKey, sportKey = "basketball_
       if (row?.gameKey && row.total != null) byGameKey.set(row.gameKey, row);
     }
     return { ok: true, byGameKey };
-  } catch {
+  } catch (err) {
+    console.warn("[gameOdds] fetchNbaTotalsFromOddsApi failed:", err?.message || err);
     return { ok: false, byGameKey: new Map() };
   }
 }
@@ -140,7 +141,8 @@ export async function fetchNbaSpreadsFromOddsApi(oddsKey, sportKey = "basketball
       if (row?.gameKey) byGameKey.set(row.gameKey, row);
     }
     return { ok: true, byGameKey };
-  } catch {
+  } catch (err) {
+    console.warn("[gameOdds] fetchNbaSpreadsFromOddsApi failed:", err?.message || err);
     return { ok: false, byGameKey: new Map() };
   }
 }
@@ -186,8 +188,8 @@ async function scrapeSpreadForGame(meta) {
           capturedAt: new Date().toISOString(),
         };
       }
-    } catch {
-      /* silent */
+    } catch (err) {
+      console.warn("[gameOdds] scraper failed:", fn.name || "unknown", err?.message || err);
     }
   }
   return null;

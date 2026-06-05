@@ -2348,7 +2348,7 @@ ${themeCss}
     }
     lastUrTakeSportRef.current = sportForBubble;
     if (userEmail) {
-      loadPerformanceSnapshot().catch(() => {});
+      loadPerformanceSnapshot().catch((err) => { console.warn("[App] performance snapshot load failed:", err?.message || err); });
     }
   } catch (err) {
     setPrefetchingUrTakeContext(false);

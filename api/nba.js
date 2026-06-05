@@ -449,8 +449,8 @@ async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
         } else {
           logOddsUnavailable(oddsRes.status, "nba odds list fallback");
         }
-      } catch {
-        /* odds merge optional */
+      } catch (err) {
+        console.warn("[nba] odds merge failed:", err?.message || err);
       }
     }
 
@@ -998,7 +998,8 @@ async function getNbaPropLines(oddsKey, options = {}) {
             });
           }
         }
-      } catch {
+      } catch (err) {
+        console.warn("[nba] prop fetch failed:", err?.message || err);
         propFetchFailures++;
         continue;
       }
@@ -1413,8 +1414,8 @@ export async function fetchPlayerInjuries(bdlKey) {
   try {
     const cached = await getDurableJson(NBA_PLAYER_INJURIES_CACHE_KEY);
     if (cached && typeof cached === "object" && !Array.isArray(cached)) return cached;
-  } catch {
-    // non-fatal
+  } catch (err) {
+    console.warn("[nba] injuries cache read failed:", err?.message || err);
   }
 
   const endpoints = [
@@ -1458,8 +1459,8 @@ export async function fetchPlayerInjuries(bdlKey) {
         ttlSeconds: NBA_PLAYER_INJURIES_TTL_SECONDS,
       });
       return out;
-    } catch {
-      // non-fatal — try next endpoint
+    } catch (err) {
+      console.warn("[nba] injuries endpoint failed:", err?.message || err);
     }
   }
 

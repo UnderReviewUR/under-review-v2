@@ -106,7 +106,7 @@ export default function WcMatchCard({
       .then((d) => {
         if (!cancel && d) setWeather(d);
       })
-      .catch(() => {});
+      .catch((err) => { console.warn("[WcMatchCard] weather fetch failed:", err?.message || err); });
     return () => {
       cancel = true;
     };

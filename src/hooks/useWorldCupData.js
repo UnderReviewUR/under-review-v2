@@ -105,7 +105,7 @@ export function useWorldCupData() {
           fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
           fetch("/api/world-cup?view=upcoming", { cache: "no-store" }),
         ]);
-        fetch("/api/world-cup?view=context", { cache: "no-store" }).catch(() => {});
+        fetch("/api/world-cup?view=context", { cache: "no-store" }).catch((err) => { console.warn("[useWorldCupData] context prefetch failed:", err?.message || err); });
         const groupsData = groupsRes.ok ? await groupsRes.json() : null;
         const matchesData = matchesRes.ok ? await matchesRes.json() : null;
         const outrightsData = outrightsRes.ok ? await outrightsRes.json() : null;
@@ -166,8 +166,8 @@ export function useWorldCupData() {
         } else if (liveData?.live) {
           ingestXiPoll(liveData.live);
         }
-      } catch {
-        /* ignore poll errors */
+      } catch (err) {
+        console.warn("[useWorldCupData] poll failed:", err?.message || err);
       }
     }
 
