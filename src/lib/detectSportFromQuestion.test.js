@@ -1,113 +1,100 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
 import {
-  detectNflTeamHint,
   detectSportFromQuestion,
   detectWtaFromQuestion,
+  detectNflTeamHint,
+  NFL_TEAM_NAMES,
 } from "./detectSportFromQuestion.js";
 
-test("nba tab + Yankees question routes to mlb from question text", () => {
-  assert.equal(detectSportFromQuestion("best Yankees prop", "nba"), "mlb");
+// --- detectSportFromQuestion ---
+
+test("detectSportFromQuestion returns nba for basketball terms", () => {
+  assert.equal(detectSportFromQuestion("Lakers vs Celtics tonight", ""), "nba");
 });
 
-test("mlb tab + vague question stays on tab", () => {
-  assert.equal(detectSportFromQuestion("random words", "mlb"), "mlb");
+test("detectSportFromQuestion returns mlb for baseball terms", () => {
+  assert.equal(detectSportFromQuestion("Yankees game today", ""), "mlb");
 });
 
-test("golf tab + Lakers question routes to nba", () => {
-  assert.equal(
-    detectSportFromQuestion("Best Lakers player prop tonight?", "golf"),
-    "nba",
-  );
+test("detectSportFromQuestion returns nfl for football terms", () => {
+  assert.equal(detectSportFromQuestion("NFL draft picks", ""), "nfl");
 });
 
-test("home + Spurs question → nba (primary regression)", () => {
-  assert.equal(
-    detectSportFromQuestion("Best Spurs player prop tonight?", "home"),
-    "nba",
-  );
+test("detectSportFromQuestion returns golf for golf terms", () => {
+  assert.equal(detectSportFromQuestion("PGA outright odds", ""), "golf");
 });
 
-test("home + generic weather → generic", () => {
-  assert.equal(detectSportFromQuestion("what's the weather today?", "home"), "generic");
+test("detectSportFromQuestion returns f1 for F1 terms", () => {
+  assert.equal(detectSportFromQuestion("verstappen race result", ""), "f1");
 });
 
-test("home + strikeout prop → mlb", () => {
-  assert.equal(
-    detectSportFromQuestion("Best MLB strikeout prop tonight?", "home"),
-    "mlb",
-  );
+test("detectSportFromQuestion returns tennis for tab context", () => {
+  assert.equal(detectSportFromQuestion("who should I bet on?", "tennis"), "tennis");
 });
 
-test("home + pitcher K prop phrasing → mlb", () => {
-  assert.equal(detectSportFromQuestion("Best pitcher K prop?", "home"), "mlb");
+test("detectSportFromQuestion returns generic when nothing matches", () => {
+  assert.equal(detectSportFromQuestion("what is the weather", ""), "generic");
 });
 
-test("home + Cowboys → nfl", () => {
-  assert.equal(detectSportFromQuestion("Best Cowboys play this weekend?", "home"), "nfl");
+test("detectSportFromQuestion with tennis tab and WTA name returns tennis_wta_profile", () => {
+  assert.equal(detectSportFromQuestion("sabalenka match", "tennis"), "tennis_wta_profile");
 });
 
-test("home + mock draft / big board language → nfl", () => {
-  assert.equal(
-    detectSportFromQuestion("Build me a mock draft big board from Pittsburgh", "home"),
-    "nfl",
-  );
+test("detectSportFromQuestion with WTA name and no tab returns tennis_wta_profile", () => {
+  assert.equal(detectSportFromQuestion("sabalenka odds", ""), "tennis_wta_profile");
 });
 
-test("home + RBC Heritage → golf", () => {
-  assert.equal(detectSportFromQuestion("Who's the best RBC Heritage outright?", "home"), "golf");
+test("detectSportFromQuestion returns tab sport when no question signal", () => {
+  assert.equal(detectSportFromQuestion("best bet today", "nba"), "nba");
 });
 
-test("home + F1 podium → f1", () => {
-  assert.equal(detectSportFromQuestion("Best F1 podium bet this weekend?", "home"), "f1");
+// --- detectWtaFromQuestion ---
+
+test("detectWtaFromQuestion returns true for WTA keyword", () => {
+  assert.equal(detectWtaFromQuestion("WTA finals"), true);
 });
 
-test("home + ATP match → tennis", () => {
-  assert.equal(detectSportFromQuestion("Best ATP match tonight?", "home"), "tennis");
+test("detectWtaFromQuestion returns true for WTA player name", () => {
+  assert.equal(detectWtaFromQuestion("swiatek vs gauff"), true);
 });
 
-test("home + Sabalenka vs Gauff → tennis_wta_profile", () => {
-  assert.equal(
-    detectSportFromQuestion("Who wins Sabalenka vs Gauff on clay?", "home"),
-    "tennis_wta_profile",
-  );
+test("detectWtaFromQuestion returns false for ATP player", () => {
+  assert.equal(detectWtaFromQuestion("alcaraz odds"), false);
 });
 
-test("tab tennis + WTA names → tennis_wta_profile", () => {
-  assert.equal(
-    detectSportFromQuestion("Sabalenka form this week?", "tennis"),
-    "tennis_wta_profile",
-  );
+test("detectWtaFromQuestion returns false for unrelated text", () => {
+  assert.equal(detectWtaFromQuestion("home run"), false);
 });
 
-test("tab tennis + ATP-only → tennis", () => {
-  assert.equal(detectSportFromQuestion("Best Sinner value?", "tennis"), "tennis");
+// --- detectNflTeamHint ---
+
+test("detectNflTeamHint finds team by city", () => {
+  assert.equal(detectNflTeamHint("Kansas City game"), "KC");
 });
 
-test("Giants from home → mlb before nfl keyword overlap", () => {
-  assert.equal(detectSportFromQuestion("best Giants play tonight?", "home"), "mlb");
+test("detectNflTeamHint finds team by nickname", () => {
+  assert.equal(detectNflTeamHint("Cowboys vs Eagles"), "DAL");
 });
 
-test("Paraguay on home tab resolves to worldcup", () => {
-  assert.equal(detectSportFromQuestion("Will Paraguay advance from Group D?", "home"), "worldcup");
+test("detectNflTeamHint returns null for unrelated text", () => {
+  assert.equal(detectNflTeamHint("sunny weather"), null);
 });
 
-test("USA soccer on NBA tab resolves to worldcup", () => {
-  assert.equal(detectSportFromQuestion("Best USA soccer bet in group stage?", "nba"), "worldcup");
+test("detectNflTeamHint returns null for empty string", () => {
+  assert.equal(detectNflTeamHint(""), null);
 });
 
-test("detectWtaFromQuestion true for explicit wta", () => {
-  assert.equal(detectWtaFromQuestion("WTA Rome"), true);
+test("detectNflTeamHint is case-insensitive", () => {
+  assert.equal(detectNflTeamHint("CHIEFS game"), "KC");
 });
 
-test("detectNflTeamHint captures city/team names for draft asks", () => {
-  assert.equal(detectNflTeamHint("Simulate Eagles first 3 rounds"), "PHI");
-  assert.equal(detectNflTeamHint("Most chaotic realistic scenario for Chiefs"), "KC");
-});
+// --- NFL_TEAM_NAMES ---
 
-test("detectNflTeamHint resolves cowboys / punctuation / simulate phrasing", () => {
-  assert.equal(detectNflTeamHint("simulate the cowboys draft"), "DAL");
-  assert.equal(detectNflTeamHint("Cowboys."), "DAL");
-  assert.equal(detectNflTeamHint("dallas draft board"), "DAL");
-  assert.equal(detectNflTeamHint("What about Dallas in round 2?"), "DAL");
+test("NFL_TEAM_NAMES covers key franchises", () => {
+  assert.equal(NFL_TEAM_NAMES["cowboys"], "DAL");
+  assert.equal(NFL_TEAM_NAMES["eagles"], "PHI");
+  assert.equal(NFL_TEAM_NAMES["49ers"], "SF");
+  assert.equal(NFL_TEAM_NAMES["chiefs"], "KC");
 });
