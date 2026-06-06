@@ -19,6 +19,10 @@ import {
 } from "../shared/wcMatchPlayerProps.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { WC_SET_PIECE_TAKERS } from "../src/data/wc2026SetPieceTakers.js";
+import {
+  adjustGoldenBootOdds,
+  formatAdjustedGoldenBootForPrompt,
+} from "../shared/wcGoldenBootAdjusted.js";
 
 /**
  * @param {number} [nowMs]
@@ -128,6 +132,7 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     matchDetails = [],
     matchPlayerProps = null,
     wcEventId = null,
+    tournamentSimResults = null,
   } = opts;
 
   const gbRows = goldenBootRowsFromKv(goldenBoot, 15);
@@ -201,6 +206,17 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
       "GOLDEN BOOT / TOP SCORER ODDS: No rows in KV — use SQUAD / FORM names only; do not invent prices.",
       "",
     );
+  }
+
+  if (gbRows.length && tournamentSimResults?.teamStats) {
+    const adjusted = adjustGoldenBootOdds(gbRows, {
+      teamStats: tournamentSimResults.teamStats,
+      playerRegistry: players?.teams || {},
+    });
+    const adjustedBlock = formatAdjustedGoldenBootForPrompt(adjusted, 12);
+    if (adjustedBlock) {
+      lines.push(adjustedBlock, "");
+    }
   }
 
   const squadLines = formatSquadLeadersForPrompt(players);

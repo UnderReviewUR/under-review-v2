@@ -38,6 +38,14 @@ export const WC_OUTRIGHTS_TTL_SECONDS = 6 * 3600; // 6 h KV TTL
 export const WC_STANDINGS_SCRAPE_INTERVAL_MS = 12 * 60 * 1000;
 export const WC_OUTRIGHTS_SCRAPE_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
+/** Monte Carlo tournament sim KV (win % / advance %). */
+export const WC_TOURNAMENT_SIM_KV_KEY = "wc2026_tournament_sim";
+
+/** 4h cron + freshness gate for cached sim results. */
+export const WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+export const WC_TOURNAMENT_SIM_TTL_SECONDS = 4 * 60 * 60;
+
 /**
  * @param {string | number} eventId
  */

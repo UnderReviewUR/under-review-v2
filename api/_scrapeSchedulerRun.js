@@ -24,6 +24,7 @@ import {
 import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
 import { scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
+import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
 import { scrapeAndCacheNbaFinalsOutrights } from "./_nbaOutrightsData.js";
 
 const LAST_RUN_TTL_SECONDS = 14 * 24 * 60 * 60;
@@ -149,6 +150,16 @@ const SCRAPE_HANDLERS = {
       ok: result.ok,
       rowCount: result.rowCount,
       starsOut: result.starsOut?.length ?? 0,
+    };
+  },
+  wc_sim: async () => {
+    const result = await scrapeAndCacheWcTournamentSim();
+    return {
+      ok: result.ok,
+      simCount: result.simCount,
+      liveResultsApplied: Boolean(result.liveResultsApplied),
+      completedMatchCount: result.completedMatchCount ?? 0,
+      servedFromCache: Boolean(result.servedFromCache),
     };
   },
   nba_finals_outrights: async () => {

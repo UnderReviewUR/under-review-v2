@@ -60,4 +60,36 @@ describe("formatSimResultsForPrompt", () => {
     assert.ok(text.includes("Top contenders:"));
     assert.ok(!text.includes("Cited teams:"));
   });
+
+  test("notes live FT results in prompt header", () => {
+    const results = simulateTournament(undefined, {
+      simCount: 200,
+      completedMatches: [
+        {
+          homeTeam: "MEX",
+          awayTeam: "RSA",
+          homeScore: 2,
+          awayScore: 0,
+          status: "FT",
+        },
+      ],
+    });
+    assert.equal(results.liveResultsApplied, true);
+    assert.equal(results.completedMatchCount, 1);
+    const text = formatSimResultsForPrompt(results, ["MEX"]);
+    assert.ok(text.includes("FT result(s) locked in"));
+  });
+});
+
+describe("simulateTournament with live results", () => {
+  test("locks completed group scores and still returns 48 teams", () => {
+    const results = simulateTournament(undefined, {
+      simCount: 800,
+      completedMatches: [
+        { homeTeam: "MEX", awayTeam: "RSA", homeScore: 1, awayScore: 0, status: "FT" },
+      ],
+    });
+    assert.equal(Object.keys(results.teamStats).length, 48);
+    assert.ok(results.teamStats.MEX.advancePct > 0);
+  });
 });

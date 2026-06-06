@@ -112,44 +112,142 @@ function simulateMatch(teamA, teamB, allowDraw = true) {
 // ── Group stage ──
 
 /**
- * @param {Array<object>} groupTeams — 4 teams
- * @returns {Array<{ team: object, points: number, gd: number, gf: number }>} sorted standings
+ * @param {unknown} status
  */
-function simulateGroupStage(groupTeams) {
-  const stats = new Map();
-  for (const t of groupTeams) {
-    stats.set(t.abbreviation, { team: t, points: 0, gd: 0, gf: 0 });
-  }
+export function isWcFinishedMatchStatus(status) {
+  const s = String(status || "")
+    .trim()
+    .toUpperCase();
+  return s === "FT" || s === "FINISHED" || s === "COMPLETED" || s === "AET" || s === "PEN";
+}
 
-  // Round-robin: each team plays every other team once (6 matches in group of 4)
+/**
+ * @param {Array<object>} groupTeams
+ */
+function allRoundRobinPairs(groupTeams) {
+  /** @type {Array<[object, object]>} */
+  const pairs = [];
   for (let i = 0; i < groupTeams.length; i++) {
     for (let j = i + 1; j < groupTeams.length; j++) {
-      const result = simulateMatch(groupTeams[i], groupTeams[j], true);
-      const sA = stats.get(groupTeams[i].abbreviation);
-      const sB = stats.get(groupTeams[j].abbreviation);
-
-      sA.gf += result.goalsA;
-      sA.gd += result.goalsA - result.goalsB;
-      sB.gf += result.goalsB;
-      sB.gd += result.goalsB - result.goalsA;
-
-      if (result.draw) {
-        sA.points += 1;
-        sB.points += 1;
-      } else if (result.goalsA > result.goalsB) {
-        sA.points += 3;
-      } else {
-        sB.points += 3;
-      }
+      pairs.push([groupTeams[i], groupTeams[j]]);
     }
   }
+  return pairs;
+}
 
-  // Sort: points → GD → GF → Elo tiebreak
+/**
+ * @param {Array<Record<string, unknown>>} completedMatches
+ * @param {string} abbrA
+ * @param {string} abbrB
+ */
+function findCompletedGroupMatch(completedMatches, abbrA, abbrB) {
+  const a = String(abbrA || "").toUpperCase();
+  const b = String(abbrB || "").toUpperCase();
+  for (const m of completedMatches || []) {
+    if (!isWcFinishedMatchStatus(m?.status)) continue;
+    const h = String(m.homeTeam || "").toUpperCase();
+    const away = String(m.awayTeam || "").toUpperCase();
+    if ((h === a && away === b) || (h === b && away === a)) return m;
+  }
+  return null;
+}
+
+/**
+ * @param {Map<string, { team: object, points: number, gd: number, gf: number }>} stats
+ * @param {object} teamA
+ * @param {object} teamB
+ * @param {number} goalsA
+ * @param {number} goalsB
+ */
+function applyGoalsToGroupStats(stats, teamA, teamB, goalsA, goalsB) {
+  const sA = stats.get(teamA.abbreviation);
+  const sB = stats.get(teamB.abbreviation);
+  if (!sA || !sB) return;
+
+  sA.gf += goalsA;
+  sA.gd += goalsA - goalsB;
+  sB.gf += goalsB;
+  sB.gd += goalsB - goalsA;
+
+  if (goalsA === goalsB) {
+    sA.points += 1;
+    sB.points += 1;
+  } else if (goalsA > goalsB) {
+    sA.points += 3;
+  } else {
+    sB.points += 3;
+  }
+}
+
+/**
+ * @param {Map<string, { team: object, points: number, gd: number, gf: number }>} stats
+ */
+function sortGroupStandings(stats) {
   return [...stats.values()].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.gd !== a.gd) return b.gd - a.gd;
     if (b.gf !== a.gf) return b.gf - a.gf;
     return effectiveElo(b.team) - effectiveElo(a.team);
+  });
+}
+
+/**
+ * Round-robin with verified FT scores fixed; remaining fixtures simulated.
+ * @param {Array<object>} groupTeams — 4 teams
+ * @param {Array<Record<string, unknown>>} [completedMatches]
+ * @returns {Array<{ team: object, points: number, gd: number, gf: number }>} sorted standings
+ */
+function simulateGroupStage(groupTeams, completedMatches = []) {
+  const stats = new Map();
+  for (const t of groupTeams) {
+    stats.set(t.abbreviation, { team: t, points: 0, gd: 0, gf: 0 });
+  }
+
+  for (const [teamA, teamB] of allRoundRobinPairs(groupTeams)) {
+    const played = findCompletedGroupMatch(completedMatches, teamA.abbreviation, teamB.abbreviation);
+    let goalsA;
+    let goalsB;
+
+    if (
+      played &&
+      played.homeScore != null &&
+      played.awayScore != null &&
+      Number.isFinite(Number(played.homeScore)) &&
+      Number.isFinite(Number(played.awayScore))
+    ) {
+      const homeIsA =
+        String(played.homeTeam || "").toUpperCase() === String(teamA.abbreviation).toUpperCase();
+      goalsA = homeIsA ? Number(played.homeScore) : Number(played.awayScore);
+      goalsB = homeIsA ? Number(played.awayScore) : Number(played.homeScore);
+    } else {
+      const result = simulateMatch(teamA, teamB, true);
+      goalsA = result.goalsA;
+      goalsB = result.goalsB;
+    }
+
+    applyGoalsToGroupStats(stats, teamA, teamB, goalsA, goalsB);
+  }
+
+  return sortGroupStandings(stats);
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} completedMatches
+ */
+export function completedWcMatchesFromList(completedMatches) {
+  return (completedMatches || []).filter((m) => isWcFinishedMatchStatus(m?.status));
+}
+
+/**
+ * @param {Array<object>} groupTeams
+ * @param {Array<Record<string, unknown>>} completedMatches
+ */
+export function completedMatchesForGroup(groupTeams, completedMatches) {
+  const abbrs = new Set(groupTeams.map((t) => String(t.abbreviation).toUpperCase()));
+  return completedWcMatchesFromList(completedMatches).filter((m) => {
+    const h = String(m.homeTeam || "").toUpperCase();
+    const a = String(m.awayTeam || "").toUpperCase();
+    return abbrs.has(h) && abbrs.has(a);
   });
 }
 
@@ -283,12 +381,14 @@ function simulateKnockout(r32Bracket, tracker) {
 /**
  * Run full Monte Carlo tournament simulation.
  * @param {Array<object>} [teams] — defaults to WC_2026_TEAMS
- * @param {{ simCount?: number }} [opts]
- * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[] }}
+ * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>> }} [opts]
+ * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number }}
  */
 export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
   const simCount = opts.simCount || 10000;
   const teamList = teams || WC_2026_TEAMS;
+  const completedMatches = completedWcMatchesFromList(opts.completedMatches || []);
+  const liveResultsApplied = completedMatches.length > 0;
 
   // Group teams by group letter
   /** @type {Map<string, Array<object>>} */
@@ -314,7 +414,8 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     const allThirdPlace = [];
 
     for (const [letter, groupTeams] of groupMap) {
-      const standings = simulateGroupStage(groupTeams);
+      const groupCompleted = completedMatchesForGroup(groupTeams, completedMatches);
+      const standings = simulateGroupStage(groupTeams, groupCompleted);
       groupResults.set(letter, standings);
 
       // Top 2 advance
@@ -365,7 +466,13 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     .sort((a, b) => b.winPct - a.winPct)
     .slice(0, 20);
 
-  return { teamStats, simCount, topContenders };
+  return {
+    teamStats,
+    simCount,
+    topContenders,
+    liveResultsApplied,
+    completedMatchCount: completedMatches.length,
+  };
 }
 
 function round2(n) {
@@ -380,8 +487,11 @@ function round2(n) {
  */
 export function formatSimResultsForPrompt(simResults, mentionedTeams = []) {
   const mentioned = new Set((mentionedTeams || []).map((t) => t.toUpperCase()));
+  const liveNote = simResults.liveResultsApplied
+    ? ` · ${simResults.completedMatchCount} FT result(s) locked in`
+    : "";
   const lines = [
-    `TOURNAMENT SIMULATION (${simResults.simCount.toLocaleString()} Monte Carlo sims — Poisson goal model + Elo):`,
+    `TOURNAMENT SIMULATION (${simResults.simCount.toLocaleString()} Monte Carlo sims — Poisson goal model + Elo${liveNote}):`,
   ];
 
   // Show mentioned teams first, then top contenders

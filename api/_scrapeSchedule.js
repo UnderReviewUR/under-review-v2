@@ -24,9 +24,9 @@ import { SMARKETS_EVENTS_URL } from "../shared/f1OddsConstants.js";
 import { isF1MainRaceSmarketsEvent, pickUpcomingF1RaceEvent } from "./_f1Odds.js";
 import {
   isWcHomePromoWindow,
-  isWcTournamentWindow,
   WC_OUTRIGHTS_SCRAPE_INTERVAL_MS,
   WC_STANDINGS_SCRAPE_INTERVAL_MS,
+  WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026Constants.js";
 import {
   WC_GOLDEN_BOOT_SCRAPE_INTERVAL_MS,
@@ -386,7 +386,7 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
   /** @type {ScrapeTarget[]} */
   const out = [];
 
-  if (!isWcTournamentWindow(nowMs)) return out;
+  if (!isWcHomePromoWindow(nowMs)) return out;
 
   const noonEtMs = Date.UTC(2026, 5, 11, 16, 0, 0);
 
@@ -406,35 +406,42 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     meta: { kind: "outrights", fixedIntervalMs: WC_OUTRIGHTS_SCRAPE_INTERVAL_MS },
   });
 
-  if (isWcHomePromoWindow(nowMs)) {
-    out.push({
-      sport: "wc_players",
-      gameId: "tournament_players",
-      gameStartMs: noonEtMs,
-      priority: WC_SCRAPE_PRIORITY.PLAYERS,
-      meta: { kind: "players", fixedIntervalMs: WC_PLAYERS_SCRAPE_INTERVAL_MS },
-    });
-    out.push({
-      sport: "wc_golden_boot",
-      gameId: "golden_boot",
-      gameStartMs: noonEtMs,
-      priority: WC_SCRAPE_PRIORITY.GOLDEN_BOOT,
-      meta: { kind: "golden_boot", fixedIntervalMs: WC_GOLDEN_BOOT_SCRAPE_INTERVAL_MS },
-    });
-    out.push({
-      sport: "wc_injuries",
-      gameId: "injuries",
-      gameStartMs: noonEtMs,
-      priority: WC_SCRAPE_PRIORITY.INJURIES,
-      meta: { kind: "injuries", fixedIntervalMs: WC_INJURIES_SCRAPE_INTERVAL_MS },
-    });
-  }
+  out.push({
+    sport: "wc_players",
+    gameId: "tournament_players",
+    gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.PLAYERS,
+    meta: { kind: "players", fixedIntervalMs: WC_PLAYERS_SCRAPE_INTERVAL_MS },
+  });
+  out.push({
+    sport: "wc_golden_boot",
+    gameId: "golden_boot",
+    gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.GOLDEN_BOOT,
+    meta: { kind: "golden_boot", fixedIntervalMs: WC_GOLDEN_BOOT_SCRAPE_INTERVAL_MS },
+  });
+  out.push({
+    sport: "wc_injuries",
+    gameId: "injuries",
+    gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.INJURIES,
+    meta: { kind: "injuries", fixedIntervalMs: WC_INJURIES_SCRAPE_INTERVAL_MS },
+  });
+  out.push({
+    sport: "wc_sim",
+    gameId: "tournament_sim",
+    gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.TOURNAMENT_SIM,
+    meta: { kind: "tournament_sim", fixedIntervalMs: WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS },
+  });
 
   const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
   const matches = Array.isArray(kv?.matches) ? kv.matches : [];
-  const matchTargets = await buildWcMatchScrapeTargetsFromMatches(matches, nowMs);
-
-  for (const row of matchTargets.bundle) out.push(row);
+  const hasRealFixtures = matches.some((m) => m?.id != null && !String(m.id).startsWith("wc-promo-"));
+  if (hasRealFixtures) {
+    const matchTargets = await buildWcMatchScrapeTargetsFromMatches(matches, nowMs);
+    for (const row of matchTargets.bundle) out.push(row);
+  }
 
   return out;
 }

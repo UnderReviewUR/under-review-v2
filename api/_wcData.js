@@ -104,11 +104,63 @@ export async function scrapeAndCacheWcStandingsAndFixtures() {
     }),
   );
 
+  if (groupsPayload || matchesPayload) {
+    try {
+      const { scrapeAndCacheWcTournamentSim } = await import("./_wcTournamentSimData.js");
+      await scrapeAndCacheWcTournamentSim({
+        groups: groupsPayload?.groups,
+        matches: matchesPayload?.matches,
+        nowMs,
+      });
+    } catch (simErr) {
+      console.warn("[wc-data] tournament sim refresh failed:", simErr?.message || simErr);
+    }
+  }
+
   return {
     ok: Boolean(groupsPayload || matchesPayload),
     groupsPayload,
     matchesPayload,
     error: standingsRes.error || matchesRes.error || null,
+  };
+}
+
+/**
+ * Pull full ESPN fixture list into KV when missing or promo-only.
+ * @param {number} [nowMs]
+ */
+export async function ensureWcScheduleInKv(nowMs = Date.now()) {
+  const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
+  const existing = Array.isArray(kv?.matches) ? kv.matches : [];
+  const realCount = existing.filter((m) => m?.id != null && !String(m.id).startsWith("wc-promo-")).length;
+  if (realCount >= 50) {
+    return {
+      ok: true,
+      matches: existing,
+      lastUpdated: kv?.lastUpdated ?? nowMs,
+      source: kv?.source || "espn",
+      cached: true,
+    };
+  }
+
+  const espn = await fetchEspnAllMatches();
+  if (espn.ok && espn.matches.length) {
+    const payload = {
+      matches: espn.matches,
+      lastUpdated: nowMs,
+      source: "espn",
+    };
+    await setDurableJson(WC_MATCHES_KV_KEY, payload, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+    return { ok: true, ...payload, cached: false };
+  }
+
+  return {
+    ok: false,
+    matches: existing,
+    lastUpdated: kv?.lastUpdated ?? null,
+    source: kv?.source || "none",
+    error: espn.error || "espn_schedule_empty",
+    cached: Boolean(existing.length),
   };
 }
 
@@ -271,6 +323,15 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
       provider: oddsResult.odds?.provider,
     }),
   );
+
+  if (detailResult.finalized) {
+    try {
+      const { refreshWcTournamentSimAfterFt } = await import("./_wcTournamentSimData.js");
+      await refreshWcTournamentSimAfterFt();
+    } catch (simErr) {
+      console.warn("[wc-match-bundle] sim refresh after FT failed:", simErr?.message || simErr);
+    }
+  }
 
   return {
     ok: true,

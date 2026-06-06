@@ -8,8 +8,14 @@ import {
   readWcGroupsFromKv,
   readWcMatchesFromKv,
   readWcOutrightsFromKv,
+  ensureWcScheduleInKv,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
+import {
+  readWcTournamentSimFromKv,
+  resolveWcTournamentSimForPrompt,
+  scrapeAndCacheWcTournamentSim,
+} from "./_wcTournamentSimData.js";
 import { getWcGoldenBootPayload, scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
 import { getWcInjuriesPayload, scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { getWcPlayersPayload, scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
@@ -299,6 +305,39 @@ export async function getGroupsPayload() {
 export async function getMatchesPayload() {
   const nowMs = Date.now();
   const kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
+  const kvRealCount = (kv?.matches || []).filter(
+    (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
+  ).length;
+
+  if (kv?.matches?.length && kvRealCount >= 50) {
+    const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated, nowMs);
+    return {
+      matches,
+      lastUpdated: kv.lastUpdated,
+      source: kv.source || "espn",
+      fallback: Boolean(kv.stale),
+      stale: Boolean(kv.stale),
+      ageMinutes: kv.stale && kv.lastUpdated
+        ? Math.round((Date.now() - Number(kv.lastUpdated)) / 60000)
+        : 0,
+    };
+  }
+
+  if (isWcHomePromoWindow(nowMs)) {
+    const espnSchedule = await ensureWcScheduleInKv(nowMs);
+    if (espnSchedule.ok && espnSchedule.matches?.length) {
+      const matches = attachMatchListOddsFreshness(espnSchedule.matches, espnSchedule.lastUpdated, nowMs);
+      return {
+        matches,
+        lastUpdated: espnSchedule.lastUpdated,
+        source: espnSchedule.source || "espn",
+        fallback: false,
+        stale: false,
+        refreshed: !espnSchedule.cached,
+      };
+    }
+  }
+
   if (kv?.matches?.length) {
     const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated, nowMs);
     return {
@@ -532,6 +571,18 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    if (view === "sim" || view === "tournament_sim" || view === "tournament-sim") {
+      if (String(req.query?.refresh || "") === "1") {
+        await scrapeAndCacheWcTournamentSim();
+      }
+      const cached = await readWcTournamentSimFromKv();
+      if (!cached?.teamStats) {
+        const fresh = await scrapeAndCacheWcTournamentSim();
+        return res.status(200).json({ ok: true, ...fresh });
+      }
+      return res.status(200).json({ ok: true, ...cached });
+    }
+
     if (view === "player_markets_status" || view === "player-markets-status") {
       const status = await buildWcPlayerMarketsStatus();
       return res.status(200).json(status);
@@ -558,7 +609,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, sim, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

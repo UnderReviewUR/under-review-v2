@@ -38,6 +38,7 @@ import {
   selectGroupsForPrompt,
 } from "../shared/wcPhaseUtils.js";
 import { formatVenueWarningsForPrompt } from "../shared/wcVenueMetadata.js";
+import { resolveWcTournamentSimForPrompt } from "./_wcTournamentSimData.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -517,6 +518,13 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     );
   }
 
+  if (ctx.tournamentSimBlock) {
+    lines.push("", ctx.tournamentSimBlock);
+    lines.push(
+      "  Use TOURNAMENT SIMULATION win/advance % for structural probability questions; cite book prices from CURRENT OUTRIGHT ODDS when available — do not invent either.",
+    );
+  }
+
   lines.push(
     "",
     "VOICE: JSON summary — lead with the answer in sentence one (team + verdict, no setup), then 2-3 support sentences, 150 words max. JSON deep — full reasoning, no word limit. Plain sentences in summary, no bullet lists, no disclaimers. Name teams and groups from this block.",
@@ -656,6 +664,23 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     : null;
   const venueBlock = formatVenueWarningsForPrompt(fixtures);
 
+  let tournamentSimBlock = null;
+  let tournamentSimResults = null;
+  try {
+    const simResolved = await resolveWcTournamentSimForPrompt({
+      groups: groupsPayload?.groups || groups,
+      matches,
+      mentionedTeams,
+      nowMs,
+    });
+    if (simResolved?.promptBlock) {
+      tournamentSimBlock = simResolved.promptBlock;
+      tournamentSimResults = simResolved.simResults;
+    }
+  } catch (simErr) {
+    console.warn("[wc-context] tournament sim resolve failed:", simErr?.message);
+  }
+
   const ctx = {
     source: "world_cup_2026",
     tournament: "2026 FIFA World Cup",
@@ -680,6 +705,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     dataConfidence,
     outrightsKv: outrightsKv?.outrights || null,
     outrightsBlock,
+    tournamentSimBlock,
+    tournamentSimResults,
     lastUpdated: Math.max(
       Number(groupsPayload?.lastUpdated) || 0,
       Number(matchesPayload?.lastUpdated) || 0,
@@ -731,6 +758,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         matchDetails,
         matchPlayerProps: playerMarketKv.matchPlayerProps,
         wcEventId: wcEventIdTrimmed,
+        tournamentSimResults,
       });
     } catch (err) {
       console.warn("[wc-context] player market KV load failed:", err?.message);

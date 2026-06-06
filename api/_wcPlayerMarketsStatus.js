@@ -13,6 +13,8 @@ import {
 } from "../shared/wc2026PlayerConstants.js";
 import { attachGoldenBootFreshness } from "../shared/wcPlayerOddsFreshness.js";
 import { wcRosterCompleteness } from "../shared/wcRosterCompleteness.js";
+import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
+import { WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS } from "../shared/wc2026Constants.js";
 import { wcBookScrapeFlagsSnapshot } from "../shared/wcBookScrapePolicy.js";
 import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 
@@ -32,12 +34,13 @@ function staleHours(lastUpdated, maxAgeMs, nowMs = Date.now()) {
  * @param {number} [nowMs]
  */
 export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
-  const [playersKv, goldenBootRaw, injuries, matchProps, override] = await Promise.all([
+  const [playersKv, goldenBootRaw, injuries, matchProps, override, tournamentSim] = await Promise.all([
     readWcPlayersFromKv(),
     getDurableJson(WC_GOLDEN_BOOT_KV_KEY),
     getDurableJson(WC_INJURIES_KV_KEY),
     getDurableJson(WC_MATCH_PLAYER_PROPS_KV_KEY),
     getDurableJson(WC_PLAYER_MARKETS_OVERRIDE_KV_KEY),
+    readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs),
   ]);
 
   const goldenBoot = attachGoldenBootFreshness(goldenBootRaw, nowMs);
@@ -95,6 +98,15 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       rowCount: injuryRows.length,
       starsOutCount: starsOut,
       source: injuries?.source ?? null,
+    },
+    tournamentSim: {
+      lastUpdated: tournamentSim?.lastUpdated ?? null,
+      simCount: tournamentSim?.simCount ?? 0,
+      liveResultsApplied: Boolean(tournamentSim?.liveResultsApplied),
+      completedMatchCount: tournamentSim?.completedMatchCount ?? 0,
+      stale: Boolean(tournamentSim?.stale),
+      topWinPct: tournamentSim?.topContenders?.[0]?.winPct ?? null,
+      topTeam: tournamentSim?.topContenders?.[0]?.abbreviation ?? null,
     },
     matchPlayerProps: {
       lastUpdated: matchProps?.lastUpdated ?? null,
