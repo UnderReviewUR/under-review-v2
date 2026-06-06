@@ -1,13 +1,15 @@
 import { classifyUrTakeClientCatchPhase } from "./urTakeFetch.js";
+import {
+  DAILY_QUOTA_LIMIT_MESSAGE,
+  EMAIL_GATE_SESSION_MESSAGE,
+} from "../../shared/freeTierCopy.js";
 
 export const UR_TAKE_FAIL_SOFT_RETRY_MESSAGE =
   "We couldn't complete that UR Take — connection, timeout, or a temporary setup issue. Try again in a moment.";
 
-export const UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE =
-  "You've used your free UR Takes for this week. Upgrade for unlimited reads, or try again after your quota resets.";
+export const UR_TAKE_FAIL_SOFT_QUOTA_MESSAGE = DAILY_QUOTA_LIMIT_MESSAGE;
 
-export const UR_TAKE_FAIL_SOFT_EMAIL_GATE_MESSAGE =
-  "Enter your email to keep asking questions or upgrade to Pro.";
+export const UR_TAKE_FAIL_SOFT_EMAIL_GATE_MESSAGE = EMAIL_GATE_SESSION_MESSAGE;
 
 /**
  * @param {{ phase?: string, code?: string, status?: number }} input

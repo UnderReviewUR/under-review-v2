@@ -2,6 +2,8 @@ import { useEffect, useId, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
 import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
+import { formatOddsAmerican } from "../../../shared/formatOddsAmerican.js";
+import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
 import {
   WC_XI_STATUS_ICON,
   formatWcDetailAsOfEt,
@@ -112,7 +114,12 @@ export default function WcMatchCard({
     };
   }, [fetchWeather, match?.city, match?.stadium]);
 
-  const kickoff = [match?.date, match?.time].filter(Boolean).join(" ");
+  const kickoff = formatWcKickoffDisplay(match);
+  const bookOdds = match?.odds;
+  const mlHome = bookOdds?.home?.moneyline;
+  const mlAway = bookOdds?.away?.moneyline;
+  const mlDraw = bookOdds?.draw?.moneyline;
+  const hasBookMl = mlHome || mlAway || mlDraw;
 
   const cardId = match?.id != null ? `wc-match-${String(match.id).trim()}` : undefined;
 
@@ -161,6 +168,21 @@ export default function WcMatchCard({
         )}
       </div>
       {!live && showOdds ? <OddsBar odds={odds} /> : null}
+      {!live && hasBookMl ? (
+        <div className="wc-book-ml-row" aria-label="Match moneylines">
+          {mlHome ? (
+            <span>
+              {match.homeTeam} {formatOddsAmerican(mlHome)}
+            </span>
+          ) : null}
+          {mlDraw ? <span>Draw {formatOddsAmerican(mlDraw)}</span> : null}
+          {mlAway ? (
+            <span>
+              {match.awayTeam} {formatOddsAmerican(mlAway)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {onAskUrTake ? (
         <button type="button" className="wc-ask-btn" onClick={() => onAskUrTake(match)}>
           Ask UR Take →

@@ -10,7 +10,7 @@ test("formatWcOutrightOdds renders em dash for null", () => {
   assert.equal(formatWcOutrightOdds(null), "—");
   assert.equal(formatWcOutrightOdds(undefined), "—");
   assert.equal(formatWcOutrightOdds(""), "—");
-  assert.equal(formatWcOutrightOdds("+850"), "+850");
+  assert.equal(formatWcOutrightOdds("+850"), "+850 (9.50)");
 });
 
 test("resolveWcOutrightOdds prefers KV over static", () => {

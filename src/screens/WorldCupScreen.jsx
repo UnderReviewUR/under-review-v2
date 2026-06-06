@@ -9,6 +9,7 @@ import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
 import { formatWcOutrightsStaleChipLabel } from "../../shared/wcOddsFreshness.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
+import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 
@@ -33,6 +34,8 @@ export default function WorldCupScreen({
   upcomingMatches,
   teams = WC_2026_TEAMS,
   outrightsMeta = null,
+  fetchError = null,
+  retryWcLoad = null,
   wcMsgs,
   wcBarRef,
   wcInputRef,
@@ -155,7 +158,7 @@ export default function WorldCupScreen({
             {next ? (
               <>
                 <p className="wc-muted">
-                  Next: {next.homeTeam} vs {next.awayTeam} — {next.date} {next.time}
+                  Next: {next.homeTeam} vs {next.awayTeam} — {formatWcKickoffDisplay(next)}
                 </p>
                 <button type="button" className="wc-ask-btn wc-empty-cta" onClick={() => handleAskMatch(next)}>
                   Ask about next match →
@@ -176,6 +179,17 @@ export default function WorldCupScreen({
 
   const wcBrowseBelow = (
     <>
+      {fetchError && !wcLoading ? (
+        <div className="wc-fetch-error" role="alert">
+          <p>Couldn&apos;t load live data — check your connection and try again.</p>
+          {retryWcLoad ? (
+            <button type="button" className="wc-fetch-error-retry" onClick={() => retryWcLoad()}>
+              Retry
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {wcLoading ? (
         <div className="loading-state">
           <div className="loading-text">LOADING WORLD CUP DATA...</div>

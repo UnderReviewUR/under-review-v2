@@ -193,7 +193,13 @@ export default function HomeScreen({
               </button>
             ))}
           </div>
-          <p className="ur-first-session-foot">3 questions free per day · No card · No signup</p>
+          <p className="ur-first-session-foot">
+            3 free questions · No card · No signup
+            <br />
+            <span className="ur-first-session-foot-secondary">
+              Email for 3 more per day (resets midnight UTC)
+            </span>
+          </p>
         </div>
       </main>
     );

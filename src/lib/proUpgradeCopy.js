@@ -3,25 +3,18 @@
  * Lead differentiators: full take + THE PLAY, session memory.
  */
 
-export const UPGRADE_LIMIT_HIT_HEADLINE =
-  "You've used your 3 free questions today — come back tomorrow or go Pro for unlimited access.";
-
-export const UPGRADE_LIMIT_HIT_BODY = `Pro members get the full take — not the summary. Session memory means the app knows your positions. THE PLAY block means it tells you exactly what to bet and why.
-
-$9.99/month · cancel anytime`;
-
-export const UPGRADE_MODAL_DAILY_TAGLINE = "3 free questions every day. Unlimited with Pro.";
-
-export const EMAIL_GATE_HEADLINE =
-  "Enter your email to keep asking questions or upgrade to Pro";
-
-export const EMAIL_GATE_BODY =
-  "You've used your 3 free questions for this visit. Add your email to unlock 3 questions every day, or go Pro for unlimited reads.";
-
-export function freeLimitChipMessage(remaining) {
-  const qWord = remaining === 1 ? "question" : "questions";
-  return `${remaining} free ${qWord} left today — Pro gives the full read with THE PLAY, not the summary.`;
-}
+export {
+  DAILY_QUOTA_LIMIT_MESSAGE,
+  EMAIL_GATE_BODY,
+  EMAIL_GATE_HEADLINE,
+  EMAIL_GATE_SESSION_MESSAGE,
+  FREE_TIER_HOME_FOOTNOTE_PRIMARY,
+  FREE_TIER_HOME_FOOTNOTE_SECONDARY,
+  UPGRADE_LIMIT_HIT_BODY,
+  UPGRADE_LIMIT_HIT_HEADLINE,
+  UPGRADE_MODAL_DAILY_TAGLINE,
+  freeLimitChipMessage,
+} from "../../shared/freeTierCopy.js";
 
 export const THREAD_UPGRADE_NUDGE_TEXT =
   "Get the full take with THE PLAY — Pro remembers your positions across the slate.";
@@ -44,6 +37,11 @@ export const PRO_PAYWALL_FEATURE_ROWS = [
     color: "var(--cyan-bright)",
     name: "Betting Companion, Not a Chatbot",
     desc: "Deeper responses that carry your angles forward — built for how you actually bet the slate.",
+  },
+  {
+    color: "#00F5E9",
+    name: "World Cup 2026 — Groups & Knockout",
+    desc: "48-team tournament intel, advancement angles, and player markets when lineups confirm.",
   },
   {
     color: "#FFE600",

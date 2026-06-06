@@ -2,15 +2,14 @@
  * World Cup outright odds display + merge (KV live → static cold-start → em dash).
  */
 
+import { formatOddsAmerican } from "./formatOddsAmerican.js";
+
 /**
  * @param {string | null | undefined} value
  * @returns {string}
  */
 export function formatWcOutrightOdds(value) {
-  if (value == null) return "—";
-  const s = String(value).trim();
-  if (!s || s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return "—";
-  return s;
+  return formatOddsAmerican(value);
 }
 
 /**

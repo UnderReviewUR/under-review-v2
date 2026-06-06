@@ -734,6 +734,8 @@ ${themeCss}
     upcomingMatches: wcUpcomingMatches,
     teams: wcTeams,
     outrightsMeta: wcOutrightsMeta,
+    fetchError: wcFetchError,
+    retryWcLoad,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,
   } = useWorldCupData();
@@ -4431,6 +4433,7 @@ ${themeCss}
     nbaMsgs.length,
     mlbMsgs.length,
     golfMsgs.length,
+    wcMsgs.length,
   ]);
 
   // ── Header pill ────────────────────────────────────────────────────────────
@@ -5031,6 +5034,8 @@ ${themeCss}
             upcomingMatches={wcUpcomingMatches}
             teams={wcTeams}
             outrightsMeta={wcOutrightsMeta}
+            fetchError={wcFetchError}
+            retryWcLoad={retryWcLoad}
             wcMsgs={wcMsgs}
             wcBarRef={wcBarRef}
             wcInputRef={wcInputRef}
@@ -6112,8 +6117,6 @@ fees. One price, unlimited reads.`,
             <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:20,padding:24,maxWidth:380,width:"100%",textAlign:"center"}}>
               <div style={{fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:16,whiteSpace:"pre-line"}}>
                 {`${UPGRADE_LIMIT_HIT_HEADLINE}
-
-${UPGRADE_MODAL_DAILY_TAGLINE}
 
 ${UPGRADE_LIMIT_HIT_BODY}`}
               </div>

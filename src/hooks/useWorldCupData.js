@@ -62,6 +62,7 @@ export function useWorldCupData() {
   const [fetchError, setFetchError] = useState(null);
   const [xiConfirmedNotice, setXiConfirmedNotice] = useState(null);
   const xiStatusMapRef = useRef(new Map());
+  const loadGenerationRef = useRef(0);
 
   const teams = useMemo(
     () => mergeWcTeamsWithOutrights(WC_2026_TEAMS, outrightsKv),
@@ -92,63 +93,82 @@ export function useWorldCupData() {
     setXiConfirmedNotice(null);
   }, []);
 
+  const loadAll = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
+    setWcLoading(true);
+    setFetchError(null);
+    try {
+      const [groupsRes, matchesRes, outrightsRes, upcomingRes] = await Promise.all([
+        fetch("/api/world-cup?view=groups", { cache: "no-store" }),
+        fetch("/api/world-cup?view=matches", { cache: "no-store" }),
+        fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
+        fetch("/api/world-cup?view=upcoming", { cache: "no-store" }),
+      ]);
+      fetch("/api/world-cup?view=context", { cache: "no-store" }).catch(() => {});
+
+      const groupsData = groupsRes.ok ? await groupsRes.json() : null;
+      const matchesData = matchesRes.ok ? await matchesRes.json() : null;
+      const outrightsData = outrightsRes.ok ? await outrightsRes.json() : null;
+      const upcomingData = upcomingRes.ok ? await upcomingRes.json() : null;
+
+      if (generation !== loadGenerationRef.current) return;
+
+      const groupsOk = groupsRes.ok && groupsData?.groups;
+      const matchesOk = matchesRes.ok && Array.isArray(matchesData?.matches);
+
+      if (groupsOk) setGroups(groupsData.groups);
+      if (matchesOk) {
+        setMatches(matchesData.matches);
+        setLiveMatches(matchesData.matches.filter((m) => isLiveStatus(m.status)));
+        ingestXiPoll(matchesData.matches);
+      }
+      if (upcomingRes.ok && upcomingData?.upcoming) {
+        setUpcomingMatches(upcomingData.upcoming);
+      } else if (matchesOk) {
+        setUpcomingMatches(
+          matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12),
+        );
+      }
+      if (outrightsRes.ok && outrightsData?.outrights && Object.keys(outrightsData.outrights).length) {
+        setOutrightsKv(outrightsData.outrights);
+      } else if (outrightsRes.ok) {
+        setOutrightsKv(null);
+      }
+      setOutrightsMeta({
+        stale: Boolean(outrightsData?.stale),
+        ageMinutes: outrightsData?.ageMinutes ?? null,
+        lastUpdated: outrightsData?.lastUpdated ?? null,
+        source: outrightsData?.source ?? null,
+      });
+
+      if (!groupsOk && !matchesOk) {
+        setFetchError(
+          groupsData?.error ||
+            matchesData?.error ||
+            `World Cup data unavailable (${groupsRes.status}/${matchesRes.status})`,
+        );
+      } else {
+        setFetchError(null);
+      }
+    } catch (e) {
+      if (generation === loadGenerationRef.current) {
+        console.warn("[useWorldCupData] fetch failed:", e?.message);
+        setFetchError(e?.message || "fetch_failed");
+      }
+    } finally {
+      if (generation === loadGenerationRef.current) setWcLoading(false);
+    }
+  }, [ingestXiPoll]);
+
+  const retryWcLoad = useCallback(() => {
+    loadAll();
+  }, [loadAll]);
+
   useEffect(() => {
     let isCurrent = true;
     let pollId = null;
 
-    async function loadAll() {
-      setWcLoading(true);
-      try {
-        const [groupsRes, matchesRes, outrightsRes, upcomingRes] = await Promise.all([
-          fetch("/api/world-cup?view=groups", { cache: "no-store" }),
-          fetch("/api/world-cup?view=matches", { cache: "no-store" }),
-          fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
-          fetch("/api/world-cup?view=upcoming", { cache: "no-store" }),
-        ]);
-        fetch("/api/world-cup?view=context", { cache: "no-store" }).catch(() => {});
-        const groupsData = groupsRes.ok ? await groupsRes.json() : null;
-        const matchesData = matchesRes.ok ? await matchesRes.json() : null;
-        const outrightsData = outrightsRes.ok ? await outrightsRes.json() : null;
-        const upcomingData = upcomingRes.ok ? await upcomingRes.json() : null;
-        if (!isCurrent) return;
-        if (groupsData?.groups) setGroups(groupsData.groups);
-        if (matchesData?.matches) {
-          setMatches(matchesData.matches);
-          setLiveMatches(matchesData.matches.filter((m) => isLiveStatus(m.status)));
-          ingestXiPoll(matchesData.matches);
-        }
-        if (upcomingData?.upcoming) {
-          setUpcomingMatches(upcomingData.upcoming);
-        } else if (matchesData?.matches) {
-          setUpcomingMatches(
-            matchesData.matches.filter((m) => isScheduled(m.status)).slice(0, 12),
-          );
-        }
-        if (outrightsData?.outrights && Object.keys(outrightsData.outrights).length) {
-          setOutrightsKv(outrightsData.outrights);
-        } else {
-          setOutrightsKv(null);
-        }
-        setOutrightsMeta({
-          stale: Boolean(outrightsData?.stale),
-          ageMinutes: outrightsData?.ageMinutes ?? null,
-          lastUpdated: outrightsData?.lastUpdated ?? null,
-          source: outrightsData?.source ?? null,
-        });
-        if (groupsData?.error || matchesData?.error) {
-          setFetchError(groupsData?.error || matchesData?.error);
-        } else {
-          setFetchError(null);
-        }
-      } catch (e) {
-        if (isCurrent) {
-          console.warn("[useWorldCupData] fetch failed:", e?.message);
-          setFetchError(e?.message || "fetch_failed");
-        }
-      } finally {
-        if (isCurrent) setWcLoading(false);
-      }
-    }
+    loadAll();
 
     async function pollWc() {
       try {
@@ -171,14 +191,13 @@ export function useWorldCupData() {
       }
     }
 
-    loadAll();
     pollId = window.setInterval(pollWc, 60000);
 
     return () => {
       isCurrent = false;
       if (pollId) window.clearInterval(pollId);
     };
-  }, [ingestXiPoll]);
+  }, [loadAll, ingestXiPoll]);
 
   return {
     wcLoading,
@@ -189,6 +208,7 @@ export function useWorldCupData() {
     teams,
     outrightsMeta,
     fetchError,
+    retryWcLoad,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,
   };

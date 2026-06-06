@@ -1068,7 +1068,8 @@ export const baseCss = `
   .ur-first-session-pill:disabled{opacity:0.55;cursor:default;}
   .ur-first-session-pill-text{font-family:var(--body-font);font-size:15px;font-weight:600;line-height:1.3;flex:1;min-width:0;}
   .ur-first-session-pill-arrow{font-size:18px;font-weight:700;flex-shrink:0;}
-  .ur-first-session-foot{font-size:11px;color:rgba(255,255,255,0.38);text-align:center;margin:8px 0 0;font-family:var(--mono-font);letter-spacing:0.06em;}
+  .ur-first-session-foot{font-size:11px;color:rgba(255,255,255,0.38);text-align:center;margin:8px 0 0;font-family:var(--mono-font);letter-spacing:0.06em;line-height:1.5;}
+  .ur-first-session-foot-secondary{display:block;margin-top:4px;font-size:10px;color:rgba(255,255,255,0.28);}
 
   .ur-ask-retention-strip{
     flex-shrink:0;
@@ -1869,6 +1870,22 @@ export const baseCss = `
   .wc-group-expand{width:100%;margin-top:6px;background:none;border:none;color:var(--wc-gold);font-size:11px;cursor:pointer;padding:4px;}
   .wc-match-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
   .wc-match-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;}
+  .wc-fetch-error{
+    margin:0 0 14px;padding:12px 14px;border-radius:12px;
+    border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  }
+  .wc-fetch-error p{margin:0;font-size:13px;color:#fecaca;line-height:1.45;}
+  .wc-fetch-error-retry{
+    padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);
+    background:rgba(255,255,255,0.06);color:#fff;font-size:12px;font-weight:600;cursor:pointer;
+    font-family:var(--mono-font);letter-spacing:0.04em;
+  }
+  .wc-book-ml-row{
+    display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:8px;padding-top:8px;
+    border-top:1px solid var(--border-2);font-size:10px;font-family:var(--mono-font);
+    color:var(--soft);letter-spacing:0.02em;
+  }
   .wc-match-teams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
   .wc-match-team{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex:1;}
   .wc-match-vs{font-family:var(--mono-font);font-size:11px;color:var(--muted);flex:0 0 auto;}
