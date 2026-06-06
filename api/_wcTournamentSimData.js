@@ -162,12 +162,17 @@ export async function resolveWcTournamentSimForPrompt(opts = {}) {
   const completed = completedMatchesForSim(matches);
   const fingerprint = buildWcStandingsFingerprint(groups, completed.length);
 
-  let row = await readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs);
-  if (!row || row.stale || String(row.fingerprint || "") !== fingerprint) {
-    row = await scrapeAndCacheWcTournamentSim({ groups, matches, nowMs });
-  }
-
+  const row = await readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs);
   if (!row?.teamStats) return null;
+  if (row.stale || String(row.fingerprint || "") !== fingerprint) {
+    console.warn(
+      JSON.stringify({
+        event: "wc_tournament_sim_prompt_stale",
+        fingerprint,
+        cachedFingerprint: row.fingerprint || null,
+      }),
+    );
+  }
 
   const simResults = {
     teamStats: row.teamStats,

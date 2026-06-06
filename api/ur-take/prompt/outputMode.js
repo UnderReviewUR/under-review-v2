@@ -1,5 +1,5 @@
 /** Output JSON mode + tier contracts for ur-take handler. */
-import { WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
+import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
 import { normalizeText } from "./normalize.js";
 
 export function isSettledFactQuestion(question) {
