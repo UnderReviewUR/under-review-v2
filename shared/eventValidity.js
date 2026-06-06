@@ -5,6 +5,10 @@ import {
 } from "./eventStartTime.js";
 import { getHomeSlateHorizonMs } from "./homeSlateHorizon.js";
 import { NBA_TIP_FEED_LAG_GRACE_MS } from "./liveSnapshotFilters.js";
+import { isNbaFinalsGame } from "./nbaFinalsUtils.js";
+
+/** Finals off-nights can be 2–3 days between games — keep next leg on Home. */
+const NBA_FINALS_HOME_SLATE_HORIZON_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const EVENT_VALIDITY = Object.freeze({
   UPCOMING: "upcoming",
@@ -187,7 +191,10 @@ export function classifyTennisMatch(match, nowMs = Date.now()) {
 
 function classifyGameState({ game, nowMs, durationMs, sport }) {
   if (!game || typeof game !== "object") return EVENT_VALIDITY.UNKNOWN;
-  const slateHorizonMs = getHomeSlateHorizonMs(nowMs);
+  const slateHorizonMs =
+    sport === "nba" && isNbaFinalsGame(game)
+      ? NBA_FINALS_HOME_SLATE_HORIZON_MS
+      : getHomeSlateHorizonMs(nowMs);
   const state = String(game.state || "").toLowerCase();
   const hasIdentity =
     Boolean(String(game.id || "").trim()) ||

@@ -3,9 +3,11 @@ import test from "node:test";
 import { NBA_INTENT } from "./nbaUrTakeIntent.js";
 import {
   buildNbaFinalsContextBlock,
+  finalsHomeStretchGameNumbers,
   getNbaFinalsSeriesState,
   isNbaFinalsGame,
   isNbaFinalsQuestion,
+  resolveNextNbaFinalsScheduledGame,
   resolveNbaFinalsUrTakeContext,
 } from "./nbaFinalsUtils.js";
 
@@ -43,13 +45,33 @@ test("buildNbaFinalsContextBlock — injects series and tone rules", () => {
   const state = getNbaFinalsSeriesState({
     awayAbbr: "SAS",
     homeAbbr: "NYK",
-    playoffSeries: [{ away: "SAS", home: "NYK", awayWins: 0, homeWins: 2 }],
+    playoffSeries: [
+      { away: "SAS", home: "NYK", awayWins: 0, homeWins: 2, gameNumberHint: 3 },
+    ],
   });
   const block = buildNbaFinalsContextBlock(state, NBA_INTENT.PREGAME_MATCHUP);
   assert.ok(block);
   assert.match(block, /NBA FINALS CONTEXT/);
   assert.match(block, /FINALS-SPECIFIC RULES/);
   assert.match(block, /clutch/i);
+  assert.match(block, /Knicks lead/i);
+  assert.match(block, /2-0/);
+  assert.doesNotMatch(block, /June 5, 2026/);
+});
+
+test("finalsHomeStretchGameNumbers — consecutive homestand only (not later return)", () => {
+  assert.deepEqual(finalsHomeStretchGameNumbers(3, "NYK"), [3, 4]);
+  assert.deepEqual(finalsHomeStretchGameNumbers(6, "NYK"), [6]);
+  assert.deepEqual(finalsHomeStretchGameNumbers(1, "SAS"), [1, 2]);
+  assert.deepEqual(finalsHomeStretchGameNumbers(5, "SAS"), [5]);
+  assert.deepEqual(finalsHomeStretchGameNumbers(7, "SAS"), [7]);
+});
+
+test("resolveNextNbaFinalsScheduledGame — full best-of-7 schedule through Game 7", () => {
+  const g5 = resolveNextNbaFinalsScheduledGame(Date.parse("2026-06-12T12:00:00.000Z"));
+  assert.equal(g5?.gameNumber, 5);
+  const g7 = resolveNextNbaFinalsScheduledGame(Date.parse("2026-06-18T12:00:00.000Z"));
+  assert.equal(g7?.gameNumber, 7);
 });
 
 test("resolveNbaFinalsUrTakeContext — finalsMode for Game 3 preview", () => {

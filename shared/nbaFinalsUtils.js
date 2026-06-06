@@ -7,6 +7,17 @@ import { NBA_INTENT } from "./nbaUrTakeIntent.js";
 
 export const NBA_2026_FINALS_TEAMS = new Set(["NYK", "SAS"]);
 
+/** Verified ESPN tipoffs — used for next-game labels between off-nights. */
+export const NBA_2026_FINALS_SCHEDULE = [
+  { gameNumber: 1, away: "NYK", home: "SAS", tipoffUtc: "2026-06-05T00:30:00.000Z" },
+  { gameNumber: 2, away: "NYK", home: "SAS", tipoffUtc: "2026-06-06T00:30:00.000Z" },
+  { gameNumber: 3, away: "SAS", home: "NYK", tipoffUtc: "2026-06-09T00:30:00.000Z" },
+  { gameNumber: 4, away: "SAS", home: "NYK", tipoffUtc: "2026-06-11T00:30:00.000Z" },
+  { gameNumber: 5, away: "NYK", home: "SAS", tipoffUtc: "2026-06-14T00:30:00.000Z" },
+  { gameNumber: 6, away: "SAS", home: "NYK", tipoffUtc: "2026-06-17T00:30:00.000Z" },
+  { gameNumber: 7, away: "NYK", home: "SAS", tipoffUtc: "2026-06-20T00:30:00.000Z" },
+];
+
 const FINALS_QUESTION_RE =
   /\b(nba finals|finals game|finals mvp|who wins the series|win the (nba )?finals|wins the (nba )?finals|finals series|game \d\b.*(preview|edge|finals))\b/i;
 
@@ -125,11 +136,15 @@ export function getNbaFinalsSeriesState({
         winsHome = Number(row?.awayWins) || 0;
       }
       if (row?.round) roundLabel = String(row.round);
+      const hint = Number(row?.gameNumberHint);
+      if (Number.isFinite(hint) && hint > 0) gameNumber = hint;
     }
-    gameNumber = getNbaSeriesGameNumberForGame(
-      game || { awayTeam: { abbr: af }, homeTeam: { abbr: hf } },
-      playoffSeries,
-    );
+    if (!gameNumber) {
+      gameNumber = getNbaSeriesGameNumberForGame(
+        game || { awayTeam: { abbr: af }, homeTeam: { abbr: hf } },
+        playoffSeries,
+      );
+    }
   }
 
   const leaderAbbr =
@@ -171,6 +186,7 @@ export function getNbaFinalsSeriesState({
     gameNumber: gameNumber > 0 ? gameNumber : null,
     gameNumberLabel,
     homeCourtAbbr,
+    gameState,
     tonightMatchupLabel: `${tonightAway} @ ${tonightHome}`,
     eliminationNote: elimination,
     roundLabel,
@@ -234,6 +250,91 @@ function getTodayStrEt() {
 }
 
 /**
+ * @param {number} [nowMs]
+ */
+export function resolveNextNbaFinalsScheduledGame(nowMs = Date.now()) {
+  const bufferMs = 4 * 60 * 60 * 1000;
+  for (const row of NBA_2026_FINALS_SCHEDULE) {
+    const tipMs = Date.parse(row.tipoffUtc);
+    if (!Number.isFinite(tipMs)) continue;
+    if (tipMs >= nowMs - bufferMs) return row;
+  }
+  return null;
+}
+
+/**
+ * Remaining Finals games at the same home venue (e.g. Games 3–4 in NY, 5–6 if extended).
+ * @param {number} fromGameNumber
+ * @param {string} homeAbbr
+ */
+export function finalsHomeStretchGameNumbers(fromGameNumber, homeAbbr) {
+  const home = String(homeAbbr || "").toUpperCase();
+  const from = Number(fromGameNumber) || 0;
+  if (!home || from < 1) return [];
+
+  const startIdx = NBA_2026_FINALS_SCHEDULE.findIndex(
+    (g) => g.gameNumber === from && g.home === home,
+  );
+  if (startIdx < 0) return [];
+
+  const nums = [];
+  for (let i = startIdx; i < NBA_2026_FINALS_SCHEDULE.length; i++) {
+    const g = NBA_2026_FINALS_SCHEDULE[i];
+    if (g.home !== home) break;
+    nums.push(g.gameNumber);
+  }
+  return nums;
+}
+
+function formatFinalsHomeStretchPhrase(fromGameNumber, homeAbbr) {
+  const city = homeAbbr === "NYK" ? "New York" : "San Antonio";
+  const nums = finalsHomeStretchGameNumbers(fromGameNumber, homeAbbr);
+  if (!nums.length) return `in ${city}`;
+  if (nums.length === 1) return `in ${city} (Game ${nums[0]})`;
+  if (nums.length === 2) return `in ${city} for Games ${nums[0]} and ${nums[1]}`;
+  const last = nums[nums.length - 1];
+  const rest = nums.slice(0, -1).join(", ");
+  return `in ${city} for Games ${rest}, and ${last}`;
+}
+
+/**
+ * @param {ReturnType<typeof getNbaFinalsSeriesState> | null} seriesState
+ * @param {number} [nowMs]
+ */
+function buildFinalsDateAnchorLine(seriesState, nowMs = Date.now()) {
+  const todayStr = getTodayStrEt();
+  const gn = seriesState?.gameNumber || "TBD";
+  const next = resolveNextNbaFinalsScheduledGame(nowMs);
+  const gameState = String(seriesState?.gameState || "").toLowerCase();
+  const isLiveTonight = gameState === "in";
+
+  if (next && Number(gn) === next.gameNumber) {
+    const tipLabel = new Date(next.tipoffUtc).toLocaleString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+      timeZoneName: "short",
+    });
+    const venue = next.home === "NYK" ? "New York (MSG)" : "San Antonio";
+    if (isLiveTonight) {
+      return `TODAY'S DATE: ${todayStr}. NBA Finals Game ${gn} is live (${next.away} @ ${next.home}, ${venue}).`;
+    }
+    const todayEt = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const gameEt = new Date(next.tipoffUtc).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    if (gameEt === todayEt) {
+      return `TODAY'S DATE: ${todayStr}. NBA Finals Game ${gn} is tonight (${next.away} @ ${next.home}, ${venue} — ${tipLabel}).`;
+    }
+    const homeStretch = formatFinalsHomeStretchPhrase(next.gameNumber, next.home);
+    return `TODAY'S DATE: ${todayStr}. Next Finals game: Game ${gn} — ${next.away} @ ${next.home} ${homeStretch} (${tipLabel}).`;
+  }
+
+  return `TODAY'S DATE: ${todayStr}. Use Game ${gn} from the verified context above — do not reference earlier games as "tonight".`;
+}
+
+/**
  * @param {ReturnType<typeof getNbaFinalsSeriesState> | null} seriesState
  * @param {string} [nbaIntent]
  */
@@ -267,12 +368,10 @@ export function buildNbaFinalsContextBlock(seriesState, nbaIntent = NBA_INTENT.P
     buildNbaFinalsToneRules(nbaIntent),
   );
 
-  // Inject today's date and game number reminder
-  const todayStr = getTodayStrEt();
   lines.push(
     "",
-    `TODAY'S DATE: ${todayStr} (June 5, 2026). NBA Finals Game ${seriesState.gameNumber || "TBD"} is tonight.`,
-    "Do not reference Game 1 — use only the game number from the context block above.",
+    buildFinalsDateAnchorLine(seriesState),
+    "Do not reference finished games as tonight — use only the game number from the context block above.",
   );
 
   return `${lines.join("\n")}\n`;

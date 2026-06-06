@@ -18,6 +18,7 @@ import {
   buildNbaFinalsHomePrompt,
   isNbaFinalsWindowEt,
 } from "../../../shared/nbaFinalsHomePrompt.js";
+import { NBA_2026_FINALS_TEAMS } from "../../../shared/nbaFinalsUtils.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -234,6 +235,11 @@ export function buildDynamicHomeQuestions({
   const nbaLiveGame = nbaLive[0] || null;
   const nbaUpcomingGame = nbaUpcoming[0] || null;
   const hasNbaSlateToday = Boolean(nbaLiveGame || nbaUpcomingGame);
+  const hasFinalsSeriesOnBoard = (nbaPlayoffSeries || []).some((row) => {
+    const sa = String(row?.away || "").toUpperCase();
+    const sh = String(row?.home || "").toUpperCase();
+    return NBA_2026_FINALS_TEAMS.has(sa) && NBA_2026_FINALS_TEAMS.has(sh);
+  });
   const nbaPlayoffTone = isNbaPlayoffToneEt(etNow, nbaGames);
   const nbaSeason = isNbaSeasonMonthEt(etNow);
   const nbaFinalsCapOne = nbaPlayoffTone && etNow.getMonth() === 5;
@@ -248,7 +254,7 @@ export function buildDynamicHomeQuestions({
     if (nbaFinalsCapOne || (wcPromo && nbaFinalsActive)) nbaPromptPushed = true;
   };
 
-  if (wcPromo && nbaFinalsActive && hasNbaSlateToday) {
+  if (wcPromo && nbaFinalsActive && (hasNbaSlateToday || hasFinalsSeriesOnBoard)) {
     const finalsPrompt = buildNbaFinalsHomePrompt(validNbaGames, nbaPlayoffSeries);
     if (finalsPrompt) {
       push({

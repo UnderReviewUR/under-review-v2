@@ -21,3 +21,22 @@ test("buildNbaFinalsHomePrompt uses dynamic game label", () => {
   assert.ok(row?.text?.includes("Game 2"));
   assert.ok(row?.prompt?.includes("BOS"));
 });
+
+test("buildNbaFinalsHomePrompt — off-night with Knicks up 2-0, Game 3 in NY", () => {
+  const row = buildNbaFinalsHomePrompt(
+    [],
+    [
+      {
+        away: "SAS",
+        home: "NYK",
+        awayWins: 0,
+        homeWins: 2,
+        gameNumberHint: 3,
+        status: "NY leads series 2-0",
+      },
+    ],
+  );
+  assert.ok(row?.text?.includes("Game 3"));
+  assert.match(row?.prompt || "", /Knicks lead the series 2-0/i);
+  assert.match(row?.prompt || "", /SAS @ NYK/);
+});

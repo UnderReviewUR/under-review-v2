@@ -48,6 +48,13 @@ import {
 } from "../shared/nbaBoardGamePhase.js";
 import { extractNbaTeamAbbrevsFromQuestion } from "../shared/nbaTeamFromQuestion.js";
 import { playoffSeriesRowsFromEspnScoreboardEvents } from "../shared/nbaEspnPlayoffSeries.js";
+import {
+  addCalendarDaysEt as addCalendarDaysEtShared,
+  fetchEspnNbaPostseasonLookaheadEvents,
+  fetchEspnNbaScoreboardEventsInEtRange,
+  pickNextEspnNbaFinalsEvent,
+} from "../shared/nbaEspnScoreboardRange.js";
+import { isNbaFinalsGame } from "../shared/nbaFinalsUtils.js";
 export { classifyNbaBoardGamePhase, nbaGameHasVerifiedBoxScore, extractNbaTeamAbbrevsFromQuestion };
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -481,10 +488,42 @@ function mergePlayoffSlateIntoGames(games, playoffRows) {
   return out;
 }
 
+function slateDayLabelForEtStart(todayET, tomorrowET, startTimeUtc) {
+  const etDay = toEtDateString(startTimeUtc);
+  if (!etDay) return "Upcoming";
+  if (etDay === todayET) return "Tonight";
+  if (etDay === tomorrowET) return "Tomorrow";
+  const weekday = new Date(startTimeUtc).toLocaleDateString("en-US", {
+    weekday: "long",
+    timeZone: "America/New_York",
+  });
+  return weekday || "Upcoming";
+}
+
+/** Next Finals leg when today/tomorrow ESPN scoreboard is empty (2–3 day gaps). */
+async function recoverPostseasonEspnLookaheadSlateGames(todayET) {
+  const tomorrowET = getTomorrowEtDateString(todayET);
+  const events = await fetchEspnNbaPostseasonLookaheadEvents(todayET);
+  const nextEv = pickNextEspnNbaFinalsEvent(events);
+  if (!nextEv) return [];
+  const mapped = mapEspnEventToAppGame(nextEv);
+  if (!mapped || !isNbaFinalsGame(mapped)) return [];
+  const startTimeUtc = mapped.startTimeUtc || nextEv?.date || null;
+  return [
+    {
+      ...mapped,
+      postseason: true,
+      slateDayLabel: slateDayLabelForEtStart(todayET, tomorrowET, startTimeUtc),
+      startTimeSource: "espn_scoreboard_lookahead",
+    },
+  ];
+}
+
 /** BDL playoff slate (primary) + Action Network event IDs (odds) + ESPN when feeds are empty. */
 async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta, bdlKey) {
   const todayEtResolved = todayET || getEtDateString();
   const tomorrowEtResolved = tomorrowET || getTomorrowEtDateString(todayEtResolved);
+  let resolvedSlateMeta = { ...(slateMeta || {}) };
   const seasonCtx = getNbaSeasonContext();
   console.log(
     JSON.stringify({
@@ -533,11 +572,11 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta, bdl
       return {
         games: merged,
         slateMeta: {
-          ...slateMeta,
-          primarySource: slateMeta.primarySource === "none" ? "espn" : slateMeta.primarySource,
+          ...resolvedSlateMeta,
+          primarySource: resolvedSlateMeta.primarySource === "none" ? "espn" : resolvedSlateMeta.primarySource,
           enrichmentSource: "espn_scoreboard",
           bdlSlateGameCount: bdlSlate.length,
-          note: merged.length ? null : slateMeta.note,
+          note: merged.length ? null : resolvedSlateMeta.note,
         },
       };
     }
@@ -557,13 +596,34 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta, bdl
     }
   }
 
+  if (!merged.length && seasonCtx.postseason) {
+    const recovered = await recoverPostseasonEspnLookaheadSlateGames(todayEtResolved);
+    if (recovered.length) {
+      merged = recovered;
+      if (bdlKey) {
+        merged = await enrichSlateGamesWithActionNetworkEventIds(
+          merged,
+          todayEtResolved,
+          tomorrowEtResolved,
+        );
+      }
+      resolvedSlateMeta = {
+        ...resolvedSlateMeta,
+        primarySource: resolvedSlateMeta.primarySource === "none" ? "espn" : resolvedSlateMeta.primarySource,
+        enrichmentSource: "espn_scoreboard_lookahead",
+        slateTiming: "upcoming_finals",
+        note: null,
+      };
+    }
+  }
+
   if (merged.length > 0 && (!games || games.length === 0)) {
     console.log(
       JSON.stringify({
         event: "nba_slate_finalize_recovered",
         gameCount: merged.length,
-        primarySource: bdlSlate.length ? "bdl" : slateMeta.primarySource,
-        enrichmentSource: slateMeta.enrichmentSource,
+        primarySource: bdlSlate.length ? "bdl" : resolvedSlateMeta.primarySource,
+        enrichmentSource: resolvedSlateMeta.enrichmentSource,
         bdlSlateGameCount: bdlSlate.length,
         matchups: merged.map((g) => ({
           away: g?.awayTeam?.abbr,
@@ -580,12 +640,12 @@ async function finalizeNbaTodaysSlate(games, todayET, tomorrowET, slateMeta, bdl
   return {
     games: merged,
     slateMeta: {
-      ...slateMeta,
-      primarySource: bdlSlate.length ? "bdl" : slateMeta.primarySource,
+      ...resolvedSlateMeta,
+      primarySource: bdlSlate.length ? "bdl" : resolvedSlateMeta.primarySource,
       bdlSlateGameCount: bdlSlate.length,
       enrichmentSource: merged.some((g) => g?.actionNetworkGameId)
         ? "action_network_event_ids"
-        : slateMeta.enrichmentSource,
+        : resolvedSlateMeta.enrichmentSource,
     },
   };
 }
@@ -3084,7 +3144,7 @@ async function enrichPlayoffSeriesRowsWithCompletedGameTotals(seriesRows) {
 
 async function getNbaPlayoffSeries() {
   const seasonYear = getNbaSeasonContext().season;
-  const cacheKey = `nba_playoff_series_v3_${seasonYear}`;
+  const cacheKey = `nba_playoff_series_v4_${seasonYear}`;
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
@@ -3114,15 +3174,23 @@ async function getNbaPlayoffSeries() {
   };
 
   const fromScoreboardEndpoint = async () => {
-    const todayYmd = toEspnDateToken(getEtDateString());
+    const todayEt = getEtDateString();
+    const todayYmd = toEspnDateToken(todayEt);
     const res = await fetch(
       `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${encodeURIComponent(todayYmd)}`,
       { cache: "no-store" },
     );
-    if (!res.ok) return [];
-    const data = await res.json();
-    const events = data?.events || [];
-    return playoffSeriesRowsFromEspnScoreboardEvents(events);
+    let events = [];
+    if (res.ok) {
+      const data = await res.json();
+      events = data?.events || [];
+    }
+    let rows = playoffSeriesRowsFromEspnScoreboardEvents(events);
+    if (rows.length > 0) return rows;
+
+    const endEt = addCalendarDaysEtShared(todayEt, 14);
+    const rangeEvents = await fetchEspnNbaScoreboardEventsInEtRange(todayEt, endEt);
+    return playoffSeriesRowsFromEspnScoreboardEvents(rangeEvents);
   };
 
   try {

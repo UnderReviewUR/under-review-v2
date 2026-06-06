@@ -44,6 +44,34 @@ test("parseEspnPlayoffSeriesRowFromEvent reads competition.series wins", () => {
   assert.equal(row.round, "NBA Finals");
 });
 
+test("parseEspnPlayoffSeriesRowFromEvent — Game 3 Knicks lead 2-0 in NY", () => {
+  const row = parseEspnPlayoffSeriesRowFromEvent({
+    competitions: [
+      {
+        type: { abbreviation: "FINAL" },
+        notes: [{ headline: "NBA Finals - Game 3" }],
+        series: {
+          summary: "NY leads series 2-0",
+          competitors: [
+            { id: "24", wins: 0 },
+            { id: "18", wins: 2 },
+          ],
+        },
+        competitors: [
+          { homeAway: "home", team: { id: "18", abbreviation: "NY" }, record: "2-0" },
+          { homeAway: "away", team: { id: "24", abbreviation: "SA" }, record: "0-2" },
+        ],
+      },
+    ],
+  });
+  assert.ok(row);
+  assert.equal(row.home, "NYK");
+  assert.equal(row.away, "SAS");
+  assert.equal(row.homeWins, 2);
+  assert.equal(row.awayWins, 0);
+  assert.equal(row.gameNumberHint, 3);
+});
+
 test("playoffSeriesRowsFromEspnScoreboardEvents dedupes by series id", () => {
   const ev = {
     uid: "finals-1",
