@@ -1,4 +1,5 @@
 /** Output JSON mode + tier contracts for ur-take handler. */
+import { NBA_FINALS_STRUCTURED_JSON_CONTRACT } from "../../../shared/nbaFinalsStructured.js";
 import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
 import { normalizeText } from "./normalize.js";
 
@@ -78,7 +79,11 @@ export function resolveOutputJsonMode({
   matchupContext,
   sportHint,
   wcIntent,
+  finalsMode = false,
 }) {
+  if (String(sportHint || "").toLowerCase() === "nba" && finalsMode) {
+    return "nba_finals_json";
+  }
   if (String(sportHint || "").toLowerCase() === "worldcup") {
     if (String(wcIntent || "") === WC_INTENT.RULES) return "tier1_json";
     return "tier2_5_json";
@@ -235,6 +240,10 @@ No other keys. No markdown.`;
 Return ONLY valid JSON:
 {"summary":"<full compressed live response: LIVE CALL, THE MATH, WHY NOW, CLOCK, WATCH FOR — show arithmetic explicitly>"}
 No other keys. No markdown.`;
+  }
+
+  if (mode === "nba_finals_json") {
+    return NBA_FINALS_STRUCTURED_JSON_CONTRACT;
   }
 
   if (mode === "tier2_5_json") {

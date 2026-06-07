@@ -1881,6 +1881,41 @@ export const baseCss = `
     background:rgba(255,255,255,0.06);color:#fff;font-size:12px;font-weight:600;cursor:pointer;
     font-family:var(--mono-font);letter-spacing:0.04em;
   }
+  .nba-finals-take-card{padding:0;}
+  .nba-finals-take-headline{
+    font-family:var(--display-font);font-size:15px;font-weight:600;line-height:1.35;
+    letter-spacing:0.02em;margin:0 0 14px;color:var(--text);
+  }
+  .nba-finals-sharp-angle{
+    margin:0 0 14px;padding:12px 14px;border-radius:10px;
+    border:1px solid rgba(249,115,22,0.45);background:rgba(249,115,22,0.08);
+  }
+  .nba-finals-sharp-angle-label{
+    display:block;font-family:var(--mono-font);font-size:9px;letter-spacing:1.4px;
+    text-transform:uppercase;color:rgba(249,115,22,0.9);margin-bottom:6px;
+  }
+  .nba-finals-sharp-angle-value{
+    display:block;font-size:16px;font-weight:700;line-height:1.35;color:#fff;
+  }
+  .nba-finals-take-row{
+    margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-2);
+  }
+  .nba-finals-take-row:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .nba-finals-take-row-label{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:1.3px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:5px;
+  }
+  .nba-finals-take-row-body{
+    margin:0;font-size:13px;line-height:1.55;color:var(--soft);
+  }
+  .nba-finals-take-footer{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);
+  }
+  .nba-finals-confidence-pill{
+    font-family:var(--mono-font);font-size:10px;letter-spacing:0.08em;
+    color:var(--muted);text-transform:uppercase;
+  }
   .wc-book-ml-row{
     display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:8px;padding-top:8px;
     border-top:1px solid var(--border-2);font-size:10px;font-family:var(--mono-font);

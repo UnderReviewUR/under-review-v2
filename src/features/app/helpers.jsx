@@ -21,6 +21,17 @@ import {
   takeFirstSentenceSpan,
 } from "../../lib/urTakeSentenceBoundaries.js";
 import URTakeResponse from "../../components/URTakeResponse.jsx";
+import NbaFinalsTakeCard from "../../components/NbaFinalsTakeCard.jsx";
+import {
+  buildNbaFinalsDisplayHeadline,
+  isNbaFinalsTakeForDisplay,
+  parseNbaFinalsScannableTake,
+  shouldReplaceNbaFinalsHeadline,
+} from "../../../shared/nbaFinalsTakeDisplay.js";
+import {
+  isNbaFinalsStructured,
+  nbaFinalsStructuredToCardSections,
+} from "../../../shared/nbaFinalsStructured.js";
 import { resolveStructuralEdgeChipForMessage } from "../../lib/urTakeStructuralEdgeChip.js";
 import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
@@ -1741,8 +1752,45 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
   return structured;
 }
 
+function buildNbaFinalsTakeCardProps(m, summaryText, userQuestion = "") {
+  if (String(m?.sport || "").toLowerCase() !== "nba") return null;
+  if (
+    !isNbaFinalsStructured(m.structured) &&
+    !isNbaFinalsTakeForDisplay(userQuestion, m.nbaRelevance)
+  ) {
+    return null;
+  }
+
+  const structured = isNbaFinalsStructured(m.structured) ? m.structured : null;
+  const sections = structured
+    ? nbaFinalsStructuredToCardSections(structured)
+    : parseNbaFinalsScannableTake(summaryText);
+
+  if (!structured && !sections) return null;
+
+  const parsed = safeParseUrTakeResponse(summaryText);
+  const displayHeadline =
+    structured?.headline ||
+    buildNbaFinalsDisplayHeadline(m.nbaRelevance, userQuestion) ||
+    (shouldReplaceNbaFinalsHeadline(parsed.headline, m.nbaRelevance) ? null : parsed.headline);
+  const headline =
+    displayHeadline ||
+    buildNbaFinalsDisplayHeadline(m.nbaRelevance, userQuestion) ||
+    parsed.headline;
+
+  if (!headline && !sections) return null;
+
+  return {
+    headline,
+    sections,
+    confidence: structured?.confidence || parsed.confidence || sections?.confidence,
+    userQuestion,
+  };
+}
+
 /** Same structured / promoted-parlay resolution as the `URTakeResponse` path inside `UrTakeAiBubble`. */
 function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestion = "") {
+  if (isNbaFinalsStructured(m.structured)) return null;
   const plainParlayLegs =
     m.structured && typeof m.structured === "object" ? null : attemptParlayConversion(summaryText);
   const promotedParlayStructured = plainParlayLegs
@@ -1865,6 +1913,31 @@ function UrTakeAiBubble({
    * 4. Else legacy `renderMessage` typography.
    * Breakdown toggles `renderUrTakeAiMessage` on `deepText` when present.
    */
+  const nbaFinalsCardProps = buildNbaFinalsTakeCardProps(m, summaryText, userQuestion);
+  if (nbaFinalsCardProps && !m.urTakeFailSoft) {
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        <UrTakeSectionErrorBoundary
+          label="nba_finals_take_card"
+          fallback={renderUrTakeAiMessage(summaryText)}
+        >
+          <NbaFinalsTakeCard
+            headline={nbaFinalsCardProps.headline}
+            sections={nbaFinalsCardProps.sections}
+            confidence={nbaFinalsCardProps.confidence}
+            userQuestion={nbaFinalsCardProps.userQuestion}
+          />
+        </UrTakeSectionErrorBoundary>
+        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
+        {wcConfidenceChip}
+        {trustChips}
+        {betSignalRow}
+        {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
+      </>
+    );
+  }
+
   const effectiveStructured = resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestion);
 
   if (effectiveStructured) {

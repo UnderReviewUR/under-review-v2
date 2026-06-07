@@ -145,6 +145,14 @@ import {
 } from "../../shared/nbaOutrightsFreshness.js";
 import { resolveNbaFinalsUrTakeContext } from "../../shared/nbaFinalsUtils.js";
 import {
+  buildNbaFinalsStructuredForDelivery,
+  formatNbaFinalsStructuredDisplayText,
+  isNbaFinalsStructured,
+  NBA_FINALS_STRUCTURED_REGENERATION_SUFFIX,
+  normalizeNbaFinalsStructuredFields,
+  validateNbaFinalsStructuredResponse,
+} from "../../shared/nbaFinalsStructured.js";
+import {
   readNbaFinalsMvpFromKv,
   readNbaFinalsSeriesFromKv,
 } from "../_nbaOutrightsData.js";
@@ -2733,6 +2741,9 @@ export default async function handler(req, res) {
       seriesState: finalsCtxProbe.seriesState,
     };
     nbaFinalsContextBlock = finalsCtxProbe.contextBlock;
+    if (nbaFinalsModeMeta.finalsMode) {
+      effectiveStructuredModeRequested = false;
+    }
 
     const needsOutrights =
       finalsCtxProbe.finalsMode ||
@@ -3117,7 +3128,9 @@ export default async function handler(req, res) {
   });
 
   const outputJsonMode =
-    isConversationFollowUp && String(sportHint || "").toLowerCase() !== "worldcup"
+    isConversationFollowUp &&
+    String(sportHint || "").toLowerCase() !== "worldcup" &&
+    !nbaFinalsModeMeta?.finalsMode
       ? "plain"
       : resolveOutputJsonMode({
           chaseSignals,
@@ -3128,6 +3141,7 @@ export default async function handler(req, res) {
           matchupContext,
           sportHint,
           wcIntent,
+          finalsMode: Boolean(nbaFinalsModeMeta?.finalsMode),
         });
   const jsonContract = buildJsonOutputContract(outputJsonMode, sportHint, {
     requireStatusShift:
@@ -4717,6 +4731,7 @@ You are responding to a Pro subscriber. Apply the following:
     let prevQaCriticalCodes = [];
 
     let structuredResponse = null;
+    let nbaFinalsStructuredParseFailed = false;
     /** Last non-empty Anthropic text for this QA attempt — used if post-process strips everything. */
     let lastNonEmptyRawModelText = "";
     let nbaGroundingRedirectUsed = false;
@@ -4853,6 +4868,13 @@ You are responding to a Pro subscriber. Apply the following:
                 : ""
             }`
           : "";
+      const nbaFinalsStructuredRepairSuffix =
+        sportHint === "nba" &&
+        nbaFinalsModeMeta?.finalsMode &&
+        qaAttempt > 0 &&
+        prevQaCriticalCodes.includes("nba_finals_structured_invalid")
+          ? NBA_FINALS_STRUCTURED_REGENERATION_SUFFIX
+          : "";
       if (nbaGroundingRedirectUsed && structuredResponse) {
         responseText = formatStructuredResponseAsUrTakeProse(structuredResponse);
         responseDeep = null;
@@ -4900,7 +4922,7 @@ You are responding to a Pro subscriber. Apply the following:
       let systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
-          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}${wcQaRepairSuffix}`;
+          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}${wcQaRepairSuffix}${nbaFinalsStructuredRepairSuffix}`;
       if (effectiveStructuredModeRequested) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {
@@ -5202,7 +5224,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseFormat = "plain";
       responseStatusShift = null;
       if (structuredResponse && typeof structuredResponse === "object") {
-        if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
+        if (isNbaFinalsStructured(structuredResponse)) {
+          responseText = formatNbaFinalsStructuredDisplayText(structuredResponse);
+          responseDeep = null;
+          responseFormat = "nba_finals_json";
+        } else if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
           structuredResponse = null;
         } else if (sportHint === "worldcup") {
           responseText = formatWcCompactDisplayText(structuredResponse, text);
@@ -5229,6 +5255,28 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           responseText = coerced.text;
           responseDeep = coerced.deep;
           responseFormat = outputJsonMode;
+        } else if (outputJsonMode === "nba_finals_json") {
+          const parsedFinals = tryParseJsonObject(text);
+          const fields = normalizeNbaFinalsStructuredFields(parsedFinals);
+          const finalsValidation = validateNbaFinalsStructuredResponse(fields);
+          if (finalsValidation.valid && fields) {
+            structuredResponse = buildNbaFinalsStructuredForDelivery(
+              fields,
+              nbaFinalsModeMeta?.seriesState,
+              String(question || ""),
+            );
+            responseText = formatNbaFinalsStructuredDisplayText(structuredResponse);
+            responseDeep = null;
+            responseFormat = "nba_finals_json";
+            nbaFinalsStructuredParseFailed = false;
+          } else {
+            nbaFinalsStructuredParseFailed = true;
+            console.error("[NBA_FINALS_STRUCTURED_VALIDATION]", {
+              requestId,
+              errors: finalsValidation.errors,
+              preview: String(text || "").slice(0, 400),
+            });
+          }
         } else if (outputJsonMode === "tier2_5_json") {
           const normalized = normalizeSummaryDeepPayload(text, null);
           responseText = normalized.summary || text;
@@ -5445,14 +5493,25 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         structuredResponse = finalized.structuredResponse;
       }
 
+      const nbaFinalsNeedsRegen =
+        sportHint === "nba" &&
+        nbaFinalsModeMeta?.finalsMode &&
+        nbaFinalsStructuredParseFailed &&
+        qaAttempt < 1;
+
       if (
-        (!qaRequiresRegeneration(lastQaPost.qa) && !wcQaRequiresRegeneration(wcQaResult)) ||
+        (!qaRequiresRegeneration(lastQaPost.qa) &&
+          !wcQaRequiresRegeneration(wcQaResult) &&
+          !nbaFinalsNeedsRegen) ||
         qaAttempt >= 1
       ) {
         break;
       }
       if (wcQaRequiresRegeneration(wcQaResult)) {
         prevQaCriticalCodes = [...prevQaCriticalCodes, ...(wcQaResult?.issueCodes || [])];
+      }
+      if (nbaFinalsNeedsRegen) {
+        prevQaCriticalCodes = [...prevQaCriticalCodes, "nba_finals_structured_invalid"];
       }
     }
 
@@ -5593,6 +5652,24 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             sessionPrices,
           );
         }
+      }
+    }
+
+    if (
+      sportHint === "nba" &&
+      nbaFinalsModeMeta?.finalsMode &&
+      !isNbaFinalsStructured(structuredResponse)
+    ) {
+      const fields = normalizeNbaFinalsStructuredFields(tryParseJsonObject(responseText));
+      const finalsValidation = validateNbaFinalsStructuredResponse(fields);
+      if (finalsValidation.valid && fields) {
+        structuredResponse = buildNbaFinalsStructuredForDelivery(
+          fields,
+          nbaFinalsModeMeta?.seriesState,
+          String(question || ""),
+        );
+        responseText = formatNbaFinalsStructuredDisplayText(structuredResponse);
+        responseFormat = "nba_finals_json";
       }
     }
 
@@ -5797,6 +5874,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             finalsMode: nbaFinalsModeMeta?.finalsMode ?? null,
             finalsSeriesSummary: nbaFinalsModeMeta?.seriesState?.seriesScoreLabel ?? null,
             finalsGameNumber: nbaFinalsModeMeta?.seriesState?.gameNumber ?? null,
+            finalsMatchupLabel: nbaFinalsModeMeta?.seriesState?.tonightMatchupLabel ?? null,
+            finalsVenueLabel: nbaFinalsModeMeta?.seriesState?.venueLabel ?? null,
             finalsContextInjected: Boolean(nbaFinalsContextBlock),
             nbaMatchup,
             isConversationFollowUp,
@@ -5861,6 +5940,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (structuredResponse) {
       responseBody.structured = structuredResponse;
+    }
+
+    if (nbaRelevanceLog) {
+      responseBody.nbaRelevance = nbaRelevanceLog;
     }
 
     if (sportHint === "worldcup" && wcContext?.dataConfidence) {

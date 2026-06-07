@@ -61,6 +61,8 @@ export function buildNbaRelevanceLog({
   finalsMode = null,
   finalsSeriesSummary = null,
   finalsGameNumber = null,
+  finalsMatchupLabel = null,
+  finalsVenueLabel = null,
   finalsContextInjected = null,
   nbaMatchup = null,
   isConversationFollowUp = false,
@@ -148,6 +150,10 @@ export function buildNbaRelevanceLog({
       null,
     finalsGameNumber:
       finalsGameNumber ?? nbaContext?.finalsSeriesState?.gameNumber ?? null,
+    finalsMatchupLabel:
+      finalsMatchupLabel ?? nbaContext?.finalsSeriesState?.tonightMatchupLabel ?? null,
+    finalsVenueLabel:
+      finalsVenueLabel ?? nbaContext?.finalsSeriesState?.venueLabel ?? null,
     finalsContextInjected:
       finalsContextInjected != null
         ? Boolean(finalsContextInjected)

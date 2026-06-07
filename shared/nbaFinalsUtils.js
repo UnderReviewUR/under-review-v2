@@ -174,7 +174,7 @@ export function getNbaFinalsSeriesState({
       ? eliminationNote(leaderWins, trailerWins, leaderAbbr, trailingAbbr)
       : null;
 
-  return {
+  const base = {
     isFinals: true,
     awayAbbr: af,
     homeAbbr: hf,
@@ -190,12 +190,68 @@ export function getNbaFinalsSeriesState({
     tonightMatchupLabel: `${tonightAway} @ ${tonightHome}`,
     eliminationNote: elimination,
     roundLabel,
+    venueLabel: null,
     summaryOneLiner:
       focusedSeriesSnapshot?.serverSummaryOneLiner ||
       (leaderAbbr
         ? `${seriesScoreLabel}${gameNumber > 0 ? ` — ${gameNumberLabel}` : ""}.`
         : `${seriesScoreLabel}.`),
   };
+
+  return overlayFinalsScheduledGame(base);
+}
+
+/**
+ * Align matchup + venue with verified schedule (fixes Game 3-in-NY vs series-row SA home).
+ * @param {ReturnType<typeof getNbaFinalsSeriesState>} state
+ * @param {number} [nowMs]
+ */
+export function overlayFinalsScheduledGame(state, nowMs = Date.now()) {
+  if (!state?.isFinals) return state;
+
+  const next = resolveNextNbaFinalsScheduledGame(nowMs);
+  const gn = state.gameNumber || next?.gameNumber;
+  const sched =
+    NBA_2026_FINALS_SCHEDULE.find((g) => g.gameNumber === gn) ||
+    (next && gn === next.gameNumber ? next : null);
+  if (!sched) return state;
+
+  const venue =
+    sched.home === "NYK" ? "New York (MSG)" : sched.home === "SAS" ? "San Antonio" : sched.home;
+  const gameNumberLabel =
+    state.gameState === "in" ? `Game ${sched.gameNumber} (live)` : `Game ${sched.gameNumber}`;
+
+  return {
+    ...state,
+    gameNumber: sched.gameNumber,
+    gameNumberLabel,
+    awayAbbr: sched.away,
+    homeAbbr: sched.home,
+    homeCourtAbbr: sched.home,
+    tonightMatchupLabel: `${sched.away} @ ${sched.home}`,
+    venueLabel: venue,
+    summaryOneLiner: `${state.seriesScoreLabel} — ${gameNumberLabel} in ${venue} (${sched.away} @ ${sched.home}).`,
+  };
+}
+
+/**
+ * Mandatory scannable Finals answer shape (shareable / Reddit-friendly).
+ */
+export function buildNbaFinalsScannableOutputBlock() {
+  return `NBA FINALS OUTPUT FORMAT (mandatory — no memo essays):
+Use exactly these labeled lines in order (one idea per line; no paragraph walls):
+
+SHARP ANGLE: [single play in ≤12 words, e.g. "Wembanyama under 10.5 rebounds"]
+Context: [1–2 short sentences — why the angle works]
+The Play: [posted line + direction, or "Pass" if no verified line]
+Confidence: High | Medium | Speculative
+Watch For: [one live tell — what you are tracking in-game]
+One Thing: [single sentence — what flips the read]
+
+Rules:
+- Do NOT use memo headers (THE FRAGILE ASSUMPTION, MARKET READ, THE STRUCTURAL EDGE).
+- Mirror venue from NBA FINALS CONTEXT — never say Knicks are "on the road in San Antonio" for Game 3 or 4 (those are in New York).
+- Open with SHARP ANGLE, not a series recap headline.`;
 }
 
 /**
@@ -352,6 +408,9 @@ export function buildNbaFinalsContextBlock(seriesState, nbaIntent = NBA_INTENT.P
   if (seriesState.tonightMatchupLabel) {
     lines.push(`- Tonight's matchup: ${seriesState.tonightMatchupLabel} (home court: ${seriesState.homeCourtAbbr})`);
   }
+  if (seriesState.venueLabel) {
+    lines.push(`- Venue: ${seriesState.venueLabel} — do not invert home/road vs this line.`);
+  }
   if (seriesState.eliminationNote) {
     lines.push(`- Elimination: ${seriesState.eliminationNote}`);
   }
@@ -372,6 +431,8 @@ export function buildNbaFinalsContextBlock(seriesState, nbaIntent = NBA_INTENT.P
     "",
     buildFinalsDateAnchorLine(seriesState),
     "Do not reference finished games as tonight — use only the game number from the context block above.",
+    "",
+    buildNbaFinalsScannableOutputBlock(),
   );
 
   return `${lines.join("\n")}\n`;

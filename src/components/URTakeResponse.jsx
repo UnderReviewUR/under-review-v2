@@ -12,6 +12,7 @@ import { synthesizeLeanLine } from "../lib/urTakeLean.js";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 import { resolveParlayCombinedOddsDisplay } from "../lib/calculateParlayOdds.js";
+import { formatOddsAmerican } from "../../shared/formatOddsAmerican.js";
 import {
   capWcStructuredConfidence,
   wcDataConfidenceCautionBanner,
@@ -103,7 +104,10 @@ export default function URTakeResponse({
         .filter((leg) => leg && typeof leg === "object" && String(leg.play ?? "").trim().length > 0)
         .slice(0, 12)
     : [];
-  const combinedParlayOdds = resolveParlayCombinedOddsDisplay(safeParlayLegs, parlayTotalOdds);
+  const combinedParlayOddsRaw = resolveParlayCombinedOddsDisplay(safeParlayLegs, parlayTotalOdds);
+  const combinedParlayOdds = combinedParlayOddsRaw
+    ? formatOddsAmerican(combinedParlayOddsRaw)
+    : null;
 
   const ee =
     estimatedEdge && typeof estimatedEdge === "object" && estimatedEdge.source === "estimated_edge"
@@ -263,10 +267,13 @@ export default function URTakeResponse({
       ? !bodyExpanded
       : !bodyExpanded && (primaryOverflow || hasSecondaryBody);
 
+  const wcShareText = String(userQuestion || headline || "").trim();
   const shareQuery =
-    isWcDirectCard && headline
-      ? `?wc=1&q=${encodeURIComponent(String(headline).slice(0, 120))}`
-      : "";
+    sportLower === "worldcup" && wcShareText
+      ? `?wc=1&q=${encodeURIComponent(wcShareText.slice(0, 200))}`
+      : isWcDirectCard && headline
+        ? `?wc=1&q=${encodeURIComponent(String(headline).slice(0, 120))}`
+        : "";
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">
@@ -312,7 +319,9 @@ export default function URTakeResponse({
           <span className="ur-v2-structural-edge-chip-kicker">The angle</span>
           <span className="ur-v2-structural-edge-chip-player">{structuralEdgeChip.player}</span>
           {structuralEdgeChip.oddsDisplay ? (
-            <span className="ur-v2-structural-edge-chip-odds">{structuralEdgeChip.oddsDisplay}</span>
+            <span className="ur-v2-structural-edge-chip-odds">
+              {formatOddsAmerican(structuralEdgeChip.oddsDisplay)}
+            </span>
           ) : null}
         </p>
       ) : null}
@@ -440,7 +449,7 @@ export default function URTakeResponse({
                 <div className="ur-v2-parlay-leg-head">
                   <span className="ur-v2-parlay-play">{play}</span>
                   {odds && odds !== "TBD" ? (
-                    <span className="ur-v2-parlay-odds">{odds}</span>
+                    <span className="ur-v2-parlay-odds">{formatOddsAmerican(odds)}</span>
                   ) : null}
                 </div>
                 {rationale ? (
@@ -453,7 +462,9 @@ export default function URTakeResponse({
           {combinedParlayOdds ? (
             <div className="ur-v2-parlay-combined">
               <div className="ur-v2-parlay-combined-label">Combined price {combinedParlayOdds}</div>
-              <div className="ur-v2-parlay-explainer">{buildParlayCombinedExplainer(safeParlayLegs, combinedParlayOdds)}</div>
+              <div className="ur-v2-parlay-explainer">
+                {buildParlayCombinedExplainer(safeParlayLegs, combinedParlayOddsRaw)}
+              </div>
             </div>
           ) : null}
         </div>
