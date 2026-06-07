@@ -16,8 +16,7 @@ import { formatOddsAmerican } from "../../shared/formatOddsAmerican.js";
  *   showDraw?: boolean,
  *   espnFallback?: { provider?: string, home?: string, away?: string, draw?: string } | null,
  *   compact?: boolean,
- *   /** When false, skip Odds API — show ESPN / espnFallback only (WC slate). */
- *   fetchMultiBook?: boolean,
+ *   fetchMultiBook?: boolean, // false = ESPN only (WC slate), skip Odds API
  * }} props
  */
 export default function BookmakerOddsPanel({
