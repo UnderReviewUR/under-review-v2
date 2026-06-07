@@ -4,6 +4,7 @@
 
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -235,7 +236,7 @@ export function shouldInjectStaticRules(question, intent) {
  * @returns {WcUrTakeIntent}
  */
 export function classifyWcQuestionIntent(question, history = []) {
-  const q = String(question || "").trim();
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
   const ql = q.toLowerCase();
   if (!q) return WC_INTENT.UNCLASSIFIED;
 
@@ -329,20 +330,24 @@ export function resolveContinuationEntities(history) {
  * @param {import("./wcUrTakeIntent.js").WcUrTakeIntent} [wcIntent]
  */
 export function buildWcTurnScopeBlock(question, wcIntent) {
-  const intent = wcIntent || classifyWcQuestionIntent(String(question || ""));
-  if (isWcTopGoalscorersListQuestion(question) || intent === WC_INTENT.TOP_GOALSCORERS_LIST) {
+  const routingQuestion = extractLatestUserTurnForRouting(String(question || "").trim());
+  const intent = wcIntent || classifyWcQuestionIntent(routingQuestion);
+  if (
+    isWcTopGoalscorersListQuestion(routingQuestion) ||
+    intent === WC_INTENT.TOP_GOALSCORERS_LIST
+  ) {
     return `TURN SCOPE (binding):
 - User asked for a RANKED LIST of goalscorers (e.g. top 5 goalscorers / goalscores) — NOT a single Golden Boot lean.
 - Name exactly five players with American odds from PLAYER MARKETS / Golden Boot in VERIFIED CONTEXT (one line each or compact numbered list).
 - You may keep the prior #1 pick if still valid, but MUST add four more names — never repeat only Mbappé from the last turn.`;
   }
-  if (isWcScorePredictionQuestion(question) || intent === WC_INTENT.SCORE_PREDICTION) {
+  if (isWcScorePredictionQuestion(routingQuestion) || intent === WC_INTENT.SCORE_PREDICTION) {
     return `TURN SCOPE (binding):
 - User asked for SCORELINE predictions (e.g. top 5 scores to consider) — NOT Golden Boot, NOT top scorer, NOT a single-player prop.
 - List exactly five plausible final scores (e.g. 2-1, 1-1, 2-0) for the match or slate in scope; one short line each if space allows.
 - Do NOT repeat Mbappé, Golden Boot, or any prior player-market lean from this chat.`;
   }
-  if (isWcGroupSlateQuestion(question)) {
+  if (isWcGroupSlateQuestion(routingQuestion)) {
     return `TURN SCOPE (binding):
 - Answer ONLY the current question: group-stage value, group winner, or advancement — name the team(s) and price if citing odds.
 - Do NOT repeat Golden Boot, top scorer, or named-player prop answers from earlier in this chat unless the user asked for them again.

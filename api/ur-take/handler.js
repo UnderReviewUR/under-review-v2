@@ -2543,8 +2543,8 @@ export default async function handler(req, res) {
   let wcStrengthTags = {};
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
-    wcIntent = classifyWcQuestionIntent(String(question || ""), incomingHistory);
-    wcRequiredEntities = resolveRequiredEntities(String(question || ""), incomingHistory, wcIntent);
+    wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
+    wcRequiredEntities = resolveRequiredEntities(routingQuestion, incomingHistory, wcIntent);
     wcRelevanceLog.wcIntent = wcIntent;
     wcRelevanceLog.mentionedTeams = extractMentionedWcTeams(String(question || ""));
     wcRelevanceLog.requiredEntities = wcRequiredEntities;
@@ -4446,7 +4446,7 @@ Rules:
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
   } else if (sportHint === "worldcup" && wcContext?.promptBlock) {
-    const wcTurnScopeBlock = buildWcTurnScopeBlock(String(question || ""), wcIntent);
+    const wcTurnScopeBlock = buildWcTurnScopeBlock(routingQuestion, wcIntent);
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
     const priceBindingBlock = buildPriceBindingPromptBlock(
       String(question || ""),
@@ -4472,7 +4472,7 @@ Confidence guidance:
         : "";
     const wcGroupLetterForPrompt =
       extractGroupLetterFromQuestion(String(question || "")) ||
-      (isWcGroupSlateQuestion(String(question || "")) ? "D" : null);
+      (isWcGroupSlateQuestion(routingQuestion) ? "D" : null);
     const wcGroupCompositionBlock = wcGroupLetterForPrompt
       ? `${formatWcGroupCompositionPromptBlock(wcGroupLetterForPrompt)}\n\n`
       : "";
@@ -4518,7 +4518,7 @@ Confidence guidance:
 - Do NOT answer with Golden Boot, top scorer, or a single-player prop from earlier turns.
 - Name the match or teams in scope when known from the question or REQUIRED ENTITIES.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-          : isWcGroupSlateQuestion(String(question || ""))
+          : isWcGroupSlateQuestion(routingQuestion)
             ? `- Return JSON per OUTPUT CONTRACT: summary max 60 words — sentence one names the group-stage pick (team + market).
 - Answer the group/slate question only — not Golden Boot or a named player from earlier turns.
 - Each group has exactly four teams: one Favorite, one Contender, two Longshots — use the GROUP composition block when present; never miscount longshots.

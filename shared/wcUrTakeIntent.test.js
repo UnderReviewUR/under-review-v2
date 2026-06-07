@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildWcTurnScopeBlock,
   classifyWcQuestionIntent,
   shouldInjectStaticRules,
   WC_INTENT,
@@ -105,6 +106,17 @@ test("classifyWcQuestionIntent — open questions use GENERAL not group template
 
 test("classifyWcQuestionIntent — group slate stays STRUCTURAL", () => {
   assert.equal(classifyWcQuestionIntent("Best group stage bet?"), WC_INTENT.STRUCTURAL);
+});
+
+test("classifyWcQuestionIntent — contextual follow-up after top-5 list", () => {
+  const contextual =
+    "User: predict the top 5 goal scorers for the world cup\n\nFollow-up:\nWho is mispriced instead?";
+  const contextualNumber =
+    "User: predict the top 5 goal scorers for the world cup\n\nFollow-up:\nGive me a specific number to target.";
+  assert.equal(classifyWcQuestionIntent(contextual, []), WC_INTENT.ENTITY_PRICING);
+  assert.equal(classifyWcQuestionIntent(contextualNumber, []), WC_INTENT.GENERAL);
+  const scope = buildWcTurnScopeBlock(contextual, WC_INTENT.ENTITY_PRICING);
+  assert.ok(!/RANKED LIST of goalscorers/i.test(scope));
 });
 
 test("resolveRequiredEntities — match-scoped player prop binds both teams", () => {
