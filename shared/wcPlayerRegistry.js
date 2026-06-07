@@ -48,14 +48,22 @@ export function createEmptyPlayerRegistry(nowMs = Date.now()) {
  * @param {Partial<import("./wc2026PlayerConstants.js").WcRegistryPlayer>} incoming
  */
 export function mergeRegistryPlayer(existing, incoming) {
-  const goalsTournament = Math.max(
-    Number(existing.goalsTournament) || 0,
-    Number(incoming.goalsTournament) || 0,
-  );
-  const assistsTournament = Math.max(
-    Number(existing.assistsTournament) || 0,
-    Number(incoming.assistsTournament) || 0,
-  );
+  const exGoals = Number(existing.goalsTournament) || 0;
+  const exAssists = Number(existing.assistsTournament) || 0;
+  const incGoals = Number(incoming.goalsTournament) || 0;
+  const incAssists = Number(incoming.assistsTournament) || 0;
+  const incEvent = incoming.lastSeenEventId ? String(incoming.lastSeenEventId) : null;
+  const exEvent = existing.lastSeenEventId ? String(existing.lastSeenEventId) : null;
+
+  let goalsTournament;
+  let assistsTournament;
+  if (incEvent && exEvent && incEvent !== exEvent) {
+    goalsTournament = exGoals + incGoals;
+    assistsTournament = exAssists + incAssists;
+  } else {
+    goalsTournament = Math.max(exGoals, incGoals);
+    assistsTournament = Math.max(exAssists, incAssists);
+  }
 
   return {
     espnAthleteId: incoming.espnAthleteId || existing.espnAthleteId || null,
@@ -266,6 +274,30 @@ export function topRegistryScorers(registry, limit = 12) {
   return all
     .sort(
       (a, b) =>
+        (Number(b.goalsTournament) || 0) - (Number(a.goalsTournament) || 0) ||
+        (b.isStarterLikely ? 1 : 0) - (a.isStarterLikely ? 1 : 0),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * Top assist providers across tournament registry (for structural / playmaker asks).
+ * @param {Record<string, unknown> | null | undefined} registry
+ * @param {number} [limit]
+ */
+export function topRegistryAssists(registry, limit = 10) {
+  const teams = registry?.teams || {};
+  /** @type {import("./wc2026PlayerConstants.js").WcRegistryPlayer[]} */
+  const all = [];
+  for (const t of Object.values(teams)) {
+    for (const p of t?.players || []) {
+      all.push(p);
+    }
+  }
+  return all
+    .sort(
+      (a, b) =>
+        (Number(b.assistsTournament) || 0) - (Number(a.assistsTournament) || 0) ||
         (Number(b.goalsTournament) || 0) - (Number(a.goalsTournament) || 0) ||
         (b.isStarterLikely ? 1 : 0) - (a.isStarterLikely ? 1 : 0),
     )

@@ -274,6 +274,50 @@ export function formatLineupSide(label, side, opts) {
 }
 
 /**
+ * @param {string} teamName
+ * @param {Record<string, unknown> | null | undefined} stats
+ */
+function formatTeamStatsLine(teamName, stats) {
+  if (!stats || typeof stats !== "object") return null;
+  const parts = [];
+  if (stats.shots != null) parts.push(`shots ${stats.shots}`);
+  if (stats.shotsOnTarget != null) parts.push(`on target ${stats.shotsOnTarget}`);
+  if (stats.possessionPct != null) parts.push(`possession ${stats.possessionPct}%`);
+  if (stats.passes != null) {
+    if (stats.passesCompleted != null && stats.passPct != null) {
+      parts.push(`passes ${stats.passesCompleted}/${stats.passes} (${stats.passPct}%)`);
+    } else {
+      parts.push(`passes ${stats.passes}`);
+    }
+  } else if (stats.passPct != null) {
+    parts.push(`pass accuracy ${stats.passPct}%`);
+  }
+  if (stats.saves != null) parts.push(`saves ${stats.saves}`);
+  if (stats.corners != null) parts.push(`corners ${stats.corners}`);
+  if (stats.fouls != null) parts.push(`fouls ${stats.fouls}`);
+  if (!parts.length) return null;
+  return `  Team stats — ${teamName}: ${parts.join(", ")}`;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} stats
+ */
+function hasTeamStatsForPrompt(stats) {
+  if (!stats || typeof stats !== "object") return false;
+  return (
+    stats.shots != null ||
+    stats.shotsOnTarget != null ||
+    stats.possessionPct != null ||
+    stats.passes != null ||
+    stats.passesCompleted != null ||
+    stats.passPct != null ||
+    stats.saves != null ||
+    stats.corners != null ||
+    stats.fouls != null
+  );
+}
+
+/**
  * @param {Record<string, unknown>} detail
  */
 function formatMatchIntelBlock(detail) {
@@ -292,13 +336,14 @@ function formatMatchIntelBlock(detail) {
 
   const th = detail.teamStats?.home;
   const ta = detail.teamStats?.away;
-  if (th && (th.shots != null || th.possessionPct != null)) {
+  if (hasTeamStatsForPrompt(th) || hasTeamStatsForPrompt(ta)) {
     lines.push(
-      `  Team stats — ${detail.homeTeam}: shots ${th.shots ?? "—"}, on target ${th.shotsOnTarget ?? "—"}, possession ${th.possessionPct != null ? `${th.possessionPct}%` : "—"}`,
+      "  Live team stats (binding for possession, passing, shots, corners, fouls — cite only these numbers):",
     );
-    lines.push(
-      `  Team stats — ${detail.awayTeam}: shots ${ta?.shots ?? "—"}, on target ${ta?.shotsOnTarget ?? "—"}, possession ${ta?.possessionPct != null ? `${ta.possessionPct}%` : "—"}`,
-    );
+    const homeLine = formatTeamStatsLine(detail.homeTeam, th);
+    const awayLine = formatTeamStatsLine(detail.awayTeam, ta);
+    if (homeLine) lines.push(homeLine);
+    if (awayLine) lines.push(awayLine);
   }
 
   const statLines = [];
@@ -312,6 +357,8 @@ function formatMatchIntelBlock(detail) {
       if (p.shotsOnTarget) bits.push(`${p.shotsOnTarget} SOT`);
       if (p.saves) bits.push(`${p.saves} saves`);
       if (p.keyPasses != null && p.keyPasses > 0) bits.push(`${p.keyPasses} key passes`);
+      if (p.yellowCards) bits.push(`${p.yellowCards} yellow`);
+      if (p.redCards) bits.push(`${p.redCards} red`);
       if (p.minutesPlayed != null) bits.push(`${p.minutesPlayed} min`);
       if (bits.length) statLines.push(`  ${abbr} ${p.name}: ${bits.join(", ")}`);
     }

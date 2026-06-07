@@ -57,3 +57,68 @@ test("formatWorldCupUrTakePromptBlock includes MATCH INTEL and injury rule", () 
   assert.match(block, /INJURY \/ AVAILABILITY/);
   assert.match(block, /Do not invent player availability/);
 });
+
+test("formatWorldCupUrTakePromptBlock surfaces passes possession corners and cards", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: {},
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [
+      {
+        eventId: "760500",
+        homeTeam: "FRA",
+        awayTeam: "ENG",
+        status: "live",
+        homeScore: 1,
+        awayScore: 0,
+        lineupConfirmed: true,
+        lineups: { home: { starters: [] }, away: { starters: [] } },
+        teamStats: {
+          home: {
+            shots: 8,
+            shotsOnTarget: 4,
+            possessionPct: 58,
+            passes: 420,
+            passesCompleted: 360,
+            passPct: 86,
+            corners: 5,
+            fouls: 9,
+          },
+          away: {
+            shots: 5,
+            possessionPct: 42,
+            passes: 310,
+            passesCompleted: 250,
+            passPct: 81,
+          },
+        },
+        players: {
+          home: [
+            {
+              name: "Kylian Mbappé",
+              goals: 1,
+              assists: 1,
+              keyPasses: 3,
+              yellowCards: 1,
+              minutesPlayed: 67,
+            },
+          ],
+          away: [],
+        },
+        goals: [{ scorer: "Mbappé", assist: "Griezmann", minute: "23'" }],
+        injuries: [],
+      },
+    ],
+  });
+
+  assert.match(block, /passes 360\/420 \(86%\)/);
+  assert.match(block, /possession 58%/);
+  assert.match(block, /corners 5/);
+  assert.match(block, /3 key passes/);
+  assert.match(block, /1 yellow/);
+  assert.match(block, /Live team stats \(binding/);
+});

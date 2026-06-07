@@ -7,7 +7,11 @@ import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
 import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
-import { topRegistryScorers, countRegistryPlayers } from "../shared/wcPlayerRegistry.js";
+import {
+  topRegistryAssists,
+  topRegistryScorers,
+  countRegistryPlayers,
+} from "../shared/wcPlayerRegistry.js";
 import {
   WC_GOLDEN_BOOT_MAX_AGE_MS,
   WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
@@ -66,16 +70,39 @@ function formatInjuriesBoardForPrompt(injuries) {
  * @param {object | null | undefined} players
  */
 function formatSquadLeadersForPrompt(players) {
-  const top = topRegistryScorers(players, 10);
-  if (!top.length) return [];
-  const lines = ["SQUAD / FORM (tournament goals from verified match intel):"];
-  for (const p of top) {
-    const goals = Number(p.goalsTournament) || 0;
-    const tag = p.isStarterLikely ? " · likely starter" : "";
-    lines.push(
-      `  ${p.name} (${p.nationAbbr}) — ${goals} goal(s)${tag}${p.injuryStatus ? ` · ${p.injuryStatus}` : ""}`,
-    );
+  const topGoals = topRegistryScorers(players, 10).filter((p) => (Number(p.goalsTournament) || 0) > 0);
+  const topAssists = topRegistryAssists(players, 8).filter((p) => (Number(p.assistsTournament) || 0) > 0);
+  if (!topGoals.length && !topAssists.length) return [];
+
+  /** @type {string[]} */
+  const lines = [];
+
+  if (topGoals.length) {
+    lines.push("SQUAD / FORM — tournament goal leaders (verified match intel):");
+    for (const p of topGoals) {
+      const goals = Number(p.goalsTournament) || 0;
+      const assists = Number(p.assistsTournament) || 0;
+      const assistBit = assists > 0 ? `, ${assists} assist(s)` : "";
+      const tag = p.isStarterLikely ? " · likely starter" : "";
+      lines.push(
+        `  ${p.name} (${p.nationAbbr}) — ${goals} goal(s)${assistBit}${tag}${p.injuryStatus ? ` · ${p.injuryStatus}` : ""}`,
+      );
+    }
   }
+
+  if (topAssists.length) {
+    lines.push("SQUAD / FORM — tournament assist leaders (verified match intel):");
+    for (const p of topAssists) {
+      const assists = Number(p.assistsTournament) || 0;
+      const goals = Number(p.goalsTournament) || 0;
+      const goalBit = goals > 0 ? `, ${goals} goal(s)` : "";
+      const tag = p.isStarterLikely ? " · likely starter" : "";
+      lines.push(
+        `  ${p.name} (${p.nationAbbr}) — ${assists} assist(s)${goalBit}${tag}${p.injuryStatus ? ` · ${p.injuryStatus}` : ""}`,
+      );
+    }
+  }
+
   return lines;
 }
 
