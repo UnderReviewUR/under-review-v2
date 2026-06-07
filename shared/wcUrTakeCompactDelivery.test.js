@@ -20,6 +20,18 @@ test("buildWcCompactStructured — player market PASS is short", () => {
   assert.equal(s.edge.length <= 200, true);
 });
 
+test("buildWcCompactStructured — structural headline not cut at 100 chars", () => {
+  const longLead =
+    "Group E is the sharpest mispricing — Germany (Contender) is undervalued to advance second behind Ecuador in the group-winner market.";
+  const s = buildWcCompactStructured({
+    wcIntent: WC_INTENT.STRUCTURAL,
+    summary: `${longLead} Netherlands path is the coin flip.`,
+    deep: "",
+  });
+  assert.match(s.call, /Ecuador/i);
+  assert.ok(s.call.length > 100);
+});
+
 test("formatWcCompactDisplayText — no section headers", () => {
   const text = formatWcCompactDisplayText(
     {

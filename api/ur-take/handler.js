@@ -4486,6 +4486,12 @@ Confidence guidance:
 - Never answer with only a country/national team as the scorer.
 - Cite only prices from PLAYER MARKETS — VERIFIED CONTEXT.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+          : wcIntent === WC_INTENT.SCORE_PREDICTION
+            ? `- Return JSON per OUTPUT CONTRACT: summary max 90 words.
+- User wants SCORELINES (e.g. top 5 scores to consider) — list exactly five plausible final scores with winner orientation (e.g. "MEX 2-1 RSA", "1-1").
+- Do NOT answer with Golden Boot, top scorer, or a single-player prop from earlier turns.
+- Name the match or teams in scope when known from the question or REQUIRED ENTITIES.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
           : isWcGroupSlateQuestion(String(question || "")) || wcIntent === WC_INTENT.STRUCTURAL
             ? `- Return JSON per OUTPUT CONTRACT: summary max 60 words — sentence one names the group-stage pick (team + market).
 - Answer the group/slate question only — not Golden Boot or a named player from earlier turns.

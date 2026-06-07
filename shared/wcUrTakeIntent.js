@@ -5,7 +5,7 @@
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
 
-/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"UNCLASSIFIED"} WcUrTakeIntent */
+/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"SCORE_PREDICTION"|"UNCLASSIFIED"} WcUrTakeIntent */
 
 export const WC_INTENT = {
   RULES: "RULES",
@@ -16,6 +16,7 @@ export const WC_INTENT = {
   PLAYER_PROP: "PLAYER_PROP",
   GOLDEN_BOOT: "GOLDEN_BOOT",
   TOP_SCORER: "TOP_SCORER",
+  SCORE_PREDICTION: "SCORE_PREDICTION",
   UNCLASSIFIED: "UNCLASSIFIED",
 };
 
@@ -68,6 +69,21 @@ const WC_PLAYER_PROP_RE =
   /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer)\b/i;
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
+
+const WC_SCORE_PREDICTION_RE =
+  /\b(top\s*\d+\s*scores?|scorelines?|score\s*lines?|predict\s+(?:the\s+)?\d+\s*scores?|scores?\s+to\s+consider|likely\s+final\s+scores?)\b/i;
+
+/**
+ * @param {string} question
+ */
+export function isWcScorePredictionQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (WC_GOLDEN_BOOT_RE.test(q) || WC_TOP_SCORER_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) {
+    return false;
+  }
+  return WC_SCORE_PREDICTION_RE.test(q);
+}
 
 /**
  * @param {string} question
@@ -146,6 +162,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.STRUCTURAL;
   }
 
+  if (isWcScorePredictionQuestion(q)) {
+    return WC_INTENT.SCORE_PREDICTION;
+  }
+
   const playerMarketIntent = classifyWcPlayerMarketIntent(q);
   if (playerMarketIntent) {
     return playerMarketIntent;
@@ -213,6 +233,12 @@ export function resolveContinuationEntities(history) {
  */
 export function buildWcTurnScopeBlock(question, wcIntent) {
   const intent = wcIntent || classifyWcQuestionIntent(String(question || ""));
+  if (isWcScorePredictionQuestion(question) || intent === WC_INTENT.SCORE_PREDICTION) {
+    return `TURN SCOPE (binding):
+- User asked for SCORELINE predictions (e.g. top 5 scores to consider) — NOT Golden Boot, NOT top scorer, NOT a single-player prop.
+- List exactly five plausible final scores (e.g. 2-1, 1-1, 2-0) for the match or slate in scope; one short line each if space allows.
+- Do NOT repeat Mbappé, Golden Boot, or any prior player-market lean from this chat.`;
+  }
   if (isWcGroupSlateQuestion(question) || intent === WC_INTENT.STRUCTURAL) {
     return `TURN SCOPE (binding):
 - Answer ONLY the current question: group-stage value, group winner, or advancement — name the team(s) and price if citing odds.

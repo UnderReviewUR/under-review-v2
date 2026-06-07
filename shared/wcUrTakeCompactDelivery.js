@@ -6,6 +6,24 @@ import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
 
+/** Player-market cards stay tight; group/matchup headlines need full sentences. */
+const WC_CALL_PLAYER_MAX = 100;
+const WC_CALL_DIRECT_MAX = 280;
+const WC_LEAN_MAX = 140;
+
+/**
+ * @param {string} text
+ * @param {number} max
+ */
+function clipWcText(text, max) {
+  const t = String(text || "").trim();
+  if (t.length <= max) return t;
+  const slice = t.slice(0, max);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > max * 0.55) return `${slice.slice(0, lastSpace).trim()}…`;
+  return `${slice.trim()}…`;
+}
+
 /**
  * @param {string} text
  */
@@ -13,7 +31,7 @@ function firstSentence(text) {
   const t = String(text || "").trim();
   if (!t) return "";
   const m = t.match(/[^.!?]+[.!?]+/);
-  return m ? m[0].trim() : t.slice(0, 160);
+  return m ? m[0].trim() : t;
 }
 
 /**
@@ -58,10 +76,10 @@ export function buildWcCompactStructured(opts = {}) {
       sport: "worldcup",
       callType: String(seed.callType || callTypeForPlayerTier(tier)),
       playerMarketTier: String(seed.playerMarketTier || tier),
-      lean: String(seed.lean || "").slice(0, 120),
-      call: String(seed.call || "").slice(0, 100),
-      whyNow: String(seed.whyNow || "").slice(0, 400),
-      edge: String(seed.edge || "").slice(0, 200),
+      lean: clipWcText(String(seed.lean || ""), WC_LEAN_MAX),
+      call: clipWcText(String(seed.call || ""), WC_CALL_PLAYER_MAX),
+      whyNow: clipWcText(String(seed.whyNow || ""), 400),
+      edge: clipWcText(String(seed.edge || ""), 200),
       confidence: String(seed.confidence || "Speculative"),
       caveats: [],
       timestamp: seed.timestamp || new Date().toISOString(),
@@ -74,8 +92,22 @@ export function buildWcCompactStructured(opts = {}) {
     /\b(pass|no play|no edge|fairly priced|fair price|not mispriced)\b/i.test(summary) &&
     !/\b(lean|buy|value play|hammer)\b/i.test(lead);
 
-  let call = lead.slice(0, 100);
-  let lean = lead.length <= 110 ? `Lean: ${lead.endsWith(".") ? lead : `${lead}.`}` : `Lean: ${lead.slice(0, 95)}.`;
+  const directCard =
+    wcIntent === WC_INTENT.MATCHUP ||
+    wcIntent === WC_INTENT.STRUCTURAL ||
+    wcIntent === WC_INTENT.ENTITY_PRICING ||
+    wcIntent === WC_INTENT.SCORE_PREDICTION;
+  const callMax = isWcPlayerMarketIntent(wcIntent)
+    ? WC_CALL_PLAYER_MAX
+    : directCard
+      ? WC_CALL_DIRECT_MAX
+      : WC_CALL_PLAYER_MAX;
+
+  let call = clipWcText(lead, callMax);
+  let lean =
+    lead.length <= WC_LEAN_MAX - 8
+      ? `Lean: ${lead.endsWith(".") ? lead : `${lead}.`}`
+      : `Lean: ${clipWcText(lead, WC_LEAN_MAX - 12)}`;
 
   if (isWcPlayerMarketIntent(wcIntent)) {
     const odds = (summary.match(/\+\d{3,}/) || [])[0] || "";
@@ -90,8 +122,8 @@ export function buildWcCompactStructured(opts = {}) {
       sport: "worldcup",
       callType: callTypeForPlayerTier(tier),
       playerMarketTier: tier,
-      lean: lean.slice(0, 120),
-      call: call.slice(0, 100),
+      lean: clipWcText(lean, WC_LEAN_MAX),
+      call: clipWcText(call, WC_CALL_PLAYER_MAX),
       whyNow,
       edge: pass ? "Fair price — recheck after lineups lock." : "",
       confidence: pass ? "Speculative" : "Medium",
@@ -100,17 +132,19 @@ export function buildWcCompactStructured(opts = {}) {
     };
   }
 
-  const whyNow = (tail || deep || "").slice(0, 400);
+  const whyNow = clipWcText(tail || deep || "", wcIntent === WC_INTENT.SCORE_PREDICTION ? 520 : 400);
   return {
     sport: "worldcup",
     callType:
       wcIntent === WC_INTENT.MATCHUP
         ? "matchup"
-        : wcIntent === WC_INTENT.ENTITY_PRICING
-          ? "analysis"
-          : "single",
-    lean: lean.slice(0, 120),
-    call: call.slice(0, 100),
+        : wcIntent === WC_INTENT.SCORE_PREDICTION
+          ? "score_prediction"
+          : wcIntent === WC_INTENT.ENTITY_PRICING
+            ? "analysis"
+            : "single",
+    lean: clipWcText(lean, WC_LEAN_MAX),
+    call: clipWcText(call, callMax),
     whyNow,
     edge: "",
     confidence: /\b(high|strong)\b/i.test(summary) ? "Medium" : "Speculative",

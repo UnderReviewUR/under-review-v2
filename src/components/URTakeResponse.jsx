@@ -241,6 +241,8 @@ export default function URTakeResponse({
   const wcHasBreakdownBody =
     isWcDirectCard &&
     ((whyNowDisplay && whyNowDisplay !== "—") || (edgeDisplay && edgeDisplay !== "—"));
+  const wcShowEdgeExpand =
+    isWcDirectCard && edgeDisplay && edgeDisplay !== "—";
 
   const hasSecondaryBody =
     Boolean(ee && eeModel) ||
@@ -263,7 +265,7 @@ export default function URTakeResponse({
   }, [whyNowDisplay, edgeDisplay, hasSecondaryBody, isWcDirectCard, wcHasBreakdownBody]);
 
   const showBodyExpand =
-    isWcDirectCard && wcHasBreakdownBody
+    isWcDirectCard && wcShowEdgeExpand
       ? !bodyExpanded
       : !bodyExpanded && (primaryOverflow || hasSecondaryBody);
 
@@ -354,7 +356,8 @@ export default function URTakeResponse({
         </>
       ) : null}
 
-      {(!isWcDirectCard || bodyExpanded) && (whyNowDisplay !== "—" || edgeDisplay !== "—") ? (
+      {((!isWcDirectCard || bodyExpanded || (whyNowDisplay && whyNowDisplay !== "—")) &&
+        (whyNowDisplay !== "—" || edgeDisplay !== "—")) ? (
         <div
           ref={primaryBodyRef}
           className={`ur-v2-body-primary${showBodyExpand && !isWcDirectCard ? " ur-v2-body-primary--clamp" : ""}`}
