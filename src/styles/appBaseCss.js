@@ -1380,7 +1380,7 @@ export const baseCss = `
   button.ur-take-follow-up-chip:active{opacity:0.88;}
   .ur-take-follow-up-panel--thread{
     margin-top:0;
-    padding:10px 16px 14px;
+    padding:14px 16px 14px;
     background:#080808;
     border-top:0.5px solid #1a1a1a;
     border-bottom:0.5px solid #1a1a1a;
@@ -1919,11 +1919,11 @@ export const baseCss = `
   .wc-take-card{padding:0;}
   .wc-take-headline{
     font-family:var(--display-font);font-size:15px;font-weight:600;line-height:1.35;
-    letter-spacing:0.02em;margin:0 0 12px;color:var(--text);
+    letter-spacing:0.02em;margin:0 0 12px;padding:0 16px;color:var(--text);
   }
   .wc-take-stat-grid{margin-bottom:4px;}
   .wc-take-row{
-    margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-2);
+    margin-bottom:12px;padding:0 16px 12px;border-bottom:1px solid var(--border-2);
   }
   .wc-take-row:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0;}
   .wc-take-row-label{
@@ -1935,7 +1935,7 @@ export const baseCss = `
   }
   .wc-take-footer{
     display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 12px;
-    margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);
+    margin-top:14px;padding:12px 16px 10px;border-top:1px solid var(--border-2);
   }
   .wc-take-confidence-pill{
     font-family:var(--mono-font);font-size:10px;letter-spacing:0.08em;
@@ -2265,11 +2265,11 @@ export const baseCss = `
   .ur-v2-mode-ic{font-size:10px;line-height:1;}
   .ur-v2-wc-caution{
     display:flex;align-items:flex-start;gap:8px;
-    margin:10px 16px 0;padding:10px 12px;
+    margin:10px 16px 12px;padding:12px 14px;
     border-radius:8px;
     border:1px solid rgba(245,158,11,0.35);
     background:rgba(245,158,11,0.08);
-    font-family:var(--mono-font);font-size:10px;line-height:1.45;
+    font-family:var(--mono-font);font-size:11px;line-height:1.5;
     letter-spacing:0.04em;color:rgba(245,158,11,0.95);
   }
   .ur-v2-wc-caution-icon{font-size:11px;line-height:1.2;flex-shrink:0;opacity:0.9;}
@@ -2280,11 +2280,11 @@ export const baseCss = `
   .ur-v2-pill-row{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px;}
   .ur-v2-mini-pill{font-size:10px;padding:4px 10px;border-radius:999px;background:#111;border:0.5px solid #1e1e1e;color:rgba(255,255,255,.72);font-family:var(--mono-font);letter-spacing:0.06em;text-transform:uppercase;}
   .ur-v2-mini-pill--muted{color:rgba(255,255,255,.45);}
-  .ur-v2-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 16px;margin-bottom:0;}
+  .ur-v2-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;margin-bottom:0;}
   .ur-v2-stat-cell{background:#111;border:0.5px solid #1e1e1e;border-radius:8px;padding:8px 10px;min-height:0;display:flex;flex-direction:column;justify-content:center;}
   .ur-v2-stat-cell--hi{border-color:rgba(0,245,233,.55);box-shadow:0 0 0 1px rgba(0,245,233,.1);}
-  .ur-v2-stat-label{font-family:var(--mono-font);font-size:7px;letter-spacing:0.07em;text-transform:uppercase;color:#444;margin-bottom:4px;}
-  .ur-v2-stat-value{font-size:13px;font-weight:800;color:#fff;line-height:1.25;word-break:break-word;}
+  .ur-v2-stat-label{font-family:var(--mono-font);font-size:8px;letter-spacing:0.07em;text-transform:uppercase;color:#444;margin-bottom:4px;}
+  .ur-v2-stat-value{font-size:13px;font-weight:800;color:#fff;line-height:1.35;word-break:break-word;}
   .ur-v2-divider{height:0.5px;background:#141414;margin:8px 16px;border:none;}
   .ur-v2-body-copy{font-size:14px;line-height:1.65;color:#999;padding:0 16px;}
   .ur-v2-body-prose-wrap--clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
@@ -2306,6 +2306,13 @@ export const baseCss = `
   .ur-v2-parlay-explainer{font-size:11px;color:rgba(255,255,255,.48);margin-top:6px;line-height:1.45;}
   .ur-v2-footer-row{display:flex;align-items:center;justify-content:space-between;padding:8px 16px 12px;border-top:none;}
   .ur-v2-ts{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,.22);}
+
+  @media (max-width:390px){
+    .wc-take-headline{font-size:14px;line-height:1.4;}
+    .ur-v2-stat-value{font-size:12px;line-height:1.4;}
+    .ur-v2-stat-cell{padding:10px 8px;}
+    .wc-take-row-body{font-size:13px;line-height:1.6;}
+  }
 
   @media (max-width:767px){
     .home-surface-v1.home-surface-premium.screen{padding-top:20px;}

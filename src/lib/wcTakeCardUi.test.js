@@ -10,6 +10,14 @@ test("capWcHeadlineWords limits to twelve words", () => {
   assert.match(capped, /…$/);
 });
 
+test("capWcHeadlineWords avoids comma ellipsis and prefers em-dash clause break", () => {
+  const long =
+    "Spain (ESP) projects the most goals across the tournament — favorite status, 7+ goal pace";
+  const capped = capWcHeadlineWords(long, 12);
+  assert.doesNotMatch(capped, /,\s*…$/);
+  assert.match(capped, /tournament…$/);
+});
+
 test("pickWcThePlayLine prefers lean when distinct from headline", () => {
   const headline = "Brazil value at +800";
   const play = pickWcThePlayLine({

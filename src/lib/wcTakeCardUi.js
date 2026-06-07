@@ -13,7 +13,14 @@ export function capWcHeadlineWords(text, maxWords = 12) {
     .filter(Boolean);
   if (!words.length) return "";
   if (words.length <= maxWords) return words.join(" ");
-  return `${words.slice(0, maxWords).join(" ")}…`;
+
+  let capped = words.slice(0, maxWords).join(" ");
+  capped = capped.replace(/[,;:\-–—]+$/u, "").trim();
+  const dashIdx = capped.lastIndexOf(" — ");
+  if (dashIdx > capped.length * 0.35) {
+    capped = capped.slice(0, dashIdx).trim();
+  }
+  return capped ? `${capped}…` : "…";
 }
 
 /**
