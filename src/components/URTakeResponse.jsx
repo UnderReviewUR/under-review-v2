@@ -18,6 +18,12 @@ import {
   wcDataConfidenceCautionBanner,
   wcDataConfidenceNeedsCaution,
 } from "../../shared/wcDataConfidence.js";
+import WcTakeCard from "./WcTakeCard.jsx";
+import {
+  capWcHeadlineWords,
+  pickWcThePlayLine,
+  wcCardSectionText,
+} from "../lib/wcTakeCardUi.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -185,14 +191,12 @@ export default function URTakeResponse({
     !isWcPlayerMarketCard &&
     wcDataConfidenceNeedsCaution(dataConfidence) &&
     Boolean(wcCautionText);
-  const statGrid = isWcDirectCard
-    ? { slots: [] }
-    : buildSharpBriefStatGrid({
-        estimatedEdge: ee,
-        takeMeta,
-        structured: { call: callScrub, confidence: displayConfidence, callType },
-        parlayLegs: safeParlayLegs,
-      });
+  const statGrid = buildSharpBriefStatGrid({
+    estimatedEdge: ee,
+    takeMeta,
+    structured: { call: callScrub, confidence: displayConfidence, callType },
+    parlayLegs: safeParlayLegs,
+  });
 
   const edgeTypePill = inferEdgeTypePill(callType);
   const marketPill = inferMarketPill(callScrub, callType);
@@ -276,6 +280,41 @@ export default function URTakeResponse({
       : isWcDirectCard && headline
         ? `?wc=1&q=${encodeURIComponent(String(headline).slice(0, 120))}`
         : "";
+
+  if (isWcDirectCard) {
+    const wcHeadlineSource =
+      callScrub && callScrub !== "—"
+        ? callScrub
+        : leanDisplay && leanDisplay !== "—"
+          ? leanDisplay
+          : headline;
+    const wcHeadline = capWcHeadlineWords(wcHeadlineSource, 12);
+    const wcSections = {
+      why: wcCardSectionText(whyNowRaw),
+      watchFor: wcCardSectionText(edgeRaw),
+      thePlay: wcCardSectionText(
+        pickWcThePlayLine({
+          lean: leanDisplay,
+          call: callScrub,
+          headline: wcHeadline,
+        }),
+      ),
+    };
+    return (
+      <WcTakeCard
+        headline={wcHeadline}
+        statSlots={statGrid.slots}
+        sections={wcSections}
+        confidence={displayConfidence}
+        contextLine={contextLine}
+        modePill={modePill}
+        cautionText={showWcCaution ? wcCautionText : null}
+        sharePath={shareQuery}
+        userQuestion={userQuestion}
+        timestamp={timestamp}
+      />
+    );
+  }
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">

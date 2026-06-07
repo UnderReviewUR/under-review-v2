@@ -1916,6 +1916,34 @@ export const baseCss = `
     font-family:var(--mono-font);font-size:10px;letter-spacing:0.08em;
     color:var(--muted);text-transform:uppercase;
   }
+  .wc-take-card{padding:0;}
+  .wc-take-headline{
+    font-family:var(--display-font);font-size:15px;font-weight:600;line-height:1.35;
+    letter-spacing:0.02em;margin:0 0 12px;color:var(--text);
+  }
+  .wc-take-stat-grid{margin-bottom:4px;}
+  .wc-take-row{
+    margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border-2);
+  }
+  .wc-take-row:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .wc-take-row-label{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:1.3px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:5px;
+  }
+  .wc-take-row-body{
+    margin:0;font-size:13px;line-height:1.55;color:var(--soft);
+  }
+  .wc-take-footer{
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 12px;
+    margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);
+  }
+  .wc-take-confidence-pill{
+    font-family:var(--mono-font);font-size:10px;letter-spacing:0.08em;
+    color:var(--cyan-bright);text-transform:uppercase;font-weight:600;
+  }
+  .wc-take-footer-actions{
+    display:flex;align-items:center;gap:10px;margin-left:auto;
+  }
   .wc-book-ml-row{
     display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:8px;padding-top:8px;
     border-top:1px solid var(--border-2);font-size:10px;font-family:var(--mono-font);

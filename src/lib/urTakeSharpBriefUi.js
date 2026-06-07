@@ -58,6 +58,17 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
     return { mode: "rules", slots: [] };
   }
 
+  if (callType.startsWith("player_market")) {
+    const line = call.slice(0, 96) || "Player market read";
+    return {
+      mode: "player_market",
+      slots: [
+        { key: "ln", label: "Line", value: line, highlight: true },
+        { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+      ],
+    };
+  }
+
   if (callType === "matchup") {
     const proj = call.slice(0, 80) || "Advancement paths";
     return {
