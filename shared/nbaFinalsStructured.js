@@ -3,8 +3,23 @@
  */
 
 import { buildNbaFinalsDisplayHeadline } from "./nbaFinalsTakeDisplay.js";
+import { reconcileFinalsSeriesState } from "./nbaFinalsUtils.js";
 
 const CONFIDENCE_VALUES = new Set(["High", "Medium", "Speculative"]);
+
+const PIPELINE_COPY_PATTERNS = [
+  /\s*[—–-]\s*no verified line in context[^.]*\.?/gi,
+  /\bno verified line in context\b[^.]*\.?/gi,
+  /\bwatch for this threshold when the board opens\b[^.]*\.?/gi,
+  /\bwhen the board opens\b/gi,
+  /\bnot in (?:the )?context\b/gi,
+  /\bline unavailable in context\b/gi,
+];
+
+const MERGED_LABEL_SPLIT_RE =
+  /\s+(Context|The Play|Watch For|One Thing|Confidence)\s*:\s*/i;
+const MERGED_LABEL_FIND_RE =
+  /\s+(Context|The Play|Watch For|One Thing|Confidence)\s*:\s*/gi;
 
 const FIELD_ALIASES = {
   sharpAngle: ["sharpAngle", "sharp_angle", "sharp angle"],
@@ -14,6 +29,80 @@ const FIELD_ALIASES = {
   watchFor: ["watchFor", "watch_for", "watch for", "liveTrigger", "live_trigger"],
   oneThing: ["oneThing", "one_thing", "one thing"],
 };
+
+/**
+ * @param {string} text
+ */
+export function sanitizeNbaFinalsFaceText(text) {
+  let t = String(text || "").trim();
+  if (!t) return "";
+  for (const re of PIPELINE_COPY_PATTERNS) {
+    t = t.replace(re, "").trim();
+  }
+  t = t.replace(/\s{2,}/g, " ").replace(/\s+([,.;])/g, "$1").trim();
+  if (/^pass\b/i.test(t) && t.length < 8) return "Pass";
+  return t;
+}
+
+/**
+ * Split model blobs that put every label inside sharpAngle.
+ * @param {Record<string, string>} fields
+ */
+export function splitMergedNbaFinalsFields(fields) {
+  if (!fields || typeof fields !== "object") return fields;
+  const sharp = String(fields.sharpAngle || "").trim();
+  if (!sharp || sharp.length < 80 || !MERGED_LABEL_SPLIT_RE.test(sharp)) return fields;
+
+  const parts = sharp.split(MERGED_LABEL_FIND_RE);
+  const out = { ...fields, sharpAngle: String(parts[0] || "").trim() };
+  for (let i = 1; i < parts.length; i += 2) {
+    const label = String(parts[i] || "")
+      .toLowerCase()
+      .replace(/\s+/g, "");
+    const chunk = String(parts[i + 1] || "").trim();
+    if (!chunk) continue;
+    if (label === "context" && !out.context) out.context = chunk;
+    else if (label === "theplay" && !out.thePlay) out.thePlay = chunk;
+    else if (label === "watchfor" && !out.watchFor) out.watchFor = chunk;
+    else if (label === "onething" && !out.oneThing) out.oneThing = chunk;
+    else if (label === "confidence") {
+      const c = chunk.match(/\b(High|Medium|Speculative)\b/i);
+      if (c) out.confidence = c[1];
+    }
+  }
+
+  const words = out.sharpAngle.split(/\s+/).filter(Boolean);
+  if (words.length > 14) {
+    out.sharpAngle = words.slice(0, 12).join(" ");
+  }
+  return out;
+}
+
+/**
+ * @param {Record<string, string>} fields
+ */
+export function repairNbaFinalsStructuredFields(fields) {
+  if (!fields || typeof fields !== "object") return fields;
+  let out = splitMergedNbaFinalsFields({ ...fields });
+  for (const key of [
+    "sharpAngle",
+    "context",
+    "thePlay",
+    "confidence",
+    "watchFor",
+    "oneThing",
+  ]) {
+    if (out[key]) out[key] = sanitizeNbaFinalsFaceText(out[key]);
+  }
+  if (out.thePlay && /^under\b/i.test(out.thePlay) && !/\bpass\b/i.test(out.thePlay)) {
+    out.thePlay = out.thePlay.replace(/\s+if posted at[^.]*\.?/i, "").trim();
+  }
+  if (!out.thePlay || /no verified|board opens/i.test(out.thePlay)) {
+    const m = out.sharpAngle?.match(/\b(under|over)\s+[\d.]+/i);
+    out.thePlay = m ? m[0] : "Pass";
+  }
+  return out;
+}
 
 /**
  * @param {Record<string, unknown> | null | undefined} raw
@@ -46,7 +135,8 @@ export function normalizeNbaFinalsStructuredFields(raw) {
     else if (/^speculative\b/i.test(c)) out.confidence = "Speculative";
   }
 
-  return Object.keys(out).length >= 4 ? out : null;
+  if (Object.keys(out).length < 4) return null;
+  return repairNbaFinalsStructuredFields(out);
 }
 
 /**
@@ -88,11 +178,22 @@ export function buildNbaFinalsStructuredForDelivery(
   question = "",
   nbaRelevance = null,
 ) {
+  const reconciled = seriesState
+    ? reconcileFinalsSeriesState(seriesState, question)
+    : null;
+
   const rel = {
     finalsMode: true,
-    finalsGameNumber: seriesState?.gameNumber ?? nbaRelevance?.finalsGameNumber ?? null,
+    finalsGameNumber:
+      reconciled?.gameNumber ??
+      seriesState?.gameNumber ??
+      nbaRelevance?.finalsGameNumber ??
+      null,
     finalsSeriesSummary:
-      seriesState?.seriesScoreLabel ?? nbaRelevance?.finalsSeriesSummary ?? null,
+      reconciled?.seriesScoreLabel ??
+      seriesState?.seriesScoreLabel ??
+      nbaRelevance?.finalsSeriesSummary ??
+      null,
     finalsMatchupLabel:
       seriesState?.tonightMatchupLabel ?? nbaRelevance?.finalsMatchupLabel ?? null,
     finalsVenueLabel: seriesState?.venueLabel ?? nbaRelevance?.finalsVenueLabel ?? null,
@@ -101,12 +202,12 @@ export function buildNbaFinalsStructuredForDelivery(
   return {
     callType: "nba_finals",
     sport: "NBA",
-    sharpAngle: String(fields.sharpAngle || "").trim(),
-    context: String(fields.context || "").trim(),
-    thePlay: String(fields.thePlay || "").trim(),
+    sharpAngle: sanitizeNbaFinalsFaceText(fields.sharpAngle),
+    context: sanitizeNbaFinalsFaceText(fields.context),
+    thePlay: sanitizeNbaFinalsFaceText(fields.thePlay),
     confidence: String(fields.confidence || "Medium").trim(),
-    watchFor: String(fields.watchFor || "").trim(),
-    oneThing: String(fields.oneThing || "").trim(),
+    watchFor: sanitizeNbaFinalsFaceText(fields.watchFor),
+    oneThing: sanitizeNbaFinalsFaceText(fields.oneThing),
     headline: buildNbaFinalsDisplayHeadline(rel, question) || null,
     timestamp: new Date().toISOString(),
   };
@@ -128,13 +229,21 @@ export function isNbaFinalsStructured(structured) {
  */
 export function nbaFinalsStructuredToCardSections(structured) {
   if (!isNbaFinalsStructured(structured)) return null;
+  const fields = repairNbaFinalsStructuredFields({
+    sharpAngle: structured.sharpAngle || "",
+    context: structured.context || "",
+    thePlay: structured.thePlay || "",
+    confidence: structured.confidence || "",
+    watchFor: structured.watchFor || "",
+    oneThing: structured.oneThing || "",
+  });
   return {
-    sharpAngle: structured.sharpAngle || null,
-    context: structured.context || null,
-    thePlay: structured.thePlay || null,
-    confidence: structured.confidence || null,
-    watchFor: structured.watchFor || null,
-    oneThing: structured.oneThing || null,
+    sharpAngle: fields.sharpAngle || null,
+    context: fields.context || null,
+    thePlay: fields.thePlay || null,
+    confidence: fields.confidence || structured.confidence || null,
+    watchFor: fields.watchFor || null,
+    oneThing: fields.oneThing || null,
     parsed: true,
   };
 }
@@ -167,14 +276,17 @@ Return ONLY valid JSON with exactly these keys (all string values):
 Field rules:
 - sharpAngle: single play in ≤12 words (e.g. "Wembanyama under 10.5 rebounds")
 - context: 1–2 short sentences — why the angle works
-- thePlay: posted line + direction, or "Pass" if no verified line
+- thePlay: posted line + direction (e.g. "Under 10.5") or "Pass" — never mention context, payload, board, or line availability
 - confidence: exactly High, Medium, or Speculative
 - watchFor: one live tell you are tracking in-game
 - oneThing: single sentence — what flips the read
 
 Rules:
 - Do NOT use memo headers (THE FRAGILE ASSUMPTION, MARKET READ, THE STRUCTURAL EDGE).
+- Do NOT mention "verified line", "in context", "payload", or "when the board opens" — user-facing copy only.
+- Each JSON key holds ONLY its field — do not pack Context/The Play into sharpAngle.
 - Mirror venue from NBA FINALS CONTEXT — never say Knicks are "on the road in San Antonio" for Game 3 or 4 (those are in New York).
+- Mirror series score from NBA FINALS CONTEXT and the user's question — never invent 0-0 if context says Knicks lead 2-0.
 - No markdown. No prose outside JSON. First character must be {.`;
 
 export const NBA_FINALS_STRUCTURED_REGENERATION_SUFFIX = `

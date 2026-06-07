@@ -24,6 +24,124 @@ const FINALS_QUESTION_RE =
 const NARRATIVE_HALLUCINATION_RULE =
   'Do not use "clutch", "legacy", "dynasty", or "all-time" framing unless a specific stat or fact in the JSON payload supports it — otherwise describe matchup and series facts only.';
 
+const TEAM_NICK = { NYK: "Knicks", SAS: "Spurs" };
+
+/**
+ * @param {string} awayAbbr
+ * @param {string} homeAbbr
+ * @param {number} winsAway
+ * @param {number} winsHome
+ */
+export function formatFinalsSeriesScoreLabel(awayAbbr, homeAbbr, winsAway, winsHome) {
+  const af = String(awayAbbr || "").toUpperCase();
+  const hf = String(homeAbbr || "").toUpperCase();
+  const leaderAbbr =
+    winsAway > winsHome ? af : winsHome > winsAway ? hf : null;
+  const leaderWins = Math.max(winsAway, winsHome);
+  const trailerWins = Math.min(winsAway, winsHome);
+  if (leaderAbbr == null) {
+    return `${TEAM_NICK[af] || af} and ${TEAM_NICK[hf] || hf} tied ${winsAway}-${winsHome}`;
+  }
+  const leaderName = TEAM_NICK[leaderAbbr] || leaderAbbr;
+  return `${leaderName} lead${leaderWins === 1 ? "s" : ""} series ${leaderWins}-${trailerWins}`;
+}
+
+/**
+ * Parse series score from the user question when board rows are stale (e.g. 0-0 before Game 3).
+ * @param {string} question
+ * @returns {{ NYK: number, SAS: number } | null}
+ */
+export function parseFinalsSeriesWinsFromQuestion(question) {
+  const q = String(question || "");
+  if (!q.trim()) return null;
+
+  const toAbbr = (name) => {
+    const n = String(name || "").toLowerCase();
+    if (n === "knicks" || n === "nyk") return "NYK";
+    if (n === "spurs" || n === "sas") return "SAS";
+    return String(name || "").toUpperCase();
+  };
+
+  const namedLead = q.match(
+    /\b(knicks|spurs|nyk|sas)\s+lead(?:s|ing)?\b(?:\s+the)?\s+series\s+(\d+)\s*[-–]\s*(\d+)/i,
+  );
+  if (namedLead) {
+    const leader = toAbbr(namedLead[1]);
+    const wLeader = Number(namedLead[2]);
+    const wTrailer = Number(namedLead[3]);
+    if (!Number.isFinite(wLeader) || !Number.isFinite(wTrailer)) return null;
+    const other = leader === "NYK" ? "SAS" : "NYK";
+    return { [leader]: wLeader, [other]: wTrailer };
+  }
+
+  const seriesNamed = q.match(
+    /\bseries\s+(?:is\s+)?(\d+)\s*[-–]\s*(\d+)[^.]{0,40}?\b(knicks|spurs|nyk|sas)\b/i,
+  );
+  if (seriesNamed) {
+    const w1 = Number(seriesNamed[1]);
+    const w2 = Number(seriesNamed[2]);
+    const leader = toAbbr(seriesNamed[3]);
+    if (!Number.isFinite(w1) || !Number.isFinite(w2)) return null;
+    const leaderWins = Math.max(w1, w2);
+    const trailerWins = Math.min(w1, w2);
+    const other = leader === "NYK" ? "SAS" : "NYK";
+    return { [leader]: leaderWins, [other]: trailerWins };
+  }
+
+  return null;
+}
+
+/**
+ * @param {ReturnType<typeof getNbaFinalsSeriesState> | null} state
+ * @param {string} [question]
+ */
+export function reconcileFinalsSeriesState(state, question = "") {
+  if (!state?.isFinals) return state;
+
+  const boardTotal = (Number(state.awayWins) || 0) + (Number(state.homeWins) || 0);
+  const boardStale =
+    boardTotal === 0 && Number(state.gameNumber) >= 2 && /tied\s+0\s*[-–]\s*0/i.test(state.seriesScoreLabel || "");
+  const parsed = parseFinalsSeriesWinsFromQuestion(question);
+
+  if (!parsed && !boardStale) return state;
+
+  let winsAway = Number(state.awayWins) || 0;
+  let winsHome = Number(state.homeWins) || 0;
+
+  if (parsed) {
+    winsAway = Number(parsed[state.awayAbbr]) || 0;
+    winsHome = Number(parsed[state.homeAbbr]) || 0;
+  } else if (boardStale) {
+    return state;
+  }
+
+  const af = String(state.awayAbbr || "").toUpperCase();
+  const hf = String(state.homeAbbr || "").toUpperCase();
+  const seriesScoreLabel = formatFinalsSeriesScoreLabel(af, hf, winsAway, winsHome);
+  const leaderAbbr = winsAway > winsHome ? af : winsHome > winsAway ? hf : null;
+  const trailingAbbr = leaderAbbr === af ? hf : leaderAbbr === hf ? af : null;
+  const leaderWins = Math.max(winsAway, winsHome);
+  const trailerWins = Math.min(winsAway, winsHome);
+  const gn = state.gameNumber;
+  const gameNumberLabel = state.gameNumberLabel || (gn ? `Game ${gn}` : "Next Finals game");
+
+  return {
+    ...state,
+    awayWins: winsAway,
+    homeWins: winsHome,
+    leaderAbbr,
+    trailingAbbr,
+    seriesScoreLabel,
+    eliminationNote:
+      leaderAbbr && trailingAbbr
+        ? eliminationNote(leaderWins, trailerWins, leaderAbbr, trailingAbbr)
+        : state.eliminationNote,
+    summaryOneLiner: leaderAbbr
+      ? `${seriesScoreLabel}${gn ? ` — ${gameNumberLabel}` : ""}.`
+      : `${seriesScoreLabel}.`,
+  };
+}
+
 /**
  * @param {Record<string, unknown> | null | undefined} game
  */
@@ -154,12 +272,7 @@ export function getNbaFinalsSeriesState({
   const leaderWins = Math.max(winsAway, winsHome);
   const trailerWins = Math.min(winsAway, winsHome);
 
-  const teamNick = { NYK: "Knicks", SAS: "Spurs" };
-  const leaderName = leaderAbbr ? teamNick[leaderAbbr] || leaderAbbr : null;
-  const seriesScoreLabel =
-    leaderAbbr == null
-      ? `${teamNick[af] || af} and ${teamNick[hf] || hf} tied ${winsAway}-${winsHome}`
-      : `${leaderName} lead${leaderWins === 1 ? "s" : ""} series ${leaderWins}-${trailerWins}`;
+  const seriesScoreLabel = formatFinalsSeriesScoreLabel(af, hf, winsAway, winsHome);
 
   const tonightAway = String(game?.awayTeam?.abbr || af).toUpperCase();
   const tonightHome = String(game?.homeTeam?.abbr || hf).toUpperCase();
@@ -243,7 +356,7 @@ Use exactly these labeled lines in order (one idea per line; no paragraph walls)
 
 SHARP ANGLE: [single play in ≤12 words, e.g. "Wembanyama under 10.5 rebounds"]
 Context: [1–2 short sentences — why the angle works]
-The Play: [posted line + direction, or "Pass" if no verified line]
+The Play: [posted line + direction, or "Pass" if no line — never mention context, payload, or board availability]
 Confidence: High | Medium | Speculative
 Watch For: [one live tell — what you are tracking in-game]
 One Thing: [single sentence — what flips the read]
@@ -492,13 +605,16 @@ export function resolveNbaFinalsUrTakeContext({
     };
   }
 
-  const seriesState = getNbaFinalsSeriesState({
-    awayAbbr: awayM || focusedGame?.awayTeam?.abbr,
-    homeAbbr: homeM || focusedGame?.homeTeam?.abbr,
-    game: focusedGame,
-    playoffSeries,
-    focusedSeriesSnapshot: nbaContext?.focusedSeriesSnapshot ?? null,
-  });
+  const seriesState = reconcileFinalsSeriesState(
+    getNbaFinalsSeriesState({
+      awayAbbr: awayM || focusedGame?.awayTeam?.abbr,
+      homeAbbr: homeM || focusedGame?.homeTeam?.abbr,
+      game: focusedGame,
+      playoffSeries,
+      focusedSeriesSnapshot: nbaContext?.focusedSeriesSnapshot ?? null,
+    }),
+    question,
+  );
 
   const contextBlock = buildNbaFinalsContextBlock(seriesState, nbaIntent);
 

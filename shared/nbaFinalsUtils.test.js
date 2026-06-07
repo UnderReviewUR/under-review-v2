@@ -7,6 +7,8 @@ import {
   getNbaFinalsSeriesState,
   isNbaFinalsGame,
   isNbaFinalsQuestion,
+  parseFinalsSeriesWinsFromQuestion,
+  reconcileFinalsSeriesState,
   resolveNextNbaFinalsScheduledGame,
   resolveNbaFinalsUrTakeContext,
 } from "./nbaFinalsUtils.js";
@@ -72,6 +74,27 @@ test("resolveNextNbaFinalsScheduledGame — full best-of-7 schedule through Game
   assert.equal(g5?.gameNumber, 5);
   const g7 = resolveNextNbaFinalsScheduledGame(Date.parse("2026-06-18T12:00:00.000Z"));
   assert.equal(g7?.gameNumber, 7);
+});
+
+test("parseFinalsSeriesWinsFromQuestion — Knicks lead 2-0", () => {
+  const w = parseFinalsSeriesWinsFromQuestion(
+    "NBA Finals Game 3 (SAS @ NYK): Knicks lead the series 2-0. Sharpest angle?",
+  );
+  assert.deepEqual(w, { NYK: 2, SAS: 0 });
+});
+
+test("reconcileFinalsSeriesState — overrides stale board 0-0 from question", () => {
+  const stale = getNbaFinalsSeriesState({
+    awayAbbr: "SAS",
+    homeAbbr: "NYK",
+    playoffSeries: [{ away: "SAS", home: "NYK", awayWins: 0, homeWins: 0, gameNumberHint: 3 }],
+  });
+  const fixed = reconcileFinalsSeriesState(
+    stale,
+    "Knicks lead the series 2-0 heading into Game 3",
+  );
+  assert.match(fixed.seriesScoreLabel, /Knicks lead/i);
+  assert.match(fixed.seriesScoreLabel, /2-0/);
 });
 
 test("resolveNbaFinalsUrTakeContext — finalsMode for Game 3 preview", () => {

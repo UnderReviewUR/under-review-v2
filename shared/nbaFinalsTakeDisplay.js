@@ -3,8 +3,10 @@
  */
 
 import {
+  formatFinalsSeriesScoreLabel,
   isNbaFinalsQuestion,
   overlayFinalsScheduledGame,
+  parseFinalsSeriesWinsFromQuestion,
   resolveNextNbaFinalsScheduledGame,
 } from "./nbaFinalsUtils.js";
 
@@ -129,9 +131,25 @@ export function buildNbaFinalsDisplayHeadline(nbaRelevance, userQuestion = "") {
         )
       : null;
 
-  const series =
+  let series =
     String(nbaRelevance?.finalsSeriesSummary || sched?.seriesScoreLabel || "").trim() ||
     "NBA Finals";
+
+  const staleTied =
+    /tied\s+0\s*[-–]\s*0/i.test(series) && Number(gn) >= 2;
+  if (staleTied && userQuestion) {
+    const parsed = parseFinalsSeriesWinsFromQuestion(userQuestion);
+    const away = String(sched?.awayAbbr || "SAS").toUpperCase();
+    const home = String(sched?.homeAbbr || "NYK").toUpperCase();
+    if (parsed) {
+      series = formatFinalsSeriesScoreLabel(
+        away,
+        home,
+        Number(parsed[away]) || 0,
+        Number(parsed[home]) || 0,
+      );
+    }
+  }
   const matchup =
     String(nbaRelevance?.finalsMatchupLabel || sched?.tonightMatchupLabel || "").trim();
   const venue = String(nbaRelevance?.finalsVenueLabel || sched?.venueLabel || "").trim();
