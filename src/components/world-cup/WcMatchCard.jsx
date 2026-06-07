@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
 import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
-import { formatOddsAmerican } from "../../../shared/formatOddsAmerican.js";
+import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
 import {
   WC_XI_STATUS_ICON,
@@ -116,10 +116,8 @@ export default function WcMatchCard({
 
   const kickoff = formatWcKickoffDisplay(match);
   const bookOdds = match?.odds;
-  const mlHome = bookOdds?.home?.moneyline;
-  const mlAway = bookOdds?.away?.moneyline;
-  const mlDraw = bookOdds?.draw?.moneyline;
-  const hasBookMl = mlHome || mlAway || mlDraw;
+  const homeTeam = getWcTeamByAbbr(match?.homeTeam);
+  const awayTeam = getWcTeamByAbbr(match?.awayTeam);
 
   const cardId = match?.id != null ? `wc-match-${String(match.id).trim()}` : undefined;
 
@@ -168,20 +166,20 @@ export default function WcMatchCard({
         )}
       </div>
       {!live && showOdds ? <OddsBar odds={odds} /> : null}
-      {!live && hasBookMl ? (
-        <div className="wc-book-ml-row" aria-label="Match moneylines">
-          {mlHome ? (
-            <span>
-              {match.homeTeam} {formatOddsAmerican(mlHome)}
-            </span>
-          ) : null}
-          {mlDraw ? <span>Draw {formatOddsAmerican(mlDraw)}</span> : null}
-          {mlAway ? (
-            <span>
-              {match.awayTeam} {formatOddsAmerican(mlAway)}
-            </span>
-          ) : null}
-        </div>
+      {!live && showOdds ? (
+        <BookmakerOddsPanel
+          compact
+          fetchMultiBook={false}
+          sportKey="soccer_fifa_world_cup"
+          home={homeTeam?.name}
+          away={awayTeam?.name}
+          homeAbbr={match?.homeTeam}
+          awayAbbr={match?.awayTeam}
+          homeLabel={match?.homeTeam}
+          awayLabel={match?.awayTeam}
+          showDraw
+          espnFallback={bookOdds}
+        />
       ) : null}
       {onAskUrTake ? (
         <button type="button" className="wc-ask-btn" onClick={() => onAskUrTake(match)}>

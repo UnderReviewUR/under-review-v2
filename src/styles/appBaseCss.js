@@ -1921,6 +1921,45 @@ export const baseCss = `
     border-top:1px solid var(--border-2);font-size:10px;font-family:var(--mono-font);
     color:var(--soft);letter-spacing:0.02em;
   }
+  .book-odds-panel{
+    margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);
+  }
+  .book-odds-panel--compact{font-size:10px;}
+  .book-odds-label{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:1.4px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:8px;
+  }
+  .book-odds-muted{font-size:10px;color:var(--muted);font-family:var(--mono-font);}
+  .book-odds-table{display:flex;flex-direction:column;gap:0;}
+  .book-odds-head,.book-odds-row,.book-odds-avg-row{
+    display:grid;
+    grid-template-columns:minmax(72px,1.1fr) repeat(var(--book-odds-cols, 2), minmax(0, 1fr));
+    gap:6px 8px;align-items:center;
+    font-family:var(--mono-font);font-size:10px;line-height:1.35;
+  }
+  .book-odds-head{
+    color:var(--muted);font-size:9px;letter-spacing:0.06em;text-transform:uppercase;
+    padding-bottom:6px;border-bottom:1px solid var(--border-2);margin-bottom:4px;
+  }
+  .book-odds-row{padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+  .book-odds-row:last-child{border-bottom:none;}
+  .book-odds-row--espn{opacity:0.92;}
+  .book-odds-avg-row{
+    color:var(--cyan-bright);font-weight:600;margin-bottom:6px;padding-bottom:6px;
+    border-bottom:1px dashed rgba(0,245,233,0.22);
+  }
+  .book-odds-avg-label{color:var(--cyan-bright);text-transform:none;letter-spacing:0.02em;}
+  .book-odds-book-col{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .book-odds-book-name{color:var(--soft);font-weight:600;}
+  .book-odds-ml-col{color:var(--text);text-align:right;}
+  .book-odds-draw-col{text-align:right;}
+  .book-odds-dash{color:var(--muted);}
+  .book-odds-foot{
+    margin-top:6px;font-size:9px;color:var(--muted);font-family:var(--mono-font);
+    letter-spacing:0.04em;
+  }
+  .book-odds-panel:has(.book-odds-draw-col){--book-odds-cols:3;}
+  .book-odds-panel:not(:has(.book-odds-draw-col)){--book-odds-cols:2;}
   .wc-match-teams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
   .wc-match-team{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex:1;}
   .wc-match-vs{font-family:var(--mono-font);font-size:11px;color:var(--muted);flex:0 0 auto;}

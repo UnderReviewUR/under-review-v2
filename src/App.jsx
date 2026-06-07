@@ -191,6 +191,7 @@ import {
   resolveUrTakeFailSoftFromResponse,
 } from "./lib/urTakeFailSoft.js";
 import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
+import BookmakerOddsPanel from "./components/BookmakerOddsPanel.jsx";
 import UrTakeOnboardingOverlay from "./components/UrTakeOnboardingOverlay.jsx";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
@@ -5962,6 +5963,24 @@ fees. One price, unlimited reads.`,
               <div className="detail-head"><div className="detail-league" style={{color:selectedMatchup.leagueColor}}>{selectedMatchup.league}</div><div className="detail-title">{selectedMatchup.title}</div><div className="detail-sub">{selectedMatchup.time} · {selectedMatchup.network}</div></div>
               <div className="what-matters"><div className="wm-label">Match Snapshot</div><div className="wm-text">{selectedMatchup.whatMatters||"Ask for the side, total, props, or live angle."}</div></div>
               {selectedMatchup.stats&&<div className="mini-grid">{selectedMatchup.stats.map(s=><div key={s.label} className="mini-stat"><div className="mini-label">{s.label}</div><div className="mini-value">{s.value}</div></div>)}</div>}
+              {(() => {
+                const raw = selectedMatchup?.raw || {};
+                const oddsEventId = raw.odds_event_id || raw.oddsEventId;
+                const oddsSportKey = raw.odds_sport_key || raw.oddsSportKey || (selectedMatchup?.league === "WTA" ? "tennis_wta" : "tennis_atp");
+                const homeName = raw.home || raw.event_first_player;
+                const awayName = raw.away || raw.event_second_player;
+                if (!oddsEventId && !(homeName && awayName)) return null;
+                return (
+                  <BookmakerOddsPanel
+                    sportKey={oddsSportKey}
+                    eventId={oddsEventId ? String(oddsEventId) : undefined}
+                    home={homeName}
+                    away={awayName}
+                    homeLabel={homeName}
+                    awayLabel={awayName}
+                  />
+                );
+              })()}
               {selectedMatchup.quickHitters&&<div className="quick-hitters">{selectedMatchup.quickHitters.map(q=><button key={q} className="quick-btn" onClick={()=>submitMatchup(q)}>{q}</button>)}</div>}
             </div>
             <ChatThread
