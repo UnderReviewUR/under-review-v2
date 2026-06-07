@@ -11,7 +11,7 @@ import {
 import {
   delayBetweenWcBookScrapes,
   listEnabledWcMatchPlayerPropBooks,
-  resolveWcMatchPlayerPropsBookUrl,
+  listWcMatchPlayerPropsScrapeUrls,
 } from "../shared/wcBookScrapePolicy.js";
 import { runWcBookScrapeWithBackoff } from "../shared/wcBookScrapeRunner.js";
 import {
@@ -20,8 +20,11 @@ import {
 } from "../shared/wc2026PlayerConstants.js";
 import {
   attachMatchPlayerPropsFreshness,
+  createEmptyMatchPlayerPropMarkets,
   matchPlayerPropsForEvent,
+  mergeMatchPlayerPropMarketMaps,
   readFreshMatchPlayerPropsForEvent,
+  WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlayerPropsSeed.js";
@@ -33,8 +36,8 @@ const MIN_ANYTIME_ROWS = 3;
  * @param {{ eventId: string, homeTeam?: string, awayTeam?: string }} meta
  */
 export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0) {
-  const url = resolveWcMatchPlayerPropsBookUrl(bookKey, meta);
-  if (!url) {
+  const urls = listWcMatchPlayerPropsScrapeUrls(bookKey, meta);
+  if (!urls.length) {
     return { book: bookKey, ok: false, markets: {}, error: "missing_url" };
   }
 
@@ -45,31 +48,37 @@ export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0
     bookKey,
     bookIndex,
     scrapeOnce: async () => {
-      const fetched = await fetchBookPageHtml(url);
-      if (!fetched.ok || !fetched.html) {
-        return {
-          book: bookKey,
-          ok: false,
-          markets: {},
-          error: fetched.error || "fetch_failed",
-        };
-      }
+      let markets = createEmptyMatchPlayerPropMarkets();
+      let lastError = "parse_empty";
 
-      let markets = parseMatchPlayerPropRowsFromHtml(fetched.html, filter);
-      if (
-        (markets.anytime_scorer || []).length < MIN_ANYTIME_ROWS &&
-        fetched.html.trim().startsWith("{")
-      ) {
-        try {
-          markets = parseMatchPlayerPropRowsFromJson(JSON.parse(fetched.html), filter);
-        } catch {
-          /* ignore */
+      for (const url of urls) {
+        const fetched = await fetchBookPageHtml(url);
+        if (!fetched.ok || !fetched.html) {
+          lastError = fetched.error || "fetch_failed";
+          continue;
+        }
+
+        let parsed = parseMatchPlayerPropRowsFromHtml(fetched.html, filter);
+        if (
+          (parsed.anytime_scorer || []).length < MIN_ANYTIME_ROWS &&
+          fetched.html.trim().startsWith("{")
+        ) {
+          try {
+            parsed = parseMatchPlayerPropRowsFromJson(JSON.parse(fetched.html), filter);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        markets = mergeMatchPlayerPropMarketMaps(markets, parsed);
+        if ((markets.anytime_scorer || []).length >= MIN_ANYTIME_ROWS) {
+          return { book: bookKey, ok: true, markets, error: null };
         }
       }
 
       const anytimeCount = (markets.anytime_scorer || []).length;
       if (anytimeCount < MIN_ANYTIME_ROWS) {
-        return { book: bookKey, ok: false, markets, error: "parse_empty" };
+        return { book: bookKey, ok: false, markets, error: lastError };
       }
 
       return { book: bookKey, ok: true, markets, error: null };
@@ -81,27 +90,27 @@ export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0
  * @param {Array<{ book: string, ok: boolean, markets: Record<string, unknown[]>, error: string | null }>} bookResults
  */
 function mergeMatchPropsConsensus(bookResults) {
-  /** @type {Record<string, Map<string, { name: string, americanOdds: string, nationAbbr?: string, bookOdds: Record<string, string> }>>} */
-  const byMarket = {
-    anytime_scorer: new Map(),
-    first_goalscorer: new Map(),
-    last_goalscorer: new Map(),
-  };
+  /** @type {Record<string, Map<string, { name: string, americanOdds: string, nationAbbr?: string, line?: string, side?: string, bookOdds: Record<string, string> }>>} */
+  const byMarket = Object.fromEntries(
+    WC_MATCH_PLAYER_PROP_MARKET_KEYS.map((key) => [key, new Map()]),
+  );
 
   for (const res of bookResults) {
     if (!res.ok || !res.markets) continue;
-    for (const marketKey of Object.keys(byMarket)) {
+    for (const marketKey of WC_MATCH_PLAYER_PROP_MARKET_KEYS) {
       const rows = res.markets[marketKey] || [];
       for (const row of rows) {
         const name = normalizeWcPlayerName(row.name);
         if (!name || !row.americanOdds) continue;
-        const key = name.toLowerCase();
+        const key = `${name.toLowerCase()}|${row.line || ""}|${row.side || ""}`;
         const existing = byMarket[marketKey].get(key);
         if (!existing) {
           byMarket[marketKey].set(key, {
             name,
             americanOdds: row.americanOdds,
             nationAbbr: row.nationAbbr,
+            line: row.line,
+            side: row.side,
             bookOdds: { [res.book]: row.americanOdds },
           });
         } else {
@@ -141,6 +150,8 @@ function mergeMatchPropsWithSeed(markets, eventId) {
         name,
         americanOdds: row.americanOdds,
         nationAbbr: row.nationAbbr,
+        line: row.line,
+        side: row.side,
         bookOdds: { seed: row.americanOdds },
       });
     }
@@ -223,6 +234,9 @@ export async function scrapeAndCacheWcMatchPlayerProps(eventId, meta = {}) {
       booksUsed,
       anytimeCount: finalAnytime,
       firstCount: (markets.first_goalscorer || []).length,
+      assistsCount: (markets.player_assists_ou || []).length,
+      sotCount: (markets.player_sot_ou || []).length,
+      cardCount: (markets.player_card || []).length,
     }),
   );
 

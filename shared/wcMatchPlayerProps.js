@@ -10,7 +10,73 @@ import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 
 export { WC_MATCH_PLAYER_PROPS_MAX_AGE_MS };
 
-/** @typedef {"anytime_scorer" | "first_goalscorer" | "last_goalscorer"} WcMatchPlayerPropMarket */
+/** @typedef {"anytime_scorer" | "first_goalscorer" | "last_goalscorer" | "player_assists_ou" | "player_shots_ou" | "player_sot_ou" | "player_card" | "player_red_card"} WcMatchPlayerPropMarket */
+
+/** Scorer + extended player prop markets (Phase 1 book scrape). */
+export const WC_MATCH_PLAYER_PROP_MARKET_KEYS = [
+  "anytime_scorer",
+  "first_goalscorer",
+  "last_goalscorer",
+  "player_assists_ou",
+  "player_shots_ou",
+  "player_sot_ou",
+  "player_card",
+  "player_red_card",
+];
+
+/** @type {Record<WcMatchPlayerPropMarket, string>} */
+export const WC_MATCH_PLAYER_PROP_PROMPT_LABELS = {
+  anytime_scorer: "ANYTIME GOALSCORER",
+  first_goalscorer: "FIRST GOALSCORER",
+  last_goalscorer: "LAST GOALSCORER",
+  player_assists_ou: "PLAYER ASSISTS (O/U)",
+  player_shots_ou: "PLAYER SHOTS (O/U)",
+  player_sot_ou: "PLAYER SHOTS ON TARGET (O/U)",
+  player_card: "PLAYER TO RECEIVE A CARD",
+  player_red_card: "PLAYER TO RECEIVE A RED CARD",
+};
+
+/**
+ * @returns {Record<string, Array<Record<string, unknown>>>}
+ */
+export function createEmptyMatchPlayerPropMarkets() {
+  /** @type {Record<string, Array<Record<string, unknown>>>} */
+  const out = {};
+  for (const key of WC_MATCH_PLAYER_PROP_MARKET_KEYS) {
+    out[key] = [];
+  }
+  return out;
+}
+
+/**
+ * @param {Record<string, Array<Record<string, unknown>>>} a
+ * @param {Record<string, Array<Record<string, unknown>>>} b
+ */
+export function mergeMatchPlayerPropMarketMaps(a, b) {
+  const out = createEmptyMatchPlayerPropMarkets();
+  for (const key of WC_MATCH_PLAYER_PROP_MARKET_KEYS) {
+    const seen = new Set();
+    const rows = [...(a?.[key] || []), ...(b?.[key] || [])].filter((row) => {
+      const k = `${row?.name}|${row?.americanOdds}|${row?.line || ""}|${row?.side || ""}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return Boolean(row?.name && row?.americanOdds);
+    });
+    out[key] = rows.slice(0, 40);
+  }
+  return out;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} eventPayload
+ */
+export function hasMatchPlayerPropRows(eventPayload) {
+  if (!eventPayload?.markets || typeof eventPayload.markets !== "object") return false;
+  return WC_MATCH_PLAYER_PROP_MARKET_KEYS.some((key) => {
+    const rows = eventPayload.markets[key];
+    return Array.isArray(rows) && rows.some((r) => r?.name && r?.americanOdds);
+  });
+}
 
 /**
  * @param {Record<string, unknown> | null | undefined} kvRoot
@@ -73,8 +139,25 @@ export function matchPlayerPropRowsFromEvent(eventPayload, market = "anytime_sco
       americanOdds: String(r.americanOdds),
       nationAbbr: r.nationAbbr ? String(r.nationAbbr).toUpperCase().slice(0, 3) : undefined,
       market: r.market ? String(r.market) : market,
+      line: r.line != null ? String(r.line) : undefined,
+      side: r.side ? String(r.side) : undefined,
     }))
     .slice(0, limit);
+}
+
+/**
+ * @param {WcMatchPlayerPropMarket} market
+ * @param {{ name: string, nationAbbr?: string, americanOdds: string, line?: string, side?: string }} row
+ */
+export function formatMatchPlayerPropRowForPrompt(market, row) {
+  const team = row.nationAbbr ? ` (${row.nationAbbr})` : "";
+  const lineBit =
+    row.line && row.side
+      ? ` ${String(row.side).charAt(0).toUpperCase()}${String(row.side).slice(1)} ${row.line}`
+      : row.side === "yes"
+        ? " Yes"
+        : "";
+  return `${row.name}${team}${lineBit}: ${row.americanOdds}`;
 }
 
 /**

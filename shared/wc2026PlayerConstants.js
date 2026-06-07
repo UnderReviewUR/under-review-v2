@@ -56,6 +56,24 @@ export const WC_MATCH_PLAYER_PROPS_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 
 
+/** Post-match chance quality overlay (Phase 2 — ESPN-derived, not Opta xG). */
+
+export const WC_MATCH_ADVANCED_STATS_KV_KEY = "wc2026_match_advanced_stats";
+
+export const WC_MATCH_ADVANCED_STATS_TTL_SECONDS = 30 * 24 * 3600;
+
+export const WC_MATCH_ADVANCED_STATS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+
+
+/** API-Football backup stats (fixture map, leaders, live cross-check). */
+
+export const WC_API_FOOTBALL_KV_KEY = "wc2026_api_football";
+
+export const WC_API_FOOTBALL_TTL_SECONDS = 7 * 24 * 3600;
+
+
+
 /** Cron: full player registry rollup. */
 
 export const WC_PLAYERS_SCRAPE_INTERVAL_MS = 12 * 60 * 60 * 1000;

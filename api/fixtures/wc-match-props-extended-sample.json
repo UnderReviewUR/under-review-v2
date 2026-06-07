@@ -1,0 +1,53 @@
+[
+  {
+    "marketName": "Anytime Goalscorer",
+    "entries": [
+      { "participantName": "Kylian Mbappé", "americanOdds": "+180", "teamAbbr": "FRA" },
+      { "participantName": "Vinícius Júnior", "americanOdds": "+220", "teamAbbr": "BRA" },
+      { "participantName": "Rodrygo", "americanOdds": "+350", "teamAbbr": "BRA" },
+      { "participantName": "Ousmane Dembélé", "americanOdds": "+400", "teamAbbr": "FRA" }
+    ]
+  },
+  {
+    "marketName": "Player Assists O/U",
+    "entries": [
+      {
+        "participantName": "Kylian Mbappé",
+        "name": "Over 0.5",
+        "americanOdds": "+140",
+        "teamAbbr": "FRA",
+        "point": 0.5
+      },
+      {
+        "participantName": "Antoine Griezmann",
+        "name": "Over 0.5",
+        "americanOdds": "+220",
+        "teamAbbr": "FRA",
+        "point": 0.5
+      }
+    ]
+  },
+  {
+    "marketName": "Player Shots On Target O/U",
+    "entries": [
+      {
+        "participantName": "Vinícius Júnior",
+        "name": "Over 1.5",
+        "americanOdds": "-115",
+        "teamAbbr": "BRA",
+        "point": 1.5
+      }
+    ]
+  },
+  {
+    "marketName": "Player To Be Carded",
+    "entries": [
+      {
+        "participantName": "Casemiro",
+        "name": "Yes",
+        "americanOdds": "+280",
+        "teamAbbr": "BRA"
+      }
+    ]
+  }
+]

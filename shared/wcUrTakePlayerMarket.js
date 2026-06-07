@@ -99,9 +99,10 @@ export function formatWcPlayerMarketPromptRules(wcIntent) {
   You may keep the prior #1 if still valid, but MUST add the rest of the board — never repeat only one name.`;
   }
   return `PLAYER MARKET (${label}) — binding:
-  Answer with a named PLAYER from PLAYER MARKETS — VERIFIED CONTEXT (never only a country/national team as the scorer pick).
-  Cite the player full name in sentence one. When MATCH PLAYER PROPS exist for the pinned fixture, prefer those anytime/first goalscorer prices over tournament Golden Boot rows.
-  When only GOLDEN BOOT / TOP SCORER ODDS exist, cite American prices from that block.
+  Answer with a named PLAYER from PLAYER MARKETS — VERIFIED CONTEXT (never only a country/national team as the pick).
+  Cite the player full name in sentence one. When MATCH PLAYER PROPS exist for the pinned fixture, use the matching market block (scorer, assists O/U, shots/SOT O/U, card) and cite only listed American prices.
+  When only GOLDEN BOOT / TOP SCORER ODDS exist, cite American prices from that block for scoring asks.
+  If the asked market is missing from MATCH PLAYER PROPS, say Pass / no verified line — do not invent prices.
   If tier is Early Contenders or lineups are not confirmed, say so once — still list named players with available odds or form.`;
 }
 

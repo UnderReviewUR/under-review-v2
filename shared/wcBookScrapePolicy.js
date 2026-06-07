@@ -7,6 +7,7 @@
 
 
 import { getEnv } from "../api/_env.js";
+import { getWcTeamByAbbr } from "../src/data/wc2026Teams.js";
 
 
 
@@ -270,6 +271,8 @@ export const WC_MATCH_PLAYER_PROP_BOOKS = {
 
       "https://sportsbook.draftkings.com/leagues/soccer/world-cup-2026?category=goalscorer&subcategory=anytime-goalscorer",
 
+    eventUrlTemplate: "https://sportsbook.draftkings.com/event/{eventId}",
+
   },
 
   fanduel: {
@@ -280,6 +283,10 @@ export const WC_MATCH_PLAYER_PROP_BOOKS = {
 
     defaultTemplate: "https://sportsbook.fanduel.com/soccer?tab=world-cup",
 
+    eventUrlTemplate:
+
+      "https://sportsbook.fanduel.com/soccer/fifa-world-cup-2026/{home}-v-{away}",
+
   },
 
   betmgm: {
@@ -289,6 +296,8 @@ export const WC_MATCH_PLAYER_PROP_BOOKS = {
     region: "us",
 
     defaultTemplate: "https://sports.betmgm.com/en/sports/soccer-4/fifa-world-cup-2026",
+
+    eventUrlTemplate: "https://sports.betmgm.com/en/sports/events/{eventId}",
 
   },
 
@@ -303,6 +312,33 @@ export const WC_MATCH_PLAYER_PROP_BOOKS = {
  * @param {{ homeTeam?: string, awayTeam?: string, eventId?: string }} meta
 
  */
+
+/**
+ * @param {string} template
+ * @param {{ homeTeam?: string, awayTeam?: string, eventId?: string }} meta
+ */
+export function applyWcMatchPlayerPropsUrlTemplate(template, meta = {}) {
+  const tpl = String(template || "").trim();
+  if (!tpl) return null;
+
+  const slug = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+  const homeAbbr = String(meta.homeTeam || "").toUpperCase().slice(0, 3);
+  const awayAbbr = String(meta.awayTeam || "").toUpperCase().slice(0, 3);
+  const homeTeam = getWcTeamByAbbr(homeAbbr);
+  const awayTeam = getWcTeamByAbbr(awayAbbr);
+
+  return tpl
+    .replace(/\{eventId\}/gi, String(meta.eventId || ""))
+    .replace(/\{home\}/gi, slug(homeTeam?.name || meta.homeTeam))
+    .replace(/\{away\}/gi, slug(awayTeam?.name || meta.awayTeam))
+    .replace(/\{homeAbbr\}/gi, homeAbbr)
+    .replace(/\{awayAbbr\}/gi, awayAbbr);
+}
 
 export function resolveWcMatchPlayerPropsBookUrl(bookKey, meta = {}) {
 
@@ -330,34 +366,31 @@ export function resolveWcMatchPlayerPropsBookUrl(bookKey, meta = {}) {
 
 
 
-  if (!template) return null;
+  return applyWcMatchPlayerPropsUrlTemplate(template, meta);
 
+}
 
+/**
+ * Primary template plus per-fixture event URL fallback (Phase 1).
+ * @param {string} bookKey
+ * @param {{ homeTeam?: string, awayTeam?: string, eventId?: string }} [meta]
+ */
+export function listWcMatchPlayerPropsScrapeUrls(bookKey, meta = {}) {
+  const cfg = WC_MATCH_PLAYER_PROP_BOOKS[bookKey];
+  if (!cfg || !isWcGoldenBootBookEnabled(bookKey)) return [];
 
-  const slug = (s) =>
+  const urls = [];
+  const primary = resolveWcMatchPlayerPropsBookUrl(bookKey, meta);
+  if (primary) urls.push(primary);
 
-    String(s || "")
+  const eventId = String(meta.eventId || "").trim();
+  const eventTpl = cfg.eventUrlTemplate;
+  if (eventId && eventTpl) {
+    const eventUrl = applyWcMatchPlayerPropsUrlTemplate(eventTpl, meta);
+    if (eventUrl && !urls.includes(eventUrl)) urls.push(eventUrl);
+  }
 
-      .toLowerCase()
-
-      .replace(/[^a-z0-9]+/g, "-")
-
-      .replace(/^-|-$/g, "");
-
-
-
-  return template
-
-    .replace(/\{eventId\}/gi, String(meta.eventId || ""))
-
-    .replace(/\{home\}/gi, slug(meta.homeTeam))
-
-    .replace(/\{away\}/gi, slug(meta.awayTeam))
-
-    .replace(/\{homeAbbr\}/gi, String(meta.homeTeam || "").toUpperCase().slice(0, 3))
-
-    .replace(/\{awayAbbr\}/gi, String(meta.awayTeam || "").toUpperCase().slice(0, 3));
-
+  return urls;
 }
 
 

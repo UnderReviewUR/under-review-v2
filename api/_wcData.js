@@ -331,6 +331,21 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
     } catch (simErr) {
       console.warn("[wc-match-bundle] sim refresh after FT failed:", simErr?.message || simErr);
     }
+    try {
+      const detail = await readWcMatchDetailFromKv(id);
+      if (detail) {
+        const { cacheWcMatchAdvancedStatsFromDetail } = await import("./_wcMatchAdvancedStats.js");
+        await cacheWcMatchAdvancedStatsFromDetail(detail);
+      }
+    } catch (advErr) {
+      console.log(
+        JSON.stringify({
+          event: "wc_match_advanced_stats_fail",
+          eventId: id,
+          error: advErr?.message || "advanced_stats_failed",
+        }),
+      );
+    }
   }
 
   return {

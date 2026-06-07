@@ -23,6 +23,10 @@ import {
   getWcMatchPlayerPropsPayload,
   scrapeAndCacheWcMatchPlayerProps,
 } from "./_wcMatchPlayerProps.js";
+import {
+  readWcApiFootballFromKv,
+  scrapeAndCacheWcApiFootball,
+} from "./_wcApiFootballData.js";
 import { buildWcPlayerMarketsStatus } from "./_wcPlayerMarketsStatus.js";
 import {
   handleWcPlayerMarketsOverridePost,
@@ -593,6 +597,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, override: override || null });
     }
 
+    if (view === "api_football" || view === "api-football") {
+      if (String(req.query?.refresh || "") === "1") {
+        await scrapeAndCacheWcApiFootball();
+      }
+      const payload = await readWcApiFootballFromKv();
+      return res.status(200).json({ ok: true, ...(payload || {}) });
+    }
+
     if (view === "match_player_props" || view === "match-player-props") {
       const eventId = req.query?.eventId ?? req.query?.id;
       if (String(req.query?.refresh || "") === "1" && eventId) {
@@ -609,7 +621,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, sim, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, sim, api_football, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

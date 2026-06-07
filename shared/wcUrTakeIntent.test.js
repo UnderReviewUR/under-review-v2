@@ -66,6 +66,21 @@ test("classifyWcQuestionIntent — player market intents", () => {
   );
 });
 
+test("classifyWcQuestionIntent — extended match player prop intents", () => {
+  assert.equal(
+    classifyWcQuestionIntent("Will Mbappé record an assist in France vs Brazil?"),
+    WC_INTENT.PLAYER_PROP,
+  );
+  assert.equal(
+    classifyWcQuestionIntent("Best player shots on target prop for Vinícius?"),
+    WC_INTENT.PLAYER_PROP,
+  );
+  assert.equal(
+    classifyWcQuestionIntent("Is Casemiro worth the yellow card prop?"),
+    WC_INTENT.PLAYER_PROP,
+  );
+});
+
 test("resolveRequiredEntities — player market returns no teams", () => {
   assert.deepEqual(
     resolveRequiredEntities("which player will score the most goals?", [], WC_INTENT.PLAYER_PROP),

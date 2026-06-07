@@ -122,3 +122,110 @@ test("formatWorldCupUrTakePromptBlock surfaces passes possession corners and car
   assert.match(block, /1 yellow/);
   assert.match(block, /Live team stats \(binding/);
 });
+
+test("formatWorldCupUrTakePromptBlock includes post-match chance quality when present", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: {},
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [
+      {
+        eventId: "760501",
+        homeTeam: "FRA",
+        awayTeam: "ENG",
+        status: "FT",
+        homeScore: 2,
+        awayScore: 1,
+        finalized: true,
+        lineupConfirmed: true,
+        lineups: { home: { starters: [] }, away: { starters: [] } },
+        teamStats: {
+          home: { shots: 14, shotsOnTarget: 6, possessionPct: 58, corners: 5 },
+          away: { shots: 8, shotsOnTarget: 3, possessionPct: 42, corners: 2 },
+        },
+        players: {
+          home: [
+            {
+              name: "Kylian Mbappé",
+              shots: 5,
+              shotsOnTarget: 3,
+              keyPasses: 2,
+              goals: 1,
+              assists: 1,
+            },
+          ],
+          away: [],
+        },
+        goals: [],
+        injuries: [],
+        advancedStats: {
+          source: "espn_chance_index",
+          sourceLabel: "Post-match chance quality (ESPN-derived estimate — not Opta xG)",
+          homeTeam: "FRA",
+          awayTeam: "ENG",
+          team: {
+            home: { chanceIndex: 1.2, shots: 14, shotsOnTarget: 6 },
+            away: { chanceIndex: 0.7, shots: 8, shotsOnTarget: 3 },
+          },
+          players: [
+            {
+              name: "Kylian Mbappé",
+              nationAbbr: "FRA",
+              chanceIndex: 0.58,
+              shots: 5,
+              shotsOnTarget: 3,
+              keyPasses: 2,
+              goals: 1,
+              assists: 1,
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  assert.match(block, /POST-MATCH CHANCE QUALITY/);
+  assert.match(block, /not Opta xG/i);
+  assert.match(block, /Team chance index/);
+  assert.match(block, /Mbapp/);
+});
+
+test("formatWorldCupUrTakePromptBlock live match includes live chance index", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: {},
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [
+      {
+        eventId: "760502",
+        homeTeam: "FRA",
+        awayTeam: "ENG",
+        status: "live",
+        homeScore: 0,
+        awayScore: 0,
+        lineups: { home: { starters: [] }, away: { starters: [] } },
+        teamStats: {
+          home: { shots: 8, shotsOnTarget: 4, possessionPct: 60, corners: 2 },
+          away: { shots: 2, shotsOnTarget: 0, possessionPct: 40, corners: 0 },
+        },
+        players: {
+          home: [{ name: "Kylian Mbappé", shots: 3, shotsOnTarget: 2, keyPasses: 1 }],
+          away: [],
+        },
+        goals: [],
+        injuries: [],
+      },
+    ],
+  });
+  assert.match(block, /LIVE CHANCE INDEX/);
+  assert.match(block, /not Opta xG/i);
+  assert.match(block, /Team chance index/);
+});

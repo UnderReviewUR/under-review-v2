@@ -8,6 +8,10 @@ import {
 } from "../shared/wcBookScrapePolicy.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import { isNationOnlyOutcome, parseAmericanOddsNumber, formatAmericanOdds } from "../shared/wcGoldenBootConsensus.js";
+import {
+  createEmptyMatchPlayerPropMarkets,
+  mergeMatchPlayerPropMarketMaps,
+} from "../shared/wcMatchPlayerProps.js";
 
 const GOLDEN_BOOT_LABEL =
   /\b(golden boot|top goal\s*scorer|top goalscorer|world cup top scorer|most goals|leading goalscorer)\b/i;
@@ -20,6 +24,21 @@ const MATCH_FIRST_SCORER_LABEL =
 
 const MATCH_LAST_SCORER_LABEL =
   /\b(last goal\s*scorer|last goalscorer|to score last)\b/i;
+
+const MATCH_PLAYER_ASSISTS_LABEL =
+  /\b(player assists?|to record an assist|assist\s*(prop|market|o\/u)|assists?\s*o\/u)\b/i;
+
+const MATCH_PLAYER_SHOTS_LABEL =
+  /\b(player shots?(?!\s*on\s*target)|total shots?\s*(prop|market|o\/u)|shots?\s*o\/u)\b/i;
+
+const MATCH_PLAYER_SOT_LABEL =
+  /\b(shots?\s*on\s*target|player sot|sot\s*(prop|market|o\/u)|on\s*target\s*shots?)\b/i;
+
+const MATCH_PLAYER_CARD_LABEL =
+  /\b(player to be carded|to receive a card|player booking|to be booked|card\s*market|booking\s*market)\b/i;
+
+const MATCH_PLAYER_RED_CARD_LABEL =
+  /\b(red card|to receive a red|sent off|red\s*card\s*market)\b/i;
 
 /**
  * @param {string} raw
@@ -163,11 +182,43 @@ function rowFromGenericEntry(entry) {
     (typeof e.team === "object" && e.team ? e.team.abbreviation : null);
 
   if (!name || !odds || isNationOnlyOutcome(name)) return null;
+  const { line, side, playerName } = propLineSideFromEntry(e, name);
   return {
-    name,
+    name: playerName || name,
     americanOdds: odds,
     nationAbbr: nationAbbr ? String(nationAbbr).toUpperCase().slice(0, 3) : undefined,
+    line,
+    side,
   };
+}
+
+/**
+ * @param {Record<string, unknown>} e
+ * @param {string} fallbackName
+ */
+function propLineSideFromEntry(e, fallbackName) {
+  const rawLine = e.point ?? e.line ?? e.handicap ?? e.total ?? e.threshold;
+  let line = null;
+  if (rawLine != null && String(rawLine).trim() !== "") {
+    const n = Number(rawLine);
+    line = Number.isFinite(n) ? String(n) : String(rawLine).trim();
+  }
+
+  const selection = String(e.name || e.label || e.selectionName || "").trim();
+  const lower = selection.toLowerCase();
+  let side = null;
+  if (/^over\b/i.test(lower) || /\bover\s+\d/i.test(lower)) side = "over";
+  else if (/^under\b/i.test(lower) || /\bunder\s+\d/i.test(lower)) side = "under";
+  else if (/^yes\b/i.test(lower)) side = "yes";
+  else if (/^no\b/i.test(lower)) side = "no";
+
+  const description = normalizeWcPlayerName(
+    e.description || e.playerName || e.athleteName || (typeof e.athlete === "object" && e.athlete ? e.athlete.displayName : ""),
+  );
+  const playerName =
+    description && !/^(over|under|yes|no)$/i.test(description) ? description : fallbackName;
+
+  return { line, side, playerName };
 }
 
 /**
@@ -316,10 +367,15 @@ export function parseGoldenBootRowsForBook(html, bookKey) {
 
 /**
  * @param {Record<string, unknown>} obj
- * @returns {"anytime_scorer" | "first_goalscorer" | "last_goalscorer" | null}
+ * @returns {import("../shared/wcMatchPlayerProps.js").WcMatchPlayerPropMarket | null}
  */
 function matchPropMarketFromLabel(obj) {
   const label = labelFromObject(obj);
+  if (MATCH_PLAYER_RED_CARD_LABEL.test(label)) return "player_red_card";
+  if (MATCH_PLAYER_CARD_LABEL.test(label)) return "player_card";
+  if (MATCH_PLAYER_SOT_LABEL.test(label)) return "player_sot_ou";
+  if (MATCH_PLAYER_ASSISTS_LABEL.test(label)) return "player_assists_ou";
+  if (MATCH_PLAYER_SHOTS_LABEL.test(label)) return "player_shots_ou";
   if (MATCH_FIRST_SCORER_LABEL.test(label)) return "first_goalscorer";
   if (MATCH_LAST_SCORER_LABEL.test(label)) return "last_goalscorer";
   if (MATCH_ANYTIME_SCORER_LABEL.test(label)) return "anytime_scorer";
@@ -331,17 +387,12 @@ function matchPropMarketFromLabel(obj) {
  * @param {{ homeTeam?: string, awayTeam?: string }} [filter]
  */
 export function parseMatchPlayerPropRowsFromJson(json, filter = {}) {
-  /** @type {Record<string, Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string }>>} */
-  const byMarket = {
-    anytime_scorer: [],
-    first_goalscorer: [],
-    last_goalscorer: [],
-  };
+  const byMarket = createEmptyMatchPlayerPropMarkets();
   const seen = new Set();
 
   const tryPush = (row, market) => {
     if (!row || !market) return;
-    const key = `${market}|${row.name}|${row.americanOdds}`;
+    const key = `${market}|${row.name}|${row.americanOdds}|${row.line || ""}|${row.side || ""}`;
     if (seen.has(key)) return;
     seen.add(key);
     byMarket[market].push({ ...row, market });
@@ -363,7 +414,9 @@ export function parseMatchPlayerPropRowsFromJson(json, filter = {}) {
     }
   };
 
-  if (typeof json === "object" && json) {
+  if (Array.isArray(json)) {
+    for (const item of json) walkMarketNode(item);
+  } else if (typeof json === "object" && json) {
     walkMarketNode(json);
   }
 
@@ -380,7 +433,7 @@ export function parseMatchPlayerPropRowsFromJson(json, filter = {}) {
       const parentMarket = matchPropMarketFromLabel(
         typeof item === "object" && item ? /** @type {Record<string, unknown>} */ (item) : {},
       );
-      tryPush(row, parentMarket || "anytime_scorer");
+      if (parentMarket) tryPush(row, parentMarket);
     }
   }
 
@@ -415,17 +468,9 @@ export function parseMatchPlayerPropRowsFromHtml(html, filter = {}) {
     parseMatchPlayerPropRowsFromJson(b, filter),
   );
 
-  /** @type {Record<string, Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string }>>} */
-  const merged = {
-    anytime_scorer: [],
-    first_goalscorer: [],
-    last_goalscorer: [],
-  };
-
+  let merged = createEmptyMatchPlayerPropMarkets();
   for (const block of fromJson) {
-    for (const key of Object.keys(merged)) {
-      merged[key].push(...(block[key] || []));
-    }
+    merged = mergeMatchPlayerPropMarketMaps(merged, block);
   }
 
   const totalAnytime = merged.anytime_scorer.length;

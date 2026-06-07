@@ -19,9 +19,15 @@ import {
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
 import { formatWcPlayerMarketPromptRules } from "../shared/wcUrTakePlayerMarket.js";
 import {
+  formatMatchPlayerPropRowForPrompt,
+  hasMatchPlayerPropRows,
   matchPlayerPropRowsFromEvent,
+  WC_MATCH_PLAYER_PROP_MARKET_KEYS,
+  WC_MATCH_PLAYER_PROP_PROMPT_LABELS,
 } from "../shared/wcMatchPlayerProps.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import { formatApiFootballLeadersPromptBlock } from "../shared/wcApiFootballParse.js";
+import { readWcApiFootballFromKv } from "./_wcApiFootballData.js";
 import { WC_SET_PIECE_TAKERS } from "../src/data/wc2026SetPieceTakers.js";
 import {
   adjustGoldenBootOdds,
@@ -31,19 +37,20 @@ import {
 /**
  * @param {number} [nowMs]
  * @param {{ wcEventId?: string | null, wcIntent?: string }} [opts]
- * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, wcEventId: string | null }>}
+ * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, apiFootball: object | null, wcEventId: string | null }>}
  */
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
   const wcEventId = String(opts.wcEventId || "").trim() || null;
   const loadMatchProps = wcEventId && opts.wcIntent === WC_INTENT.PLAYER_PROP;
 
-  const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
+  const [players, goldenBoot, injuries, matchPlayerProps, apiFootball] = await Promise.all([
     readWcPlayersFromKv(),
     readWcGoldenBootFromKv(nowMs),
     readWcInjuriesFromKv(),
     loadMatchProps ? readWcMatchPlayerPropsForEvent(wcEventId, nowMs) : Promise.resolve(null),
+    readWcApiFootballFromKv(nowMs),
   ]);
-  return { players, goldenBoot, injuries, matchPlayerProps, wcEventId };
+  return { players, goldenBoot, injuries, matchPlayerProps, apiFootball, wcEventId };
 }
 
 /**
@@ -158,6 +165,7 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     injuries,
     matchDetails = [],
     matchPlayerProps = null,
+    apiFootball = null,
     wcEventId = null,
     tournamentSimResults = null,
   } = opts;
@@ -178,10 +186,8 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
   ];
 
   const eventId = String(wcEventId || matchPlayerProps?.eventId || "").trim();
-  const anytimeRows = matchPlayerPropRowsFromEvent(matchPlayerProps, "anytime_scorer", 18);
-  const firstRows = matchPlayerPropRowsFromEvent(matchPlayerProps, "first_goalscorer", 10);
 
-  if (eventId && anytimeRows.length) {
+  if (eventId && hasMatchPlayerPropRows(matchPlayerProps)) {
     const mpFresh =
       matchPlayerProps?.freshness ||
       calculateOddsFreshness(
@@ -189,26 +195,30 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
         WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
       );
     lines.push(
-      `MATCH PLAYER PROPS — event ${eventId} (binding for this fixture; prefer over tournament Golden Boot when answering match-scoped asks):`,
+      `MATCH PLAYER PROPS — event ${eventId} (binding for this fixture; prefer over tournament Golden Boot when answering match-scoped player asks):`,
       `  Source: ${String(matchPlayerProps?.source || "consensus")}`,
       `  Books: ${(matchPlayerProps?.booksUsed || []).join(", ") || "unknown"}`,
       `  Fixture: ${matchPlayerProps?.awayTeam || "?"} @ ${matchPlayerProps?.homeTeam || "?"}`,
       `  Freshness: ${mpFresh.ageText}${mpFresh.isStale ? " — STALE" : ""}`,
+      "  Cite only player names and American prices listed below — do not invent assist/card/SOT lines.",
       "",
-      "  ANYTIME GOALSCORER (cite only prices below):",
     );
-    for (const r of anytimeRows) {
-      const team = r.nationAbbr ? ` (${r.nationAbbr})` : "";
-      lines.push(`    ${r.name}${team}: ${r.americanOdds}`);
-    }
-    if (firstRows.length) {
-      lines.push("", "  FIRST GOALSCORER:");
-      for (const r of firstRows.slice(0, 8)) {
-        const team = r.nationAbbr ? ` (${r.nationAbbr})` : "";
-        lines.push(`    ${r.name}${team}: ${r.americanOdds}`);
+
+    for (const marketKey of WC_MATCH_PLAYER_PROP_MARKET_KEYS) {
+      const limit =
+        marketKey === "anytime_scorer"
+          ? 18
+          : marketKey === "first_goalscorer"
+            ? 8
+            : 12;
+      const rows = matchPlayerPropRowsFromEvent(matchPlayerProps, marketKey, limit);
+      if (!rows.length) continue;
+      lines.push(`  ${WC_MATCH_PLAYER_PROP_PROMPT_LABELS[marketKey]}:`);
+      for (const r of rows) {
+        lines.push(`    ${formatMatchPlayerPropRowForPrompt(marketKey, r)}`);
       }
+      lines.push("");
     }
-    lines.push("");
   }
 
   if (gbRows.length) {
@@ -244,6 +254,11 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     if (adjustedBlock) {
       lines.push(adjustedBlock, "");
     }
+  }
+
+  const apiFootballLeadersBlock = formatApiFootballLeadersPromptBlock(apiFootball?.leaders);
+  if (apiFootballLeadersBlock) {
+    lines.push(apiFootballLeadersBlock, "");
   }
 
   const squadLines = formatSquadLeadersForPrompt(players);

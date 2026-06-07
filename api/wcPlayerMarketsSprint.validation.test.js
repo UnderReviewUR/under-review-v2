@@ -118,8 +118,35 @@ test("Phase C — prompt block includes match player props when event pinned", (
   });
   assert.match(block, /MATCH PLAYER PROPS/);
   assert.match(block, /ANYTIME GOALSCORER/);
+  assert.match(block, /PLAYER ASSISTS \(O\/U\)/);
+  assert.match(block, /PLAYER SHOTS ON TARGET \(O\/U\)/);
+  assert.match(block, /PLAYER TO RECEIVE A CARD/);
   assert.match(block, /Mbapp/);
   assert.match(block, /\+180/);
+  assert.match(block, /Over 0\.5: \+140/);
+});
+
+test("Phase C — prompt block includes API-Football leaders when present", () => {
+  const block = formatWcPlayerMarketsPromptBlock({
+    tier: "market_only",
+    tierLabel: "Market Odds",
+    tierDisclaimer: "test",
+    wcIntent: "TOP_SCORER",
+    goldenBoot: MOCK_WC_PLAYER_MARKET_KV.goldenBoot,
+    players: MOCK_WC_PLAYER_MARKET_KV.players,
+    injuries: MOCK_WC_PLAYER_MARKET_KV.injuries,
+    apiFootball: {
+      leaders: {
+        assists: [{ name: "Kylian Mbappé", nationAbbr: "FRA", total: 4, appearances: 3 }],
+        yellowCards: [{ name: "Casemiro", nationAbbr: "BRA", total: 2, appearances: 2 }],
+        redCards: [],
+      },
+    },
+    matchDetails: [],
+  });
+  assert.match(block, /API-FOOTBALL TOURNAMENT LEADERS/);
+  assert.match(block, /TOP ASSISTS/);
+  assert.match(block, /Mbapp/);
 });
 
 test("Phase C — verified tier when match props fresh + wcEventId", () => {

@@ -1,0 +1,24 @@
+{
+  "response": [
+    {
+      "player": { "id": 1, "name": "Kylian Mbappé" },
+      "statistics": [
+        {
+          "team": { "name": "France" },
+          "games": { "appearences": 3 },
+          "goals": { "assists": 4 }
+        }
+      ]
+    },
+    {
+      "player": { "id": 2, "name": "Antoine Griezmann" },
+      "statistics": [
+        {
+          "team": { "name": "France" },
+          "games": { "appearences": 3 },
+          "goals": { "assists": 3 }
+        }
+      ]
+    }
+  ]
+}

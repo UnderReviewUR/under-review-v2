@@ -21,6 +21,16 @@ export const WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT = {
         { name: "Kylian Mbappé", americanOdds: "+550", nationAbbr: "FRA" },
         { name: "Vinícius Júnior", americanOdds: "+650", nationAbbr: "BRA" },
       ],
+      player_assists_ou: [
+        { name: "Kylian Mbappé", americanOdds: "+140", nationAbbr: "FRA", line: "0.5", side: "over" },
+        { name: "Antoine Griezmann", americanOdds: "+220", nationAbbr: "FRA", line: "0.5", side: "over" },
+      ],
+      player_sot_ou: [
+        { name: "Vinícius Júnior", americanOdds: "-115", nationAbbr: "BRA", line: "1.5", side: "over" },
+      ],
+      player_card: [
+        { name: "Casemiro", americanOdds: "+280", nationAbbr: "BRA", side: "yes" },
+      ],
     },
   },
 };

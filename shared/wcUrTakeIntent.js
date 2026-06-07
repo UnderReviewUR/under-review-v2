@@ -78,7 +78,8 @@ export const WC_INTENT_CATALOG = [
   {
     id: WC_INTENT.PLAYER_PROP,
     label: "Player prop",
-    description: "Named player scoring props (anytime/first goalscorer, match-scoped scorer).",
+    description:
+      "Named player match props (scorer, assists O/U, shots/SOT O/U, card markets) when fixture lines exist in VERIFIED CONTEXT.",
   },
   {
     id: WC_INTENT.CONTINUATION,
@@ -133,7 +134,7 @@ const WC_TOP_SCORER_RE =
   /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
 
 const WC_PLAYER_PROP_RE =
-  /\b(which player|what player|player will score|player to score|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer)\b/i;
+  /\b(which player|what player|player will|player to|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer|assist\s*prop|record an assist|to record an assist|player assists?|assists?\s*(prop|market|o\/u|over)|shots?\s*on\s*target|sot\s*prop|player shots?|total shots?\s*(prop|o\/u)|to be carded|receive a card|booking\s*prop|yellow card|red card|card\s*prop)\b/i;
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 

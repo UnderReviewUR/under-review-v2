@@ -1,0 +1,26 @@
+{
+  "response": [
+    {
+      "fixture": {
+        "id": 10001,
+        "date": "2026-06-13T22:00:00+00:00",
+        "status": { "short": "NS" }
+      },
+      "teams": {
+        "home": { "id": 1, "name": "France" },
+        "away": { "id": 2, "name": "England" }
+      }
+    },
+    {
+      "fixture": {
+        "id": 10002,
+        "date": "2026-06-14T01:00:00+00:00",
+        "status": { "short": "LIVE" }
+      },
+      "teams": {
+        "home": { "id": 3, "name": "Brazil" },
+        "away": { "id": 4, "name": "Mexico" }
+      }
+    }
+  ]
+}

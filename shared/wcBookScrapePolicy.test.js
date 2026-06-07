@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyWcMatchPlayerPropsUrlTemplate,
   isWcBookRegionEnabled,
   isWcGoldenBootBookEnabled,
+  listWcMatchPlayerPropsScrapeUrls,
   wcBookScrapeFlagsSnapshot,
 } from "./wcBookScrapePolicy.js";
 
@@ -28,4 +30,23 @@ test("wcBookScrapeFlagsSnapshot includes alert-friendly structure", () => {
   assert.ok(snap.uk);
   assert.ok(snap.agg);
   assert.ok("draftkings" in snap.us);
+});
+
+test("applyWcMatchPlayerPropsUrlTemplate substitutes team slugs from registry", () => {
+  const url = applyWcMatchPlayerPropsUrlTemplate(
+    "https://sportsbook.fanduel.com/soccer/fifa-world-cup-2026/{home}-v-{away}",
+    { homeTeam: "BRA", awayTeam: "FRA", eventId: "760416" },
+  );
+  assert.equal(url, "https://sportsbook.fanduel.com/soccer/fifa-world-cup-2026/brazil-v-france");
+});
+
+test("listWcMatchPlayerPropsScrapeUrls returns primary plus event fallback", () => {
+  const urls = listWcMatchPlayerPropsScrapeUrls("draftkings", {
+    eventId: "760416",
+    homeTeam: "BRA",
+    awayTeam: "FRA",
+  });
+  assert.ok(urls.length >= 2);
+  assert.ok(urls[0].includes("draftkings.com"));
+  assert.equal(urls[1], "https://sportsbook.draftkings.com/event/760416");
 });

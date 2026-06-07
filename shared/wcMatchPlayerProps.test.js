@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  formatMatchPlayerPropRowForPrompt,
+  hasMatchPlayerPropRows,
   isMatchPlayerPropsFresh,
   matchPlayerPropRowsFromEvent,
   matchPlayerPropsForEvent,
@@ -23,4 +25,20 @@ test("matchPlayerPropRowsFromEvent returns anytime rows", () => {
   assert.ok(rows.length >= 3);
   assert.match(rows[0].name, /Mbapp/);
   assert.equal(rows[0].americanOdds, "+180");
+});
+
+test("hasMatchPlayerPropRows true when extended markets present", () => {
+  assert.ok(hasMatchPlayerPropRows(MOCK_WC_MATCH_PLAYER_PROPS_EVENT));
+  const assists = matchPlayerPropRowsFromEvent(
+    MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+    "player_assists_ou",
+    5,
+  );
+  assert.equal(assists.length, 2);
+  assert.equal(assists[0].line, "0.5");
+  assert.equal(assists[0].side, "over");
+  assert.match(
+    formatMatchPlayerPropRowForPrompt("player_assists_ou", assists[0]),
+    /Over 0\.5: \+140/,
+  );
 });

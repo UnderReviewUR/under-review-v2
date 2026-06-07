@@ -33,6 +33,7 @@ import {
   WC_INJURIES_SCRAPE_INTERVAL_MS,
   WC_PLAYERS_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026PlayerConstants.js";
+import { WC_API_FOOTBALL_SCRAPE_INTERVAL_MS } from "../shared/wcApiFootballPolicy.js";
 import { isNbaFinalsWindowEt } from "../shared/nbaFinalsHomePrompt.js";
 import {
   isNba2026FinalsMatchupGame,
@@ -433,6 +434,13 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     gameStartMs: noonEtMs,
     priority: WC_SCRAPE_PRIORITY.TOURNAMENT_SIM,
     meta: { kind: "tournament_sim", fixedIntervalMs: WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS },
+  });
+  out.push({
+    sport: "wc_api_football",
+    gameId: "api_football_backup",
+    gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.API_FOOTBALL,
+    meta: { kind: "api_football", fixedIntervalMs: WC_API_FOOTBALL_SCRAPE_INTERVAL_MS },
   });
 
   const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);

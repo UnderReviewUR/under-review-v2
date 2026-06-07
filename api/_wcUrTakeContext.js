@@ -39,6 +39,14 @@ import {
 } from "../shared/wcPhaseUtils.js";
 import { formatVenueWarningsForPrompt } from "../shared/wcVenueMetadata.js";
 import { resolveWcTournamentSimForPrompt } from "./_wcTournamentSimData.js";
+import {
+  buildLiveMatchChanceQualityFromDetail,
+  formatLiveMatchChanceQualityPromptBlock,
+  formatMatchChanceQualityPromptBlock,
+} from "../shared/wcMatchChanceQuality.js";
+import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
+import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
+import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -374,6 +382,38 @@ function formatMatchIntelBlock(detail) {
     );
   }
 
+  const apiLiveBlock = formatApiFootballLivePlayersPromptBlock(
+    detail.apiFootballLive?.players,
+    detail.homeTeam,
+    detail.awayTeam,
+  );
+  if (apiLiveBlock) {
+    lines.push("", apiLiveBlock);
+  }
+
+  const advBlock = formatMatchChanceQualityPromptBlock(detail.advancedStats);
+  if (advBlock) {
+    lines.push("", advBlock);
+  } else if (String(detail.status || "").toUpperCase() === "FT") {
+    lines.push(
+      "",
+      "POST-MATCH CHANCE QUALITY: No verified post-match chance index in KV for this fixture.",
+      "  Do not invent Opta xG — cite ESPN shots/SOT/key passes from MATCH INTEL above, or Pass if thin.",
+    );
+  } else if (isLiveStatus(detail.status)) {
+    const liveChance = buildLiveMatchChanceQualityFromDetail(detail);
+    const liveBlock = formatLiveMatchChanceQualityPromptBlock(liveChance);
+    if (liveBlock) {
+      lines.push("", liveBlock);
+    } else {
+      lines.push(
+        "",
+        "LIVE CHANCE INDEX: Insufficient live stats for an ESPN-derived estimate.",
+        "  Use shots, SOT, key passes, and possession from MATCH INTEL — do not claim live xG or Opta xG numbers.",
+      );
+    }
+  }
+
   return lines.join("\n");
 }
 
@@ -680,7 +720,21 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   for (const fx of fixtures) {
     try {
       const detail = await readWcMatchDetailFromKv(fx.id);
-      if (detail) matchDetails.push(detail);
+      if (!detail) continue;
+      let enriched = detail;
+      try {
+        const advancedStats = await readWcMatchAdvancedStatsForEvent(fx.id, nowMs);
+        if (advancedStats) enriched = { ...enriched, advancedStats };
+      } catch (advErr) {
+        console.warn("[wc-context] readWcMatchAdvancedStatsForEvent failed for", fx.id, advErr?.message);
+      }
+      try {
+        const apiLive = await readWcApiFootballLiveStatsForEvent(fx.id, nowMs);
+        if (apiLive) enriched = { ...enriched, apiFootballLive: apiLive };
+      } catch (apiErr) {
+        console.warn("[wc-context] readWcApiFootballLiveStatsForEvent failed for", fx.id, apiErr?.message);
+      }
+      matchDetails.push(enriched);
     } catch (err) {
       console.warn("[wc-context] readWcMatchDetailFromKv failed for", fx.id, err?.message);
     }
@@ -796,6 +850,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       ctx.playerMarketTier = playerMarketTier;
       ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
         tier: playerMarketTier,
+        apiFootball: playerMarketKv.apiFootball,
         tierLabel: tierMeta.label,
         tierDisclaimer: tierMeta.disclaimer,
         wcIntent,
