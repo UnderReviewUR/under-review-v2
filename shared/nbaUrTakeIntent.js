@@ -1,11 +1,11 @@
 /**
  * NBA UR Take — question intent classification (instrumentation / Phase 0+).
- * No prompt behavior changes; used for nbaRelevance logging and regression fixtures.
+ * Used for nbaRelevance logging, session-memory pivots, and regression fixtures.
  */
 
 import { extractNbaTeamAbbrevsFromQuestion } from "./nbaTeamFromQuestion.js";
 
-/** @typedef {"PREGAME_MATCHUP"|"LIVE_IN_GAME"|"SERIES_WINNER"|"FINALS_MVP"|"PROP_PLAYER"|"CONTINUATION"|"UNCLASSIFIED"} NbaUrTakeIntent */
+/** @typedef {"PREGAME_MATCHUP"|"LIVE_IN_GAME"|"SERIES_WINNER"|"FINALS_MVP"|"PROP_PLAYER"|"CONTINUATION"|"GENERAL"|"UNCLASSIFIED"} NbaUrTakeIntent */
 
 export const NBA_INTENT = {
   PREGAME_MATCHUP: "PREGAME_MATCHUP",
@@ -14,6 +14,8 @@ export const NBA_INTENT = {
   FINALS_MVP: "FINALS_MVP",
   PROP_PLAYER: "PROP_PLAYER",
   CONTINUATION: "CONTINUATION",
+  /** Default catch-all when no specialized NBA pattern matches. */
+  GENERAL: "GENERAL",
   UNCLASSIFIED: "UNCLASSIFIED",
 };
 
@@ -65,7 +67,7 @@ export function classifyNbaQuestionIntent(question, history = []) {
   }
   if (PRICING_SIGNAL_RE.test(ql)) return NBA_INTENT.SERIES_WINNER;
 
-  return NBA_INTENT.UNCLASSIFIED;
+  return NBA_INTENT.GENERAL;
 }
 
 /**

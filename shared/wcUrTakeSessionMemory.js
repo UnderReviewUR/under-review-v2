@@ -1,5 +1,5 @@
 /**
- * World Cup UR Take — scoped session memory (prior takes + structural edge).
+ * World Cup UR Take — scoped session memory (prior takes + WC entity filters).
  */
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
@@ -7,18 +7,12 @@ import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
   classifyWcQuestionIntent,
   isWcGroupSlateQuestion,
-  resolveContinuationEntities,
   WC_INTENT,
 } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { resolveRequiredEntities } from "./wcUrTakeEntityBinding.js";
-import { appendSessionStructuralEdgeBlock } from "./urTakeSessionStructuralEdge.js";
-import {
-  buildWcConversationTransitionBlock,
-  filterPriorTakesOnWcConversationPivot,
-  softenPriorTakesInstructions,
-  wcConversationPivotMeta,
-} from "./wcUrTakeConversation.js";
+import { buildUrTakeSessionMemoryPrompt } from "./urTakeConversation.js";
+import { wcConversationPivotMeta } from "./wcUrTakeConversation.js";
 
 /** @param {string} abbr */
 function teamGroup(abbr) {
@@ -58,30 +52,19 @@ export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opt
     ? opts.requiredEntities.map((t) => String(t).toUpperCase())
     : resolveRequiredEntities(question, history, wcIntent);
 
-  const conversationTransitionBlock = buildWcConversationTransitionBlock(
+  const base = buildUrTakeSessionMemoryPrompt(priorSummary, history, sportHint, {
     question,
-    history,
-    wcIntent,
-  );
+    intent: wcIntent,
+  });
 
   if (wcIntent === WC_INTENT.RULES) {
-    return { summary: "", structuralEdgeInjected: false, conversationTransitionBlock };
+    return base;
   }
 
-  let baseSummary = filterPriorTakesForWc(priorSummary, requiredEntities);
-  baseSummary = filterPriorTakesOnWcConversationPivot(
-    baseSummary,
-    question,
-    history,
-    wcIntent,
-  );
+  let baseSummary = filterPriorTakesForWc(base.summary, requiredEntities);
 
   if (isWcGroupSlateQuestion(question)) {
     baseSummary = filterPriorTakesForWcGroupSlate(baseSummary);
-  }
-
-  if (conversationTransitionBlock) {
-    baseSummary = softenPriorTakesInstructions(baseSummary);
   }
 
   const sessionEntities = extractSessionWcEntities(history);
@@ -104,21 +87,15 @@ export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opt
     return {
       summary: baseSummary,
       structuralEdgeInjected: false,
-      conversationTransitionBlock,
+      conversationTransitionBlock: base.conversationTransitionBlock,
     };
   }
 
-  if (String(sportHint || "").toLowerCase() === "worldcup") {
-    return {
-      summary: baseSummary,
-      structuralEdgeInjected: false,
-      conversationTransitionBlock,
-    };
-  }
-
-  const withEdge = appendSessionStructuralEdgeBlock(baseSummary, history, sportHint);
-  const structuralEdgeInjected = withEdge.length > (baseSummary || "").length;
-  return { summary: withEdge, structuralEdgeInjected, conversationTransitionBlock };
+  return {
+    summary: baseSummary,
+    structuralEdgeInjected: base.structuralEdgeInjected,
+    conversationTransitionBlock: base.conversationTransitionBlock,
+  };
 }
 
 /**

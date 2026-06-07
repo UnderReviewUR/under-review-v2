@@ -181,6 +181,10 @@ import {
   extractSessionWcEntities,
 } from "../../shared/wcUrTakeSessionMemory.js";
 import {
+  buildUrTakeSessionMemoryPrompt,
+  UR_TAKE_CONVERSATION_FOLLOW_UP_APPENDIX,
+} from "../../shared/urTakeConversation.js";
+import {
   buildWcMatchupIntentRules,
   getWcTeamStrengthTags,
 } from "../../shared/wcUrTakeMatchup.js";
@@ -3175,6 +3179,7 @@ ${jsonContract}${propProjectionModeBlock}${spreadAndGameSideBlock}`
 ${nbaLiveNoPropSystemPromptBlock}`;
   }
   if (isConversationFollowUp) {
+    systemPromptForModel = `${systemPromptForModel}\n\n${UR_TAKE_CONVERSATION_FOLLOW_UP_APPENDIX}`;
     if (sportHint === "worldcup") {
       const wcFollowUpAppendix =
         wcIntent === WC_INTENT.RULES
@@ -3202,19 +3207,28 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
     }
   }
 
-  const priorTakesSummary = summarizePriorTakesWithStructuralEdge(incomingHistory, sportHint);
-  let wcPriorTakesSummary = priorTakesSummary;
-  let wcConversationTransitionBlock = "";
+  const rawPriorTakesSummary = summarizePriorTakes(incomingHistory);
+  let sessionMemory;
   if (sportHint === "worldcup") {
-    const wcMemory = buildWcSessionMemoryPrompt(priorTakesSummary, incomingHistory, sportHint, {
+    sessionMemory = buildWcSessionMemoryPrompt(rawPriorTakesSummary, incomingHistory, sportHint, {
       wcIntent,
       requiredEntities: wcRequiredEntities,
       question: String(question || ""),
     });
-    wcPriorTakesSummary = wcMemory.summary;
-    wcConversationTransitionBlock = wcMemory.conversationTransitionBlock || "";
-    wcRelevanceLog.structuralEdgeInjected = wcMemory.structuralEdgeInjected;
+    wcRelevanceLog.structuralEdgeInjected = sessionMemory.structuralEdgeInjected;
+  } else {
+    const nbaIntentForMemory =
+      sportHint === "nba"
+        ? classifyNbaQuestionIntent(String(question || ""), incomingHistory)
+        : null;
+    sessionMemory = buildUrTakeSessionMemoryPrompt(rawPriorTakesSummary, incomingHistory, sportHint, {
+      question: String(question || ""),
+      intent: nbaIntentForMemory,
+    });
   }
+  const priorTakesSummary = [sessionMemory.summary, sessionMemory.conversationTransitionBlock]
+    .filter(Boolean)
+    .join("\n\n");
   const nbaImpactSummary =
     sportHint === "nba" ? summarizeNbaNewsImpact(nbaNewsImpact) : "";
   const nbaStatusShiftLine =
@@ -4531,7 +4545,7 @@ Confidence guidance:
 
     userPrompt = `${wcRoleLine}
 
-${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${wcConversationTransitionBlock ? `${wcConversationTransitionBlock}\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
 
 Question:
 ${question}
