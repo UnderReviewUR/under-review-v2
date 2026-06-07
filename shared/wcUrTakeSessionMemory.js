@@ -13,6 +13,12 @@ import {
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { resolveRequiredEntities } from "./wcUrTakeEntityBinding.js";
 import { appendSessionStructuralEdgeBlock } from "./urTakeSessionStructuralEdge.js";
+import {
+  buildWcConversationTransitionBlock,
+  filterPriorTakesOnWcConversationPivot,
+  softenPriorTakesInstructions,
+  wcConversationPivotMeta,
+} from "./wcUrTakeConversation.js";
 
 /** @param {string} abbr */
 function teamGroup(abbr) {
@@ -43,22 +49,39 @@ export function extractSessionWcEntities(history) {
  * @param {object[]} history
  * @param {string} sportHint
  * @param {{ wcIntent?: string, requiredEntities?: string[], question?: string }} opts
- * @returns {{ summary: string, structuralEdgeInjected: boolean }}
+ * @returns {{ summary: string, structuralEdgeInjected: boolean, conversationTransitionBlock: string }}
  */
 export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opts = {}) {
-  const wcIntent = opts.wcIntent || classifyWcQuestionIntent(opts.question || "", history);
+  const question = String(opts.question || "");
+  const wcIntent = opts.wcIntent || classifyWcQuestionIntent(question, history);
   const requiredEntities = opts.requiredEntities?.length
     ? opts.requiredEntities.map((t) => String(t).toUpperCase())
-    : resolveRequiredEntities(opts.question || "", history, wcIntent);
+    : resolveRequiredEntities(question, history, wcIntent);
+
+  const conversationTransitionBlock = buildWcConversationTransitionBlock(
+    question,
+    history,
+    wcIntent,
+  );
 
   if (wcIntent === WC_INTENT.RULES) {
-    return { summary: "", structuralEdgeInjected: false };
+    return { summary: "", structuralEdgeInjected: false, conversationTransitionBlock };
   }
 
   let baseSummary = filterPriorTakesForWc(priorSummary, requiredEntities);
+  baseSummary = filterPriorTakesOnWcConversationPivot(
+    baseSummary,
+    question,
+    history,
+    wcIntent,
+  );
 
-  if (isWcGroupSlateQuestion(opts.question || "") || wcIntent === WC_INTENT.STRUCTURAL) {
+  if (isWcGroupSlateQuestion(question)) {
     baseSummary = filterPriorTakesForWcGroupSlate(baseSummary);
+  }
+
+  if (conversationTransitionBlock) {
+    baseSummary = softenPriorTakesInstructions(baseSummary);
   }
 
   const sessionEntities = extractSessionWcEntities(history);
@@ -67,25 +90,35 @@ export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opt
     sessionEntities.length > 0 &&
     !requiredEntities.every((e) => sessionEntities.includes(e));
 
+  const pivot = wcConversationPivotMeta(question, history, wcIntent);
   const intentPivot =
-    isWcGroupSlateQuestion(opts.question || "") &&
-    history.some((t) => {
-      if (t?.role !== "user") return false;
-      const priorIntent = classifyWcQuestionIntent(String(t?.content || t?.text || ""), []);
-      return isWcPlayerMarketIntent(priorIntent);
-    });
+    pivot.pivoted ||
+    (isWcGroupSlateQuestion(question) &&
+      history.some((t) => {
+        if (t?.role !== "user") return false;
+        const priorIntent = classifyWcQuestionIntent(String(t?.content || t?.text || ""), []);
+        return isWcPlayerMarketIntent(priorIntent);
+      }));
 
   if (entityChanged || intentPivot) {
-    return { summary: baseSummary, structuralEdgeInjected: false };
+    return {
+      summary: baseSummary,
+      structuralEdgeInjected: false,
+      conversationTransitionBlock,
+    };
   }
 
   if (String(sportHint || "").toLowerCase() === "worldcup") {
-    return { summary: baseSummary, structuralEdgeInjected: false };
+    return {
+      summary: baseSummary,
+      structuralEdgeInjected: false,
+      conversationTransitionBlock,
+    };
   }
 
   const withEdge = appendSessionStructuralEdgeBlock(baseSummary, history, sportHint);
   const structuralEdgeInjected = withEdge.length > (baseSummary || "").length;
-  return { summary: withEdge, structuralEdgeInjected };
+  return { summary: withEdge, structuralEdgeInjected, conversationTransitionBlock };
 }
 
 /**

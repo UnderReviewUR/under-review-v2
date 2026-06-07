@@ -3204,6 +3204,7 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
 
   const priorTakesSummary = summarizePriorTakesWithStructuralEdge(incomingHistory, sportHint);
   let wcPriorTakesSummary = priorTakesSummary;
+  let wcConversationTransitionBlock = "";
   if (sportHint === "worldcup") {
     const wcMemory = buildWcSessionMemoryPrompt(priorTakesSummary, incomingHistory, sportHint, {
       wcIntent,
@@ -3211,6 +3212,7 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
       question: String(question || ""),
     });
     wcPriorTakesSummary = wcMemory.summary;
+    wcConversationTransitionBlock = wcMemory.conversationTransitionBlock || "";
     wcRelevanceLog.structuralEdgeInjected = wcMemory.structuralEdgeInjected;
   }
   const nbaImpactSummary =
@@ -4443,19 +4445,20 @@ Confidence guidance:
         : "";
     const isWcRulesIntent = wcIntent === WC_INTENT.RULES;
     const isWcMatchupIntent = wcIntent === WC_INTENT.MATCHUP;
-    const isWcPlayerMarketIntentFlag = isWcPlayerMarketIntent(wcIntent);
-    const wcPlayerMarketResolved = isWcPlayerMarketIntentFlag
-      ? resolveWcPlayerMarketResponse(String(question || ""), wcIntent, wcContext)
-      : null;
+    const isWcTopGoalscorersListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
+    const isWcPlayerMarketIntentFlag =
+      isWcPlayerMarketIntent(wcIntent) && !isWcTopGoalscorersListIntent;
+    const wcPlayerMarketResolved =
+      isWcPlayerMarketIntent(wcIntent) || isWcTopGoalscorersListIntent
+        ? resolveWcPlayerMarketResponse(String(question || ""), wcIntent, wcContext)
+        : null;
     const wcPlayerMarketBlock =
       wcPlayerMarketResolved?.promptAppendix && !wcPlayerMarketResolved.forcePass
         ? `${wcPlayerMarketResolved.promptAppendix}\n\n`
         : "";
     const wcGroupLetterForPrompt =
       extractGroupLetterFromQuestion(String(question || "")) ||
-      (isWcGroupSlateQuestion(String(question || "")) || wcIntent === WC_INTENT.STRUCTURAL
-        ? "D"
-        : null);
+      (isWcGroupSlateQuestion(String(question || "")) ? "D" : null);
     const wcGroupCompositionBlock = wcGroupLetterForPrompt
       ? `${formatWcGroupCompositionPromptBlock(wcGroupLetterForPrompt)}\n\n`
       : "";
@@ -4463,9 +4466,11 @@ Confidence guidance:
       ? "You are answering a factual 2026 FIFA World Cup rules question."
       : isWcMatchupIntent
         ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
-        : isWcPlayerMarketIntentFlag
-          ? "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
-          : "You are answering a 2026 FIFA World Cup betting question.";
+        : isWcTopGoalscorersListIntent
+          ? "You are answering a 2026 FIFA World Cup top goalscorers list question (ranked players with odds)."
+          : isWcPlayerMarketIntentFlag
+            ? "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
+            : "You are answering a 2026 FIFA World Cup betting question.";
     const wcIntentRules = isWcRulesIntent
       ? `- Answer with tournament rules only. Do NOT lead with a betting take or group-stage prediction.
 - Lead sentence one with the direct answer about extra time, penalties, or the specific rule asked.
@@ -4479,27 +4484,39 @@ Confidence guidance:
 - If CURRENT OUTRIGHT ODDS is missing or STALE, use cautious structural language — no overconfident winner picks.
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-        : isWcPlayerMarketIntentFlag
+        : isWcTopGoalscorersListIntent
           ? `- Return JSON per OUTPUT CONTRACT only (summary + deep keys).
+- summary: numbered list of exactly five named players with American odds from GOLDEN BOOT in VERIFIED CONTEXT — not a single-player lean.
+- deep max 120 words: brief context on gaps between #1–#5; do not repeat the full list verbatim.
+- Do NOT paste the prior turn's one-line top-scorer answer — this turn is a ranked board.
+- Cite only prices from PLAYER MARKETS — VERIFIED CONTEXT.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+          : isWcPlayerMarketIntentFlag
+            ? `- Return JSON per OUTPUT CONTRACT only (summary + deep keys).
 - summary max 40 words: direct answer to the question — PLAYER name, price, PASS or lean. No thesis, no section headers.
 - deep max 100 words: optional extra detail for Full breakdown only — do not repeat summary.
 - Never answer with only a country/national team as the scorer.
 - Cite only prices from PLAYER MARKETS — VERIFIED CONTEXT.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-          : wcIntent === WC_INTENT.SCORE_PREDICTION
+            : wcIntent === WC_INTENT.SCORE_PREDICTION
             ? `- Return JSON per OUTPUT CONTRACT: summary max 90 words.
 - User wants SCORELINES (e.g. top 5 scores to consider) — list exactly five plausible final scores with winner orientation (e.g. "MEX 2-1 RSA", "1-1").
 - Do NOT answer with Golden Boot, top scorer, or a single-player prop from earlier turns.
 - Name the match or teams in scope when known from the question or REQUIRED ENTITIES.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-          : isWcGroupSlateQuestion(String(question || "")) || wcIntent === WC_INTENT.STRUCTURAL
+          : isWcGroupSlateQuestion(String(question || ""))
             ? `- Return JSON per OUTPUT CONTRACT: summary max 60 words — sentence one names the group-stage pick (team + market).
 - Answer the group/slate question only — not Golden Boot or a named player from earlier turns.
 - Each group has exactly four teams: one Favorite, one Contender, two Longshots — use the GROUP composition block when present; never miscount longshots.
 - When describing a group, name all four teams with correct strength tags.
 - Cite team abbreviations and odds from CURRENT OUTRIGHT ODDS or FIXTURE MATCH ODDS when claiming value.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
-            : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
+            : wcIntent === WC_INTENT.CONTINUATION
+              ? `- Return JSON per OUTPUT CONTRACT: summary max 120 words — extend the prior thread the user referenced.
+- Build on the last exchange; do not cold-start an unrelated thesis unless the user pivoted.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+              : `- Return JSON per OUTPUT CONTRACT: summary = punchy verdict (150 words max); deep = full reasoning (no word limit).
+- This is a general World Cup question — answer what was asked (no forced group pick or player-market template).
 - Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Follow with 2-3 sentences of supporting reasoning only in summary.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
@@ -4514,7 +4531,7 @@ Confidence guidance:
 
     userPrompt = `${wcRoleLine}
 
-${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
+${wcPriorTakesSummary ? wcPriorTakesSummary + "\n\n" : ""}${wcConversationTransitionBlock ? `${wcConversationTransitionBlock}\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
 
 Question:
 ${question}
@@ -4746,7 +4763,10 @@ You are responding to a Pro subscriber. Apply the following:
     /** World Cup relevance QA — declared outside QA loop for post-loop player-market repair. */
     let wcQaResult = null;
 
-    if (sportHint === "worldcup" && isWcPlayerMarketIntent(wcIntent)) {
+    if (
+      sportHint === "worldcup" &&
+      (isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST)
+    ) {
       const wcPlayerResolved = resolveWcPlayerMarketResponse(
         String(question || ""),
         wcIntent,

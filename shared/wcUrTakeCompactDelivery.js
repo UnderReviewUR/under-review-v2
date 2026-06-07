@@ -71,13 +71,16 @@ export function buildWcCompactStructured(opts = {}) {
       ? opts.structuredSeed
       : null;
 
-  if (seed?.lean && seed?.call && isWcPlayerMarketIntent(wcIntent)) {
+  const isListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
+  if (seed?.lean && seed?.call && (isWcPlayerMarketIntent(wcIntent) || isListIntent)) {
+    const leanMax = isListIntent ? 520 : WC_LEAN_MAX;
+    const callMax = isListIntent ? WC_CALL_DIRECT_MAX : WC_CALL_PLAYER_MAX;
     return {
       sport: "worldcup",
-      callType: String(seed.callType || callTypeForPlayerTier(tier)),
+      callType: String(seed.callType || (isListIntent ? "goalscorers_list" : callTypeForPlayerTier(tier))),
       playerMarketTier: String(seed.playerMarketTier || tier),
-      lean: clipWcText(String(seed.lean || ""), WC_LEAN_MAX),
-      call: clipWcText(String(seed.call || ""), WC_CALL_PLAYER_MAX),
+      lean: clipWcText(String(seed.lean || ""), leanMax),
+      call: clipWcText(String(seed.call || ""), callMax),
       whyNow: clipWcText(String(seed.whyNow || ""), 400),
       edge: clipWcText(String(seed.edge || ""), 200),
       confidence: String(seed.confidence || "Speculative"),
@@ -96,7 +99,8 @@ export function buildWcCompactStructured(opts = {}) {
     wcIntent === WC_INTENT.MATCHUP ||
     wcIntent === WC_INTENT.STRUCTURAL ||
     wcIntent === WC_INTENT.ENTITY_PRICING ||
-    wcIntent === WC_INTENT.SCORE_PREDICTION;
+    wcIntent === WC_INTENT.SCORE_PREDICTION ||
+    wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
   const callMax = isWcPlayerMarketIntent(wcIntent)
     ? WC_CALL_PLAYER_MAX
     : directCard
@@ -109,7 +113,7 @@ export function buildWcCompactStructured(opts = {}) {
       ? `Lean: ${lead.endsWith(".") ? lead : `${lead}.`}`
       : `Lean: ${clipWcText(lead, WC_LEAN_MAX - 12)}`;
 
-  if (isWcPlayerMarketIntent(wcIntent)) {
+  if (isWcPlayerMarketIntent(wcIntent) && !isListIntent) {
     const odds = (summary.match(/\+\d{3,}/) || [])[0] || "";
     if (pass) {
       call = odds ? `PASS — ${lead.slice(0, 72)}` : `PASS — ${lead.slice(0, 80)}`;

@@ -30,7 +30,8 @@ export function isWcPlayerMarketIntent(intent) {
   return (
     i === WC_INTENT.PLAYER_PROP ||
     i === WC_INTENT.GOLDEN_BOOT ||
-    i === WC_INTENT.TOP_SCORER
+    i === WC_INTENT.TOP_SCORER ||
+    i === WC_INTENT.TOP_GOALSCORERS_LIST
   );
 }
 
@@ -82,6 +83,7 @@ export function shouldForceWcPlayerMarketPass(opts = {}) {
 export function formatWcPlayerMarketPassLabel(wcIntent) {
   if (wcIntent === WC_INTENT.GOLDEN_BOOT) return "Golden Boot";
   if (wcIntent === WC_INTENT.TOP_SCORER) return "top scorer";
+  if (wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST) return "top goalscorers";
   return "player-specific";
 }
 
@@ -90,6 +92,12 @@ export function formatWcPlayerMarketPassLabel(wcIntent) {
  */
 export function formatWcPlayerMarketPromptRules(wcIntent) {
   const label = formatWcPlayerMarketPassLabel(wcIntent);
+  if (wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST) {
+    return `PLAYER MARKET (${label}) — binding:
+  User wants a RANKED LIST (typically five players) — not a single Golden Boot lean from the prior turn.
+  Name each player with American odds from GOLDEN BOOT / TOP SCORER ODDS in VERIFIED CONTEXT (numbered list).
+  You may keep the prior #1 if still valid, but MUST add the rest of the board — never repeat only one name.`;
+  }
   return `PLAYER MARKET (${label}) — binding:
   Answer with a named PLAYER from PLAYER MARKETS — VERIFIED CONTEXT (never only a country/national team as the scorer pick).
   Cite the player full name in sentence one. When MATCH PLAYER PROPS exist for the pinned fixture, prefer those anytime/first goalscorer prices over tournament Golden Boot rows.

@@ -4,6 +4,7 @@ import {
   classifyWcQuestionIntent,
   shouldInjectStaticRules,
   WC_INTENT,
+  WC_INTENT_CATALOG,
 } from "./wcUrTakeIntent.js";
 import {
   resolveRequiredEntities,
@@ -70,6 +71,25 @@ test("resolveRequiredEntities — player market returns no teams", () => {
     resolveRequiredEntities("which player will score the most goals?", [], WC_INTENT.PLAYER_PROP),
     [],
   );
+});
+
+test("WC_INTENT_CATALOG — includes GENERAL catch-all", () => {
+  const general = WC_INTENT_CATALOG.find((row) => row.id === WC_INTENT.GENERAL);
+  assert.ok(general);
+  assert.match(general.description, /catch-all|any World Cup/i);
+});
+
+test("classifyWcQuestionIntent — open questions use GENERAL not group template", () => {
+  assert.equal(classifyWcQuestionIntent("Who wins the World Cup?"), WC_INTENT.GENERAL);
+  assert.equal(classifyWcQuestionIntent("What's your read on the host nations?"), WC_INTENT.GENERAL);
+  assert.equal(
+    classifyWcQuestionIntent("How does the expanded format change knockout paths?"),
+    WC_INTENT.GENERAL,
+  );
+});
+
+test("classifyWcQuestionIntent — group slate stays STRUCTURAL", () => {
+  assert.equal(classifyWcQuestionIntent("Best group stage bet?"), WC_INTENT.STRUCTURAL);
 });
 
 test("resolveRequiredEntities — match-scoped player prop binds both teams", () => {

@@ -5,20 +5,87 @@
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
 
-/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"SCORE_PREDICTION"|"UNCLASSIFIED"} WcUrTakeIntent */
+/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"UNCLASSIFIED"} WcUrTakeIntent */
 
 export const WC_INTENT = {
   RULES: "RULES",
   ENTITY_PRICING: "ENTITY_PRICING",
   MATCHUP: "MATCHUP",
   STRUCTURAL: "STRUCTURAL",
+  /** Open-ended WC questions — default when no specialized pattern matches. */
+  GENERAL: "GENERAL",
   CONTINUATION: "CONTINUATION",
   PLAYER_PROP: "PLAYER_PROP",
   GOLDEN_BOOT: "GOLDEN_BOOT",
   TOP_SCORER: "TOP_SCORER",
+  TOP_GOALSCORERS_LIST: "TOP_GOALSCORERS_LIST",
   SCORE_PREDICTION: "SCORE_PREDICTION",
   UNCLASSIFIED: "UNCLASSIFIED",
 };
+
+/**
+ * Authoritative WC intent catalog — specialized intents are routing hints, not an allowlist.
+ * Anything that does not match a specialized pattern falls through to GENERAL.
+ * @type {{ id: WcUrTakeIntent, label: string, description: string }[]}
+ */
+export const WC_INTENT_CATALOG = [
+  {
+    id: WC_INTENT.GENERAL,
+    label: "General",
+    description:
+      "Default catch-all for any World Cup question (tournament outlook, narratives, hypotheticals, trivia-adjacent betting angles). Answer literally — do not force a group-stage pick template.",
+  },
+  {
+    id: WC_INTENT.RULES,
+    label: "Rules",
+    description: "Tournament format, tiebreakers, extra time, penalties, advancement settlement.",
+  },
+  {
+    id: WC_INTENT.ENTITY_PRICING,
+    label: "Entity pricing",
+    description: "A named team/nation priced on an outright or advancement market — mispriced/fair/value reads.",
+  },
+  {
+    id: WC_INTENT.MATCHUP,
+    label: "Matchup",
+    description: "Head-to-head or advancement between specific teams (vs, who goes through).",
+  },
+  {
+    id: WC_INTENT.STRUCTURAL,
+    label: "Structural / group slate",
+    description: "Group-stage value, group winners, advancement slates, team-level tournament goal leaders.",
+  },
+  {
+    id: WC_INTENT.SCORE_PREDICTION,
+    label: "Scorelines",
+    description: "Final score predictions and scoreline lists — not player scorers.",
+  },
+  {
+    id: WC_INTENT.TOP_GOALSCORERS_LIST,
+    label: "Top goalscorers list",
+    description: "Ranked lists of individual goalscorers (e.g. top 5 goalscorers / goalscores).",
+  },
+  {
+    id: WC_INTENT.TOP_SCORER,
+    label: "Top scorer",
+    description: "Single tournament top scorer / most goals lean.",
+  },
+  {
+    id: WC_INTENT.GOLDEN_BOOT,
+    label: "Golden Boot",
+    description: "Golden Boot winner market and value.",
+  },
+  {
+    id: WC_INTENT.PLAYER_PROP,
+    label: "Player prop",
+    description: "Named player scoring props (anytime/first goalscorer, match-scoped scorer).",
+  },
+  {
+    id: WC_INTENT.CONTINUATION,
+    label: "Continuation",
+    description: "Follow-up on the immediately prior thread (what about, go deeper, build on that take).",
+  },
+];
 
 const RULES_SIGNAL_RE =
   /\b(extra time|penalties|penalty shootout|tiebreaker|tie-break|tie break|how does knockout|knockout rules|knockout format|away goals|advancement rules|what are the rules)\b/i;
@@ -74,11 +141,31 @@ const WC_SCORE_PREDICTION_RE =
   /\b(top\s*\d+\s*scores?|scorelines?|score\s*lines?|predict\s+(?:the\s+)?\d+\s*scores?|scores?\s+to\s+consider|likely\s+final\s+scores?)\b/i;
 
 /**
+ * Match scorelines vs goalscorer lists — "top 5 goalscores" is players, not final scores.
+ * @param {string} question
+ */
+export function isWcTopGoalscorersListQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (/\b(anytime|first|last)\s+goal\s*scorer\b/i.test(q)) return false;
+  if (WC_PLAYER_PROP_RE.test(q) && !/\btop\s*\d+\b/i.test(q)) return false;
+  if (WC_GOLDEN_BOOT_RE.test(q) && !/\btop\s*\d+\b/i.test(q)) return false;
+  if (/\bpredict\s+(?:the\s+)?top\s*\d+\b/i.test(q) && /\b(goal|scorer)/i.test(q)) {
+    return true;
+  }
+  if (/\btop\s*\d+\s*(?:goal\s*)?(?:scorers?|goalscorers?|goalscores?)\b/i.test(q)) {
+    return true;
+  }
+  return /\b(goalscorers|goalscores)\b/i.test(q) && /\btop\s*\d+\b/i.test(q);
+}
+
+/**
  * @param {string} question
  */
 export function isWcScorePredictionQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcTopGoalscorersListQuestion(q)) return false;
   if (WC_GOLDEN_BOOT_RE.test(q) || WC_TOP_SCORER_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) {
     return false;
   }
@@ -114,7 +201,8 @@ export function isWcPlayerMarketIntent(intent) {
   return (
     i === WC_INTENT.PLAYER_PROP ||
     i === WC_INTENT.GOLDEN_BOOT ||
-    i === WC_INTENT.TOP_SCORER
+    i === WC_INTENT.TOP_SCORER ||
+    i === WC_INTENT.TOP_GOALSCORERS_LIST
   );
 }
 
@@ -162,6 +250,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.STRUCTURAL;
   }
 
+  if (isWcTopGoalscorersListQuestion(q)) {
+    return WC_INTENT.TOP_GOALSCORERS_LIST;
+  }
+
   if (isWcScorePredictionQuestion(q)) {
     return WC_INTENT.SCORE_PREDICTION;
   }
@@ -187,6 +279,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.MATCHUP;
   }
 
+  if (WC_TEAM_GOALS_RE.test(ql)) {
+    return WC_INTENT.STRUCTURAL;
+  }
+
   if (STRUCTURAL_SIGNAL_RE.test(ql)) {
     return WC_INTENT.STRUCTURAL;
   }
@@ -208,7 +304,7 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.MATCHUP;
   }
 
-  return WC_INTENT.STRUCTURAL;
+  return WC_INTENT.GENERAL;
 }
 
 /**
@@ -233,17 +329,34 @@ export function resolveContinuationEntities(history) {
  */
 export function buildWcTurnScopeBlock(question, wcIntent) {
   const intent = wcIntent || classifyWcQuestionIntent(String(question || ""));
+  if (isWcTopGoalscorersListQuestion(question) || intent === WC_INTENT.TOP_GOALSCORERS_LIST) {
+    return `TURN SCOPE (binding):
+- User asked for a RANKED LIST of goalscorers (e.g. top 5 goalscorers / goalscores) — NOT a single Golden Boot lean.
+- Name exactly five players with American odds from PLAYER MARKETS / Golden Boot in VERIFIED CONTEXT (one line each or compact numbered list).
+- You may keep the prior #1 pick if still valid, but MUST add four more names — never repeat only Mbappé from the last turn.`;
+  }
   if (isWcScorePredictionQuestion(question) || intent === WC_INTENT.SCORE_PREDICTION) {
     return `TURN SCOPE (binding):
 - User asked for SCORELINE predictions (e.g. top 5 scores to consider) — NOT Golden Boot, NOT top scorer, NOT a single-player prop.
 - List exactly five plausible final scores (e.g. 2-1, 1-1, 2-0) for the match or slate in scope; one short line each if space allows.
 - Do NOT repeat Mbappé, Golden Boot, or any prior player-market lean from this chat.`;
   }
-  if (isWcGroupSlateQuestion(question) || intent === WC_INTENT.STRUCTURAL) {
+  if (isWcGroupSlateQuestion(question)) {
     return `TURN SCOPE (binding):
 - Answer ONLY the current question: group-stage value, group winner, or advancement — name the team(s) and price if citing odds.
 - Do NOT repeat Golden Boot, top scorer, or named-player prop answers from earlier in this chat unless the user asked for them again.
 - Prior player-market PASS/lean lines are not the answer to this question — ignore SESSION STRUCTURAL EDGE if it names a player.`;
+  }
+  if (intent === WC_INTENT.CONTINUATION) {
+    return `TURN SCOPE (binding):
+- This is a follow-up on the prior thread — go deeper or widen the angle the user asked for.
+- Do not restart with an unrelated thesis; build on the last exchange when it still applies.`;
+  }
+  if (intent === WC_INTENT.GENERAL || intent === WC_INTENT.UNCLASSIFIED) {
+    return `TURN SCOPE (binding):
+- Answer the user's World Cup question directly in plain language — no forced template (not automatically a group pick, scorer lean, or rules lecture).
+- Use VERIFIED CONTEXT when citing odds, groups, or fixtures; stay honest when data is thin.
+- Do not repeat a prior one-line lean unless the user is clearly asking for an update on that same market.`;
   }
   if (isWcPlayerMarketIntent(intent)) {
     return `TURN SCOPE (binding):
@@ -254,7 +367,10 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 }
 
 export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same chat, this sport only):
+- UnderReview handles ANY World Cup question — intents are routing hints, not an allowlist. When unsure, answer literally (GENERAL).
+- Each user message is a NEW question. Re-read intent every turn — do not auto-repeat the last answer.
 - Answer only the specific World Cup question asked. 3–5 sentences in summary unless structured JSON mode applies.
+- When the user changes the ask (single top scorer → top 5 goalscorers, Golden Boot → group pick, matchup → scorelines), deliver the NEW shape — never paste the prior one-liner.
 - REQUIRED ENTITIES from the user message are binding — do not substitute a prior thread thesis or a different team.
 - Use only WORLD CUP 2026 — VERIFIED CONTEXT in the user message. Never claim data is missing if it appears there.
 - Never narrate sport routing, context switches, or prior takes unless the user asks about them directly.

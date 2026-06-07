@@ -204,6 +204,48 @@ export function buildWcPlayerMarketEmptyStructured(question, wcIntent) {
  * @param {WcPlayerMarketTier} tier
  * @param {object | null | undefined} goldenBoot
  */
+/**
+ * Deterministic top-N goalscorer list from Golden Boot board.
+ * @param {string} question
+ * @param {string} wcIntent
+ * @param {WcPlayerMarketTier} tier
+ * @param {object | null | undefined} goldenBoot
+ * @param {{ listSize?: number }} [opts]
+ */
+export function buildWcTopGoalscorersListStructured(
+  question,
+  wcIntent,
+  tier,
+  goldenBoot,
+  opts = {},
+) {
+  const listSize = Math.max(3, Math.min(8, Number(opts.listSize) || 5));
+  const rows = goldenBootRowsFromKv(goldenBoot, listSize);
+  if (rows.length < listSize) return null;
+
+  const meta = tierMetaFor(tier);
+  const numbered = rows
+    .slice(0, listSize)
+    .map((r, i) => `${i + 1}. ${r.name} ${r.americanOdds}`)
+    .join("\n");
+  const lead = rows
+    .slice(0, listSize)
+    .map((r) => `${r.name} ${r.americanOdds}`)
+    .join(" · ");
+
+  return {
+    sport: "worldcup",
+    callType: "goalscorers_list",
+    playerMarketTier: tier,
+    call: `Top ${listSize} goalscorers by market`,
+    lean: numbered,
+    whyNow: `Golden Boot board (${meta.label}): ${lead}.`,
+    edge: rows.length >= 2 ? `Gap behind ${rows[1].name} at ${rows[1].americanOdds}.` : "",
+    confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
+    analysis: String(question || "").trim(),
+  };
+}
+
 export function buildWcPlayerMarketPrebuiltStructured(
   question,
   wcIntent,
@@ -305,6 +347,23 @@ export function resolveWcPlayerMarketAnswer(
       structured,
       responseText: `${structured.lean}\n\n${structured.whyNow}`,
     };
+  }
+
+  if (wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST) {
+    const structured = buildWcTopGoalscorersListStructured(
+      question,
+      wcIntent,
+      tier,
+      kvBlocks?.goldenBoot,
+    );
+    if (structured) {
+      return {
+        ...base,
+        forcePass: true,
+        structured,
+        responseText: `${structured.lean}\n\n${structured.whyNow}`,
+      };
+    }
   }
 
   if (opts.prebuiltAnswer) {
