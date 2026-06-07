@@ -13,7 +13,10 @@ import {
   mergeGoldenBootConsensus,
   mergeGoldenBootWithSeed,
 } from "../shared/wcGoldenBootConsensus.js";
-import { attachGoldenBootFreshness } from "../shared/wcPlayerOddsFreshness.js";
+import {
+  attachGoldenBootFreshness,
+  sortGoldenBootRows,
+} from "../shared/wcPlayerOddsFreshness.js";
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
 import {
   applyGoldenBootManualPatches,
@@ -60,6 +63,8 @@ export async function scrapeAndCacheWcGoldenBoot() {
     source = merged.rows.length ? "consensus+seed" : "seed";
     if (!booksUsed.includes("seed")) booksUsed.push("seed");
   }
+
+  rows = sortGoldenBootRows(rows, 50);
 
   if (rows.length >= MIN_GOLDEN_BOOT_ROWS) {
     const payload = {

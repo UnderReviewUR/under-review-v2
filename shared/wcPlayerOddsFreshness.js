@@ -4,6 +4,7 @@
 
 import { WC_GOLDEN_BOOT_MAX_AGE_MS } from "./wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "./wcOddsFreshness.js";
+import { isVerifiedWcGoldenBootRow } from "./wcGoldenBootRowGuard.js";
 
 export { WC_GOLDEN_BOOT_MAX_AGE_MS };
 
@@ -53,8 +54,7 @@ export function isPlausibleGoldenBootRow(row) {
   if (!name || name.length < 4) return false;
   if (GOLDEN_BOOT_JUNK_NAME_RE.test(name)) return false;
   if (/^f[a-z]{3,}-/i.test(name)) return false;
-  const parts = name.split(/\s+/).filter(Boolean);
-  if (parts.length < 2 && !row?.nationAbbr) return false;
+  if (!isVerifiedWcGoldenBootRow(row)) return false;
   return true;
 }
 

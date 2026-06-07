@@ -152,19 +152,20 @@ test("Phase B — team pricing turn unchanged (no player tier)", () => {
 });
 
 test("Phase D — UK/aggregator books improve consensus depth", () => {
+  const mbappe = { name: "Kylian Mbappé", americanOdds: "+600", nationAbbr: "FRA" };
   const usOnly = mergeGoldenBootConsensus(
     [
-      { book: "draftkings", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+600" }] },
-      { book: "fanduel", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+700" }] },
+      { book: "draftkings", ok: true, rows: [{ ...mbappe, americanOdds: "+600" }] },
+      { book: "fanduel", ok: true, rows: [{ ...mbappe, americanOdds: "+700" }] },
     ],
     [],
   );
   const withUk = mergeGoldenBootConsensus(
     [
-      { book: "draftkings", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+600" }] },
-      { book: "fanduel", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+700" }] },
-      { book: "paddypower", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+620" }] },
-      { book: "oddschecker", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+680" }] },
+      { book: "draftkings", ok: true, rows: [{ ...mbappe, americanOdds: "+600" }] },
+      { book: "fanduel", ok: true, rows: [{ ...mbappe, americanOdds: "+700" }] },
+      { book: "paddypower", ok: true, rows: [{ ...mbappe, americanOdds: "+620" }] },
+      { book: "oddschecker", ok: true, rows: [{ ...mbappe, americanOdds: "+680" }] },
     ],
     [],
   );

@@ -4,6 +4,10 @@
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
+import {
+  hasValidWcGoldenBootNation,
+  isCrossSportGolferName,
+} from "./wcGoldenBootRowGuard.js";
 
 /** @type {Set<string>} */
 const TEAM_ABBRS = new Set(WC_2026_TEAMS.map((t) => String(t.abbreviation).toUpperCase()));
@@ -106,6 +110,8 @@ export function mergeGoldenBootConsensus(bookResults, espnRows = []) {
       const name = normalizeWcPlayerName(row.name);
       const odds = String(row.americanOdds || "").trim();
       if (!name || !odds || isNationOnlyOutcome(name)) continue;
+      if (isCrossSportGolferName(name)) continue;
+      if (!hasValidWcGoldenBootNation(row.nationAbbr)) continue;
 
       const american = parseAmericanOddsNumber(odds);
       const prob = american != null ? impliedProbFromAmerican(american) : null;

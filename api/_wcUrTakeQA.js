@@ -18,6 +18,7 @@ import {
 } from "../shared/wcPlayerMarketResolve.js";
 import { detectWcGroupMathMismatch } from "../shared/wcGroupComposition.js";
 import { isWcGroupSlateQuestion } from "../shared/wcUrTakeIntent.js";
+import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -137,6 +138,10 @@ export function runWcUrTakeQA(opts = {}) {
     }
   }
 
+  if (textMentionsCrossSportGolfer(body)) {
+    issueCodes.push("wc_cross_sport_golfer_bleed");
+  }
+
   const question = String(opts.question || "");
   let qaPlayerMatch = null;
   if (questionAsksForWcPlayerMarket(question) || isWcPlayerMarketIntent(wcIntent)) {
@@ -207,6 +212,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_player_missing_names",
       "wc_player_odds_uncited",
       "wc_group_math_mismatch",
+      "wc_cross_sport_golfer_bleed",
     ].includes(c),
   );
 }

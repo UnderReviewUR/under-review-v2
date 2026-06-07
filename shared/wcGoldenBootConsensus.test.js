@@ -41,20 +41,21 @@ test("mergeGoldenBootConsensus — median across books", () => {
 });
 
 test("mergeGoldenBootConsensus — more books tighten median toward middle", () => {
+  const mbappe = { name: "Kylian Mbappé", americanOdds: "+600", nationAbbr: "FRA" };
   const twoBook = mergeGoldenBootConsensus(
     [
-      { book: "draftkings", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+600" }] },
-      { book: "fanduel", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+800" }] },
+      { book: "draftkings", ok: true, rows: [{ ...mbappe, americanOdds: "+600" }] },
+      { book: "fanduel", ok: true, rows: [{ ...mbappe, americanOdds: "+800" }] },
     ],
     [],
   );
   const fiveBook = mergeGoldenBootConsensus(
     [
-      { book: "draftkings", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+600" }] },
-      { book: "fanduel", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+650" }] },
-      { book: "betmgm", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+700" }] },
-      { book: "paddypower", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+620" }] },
-      { book: "oddschecker", ok: true, rows: [{ name: "Kylian Mbappé", americanOdds: "+680" }] },
+      { book: "draftkings", ok: true, rows: [{ ...mbappe, americanOdds: "+600" }] },
+      { book: "fanduel", ok: true, rows: [{ ...mbappe, americanOdds: "+650" }] },
+      { book: "betmgm", ok: true, rows: [{ ...mbappe, americanOdds: "+700" }] },
+      { book: "paddypower", ok: true, rows: [{ ...mbappe, americanOdds: "+620" }] },
+      { book: "oddschecker", ok: true, rows: [{ ...mbappe, americanOdds: "+680" }] },
     ],
     [],
   );
@@ -111,4 +112,49 @@ test("isPlausibleGoldenBootRow — drops DK HTML parser junk", () => {
     ],
   });
   assert.match(filtered[0].name, /Mbapp/);
+});
+
+test("isPlausibleGoldenBootRow — rejects golfers without FIFA nation", () => {
+  assert.equal(
+    isPlausibleGoldenBootRow({ name: "Patrick Cantlay", americanOdds: "+2500" }),
+    false,
+  );
+  assert.equal(
+    isPlausibleGoldenBootRow({ name: "Paul Casey", americanOdds: "+4500" }),
+    false,
+  );
+});
+
+test("goldenBootRowsFromKv — prod bleed fixture drops golfers, keeps footballers", () => {
+  const filtered = goldenBootRowsFromKv({
+    rows: [
+      { name: "Patrick Cantlay", americanOdds: "+2500", impliedRank: 9 },
+      { name: "Kylian Mbappé", americanOdds: "+600", nationAbbr: "FRA", impliedRank: 2 },
+      { name: "Harry Kane", americanOdds: "+700", nationAbbr: "ENG", impliedRank: 4 },
+      { name: "Erling Haaland", americanOdds: "+800", nationAbbr: "NOR", impliedRank: 6 },
+      { name: "Lamine Yamal", americanOdds: "+900", nationAbbr: "ESP", impliedRank: 8 },
+      { name: "Vinícius Júnior", americanOdds: "+1000", nationAbbr: "BRA", impliedRank: 10 },
+    ],
+  }, 5);
+  assert.equal(filtered.length, 5);
+  assert.ok(filtered.every((r) => !/cantlay|casey|leishman/i.test(r.name)));
+  assert.match(filtered[0].name, /Mbapp/);
+});
+
+test("mergeGoldenBootConsensus — skips book rows without nationAbbr", () => {
+  const merged = mergeGoldenBootConsensus(
+    [
+      {
+        book: "draftkings",
+        ok: true,
+        rows: [
+          { name: "Patrick Cantlay", americanOdds: "+2500" },
+          { name: "Harry Kane", americanOdds: "+700", nationAbbr: "ENG" },
+        ],
+      },
+    ],
+    [],
+  );
+  assert.ok(!merged.rows.some((r) => /cantlay/i.test(r.name)));
+  assert.ok(merged.rows.some((r) => r.name === "Harry Kane"));
 });

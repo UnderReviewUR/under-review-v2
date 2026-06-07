@@ -3,6 +3,7 @@
  */
 
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
+import { sortGoldenBootRows } from "./wcPlayerOddsFreshness.js";
 import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
 import {
   isMatchPlayerPropsFresh,
@@ -220,7 +221,11 @@ export function buildWcTopGoalscorersListStructured(
   opts = {},
 ) {
   const listSize = Math.max(3, Math.min(8, Number(opts.listSize) || 5));
-  const rows = goldenBootRowsFromKv(goldenBoot, listSize);
+  let rows = goldenBootRowsFromKv(goldenBoot, 40);
+  if (rows.length < listSize) {
+    rows = sortGoldenBootRows(WC_GOLDEN_BOOT_SEED_ROWS, listSize);
+  }
+  rows = rows.slice(0, listSize);
   if (rows.length < listSize) return null;
 
   const meta = tierMetaFor(tier);
