@@ -34,6 +34,7 @@ export default function NbaScreen({
 }) {
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
   const featuredGame = gamesForState[0] || null;
+  const playoffSeries = Array.isArray(nbaData?.playoffSeries) ? nbaData.playoffSeries : [];
   const injuries = Array.isArray(nbaData?.injuries) ? nbaData.injuries : [];
   const playerChips = filterNbaUiChipsForSlateAndInjuries(gamesForState, injuries);
   const playerStats = Array.isArray(nbaData?.playerStats) ? nbaData.playerStats : [];
