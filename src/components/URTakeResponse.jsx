@@ -20,6 +20,7 @@ import {
 } from "../../shared/wcDataConfidence.js";
 import WcTakeCard from "./WcTakeCard.jsx";
 import {
+  buildWcTakeStatGrid,
   pickWcThePlayLine,
   wcCardSectionText,
 } from "../lib/wcTakeCardUi.js";
@@ -193,12 +194,20 @@ export default function URTakeResponse({
     !isWcPlayerMarketCard &&
     wcDataConfidenceNeedsCaution(dataConfidence) &&
     Boolean(wcCautionText);
-  const statGrid = buildSharpBriefStatGrid({
-    estimatedEdge: ee,
-    takeMeta,
-    structured: { call: callScrub, line: wcLine, confidence: displayConfidence, callType },
-    parlayLegs: safeParlayLegs,
-  });
+  const statGrid = isWcDirectCard
+    ? buildWcTakeStatGrid({
+        call: callScrub,
+        line: wcLine,
+        lean: leanDisplay,
+        confidence: displayConfidence,
+        callType,
+      })
+    : buildSharpBriefStatGrid({
+        estimatedEdge: ee,
+        takeMeta,
+        structured: { call: callScrub, line: wcLine, confidence: displayConfidence, callType },
+        parlayLegs: safeParlayLegs,
+      });
 
   const edgeTypePill = inferEdgeTypePill(callType);
   const marketPill = inferMarketPill(callScrub, callType);

@@ -14,22 +14,70 @@ import {
 const WC_LIST_CARD_LEAN = "Top 5 — tap to view full breakdown.";
 
 /**
+ * @param {string} question
+ */
+function isWcPlayerVolumeQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  const statAsk =
+    /\b(how many|what are the chances|chances|likelihood|probability|what are the odds)\b/i.test(
+      q,
+    ) || /\brecord(?:s)?\s+\d+\b/i.test(q);
+  return statAsk && /\b(assist|goal|score)s?\b/i.test(q);
+}
+
+/**
+ * @param {string} summary
+ * @param {string} lean
+ */
+function isWcPassVerdict(summary, lean) {
+  const blob = `${summary}\n${String(lean || "").replace(/^lean:\s*/i, "")}`.slice(0, 800);
+  if (/\b(mispriced|underpric|value play)\b/i.test(blob)) return false;
+  if (/\blean:\s*(?!pass)/i.test(blob) && !/\bpass\b/i.test(blob)) return false;
+  return /\b(pass at|pass —|no play|no edge|fair price|fairly priced|not worth pricing|not mispriced)\b/i.test(
+    blob,
+  );
+}
+
+/**
+ * @param {string[]} summarySents
+ * @param {string} deep
+ */
+function synthesizeWcLine(summarySents, deep) {
+  const fromSummary = summarySents[1]?.trim();
+  if (fromSummary) return fromSummary;
+
+  const deepText = String(deep || "");
+  const simSent = splitWcSentences(deepText).find((s) => /\bsims?\b/i.test(s));
+  if (simSent) return simSent;
+
+  const paceMatch = deepText.match(/[^.!?]*\d+\.?\d*\s*(?:assists?|goals?)\s+per\s+match[^.!?]*[.!?]/i);
+  if (paceMatch) return paceMatch[0].trim();
+
+  const passMatch = deepText.match(/\bPass[^.!?]+[.!?]/i);
+  if (passMatch) return passMatch[0].trim();
+
+  return "";
+}
+
+/**
  * @param {string} deep
  * @param {boolean} pass
  */
 function extractWatchFor(deep, pass) {
-  if (pass) return "Fair price — recheck after lineups lock.";
-  const sents = splitWcSentences(deep);
-  if (sents.length >= 1) {
-    const last = sents[sents.length - 1];
-    if (/\b(watch for|what breaks|risk|breaks if|lineup|injury|bracket)\b/i.test(last)) {
-      return last;
-    }
+  const deepText = String(deep || "");
+  const watchMatch = deepText.match(/(?:watch for:?|what breaks:?)[^.!?]+[.!?]?/i);
+  if (watchMatch) {
+    return watchMatch[0].trim().replace(/^watch for:?\s*/i, "Watch for ");
   }
-  const watchMatch = String(deep || "").match(
-    /(?:watch for|what breaks|risk:|breaks if)[^.!?]+[.!?]?/i,
+
+  const sents = splitWcSentences(deepText);
+  const riskSent = [...sents].reverse().find((s) =>
+    /\b(watch for|what breaks|risk|breaks if|lineup|injury|bracket|confirmed)\b/i.test(s),
   );
-  if (watchMatch) return watchMatch[0].trim();
+  if (riskSent) return riskSent;
+
+  if (pass) return "Fair price — recheck after lineups lock.";
   return sents.length ? sents[sents.length - 1] : "";
 }
 
@@ -111,6 +159,7 @@ export function buildWcCompactStructured(opts = {}) {
   const deepRaw = String(opts.deep || "").trim();
   const deep = capWcDeepWords(deepRaw, 600);
   const wcIntent = String(opts.wcIntent || "");
+  const question = String(opts.question || "");
   const tier = String(opts.playerMarketTier || "market_only");
   const seed =
     opts.structuredSeed && typeof opts.structuredSeed === "object"
@@ -141,13 +190,10 @@ export function buildWcCompactStructured(opts = {}) {
     };
   }
 
-  const pass =
-    /\b(pass|no play|no edge|fairly priced|fair price|not mispriced)\b/i.test(summary) &&
-    !/\b(mispriced|underpric|value play|hammer|lean)\b/i.test(summary);
-
   const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
-  const line = summarySents[1]?.trim() || "";
-  const lean = isListIntent ? WC_LIST_CARD_LEAN : extractPlayDecision(summary, deep, pass, call);
+  const line = synthesizeWcLine(summarySents, deep);
+  const lean = isListIntent ? WC_LIST_CARD_LEAN : extractPlayDecision(summary, deep, false, call);
+  const pass = isWcPassVerdict(summary, lean);
   const edge = extractWatchFor(deep, pass);
   const whyNow = buildWhyNow(summary, deep, wcIntent);
 
@@ -184,18 +230,26 @@ export function buildWcCompactStructured(opts = {}) {
     };
   }
 
-  return {
-    ...base,
-    callType:
-      wcIntent === WC_INTENT.MATCHUP
-        ? "matchup"
-        : wcIntent === WC_INTENT.SCORE_PREDICTION
-          ? "score_prediction"
-          : wcIntent === WC_INTENT.ENTITY_PRICING
-            ? "analysis"
+  let callType =
+    wcIntent === WC_INTENT.MATCHUP
+      ? "matchup"
+      : wcIntent === WC_INTENT.SCORE_PREDICTION
+        ? "score_prediction"
+        : wcIntent === WC_INTENT.ENTITY_PRICING
+          ? "analysis"
+          : wcIntent === WC_INTENT.PLAYER_PROP
+            ? "player_prop"
             : isListIntent
               ? "goalscorers_list"
-              : "single",
+              : "single";
+
+  if (callType === "single" && isWcPlayerVolumeQuestion(question)) {
+    callType = "player_prop";
+  }
+
+  return {
+    ...base,
+    callType,
     confidence: /\b(high|strong)\b/i.test(summary) ? "Medium" : base.confidence,
   };
 }

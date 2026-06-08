@@ -36,6 +36,23 @@ test("buildWcCompactStructured — structural headline is full sentence", () => 
   assert.match(s.line, /Netherlands/i);
 });
 
+test("buildWcCompactStructured — player volume question synthesizes line and watch for", () => {
+  const summary =
+    "Bruno Fernandes recording 7 assists in a single World Cup tournament is structurally implausible — Portugal's likely tournament run and midfield role distribution don't support that volume.";
+  const deep =
+    "Sims show 44.85% to reach the quarterfinals and 8.39% to reach the final. Watch for: Portugal's actual group performance and confirmed starting XI in June. Pass — this prop is not worth pricing until confirmed lineups emerge.";
+  const s = buildWcCompactStructured({
+    question: "What are the chances Bruno Fernandes records 7 assists in the World Cup?",
+    wcIntent: "GENERAL",
+    summary,
+    deep,
+  });
+  assert.equal(s.callType, "player_prop");
+  assert.match(s.line, /44\.85%/);
+  assert.match(s.edge, /Watch for|Portugal/i);
+  assert.doesNotMatch(s.edge, /^Fair price — recheck after lineups lock\.$/);
+});
+
 test("formatWcCompactDisplayText — no section headers", () => {
   const text = formatWcCompactDisplayText(
     {

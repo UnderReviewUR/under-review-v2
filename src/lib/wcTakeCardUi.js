@@ -1,26 +1,65 @@
 /**
- * World Cup UR Take card — headline cap + labeled section mapping (Card Contract v1).
+ * World Cup UR Take card — section mapping + stat grid (Card Contract Option 1).
  */
 
 /**
- * @param {string} text
- * @param {number} [maxWords]
+ * @param {string} lean
  */
-export function capWcHeadlineWords(text, maxWords = 12) {
-  const words = String(text || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!words.length) return "";
-  if (words.length <= maxWords) return words.join(" ");
+function formatWcPlaySlot(lean) {
+  const l = String(lean || "")
+    .replace(/^lean:\s*/i, "")
+    .trim();
+  if (!l || l.length < 8) return "";
+  const first = l.match(/[^.!?]+[.!?]+/)?.[0]?.trim();
+  return first || l;
+}
 
-  let capped = words.slice(0, maxWords).join(" ");
-  capped = capped.replace(/[,;:\-–—]+$/u, "").trim();
-  const dashIdx = capped.lastIndexOf(" — ");
-  if (dashIdx > capped.length * 0.35) {
-    capped = capped.slice(0, dashIdx).trim();
+/**
+ * WC card stat grid — never duplicate the headline in a truncated UR read cell.
+ * @param {{ call?: string, line?: string, lean?: string, confidence?: string, callType?: string }} opts
+ */
+export function buildWcTakeStatGrid(opts = {}) {
+  const conf = String(opts.confidence || "Medium").trim();
+  const lineVal = String(opts.line || "").trim();
+  const call = String(opts.call || "").trim();
+  const ct = String(opts.callType || "single").toLowerCase();
+  const play = formatWcPlaySlot(opts.lean);
+
+  if (ct.startsWith("player_market") || ct === "player_prop") {
+    const slotLine = lineVal || play || "See breakdown";
+    return {
+      mode: ct,
+      slots: [
+        { key: "ln", label: "Line", value: slotLine, highlight: true },
+        { key: "c", label: "Confidence", value: conf, highlight: false },
+      ],
+    };
   }
-  return capped ? `${capped}…` : "…";
+
+  if (lineVal) {
+    return {
+      mode: "line",
+      slots: [
+        { key: "ln", label: "Line", value: lineVal, highlight: true },
+        { key: "c", label: "Confidence", value: conf, highlight: false },
+      ],
+    };
+  }
+
+  if (play && play.toLowerCase() !== call.toLowerCase()) {
+    return {
+      mode: "play",
+      slots: [
+        { key: "pl", label: "Play", value: play, highlight: true },
+        { key: "c", label: "Confidence", value: conf, highlight: false },
+      ],
+    };
+  }
+
+  return {
+    mode: "confidence_only",
+    slots: [{ key: "c", label: "Confidence", value: conf, highlight: false }],
+  };
 }
 
 /**
