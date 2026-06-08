@@ -82,12 +82,66 @@ function extractWatchFor(deep, pass) {
 }
 
 /**
- * @param {string} summary
- * @param {string} deep
- * @param {boolean} pass
  * @param {string} call
  */
-function extractPlayDecision(summary, deep, pass, call) {
+function extractTeamFromCall(call) {
+  const c = String(call || "").trim();
+  const m = c.match(/^([A-Z][\wÀ-ÿ]+(?:\s+[A-Z][\wÀ-ÿ]+)?)\s+(?:wins|to win|are|is|at|—|-)/);
+  if (m) return m[1];
+  const m2 = c.match(/^([A-Z][\wÀ-ÿ]+)/);
+  return m2?.[1] || "Outright";
+}
+
+/**
+ * @param {string} question
+ */
+function isWcCrazyPredictionQuestion(question) {
+  return /\b(craziest|wildest|hot take|boldest|spiciest|outrageous|share your)\b/i.test(
+    String(question || ""),
+  );
+}
+
+/**
+ * @param {string} line
+ * @param {string} call
+ * @param {string} deep
+ */
+function synthesizePlayFromLineDelta(line, call, deep) {
+  const l = String(line || "");
+  const blob = `${l}\n${deep}`;
+  const team = extractTeamFromCall(call);
+
+  const marketLong =
+    l.match(/(\d+)-to-1 longshot/i) ||
+    blob.match(/(?:pricing as a|priced as a|at)\s*(\d+)-to-1/i);
+  const urLong = l.match(/closer to (\d+)-to-1/i) || blob.match(/should be closer to (\d+)-to-1/i);
+  if (marketLong && urLong) {
+    return `Lean: ${team} outright — market ~${marketLong[1]}-to-1, UR path ~${urLong[1]}-to-1.`;
+  }
+
+  const american = blob.match(/\+\d{3,}/)?.[0];
+  if (american && /\b(mispriced|should be closer|abandoned|longshot|edge)\b/i.test(blob)) {
+    return `Lean: ${team} ${american} — structural longshot thesis.`;
+  }
+
+  const pct = l.match(/(\d+\.?\d*)%\s+outright/i) || blob.match(/(\d+\.?\d*)%\s+(?:to win|outright)/i);
+  if (pct && /\b(mispriced|longshot|abandoned|should be|path)\b/i.test(blob)) {
+    return `Lean: ${team} outright — sims ${pct[1]}%, books over-discount the path.`;
+  }
+
+  return "";
+}
+
+/**
+ * @param {string} summary
+ * @param {string} deep
+ * @param {string} call
+ * @param {{ line?: string, question?: string, wcIntent?: string, pass?: boolean }} [opts]
+ */
+function extractPlayDecision(summary, deep, call, opts = {}) {
+  const line = String(opts.line || "");
+  const question = String(opts.question || "");
+  const pass = Boolean(opts.pass);
   const blob = `${summary}\n${deep}`;
   const playMatch = blob.match(
     /\b(Pass at[^.!?]+[.!?]|Pass —[^.!?]+[.!?]|No play[^.!?]+[.!?]|Lean:[^.!?]+[.!?]|Lean [^.!?]+[.!?])/i,
@@ -106,6 +160,9 @@ function extractPlayDecision(summary, deep, pass, call) {
     return odds ? `Pass at ${odds} — fair price, no edge.` : "Pass — fair price, no edge.";
   }
 
+  const fromDelta = synthesizePlayFromLineDelta(line, call, deep);
+  if (fromDelta && !wcCardPlayRestatesCall(fromDelta, call)) return fromDelta;
+
   const deepSents = splitWcSentences(deep);
   const actionSent = deepSents.find(
     (s) => /\b(pass at|no play|lean)\b/i.test(s) && !wcCardPlayRestatesCall(s, call),
@@ -115,7 +172,15 @@ function extractPlayDecision(summary, deep, pass, call) {
     return `Lean: ${normalized}`;
   }
 
-  return "No play yet — see Watch For before locking a line.";
+  if (isWcCrazyPredictionQuestion(question)) {
+    const team = extractTeamFromCall(call);
+    if (/\b(abandoned|mispriced|longshot|path|structural edge|not \d+-to-1)\b/i.test(`${line}\n${deep}`)) {
+      return `Lean: ${team} outright — thesis longshot; size for variance only.`;
+    }
+    return "Pass — thesis only until verified outright odds post.";
+  }
+
+  return "Pass — no actionable line yet; see Watch For before locking a bet.";
 }
 
 /**
@@ -192,7 +257,9 @@ export function buildWcCompactStructured(opts = {}) {
 
   const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
   const line = synthesizeWcLine(summarySents, deep);
-  const lean = isListIntent ? WC_LIST_CARD_LEAN : extractPlayDecision(summary, deep, false, call);
+  const lean = isListIntent
+    ? WC_LIST_CARD_LEAN
+    : extractPlayDecision(summary, deep, call, { line, question, wcIntent });
   const pass = isWcPassVerdict(summary, lean);
   const edge = extractWatchFor(deep, pass);
   const whyNow = buildWhyNow(summary, deep, wcIntent);

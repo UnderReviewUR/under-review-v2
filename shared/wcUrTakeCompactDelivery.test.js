@@ -53,6 +53,25 @@ test("buildWcCompactStructured — player volume question synthesizes line and w
   assert.doesNotMatch(s.edge, /^Fair price — recheck after lineups lock\.$/);
 });
 
+test("buildWcCompactStructured — crazy prediction synthesizes lean from odds delta", () => {
+  const summary =
+    "Norway wins the tournament — a Contender in Group I with a path through France that the market has completely abandoned.";
+  const line =
+    "Sims give them 0.65% outright, but their group structure and knockout draw create a realistic run that books are pricing as a 200-to-1 longshot when it should be closer to 80-to-1.";
+  const deep =
+    "Norway sits in Group I as a Contender alongside France. Watch for: France's lineup confirmation and Senegal's form in warm-ups.";
+  const s = buildWcCompactStructured({
+    question: "Share your craziest World Cup prediction",
+    wcIntent: WC_INTENT.GENERAL,
+    summary: `${summary} ${line}`,
+    deep,
+  });
+  assert.match(s.lean, /Lean: Norway/i);
+  assert.match(s.lean, /200-to-1/);
+  assert.match(s.lean, /80-to-1/);
+  assert.doesNotMatch(s.lean, /No play yet/i);
+});
+
 test("formatWcCompactDisplayText — no section headers", () => {
   const text = formatWcCompactDisplayText(
     {
