@@ -1718,6 +1718,32 @@ export const baseCss = `
     background:linear-gradient(180deg,rgba(245,158,11,0.22) 0%,rgba(245,158,11,0.1) 100%);
   }
   .nav-btn.nav-btn--wc-spotlight::after{background:#F59E0B;}
+  @keyframes wc-shimmer{
+    0%{background-position:200% center;}
+    100%{background-position:-200% center;}
+  }
+  .wc-nav-shimmer{
+    background:linear-gradient(
+      90deg,
+      #b8860b 0%,
+      #e8c96a 30%,
+      #ffffff 48%,
+      #e8c96a 65%,
+      #b8860b 100%
+    );
+    background-size:200% auto;
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+    animation:wc-shimmer 2.8s linear infinite;
+  }
+  @media (prefers-reduced-motion:reduce){
+    .wc-nav-shimmer{
+      animation:none;
+      background:none;
+      -webkit-text-fill-color:#e8c96a;
+    }
+  }
   .bottom-nav .nav-btn--ur-take{
     background:rgba(0,245,233,0.08);
     border-radius:6px;

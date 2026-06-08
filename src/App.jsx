@@ -6504,7 +6504,7 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
             className={`nav-btn nav-btn--wc-spotlight${tab === "worldcup" ? " wc-active" : ""}`}
             onClick={goWorldCup}
           >
-            <span>World Cup</span>
+            <span className="wc-nav-shimmer">World Cup</span>
           </button>
           <button className={`nav-btn${tab==="tennis"?" tennis-active":""}`} onClick={goTennis}><span>Tennis</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
