@@ -1,22 +1,25 @@
+<!-- WC 2026 landing — revert after Jul 20 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UnderReview — Sharp Takes. Real Data.</title>
+  <title>Under Review — World Cup 2026 Intelligence</title>
   <meta name="theme-color" content="#070710" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/favicon.png" />
-  <meta name="description" content="Chat with AI that actually reasons about sports betting. NBA, NFL, Tennis, F1, MLB, Golf. Get 2 free UR Takes. No card required." />
-  <meta property="og:title" content="UnderReview — Sharp Takes. Real Data." />
-  <meta property="og:description" content="AI sports betting intelligence that reasons. Not picks. Not a tout. A better decision." />
+  <meta name="description" content="World Cup 2026 predictions, live match takes, and tournament analysis — structured intelligence powered by real odds and data. Get 2 free UR Takes. No card required." />
+  <meta property="og:title" content="UnderReview — World Cup 2026 Intelligence" />
+  <meta property="og:description" content="World Cup 2026 predictions, match previews, and live tournament intelligence. Winner, dark horse, Golden Boot — powered by real data." />
   <meta property="og:url" content="https://under-review.app/about" />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://under-review.app/og-image.png" />
+  <meta property="og:image:alt" content="Under Review — World Cup 2026 intelligence" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="UnderReview" />
-  <meta name="twitter:description" content="Chat with AI that reasons about sports betting. Get 2 free UR Takes." />
+  <meta name="twitter:title" content="UnderReview — World Cup 2026 Intelligence" />
+  <meta name="twitter:description" content="Tournament predictions, live match takes, and bracket analysis for World Cup 2026. Get 2 free UR Takes." />
   <meta name="twitter:image" content="https://under-review.app/og-image.png" />
+  <meta name="twitter:image:alt" content="Under Review — World Cup 2026 intelligence" />
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     :root{
@@ -76,10 +79,18 @@
 
     /* HERO */
     .hero{
-      padding:48px 20px 32px;
+      padding:48px 20px 24px;
       text-align:center;
       max-width:480px;
       margin:0 auto;
+      background-color:var(--bg);
+      background-image:repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 49px,
+        rgba(255,255,255,0.03) 49px,
+        rgba(255,255,255,0.03) 50px
+      );
     }
     .hero-tag{
       display:inline-block;
@@ -110,16 +121,9 @@
       font-size:16px;
       color:var(--soft);
       line-height:1.6;
-      margin-bottom:8px;
-    }
-    .hero-sub strong{color:var(--text);font-weight:600;}
-    .hero-chat-note{
-      font-family:var(--mono);
-      font-size:10px;
-      letter-spacing:1px;
-      color:rgba(0,245,233,0.5);
       margin-bottom:28px;
     }
+    .hero-sub strong{color:var(--text);font-weight:600;}
     .cta-primary{
       display:inline-block;
       font-family:var(--mono);
@@ -143,71 +147,169 @@
       text-transform:uppercase;
       margin-top:10px;
     }
+    .flag-row{
+      display:flex;
+      gap:12px;
+      justify-content:center;
+      flex-wrap:wrap;
+      margin:20px 0;
+    }
+    .flag-row img{
+      height:32px;
+      width:auto;
+      border-radius:3px;
+      opacity:0.85;
+    }
 
-    /* CHAT DEMO */
-    .chat-section{
+    /* TOURNAMENT URGENCY */
+    .urgency{
+      max-width:480px;
+      margin:0 auto 28px;
+      padding:0 20px;
+    }
+    .urgency-strip{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:10px 14px;
+      border:1px solid rgba(0,245,233,0.22);
+      border-radius:10px;
+      background:rgba(0,245,233,0.05);
+      font-family:var(--mono);
+      font-size:10px;
+      letter-spacing:1.2px;
+      text-transform:uppercase;
+      color:rgba(232,234,240,0.85);
+      text-align:center;
+      line-height:1.5;
+    }
+    .urgency-dot{
+      width:7px;height:7px;
+      border-radius:50%;
+      background:var(--cyan);
+      flex-shrink:0;
+      animation:urgency-pulse 2.4s ease-in-out infinite;
+    }
+    .urgency-sep{color:rgba(255,255,255,0.18);}
+    @keyframes urgency-pulse{
+      0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,245,233,0.45);}
+      50%{opacity:0.55;box-shadow:0 0 0 6px rgba(0,245,233,0);}
+    }
+    @media (prefers-reduced-motion:reduce){
+      .urgency-dot{animation:none;}
+    }
+
+    /* PRODUCT DEMO CARD */
+    .demo-section{
       padding:0 20px 32px;
       max-width:480px;
       margin:0 auto;
     }
-    .chat-label{
+    .demo-label{
       font-family:var(--mono);
       font-size:9px;
       letter-spacing:3px;
       color:var(--soft);
       text-transform:uppercase;
       text-align:center;
-      margin-bottom:16px;
+      margin-bottom:10px;
     }
-    .chat-window{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:16px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      max-width:100%;
-    }
-    .chat-msg{
-      max-width:85%;
-      padding:12px 14px;
-      border-radius:12px;
+    .demo-prompt{
       font-size:13px;
-      line-height:1.5;
-      word-wrap:break-word;
-      overflow-wrap:break-word;
-    }
-    .chat-msg.user{
-      background:#1A1D2E;
-      color:var(--text);
-      align-self:flex-end;
-      border-radius:12px 12px 4px 12px;
-    }
-    .chat-msg.ai{
-      background:#0F1215;
-      border:1px solid var(--border);
       color:var(--soft);
-      align-self:flex-start;
-      border-radius:4px 12px 12px 12px;
+      text-align:center;
+      margin-bottom:16px;
+      line-height:1.5;
+      padding:0 4px;
     }
-    .chat-msg.ai .play-line{
-      margin-top:10px;
-      padding-top:10px;
-      border-top:1px solid var(--border);
+    .ur-v2-card{
+      background:#080808;
+      border-radius:0;
+      overflow:hidden;
+      width:100%;
+      border:none;
+      border-bottom:0.5px solid #1a1a1a;
+      display:flex;
+    }
+    .wc-take-card-accent{
+      width:3px;
+      flex-shrink:0;
+      background:#00e5ff;
+    }
+    .wc-take-card-body{
+      flex:1;
+      min-width:0;
+    }
+    .wc-take-card-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:12px 16px 10px;
+      border-bottom:0.5px solid #1a1a1a;
+    }
+    .wc-take-headline{
       font-family:var(--mono);
-      font-size:11px;
+      font-size:10px;
       font-weight:700;
-      background:linear-gradient(90deg,var(--cyan),var(--mag));
-      -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent;
-      background-clip:text;
+      letter-spacing:0.14em;
+      text-transform:uppercase;
+      color:#fff;
+      line-height:1.35;
+    }
+    .wc-take-confidence-pill{
+      font-family:var(--mono);
+      font-size:9px;
+      letter-spacing:0.12em;
+      text-transform:uppercase;
+      color:#00F5E9;
+      font-weight:600;
+      padding:4px 8px;
+      border-radius:999px;
+      border:0.5px solid rgba(0,245,233,0.35);
+      background:rgba(0,245,233,0.08);
+      flex-shrink:0;
+    }
+    .wc-take-prediction-slot{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 16px;
+      border-bottom:0.5px solid #1a1a1a;
+    }
+    .wc-take-prediction-slot:last-of-type{border-bottom:none;}
+    .wc-take-row-label{
+      font-family:var(--mono);
+      font-size:9px;
+      letter-spacing:1.3px;
+      text-transform:uppercase;
+      color:#6B7280;
+      flex-shrink:0;
+    }
+    .wc-take-row-body{
+      font-size:13px;
+      font-weight:700;
+      color:#E8EAF0;
+      text-align:right;
+      line-height:1.35;
+    }
+    .wc-take-footer{
+      padding:10px 16px 12px;
+      border-top:0.5px solid #1a1a1a;
+      font-family:var(--mono);
+      font-size:10px;
+      letter-spacing:0.06em;
+      color:rgba(0,245,233,0.75);
+      line-height:1.45;
     }
     .chat-prompt-row{
       display:flex;
       gap:6px;
       flex-wrap:wrap;
-      margin-top:4px;
+      margin-top:16px;
       justify-content:center;
     }
     .chat-prompt{
@@ -377,8 +479,9 @@
     }
 
     @media (max-width:480px){
-      .hero{padding:36px 16px 24px;}
+      .hero{padding:36px 16px 20px;}
       .proof{gap:16px;}
+      .urgency-strip{font-size:9px;letter-spacing:1px;}
     }
   </style>
 </head>
@@ -386,97 +489,167 @@
 
 <nav>
   <a href="https://under-review.app" class="logo" onclick="localStorage.setItem('ur_seen_landing','1')">UnderReview</a>
-  <a href="https://under-review.app" class="nav-cta" onclick="localStorage.setItem('ur_seen_landing','1')">Ask 2 Questions Free →</a>
+  <a href="https://under-review.app" class="nav-cta" onclick="localStorage.setItem('ur_seen_landing','1')">Get My World Cup Picks →</a>
 </nav>
 
 <div class="hero">
-  <div class="hero-tag">NBA · NFL · Tennis · F1 · MLB · Golf · World Cup</div>
-  <h1>Ask. Get the edge.<br><span class="grad">Instantly.</span></h1>
-  <p class="hero-sub">Type any game, prop, or matchup.<br>UR Take reasons through the data — rotation gaps, injury context, pace math — and gives you a direct call.<br>Not picks. Not a tout.<br><strong>A better decision.</strong></p>
-  <p class="hero-chat-note">⚡ Type anything · Tap a prompt · Ask follow-ups</p>
-  <p style="font-family:var(--mono);font-size:11px;letter-spacing:1px;color:rgba(0,245,233,0.7);margin-bottom:12px;text-align:center;">Ask about any game on the slate →</p>
-  <a href="https://under-review.app" class="cta-primary" onclick="localStorage.setItem('ur_seen_landing','1')">Ask 2 Questions Free →</a>
+  <div class="hero-tag">World Cup · NBA · NFL · Tennis · F1 · Golf · MLB</div>
+  <h1>The World Cup starts Thursday.<br><span class="grad">Are you ready?</span></h1>
+  <p class="hero-sub">Get structured predictions, live match takes, and tournament analysis — powered by real data, not vibes.</p>
+  <a href="https://under-review.app" class="cta-primary" onclick="localStorage.setItem('ur_seen_landing','1')">Get My World Cup Picks →</a>
   <p class="cta-sub">No card · No signup · Just ask</p>
+  <div class="flag-row" aria-hidden="true">
+    <img src="https://flagcdn.com/w40/us.png" alt="" width="48" height="32" loading="lazy" />
+    <img src="https://flagcdn.com/w40/br.png" alt="" width="48" height="32" loading="lazy" />
+    <img src="https://flagcdn.com/w40/gb-eng.png" alt="" width="48" height="32" loading="lazy" />
+    <img src="https://flagcdn.com/w40/fr.png" alt="" width="48" height="32" loading="lazy" />
+    <img src="https://flagcdn.com/w40/ar.png" alt="" width="48" height="32" loading="lazy" />
+    <img src="https://flagcdn.com/w40/ma.png" alt="" width="48" height="32" loading="lazy" />
+  </div>
 </div>
 
-<div class="chat-section">
-  <!-- DEMO: Thunder–Spurs WCF SGA exchange — update after WCF ends. Replace with generic Option C from audit doc. -->
-  <p class="chat-label">Example prompt:</p>
-  <div class="chat-window">
-    <div class="chat-msg user">Thunder–Spurs Game 3: is SGA over 30.5 points the play?</div>
-    <div class="chat-msg ai">
-      MARKET MISTAKE<br>
-      Books are pricing this like a regular-season 28-point guard — not a WCF usage hub with the paint unprotected.<br><br>
-      WHY MISPRICED<br>
-      San Antonio has to respect OKC's spacing, which leaves SGA on the ball in the two-man game all night. His on-ball volume in this series is 34%+ — that's 32–35 points on 65–68% true shooting nights. The 30.5 sits under his live scoring band when the game stays within 12.
-      <div class="play-line">THE PLAY: SGA over 30.5 points — playable up to 32.5; at 33.5, pass · High confidence · re-check injury report 90 min before tip</div>
+<div class="urgency">
+  <div class="urgency-strip">
+    <span class="urgency-dot" aria-hidden="true"></span>
+    <span id="urgency-countdown">Kickoff in — · USA vs. Paraguay · Group Stage</span>
+  </div>
+</div>
+
+<div class="demo-section">
+  <p class="demo-label">Example prompt</p>
+  <p class="demo-prompt">Give me your full tournament predictions — winner, dark horse, breakout player, and Golden Boot</p>
+  <div class="ur-v2-card wc-take-card">
+    <div class="wc-take-card-accent" aria-hidden="true"></div>
+    <div class="wc-take-card-body">
+      <div class="wc-take-card-top">
+        <span class="wc-take-headline">🏆 WORLD CUP 2026 PREDICTIONS</span>
+        <span class="wc-take-confidence-pill">High</span>
+      </div>
+      <div class="wc-take-prediction-slot">
+        <span class="wc-take-row-label">Winner</span>
+        <span class="wc-take-row-body">Brazil</span>
+      </div>
+      <div class="wc-take-prediction-slot">
+        <span class="wc-take-row-label">Dark Horse</span>
+        <span class="wc-take-row-body">Morocco</span>
+      </div>
+      <div class="wc-take-prediction-slot">
+        <span class="wc-take-row-label">Breakout Player</span>
+        <span class="wc-take-row-body">Lamine Yamal</span>
+      </div>
+      <div class="wc-take-prediction-slot">
+        <span class="wc-take-row-label">Top Goalscorer</span>
+        <span class="wc-take-row-body">Erling Haaland</span>
+      </div>
+      <div class="wc-take-footer">Confidence: High · Powered by live odds + tournament data</div>
     </div>
   </div>
   <div style="margin-top:12px;">
     <p class="or-tap">Or tap a prompt like these →</p>
     <div class="chat-prompt-row">
-      <div class="chat-prompt">Pre-tip edge?</div>
-      <div class="chat-prompt">Best prop on the slate?</div>
-      <div class="chat-prompt">Fade or back?</div>
-      <div class="chat-prompt">Live angle?</div>
+      <div class="chat-prompt">Winner pick?</div>
+      <div class="chat-prompt">Group stage edge?</div>
+      <div class="chat-prompt">Golden Boot?</div>
+      <div class="chat-prompt">Dark horse?</div>
     </div>
   </div>
 </div>
 
 <div class="props">
   <div class="prop">
-    <div class="prop-icon">💬</div>
+    <div class="prop-icon">🏆</div>
     <div>
-      <div class="prop-title">It's a conversation</div>
-      <div class="prop-desc">Ask anything. Follow up. Push back. UR Take builds on what you already discussed — not a static stats page.</div>
+      <div class="prop-title">Tournament intelligence</div>
+      <div class="prop-desc">Group draws, bracket paths, and match previews — structured reads before kickoff and through the knockout rounds.</div>
     </div>
   </div>
   <div class="prop">
     <div class="prop-icon">📊</div>
     <div>
-      <div class="prop-title">Real data. Real reasoning.</div>
-      <div class="prop-desc">Live injury context, rotation gaps, pace math, and Beyer Speed Figures — not vibes, not chalk, not recycled opinions.</div>
+      <div class="prop-title">Real odds, real data</div>
+      <div class="prop-desc">Every take grounded in live lines and verified match context — not fabricated picks, not recycled chalk.</div>
     </div>
   </div>
   <div class="prop">
     <div class="prop-icon">⚡</div>
     <div>
-      <div class="prop-title">Seven sports. One place.</div>
-      <div class="prop-desc">NBA · NFL · Tennis · F1 · MLB · Golf · World Cup. Switch sports mid-session. Ask about the game and the prop in the same conversation.</div>
+      <div class="prop-title">Every sport, one app</div>
+      <div class="prop-desc">World Cup is the entry point. NBA, NFL, Tennis, F1, MLB, and Golf stay one question away when the slate moves on.</div>
     </div>
   </div>
 </div>
 
 <div class="proof">
-  <div class="proof-item"><span>7</span>Sports</div>
-  <div class="proof-item"><span>280+</span>Player profiles</div>
-  <div class="proof-item"><span>125</span>Injuries tracked</div>
+  <div class="proof-item"><span>WC 2026</span>Tournament</div>
+  <div class="proof-item"><span>48</span>Teams tracked</div>
+  <div class="proof-item"><span>Live</span>Odds</div>
   <div class="proof-item"><span>$9.99</span>Per month</div>
 </div>
 
 <div class="pricing">
   <div class="price-card">
-    <div class="price-tag">Pro — Unlimited Access</div>
+    <div class="price-tag">One price. Every match.</div>
     <div class="price-amount">$9.99</div>
     <div class="price-period">/ month</div>
     <ul class="price-features">
       <li>Ask 2 questions free — no card required to start</li>
       <li>Unlimited questions after subscribing</li>
       <li>Full-depth reasoning on every query</li>
-      <li>THE PLAY verdict close — every response</li>
+      <li>Structured verdict close — every response</li>
       <li>Session memory — UR Take remembers your last session</li>
-      <li>Play tracker — track wins and losses, see your record</li>
+      <li>Tournament tracker — track wins and losses, see your record</li>
       <li>Betting style — personalize how UR Take reads your plays</li>
       <li>Seven sports, live data, updated continuously</li>
     </ul>
-    <a href="https://under-review.app" class="price-cta" onclick="localStorage.setItem('ur_seen_landing','1')">Ask 2 Questions Free →</a>
+    <a href="https://under-review.app" class="price-cta" onclick="localStorage.setItem('ur_seen_landing','1')">Get My World Cup Picks →</a>
     <p class="price-note">Secure checkout · Powered by Stripe · Cancel anytime</p>
   </div>
 </div>
 
 <footer>
-  <p>UnderReview · under-review.app · Not a pick service · Sharp takes, real data</p>
+  <p>UnderReview · under-review.app · Sports intelligence · Sharp takes, real data</p>
 </footer>
+
+<script>
+  (function () {
+    var KICKOFF_UTC_MS = Date.UTC(2026, 5, 12, 1, 0, 0);
+    var el = document.getElementById("urgency-countdown");
+    if (!el) return;
+
+    function pad(n) {
+      return n < 10 ? "0" + n : String(n);
+    }
+
+    var id;
+    function tick() {
+      var now = Date.now();
+      var diff = KICKOFF_UTC_MS - now;
+      var totalSec = Math.max(0, Math.floor(diff / 1000));
+      var days = Math.floor(totalSec / 86400);
+      var hours = Math.floor((totalSec % 86400) / 3600);
+      var mins = Math.floor((totalSec % 3600) / 60);
+      if (diff <= 0 || (days === 0 && hours === 0 && mins === 0)) {
+        el.textContent = "⚽ The tournament is live";
+        if (id) clearInterval(id);
+        return;
+      }
+      el.textContent =
+        "Kickoff in " +
+        days +
+        "d " +
+        pad(hours) +
+        "h " +
+        pad(mins) +
+        "m · USA vs. Paraguay · Group Stage";
+    }
+
+    tick();
+    id = setInterval(tick, 1000);
+    window.addEventListener("pagehide", function () {
+      clearInterval(id);
+    });
+  })();
+</script>
 
 <script>
   window.va = window.va || function () {

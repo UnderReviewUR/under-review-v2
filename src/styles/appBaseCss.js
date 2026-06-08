@@ -1844,9 +1844,39 @@ export const baseCss = `
   .wc-odds-bar span{display:block;height:100%;}
   .wc-screen{padding-top:4px;}
   .wc-header{margin-bottom:14px;}
-  .wc-title{font-family:var(--display-font);font-size:28px;letter-spacing:2px;color:var(--wc-gold);line-height:1;}
-  .wc-subtitle{font-size:13px;color:var(--soft);margin-top:4px;}
-  .wc-dates{font-size:11px;color:var(--muted);font-family:var(--mono-font);margin-top:2px;}
+  .wc-title-row{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 10px;}
+  .wc-title{font-family:var(--display-font);font-size:28px;letter-spacing:2px;color:var(--wc-gold);line-height:1;margin:0;}
+  .wc-host-flags{font-size:18px;letter-spacing:2px;line-height:1;}
+  .wc-subtitle{font-size:13px;color:var(--soft);margin-top:6px;text-align:center;}
+  .wc-dates{font-size:11px;color:var(--muted);font-family:var(--mono-font);margin-top:2px;text-align:center;}
+  .wc-matchday-bar{margin-top:10px;}
+  .wc-matchday-label{
+    display:flex;justify-content:space-between;gap:8px;
+    font-family:var(--mono-font);font-size:9px;letter-spacing:0.1em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:5px;
+  }
+  .wc-matchday-track{height:3px;border-radius:2px;background:var(--border);overflow:hidden;}
+  .wc-matchday-fill{height:100%;background:linear-gradient(90deg,var(--wc-gold),var(--cyan-bright));border-radius:2px;transition:width 0.4s ease;}
+  .wc-featured-strip{
+    width:100%;text-align:left;margin-bottom:12px;padding:12px 14px;
+    border-radius:14px;border:1px solid rgba(245,158,11,0.35);
+    border-left:4px solid var(--wc-gold);
+    background:linear-gradient(180deg,rgba(245,158,11,0.1),rgba(255,255,255,0.02));
+    cursor:pointer;
+  }
+  .wc-featured-strip--live{border-color:rgba(0,245,233,0.4);border-left-color:var(--cyan-bright);background:linear-gradient(180deg,rgba(0,245,233,0.08),rgba(255,255,255,0.02));}
+  .wc-featured-kicker{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--wc-gold);margin-bottom:6px;
+  }
+  .wc-featured-strip--live .wc-featured-kicker{color:var(--cyan-bright);}
+  .wc-featured-matchup{font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;}
+  .wc-featured-meta{font-size:11px;color:var(--muted);font-family:var(--mono-font);}
+  .wc-start-here{margin-bottom:12px;}
+  .wc-start-here-label{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:8px;
+  }
   .wc-main-tabs,.wc-sub-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px;}
   .wc-main-tab,.wc-sub-tab{
     flex:0 0 auto;
