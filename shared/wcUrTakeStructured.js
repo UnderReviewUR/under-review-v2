@@ -91,6 +91,12 @@ export function normalizeWcStructuredForDelivery(
     return out;
   }
 
+  if (intent === WC_INTENT.PREDICTIONS_ROUNDUP) {
+    out.callType = "predictions_roundup";
+    delete out.playerMarketTier;
+    return out;
+  }
+
   return out;
 }
 

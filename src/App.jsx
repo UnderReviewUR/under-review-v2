@@ -134,6 +134,7 @@ import {
   buildContextualQuestion,
   inferUrTakeSportFromMessages,
 } from "./features/app/helpers.jsx";
+import { autocorrectUrTakeQuestion } from "../shared/urTakeQuestionAutocorrect.js";
 
 import { baseCss } from "./styles/appBaseCss.js";
 
@@ -1490,6 +1491,7 @@ ${themeCss}
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry, wcEventId, wcMatchTeams }) => {
+  text = autocorrectUrTakeQuestion(String(text || "").trim()).text;
   if (!text || isAsking || prefetchingUrTakeContext) return;
   if (!canAsk()) return;
   if (urTakeInFlightRef.current) return;

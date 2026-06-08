@@ -123,7 +123,9 @@ import {
   WC_GROUP_MATH_QA_SUFFIX,
   WC_PLAYER_MARKET_QA_SUFFIX,
   WC_QA_REGENERATION_SUFFIX,
+  WC_PREDICTIONS_ROUNDUP_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
+import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
   buildWcTurnScopeBlock,
   classifyWcQuestionIntent,
@@ -210,6 +212,7 @@ import {
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
 } from "../../shared/urTakeSportRouting.js";
+import { autocorrectUrTakeQuestion } from "../../shared/urTakeQuestionAutocorrect.js";
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "../_takeLedger.js";
 import { buildCanonicalNflContext } from "../_nflContext.js";
@@ -2359,7 +2362,6 @@ export default async function handler(req, res) {
       structuredHeaderRequested);
 
   const {
-    question,
     userEmail,
     sportHint: incomingSportHint,
     teamHint,
@@ -2376,6 +2378,7 @@ export default async function handler(req, res) {
     history: incomingHistory,
     wcEventId: incomingWcEventId,
   } = req.body || {};
+  let question = autocorrectUrTakeQuestion(String(req.body?.question || "").trim()).text;
   const bettingStyle =
     req.body?.bettingStyle === "limits"
       ? "limits"
@@ -4462,8 +4465,11 @@ Confidence guidance:
     const isWcRulesIntent = wcIntent === WC_INTENT.RULES;
     const isWcMatchupIntent = wcIntent === WC_INTENT.MATCHUP;
     const isWcTopGoalscorersListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
+    const isWcPredictionsRoundupIntent = wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP;
     const isWcPlayerMarketIntentFlag =
-      isWcPlayerMarketIntent(wcIntent) && !isWcTopGoalscorersListIntent;
+      isWcPlayerMarketIntent(wcIntent) &&
+      !isWcTopGoalscorersListIntent &&
+      !isWcPredictionsRoundupIntent;
     const wcPlayerMarketResolved =
       isWcPlayerMarketIntent(wcIntent) || isWcTopGoalscorersListIntent
         ? resolveWcPlayerMarketResponse(String(question || ""), wcIntent, wcContext)
@@ -4484,9 +4490,11 @@ Confidence guidance:
         ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
         : isWcTopGoalscorersListIntent
           ? "You are answering a 2026 FIFA World Cup top goalscorers list question (ranked players with odds)."
-          : isWcPlayerMarketIntentFlag
-            ? "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
-            : "You are answering a 2026 FIFA World Cup betting question.";
+          : isWcPredictionsRoundupIntent
+            ? "You are answering a 2026 FIFA World Cup predictions roundup (Winners, Dark horse, Breakout player, Top goalscorer — every labeled slot)."
+            : isWcPlayerMarketIntentFlag
+              ? "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
+              : "You are answering a 2026 FIFA World Cup betting question.";
     const wcIntentRules = isWcRulesIntent
       ? `- Answer with tournament rules only. Do NOT lead with a betting take or group-stage prediction.
 - Lead sentence one with the direct answer about extra time, penalties, or the specific rule asked.
@@ -4506,6 +4514,15 @@ Confidence guidance:
 - deep max 120 words: brief context on gaps between #1–#5; do not repeat the full list verbatim.
 - Do NOT paste the prior turn's one-line top-scorer answer — this turn is a ranked board.
 - Cite only prices from PLAYER MARKETS — VERIFIED CONTEXT.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+          : isWcPredictionsRoundupIntent
+            ? `- Return JSON per OUTPUT CONTRACT only (summary + deep keys).
+- User asked for MULTIPLE labeled predictions — answer every slot they listed (Winners, Dark horse, Breakout player, Top goalscorer).
+- summary sentence 1 = tournament framing across the board (not a single Golden Boot thesis).
+- summary sentence 2 = structural delta (sims %, paths, or market vs UR).
+- deep must include labeled lines: "Winners:", "Dark horse:", "Breakout player:", "Top goalscorer:" — one complete sentence each.
+- End deep with WATCH FOR and an explicit PLAY decision for the best single bet from the roundup.
+- Do NOT collapse into a Golden Boot-only answer.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
           : isWcPlayerMarketIntentFlag
             ? `- Return JSON per OUTPUT CONTRACT only (summary + deep keys).
@@ -4556,7 +4573,7 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 
 Rules:
-${wcIntentRules}${isWcRulesIntent ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}`;
+${wcIntentRules}${isWcRulesIntent ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}${isWcPredictionsRoundupIntent ? `\n\n${WC_PREDICTIONS_ROUNDUP_PROMPT}` : ""}`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -4907,6 +4924,10 @@ You are responding to a Pro subscriber. Apply the following:
             }${
               prevQaCriticalCodes.includes("wc_group_math_mismatch")
                 ? WC_GROUP_MATH_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_predictions_roundup_incomplete")
+                ? WC_PREDICTIONS_ROUNDUP_QA_SUFFIX
                 : ""
             }`
           : "";

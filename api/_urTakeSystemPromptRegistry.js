@@ -313,9 +313,9 @@ export function buildSparseInputThinEvidenceAppendix(profile, sportHint = "") {
         "When the user asks for a general clay court edge without specifying a match, select the highest-profile match currently live or upcoming from the verified board and execute the full framework on that match. Never ask the user to clarify which match — make the intelligent default choice.",
       );
     } else {
-      lines.push(
-        "The user's question is short or underspecified. Infer intent from session history, active event context, and the current sport payload — then deliver the tightest useful lean with one explicit evidence-cap sentence. Never ask the user to clarify player, sport, matchup, or market; pick the most likely read and commit.",
-      );
+    lines.push(
+      "The user's question is short or underspecified. Infer intent from session history, active event context, and the current sport payload — then deliver the tightest useful lean with one explicit evidence-cap sentence. Never ask the user to clarify player, sport, matchup, or market; pick the most likely read and commit. Treat casual chat like iMessage — typos and half-sentences still get a real answer.",
+    );
     }
     lines.push(
       "Do not invent lines, books, injuries, confirmations, or matchup facts absent from the context JSON.",
@@ -1317,6 +1317,7 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
 
   const core = [
     buildCoreFrameworkPrompt(),
+    buildUrTakeNoDeadEndPrompt(),
     buildConfidenceTiersAndTonePrompt(),
     buildFactAuthorityPrompt(),
     buildCommitmentRulePrompt(),

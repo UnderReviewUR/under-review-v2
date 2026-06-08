@@ -51,8 +51,9 @@ const AskBar = memo(function AskBar({
   const askInputProps = {
     inputMode: "text",
     autoComplete: "off",
-    autoCorrect: "off",
-    spellCheck: false,
+    autoCorrect: "on",
+    spellCheck: true,
+    autoCapitalize: "sentences",
     enterKeyHint: "send",
   };
 

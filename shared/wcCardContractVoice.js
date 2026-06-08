@@ -135,6 +135,8 @@ export function scoreWcCardSentenceCompleteness(structured, opts = {}) {
 
   const wcIntent = String(opts.wcIntent || "");
   const isList = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST || callType === "goalscorers_list";
+  const isRoundup =
+    wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP || callType === "predictions_roundup";
   const call = String(structured?.call || "").trim();
   const line = String(structured?.line || "").trim();
   const lean = String(structured?.lean || "").trim();
@@ -155,6 +157,13 @@ export function scoreWcCardSentenceCompleteness(structured, opts = {}) {
     }
   };
 
+  if (isRoundup) {
+    check("call", call, true);
+    check("edge", edge, true);
+    check("lean", lean, true);
+    return { passed: issues.length === 0, issues };
+  }
+
   check("call", call, true);
   check("line", line, false);
   check("why_now", whyNow, true);
@@ -172,6 +181,9 @@ export function scoreWcCardSentenceCompleteness(structured, opts = {}) {
  */
 export function scoreWcCardContractVoice(structured, opts = {}) {
   const callType = String(structured?.callType || opts.callType || "").toLowerCase();
+  const wcIntent = String(opts.wcIntent || "");
+  const isRoundup =
+    callType === "predictions_roundup" || wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP;
   const call = String(structured?.call || "").trim();
   const line = String(structured?.line || "").trim();
   const lean = String(structured?.lean || "").trim();
@@ -192,14 +204,17 @@ export function scoreWcCardContractVoice(structured, opts = {}) {
   if (lean && call && wcCardPlayRestatesCall(lean, call)) {
     issues.push("wc_card_play_restates_call");
   }
-  if (call && wcCardHeadlineAnnouncesOnly(call)) {
+  if (!isRoundup && call && wcCardHeadlineAnnouncesOnly(call)) {
     issues.push("wc_card_headline_announces");
   }
-  if (call && !wcCardHasDeltaSignal(combined) && !/\bpass\b/i.test(lean)) {
+  if (!isRoundup && call && !wcCardHasDeltaSignal(combined) && !/\bpass\b/i.test(lean)) {
     issues.push("wc_card_missing_delta");
   }
 
-  const sentences = scoreWcCardSentenceCompleteness(structured, opts);
+  const sentenceOpts = isRoundup
+    ? { ...opts, callType: "predictions_roundup" }
+    : opts;
+  const sentences = scoreWcCardSentenceCompleteness(structured, sentenceOpts);
   issues.push(...sentences.issues);
 
   return { passed: issues.length === 0, issues };

@@ -185,63 +185,12 @@ ${derivedConfidence}${nbaConfidenceModifier.reason ? ` — ${nbaConfidenceModifi
       !!nbaContext?.liveBoxscore);
 
   if (includeEmptyFallbacks && sportHint === "nba" && hasNoChatHistory && !nbaHasUsableContext) {
-    const response =
-      "The NBA feed is loading — check back closer to tip-off or ask about a specific player or matchup and I'll work with what's available.";
-    const fallbackTake = extractTakeFromResponse({
-      responseText: response,
-      sport: "nba",
-      intent,
-      question,
-    });
-    setGateQuotaDelivered(true);
-    await sendUrTakeJson(
-      res,
-      {
-        requestId,
-        response,
-        responseDeep: null,
-        responseFormat: "plain",
-        statusShift: null,
-        decisionMode: nbaDecisionMode,
-        sport: "nba",
-        intent,
-        take: takeClientPayload(fallbackTake),
-        fallback: true,
-        fallbackReason: "empty_nba_context",
-      },
-      { gateQuotaEmail, gateQuotaSessionId },
-    );
-    return { handled: true };
+    // Let the model answer with sparse-input rules — do not dead-end asking for a "specific" matchup.
+    return { handled: false };
   }
 
   if (includeEmptyFallbacks && sportHint === "golf" && hasNoChatHistory && !golfContextEffective) {
-    const response =
-      "Golf context is still loading. Ask about a specific tournament, player, or matchup and I'll work with what's available.";
-    const fallbackTake = extractTakeFromResponse({
-      responseText: response,
-      sport: "golf",
-      intent,
-      question,
-    });
-    setGateQuotaDelivered(true);
-    await sendUrTakeJson(
-      res,
-      {
-        requestId,
-        response,
-        responseDeep: null,
-        responseFormat: "plain",
-        statusShift: null,
-        decisionMode: null,
-        sport: "golf",
-        intent,
-        take: takeClientPayload(fallbackTake),
-        fallback: true,
-        fallbackReason: "empty_golf_context",
-      },
-      { gateQuotaEmail, gateQuotaSessionId },
-    );
-    return { handled: true };
+    return { handled: false };
   }
 
   return { handled: false };

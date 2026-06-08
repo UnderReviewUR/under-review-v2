@@ -5,8 +5,9 @@
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
 
-/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"UNCLASSIFIED"} WcUrTakeIntent */
+/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
 export const WC_INTENT = {
   RULES: "RULES",
@@ -21,6 +22,7 @@ export const WC_INTENT = {
   TOP_SCORER: "TOP_SCORER",
   TOP_GOALSCORERS_LIST: "TOP_GOALSCORERS_LIST",
   SCORE_PREDICTION: "SCORE_PREDICTION",
+  PREDICTIONS_ROUNDUP: "PREDICTIONS_ROUNDUP",
   UNCLASSIFIED: "UNCLASSIFIED",
 };
 
@@ -35,6 +37,12 @@ export const WC_INTENT_CATALOG = [
     label: "General",
     description:
       "Default catch-all for any World Cup question (tournament outlook, narratives, hypotheticals, trivia-adjacent betting angles). Answer literally — do not force a group-stage pick template.",
+  },
+  {
+    id: WC_INTENT.PREDICTIONS_ROUNDUP,
+    label: "Predictions roundup",
+    description:
+      "Multi-slot prediction prompts (Winners, Dark horse, Breakout player, Top goalscorer) — answer every labeled slot.",
   },
   {
     id: WC_INTENT.RULES,
@@ -252,6 +260,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.STRUCTURAL;
   }
 
+  if (isWcPredictionsRoundupQuestion(q)) {
+    return WC_INTENT.PREDICTIONS_ROUNDUP;
+  }
+
   if (isWcTopGoalscorersListQuestion(q)) {
     return WC_INTENT.TOP_GOALSCORERS_LIST;
   }
@@ -363,6 +375,12 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - Answer the user's World Cup question directly in plain language — no forced template (not automatically a group pick, scorer lean, or rules lecture).
 - Use VERIFIED CONTEXT when citing odds, groups, or fixtures; stay honest when data is thin.
 - Do not repeat a prior one-line lean unless the user is clearly asking for an update on that same market.`;
+  }
+  if (intent === WC_INTENT.PREDICTIONS_ROUNDUP) {
+    return `TURN SCOPE (binding):
+- User asked for MULTIPLE labeled predictions in one message — answer every slot they listed (Winners, Dark horse, Breakout player, Top goalscorer).
+- Do NOT collapse the answer into a single Golden Boot / top-scorer thesis.
+- Label each pick in deep; use sims/odds from VERIFIED CONTEXT when citing numbers.`;
   }
   if (isWcPlayerMarketIntent(intent)) {
     return `TURN SCOPE (binding):

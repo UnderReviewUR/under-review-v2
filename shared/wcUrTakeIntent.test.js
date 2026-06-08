@@ -108,6 +108,12 @@ test("classifyWcQuestionIntent — group slate stays STRUCTURAL", () => {
   assert.equal(classifyWcQuestionIntent("Best group stage bet?"), WC_INTENT.STRUCTURAL);
 });
 
+test("classifyWcQuestionIntent — predictions roundup multi-slot", () => {
+  const q =
+    "The World Cup starts this week! Let's hear your predictions: 🏆 Winners: 🐎 Dark horse: 📈 Breakout player: 🔝 Top goalscorer:";
+  assert.equal(classifyWcQuestionIntent(q), WC_INTENT.PREDICTIONS_ROUNDUP);
+});
+
 test("classifyWcQuestionIntent — contextual follow-up after top-5 list", () => {
   const contextual =
     "User: predict the top 5 goal scorers for the world cup\n\nFollow-up:\nWho is mispriced instead?";

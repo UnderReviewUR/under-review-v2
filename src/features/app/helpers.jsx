@@ -1695,6 +1695,16 @@ function coerceStructuredForUrTakeCard(raw) {
           : null,
     playerMarketTier:
       raw.playerMarketTier != null ? String(raw.playerMarketTier) : null,
+    predictionSlots: Array.isArray(raw.predictionSlots)
+      ? raw.predictionSlots
+          .filter((s) => s && typeof s === "object")
+          .map((s) => ({
+            key: String(s.key ?? "").trim(),
+            label: String(s.label ?? "").trim(),
+            value: String(s.value ?? "").trim(),
+          }))
+          .filter((s) => s.label && s.value)
+      : [],
   };
 }
 
@@ -1729,6 +1739,13 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
       ...structured,
       sport: "worldcup",
       callType: "analysis",
+    };
+  }
+  if (intent === WC_INTENT.PREDICTIONS_ROUNDUP) {
+    return {
+      ...structured,
+      sport: "worldcup",
+      callType: "predictions_roundup",
     };
   }
   if (
@@ -2015,6 +2032,7 @@ function UrTakeAiBubble({
             structuralEdgeChip={structuralEdgeChip}
             dataConfidence={m.dataConfidence}
             playerMarketTier={s.playerMarketTier ?? null}
+            predictionSlots={s.predictionSlots ?? []}
             nbaRelevance={m.nbaRelevance ?? null}
             nbaContextBar={buildNbaUrTakeContextBar({
               sport: s.sport,

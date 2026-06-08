@@ -25,6 +25,17 @@ export function buildWcTakeStatGrid(opts = {}) {
   const ct = String(opts.callType || "single").toLowerCase();
   const play = formatWcPlaySlot(opts.lean);
 
+  if (ct === "predictions_roundup") {
+    const slotLine = lineVal || "Tap breakdown for full board";
+    return {
+      mode: "predictions_roundup",
+      slots: [
+        { key: "ln", label: "Line", value: slotLine, highlight: true },
+        { key: "c", label: "Confidence", value: conf, highlight: false },
+      ],
+    };
+  }
+
   if (ct.startsWith("player_market") || ct === "player_prop") {
     const slotLine = lineVal || play || "See breakdown";
     return {

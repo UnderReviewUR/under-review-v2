@@ -23,6 +23,11 @@ import {
   scoreWcCardContractVoice,
   WC_CARD_VOICE_QA_SUFFIX,
 } from "../shared/wcCardContractVoice.js";
+import {
+  expectedWcPredictionSlots,
+  parseWcPredictionSlots,
+  WC_PREDICTIONS_ROUNDUP_QA_SUFFIX,
+} from "../shared/wcPredictionsRoundup.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -148,7 +153,24 @@ export function runWcUrTakeQA(opts = {}) {
 
   const question = String(opts.question || "");
   let qaPlayerMatch = null;
-  if (questionAsksForWcPlayerMarket(question) || isWcPlayerMarketIntent(wcIntent)) {
+
+  if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
+    const slots =
+      Array.isArray(structured?.predictionSlots) && structured.predictionSlots.length
+        ? structured.predictionSlots
+        : parseWcPredictionSlots(body);
+    const expected = expectedWcPredictionSlots(question);
+    const have = new Set((slots || []).map((s) => s.key));
+    const missing = expected.filter((spec) => !have.has(spec.key));
+    if (missing.length > 0) {
+      issueCodes.push("wc_predictions_roundup_incomplete");
+    }
+  }
+
+  if (
+    wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
+    (questionAsksForWcPlayerMarket(question) || isWcPlayerMarketIntent(wcIntent))
+  ) {
     if (detectTeamAnswerToPlayerQuestion(headline, body, question)) {
       issueCodes.push("wc_player_question_team_lead");
       qaPlayerMatch = "fail";
@@ -233,6 +255,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_card_missing_delta",
       "headline_over_18_words",
       "missing_line_delta",
+      "wc_predictions_roundup_incomplete",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
     String(c).startsWith("wc_card_truncated_"),
@@ -254,6 +277,8 @@ WC PLAYER MARKET QA (mandatory — prior answer failed player contract):
 - Do NOT name only France, Brazil, or any national team as the answer to a player question.
 - Sentence one must name a player from PLAYER MARKETS — VERIFIED CONTEXT (e.g. Mbappé, Kane) with cited American odds when listed.
 - If lineups are not confirmed, say so once — still rank named early contenders; never substitute a nation as the pick.`;
+
+export { WC_PREDICTIONS_ROUNDUP_QA_SUFFIX };
 
 export const WC_QA_REGENERATION_SUFFIX = `
 

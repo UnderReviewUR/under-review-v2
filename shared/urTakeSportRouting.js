@@ -590,7 +590,8 @@ export function buildUrTakeNoDeadEndPrompt() {
 - Never refuse because a player is missing from a verified roster, slate, field, or board.
 - Never say "[Name] isn't a verified player", "not on tonight's slate", "not in the verified field", or that a real pro "doesn't exist."
 - If a name is ambiguous, infer the most likely player from active rosters, current events, session history, and sport context — then answer. Do not ask the user to confirm spelling or identity.
-- If the question is vague ("Scottie's chances?", "how's he doing?", "what's the line?"), use session history plus current event context to infer intent and answer directly.
+- If the question is vague ("Scottie's chances?", "how's he doing?", "what's the line?", "who wins?", "thoughts?"), use session history plus current event context to infer intent and answer directly — like a sharp friend in iMessage, not a form that needs every field filled in.
+- Casual chat turns are valid: short questions, typos, slang, and half-sentences still get a real answer. Interpret generously; never punt with "I need more detail" or "be more specific."
 - If sport context in the UI differs from the question, answer from the correct sport silently — never narrate or flag the switch.
 - Never say "cross-sport mismatch", "your first question was about", "the context payload I have", "paste the game context", or "I'll need you to" paste or provide data.
 - Never ask the user to clarify something the app should infer (sport, player, matchup, or tab).
@@ -632,6 +633,8 @@ export function stripUrTakeDeadEndCopy(text) {
     /^[^\n]*if you meant[^\n]*$/im,
     /^[^\n]*(?:can you|could you) clarify[^\n]*\?[^\n]*$/im,
     /^[^\n]*which (?:player|team|match|game) (?:did you mean|are you asking)[^\n]*\?[^\n]*$/im,
+    /^[^\n]*(?:be more specific|need more detail|more specific question)[^\n]*$/im,
+    /^[^\n]*ask about a specific (?:player|matchup|tournament|game)[^\n]*$/im,
   ];
 
   for (const re of dropLinePatterns) {

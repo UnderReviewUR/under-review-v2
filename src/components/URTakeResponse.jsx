@@ -82,6 +82,7 @@ export default function URTakeResponse({
   line: wcLine = null,
   deep: wcDeep = null,
   breakdownAvailable = false,
+  predictionSlots = [],
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -139,10 +140,15 @@ export default function URTakeResponse({
   const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
   const callTypeLower = String(callType || "").toLowerCase();
   const playerMarketTierKey = String(playerMarketTier || "").toLowerCase();
+  const isWcPredictionsRoundup = sportLower === "worldcup" && callTypeLower === "predictions_roundup";
   const isWcPlayerMarketCard =
     sportLower === "worldcup" &&
+    !isWcPredictionsRoundup &&
     (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
   const isWcDirectCard = sportLower === "worldcup" && !rulesCallType;
+  const wcPredictionSlotRows = Array.isArray(predictionSlots)
+    ? predictionSlots.filter((s) => s && String(s.value || "").trim())
+    : [];
 
   const clampWcSentences = (text, max = 3) => {
     const t = String(text || "").trim();
@@ -216,7 +222,9 @@ export default function URTakeResponse({
 
   const contextLine =
     String(nbaContextBar || "").trim() ||
-    (isWcPlayerMarketCard && playerMarketTierLabel
+    (isWcPredictionsRoundup
+      ? "Predictions · Tournament board"
+      : isWcPlayerMarketCard && playerMarketTierLabel
       ? `Player market · ${playerMarketTierLabel}`
       : playerMarketPass
         ? "Player market · Early contenders"
@@ -230,7 +238,9 @@ export default function URTakeResponse({
           ].join(" · "));
 
   const modePill =
-    isWcPlayerMarketCard && playerMarketTierLabel ? (
+    isWcPredictionsRoundup ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Predictions</span>
+    ) : isWcPlayerMarketCard && playerMarketTierLabel ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--odds">{playerMarketTierLabel}</span>
     ) : playerMarketPass ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Early contenders</span>
@@ -301,7 +311,10 @@ export default function URTakeResponse({
           : headline;
     const wcHeadline = String(wcHeadlineSource || "").trim();
     const wcSections = {
-      why: wcCardSectionText(whyNowRaw),
+      why:
+        wcPredictionSlotRows.length > 0
+          ? ""
+          : wcCardSectionText(whyNowRaw),
       watchFor: wcCardSectionText(edgeRaw),
       thePlay: wcCardSectionText(
         pickWcThePlayLine({
@@ -328,6 +341,7 @@ export default function URTakeResponse({
         timestamp={timestamp}
         breakdownText={wcBreakdown}
         breakdownAvailable={wcBreakdownAvailable}
+        predictionSlots={wcPredictionSlotRows}
       />
     );
   }

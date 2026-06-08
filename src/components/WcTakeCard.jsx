@@ -25,6 +25,7 @@ export default function WcTakeCard({
   timestamp = null,
   breakdownText = "",
   breakdownAvailable = false,
+  predictionSlots = [],
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(false);
   const conf = String(confidence || "Medium").trim();
@@ -32,6 +33,9 @@ export default function WcTakeCard({
   const shareQ = String(userQuestion || headline || "").trim();
   const deep = String(breakdownText || "").trim();
   const showBreakdownToggle = Boolean(breakdownAvailable && deep);
+  const slots = Array.isArray(predictionSlots)
+    ? predictionSlots.filter((s) => s && String(s.value || "").trim())
+    : [];
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card wc-take-card">
@@ -69,6 +73,18 @@ export default function WcTakeCard({
               </div>
             ))}
           </div>
+          <div className="ur-v2-divider" />
+        </>
+      ) : null}
+
+      {slots.length > 0 ? (
+        <>
+          {slots.map((slot) => (
+            <div key={slot.key || slot.label} className="wc-take-row wc-take-prediction-slot">
+              <div className="wc-take-row-label">{String(slot.label ?? "")}</div>
+              <p className="wc-take-row-body">{String(slot.value ?? "")}</p>
+            </div>
+          ))}
           <div className="ur-v2-divider" />
         </>
       ) : null}

@@ -7,6 +7,9 @@ import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
 import { wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
 import {
+  parseWcPredictionSlots,
+} from "./wcPredictionsRoundup.js";
+import {
   capWcDeepWords,
   splitWcSentences,
 } from "./wcSentenceBoundaries.js";
@@ -212,6 +215,67 @@ function buildWhyNow(summary, deep, wcIntent) {
 
 /**
  * @param {object} opts
+ * @param {string} [opts.summary]
+ * @param {string} [opts.deep]
+ * @param {string} [opts.question]
+ * @param {object | null} [opts.structuredSeed]
+ */
+function buildWcPredictionsRoundupStructured(opts = {}) {
+  const summary = String(opts.summary || "").trim();
+  const deep = String(opts.deep || "").trim();
+  const question = String(opts.question || "");
+  const seed =
+    opts.structuredSeed && typeof opts.structuredSeed === "object"
+      ? opts.structuredSeed
+      : null;
+  const summarySents = splitWcSentences(summary);
+  const blob = `${summary}\n${deep}`.trim();
+
+  let predictionSlots = Array.isArray(seed?.predictionSlots) ? seed.predictionSlots : [];
+  if (!predictionSlots.length) {
+    predictionSlots = parseWcPredictionSlots(deep);
+    if (predictionSlots.length < 2) predictionSlots = parseWcPredictionSlots(blob);
+  }
+
+  const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
+  const line = summarySents[1]?.trim() || synthesizeWcLine(summarySents, deep);
+  const pass = isWcPassVerdict(summary, "");
+  const edge = String(seed?.edge || extractWatchFor(deep, pass)).trim();
+  const lean = String(
+    seed?.lean ||
+      extractPlayDecision(summary, deep, call, {
+        line,
+        question,
+        wcIntent: WC_INTENT.PREDICTIONS_ROUNDUP,
+      }),
+  ).trim();
+  const slotFace = predictionSlots.map((s) => `${s.label}: ${s.value}`).join(" ");
+  const whyNow = String(
+    seed?.whyNow ||
+      (slotFace.length >= 20
+        ? slotFace
+        : buildWhyNow(summary, deep, WC_INTENT.PREDICTIONS_ROUNDUP)),
+  ).trim();
+
+  return {
+    sport: "worldcup",
+    callType: "predictions_roundup",
+    lean,
+    call,
+    line,
+    whyNow,
+    edge,
+    deep,
+    predictionSlots,
+    breakdownAvailable: Boolean(deep && deep.length > 40),
+    confidence: String(seed?.confidence || "Medium"),
+    caveats: [],
+    timestamp: seed?.timestamp || new Date().toISOString(),
+  };
+}
+
+/**
+ * @param {object} opts
  * @param {string} [opts.question]
  * @param {string} [opts.wcIntent]
  * @param {string} [opts.summary]
@@ -230,6 +294,15 @@ export function buildWcCompactStructured(opts = {}) {
     opts.structuredSeed && typeof opts.structuredSeed === "object"
       ? opts.structuredSeed
       : null;
+
+  if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
+    return buildWcPredictionsRoundupStructured({
+      summary,
+      deep,
+      question,
+      structuredSeed: seed,
+    });
+  }
 
   const isListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
   const summarySents = splitWcSentences(summary);
@@ -321,6 +394,9 @@ export function buildWcCompactStructured(opts = {}) {
   };
 }
 
+/**
+ * @param {object} opts
+ */
 /**
  * @param {object} opts
  */
