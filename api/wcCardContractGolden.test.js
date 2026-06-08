@@ -9,6 +9,7 @@ import {
   scoreWcCardContractIntent,
   scoreWcCardContractLayout,
 } from "../shared/wcCardContractScorer.js";
+import { scoreWcCardContractVoice } from "../shared/wcCardContractVoice.js";
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
 
 test("golden fixture has twenty cases across intents", () => {
@@ -52,15 +53,23 @@ test("intent scorer flags France vs Brazil prop question", () => {
 test("sample golden case passes layout scorer with mock structured payload", () => {
   const row = WC_CARD_CONTRACT_GOLDEN_CASES.find((c) => c.id === "outright-mispriced");
   assert.ok(row);
-  const layout = scoreWcCardContractLayout({
-    call: "Pass Brazil +450 outright",
+  const payload = {
+    call: "Brazil +450 is fair — market prices group I chaos correctly.",
     confidence: "Medium",
     whyNow: "Group I depth and knockout variance cap upside at +450.",
     edge: "Injury news on Vinícius could reprice this.",
-    lean: "No play on Brazil +450 — fair.",
+    lean: "Pass at +450 — no edge on the outright.",
     callType: "analysis",
-  });
+  };
+  const layout = scoreWcCardContractLayout(payload);
   assert.equal(layout.passed, true, layout.issues?.join(", "));
+  const voice = scoreWcCardContractVoice(payload);
+  assert.equal(voice.passed, true, voice.issues?.join(", "));
   const intent = scoreWcCardContractIntent(row.question, row.expectedIntent);
   assert.equal(intent.passed, true);
+});
+
+test("golden day-one cases expect arguing voice", () => {
+  const dayOne = WC_CARD_CONTRACT_GOLDEN_CASES.filter((c) => c.cardVoice === "argue");
+  assert.ok(dayOne.length >= 10);
 });

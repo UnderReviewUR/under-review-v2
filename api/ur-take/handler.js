@@ -132,6 +132,7 @@ import {
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
 } from "../../shared/wcUrTakeIntent.js";
+import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../../shared/wcCardContractVoice.js";
 import { buildNbaRelevanceLog } from "../../shared/nbaUrTakeRelevance.js";
 import { nbaRequiresLiveUrTakeBoardRefresh } from "../../shared/nbaLiveBoardRefresh.js";
 import {
@@ -4554,7 +4555,7 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 
 Rules:
-${wcIntentRules}`;
+${wcIntentRules}${isWcRulesIntent ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.

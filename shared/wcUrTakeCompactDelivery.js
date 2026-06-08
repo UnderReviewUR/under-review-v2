@@ -1,10 +1,11 @@
 /**
- * World Cup UR Take — compact card + display text (no thesis / section dump).
+ * World Cup Card Contract v1 — compact delivery maps summary/deep → card fields.
  */
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
+import { wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
 
 /** Player-market cards stay tight; group/matchup headlines need full sentences. */
 const WC_CALL_PLAYER_MAX = 100;
@@ -27,21 +28,79 @@ function clipWcText(text, max) {
 /**
  * @param {string} text
  */
-function firstSentence(text) {
+function summarySentences(text) {
   const t = String(text || "").trim();
-  if (!t) return "";
-  const m = t.match(/[^.!?]+[.!?]+/);
-  return m ? m[0].trim() : t;
+  if (!t) return [];
+  return t.match(/[^.!?]+[.!?]+/g)?.map((s) => s.trim()) || [t];
 }
 
 /**
- * @param {string} text
+ * @param {string} deep
+ * @param {boolean} pass
  */
-function restAfterFirstSentence(text) {
-  const t = String(text || "").trim();
-  const first = firstSentence(t);
-  if (!first || t.length <= first.length) return "";
-  return t.slice(first.length).trim();
+function extractWatchFor(deep, pass) {
+  if (pass) return "Fair price — recheck after lineups lock.";
+  const sents = summarySentences(deep);
+  if (sents.length >= 2) {
+    return clipWcText(sents[sents.length - 1], 200);
+  }
+  const watchMatch = String(deep || "").match(
+    /(?:watch for|what breaks|risk:|breaks if)[^.!?]+[.!?]?/i,
+  );
+  if (watchMatch) return clipWcText(watchMatch[0], 200);
+  return clipWcText(String(deep || "").slice(0, 200), 200);
+}
+
+/**
+ * @param {string} summary
+ * @param {string} deep
+ * @param {boolean} pass
+ * @param {string} call
+ */
+function extractPlayDecision(summary, deep, pass, call) {
+  const blob = `${summary}\n${deep}`;
+  const playMatch = blob.match(
+    /\b(Pass at[^.!?]+[.!?]|Pass —[^.!?]+[.!?]|No play[^.!?]+[.!?]|Lean:[^.!?]+[.!?]|Lean [^.!?]+[.!?])/i,
+  );
+  if (playMatch) {
+    let p = playMatch[1].trim();
+    if (/^lean /i.test(p) && !/^lean:/i.test(p)) p = p.replace(/^lean /i, "Lean: ");
+    if (!/^lean:/i.test(p) && !/^pass/i.test(p) && !/^no play/i.test(p)) {
+      p = `Lean: ${p}`;
+    }
+    if (!wcCardPlayRestatesCall(p, call)) {
+      return clipWcText(p, WC_LEAN_MAX);
+    }
+  }
+
+  if (pass) {
+    const odds = (summary.match(/\+\d{3,}/) || [])[0] || "";
+    return clipWcText(
+      odds ? `Pass at ${odds} — fair price, no edge.` : "Pass — fair price, no edge.",
+      WC_LEAN_MAX,
+    );
+  }
+
+  const deepSents = summarySentences(deep);
+  const actionSent = deepSents.find(
+    (s) => /\b(pass at|no play|lean)\b/i.test(s) && !wcCardPlayRestatesCall(s, call),
+  );
+  if (actionSent) {
+    const normalized = actionSent.replace(/^lean:\s*/i, "").trim();
+    return clipWcText(`Lean: ${normalized}`, WC_LEAN_MAX);
+  }
+
+  return clipWcText("No play yet — see Watch For before locking a line.", WC_LEAN_MAX);
+}
+
+/**
+ * @param {string} summary
+ * @param {number} callMax
+ */
+function buildCallFromSummary(summary, callMax) {
+  const sents = summarySentences(summary);
+  const headline = sents[0]?.replace(/^lean:\s*/i, "").trim() || "";
+  return clipWcText(headline, callMax);
 }
 
 /**
@@ -89,11 +148,9 @@ export function buildWcCompactStructured(opts = {}) {
     };
   }
 
-  const lead = firstSentence(summary).replace(/^lean:\s*/i, "").trim();
-  const tail = restAfterFirstSentence(summary);
   const pass =
     /\b(pass|no play|no edge|fairly priced|fair price|not mispriced)\b/i.test(summary) &&
-    !/\b(lean|buy|value play|hammer)\b/i.test(lead);
+    !/\b(mispriced|underpric|value play|hammer|lean)\b/i.test(summary);
 
   const directCard =
     wcIntent === WC_INTENT.MATCHUP ||
@@ -107,36 +164,39 @@ export function buildWcCompactStructured(opts = {}) {
       ? WC_CALL_DIRECT_MAX
       : WC_CALL_PLAYER_MAX;
 
-  let call = clipWcText(lead, callMax);
-  let lean =
-    lead.length <= WC_LEAN_MAX - 8
-      ? `Lean: ${lead.endsWith(".") ? lead : `${lead}.`}`
-      : `Lean: ${clipWcText(lead, WC_LEAN_MAX - 12)}`;
+  const call = buildCallFromSummary(summary, callMax);
+  const lean = extractPlayDecision(summary, deep, pass, call);
+  const edge = extractWatchFor(deep, pass);
+  const sents = summarySentences(summary);
+  const delta = sents[1]?.trim() || "";
+  const whyLead = sents.slice(2).join(" ").trim();
+  const whyNow = clipWcText(
+    [delta, deep, whyLead].filter(Boolean).join(" ").trim() || deep,
+    wcIntent === WC_INTENT.SCORE_PREDICTION ? 520 : 400,
+  );
 
   if (isWcPlayerMarketIntent(wcIntent) && !isListIntent) {
     const odds = (summary.match(/\+\d{3,}/) || [])[0] || "";
-    if (pass) {
-      call = odds ? `PASS — ${lead.slice(0, 72)}` : `PASS — ${lead.slice(0, 80)}`;
-      lean = `Lean: ${call.replace(/^PASS\s*—\s*/i, "").slice(0, 90)}.`;
-    } else if (odds && !call.includes(odds)) {
-      call = `${call.slice(0, 60)} ${odds}`.trim();
+    let playerCall = call;
+    if (pass && !/^pass/i.test(playerCall)) {
+      playerCall = odds ? `PASS — ${playerCall.slice(0, 72)}` : `PASS — ${playerCall.slice(0, 80)}`;
+    } else if (odds && !playerCall.includes(odds)) {
+      playerCall = `${playerCall.replace(/\.$/, "")} · Market ${odds}.`;
     }
-    const whyNow = (tail || deep || "").slice(0, 320);
     return {
       sport: "worldcup",
       callType: callTypeForPlayerTier(tier),
       playerMarketTier: tier,
-      lean: clipWcText(lean, WC_LEAN_MAX),
-      call: clipWcText(call, WC_CALL_PLAYER_MAX),
+      lean,
+      call: clipWcText(playerCall, WC_CALL_PLAYER_MAX),
       whyNow,
-      edge: pass ? "Fair price — recheck after lineups lock." : "",
+      edge,
       confidence: pass ? "Speculative" : "Medium",
       caveats: [],
       timestamp: new Date().toISOString(),
     };
   }
 
-  const whyNow = clipWcText(tail || deep || "", wcIntent === WC_INTENT.SCORE_PREDICTION ? 520 : 400);
   return {
     sport: "worldcup",
     callType:
@@ -147,10 +207,10 @@ export function buildWcCompactStructured(opts = {}) {
           : wcIntent === WC_INTENT.ENTITY_PRICING
             ? "analysis"
             : "single",
-    lean: clipWcText(lean, WC_LEAN_MAX),
-    call: clipWcText(call, callMax),
+    lean,
+    call,
     whyNow,
-    edge: "",
+    edge,
     confidence: /\b(high|strong)\b/i.test(summary) ? "Medium" : "Speculative",
     caveats: [],
     timestamp: new Date().toISOString(),

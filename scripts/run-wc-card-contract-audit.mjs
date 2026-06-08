@@ -15,9 +15,15 @@ import { fileURLToPath } from "url";
 import { WC_CARD_CONTRACT_GOLDEN_CASES } from "../shared/wcCardContractGolden.fixture.js";
 import { scoreWcCardContractCase } from "../shared/wcCardContractScorer.js";
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
+import { wcCardHeadlineAnnouncesOnly } from "../shared/wcCardContractVoice.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
+
+/** Local audit: skip bearer auth unless explicitly required. */
+if (process.env.UR_TAKE_REQUIRE_AUTH == null) {
+  process.env.UR_TAKE_REQUIRE_AUTH = "false";
+}
 
 const base = process.argv.includes("--base")
   ? process.argv[process.argv.indexOf("--base") + 1]
@@ -93,8 +99,9 @@ async function main() {
       layoutOk,
       issues: issueCodes.join(", ") || "—",
     });
+    const issueDetail = issueCodes.length ? `  [${issueCodes.join(", ")}]` : "";
     console.log(
-      `${intentOk && layoutOk ? "PASS" : "FAIL"}  ${row.id.padEnd(22)} intent=${intentOk ? "ok" : intentOnly}  layout=${layoutOk}`,
+      `${intentOk && layoutOk ? "PASS" : "FAIL"}  ${row.id.padEnd(22)} intent=${intentOk ? "ok" : intentOnly}  layout=${layoutOk}${issueDetail}`,
     );
   }
 

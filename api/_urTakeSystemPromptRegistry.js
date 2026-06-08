@@ -1120,7 +1120,9 @@ export { detectOutrightBasketIntent, classifyGolfBetStructure } from "./_golfOut
 
 export function buildWorldCupSurfaceAppendix() {
   return `WORLD CUP RESPONSE FORMAT (mandatory):
-Always answer the user's question directly in summary sentence one. State the take, name the team, give the verdict. Do not open with context or setup. The lead is the answer. Summary: 2-3 sentences of supporting reasoning only, 150 words max. Deep field: full reasoning with no word limit — do not repeat the summary verbatim.`;
+Argue where the market is wrong — or say Pass/fair when it is not. Never only announce consensus prices.
+summary sentence 1 = arguing HEADLINE; sentence 2 = DELTA (Market +XXX · UR ~+YYY). deep = WHY + WATCH FOR. Include explicit PLAY decision (Pass/Lean) distinct from the headline.
+Summary: 2 sentences max in summary field, 150 words max total. Deep: full reasoning — do not repeat summary verbatim.`;
 }
 
 export function buildF1SurfaceAppendix() {

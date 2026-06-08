@@ -19,6 +19,10 @@ import {
 import { detectWcGroupMathMismatch } from "../shared/wcGroupComposition.js";
 import { isWcGroupSlateQuestion } from "../shared/wcUrTakeIntent.js";
 import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
+import {
+  scoreWcCardContractVoice,
+  WC_CARD_VOICE_QA_SUFFIX,
+} from "../shared/wcCardContractVoice.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -184,6 +188,16 @@ export function runWcUrTakeQA(opts = {}) {
         : "pass"
       : null;
 
+  if (wcIntent !== WC_INTENT.RULES && structured) {
+    const voice = scoreWcCardContractVoice(structured, {
+      callType: structured.callType,
+      wcIntent,
+    });
+    if (!voice.passed) {
+      issueCodes.push(...voice.issues);
+    }
+  }
+
   return {
     passed: issueCodes.length === 0,
     issueCodes,
@@ -213,6 +227,10 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_player_odds_uncited",
       "wc_group_math_mismatch",
       "wc_cross_sport_golfer_bleed",
+      "wc_card_missing_watch_for",
+      "wc_card_play_restates_call",
+      "wc_card_headline_announces",
+      "wc_card_missing_delta",
     ].includes(c),
   );
 }
@@ -242,4 +260,4 @@ WC QA REGENERATION (mandatory — prior answer failed relevance checks):
 - For group-stage MATCHUP questions: both teams can advance — frame 1st/2nd place paths; do not claim a Contender finishes ahead of the group Favorite without verified odds or form.
 - For ENTITY_PRICING: never cite a +XXXX price unless it appears in the current question or VERIFIED CONTEXT for that exact team.
 - Sentence one must directly answer the question with the correct team(s) named and strength tags acknowledged.
-- For group-stage slate answers: four teams per group — one Favorite, one Contender, two Longshots — count and name them correctly.`;
+- For group-stage slate answers: four teams per group — one Favorite, one Contender, two Longshots — count and name them correctly.${WC_CARD_VOICE_QA_SUFFIX}`;

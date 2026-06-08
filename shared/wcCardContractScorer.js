@@ -4,6 +4,7 @@
 
 import { classifyWcQuestionIntent } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
+import { scoreWcCardContractVoice } from "./wcCardContractVoice.js";
 
 const RULES_BLEED_RE =
   /\b(extra time|penalty shootout|penalties|90.?minute|single elimination)\b/i;
@@ -100,11 +101,17 @@ export function scoreWcCardContractCase(opts) {
     wcIntent: opts.wcIntent || intent.actual,
   });
 
+  const voice = scoreWcCardContractVoice(opts.structured, {
+    callType: opts.structured?.callType,
+    wcIntent: opts.wcIntent || intent.actual,
+  });
+
   const issueCodes = [
     ...(intent.passed ? [] : ["intent_mismatch"]),
     ...layout.issues,
     ...(rulesBleed ? ["rules_bleed_headline"] : []),
     ...(qa.passed ? [] : qa.issueCodes || []),
+    ...(voice.passed ? [] : voice.issues),
   ];
 
   return {
@@ -113,5 +120,6 @@ export function scoreWcCardContractCase(opts) {
     intent,
     layout,
     qaPassed: qa.passed,
+    voicePassed: voice.passed,
   };
 }

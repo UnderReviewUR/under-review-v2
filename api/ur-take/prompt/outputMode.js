@@ -1,5 +1,6 @@
 /** Output JSON mode + tier contracts for ur-take handler. */
 import { NBA_FINALS_STRUCTURED_JSON_CONTRACT } from "../../../shared/nbaFinalsStructured.js";
+import { WC_CARD_CONTRACT_TIER25_APPENDIX } from "../../../shared/wcCardContractVoice.js";
 import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
 import { normalizeText } from "./normalize.js";
 
@@ -205,22 +206,32 @@ CRITICAL
   const worldCupPlayerMarketTier25Spec = `TIER 2.5 — WORLD CUP PLAYER MARKET (summary + deep)
 
 summary (max 40 words, plain text):
-- Sentence one answers the question directly: name the PLAYER, price, and verdict (PASS / lean / value / no edge).
-- Optional second sentence: one concrete reason only.
+- Sentence 1 = arguing HEADLINE: where market is wrong OR why Pass/fair is correct — not "X at +600 is the favorite."
+- Sentence 2 = DELTA: Market +XXX · UR path ~+YYY (or Pass/fair verdict with price).
+- Include explicit PLAY decision ("Pass at…" / "Lean…") distinct from sentence 1.
 - No section headers, no team-as-top-scorer pick, no multi-paragraph setup.
 
 deep (max 100 words, plain text):
-- Only extra detail for "Full breakdown" in the app — 2-3 short sentences (alt prices, one risk, lineup caveat).
-- Do not repeat the summary. No MATCH READ / MARKET / STAT EDGE blocks.`;
+- WHY: 1-2 sentences of evidence from VERIFIED CONTEXT.
+- End with WATCH FOR: one sentence on what breaks the edge (lineups, path, share).
+- Do not repeat the summary. No MATCH READ / MARKET / STAT EDGE blocks.
+
+${WC_CARD_CONTRACT_TIER25_APPENDIX}`;
 
   const worldCupTier25Spec = `TIER 2.5 — WORLD CUP 2026 (summary + deep)
 
 summary (max 50 words, plain text):
-- Sentence one = direct answer (team, group, or price verdict). No setup.
-- At most one follow-up sentence of support.
+- Sentence 1 = arguing HEADLINE (thesis — where books/sim/path disagree with crowd).
+- Sentence 2 = DELTA with numbers when available (Market +XXX · UR ~+YYY or sims %).
+- Explicit PLAY decision somewhere ("Pass…" / "Lean…" / "No play…") — not a copy of sentence 1.
+- No setup or context openers.
 
 deep (max 120 words, plain text):
-- Short extra context only — not a thesis. No section headers. UI shows this on "Full breakdown" tap.
+- WHY: supporting evidence (sims, group path, odds from context).
+- End with WATCH FOR: what breaks the edge.
+- No section headers. UI shows extra detail on "Full breakdown" tap.
+
+${WC_CARD_CONTRACT_TIER25_APPENDIX}
 
 CRITICAL
 - Never say "limited profile", "held back", or apologize for thin data.
