@@ -1167,6 +1167,9 @@ export const baseCss = `
     padding:5px 10px;
     cursor:pointer;
     transition:all 150ms ease;
+    white-space:nowrap;
+    flex-shrink:0;
+    min-width:3.5rem;
   }
   button.ur-share-btn:hover{
     color:#ffffff;
@@ -1704,13 +1707,11 @@ export const baseCss = `
   .nav-btn.golf-active::after{background:#C8D4E0;}
   .nav-btn.nav-pro-on::after{background:#F5C842;}
   .nav-btn.nav-btn--wc-spotlight{
-    color:rgba(245,158,11,0.92);
-    background:linear-gradient(180deg,rgba(245,158,11,0.14) 0%,rgba(245,158,11,0.06) 100%);
-    border:1px solid rgba(245,158,11,0.28);
+    color:rgba(245,158,11,0.88);
+    border:1px solid transparent;
     border-radius:8px;
     padding:6px 11px 8px;
     margin:0 2px;
-    box-shadow:0 0 12px rgba(245,158,11,0.12);
   }
   .nav-btn.nav-btn--wc-spotlight.wc-active{
     color:#FBBF24;
@@ -1998,6 +1999,10 @@ export const baseCss = `
   .nba-finals-take-footer{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
     margin-top:14px;padding-top:12px;border-top:1px solid var(--border-2);
+    flex-wrap:nowrap;
+  }
+  .nba-finals-take-footer .nba-finals-confidence-pill{
+    flex:1;min-width:0;
   }
   .nba-finals-confidence-pill{
     font-family:var(--mono-font);font-size:10px;letter-spacing:0.08em;

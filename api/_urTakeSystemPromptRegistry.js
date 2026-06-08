@@ -11,6 +11,8 @@ import {
   buildSlipReviewVoicePrompt,
   buildUnderReviewVoicePrompt,
 } from "./_urTakeVoiceProfile.js";
+import { detectParlayIntent } from "../shared/detectParlayIntent.js";
+export { detectParlayIntent };
 import { buildUrTakeNoDeadEndPrompt } from "../shared/urTakeSportRouting.js";
 import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../shared/wcCardContractVoice.js";
 
@@ -137,19 +139,6 @@ export function detectUrTakeLongFormIntent(question) {
     /\blong\s*form\b/.test(q) ||
     /\bcomplete\s*breakdown\b/.test(q) ||
     /\bfull\s*analysis\b/.test(q)
-  );
-}
-
-/** True when the user is asking for a multi-leg or same-game parlay ticket. */
-export function detectParlayIntent(question) {
-  const q = String(question || "").toLowerCase();
-  return (
-    /\bparlay\b/.test(q) ||
-    /\bsgp\b/.test(q) ||
-    /\bsame[- ]game\s+parlay\b/.test(q) ||
-    /\b\d+\s*[-]?\s*leg\b/.test(q) ||
-    (/\b(legs?|ticket)\b/.test(q) && /\b(parlay|sgp)\b/.test(q)) ||
-    (/\b(parlay|sgp)\b/.test(q) && /\b(legs?|ticket)\b/.test(q))
   );
 }
 

@@ -56,6 +56,7 @@ import {
 import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "../../../shared/wcUrTakeIntent.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 import { buildNbaUrTakeContextBar } from "../../lib/nbaUrTakeContextBar.js";
+import { detectParlayIntent } from "../../../shared/detectParlayIntent.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 export { formatUrTakeSportTag };
@@ -1774,6 +1775,11 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
 
 function buildNbaFinalsTakeCardProps(m, summaryText, userQuestion = "") {
   if (String(m?.sport || "").toLowerCase() !== "nba") return null;
+  const parlayQ =
+    detectParlayIntent(userQuestion) ||
+    detectParlayIntent(summaryText) ||
+    (Array.isArray(m.structured?.parlayLegs) && m.structured.parlayLegs.length >= 2);
+  if (parlayQ) return null;
   if (
     !isNbaFinalsStructured(m.structured) &&
     !isNbaFinalsTakeForDisplay(userQuestion, m.nbaRelevance)
@@ -1810,14 +1816,27 @@ function buildNbaFinalsTakeCardProps(m, summaryText, userQuestion = "") {
 
 /** Same structured / promoted-parlay resolution as the `URTakeResponse` path inside `UrTakeAiBubble`. */
 function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestion = "") {
-  if (isNbaFinalsStructured(m.structured)) return null;
-  const plainParlayLegs =
-    m.structured && typeof m.structured === "object" ? null : attemptParlayConversion(summaryText);
+  const parlayQ =
+    detectParlayIntent(userQuestion) ||
+    detectParlayIntent(summaryText) ||
+    String(m.structured?.callType || "").toLowerCase() === "parlay";
+  if (isNbaFinalsStructured(m.structured) && !parlayQ) return null;
+  const skipParlayPromotion =
+    m.structured &&
+    typeof m.structured === "object" &&
+    !parlayQ &&
+    !isNbaFinalsStructured(m.structured);
+  const plainParlayLegs = skipParlayPromotion ? null : attemptParlayConversion(summaryText);
   const promotedParlayStructured = plainParlayLegs
     ? buildPromotedParlayStructured(summaryText, m.sport, plainParlayLegs)
     : null;
   const effectiveStructured =
-    m.structured && typeof m.structured === "object" ? m.structured : promotedParlayStructured;
+    m.structured &&
+    typeof m.structured === "object" &&
+    !parlayQ &&
+    !isNbaFinalsStructured(m.structured)
+      ? m.structured
+      : promotedParlayStructured;
   return coerceWcStructuredForIntent(
     effectiveStructured && typeof effectiveStructured === "object" ? effectiveStructured : null,
     userQuestion,

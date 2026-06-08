@@ -8,6 +8,16 @@ const ROWS = [
   ["oneThing", "One Thing"],
 ];
 
+function formatConfidenceLabel(raw) {
+  let c = String(raw || "Medium")
+    .replace(/^\s*confidence:\s*/i, "")
+    .trim();
+  if (/^high\b/i.test(c)) return "High";
+  if (/^medium\b/i.test(c)) return "Medium";
+  if (/^speculative\b/i.test(c)) return "Speculative";
+  return c || "Medium";
+}
+
 /**
  * Scannable NBA Finals take — shareable layout (not prose walls).
  */
@@ -19,7 +29,7 @@ export default function NbaFinalsTakeCard({
   userQuestion = "",
 }) {
   const sharp = String(sections?.sharpAngle || "").trim();
-  const conf = String(confidence || sections?.confidence || "Medium").trim();
+  const conf = formatConfidenceLabel(confidence || sections?.confidence || "Medium");
   const shareQ = String(userQuestion || sharp || headline || "").trim();
 
   return (

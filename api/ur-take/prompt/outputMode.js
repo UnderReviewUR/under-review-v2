@@ -1,4 +1,5 @@
 /** Output JSON mode + tier contracts for ur-take handler. */
+import { detectParlayIntent } from "../../../shared/detectParlayIntent.js";
 import { NBA_FINALS_STRUCTURED_JSON_CONTRACT } from "../../../shared/nbaFinalsStructured.js";
 import { WC_CARD_CONTRACT_TIER25_APPENDIX } from "../../../shared/wcCardContractVoice.js";
 import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
@@ -47,7 +48,7 @@ export function shouldUseTier25WithDeep({ question, matchupContext, sportHint })
   const q = normalizeText(question);
   if (q.includes("who wins") || q.includes(" who wins")) return true;
   if (q.includes(" vs ") || q.includes(" v ") || q.includes(" @ ")) return true;
-  if (q.includes("prop")) return true;
+  if (q.includes("prop") || q.includes("parlay") || /\b\d+\s*[-]?\s*leg\b/.test(q)) return true;
   if (q.includes("cover") || q.includes("spread") || q.includes("total")) return true;
   if (q.includes("strikeout") || q.includes("k prop") || (q.includes("pitcher") && q.includes("tonight"))) return true;
   const s = String(sportHint || "").toLowerCase();
@@ -82,6 +83,9 @@ export function resolveOutputJsonMode({
   wcIntent,
   finalsMode = false,
 }) {
+  if (detectParlayIntent(question)) {
+    return "tier2_5_json";
+  }
   if (String(sportHint || "").toLowerCase() === "nba" && finalsMode) {
     return "nba_finals_json";
   }
