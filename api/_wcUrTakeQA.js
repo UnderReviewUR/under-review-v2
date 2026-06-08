@@ -32,6 +32,14 @@ import {
   detectWcScorerRoleMismatch,
   wcRoundupInvalidSlotKeys,
 } from "../shared/wcScorerRoleQA.js";
+import { detectWcPlayerAgeMismatches } from "../shared/wcPlayerBio.js";
+import { isWcValidPlayLine } from "../shared/wcPlayLineQA.js";
+import {
+  detectWcDarkHorseWeakThesis,
+  detectWcRoundupFairPriceContradiction,
+  detectWcWatchForOrphanPronoun,
+  isWcRoundupLineMissingDelta,
+} from "../shared/wcRoundupCardQA.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -194,6 +202,45 @@ export function runWcUrTakeQA(opts = {}) {
     if (roleMismatch) {
       issueCodes.push("wc_scorer_role_mismatch");
     }
+
+    if (detectWcPlayerAgeMismatches(body)) {
+      issueCodes.push("wc_player_age_mismatch");
+    }
+
+    const darkHorse = (slots || []).find((s) => s.key === "darkHorse");
+    if (darkHorse && detectWcDarkHorseWeakThesis(darkHorse.value)) {
+      issueCodes.push("wc_roundup_dark_horse_weak");
+    }
+
+    if (
+      detectWcRoundupFairPriceContradiction(
+        String(structured?.call || headline || ""),
+        String(structured?.lean || ""),
+        body,
+      )
+    ) {
+      issueCodes.push("wc_roundup_fair_price_contradiction");
+    }
+
+    if (isWcRoundupLineMissingDelta(String(structured?.line || ""))) {
+      issueCodes.push("wc_roundup_line_missing_delta");
+    }
+
+    if (detectWcWatchForOrphanPronoun(String(structured?.edge || ""), slots || [])) {
+      issueCodes.push("wc_roundup_watch_for_orphan_pronoun");
+    }
+
+    const leanField = String(structured?.lean || "");
+    if (leanField && !isWcValidPlayLine(leanField)) {
+      issueCodes.push("wc_play_line_invalid");
+    }
+  }
+
+  if (
+    wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
+    detectWcPlayerAgeMismatches(body)
+  ) {
+    issueCodes.push("wc_player_age_mismatch");
   }
 
   if (
@@ -301,6 +348,12 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_roundup_breakout_unnamed",
       "wc_roundup_nation_unnamed",
       "wc_scorer_role_mismatch",
+      "wc_player_age_mismatch",
+      "wc_play_line_invalid",
+      "wc_roundup_dark_horse_weak",
+      "wc_roundup_fair_price_contradiction",
+      "wc_roundup_line_missing_delta",
+      "wc_roundup_watch_for_orphan_pronoun",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
     String(c).startsWith("wc_card_truncated_"),

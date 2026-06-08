@@ -1136,6 +1136,7 @@ KNOWLEDGE BASE (June 2026 — override with VERIFIED CONTEXT when present)
 Format: 48 teams, 12 groups of 4. Top two plus eight best third-place teams advance to Round of 32. Hosts: USA, Canada, Mexico. Knockout: 90 minutes, extra time, penalties. Regulation ML does not equal advancement.
 Co-favorites: Spain, France — deepest squads, best creator spines. Chasers: England, Brazil, Argentina. Dark horses: Norway, Morocco, Colombia, Ecuador, Japan, Senegal, Uruguay.
 Golden Boot cluster: Mbappé, Kane, Haaland, Yamal, Vinícius, Lautaro — score on games played × shot share × pens/ET duty, not name value alone. Never pick primary creators (Pedri, Rodri, Rice) for Top goalscorer.
+PLAYER BIO in VERIFIED CONTEXT is law for age and club — never guess (e.g. Lamine Yamal is 18 in June 2026, not 17).
 
 ANALYSIS PIPELINE (every take, in order)
 1) STRUCTURAL THESIS — Path, group, knockout round, or role that drives the read.

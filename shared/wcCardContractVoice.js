@@ -16,6 +16,7 @@ import {
   wcWordCount,
 } from "./wcSentenceBoundaries.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { isWcValidPlayLine } from "./wcPlayLineQA.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"PASS"|"RULES"|"GENERAL"} WcCardVoiceVerdict} */
 
@@ -204,6 +205,9 @@ export function scoreWcCardContractVoice(structured, opts = {}) {
   if (lean && call && wcCardPlayRestatesCall(lean, call)) {
     issues.push("wc_card_play_restates_call");
   }
+  if (lean && !isWcValidPlayLine(lean)) {
+    issues.push("wc_play_line_invalid");
+  }
   if (!isRoundup && call && wcCardHeadlineAnnouncesOnly(call)) {
     issues.push("wc_card_headline_announces");
   }
@@ -225,7 +229,7 @@ export const WC_CARD_VOICE_QA_SUFFIX = `
 WC CARD CONTRACT Option 1 QA (mandatory — prior answer failed voice or sentence shape):
 - HEADLINE must argue in one complete sentence (≤18 words) — never only "X at +600 is the favorite."
 - LINE must be summary sentence 2 with delta numbers — complete sentence, distinct from headline.
-- THE PLAY must be a decision (Pass / Lean / No play) — NOT a copy of the headline.
+- THE PLAY must be a decision (Pass / Lean / No play) — NOT a copy of the headline. Must name a player, nation, or +odds — never fragments like "Lean: that actually holds."
 - WATCH FOR must state what breaks the edge — one complete sentence.
 - No card-face field may end mid-sentence or with "…" truncation.
 - Re-read WC CARD CONTRACT Option 1 rules in the system prompt before answering.`;

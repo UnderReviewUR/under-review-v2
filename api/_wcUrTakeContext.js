@@ -51,6 +51,8 @@ import {
   buildAdjustedGoldenBootPromptBlock,
   shouldInjectAdjustedGoldenBoot,
 } from "../shared/wcAdjustedGoldenBootInject.js";
+import { buildWcPlayerBioPromptBlock } from "../shared/wcPlayerBio.js";
+import { buildResolvedWcPlayerRegistry } from "../shared/wcPlayerRegistry.js";
 import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
@@ -624,6 +626,10 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("", ctx.adjustedGoldenBootBlock);
   }
 
+  if (ctx.playerBioPromptBlock) {
+    lines.push("", ctx.playerBioPromptBlock);
+  }
+
   if (ctx.playerMarketPromptBlock) {
     lines.push("", ctx.playerMarketPromptBlock);
   }
@@ -807,6 +813,9 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   let adjustedGoldenBootBlock = null;
   let roundupPlayerKv = null;
+  let playerBioPromptBlock = null;
+  const needsPlayerBio =
+    shouldInjectAdjustedGoldenBoot(wcIntent, question) || isWcPlayerMarketIntent(wcIntent);
   if (shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
     try {
       const [goldenBootKv, playersKv] = await Promise.all([
@@ -820,8 +829,20 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         tournamentSimResults,
         maxRows: 10,
       });
+      if (needsPlayerBio) {
+        const registry = buildResolvedWcPlayerRegistry(playersKv, nowMs);
+        playerBioPromptBlock = buildWcPlayerBioPromptBlock(registry);
+      }
     } catch (adjErr) {
       console.warn("[wc-context] adjusted Golden Boot block failed:", adjErr?.message);
+    }
+  } else if (needsPlayerBio) {
+    try {
+      const playersKv = await readWcPlayersFromKv();
+      const registry = buildResolvedWcPlayerRegistry(playersKv, nowMs);
+      playerBioPromptBlock = buildWcPlayerBioPromptBlock(registry);
+    } catch (bioErr) {
+      console.warn("[wc-context] player bio block failed:", bioErr?.message);
     }
   }
 
@@ -852,6 +873,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     tournamentSimBlock,
     tournamentSimResults,
     adjustedGoldenBootBlock,
+    playerBioPromptBlock,
     roundupPlayerKv,
     lastUpdated: Math.max(
       Number(groupsPayload?.lastUpdated) || 0,

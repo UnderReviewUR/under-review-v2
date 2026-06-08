@@ -5,7 +5,12 @@
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
-import { wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
+import { wcCardHasDeltaSignal, wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
+import { isWcValidPlayLine } from "./wcPlayLineQA.js";
+import {
+  extractWcRoundupSlotNation,
+  extractWcRoundupSlotPlayer,
+} from "./wcRoundupCardQA.js";
 import {
   parseWcPredictionSlots,
 } from "./wcPredictionsRoundup.js";
@@ -15,6 +20,11 @@ import {
 } from "./wcSentenceBoundaries.js";
 
 const WC_LIST_CARD_LEAN = "Top 5 — tap to view full breakdown.";
+
+const ORPHAN_PRONOUN_RE = /\b(him|her|he|she|they)\b/i;
+
+const FAIR_ONLY_SUMMARY_RE =
+  /\b(pricing them fairly|fair price|no edge|not mispriced)\b/i;
 
 /**
  * @param {string} question
@@ -147,7 +157,7 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
   const pass = Boolean(opts.pass);
   const blob = `${summary}\n${deep}`;
   const playMatch = blob.match(
-    /\b(Pass at[^.!?]+[.!?]|Pass —[^.!?]+[.!?]|No play[^.!?]+[.!?]|Lean:[^.!?]+[.!?]|Lean [^.!?]+[.!?])/i,
+    /\b(?:PLAY:\s*)?(Pass at[^.!?]+[.!?]|Pass —[^.!?]+[.!?]|No play[^.!?]+[.!?]|Lean:[^.!?]+[.!?]|Lean [^.!?]+[.!?])/i,
   );
   if (playMatch) {
     let p = playMatch[1].trim();
@@ -155,7 +165,7 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
     if (!/^lean:/i.test(p) && !/^pass/i.test(p) && !/^no play/i.test(p)) {
       p = `Lean: ${p}`;
     }
-    if (!wcCardPlayRestatesCall(p, call)) return p;
+    if (isWcValidPlayLine(p) && !wcCardPlayRestatesCall(p, call)) return p;
   }
 
   if (pass) {
@@ -167,12 +177,18 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
   if (fromDelta && !wcCardPlayRestatesCall(fromDelta, call)) return fromDelta;
 
   const deepSents = splitWcSentences(deep);
-  const actionSent = deepSents.find(
-    (s) => /\b(pass at|no play|lean)\b/i.test(s) && !wcCardPlayRestatesCall(s, call),
-  );
+  const actionSent = deepSents.find((s) => {
+    if (!/\b(pass at|no play|lean:)\b/i.test(s)) return false;
+    const candidate = /^lean:/i.test(s)
+      ? s.trim()
+      : `Lean: ${s.replace(/^lean:\s*/i, "").trim()}`;
+    return isWcValidPlayLine(candidate) && !wcCardPlayRestatesCall(candidate, call);
+  });
   if (actionSent) {
-    const normalized = actionSent.replace(/^lean:\s*/i, "").trim();
-    return `Lean: ${normalized}`;
+    const candidate = /^lean:/i.test(actionSent)
+      ? actionSent.trim()
+      : `Lean: ${actionSent.replace(/^lean:\s*/i, "").trim()}`;
+    if (isWcValidPlayLine(candidate)) return candidate;
   }
 
   if (isWcCrazyPredictionQuestion(question)) {
@@ -184,6 +200,147 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
   }
 
   return "Pass — no actionable line yet; see Watch For before locking a bet.";
+}
+
+/**
+ * @param {Array<{ key: string, value: string }>} predictionSlots
+ * @param {string} summary
+ * @param {string} deep
+ * @param {string} call
+ * @param {string} line
+ */
+function extractRoundupScorerOdds(slotValue, blob) {
+  const v = String(slotValue || "");
+  const b = String(blob || "");
+  return (
+    v.match(/raw\s*(\+\d{3,})/i)?.[1] ||
+    b.match(/raw\s*(\+\d{3,})/i)?.[1] ||
+    v.match(/(\+\d{3,})/g)?.slice(-1)[0] ||
+    b.match(/(\+\d{3,})/)?.[0] ||
+    ""
+  );
+}
+
+function extractPlayDecisionRoundup(predictionSlots, summary, deep, call, line) {
+  const topScorer = predictionSlots.find((s) => s.key === "topScorer");
+  const winners = predictionSlots.find((s) => s.key === "winners");
+  const blob = `${summary}\n${deep}\n${line}`;
+  const fairSummary = /\b(fairly priced|fair price|no edge|pricing them fairly)\b/i.test(blob);
+
+  if (topScorer?.value) {
+    const player = extractWcRoundupSlotPlayer(topScorer.value);
+    const odds = extractRoundupScorerOdds(topScorer.value, blob);
+    if (player && odds) {
+      if (fairSummary && /\badjusted|UR|mispriced|games-played|volume\b/i.test(blob)) {
+        const play = `Lean: ${player} Golden Boot ${odds} — adjusted path edge vs market.`;
+        if (isWcValidPlayLine(play)) return play;
+      }
+      if (!fairSummary) {
+        const play = `Lean: ${player} Golden Boot ${odds} — structural games-played edge.`;
+        if (isWcValidPlayLine(play)) return play;
+      }
+      if (fairSummary) {
+        const play = `Pass at ${odds} on ${player} — fair Golden Boot price.`;
+        if (isWcValidPlayLine(play)) return play;
+      }
+    }
+  }
+
+  if (winners?.value) {
+    const nation = extractWcRoundupSlotNation(winners.value);
+    const odds = extractRoundupScorerOdds(winners.value, blob) || blob.match(/\+\d{3,}/)?.[0];
+    if (nation && odds && fairSummary) {
+      const play = `Pass ${nation} ${odds} — fair co-favorite, no misprice.`;
+      if (isWcValidPlayLine(play)) return play;
+    }
+    if (nation && odds && /\b\d+\.?\d*%\s*win/i.test(blob)) {
+      const play = `Lean: ${nation} outright ${odds} — path thesis from sims.`;
+      if (isWcValidPlayLine(play)) return play;
+    }
+  }
+
+  const base = extractPlayDecision(summary, deep, call, {
+    line,
+    question: "",
+    wcIntent: WC_INTENT.PREDICTIONS_ROUNDUP,
+  });
+  if (isWcValidPlayLine(base)) return base;
+
+  return "Pass — no single leg clears vig after lineup check; see full breakdown.";
+}
+
+/**
+ * @param {Array<{ key: string, value: string, label?: string }>} slots
+ * @param {string[]} summarySents
+ */
+function synthesizeRoundupCall(slots, summarySents) {
+  const winners = slots.find((s) => s.key === "winners");
+  const scorer = slots.find((s) => s.key === "topScorer");
+  const nation = winners ? extractWcRoundupSlotNation(winners.value) : "";
+  const bootPlayer = scorer ? extractWcRoundupSlotPlayer(scorer.value) : "";
+  if (nation && bootPlayer) {
+    return `${nation} path leads the board — ${bootPlayer} is the Boot leg if you want one bet.`;
+  }
+  if (nation) {
+    const thesis = winners.value.split(/—|–|-/).slice(1).join(" ").trim();
+    if (thesis) return `${nation}'s path is the thesis — ${thesis}`.slice(0, 140);
+  }
+  const first = summarySents[0]?.trim();
+  return first && !FAIR_ONLY_SUMMARY_RE.test(first) ? first : "";
+}
+
+/**
+ * @param {Array<{ key: string, value: string }>} slots
+ * @param {string[]} summarySents
+ * @param {string} deep
+ */
+function synthesizeRoundupLine(slots, summarySents, deep) {
+  const fromSummary = summarySents[1]?.trim();
+  if (fromSummary && wcCardHasDeltaSignal(fromSummary)) return fromSummary;
+
+  const scorer = slots.find((s) => s.key === "topScorer");
+  const market =
+    deep.match(/Market\s*(\+\d{3,})/i)?.[1] ||
+    scorer?.value?.match(/raw\s*(\+\d{3,})/i)?.[1] ||
+    scorer?.value?.match(/(\+\d{3,})/)?.[0];
+  const ur =
+    deep.match(/UR\s*~?\s*(\+\d{3,})/i)?.[1] ||
+    deep.match(/adjusted[^+]*(\+\d{3,})/i)?.[1];
+  if (market && ur) return `Market ${market} · UR ~${ur} on the top Boot leg.`;
+
+  const winPct = deep.match(/(\d+\.?\d*)%\s*win/i)?.[1];
+  if (winPct) return `Sims: ${winPct}% title edge on the favorite path vs market price.`;
+
+  return synthesizeWcLine(summarySents, deep);
+}
+
+/**
+ * @param {Array<{ key: string, value: string }>} slots
+ * @param {string} deep
+ * @param {boolean} pass
+ */
+function synthesizeRoundupWatchFor(slots, deep, pass) {
+  let edge = extractWatchFor(deep, pass);
+  if (!ORPHAN_PRONOUN_RE.test(edge)) return edge;
+
+  const breakout = slots.find((s) => s.key === "breakout");
+  const scorer = slots.find((s) => s.key === "topScorer");
+  const name =
+    extractWcRoundupSlotPlayer(breakout?.value || "") ||
+    extractWcRoundupSlotPlayer(scorer?.value || "");
+
+  if (name) {
+    edge = edge
+      .replace(/\bhim\b/gi, name)
+      .replace(/\bher\b/gi, name)
+      .replace(/\bhe\b/gi, name)
+      .replace(/\bshe\b/gi, name);
+    if (!edge.toLowerCase().includes(name.toLowerCase().split(" ")[0])) {
+      return `Watch for ${name} minutes or role change before locking the Boot leg.`;
+    }
+    return edge;
+  }
+  return "Watch for confirmed lineups before locking any Boot or outright leg.";
 }
 
 /**
@@ -237,19 +394,31 @@ function buildWcPredictionsRoundupStructured(opts = {}) {
     if (predictionSlots.length < 2) predictionSlots = parseWcPredictionSlots(blob);
   }
 
-  const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
-  const line = summarySents[1]?.trim() || synthesizeWcLine(summarySents, deep);
   const pass = isWcPassVerdict(summary, "");
-  const edge = String(seed?.edge || extractWatchFor(deep, pass)).trim();
-  const lean = String(
-    seed?.lean ||
-      extractPlayDecision(summary, deep, call, {
-        line,
-        question,
-        wcIntent: WC_INTENT.PREDICTIONS_ROUNDUP,
-      }),
+  const call = String(
+    seed?.call ||
+      synthesizeRoundupCall(predictionSlots, summarySents) ||
+      (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim(),
   ).trim();
-  const slotFace = predictionSlots.map((s) => `${s.label}: ${s.value}`).join(" ");
+  const line = String(
+    seed?.line || synthesizeRoundupLine(predictionSlots, summarySents, deep),
+  ).trim();
+  const edge = String(
+    seed?.edge || synthesizeRoundupWatchFor(predictionSlots, deep, pass),
+  ).trim();
+  const lean = String(
+    seed?.lean && isWcValidPlayLine(seed.lean)
+      ? seed.lean
+      : extractPlayDecisionRoundup(predictionSlots, summary, deep, call, line),
+  ).trim();
+  const slotFace = predictionSlots
+    .map((s) => {
+      const nation = extractWcRoundupSlotNation(s.value);
+      const player = extractWcRoundupSlotPlayer(s.value);
+      if (s.key === "winners" || s.key === "darkHorse") return `${s.label}: ${nation || s.value}`;
+      return `${s.label}: ${player || s.value}`;
+    })
+    .join(" · ");
   const whyNow = String(
     seed?.whyNow ||
       (slotFace.length >= 20

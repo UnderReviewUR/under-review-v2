@@ -5,6 +5,7 @@
 import { normalizeEspnAbbr } from "../api/_wcEspn.js";
 import { WC_PLAYER_SEED } from "../src/data/wc2026PlayerSeed.js";
 import { WC_FULL_SQUAD_SEED } from "../src/data/wc2026FullSquadsSeed.js";
+import { enrichRegistryWithPlayerBio, WC_TOURNAMENT_BIO_AS_OF_MS } from "./wcPlayerBio.js";
 
 /**
  * @param {string} name
@@ -75,6 +76,15 @@ export function mergeRegistryPlayer(existing, incoming) {
     assistsTournament,
     injuryStatus: incoming.injuryStatus ?? existing.injuryStatus ?? null,
     lastSeenEventId: incoming.lastSeenEventId || existing.lastSeenEventId || null,
+    birthDate: incoming.birthDate || existing.birthDate || null,
+    club: incoming.club || existing.club || null,
+    ageYears:
+      incoming.ageYears != null
+        ? incoming.ageYears
+        : existing.ageYears != null
+          ? existing.ageYears
+          : null,
+    isPenaltyTaker: Boolean(incoming.isPenaltyTaker || existing.isPenaltyTaker),
   };
 }
 
@@ -129,7 +139,7 @@ export function buildRegistryFromFifaStatic(nowMs = Date.now()) {
   const registry = createEmptyPlayerRegistry(nowMs);
   seedRegistryFromStaticList(registry);
   registry.lastUpdated = nowMs;
-  return registry;
+  return enrichRegistryWithPlayerBio(registry, WC_TOURNAMENT_BIO_AS_OF_MS);
 }
 
 /**
@@ -160,7 +170,7 @@ export function buildResolvedWcPlayerRegistry(kvRegistry, nowMs = Date.now()) {
     base.source = kvSource.includes(base.source) ? kvSource : `${base.source}+${kvSource}`;
   }
 
-  return base;
+  return enrichRegistryWithPlayerBio(base, WC_TOURNAMENT_BIO_AS_OF_MS);
 }
 
 /**

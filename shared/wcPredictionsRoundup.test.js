@@ -86,3 +86,36 @@ test("runWcUrTakeQA — passes complete roundup", () => {
   assert.equal(expectedWcPredictionSlots(ROUNDUP_Q).length, 4);
   assert.ok(qa.passed, qa.issueCodes.join(", "));
 });
+
+test("buildWcCompactStructured — repairs prod-shaped bad PLAY and face", () => {
+  const PROD_SUMMARY =
+    "Spain's path dominance and France's creator depth make them the only two teams that clear 40% win probability — but the market is pricing them fairly.\nThe real edge sits in the dark horse tier, where Colombia and Norway offer structural value at longer odds.";
+  const PROD_DEEP = `Winners: Spain — 44.33% win rate in sims with 7.1 expected games.
+Dark horse: Colombia — 2.45% sims but 43.32% QF rate means they survive the bracket.
+Breakout player: Lamine Yamal (Spain) — 17 years old, 7.1 expected games.
+Top goalscorer: Kylian Mbappé (France) — adjusted odds +318 vs raw +600, 6 expected games.
+Watch for injury or tactical shift to a back-three that benches him.
+PLAY: Lean: that actually holds.`;
+
+  const structured = buildWcCompactStructured({
+    question: ROUNDUP_Q,
+    wcIntent: WC_INTENT.PREDICTIONS_ROUNDUP,
+    summary: PROD_SUMMARY,
+    deep: PROD_DEEP,
+  });
+
+  assert.ok(!structured.lean.includes("that actually holds"));
+  assert.ok(/Mbappé|Yamal/i.test(structured.lean));
+  assert.ok(/Market|UR|\+|sims/i.test(structured.line));
+  assert.ok(!/\bhim\b/i.test(structured.edge) || /Yamal|Mbappé/i.test(structured.edge));
+  assert.match(structured.whyNow, /Winners|Dark horse|Breakout|Top goalscorer/i);
+
+  const qa = runWcUrTakeQA({
+    responseText: PROD_DEEP,
+    structured,
+    question: ROUNDUP_Q,
+    wcIntent: WC_INTENT.PREDICTIONS_ROUNDUP,
+  });
+  assert.ok(qa.issueCodes.includes("wc_player_age_mismatch"));
+  assert.equal(qa.issueCodes.includes("wc_play_line_invalid"), false);
+});
