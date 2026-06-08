@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import WcGroupTable from "../components/world-cup/WcGroupTable.jsx";
@@ -72,14 +72,28 @@ export default function WorldCupScreen({
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [detailMatch, setDetailMatch] = useState(null);
+  const matchSubTabUserPickedRef = useRef(false);
+  const prevLiveCountRef = useRef(0);
 
   useEffect(() => {
     if (!wcScreenNav) return;
     if (wcScreenNav.mainTab) setMainTab(wcScreenNav.mainTab);
-    if (wcScreenNav.matchSubTab) setMatchSubTab(wcScreenNav.matchSubTab);
+    if (wcScreenNav.matchSubTab) {
+      setMatchSubTab(wcScreenNav.matchSubTab);
+      matchSubTabUserPickedRef.current = true;
+    }
     if (wcScreenNav.highlightEventId) setHighlightEventId(String(wcScreenNav.highlightEventId));
     onWcScreenNavConsumed?.();
   }, [wcScreenNav, onWcScreenNavConsumed]);
+
+  useEffect(() => {
+    const liveCount = Array.isArray(liveMatches) ? liveMatches.length : 0;
+    const prev = prevLiveCountRef.current;
+    if (!matchSubTabUserPickedRef.current && liveCount > 0 && prev === 0) {
+      setMatchSubTab("live");
+    }
+    prevLiveCountRef.current = liveCount;
+  }, [liveMatches]);
 
   useEffect(() => {
     if (!highlightEventId || wcLoading) return;
@@ -279,7 +293,10 @@ export default function WorldCupScreen({
                 key={key}
                 type="button"
                 className={`wc-sub-tab${matchSubTab === key ? " wc-sub-tab--on" : ""}`}
-                onClick={() => setMatchSubTab(key)}
+                onClick={() => {
+                  matchSubTabUserPickedRef.current = true;
+                  setMatchSubTab(key);
+                }}
               >
                 {label}
               </button>
