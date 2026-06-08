@@ -12,11 +12,16 @@ const getShareBody = (bodyChunks) => {
   return full.slice(0, 200).replace(/\s+\S*$/, "").trim() + "...";
 };
 
+const formatSlots = (slots) => {
+  if (!Array.isArray(slots) || slots.length === 0) return "";
+  return slots.map((s) => `${s.label}: ${s.value}`).join("\n");
+};
+
 /**
  * Subtle share / copy for UR Take cards (Web Share API or clipboard).
- * Format: headline, first complete sentence from body, URL (no confidence line).
+ * Format: headline, slot picks (roundup) OR first sentence (single-angle), URL.
  */
-export default function UrTakeShareButton({ headline, bodyChunks, sharePath = "" }) {
+export default function UrTakeShareButton({ headline, bodyChunks, sharePath = "", predictionSlots }) {
   const [copied, setCopied] = useState(false);
   const shareUrl = sharePath
     ? `${SHARE_URL}${String(sharePath).startsWith("?") ? sharePath : `?${sharePath}`}`
@@ -24,7 +29,8 @@ export default function UrTakeShareButton({ headline, bodyChunks, sharePath = ""
 
   const handleShare = async () => {
     const head = String(headline || "").trim();
-    const body = getShareBody(bodyChunks);
+    const slotText = formatSlots(predictionSlots);
+    const body = slotText.length >= 2 ? slotText : getShareBody(bodyChunks);
 
     const finalText = body
       ? `${head}\n\n${body}\n\n${shareUrl}`

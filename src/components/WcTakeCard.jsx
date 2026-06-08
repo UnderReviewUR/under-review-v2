@@ -132,6 +132,7 @@ export default function WcTakeCard({
             headline={headline}
             bodyChunks={[sections?.why, sections?.thePlay, sections?.watchFor].filter(Boolean)}
             sharePath={sharePath}
+            predictionSlots={predictionSlots}
           />
         </div>
       </div>
