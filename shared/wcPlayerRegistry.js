@@ -5,7 +5,11 @@
 import { normalizeEspnAbbr } from "../api/_wcEspn.js";
 import { WC_PLAYER_SEED } from "../src/data/wc2026PlayerSeed.js";
 import { WC_FULL_SQUAD_SEED } from "../src/data/wc2026FullSquadsSeed.js";
-import { enrichRegistryWithPlayerBio, WC_TOURNAMENT_BIO_AS_OF_MS } from "./wcPlayerBio.js";
+import {
+  enrichRegistryWithPlayerBio,
+  wcPlayerAgeYears,
+  WC_TOURNAMENT_BIO_AS_OF_MS,
+} from "./wcPlayerBio.js";
 
 /**
  * @param {string} name
@@ -184,9 +188,13 @@ export function seedRegistryFromStaticList(registry) {
 
   for (const row of seed) {
     const pos = row.position ? (POS_NORMALIZE[row.position] || row.position) : null;
+    const birthDate = row.dob ? String(row.dob) : null;
     upsertRegistryPlayer(registry, row.nationAbbr, {
       name: row.name,
       position: pos,
+      birthDate,
+      club: row.club ? String(row.club) : null,
+      ageYears: birthDate ? wcPlayerAgeYears(birthDate) : null,
       isStarterLikely: false,
       goalsTournament: 0,
       assistsTournament: 0,

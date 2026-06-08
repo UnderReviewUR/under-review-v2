@@ -15,6 +15,7 @@ import { buildNbaPlayoffPathGrounding } from "./_nbaPlayoffPath.js";
 import { bdlNestedGameRowDateMs } from "./_balldontlie.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
+import { getOddsApiCircuitState, isOddsApiDisabled } from "../shared/oddsApiCircuitBreaker.js";
 import { buildGameTotalsFromSlate, hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 import {
@@ -356,7 +357,7 @@ function mapBdlGameRowToAppGame(g) {
 
 /** Odds API only — used when BDL returns no rows or is unavailable. */
 async function getTodaysGamesFromOddsApi(oddsKey, todayET, tomorrowET) {
-  if (!oddsKey) return [];
+  if (!oddsKey || isOddsApiDisabled()) return [];
   try {
     const url = `https://api.the-odds-api.com/v4/sports/basketball_nba/scores/?apiKey=${oddsKey}&daysFrom=2`;
     const res = await fetch(url);
@@ -889,6 +890,21 @@ async function getNbaPropLines(oddsKey, options = {}) {
       propsIngestionRows: 0,
       propFetchFailures: 0,
       missingPreferredBookmaker: 0,
+    });
+  }
+
+  if (isOddsApiDisabled()) {
+    const circuit = getOddsApiCircuitState();
+    return fail({
+      emptyReason: "odds_api_circuit_open",
+      eventsFetchOk: false,
+      eventsFetchStatus: null,
+      matchingEventCount: 0,
+      eventsProcessed: 0,
+      propsIngestionRows: 0,
+      propFetchFailures: 0,
+      missingPreferredBookmaker: 0,
+      oddsApiCircuit: circuit,
     });
   }
 
@@ -2396,7 +2412,17 @@ async function getNbaPlayerStatsBundle(bdlKey, todaysGames = [], focusTeamAbbrev
 
   try {
     const todayIso = getEtDateString();
-    const games = await fetchBdlGamesForDate(bdlKey, todayIso);
+    const tomorrowIso = getTomorrowEtDateString(todayIso);
+    const postseason = getNbaSeasonContext().postseason === true;
+    const dateIsos = postseason ? [todayIso, tomorrowIso] : [todayIso];
+    const gamesById = new Map();
+    for (const dateIso of dateIsos) {
+      const rows = await fetchBdlGamesForDate(bdlKey, dateIso, { postseason });
+      for (const g of rows) {
+        if (g?.id != null) gamesById.set(g.id, g);
+      }
+    }
+    const games = [...gamesById.values()];
     const gameIds = [...new Set(games.map((g) => g.id).filter(Boolean))];
 
     let statRows = [];
@@ -3767,6 +3793,18 @@ export default async function handler(req, res) {
       };
       board.bdlAvailability = board?.bdlGrounding?.bdlAvailability || {};
       board = await hydrateNbaPropsOdds(board);
+      if (isWarmupRequest) {
+        try {
+          const { refreshDueNbaGameOddsSnapshots } = await import("./_gameOddsPipeline.js");
+          const oddsRefresh = await refreshDueNbaGameOddsSnapshots(todaysGames, ODDS_KEY);
+          board.oddsWarmup = {
+            refreshed: oddsRefresh.refreshed,
+            results: oddsRefresh.results,
+          };
+        } catch (err) {
+          console.warn("[nba] odds warmup refresh failed:", err?.message || err);
+        }
+      }
       board.newsImpact = buildNbaNewsImpact(board);
       const le0 = Date.now();
       board.liveEdgeAlerts = await buildNbaLiveEdgeAlerts(board);

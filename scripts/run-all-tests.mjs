@@ -27,4 +27,16 @@ const result = spawnSync(process.execPath, ["--test", ...files], {
   env: process.env,
 });
 
-process.exit(result.status === null ? 1 : result.status);
+const unitExit = result.status === null ? 1 : result.status;
+if (unitExit !== 0) {
+  process.exit(unitExit);
+}
+
+console.error("[test] Running WC golden eval (offline)");
+const golden = spawnSync(process.execPath, ["scripts/run-wc-golden-eval.mjs", "--offline"], {
+  cwd: root,
+  stdio: "inherit",
+  env: process.env,
+});
+
+process.exit(golden.status === null ? 1 : golden.status);

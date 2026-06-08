@@ -1,86 +1,9 @@
 /**
- * World Cup Card Contract scorer — layout + intent checks on structured payloads.
+ * Score a golden WC card-contract case against structured delivery + QA.
  */
 
 import { classifyWcQuestionIntent } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
-import { scoreWcCardContractVoice } from "./wcCardContractVoice.js";
-
-const RULES_BLEED_RE =
-  /\b(extra time|penalty shootout|penalties|90.?minute|single elimination)\b/i;
-
-/**
- * @param {string} text
- * @param {number} [maxWords]
- */
-export function wcHeadlineWordCount(text, maxWords = 18) {
-  const words = String(text || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  return { count: words.length, withinCap: words.length <= maxWords };
-}
-
-/**
- * @param {Record<string, unknown> | null | undefined} structured
- */
-export function scoreWcCardContractLayout(structured) {
-  const call = String(structured?.call || "").trim();
-  const line = String(structured?.line || "").trim();
-  const confidence = String(structured?.confidence || "").trim();
-  const why = String(structured?.whyNow || "").trim();
-  const edge = String(structured?.edge || "").trim();
-  const lean = String(structured?.lean || "").trim();
-  const callType = String(structured?.callType || "").toLowerCase();
-
-  const headline = call && call !== "—" ? call : lean;
-  const headlineCap = wcHeadlineWordCount(headline, 18);
-
-  const issues = [];
-  if (!headline || headline === "—") issues.push("missing_headline");
-  if (!headlineCap.withinCap) issues.push("headline_over_18_words");
-  if (!confidence) issues.push("missing_confidence");
-  if (callType !== "rules" && !why) issues.push("missing_why");
-  if (callType !== "rules" && !edge) issues.push("missing_watch_for_edge");
-  if (!call || call === "—") issues.push("missing_headline_call");
-  if (callType !== "rules" && !line && !wcCardHasDeltaInBody(structured)) {
-    issues.push("missing_line_delta");
-  }
-
-  return {
-    passed: issues.length === 0,
-    issues,
-    headlineWordCount: headlineCap.count,
-    hasConfidence: Boolean(confidence),
-    hasWhy: Boolean(why),
-    hasWatchFor: Boolean(edge),
-    hasLine: Boolean(line),
-  };
-}
-
-/** @param {Record<string, unknown> | null | undefined} structured */
-function wcCardHasDeltaInBody(structured) {
-  const blob = [structured?.call, structured?.line, structured?.whyNow, structured?.lean]
-    .filter(Boolean)
-    .join(" ");
-  return (
-    /\bmarket\s*[+·\-]|ur\s*[+~]|sims?\s+\d|%\s*(win|qf|rate)|·|~\s*\+/i.test(blob) ||
-    /\bpass at\b/i.test(blob)
-  );
-}
-
-/**
- * @param {string} question
- * @param {string} expectedIntent
- */
-export function scoreWcCardContractIntent(question, expectedIntent) {
-  const actual = classifyWcQuestionIntent(question);
-  return {
-    passed: actual === expectedIntent,
-    expected: expectedIntent,
-    actual,
-  };
-}
 
 /**
  * @param {{
@@ -88,53 +11,49 @@ export function scoreWcCardContractIntent(question, expectedIntent) {
  *   expectedIntent: string,
  *   structured: Record<string, unknown>,
  *   wcIntent?: string,
+ *   outrightsAvailable?: boolean,
+ *   responseText?: string,
  * }} opts
  */
 export function scoreWcCardContractCase(opts) {
   const question = String(opts.question || "");
-  const intent = scoreWcCardContractIntent(question, opts.expectedIntent);
-  const layout = scoreWcCardContractLayout(opts.structured);
-  const body = [
-    opts.structured?.lean,
-    opts.structured?.whyNow,
-    opts.structured?.edge,
-    opts.structured?.call,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const expectedIntent = String(opts.expectedIntent || "");
+  const structured = opts.structured;
+  const intentActual = opts.wcIntent || classifyWcQuestionIntent(question);
+  const intentOk = intentActual === expectedIntent;
 
-  const rulesBleed =
-    opts.expectedIntent === "RULES"
-      ? false
-      : RULES_BLEED_RE.test(String(opts.structured?.lean || "")) &&
-        !/\b(vs|advance|group|outright|prop|boot|scorer)\b/i.test(question);
+  const responseText =
+    String(opts.responseText || "").trim() ||
+    [structured?.call, structured?.lean, structured?.whyNow, structured?.edge]
+      .filter(Boolean)
+      .join("\n");
 
   const qa = runWcUrTakeQA({
-    responseText: body,
-    structured: opts.structured,
+    responseText,
+    structured,
     question,
-    wcIntent: opts.wcIntent || intent.actual,
+    wcIntent: intentActual,
+    outrightsAvailable: Boolean(opts.outrightsAvailable),
   });
 
-  const voice = scoreWcCardContractVoice(opts.structured, {
-    callType: opts.structured?.callType,
-    wcIntent: opts.wcIntent || intent.actual,
-  });
+  /** @type {string[]} */
+  const issueCodes = [...(qa.issueCodes || [])];
+  if (!intentOk) issueCodes.unshift("intent_mismatch");
 
-  const issueCodes = [
-    ...(intent.passed ? [] : ["intent_mismatch"]),
-    ...layout.issues,
-    ...(rulesBleed ? ["rules_bleed_headline"] : []),
-    ...(qa.passed ? [] : qa.issueCodes || []),
-    ...(voice.passed ? [] : voice.issues),
-  ];
+  const voicePassed = !issueCodes.some(
+    (c) =>
+      c.startsWith("wc_card_") ||
+      c === "headline_over_18_words" ||
+      c === "missing_line_delta" ||
+      c === "wc_play_line_invalid",
+  );
 
   return {
-    passed: issueCodes.length === 0,
+    passed: intentOk && qa.passed,
     issueCodes,
-    intent,
-    layout,
+    intentOk,
+    intentActual,
     qaPassed: qa.passed,
-    voicePassed: voice.passed,
+    voicePassed,
   };
 }

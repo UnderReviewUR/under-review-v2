@@ -6,6 +6,11 @@
 import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
+import { isOddsApiDisabled } from "../shared/oddsApiCircuitBreaker.js";
+import {
+  fetchActionNetworkNbaSpreadFromApi,
+  fetchActionNetworkNbaTotalFromApi,
+} from "./_actionNetworkGameLines.js";
 import { canonicalizeTeamAbbr } from "../shared/gameLineSpread.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 import {
@@ -22,6 +27,7 @@ import {
   scrapeActionNetworkNbaSpread,
   scrapeEspnBetNbaSpread,
   scrapeEspnNbaSpread,
+  scrapeEspnNbaTotal,
   scrapeTheScoreNbaSpread,
   scrapeWebFallbackNbaSpread,
 } from "./_gameOddsScrapers.js";
@@ -104,7 +110,7 @@ function spreadFromOddsApiEvent(event) {
  * @param {string} [sportKey]
  */
 export async function fetchNbaTotalsFromOddsApi(oddsKey, sportKey = "basketball_nba") {
-  if (!oddsKey) return { ok: false, byGameKey: new Map() };
+  if (!oddsKey || isOddsApiDisabled()) return { ok: false, byGameKey: new Map() };
   try {
     const url = `${ODDS_BASE}/sports/${sportKey}/odds/?apiKey=${oddsKey}&regions=us&markets=totals&oddsFormat=american`;
     const res = await fetch(url);
@@ -125,7 +131,7 @@ export async function fetchNbaTotalsFromOddsApi(oddsKey, sportKey = "basketball_
 }
 
 export async function fetchNbaSpreadsFromOddsApi(oddsKey, sportKey = "basketball_nba") {
-  if (!oddsKey) return { ok: false, byGameKey: new Map() };
+  if (!oddsKey || isOddsApiDisabled()) return { ok: false, byGameKey: new Map() };
   try {
     const url = `${ODDS_BASE}/sports/${sportKey}/odds/?apiKey=${oddsKey}&regions=us&markets=spreads&oddsFormat=american`;
     const res = await fetch(url);
@@ -149,6 +155,8 @@ function slateGameMeta(game) {
   const homeAbbr = canonicalizeTeamAbbr(game?.homeTeam?.abbr);
   const awayAbbr = canonicalizeTeamAbbr(game?.awayTeam?.abbr);
   if (!homeAbbr || !awayAbbr) return null;
+  const actionNetworkGameId =
+    game?.actionNetworkGameId ?? game?.anGameId ?? null;
   return {
     gameKey: buildGameSpreadKey(awayAbbr, homeAbbr),
     awayAbbr,
@@ -157,6 +165,7 @@ function slateGameMeta(game) {
     awayName: game?.awayTeam?.name,
     commenceTimeUtc: game?.startTimeUtc || game?.commenceTime || null,
     espnEventId: game?.id || null,
+    actionNetworkGameId,
   };
 }
 
@@ -170,6 +179,7 @@ async function scrapeSpreadForGame(meta) {
   };
 
   const chain = [
+    () => fetchActionNetworkNbaSpreadFromApi(meta),
     () => scrapeEspnNbaSpread(ctx),
     () => scrapeTheScoreNbaSpread(ctx),
     () => scrapeEspnBetNbaSpread(ctx),
@@ -342,6 +352,46 @@ export async function hydrateNbaGameSpreads(todaysGames = [], oddsKey = null) {
  * @param {Array<Record<string, unknown>>} todaysGames
  * @param {string | null} [oddsKey]
  */
+async function scrapeTotalForGame(game, meta) {
+  const fromAn = await fetchActionNetworkNbaTotalFromApi(meta);
+  if (fromAn?.total != null) return fromAn;
+
+  const espnId = game?.id || game?.espnId;
+  if (espnId) {
+    const fromEspn = await scrapeEspnNbaTotal({ espnEventId: espnId });
+    if (fromEspn?.total != null) return fromEspn;
+  }
+
+  const token = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }).replace(/-/g, "");
+  try {
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${token}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    for (const event of data?.events || []) {
+      const comp = event?.competitions?.[0];
+      const home = comp?.competitors?.find((c) => c.homeAway === "home");
+      const away = comp?.competitors?.find((c) => c.homeAway === "away");
+      const homeAbbr = canonicalizeTeamAbbr(
+        home?.team?.abbreviation || normalizeTeamAbbr(home?.team?.displayName),
+      );
+      const awayAbbr = canonicalizeTeamAbbr(
+        away?.team?.abbreviation || normalizeTeamAbbr(away?.team?.displayName),
+      );
+      if (homeAbbr !== meta.homeAbbr || awayAbbr !== meta.awayAbbr) continue;
+      const ou = Number(comp?.odds?.[0]?.overUnder);
+      if (Number.isFinite(ou) && ou > 0) {
+        return { total: ou, source: "espn_scoreboard", pace: "NEUTRAL" };
+      }
+    }
+  } catch {
+    /* silent */
+  }
+  return null;
+}
+
 export async function buildGameTotalsFromSlate(todaysGames = [], oddsKey = null) {
   const key = oddsKey || getEnv("ODDS_API_KEY");
   const games = Array.isArray(todaysGames) ? todaysGames : [];
@@ -353,7 +403,10 @@ export async function buildGameTotalsFromSlate(todaysGames = [], oddsKey = null)
     const meta = slateGameMeta(game);
     if (!meta) continue;
     const label = `${meta.awayAbbr} @ ${meta.homeAbbr}`;
-    const row = api.ok ? api.byGameKey.get(meta.gameKey) : null;
+    let row = api.ok ? api.byGameKey.get(meta.gameKey) : null;
+    if (row?.total == null) {
+      row = await scrapeTotalForGame(game, meta);
+    }
     if (row?.total != null) {
       totals[label] = {
         total: row.total,

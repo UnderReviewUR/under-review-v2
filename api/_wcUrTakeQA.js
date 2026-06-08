@@ -37,9 +37,14 @@ import { isWcValidPlayLine } from "../shared/wcPlayLineQA.js";
 import {
   detectWcDarkHorseWeakThesis,
   detectWcRoundupFairPriceContradiction,
+  detectWcRoundupLineMissingMarketOdds,
   detectWcWatchForOrphanPronoun,
   isWcRoundupLineMissingDelta,
 } from "../shared/wcRoundupCardQA.js";
+import {
+  runWcGroundingQA,
+  WC_GROUNDING_REGEN_SUFFIX,
+} from "../shared/wcUrTakeGroundingQA.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -94,6 +99,7 @@ export function extractWcResponseBody(responseText, structured) {
  *   playerMarketKv?: { goldenBoot?: object, players?: object, injuries?: object } | null,
  *   playerMarketTier?: string | null,
  *   roundupPlayerKv?: { goldenBoot?: object, players?: object } | null,
+ *   outrightsAvailable?: boolean,
  * }} opts
  */
 export function runWcUrTakeQA(opts = {}) {
@@ -226,6 +232,14 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_roundup_line_missing_delta");
     }
 
+    const outrightsAvailable =
+      Boolean(opts.outrightsAvailable) ||
+      Boolean(opts.roundupPlayerKv?.outrights?.outrights) ||
+      Boolean(opts.playerMarketKv?.outrights?.outrights);
+    if (detectWcRoundupLineMissingMarketOdds(String(structured?.line || ""), outrightsAvailable)) {
+      issueCodes.push("wc_roundup_delta_missing_market_odds");
+    }
+
     if (detectWcWatchForOrphanPronoun(String(structured?.edge || ""), slots || [])) {
       issueCodes.push("wc_roundup_watch_for_orphan_pronoun");
     }
@@ -308,6 +322,12 @@ export function runWcUrTakeQA(opts = {}) {
     }
   }
 
+  const matchDetails = Array.isArray(opts.matchDetails) ? opts.matchDetails : [];
+  const grounding = runWcGroundingQA(body, matchDetails);
+  if (!grounding.passed) {
+    issueCodes.push(...grounding.issueCodes);
+  }
+
   return {
     passed: issueCodes.length === 0,
     issueCodes,
@@ -328,7 +348,10 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_entity_missing",
       "wc_forbidden_entity_headline",
       "wc_rules_betting_lead",
+      "wc_rules_missing_content",
       "wc_rules_thread_bleed",
+      "wc_invented_xg_claim",
+      "wc_invented_possession_claim",
       "wc_matchup_contender_ahead_of_favorite",
       "wc_matchup_missing_team_headline",
       "wc_price_uncited_citation",
@@ -353,6 +376,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
+      "wc_roundup_delta_missing_market_odds",
       "wc_roundup_watch_for_orphan_pronoun",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
@@ -377,6 +401,7 @@ WC PLAYER MARKET QA (mandatory — prior answer failed player contract):
 - If lineups are not confirmed, say so once — still rank named early contenders; never substitute a nation as the pick.`;
 
 export { WC_PREDICTIONS_ROUNDUP_QA_SUFFIX };
+export { WC_GROUNDING_REGEN_SUFFIX };
 
 export const WC_QA_REGENERATION_SUFFIX = `
 

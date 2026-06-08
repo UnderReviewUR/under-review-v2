@@ -26,6 +26,7 @@ import {
   WC_MATCH_PLAYER_PROP_PROMPT_LABELS,
 } from "../shared/wcMatchPlayerProps.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import { isWcLiveDominanceQuestion } from "../shared/wcLiveMatchQuestion.js";
 import { formatApiFootballLeadersPromptBlock } from "../shared/wcApiFootballParse.js";
 import { readWcApiFootballFromKv } from "./_wcApiFootballData.js";
 import { WC_SET_PIECE_TAKERS } from "../src/data/wc2026SetPieceTakers.js";
@@ -41,7 +42,10 @@ import {
  */
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
   const wcEventId = String(opts.wcEventId || "").trim() || null;
-  const loadMatchProps = wcEventId && opts.wcIntent === WC_INTENT.PLAYER_PROP;
+  const loadMatchProps =
+    Boolean(wcEventId) &&
+    (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
+      isWcLiveDominanceQuestion(String(opts.question || "")));
 
   const [players, goldenBoot, injuries, matchPlayerProps, apiFootball] = await Promise.all([
     readWcPlayersFromKv(),

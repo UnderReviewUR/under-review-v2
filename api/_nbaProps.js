@@ -9,6 +9,7 @@ import {
   mergeNbaPropsIntoPlayerStats,
   nbaPropsBookLabel,
 } from "../shared/nbaPropsBoardDisplay.js";
+import { propsOddsToPropLines, seedPlayerStatsFromPropsOdds } from "../shared/nbaPropsToPropLines.js";
 import { NBA_UI_PLAYER_CHIPS } from "../shared/nbaUiPlayerChips.js";
 import { nbaGameIsLiveOrHalftimeForRefresh } from "../shared/nbaLiveBoardRefresh.js";
 import { fetchAndParseActionNetworkGameProps } from "./_nbaPropsFetch.js";
@@ -266,9 +267,20 @@ export async function hydrateNbaPropsOdds(board) {
     return { ...g, actionNetworkGameId: gid };
   });
 
-  const playerStats = mergeNbaPropsIntoPlayerStats(board.playerStats, primaryProps, {
+  let playerStats = mergeNbaPropsIntoPlayerStats(board.playerStats, primaryProps, {
     chips: NBA_UI_PLAYER_CHIPS,
   });
+  playerStats = seedPlayerStatsFromPropsOdds(playerStats, primaryProps, NBA_UI_PLAYER_CHIPS);
+
+  const syntheticPropLines = propsOddsToPropLines(primaryProps, {
+    slateGames: todaysGames,
+    chips: NBA_UI_PLAYER_CHIPS,
+  });
+  const existingPropLines = Array.isArray(board.propLines) ? board.propLines : [];
+  const propLines =
+    existingPropLines.length > 0
+      ? existingPropLines
+      : syntheticPropLines.slice(0, 120);
 
   const propsOddsStale = Boolean(primaryProps.freshness?.isStale);
 
@@ -276,6 +288,7 @@ export async function hydrateNbaPropsOdds(board) {
     ...board,
     todaysGames,
     playerStats,
+    propLines,
     propsOdds: primaryProps,
     propsOddsByGameId,
     propsOddsStale,

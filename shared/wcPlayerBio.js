@@ -1,67 +1,117 @@
 /**
- * World Cup player biographical grounding — DOB, age, club for notable players.
+ * World Cup player biographical grounding — DOB, age, club from FIFA full squads (1,248 players).
  * Model must not invent ages; QA rejects mismatches against this layer.
  */
 
+import { WC_FULL_SQUADS, buildSeedName } from "../src/data/wc2026FullSquadsSeed.js";
 import { playerRegistryKey, normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 
 /** Tournament reference date for age (kickoff week). */
 export const WC_TOURNAMENT_BIO_AS_OF_MS = Date.parse("2026-06-11T12:00:00-04:00");
 
 /**
- * Notable players — birthDate ISO, optional club / flags.
- * @type {Record<string, { birthDate: string, club?: string, isPenaltyTaker?: boolean }>}
+ * Notable players — penalty-taker flags and overrides when FIFA shirt names differ.
+ * @type {Record<string, { isPenaltyTaker?: boolean }>}
  */
 export const WC_NOTABLE_PLAYER_BIOS = {
-  [playerRegistryKey("Lamine Yamal", "ESP")]: {
-    birthDate: "2007-07-13",
-    club: "Barcelona",
-  },
-  [playerRegistryKey("Pedri", "ESP")]: { birthDate: "2002-11-25", club: "Barcelona" },
-  [playerRegistryKey("Gavi", "ESP")]: { birthDate: "2004-08-05", club: "Barcelona" },
-  [playerRegistryKey("Kylian Mbappé", "FRA")]: {
-    birthDate: "1998-12-20",
-    club: "Real Madrid",
-    isPenaltyTaker: true,
-  },
-  [playerRegistryKey("Antoine Griezmann", "FRA")]: { birthDate: "1991-03-21", club: "Atlético Madrid" },
-  [playerRegistryKey("Harry Kane", "ENG")]: {
-    birthDate: "1993-07-28",
-    club: "Bayern Munich",
-    isPenaltyTaker: true,
-  },
-  [playerRegistryKey("Bukayo Saka", "ENG")]: { birthDate: "2001-09-05", club: "Arsenal" },
-  [playerRegistryKey("Erling Haaland", "NOR")]: {
-    birthDate: "2000-07-21",
-    club: "Manchester City",
-    isPenaltyTaker: true,
-  },
-  [playerRegistryKey("Vinícius Júnior", "BRA")]: { birthDate: "2000-07-12", club: "Real Madrid" },
-  [playerRegistryKey("Endrick", "BRA")]: { birthDate: "2006-07-21", club: "Real Madrid" },
-  [playerRegistryKey("Lionel Messi", "ARG")]: { birthDate: "1987-06-24", club: "Inter Miami" },
-  [playerRegistryKey("Lautaro Martínez", "ARG")]: {
-    birthDate: "1997-08-22",
-    club: "Inter Milan",
-    isPenaltyTaker: true,
-  },
-  [playerRegistryKey("Jamal Musiala", "GER")]: { birthDate: "2003-02-26", club: "Bayern Munich" },
-  [playerRegistryKey("Cristiano Ronaldo", "POR")]: {
-    birthDate: "1985-02-05",
-    club: "Al Nassr",
-    isPenaltyTaker: true,
-  },
-  [playerRegistryKey("Kevin De Bruyne", "BEL")]: { birthDate: "1991-06-28", club: "Manchester City" },
-  [playerRegistryKey("Mohamed Salah", "EGY")]: { birthDate: "1992-06-15", club: "Liverpool" },
-  [playerRegistryKey("Luis Díaz", "COL")]: { birthDate: "1997-01-13", club: "Liverpool" },
-  [playerRegistryKey("Robert Lewandowski", "POL")]: {
-    birthDate: "1988-08-21",
-    club: "Barcelona",
-    isPenaltyTaker: true,
-  },
-  [playerRegistryKey("Warren Zaïre-Emery", "FRA")]: { birthDate: "2006-03-08", club: "Paris Saint-Germain" },
-  [playerRegistryKey("Xavi Simons", "NED")]: { birthDate: "2003-04-20", club: "RB Leipzig" },
-  [playerRegistryKey("Kobbie Mainoo", "ENG")]: { birthDate: "2005-04-19", club: "Manchester United" },
+  [playerRegistryKey("Kylian Mbappé", "FRA")]: { isPenaltyTaker: true },
+  [playerRegistryKey("Harry Kane", "ENG")]: { isPenaltyTaker: true },
+  [playerRegistryKey("Erling Haaland", "NOR")]: { isPenaltyTaker: true },
+  [playerRegistryKey("Lautaro Martínez", "ARG")]: { isPenaltyTaker: true },
+  [playerRegistryKey("Cristiano Ronaldo", "POR")]: { isPenaltyTaker: true },
+  [playerRegistryKey("Robert Lewandowski", "POL")]: { isPenaltyTaker: true },
 };
+
+/** @type {{ byKey: Map<string, WcSquadBioRow>, bySurname: Map<string, WcSquadBioRow[]> } | null} */
+let fullSquadBioCache = null;
+
+/** Test-only cache reset. */
+export function resetWcFullSquadBioCacheForTests() {
+  fullSquadBioCache = null;
+}
+
+/**
+ * @typedef {{
+ *   name: string,
+ *   nationAbbr: string,
+ *   birthDate: string,
+ *   club?: string,
+ *   position?: string,
+ *   isPenaltyTaker?: boolean,
+ * }} WcSquadBioRow
+ */
+
+/**
+ * @param {string} s
+ */
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * @param {string} window
+ * @param {WcSquadBioRow} bio
+ */
+function playerMentionedNearAgeClaim(window, bio) {
+  const w = String(window || "").toLowerCase();
+  const parts = bio.name
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((p) => p.length >= 3);
+  if (!parts.length) return false;
+  const last = parts[parts.length - 1];
+  if (!new RegExp(`\\b${escapeRegExp(last)}\\b`, "i").test(w)) return false;
+  if (parts.length === 1) return true;
+  const first = parts[0];
+  if (first !== last) {
+    return new RegExp(`\\b${escapeRegExp(first)}\\b`, "i").test(w);
+  }
+  return true;
+}
+
+/**
+ * Build index from official FIFA 26-man squads (all 1,248 players).
+ */
+export function buildWcFullSquadBioIndex() {
+  if (fullSquadBioCache) return fullSquadBioCache;
+
+  /** @type {Map<string, WcSquadBioRow>} */
+  const byKey = new Map();
+  /** @type {Map<string, WcSquadBioRow[]>} */
+  const bySurname = new Map();
+
+  for (const [abbr, team] of Object.entries(WC_FULL_SQUADS.teams || {})) {
+    for (const p of team.roster || []) {
+      const name = buildSeedName(p);
+      const nationAbbr = String(abbr || "").trim().toUpperCase();
+      const birthDate = String(p.dob || "").trim();
+      if (!name || !birthDate) continue;
+
+      const key = playerRegistryKey(name, nationAbbr);
+      const notable = WC_NOTABLE_PLAYER_BIOS[key];
+      const row = {
+        name,
+        nationAbbr,
+        birthDate,
+        club: p.club ? String(p.club) : undefined,
+        position: p.position ? String(p.position) : undefined,
+        isPenaltyTaker: notable?.isPenaltyTaker,
+      };
+      byKey.set(key, row);
+
+      const shirt = String(p.nameOnShirt || p.lastName || "").trim();
+      const surname = shirt.split(/[\s-]+/).pop()?.toLowerCase() || "";
+      if (surname.length >= 4) {
+        const list = bySurname.get(surname) || [];
+        list.push(row);
+        bySurname.set(surname, list);
+      }
+    }
+  }
+
+  fullSquadBioCache = { byKey, bySurname };
+  return fullSquadBioCache;
+}
 
 /**
  * @param {string} birthDate ISO YYYY-MM-DD
@@ -86,10 +136,12 @@ export function wcPlayerAgeYears(birthDate, asOfMs = WC_TOURNAMENT_BIO_AS_OF_MS)
  */
 export function enrichRegistryWithPlayerBio(registry, asOfMs = WC_TOURNAMENT_BIO_AS_OF_MS) {
   if (!registry?.teams) return registry;
+  const { byKey } = buildWcFullSquadBioIndex();
+
   for (const team of Object.values(registry.teams)) {
     for (const player of team?.players || []) {
       const key = playerRegistryKey(player.name, player.nationAbbr);
-      const bio = WC_NOTABLE_PLAYER_BIOS[key];
+      const bio = byKey.get(key);
       if (!bio) continue;
       player.birthDate = bio.birthDate;
       if (bio.club) player.club = bio.club;
@@ -106,35 +158,34 @@ export function enrichRegistryWithPlayerBio(registry, asOfMs = WC_TOURNAMENT_BIO
  * @param {{ limit?: number, asOfMs?: number }} [opts]
  */
 export function buildWcPlayerBioPromptBlock(registry, opts = {}) {
-  const limit = opts.limit ?? 36;
+  const limit = opts.limit ?? 48;
   const asOfMs = opts.asOfMs ?? WC_TOURNAMENT_BIO_AS_OF_MS;
-  /** @type {Array<{ name: string, nationAbbr: string, ageYears: number, position: string | null, club?: string, isPenaltyTaker?: boolean }>} */
+  const notableKeys = new Set(Object.keys(WC_NOTABLE_PLAYER_BIOS));
+  /** @type {Array<{ name: string, nationAbbr: string, ageYears: number, position: string | null, club?: string, isPenaltyTaker?: boolean, notable: boolean }>} */
   const rows = [];
 
-  for (const [key, bio] of Object.entries(WC_NOTABLE_PLAYER_BIOS)) {
-    const age = wcPlayerAgeYears(bio.birthDate, asOfMs);
-    if (age == null) continue;
-    const [, namePart] = key.split("|");
-    const nationAbbr = key.split("|")[0];
-    const regPlayer = registry?.teams?.[nationAbbr]?.players?.find(
-      (p) => playerRegistryKey(p.name, p.nationAbbr) === key,
-    );
-    rows.push({
-      name: regPlayer?.name || namePart,
-      nationAbbr,
-      ageYears: age,
-      position: regPlayer?.position || null,
-      club: bio.club,
-      isPenaltyTaker: bio.isPenaltyTaker,
-    });
+  for (const team of Object.values(registry?.teams || {})) {
+    for (const p of team?.players || []) {
+      if (!p.birthDate || p.ageYears == null) continue;
+      const key = playerRegistryKey(p.name, p.nationAbbr);
+      rows.push({
+        name: p.name,
+        nationAbbr: p.nationAbbr,
+        ageYears: p.ageYears,
+        position: p.position || null,
+        club: p.club || undefined,
+        isPenaltyTaker: p.isPenaltyTaker,
+        notable: notableKeys.has(key),
+      });
+    }
   }
 
-  rows.sort((a, b) => a.name.localeCompare(b.name));
+  rows.sort((a, b) => Number(b.notable) - Number(a.notable) || a.name.localeCompare(b.name));
   const slice = rows.slice(0, limit);
   if (!slice.length) return "";
 
   const lines = [
-    "PLAYER BIO — VERIFIED (ages as of Jun 11, 2026 kickoff; cite ONLY these — never guess age or club):",
+    `PLAYER BIO — FIFA SQUAD VERIFIED (${rows.length} players indexed; ages as of Jun 11, 2026 kickoff):`,
   ];
   for (const r of slice) {
     const pk = r.isPenaltyTaker ? " · PK taker" : "";
@@ -143,7 +194,7 @@ export function buildWcPlayerBioPromptBlock(registry, opts = {}) {
     lines.push(`  ${r.name} (${r.nationAbbr}) — age ${r.ageYears}${pos}${club}${pk}`);
   }
   lines.push(
-    "  RULE: Do not state a player's age unless they appear in PLAYER BIO above. Wrong ages destroy credibility.",
+    "  RULE: Every named squad player has a verified DOB in the registry — never guess age or club. Yamal is 18 at kickoff.",
   );
   return lines.join("\n");
 }
@@ -159,35 +210,42 @@ export function detectWcPlayerAgeMismatches(text, asOfMs = WC_TOURNAMENT_BIO_AS_
   const blob = String(text || "");
   if (!blob.trim()) return null;
 
-  for (const [key, bio] of Object.entries(WC_NOTABLE_PLAYER_BIOS)) {
-    const expected = wcPlayerAgeYears(bio.birthDate, asOfMs);
-    if (expected == null) continue;
+  const { byKey, bySurname } = buildWcFullSquadBioIndex();
 
-    const nationAbbr = key.split("|")[0] || "";
-    const nameKey = key.split("|")[1] || "";
-    /** @type {string[]} */
-    const searchTerms = [nameKey];
-    if (nameKey === "lamine yamal") searchTerms.push("yamal", "Lamine Yamal");
+  for (const match of blob.matchAll(new RegExp(AGE_CLAIM_RE.source, "gi"))) {
+    const idx = match.index ?? 0;
+    const window = blob.slice(Math.max(0, idx - 120), idx + 80);
+    const claimed = Number(match[1] || match[2] || match[3]);
+    if (!Number.isFinite(claimed)) continue;
 
-    for (const term of searchTerms) {
-      const termRe = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      for (const match of blob.matchAll(new RegExp(AGE_CLAIM_RE.source, "gi"))) {
-        const idx = match.index ?? 0;
-        const window = blob.slice(Math.max(0, idx - 100), idx + 100);
-        if (!termRe.test(window)) continue;
+    const candidates = [...byKey.values()].filter((bio) =>
+      playerMentionedNearAgeClaim(window, bio),
+    );
+    candidates.sort(
+      (a, b) => b.name.split(/\s+/).length - a.name.split(/\s+/).length,
+    );
 
-        const claimed = Number(match[1] || match[2] || match[3]);
-        if (!Number.isFinite(claimed) || claimed === expected) continue;
-
+    for (const bio of candidates) {
+      const expected = wcPlayerAgeYears(bio.birthDate, asOfMs);
+      if (expected == null) continue;
+      if (claimed !== expected) {
         return {
-          player: normalizeWcPlayerName(term),
-          nationAbbr,
+          player: bio.name,
+          nationAbbr: bio.nationAbbr,
           claimed,
           expected,
         };
       }
+      return null;
     }
   }
 
   return null;
+}
+
+/**
+ * @returns {number}
+ */
+export function wcFullSquadBioPlayerCount() {
+  return buildWcFullSquadBioIndex().byKey.size;
 }

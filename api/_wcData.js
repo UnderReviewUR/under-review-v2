@@ -28,6 +28,10 @@ import {
 import { isWcMatchFtStatus } from "../shared/wcMatchDetailTargets.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
 import { attachOutrightsFreshness } from "../shared/wcOddsFreshness.js";
+import { buildWcOutrightsSeedPayload } from "../shared/wcOutrightsSeed.js";
+import { resolveWcOutrightsSourceChain } from "../shared/wcOutrightsSourceChain.js";
+import { scrapeAllWcOutrightsAggregators } from "./_wcScrapeOutrightsAggregators.js";
+import { WC_OUTRIGHTS_AGGREGATOR_COUNT } from "../shared/wcOutrightsAggregatorRegistry.js";
 import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
 
 /** Max parallel KV reads when enriching match lists for /api/world-cup. */
@@ -369,63 +373,85 @@ export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
   return { ok: false, eventId: String(eventId), error: result.error || result.odds?.error };
 }
 
-async function writeWcOutrightsKv(outrights, source, nowMs = Date.now()) {
-  const payload = { outrights, lastUpdated: nowMs, source };
+async function writeWcOutrightsKv(outrights, source, nowMs = Date.now(), meta = {}) {
+  const payload = {
+    outrights,
+    lastUpdated: nowMs,
+    source,
+    sourceTier: meta.sourceTier || null,
+    provenance: meta.provenance || null,
+    attempts: meta.attempts || null,
+    aggregatorsRegistered: meta.aggregatorsRegistered ?? WC_OUTRIGHTS_AGGREGATOR_COUNT,
+    aggregatorsAttempted: meta.aggregatorsAttempted ?? null,
+    aggregatorsOk: meta.aggregatorsOk ?? null,
+  };
   await setDurableJson(WC_OUTRIGHTS_KV_KEY, payload, { ttlSeconds: WC_OUTRIGHTS_TTL_SECONDS });
   console.log(
     JSON.stringify({
       event: "wc_outrights_cached",
       count: Object.keys(outrights).length,
       source,
+      sourceTier: payload.sourceTier,
     }),
   );
   return payload;
 }
 
 /**
- * Cron: tournament winner outrights — ESPN futures, then Odds API, then stale KV.
+ * Cron: tournament winner outrights — multi-source chain (ESPN + Odds API merge → stale KV → seed).
  */
 export async function scrapeAndCacheWcOutrights() {
   const nowMs = Date.now();
   const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
 
-  const espn = await fetchEspnOutrights();
-  if (espn.ok && Object.keys(espn.outrights).length) {
-    await writeWcOutrightsKv(espn.outrights, "espn", nowMs);
-    return { ok: true, outrights: espn.outrights, fetchedAt: nowMs, source: "espn" };
+  const [espn, oddsApi, aggregators] = await Promise.all([
+    fetchEspnOutrights(),
+    fetchOddsApiWcOutrights(),
+    scrapeAllWcOutrightsAggregators(),
+  ]);
+  const chain = resolveWcOutrightsSourceChain({
+    espn,
+    oddsApi,
+    aggregators,
+    cached,
+    nowMs,
+  });
+
+  const aggregatorsOk = aggregators.filter((a) => a.ok).map((a) => a.source);
+
+  if (chain.sourceTier === "live_merge" || chain.seeded) {
+    await writeWcOutrightsKv(chain.outrights, chain.source, nowMs, {
+      sourceTier: chain.sourceTier,
+      provenance: chain.provenance,
+      attempts: chain.attempts,
+      aggregatorsAttempted: aggregators.length,
+      aggregatorsOk,
+    });
   }
 
-  const oddsApi = await fetchOddsApiWcOutrights();
-  if (oddsApi.ok && Object.keys(oddsApi.outrights).length) {
-    await writeWcOutrightsKv(oddsApi.outrights, "odds_api", nowMs);
-    return { ok: true, outrights: oddsApi.outrights, fetchedAt: nowMs, source: "odds_api" };
+  if (chain.sourceTier !== "live_merge" && !chain.seeded) {
+    console.log(
+      JSON.stringify({
+        event: "wc_outrights_skip",
+        sourceTier: chain.sourceTier,
+        espnError: espn.error,
+        oddsApiError: oddsApi.error,
+        hadCache: Boolean(cached?.outrights && Object.keys(cached.outrights).length),
+        error: chain.error,
+      }),
+    );
   }
 
-  // Smarkets diagnostic (Jun 2026): no FIFA WC 2026 winner market — cricket "World Cup" only.
-
-  const reasons = [espn.error, oddsApi.error].filter(Boolean).join("; ");
-  console.log(
-    JSON.stringify({
-      event: "wc_outrights_skip",
-      espnError: espn.error,
-      oddsApiError: oddsApi.error,
-      smarkets: "no_fifa_wc_winner_market",
-      hadCache: Boolean(cached?.outrights && Object.keys(cached.outrights).length),
-    }),
-  );
-
-  if (cached?.outrights && Object.keys(cached.outrights).length) {
-    return {
-      ok: false,
-      outrights: cached.outrights,
-      fetchedAt: cached.lastUpdated,
-      source: cached.source,
-      error: reasons || "all_sources_empty",
-      servedStale: true,
-    };
-  }
-
-  return { ok: false, outrights: {}, error: reasons || "all_sources_empty" };
+  return {
+    ok: chain.ok,
+    outrights: chain.outrights,
+    fetchedAt: chain.fetchedAt,
+    source: chain.source,
+    sourceTier: chain.sourceTier,
+    seeded: chain.seeded,
+    servedStale: chain.servedStale,
+    error: chain.error || null,
+  };
 }
 
 /**
@@ -454,7 +480,72 @@ export async function readWcMatchesFromKv(maxAgeMs = WC_MATCHES_TTL_SECONDS * 10
 
 export async function readWcOutrightsFromKv(nowMs = Date.now()) {
   const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
-  return attachOutrightsFreshness(cached, nowMs);
+  const withFreshness = attachOutrightsFreshness(cached, nowMs);
+  if (withFreshness?.outrights && Object.keys(withFreshness.outrights).length) {
+    return withFreshness;
+  }
+  return attachOutrightsFreshness(buildWcOutrightsSeedPayload(nowMs), nowMs);
+}
+
+/**
+ * On-demand outrights refresh when KV empty/stale/seed-only during tournament window.
+ * @param {number} [nowMs]
+ */
+export async function ensureWcOutrightsInKv(nowMs = Date.now()) {
+  const cached = await readWcOutrightsFromKv(nowMs);
+  const tier = String(cached?.sourceTier || "").toLowerCase();
+  const needsRefresh =
+    !cached?.outrights ||
+    !Object.keys(cached.outrights).length ||
+    cached.stale ||
+    tier === "static_seed" ||
+    tier === "stale_kv_aged";
+
+  if (!needsRefresh) {
+    return { ok: true, cached: true, outrights: cached.outrights, ...cached };
+  }
+  if (!shouldRunWcCron(nowMs)) {
+    return { ok: false, cached: true, outrights: cached?.outrights || {}, error: "off_season" };
+  }
+
+  const scraped = await scrapeAndCacheWcOutrights();
+  const fresh = await readWcOutrightsFromKv(nowMs);
+  return {
+    ok: Boolean(scraped.ok || fresh?.outrights),
+    cached: false,
+    refreshed: true,
+    outrights: fresh?.outrights || scraped.outrights,
+    source: fresh?.source || scraped.source,
+    sourceTier: fresh?.sourceTier || scraped.sourceTier,
+    error: scraped.error || null,
+  };
+}
+
+/**
+ * On-demand ESPN standings + fixtures when KV thin.
+ * @param {number} [nowMs]
+ */
+export async function ensureWcDataInKv(nowMs = Date.now()) {
+  const groupsKv = await readWcGroupsFromKv(Number.MAX_SAFE_INTEGER);
+  const matchesKv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
+  const groupOk = groupsKv?.groups && Object.keys(groupsKv.groups).length >= 12;
+  const realMatches = (matchesKv?.matches || []).filter(
+    (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
+  ).length;
+  const matchesOk = realMatches >= 50;
+
+  if (groupOk && matchesOk && !groupsKv?.stale && !matchesKv?.stale) {
+    return {
+      ok: true,
+      cached: true,
+      groupsPayload: groupsKv,
+      matchesPayload: matchesKv,
+    };
+  }
+  if (!shouldRunWcCron(nowMs)) {
+    return { ok: false, cached: true, error: "off_season" };
+  }
+  return scrapeAndCacheWcStandingsAndFixtures();
 }
 
 /**
@@ -543,6 +634,8 @@ export async function getWcMatchDetailPayload(eventId) {
   }
 
   const meta = buildMatchDetailMeta(detail);
+  const th = detail.teamStats?.home;
+  const ta = detail.teamStats?.away;
   return {
     ok: true,
     eventId: id,
@@ -554,6 +647,22 @@ export async function getWcMatchDetailPayload(eventId) {
     venue: detail.venue ?? null,
     phase: detail.phase ?? null,
     injuryCount: Array.isArray(detail.injuries) ? detail.injuries.length : 0,
+    teamStats: {
+      home: th
+        ? {
+            possessionPct: th.possessionPct ?? null,
+            shots: th.shots ?? null,
+            shotsOnTarget: th.shotsOnTarget ?? th.sot ?? null,
+          }
+        : null,
+      away: ta
+        ? {
+            possessionPct: ta.possessionPct ?? null,
+            shots: ta.shots ?? null,
+            shotsOnTarget: ta.shotsOnTarget ?? ta.sot ?? null,
+          }
+        : null,
+    },
     ...meta,
   };
 }

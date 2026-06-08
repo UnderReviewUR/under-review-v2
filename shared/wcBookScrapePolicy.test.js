@@ -8,28 +8,36 @@ import {
   wcBookScrapeFlagsSnapshot,
 } from "./wcBookScrapePolicy.js";
 
-test("UK and aggregator regions default off without env", () => {
+test("UK, aggregator, and media regions default off without env", () => {
   const prevUk = process.env.WC_SCRAPE_UK;
   const prevAgg = process.env.WC_SCRAPE_AGG;
+  const prevMedia = process.env.WC_SCRAPE_MEDIA;
+  const prevVercel = process.env.VERCEL_ENV;
   delete process.env.WC_SCRAPE_UK;
   delete process.env.WC_SCRAPE_AGG;
+  delete process.env.WC_SCRAPE_MEDIA;
+  delete process.env.VERCEL_ENV;
   try {
     assert.equal(isWcBookRegionEnabled("uk"), false);
     assert.equal(isWcBookRegionEnabled("agg"), false);
+    assert.equal(isWcBookRegionEnabled("media"), false);
     assert.equal(isWcGoldenBootBookEnabled("paddypower"), false);
     assert.equal(isWcGoldenBootBookEnabled("oddschecker"), false);
+    assert.equal(isWcGoldenBootBookEnabled("actionnetwork"), false);
   } finally {
     if (prevUk !== undefined) process.env.WC_SCRAPE_UK = prevUk;
     if (prevAgg !== undefined) process.env.WC_SCRAPE_AGG = prevAgg;
+    if (prevMedia !== undefined) process.env.WC_SCRAPE_MEDIA = prevMedia;
+    if (prevVercel !== undefined) process.env.VERCEL_ENV = prevVercel;
   }
 });
 
 test("wcBookScrapeFlagsSnapshot includes alert-friendly structure", () => {
   const snap = wcBookScrapeFlagsSnapshot();
-  assert.ok(snap.us);
-  assert.ok(snap.uk);
-  assert.ok(snap.agg);
-  assert.ok("draftkings" in snap.us);
+  assert.ok(snap.goldenBootSourcesRegistered >= 25);
+  assert.ok(snap.goldenBoot);
+  assert.ok("draftkings" in snap.goldenBoot);
+  assert.ok(snap.regions);
 });
 
 test("applyWcMatchPlayerPropsUrlTemplate substitutes team slugs from registry", () => {

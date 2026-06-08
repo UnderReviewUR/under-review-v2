@@ -3,6 +3,7 @@ import AskBar from "../components/AskBar.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import WcGroupTable from "../components/world-cup/WcGroupTable.jsx";
 import WcMatchCard from "../components/world-cup/WcMatchCard.jsx";
+import WcMatchDetailDrawer from "../components/world-cup/WcMatchDetailDrawer.jsx";
 import WcBracket from "../components/world-cup/WcBracket.jsx";
 import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
 import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
@@ -63,6 +64,7 @@ export default function WorldCupScreen({
   const [highlightEventId, setHighlightEventId] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [expandedGroup, setExpandedGroup] = useState(null);
+  const [detailMatch, setDetailMatch] = useState(null);
 
   useEffect(() => {
     if (!wcScreenNav) return;
@@ -140,6 +142,10 @@ export default function WorldCupScreen({
             match={m}
             teams={teams}
             onAskUrTake={handleAskMatch}
+            onViewDetails={(m) => {
+              setDetailMatch(m);
+              onViewWcMatch?.(m);
+            }}
             fetchWeather={fetchWeather}
             highlight={highlightEventId != null && String(m.id) === String(highlightEventId)}
           />
@@ -425,6 +431,10 @@ export default function WorldCupScreen({
       ) : (
         wcBrowseBelow
       )}
+
+      {detailMatch ? (
+        <WcMatchDetailDrawer match={detailMatch} onClose={() => setDetailMatch(null)} />
+      ) : null}
     </main>
   );
 }

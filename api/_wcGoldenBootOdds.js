@@ -22,6 +22,16 @@ import {
   applyGoldenBootManualPatches,
   readWcPlayerMarketsOverrideKv,
 } from "./_wcPlayerMarketsOverride.js";
+import { enrichGoldenBootRowsWithNation } from "../shared/wcGoldenBootNationResolve.js";
+import {
+  filterGoldenBootScrapeRows,
+  isVerifiedWcGoldenBootRow,
+} from "../shared/wcGoldenBootRowGuard.js";
+import {
+  gateGoldenBootKvWrite,
+  WC_GOLDEN_BOOT_MIN_VERIFIED_ROWS,
+} from "../shared/wcGoldenBootWriteQA.js";
+import { WC_GOLDEN_BOOT_SOURCE_COUNT } from "../shared/wcGoldenBootSourceRegistry.js";
 
 /**
  * @param {Record<string, unknown>} payload
@@ -52,7 +62,12 @@ export async function scrapeAndCacheWcGoldenBoot() {
     scrapeAllEnabledGoldenBootBooks(),
   ]);
 
-  const merged = mergeGoldenBootConsensus(bookResults, espn.ok ? espn.rows : []);
+  const enrichedBooks = bookResults.map((r) => ({
+    ...r,
+    rows: enrichGoldenBootRowsWithNation(r.rows || []),
+  }));
+  const enrichedEspn = espn.ok ? enrichGoldenBootRowsWithNation(espn.rows || []) : [];
+  const merged = mergeGoldenBootConsensus(enrichedBooks, enrichedEspn);
   let rows = merged.rows;
   let source = "consensus";
   const booksUsed = [...merged.booksUsed];
@@ -64,15 +79,30 @@ export async function scrapeAndCacheWcGoldenBoot() {
     if (!booksUsed.includes("seed")) booksUsed.push("seed");
   }
 
-  rows = sortGoldenBootRows(rows, 50);
+  rows = sortGoldenBootRows(
+    filterGoldenBootScrapeRows(rows).filter((r) => isVerifiedWcGoldenBootRow(r)),
+    50,
+  );
 
-  if (rows.length >= MIN_GOLDEN_BOOT_ROWS) {
+  const gate = gateGoldenBootKvWrite(rows, { source, booksUsed });
+  rows = gate.rows;
+  const sourcesAttempted = bookResults.length;
+  const sourcesOk = bookResults.filter((b) => b.ok).map((b) => b.book);
+
+  if (
+    rows.length >= MIN_GOLDEN_BOOT_ROWS ||
+    (gate.allowWrite && rows.length >= WC_GOLDEN_BOOT_MIN_VERIFIED_ROWS)
+  ) {
     const payload = {
       lastUpdated: nowMs,
       market: merged.market || "golden_boot",
       source,
       booksUsed,
       rows,
+      sourcesRegistered: WC_GOLDEN_BOOT_SOURCE_COUNT,
+      sourcesAttempted,
+      sourcesOk,
+      writeQa: { issueCodes: gate.issueCodes, verifiedCount: gate.verifiedCount },
     };
     await writeGoldenBootKv(payload);
     return {

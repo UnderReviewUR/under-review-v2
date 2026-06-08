@@ -56,6 +56,11 @@ import { buildResolvedWcPlayerRegistry } from "../shared/wcPlayerRegistry.js";
 import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
+import {
+  isWcLiveDominanceQuestion,
+  selectLiveFixtureForQuestion,
+  WC_LIVE_MATCH_PROMPT_RULES,
+} from "../shared/wcLiveMatchQuestion.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -582,6 +587,9 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     for (const d of ctx.matchDetails) {
       lines.push(formatMatchIntelBlock(d));
     }
+    if (ctx.liveMatchRulesBlock) {
+      lines.push("", ctx.liveMatchRulesBlock);
+    }
     lines.push("", formatInjuryBlock(ctx.matchDetails));
   } else {
     lines.push("", "INJURY / AVAILABILITY:", `  ${WC_INJURY_UNCERTAINTY_RULE}`);
@@ -743,7 +751,18 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       ? opts.requiredEntities.map((t) => String(t).toUpperCase())
       : extractMentionedWcTeams(question);
   const phase = getWorldCupPhase(matches);
-  const fixtures = selectFixturesForQuestion(matches, mentionedTeams, opts.wcEventId);
+
+  let effectiveEventId = String(opts.wcEventId || "").trim() || null;
+  if (!effectiveEventId && isWcLiveDominanceQuestion(question)) {
+    const livePinned = selectLiveFixtureForQuestion(matches, question, null);
+    if (livePinned?.id) effectiveEventId = String(livePinned.id);
+  }
+
+  let fixtures = selectFixturesForQuestion(matches, mentionedTeams, effectiveEventId);
+  if (!fixtures.length && isWcLiveDominanceQuestion(question)) {
+    const liveFx = selectLiveFixtureForQuestion(matches, question, effectiveEventId);
+    if (liveFx) fixtures = [liveFx];
+  }
   /** @type {Array<Record<string, unknown>>} */
   const matchDetails = [];
   for (const fx of fixtures) {
@@ -875,6 +894,11 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     adjustedGoldenBootBlock,
     playerBioPromptBlock,
     roundupPlayerKv,
+    wcEventId: effectiveEventId,
+    liveMatchRulesBlock:
+      matchDetails.some((d) => isLiveStatus(d.status)) && isWcLiveDominanceQuestion(question)
+        ? WC_LIVE_MATCH_PROMPT_RULES
+        : null,
     lastUpdated: Math.max(
       Number(groupsPayload?.lastUpdated) || 0,
       Number(matchesPayload?.lastUpdated) || 0,
@@ -895,13 +919,15 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     return ctx.promptBlock ? ctx : null;
   }
 
+  const wcEventIdTrimmed = effectiveEventId || String(opts.wcEventId || "").trim() || null;
+  ctx.wcEventId = wcEventIdTrimmed;
+
   if (isWcPlayerMarketIntent(wcIntent)) {
-    const wcEventIdTrimmed = String(opts.wcEventId || "").trim() || null;
-    ctx.wcEventId = wcEventIdTrimmed;
     try {
       const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {
         wcEventId: wcEventIdTrimmed,
         wcIntent,
+        question,
       });
       const playerMarketTier = resolveWcPlayerMarketTier({
         goldenBoot: playerMarketKv.goldenBoot,
@@ -932,10 +958,29 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     } catch (err) {
       console.warn("[wc-context] player market KV load failed:", err?.message);
     }
+  } else if (isWcLiveDominanceQuestion(question) && wcEventIdTrimmed) {
+    try {
+      ctx.playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {
+        wcEventId: wcEventIdTrimmed,
+        wcIntent: wcIntent || WC_INTENT.GENERAL,
+        question,
+      });
+    } catch (err) {
+      console.warn("[wc-context] live match KV load failed:", err?.message);
+    }
   }
 
   ctx.promptBlock = formatWorldCupUrTakePromptBlock(ctx);
-  if (!ctx.promptBlock || Object.keys(groups).length < 12) return null;
+  if (!ctx.promptBlock) return null;
+
+  const groupCount = Object.keys(groups).length;
+  if (groupCount < 12) {
+    ctx.lowGroupCoverage = true;
+    ctx.promptBlock = [
+      `WC DATA NOTE: Only ${groupCount}/12 groups loaded in verified feed — do not invent group math; cite teams you see only.`,
+      ctx.promptBlock,
+    ].join("\n");
+  }
 
   return ctx;
 }

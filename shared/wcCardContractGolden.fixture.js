@@ -1,3 +1,7 @@
+import { WC_GOLDEN_ESP_OUTRIGHT } from "./wcGoldenOutrightsRefs.js";
+
+const ESP_OUTRIGHT_QUESTION = WC_GOLDEN_ESP_OUTRIGHT || "+500";
+
 /**
  * World Cup Card Contract — 20 golden questions (pre-launch audit suite).
  *
@@ -123,7 +127,7 @@ export const WC_CARD_CONTRACT_GOLDEN_CASES = [
   },
   {
     id: "entity-spain",
-    question: "Is Spain +450 fair to win it all?",
+    question: `Is Spain ${ESP_OUTRIGHT_QUESTION} fair to win it all?`,
     expectedIntent: "ENTITY_PRICING",
     cardVoice: "argue",
   },

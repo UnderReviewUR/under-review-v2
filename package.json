@@ -12,6 +12,10 @@
     "check:api": "node scripts/check-api-syntax.mjs",
     "lint": "eslint src api scripts",
     "test": "node scripts/run-all-tests.mjs",
+    "eval:wc-golden": "node scripts/run-wc-golden-eval.mjs --offline",
+    "eval:wc-golden:handler": "node scripts/run-wc-golden-eval.mjs --handler",
+    "eval:wc-golden:live": "node scripts/run-wc-golden-eval.mjs --live",
+    "verify:wc-outrights": "node scripts/verify-wc-outrights-alignment.mjs",
     "format": "prettier --write \"src/**/*.{js,jsx}\" \"api/**/*.js\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx}\" \"api/**/*.js\"",
     "refresh:tennis-form": "node refresh-tennis-form.mjs",
@@ -19,7 +23,13 @@
     "odds-usage-smoke": "node scripts/odds-api-usage-smoke.mjs",
     "warm:golf-odds": "node scripts/warm-golf-odds-cache.mjs",
     "warm:nba-props": "node scripts/warm-nba-props-cache.mjs",
-    "warm:f1-odds": "node scripts/warm-f1-odds-cache.mjs --direct"
+    "probe:nba-sources": "node scripts/probe-nba-data-sources.mjs",
+    "warm:nba-finals": "node scripts/warm-nba-finals-board.mjs --direct",
+    "warm:f1-odds": "node scripts/warm-f1-odds-cache.mjs --direct",
+    "warm:wc": "node scripts/warm-wc.mjs",
+    "warm:wc:direct": "node scripts/warm-wc.mjs --direct",
+    "probe:wc-gb-sources": "node scripts/probe-wc-gb-books.mjs",
+    "probe:wc-aggregators": "node scripts/probe-wc-aggregator-urls.mjs"
   },
   "dependencies": {
     "@clerk/backend": "^3.4.4",

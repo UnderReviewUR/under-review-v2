@@ -26,10 +26,18 @@ function titleWord(w) {
  * @param {{ firstName: string, nameOnShirt: string, lastName: string }} p
  */
 function buildSeedName(p) {
-  const first = (p.firstName || "").split(" ")[0];
   const shirt = (p.nameOnShirt || p.lastName || "").trim();
   const shirtDisplay = shirt.split(/[\s-]+/).map(titleWord).join(shirt.includes("-") ? "-" : " ");
-  return `${first} ${shirtDisplay}`.trim();
+  const firstFull = (p.firstName || "").trim();
+  const firstWord = firstFull.split(" ")[0];
+  const shirtLower = shirtDisplay.toLowerCase();
+  if (firstFull && shirtLower.includes(firstFull.toLowerCase())) {
+    return shirtDisplay;
+  }
+  if (firstWord && shirtLower.startsWith(firstWord.toLowerCase())) {
+    return shirtDisplay;
+  }
+  return `${firstWord} ${shirtDisplay}`.trim();
 }
 
 /** @type {Array<{ nationAbbr: string, name: string, position: string }>} */
@@ -39,7 +47,11 @@ export const WC_FULL_SQUAD_SEED = Object.entries(fullSquads.teams).flatMap(
       nationAbbr: abbr,
       name: buildSeedName(p),
       position: p.position,
+      dob: p.dob || null,
+      club: p.club || null,
     })),
 );
+
+export { buildSeedName };
 
 export const WC_FULL_SQUADS = fullSquads;

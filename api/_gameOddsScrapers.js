@@ -23,6 +23,28 @@ function pickEspnSpreadOutcomes(pickcenter) {
 /**
  * ESPN summary pickcenter — spread relative to favorite team in details string.
  */
+/**
+ * ESPN summary pickcenter — game total (over/under).
+ */
+export async function scrapeEspnNbaTotal({ espnEventId }) {
+  const id = String(espnEventId || "").trim();
+  if (!id) return null;
+  try {
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${encodeURIComponent(id)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const pick = data?.pickcenter?.[0] || data?.pickcenter;
+    const total = Number(pick?.overUnder);
+    if (!Number.isFinite(total) || total <= 0) return null;
+    return { total, source: "espn_summary", pace: "NEUTRAL" };
+  } catch {
+    return null;
+  }
+}
+
 export async function scrapeEspnNbaSpread({ espnEventId, homeAbbr, awayAbbr, homeName, awayName }) {
   const id = String(espnEventId || "").trim();
   if (!id) return null;

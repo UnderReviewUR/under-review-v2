@@ -82,6 +82,7 @@ export default function WcMatchCard({
   match,
   teams,
   onAskUrTake,
+  onViewDetails,
   showOdds = true,
   fetchWeather = false,
   highlight = false,
@@ -181,11 +182,18 @@ export default function WcMatchCard({
           espnFallback={bookOdds}
         />
       ) : null}
-      {onAskUrTake ? (
-        <button type="button" className="wc-ask-btn" onClick={() => onAskUrTake(match)}>
-          Ask UR Take →
-        </button>
-      ) : null}
+      <div className="wc-match-actions">
+        {onViewDetails ? (
+          <button type="button" className="wc-detail-btn" onClick={() => onViewDetails(match)}>
+            Match intel
+          </button>
+        ) : null}
+        {onAskUrTake ? (
+          <button type="button" className="wc-ask-btn" onClick={() => onAskUrTake(match)}>
+            Ask UR Take →
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

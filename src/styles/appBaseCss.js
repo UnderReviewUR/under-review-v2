@@ -1870,6 +1870,32 @@ export const baseCss = `
   .wc-group-expand{width:100%;margin-top:6px;background:none;border:none;color:var(--wc-gold);font-size:11px;cursor:pointer;padding:4px;}
   .wc-match-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
   .wc-match-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;}
+  .wc-match-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .wc-detail-btn{
+    padding:8px 12px;border-radius:8px;border:1px solid var(--border);
+    background:transparent;color:var(--soft);font-size:12px;cursor:pointer;
+  }
+  .wc-detail-drawer-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1200;
+    display:flex;align-items:flex-end;justify-content:center;padding:16px;
+  }
+  .wc-detail-drawer{
+    width:min(480px,100%);max-height:80vh;overflow:auto;background:var(--surface);
+    border:1px solid var(--border);border-radius:16px 16px 12px 12px;padding:16px 18px 20px;
+    position:relative;
+  }
+  .wc-detail-close{
+    position:absolute;top:8px;right:10px;border:none;background:none;color:var(--muted);
+    font-size:22px;cursor:pointer;line-height:1;
+  }
+  .wc-detail-title{margin:0 0 6px;font-size:17px;}
+  .wc-detail-meta,.wc-detail-xi,.wc-detail-muted{font-size:12px;color:var(--muted);margin:0 0 10px;}
+  .wc-detail-section{margin:12px 0;}
+  .wc-detail-section h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
+  .wc-detail-stat-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;font-size:13px;margin-bottom:6px;}
+  .wc-detail-stat-label{text-align:center;color:var(--muted);font-size:11px;}
+  .wc-detail-props-list{list-style:none;margin:0;padding:0;}
+  .wc-detail-props-list li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border-2);font-size:13px;}
   .wc-fetch-error{
     margin:0 0 14px;padding:12px 14px;border-radius:12px;
     border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);

@@ -86,6 +86,7 @@ export function attachOutrightsFreshness(kvOutrights, nowMs = Date.now()) {
 
   return {
     ...kvOutrights,
+    sourceTier: kvOutrights.sourceTier || null,
     stale: freshness.isStale,
     freshness,
   };
@@ -222,13 +223,31 @@ export function buildWcOutrightsFreshnessPromptBlock(kvOutrights, nowMs = Date.n
     .map(([abbr, odds]) => `  ${abbr}: ${odds}`);
 
   const source = String(kvOutrights.source || "espn").toUpperCase();
+  const tier = String(kvOutrights.sourceTier || "").toLowerCase();
+  const tierLabel =
+    tier === "live_merge"
+      ? "LIVE MERGE (ESPN + Odds API consensus)"
+      : tier === "stale_kv_fresh"
+        ? "CACHED (within TTL — not today's scrape)"
+        : tier === "stale_kv_aged"
+          ? "CACHED AGED (structural framing only — do not say mispriced)"
+          : tier === "static_seed"
+            ? "REFERENCE SEED (cold-start lines — structural framing only)"
+            : null;
+
   const block = [
-    "CURRENT OUTRIGHT ODDS (ESPN primary + Odds API fallback, refreshed ~every 3 hours):",
+    "CURRENT OUTRIGHT ODDS (multi-source chain: live merge → cached KV → reference seed):",
     ...lines,
     `Last updated: ${freshness.fetchedAt || "unknown"}`,
     `Freshness: ${freshness.ageText} (max ${freshness.maxAgeMinutes} min)`,
-    `Source: ${source}`,
+    `Source: ${source}${tierLabel ? ` · ${tierLabel}` : ""}`,
   ];
+
+  if (tier === "static_seed" || tier === "stale_kv_aged") {
+    block.push(
+      "  These lines are NOT verified live book prices — cite them only as reference context; never claim mispriced vs today's market.",
+    );
+  }
 
   if (isStale) {
     block.push(`ODDS FRESHNESS (mandatory): ${freshness.staleWarning}`);

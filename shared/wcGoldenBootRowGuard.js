@@ -98,6 +98,33 @@ export function isVerifiedWcGoldenBootRow(row) {
   return Boolean(nation);
 }
 
+const PARSER_JUNK_NAME_RE =
+  /\b(minimum leg|we often see|the top|fworld|sportsbook|goalscorer market|leg odds)\b/i;
+
+/**
+ * @param {string} name
+ */
+export function isGoldenBootParserJunkName(name) {
+  const n = nameGuardKey(name);
+  if (!n || n.length < 4) return true;
+  if (PARSER_JUNK_NAME_RE.test(n)) return true;
+  if (!/\s/.test(n) && n.length > 24) return true;
+  return false;
+}
+
+/**
+ * @param {Array<{ name: string, americanOdds: string, nationAbbr?: string }>} rows
+ */
+export function filterGoldenBootScrapeRows(rows) {
+  return (rows || []).filter((row) => {
+    const name = normalizeWcPlayerName(row?.name);
+    if (!name || isCrossSportGolferName(name)) return false;
+    if (isGoldenBootParserJunkName(name)) return false;
+    if (!row?.americanOdds) return false;
+    return true;
+  });
+}
+
 /**
  * @param {string} text
  */

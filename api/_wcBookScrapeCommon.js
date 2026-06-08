@@ -8,6 +8,8 @@ import {
 } from "../shared/wcBookScrapePolicy.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import { isNationOnlyOutcome, parseAmericanOddsNumber, formatAmericanOdds } from "../shared/wcGoldenBootConsensus.js";
+import { filterGoldenBootScrapeRows } from "../shared/wcGoldenBootRowGuard.js";
+import { getWcGoldenBootSourceConfig } from "../shared/wcGoldenBootSourceRegistry.js";
 import {
   createEmptyMatchPlayerPropMarkets,
   mergeMatchPlayerPropMarketMaps,
@@ -268,6 +270,32 @@ export function parseGoldenBootRowsFromJson(json) {
 }
 
 /**
+ * FanDuel Research articles embed odds in __NEXT_DATA__ as "Mbappe (+600)" prose.
+ * @param {string} html
+ */
+export function parseFanDuelResearchGoldenBootFromHtml(html) {
+  const next = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+  if (!next?.[1]) return [];
+
+  /** @type {Array<{ name: string, americanOdds: string }>} */
+  const rows = [];
+  const seen = new Set();
+  const re =
+    /([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:['\s.-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+){0,3})\s*\((\+\d{3,5})\)/g;
+  let m;
+  while ((m = re.exec(next[1])) && rows.length < 40) {
+    const name = normalizeWcPlayerName(m[1]);
+    const odds = formatAmericanOddsFromRaw(m[2]);
+    if (!name || !odds || isNationOnlyOutcome(name)) continue;
+    const key = `${name}|${odds}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ name, americanOdds: odds });
+  }
+  return filterGoldenBootScrapeRows(rows);
+}
+
+/**
  * @param {string} html
  */
 export function parseGoldenBootRowsFromHtml(html) {
@@ -286,7 +314,8 @@ export function parseGoldenBootRowsFromHtml(html) {
     regexRows.push({ name, americanOdds: odds });
   }
 
-  return regexRows.length ? regexRows : fromJson;
+  const merged = regexRows.length ? regexRows : fromJson;
+  return filterGoldenBootScrapeRows(merged);
 }
 
 /**
@@ -311,7 +340,7 @@ export function parseUkAggregatorGoldenBootRowsFromHtml(html) {
     rows.push({ name, americanOdds: odds });
   }
 
-  if (rows.length >= 5) return rows;
+  if (rows.length >= 5) return filterGoldenBootScrapeRows(rows);
   return parseGoldenBootRowsFromHtml(html);
 }
 
@@ -338,31 +367,72 @@ export function parseOddsCheckerGoldenBootRowsFromHtml(html) {
     rows.push({ name, americanOdds: odds });
   }
 
-  return rows.length ? rows : fromJson;
+  return filterGoldenBootScrapeRows(rows.length ? rows : fromJson);
 }
 
 /**
- * Book-specific Golden Boot parse entry (US generic + UK fractional + aggregator tables).
+ * Media / editorial pages — NEXT_DATA prose, markdown tables, UK fractional fallback.
+ * @param {string} html
+ */
+export function parseMediaGoldenBootFromHtml(html) {
+  const research = parseFanDuelResearchGoldenBootFromHtml(html);
+  if (research.length >= 3) return research;
+
+  /** @type {Array<{ name: string, americanOdds: string }>} */
+  const rows = [];
+  const seen = new Set();
+  const tableRe =
+    /\|\s*([A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:['\s.-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+){0,3})\s*\|\s*(\+\d{3,5}|\-\d{2,4}|\d+\s*\/\s*\d+)\s*\|/g;
+  let m;
+  while ((m = tableRe.exec(html)) && rows.length < 40) {
+    const name = normalizeWcPlayerName(m[1]);
+    const odds = formatAmericanOddsFromRaw(m[2]);
+    if (!name || !odds || isNationOnlyOutcome(name)) continue;
+    const key = `${name}|${odds}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ name, americanOdds: odds });
+  }
+  if (rows.length >= 3) return filterGoldenBootScrapeRows(rows);
+
+  const agg = parseOddsCheckerGoldenBootRowsFromHtml(html);
+  if (agg.length >= 3) return agg;
+
+  return parseUkAggregatorGoldenBootRowsFromHtml(html);
+}
+
+/**
+ * Book-specific Golden Boot parse entry (profile from source registry).
  * @param {string} html
  * @param {string} bookKey
  */
 export function parseGoldenBootRowsForBook(html, bookKey) {
   const key = String(bookKey || "").toLowerCase();
-  if (key === "oddschecker" || key === "covers") {
+  const profile = getWcGoldenBootSourceConfig(key)?.parseProfile || "generic_html";
+
+  if (profile === "research_prose") {
+    const research = parseFanDuelResearchGoldenBootFromHtml(html);
+    if (research.length >= 3) return research;
+  }
+  if (profile === "aggregator") {
     return parseOddsCheckerGoldenBootRowsFromHtml(html);
   }
-  if (key === "paddypower" || key === "bet365" || key === "williamhill") {
+  if (profile === "uk_fractional") {
     return parseUkAggregatorGoldenBootRowsFromHtml(html);
   }
+  if (profile === "media_mixed") {
+    return parseMediaGoldenBootFromHtml(html);
+  }
+
   let rows = parseGoldenBootRowsFromHtml(html);
   if (rows.length < 5 && html.trim().startsWith("{")) {
     try {
-      rows = parseGoldenBootRowsFromJson(JSON.parse(html));
+      rows = filterGoldenBootScrapeRows(parseGoldenBootRowsFromJson(JSON.parse(html)));
     } catch {
       /* ignore */
     }
   }
-  return rows;
+  return filterGoldenBootScrapeRows(rows);
 }
 
 /**

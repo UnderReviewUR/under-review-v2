@@ -118,12 +118,19 @@ import {
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
 import {
+  isGoldenEvalMode,
+  resolveGoldenEvalAnthropicResponse,
+  setActiveGoldenEvalCase,
+} from "../_urTakeGoldenEval.js";
+import { getGoldenEvalFixtureById } from "../../shared/wcGoldenEval.fixtures.js";
+import {
   runWcUrTakeQA,
   wcQaRequiresRegeneration,
   WC_GROUP_MATH_QA_SUFFIX,
   WC_PLAYER_MARKET_QA_SUFFIX,
   WC_QA_REGENERATION_SUFFIX,
   WC_PREDICTIONS_ROUNDUP_QA_SUFFIX,
+  WC_GROUNDING_REGEN_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
@@ -1248,6 +1255,9 @@ async function callAnthropic({
   temperature = 0.45,
   max_tokens = 800,
 }) {
+  const goldenEvalResult = resolveGoldenEvalAnthropicResponse();
+  if (goldenEvalResult) return goldenEvalResult;
+
   /** Allow slow Claude completions when the host permits long functions (see vercel.json maxDuration). */
   return fetchAnthropicMessages({
     apiKey,
@@ -2331,8 +2341,28 @@ export default async function handler(req, res) {
   const userTier = urAuth?.tier ?? "free";
   const isPro = ["pro", "owner", "friend"].includes(userTier);
 
-  const ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
+  const goldenEvalCaseId = isGoldenEvalMode()
+    ? String(
+        req.body?.goldenEvalCaseId ||
+          process.env.UR_TAKE_GOLDEN_EVAL_CASE ||
+          "",
+      ).trim()
+    : "";
+  if (goldenEvalCaseId) {
+    setActiveGoldenEvalCase(goldenEvalCaseId);
+  }
+
+  let ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
   const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
+
+  if (
+    !ANTHROPIC_API_KEY &&
+    isGoldenEvalMode() &&
+    goldenEvalCaseId &&
+    getGoldenEvalFixtureById(goldenEvalCaseId)?.anthropicPayload
+  ) {
+    ANTHROPIC_API_KEY = "golden-eval-fixture";
+  }
 
   if (!ANTHROPIC_API_KEY) {
     return feedSnagResponse(
@@ -4929,6 +4959,12 @@ You are responding to a Pro subscriber. Apply the following:
               prevQaCriticalCodes.includes("wc_predictions_roundup_incomplete")
                 ? WC_PREDICTIONS_ROUNDUP_QA_SUFFIX
                 : ""
+            }${
+              prevQaCriticalCodes.some((c) =>
+                ["wc_invented_xg_claim", "wc_invented_possession_claim"].includes(c),
+              )
+                ? WC_GROUNDING_REGEN_SUFFIX
+                : ""
             }`
           : "";
       const nbaFinalsStructuredRepairSuffix =
@@ -4983,6 +5019,8 @@ You are responding to a Pro subscriber. Apply the following:
           playerMarketKv: wcContext?.playerMarketKv,
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
+          matchDetails: wcContext?.matchDetails,
+          outrightsAvailable: Boolean(wcContext?.outrightsKv),
         });
         wcRelevanceLog.qaEntityMatch = wcPassQa.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcPassQa.qaIntentMatch;
@@ -5492,6 +5530,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           playerMarketKv: wcContext?.playerMarketKv,
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
+          matchDetails: wcContext?.matchDetails,
+          outrightsAvailable: Boolean(wcContext?.outrightsKv),
         });
         wcRelevanceLog.qaEntityMatch = wcQaResult.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcQaResult.qaIntentMatch;
@@ -5644,6 +5684,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           playerMarketKv: wcContext?.playerMarketKv,
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
+          matchDetails: wcContext?.matchDetails,
+          outrightsAvailable: Boolean(wcContext?.outrightsKv),
         });
         console.log(
           JSON.stringify({
@@ -6057,6 +6099,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       rawModelText: "",
     });
   } finally {
+    setActiveGoldenEvalCase(null);
     await releaseUrTakeGateQuotaIfNeeded(gateQuotaReservation, gateQuotaDelivered);
   }
 }

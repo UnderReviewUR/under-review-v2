@@ -1,5 +1,7 @@
 /** @file NBA invalidation, confidence, decision modes — extracted from handler.js */
+import { nbaPlayerHasPostedPropMarket } from "../../../shared/nbaPostedPropLookup.js";
 import { countNbaActiveSlatePropSignals } from "../../../shared/nbaPostedPropMarkets.js";
+import { NBA_UI_PLAYER_CHIPS } from "../../../shared/nbaUiPlayerChips.js";
 import {
   findFirstPlayerStatRowForQuestion,
   inferNbaPropDirection,
@@ -146,19 +148,14 @@ export function applyNbaMarketInvalidation({ question, board, newsImpact }) {
   const directPropAsk = isDirectNbaPropAsk(question);
   const activeSlatePropCount = countNbaActiveSlatePropSignals(board);
   const hasTargetPlayerMarket = targetedPlayer
-    ? (board?.propLines || []).some((pl) => propLineMatchesTargetedPlayer(pl, targetedPlayer))
+    ? nbaPlayerHasPostedPropMarket(board, targetedPlayer, { chips: NBA_UI_PLAYER_CHIPS })
     : false;
-  const verifyPlayerMarket = (playerName) => {
-    const rows = (board?.propLines || []).filter((pl) => propLineMatchesTargetedPlayer(pl, playerName));
-    if (!rows.length) return false;
-    if (!requestedMarket.market) return true;
-    const rowsByMarket = rows.filter((pl) =>
-      String(pl?.prop || "").toLowerCase().includes(requestedMarket.market),
-    );
-    if (!rowsByMarket.length) return false;
-    if (!Number.isFinite(requestedMarket.line)) return true;
-    return rowsByMarket.some((pl) => Number(pl?.line) === Number(requestedMarket.line));
-  };
+  const verifyPlayerMarket = (playerName) =>
+    nbaPlayerHasPostedPropMarket(board, playerName, {
+      market: requestedMarket.market || null,
+      line: Number.isFinite(requestedMarket.line) ? requestedMarket.line : null,
+      chips: NBA_UI_PLAYER_CHIPS,
+    });
   const marketVerification = targetedPlayers.map((name) => ({
     player: name,
     grounded: groundedPlayers.some((p) => String(p.name || "").toLowerCase() === String(name || "").toLowerCase()),

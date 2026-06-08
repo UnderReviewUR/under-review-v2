@@ -9,6 +9,8 @@ import {
   readWcMatchesFromKv,
   readWcOutrightsFromKv,
   ensureWcScheduleInKv,
+  ensureWcOutrightsInKv,
+  ensureWcDataInKv,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
 import {
@@ -265,6 +267,28 @@ function buildStaticGroupsPayload() {
 
 export async function getGroupsPayload() {
   const kv = await readWcGroupsFromKv(GROUPS_TTL * 1000);
+  if (kv?.groups && Object.keys(kv.groups).length >= 12 && !kv.stale) {
+    return {
+      groups: kv.groups,
+      lastUpdated: kv.lastUpdated,
+      source: kv.source || "espn",
+      fallback: Boolean(kv.stale),
+      stale: Boolean(kv.stale),
+    };
+  }
+
+  const refreshed = await ensureWcDataInKv();
+  if (refreshed?.groupsPayload?.groups && Object.keys(refreshed.groupsPayload.groups).length >= 12) {
+    return {
+      groups: refreshed.groupsPayload.groups,
+      lastUpdated: refreshed.groupsPayload.lastUpdated,
+      source: refreshed.groupsPayload.source || "espn",
+      fallback: false,
+      stale: false,
+      refreshed: !refreshed.cached,
+    };
+  }
+
   if (kv?.groups && Object.keys(kv.groups).length >= 12) {
     return {
       groups: kv.groups,
@@ -393,13 +417,29 @@ export async function getMatchesPayload() {
 }
 
 export async function getOutrightsPayload() {
-  const kv = await readWcOutrightsFromKv();
+  let kv = await readWcOutrightsFromKv();
+  const tier = String(kv?.sourceTier || "").toLowerCase();
+  const needsRefresh =
+    !kv?.outrights ||
+    !Object.keys(kv.outrights).length ||
+    kv.stale ||
+    tier === "static_seed" ||
+    tier === "stale_kv_aged";
+
+  if (needsRefresh) {
+    const refreshed = await ensureWcOutrightsInKv();
+    if (refreshed?.outrights && Object.keys(refreshed.outrights).length) {
+      kv = await readWcOutrightsFromKv();
+    }
+  }
+
   if (kv?.outrights && Object.keys(kv.outrights).length) {
     return {
       outrights: kv.outrights,
       lastUpdated: kv.lastUpdated,
       source: kv.source || "espn",
-      fallback: Boolean(kv.stale),
+      sourceTier: kv.sourceTier || null,
+      fallback: Boolean(kv.stale) || tier === "static_seed",
       stale: Boolean(kv.stale),
       ageMinutes: kv.freshness?.ageMinutes ?? null,
       freshness: kv.freshness ?? null,

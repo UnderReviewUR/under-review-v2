@@ -1,5 +1,7 @@
 /**
  * Cron / manual World Cup KV warmup — standings, outrights, Golden Boot, sims.
+ * Vercel cron: 15:00 + 23:00 UTC daily (~11am + 7pm US Eastern in summer).
+ * Per-match odds still refresh on the 5-min scrape-scheduler (tighter near kickoff).
  */
 
 import {

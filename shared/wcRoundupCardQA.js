@@ -9,8 +9,15 @@ const FAIR_PRICE_RE =
 
 const LEAN_NOT_PASS_RE = /^lean:/i;
 
-const DARK_HORSE_STRUCTURAL_RE =
-  /\b(path|odds|transition|set piece|low.?block|bracket|mispriced|value|\+{1,2}\d{3,}|underpriced|longer odds|structural)\b/i;
+const DARK_HORSE_PATH_RE =
+  /\b(path|bracket|group|round of|qf|sf|knockout|draw side|soft side|survive|advance|knockout side)\b/i;
+const DARK_HORSE_STYLE_RE =
+  /\b(transition|set piece|set-piece|low.?block|counter|press|possession|direct|street|physical|aerial|width|volume)\b/i;
+const DARK_HORSE_ODDS_RE =
+  /\+\d{3,}|\bodds\b|\blonger odds\b|\bunderpriced\b|\bmispriced\b|\bmarket\b|\bbooks?\b/i;
+
+const MARKET_ODDS_IN_LINE_RE = /\bmarket\s*\+\d{3,}|\+\d{3,}\s*(?:market|books?|board|line)/i;
+const ANY_AMERICAN_ODDS_RE = /\+\d{3,}/;
 
 const ORPHAN_PRONOUN_RE = /\b(him|her|them|he|she|they)\b/i;
 
@@ -36,14 +43,57 @@ export function detectWcRoundupFairPriceContradiction(summary, lean, deep = "") 
 /**
  * @param {string} slotValue
  */
+export function scoreWcDarkHorseThesisAngles(slotValue) {
+  const v = String(slotValue || "");
+  return {
+    path: DARK_HORSE_PATH_RE.test(v),
+    style: DARK_HORSE_STYLE_RE.test(v),
+    odds: DARK_HORSE_ODDS_RE.test(v),
+  };
+}
+
+/**
+ * Dark horse quality bar — need two of path / style / odds, not just low title %.
+ * @param {string} slotValue
+ */
 export function detectWcDarkHorseWeakThesis(slotValue) {
   const v = String(slotValue || "");
+  const angles = scoreWcDarkHorseThesisAngles(v);
+  const angleCount = [angles.path, angles.style, angles.odds].filter(Boolean).length;
+  if (angleCount >= 2) return null;
+
   const winPct = v.match(/(\d+\.?\d*)%\s*(?:win|title|sims)/i);
-  if (!winPct) return null;
-  const pct = parseFloat(winPct[1]);
-  if (pct >= 5) return null;
-  if (DARK_HORSE_STRUCTURAL_RE.test(v)) return null;
-  return { reason: "dark_horse_title_pct_without_structural_case", pct };
+  const pct = winPct ? parseFloat(winPct[1]) : null;
+
+  if (pct != null && pct < 8 && angleCount < 2) {
+    return { reason: "dark_horse_insufficient_angles", pct, angles, angleCount };
+  }
+
+  if (/\b(qf|quarter)/i.test(v) && angleCount < 2) {
+    return { reason: "dark_horse_qf_only_no_case", angles, angleCount };
+  }
+
+  if (angleCount === 0) {
+    return { reason: "dark_horse_no_angles", angles, angleCount };
+  }
+
+  return null;
+}
+
+/**
+ * Roundup LINE must cite market +XXX when outrights are in VERIFIED CONTEXT — not sims-only.
+ * @param {string} line
+ * @param {boolean} [outrightsAvailable]
+ */
+export function detectWcRoundupLineMissingMarketOdds(line, outrightsAvailable = false) {
+  if (!outrightsAvailable) return null;
+  const l = String(line || "").trim();
+  if (!l) return null;
+  if (MARKET_ODDS_IN_LINE_RE.test(l) || ANY_AMERICAN_ODDS_RE.test(l)) return null;
+  if (/\bsims?\s+\d|%\s*(win|qf|title)/i.test(l)) {
+    return { reason: "delta_sims_only_no_market_odds" };
+  }
+  return null;
 }
 
 /**

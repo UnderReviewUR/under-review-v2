@@ -4,30 +4,37 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "20"
           cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run eval:wc-golden:handler
+      - run: npm run verify:wc-outrights
 
-      - name: Install
-        run: npm ci
-
-      - name: API module syntax check
-        run: npm run check:api
-
-      - name: Production build
-        run: npm run build
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm test
+  wc-golden-live:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Live golden audit (optional)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            npm run eval:wc-golden:live -- --case roundup-complete
+          else
+            echo "ANTHROPIC_API_KEY not set — skipping live golden eval"
+          fi

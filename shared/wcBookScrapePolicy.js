@@ -8,6 +8,12 @@
 
 import { getEnv } from "../api/_env.js";
 import { getWcTeamByAbbr } from "../src/data/wc2026Teams.js";
+import {
+  WC_GOLDEN_BOOT_SOURCE_REGISTRY as WC_GOLDEN_BOOT_BOOKS,
+  getWcGoldenBootSourceConfig,
+} from "./wcGoldenBootSourceRegistry.js";
+
+export { WC_GOLDEN_BOOT_BOOKS, getWcGoldenBootSourceConfig };
 
 
 
@@ -37,113 +43,7 @@ export const WC_BOOK_SCRAPE_MAX_RETRIES = 1;
 
 
 
-/** @typedef {"us" | "uk" | "agg"} WcBookRegion */
-
-
-
-/** @type {Record<string, { envFlag: string; region: WcBookRegion; urlEnv?: string, defaultUrl?: string }>} */
-
-export const WC_GOLDEN_BOOT_BOOKS = {
-
-  draftkings: {
-
-    envFlag: "WC_SCRAPE_DK",
-
-    region: "us",
-
-    urlEnv: "WC_SCRAPE_DK_URL",
-
-    defaultUrl: "https://sportsbook.draftkings.com/leagues/soccer/world-cup-2026",
-
-  },
-
-  fanduel: {
-
-    envFlag: "WC_SCRAPE_FD",
-
-    region: "us",
-
-    urlEnv: "WC_SCRAPE_FD_URL",
-
-    defaultUrl: "https://sportsbook.fanduel.com/soccer?tab=world-cup",
-
-  },
-
-  betmgm: {
-
-    envFlag: "WC_SCRAPE_MGM",
-
-    region: "us",
-
-    urlEnv: "WC_SCRAPE_MGM_URL",
-
-    defaultUrl: "https://sports.betmgm.com/en/sports/soccer-4/fifa-world-cup-2026",
-
-  },
-
-  paddypower: {
-
-    envFlag: "WC_SCRAPE_UK",
-
-    region: "uk",
-
-    urlEnv: "WC_SCRAPE_PADDY_URL",
-
-    defaultUrl: "https://www.paddypower.com/football/world-cup-2026",
-
-  },
-
-  bet365: {
-
-    envFlag: "WC_SCRAPE_UK",
-
-    region: "uk",
-
-    urlEnv: "WC_SCRAPE_BET365_URL",
-
-    defaultUrl: "https://www.bet365.com/#/AC/B1/C1/D1002/E89296537/F3/",
-
-  },
-
-  williamhill: {
-
-    envFlag: "WC_SCRAPE_UK",
-
-    region: "uk",
-
-    urlEnv: "WC_SCRAPE_WH_URL",
-
-    defaultUrl: "https://sports.williamhill.com/betting/en-gb/football/competitions/OB_TY52321/World-Cup-2026",
-
-  },
-
-  oddschecker: {
-
-    envFlag: "WC_SCRAPE_AGG",
-
-    region: "agg",
-
-    urlEnv: "WC_SCRAPE_ODDSCHECKER_URL",
-
-    defaultUrl: "https://www.oddschecker.com/football/world-cup/world-cup-top-goalscorer",
-
-  },
-
-  covers: {
-
-    envFlag: "WC_SCRAPE_AGG",
-
-    region: "agg",
-
-    urlEnv: "WC_SCRAPE_COVERS_URL",
-
-    defaultUrl: "https://www.covers.com/sport/football/fifa-world-cup/odds",
-
-  },
-
-};
-
-
+/** @typedef {"us" | "uk" | "agg" | "media"} WcBookRegion */
 
 const US_DEFAULT_ON = new Set(["draftkings", "fanduel", "betmgm"]);
 
@@ -161,11 +61,17 @@ export function isWcBookRegionEnabled(region) {
 
   if (region === "us") return true;
 
-  const flag = region === "uk" ? "WC_SCRAPE_UK" : "WC_SCRAPE_AGG";
+  const flag =
+    region === "uk" ? "WC_SCRAPE_UK" : region === "media" ? "WC_SCRAPE_MEDIA" : "WC_SCRAPE_AGG";
 
   const raw = getEnv(flag, { treatEmptyAsMissing: false });
 
-  if (raw === undefined) return false;
+  if (raw === undefined) {
+    if (process.env.VERCEL_ENV === "production") {
+      return region === "uk" || region === "agg" || region === "media";
+    }
+    return false;
+  }
 
   const v = String(raw).trim().toLowerCase();
 
@@ -182,27 +88,19 @@ export function isWcBookRegionEnabled(region) {
  */
 
 export function isWcGoldenBootBookEnabled(bookKey) {
-
-  const cfg = WC_GOLDEN_BOOT_BOOKS[bookKey];
-
+  const cfg = getWcGoldenBootSourceConfig(bookKey);
   if (!cfg) return false;
-
   if (!isWcBookRegionEnabled(cfg.region)) return false;
 
-
-
   const raw = getEnv(cfg.envFlag, { treatEmptyAsMissing: false });
-
-  if (raw === undefined) {
-
-    return US_DEFAULT_ON.has(bookKey);
-
+  if (raw !== undefined) {
+    const v = String(raw).trim().toLowerCase();
+    if (v === "0" || v === "false" || v === "no") return false;
+    return v === "1" || v === "true" || v === "yes";
   }
 
-  const v = String(raw).trim().toLowerCase();
-
-  return v === "1" || v === "true" || v === "yes";
-
+  if (cfg.region === "us") return US_DEFAULT_ON.has(bookKey);
+  return true;
 }
 
 
@@ -229,16 +127,29 @@ export function wcBookRegion(bookKey) {
 
 export function resolveWcGoldenBootBookUrl(bookKey) {
 
-  const cfg = WC_GOLDEN_BOOT_BOOKS[bookKey];
+  const urls = listWcGoldenBootScrapeUrls(bookKey);
 
-  if (!cfg) return null;
+  return urls[0] || null;
+
+}
+
+/**
+ * Primary + fallback URLs per book (FanDuel Research before sportsbook SPA shell).
+ * @param {string} bookKey
+ * @returns {string[]}
+ */
+export function listWcGoldenBootScrapeUrls(bookKey) {
+  const cfg = WC_GOLDEN_BOOT_BOOKS[bookKey];
+  if (!cfg || !isWcGoldenBootBookEnabled(bookKey)) return [];
 
   const fromEnv = cfg.urlEnv ? getEnv(cfg.urlEnv, { treatEmptyAsMissing: false }) : undefined;
+  if (fromEnv && String(fromEnv).trim()) return [String(fromEnv).trim()];
 
-  if (fromEnv && String(fromEnv).trim()) return String(fromEnv).trim();
-
-  return cfg.defaultUrl || null;
-
+  /** @type {string[]} */
+  const urls = [];
+  if (cfg.defaultUrl) urls.push(cfg.defaultUrl);
+  if (cfg.fallbackUrl) urls.push(cfg.fallbackUrl);
+  return [...new Set(urls)];
 }
 
 
@@ -298,6 +209,58 @@ export const WC_MATCH_PLAYER_PROP_BOOKS = {
     defaultTemplate: "https://sports.betmgm.com/en/sports/soccer-4/fifa-world-cup-2026",
 
     eventUrlTemplate: "https://sports.betmgm.com/en/sports/events/{eventId}",
+
+  },
+
+  williamhill: {
+
+    urlTemplateEnv: "WC_SCRAPE_WH_MATCH_URL_TEMPLATE",
+
+    region: "uk",
+
+    defaultTemplate:
+
+      "https://sports.williamhill.com/betting/en-gb/football/competitions/OB_TY52321/World-Cup-2026",
+
+    eventUrlTemplate:
+
+      "https://sports.williamhill.com/betting/en-gb/football/matches/{eventId}",
+
+  },
+
+  paddypower: {
+
+    urlTemplateEnv: "WC_SCRAPE_PADDY_MATCH_URL_TEMPLATE",
+
+    region: "uk",
+
+    defaultTemplate: "https://www.paddypower.com/football/world-cup-2026",
+
+    eventUrlTemplate: "https://www.paddypower.com/football/world-cup-2026/{home}-v-{away}",
+
+  },
+
+  bet365: {
+
+    urlTemplateEnv: "WC_SCRAPE_BET365_MATCH_URL_TEMPLATE",
+
+    region: "uk",
+
+    defaultTemplate: "https://www.bet365.com/#/AC/B1/C1/D1002/E89296537/F3/",
+
+    eventUrlTemplate: "https://www.bet365.com/#/AC/B1/C1/D1002/E89296537/F3/I{eventId}/",
+
+  },
+
+  skybet: {
+
+    urlTemplateEnv: "WC_SCRAPE_SKYBET_MATCH_URL_TEMPLATE",
+
+    region: "uk",
+
+    defaultTemplate: "https://skybet.com/football/world-cup",
+
+    eventUrlTemplate: "https://skybet.com/football/world-cup/{home}-v-{away}",
 
   },
 
@@ -402,9 +365,11 @@ export function listWcMatchPlayerPropsScrapeUrls(bookKey, meta = {}) {
  */
 
 export function listEnabledWcMatchPlayerPropBooks() {
-
-  return Object.keys(WC_MATCH_PLAYER_PROP_BOOKS).filter((k) => isWcGoldenBootBookEnabled(k));
-
+  const fromMatchCfg = Object.keys(WC_MATCH_PLAYER_PROP_BOOKS).filter((k) =>
+    isWcGoldenBootBookEnabled(k),
+  );
+  if (fromMatchCfg.length) return fromMatchCfg;
+  return listEnabledWcGoldenBootBooks();
 }
 
 
@@ -470,51 +435,28 @@ export function verifyWcPlayerMarketsAdminAuth(req) {
  */
 
 export function wcBookScrapeFlagsSnapshot() {
+  /** @type {Record<string, boolean>} */
+  const goldenBoot = {};
+  for (const key of Object.keys(WC_GOLDEN_BOOT_BOOKS)) {
+    goldenBoot[key] = isWcGoldenBootBookEnabled(key);
+  }
 
   return {
-
-    us: {
-
-      draftkings: isWcGoldenBootBookEnabled("draftkings"),
-
-      fanduel: isWcGoldenBootBookEnabled("fanduel"),
-
-      betmgm: isWcGoldenBootBookEnabled("betmgm"),
-
+    goldenBootSourcesRegistered: Object.keys(WC_GOLDEN_BOOT_BOOKS).length,
+    goldenBootSourcesEnabled: listEnabledWcGoldenBootBooks().length,
+    goldenBoot,
+    regions: {
+      us: isWcBookRegionEnabled("us"),
+      uk: isWcBookRegionEnabled("uk"),
+      agg: isWcBookRegionEnabled("agg"),
+      media: isWcBookRegionEnabled("media"),
     },
-
-    uk: {
-
-      enabled: isWcBookRegionEnabled("uk"),
-
-      paddypower: isWcGoldenBootBookEnabled("paddypower"),
-
-      bet365: isWcGoldenBootBookEnabled("bet365"),
-
-      williamhill: isWcGoldenBootBookEnabled("williamhill"),
-
-    },
-
-    agg: {
-
-      enabled: isWcBookRegionEnabled("agg"),
-
-      oddschecker: isWcGoldenBootBookEnabled("oddschecker"),
-
-      covers: isWcGoldenBootBookEnabled("covers"),
-
-    },
-
     env: {
-
-      WC_SCRAPE_UK: getEnv("WC_SCRAPE_UK", { treatEmptyAsMissing: false }) ?? "(default off)",
-
-      WC_SCRAPE_AGG: getEnv("WC_SCRAPE_AGG", { treatEmptyAsMissing: false }) ?? "(default off)",
-
+      WC_SCRAPE_UK: getEnv("WC_SCRAPE_UK", { treatEmptyAsMissing: false }) ?? "(prod default on)",
+      WC_SCRAPE_AGG: getEnv("WC_SCRAPE_AGG", { treatEmptyAsMissing: false }) ?? "(prod default on)",
+      WC_SCRAPE_MEDIA: getEnv("WC_SCRAPE_MEDIA", { treatEmptyAsMissing: false }) ?? "(prod default on)",
     },
-
   };
-
 }
 
 

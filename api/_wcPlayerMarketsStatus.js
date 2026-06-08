@@ -18,7 +18,13 @@ import { attachGoldenBootFreshness } from "../shared/wcPlayerOddsFreshness.js";
 import { wcRosterCompleteness } from "../shared/wcRosterCompleteness.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS } from "../shared/wc2026Constants.js";
-import { wcBookScrapeFlagsSnapshot } from "../shared/wcBookScrapePolicy.js";
+import { wcBookScrapeFlagsSnapshot, listEnabledWcGoldenBootBooks } from "../shared/wcBookScrapePolicy.js";
+import { WC_GOLDEN_BOOT_SOURCE_COUNT } from "../shared/wcGoldenBootSourceRegistry.js";
+import {
+  WC_OUTRIGHTS_AGGREGATOR_COUNT,
+  listEnabledWcOutrightsAggregators,
+} from "../shared/wcOutrightsAggregatorRegistry.js";
+import { readWcOutrightsFromKv } from "./_wcData.js";
 import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 
 /**
@@ -37,7 +43,7 @@ function staleHours(lastUpdated, maxAgeMs, nowMs = Date.now()) {
  * @param {number} [nowMs]
  */
 export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
-  const [playersKv, goldenBootRaw, injuries, matchProps, override, tournamentSim, apiFootball] =
+  const [playersKv, goldenBootRaw, injuries, matchProps, override, tournamentSim, apiFootball, outrightsKv] =
     await Promise.all([
       readWcPlayersFromKv(),
       getDurableJson(WC_GOLDEN_BOOT_KV_KEY),
@@ -46,6 +52,7 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       getDurableJson(WC_PLAYER_MARKETS_OVERRIDE_KV_KEY),
       readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs),
       getDurableJson(WC_API_FOOTBALL_KV_KEY),
+      readWcOutrightsFromKv(nowMs),
     ]);
 
   const goldenBoot = attachGoldenBootFreshness(goldenBootRaw, nowMs);
@@ -83,6 +90,17 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       ),
       hasBreakingOverride: Boolean(breakingOverride),
     },
+    outrights: {
+      lastUpdated: outrightsKv?.lastUpdated ?? null,
+      source: outrightsKv?.source ?? null,
+      sourceTier: outrightsKv?.sourceTier ?? null,
+      rowCount: outrightsKv?.outrights ? Object.keys(outrightsKv.outrights).length : 0,
+      stale: Boolean(outrightsKv?.stale),
+      aggregatorsRegistered: WC_OUTRIGHTS_AGGREGATOR_COUNT,
+      aggregatorsEnabledNow: listEnabledWcOutrightsAggregators().length,
+      aggregatorsAttempted: outrightsKv?.aggregatorsAttempted ?? null,
+      aggregatorsOk: outrightsKv?.aggregatorsOk ?? null,
+    },
     goldenBoot: {
       lastUpdated: goldenBoot?.lastUpdated ?? null,
       source: goldenBoot?.source ?? null,
@@ -90,6 +108,10 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       rowCount: Array.isArray(goldenBoot?.rows) ? goldenBoot.rows.length : 0,
       stale: Boolean(goldenBoot?.stale),
       freshness: goldenBoot?.freshness ?? null,
+      sourcesRegistered: WC_GOLDEN_BOOT_SOURCE_COUNT,
+      sourcesEnabledNow: listEnabledWcGoldenBootBooks().length,
+      sourcesAttempted: goldenBootRaw?.sourcesAttempted ?? null,
+      sourcesOk: goldenBootRaw?.sourcesOk ?? null,
     },
     players: {
       lastUpdated: playersKv?.lastUpdated ?? null,

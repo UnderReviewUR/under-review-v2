@@ -21,7 +21,36 @@ const TEAM_NAMES = new Set(
   ]).filter(Boolean),
 );
 
-const BOOK_PRIORITY = ["draftkings", "fanduel", "betmgm", "espn", "paddypower", "bet365", "williamhill", "oddschecker", "covers"];
+const BOOK_PRIORITY = [
+  "espn",
+  "fanduel",
+  "draftkings",
+  "betmgm",
+  "caesars",
+  "betrivers",
+  "pointsbet",
+  "paddypower",
+  "bet365",
+  "williamhill",
+  "skybet",
+  "ladbrokes",
+  "coral",
+  "betfred",
+  "betway",
+  "unibet",
+  "betfair",
+  "oddschecker",
+  "covers",
+  "oddsshark",
+  "vegasinsider",
+  "actionnetwork",
+  "vsin",
+  "sky_sports",
+  "sportingnews",
+  "pickswise",
+  "dimers",
+  "rotowire",
+];
 
 /**
  * @param {string} raw

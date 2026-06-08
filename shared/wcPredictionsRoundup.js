@@ -132,13 +132,13 @@ export const WC_PREDICTIONS_ROUNDUP_PROMPT = `PREDICTIONS ROUNDUP (mandatory —
 - Answer EVERY slot the user listed. Do not answer only Top goalscorer / Golden Boot and ignore Winners, Dark horse, or Breakout player.
 - Put labeled picks in deep using EXACTLY these lines (one complete sentence each, emoji optional):
   Winners: [nation] — thesis in one sentence.
-  Dark horse: [nation] — thesis in one sentence.
+  Dark horse: [nation] — thesis in one sentence with TWO of: bracket/path, playing style (transition/set pieces/low block), market odds (+XXX).
   Breakout player: [player name] — thesis in one sentence.
   Top goalscorer: [player full name] — thesis + cited odds if in VERIFIED CONTEXT.
 - Top goalscorer MUST name one player (e.g. Mbappé, Haaland, Yamal). Never a vague category ("midfielder hybrid", "board not posted"). If Golden Boot odds are absent, write: "Top goalscorer: Pass until boards post — structurally [Name] tier."
 - Never pick primary creators (Pedri, Rodri, Rice) for Top goalscorer — wrong role. Assist props only.
 - summary sentence 1 = tournament thesis naming your Winners pick (nation + path/squad angle).
-- summary sentence 2 = delta with numbers: Market +XXX · UR ~+YYY or sims % — never vague "edge in dark horse tier" without odds or %.
+- summary sentence 2 = delta with numbers: Market +XXX · UR ~+YYY or sims % — when CURRENT OUTRIGHT ODDS are in VERIFIED CONTEXT you MUST cite Market +XXX exactly as listed (e.g. ESP +500 from context), not sims-only.
 - Card face WHY must list four picks in one line: Winners · Dark horse · Breakout · Top goalscorer (short names).
 - Never state a player's age unless PLAYER BIO in VERIFIED CONTEXT lists it (Yamal is 18 as of Jun 2026 — not 17).
 - WATCH FOR must name a player or nation — never orphan "him/her".
@@ -152,5 +152,5 @@ PREDICTIONS ROUNDUP QA (mandatory — prior answer skipped labeled slots):
 - deep must include lines starting with "Winners:", "Dark horse:", "Breakout player:", "Top goalscorer:" (complete sentences).
 - Top goalscorer line MUST include a player full name — never "board not posted" or "midfielder hybrid" without naming someone.
 - Never pick Pedri, Rodri, or other primary creators for Top goalscorer — use Mbappé, Haaland, Yamal, Kane, Vinícius tier instead.
-- Dark horse must cite path, style, or odds — not only low title % without a structural case.
+- Dark horse must cite at least TWO of path, style, and odds (+XXX) — low title % or QF % alone is insufficient.
 - Do NOT route the entire answer as a Golden Boot / single-scorer take.`;

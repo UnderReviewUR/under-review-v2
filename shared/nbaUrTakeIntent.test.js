@@ -17,3 +17,26 @@ test("classifyNbaQuestionIntent — distinguishes series vs MVP", () => {
     NBA_INTENT.PREGAME_MATCHUP,
   );
 });
+
+test("classifyNbaQuestionIntent — Game 3 pregame vs live false positives", () => {
+  assert.equal(
+    classifyNbaQuestionIntent("Who covers the spread in Game 3?"),
+    NBA_INTENT.PREGAME_MATCHUP,
+  );
+  assert.equal(
+    classifyNbaQuestionIntent("Best prop angle on Jalen Brunson tonight?"),
+    NBA_INTENT.PROP_PLAYER,
+  );
+  assert.equal(
+    classifyNbaQuestionIntent("Is Victor Wembanyama playing tonight?"),
+    NBA_INTENT.GENERAL,
+  );
+  assert.equal(
+    classifyNbaQuestionIntent("Who is starting for the Knicks tonight?"),
+    NBA_INTENT.GENERAL,
+  );
+  assert.equal(
+    classifyNbaQuestionIntent("We're in Q2 of Knicks vs Spurs — live Brunson props?"),
+    NBA_INTENT.LIVE_IN_GAME,
+  );
+});

@@ -30,6 +30,22 @@ import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlayerPropsSeed.js";
 
 const MIN_ANYTIME_ROWS = 3;
+const MIN_ANYTIME_ROWS_PER_BOOK = 2;
+
+/**
+ * @param {Record<string, Array<Record<string, unknown>>>} markets
+ * @param {string[]} booksUsed
+ */
+function isSufficientMatchProps(markets, booksUsed) {
+  const anytime = (markets.anytime_scorer || []).length;
+  if (anytime >= MIN_ANYTIME_ROWS) return true;
+  if (anytime >= 2 && booksUsed.length >= 2) return true;
+  const totalRows = WC_MATCH_PLAYER_PROP_MARKET_KEYS.reduce(
+    (n, key) => n + (markets[key]?.length || 0),
+    0,
+  );
+  return totalRows >= 5 && booksUsed.length >= 1;
+}
 
 /**
  * @param {string} bookKey
@@ -71,13 +87,14 @@ export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0
         }
 
         markets = mergeMatchPlayerPropMarketMaps(markets, parsed);
-        if ((markets.anytime_scorer || []).length >= MIN_ANYTIME_ROWS) {
+        const anytimeCount = (markets.anytime_scorer || []).length;
+        if (anytimeCount >= MIN_ANYTIME_ROWS_PER_BOOK) {
           return { book: bookKey, ok: true, markets, error: null };
         }
       }
 
       const anytimeCount = (markets.anytime_scorer || []).length;
-      if (anytimeCount < MIN_ANYTIME_ROWS) {
+      if (anytimeCount < MIN_ANYTIME_ROWS_PER_BOOK) {
         return { book: bookKey, ok: false, markets, error: lastError };
       }
 
@@ -192,13 +209,14 @@ export async function scrapeAndCacheWcMatchPlayerProps(eventId, meta = {}) {
   }
 
   const finalAnytime = (markets.anytime_scorer || []).length;
-  if (finalAnytime < MIN_ANYTIME_ROWS) {
+  if (!isSufficientMatchProps(markets, booksUsed)) {
     console.log(
       JSON.stringify({
         event: "wc_match_props_skip",
         eventId: id,
         scrapeMode: meta.scrapeMode,
         anytimeCount: finalAnytime,
+        booksUsed,
         error: "insufficient_rows",
       }),
     );

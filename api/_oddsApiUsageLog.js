@@ -1,3 +1,5 @@
+import { recordOddsApiResponse } from "../shared/oddsApiCircuitBreaker.js";
+
 /**
  * The Odds API v4 usage: list + event odds cost = (#markets) × (#regions) per request.
  * Scores: cost = 2 if `daysFrom` is set (1–3), else 1.
@@ -120,6 +122,8 @@ export function logOddsApiUsage({ label, url, response }) {
   const match =
     actualOk && exp != null && Number.isFinite(exp) ? actualNum === exp : null;
 
+  recordOddsApiResponse(response);
+
   console.log(
     JSON.stringify({
       event: "odds_api_usage",
@@ -137,6 +141,7 @@ export function logOddsApiUsage({ label, url, response }) {
       xRequestsRemaining: remaining,
       httpStatus: response?.status ?? null,
       expectedMatchesXRequestsLast: match,
+      oddsApiCircuit: response ? "recorded" : "skipped",
     }),
   );
 }

@@ -5,6 +5,7 @@
 import { getEnv } from "./_env.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import { mergeWcOutrightsLayers } from "../shared/wcOutrightsSourceChain.js";
 
 const ODDS_BASE = "https://api.the-odds-api.com/v4";
 const WC_WINNER_SPORT = "soccer_fifa_world_cup_winner";
@@ -32,13 +33,45 @@ function formatAmericanOdds(price) {
   return n > 0 ? `+${Math.round(n)}` : String(Math.round(n));
 }
 
-function pickBookmaker(bookmakers) {
-  if (!Array.isArray(bookmakers) || !bookmakers.length) return null;
-  for (const key of PREFERRED_BOOKS) {
-    const hit = bookmakers.find((b) => b?.key === key);
-    if (hit?.markets?.length) return hit;
+/**
+ * Merge outrights across all bookmakers with data (preferred books first).
+ * @param {Array<{ key?: string, markets?: Array<{ key?: string, outcomes?: Array<{ name?: string, price?: number }> }> }>} bookmakers
+ */
+function mergeOutrightsFromBookmakers(bookmakers) {
+  if (!Array.isArray(bookmakers) || !bookmakers.length) {
+    return { outrights: {}, booksUsed: [] };
   }
-  return bookmakers.find((b) => Array.isArray(b?.markets) && b.markets.length) || null;
+
+  /** @type {Array<{ source: string, outrights: Record<string, string> }>} */
+  const layers = [];
+  const seenBooks = new Set();
+
+  const ingestBook = (bookKey) => {
+    if (seenBooks.has(bookKey)) return;
+    const hit = bookmakers.find((b) => b?.key === bookKey);
+    const market = hit?.markets?.find((m) => m?.key === "outrights");
+    if (!market?.outcomes?.length) return;
+
+    /** @type {Record<string, string>} */
+    const outrights = {};
+    for (const o of market.outcomes) {
+      const abbr = abbrForOutcomeName(o?.name);
+      const odds = formatAmericanOdds(o?.price);
+      if (abbr && odds) outrights[abbr] = odds;
+    }
+    if (!Object.keys(outrights).length) return;
+    seenBooks.add(bookKey);
+    layers.push({ source: bookKey, outrights });
+  };
+
+  for (const key of PREFERRED_BOOKS) ingestBook(key);
+  for (const book of bookmakers) {
+    if (book?.key) ingestBook(book.key);
+  }
+
+  if (!layers.length) return { outrights: {}, booksUsed: [] };
+  const merged = mergeWcOutrightsLayers(layers);
+  return { outrights: merged.outrights, booksUsed: layers.map((l) => l.source) };
 }
 
 function abbrForOutcomeName(name) {
@@ -106,25 +139,17 @@ export async function fetchOddsApiWcOutrights() {
 
     const events = await res.json();
     const event = Array.isArray(events) ? events[0] : null;
-    const book = pickBookmaker(event?.bookmakers);
-    const market = book?.markets?.find((m) => m?.key === "outrights");
-    if (!market?.outcomes?.length) {
+    const { outrights, booksUsed } = mergeOutrightsFromBookmakers(event?.bookmakers);
+    if (!Object.keys(outrights).length) {
       return { ok: false, outrights: {}, error: "odds_api_no_outrights" };
     }
 
-    /** @type {Record<string, string>} */
-    const outrights = {};
-    for (const o of market.outcomes) {
-      const abbr = abbrForOutcomeName(o?.name);
-      const odds = formatAmericanOdds(o?.price);
-      if (abbr && odds) outrights[abbr] = odds;
-    }
-
-    if (!Object.keys(outrights).length) {
-      return { ok: false, outrights: {}, error: "odds_api_unmap_failed" };
-    }
-
-    return { ok: true, outrights, error: null };
+    return {
+      ok: true,
+      outrights,
+      booksUsed,
+      error: null,
+    };
   } catch (err) {
     return { ok: false, outrights: {}, error: err?.message || "odds_api_fetch_failed" };
   }

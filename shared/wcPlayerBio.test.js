@@ -1,15 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildWcFullSquadBioIndex,
   detectWcPlayerAgeMismatches,
+  resetWcFullSquadBioCacheForTests,
+  wcFullSquadBioPlayerCount,
   wcPlayerAgeYears,
-  WC_NOTABLE_PLAYER_BIOS,
 } from "./wcPlayerBio.js";
+
+resetWcFullSquadBioCacheForTests();
 import { playerRegistryKey } from "./wcPlayerRegistry.js";
 
 test("wcPlayerAgeYears — Yamal is 18 at Jun 2026 kickoff", () => {
-  const yamal = WC_NOTABLE_PLAYER_BIOS[playerRegistryKey("Lamine Yamal", "ESP")];
+  const { byKey } = buildWcFullSquadBioIndex();
+  const yamal = byKey.get(playerRegistryKey("Lamine Yamal", "ESP"));
+  assert.ok(yamal?.birthDate);
   assert.equal(wcPlayerAgeYears(yamal.birthDate), 18);
+});
+
+test("wcFullSquadBioPlayerCount — full FIFA squads indexed", () => {
+  assert.ok(wcFullSquadBioPlayerCount() >= 1200);
 });
 
 test("detectWcPlayerAgeMismatches — flags Yamal 17", () => {

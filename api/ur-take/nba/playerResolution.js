@@ -1,4 +1,6 @@
 /** @file NBA player name resolution — extracted from handler.js */
+import { resolveNbaPlayerFullNameFromAbbr } from "../../../shared/nbaPropsToPropLines.js";
+import { NBA_UI_PLAYER_CHIPS } from "../../../shared/nbaUiPlayerChips.js";
 import { escapeRegExp } from "../prompt/normalize.js";
 import { normalizeNbaMarketPlayerKey } from "./keys.js";
 
@@ -16,6 +18,16 @@ function buildNbaPlayerUniverse(nbaContext) {
   for (const row of nbaContext?.injuries || []) {
     const name = String(row?.player || "").trim();
     if (name) set.add(name);
+  }
+  for (const chip of NBA_UI_PLAYER_CHIPS) {
+    if (chip?.fullName) set.add(chip.fullName);
+  }
+  const propsPlayers = Array.isArray(nbaContext?.propsOdds?.players)
+    ? nbaContext.propsOdds.players
+    : [];
+  for (const p of propsPlayers) {
+    const full = resolveNbaPlayerFullNameFromAbbr(p?.playerAbbr, NBA_UI_PLAYER_CHIPS);
+    if (full) set.add(full);
   }
   return [...set];
 }
@@ -78,6 +90,7 @@ export function resolveQuestionNbaPlayers(question, nbaContext) {
     /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:over|under)\b/g,
     /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b\s+(?:points?|rebounds?|assists?|pra)\b/gi,
     /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'s\s+(?:line|prop|points|rebounds|assists|pra)\b/g,
+    /\b(?:on|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g,
   ];
   for (const re of patterns) {
     let m;
