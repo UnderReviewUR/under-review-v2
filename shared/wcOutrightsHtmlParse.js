@@ -64,16 +64,33 @@ function ingestTeamOdds(map, teamLabel, oddsRaw) {
 }
 
 /**
+ * Slice HTML to tournament-winner section (avoid group-winner negative odds bleed).
+ * @param {string} html
+ */
+export function sliceCoversWinnerSection(html) {
+  const text = String(html || "");
+  const startRe =
+    /odds to win(?: the)?(?: 2026)? (?:fifa )?world cup|win the (?:2026 )?world cup|tournament winner|fifa world cup odds/i;
+  const endRe = /group winner|top goalscorer|golden boot|to qualify from group/i;
+  const start = text.search(startRe);
+  if (start < 0) return text;
+  const endMatch = text.slice(start + 80).search(endRe);
+  const end = endMatch >= 0 ? start + 80 + endMatch : start + 120_000;
+  return text.slice(start, end);
+}
+
+/**
  * Covers: <strong>Spain (+400):</strong>
  * @param {string} html
  */
 export function parseCoversOutrightsFromHtml(html) {
+  const scoped = sliceCoversWinnerSection(html);
   /** @type {Record<string, string>} */
   const map = {};
   const re =
     /(?:<strong>)?\s*([A-Z][A-Za-z&'.\s-]{2,40}?)\s*\(\s*([+\-]?\d[\d,]*|\d+\s*-\s*\d+)\s*\)\s*(?::)?(?:<\/strong>)?/g;
   let m;
-  while ((m = re.exec(html))) {
+  while ((m = re.exec(scoped))) {
     ingestTeamOdds(map, m[1], m[2]);
   }
   return map;

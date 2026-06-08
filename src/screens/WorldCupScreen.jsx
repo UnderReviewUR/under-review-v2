@@ -8,6 +8,7 @@ import WcBracket from "../components/world-cup/WcBracket.jsx";
 import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
 import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
 import { formatWcOutrightsStaleChipLabel } from "../../shared/wcOddsFreshness.js";
+import { formatWcApiFootballQuotaChip } from "../../shared/wcApiFootballDisplay.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
 import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
@@ -35,6 +36,7 @@ export default function WorldCupScreen({
   upcomingMatches,
   teams = WC_2026_TEAMS,
   outrightsMeta = null,
+  dataHealth = null,
   fetchError = null,
   retryWcLoad = null,
   wcMsgs,
@@ -107,6 +109,7 @@ export default function WorldCupScreen({
   };
 
   const outrightsStaleLabel = formatWcOutrightsStaleChipLabel(outrightsMeta);
+  const apiFootballQuotaLabel = formatWcApiFootballQuotaChip(dataHealth?.apiFootball);
 
   const handleAskMatch = (match) => {
     const groupBit = match.group ? ` (Group ${match.group})` : "";
@@ -305,6 +308,9 @@ export default function WorldCupScreen({
           <>
             {outrightsStaleLabel ? (
               <p className="wc-outright-stale-banner">{outrightsStaleLabel}</p>
+            ) : null}
+            {apiFootballQuotaLabel ? (
+              <p className="wc-data-health-chip">{apiFootballQuotaLabel}</p>
             ) : null}
             {CONFEDS.map((conf) => {
               const confTeams = teams.filter((t) => t.confederation === conf);

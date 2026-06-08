@@ -4,6 +4,7 @@
 
 import { classifyWcQuestionIntent } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
+import { scoreWcCardContractVoice, scoreWcCardSentenceCompleteness } from "./wcCardContractVoice.js";
 
 /**
  * @param {{
@@ -15,6 +16,28 @@ import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
  *   responseText?: string,
  * }} opts
  */
+/**
+ * @param {string} question
+ * @param {string} expectedIntent
+ */
+export function scoreWcCardContractIntent(question, expectedIntent) {
+  const actual = classifyWcQuestionIntent(question);
+  return {
+    passed: actual === expectedIntent,
+    actual,
+    expected: expectedIntent,
+  };
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function scoreWcCardContractLayout(structured) {
+  return scoreWcCardSentenceCompleteness(structured);
+}
+
+export { scoreWcCardContractVoice };
+
 export function scoreWcCardContractCase(opts) {
   const question = String(opts.question || "");
   const expectedIntent = String(opts.expectedIntent || "");

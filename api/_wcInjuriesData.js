@@ -18,6 +18,7 @@ import {
   applyInjuriesManualPatches,
   readWcPlayerMarketsOverrideKv,
 } from "./_wcPlayerMarketsOverride.js";
+import { buildWcInjuriesSeedBoard } from "../src/data/wc2026InjuriesSeed.js";
 
 /**
  * Incremental merge after match bundle.
@@ -73,14 +74,19 @@ export async function scrapeAndCacheWcInjuries() {
  */
 export async function readWcInjuriesFromKv(maxAgeMs = WC_INJURIES_TTL_SECONDS * 1000) {
   const cached = await getDurableJson(WC_INJURIES_KV_KEY);
-  if (!cached) return null;
   const override = await readWcPlayerMarketsOverrideKv();
+  let base = cached;
+  if (!base?.rows?.length) {
+    base = buildWcInjuriesSeedBoard();
+  }
+  if (!base) return null;
   const merged = override?.injuryPatches?.length
-    ? applyInjuriesManualPatches(cached, override)
-    : cached;
+    ? applyInjuriesManualPatches(base, override)
+    : base;
   return {
     ...merged,
-    stale: !isKvFresh(merged.lastUpdated, maxAgeMs),
+    stale: cached ? !isKvFresh(merged.lastUpdated, maxAgeMs) : true,
+    seeded: Boolean(merged.seeded || !cached?.rows?.length),
   };
 }
 

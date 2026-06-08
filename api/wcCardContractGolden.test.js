@@ -27,6 +27,7 @@ test("layout scorer enforces headline cap and labeled fields", () => {
     confidence: "Medium",
     whyNow: "Group path is clean.",
     edge: "Watch late injury news.",
+    lean: "Pass at +800 — fair favorite.",
     callType: "analysis",
   });
   assert.equal(good.passed, true);

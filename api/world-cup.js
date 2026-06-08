@@ -35,6 +35,9 @@ import {
   readWcPlayerMarketsOverrideKv,
 } from "./_wcPlayerMarketsOverride.js";
 import { verifyWcPlayerMarketsAdminAuth } from "../shared/wcBookScrapePolicy.js";
+import { WC_API_FOOTBALL_KV_KEY } from "../shared/wc2026PlayerConstants.js";
+import { wcApiFootballQuotaState } from "../shared/wcApiFootballQuota.js";
+import { isWcApiFootballEnabled } from "../shared/wcApiFootballPolicy.js";
 import {
   isWcHomePromoWindow,
   WC_GROUPS_TTL_SECONDS,
@@ -467,6 +470,19 @@ function isScheduled(status) {
   return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
 }
 
+async function getWcClientDataHealth() {
+  const apiFootball = await getDurableJson(WC_API_FOOTBALL_KV_KEY);
+  const quota = wcApiFootballQuotaState(apiFootball);
+  return {
+    apiFootball: {
+      enabled: isWcApiFootballEnabled(),
+      usedToday: quota.usedToday,
+      remainingBudget: quota.remainingBudget,
+      dailyLimit: quota.dailyLimit,
+    },
+  };
+}
+
 function buildContextText(groupsPayload, matchesPayload) {
   const lines = ["WORLD CUP 2026 CONTEXT:"];
   const matches = matchesPayload?.matches || [];
@@ -551,7 +567,8 @@ export default async function handler(req, res) {
     if (view === "matches") {
       const payload = await getMatchesPayload();
       const matches = await enrichMatchesWithDetailMeta(payload.matches || []);
-      return res.status(200).json({ ...payload, matches });
+      const dataHealth = await getWcClientDataHealth();
+      return res.status(200).json({ ...payload, matches, dataHealth });
     }
 
     if (view === "outrights") {

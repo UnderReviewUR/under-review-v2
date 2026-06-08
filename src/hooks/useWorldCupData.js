@@ -59,6 +59,7 @@ export function useWorldCupData() {
   const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [outrightsKv, setOutrightsKv] = useState(null);
   const [outrightsMeta, setOutrightsMeta] = useState(null);
+  const [dataHealth, setDataHealth] = useState(null);
   const [fetchError, setFetchError] = useState(null);
   const [xiConfirmedNotice, setXiConfirmedNotice] = useState(null);
   const xiStatusMapRef = useRef(new Map());
@@ -121,6 +122,7 @@ export function useWorldCupData() {
         setMatches(matchesData.matches);
         setLiveMatches(matchesData.matches.filter((m) => isLiveStatus(m.status)));
         ingestXiPoll(matchesData.matches);
+        setDataHealth(matchesData.dataHealth || null);
       }
       if (upcomingRes.ok && upcomingData?.upcoming) {
         setUpcomingMatches(upcomingData.upcoming);
@@ -207,6 +209,7 @@ export function useWorldCupData() {
     upcomingMatches,
     teams,
     outrightsMeta,
+    dataHealth,
     fetchError,
     retryWcLoad,
     xiConfirmedNotice,

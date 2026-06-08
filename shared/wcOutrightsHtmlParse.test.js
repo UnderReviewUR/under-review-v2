@@ -34,6 +34,19 @@ test("parseOddsSharkOutrightsFromHtml reads escaped tab-separated winner table",
   assert.ok(isViableWcOutrightsMap(map));
 });
 
+test("parseCoversOutrightsFromHtml ignores group-winner negative odds outside winner section", () => {
+  const html =
+    "<h2>Odds to Win the 2026 FIFA World Cup</h2>" +
+    "<p><strong>Spain (+400):</strong> favorite</p>" +
+    "<p><strong>France (+475):</strong> close second</p>" +
+    "<h2>Group Winner Odds</h2>" +
+    "<p><strong>Germany (-200):</strong> Group E favorite</p>";
+  const map = parseCoversOutrightsFromHtml(html);
+  assert.equal(map.ESP, "+400");
+  assert.equal(map.FRA, "+475");
+  assert.equal(map.GER, undefined);
+});
+
 test("parseWcTournamentWinnerOutrightsFromHtml picks best strategy per source", () => {
   const html =
     'meta description="Spain with +450 odds, France with +490 odds" />' +

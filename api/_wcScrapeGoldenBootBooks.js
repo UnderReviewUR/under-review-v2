@@ -3,7 +3,7 @@
  */
 
 import {
-  fetchBookPageHtml,
+  fetchBookPageHtmlForScrape,
   parseGoldenBootRowsForBook,
 } from "./_wcBookScrapeCommon.js";
 import {
@@ -43,7 +43,7 @@ export async function scrapeGoldenBootForBook(bookKey, bookIndex = 0) {
       let bestRows = [];
 
       for (const url of urls) {
-        const fetched = await fetchBookPageHtml(url);
+        const fetched = await fetchBookPageHtmlForScrape(url, { bookKey });
         if (!fetched.ok || !fetched.html) {
           lastError = fetched.error || "fetch_failed";
           continue;

@@ -736,6 +736,7 @@ ${themeCss}
     upcomingMatches: wcUpcomingMatches,
     teams: wcTeams,
     outrightsMeta: wcOutrightsMeta,
+    dataHealth: wcDataHealth,
     fetchError: wcFetchError,
     retryWcLoad,
     xiConfirmedNotice,
@@ -5037,6 +5038,7 @@ ${themeCss}
             upcomingMatches={wcUpcomingMatches}
             teams={wcTeams}
             outrightsMeta={wcOutrightsMeta}
+            dataHealth={wcDataHealth}
             fetchError={wcFetchError}
             retryWcLoad={retryWcLoad}
             wcMsgs={wcMsgs}

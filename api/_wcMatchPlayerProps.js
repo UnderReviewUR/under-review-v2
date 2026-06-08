@@ -4,7 +4,7 @@
 
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import {
-  fetchBookPageHtml,
+  fetchBookPageHtmlForScrape,
   parseMatchPlayerPropRowsFromHtml,
   parseMatchPlayerPropRowsFromJson,
 } from "./_wcBookScrapeCommon.js";
@@ -52,7 +52,16 @@ function isSufficientMatchProps(markets, booksUsed) {
  * @param {{ eventId: string, homeTeam?: string, awayTeam?: string }} meta
  */
 export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0) {
-  const urls = listWcMatchPlayerPropsScrapeUrls(bookKey, meta);
+  const { getDurableJson } = await import("./_durableStore.js");
+  const { resolveWcBookEventId, learnWcBookEventIdsFromHtml, WC_BOOK_EVENT_MAP_KV_KEY } =
+    await import("../shared/wcBookEventIdMap.js");
+  const mapRoot = await getDurableJson(WC_BOOK_EVENT_MAP_KV_KEY);
+  const bookEventId = resolveWcBookEventId(meta.eventId, bookKey, mapRoot);
+  const metaWithBook = {
+    ...meta,
+    eventId: bookEventId || meta.eventId,
+  };
+  const urls = listWcMatchPlayerPropsScrapeUrls(bookKey, metaWithBook);
   if (!urls.length) {
     return { book: bookKey, ok: false, markets: {}, error: "missing_url" };
   }
@@ -68,11 +77,13 @@ export async function scrapeMatchPlayerPropsForBook(bookKey, meta, bookIndex = 0
       let lastError = "parse_empty";
 
       for (const url of urls) {
-        const fetched = await fetchBookPageHtml(url);
+        const fetched = await fetchBookPageHtmlForScrape(url, { bookKey });
         if (!fetched.ok || !fetched.html) {
           lastError = fetched.error || "fetch_failed";
           continue;
         }
+
+        await learnWcBookEventIdsFromHtml(meta.eventId, bookKey, fetched.html);
 
         let parsed = parseMatchPlayerPropRowsFromHtml(fetched.html, filter);
         if (

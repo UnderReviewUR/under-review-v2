@@ -575,6 +575,35 @@ export function parseMatchPlayerPropRowsFromHtml(html, filter = {}) {
 /**
  * @param {string} url
  */
+/**
+ * Plain fetch with optional Puppeteer fallback for JS shells / 403 walls.
+ * @param {string} url
+ * @param {{ bookKey?: string }} [opts]
+ */
+export async function fetchBookPageHtmlForScrape(url, opts = {}) {
+  const plain = await fetchBookPageHtml(url);
+  if (plain.ok && plain.html.length >= 2000) return plain;
+
+  const { shouldTryWcBookPuppeteer, fetchBookPageHtmlViaPuppeteer } = await import(
+    "./_wcBookScrapePuppeteer.js"
+  );
+  if (!shouldTryWcBookPuppeteer(opts.bookKey, plain.error)) return plain;
+
+  const puppet = await fetchBookPageHtmlViaPuppeteer(url);
+  if (puppet.ok && puppet.html.length > (plain.html?.length || 0)) {
+    console.log(
+      JSON.stringify({
+        event: "wc_book_scrape_puppeteer_ok",
+        book: opts.bookKey || null,
+        url: url.slice(0, 100),
+        htmlLen: puppet.html.length,
+      }),
+    );
+    return puppet;
+  }
+  return plain.ok ? plain : puppet;
+}
+
 export async function fetchBookPageHtml(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), WC_BOOK_SCRAPE_TIMEOUT_MS);

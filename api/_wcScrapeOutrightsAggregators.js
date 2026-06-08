@@ -2,7 +2,7 @@
  * Scrape tournament-winner outrights from Covers / OddsShark / OddsChecker hubs.
  */
 
-import { fetchBookPageHtml } from "./_wcBookScrapeCommon.js";
+import { fetchBookPageHtmlForScrape } from "./_wcBookScrapeCommon.js";
 import {
   delayBetweenWcBookScrapes,
   WC_BOOK_SCRAPE_MAX_RETRIES,
@@ -37,7 +37,7 @@ export async function scrapeWcOutrightsAggregator(sourceKey, index = 0) {
 
   for (let attempt = 0; attempt <= WC_BOOK_SCRAPE_MAX_RETRIES; attempt++) {
     for (const url of urls) {
-      const fetched = await fetchBookPageHtml(url);
+      const fetched = await fetchBookPageHtmlForScrape(url, { bookKey: sourceKey });
       if (!fetched.ok || !fetched.html) {
         lastError = fetched.error || "fetch_failed";
         continue;
