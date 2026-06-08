@@ -1,59 +1,76 @@
 /**
- * World Cup Card Contract v1 — arguing voice (canonical shape for all WC intents).
+ * World Cup Card Contract Option 1 — arguing voice + complete-sentence card face.
  *
  * UI mapping:
- *   call  → HEADLINE + LINE (stat grid)
+ *   call  → HEADLINE
+ *   line  → LINE (stat grid delta)
  *   whyNow → WHY
  *   edge  → WATCH FOR
- *   lean  → THE PLAY (decision: bet / pass / lean — never a summary restatement)
+ *   lean  → THE PLAY
+ *   deep  → Full breakdown (tap)
  */
+
+import {
+  endsWithEllipsisTruncation,
+  isWcCompleteSentence,
+  wcWordCount,
+} from "./wcSentenceBoundaries.js";
+import { WC_INTENT } from "./wcUrTakeIntent.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"PASS"|"RULES"|"GENERAL"} WcCardVoiceVerdict} */
 
-export const WC_CARD_CONTRACT_VOICE_PROMPT = `WC CARD CONTRACT v1 — ARGUING VOICE (mandatory for every World Cup take)
+export const WC_CARD_CONTRACT_VOICE_PROMPT = `WC CARD CONTRACT Option 1 — ARGUING VOICE + COMPLETE SENTENCES (mandatory)
 
 You are "the model that argues with the edge." Every take must argue where the market is wrong — or say honestly where it is NOT wrong (Pass / fair price). Never just announce what the board already thinks.
 
+CARD FACE vs BREAKDOWN:
+- summary + deep are split. Card face shows complete sentences only — never mid-sentence cuts.
+- deep holds the full breakdown (extra evidence, list rows, bracket notes). User taps "Full breakdown" for depth.
+
 FIELD SHAPE (server maps summary/deep into the card — write so each slot is distinct):
 
-1) HEADLINE (summary sentence 1 → call/headline)
-   - Argue a thesis in ≤12 words when possible: where books/sim/path disagree with the crowd.
+1) HEADLINE (summary sentence 1 → call)
+   - Argue a thesis in ≤18 words as one complete sentence.
    - BAD: "Mbappé at +600 is the consensus Golden Boot favorite." (announcement)
    - GOOD: "Market has the name — France's path is what they underprice."
-   - GOOD: "Books price Spain to win; sims price Spain for volume."
 
-2) LINE / DELTA (summary sentence 2 → folds into call or whyNow)
-   - Hold the numbers: "Market +600 · UR path ~+318" or "Sims 45% win · 83% QF = most games."
+2) LINE (summary sentence 2 → line field — NOT the headline)
+   - Hold the numbers in a separate complete sentence: "Market +600 · UR path ~+318." or "Sims 45% win · 83% QF = most games."
    - Never repeat sentence 1 verbatim.
 
 3) WHY (deep sentences 1–2 → whyNow)
-   - Evidence: sims, group path, role, games played. Concrete numbers when in VERIFIED CONTEXT.
+   - Evidence: sims, group path, role, games played. Complete sentences with concrete numbers when in VERIFIED CONTEXT.
 
 4) WATCH FOR (deep last sentence OR dedicated risk line → edge)
-   - What breaks the edge: lineups, bracket, injury, shorter run, stale odds.
-   - Required for every non-rules betting take.
+   - What breaks the edge: lineups, bracket, injury, shorter run, stale odds. One complete sentence.
 
-5) THE PLAY (you must make this a decision in summary or deep — server extracts lean)
+5) THE PLAY (explicit decision in summary or deep → lean)
    - Format: "Pass at +600 — fair favorite." OR "Lean Spain goals volume — structural, not a single prop yet."
    - BAD: repeating HEADLINE or LINE.
    - THE PLAY is bet / pass / lean with one reason — not a summary.
+
+TOP 5 GOALSCORERS LIST:
+- HEADLINE = one arguing/list lead sentence on the card.
+- Put the numbered top-5 list in deep only. Card shows "Top 5 — tap to view" for THE PLAY slot.
 
 ANTI-PATTERNS (instant fail):
 - Same sentence for headline and play decision.
 - Headline that only states consensus price with no argument.
 - Missing WATCH FOR on betting takes.
-- "Try a team angle" energy in the take itself — answer the question asked.
+- Any card-face field ending mid-sentence or with "…" truncation.
+- "Try a team angle" energy — answer the question asked.
 
-VERDICT FORK (follow-ups are UI-routed — write the take to match):
+VERDICT FORK (follow-ups are UI-routed):
 - Real edge → argue misprice with cited odds/sims; confidence Medium+ only with evidence.
 - Fair / no edge → say Pass or fair price clearly; still argue WHY the market is right.
 - Rules → factual only; no betting lead.`;
 
-export const WC_CARD_CONTRACT_TIER25_APPENDIX = `CARD CONTRACT — summary + deep split (mandatory):
-- summary sentence 1 = arguing HEADLINE (thesis, not announcement).
-- summary sentence 2 = DELTA (market vs UR, or Pass/fair-price verdict with number).
-- deep = WHY (support) then WATCH FOR (what breaks it). End deep with the risk line.
-- Include an explicit PLAY decision somewhere ("Pass at…", "Lean…", "No play —") distinct from sentence 1.`;
+export const WC_CARD_CONTRACT_TIER25_APPENDIX = `CARD CONTRACT Option 1 — summary + deep split (mandatory):
+- summary sentence 1 = arguing HEADLINE (complete sentence, ≤18 words).
+- summary sentence 2 = LINE / DELTA (complete sentence with market vs UR numbers).
+- deep = WHY (support sentences) then WATCH FOR (risk sentence). End deep with the risk line.
+- Include an explicit PLAY decision ("Pass at…", "Lean…", "No play —") distinct from sentence 1.
+- Every card-face sentence must end with . ! or ? — never trail off mid-thought.`;
 
 /** @param {string} a @param {string} b */
 function normLine(a, b) {
@@ -112,13 +129,55 @@ export function wcCardHasDeltaSignal(text) {
  * @param {Record<string, unknown> | null | undefined} structured
  * @param {{ callType?: string, wcIntent?: string }} [opts]
  */
-export function scoreWcCardContractVoice(structured, opts = {}) {
+export function scoreWcCardSentenceCompleteness(structured, opts = {}) {
   const callType = String(structured?.callType || opts.callType || "").toLowerCase();
+  if (callType === "rules") return { passed: true, issues: [] };
+
+  const wcIntent = String(opts.wcIntent || "");
+  const isList = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST || callType === "goalscorers_list";
   const call = String(structured?.call || "").trim();
+  const line = String(structured?.line || "").trim();
   const lean = String(structured?.lean || "").trim();
   const edge = String(structured?.edge || "").trim();
   const whyNow = String(structured?.whyNow || "").trim();
-  const combined = [call, whyNow, lean].filter(Boolean).join(" ");
+
+  /** @type {string[]} */
+  const issues = [];
+
+  const check = (field, val, required, listStub = false) => {
+    if (!val) {
+      if (required) issues.push(`wc_card_incomplete_${field}`);
+      return;
+    }
+    if (endsWithEllipsisTruncation(val)) issues.push(`wc_card_truncated_${field}`);
+    if (!isWcCompleteSentence(val, { allowListStub: listStub })) {
+      issues.push(`wc_card_incomplete_${field}`);
+    }
+  };
+
+  check("call", call, true);
+  check("line", line, false);
+  check("why_now", whyNow, true);
+  check("edge", edge, true);
+  check("lean", lean, true, isList);
+
+  if (call && wcWordCount(call) > 18) issues.push("headline_over_18_words");
+
+  return { passed: issues.length === 0, issues };
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {{ callType?: string, wcIntent?: string }} [opts]
+ */
+export function scoreWcCardContractVoice(structured, opts = {}) {
+  const callType = String(structured?.callType || opts.callType || "").toLowerCase();
+  const call = String(structured?.call || "").trim();
+  const line = String(structured?.line || "").trim();
+  const lean = String(structured?.lean || "").trim();
+  const edge = String(structured?.edge || "").trim();
+  const whyNow = String(structured?.whyNow || "").trim();
+  const combined = [call, line, whyNow, lean].filter(Boolean).join(" ");
 
   /** @type {string[]} */
   const issues = [];
@@ -140,14 +199,18 @@ export function scoreWcCardContractVoice(structured, opts = {}) {
     issues.push("wc_card_missing_delta");
   }
 
+  const sentences = scoreWcCardSentenceCompleteness(structured, opts);
+  issues.push(...sentences.issues);
+
   return { passed: issues.length === 0, issues };
 }
 
 export const WC_CARD_VOICE_QA_SUFFIX = `
 
-WC CARD CONTRACT v1 QA (mandatory — prior answer failed arguing voice):
-- HEADLINE must argue (where market is wrong OR why Pass/fair is correct) — never only "X at +600 is the favorite."
-- LINE must hold the delta: Market +XXX · UR ~+YYY OR sims % vs market framing.
+WC CARD CONTRACT Option 1 QA (mandatory — prior answer failed voice or sentence shape):
+- HEADLINE must argue in one complete sentence (≤18 words) — never only "X at +600 is the favorite."
+- LINE must be summary sentence 2 with delta numbers — complete sentence, distinct from headline.
 - THE PLAY must be a decision (Pass / Lean / No play) — NOT a copy of the headline.
-- WATCH FOR must state what breaks the edge (lineups, path, injury, bracket).
-- Re-read WC CARD CONTRACT v1 rules in the system prompt before answering.`;
+- WATCH FOR must state what breaks the edge — one complete sentence.
+- No card-face field may end mid-sentence or with "…" truncation.
+- Re-read WC CARD CONTRACT Option 1 rules in the system prompt before answering.`;

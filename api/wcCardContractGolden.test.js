@@ -22,7 +22,8 @@ test("golden fixture has twenty cases across intents", () => {
 
 test("layout scorer enforces headline cap and labeled fields", () => {
   const good = scoreWcCardContractLayout({
-    call: "Brazil value at +800 outright",
+    call: "Brazil value at +800 outright.",
+    line: "Market BRA +800 · UR ~+850.",
     confidence: "Medium",
     whyNow: "Group path is clean.",
     edge: "Watch late injury news.",
@@ -32,14 +33,15 @@ test("layout scorer enforces headline cap and labeled fields", () => {
 
   const bad = scoreWcCardContractLayout({
     call:
-      "Brazil is structurally mispriced at plus eight hundred given group depth and knockout path and squad quality",
+      "Brazil is structurally mispriced at plus eight hundred given group depth and knockout path and squad quality and bracket luck.",
+    line: "Market BRA +800 · UR ~+850.",
     confidence: "Medium",
     whyNow: "Group path is clean.",
     edge: "Watch late injury news.",
     callType: "analysis",
   });
   assert.equal(bad.passed, false);
-  assert.ok(bad.issues.includes("headline_over_12_words"));
+  assert.ok(bad.issues.includes("headline_over_18_words"));
 });
 
 test("intent scorer flags France vs Brazil prop question", () => {
@@ -55,6 +57,7 @@ test("sample golden case passes layout scorer with mock structured payload", () 
   assert.ok(row);
   const payload = {
     call: "Brazil +450 is fair — market prices group I chaos correctly.",
+    line: "Market BRA +450 · UR ~+480.",
     confidence: "Medium",
     whyNow: "Group I depth and knockout variance cap upside at +450.",
     edge: "Injury news on Vinícius could reprice this.",

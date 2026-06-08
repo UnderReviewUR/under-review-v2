@@ -20,7 +20,6 @@ import {
 } from "../../shared/wcDataConfidence.js";
 import WcTakeCard from "./WcTakeCard.jsx";
 import {
-  capWcHeadlineWords,
   pickWcThePlayLine,
   wcCardSectionText,
 } from "../lib/wcTakeCardUi.js";
@@ -79,6 +78,9 @@ export default function URTakeResponse({
   dataConfidence = null,
   nbaContextBar = null,
   playerMarketTier = null,
+  line: wcLine = null,
+  deep: wcDeep = null,
+  breakdownAvailable = false,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -194,7 +196,7 @@ export default function URTakeResponse({
   const statGrid = buildSharpBriefStatGrid({
     estimatedEdge: ee,
     takeMeta,
-    structured: { call: callScrub, confidence: displayConfidence, callType },
+    structured: { call: callScrub, line: wcLine, confidence: displayConfidence, callType },
     parlayLegs: safeParlayLegs,
   });
 
@@ -288,7 +290,7 @@ export default function URTakeResponse({
         : leanDisplay && leanDisplay !== "—"
           ? leanDisplay
           : headline;
-    const wcHeadline = capWcHeadlineWords(wcHeadlineSource, 12);
+    const wcHeadline = String(wcHeadlineSource || "").trim();
     const wcSections = {
       why: wcCardSectionText(whyNowRaw),
       watchFor: wcCardSectionText(edgeRaw),
@@ -300,6 +302,9 @@ export default function URTakeResponse({
         }),
       ),
     };
+    const wcBreakdown = String(wcDeep || "").trim();
+    const wcBreakdownAvailable =
+      Boolean(breakdownAvailable) || (wcBreakdown.length > 80 && wcBreakdown !== wcSections.why);
     return (
       <WcTakeCard
         headline={wcHeadline}
@@ -312,6 +317,8 @@ export default function URTakeResponse({
         sharePath={shareQuery}
         userQuestion={userQuestion}
         timestamp={timestamp}
+        breakdownText={wcBreakdown}
+        breakdownAvailable={wcBreakdownAvailable}
       />
     );
   }

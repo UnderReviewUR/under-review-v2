@@ -28,6 +28,7 @@ test("wcCardHeadlineAnnouncesOnly flags consensus-only headlines", () => {
 test("scoreWcCardContractVoice passes arguing card shape", () => {
   const good = scoreWcCardContractVoice({
     call: "Books price Spain to win; sims price Spain for volume.",
+    line: "Market ESP +450 · UR sims ~+380.",
     lean: "Lean Spain goals leader — structural volume, not a single prop yet.",
     whyNow: "Spain wins 45% of sims with 83% QF rate.",
     edge: "Early knockout exit or rotated XI before lineups confirm.",

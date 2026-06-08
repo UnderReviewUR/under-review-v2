@@ -13,7 +13,7 @@ const RULES_BLEED_RE =
  * @param {string} text
  * @param {number} [maxWords]
  */
-export function wcHeadlineWordCount(text, maxWords = 12) {
+export function wcHeadlineWordCount(text, maxWords = 18) {
   const words = String(text || "")
     .trim()
     .split(/\s+/)
@@ -26,6 +26,7 @@ export function wcHeadlineWordCount(text, maxWords = 12) {
  */
 export function scoreWcCardContractLayout(structured) {
   const call = String(structured?.call || "").trim();
+  const line = String(structured?.line || "").trim();
   const confidence = String(structured?.confidence || "").trim();
   const why = String(structured?.whyNow || "").trim();
   const edge = String(structured?.edge || "").trim();
@@ -33,15 +34,18 @@ export function scoreWcCardContractLayout(structured) {
   const callType = String(structured?.callType || "").toLowerCase();
 
   const headline = call && call !== "—" ? call : lean;
-  const headlineCap = wcHeadlineWordCount(headline, 12);
+  const headlineCap = wcHeadlineWordCount(headline, 18);
 
   const issues = [];
   if (!headline || headline === "—") issues.push("missing_headline");
-  if (!headlineCap.withinCap) issues.push("headline_over_12_words");
+  if (!headlineCap.withinCap) issues.push("headline_over_18_words");
   if (!confidence) issues.push("missing_confidence");
   if (callType !== "rules" && !why) issues.push("missing_why");
   if (callType !== "rules" && !edge) issues.push("missing_watch_for_edge");
-  if (!call || call === "—") issues.push("missing_line_call");
+  if (!call || call === "—") issues.push("missing_headline_call");
+  if (callType !== "rules" && !line && !wcCardHasDeltaInBody(structured)) {
+    issues.push("missing_line_delta");
+  }
 
   return {
     passed: issues.length === 0,
@@ -50,8 +54,19 @@ export function scoreWcCardContractLayout(structured) {
     hasConfidence: Boolean(confidence),
     hasWhy: Boolean(why),
     hasWatchFor: Boolean(edge),
-    hasLine: Boolean(call && call !== "—"),
+    hasLine: Boolean(line),
   };
+}
+
+/** @param {Record<string, unknown> | null | undefined} structured */
+function wcCardHasDeltaInBody(structured) {
+  const blob = [structured?.call, structured?.line, structured?.whyNow, structured?.lean]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    /\bmarket\s*[+·\-]|ur\s*[+~]|sims?\s+\d|%\s*(win|qf|rate)|·|~\s*\+/i.test(blob) ||
+    /\bpass at\b/i.test(blob)
+  );
 }
 
 /**

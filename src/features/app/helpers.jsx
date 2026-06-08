@@ -1677,6 +1677,9 @@ function coerceStructuredForUrTakeCard(raw) {
     sport: String(raw.sport ?? "generic"),
     lean,
     call,
+    line: toStr(raw.line),
+    deep: toStr(raw.deep),
+    breakdownAvailable: Boolean(raw.breakdownAvailable) || Boolean(toStr(raw.deep).trim()),
     confidence: String(raw.confidence ?? "Medium"),
     whyNow,
     edge: toStr(raw.edge),
@@ -1994,6 +1997,9 @@ function UrTakeAiBubble({
             question={userQuestion}
             lean={s.lean}
             call={s.call}
+            line={s.line}
+            deep={s.deep || m.deepText || ""}
+            breakdownAvailable={s.breakdownAvailable}
             confidence={s.confidence}
             whyNow={s.whyNow}
             edge={s.edge}

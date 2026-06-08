@@ -176,6 +176,7 @@ import {
 import {
   buildWcCompactStructured,
   formatWcCompactDisplayText,
+  resolveWcQaStructured,
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import {
   buildWcSessionMemoryPrompt,
@@ -4945,7 +4946,14 @@ You are responding to a Pro subscriber. Apply the following:
         responseText = lastQaPost.text;
         const wcPassQa = runWcUrTakeQA({
           responseText,
-          structured: structuredResponse,
+          structured: resolveWcQaStructured({
+            question: String(question || ""),
+            wcIntent,
+            summary: responseText,
+            deep: responseDeep,
+            playerMarketTier: wcRelevanceLog.playerMarketTier || wcContext?.playerMarketTier,
+            structuredSeed: structuredResponse,
+          }),
           question: String(question || ""),
           wcIntent,
           requiredEntities: wcRequiredEntities,
@@ -5446,7 +5454,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       if (sportHint === "worldcup") {
         wcQaResult = runWcUrTakeQA({
           responseText,
-          structured: structuredResponse,
+          structured: resolveWcQaStructured({
+            question: String(question || ""),
+            wcIntent,
+            summary: responseText,
+            deep: responseDeep,
+            playerMarketTier: wcRelevanceLog.playerMarketTier || wcContext?.playerMarketTier,
+            structuredSeed: structuredResponse,
+          }),
           question: String(question || ""),
           wcIntent,
           requiredEntities: wcRequiredEntities,

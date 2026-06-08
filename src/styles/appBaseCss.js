@@ -1933,6 +1933,17 @@ export const baseCss = `
   .wc-take-row-body{
     margin:0;font-size:13px;line-height:1.55;color:var(--soft);
   }
+  .wc-take-breakdown-toggle{margin:4px 16px 0;}
+  .wc-take-breakdown-panel{
+    margin:8px 16px 0;padding:12px 0 4px;border-top:1px solid var(--border-2);
+  }
+  .wc-take-breakdown-label{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:1.3px;
+    text-transform:uppercase;color:var(--muted);margin-bottom:8px;
+  }
+  .wc-take-breakdown-body{
+    font-size:13px;line-height:1.6;color:var(--soft);white-space:pre-wrap;
+  }
   .wc-take-footer{
     display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 12px;
     margin-top:14px;padding:12px 16px 10px;border-top:1px solid var(--border-2);

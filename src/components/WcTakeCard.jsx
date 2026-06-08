@@ -1,3 +1,4 @@
+import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
@@ -9,7 +10,7 @@ const LABELED_ROWS = [
 ];
 
 /**
- * World Cup structural card — NBA Finals-style labeled fold (Card Contract v1).
+ * World Cup structural card — scannable card face + optional full breakdown.
  */
 export default function WcTakeCard({
   headline,
@@ -22,10 +23,15 @@ export default function WcTakeCard({
   sharePath = "",
   userQuestion = "",
   timestamp = null,
+  breakdownText = "",
+  breakdownAvailable = false,
 }) {
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false);
   const conf = String(confidence || "Medium").trim();
   const formattedTimestamp = formatUrTakeTimestampEt(timestamp);
   const shareQ = String(userQuestion || headline || "").trim();
+  const deep = String(breakdownText || "").trim();
+  const showBreakdownToggle = Boolean(breakdownAvailable && deep);
 
   return (
     <div className="ur-take-structured ur-take-response ur-v2-card wc-take-card">
@@ -77,6 +83,30 @@ export default function WcTakeCard({
           </div>
         );
       })}
+
+      {showBreakdownToggle && !breakdownExpanded ? (
+        <button
+          type="button"
+          className="ur-v2-body-expand wc-take-breakdown-toggle"
+          onClick={() => setBreakdownExpanded(true)}
+        >
+          Full breakdown
+        </button>
+      ) : null}
+
+      {showBreakdownToggle && breakdownExpanded ? (
+        <div className="wc-take-breakdown-panel">
+          <div className="wc-take-breakdown-label">Full breakdown</div>
+          <div className="wc-take-breakdown-body">{deep}</div>
+          <button
+            type="button"
+            className="ur-v2-body-expand wc-take-breakdown-toggle"
+            onClick={() => setBreakdownExpanded(false)}
+          >
+            Show less
+          </button>
+        </div>
+      ) : null}
 
       <div className="wc-take-footer">
         <span className="wc-take-confidence-pill">Confidence: {conf}</span>

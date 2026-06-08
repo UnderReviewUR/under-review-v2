@@ -231,7 +231,11 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_card_play_restates_call",
       "wc_card_headline_announces",
       "wc_card_missing_delta",
-    ].includes(c),
+      "headline_over_18_words",
+      "missing_line_delta",
+    ].includes(c) ||
+    String(c).startsWith("wc_card_incomplete_") ||
+    String(c).startsWith("wc_card_truncated_"),
   );
 }
 

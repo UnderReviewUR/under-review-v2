@@ -147,8 +147,12 @@ test("runWcUrTakeQA — Brazil answer passes entity check", () => {
   const qa = runWcUrTakeQA({
     responseText: "Brazil is not mispriced given Group C strength.",
     structured: {
-      lean: "Lean: Brazil fairly priced.",
-      whyNow: "Brazil is the Group C favorite.",
+      call: "Brazil is not mispriced given Group C strength.",
+      line: "Market BRA +450 · UR agrees at +480.",
+      lean: "Pass — fair price, no edge on the Brazil outright.",
+      whyNow: "Brazil is the Group C favorite with a clean knockout path.",
+      edge: "Watch for Vinícius injury news before the opener.",
+      callType: "analysis",
     },
     question: WC_RELEVANCE_REGRESSION_TURNS[1].question,
     wcIntent: WC_INTENT.ENTITY_PRICING,

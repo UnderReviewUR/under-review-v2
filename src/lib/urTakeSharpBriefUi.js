@@ -26,6 +26,7 @@ function playableEeSummary(ee) {
 export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, parlayLegs }) {
   const ee = estimatedEdge?.source === "estimated_edge" ? estimatedEdge : null;
   const call = String(structured?.call || "").trim();
+  const lineField = String(structured?.line || "").trim();
   const conf = String(structured?.confidence || "Medium").trim();
   const callType = String(structured?.callType || "single").toLowerCase();
   const legs = Array.isArray(parlayLegs) ? parlayLegs : [];
@@ -59,7 +60,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
   }
 
   if (callType.startsWith("player_market")) {
-    const line = call.slice(0, 96) || "Player market read";
+    const line = lineField || call || "Player market read";
     return {
       mode: "player_market",
       slots: [
@@ -70,24 +71,34 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
   }
 
   if (callType === "matchup") {
-    const proj = call.slice(0, 80) || "Advancement paths";
+    const line = lineField || call.slice(0, 120) || "Advancement paths";
     return {
       mode: "matchup",
-      slots: [
-        { key: "p", label: "Read", value: proj, highlight: false },
-        { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
-      ],
+      slots: lineField
+        ? [
+            { key: "ln", label: "Line", value: lineField, highlight: true },
+            { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+          ]
+        : [
+            { key: "p", label: "Read", value: line, highlight: false },
+            { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+          ],
     };
   }
 
   if (callType === "analysis") {
-    const proj = call.slice(0, 80) || "Outright read";
+    const line = lineField || call.slice(0, 120) || "Outright read";
     return {
       mode: "analysis",
-      slots: [
-        { key: "p", label: "Verdict", value: proj, highlight: false },
-        { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
-      ],
+      slots: lineField
+        ? [
+            { key: "ln", label: "Line", value: lineField, highlight: true },
+            { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+          ]
+        : [
+            { key: "p", label: "Verdict", value: line, highlight: false },
+            { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
+          ],
     };
   }
 

@@ -294,10 +294,19 @@ export function buildWcPlayerMarketPrebuiltStructured(
     callType: meta.callType,
     playerMarketTier: tier,
     wcEventId: wcEventId || undefined,
-    call: `${rows[0].name} ${rows[0].americanOdds} — ${label}`,
-    lean: `Lean: ${rows[0].name} leads the ${label} board at ${rows[0].americanOdds} (${meta.label}).${lineupNote}`,
+    call: `Market has ${rows[0].name} — ${label} board prices the name first.`,
+    line: `Market ${rows[0].americanOdds} · next ${rows[1]?.name || "contender"} ${rows[1]?.americanOdds || ""}.`.replace(
+      /\s+\./,
+      ".",
+    ),
+    lean: `Lean: ${rows[0].name} at ${rows[0].americanOdds} — best listed price on the ${label} board.${lineupNote}`,
     whyNow: `Top contenders by price: ${lead}. ${contextNote}`,
-    edge: rows.length >= 2 ? `Gap behind ${rows[1].name} at ${rows[1].americanOdds}.` : "Thin market depth.",
+    edge:
+      rows.length >= 2
+        ? `Watch for lineup confirmation — ${rows[1].name} at ${rows[1].americanOdds} closes fast if ${rows[0].name} starts.`
+        : "Watch for thin market depth before locking a player price.",
+    deep: `Full board: ${lead}. ${contextNote}${lineupNote}`,
+    breakdownAvailable: true,
     confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
     analysis: String(question || "").trim(),
   };
