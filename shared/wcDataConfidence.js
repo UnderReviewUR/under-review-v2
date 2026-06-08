@@ -2,6 +2,8 @@
  * World Cup UR Take — data confidence tier for UI chip + prompt guidance.
  */
 
+import { wcUrTakeConfidenceNote } from "./wcProductVoice.js";
+
 /** @typedef {"confirmed" | "pre_match_estimate" | "limited_intel"} WcDataConfidence */
 
 export const WC_DATA_CONFIDENCE_CHIP = {
@@ -46,11 +48,7 @@ export function wcDataConfidenceNeedsCaution(dataConfidence) {
  * @returns {string | null}
  */
 export function wcDataConfidenceCautionBanner(dataConfidence) {
-  if (!wcDataConfidenceNeedsCaution(dataConfidence)) return null;
-  if (dataConfidence === "limited_intel") {
-    return "Starting XIs not confirmed — take with caution. No starter-specific plays.";
-  }
-  return "Lineups not yet confirmed — take with caution. No starter-specific plays.";
+  return wcUrTakeConfidenceNote(dataConfidence);
 }
 
 const STRUCTURED_CONFIDENCE_TIERS = ["High", "Medium", "Speculative"];

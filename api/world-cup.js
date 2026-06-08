@@ -40,6 +40,7 @@ import { wcApiFootballQuotaState } from "../shared/wcApiFootballQuota.js";
 import { isWcApiFootballEnabled } from "../shared/wcApiFootballPolicy.js";
 import {
   isWcHomePromoWindow,
+  isWcTournamentWindow,
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_TTL_SECONDS,
 } from "../shared/wc2026Constants.js";
@@ -50,6 +51,15 @@ import {
 import { attachMatchListOddsFreshness } from "../shared/wcOddsFreshness.js";
 import { isWcCronAuthorized } from "./_wcCronAuth.js";
 import { runWcWarmupBundle } from "./_wcWarmupBundle.js";
+import { fetchOpenFootballWc2026Schedule } from "../shared/wcOpenFootballSchedule.js";
+import {
+  ensureWcPublicGroups,
+  ensureWcPublicMatches,
+  ensureWcPublicOutrights,
+  hydrateWcPublicMatchesIfEmpty,
+  sanitizeWcPublicPayload,
+} from "../shared/wcPublicPayload.js";
+import { buildWcOutrightsSeedMap } from "../shared/wcOutrightsSeed.js";
 
 const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
@@ -337,10 +347,18 @@ export async function getGroupsPayload() {
 
 export async function getMatchesPayload() {
   const nowMs = Date.now();
-  const kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
-  const kvRealCount = (kv?.matches || []).filter(
+  let kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
+  let kvRealCount = (kv?.matches || []).filter(
     (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
   ).length;
+
+  if (kvRealCount < 50 && isWcTournamentWindow(nowMs)) {
+    await ensureWcScheduleInKv(nowMs);
+    kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
+    kvRealCount = (kv?.matches || []).filter(
+      (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
+    ).length;
+  }
 
   if (kv?.matches?.length && kvRealCount >= 50) {
     const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated, nowMs);
@@ -385,6 +403,23 @@ export async function getMatchesPayload() {
     };
   }
 
+  const ofFetched = await fetchOpenFootballWc2026Schedule();
+  if (ofFetched.ok && ofFetched.matches.length) {
+    const payload = {
+      matches: ofFetched.matches,
+      lastUpdated: Date.now(),
+      source: "openfootball",
+      scheduleValidation: {
+        ok: null,
+        fallback: true,
+        openFootballCount: ofFetched.matches.length,
+        checkedAt: Date.now(),
+      },
+    };
+    await setDurableJson("wc2026_matches", payload, { ttlSeconds: MATCHES_TTL });
+    return payload;
+  }
+
   const bdlFetched = await fetchAllMatchesBdl();
   if (bdlFetched.ok && bdlFetched.matches.length) {
     const payload = {
@@ -416,7 +451,11 @@ export async function getMatchesPayload() {
     };
   }
 
-  return { matches: [], fallback: true, error: bdlFetched.error || "No match data", source: "none" };
+  const hydrated = await hydrateWcPublicMatchesIfEmpty({ matches: [] }, nowMs);
+  if (hydrated?.matches?.length) {
+    return hydrated;
+  }
+  return ensureWcPublicMatches({ matches: buildStaticPromoMatchesFallback(nowMs) }, nowMs);
 }
 
 export async function getOutrightsPayload() {
@@ -437,25 +476,17 @@ export async function getOutrightsPayload() {
   }
 
   if (kv?.outrights && Object.keys(kv.outrights).length) {
-    return {
+    return ensureWcPublicOutrights({
       outrights: kv.outrights,
       lastUpdated: kv.lastUpdated,
-      source: kv.source || "espn",
-      sourceTier: kv.sourceTier || null,
-      fallback: Boolean(kv.stale) || tier === "static_seed",
-      stale: Boolean(kv.stale),
       ageMinutes: kv.freshness?.ageMinutes ?? null,
-      freshness: kv.freshness ?? null,
-    };
+    });
   }
-  return {
-    outrights: {},
-    fallback: true,
-    source: "none",
-    stale: true,
-    ageMinutes: null,
-    freshness: null,
-  };
+  const nowMs = Date.now();
+  return ensureWcPublicOutrights({
+    outrights: buildWcOutrightsSeedMap(nowMs),
+    lastUpdated: nowMs,
+  });
 }
 
 /** Cron-only live ESPN refresh (never called from user GET handlers). */
@@ -560,45 +591,59 @@ export default async function handler(req, res) {
     }
 
     if (view === "groups") {
-      const payload = await getGroupsPayload();
+      const payload = ensureWcPublicGroups(await getGroupsPayload());
       return res.status(200).json(payload);
     }
 
     if (view === "matches") {
       const payload = await getMatchesPayload();
-      const matches = await enrichMatchesWithDetailMeta(payload.matches || []);
+      const hydrated = await hydrateWcPublicMatchesIfEmpty(payload, Date.now());
+      const matches = await enrichMatchesWithDetailMeta(hydrated.matches || []);
       const dataHealth = await getWcClientDataHealth();
-      return res.status(200).json({ ...payload, matches, dataHealth });
+      return res.status(200).json(
+        sanitizeWcPublicPayload({ ...hydrated, matches, dataHealth }, "matches"),
+      );
     }
 
     if (view === "outrights") {
+      if (isWcTournamentWindow()) {
+        await ensureWcOutrightsInKv().catch(() => {});
+      }
       const payload = await getOutrightsPayload();
       return res.status(200).json(payload);
     }
 
     if (view === "upcoming") {
-      const payload = await getMatchesPayload();
+      const payload = await hydrateWcPublicMatchesIfEmpty(await getMatchesPayload(), Date.now());
       const now = Date.now();
       const upcomingRaw = (payload.matches || [])
         .filter((m) => isScheduled(m.status) && (m.commenceTs == null || m.commenceTs >= now - 86400000))
         .slice(0, 8);
       const upcoming = await enrichMatchesWithDetailMeta(upcomingRaw);
-      return res.status(200).json({
-        upcoming,
-        lastUpdated: payload.lastUpdated,
-        fallback: payload.fallback,
-      });
+      return res.status(200).json(
+        sanitizeWcPublicPayload(
+          {
+            upcoming,
+            lastUpdated: payload.lastUpdated,
+          },
+          "upcoming",
+        ),
+      );
     }
 
     if (view === "live") {
-      const payload = await getMatchesPayload();
+      const payload = await hydrateWcPublicMatchesIfEmpty(await getMatchesPayload(), Date.now());
       const liveRaw = (payload.matches || []).filter((m) => isLiveStatus(m.status));
       const live = await enrichMatchesWithDetailMeta(liveRaw);
-      return res.status(200).json({
-        live,
-        lastUpdated: payload.lastUpdated,
-        fallback: payload.fallback,
-      });
+      return res.status(200).json(
+        sanitizeWcPublicPayload(
+          {
+            live,
+            lastUpdated: payload.lastUpdated,
+          },
+          "live",
+        ),
+      );
     }
 
     if (view === "detail") {

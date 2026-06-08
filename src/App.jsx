@@ -736,8 +736,6 @@ ${themeCss}
     upcomingMatches: wcUpcomingMatches,
     teams: wcTeams,
     outrightsMeta: wcOutrightsMeta,
-    dataHealth: wcDataHealth,
-    fetchError: wcFetchError,
     retryWcLoad,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,
@@ -5038,8 +5036,6 @@ ${themeCss}
             upcomingMatches={wcUpcomingMatches}
             teams={wcTeams}
             outrightsMeta={wcOutrightsMeta}
-            dataHealth={wcDataHealth}
-            fetchError={wcFetchError}
             retryWcLoad={retryWcLoad}
             wcMsgs={wcMsgs}
             wcBarRef={wcBarRef}
@@ -6504,13 +6500,18 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
         {/* ══ NAV ══ */}
         <nav className="bottom-nav" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
+          <button
+            className={`nav-btn nav-btn--wc-spotlight${tab === "worldcup" ? " wc-active" : ""}`}
+            onClick={goWorldCup}
+          >
+            <span>World Cup</span>
+          </button>
           <button className={`nav-btn${tab==="tennis"?" tennis-active":""}`} onClick={goTennis}><span>Tennis</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
           <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
-          <button className={`nav-btn${tab==="worldcup"?" wc-active":""}`} onClick={goWorldCup}><span>World Cup</span></button>
           <button
             className={`nav-btn nav-btn--ur-take${tab === "ask" && screen === "ask" ? " active" : ""}`}
             onClick={goUrTakeTab}

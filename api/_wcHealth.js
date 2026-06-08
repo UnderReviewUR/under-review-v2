@@ -6,16 +6,17 @@ import { getDurableJson } from "./_durableStore.js";
 import { WC_GOLDEN_BOOT_KV_KEY } from "../shared/wc2026PlayerConstants.js";
 import { WC_GOLDEN_BOOT_SOURCE_COUNT } from "../shared/wcGoldenBootSourceRegistry.js";
 import { validateGoldenBootKvRows } from "../shared/wcGoldenBootWriteQA.js";
-import { readWcOutrightsFromKv } from "./_wcData.js";
+import { readWcMatchesFromKv, readWcOutrightsFromKv } from "./_wcData.js";
 
 /**
  * @param {number} [nowMs]
  */
 export async function buildWcHealthSnapshot(nowMs = Date.now()) {
-  const [kvConfigured, goldenBootRaw, outrights] = await Promise.all([
+  const [kvConfigured, goldenBootRaw, outrights, matchesKv] = await Promise.all([
     Promise.resolve(Boolean(process.env.KV_REST_API_URL || process.env.VERCEL_KV_REST_API_URL)),
     getDurableJson(WC_GOLDEN_BOOT_KV_KEY),
     readWcOutrightsFromKv(nowMs),
+    readWcMatchesFromKv(nowMs),
   ]);
 
   const gbQa = validateGoldenBootKvRows(goldenBootRaw?.rows || [], {
@@ -33,6 +34,15 @@ export async function buildWcHealthSnapshot(nowMs = Date.now()) {
   if (outrightTier === "static_seed" || outrights?.stale) alerts.push("wc_outrights_stale_or_seed");
   if ((goldenBootRaw?.sourcesAttempted || 0) < 5) alerts.push("wc_golden_boot_few_sources_tried");
 
+  const matchCount = Array.isArray(matchesKv?.matches) ? matchesKv.matches.length : 0;
+  const scheduleSource = matchesKv?.source || "none";
+  const scheduleValidation = matchesKv?.scheduleValidation || null;
+  if (matchCount < 50) alerts.push("wc_schedule_thin");
+  if (scheduleSource === "openfootball") alerts.push("wc_schedule_openfootball_fallback");
+  if (scheduleValidation && scheduleValidation.ok === false) {
+    alerts.push("wc_schedule_validation_mismatch");
+  }
+
   return {
     kvConfigured,
     goldenBoot: {
@@ -47,6 +57,12 @@ export async function buildWcHealthSnapshot(nowMs = Date.now()) {
       count: outrightCount,
       sourceTier: outrightTier,
       stale: Boolean(outrights?.stale),
+    },
+    schedule: {
+      count: matchCount,
+      source: scheduleSource,
+      stale: Boolean(matchesKv?.stale),
+      validation: scheduleValidation,
     },
     alerts,
     ok: alerts.length === 0,

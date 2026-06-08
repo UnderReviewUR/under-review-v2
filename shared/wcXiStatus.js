@@ -4,10 +4,12 @@
 
 /** @typedef {"confirmed" | "pending" | "unavailable"} WcXiStatus */
 
+import { wcXiUserChipLabel } from "./wcProductVoice.js";
+
 export const WC_XI_STATUS_LABEL = {
-  confirmed: "Starting XI confirmed",
-  pending: "XI pending",
-  unavailable: "Lineup data pending",
+  confirmed: "Starting XI locked",
+  pending: "Lineups updating",
+  unavailable: "Match intel",
 };
 
 export const WC_XI_STATUS_ICON = {
@@ -34,7 +36,7 @@ export function resolveWcXiStatus(match) {
  */
 export function wcXiStatusChipLabel(status) {
   const key = resolveWcXiStatus({ xiStatus: status });
-  return WC_XI_STATUS_LABEL[key] || WC_XI_STATUS_LABEL.unavailable;
+  return wcXiUserChipLabel(key);
 }
 
 /**

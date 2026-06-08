@@ -7,8 +7,11 @@ import WcMatchDetailDrawer from "../components/world-cup/WcMatchDetailDrawer.jsx
 import WcBracket from "../components/world-cup/WcBracket.jsx";
 import { WC_2026_TEAMS, getWcTeamsByGroup } from "../data/wc2026Teams.js";
 import { formatWcOutrightOdds } from "../../shared/wc2026OutrightOdds.js";
-import { formatWcOutrightsStaleChipLabel } from "../../shared/wcOddsFreshness.js";
-import { formatWcApiFootballQuotaChip } from "../../shared/wcApiFootballDisplay.js";
+import {
+  WC_EMPTY_LIVE,
+  WC_EMPTY_VIEW,
+  WC_LOADING_LABEL,
+} from "../../shared/wcProductVoice.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
 import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
@@ -36,8 +39,6 @@ export default function WorldCupScreen({
   upcomingMatches,
   teams = WC_2026_TEAMS,
   outrightsMeta = null,
-  dataHealth = null,
-  fetchError = null,
   retryWcLoad = null,
   wcMsgs,
   wcBarRef,
@@ -108,8 +109,7 @@ export default function WorldCupScreen({
     urTakeTrackPlay,
   };
 
-  const outrightsStaleLabel = formatWcOutrightsStaleChipLabel(outrightsMeta);
-  const apiFootballQuotaLabel = formatWcApiFootballQuotaChip(dataHealth?.apiFootball);
+  const marketsChipLabel = outrightsMeta?.marketsChip || null;
 
   const handleAskMatch = (match) => {
     const groupBit = match.group ? ` (Group ${match.group})` : "";
@@ -135,7 +135,7 @@ export default function WorldCupScreen({
 
   const renderMatchesList = (list, { fetchWeather = false } = {}) => {
     if (!list.length) {
-      return <div className="wc-empty">No matches in this view yet.</div>;
+      return <div className="wc-empty">{WC_EMPTY_VIEW}</div>;
     }
     return (
       <div className="wc-match-list">
@@ -163,7 +163,7 @@ export default function WorldCupScreen({
         const next = upcomingMatches[0];
         return (
           <div className="wc-empty">
-            <p>No matches in progress.</p>
+            <p>{WC_EMPTY_LIVE}</p>
             {next ? (
               <>
                 <p className="wc-muted">
@@ -188,20 +188,9 @@ export default function WorldCupScreen({
 
   const wcBrowseBelow = (
     <>
-      {fetchError && !wcLoading ? (
-        <div className="wc-fetch-error" role="alert">
-          <p>Couldn&apos;t load live data — check your connection and try again.</p>
-          {retryWcLoad ? (
-            <button type="button" className="wc-fetch-error-retry" onClick={() => retryWcLoad()}>
-              Retry
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       {wcLoading ? (
         <div className="loading-state">
-          <div className="loading-text">LOADING WORLD CUP DATA...</div>
+          <div className="loading-text">{WC_LOADING_LABEL}</div>
         </div>
       ) : null}
 
@@ -306,11 +295,8 @@ export default function WorldCupScreen({
           </div>
         ) : (
           <>
-            {outrightsStaleLabel ? (
-              <p className="wc-outright-stale-banner">{outrightsStaleLabel}</p>
-            ) : null}
-            {apiFootballQuotaLabel ? (
-              <p className="wc-data-health-chip">{apiFootballQuotaLabel}</p>
+            {marketsChipLabel ? (
+              <p className="wc-markets-chip">{marketsChipLabel}</p>
             ) : null}
             {CONFEDS.map((conf) => {
               const confTeams = teams.filter((t) => t.confederation === conf);
@@ -334,10 +320,7 @@ export default function WorldCupScreen({
                             {wcStrengthTagForRank(
                               getWcTeamsByGroup(t.group).findIndex((x) => x.id === t.id),
                             )}{" "}
-                            · {formatWcOutrightOdds(t.outrightOdds)}
-                            {t.outrightOddsSource === "static" && t.outrightOdds ? (
-                              <span className="wc-outright-fallback"> (static)</span>
-                            ) : null}
+                            ·                             {formatWcOutrightOdds(t.outrightOdds)}
                           </span>
                         </div>
                       </button>

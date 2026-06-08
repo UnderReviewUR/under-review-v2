@@ -11,7 +11,7 @@ import {
 } from "./_wcEspn.js";
 import { fetchEspnMatchSummary, normalizeEspnMatchSummary } from "./_wcEspnMatchDetail.js";
 import { fetchOddsApiWcOutrights } from "./_wcOutrightsFallback.js";
-import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import { buildStaticGroupsFallback } from "../shared/wcStaticGroupsFallback.js";
 import {
   WC_GROUPS_KV_KEY,
   WC_GROUPS_TTL_SECONDS,
@@ -33,37 +33,17 @@ import { resolveWcOutrightsSourceChain } from "../shared/wcOutrightsSourceChain.
 import { scrapeAllWcOutrightsAggregators } from "./_wcScrapeOutrightsAggregators.js";
 import { WC_OUTRIGHTS_AGGREGATOR_COUNT } from "../shared/wcOutrightsAggregatorRegistry.js";
 import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
+import {
+  fetchOpenFootballWc2026Schedule,
+  validateEspnScheduleAgainstOpenFootball,
+} from "../shared/wcOpenFootballSchedule.js";
 
 /** Max parallel KV reads when enriching match lists for /api/world-cup. */
 export const WC_MATCH_DETAIL_ENRICH_CONCURRENCY = 12;
 
 /** @typedef {"confirmed" | "pending" | "unavailable"} WcXiStatus */
 
-const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
-
-/**
- * Static fallback rows — pre-tournament zeros so UI + UR Take never see empty groups.
- */
-export function buildStaticGroupsFallback() {
-  /** @type {Record<string, Array<Record<string, unknown>>>} */
-  const groups = {};
-  for (const letter of GROUP_LETTERS) {
-    const teams = WC_2026_TEAMS.filter((t) => t.group === letter);
-    if (!teams.length) continue;
-    groups[letter] = teams.map((t) => ({
-      team: t.abbreviation,
-      played: 0,
-      won: 0,
-      drawn: 0,
-      lost: 0,
-      gf: 0,
-      ga: 0,
-      gd: 0,
-      points: 0,
-    }));
-  }
-  return groups;
-}
+export { buildStaticGroupsFallback } from "../shared/wcStaticGroupsFallback.js";
 
 /**
  * Cron: ESPN standings + full fixture slate → KV.
@@ -93,7 +73,66 @@ export async function scrapeAndCacheWcStandingsAndFixtures() {
       lastUpdated: nowMs,
       source: "espn",
     };
+
+    const ofRes = await fetchOpenFootballWc2026Schedule();
+    if (ofRes.ok) {
+      const validation = validateEspnScheduleAgainstOpenFootball(
+        matchesRes.matches,
+        ofRes.matches,
+      );
+      matchesPayload.scheduleValidation = {
+        ok: validation.ok,
+        matched: validation.matched,
+        mismatchCount: validation.mismatchCount,
+        espnGroupCount: validation.espnGroupCount,
+        openFootballGroupCount: validation.openFootballGroupCount,
+        checkedAt: nowMs,
+      };
+      console.log(
+        JSON.stringify({
+          event: validation.ok ? "wc_schedule_validation_ok" : "wc_schedule_validation_mismatch",
+          matched: validation.matched,
+          mismatchCount: validation.mismatchCount,
+          espnGroupCount: validation.espnGroupCount,
+          openFootballGroupCount: validation.openFootballGroupCount,
+          sample: validation.mismatches.slice(0, 3),
+        }),
+      );
+    } else {
+      console.log(
+        JSON.stringify({
+          event: "wc_schedule_validation_skipped",
+          error: ofRes.error,
+        }),
+      );
+    }
+
     await setDurableJson(WC_MATCHES_KV_KEY, matchesPayload, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+  } else {
+    const ofRes = await fetchOpenFootballWc2026Schedule();
+    if (ofRes.ok && ofRes.matches.length >= 50) {
+      matchesPayload = {
+        matches: ofRes.matches,
+        lastUpdated: nowMs,
+        source: "openfootball",
+        scheduleValidation: {
+          ok: null,
+          fallback: true,
+          openFootballCount: ofRes.matches.length,
+          checkedAt: nowMs,
+        },
+      };
+      await setDurableJson(WC_MATCHES_KV_KEY, matchesPayload, {
+        ttlSeconds: WC_MATCHES_TTL_SECONDS,
+      });
+      console.log(
+        JSON.stringify({
+          event: "wc_schedule_openfootball_fallback",
+          matches: ofRes.matches.length,
+          espnError: matchesRes.error || "espn_schedule_empty",
+        }),
+      );
+    }
   }
 
   console.log(
@@ -102,8 +141,10 @@ export async function scrapeAndCacheWcStandingsAndFixtures() {
       kind: "standings_fixtures",
       groups: groupsPayload ? Object.keys(groupsPayload.groups).length : 0,
       matches: matchesPayload?.matches?.length ?? 0,
+      matchSource: matchesPayload?.source || null,
       standingsOk: standingsRes.ok,
-      matchesOk: matchesRes.ok,
+      matchesOk: Boolean(matchesPayload?.matches?.length),
+      scheduleValidationOk: matchesPayload?.scheduleValidation?.ok ?? null,
       error: standingsRes.error || matchesRes.error || null,
     }),
   );
@@ -154,6 +195,37 @@ export async function ensureWcScheduleInKv(nowMs = Date.now()) {
       lastUpdated: nowMs,
       source: "espn",
     };
+
+    const ofRes = await fetchOpenFootballWc2026Schedule();
+    if (ofRes.ok) {
+      const validation = validateEspnScheduleAgainstOpenFootball(espn.matches, ofRes.matches);
+      payload.scheduleValidation = {
+        ok: validation.ok,
+        matched: validation.matched,
+        mismatchCount: validation.mismatchCount,
+        espnGroupCount: validation.espnGroupCount,
+        openFootballGroupCount: validation.openFootballGroupCount,
+        checkedAt: nowMs,
+      };
+    }
+
+    await setDurableJson(WC_MATCHES_KV_KEY, payload, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+    return { ok: true, ...payload, cached: false };
+  }
+
+  const ofRes = await fetchOpenFootballWc2026Schedule();
+  if (ofRes.ok && ofRes.matches.length >= 50) {
+    const payload = {
+      matches: ofRes.matches,
+      lastUpdated: nowMs,
+      source: "openfootball",
+      scheduleValidation: {
+        ok: null,
+        fallback: true,
+        openFootballCount: ofRes.matches.length,
+        checkedAt: nowMs,
+      },
+    };
     await setDurableJson(WC_MATCHES_KV_KEY, payload, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
     return { ok: true, ...payload, cached: false };
   }
@@ -163,7 +235,7 @@ export async function ensureWcScheduleInKv(nowMs = Date.now()) {
     matches: existing,
     lastUpdated: kv?.lastUpdated ?? null,
     source: kv?.source || "none",
-    error: espn.error || "espn_schedule_empty",
+    error: espn.error || ofRes.error || "espn_schedule_empty",
     cached: Boolean(existing.length),
   };
 }

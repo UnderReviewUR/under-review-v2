@@ -2,6 +2,8 @@
  * World Cup odds freshness — shared contract for API, UR Take, and UI.
  */
 
+import { formatWcMarketsStatusChip } from "./wcProductVoice.js";
+
 export const WC_OUTRIGHTS_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 export const WC_MATCH_ML_MAX_AGE_MS = 30 * 60 * 1000;
 export const WC_MATCH_ML_RAMP_TIGHT_MAX_AGE_MS = 10 * 60 * 1000;
@@ -263,10 +265,7 @@ export function buildWcOutrightsFreshnessPromptBlock(kvOutrights, nowMs = Date.n
 /**
  * @param {{ stale?: boolean, freshness?: ReturnType<typeof calculateOddsFreshness>, lastUpdated?: number } | null | undefined} meta
  */
+/** @deprecated use formatWcMarketsStatusChip — never expose "stale" to users */
 export function formatWcOutrightsStaleChipLabel(meta) {
-  if (!meta) return null;
-  if (!meta.stale) return null;
-  const age = meta.freshness?.ageMinutes ?? meta.ageMinutes;
-  if (age != null) return `Outrights stale (${age} min old)`;
-  return "Outrights stale";
+  return formatWcMarketsStatusChip(meta);
 }

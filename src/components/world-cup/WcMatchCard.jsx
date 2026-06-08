@@ -13,7 +13,7 @@ import {
 import WcLiveScore from "./WcLiveScore.jsx";
 
 const WC_XI_HELP =
-  "ESPN lineup data refreshes every 90s near kickoff. Don't place starter props until this shows green.";
+  "Lineups lock in as kickoff approaches. Starter props unlock once this chip shows Starting XI locked.";
 
 function WcMatchXiTrust({ match }) {
   const xiStatus = resolveWcXiStatus(match);

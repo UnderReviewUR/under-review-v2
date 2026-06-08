@@ -6,6 +6,7 @@ import {
   resolveWcXiStatus,
   wcXiStatusChipLabel,
 } from "../../../shared/wcXiStatus.js";
+import { WC_MATCH_INTEL_BODY, WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
 
 function StatLine({ label, home, away }) {
   if (home == null && away == null) return null;
@@ -39,7 +40,6 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
   const [detail, setDetail] = useState(null);
   const [props, setProps] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const eventId = match?.id != null ? String(match.id).trim() : "";
   const home = getWcTeamByAbbr(match?.homeTeam);
@@ -49,7 +49,6 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
     if (!eventId) return;
     let cancel = false;
     setLoading(true);
-    setError(null);
     Promise.all([
       fetch(`/api/world-cup?view=detail&eventId=${encodeURIComponent(eventId)}`, {
         cache: "no-store",
@@ -62,10 +61,9 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
         if (cancel) return;
         setDetail(d);
         setProps(p);
-        if (!d?.ok) setError("Match intel not in feed yet.");
       })
       .catch(() => {
-        if (!cancel) setError("Could not load match detail.");
+        /* keep card-level intel */
       })
       .finally(() => {
         if (!cancel) setLoading(false);
@@ -80,6 +78,12 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
   const xiStatus = resolveWcXiStatus(detail?.ok ? detail : match);
   const asOf = formatWcDetailAsOfEt(detail?.lastUpdated || match?.lastUpdated);
   const markets = props?.markets || props?.goldenBoot?.markets || props?.event?.markets;
+  const hasStats = Boolean(detail?.teamStats);
+  const hasProps = Boolean(
+    markets?.anytime_scorer?.length ||
+      markets?.first_goalscorer?.length ||
+      markets?.player_assists_ou?.length,
+  );
 
   return (
     <div className="wc-detail-drawer-backdrop" role="presentation" onClick={onClose}>
@@ -100,16 +104,19 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
           {match.group ? ` · Group ${match.group}` : ""}
         </p>
         <p className="wc-detail-xi">
-          Lineups: {wcXiStatusChipLabel(xiStatus)}
-          {asOf ? ` · as of ${asOf}` : ""}
+          {wcXiStatusChipLabel(xiStatus)}
+          {asOf ? ` · ${asOf}` : ""}
         </p>
 
-        {loading ? <p className="wc-detail-loading">Loading match intel…</p> : null}
-        {error ? <p className="wc-detail-error">{error}</p> : null}
+        {loading ? <p className="wc-detail-loading">{WC_MATCH_INTEL_LOADING}</p> : null}
 
-        {!loading && detail?.teamStats ? (
+        {!loading && !hasStats && !hasProps ? (
+          <p className="wc-detail-muted">{WC_MATCH_INTEL_BODY}</p>
+        ) : null}
+
+        {!loading && hasStats ? (
           <section className="wc-detail-section">
-            <h4>Live / match stats (ESPN)</h4>
+            <h4>Match stats</h4>
             <StatLine
               label="Possession %"
               home={detail.teamStats.home?.possessionPct}
@@ -129,20 +136,16 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
         ) : null}
 
         {!loading && detail?.injuryCount > 0 ? (
-          <p className="wc-detail-injuries">{detail.injuryCount} injury rows in verified feed.</p>
+          <p className="wc-detail-injuries">{detail.injuryCount} availability notes on file.</p>
         ) : null}
 
-        {!loading && markets ? (
+        {!loading && hasProps ? (
           <section className="wc-detail-section">
-            <h4>Player props (cached books)</h4>
+            <h4>Player markets</h4>
             <PropList title="Anytime scorer" rows={markets.anytime_scorer} />
             <PropList title="First goalscorer" rows={markets.first_goalscorer} />
             <PropList title="Assists O/U" rows={markets.player_assists_ou} />
           </section>
-        ) : null}
-
-        {!loading && !markets?.anytime_scorer?.length ? (
-          <p className="wc-detail-muted">No match props cached for this fixture yet.</p>
         ) : null}
       </div>
     </div>

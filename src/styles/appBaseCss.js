@@ -1703,6 +1703,21 @@ export const baseCss = `
   .nav-btn.mlb-active::after{background:#1DB954;}
   .nav-btn.golf-active::after{background:#C8D4E0;}
   .nav-btn.nav-pro-on::after{background:#F5C842;}
+  .nav-btn.nav-btn--wc-spotlight{
+    color:rgba(245,158,11,0.92);
+    background:linear-gradient(180deg,rgba(245,158,11,0.14) 0%,rgba(245,158,11,0.06) 100%);
+    border:1px solid rgba(245,158,11,0.28);
+    border-radius:8px;
+    padding:6px 11px 8px;
+    margin:0 2px;
+    box-shadow:0 0 12px rgba(245,158,11,0.12);
+  }
+  .nav-btn.nav-btn--wc-spotlight.wc-active{
+    color:#FBBF24;
+    border-color:rgba(251,191,36,0.55);
+    background:linear-gradient(180deg,rgba(245,158,11,0.22) 0%,rgba(245,158,11,0.1) 100%);
+  }
+  .nav-btn.nav-btn--wc-spotlight::after{background:#F59E0B;}
   .bottom-nav .nav-btn--ur-take{
     background:rgba(0,245,233,0.08);
     border-radius:6px;
@@ -2122,6 +2137,7 @@ export const baseCss = `
   .wc-outright-fallback{color:#d97706;font-size:10px;font-weight:500;}
   .wc-data-health-chip{color:var(--muted);font-size:11px;margin:0 0 12px;padding:6px 10px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(255,255,255,.04);}
   .wc-outright-stale-banner{color:#d97706;font-size:11px;font-weight:600;margin:0 0 12px;padding:8px 10px;border:1px solid rgba(217,119,6,.35);border-radius:6px;background:rgba(217,119,6,.08);}
+  .wc-markets-chip{color:var(--wc-gold);font-size:11px;font-weight:600;margin:0 0 12px;padding:8px 10px;border:1px solid rgba(245,158,11,.28);border-radius:6px;background:rgba(245,158,11,.08);}
   .wc-bracket-note{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
   .wc-bracket-grid{display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;}
   .wc-bracket-col{flex:0 0 140px;display:flex;flex-direction:column;gap:8px;}
