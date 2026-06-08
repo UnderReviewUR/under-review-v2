@@ -139,6 +139,7 @@ export const WC_PREDICTIONS_ROUNDUP_PROMPT = `PREDICTIONS ROUNDUP (mandatory —
 - Never pick primary creators (Pedri, Rodri, Rice) for Top goalscorer — wrong role. Assist props only.
 - summary sentence 1 = tournament thesis naming your Winners pick (nation + path/squad angle).
 - summary sentence 2 = delta with numbers: Market +XXX · UR ~+YYY or sims % — when CURRENT OUTRIGHT ODDS are in VERIFIED CONTEXT you MUST cite Market +XXX exactly as listed (e.g. ESP +500 from context), not sims-only.
+- UR sim win % is structural only (Elo + Poisson, host boost) — no winner's slump, travel, or book sync; always cite Market +XXX first, then sim as UR model — never present sim % as market implied probability or Goldman/consensus alignment.
 - Card face WHY must list four picks in one line: Winners · Dark horse · Breakout · Top goalscorer (short names).
 - Never state a player's age unless PLAYER BIO in VERIFIED CONTEXT lists it (Yamal is 18 as of Jun 2026 — not 17).
 - WATCH FOR must name a player or nation — never orphan "him/her".
