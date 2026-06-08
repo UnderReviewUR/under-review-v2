@@ -28,6 +28,10 @@ import {
   parseWcPredictionSlots,
   WC_PREDICTIONS_ROUNDUP_QA_SUFFIX,
 } from "../shared/wcPredictionsRoundup.js";
+import {
+  detectWcScorerRoleMismatch,
+  wcRoundupInvalidSlotKeys,
+} from "../shared/wcScorerRoleQA.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -81,6 +85,7 @@ export function extractWcResponseBody(responseText, structured) {
  *   strengthTags?: Record<string, string>,
  *   playerMarketKv?: { goldenBoot?: object, players?: object, injuries?: object } | null,
  *   playerMarketTier?: string | null,
+ *   roundupPlayerKv?: { goldenBoot?: object, players?: object } | null,
  * }} opts
  */
 export function runWcUrTakeQA(opts = {}) {
@@ -90,6 +95,10 @@ export function runWcUrTakeQA(opts = {}) {
   const requiredEntities = (opts.requiredEntities || []).map((t) => String(t).toUpperCase());
   const forbiddenEntities = (opts.forbiddenEntities || []).map((t) => String(t).toUpperCase());
   const strengthTags = opts.strengthTags && typeof opts.strengthTags === "object" ? opts.strengthTags : {};
+  const registryTeams =
+    opts.playerMarketKv?.players?.teams ||
+    opts.roundupPlayerKv?.players?.teams ||
+    null;
 
   const headline = extractWcResponseHeadline(responseText, structured);
   const body = extractWcResponseBody(responseText, structured);
@@ -164,6 +173,38 @@ export function runWcUrTakeQA(opts = {}) {
     const missing = expected.filter((spec) => !have.has(spec.key));
     if (missing.length > 0) {
       issueCodes.push("wc_predictions_roundup_incomplete");
+    }
+
+    const invalidSlots = wcRoundupInvalidSlotKeys(slots || []);
+    if (invalidSlots.includes("topScorer")) {
+      issueCodes.push("wc_roundup_scorer_unnamed");
+    }
+    if (invalidSlots.includes("breakout")) {
+      issueCodes.push("wc_roundup_breakout_unnamed");
+    }
+    if (invalidSlots.includes("winners") || invalidSlots.includes("darkHorse")) {
+      issueCodes.push("wc_roundup_nation_unnamed");
+    }
+
+    const topScorerSlot = (slots || []).find((s) => s.key === "topScorer");
+    const roleMismatch = detectWcScorerRoleMismatch(body, {
+      topScorerSlotValue: topScorerSlot?.value,
+      playerRegistryTeams: registryTeams,
+    });
+    if (roleMismatch) {
+      issueCodes.push("wc_scorer_role_mismatch");
+    }
+  }
+
+  if (
+    wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
+    (isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.GOLDEN_BOOT || wcIntent === WC_INTENT.TOP_SCORER)
+  ) {
+    const roleMismatch = detectWcScorerRoleMismatch(body, {
+      playerRegistryTeams: registryTeams,
+    });
+    if (roleMismatch) {
+      issueCodes.push("wc_scorer_role_mismatch");
     }
   }
 
@@ -256,6 +297,10 @@ export function wcQaRequiresRegeneration(qaResult) {
       "headline_over_18_words",
       "missing_line_delta",
       "wc_predictions_roundup_incomplete",
+      "wc_roundup_scorer_unnamed",
+      "wc_roundup_breakout_unnamed",
+      "wc_roundup_nation_unnamed",
+      "wc_scorer_role_mismatch",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
     String(c).startsWith("wc_card_truncated_"),

@@ -4981,6 +4981,7 @@ You are responding to a Pro subscriber. Apply the following:
           forbiddenEntities: wcForbiddenEntities,
           strengthTags: wcStrengthTags,
           playerMarketKv: wcContext?.playerMarketKv,
+          roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
         });
         wcRelevanceLog.qaEntityMatch = wcPassQa.qaEntityMatch;
@@ -5489,6 +5490,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           forbiddenEntities: wcForbiddenEntities,
           strengthTags: wcStrengthTags,
           playerMarketKv: wcContext?.playerMarketKv,
+          roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
         });
         wcRelevanceLog.qaEntityMatch = wcQaResult.qaEntityMatch;
@@ -5640,6 +5642,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           forbiddenEntities: wcForbiddenEntities,
           strengthTags: wcStrengthTags,
           playerMarketKv: wcContext?.playerMarketKv,
+          roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
         });
         console.log(

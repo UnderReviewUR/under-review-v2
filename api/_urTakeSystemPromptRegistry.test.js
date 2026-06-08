@@ -351,3 +351,22 @@ test("buildBettingStyleAppendix('balanced') contains BALANCED", () => {
   const p = buildBettingStyleAppendix("balanced");
   assert.match(p, /BALANCED/);
 });
+
+test("composeRegisteredUrTakeSystemPrompt — worldcup prepends football core + card contract", () => {
+  const p = composeRegisteredUrTakeSystemPrompt({
+    contextQuality: "high",
+    sportHint: "worldcup",
+    chaseSignals: { isChase: false },
+    tennisSystemPromptExtra: "",
+    nbaDecisionMode: "none",
+    mlbDecisionMode: null,
+  });
+  const footballIdx = p.indexOf("FOOTBALL / WORLD CUP 2026 CORE PERSONA");
+  const frameworkIdx = p.indexOf("THE UNDERREVIEW RESPONSE FRAMEWORK");
+  const cardIdx = p.indexOf("WC CARD CONTRACT Option 1");
+  assert.ok(footballIdx >= 0);
+  assert.ok(footballIdx < frameworkIdx);
+  assert.ok(cardIdx > frameworkIdx);
+  assert.match(p, /WORLD CUP OVERRIDE/);
+  assert.match(p, /Never pick primary creators \(Pedri/);
+});

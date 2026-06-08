@@ -47,6 +47,9 @@
     },
     "api/scrape-scheduler.js": {
       "maxDuration": 300
+    },
+    "api/world-cup.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -73,6 +76,14 @@
     {
       "path": "/api/scrape-scheduler",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/world-cup?view=warmup&kind=all",
+      "schedule": "0 6,18 * * *"
+    },
+    {
+      "path": "/api/world-cup?view=warmup&kind=golden_boot",
+      "schedule": "0 7,19 * * *"
     }
   ]
 }

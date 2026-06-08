@@ -43,6 +43,8 @@ import {
   isWcPreKickoffPromoOnly,
 } from "../shared/wc2026PromoFixtures.js";
 import { attachMatchListOddsFreshness } from "../shared/wcOddsFreshness.js";
+import { isWcCronAuthorized } from "./_wcCronAuth.js";
+import { runWcWarmupBundle } from "./_wcWarmupBundle.js";
 
 const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
@@ -491,6 +493,15 @@ export default async function handler(req, res) {
   }
 
   try {
+
+    if (view === "warmup") {
+      if (!isWcCronAuthorized(req)) {
+        return res.status(401).json({ error: "unauthorized" });
+      }
+      const kind = String(req.query?.kind || "all");
+      const payload = await runWcWarmupBundle(kind);
+      return res.status(200).json(payload);
+    }
 
     if (view === "groups") {
       const payload = await getGroupsPayload();

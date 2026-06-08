@@ -47,6 +47,13 @@ import {
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
 import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
+import {
+  buildAdjustedGoldenBootPromptBlock,
+  shouldInjectAdjustedGoldenBoot,
+} from "../shared/wcAdjustedGoldenBootInject.js";
+import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
+import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
+import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -608,8 +615,17 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   if (ctx.tournamentSimBlock) {
     lines.push("", ctx.tournamentSimBlock);
     lines.push(
-      "  Use TOURNAMENT SIMULATION win/advance % for structural probability questions; cite book prices from CURRENT OUTRIGHT ODDS when available — do not invent either.",
+      "  TOURNAMENT SIMULATION is UR internal model output (Poisson + Elo) — not market consensus. Label as sims when citing win %.",
+      "  Cite book prices from CURRENT OUTRIGHT ODDS when available — do not invent either.",
     );
+  }
+
+  if (ctx.adjustedGoldenBootBlock) {
+    lines.push("", ctx.adjustedGoldenBootBlock);
+  }
+
+  if (ctx.playerMarketPromptBlock) {
+    lines.push("", ctx.playerMarketPromptBlock);
   }
 
   lines.push(
@@ -686,6 +702,13 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const injectStaticRules =
     opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
+
+  try {
+    await maybeWarmWcUrTakeKv(nowMs);
+  } catch (warmErr) {
+    console.warn("[wc-context] lazy warm failed:", warmErr?.message);
+  }
+
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
     loadWorldCupGroupsPayload().catch((err) => {
       console.warn("[wc-context] loadWorldCupGroupsPayload failed:", err?.message);
@@ -782,6 +805,26 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     console.warn("[wc-context] tournament sim resolve failed:", simErr?.message);
   }
 
+  let adjustedGoldenBootBlock = null;
+  let roundupPlayerKv = null;
+  if (shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
+    try {
+      const [goldenBootKv, playersKv] = await Promise.all([
+        readWcGoldenBootFromKv(nowMs),
+        readWcPlayersFromKv(),
+      ]);
+      roundupPlayerKv = { goldenBoot: goldenBootKv, players: playersKv };
+      adjustedGoldenBootBlock = buildAdjustedGoldenBootPromptBlock({
+        goldenBootKv,
+        playersKv,
+        tournamentSimResults,
+        maxRows: 10,
+      });
+    } catch (adjErr) {
+      console.warn("[wc-context] adjusted Golden Boot block failed:", adjErr?.message);
+    }
+  }
+
   const ctx = {
     source: "world_cup_2026",
     tournament: "2026 FIFA World Cup",
@@ -808,6 +851,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     outrightsBlock,
     tournamentSimBlock,
     tournamentSimResults,
+    adjustedGoldenBootBlock,
+    roundupPlayerKv,
     lastUpdated: Math.max(
       Number(groupsPayload?.lastUpdated) || 0,
       Number(matchesPayload?.lastUpdated) || 0,

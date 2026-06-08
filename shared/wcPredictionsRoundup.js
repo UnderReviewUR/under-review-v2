@@ -134,7 +134,9 @@ export const WC_PREDICTIONS_ROUNDUP_PROMPT = `PREDICTIONS ROUNDUP (mandatory —
   Winners: [nation] — thesis in one sentence.
   Dark horse: [nation] — thesis in one sentence.
   Breakout player: [player name] — thesis in one sentence.
-  Top goalscorer: [player name] — thesis + cited odds if in VERIFIED CONTEXT.
+  Top goalscorer: [player full name] — thesis + cited odds if in VERIFIED CONTEXT.
+- Top goalscorer MUST name one player (e.g. Mbappé, Haaland, Yamal). Never a vague category ("midfielder hybrid", "board not posted"). If Golden Boot odds are absent, write: "Top goalscorer: Pass until boards post — structurally [Name] tier."
+- Never pick primary creators (Pedri, Rodri, Rice) for Top goalscorer — wrong role. Assist props only.
 - summary sentence 1 = overall tournament framing (not a single-player Golden Boot lead).
 - summary sentence 2 = structural delta (sims %, path, or market vs UR) spanning the roundup.
 - End deep with WATCH FOR (what breaks the board) and one PLAY line (best single bet from the roundup OR Pass if no edge).
@@ -145,4 +147,6 @@ export const WC_PREDICTIONS_ROUNDUP_QA_SUFFIX = `
 PREDICTIONS ROUNDUP QA (mandatory — prior answer skipped labeled slots):
 - User asked for multiple picks (Winners / Dark horse / Breakout / Top goalscorer). You must label EVERY slot they requested.
 - deep must include lines starting with "Winners:", "Dark horse:", "Breakout player:", "Top goalscorer:" (complete sentences).
+- Top goalscorer line MUST include a player full name — never "board not posted" or "midfielder hybrid" without naming someone.
+- Never pick Pedri, Rodri, or other primary creators for Top goalscorer — use Mbappé, Haaland, Yamal, Kane, Vinícius tier instead.
 - Do NOT route the entire answer as a Golden Boot / single-scorer take.`;
