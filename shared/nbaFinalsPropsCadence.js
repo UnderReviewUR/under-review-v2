@@ -14,8 +14,8 @@ const MS_HOUR = 60 * MS_MIN;
 /** Scheduler interval for live Finals prop scrapes. */
 export const NBA_FINALS_LIVE_PROPS_INTERVAL_MS = 10 * MS_MIN;
 
-/** Keep refreshing props from tip through ~first half (wall-clock buffer). */
-export const NBA_FINALS_FIRST_HALF_WINDOW_MS = 2.5 * MS_HOUR;
+/** Keep refreshing props from tip through end of regulation (+OT buffer). */
+export const NBA_FINALS_LIVE_GAME_WINDOW_MS = 4.5 * MS_HOUR;
 
 /**
  * Pregame ramp for Finals — does not stop at T < 5m; continues every 10m through first half after tip.
@@ -27,7 +27,7 @@ export function getNbaFinalsPregamePropsScrapeDelayMs(gameStartMs, nowMs = Date.
   const T = msUntilGameStart(gameStartMs, nowMs);
   if (!Number.isFinite(T)) return null;
 
-  if (T < 0 && T > -NBA_FINALS_FIRST_HALF_WINDOW_MS) {
+  if (T < 0 && T > -NBA_FINALS_LIVE_GAME_WINDOW_MS) {
     return NBA_FINALS_LIVE_PROPS_INTERVAL_MS;
   }
 
@@ -52,10 +52,8 @@ export function getNbaFinalsPregamePropsScrapeDelayMs(gameStartMs, nowMs = Date.
 export function shouldScrapeNbaFinalsLiveProps(game, gameStartMs, nowMs = Date.now()) {
   if (!nbaGameIsLiveOrHalftimeForRefresh(game)) return false;
   const period = Number(game?.period);
-  if (Number.isFinite(period) && period > 2) return false;
-
   const T = msUntilGameStart(gameStartMs, nowMs);
   if (!Number.isFinite(T)) return true;
-  if (T < 0 && T > -NBA_FINALS_FIRST_HALF_WINDOW_MS) return true;
+  if (T < 0 && T > -NBA_FINALS_LIVE_GAME_WINDOW_MS) return true;
   return false;
 }

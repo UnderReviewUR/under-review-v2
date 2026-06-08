@@ -19,6 +19,11 @@ import { getOddsApiCircuitState, isOddsApiDisabled } from "../shared/oddsApiCirc
 import { buildGameTotalsFromSlate, hydrateNbaGameSpreads } from "./_gameOddsPipeline.js";
 import { hydrateNbaPropsOdds } from "./_nbaProps.js";
 import {
+  buildNbaH2hSplitsForSlate,
+  buildNbaRecentFormFromH2h,
+} from "./_nbaH2hSplits.js";
+import { buildNbaStartersByGameForSlate } from "./_nbaEspnStarters.js";
+import {
   getEtDateString,
   getTomorrowEtDateString,
   enrichSlateGamesWithActionNetworkEventIds,
@@ -1421,6 +1426,12 @@ function compressNbaBoardForWire(board) {
   board.playerStats = slimStats;
   board.playoffSeries = slimPlayoffSeriesForBoard(board.playoffSeries || []);
   board.propLines = (board.propLines || []).slice(0, 80);
+  if (Array.isArray(board.h2hSplits)) {
+    board.h2hSplits = board.h2hSplits.slice(0, 3).map((row) => ({
+      ...row,
+      meetings: Array.isArray(row.meetings) ? row.meetings.slice(-4) : [],
+    }));
+  }
   if (board.propsOdds && typeof board.propsOdds === "object") {
     const players = Array.isArray(board.propsOdds.players) ? board.propsOdds.players : [];
     board.propsOdds = {
@@ -3415,10 +3426,13 @@ export async function buildNbaUrTakeBoard(question = "") {
     depthRotationByTeam,
   });
 
-  const [{ spreads, movementByGame }, gameTotals] = await Promise.all([
+  const [{ spreads, movementByGame }, gameTotals, h2hSplits, startersByGame] = await Promise.all([
     hydrateNbaGameSpreads(todaysGames, ODDS_KEY),
     resolveGameTotalsForBoard(todaysGames, ODDS_KEY),
+    buildNbaH2hSplitsForSlate(todaysGames, playoffSeries),
+    buildNbaStartersByGameForSlate(todaysGames, playerStatsWithRecent),
   ]);
+  const recentForm = buildNbaRecentFormFromH2h(h2hSplits);
 
   const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
   const deepHydratedTeams = [
@@ -3452,8 +3466,9 @@ export async function buildNbaUrTakeBoard(question = "") {
     propLines: propLines.slice(0, 120),
     propFeedMeta,
     playoffSeries,
-    recentForm: "",
-    h2hSplits: [],
+    recentForm,
+    h2hSplits,
+    startersByGame,
     gameTotals,
     spreads,
     spreadMovementByGame: movementByGame,
@@ -3723,11 +3738,18 @@ export default async function handler(req, res) {
         statsBundle.statsSource || "season_average",
       );
 
-      const [{ spreads: warmupSpreads, movementByGame: warmupMovement }, warmupGameTotals] =
-        await Promise.all([
-          hydrateNbaGameSpreads(todaysGames, ODDS_KEY),
-          resolveGameTotalsForBoard(todaysGames, ODDS_KEY),
-        ]);
+      const [
+        { spreads: warmupSpreads, movementByGame: warmupMovement },
+        warmupGameTotals,
+        h2hSplits,
+        startersByGame,
+      ] = await Promise.all([
+        hydrateNbaGameSpreads(todaysGames, ODDS_KEY),
+        resolveGameTotalsForBoard(todaysGames, ODDS_KEY),
+        buildNbaH2hSplitsForSlate(todaysGames, playoffSeries),
+        buildNbaStartersByGameForSlate(todaysGames, playerStatsWithRecent),
+      ]);
+      const recentForm = buildNbaRecentFormFromH2h(h2hSplits);
 
       const effectiveFocusSet = new Set(effectiveFocusAbbrevs);
       const deepHydratedTeams = [
@@ -3770,8 +3792,9 @@ export default async function handler(req, res) {
         propLines: propLines.slice(0, 120),
         propFeedMeta,
         playoffSeries,
-        recentForm: "",
-        h2hSplits: [],
+        recentForm,
+        h2hSplits,
+        startersByGame,
         gameTotals: warmupGameTotals,
         spreads: warmupSpreads,
         spreadMovementByGame: warmupMovement,

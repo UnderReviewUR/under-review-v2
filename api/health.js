@@ -2,6 +2,7 @@
 import { applyCors, applyApiNoStoreHeaders } from "./_cors.js";
 import { isAccessTokenSecretConfigured } from "./_env.js";
 import { buildWcHealthSnapshot } from "./_wcHealth.js";
+import { buildNbaHealthSnapshot } from "./_nbaHealth.js";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
@@ -12,7 +13,9 @@ export default async function handler(req, res) {
   }
 
   const includeWc = String(req.query?.wc || "") === "1";
+  const includeNba = String(req.query?.nba || "") === "1";
   let wc = null;
+  let nba = null;
   if (includeWc) {
     try {
       wc = await buildWcHealthSnapshot();
@@ -20,11 +23,23 @@ export default async function handler(req, res) {
       wc = { ok: false, error: err?.message || "wc_health_failed" };
     }
   }
+  if (includeNba) {
+    try {
+      nba = await buildNbaHealthSnapshot();
+    } catch (err) {
+      nba = { ok: false, error: err?.message || "nba_health_failed" };
+    }
+  }
+
+  let ok = true;
+  if (wc && wc.ok === false) ok = false;
+  if (nba && nba.ok === false) ok = false;
 
   return res.status(200).json({
-    ok: wc ? wc.ok !== false : true,
+    ok,
     vercelEnv: process.env.VERCEL_ENV ?? null,
     accessTokenSecretConfigured: isAccessTokenSecretConfigured(),
     wc,
+    nba,
   });
 }

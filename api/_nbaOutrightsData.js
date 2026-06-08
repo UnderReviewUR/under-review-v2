@@ -81,6 +81,14 @@ export async function scrapeAndCacheNbaFinalsOutrights() {
     mvpWritten = true;
   }
 
+  if (!mvpWritten) {
+    const espnRetry = await fetchEspnNbaFutures();
+    if (espnRetry.ok && espnRetry.mvpCandidates.length) {
+      await writeMvpKv(espnRetry.mvpCandidates, "espn_retry", nowMs);
+      mvpWritten = true;
+    }
+  }
+
   if (!seriesWritten) {
     const oddsApi = await fetchOddsApiNbaChampionshipOutrights();
     if (oddsApi.ok && Object.keys(oddsApi.series).length) {

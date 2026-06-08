@@ -1,6 +1,7 @@
 import {
   NBA_PROPS_BOOK_IDS,
   NBA_PROPS_MARKET_TYPE_MAP,
+  NBA_PROPS_WIRE_MARKETS,
 } from "../shared/nbaPropsConstants.js";
 
 /**
@@ -127,7 +128,7 @@ export function parseActionNetworkGameProps(playerProps, playersById, gameId) {
     players,
     playerCount: players.length,
     hasPostedLines: players.some((p) =>
-      ["points", "rebounds", "assists"].some((m) => {
+      NBA_PROPS_WIRE_MARKETS.some((m) => {
         const block = p.props?.[m];
         return block && (block.over || block.under);
       }),
@@ -141,7 +142,7 @@ export function parseActionNetworkGameProps(playerProps, playersById, gameId) {
  * @param {Record<string, unknown>} playersById
  * @param {number} playerId
  * @param {Record<string, unknown>} row
- * @param {"points" | "rebounds" | "assists"} market
+ * @param {string} market
  * @param {number} gameId
  */
 function mergeRow(byPlayer, playersById, playerId, row, market, gameId) {

@@ -1,4 +1,4 @@
-import { NBA_PROPS_BOOK_IDS } from "./nbaPropsConstants.js";
+import { NBA_PROPS_BOOK_IDS, NBA_PROPS_WIRE_MARKETS } from "./nbaPropsConstants.js";
 
 /** @type {Record<number, string>} */
 export const NBA_PROPS_BOOK_LABELS = {
@@ -79,7 +79,7 @@ export function buildConsensusPropsForWire(propsPlayer) {
   if (!props || typeof props !== "object") return null;
 
   const out = {};
-  for (const market of ["points", "rebounds", "assists"]) {
+  for (const market of NBA_PROPS_WIRE_MARKETS) {
     const row = formatConsensusMarket(props[market]);
     if (row) out[market] = row;
   }

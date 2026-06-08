@@ -2,9 +2,9 @@ export const NBA_PROPS_STALE_MS = 30 * 60 * 1000;
 export const NBA_PROPS_NEAR_TIP_TTL_MS = 10 * 60 * 1000;
 export const NBA_PROPS_NEAR_TIP_WINDOW_MS = 2 * 60 * 60 * 1000;
 /** Live Finals games — refresh KV more often (Phase 3). */
-export const NBA_PROPS_LIVE_TTL_MS = 12 * 60 * 1000;
+export const NBA_PROPS_LIVE_TTL_MS = 8 * 60 * 1000;
 /** UR Take must not cite American prop prices older than this during live games. */
-export const NBA_PROPS_LIVE_STALE_MS = 15 * 60 * 1000;
+export const NBA_PROPS_LIVE_STALE_MS = 25 * 60 * 1000;
 
 /**
  * @param {number} [nowMs]

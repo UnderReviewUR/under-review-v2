@@ -16,6 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: NBA Game 3 probe (offline board)
+        run: node scripts/probe-nba-game3.mjs
       - run: npm run eval:wc-golden:handler
       - run: npm run verify:wc-outrights
       - name: WC prompt drift check

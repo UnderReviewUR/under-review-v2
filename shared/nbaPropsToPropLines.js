@@ -2,11 +2,14 @@
  * Bridge Action Network propsOdds → Odds-API-shaped propLines for invalidation + prompts.
  */
 import { nbaPropsBookLabel } from "./nbaPropsBoardDisplay.js";
+import { NBA_PROPS_WIRE_MARKETS } from "./nbaPropsConstants.js";
 
 const MARKET_LABELS = {
   points: "points",
   rebounds: "rebounds",
   assists: "assists",
+  pra: "points rebounds assists",
+  threes: "threes",
 };
 
 /**
@@ -90,7 +93,8 @@ export function propsOddsToPropLines(propsOdds, opts = {}) {
     if (!fullName) continue;
     const teamAbbr = resolveNbaTeamAbbrFromPlayerName(fullName, chips);
 
-    for (const [market, label] of Object.entries(MARKET_LABELS)) {
+    for (const market of NBA_PROPS_WIRE_MARKETS) {
+      const label = MARKET_LABELS[market] || market;
       const block = p?.props?.[market];
       if (!block || typeof block !== "object") continue;
       for (const side of ["over", "under"]) {

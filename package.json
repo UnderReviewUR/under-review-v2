@@ -24,6 +24,7 @@
     "warm:golf-odds": "node scripts/warm-golf-odds-cache.mjs",
     "warm:nba-props": "node scripts/warm-nba-props-cache.mjs",
     "probe:nba-sources": "node scripts/probe-nba-data-sources.mjs",
+    "probe:nba-game3": "node scripts/probe-nba-game3.mjs",
     "warm:nba-finals": "node scripts/warm-nba-finals-board.mjs --direct",
     "warm:f1-odds": "node scripts/warm-f1-odds-cache.mjs --direct",
     "warm:wc": "node scripts/warm-wc.mjs",
