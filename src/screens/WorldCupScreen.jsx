@@ -67,7 +67,7 @@ export default function WorldCupScreen({
   onOpenWcXiNotice = null,
 }) {
   const [mainTab, setMainTab] = useState("matches");
-  const [matchSubTab, setMatchSubTab] = useState("today");
+  const [matchSubTab, setMatchSubTab] = useState("upcoming");
   const [highlightEventId, setHighlightEventId] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [expandedGroup, setExpandedGroup] = useState(null);
@@ -87,15 +87,6 @@ export default function WorldCupScreen({
   }, [wcScreenNav, onWcScreenNavConsumed]);
 
   useEffect(() => {
-    const liveCount = Array.isArray(liveMatches) ? liveMatches.length : 0;
-    const prev = prevLiveCountRef.current;
-    if (!matchSubTabUserPickedRef.current && liveCount > 0 && prev === 0) {
-      setMatchSubTab("live");
-    }
-    prevLiveCountRef.current = liveCount;
-  }, [liveMatches]);
-
-  useEffect(() => {
     if (!highlightEventId || wcLoading) return;
     const id = `wc-match-${highlightEventId}`;
     const t = window.setTimeout(() => {
@@ -110,19 +101,26 @@ export default function WorldCupScreen({
     () => (matches || []).filter((m) => m.date === today),
     [matches, today],
   );
+
+  useEffect(() => {
+    const liveCount = Array.isArray(liveMatches) ? liveMatches.length : 0;
+    const prev = prevLiveCountRef.current;
+    if (!matchSubTabUserPickedRef.current) {
+      if (liveCount > 0 && prev === 0) {
+        setMatchSubTab("live");
+      } else if (liveCount === 0) {
+        setMatchSubTab((cur) =>
+          cur === "live" ? (todayMatches.length > 0 ? "today" : "upcoming") : cur,
+        );
+      }
+    }
+    prevLiveCountRef.current = liveCount;
+  }, [liveMatches, todayMatches.length]);
+
   const resultsMatches = useMemo(
     () => (matches || []).filter((m) => isFinished(m.status)).slice(-20).reverse(),
     [matches],
   );
-
-  const tournamentProgress = useMemo(() => {
-    const all = Array.isArray(matches) ? matches : [];
-    const total = all.length || 104;
-    const completed = all.filter((m) => isFinished(m.status)).length;
-    const pct = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
-    const dayLabel = completed < total ? completed + 1 : total;
-    return { total, completed, pct, dayLabel };
-  }, [matches]);
 
   const featuredMatch = useMemo(() => {
     if (liveMatches.length > 0) {
@@ -401,27 +399,14 @@ export default function WorldCupScreen({
     >
       <header className="wc-header">
         <div className="wc-title-row">
-          <span className="wc-host-flags" aria-hidden>
-            🇺🇸 🇲🇽 🇨🇦
-          </span>
-          <h1 className="wc-title">WORLD CUP 2026</h1>
+          <h1 className="wc-title">
+            <span className="wc-host-flags" aria-hidden="true">
+              {"\u{1F1FA}\u{1F1F8} \u{1F1F2}\u{1F1FD} \u{1F1E8}\u{1F1E6}"}
+            </span>{" "}
+            WORLD CUP 2026
+          </h1>
         </div>
         <p className="wc-subtitle">{headerSubtitle}</p>
-        {!wcLoading && tournamentProgress.total > 0 ? (
-          <div className="wc-matchday-bar">
-            <div className="wc-matchday-label">
-              <span>
-                Match {tournamentProgress.dayLabel} of {tournamentProgress.total}
-              </span>
-              <span>{tournamentProgress.completed} completed</span>
-            </div>
-            <div className="wc-matchday-track" aria-hidden>
-              <div className="wc-matchday-fill" style={{ width: `${tournamentProgress.pct}%` }} />
-            </div>
-          </div>
-        ) : (
-          <p className="wc-dates">June 11 — July 19, 2026</p>
-        )}
       </header>
 
       {wcXiConfirmedNotice ? (
@@ -435,20 +420,23 @@ export default function WorldCupScreen({
       {!wcLoading && featuredMatch ? (
         <button
           type="button"
-          className={`wc-featured-strip${featuredMatch.kind === "live" ? " wc-featured-strip--live" : ""}`}
+          className="wc-featured-strip"
           onClick={() => openMatchDrawer(featuredMatch.match)}
         >
-          <div className="wc-featured-kicker">{featuredMatch.kicker}</div>
-          <div className="wc-featured-matchup">
-            {featuredMatch.match.homeTeam} vs {featuredMatch.match.awayTeam}
-          </div>
-          <div className="wc-featured-meta">
-            {featuredMatch.kind === "live" || isLiveStatus(featuredMatch.match.status)
-              ? "In progress"
-              : formatWcKickoffDisplay(featuredMatch.match)}
-            {featuredMatch.match.group ? ` · Group ${featuredMatch.match.group}` : ""}
-            {" · Tap for match intel →"}
-          </div>
+          <span className="wc-featured-strip-accent" aria-hidden="true" />
+          <span className="wc-featured-strip-body">
+            <div className="wc-featured-kicker">{featuredMatch.kicker}</div>
+            <div className="wc-featured-matchup">
+              {featuredMatch.match.homeTeam} vs {featuredMatch.match.awayTeam}
+            </div>
+            <div className="wc-featured-meta">
+              {featuredMatch.kind === "live" || isLiveStatus(featuredMatch.match.status)
+                ? "In progress"
+                : formatWcKickoffDisplay(featuredMatch.match)}
+              {featuredMatch.match.group ? ` · Group ${featuredMatch.match.group}` : ""}
+              {" · Tap for match intel →"}
+            </div>
+          </span>
         </button>
       ) : null}
 
@@ -490,10 +478,6 @@ export default function WorldCupScreen({
 
       {wcMsgs.length === 0 ? (
         <div className="wc-ask-shell" ref={wcBarRef}>
-          <div className="wc-ask-label">Ask Anything — World Cup</div>
-          <p className="wc-ask-hint">
-            Plain question in — verdict first out. Player props when XIs are confirmed.
-          </p>
           <AskBar
             inputRef={wcInputRef}
             value={wcInput}
