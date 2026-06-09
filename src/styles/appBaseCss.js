@@ -1872,8 +1872,8 @@ export const baseCss = `
   .wc-screen{padding-top:4px;}
   .wc-header{margin-bottom:14px;}
   .wc-title-row{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 10px;}
-  .wc-title{font-family:var(--display-font);font-size:28px;letter-spacing:2px;color:var(--wc-gold);line-height:1.2;margin:0;text-align:center;}
-  .wc-host-flags{font-size:22px;letter-spacing:4px;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;}
+  .wc-title{font-family:var(--display-font);font-size:28px;letter-spacing:2px;color:var(--wc-gold);line-height:1.2;margin:0;text-align:center;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;}
+  .wc-host-flags{display:inline-flex;align-items:center;gap:6px;line-height:1;}
   .wc-subtitle{font-size:13px;color:var(--soft);margin-top:6px;text-align:center;}
   .wc-dates{font-size:11px;color:var(--muted);font-family:var(--mono-font);margin-top:2px;text-align:center;}
   .wc-featured-strip{

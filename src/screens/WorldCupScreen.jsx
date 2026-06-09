@@ -21,6 +21,12 @@ import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
 
+const WC_HOST_FLAGS = [
+  { code: "us", label: "United States" },
+  { code: "mx", label: "Mexico" },
+  { code: "ca", label: "Canada" },
+];
+
 function todayEt() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
@@ -401,8 +407,18 @@ export default function WorldCupScreen({
         <div className="wc-title-row">
           <h1 className="wc-title">
             <span className="wc-host-flags" aria-hidden="true">
-              {"\u{1F1FA}\u{1F1F8} \u{1F1F2}\u{1F1FD} \u{1F1E8}\u{1F1E6}"}
-            </span>{" "}
+              {WC_HOST_FLAGS.map(({ code }) => (
+                <img
+                  key={code}
+                  src={`https://flagcdn.com/w40/${code}.png`}
+                  alt=""
+                  width={28}
+                  height={19}
+                  loading="lazy"
+                  className="wc-flag-sm"
+                />
+              ))}
+            </span>
             WORLD CUP 2026
           </h1>
         </div>
