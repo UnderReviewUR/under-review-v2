@@ -44,6 +44,7 @@ import {
   formatLiveMatchChanceQualityPromptBlock,
   formatMatchChanceQualityPromptBlock,
 } from "../shared/wcMatchChanceQuality.js";
+import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
 import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
@@ -524,6 +525,14 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("WC BREAKING (manual override — treat as authoritative over stale feed):", `  ${breaking}`, "");
   }
 
+  const usmntMedia = buildWcUsmntMediaContextBlock(
+    ctx.questionText || "",
+    ctx.requiredEntities || [],
+  );
+  if (usmntMedia) {
+    lines.push(usmntMedia, "");
+  }
+
   const groupLetters = Object.keys(groupsForPrompt).sort();
   if (groupLetters.length) {
     lines.push(
@@ -868,6 +877,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   const ctx = {
     source: "world_cup_2026",
+    questionText: question,
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",

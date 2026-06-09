@@ -2245,6 +2245,29 @@ export const baseCss = `
   .wc-screen--premium .wc-ask-btn,
   .wc-screen--premium .wc-group-expand{color:var(--wc-premium-accent);}
   .wc-screen--premium .wc-empty{color:var(--wc-premium-muted);}
+  /* Docked UR Take: chat pane must fill viewport — premium hero/tabs live inside scroll */
+  .app.has-docked main.screen.wc-screen--docked-chat.wc-screen--premium{
+    padding:0;
+  }
+  .wc-docked-context-bar{
+    flex-shrink:0;
+    margin:0;
+    padding:8px 16px 6px;
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--wc-premium-muted, #8A8478);
+    border-bottom:1px solid rgba(196,165,116,0.12);
+  }
+  .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll.wc-chat-scroll{
+    flex:1 1 auto;
+    min-height:0;
+  }
+  .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll .wc-main-tabs--premium{
+    margin-top:12px;
+    margin-bottom:10px;
+  }
   .wc-match-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;}
   .wc-match-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
   .wc-detail-btn{

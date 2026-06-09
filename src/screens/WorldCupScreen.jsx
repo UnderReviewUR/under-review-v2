@@ -409,116 +409,127 @@ export default function WorldCupScreen({
     featuredInsight?.text ||
     null;
 
+  const wcMainTabs = (
+    <div className="wc-main-tabs wc-main-tabs--premium" role="tablist">
+      {[
+        ["matches", "Matches"],
+        ["groups", "Standings"],
+        ["teams", "Teams"],
+        ["bracket", "Bracket"],
+      ].map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={mainTab === key}
+          className={`wc-main-tab${mainTab === key ? " wc-main-tab--on" : ""}`}
+          onClick={() => {
+            setMainTab(key);
+            setSelectedTeam(null);
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <main
       ref={wcScreenRef}
-      className={`screen wc-screen wc-screen--premium${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}
+      className={`screen wc-screen wc-screen--premium${urDockedChat ? " has-msgs screen--ur-chat wc-screen--docked-chat" : hasDockedBar ? " has-msgs" : ""}`}
     >
-      <header className="wc-header wc-header-premium">
-        <span className="wc-header-premium__trophy" aria-hidden="true" />
-        <span className="wc-header-premium__diamond" aria-hidden="true" />
-        <p className="wc-header-premium__tagline">{WC_PREMIUM_TAGLINE}</p>
-        <h1 className="wc-header-premium__title">World Cup 2026</h1>
-        <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>
-      </header>
-
-      {wcXiConfirmedNotice ? (
-        <WcXiConfirmedHomeBanner
-          notice={wcXiConfirmedNotice}
-          onOpenMatch={onOpenWcXiNotice}
-          onDismiss={onDismissWcXiNotice}
-        />
-      ) : null}
-
-      {!wcLoading && featuredMatch ? (
-        <WcPremiumFeaturedMatch
-          match={featuredMatch.match}
-          kicker={featuredMatch.kicker}
-          teams={teams}
-          onOpen={() => openMatchDrawer(featuredMatch.match)}
-          xiTrustLine="Starting XIs only when confirmed — see status on every match."
-        />
-      ) : null}
-
-      {wcMsgs.length === 0 ? (
-        <div className="wc-ask-shell wc-ask-shell--premium" ref={wcBarRef}>
-          <AskBar
-            inputRef={wcInputRef}
-            value={wcInput}
-            onChange={setWcInput}
-            onSubmit={() => submitWc()}
-            placeholder="Ask anything about the World Cup"
-            btnColor="var(--wc-premium-accent)"
-            {...askBarCommon}
-          />
-        </div>
-      ) : null}
-
-      <div className="wc-main-tabs wc-main-tabs--premium" role="tablist">
-        {[
-          ["matches", "Matches"],
-          ["groups", "Standings"],
-          ["teams", "Teams"],
-          ["bracket", "Bracket"],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={mainTab === key}
-            className={`wc-main-tab${mainTab === key ? " wc-main-tab--on" : ""}`}
-            onClick={() => {
-              setMainTab(key);
-              setSelectedTeam(null);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {!urDockedChat && !wcLoading && featuredInsightSnippet ? (
-        <section className="wc-featured-insights" aria-label="Featured insights">
-          <div className="wc-featured-insights__head">
-            <h2 className="wc-featured-insights__title">Featured Insights</h2>
-            {featuredInsight?.prompt ? (
-              <button
-                type="button"
-                className="wc-featured-insights__all"
-                onClick={() => submitWc(featuredInsight.prompt)}
-              >
-                Ask →
-              </button>
-            ) : null}
-          </div>
-          <p className="wc-featured-insights__body">{featuredInsightSnippet}</p>
-          {wcQuickPrompts.length > 0 ? (
-            <div className="wc-quick-prompts wc-quick-prompts--premium">
-              {wcQuickPrompts.slice(0, 2).map((q) => (
-                <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
       {urDockedChat ? (
-        <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
-          <ChatThread {...chatThreadProps} variant="urChatDocked" />
-          {onSaveLastUrTake ? (
-            <AskUrTakeRetentionStrip
-              askMsgs={wcMsgs}
-              onSaveTake={onSaveLastUrTake}
-              savedTakes={savedTakes}
-              onOpenSavedTake={onOpenSavedTake}
+        <>
+          <p className="wc-docked-context-bar">World Cup · UR Take</p>
+          <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
+            <div className="ur-chat-thread-anchor" aria-hidden="true" />
+            <ChatThread {...chatThreadProps} variant="urChatDocked" />
+            {onSaveLastUrTake ? (
+              <AskUrTakeRetentionStrip
+                askMsgs={wcMsgs}
+                onSaveTake={onSaveLastUrTake}
+                savedTakes={savedTakes}
+                onOpenSavedTake={onOpenSavedTake}
+              />
+            ) : null}
+            {wcMainTabs}
+            {wcBrowseBelow}
+          </div>
+        </>
+      ) : (
+        <>
+          <header className="wc-header wc-header-premium">
+            <span className="wc-header-premium__trophy" aria-hidden="true" />
+            <span className="wc-header-premium__diamond" aria-hidden="true" />
+            <p className="wc-header-premium__tagline">{WC_PREMIUM_TAGLINE}</p>
+            <h1 className="wc-header-premium__title">World Cup 2026</h1>
+            <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>
+          </header>
+
+          {wcXiConfirmedNotice ? (
+            <WcXiConfirmedHomeBanner
+              notice={wcXiConfirmedNotice}
+              onOpenMatch={onOpenWcXiNotice}
+              onDismiss={onDismissWcXiNotice}
             />
           ) : null}
+
+          {!wcLoading && featuredMatch ? (
+            <WcPremiumFeaturedMatch
+              match={featuredMatch.match}
+              kicker={featuredMatch.kicker}
+              teams={teams}
+              onOpen={() => openMatchDrawer(featuredMatch.match)}
+              xiTrustLine="Starting XIs only when confirmed — see status on every match."
+            />
+          ) : null}
+
+          {wcMsgs.length === 0 ? (
+            <div className="wc-ask-shell wc-ask-shell--premium" ref={wcBarRef}>
+              <AskBar
+                inputRef={wcInputRef}
+                value={wcInput}
+                onChange={setWcInput}
+                onSubmit={() => submitWc()}
+                placeholder="Ask anything about the World Cup"
+                btnColor="var(--wc-premium-accent)"
+                {...askBarCommon}
+              />
+            </div>
+          ) : null}
+
+          {wcMainTabs}
+
+          {!wcLoading && featuredInsightSnippet ? (
+            <section className="wc-featured-insights" aria-label="Featured insights">
+              <div className="wc-featured-insights__head">
+                <h2 className="wc-featured-insights__title">Featured Insights</h2>
+                {featuredInsight?.prompt ? (
+                  <button
+                    type="button"
+                    className="wc-featured-insights__all"
+                    onClick={() => submitWc(featuredInsight.prompt)}
+                  >
+                    Ask →
+                  </button>
+                ) : null}
+              </div>
+              <p className="wc-featured-insights__body">{featuredInsightSnippet}</p>
+              {wcQuickPrompts.length > 0 ? (
+                <div className="wc-quick-prompts wc-quick-prompts--premium">
+                  {wcQuickPrompts.slice(0, 2).map((q) => (
+                    <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
           {wcBrowseBelow}
-        </div>
-      ) : (
-        wcBrowseBelow
+        </>
       )}
 
       {detailMatch ? (
