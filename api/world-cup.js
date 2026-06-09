@@ -66,6 +66,16 @@ import {
   readWcBdlGoatSeedFromKv,
   scrapeAndCacheWcBdlGoatSeed,
 } from "./_wcBdlSeed.js";
+import {
+  buildWcGoatProbeReport,
+  getGoatGroupsPayload,
+  getGoatMatchesPayload,
+  getGoatOutrightsPayload,
+  wantsGoatSource,
+  wantsEspnSource,
+} from "./_wcBdlGoatMode.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { WC_BDL_REFERENCE_KV_KEY, scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
 
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
 const MATCHES_TTL = WC_MATCHES_TTL_SECONDS;
@@ -135,8 +145,30 @@ function buildStaticGroupsPayload() {
   };
 }
 
-export async function getGroupsPayload() {
+/**
+ * @param {{ preferGoat?: boolean }} [opts]
+ */
+export async function getGroupsPayload(opts = {}) {
+  const preferGoat = opts.preferGoat ?? (isWcGoatPrimaryEnabled() && !opts.preferEspn);
   const kv = await readWcGroupsFromKv(GROUPS_TTL * 1000);
+
+  if (preferGoat && kv?.source === "balldontlie" && kv?.groups && Object.keys(kv.groups).length >= 12 && !kv.stale) {
+    return {
+      groups: kv.groups,
+      lastUpdated: kv.lastUpdated,
+      source: "balldontlie",
+      fallback: false,
+      stale: false,
+    };
+  }
+
+  if (preferGoat) {
+    const goat = await getGoatGroupsPayload();
+    if (goat.ok && goat.groups && Object.keys(goat.groups).length) {
+      return goat;
+    }
+  }
+
   if (kv?.groups && Object.keys(kv.groups).length >= 12 && !kv.stale) {
     return {
       groups: kv.groups,
@@ -202,8 +234,20 @@ export async function getGroupsPayload() {
   };
 }
 
-export async function getMatchesPayload() {
+/**
+ * @param {{ preferGoat?: boolean }} [opts]
+ */
+export async function getMatchesPayload(opts = {}) {
   const nowMs = Date.now();
+  const preferGoat = opts.preferGoat ?? (isWcGoatPrimaryEnabled() && !opts.preferEspn);
+
+  if (preferGoat) {
+    const goat = await getGoatMatchesPayload();
+    if (goat.ok && goat.matches?.length) {
+      const matches = attachMatchListOddsFreshness(goat.matches, goat.lastUpdated, nowMs);
+      return { ...goat, matches };
+    }
+  }
   let kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
   let kvRealCount = (kv?.matches || []).filter(
     (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
@@ -315,7 +359,18 @@ export async function getMatchesPayload() {
   return ensureWcPublicMatches({ matches: buildStaticPromoMatchesFallback(nowMs) }, nowMs);
 }
 
-export async function getOutrightsPayload() {
+/**
+ * @param {{ preferGoat?: boolean }} [opts]
+ */
+export async function getOutrightsPayload(opts = {}) {
+  const preferGoat = opts.preferGoat ?? (isWcGoatPrimaryEnabled() && !opts.preferEspn);
+  if (preferGoat) {
+    const goat = await getGoatOutrightsPayload();
+    if (goat.ok && goat.outrights && Object.keys(goat.outrights).length) {
+      return ensureWcPublicOutrights(goat);
+    }
+  }
+
   let kv = await readWcOutrightsFromKv();
   const tier = String(kv?.sourceTier || "").toLowerCase();
   const rawOutrights = kv?.outrights && typeof kv.outrights === "object" ? kv.outrights : {};
@@ -453,31 +508,50 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    const preferGoat = wantsGoatSource(req) && !wantsEspnSource(req);
+    const preferEspn = wantsEspnSource(req);
+
+    if (view === "goat" || view === "goat_probe" || view === "goat-probe") {
+      const throttle = String(req.query?.fast || "") !== "1";
+      const report = await buildWcGoatProbeReport({
+        sampleTeam: req.query?.team || "USA",
+        sampleQuestion: req.query?.question,
+        throttle,
+      });
+      return res.status(report.ok ? 200 : 502).json(report);
+    }
+
     if (view === "groups") {
-      const payload = ensureWcPublicGroups(await getGroupsPayload());
-      return res.status(200).json(payload);
+      const payload = ensureWcPublicGroups(await getGroupsPayload({ preferGoat, preferEspn }));
+      return res.status(200).json({ ...payload, dataSource: preferGoat ? "goat" : "default" });
     }
 
     if (view === "matches") {
-      const payload = await getMatchesPayload();
+      const payload = await getMatchesPayload({ preferGoat, preferEspn });
       const hydrated = await hydrateWcPublicMatchesIfEmpty(payload, Date.now());
       const matches = await enrichMatchesWithDetailMeta(hydrated.matches || []);
       const dataHealth = await getWcClientDataHealth();
       return res.status(200).json(
-        sanitizeWcPublicPayload({ ...hydrated, matches, dataHealth }, "matches"),
+        sanitizeWcPublicPayload(
+          { ...hydrated, matches, dataHealth, dataSource: preferGoat ? "goat" : "default" },
+          "matches",
+        ),
       );
     }
 
     if (view === "outrights") {
-      if (isWcTournamentWindow()) {
+      if (!preferGoat && isWcTournamentWindow()) {
         await ensureWcOutrightsInKv().catch(() => {});
       }
-      const payload = await getOutrightsPayload();
-      return res.status(200).json(payload);
+      const payload = await getOutrightsPayload({ preferGoat, preferEspn });
+      return res.status(200).json({ ...payload, dataSource: preferGoat ? "goat" : "default" });
     }
 
     if (view === "upcoming") {
-      const payload = await hydrateWcPublicMatchesIfEmpty(await getMatchesPayload(), Date.now());
+      const payload = await hydrateWcPublicMatchesIfEmpty(
+        await getMatchesPayload({ preferGoat, preferEspn }),
+        Date.now(),
+      );
       const now = Date.now();
       const upcomingRaw = (payload.matches || [])
         .filter((m) => isScheduled(m.status) && (m.commenceTs == null || m.commenceTs >= now - 86400000))
@@ -495,7 +569,10 @@ export default async function handler(req, res) {
     }
 
     if (view === "live") {
-      const payload = await hydrateWcPublicMatchesIfEmpty(await getMatchesPayload(), Date.now());
+      const payload = await hydrateWcPublicMatchesIfEmpty(
+        await getMatchesPayload({ preferGoat, preferEspn }),
+        Date.now(),
+      );
       const liveRaw = (payload.matches || []).filter((m) => isLiveStatus(m.status));
       const live = await enrichMatchesWithDetailMeta(liveRaw);
       return res.status(200).json(
@@ -520,11 +597,17 @@ export default async function handler(req, res) {
 
     if (view === "context") {
       const [groupsPayload, matchesPayload] = await Promise.all([
-        getGroupsPayload(),
-        getMatchesPayload(),
+        getGroupsPayload({ preferGoat, preferEspn }),
+        getMatchesPayload({ preferGoat, preferEspn }),
       ]);
       const context = buildContextText(groupsPayload, matchesPayload);
-      return res.status(200).json({ context, chars: context.length });
+      return res.status(200).json({
+        context,
+        chars: context.length,
+        dataSource: preferGoat ? "goat" : "default",
+        groupsSource: groupsPayload?.source,
+        matchesSource: matchesPayload?.source,
+      });
     }
 
     if (view === "players") {
@@ -631,6 +714,18 @@ export default async function handler(req, res) {
       });
     }
 
+    if (view === "bdl_reference" || view === "bdl-reference") {
+      if (String(req.query?.refresh || "") === "1") {
+        if (!isWcCronAuthorized(req)) {
+          return res.status(401).json({ error: "unauthorized" });
+        }
+        const refreshed = await scrapeAndCacheWcBdlReferenceCatalog();
+        return res.status(refreshed.ok ? 200 : 502).json(refreshed);
+      }
+      const cached = await getDurableJson(WC_BDL_REFERENCE_KV_KEY);
+      return res.status(200).json({ ok: Boolean(cached), ...(cached || {}) });
+    }
+
     if (view === "match_player_props" || view === "match-player-props") {
       const eventId = req.query?.eventId ?? req.query?.id;
       if (String(req.query?.refresh || "") === "1" && eventId) {
@@ -647,7 +742,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, sim, api_football, bdl_seed, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, goat, players, golden_boot, injuries, sim, api_football, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

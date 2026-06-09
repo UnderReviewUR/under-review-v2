@@ -38,6 +38,8 @@ import {
   fetchOpenFootballWc2026Schedule,
   validateEspnScheduleAgainstOpenFootball,
 } from "../shared/wcOpenFootballSchedule.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { scrapeAndCacheWcBdlStandingsAndFixtures } from "./_wcBdlData.js";
 
 /** Max parallel KV reads when enriching match lists for /api/world-cup. */
 export const WC_MATCH_DETAIL_ENRICH_CONCURRENCY = 12;
@@ -50,6 +52,34 @@ export { buildStaticGroupsFallback } from "../shared/wcStaticGroupsFallback.js";
  * Cron: ESPN standings + full fixture slate → KV.
  */
 export async function scrapeAndCacheWcStandingsAndFixtures() {
+  if (isWcGoatPrimaryEnabled()) {
+    const bdl = await scrapeAndCacheWcBdlStandingsAndFixtures();
+    if (bdl.ok) {
+      console.log(
+        JSON.stringify({
+          event: "wc_standings_bdl_primary",
+          groupsCount: bdl.groupsCount,
+          matchesCount: bdl.matchesCount,
+        }),
+      );
+      return {
+        ok: true,
+        groupsPayload: {
+          groups: (await getDurableJson(WC_GROUPS_KV_KEY))?.groups,
+          lastUpdated: bdl.lastUpdated,
+          source: "balldontlie",
+        },
+        matchesPayload: {
+          matches: (await getDurableJson(WC_MATCHES_KV_KEY))?.matches,
+          lastUpdated: bdl.lastUpdated,
+          source: "balldontlie",
+        },
+        source: "balldontlie",
+      };
+    }
+    console.warn("[wc-data] BDL primary failed, falling back to ESPN:", bdl.errors?.join("; "));
+  }
+
   const nowMs = Date.now();
   const [standingsRes, matchesRes] = await Promise.all([
     fetchEspnStandings(),
@@ -248,6 +278,37 @@ export async function ensureWcScheduleInKv(nowMs = Date.now()) {
  */
 export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
   const id = String(eventId);
+
+  if (isWcGoatPrimaryEnabled()) {
+    try {
+      const { scrapeAndCacheWcBdlMatchBundle } = await import("./_wcBdlData.js");
+      const bdl = await scrapeAndCacheWcBdlMatchBundle(id, meta);
+      if (bdl.ok) {
+        if (bdl.finalized) {
+          try {
+            const { refreshWcTournamentSimAfterFt } = await import("./_wcTournamentSimData.js");
+            await refreshWcTournamentSimAfterFt();
+          } catch {
+            /* non-fatal */
+          }
+          try {
+            const detail = await readWcMatchDetailFromKv(id);
+            if (detail) {
+              const { cacheWcMatchAdvancedStatsFromDetail } = await import("./_wcMatchAdvancedStats.js");
+              await cacheWcMatchAdvancedStatsFromDetail(detail);
+            }
+          } catch {
+            /* non-fatal */
+          }
+        }
+        return bdl;
+      }
+      console.warn(`[wc-match-bundle] BDL failed for ${id}, ESPN fallback:`, bdl.error);
+    } catch (bdlErr) {
+      console.warn(`[wc-match-bundle] BDL error for ${id}:`, bdlErr?.message);
+    }
+  }
+
   const nowMs = Date.now();
   const cached = await getDurableJson(WC_MATCHES_KV_KEY);
   const matches = Array.isArray(cached?.matches) ? [...cached.matches] : [];
@@ -476,6 +537,20 @@ async function writeWcOutrightsKv(outrights, source, nowMs = Date.now(), meta = 
  */
 export async function scrapeAndCacheWcOutrights() {
   const nowMs = Date.now();
+
+  if (isWcGoatPrimaryEnabled()) {
+    try {
+      const { scrapeAndCacheWcBdlOutrights } = await import("./_wcBdlData.js");
+      const bdl = await scrapeAndCacheWcBdlOutrights();
+      if (bdl.ok) {
+        return { ok: true, ...bdl, sourceTier: "balldontlie_live" };
+      }
+      console.warn("[wc-outrights] BDL primary failed, ESPN/scrape fallback:", bdl.error);
+    } catch (bdlErr) {
+      console.warn("[wc-outrights] BDL error:", bdlErr?.message);
+    }
+  }
+
   const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
 
   const [espn, oddsApi, aggregators] = await Promise.all([
@@ -702,7 +777,24 @@ export async function getWcMatchDetailPayload(eventId) {
     return { ok: false, error: "missing_event_id" };
   }
 
-  const detail = await readWcMatchDetailFromKv(id);
+  let detail = await readWcMatchDetailFromKv(id);
+  if (!detail && isWcGoatPrimaryEnabled()) {
+    try {
+      const { scrapeAndCacheWcBdlMatchBundle } = await import("./_wcBdlData.js");
+      const cached = await getDurableJson(WC_MATCHES_KV_KEY);
+      const match = (cached?.matches || []).find((m) => String(m?.id) === id);
+      await scrapeAndCacheWcBdlMatchBundle(id, {
+        homeTeam: match?.homeTeam,
+        awayTeam: match?.awayTeam,
+        date: match?.date,
+        bdlMatchId: match?.bdlMatchId,
+      });
+      detail = await readWcMatchDetailFromKv(id);
+    } catch {
+      /* ESPN fallback via scheduler */
+    }
+  }
+
   if (!detail) {
     return { ok: false, eventId: id, error: "no_detail", ...buildMatchDetailMeta(null) };
   }
@@ -710,9 +802,21 @@ export async function getWcMatchDetailPayload(eventId) {
   const meta = buildMatchDetailMeta(detail);
   const th = detail.teamStats?.home;
   const ta = detail.teamStats?.away;
+  const bdlGoat = detail.bdlGoat
+    ? {
+        hasShots: Boolean(detail.bdlGoat.shots),
+        hasMomentum: Boolean(detail.bdlGoat.momentum),
+        hasBestPlayers: Boolean(detail.bdlGoat.bestPlayers),
+        hasAvgPositions: Boolean(detail.bdlGoat.avgPositions),
+        hasTeamForm: Boolean(detail.bdlGoat.teamForm),
+        xgSummary: detail.bdlGoat.xgSummary || null,
+      }
+    : null;
   return {
     ok: true,
     eventId: id,
+    source: detail.source || "espn",
+    bdlGoat,
     homeTeam: detail.homeTeam,
     awayTeam: detail.awayTeam,
     status: detail.status,

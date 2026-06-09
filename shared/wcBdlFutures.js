@@ -150,12 +150,14 @@ export function buildWcBdlFuturesPromptBlock(seedPayload, question, entities = [
       : null;
 
   const lines = [
-    "BDL FUTURES SEED (BallDontLie GOAT trial snapshot — DraftKings/FanDuel via BDL, NOT live refresh):",
+    seedPayload?.source === "balldontlie_live"
+      ? "BDL FUTURES LIVE (BallDontLie GOAT — DraftKings/FanDuel via BDL, refreshed this request):"
+      : "BDL FUTURES SEED (BallDontLie GOAT trial snapshot — DraftKings/FanDuel via BDL, NOT live refresh):",
     "  Use these for knockout-reach / group-advance / tournament-winner prices when market type matches the question.",
     "  CURRENT OUTRIGHT ODDS above is ESPN/scrape tournament-winner only — do NOT use it for Round of 16 reach.",
   ];
 
-  if (ageDays != null) {
+  if (seedPayload?.source !== "balldontlie_live" && ageDays != null) {
     lines.push(`  Seeded ${ageDays === 0 ? "today" : `${ageDays}d ago`} — label as reference snapshot, not live book.`);
   }
 

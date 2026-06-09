@@ -13,6 +13,8 @@ import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
 import { scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import { scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { scrapeAndCacheWcApiFootball } from "./_wcApiFootballData.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { scrapeAndCacheWcBdlStandingsAndFixtures, scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
 
 /**
  * @param {string} [kind] — all | golden_boot | sim | outrights | standings | players
@@ -35,6 +37,16 @@ export async function runWcWarmupBundle(kind = "all", nowMs = Date.now()) {
   if (k === "all" || k === "standings") {
     await run("standings", () => scrapeAndCacheWcStandingsAndFixtures());
   }
+  if ((k === "all" || k === "bdl") && isWcGoatPrimaryEnabled()) {
+    await run("bdl_core", () => scrapeAndCacheWcBdlStandingsAndFixtures());
+    await run("bdl_reference", () => scrapeAndCacheWcBdlReferenceCatalog());
+  }
+  if (k === "all" || k === "players") {
+    if (isWcGoatPrimaryEnabled()) {
+      await run("bdl_players", () => scrapeAndCacheWcBdlReferenceCatalog());
+    }
+    await run("players", () => scrapeAndCacheWcPlayers());
+  }
   if (k === "all" || k === "outrights") {
     await run("outrights", () => scrapeAndCacheWcOutrights());
   }
@@ -43,9 +55,6 @@ export async function runWcWarmupBundle(kind = "all", nowMs = Date.now()) {
   }
   if (k === "all" || k === "sim" || k === "tournament_sim") {
     await run("tournament_sim", () => scrapeAndCacheWcTournamentSim({ nowMs }));
-  }
-  if (k === "all" || k === "players") {
-    await run("players", () => scrapeAndCacheWcPlayers());
   }
   if (k === "all" || k === "injuries") {
     await run("injuries", () => scrapeAndCacheWcInjuries());

@@ -28,6 +28,8 @@ import {
 } from "../shared/wcMatchPlayerProps.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlayerPropsSeed.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { resolveBdlMatchIdForEvent, scrapeAndCacheWcBdlMatchPlayerProps } from "./_wcBdlData.js";
 
 const MIN_ANYTIME_ROWS = 3;
 const MIN_ANYTIME_ROWS_PER_BOOK = 2;
@@ -195,6 +197,16 @@ function mergeMatchPropsWithSeed(markets, eventId) {
 export async function scrapeAndCacheWcMatchPlayerProps(eventId, meta = {}) {
   const id = String(eventId);
   const nowMs = Date.now();
+
+  if (isWcGoatPrimaryEnabled()) {
+    const bdlMatchId = await resolveBdlMatchIdForEvent(id, meta);
+    if (bdlMatchId != null) {
+      const bdl = await scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, id, meta);
+      if (bdl.ok) return bdl;
+      console.warn(`[wc-match-props] BDL failed for ${id}, scrape fallback:`, bdl.error);
+    }
+  }
+
   const scrapeMeta = {
     eventId: id,
     homeTeam: meta.homeTeam,

@@ -44,10 +44,14 @@ import {
   formatLiveMatchChanceQualityPromptBlock,
   formatMatchChanceQualityPromptBlock,
 } from "../shared/wcMatchChanceQuality.js";
+import { formatBdlGoatMatchIntelPromptBlock } from "../shared/wcBdlMatchIntel.js";
 import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js";
 import { buildWcAdvancementMarketPromptBlock } from "../shared/wcAdvancementMarket.js";
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
+import { getGoatFuturesLiveIndex } from "./_wcBdlGoatMode.js";
+import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
 import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
@@ -351,10 +355,13 @@ function formatMatchIntelBlock(detail) {
   const id = detail.eventId || "unknown";
   const lineupConfirmed = detail.lineupConfirmed === true;
   const asOf = formatVerifiedAsOf(detail.lastUpdated);
+  const isBdl = detail.source === "balldontlie" || detail.truthLayer === "balldontlie_goat";
+  const feedLabel = isBdl ? "BallDontLie GOAT" : "ESPN summary";
+  const truthLayer = isBdl ? "balldontlie_goat" : "espn_summary";
   const lines = [
     `MATCH INTEL (event ${id}) — ${detail.homeTeam} vs ${detail.awayTeam}`,
     `Status: ${detail.status}${detail.homeScore != null ? ` · Score ${detail.homeScore}-${detail.awayScore}` : ""}${detail.venue ? ` · ${detail.venue}` : ""}`,
-    `  Verified feed: ESPN summary · truth_layer: espn_summary · lineupConfirmed: ${lineupConfirmed ? "yes" : "no"} · as of ${asOf}`,
+    `  Verified feed: ${feedLabel} · truth_layer: ${truthLayer} · lineupConfirmed: ${lineupConfirmed ? "yes" : "no"} · as of ${asOf}`,
   ];
 
   const lineupOpts = { lineupConfirmed, lastUpdated: detail.lastUpdated };
@@ -387,6 +394,8 @@ function formatMatchIntelBlock(detail) {
       if (p.yellowCards) bits.push(`${p.yellowCards} yellow`);
       if (p.redCards) bits.push(`${p.redCards} red`);
       if (p.minutesPlayed != null) bits.push(`${p.minutesPlayed} min`);
+      if (p.xg != null && p.xg > 0) bits.push(`xG ${p.xg}`);
+      if (p.rating != null) bits.push(`rating ${p.rating}`);
       if (bits.length) statLines.push(`  ${abbr} ${p.name}: ${bits.join(", ")}`);
     }
   }
@@ -397,8 +406,17 @@ function formatMatchIntelBlock(detail) {
 
   if (Array.isArray(detail.goals) && detail.goals.length) {
     lines.push(
-      `  Goals: ${detail.goals.map((g) => `${g.scorer}${g.assist ? ` (ast ${g.assist})` : ""} ${g.minute || ""}`).join(" · ")}`,
+      `  Goals: ${detail.goals.map((g) => `${g.scorer}${g.assist ? ` (ast ${g.assist})` : ""} ${g.minute != null ? `${g.minute}'` : ""}`).join(" · ")}`,
     );
+  }
+
+  const bdlBlock = formatBdlGoatMatchIntelPromptBlock(
+    detail.bdlGoat,
+    detail.homeTeam,
+    detail.awayTeam,
+  );
+  if (bdlBlock) {
+    lines.push("", bdlBlock);
   }
 
   const apiLiveBlock = formatApiFootballLivePlayersPromptBlock(
@@ -413,6 +431,14 @@ function formatMatchIntelBlock(detail) {
   const advBlock = formatMatchChanceQualityPromptBlock(detail.advancedStats);
   if (advBlock) {
     lines.push("", advBlock);
+  } else if (detail.bdlGoat?.xgSummary && String(detail.status || "").toUpperCase() === "FT") {
+    const xg = detail.bdlGoat.xgSummary;
+    lines.push(
+      "",
+      "POST-MATCH xG (BDL shot map):",
+      `  ${detail.homeTeam} xG ${xg.home} · ${detail.awayTeam} xG ${xg.away}`,
+      "  Cite these BDL shot-map xG totals — do not invent Opta.",
+    );
   } else if (String(detail.status || "").toUpperCase() === "FT") {
     lines.push(
       "",
@@ -711,19 +737,25 @@ export function formatWcRulesOnlyPromptBlock(ctx) {
  * @returns {Promise<object|null>}
  */
 async function loadWorldCupGroupsPayload() {
-  const cached = await getDurableJson("wc2026_groups");
-  if (cached?.groups && Object.keys(cached.groups).length && isKvFresh(cached.lastUpdated, WC_GROUPS_TTL_MS)) {
-    return cached;
+  const preferGoat = isWcGoatPrimaryEnabled();
+  if (!preferGoat) {
+    const cached = await getDurableJson("wc2026_groups");
+    if (cached?.groups && Object.keys(cached.groups).length && isKvFresh(cached.lastUpdated, WC_GROUPS_TTL_MS)) {
+      return cached;
+    }
   }
-  return getGroupsPayload();
+  return getGroupsPayload({ preferGoat });
 }
 
 async function loadWorldCupMatchesPayload() {
-  const cached = await getDurableJson("wc2026_matches");
-  if (cached?.matches?.length && isKvFresh(cached.lastUpdated, WC_MATCHES_TTL_MS)) {
-    return cached;
+  const preferGoat = isWcGoatPrimaryEnabled();
+  if (!preferGoat) {
+    const cached = await getDurableJson("wc2026_matches");
+    if (cached?.matches?.length && isKvFresh(cached.lastUpdated, WC_MATCHES_TTL_MS)) {
+      return cached;
+    }
   }
-  return getMatchesPayload();
+  return getMatchesPayload({ preferGoat });
 }
 
 /**
@@ -899,12 +931,35 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   let bdlFuturesBlock = null;
   try {
-    const bdlSeed = await readWcBdlGoatSeedFromKv(nowMs);
-    if (bdlSeed?.byMarketType && Object.keys(bdlSeed.byMarketType).length) {
-      bdlFuturesBlock = buildWcBdlFuturesPromptBlock(bdlSeed, question, mentionedTeams, nowMs);
+    if (isWcGoatPrimaryEnabled()) {
+      const kvFutures = await readBdlLiveFuturesFromKv(nowMs);
+      if (kvFutures?.byMarketType) {
+        bdlFuturesBlock = buildWcBdlFuturesPromptBlock(kvFutures, question, mentionedTeams, nowMs);
+      } else {
+        const liveFutures = await getGoatFuturesLiveIndex();
+        if (liveFutures.ok && liveFutures.byMarketType) {
+          bdlFuturesBlock = buildWcBdlFuturesPromptBlock(
+            {
+              byMarketType: liveFutures.byMarketType,
+              lastUpdated: liveFutures.lastUpdated,
+              seededAt: liveFutures.lastUpdated,
+              source: "balldontlie_live",
+            },
+            question,
+            mentionedTeams,
+            nowMs,
+          );
+        }
+      }
+    }
+    if (!bdlFuturesBlock) {
+      const bdlSeed = await readWcBdlGoatSeedFromKv(nowMs);
+      if (bdlSeed?.byMarketType && Object.keys(bdlSeed.byMarketType).length) {
+        bdlFuturesBlock = buildWcBdlFuturesPromptBlock(bdlSeed, question, mentionedTeams, nowMs);
+      }
     }
   } catch (bdlErr) {
-    console.warn("[wc-context] BDL seed read failed:", bdlErr?.message);
+    console.warn("[wc-context] BDL futures block failed:", bdlErr?.message);
   }
 
   const ctx = {
