@@ -25,6 +25,21 @@ export function buildWcTakeStatGrid(opts = {}) {
   const ct = String(opts.callType || "single").toLowerCase();
   const play = formatWcPlaySlot(opts.lean);
 
+  if (ct === "advancement") {
+    const slotLine =
+      lineVal ||
+      formatWcPlaySlot(opts.call) ||
+      formatWcPlaySlot(opts.lean) ||
+      "See breakdown";
+    return {
+      mode: "advancement",
+      slots: [
+        { key: "ln", label: "Line", value: slotLine, highlight: true },
+        { key: "c", label: "Confidence", value: conf, highlight: false },
+      ],
+    };
+  }
+
   if (ct === "predictions_roundup") {
     const slotLine = lineVal || "Tap breakdown for full board";
     return {
@@ -91,10 +106,22 @@ export function pickWcThePlayLine(opts = {}) {
   const headline = String(opts.headline || "").trim();
   const lean = String(opts.lean || "").trim();
   const call = String(opts.call || "").trim();
+  const lineSlot = String(opts.lineSlot || "").trim();
+  const ct = String(opts.callType || "").toLowerCase();
+
+  if (ct === "advancement") {
+    if (lineSlot) return "";
+    const play = formatWcPlaySlot(call) || formatWcPlaySlot(lean);
+    if (play && normLine(play) !== normLine(headline)) return play;
+    return "";
+  }
+
   if (lean && lean !== "—" && normLine(lean) !== normLine(headline) && lean.length >= 8) {
+    if (lineSlot && normLine(lean) === normLine(lineSlot)) return "";
     return lean;
   }
   if (call && call !== "—" && normLine(call) !== normLine(headline) && call.length > headline.length + 4) {
+    if (lineSlot && normLine(call) === normLine(lineSlot)) return "";
     return call;
   }
   return "";

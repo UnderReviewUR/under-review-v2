@@ -4549,6 +4549,7 @@ Confidence guidance:
         : isWcAdvancementMarketIntent
           ? `- Return JSON per OUTPUT CONTRACT: summary = fair-price read on the specific knockout-reach market asked (150 words max); deep = full reasoning (no word limit).
 - Sentence one must answer whether the cited team reaches the asked round — name the team and verdict (Pass / lean / fair).
+- **Summary sentence 2 (maps to structured \`line\`) — mandatory format:** "Pass at [American odds] — sim [X]% vs market ~[Y]%." Use BDL FUTURES SEED price for the asked market (e.g. R16 -130), NOT tournament winner outright. Example: "Pass at -130 — sim 15% vs market ~57%."
 - Follow ADVANCEMENT MARKET BINDING and SIM STAT BINDING in VERIFIED CONTEXT — cite r16Pct for Round of 16, advancePct only for group escape.
 - Do NOT cite CURRENT OUTRIGHT ODDS (tournament winner) as the price for Round of 16 or group-advance markets.
 - SportsLine / editorial R16 prices (e.g. USA Reach Round of 16 -115) are narrative corroboration only — label as editorial.

@@ -24,6 +24,7 @@ import {
   getWcMatchPlayerPropsPayload,
   scrapeAndCacheWcMatchPlayerProps,
 } from "./_wcMatchPlayerProps.js";
+import { fetchWcApiFootball } from "./_wcApiFootball.js";
 import {
   readWcApiFootballFromKv,
   scrapeAndCacheWcApiFootball,
@@ -36,7 +37,7 @@ import {
 import { verifyWcPlayerMarketsAdminAuth } from "../shared/wcBookScrapePolicy.js";
 import { WC_API_FOOTBALL_KV_KEY } from "../shared/wc2026PlayerConstants.js";
 import { wcApiFootballQuotaState } from "../shared/wcApiFootballQuota.js";
-import { isWcApiFootballEnabled } from "../shared/wcApiFootballPolicy.js";
+import { getWcApiFootballKey, isWcApiFootballEnabled } from "../shared/wcApiFootballPolicy.js";
 import {
   isWcHomePromoWindow,
   isWcTournamentWindow,
@@ -573,6 +574,23 @@ export default async function handler(req, res) {
     }
 
     if (view === "api_football" || view === "api-football") {
+      if (String(req.query?.probe || "") === "1") {
+        const keyPresent = Boolean(getWcApiFootballKey()?.trim());
+        const status = await fetchWcApiFootball("/status");
+        const cached = await readWcApiFootballFromKv();
+        return res.status(200).json({
+          ok: status.ok,
+          probe: true,
+          enabled: isWcApiFootballEnabled(),
+          keyPresent,
+          statusEndpoint: status,
+          kvQuota: cached?.quota ?? null,
+          fixtureLinkedCount: cached?.fixtureMap?.linkedCount ?? 0,
+          hint: status.ok
+            ? "Key works — dashboard Requests used should increment after this call."
+            : "Check API_FOOTBALL_KEY matches My Access on api-sports.io",
+        });
+      }
       if (String(req.query?.refresh || "") === "1") {
         await scrapeAndCacheWcApiFootball();
       }

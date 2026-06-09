@@ -40,6 +40,31 @@ test("pickWcThePlayLine prefers lean when distinct from headline", () => {
   assert.match(play, /Lean: Brazil/);
 });
 
+test("pickWcThePlayLine hides duplicate play for advancement when line slot set", () => {
+  const line =
+    "Pass at current odds; the group path is tight and knockout advancement requires both escaping Group D.";
+  assert.equal(
+    pickWcThePlayLine({
+      callType: "advancement",
+      headline: "USA reaches Round of 16 in roughly 15% of sims",
+      lean: line,
+      call: line,
+      lineSlot: line,
+    }),
+    "",
+  );
+});
+
+test("buildWcTakeStatGrid advancement uses structured line", () => {
+  const grid = buildWcTakeStatGrid({
+    callType: "advancement",
+    call: "USA R16 reach mispriced",
+    line: "Pass at -130 — sim 15% vs market 57%.",
+    confidence: "Medium",
+  });
+  assert.equal(grid.slots[0].value, "Pass at -130 — sim 15% vs market 57%.");
+});
+
 test("wcCardSectionText drops empty placeholders", () => {
   assert.equal(wcCardSectionText("—"), "");
   assert.equal(wcCardSectionText("Watch the left channel"), "Watch the left channel");

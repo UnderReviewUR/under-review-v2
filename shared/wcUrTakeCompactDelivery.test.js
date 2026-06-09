@@ -72,6 +72,22 @@ test("buildWcCompactStructured — crazy prediction synthesizes lean from odds d
   assert.doesNotMatch(s.lean, /No play yet/i);
 });
 
+test("buildWcCompactStructured — advancement R16 uses callType advancement and delta line", () => {
+  const s = buildWcCompactStructured({
+    question: "Will the USMNT reach the Round of 16?",
+    wcIntent: WC_INTENT.ENTITY_PRICING,
+    summary:
+      "USA reaches Round of 16 in roughly 15% of tournament sims — well below the -130 market price. Pass at -130 — sim 15% vs market ~57%.",
+    deep:
+      "USA r16Pct 14.58% vs FanDuel -130 (BDL futures seed). Group D path is tight. Watch for Paraguay opener form.",
+    structuredSeed: { callType: "advancement" },
+  });
+  assert.equal(s.callType, "advancement");
+  assert.match(s.line, /-130/);
+  assert.match(s.line, /15%/);
+  assert.match(s.line, /57%/);
+});
+
 test("formatWcCompactDisplayText — no section headers", () => {
   const text = formatWcCompactDisplayText(
     {

@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   classifyWcAdvancementMarket,
   formatSimResultsForPrompt,
+  formatWcAdvancementMarketContextLine,
   getWcAdvancementMarketContextLabel,
+  getWcAdvancementMarketContextSuffix,
   isWcAdvancementMarketQuestion,
   simPctForAdvancementMarket,
   WC_ADVANCEMENT_MARKET,
@@ -76,6 +78,14 @@ test("getWcAdvancementMarketContextLabel returns Round of 16", () => {
     getWcAdvancementMarketContextLabel("Will the USMNT reach the Round of 16?"),
     "Round of 16",
   );
+});
+
+test("formatWcAdvancementMarketContextLine uses Futures not Tonight", () => {
+  assert.equal(
+    formatWcAdvancementMarketContextLine("Will the USMNT reach the Round of 16?"),
+    "Round of 16 · Futures",
+  );
+  assert.equal(getWcAdvancementMarketContextSuffix(true), "Live");
 });
 
 test("isWcAdvancementMarketQuestion is true for R16 reach", () => {

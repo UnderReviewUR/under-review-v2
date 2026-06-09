@@ -91,6 +91,16 @@ export function normalizeWcStructuredForDelivery(
       out.edge = "Fair price — no actionable mispricing edge at this number.";
       out.confidence = out.confidence || "Medium";
     }
+    if (out.callType === "advancement" && !String(out.line || "").trim()) {
+      const simPct = blob.match(/\br16Pct[^.\n]*?(\d+\.?\d*)%/i)?.[1] ||
+        blob.match(/(\d+\.?\d*)%\s+of tournament sims/i)?.[1];
+      const odds = blob.match(/\b(-1[0-9]{2}|\+[1-9]\d{2,4})\b/)?.[0];
+      const marketPct = blob.match(/(?:market|implies)[^.]*?~?(\d+\.?\d*)%/i)?.[1];
+      if (odds && simPct) {
+        const verdict = /\bpass\b/i.test(blob) ? "Pass" : "Lean";
+        out.line = `${verdict} at ${odds} — sim ${simPct}%${marketPct ? ` vs market ~${marketPct}%` : ""}.`;
+      }
+    }
     return out;
   }
 

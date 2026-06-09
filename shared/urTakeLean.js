@@ -6,6 +6,22 @@ export const LEAN_MAX_CHARS = 120;
 export const LEAN_CONTRACT_PATTERN = /^Lean:\s*.+\./;
 
 /**
+ * Truncate at word boundary — never mid-word (card face readability).
+ * @param {string} text
+ * @param {number} max
+ */
+export function truncateLeanAtWord(text, max = LEAN_MAX_CHARS) {
+  const raw = String(text || "").trim();
+  if (!raw || raw.length <= max) return raw;
+  const slice = raw.slice(0, max);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > max * 0.6) {
+    return `${slice.slice(0, lastSpace).trim()}…`;
+  }
+  return `${slice.trim()}…`;
+}
+
+/**
  * @param {string} text
  * @returns {string}
  */
@@ -35,20 +51,20 @@ function firstSentence(text) {
  */
 export function synthesizeLeanLine(input) {
   const existing = String(input?.lean || "").trim();
-  if (existing) return existing.slice(0, LEAN_MAX_CHARS);
+  if (existing) return truncateLeanAtWord(existing, LEAN_MAX_CHARS);
 
   const call = String(input?.call || "").trim();
-  if (/^Lean:\s/i.test(call)) return call.slice(0, LEAN_MAX_CHARS);
+  if (/^Lean:\s/i.test(call)) return truncateLeanAtWord(call, LEAN_MAX_CHARS);
 
-  if (/^no\s*play/i.test(call)) return "Lean: No play.".slice(0, LEAN_MAX_CHARS);
-  if (/^pass\b/i.test(call)) return "Lean: Pass.".slice(0, LEAN_MAX_CHARS);
+  if (/^no\s*play/i.test(call)) return "Lean: No play.";
+  if (/^pass\b/i.test(call)) return "Lean: Pass.";
 
   const play = call || "Pass";
   const whySnippet = trimToWordCount(firstSentence(input?.whyNow), 15);
   if (whySnippet) {
-    return `Lean: ${play}. ${whySnippet}`.slice(0, LEAN_MAX_CHARS);
+    return truncateLeanAtWord(`Lean: ${play}. ${whySnippet}`, LEAN_MAX_CHARS);
   }
-  return `Lean: ${play}.`.slice(0, LEAN_MAX_CHARS);
+  return truncateLeanAtWord(`Lean: ${play}.`, LEAN_MAX_CHARS);
 }
 
 /**

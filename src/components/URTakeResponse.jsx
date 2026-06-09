@@ -25,7 +25,10 @@ import {
   wcCardSectionText,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
-import { getWcAdvancementMarketContextLabel } from "../../shared/wcAdvancementMarket.js";
+import {
+  formatWcAdvancementMarketContextLine,
+  getWcAdvancementMarketContextLabel,
+} from "../../shared/wcAdvancementMarket.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -147,7 +150,7 @@ export default function URTakeResponse({
   );
   const sportLower = sportLowerEarly;
   const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
-  const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence);
+  const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence, userQuestion);
   const callTypeLower = String(callType || "").toLowerCase();
   const playerMarketTierKey = String(playerMarketTier || "").toLowerCase();
   const isWcPredictionsRoundup = sportLower === "worldcup" && callTypeLower === "predictions_roundup";
@@ -233,6 +236,10 @@ export default function URTakeResponse({
 
   const wcAdvancementContextLabel =
     sportLower === "worldcup" ? getWcAdvancementMarketContextLabel(userQuestion) : null;
+  const wcAdvancementContextLine =
+    sportLower === "worldcup"
+      ? formatWcAdvancementMarketContextLine(userQuestion, showLiveRibbon)
+      : null;
 
   const contextLine =
     String(nbaContextBar || "").trim() ||
@@ -242,8 +249,8 @@ export default function URTakeResponse({
       ? `Player market · ${playerMarketTierLabel}`
       : playerMarketPass
         ? "Player market · Early contenders"
-        : wcAdvancementContextLabel
-          ? `${wcAdvancementContextLabel} · ${showLiveRibbon ? "Live" : "Tonight"}`
+        : wcAdvancementContextLine
+        ? wcAdvancementContextLine
         : rulesCallType
       ? "Knockout rules · Reference"
       : String(callType || "").toLowerCase() === "matchup"
@@ -262,6 +269,8 @@ export default function URTakeResponse({
       <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Early contenders</span>
     ) : rulesCallType ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--structural">Reference</span>
+    ) : wcAdvancementContextLabel ? (
+      <span className="ur-v2-mode-pill ur-v2-mode-pill--odds">Futures market</span>
     ) : ee && eeModel ? (
       <span className="ur-v2-mode-pill ur-v2-mode-pill--ee">
         <span className="ur-v2-mode-ic" aria-hidden>
@@ -326,6 +335,8 @@ export default function URTakeResponse({
           ? leanDisplay
           : headline;
     const wcHeadline = String(wcHeadlineSource || "").trim();
+    const lineSlotValue =
+      statGrid.slots.find((s) => s.key === "ln" || s.key === "pl")?.value ?? "";
     const wcSections = {
       why:
         wcPredictionSlotRows.length > 0
@@ -337,6 +348,8 @@ export default function URTakeResponse({
           lean: leanDisplay,
           call: callScrub,
           headline: wcHeadline,
+          lineSlot: lineSlotValue,
+          callType,
         }),
       ),
     };

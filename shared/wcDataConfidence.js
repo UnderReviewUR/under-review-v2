@@ -3,6 +3,10 @@
  */
 
 import { wcUrTakeConfidenceNote } from "./wcProductVoice.js";
+import {
+  classifyWcAdvancementMarket,
+  WC_ADVANCEMENT_MARKET,
+} from "./wcAdvancementMarket.js";
 
 /** @typedef {"confirmed" | "pre_match_estimate" | "limited_intel"} WcDataConfidence */
 
@@ -45,9 +49,14 @@ export function wcDataConfidenceNeedsCaution(dataConfidence) {
 
 /**
  * @param {WcDataConfidence | string | null | undefined} dataConfidence
+ * @param {string} [question]
  * @returns {string | null}
  */
-export function wcDataConfidenceCautionBanner(dataConfidence) {
+export function wcDataConfidenceCautionBanner(dataConfidence, question = "") {
+  const market = classifyWcAdvancementMarket(question);
+  if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
+    return null;
+  }
   return wcUrTakeConfidenceNote(dataConfidence);
 }
 

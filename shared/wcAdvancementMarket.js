@@ -120,6 +120,24 @@ export function getWcAdvancementMarketContextLabel(question) {
 }
 
 /**
+ * Context bar suffix for knockout-reach / group-advance futures (not "Tonight").
+ * @param {boolean} [isLive]
+ */
+export function getWcAdvancementMarketContextSuffix(isLive = false) {
+  return isLive ? "Live" : "Futures";
+}
+
+/**
+ * @param {string} question
+ * @param {boolean} [isLive]
+ */
+export function formatWcAdvancementMarketContextLine(question, isLive = false) {
+  const label = getWcAdvancementMarketContextLabel(question);
+  if (!label) return null;
+  return `${label} · ${getWcAdvancementMarketContextSuffix(isLive)}`;
+}
+
+/**
  * @param {Record<string, unknown> | undefined} teamStats
  * @param {WcAdvancementMarketKind} market
  */

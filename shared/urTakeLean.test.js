@@ -4,6 +4,7 @@ import {
   ensureLeanOnStructured,
   lintLeanContract,
   synthesizeLeanLine,
+  truncateLeanAtWord,
 } from "./urTakeLean.js";
 
 test("synthesizeLeanLine builds two-part lean from call and whyNow", () => {
@@ -39,4 +40,13 @@ test("ensureLeanOnStructured fills lean when absent", () => {
     whyNow: "Home court and rest edge matter here tonight.",
   });
   assert.match(String(out.lean), /^Lean: LAL -4\.5\./);
+});
+
+test("truncateLeanAtWord avoids mid-word cut", () => {
+  const long =
+    "Pass at current odds; the group path is tight and knockout advancement requires both escaping Group D and navigating a likely Round of 32 matchup.";
+  const out = truncateLeanAtWord(long, 120);
+  assert.ok(out.length <= 121);
+  assert.doesNotMatch(out, / navigat(?:ing)? a l$/);
+  assert.match(out, /…$/);
 });

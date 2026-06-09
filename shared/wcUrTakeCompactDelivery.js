@@ -4,6 +4,7 @@
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
 import { wcCardHasDeltaSignal, wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
 import { isWcValidPlayLine } from "./wcPlayLineQA.js";
@@ -315,6 +316,39 @@ function synthesizeRoundupLine(slots, summarySents, deep) {
 }
 
 /**
+ * Knockout-reach / group-advance futures — delta line for stat grid.
+ * @param {string[]} summarySents
+ * @param {string} deep
+ * @param {string} [question]
+ */
+function synthesizeWcAdvancementLine(summarySents, deep, question = "") {
+  const fromSummary = summarySents[1]?.trim();
+  if (fromSummary && wcCardHasDeltaSignal(fromSummary)) return fromSummary;
+
+  const blob = `${(summarySents || []).join("\n")}\n${deep}`;
+  const odds =
+    blob.match(/(?:FanDuel|DraftKings|BDL|futures seed)[^.]*?(-1[0-9]{2}|\+[1-9]\d{2,4})/i)?.[1] ||
+    blob.match(/\b(-1[0-9]{2}|\+[1-9]\d{2,4})\b/)?.[0];
+  const simPct =
+    blob.match(/\br16Pct[^.\n]*?(\d+\.?\d*)%/i)?.[1] ||
+    blob.match(/\badvancePct[^.\n]*?(\d+\.?\d*)%/i)?.[1] ||
+    blob.match(/roughly\s+(\d+\.?\d*)%\s+of tournament sims/i)?.[1] ||
+    blob.match(/(\d+\.?\d*)%\s+of tournament sims/i)?.[1];
+  const marketPct =
+    blob.match(/(?:market|implies|priced at|~)(\d+\.?\d*)%\s*(?:probability|implied)?/i)?.[1] ||
+    blob.match(/implies\s+~?(\d+\.?\d*)%/i)?.[1];
+
+  if (odds && simPct) {
+    const verdict = /\bpass\b/i.test(blob) ? "Pass" : /\blean\b/i.test(blob) ? "Lean" : "Pass";
+    const marketClause = marketPct ? ` vs market ~${marketPct}%` : "";
+    const displayOdds = odds.startsWith("+") || odds.startsWith("-") ? odds : odds;
+    return `${verdict} at ${displayOdds} — sim ${simPct}%${marketClause}.`;
+  }
+
+  return synthesizeWcLine(summarySents, deep);
+}
+
+/**
  * @param {Array<{ key: string, value: string }>} slots
  * @param {string} deep
  * @param {boolean} pass
@@ -473,8 +507,41 @@ export function buildWcCompactStructured(opts = {}) {
     });
   }
 
-  const isListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
+  const isAdvancementIntent =
+    seed?.callType === "advancement" ||
+    (wcIntent === WC_INTENT.ENTITY_PRICING && isWcAdvancementMarketQuestion(question));
+
   const summarySents = splitWcSentences(summary);
+
+  if (isAdvancementIntent) {
+    const call = String(
+      seed?.call || (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim(),
+    ).trim();
+    const line = String(
+      seed?.line || synthesizeWcAdvancementLine(summarySents, deep, question),
+    ).trim();
+    const lean = String(
+      seed?.lean ||
+        extractPlayDecision(summary, deep, call, { line, question, wcIntent, pass: isWcPassVerdict(summary, "") }),
+    ).trim();
+    const pass = isWcPassVerdict(summary, lean);
+    return {
+      sport: "worldcup",
+      callType: "advancement",
+      lean,
+      call,
+      line,
+      whyNow: String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
+      edge: String(seed?.edge || extractWatchFor(deep, pass)).trim(),
+      deep,
+      breakdownAvailable: Boolean(deep && deep.length > 40),
+      confidence: String(seed?.confidence || (pass ? "Medium" : "Medium")),
+      caveats: [],
+      timestamp: seed?.timestamp || new Date().toISOString(),
+    };
+  }
+
+  const isListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
 
   if (seed?.lean && seed?.call && (isWcPlayerMarketIntent(wcIntent) || isListIntent)) {
     const call = String(seed.call || "").trim();
