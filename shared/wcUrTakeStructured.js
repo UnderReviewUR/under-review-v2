@@ -6,6 +6,10 @@ import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 import { stripRulesThreadBleed } from "./wcUrTakeRules.js";
+import {
+  classifyWcAdvancementMarket,
+  WC_ADVANCEMENT_MARKET,
+} from "./wcAdvancementMarket.js";
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value)\b/i;
@@ -76,7 +80,12 @@ export function normalizeWcStructuredForDelivery(
   }
 
   if (intent === WC_INTENT.ENTITY_PRICING) {
-    out.callType = "analysis";
+    const market = classifyWcAdvancementMarket(question);
+    if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
+      out.callType = "advancement";
+    } else {
+      out.callType = "analysis";
+    }
     const blob = `${out.lean} ${out.whyNow} ${out.edge}`;
     if (FAIR_PRICE_RE.test(blob)) {
       out.edge = "Fair price — no actionable mispricing edge at this number.";

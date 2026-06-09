@@ -184,7 +184,11 @@ export async function resolveWcTournamentSimForPrompt(opts = {}) {
 
   return {
     simResults,
-    promptBlock: formatSimResultsForPrompt(simResults, opts.mentionedTeams || []),
+    promptBlock: formatSimResultsForPrompt(
+      simResults,
+      opts.mentionedTeams || [],
+      opts.question || "",
+    ),
     lastUpdated: row.lastUpdated,
     fingerprint: row.fingerprint,
     stale: Boolean(row.stale),

@@ -169,6 +169,7 @@ export function inferMarketPill(call, callType) {
   const ct = String(callType || "").toLowerCase();
   if (ct === "rules") return "Reference";
   if (ct === "matchup") return "Group stage";
+  if (ct === "advancement") return "Knockout path";
   if (ct === "analysis") return "Outright";
   const t = String(call || "").toLowerCase();
   if (String(callType || "").toLowerCase() === "parlay") return "Parlay";
@@ -184,6 +185,7 @@ export function inferEdgeTypePill(callType) {
   const c = String(callType || "single").toLowerCase();
   if (c === "rules") return "Rules";
   if (c === "matchup") return "Paths";
+  if (c === "advancement") return "Reach";
   if (c === "analysis") return "Read";
   if (c === "parlay") return "Parlay";
   if (c === "live") return "Live";

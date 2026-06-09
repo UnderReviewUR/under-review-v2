@@ -45,6 +45,7 @@ import {
   formatMatchChanceQualityPromptBlock,
 } from "../shared/wcMatchChanceQuality.js";
 import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js";
+import { buildWcAdvancementMarketPromptBlock } from "../shared/wcAdvancementMarket.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
 import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
@@ -622,6 +623,10 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   }
 
   lines.push("");
+  if (ctx.advancementMarketBlock) {
+    lines.push("", ctx.advancementMarketBlock);
+  }
+
   if (ctx.outrightsBlock) {
     lines.push(ctx.outrightsBlock);
   } else {
@@ -634,10 +639,18 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
 
   if (ctx.tournamentSimBlock) {
     lines.push("", ctx.tournamentSimBlock);
-    lines.push(
-      "  TOURNAMENT SIMULATION is UR internal model output (Poisson + Elo) — not market consensus. Label as sims when citing win %.",
-      "  Cite book prices from CURRENT OUTRIGHT ODDS when available — do not invent either.",
-    );
+    if (ctx.advancementMarketBlock) {
+      lines.push(
+        "  TOURNAMENT SIMULATION is UR internal model output (Poisson + Elo) — not market consensus. Label as sims when citing %.",
+        "  Follow SIM STAT BINDING and ADVANCEMENT MARKET BINDING — do not swap group-advance % for Round of 16 reach.",
+        "  Do not cite CURRENT OUTRIGHT ODDS as knockout-reach prices.",
+      );
+    } else {
+      lines.push(
+        "  TOURNAMENT SIMULATION is UR internal model output (Poisson + Elo) — not market consensus. Label as sims when citing win %.",
+        "  Cite book prices from CURRENT OUTRIGHT ODDS when available — do not invent either.",
+      );
+    }
   }
 
   if (ctx.adjustedGoldenBootBlock) {
@@ -830,6 +843,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       groups: groupsPayload?.groups || groups,
       matches,
       mentionedTeams,
+      question,
       nowMs,
     });
     if (simResolved?.promptBlock) {
@@ -875,9 +889,12 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     }
   }
 
+  const advancementMarketBlock = buildWcAdvancementMarketPromptBlock(question, mentionedTeams);
+
   const ctx = {
     source: "world_cup_2026",
     questionText: question,
+    advancementMarketBlock,
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",

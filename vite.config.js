@@ -1,5 +1,5 @@
-import { copyFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -20,14 +20,15 @@ function worldcupRoutePlugin() {
       server.middlewares.use((req, _res, next) => {
         const pathOnly = (req.url || "").split("?")[0].split("#")[0];
         if (pathOnly === "/worldcup" || pathOnly === "/worldcup/") {
-          req.url = "/index.html";
+          req.url = "/worldcup.html";
         }
         next();
       });
     },
     closeBundle() {
       const distDir = join(process.cwd(), "dist");
-      const src = join(distDir, "index.html");
+      const src = join(distDir, "worldcup.html");
+      if (!existsSync(src)) return;
       const destDir = join(distDir, "worldcup");
       mkdirSync(destDir, { recursive: true });
       copyFileSync(src, join(destDir, "index.html"));
@@ -39,6 +40,14 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_COMMIT_SHA": JSON.stringify(commitSha),
     "import.meta.env.VITE_BUILD_TIME": JSON.stringify(buildTime),
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(process.cwd(), "index.html"),
+        worldcup: resolve(process.cwd(), "worldcup.html"),
+      },
+    },
   },
   plugins: [react(), worldcupRoutePlugin()],
   /** Allow REACT_APP_STRUCTURED_UR_TAKE alongside VITE_* for structured UR Take UI flag. */

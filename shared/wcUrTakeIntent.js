@@ -4,6 +4,7 @@
 
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
+import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
 
@@ -386,6 +387,12 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
     return `TURN SCOPE (binding):
 - Answer ONLY the named player market in the current question (Golden Boot / top scorer / prop).
 - Do not pivot to an unrelated group-stage pick unless the user asked for both.`;
+  }
+  if (intent === WC_INTENT.ENTITY_PRICING && isWcAdvancementMarketQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User asked about a knockout-reach / advancement market (e.g. Round of 16) — NOT tournament winner outright.
+- Cite the correct sim stat (r16Pct for R16, advancePct for group escape) and do not swap them.
+- Do not use CURRENT OUTRIGHT ODDS as the market price for this question.`;
   }
   return "";
 }

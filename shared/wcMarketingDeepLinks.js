@@ -28,6 +28,7 @@ export const WC_LANDING_PROMPTS = {
     "USA vs Paraguay — best bet for Americans who only know the moneyline (group context, not just ML)",
   advancement:
     "Explain how World Cup group advancement betting works and one group qualify angle worth considering tonight",
+  usaR16: "Will the USMNT reach the Round of 16?",
 };
 
 /**

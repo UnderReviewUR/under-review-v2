@@ -2,6 +2,12 @@
  * World Cup UR Take — odds citation binding (prevent session price bleed).
  */
 
+import {
+  classifyWcAdvancementMarket,
+  wcAdvancementMarketMeta,
+  WC_ADVANCEMENT_MARKET,
+} from "./wcAdvancementMarket.js";
+
 /** @param {string} question */
 export function extractAmericanOddsFromQuestion(question) {
   const matches = String(question || "").match(/\+[1-9]\d{2,4}\b/g);
@@ -25,6 +31,16 @@ export function extractAmericanOddsFromText(text) {
  */
 export function buildPriceBindingPromptBlock(question, requiredEntities = [], wcIntent = "") {
   if (String(wcIntent) !== "ENTITY_PRICING") return "";
+
+  const market = classifyWcAdvancementMarket(question);
+  if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
+    const meta = wcAdvancementMarketMeta(market);
+    return `PRICE BINDING (mandatory):
+  User asked about "${meta.label}" — NOT tournament winner outright.
+  Do NOT cite CURRENT OUTRIGHT ODDS as the price for this market.
+  Compare ${meta.key} sim probability to editorial or user-cited knockout-reach prices only — label SportsLine/editorial as narrative, not verified book feed.
+  Never equate group-advance sim % (advancePct) with Round of 16 reach unless the question is explicitly about escaping the group.`;
+  }
 
   const entities = (requiredEntities || []).map((t) => String(t).toUpperCase()).filter(Boolean);
   const citedInQuestion = extractAmericanOddsFromQuestion(question);

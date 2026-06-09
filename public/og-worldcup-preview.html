@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OG preview — under-review.app/worldcup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #15202b;
+      color: #e7e9ea;
+      padding: 32px 16px 64px;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 680px; margin: 0 auto; }
+    h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #71767b;
+      margin-bottom: 20px;
+    }
+    .x-post {
+      border: 1px solid #2f3336;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #000;
+    }
+    .x-head {
+      display: flex;
+      gap: 12px;
+      padding: 12px 16px 0;
+      align-items: center;
+    }
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00f5e9, #ff3d8f);
+      flex-shrink: 0;
+    }
+    .x-name { font-size: 15px; font-weight: 700; }
+    .x-handle { font-size: 15px; color: #71767b; }
+    .x-body { padding: 8px 16px 12px; font-size: 15px; line-height: 1.4; }
+    .x-link { color: #1d9bf0; }
+    .x-card {
+      margin: 0 16px 16px;
+      border: 1px solid #2f3336;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .x-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      vertical-align: top;
+    }
+    .x-card-meta {
+      padding: 10px 12px 12px;
+      background: #16181c;
+      border-top: 1px solid #2f3336;
+    }
+    .x-card-url { font-size: 13px; color: #71767b; margin-bottom: 2px; }
+    .x-card-title { font-size: 15px; font-weight: 400; color: #e7e9ea; line-height: 1.3; }
+    .x-card-desc { font-size: 15px; color: #71767b; margin-top: 2px; line-height: 1.3; }
+    .full {
+      margin-top: 40px;
+      border: 1px solid #2f3336;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .full img { display: block; width: 100%; height: auto; }
+    .full-cap {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #71767b;
+      background: #192734;
+      border-top: 1px solid #2f3336;
+    }
+    .note {
+      margin-top: 24px;
+      font-size: 14px;
+      color: #71767b;
+      line-height: 1.55;
+    }
+    .note strong { color: #e7e9ea; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>How it looks in an X feed</h1>
+
+    <div class="x-post">
+      <div class="x-head">
+        <div class="avatar" aria-hidden="true"></div>
+        <div>
+          <div class="x-name">UnderReview</div>
+          <div class="x-handle">@UnderReviewApp · 2h</div>
+        </div>
+      </div>
+      <div class="x-body">
+        Group D is live tonight — who actually advances?<br><br>
+        <span class="x-link">under-review.app/worldcup</span>
+      </div>
+      <div class="x-card">
+        <img src="/og-worldcup.png" width="1200" height="630" alt="UnderReview World Cup 2026 OG card" />
+        <div class="x-card-meta">
+          <div class="x-card-url">under-review.app</div>
+          <div class="x-card-title">UnderReview World Cup 2026 — Betting Intelligence</div>
+          <div class="x-card-desc">Winner · Golden Boot · Group advancement · Props. 3 free questions.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="full">
+      <img src="/og-worldcup.png" width="1200" height="630" alt="Full OG card 1200×630" />
+      <div class="full-cap">Source asset · public/og-worldcup.png · 1200×630</div>
+    </div>
+
+    <p class="note">
+      <strong>Story in one glance:</strong> premium tool → betting-focused → Winner / Golden Boot / Group advancement / Props → 3 free questions → tap through.
+      Open this file via dev server: <code>/og-worldcup-preview.html</code>
+    </p>
+  </div>
+</body>
+</html>

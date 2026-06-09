@@ -479,45 +479,4 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
-/**
- * Format simulation results for UR Take prompt injection.
- * @param {ReturnType<typeof simulateTournament>} simResults
- * @param {string[]} [mentionedTeams]
- * @returns {string}
- */
-export function formatSimResultsForPrompt(simResults, mentionedTeams = []) {
-  const mentioned = new Set((mentionedTeams || []).map((t) => t.toUpperCase()));
-  const liveNote = simResults.liveResultsApplied
-    ? ` · ${simResults.completedMatchCount} FT result(s) locked in`
-    : "";
-  const lines = [
-    `TOURNAMENT SIMULATION (${simResults.simCount.toLocaleString()} Monte Carlo sims — Poisson goal model + Elo${liveNote}):`,
-  ];
-
-  // Show mentioned teams first, then top contenders
-  const shown = new Set();
-
-  if (mentioned.size) {
-    lines.push("  Cited teams:");
-    for (const abbr of mentioned) {
-      const s = simResults.teamStats[abbr];
-      if (!s) continue;
-      shown.add(abbr);
-      lines.push(
-        `    ${s.abbreviation} (${s.name}): advance ${s.advancePct}% · QF ${s.qfPct}% · SF ${s.sfPct}% · Final ${s.finalPct}% · Win ${s.winPct}%`,
-      );
-    }
-  }
-
-  lines.push("  Top contenders:");
-  for (const s of simResults.topContenders) {
-    if (shown.has(s.abbreviation)) continue;
-    shown.add(s.abbreviation);
-    lines.push(
-      `    ${s.abbreviation}: Win ${s.winPct}% · Final ${s.finalPct}% · SF ${s.sfPct}% · QF ${s.qfPct}%`,
-    );
-    if (shown.size >= 15) break;
-  }
-
-  return lines.join("\n");
-}
+export { formatSimResultsForPrompt } from "./wcAdvancementMarket.js";

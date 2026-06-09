@@ -141,6 +141,7 @@ import {
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
 } from "../../shared/wcUrTakeIntent.js";
+import { isWcAdvancementMarketQuestion } from "../../shared/wcAdvancementMarket.js";
 import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../../shared/wcCardContractVoice.js";
 import { buildNbaRelevanceLog } from "../../shared/nbaUrTakeRelevance.js";
 import { nbaRequiresLiveUrTakeBoardRefresh } from "../../shared/nbaLiveBoardRefresh.js";
@@ -4496,6 +4497,9 @@ Confidence guidance:
         : "";
     const isWcRulesIntent = wcIntent === WC_INTENT.RULES;
     const isWcMatchupIntent = wcIntent === WC_INTENT.MATCHUP;
+    const isWcAdvancementMarketIntent =
+      wcIntent === WC_INTENT.ENTITY_PRICING &&
+      isWcAdvancementMarketQuestion(String(question || ""));
     const isWcTopGoalscorersListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
     const isWcPredictionsRoundupIntent = wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP;
     const isWcPlayerMarketIntentFlag =
@@ -4520,6 +4524,8 @@ Confidence guidance:
       ? "You are answering a factual 2026 FIFA World Cup rules question."
       : isWcMatchupIntent
         ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
+        : isWcAdvancementMarketIntent
+          ? "You are answering a 2026 FIFA World Cup knockout-reach / advancement-market question (NOT tournament winner outright)."
         : isWcTopGoalscorersListIntent
           ? "You are answering a 2026 FIFA World Cup top goalscorers list question (ranked players with odds)."
           : isWcPredictionsRoundupIntent
@@ -4539,6 +4545,14 @@ Confidence guidance:
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - If CURRENT OUTRIGHT ODDS is missing or STALE, use cautious structural language — no overconfident winner picks.
 - Do not invent scores, lineups, or odds not supported by the context block.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+        : isWcAdvancementMarketIntent
+          ? `- Return JSON per OUTPUT CONTRACT: summary = fair-price read on the specific knockout-reach market asked (150 words max); deep = full reasoning (no word limit).
+- Sentence one must answer whether the cited team reaches the asked round — name the team and verdict (Pass / lean / fair).
+- Follow ADVANCEMENT MARKET BINDING and SIM STAT BINDING in VERIFIED CONTEXT — cite r16Pct for Round of 16, advancePct only for group escape.
+- Do NOT cite CURRENT OUTRIGHT ODDS (tournament winner) as the price for Round of 16 or group-advance markets.
+- SportsLine / editorial R16 prices (e.g. USA Reach Round of 16 -115) are narrative corroboration only — label as editorial.
+- Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
         : isWcTopGoalscorersListIntent
           ? `- Return JSON per OUTPUT CONTRACT only (summary + deep keys).

@@ -1,0 +1,26 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D4B896"/>
+      <stop offset="100%" style="stop-color:#C4A574"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0C0C10"/>
+  <rect x="0" y="0" width="1200" height="4" fill="url(#gold)"/>
+  <rect x="0" y="626" width="1200" height="4" fill="url(#gold)"/>
+  <!-- Trophy watermark ~22% opacity -->
+  <g opacity="0.22" transform="translate(600 130)">
+    <ellipse cx="0" cy="0" rx="120" ry="120" fill="none" stroke="#C4A574" stroke-width="1.5"/>
+    <path d="M-28 -40 L-28 20 Q-28 48 0 48 Q28 48 28 20 L28 -40 Z" fill="none" stroke="#C4A574" stroke-width="3"/>
+    <path d="M-40 -40 Q0 -70 40 -40" fill="none" stroke="#C4A574" stroke-width="3"/>
+    <rect x="-18" y="48" width="36" height="10" rx="2" fill="#C4A574"/>
+    <rect x="-28" y="58" width="56" height="8" rx="2" fill="#C4A574"/>
+  </g>
+  <text x="600" y="248" font-family="Georgia, serif" font-size="20" font-weight="400" text-anchor="middle" fill="#C4A574" letter-spacing="7">BETTING INTELLIGENCE</text>
+  <text x="600" y="340" font-family="Georgia, serif" font-size="88" font-weight="700" text-anchor="middle" fill="#F3F0E8" letter-spacing="-1">World Cup 2026</text>
+  <line x1="420" y1="368" x2="780" y2="368" stroke="rgba(196,165,116,0.45)" stroke-width="1"/>
+  <text x="600" y="418" font-family="Georgia, serif" font-size="26" font-weight="400" text-anchor="middle" fill="rgba(243,240,232,0.88)">Winner · Golden Boot · Group advancement · Props</text>
+  <text x="600" y="478" font-family="Georgia, serif" font-size="18" text-anchor="middle" fill="rgba(138,132,120,0.9)">????  ????  ????</text>
+  <line x1="420" y1="502" x2="780" y2="502" stroke="rgba(196,165,116,0.25)" stroke-width="1"/>
+  <text x="600" y="548" font-family="'Courier New', monospace" font-size="15" font-weight="400" text-anchor="middle" fill="rgba(138,132,120,0.95)" letter-spacing="1">3 free questions · under-review.app/worldcup</text>
+</svg>

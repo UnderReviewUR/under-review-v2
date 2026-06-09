@@ -25,6 +25,7 @@ import {
   wcCardSectionText,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
+import { getWcAdvancementMarketContextLabel } from "../../shared/wcAdvancementMarket.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -230,6 +231,9 @@ export default function URTakeResponse({
   const marketPillDistinct =
     marketPill.toLowerCase() !== edgeTypePill.toLowerCase() ? marketPill : null;
 
+  const wcAdvancementContextLabel =
+    sportLower === "worldcup" ? getWcAdvancementMarketContextLabel(userQuestion) : null;
+
   const contextLine =
     String(nbaContextBar || "").trim() ||
     (isWcPredictionsRoundup
@@ -238,6 +242,8 @@ export default function URTakeResponse({
       ? `Player market · ${playerMarketTierLabel}`
       : playerMarketPass
         ? "Player market · Early contenders"
+        : wcAdvancementContextLabel
+          ? `${wcAdvancementContextLabel} · ${showLiveRibbon ? "Live" : "Tonight"}`
         : rulesCallType
       ? "Knockout rules · Reference"
       : String(callType || "").toLowerCase() === "matchup"
