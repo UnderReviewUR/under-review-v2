@@ -8,6 +8,7 @@ import {
   WC_SCOREBOARD_END_YMD,
   WC_SCOREBOARD_START_YMD,
 } from "../shared/wc2026Constants.js";
+import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
 
 export const ESPN_WC_STANDINGS_URL =
   "https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings";
@@ -317,7 +318,7 @@ export function normalizeEspnFutures(json) {
     }
   }
 
-  return outrights;
+  return sanitizeWcTournamentWinnerOutrights(outrights);
 }
 
 export async function fetchEspnOutrights() {

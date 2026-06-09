@@ -2,7 +2,30 @@
  * World Cup outright odds display + merge (KV live → static cold-start → em dash).
  */
 
-import { formatOddsAmerican } from "./formatOddsAmerican.js";
+import { formatOddsAmerican, parseAmericanOddsValue } from "./formatOddsAmerican.js";
+
+/** Tournament winner market — always positive American (group-winner ML often negative). */
+export function isPlausibleWcTournamentWinnerOdds(odds) {
+  const n = parseAmericanOddsValue(odds);
+  return n != null && n >= 100;
+}
+
+/**
+ * Drop group-winner / match ML lines that leaked into outrights KV.
+ * @param {Record<string, string> | null | undefined} map
+ */
+export function sanitizeWcTournamentWinnerOutrights(map) {
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const [abbr, odds] of Object.entries(map || {})) {
+    const team = String(abbr || "").trim().toUpperCase();
+    const line = String(odds || "").trim();
+    if (team && line && isPlausibleWcTournamentWinnerOdds(line)) {
+      out[team] = line;
+    }
+  }
+  return out;
+}
 
 /**
  * @param {string | null | undefined} value
@@ -25,7 +48,9 @@ export function resolveWcOutrightOdds(abbr, kvOutrights, staticOutright) {
   if (!key) return null;
 
   const live = kvOutrights?.[key];
-  if (live != null && String(live).trim()) return String(live).trim();
+  if (live != null && String(live).trim() && isPlausibleWcTournamentWinnerOdds(live)) {
+    return String(live).trim();
+  }
 
   if (staticOutright != null && String(staticOutright).trim()) {
     return String(staticOutright).trim();
@@ -43,8 +68,12 @@ export function mergeWcTeamsWithOutrights(teams, kvOutrights) {
     const key = String(t.abbreviation || "")
       .trim()
       .toUpperCase();
-    const live = key ? kvOutrights?.[key] : null;
-    const hasLive = live != null && String(live).trim();
+    const liveRaw = key ? kvOutrights?.[key] : null;
+    const live =
+      liveRaw != null && String(liveRaw).trim() && isPlausibleWcTournamentWinnerOdds(liveRaw)
+        ? String(liveRaw).trim()
+        : null;
+    const hasLive = Boolean(live);
     const hasStatic = t.outrightOdds != null && String(t.outrightOdds).trim();
 
     return {

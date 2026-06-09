@@ -10,6 +10,7 @@
 
 import { buildWcOutrightsSeedPayload } from "./wcOutrightsSeed.js";
 import { WC_OUTRIGHTS_MAX_AGE_MS } from "./wcOddsFreshness.js";
+import { sanitizeWcTournamentWinnerOutrights } from "./wc2026OutrightOdds.js";
 import {
   americanFromImpliedProb,
   formatAmericanOdds,
@@ -34,6 +35,8 @@ export function mergeWcOutrightsLayers(layers) {
       const american = parseAmericanOddsNumber(odds);
       const prob = american != null ? impliedProbFromAmerican(american) : null;
       if (!team || prob == null) continue;
+      const formatted = formatAmericanOdds(american);
+      if (!formatted || !isPlausibleWcTournamentWinnerOdds(formatted)) continue;
       const row = byTeam.get(team) || { probs: [], sources: [], samples: [] };
       row.probs.push(prob);
       row.sources.push(src);
@@ -116,7 +119,7 @@ export function resolveWcOutrightsSourceChain(input) {
       layers.length > 1 ? `live_merge:${layers.map((l) => l.source).join("+")}` : layers[0].source;
     return {
       ok: true,
-      outrights: merged.outrights,
+      outrights: sanitizeWcTournamentWinnerOutrights(merged.outrights),
       source: sourceLabel,
       sourceTier: /** @type {WcOutrightsSourceTier} */ ("live_merge"),
       provenance: merged.provenance,

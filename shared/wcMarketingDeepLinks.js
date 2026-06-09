@@ -1,11 +1,14 @@
 /**
  * World Cup marketing deep links — Reddit/X and /about land on app with prefilled or auto-ask.
  *
- * App accepts (see App.jsx cold-load handler):
- *   /worldcup?q=<prompt>                   — short marketing path (X / Reddit)
- *   ?sport=worldcup&q=<prompt>           — open WC tab, auto-submit question
- *   ?wc=1&q=<prompt>                     — legacy alias
- *   ?sport=worldcup&q=<prompt>&prefill=1 — open WC tab, prefill input only
+ * Short URLs (preferred for comments):
+ *   /worldcup                              — open WC tab
+ *   /worldcup?p=winner                     — auto-ask (short prompt key)
+ *   /worldcup?p=goldenBoot&ask=0           — prefill ask bar only
+ *
+ * Legacy:
+ *   /worldcup?q=<full prompt text>
+ *   ?sport=worldcup&q=...&prefill=1
  */
 
 export const WC_MARKETING_PATH = "/worldcup";
@@ -28,11 +31,6 @@ export const WC_LANDING_PROMPTS = {
 };
 
 /**
- * @param {string} prompt
- * @param {{ base?: string, auto?: boolean }} [opts]
- * @returns {string}
- */
-/**
  * @param {string} [pathname]
  * @returns {boolean}
  */
@@ -41,23 +39,47 @@ export function isWorldCupMarketingPath(pathname) {
   return p === WC_MARKETING_PATH || p.endsWith(`${WC_MARKETING_PATH}`);
 }
 
-export function buildWcAppDeepLink(prompt, opts = {}) {
+/**
+ * Resolve short prompt key or raw question text.
+ * @param {string} raw
+ * @returns {{ key: string | null, prompt: string }}
+ */
+export function resolveWcMarketingPrompt(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return { key: null, prompt: "" };
+  if (WC_LANDING_PROMPTS[s]) return { key: s, prompt: WC_LANDING_PROMPTS[s] };
+  const lower = s.toLowerCase();
+  const key = Object.keys(WC_LANDING_PROMPTS).find((k) => k.toLowerCase() === lower);
+  if (key) return { key, prompt: WC_LANDING_PROMPTS[key] };
+  const byPrompt = Object.entries(WC_LANDING_PROMPTS).find(([, prompt]) => prompt === s);
+  if (byPrompt) return { key: byPrompt[0], prompt: byPrompt[1] };
+  return { key: null, prompt: s };
+}
+
+/**
+ * @param {string} promptOrKey — WC_LANDING_PROMPTS key or full question text
+ * @param {{ base?: string, auto?: boolean, path?: boolean }} [opts]
+ * @returns {string}
+ */
+export function buildWcAppDeepLink(promptOrKey, opts = {}) {
   const auto = opts.auto !== false;
   const useShortPath = opts.path !== false;
   const origin = String(opts.base || "https://under-review.app").replace(/\/$/, "");
-  const q = String(prompt || "").trim();
+  const { key, prompt } = resolveWcMarketingPrompt(promptOrKey);
 
   if (useShortPath) {
     const u = new URL(`${origin}${WC_MARKETING_PATH}`);
-    if (q) u.searchParams.set("q", q);
-    if (!auto) u.searchParams.set("prefill", "1");
+    if (key) u.searchParams.set("p", key);
+    else if (prompt) u.searchParams.set("q", prompt);
+    if (!auto) u.searchParams.set("ask", "0");
     return u.toString();
   }
 
   const u = new URL(`${origin}/`);
   u.searchParams.set("sport", "worldcup");
-  if (q) u.searchParams.set("q", q);
-  if (!auto) u.searchParams.set("prefill", "1");
+  if (key) u.searchParams.set("p", key);
+  else if (prompt) u.searchParams.set("q", prompt);
+  if (!auto) u.searchParams.set("ask", "0");
   return u.toString();
 }
 
@@ -65,20 +87,34 @@ export function buildWcAppDeepLink(prompt, opts = {}) {
  * Parse marketing deep-link query params (client cold load).
  * @param {URLSearchParams} sp
  * @param {string} [pathname]
- * @returns {{ sport: string | null, q: string, prefillOnly: boolean, isWorldCup: boolean, cleanPath: string }}
+ * @returns {{ sport: string | null, q: string, prefillOnly: boolean, isWorldCup: boolean, cleanPath: string, promptKey: string | null }}
  */
 export function parseUrMarketingDeepLink(sp, pathname = "") {
   const sport = String(sp.get("sport") || "").trim().toLowerCase() || null;
-  const qRaw = sp.get("q") ?? sp.get("prompt") ?? "";
+  const pKey = sp.get("p");
+  const qRaw = pKey ?? sp.get("q") ?? sp.get("prompt") ?? "";
   let q = String(qRaw || "").trim();
-  if (q) {
+  let promptKey = null;
+
+  if (pKey) {
+    const resolved = resolveWcMarketingPrompt(pKey);
+    promptKey = resolved.key;
+    q = resolved.prompt;
+  } else if (q) {
     try {
       q = decodeURIComponent(q);
     } catch {
       /* keep raw */
     }
+    const resolved = resolveWcMarketingPrompt(q);
+    if (resolved.key) {
+      promptKey = resolved.key;
+      q = resolved.prompt;
+    }
   }
-  const prefillOnly = sp.get("prefill") === "1" || sp.get("auto") === "0";
+
+  const prefillOnly =
+    sp.get("prefill") === "1" || sp.get("auto") === "0" || sp.get("ask") === "0";
   const pathHit = isWorldCupMarketingPath(pathname);
   const isWorldCup =
     pathHit ||
@@ -87,5 +123,47 @@ export function parseUrMarketingDeepLink(sp, pathname = "") {
     sport === "worldcup" ||
     sport === "wc";
   const cleanPath = pathHit ? WC_MARKETING_PATH : "/";
-  return { sport, q, prefillOnly, isWorldCup, cleanPath };
+  return { sport, q, prefillOnly, isWorldCup, cleanPath, promptKey };
 }
+
+/**
+ * Cold-load route for SPA — open World Cup tab from /worldcup or ?sport=worldcup.
+ * @param {string} [pathname]
+ * @param {string} [search]
+ * @returns {{
+ *   screen: string,
+ *   tab: string,
+ *   nflUrView?: string,
+ *   wcDeepLinkAction?: { q: string, prefillOnly: boolean } | null,
+ *   cleanPath?: string | null,
+ * }}
+ */
+export function resolveUrColdLoadRoute(pathname = "", search = "") {
+  const sp = new URLSearchParams(String(search || ""));
+  const path = String(pathname || "");
+
+  if (
+    sp.has("predictor") ||
+    sp.get("share") ||
+    sp.get("picks") ||
+    /\/predict-nfl/i.test(path) ||
+    path.replace(/\/+$/, "").toLowerCase().endsWith("/nfl")
+  ) {
+    return { screen: "nfl", tab: "nfl", nflUrView: "predict", wcDeepLinkAction: null, cleanPath: null };
+  }
+
+  const { isWorldCup, q, prefillOnly, cleanPath } = parseUrMarketingDeepLink(sp, path);
+  if (isWorldCup) {
+    return {
+      screen: "worldcup",
+      tab: "worldcup",
+      wcDeepLinkAction: q ? { q, prefillOnly } : null,
+      cleanPath,
+    };
+  }
+
+  return { screen: "home", tab: "home", wcDeepLinkAction: null, cleanPath: null };
+}
+
+/** Canonical share URL for X/Reddit comments — opens World Cup tab. */
+export const WC_MARKETING_URL = "https://under-review.app/worldcup";

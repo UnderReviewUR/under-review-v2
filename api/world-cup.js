@@ -60,6 +60,7 @@ import {
   sanitizeWcPublicPayload,
 } from "../shared/wcPublicPayload.js";
 import { buildWcOutrightsSeedMap } from "../shared/wcOutrightsSeed.js";
+import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
 
 const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
@@ -461,12 +462,17 @@ export async function getMatchesPayload() {
 export async function getOutrightsPayload() {
   let kv = await readWcOutrightsFromKv();
   const tier = String(kv?.sourceTier || "").toLowerCase();
+  const rawOutrights = kv?.outrights && typeof kv.outrights === "object" ? kv.outrights : {};
+  const sanitizedCount = Object.keys(sanitizeWcTournamentWinnerOutrights(rawOutrights)).length;
+  const corruptKv =
+    Object.keys(rawOutrights).length > 0 && sanitizedCount < Object.keys(rawOutrights).length;
   const needsRefresh =
     !kv?.outrights ||
     !Object.keys(kv.outrights).length ||
     kv.stale ||
     tier === "static_seed" ||
-    tier === "stale_kv_aged";
+    tier === "stale_kv_aged" ||
+    corruptKv;
 
   if (needsRefresh) {
     const refreshed = await ensureWcOutrightsInKv();
@@ -479,6 +485,7 @@ export async function getOutrightsPayload() {
     return ensureWcPublicOutrights({
       outrights: kv.outrights,
       lastUpdated: kv.lastUpdated,
+      sourceTier: kv.sourceTier,
       ageMinutes: kv.freshness?.ageMinutes ?? null,
     });
   }

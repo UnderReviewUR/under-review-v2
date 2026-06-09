@@ -357,6 +357,11 @@ export default function WorldCupScreen({
             {marketsChipLabel ? (
               <p className="wc-markets-chip">{marketsChipLabel}</p>
             ) : null}
+            {outrightsMeta?.referenceOnly ? (
+              <p className="wc-outright-stale-banner">
+                Tournament winner lines below are reference prices — live book merge refreshes on load.
+              </p>
+            ) : null}
             {CONFEDS.map((conf) => {
               const confTeams = teams.filter((t) => t.confederation === conf);
               if (!confTeams.length) return null;
@@ -398,7 +403,11 @@ export default function WorldCupScreen({
 
   const featuredInsight = wcHomePromoCard && typeof wcHomePromoCard === "object" ? wcHomePromoCard : null;
   const featuredInsightSnippet =
-    featuredInsight?.highlights?.[0] || featuredInsight?.subtitle || featuredInsight?.text || null;
+    featuredInsight?.insightLine ||
+    featuredInsight?.highlights?.[0] ||
+    featuredInsight?.subtitle ||
+    featuredInsight?.text ||
+    null;
 
   return (
     <main

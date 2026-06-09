@@ -4,6 +4,7 @@
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { buildWcOutrightsSeedMap } from "./wcOutrightsSeed.js";
+import { sanitizeWcTournamentWinnerOutrights } from "./wc2026OutrightOdds.js";
 import { buildStaticGroupsFallback } from "./wcStaticGroupsFallback.js";
 import { buildStaticPromoMatchesFallback } from "./wc2026PromoFixtures.js";
 import { formatWcMarketsStatusChip } from "./wcProductVoice.js";
@@ -36,7 +37,8 @@ export function resolveClientWcMatches(matchesData, nowMs = Date.now()) {
 export function resolveClientWcOutrightsKv(outrightsData) {
   const kv = outrightsData?.outrights;
   if (kv && typeof kv === "object" && Object.keys(kv).length >= 12) {
-    return kv;
+    const sanitized = sanitizeWcTournamentWinnerOutrights(kv);
+    if (Object.keys(sanitized).length >= 12) return sanitized;
   }
   return buildWcOutrightsSeedMap();
 }
@@ -45,11 +47,20 @@ export function resolveClientWcOutrightsKv(outrightsData) {
  * @param {Record<string, unknown> | null | undefined} outrightsData
  */
 export function resolveClientWcOutrightsMeta(outrightsData) {
+  const raw = outrightsData?.outrights;
+  const sanitized =
+    raw && typeof raw === "object" ? sanitizeWcTournamentWinnerOutrights(raw) : {};
+  const referenceOnly =
+    Boolean(outrightsData?.marketsReference) ||
+    Object.keys(sanitized).length < Object.keys(raw || {}).length;
+
   return {
     marketsChip: formatWcMarketsStatusChip({
       ageMinutes: outrightsData?.ageMinutes ?? outrightsData?.freshness?.ageMinutes,
       lastUpdated: outrightsData?.lastUpdated ?? outrightsData?.updatedAt,
+      referenceOnly,
     }),
+    referenceOnly,
     lastUpdated: outrightsData?.lastUpdated ?? outrightsData?.updatedAt ?? Date.now(),
   };
 }

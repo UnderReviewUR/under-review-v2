@@ -64,7 +64,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
-import { parseUrMarketingDeepLink } from "../shared/wcMarketingDeepLinks.js";
+import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import {
   buildWcHomePromoCard,
@@ -450,6 +450,43 @@ function extractPlayThesisFields(playText) {
 }
 
 // ── App ──────────────────────────────────────────────────────────────────────
+
+/** Parsed once on cold load so /worldcup opens WC tab before first paint. */
+let coldLoadRouteSnapshot;
+function getColdLoadRouteSnapshot() {
+  if (!coldLoadRouteSnapshot) {
+    if (typeof window === "undefined") {
+      coldLoadRouteSnapshot = {
+        tab: "home",
+        screen: "home",
+        nflUrView: "take",
+        wcDeepLinkAction: null,
+        cleanPath: null,
+      };
+    } else {
+      try {
+        const route = resolveUrColdLoadRoute(window.location.pathname, window.location.search);
+        coldLoadRouteSnapshot = {
+          tab: route.tab,
+          screen: route.screen,
+          nflUrView: route.nflUrView || "take",
+          wcDeepLinkAction: route.wcDeepLinkAction || null,
+          cleanPath: route.cleanPath || null,
+        };
+      } catch {
+        coldLoadRouteSnapshot = {
+          tab: "home",
+          screen: "home",
+          nflUrView: "take",
+          wcDeepLinkAction: null,
+          cleanPath: null,
+        };
+      }
+    }
+  }
+  return coldLoadRouteSnapshot;
+}
+
 export default function App() {
   const [activeTheme, setActiveTheme] = useState(resolveInitialTheme);
 
@@ -467,10 +504,10 @@ ${baseCss}
 ${themeCss}
 `;
 
-  const [tab, setTab] = useState("home");
-  const [screen, setScreen] = useState("home");
+  const [tab, setTab] = useState(() => getColdLoadRouteSnapshot().tab);
+  const [screen, setScreen] = useState(() => getColdLoadRouteSnapshot().screen);
   /** NFL tab: UR Take chat vs 2026 predictor (?predictor=1, ?share=, ?picks=, /predict-nfl, or /nfl path opens predictor). */
-  const [nflUrView, setNflUrView] = useState("take");
+  const [nflUrView, setNflUrView] = useState(() => getColdLoadRouteSnapshot().nflUrView);
   /** Stack of { screen, tab } snapshots for header back + swipe-back. */
   const [navHistory, setNavHistory] = useState([]);
   const [selectedMatchup, setSelectedMatchup] = useState(null);
@@ -597,37 +634,16 @@ ${themeCss}
   const proCheckoutEmail = proCheckoutState.email;
 
   /** WC marketing / share deep link — auto-ask or prefill-only (see shared/wcMarketingDeepLinks.js). */
-  const [wcDeepLinkAction, setWcDeepLinkAction] = useState(null);
+  const [wcDeepLinkAction, setWcDeepLinkAction] = useState(
+    () => getColdLoadRouteSnapshot().wcDeepLinkAction,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const sp = new URLSearchParams(window.location.search);
-      const path = window.location.pathname || "";
-      if (
-        sp.has("predictor") ||
-        sp.get("share") ||
-        sp.get("picks") ||
-        /\/predict-nfl/i.test(path) ||
-        path.endsWith("/nfl")
-      ) {
-        /* eslint-disable react-hooks/set-state-in-effect -- NFL share/picks URL opens predictor on cold load */
-        setTab("nfl");
-        setScreen("nfl");
-        setNflUrView("predict");
-        /* eslint-enable react-hooks/set-state-in-effect */
-      } else {
-        const { isWorldCup, q, prefillOnly, cleanPath } = parseUrMarketingDeepLink(sp, path);
-        if (isWorldCup) {
-          /* eslint-disable react-hooks/set-state-in-effect -- WC marketing deep link */
-          setTab("worldcup");
-          setScreen("worldcup");
-          if (q) {
-            setWcDeepLinkAction({ q, prefillOnly });
-          }
-          window.history.replaceState({}, "", cleanPath);
-          /* eslint-enable react-hooks/set-state-in-effect */
-        }
+      const cleanPath = getColdLoadRouteSnapshot().cleanPath;
+      if (cleanPath) {
+        window.history.replaceState({}, "", cleanPath);
       }
     } catch {
       /* ignore */

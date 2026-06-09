@@ -50,6 +50,9 @@ export function wcUrTakeConfidenceNote(dataConfidence) {
  */
 export function formatWcMarketsStatusChip(meta) {
   if (!meta) return null;
+  if (meta.referenceOnly) {
+    return "Tournament winner · reference lines";
+  }
   const age = Number(meta.ageMinutes);
   if (Number.isFinite(age) && age >= 0 && age < 360) {
     return age <= 1 ? "Tournament markets · just updated" : `Tournament markets · ${age}m ago`;

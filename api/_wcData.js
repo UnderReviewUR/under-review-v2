@@ -30,6 +30,7 @@ import { isKvFresh } from "../shared/selfHealingKv.js";
 import { attachOutrightsFreshness } from "../shared/wcOddsFreshness.js";
 import { buildWcOutrightsSeedPayload } from "../shared/wcOutrightsSeed.js";
 import { resolveWcOutrightsSourceChain } from "../shared/wcOutrightsSourceChain.js";
+import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
 import { scrapeAllWcOutrightsAggregators } from "./_wcScrapeOutrightsAggregators.js";
 import { WC_OUTRIGHTS_AGGREGATOR_COUNT } from "../shared/wcOutrightsAggregatorRegistry.js";
 import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
@@ -446,8 +447,9 @@ export async function scrapeAndCacheWcMatchOdds(eventId, meta = {}) {
 }
 
 async function writeWcOutrightsKv(outrights, source, nowMs = Date.now(), meta = {}) {
+  const cleaned = sanitizeWcTournamentWinnerOutrights(outrights);
   const payload = {
-    outrights,
+    outrights: cleaned,
     lastUpdated: nowMs,
     source,
     sourceTier: meta.sourceTier || null,
@@ -461,7 +463,7 @@ async function writeWcOutrightsKv(outrights, source, nowMs = Date.now(), meta = 
   console.log(
     JSON.stringify({
       event: "wc_outrights_cached",
-      count: Object.keys(outrights).length,
+      count: Object.keys(cleaned).length,
       source,
       sourceTier: payload.sourceTier,
     }),

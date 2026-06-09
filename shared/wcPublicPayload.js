@@ -3,6 +3,7 @@
  */
 
 import { buildWcOutrightsSeedMap } from "./wcOutrightsSeed.js";
+import { sanitizeWcTournamentWinnerOutrights } from "./wc2026OutrightOdds.js";
 import { buildStaticGroupsFallback } from "./wcStaticGroupsFallback.js";
 import { buildStaticPromoMatchesFallback } from "./wc2026PromoFixtures.js";
 import { fetchOpenFootballWc2026Schedule } from "./wcOpenFootballSchedule.js";
@@ -28,6 +29,7 @@ export function sanitizeWcPublicPayload(payload, view = "matches") {
 
   if (view === "outrights" && out.outrights) {
     out.marketsLabel = "Tournament winner";
+    out.outrights = sanitizeWcTournamentWinnerOutrights(out.outrights);
     if (out.lastUpdated) {
       out.updatedAt = out.lastUpdated;
       delete out.lastUpdated;
@@ -53,16 +55,34 @@ export function sanitizeWcPublicPayload(payload, view = "matches") {
  */
 export function ensureWcPublicOutrights(payload) {
   const base = payload && typeof payload === "object" ? { ...payload } : {};
-  const existing =
+  const raw =
     base.outrights && typeof base.outrights === "object" ? base.outrights : {};
-  if (Object.keys(existing).length >= 12) {
-    return sanitizeWcPublicPayload(base, "outrights");
+  const sanitized = sanitizeWcTournamentWinnerOutrights(raw);
+  const dropped = Object.keys(raw).length - Object.keys(sanitized).length;
+  const tier = String(base.sourceTier || "").toLowerCase();
+  const marketsReference =
+    Boolean(base.marketsReference) ||
+    tier === "static_seed" ||
+    tier === "stale_kv_aged" ||
+    dropped > 0;
+
+  if (Object.keys(sanitized).length >= 12) {
+    return sanitizeWcPublicPayload(
+      {
+        ...base,
+        outrights: sanitized,
+        marketsReference,
+        lastUpdated: base.lastUpdated || Date.now(),
+      },
+      "outrights",
+    );
   }
   const seed = buildWcOutrightsSeedMap();
   return sanitizeWcPublicPayload(
     {
       ...base,
-      outrights: { ...seed, ...existing },
+      outrights: { ...seed, ...sanitized },
+      marketsReference: true,
       lastUpdated: base.lastUpdated || Date.now(),
     },
     "outrights",

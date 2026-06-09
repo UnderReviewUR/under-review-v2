@@ -3,6 +3,7 @@
  */
 
 import { formatAmericanOdds, parseAmericanOddsNumber } from "./wcGoldenBootConsensus.js";
+import { isPlausibleWcTournamentWinnerOdds } from "./wc2026OutrightOdds.js";
 import { abbrForWcTeamName } from "./wcOutrightsTeamResolve.js";
 
 const MIN_PARSE_ROWS = 8;
@@ -41,10 +42,7 @@ function formatOutrightsOddsToken(raw) {
  * @param {string | null} odds
  */
 function isPlausibleTournamentWinnerOdds(odds) {
-  const n = parseAmericanOddsNumber(odds);
-  if (n == null) return false;
-  if (n >= 0) return n >= 100;
-  return n <= -101;
+  return isPlausibleWcTournamentWinnerOdds(odds);
 }
 
 /**

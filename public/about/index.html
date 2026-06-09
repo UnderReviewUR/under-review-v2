@@ -636,31 +636,30 @@
         "USA vs Paraguay — best bet for Americans who only know the moneyline (group context, not just ML)",
     };
 
-    function urAppUrl(prompt) {
+    function urAppUrl(promptKey) {
       var u = new URL("/worldcup", window.location.origin);
-      var q = String(prompt || "").trim();
-      if (q) u.searchParams.set("q", q);
+      var key = String(promptKey || "").trim();
+      if (key) u.searchParams.set("p", key);
       return u.toString();
     }
 
-    function urGoApp(prompt) {
+    function urGoApp(promptKey) {
       try {
         localStorage.setItem("ur_seen_landing", "1");
       } catch (e) {}
-      window.location.href = urAppUrl(prompt);
+      window.location.href = urAppUrl(promptKey);
     }
 
     document.querySelectorAll("[data-ur-prompt]").forEach(function (el) {
       el.addEventListener("click", function (ev) {
         ev.preventDefault();
         var key = el.getAttribute("data-ur-prompt");
-        var text = PROMPTS[key] || PROMPTS.tournament;
-        urGoApp(text);
+        urGoApp(key || "groupValue");
       });
     });
 
     window.urShareWcLink = function (promptKey) {
-      urGoApp(PROMPTS[promptKey] || PROMPTS.groupValue);
+      urGoApp(promptKey || "groupValue");
     };
   })();
 </script>
