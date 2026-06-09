@@ -1,4 +1,5 @@
 import { resolveNbaVerdictFromQuestion } from "../../shared/nbaUrTakeVerdict.js";
+import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 import { inferEdgeTypePill, inferMarketPill } from "./urTakeSharpBriefUi.js";
 
 /**
@@ -35,10 +36,16 @@ export function buildNbaUrTakeContextBar({
   const livePart = showLiveRibbon ? "Live" : "Tonight";
   const base = [marketDistinct ?? edgeTypePill, `Prop · ${livePart}`].join(" · ");
 
-  const ribbon = String(liveScore || gameStateLine || "").trim();
-  const finalsSummary = String(
-    nbaRelevance?.finalsSeriesSummary || message?.nbaRelevance?.finalsSeriesSummary || "",
-  ).trim();
+  const ribbon = scrubStaleFinalsTiedCopy(
+    String(liveScore || gameStateLine || "").trim(),
+    nbaRelevance || message?.nbaRelevance,
+    userQuestion,
+  );
+  const finalsSummary = scrubStaleFinalsTiedCopy(
+    String(nbaRelevance?.finalsSeriesSummary || message?.nbaRelevance?.finalsSeriesSummary || "").trim(),
+    nbaRelevance || message?.nbaRelevance,
+    userQuestion,
+  );
 
   const parts = [base];
   if (ribbon) parts.push(ribbon);

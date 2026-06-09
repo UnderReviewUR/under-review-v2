@@ -5,6 +5,7 @@ import {
   buildNbaFinalsContextBlock,
   finalsHomeStretchGameNumbers,
   getNbaFinalsSeriesState,
+  inferFinalsSeriesWinsFromH2h,
   isNbaFinalsGame,
   isNbaFinalsQuestion,
   parseFinalsSeriesWinsFromQuestion,
@@ -93,6 +94,75 @@ test("reconcileFinalsSeriesState — overrides stale board 0-0 from question", (
     stale,
     "Knicks lead the series 2-0 heading into Game 3",
   );
+  assert.match(fixed.seriesScoreLabel, /Knicks lead/i);
+  assert.match(fixed.seriesScoreLabel, /2-0/);
+});
+
+test("reconcileFinalsSeriesState — infers 2-0 from playoff series status without question", () => {
+  const stale = getNbaFinalsSeriesState({
+    awayAbbr: "SAS",
+    homeAbbr: "NYK",
+    playoffSeries: [
+      {
+        away: "SAS",
+        home: "NYK",
+        awayWins: 0,
+        homeWins: 0,
+        gameNumberHint: 3,
+        status: "NY leads series 2-0",
+      },
+    ],
+  });
+  const playoffSeries = [
+    {
+      away: "SAS",
+      home: "NYK",
+      awayWins: 0,
+      homeWins: 0,
+      gameNumberHint: 3,
+      status: "NY leads series 2-0",
+    },
+  ];
+  const fixed = reconcileFinalsSeriesState(stale, "provide 3 leg player parlay for nba game tonight", {
+    playoffSeries,
+  });
+  assert.match(fixed.seriesScoreLabel, /Knicks lead/i);
+  assert.match(fixed.seriesScoreLabel, /2-0/);
+});
+
+test("reconcileFinalsSeriesState — infers 2-0 from h2h playoff meetings", () => {
+  const stale = getNbaFinalsSeriesState({
+    awayAbbr: "SAS",
+    homeAbbr: "NYK",
+    playoffSeries: [{ away: "SAS", home: "NYK", awayWins: 0, homeWins: 0, gameNumberHint: 3 }],
+  });
+  const h2h = inferFinalsSeriesWinsFromH2h(
+    [
+      {
+        awayAbbr: "SAS",
+        homeAbbr: "NYK",
+        meetings: [
+          { scope: "playoffs", awayAbbr: "NYK", homeAbbr: "SAS", awayScore: 110, homeScore: 98 },
+          { scope: "playoffs", awayAbbr: "NYK", homeAbbr: "SAS", awayScore: 105, homeScore: 99 },
+        ],
+      },
+    ],
+    "SAS",
+    "NYK",
+  );
+  assert.deepEqual(h2h, { NYK: 2, SAS: 0 });
+  const fixed = reconcileFinalsSeriesState(stale, "parlay for nba tonight", {
+    h2hSplits: [
+      {
+        awayAbbr: "SAS",
+        homeAbbr: "NYK",
+        meetings: [
+          { scope: "playoffs", awayAbbr: "NYK", homeAbbr: "SAS", awayScore: 110, homeScore: 98 },
+          { scope: "playoffs", awayAbbr: "NYK", homeAbbr: "SAS", awayScore: 105, homeScore: 99 },
+        ],
+      },
+    ],
+  });
   assert.match(fixed.seriesScoreLabel, /Knicks lead/i);
   assert.match(fixed.seriesScoreLabel, /2-0/);
 });

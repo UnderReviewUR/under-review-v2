@@ -64,6 +64,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { parseUrMarketingDeepLink } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import {
   buildWcHomePromoCard,
@@ -595,7 +596,8 @@ ${themeCss}
   const proSuccess = proCheckoutState.success;
   const proCheckoutEmail = proCheckoutState.email;
 
-  const [wcPendingSharePrompt, setWcPendingSharePrompt] = useState(null);
+  /** WC marketing / share deep link — auto-ask or prefill-only (see shared/wcMarketingDeepLinks.js). */
+  const [wcDeepLinkAction, setWcDeepLinkAction] = useState(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -614,20 +616,18 @@ ${themeCss}
         setScreen("nfl");
         setNflUrView("predict");
         /* eslint-enable react-hooks/set-state-in-effect */
-      } else if (sp.get("wc") === "1" || sp.get("wc") === "true") {
-        const q = String(sp.get("q") || "").trim();
-        /* eslint-disable react-hooks/set-state-in-effect -- WC share link opens hub */
-        setTab("worldcup");
-        setScreen("worldcup");
-        if (q) {
-          try {
-            setWcPendingSharePrompt(decodeURIComponent(q));
-          } catch {
-            setWcPendingSharePrompt(q);
+      } else {
+        const { isWorldCup, q, prefillOnly, cleanPath } = parseUrMarketingDeepLink(sp, path);
+        if (isWorldCup) {
+          /* eslint-disable react-hooks/set-state-in-effect -- WC marketing deep link */
+          setTab("worldcup");
+          setScreen("worldcup");
+          if (q) {
+            setWcDeepLinkAction({ q, prefillOnly });
           }
+          window.history.replaceState({}, "", cleanPath);
+          /* eslint-enable react-hooks/set-state-in-effect */
         }
-        window.history.replaceState({}, "", window.location.pathname);
-        /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
       /* ignore */
@@ -1357,6 +1357,7 @@ ${themeCss}
       injuries:        filteredInjuries,
       recentForm:      src?.recentForm    || "",
       h2hSplits:       src?.h2hSplits     || [],
+      playoffSeries:   Array.isArray(src?.playoffSeries) ? src.playoffSeries : [],
       gameTotals:      mergedTodaysGames.length === 0 ? {} : src?.gameTotals     || {},
       /** API roster + same featured names / teams as NBA tab UI chips */
       rosterGrounding: rosterGroundingMerged,
@@ -1559,14 +1560,21 @@ ${themeCss}
         : null;
     const pinnedScreen =
       screenSport && screenSport !== "generic" ? screenSport : null;
+    const imageAmbiguousRoute =
+      !!imgToSend &&
+      !pinnedExplicit &&
+      !pinnedScreen &&
+      !fromQuestion &&
+      !detected &&
+      !fromHistory;
     let eff =
       pinnedExplicit ??
       pinnedScreen ??
       fromQuestion ??
       detected ??
       fromHistory ??
-      lastUrTakeSportRef.current ??
-      inferUrTakeSportFromMessages(priorSnapshot) ??
+      (imageAmbiguousRoute ? null : lastUrTakeSportRef.current) ??
+      (imageAmbiguousRoute ? null : inferUrTakeSportFromMessages(priorSnapshot)) ??
       null;
     if (pinnedExplicit === "worldcup" || pinnedScreen === "worldcup") {
       eff = "worldcup";
@@ -3989,14 +3997,30 @@ ${themeCss}
   );
 
   useEffect(() => {
-    if (screen !== "worldcup" || !wcPendingSharePrompt || isAsking || prefetchingUrTakeContext) {
+    if (screen !== "worldcup" || !wcDeepLinkAction || isAsking || prefetchingUrTakeContext) {
       return;
     }
-    const t = String(wcPendingSharePrompt).trim();
-    setWcPendingSharePrompt(null);
+    const t = String(wcDeepLinkAction.q || "").trim();
+    const prefillOnly = Boolean(wcDeepLinkAction.prefillOnly);
+    setWcDeepLinkAction(null);
     if (!t) return;
+    if (prefillOnly) {
+      setWcInput(t);
+      requestAnimationFrame(() => {
+        wcInputRef.current?.focus?.();
+        scheduleChatScroll(wcScreenRef);
+      });
+      return;
+    }
     submitWc(t);
-  }, [screen, wcPendingSharePrompt, isAsking, prefetchingUrTakeContext, submitWc]);
+  }, [
+    screen,
+    wcDeepLinkAction,
+    isAsking,
+    prefetchingUrTakeContext,
+    submitWc,
+    scheduleChatScroll,
+  ]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   /** Insert suggested live follow-up from thread pills and submit (matches each sport's ask flow). */
@@ -4539,7 +4563,7 @@ ${themeCss}
   />
   <style>{css}</style>
   <div
-    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}`}
+    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}${screen === "worldcup" ? " app--wc-premium" : ""}`}
     style={{
       background: THEMES[activeTheme]?.appBg || "var(--bg)",
       color:
@@ -5064,6 +5088,7 @@ ${themeCss}
                 highlightEventId: notice?.eventId,
               })
             }
+            wcHomePromoCard={wcHomePromoCard}
           />
         )}
 
@@ -5750,7 +5775,7 @@ fees. One price, unlimited reads.`,
       >
         Unlock Live Edges →
       </ProCheckoutCTA>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>$9.99/month · cancel anytime · one question free to start</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>$9.99/month · cancel anytime · 3 free questions to start</div>
     </div>
     )}
 

@@ -57,13 +57,13 @@ export function parseFinalsSeriesWinsFromQuestion(question) {
 
   const toAbbr = (name) => {
     const n = String(name || "").toLowerCase();
-    if (n === "knicks" || n === "nyk") return "NYK";
-    if (n === "spurs" || n === "sas") return "SAS";
+    if (n === "knicks" || n === "nyk" || n === "ny") return "NYK";
+    if (n === "spurs" || n === "sas" || n === "sa") return "SAS";
     return String(name || "").toUpperCase();
   };
 
   const namedLead = q.match(
-    /\b(knicks|spurs|nyk|sas)\s+lead(?:s|ing)?\b(?:\s+the)?\s+series\s+(\d+)\s*[-–]\s*(\d+)/i,
+    /\b(knicks|spurs|nyk|sas|ny|sa)\s+lead(?:s|ing)?\b(?:\s+the)?\s+series\s+(\d+)\s*[-–]\s*(\d+)/i,
   );
   if (namedLead) {
     const leader = toAbbr(namedLead[1]);
@@ -92,18 +92,96 @@ export function parseFinalsSeriesWinsFromQuestion(question) {
 }
 
 /**
+ * Count Finals wins from completed game rows (todaysGames, lastNight, etc.).
+ * @param {Array<Record<string, unknown>>} games
+ * @returns {{ NYK: number, SAS: number } | null}
+ */
+export function inferFinalsSeriesWinsFromCompletedGames(games) {
+  let nyk = 0;
+  let sas = 0;
+  for (const g of Array.isArray(games) ? games : []) {
+    if (!isNbaFinalsGame(g)) continue;
+    if (String(g?.state || "").toLowerCase() !== "post") continue;
+    const away = canonicalizeTeamAbbr(g?.awayTeam?.abbr);
+    const home = canonicalizeTeamAbbr(g?.homeTeam?.abbr);
+    const awayScore = parseInt(String(g?.awayTeam?.score ?? ""), 10);
+    const homeScore = parseInt(String(g?.homeTeam?.score ?? ""), 10);
+    if (!Number.isFinite(awayScore) || !Number.isFinite(homeScore) || awayScore === homeScore) continue;
+    const winner = awayScore > homeScore ? away : home;
+    if (winner === "NYK") nyk += 1;
+    else if (winner === "SAS") sas += 1;
+  }
+  return nyk + sas > 0 ? { NYK: nyk, SAS: sas } : null;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} h2hSplits
+ * @param {string} awayAbbr
+ * @param {string} homeAbbr
+ * @returns {{ NYK: number, SAS: number } | null}
+ */
+export function inferFinalsSeriesWinsFromH2h(h2hSplits, awayAbbr, homeAbbr) {
+  const a = String(awayAbbr || "").toUpperCase();
+  const h = String(homeAbbr || "").toUpperCase();
+  const row = (Array.isArray(h2hSplits) ? h2hSplits : []).find((s) => {
+    const sa = String(s?.awayAbbr || "").toUpperCase();
+    const sh = String(s?.homeAbbr || "").toUpperCase();
+    return (sa === a && sh === h) || (sa === h && sh === a);
+  });
+  if (!row) return null;
+
+  let nyk = 0;
+  let sas = 0;
+  const meetings = Array.isArray(row.meetings) ? row.meetings : [];
+  for (const m of meetings) {
+    if (String(m?.scope || "").toLowerCase() !== "playoffs") continue;
+    const ha = String(m?.homeAbbr || "").toUpperCase();
+    const aa = String(m?.awayAbbr || "").toUpperCase();
+    const hs = parseInt(String(m?.homeScore ?? ""), 10);
+    const as = parseInt(String(m?.awayScore ?? ""), 10);
+    if (!Number.isFinite(hs) || !Number.isFinite(as) || hs === as) continue;
+    const winner = hs > as ? ha : aa;
+    if (winner === "NYK") nyk += 1;
+    else if (winner === "SAS") sas += 1;
+  }
+  return nyk + sas > 0 ? { NYK: nyk, SAS: sas } : null;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} playoffSeries
+ * @param {string} awayAbbr
+ * @param {string} homeAbbr
+ * @returns {{ NYK: number, SAS: number } | null}
+ */
+export function inferFinalsSeriesWinsFromPlayoffSeriesStatus(playoffSeries, awayAbbr, homeAbbr) {
+  const a = String(awayAbbr || "").toUpperCase();
+  const h = String(homeAbbr || "").toUpperCase();
+  const row = (Array.isArray(playoffSeries) ? playoffSeries : []).find((s) => {
+    const sa = String(s?.away || "").toUpperCase();
+    const sh = String(s?.home || "").toUpperCase();
+    return (sa === a && sh === h) || (sa === h && sh === a);
+  });
+  if (!row) return null;
+  const status = String(row.status || row.summary || "").trim();
+  if (!status) return null;
+  return parseFinalsSeriesWinsFromQuestion(status);
+}
+
+/**
  * @param {ReturnType<typeof getNbaFinalsSeriesState> | null} state
  * @param {string} [question]
+ * @param {{ games?: Array<Record<string, unknown>>, h2hSplits?: Array<Record<string, unknown>>, playoffSeries?: Array<Record<string, unknown>> }} [opts]
  */
-export function reconcileFinalsSeriesState(state, question = "") {
+export function reconcileFinalsSeriesState(state, question = "", opts = {}) {
   if (!state?.isFinals) return state;
 
   const boardTotal = (Number(state.awayWins) || 0) + (Number(state.homeWins) || 0);
   const boardStale =
     boardTotal === 0 && Number(state.gameNumber) >= 2 && /tied\s+0\s*[-–]\s*0/i.test(state.seriesScoreLabel || "");
+  const needsInference = boardStale || (boardTotal === 0 && Number(state.gameNumber) >= 3);
   const parsed = parseFinalsSeriesWinsFromQuestion(question);
 
-  if (!parsed && !boardStale) return state;
+  if (!parsed && !needsInference) return state;
 
   let winsAway = Number(state.awayWins) || 0;
   let winsHome = Number(state.homeWins) || 0;
@@ -111,8 +189,23 @@ export function reconcileFinalsSeriesState(state, question = "") {
   if (parsed) {
     winsAway = Number(parsed[state.awayAbbr]) || 0;
     winsHome = Number(parsed[state.homeAbbr]) || 0;
-  } else if (boardStale) {
-    return state;
+  } else if (needsInference) {
+    const gamePool = Array.isArray(opts.games) ? opts.games : [];
+    const fromStatus = inferFinalsSeriesWinsFromPlayoffSeriesStatus(
+      opts.playoffSeries,
+      state.awayAbbr,
+      state.homeAbbr,
+    );
+    const fromGames = inferFinalsSeriesWinsFromCompletedGames(gamePool);
+    const fromH2h = inferFinalsSeriesWinsFromH2h(
+      opts.h2hSplits,
+      state.awayAbbr,
+      state.homeAbbr,
+    );
+    const inferred = fromStatus || fromGames || fromH2h;
+    if (!inferred) return state;
+    winsAway = Number(inferred[state.awayAbbr]) || 0;
+    winsHome = Number(inferred[state.homeAbbr]) || 0;
   }
 
   const af = String(state.awayAbbr || "").toUpperCase();
@@ -535,6 +628,7 @@ export function buildNbaFinalsContextBlock(seriesState, nbaIntent = NBA_INTENT.P
     "",
     "FINALS-SPECIFIC RULES:",
     "- Mirror series wins and game number exactly from this block and playoffSeries / focusedSeriesSnapshot in JSON.",
+    "- De'Aaron Fox is NOT on the 2026 Spurs Finals roster — never cite Fox for SAS angles.",
     "- Rest & travel: back-to-back or cross-time-zone legs can compress rotation — cite only when injuries or recentGames support it.",
     "- Back-to-back impact: role-player overs/unders and totals shift with pace — use gameTotals and posted props when present.",
     buildNbaFinalsToneRules(nbaIntent),
@@ -605,6 +699,10 @@ export function resolveNbaFinalsUrTakeContext({
     };
   }
 
+  const gamePool = [
+    ...games,
+    ...(Array.isArray(nbaContext?.lastNight) ? nbaContext.lastNight : []),
+  ];
   const seriesState = reconcileFinalsSeriesState(
     getNbaFinalsSeriesState({
       awayAbbr: awayM || focusedGame?.awayTeam?.abbr,
@@ -614,6 +712,11 @@ export function resolveNbaFinalsUrTakeContext({
       focusedSeriesSnapshot: nbaContext?.focusedSeriesSnapshot ?? null,
     }),
     question,
+    {
+      games: gamePool,
+      h2hSplits: Array.isArray(nbaContext?.h2hSplits) ? nbaContext.h2hSplits : [],
+      playoffSeries,
+    },
   );
 
   const contextBlock = buildNbaFinalsContextBlock(seriesState, nbaIntent);

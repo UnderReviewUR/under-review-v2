@@ -4,9 +4,21 @@
 <script>
   (function() {
     try {
-      if (!localStorage.getItem('ur_seen_landing')) {
+      var sp = new URLSearchParams(window.location.search);
+      var path = (window.location.pathname || '').replace(/\/+$/, '').toLowerCase();
+      var hasDeepLink =
+        path === '/worldcup' ||
+        sp.has('q') ||
+        sp.has('prompt') ||
+        sp.has('wc') ||
+        sp.has('sport') ||
+        sp.has('pro') ||
+        sp.has('predictor') ||
+        sp.has('share') ||
+        sp.has('picks');
+      if (!localStorage.getItem('ur_seen_landing') && !hasDeepLink) {
         localStorage.setItem('ur_seen_landing', '1');
-        window.location.replace('https://under-review.app/about');
+        window.location.replace('/about');
       }
     } catch(e) {}
   })();

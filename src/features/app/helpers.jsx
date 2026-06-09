@@ -57,6 +57,7 @@ import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "../../..
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 import { buildNbaUrTakeContextBar } from "../../lib/nbaUrTakeContextBar.js";
 import { detectParlayIntent } from "../../../shared/detectParlayIntent.js";
+import { detectNbaPlayerPropIntent } from "../../../shared/detectNbaPlayerPropIntent.js";
 export { normalizeText };
 export { isSubstantiveClosing };
 export { formatUrTakeSportTag };
@@ -1779,7 +1780,11 @@ function buildNbaFinalsTakeCardProps(m, summaryText, userQuestion = "") {
     detectParlayIntent(userQuestion) ||
     detectParlayIntent(summaryText) ||
     (Array.isArray(m.structured?.parlayLegs) && m.structured.parlayLegs.length >= 2);
-  if (parlayQ) return null;
+  const playerPropQ =
+    detectNbaPlayerPropIntent(userQuestion) ||
+    detectNbaPlayerPropIntent(summaryText) ||
+    String(m.structured?.callType || "").toLowerCase() === "prop";
+  if (parlayQ || playerPropQ) return null;
   if (
     !isNbaFinalsStructured(m.structured) &&
     !isNbaFinalsTakeForDisplay(userQuestion, m.nbaRelevance)
@@ -1820,7 +1825,11 @@ function resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestio
     detectParlayIntent(userQuestion) ||
     detectParlayIntent(summaryText) ||
     String(m.structured?.callType || "").toLowerCase() === "parlay";
-  if (isNbaFinalsStructured(m.structured) && !parlayQ) return null;
+  const playerPropQ =
+    detectNbaPlayerPropIntent(userQuestion) ||
+    detectNbaPlayerPropIntent(summaryText) ||
+    String(m.structured?.callType || "").toLowerCase() === "prop";
+  if (isNbaFinalsStructured(m.structured) && !parlayQ && !playerPropQ) return null;
   const skipParlayPromotion =
     m.structured &&
     typeof m.structured === "object" &&

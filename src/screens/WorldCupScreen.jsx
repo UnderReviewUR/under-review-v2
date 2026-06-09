@@ -16,16 +16,13 @@ import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
 import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
+import WcPremiumFeaturedMatch from "../components/world-cup/WcPremiumFeaturedMatch.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
+
+export const WC_PREMIUM_TAGLINE = "BETTING INTELLIGENCE";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
-
-const WC_HOST_FLAGS = [
-  { code: "us", label: "United States" },
-  { code: "mx", label: "Mexico" },
-  { code: "ca", label: "Canada" },
-];
 
 function todayEt() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -71,6 +68,7 @@ export default function WorldCupScreen({
   wcXiConfirmedNotice = null,
   onDismissWcXiNotice = null,
   onOpenWcXiNotice = null,
+  wcHomePromoCard = null,
 }) {
   const [mainTab, setMainTab] = useState("matches");
   const [matchSubTab, setMatchSubTab] = useState("upcoming");
@@ -398,31 +396,21 @@ export default function WorldCupScreen({
     </>
   );
 
+  const featuredInsight = wcHomePromoCard && typeof wcHomePromoCard === "object" ? wcHomePromoCard : null;
+  const featuredInsightSnippet =
+    featuredInsight?.highlights?.[0] || featuredInsight?.subtitle || featuredInsight?.text || null;
+
   return (
     <main
       ref={wcScreenRef}
-      className={`screen wc-screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}
+      className={`screen wc-screen wc-screen--premium${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}
     >
-      <header className="wc-header">
-        <div className="wc-title-row">
-          <h1 className="wc-title">
-            <span className="wc-host-flags" aria-hidden="true">
-              {WC_HOST_FLAGS.map(({ code }) => (
-                <img
-                  key={code}
-                  src={`https://flagcdn.com/w40/${code}.png`}
-                  alt=""
-                  width={28}
-                  height={19}
-                  loading="lazy"
-                  className="wc-flag-sm"
-                />
-              ))}
-            </span>
-            WORLD CUP 2026
-          </h1>
-        </div>
-        <p className="wc-subtitle">{headerSubtitle}</p>
+      <header className="wc-header wc-header-premium">
+        <span className="wc-header-premium__trophy" aria-hidden="true" />
+        <span className="wc-header-premium__diamond" aria-hidden="true" />
+        <p className="wc-header-premium__tagline">{WC_PREMIUM_TAGLINE}</p>
+        <h1 className="wc-header-premium__title">World Cup 2026</h1>
+        <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>
       </header>
 
       {wcXiConfirmedNotice ? (
@@ -434,47 +422,35 @@ export default function WorldCupScreen({
       ) : null}
 
       {!wcLoading && featuredMatch ? (
-        <button
-          type="button"
-          className="wc-featured-strip"
-          onClick={() => openMatchDrawer(featuredMatch.match)}
-        >
-          <span className="wc-featured-strip-accent" aria-hidden="true" />
-          <span className="wc-featured-strip-body">
-            <div className="wc-featured-kicker">{featuredMatch.kicker}</div>
-            <div className="wc-featured-matchup">
-              {featuredMatch.match.homeTeam} vs {featuredMatch.match.awayTeam}
-            </div>
-            <div className="wc-featured-meta">
-              {featuredMatch.kind === "live" || isLiveStatus(featuredMatch.match.status)
-                ? "In progress"
-                : formatWcKickoffDisplay(featuredMatch.match)}
-              {featuredMatch.match.group ? ` · Group ${featuredMatch.match.group}` : ""}
-              {" · Tap for match intel →"}
-            </div>
-          </span>
-        </button>
+        <WcPremiumFeaturedMatch
+          match={featuredMatch.match}
+          kicker={featuredMatch.kicker}
+          teams={teams}
+          onOpen={() => openMatchDrawer(featuredMatch.match)}
+          xiTrustLine="Starting XIs only when confirmed — see status on every match."
+        />
       ) : null}
 
-      {!urDockedChat ? (
-        <div className="wc-start-here">
-          <div className="wc-start-here-label">Start here</div>
-          <div className="wc-quick-prompts">
-            {wcQuickPrompts.map((q) => (
-              <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)}>
-                {q}
-              </button>
-            ))}
-          </div>
+      {wcMsgs.length === 0 ? (
+        <div className="wc-ask-shell wc-ask-shell--premium" ref={wcBarRef}>
+          <AskBar
+            inputRef={wcInputRef}
+            value={wcInput}
+            onChange={setWcInput}
+            onSubmit={() => submitWc()}
+            placeholder="Ask anything about the World Cup"
+            btnColor="var(--wc-premium-accent)"
+            {...askBarCommon}
+          />
         </div>
       ) : null}
 
-      <div className="wc-main-tabs" role="tablist">
+      <div className="wc-main-tabs wc-main-tabs--premium" role="tablist">
         {[
-          ["groups", "Groups"],
           ["matches", "Matches"],
-          ["bracket", "Bracket"],
+          ["groups", "Standings"],
           ["teams", "Teams"],
+          ["bracket", "Bracket"],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -492,18 +468,31 @@ export default function WorldCupScreen({
         ))}
       </div>
 
-      {wcMsgs.length === 0 ? (
-        <div className="wc-ask-shell" ref={wcBarRef}>
-          <AskBar
-            inputRef={wcInputRef}
-            value={wcInput}
-            onChange={setWcInput}
-            onSubmit={() => submitWc()}
-            placeholder="Ask about groups, teams, or matches →"
-            btnColor="var(--wc-gold)"
-            {...askBarCommon}
-          />
-        </div>
+      {!urDockedChat && !wcLoading && featuredInsightSnippet ? (
+        <section className="wc-featured-insights" aria-label="Featured insights">
+          <div className="wc-featured-insights__head">
+            <h2 className="wc-featured-insights__title">Featured Insights</h2>
+            {featuredInsight?.prompt ? (
+              <button
+                type="button"
+                className="wc-featured-insights__all"
+                onClick={() => submitWc(featuredInsight.prompt)}
+              >
+                Ask →
+              </button>
+            ) : null}
+          </div>
+          <p className="wc-featured-insights__body">{featuredInsightSnippet}</p>
+          {wcQuickPrompts.length > 0 ? (
+            <div className="wc-quick-prompts wc-quick-prompts--premium">
+              {wcQuickPrompts.slice(0, 2).map((q) => (
+                <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       {urDockedChat ? (

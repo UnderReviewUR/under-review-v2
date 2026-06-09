@@ -1,5 +1,6 @@
 /** Output JSON mode + tier contracts for ur-take handler. */
 import { detectParlayIntent } from "../../../shared/detectParlayIntent.js";
+import { detectNbaPlayerPropIntent } from "../../../shared/detectNbaPlayerPropIntent.js";
 import { NBA_FINALS_STRUCTURED_JSON_CONTRACT } from "../../../shared/nbaFinalsStructured.js";
 import { WC_CARD_CONTRACT_TIER25_APPENDIX } from "../../../shared/wcCardContractVoice.js";
 import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
@@ -87,6 +88,9 @@ export function resolveOutputJsonMode({
     return "tier2_5_json";
   }
   if (String(sportHint || "").toLowerCase() === "nba" && finalsMode) {
+    if (detectNbaPlayerPropIntent(question)) {
+      return "tier2_5_json";
+    }
     return "nba_finals_json";
   }
   if (String(sportHint || "").toLowerCase() === "worldcup") {

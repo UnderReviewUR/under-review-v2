@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildNbaFinalsDisplayHeadline,
   parseNbaFinalsScannableTake,
+  scrubStaleFinalsTiedCopy,
   shouldReplaceNbaFinalsHeadline,
 } from "./nbaFinalsTakeDisplay.js";
 
@@ -39,6 +40,20 @@ Confidence: Medium. Look for Wembanyama under 10.`;
   assert.ok(p);
   assert.match(p.sharpAngle || "", /Wembanyama|under/i);
   assert.equal(p.confidence, "Medium");
+});
+
+test("scrubStaleFinalsTiedCopy — replaces model stale lean with nbaRelevance", () => {
+  const out = scrubStaleFinalsTiedCopy(
+    "Series tied 0-0 — Game 3 in New York. Knicks are 2-0 ATS.",
+    {
+      finalsMode: true,
+      finalsGameNumber: 3,
+      finalsSeriesSummary: "Knicks lead series 2-0",
+    },
+    "provide 3 leg player parlay for nba game tonight",
+  );
+  assert.match(out, /Knicks lead series 2-0/i);
+  assert.doesNotMatch(out, /tied 0-0/i);
 });
 
 test("buildNbaFinalsDisplayHeadline — Game 3 NY", () => {

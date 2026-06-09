@@ -6,6 +6,7 @@
 import { repairStructuredForDelivery } from "./types/urTakeResponse.js";
 import { sanitizeLeanBroTone } from "./_urTakeCoreVoice.js";
 import { resolveNbaNicknameMentionsFromQuestion } from "../shared/nbaNicknameMap.js";
+import { isNbaFinalsExcludedPlayer } from "../shared/nbaFinalsRoster.js";
 import { NBA_UI_PLAYER_CHIPS } from "../shared/nbaUiPlayerChips.js";
 
 /** Post-model prose patterns that must become structured redirect cards. */
@@ -251,9 +252,19 @@ function isPlayerOnTeamRosterTonight(playerKey, teamAbbr, nbaContext) {
  * @param {Set<string>} focusTeams
  * @param {Set<string>} slateTeams
  */
-function classifyOffPlayer(playerKey, teamAbbr, nbaContext, focusTeams, slateTeams) {
+function classifyOffPlayer(
+  playerKey,
+  teamAbbr,
+  nbaContext,
+  focusTeams,
+  slateTeams,
+  finalsMode = false,
+) {
   const team = String(teamAbbr || "").toUpperCase();
   if (!team) return null;
+  if (finalsMode && isNbaFinalsExcludedPlayer(playerKey)) {
+    return { playerKey, teamAbbr: team, reason: "finals_ineligible" };
+  }
   if (!slateTeams.has(team)) {
     return { playerKey, teamAbbr: team, reason: "off_slate" };
   }
@@ -316,7 +327,8 @@ function pickAlternateLeanPlayer(nbaContext, matchup, pool, excludeKeys) {
  * @param {{ awayAbbr?: string, homeAbbr?: string, label?: string } | null} params.nbaMatchup
  * @param {object | null} params.nbaMatchupPool
  * @param {{ verifiedPlayerToTeam?: Map<string, string> } | null} [params.nbaGroundingSnapshot]
- * @param {{ playerKey: string, teamAbbr: string, reason: 'off_slate' | 'off_roster' | 'off_matchup' } | null} [params.forcedOffPlayer]
+ * @param {{ playerKey: string, teamAbbr: string, reason: 'off_slate' | 'off_roster' | 'off_matchup' | 'finals_ineligible' } | null} [params.forcedOffPlayer]
+ * @param {boolean} [params.finalsMode]
  * @returns {Record<string, unknown> | null}
  */
 export function tryBuildNbaGroundingRedirectStructured({
@@ -326,6 +338,7 @@ export function tryBuildNbaGroundingRedirectStructured({
   nbaMatchupPool,
   nbaGroundingSnapshot: _nbaGroundingSnapshot,
   forcedOffPlayer = null,
+  finalsMode = false,
 }) {
   if (!nbaContext || typeof nbaContext !== "object") return null;
   if (!nbaMatchup?.awayAbbr || !nbaMatchup?.homeAbbr) return null;
@@ -357,6 +370,7 @@ export function tryBuildNbaGroundingRedirectStructured({
         nbaContext,
         focusTeams,
         slateTeams,
+        finalsMode,
       );
       if (classified) {
         off = classified;
@@ -380,6 +394,8 @@ export function tryBuildNbaGroundingRedirectStructured({
     lean = `Lean: Pass. ${playerName}'s team (${off.teamAbbr}) is off tonight — for ${matchupLabel}, ${altFirst} is the sharper lean.`;
   } else if (off.reason === "off_roster") {
     lean = `Lean: Pass. ${playerName} isn't on tonight's verified ${off.teamAbbr} roster — for ${matchupLabel}, ${altFirst} is the sharper lean.`;
+  } else if (off.reason === "finals_ineligible") {
+    lean = `Lean: Pass. ${playerName} isn't on the 2026 Spurs Finals roster — for ${matchupLabel}, ${altFirst} is the sharper Spurs prop.`;
   } else {
     lean = `Lean: Pass. ${playerName} isn't in tonight's ${matchupLabel} game — ${altFirst} is the sharper lean here.`;
   }
@@ -392,11 +408,13 @@ export function tryBuildNbaGroundingRedirectStructured({
   }
 
   const slateNote =
-    off.reason === "off_slate" && teamGameLabel
-      ? `${playerName} is on ${off.teamAbbr} (${teamGameLabel}), which is not on tonight's board.`
-      : off.reason === "off_roster"
-        ? `${playerName} isn't on tonight's verified ${off.teamAbbr} roster strings.`
-        : `${playerName} isn't part of ${matchupLabel}.`;
+    off.reason === "finals_ineligible"
+      ? `${playerName} isn't on the Spurs' 2026 Finals roster — no posted line for this series.`
+      : off.reason === "off_slate" && teamGameLabel
+        ? `${playerName} is on ${off.teamAbbr} (${teamGameLabel}), which is not on tonight's board.`
+        : off.reason === "off_roster"
+          ? `${playerName} isn't on tonight's verified ${off.teamAbbr} roster strings.`
+          : `${playerName} isn't part of ${matchupLabel}.`;
 
   const whyNow = `${playerName} isn't in tonight's game — ${slateNote} For ${matchupLabel}, the sharpest lean is ${altPlayer || altFirst}. Want that take instead?`;
   const edge =

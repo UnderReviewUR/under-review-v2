@@ -8,6 +8,7 @@
  */
 
 import { ensureLeanOnStructured } from '../../shared/urTakeLean.js';
+import { scrubFinalsExcludedPlayerMentions } from '../../shared/nbaFinalsRoster.js';
 import { sanitizeLeanBroTone } from '../_urTakeCoreVoice.js';
 
 /** Strip model artifacts like leading `")` from user-facing strings. */
@@ -299,6 +300,22 @@ export function repairStructuredForDelivery(response, sportHint) {
     base.whyNow = w;
   }
   base.edge = padLen(base.edge, 30, 500, DEFAULT_EDGE);
+
+  if (String(sportHint || '').toLowerCase() === 'nba') {
+    base.lean = clip(scrubFinalsExcludedPlayerMentions(base.lean), 120);
+    base.whyNow = scrubFinalsExcludedPlayerMentions(String(base.whyNow || ''));
+    base.edge = scrubFinalsExcludedPlayerMentions(String(base.edge || ''));
+    if (Array.isArray(base.parlayLegs)) {
+      base.parlayLegs = base.parlayLegs.map((leg) =>
+        leg && typeof leg === 'object'
+          ? {
+              ...leg,
+              rationale: scrubFinalsExcludedPlayerMentions(String(leg.rationale || '')),
+            }
+          : leg,
+      );
+    }
+  }
 
   const analysis = base.analysis && typeof base.analysis === 'object' ? { ...base.analysis } : {};
   for (const key of Object.keys(ANALYSIS_SENTINELS)) {

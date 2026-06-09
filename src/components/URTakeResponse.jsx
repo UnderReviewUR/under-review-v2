@@ -24,6 +24,7 @@ import {
   pickWcThePlayLine,
   wcCardSectionText,
 } from "../lib/wcTakeCardUi.js";
+import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -83,6 +84,7 @@ export default function URTakeResponse({
   deep: wcDeep = null,
   breakdownAvailable = false,
   predictionSlots = [],
+  nbaRelevance = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -132,8 +134,15 @@ export default function URTakeResponse({
   if (liveLeanCap != null && leanMerged.length > liveLeanCap) {
     leanMerged = `${leanMerged.slice(0, liveLeanCap - 1).trim()}…`;
   }
-  const leanDisplay = scrubStructuredFaceText(
-    rulesCallType ? rulesHeadline : leanMerged,
+  const leanDisplay = scrubStaleFinalsTiedCopy(
+    scrubStructuredFaceText(rulesCallType ? rulesHeadline : leanMerged),
+    nbaRelevance,
+    userQuestion,
+  );
+  const gameStateLineDisplay = scrubStaleFinalsTiedCopy(
+    String(gameStateLine || "").trim(),
+    nbaRelevance,
+    userQuestion,
   );
   const sportLower = sportLowerEarly;
   const displayConfidence = capWcStructuredConfidence(confidence, dataConfidence);
@@ -157,12 +166,13 @@ export default function URTakeResponse({
     return sentences.slice(0, max).join(" ").trim();
   };
 
+  const whyNowScrubbed = scrubStaleFinalsTiedCopy(whyNowRaw, nbaRelevance, userQuestion);
   const whyNowDisplay =
     rulesCallType || !isWcDirectCard
-      ? whyNowRaw
+      ? whyNowScrubbed
       : bodyExpanded
-        ? clampWcSentences(whyNowRaw, 3)
-        : whyNowRaw;
+        ? clampWcSentences(whyNowScrubbed, 3)
+        : whyNowScrubbed;
   const edgeDisplay =
     rulesCallType || !isWcDirectCard
       ? edgeRaw
@@ -402,7 +412,7 @@ export default function URTakeResponse({
           <span className="ur-v2-mini-pill">{edgeTypePill}</span>
           {marketPillDistinct ? <span className="ur-v2-mini-pill">{marketPillDistinct}</span> : null}
           <span className="ur-v2-mini-pill ur-v2-mini-pill--muted">
-            {matchupPillText(gameStateLine, userQuestion)}
+            {matchupPillText(gameStateLineDisplay, userQuestion)}
           </span>
         </div>
       ) : null}

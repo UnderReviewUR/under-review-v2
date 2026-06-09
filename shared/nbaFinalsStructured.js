@@ -3,6 +3,7 @@
  */
 
 import { buildNbaFinalsDisplayHeadline } from "./nbaFinalsTakeDisplay.js";
+import { scrubFinalsExcludedPlayerMentions } from "./nbaFinalsRoster.js";
 import { reconcileFinalsSeriesState } from "./nbaFinalsUtils.js";
 
 const CONFIDENCE_VALUES = new Set(["High", "Medium", "Speculative"]);
@@ -34,7 +35,7 @@ const FIELD_ALIASES = {
  * @param {string} text
  */
 export function sanitizeNbaFinalsFaceText(text) {
-  let t = String(text || "").trim();
+  let t = scrubFinalsExcludedPlayerMentions(String(text || "").trim());
   if (!t) return "";
   for (const re of PIPELINE_COPY_PATTERNS) {
     t = t.replace(re, "").trim();

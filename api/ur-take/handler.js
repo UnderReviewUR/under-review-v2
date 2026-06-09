@@ -154,6 +154,7 @@ import {
   nbaOutrightsInjectedForContext,
 } from "../../shared/nbaOutrightsFreshness.js";
 import { resolveNbaFinalsUrTakeContext } from "../../shared/nbaFinalsUtils.js";
+import { applyFinalsRosterFiltersToNbaContext } from "../../shared/nbaFinalsRoster.js";
 import {
   buildNbaFinalsStructuredForDelivery,
   formatNbaFinalsStructuredDisplayText,
@@ -2505,6 +2506,7 @@ export default async function handler(req, res) {
   let preloadedNbaBoard = null;
   if (
     firstSessionNoHistory &&
+    !hasImage &&
     (sportHint === "generic" || sportHint === "image_review") &&
     uiSportHintForRouting !== "worldcup" &&
     !questionMentionsWorldCup(question) &&
@@ -2814,7 +2816,7 @@ export default async function handler(req, res) {
         mvpAgeMinutes: mvpKv?.freshness?.ageMinutes ?? null,
       };
       if (nbaContext) {
-        nbaContext = {
+        nbaContext = applyFinalsRosterFiltersToNbaContext({
           ...nbaContext,
           finalsMode: finalsCtxProbe.finalsMode,
           finalsSeriesState: finalsCtxProbe.seriesState,
@@ -2824,14 +2826,14 @@ export default async function handler(req, res) {
                 finalsOutrights: { series: seriesKv, mvp: mvpKv },
               }
             : {}),
-        };
+        });
       }
     } else if (nbaContext && finalsCtxProbe.finalsMode) {
-      nbaContext = {
+      nbaContext = applyFinalsRosterFiltersToNbaContext({
         ...nbaContext,
         finalsMode: true,
         finalsSeriesState: finalsCtxProbe.seriesState,
-      };
+      });
     }
   }
 
@@ -3055,11 +3057,11 @@ export default async function handler(req, res) {
     };
     nbaFinalsContextBlock = finalsCtxFinal.contextBlock;
     if (nbaContext && finalsCtxFinal.finalsMode) {
-      nbaContext = {
+      nbaContext = applyFinalsRosterFiltersToNbaContext({
         ...nbaContext,
         finalsMode: true,
         finalsSeriesState: finalsCtxFinal.seriesState,
-      };
+      });
     }
   }
 
@@ -4896,6 +4898,7 @@ You are responding to a Pro subscriber. Apply the following:
         nbaMatchup,
         nbaMatchupPool,
         nbaGroundingSnapshot,
+        finalsMode: Boolean(nbaFinalsModeMeta?.finalsMode || nbaContext?.finalsMode),
       });
       if (redirectStructured) {
         structuredResponse = redirectStructured;
@@ -5290,6 +5293,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           nbaMatchup,
           nbaMatchupPool,
           nbaGroundingSnapshot,
+          finalsMode: Boolean(nbaFinalsModeMeta?.finalsMode || nbaContext?.finalsMode),
         });
         if (proseRedirect) {
           structuredResponse = proseRedirect;
@@ -5460,6 +5464,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                     nbaMatchup,
                     nbaMatchupPool,
                     nbaGroundingSnapshot,
+                    finalsMode: Boolean(nbaFinalsModeMeta?.finalsMode || nbaContext?.finalsMode),
                     forcedOffPlayer: {
                       playerKey: invalidKey,
                       teamAbbr: String(firstInvalid?.team || "").toUpperCase(),

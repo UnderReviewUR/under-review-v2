@@ -77,3 +77,40 @@ test("isNbaGroundingProseRefusal ignores normal takes", () => {
     false,
   );
 });
+
+test("grounding redirect — Fox is finals-ineligible on SAS @ NYK", () => {
+  const ctx = {
+    todaysGames: [{ awayTeam: { abbr: "SAS" }, homeTeam: { abbr: "NYK" }, state: "pre" }],
+    rosterGrounding: {
+      playersByTeamAbbrev: {
+        SAS: ["Victor Wembanyama", "De'Aaron Fox", "Stephon Castle"],
+        NYK: ["Jalen Brunson", "Karl-Anthony Towns"],
+      },
+    },
+    playerStats: [
+      { name: "Victor Wembanyama", team: "SAS", pts: 24, reb: 11, ast: 3 },
+      { name: "Stephon Castle", team: "SAS", pts: 14, reb: 4, ast: 6 },
+    ],
+  };
+  const out = tryBuildNbaGroundingRedirectStructured({
+    question: "fox over 3.5 rebounds?",
+    nbaContext: ctx,
+    nbaMatchup: { awayAbbr: "SAS", homeAbbr: "NYK", label: "SAS @ NYK" },
+    nbaMatchupPool: {
+      allowedTeams: ["SAS", "NYK"],
+      byTeam: {
+        SAS: ["Victor Wembanyama", "Stephon Castle"],
+        NYK: ["Jalen Brunson"],
+      },
+      knownPlayerToTeam: new Map([
+        ["victor wembanyama", "SAS"],
+        ["stephon castle", "SAS"],
+      ]),
+    },
+    finalsMode: true,
+  });
+  assert.ok(out);
+  assert.match(String(out.lean), /Pass/i);
+  assert.match(String(out.lean), /Finals roster/i);
+  assert.match(String(out.whyNow), /Fox/i);
+});

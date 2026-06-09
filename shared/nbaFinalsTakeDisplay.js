@@ -137,7 +137,7 @@ export function buildNbaFinalsDisplayHeadline(nbaRelevance, userQuestion = "") {
 
   const staleTied =
     /tied\s+0\s*[-–]\s*0/i.test(series) && Number(gn) >= 2;
-  if (staleTied && userQuestion) {
+  if (staleTied) {
     const parsed = parseFinalsSeriesWinsFromQuestion(userQuestion);
     const away = String(sched?.awayAbbr || "SAS").toUpperCase();
     const home = String(sched?.homeAbbr || "NYK").toUpperCase();
@@ -148,6 +148,11 @@ export function buildNbaFinalsDisplayHeadline(nbaRelevance, userQuestion = "") {
         Number(parsed[away]) || 0,
         Number(parsed[home]) || 0,
       );
+    } else if (
+      nbaRelevance?.finalsSeriesSummary &&
+      !/tied\s+0\s*[-–]\s*0/i.test(String(nbaRelevance.finalsSeriesSummary))
+    ) {
+      series = String(nbaRelevance.finalsSeriesSummary).trim();
     }
   }
   const matchup =
@@ -181,6 +186,36 @@ export function shouldReplaceNbaFinalsHeadline(headline, nbaRelevance) {
 export function isNbaFinalsTakeForDisplay(userQuestion, nbaRelevance) {
   if (Boolean(nbaRelevance?.finalsMode)) return true;
   return isNbaFinalsQuestion(userQuestion);
+}
+
+/**
+ * Best available Finals series label when board/model copy is stale (0-0).
+ * @param {object | null | undefined} nbaRelevance
+ * @param {string} [userQuestion]
+ */
+export function resolveCorrectedFinalsSeriesLabel(nbaRelevance, userQuestion = "") {
+  const summary = String(nbaRelevance?.finalsSeriesSummary || "").trim();
+  if (summary && !/tied\s+0\s*[-–]\s*0/i.test(summary)) return summary;
+  const headline = buildNbaFinalsDisplayHeadline(nbaRelevance, userQuestion);
+  if (!headline) return null;
+  const seriesPart = String(headline.split(" · ")[0] || "").trim();
+  return seriesPart && !/tied\s+0\s*[-–]\s*0/i.test(seriesPart) ? seriesPart : null;
+}
+
+/**
+ * Replace stale "tied 0-0" Finals copy with reconciled series state.
+ * @param {string} text
+ * @param {object | null | undefined} nbaRelevance
+ * @param {string} [userQuestion]
+ */
+export function scrubStaleFinalsTiedCopy(text, nbaRelevance, userQuestion = "") {
+  const t = String(text || "");
+  if (!t || !/tied\s+0\s*[-–]\s*0/i.test(t)) return text;
+  const label = resolveCorrectedFinalsSeriesLabel(nbaRelevance, userQuestion);
+  if (!label) return text;
+  return t
+    .replace(/\b(spurs\s+and\s+knicks|knicks\s+and\s+spurs)\s+tied\s+0\s*[-–]\s*0/gi, label)
+    .replace(/\bseries\s+tied\s+0\s*[-–]\s*0/gi, label);
 }
 
 /**
