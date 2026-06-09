@@ -38,7 +38,8 @@ export function buildPriceBindingPromptBlock(question, requiredEntities = [], wc
     return `PRICE BINDING (mandatory):
   User asked about "${meta.label}" — NOT tournament winner outright.
   Do NOT cite CURRENT OUTRIGHT ODDS as the price for this market.
-  Compare ${meta.key} sim probability to editorial or user-cited knockout-reach prices only — label SportsLine/editorial as narrative, not verified book feed.
+  Prefer BDL FUTURES SEED lines when present in VERIFIED CONTEXT for this market type.
+  Compare ${meta.key} sim probability to BDL-seeded or user-cited knockout-reach prices — label SportsLine/editorial as narrative, not verified book feed.
   Never equate group-advance sim % (advancePct) with Round of 16 reach unless the question is explicitly about escaping the group.`;
   }
 

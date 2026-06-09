@@ -46,6 +46,8 @@ import {
 } from "../shared/wcMatchChanceQuality.js";
 import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js";
 import { buildWcAdvancementMarketPromptBlock } from "../shared/wcAdvancementMarket.js";
+import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
+import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
 import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
@@ -627,6 +629,10 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("", ctx.advancementMarketBlock);
   }
 
+  if (ctx.bdlFuturesBlock) {
+    lines.push("", ctx.bdlFuturesBlock);
+  }
+
   if (ctx.outrightsBlock) {
     lines.push(ctx.outrightsBlock);
   } else {
@@ -891,10 +897,21 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   const advancementMarketBlock = buildWcAdvancementMarketPromptBlock(question, mentionedTeams);
 
+  let bdlFuturesBlock = null;
+  try {
+    const bdlSeed = await readWcBdlGoatSeedFromKv(nowMs);
+    if (bdlSeed?.byMarketType && Object.keys(bdlSeed.byMarketType).length) {
+      bdlFuturesBlock = buildWcBdlFuturesPromptBlock(bdlSeed, question, mentionedTeams, nowMs);
+    }
+  } catch (bdlErr) {
+    console.warn("[wc-context] BDL seed read failed:", bdlErr?.message);
+  }
+
   const ctx = {
     source: "world_cup_2026",
     questionText: question,
     advancementMarketBlock,
+    bdlFuturesBlock,
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",

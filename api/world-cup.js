@@ -1,5 +1,4 @@
 import { applyApiNoStoreHeaders, applyCors } from "./_cors.js";
-import { getEnv } from "./_env.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import {
   buildStaticGroupsFallback,
@@ -61,158 +60,14 @@ import {
 } from "../shared/wcPublicPayload.js";
 import { buildWcOutrightsSeedMap } from "../shared/wcOutrightsSeed.js";
 import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
+import { bdlFifaFetch, fetchAllMatchesBdl } from "./_wcBdlFifa.js";
+import {
+  readWcBdlGoatSeedFromKv,
+  scrapeAndCacheWcBdlGoatSeed,
+} from "./_wcBdlSeed.js";
 
-const FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
 const MATCHES_TTL = WC_MATCHES_TTL_SECONDS;
-
-function buildQueryString(params = {}) {
-  const parts = [];
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === "") continue;
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (item === undefined || item === null || item === "") continue;
-        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(item)}`);
-      }
-    } else {
-      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-    }
-  }
-  return parts.length ? `?${parts.join("&")}` : "";
-}
-
-async function bdlFifaFetch(endpoint, params = {}) {
-  const apiKey = getEnv("BALLDONTLIE_API_KEY") || "";
-  if (!apiKey) {
-    return { ok: false, status: 0, data: null, error: "Missing BALLDONTLIE_API_KEY", url: null };
-  }
-  const query = buildQueryString(params);
-  const url = `${FIFA_BASE}${endpoint}${query}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
-      headers: { Authorization: apiKey },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    let json = null;
-    try {
-      json = await res.json();
-    } catch {
-      json = null;
-    }
-    if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        data: json,
-        error:
-          (json && (json.error || json.message)) ||
-          `FIFA BDL request failed with status ${res.status}`,
-        url,
-      };
-    }
-    return { ok: true, status: res.status, data: json, error: null, url };
-  } catch (err) {
-    clearTimeout(timer);
-    return {
-      ok: false,
-      status: 0,
-      data: null,
-      error: err?.message || "FIFA fetch failed",
-      url,
-    };
-  }
-}
-
-function pickTeamAbbr(row, side) {
-  const team = row?.[side] || row?.[`${side}_team`] || row?.[`${side}Team`];
-  if (typeof team === "string") return team.trim().toUpperCase();
-  if (team && typeof team === "object") {
-    return String(
-      team.abbreviation || team.abbr || team.code || team.fifa_code || team.name || "",
-    )
-      .trim()
-      .toUpperCase();
-  }
-  return String(row?.[`${side}_abbr`] || row?.[`${side}Abbr`] || "").trim().toUpperCase();
-}
-
-function normalizeMatchStatus(raw) {
-  const s = String(raw || "")
-    .trim()
-    .toLowerCase();
-  if (!s) return "NS";
-  if (["live", "in_progress", "in progress", "1h", "2h", "ht", "halftime"].includes(s)) {
-    return s.includes("ht") || s.includes("half") ? "HT" : "live";
-  }
-  if (["finished", "ft", "final", "completed", "ended"].includes(s)) return "FT";
-  if (["scheduled", "not started", "ns", "upcoming", "timed"].includes(s)) return "NS";
-  return raw;
-}
-
-function normalizeMatchRow(row) {
-  if (!row || typeof row !== "object") return null;
-  const homeTeam = pickTeamAbbr(row, "home");
-  const awayTeam = pickTeamAbbr(row, "away");
-  const homeScore =
-    row.home_score ?? row.homeScore ?? row.score_home ?? row.home_goals ?? null;
-  const awayScore =
-    row.away_score ?? row.awayScore ?? row.score_away ?? row.away_goals ?? null;
-  const dateRaw =
-    row.date || row.match_date || row.start_time || row.kickoff || row.datetime || "";
-  const timeRaw = row.time || row.kickoff_time || "";
-  return {
-    id: row.id ?? row.match_id ?? `${homeTeam}-${awayTeam}-${dateRaw}`,
-    homeTeam,
-    awayTeam,
-    homeScore: homeScore != null ? Number(homeScore) : null,
-    awayScore: awayScore != null ? Number(awayScore) : null,
-    status: normalizeMatchStatus(row.status || row.match_status || row.state),
-    date: String(dateRaw).slice(0, 10),
-    time: String(timeRaw || String(dateRaw).slice(11, 16) || ""),
-    stadium: String(row.stadium || row.venue || row.venue_name || "").trim(),
-    city: String(row.city || row.venue_city || "").trim(),
-    group: String(row.group || row.group_name || row.group_letter || "")
-      .trim()
-      .toUpperCase()
-      .replace(/^GROUP\s*/i, ""),
-    round: String(row.round || row.stage || row.phase || "").trim(),
-    commenceTs: Date.parse(String(dateRaw)) || null,
-    odds: row.odds || undefined,
-  };
-}
-
-async function fetchAllMatchesBdl() {
-  const rows = [];
-  let cursor = null;
-  let guard = 0;
-  do {
-    const params = cursor ? { cursor } : {};
-    const res = await bdlFifaFetch("/matches", params);
-    if (!res.ok) return { ok: false, error: res.error, matches: rows };
-    const data = res.data;
-    const batch = Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.matches)
-        ? data.matches
-        : Array.isArray(data)
-          ? data
-          : [];
-    for (const row of batch) {
-      const m = normalizeMatchRow(row);
-      if (m?.homeTeam && m?.awayTeam) rows.push(m);
-    }
-    cursor = data?.meta?.next_cursor ?? data?.next_cursor ?? null;
-    guard += 1;
-  } while (cursor && guard < 20);
-  rows.sort((a, b) => (a.commenceTs || 0) - (b.commenceTs || 0));
-  return { ok: true, matches: rows };
-}
 
 function normalizeGroupStandings(data) {
   const groups = {};
@@ -725,6 +580,39 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, ...(payload || {}) });
     }
 
+    if (view === "bdl_seed" || view === "bdl-seed") {
+      if (String(req.query?.refresh || "") === "1") {
+        if (!isWcCronAuthorized(req)) {
+          return res.status(401).json({ error: "unauthorized" });
+        }
+        const includePlayers = String(req.query?.players || "") === "1";
+        const includeRosters = String(req.query?.rosters || "") === "1";
+        const skipMatches = String(req.query?.matches || "") === "0";
+        const seeded = await scrapeAndCacheWcBdlGoatSeed({
+          includeMatches: !skipMatches,
+          includePlayers,
+          includeRosters,
+        });
+        return res.status(seeded.ok ? 200 : 502).json(seeded);
+      }
+      const cached = await readWcBdlGoatSeedFromKv();
+      if (!cached) {
+        return res.status(404).json({
+          ok: false,
+          error: "no_seed",
+          hint: "Run seed:bdl-wc-goat during GOAT trial or GET ?view=bdl_seed&refresh=1 with CRON_SECRET",
+        });
+      }
+      return res.status(200).json({
+        ok: true,
+        summary: cached.summary,
+        stats: cached.stats,
+        matchesCount: cached.matches?.count ?? 0,
+        errors: cached.errors || [],
+        lastUpdated: cached.lastUpdated,
+      });
+    }
+
     if (view === "match_player_props" || view === "match-player-props") {
       const eventId = req.query?.eventId ?? req.query?.id;
       if (String(req.query?.refresh || "") === "1" && eventId) {
@@ -741,7 +629,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, sim, api_football, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, players, golden_boot, injuries, sim, api_football, bdl_seed, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

@@ -4,6 +4,12 @@ export const WC_GROUPS_KV_KEY = "wc2026_groups";
 export const WC_MATCHES_KV_KEY = "wc2026_matches";
 export const WC_OUTRIGHTS_KV_KEY = "wc2026_outrights";
 
+/** BallDontLie GOAT trial seed — futures + optional matches/players (persists post-trial). */
+export const WC_BDL_GOAT_SEED_KV_KEY = "wc2026_bdl_goat_seed";
+
+/** 120d — seed outlives 48h GOAT trial; refresh manually if trial extended. */
+export const WC_BDL_GOAT_SEED_TTL_SECONDS = 120 * 24 * 3600;
+
 export const WC_MATCH_DETAIL_KV_PREFIX = "wc_match_detail:";
 export const WC_MATCH_DETAIL_PRE_TTL_SECONDS = 900;
 export const WC_MATCH_DETAIL_LIVE_TTL_SECONDS = 300;

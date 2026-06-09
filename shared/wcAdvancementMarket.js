@@ -217,7 +217,8 @@ export function buildWcAdvancementMarketPromptBlock(question, entities = []) {
     `  Question market: ${meta.label} — NOT tournament winner outright.`,
     "  CURRENT OUTRIGHT ODDS in VERIFIED CONTEXT are TOURNAMENT WINNER prices only — never cite them as Round of 16 / group-advance / knockout-reach prices.",
     `  For sim claims about "${meta.label}", use ${meta.key} from TOURNAMENT SIMULATION — not advancePct unless the user asked about escaping the group.`,
-    `  Editorial references in US / HOST-NATION MEDIA CONTEXT (e.g. SportsLine USA Reach Round of 16 -115) are narrative corroboration only — label as editorial, not verified book feed.`,
+    `  When BDL FUTURES SEED is in VERIFIED CONTEXT, cite those prices for this market type — not CURRENT OUTRIGHT ODDS.`,
+    `  Editorial references in US / HOST-NATION MEDIA CONTEXT (e.g. SportsLine USA Reach Round of 16 -115) are narrative corroboration only — label as editorial when BDL seed is absent.`,
     `  Fair-price reads must compare the user's market (${meta.label}) to ${meta.key} sim probability — do not compare group-advance sims to tournament-winner odds.`,
   ];
 
