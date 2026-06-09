@@ -10,10 +10,7 @@ import {
   WC_MATCH_PLAYER_PROPS_KV_KEY,
   WC_GOLDEN_BOOT_MAX_AGE_MS,
   WC_PLAYER_MARKETS_OVERRIDE_KV_KEY,
-  WC_API_FOOTBALL_KV_KEY,
 } from "../shared/wc2026PlayerConstants.js";
-import { wcApiFootballQuotaState } from "../shared/wcApiFootballQuota.js";
-import { isWcApiFootballEnabled } from "../shared/wcApiFootballPolicy.js";
 import { attachGoldenBootFreshness } from "../shared/wcPlayerOddsFreshness.js";
 import { wcRosterCompleteness } from "../shared/wcRosterCompleteness.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
@@ -43,7 +40,7 @@ function staleHours(lastUpdated, maxAgeMs, nowMs = Date.now()) {
  * @param {number} [nowMs]
  */
 export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
-  const [playersKv, goldenBootRaw, injuries, matchProps, override, tournamentSim, apiFootball, outrightsKv] =
+  const [playersKv, goldenBootRaw, injuries, matchProps, override, tournamentSim, outrightsKv] =
     await Promise.all([
       readWcPlayersFromKv(),
       getDurableJson(WC_GOLDEN_BOOT_KV_KEY),
@@ -51,7 +48,6 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       getDurableJson(WC_MATCH_PLAYER_PROPS_KV_KEY),
       getDurableJson(WC_PLAYER_MARKETS_OVERRIDE_KV_KEY),
       readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs),
-      getDurableJson(WC_API_FOOTBALL_KV_KEY),
       readWcOutrightsFromKv(nowMs),
     ]);
 
@@ -139,14 +135,6 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       lastUpdated: matchProps?.lastUpdated ?? null,
       eventCount: eventIds.length,
       sampleEventIds: eventIds.slice(0, 8),
-    },
-    apiFootball: {
-      enabled: isWcApiFootballEnabled(),
-      lastUpdated: apiFootball?.lastUpdated ?? null,
-      fixtureLinkedCount: apiFootball?.fixtureMap?.linkedCount ?? 0,
-      assistLeaderCount: apiFootball?.leaders?.assists?.length ?? 0,
-      yellowLeaderCount: apiFootball?.leaders?.yellowCards?.length ?? 0,
-      quota: wcApiFootballQuotaState(apiFootball, nowMs),
     },
     scrapeFlags: wcBookScrapeFlagsSnapshot(),
     override: override

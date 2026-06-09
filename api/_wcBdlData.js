@@ -1,5 +1,5 @@
 /**
- * BallDontLie GOAT — primary WC ingest (ESPN / scrapes / API-Football as fallback).
+ * BallDontLie GOAT — primary WC ingest (ESPN / scrapes as fallback).
  */
 
 import { getDurableJson, setDurableJson } from "./_durableStore.js";

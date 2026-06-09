@@ -241,6 +241,15 @@ export const WC_GOLDEN_BOOT_SOURCE_REGISTRY = {
     urlEnv: "WC_SCRAPE_ROTOWIRE_URL",
     defaultUrl: "https://www.rotowire.com/betting/soccer/world-cup-odds.php",
   },
+  goal: {
+    label: "Goal.com",
+    region: "media",
+    parseProfile: "media_mixed",
+    envFlag: "WC_SCRAPE_GOAL",
+    urlEnv: "WC_SCRAPE_GOAL_GOLDEN_BOOT_URL",
+    defaultUrl:
+      "https://www.goal.com/en-us/betting/world-cup/world-cup-golden-boot-odds/A%3Ablt912cb25b4dbe10f3",
+  },
 };
 
 /** @deprecated — use WC_GOLDEN_BOOT_SOURCE_REGISTRY */

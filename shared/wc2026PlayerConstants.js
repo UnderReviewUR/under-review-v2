@@ -66,14 +66,6 @@ export const WC_MATCH_ADVANCED_STATS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 
 
-/** API-Football backup stats (fixture map, leaders, live cross-check). */
-
-export const WC_API_FOOTBALL_KV_KEY = "wc2026_api_football";
-
-export const WC_API_FOOTBALL_TTL_SECONDS = 7 * 24 * 3600;
-
-
-
 /** Cron: full player registry rollup. */
 
 export const WC_PLAYERS_SCRAPE_INTERVAL_MS = 12 * 60 * 60 * 1000;
@@ -135,6 +127,10 @@ export const WC_INJURIES_SCRAPE_INTERVAL_MS = 2 * 60 * 60 * 1000;
  * @property {number} goalsTournament
 
  * @property {number} assistsTournament
+
+ * @property {number} [yellowCardsTournament]
+
+ * @property {number} [redCardsTournament]
 
  * @property {string | null} injuryStatus
 

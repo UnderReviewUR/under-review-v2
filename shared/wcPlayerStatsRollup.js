@@ -35,6 +35,9 @@ export function aggregateTournamentStatsFromDetails(matchDetails) {
         const prev = byKey.get(key);
         const goals = (Number(prev?.goalsTournament) || 0) + (Number(row.goals) || 0);
         const assists = (Number(prev?.assistsTournament) || 0) + (Number(row.assists) || 0);
+        const yellowCards =
+          (Number(prev?.yellowCardsTournament) || 0) + (Number(row.yellowCards) || 0);
+        const redCards = (Number(prev?.redCardsTournament) || 0) + (Number(row.redCards) || 0);
         byKey.set(key, {
           espnAthleteId: row.espnAthleteId != null ? String(row.espnAthleteId) : prev?.espnAthleteId || null,
           name: String(row.name).trim(),
@@ -43,6 +46,8 @@ export function aggregateTournamentStatsFromDetails(matchDetails) {
           isStarterLikely: Boolean(prev?.isStarterLikely || (lineupConfirmed && row.starter)),
           goalsTournament: goals,
           assistsTournament: assists,
+          yellowCardsTournament: yellowCards,
+          redCardsTournament: redCards,
           injuryStatus: prev?.injuryStatus ?? null,
           lastSeenEventId: eventId || prev?.lastSeenEventId || null,
         });
@@ -69,6 +74,8 @@ export function aggregateTournamentStatsFromDetails(matchDetails) {
             isStarterLikely: true,
             goalsTournament: Number(prev?.goalsTournament) || 0,
             assistsTournament: Number(prev?.assistsTournament) || 0,
+            yellowCardsTournament: Number(prev?.yellowCardsTournament) || 0,
+            redCardsTournament: Number(prev?.redCardsTournament) || 0,
             injuryStatus: prev?.injuryStatus ?? null,
             lastSeenEventId: eventId || prev?.lastSeenEventId || null,
           });

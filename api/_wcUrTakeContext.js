@@ -46,6 +46,8 @@ import {
 } from "../shared/wcMatchChanceQuality.js";
 import { formatBdlGoatMatchIntelPromptBlock } from "../shared/wcBdlMatchIntel.js";
 import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js";
+import { buildGoalWcEditorialPromptBlock } from "../shared/goalEditorialPrompt.js";
+import { readGoalEditorialFromKv } from "./_goalBettingData.js";
 import { buildWcAdvancementMarketPromptBlock } from "../shared/wcAdvancementMarket.js";
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
@@ -53,8 +55,6 @@ import { getGoatFuturesLiveIndex } from "./_wcBdlGoatMode.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
-import { readWcApiFootballLiveStatsForEvent } from "./_wcApiFootballData.js";
-import { formatApiFootballLivePlayersPromptBlock } from "../shared/wcApiFootballParse.js";
 import {
   buildAdjustedGoldenBootPromptBlock,
   shouldInjectAdjustedGoldenBoot,
@@ -419,15 +419,6 @@ function formatMatchIntelBlock(detail) {
     lines.push("", bdlBlock);
   }
 
-  const apiLiveBlock = formatApiFootballLivePlayersPromptBlock(
-    detail.apiFootballLive?.players,
-    detail.homeTeam,
-    detail.awayTeam,
-  );
-  if (apiLiveBlock) {
-    lines.push("", apiLiveBlock);
-  }
-
   const advBlock = formatMatchChanceQualityPromptBlock(detail.advancedStats);
   if (advBlock) {
     lines.push("", advBlock);
@@ -558,8 +549,14 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     ctx.questionText || "",
     ctx.requiredEntities || [],
   );
-  if (usmntMedia) {
+  const skipStaticHostMedia =
+    Boolean(ctx.goalEditorialBlock) &&
+    /\b(USMNT|host_usa|host_mex|host_can|HOST-NATION)\b/i.test(String(ctx.goalEditorialBlock));
+  if (usmntMedia && !skipStaticHostMedia) {
     lines.push(usmntMedia, "");
+  }
+  if (ctx.goalEditorialBlock) {
+    lines.push(ctx.goalEditorialBlock, "");
   }
 
   const groupLetters = Object.keys(groupsForPrompt).sort();
@@ -837,12 +834,6 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       } catch (advErr) {
         console.warn("[wc-context] readWcMatchAdvancedStatsForEvent failed for", fx.id, advErr?.message);
       }
-      try {
-        const apiLive = await readWcApiFootballLiveStatsForEvent(fx.id, nowMs);
-        if (apiLive) enriched = { ...enriched, apiFootballLive: apiLive };
-      } catch (apiErr) {
-        console.warn("[wc-context] readWcApiFootballLiveStatsForEvent failed for", fx.id, apiErr?.message);
-      }
       matchDetails.push(enriched);
     } catch (err) {
       console.warn("[wc-context] readWcMatchDetailFromKv failed for", fx.id, err?.message);
@@ -1014,6 +1005,19 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     ctx.wcBreakingLine = null;
   }
 
+  try {
+    const goalKv = await readGoalEditorialFromKv("wc");
+    ctx.goalEditorialBlock = buildGoalWcEditorialPromptBlock(
+      question,
+      wcIntent,
+      mentionedTeams,
+      goalKv,
+    );
+  } catch (goalErr) {
+    console.warn("[wc-context] goal editorial block failed:", goalErr?.message);
+    ctx.goalEditorialBlock = null;
+  }
+
   if (wcIntent === WC_INTENT.RULES) {
     ctx.promptBlock = formatWcRulesOnlyPromptBlock(ctx);
     return ctx.promptBlock ? ctx : null;
@@ -1043,7 +1047,6 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       ctx.playerMarketTier = playerMarketTier;
       ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
         tier: playerMarketTier,
-        apiFootball: playerMarketKv.apiFootball,
         tierLabel: tierMeta.label,
         tierDisclaimer: tierMeta.disclaimer,
         wcIntent,

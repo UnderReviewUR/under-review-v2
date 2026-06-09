@@ -24,20 +24,12 @@ import {
   getWcMatchPlayerPropsPayload,
   scrapeAndCacheWcMatchPlayerProps,
 } from "./_wcMatchPlayerProps.js";
-import { fetchWcApiFootball } from "./_wcApiFootball.js";
-import {
-  readWcApiFootballFromKv,
-  scrapeAndCacheWcApiFootball,
-} from "./_wcApiFootballData.js";
 import { buildWcPlayerMarketsStatus } from "./_wcPlayerMarketsStatus.js";
 import {
   handleWcPlayerMarketsOverridePost,
   readWcPlayerMarketsOverrideKv,
 } from "./_wcPlayerMarketsOverride.js";
 import { verifyWcPlayerMarketsAdminAuth } from "../shared/wcBookScrapePolicy.js";
-import { WC_API_FOOTBALL_KV_KEY } from "../shared/wc2026PlayerConstants.js";
-import { wcApiFootballQuotaState } from "../shared/wcApiFootballQuota.js";
-import { getWcApiFootballKey, isWcApiFootballEnabled } from "../shared/wcApiFootballPolicy.js";
 import {
   isWcHomePromoWindow,
   isWcTournamentWindow,
@@ -420,16 +412,7 @@ function isScheduled(status) {
 }
 
 async function getWcClientDataHealth() {
-  const apiFootball = await getDurableJson(WC_API_FOOTBALL_KV_KEY);
-  const quota = wcApiFootballQuotaState(apiFootball);
-  return {
-    apiFootball: {
-      enabled: isWcApiFootballEnabled(),
-      usedToday: quota.usedToday,
-      remainingBudget: quota.remainingBudget,
-      dailyLimit: quota.dailyLimit,
-    },
-  };
+  return {};
 }
 
 function buildContextText(groupsPayload, matchesPayload) {
@@ -656,31 +639,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, override: override || null });
     }
 
-    if (view === "api_football" || view === "api-football") {
-      if (String(req.query?.probe || "") === "1") {
-        const keyPresent = Boolean(getWcApiFootballKey()?.trim());
-        const status = await fetchWcApiFootball("/status");
-        const cached = await readWcApiFootballFromKv();
-        return res.status(200).json({
-          ok: status.ok,
-          probe: true,
-          enabled: isWcApiFootballEnabled(),
-          keyPresent,
-          statusEndpoint: status,
-          kvQuota: cached?.quota ?? null,
-          fixtureLinkedCount: cached?.fixtureMap?.linkedCount ?? 0,
-          hint: status.ok
-            ? "Key works — dashboard Requests used should increment after this call."
-            : "Check API_FOOTBALL_KEY matches My Access on api-sports.io",
-        });
-      }
-      if (String(req.query?.refresh || "") === "1") {
-        await scrapeAndCacheWcApiFootball();
-      }
-      const payload = await readWcApiFootballFromKv();
-      return res.status(200).json({ ok: true, ...(payload || {}) });
-    }
-
     if (view === "bdl_seed" || view === "bdl-seed") {
       if (String(req.query?.refresh || "") === "1") {
         if (!isWcCronAuthorized(req)) {
@@ -742,7 +700,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, goat, players, golden_boot, injuries, sim, api_football, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, goat, players, golden_boot, injuries, sim, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

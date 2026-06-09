@@ -8,6 +8,7 @@ import {
   isWcGroupSlateQuestion,
   isWcRulesQuestion,
 } from "./wcUrTakeIntent.js";
+import { isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"GROUP_SLATE"|"GENERAL"} WcUrTakeVerdict */
@@ -27,6 +28,7 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
   ).trim();
 
   if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
+  if (isTournamentWinnerQuestion(q)) return WC_INTENT.ENTITY_PRICING;
   if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
   if (
     /\bmispriced\b/i.test(q) ||

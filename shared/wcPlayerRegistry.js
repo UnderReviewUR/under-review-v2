@@ -55,19 +55,29 @@ export function createEmptyPlayerRegistry(nowMs = Date.now()) {
 export function mergeRegistryPlayer(existing, incoming) {
   const exGoals = Number(existing.goalsTournament) || 0;
   const exAssists = Number(existing.assistsTournament) || 0;
+  const exYellow = Number(existing.yellowCardsTournament) || 0;
+  const exRed = Number(existing.redCardsTournament) || 0;
   const incGoals = Number(incoming.goalsTournament) || 0;
   const incAssists = Number(incoming.assistsTournament) || 0;
+  const incYellow = Number(incoming.yellowCardsTournament) || 0;
+  const incRed = Number(incoming.redCardsTournament) || 0;
   const incEvent = incoming.lastSeenEventId ? String(incoming.lastSeenEventId) : null;
   const exEvent = existing.lastSeenEventId ? String(existing.lastSeenEventId) : null;
 
   let goalsTournament;
   let assistsTournament;
+  let yellowCardsTournament;
+  let redCardsTournament;
   if (incEvent && exEvent && incEvent !== exEvent) {
     goalsTournament = exGoals + incGoals;
     assistsTournament = exAssists + incAssists;
+    yellowCardsTournament = exYellow + incYellow;
+    redCardsTournament = exRed + incRed;
   } else {
     goalsTournament = Math.max(exGoals, incGoals);
     assistsTournament = Math.max(exAssists, incAssists);
+    yellowCardsTournament = Math.max(exYellow, incYellow);
+    redCardsTournament = Math.max(exRed, incRed);
   }
 
   return {
@@ -78,6 +88,8 @@ export function mergeRegistryPlayer(existing, incoming) {
     isStarterLikely: Boolean(incoming.isStarterLikely || existing.isStarterLikely),
     goalsTournament,
     assistsTournament,
+    yellowCardsTournament,
+    redCardsTournament,
     injuryStatus: incoming.injuryStatus ?? existing.injuryStatus ?? null,
     lastSeenEventId: incoming.lastSeenEventId || existing.lastSeenEventId || null,
     birthDate: incoming.birthDate || existing.birthDate || null,
@@ -234,6 +246,8 @@ export function upsertRegistryFromMatchDetail(registry, detail) {
         isStarterLikely: lineupConfirmed && Boolean(row.starter),
         goalsTournament: Number(row.goals) || 0,
         assistsTournament: Number(row.assists) || 0,
+        yellowCardsTournament: Number(row.yellowCards) || 0,
+        redCardsTournament: Number(row.redCards) || 0,
         lastSeenEventId: eventId,
       });
     }
@@ -318,6 +332,51 @@ export function topRegistryAssists(registry, limit = 10) {
         (Number(b.assistsTournament) || 0) - (Number(a.assistsTournament) || 0) ||
         (Number(b.goalsTournament) || 0) - (Number(a.goalsTournament) || 0) ||
         (b.isStarterLikely ? 1 : 0) - (a.isStarterLikely ? 1 : 0),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * Most booked players across tournament registry.
+ * @param {Record<string, unknown> | null | undefined} registry
+ * @param {number} [limit]
+ */
+export function topRegistryYellowCards(registry, limit = 8) {
+  const teams = registry?.teams || {};
+  /** @type {import("./wc2026PlayerConstants.js").WcRegistryPlayer[]} */
+  const all = [];
+  for (const t of Object.values(teams)) {
+    for (const p of t?.players || []) {
+      all.push(p);
+    }
+  }
+  return all
+    .sort(
+      (a, b) =>
+        (Number(b.yellowCardsTournament) || 0) - (Number(a.yellowCardsTournament) || 0) ||
+        (b.isStarterLikely ? 1 : 0) - (a.isStarterLikely ? 1 : 0),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} registry
+ * @param {number} [limit]
+ */
+export function topRegistryRedCards(registry, limit = 6) {
+  const teams = registry?.teams || {};
+  /** @type {import("./wc2026PlayerConstants.js").WcRegistryPlayer[]} */
+  const all = [];
+  for (const t of Object.values(teams)) {
+    for (const p of t?.players || []) {
+      all.push(p);
+    }
+  }
+  return all
+    .sort(
+      (a, b) =>
+        (Number(b.redCardsTournament) || 0) - (Number(a.redCardsTournament) || 0) ||
+        (Number(b.yellowCardsTournament) || 0) - (Number(a.yellowCardsTournament) || 0),
     )
     .slice(0, limit);
 }

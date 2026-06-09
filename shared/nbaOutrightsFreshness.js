@@ -224,6 +224,7 @@ function buildMvpBlock(mvpKv, question, requiredEntities) {
  * @param {string[]} [opts.requiredEntities]
  * @param {{ outrights?: Record<string, string>, lastUpdated?: number, source?: string, stale?: boolean, freshness?: object } | null} [opts.seriesKv]
  * @param {{ candidates?: Array<{ name?: string, odds?: string, team?: string }>, outrights?: Record<string, string>, lastUpdated?: number, source?: string, stale?: boolean, freshness?: object } | null} [opts.mvpKv]
+ * @param {string | null} [opts.goalEditorialBlock]
  * @returns {string | null}
  */
 export function formatNbaOutrightsForPrompt({
@@ -232,6 +233,7 @@ export function formatNbaOutrightsForPrompt({
   requiredEntities = [],
   seriesKv = null,
   mvpKv = null,
+  goalEditorialBlock = null,
 } = {}) {
   const blocks = [];
   if (
@@ -250,6 +252,7 @@ export function formatNbaOutrightsForPrompt({
     const mvpBlock = buildMvpBlock(mvpKv, question, requiredEntities);
     if (mvpBlock) blocks.push(mvpBlock);
   }
+  if (goalEditorialBlock) blocks.push(goalEditorialBlock);
   return blocks.length ? blocks.join("\n\n") : null;
 }
 

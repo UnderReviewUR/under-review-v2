@@ -12,7 +12,11 @@ import {
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { resolveRequiredEntities } from "./wcUrTakeEntityBinding.js";
 import { buildUrTakeSessionMemoryPrompt } from "./urTakeConversation.js";
-import { wcConversationPivotMeta } from "./wcUrTakeConversation.js";
+import {
+  filterPriorTakesOnWcConversationPivot,
+  wcConversationPivotMeta,
+} from "./wcUrTakeConversation.js";
+import { isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 
 /** @param {string} abbr */
 function teamGroup(abbr) {
@@ -68,10 +72,17 @@ export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opt
   }
 
   const sessionEntities = extractSessionWcEntities(history);
+  const tournamentWinnerPivot =
+    isTournamentWinnerQuestion(question) && requiredEntities.length === 0;
+  if (tournamentWinnerPivot && sessionEntities.length > 0) {
+    baseSummary = filterPriorTakesOnWcConversationPivot(base.summary, question, history, wcIntent);
+  }
+
   const entityChanged =
-    requiredEntities.length > 0 &&
-    sessionEntities.length > 0 &&
-    !requiredEntities.every((e) => sessionEntities.includes(e));
+    (requiredEntities.length > 0 &&
+      sessionEntities.length > 0 &&
+      !requiredEntities.every((e) => sessionEntities.includes(e))) ||
+    tournamentWinnerPivot;
 
   const pivot = wcConversationPivotMeta(question, history, wcIntent);
   const intentPivot =

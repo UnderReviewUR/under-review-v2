@@ -264,8 +264,22 @@ export function formatGroupClinchWarnings(groups, allMatches, mentionedTeams) {
  * @param {string} question
  */
 export function isTournamentWinnerQuestion(question) {
-  return /\b(win (the )?(world cup|tournament|trophy|it all)|lift the trophy|outright|still win|path to|can .+ win)\b/i.test(
-    String(question || ""),
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (/\b(game\s*\d+|match\s*\d+|matchup)\b/i.test(q)) return false;
+  if (
+    /\b(who|which\s+team)\s+(?:will\s+)?wins?\s+(?:the\s+)?(?:world\s*cup|fifa world cup|tournament|trophy)\b/i.test(
+      q,
+    )
+  ) {
+    return true;
+  }
+  if (/\b(world\s*cup|tournament)\s+winner\b/i.test(q)) return true;
+  if (/\bwho\s+(?:will\s+)?win\s+(?:the\s+)?(?:world\s*cup|fifa world cup|tournament|trophy)\b/i.test(q)) {
+    return true;
+  }
+  return /\b(win (the )?(world cup|fifa world cup|tournament|trophy|it all)|lift the trophy|outright winner|still win the|path to (the )?title|can .+ win the (world cup|tournament))\b/i.test(
+    q,
   );
 }
 

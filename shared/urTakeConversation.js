@@ -5,6 +5,7 @@
 
 import { classifyNbaQuestionIntent, NBA_INTENT } from "./nbaUrTakeIntent.js";
 import { classifyWcQuestionIntent, WC_INTENT } from "./wcUrTakeIntent.js";
+import { isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { classifyGenericUrTakeIntent, GENERIC_INTENT } from "./urTakeIntentGeneric.js";
 import { appendSessionStructuralEdgeBlock } from "./urTakeSessionStructuralEdge.js";
@@ -277,6 +278,15 @@ export function buildConversationTransitionBlock(sportHint, question, history, c
     lines.push("Deliver series/finals pricing — not a game-level prop or unrelated player lean.");
   } else if (pivot.currentFamily === "group" || pivot.currentFamily === "matchup") {
     lines.push("Do not answer with a player-market lean from the prior turn.");
+  } else if (isTournamentWinnerQuestion(question)) {
+    lines.push(
+      "Answer tournament winner outright from CURRENT OUTRIGHT ODDS — abandon any prior Game 1 or group matchup scope.",
+    );
+    if (pivot.priorFamily === "matchup") {
+      lines.push(
+        "Prior turn was a specific matchup — do not cite Game 1 or repeat that fixture lean.",
+      );
+    }
   } else if (pivot.currentFamily === "general") {
     lines.push(
       "Treat this as a fresh open question — answer literally from context without forcing a prior template.",

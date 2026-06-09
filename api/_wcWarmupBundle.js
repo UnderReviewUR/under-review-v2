@@ -12,7 +12,6 @@ import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
 import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
 import { scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import { scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
-import { scrapeAndCacheWcApiFootball } from "./_wcApiFootballData.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcBdlStandingsAndFixtures, scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
 
@@ -58,9 +57,6 @@ export async function runWcWarmupBundle(kind = "all", nowMs = Date.now()) {
   }
   if (k === "all" || k === "injuries") {
     await run("injuries", () => scrapeAndCacheWcInjuries());
-  }
-  if (k === "all" || k === "api_football") {
-    await run("api_football", () => scrapeAndCacheWcApiFootball());
   }
 
   const ok = Object.values(results).every((r) => r && typeof r === "object" && r.ok !== false);

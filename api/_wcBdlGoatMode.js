@@ -382,7 +382,6 @@ export async function buildWcGoatProbeReport(opts = {}) {
           "golden_boot (tournament scorer futures — ESPN/scrape)",
           "injuries board (no BDL injuries endpoint — lineup-derived only)",
           "tournament_sim (internal Poisson+Elo)",
-          "api_football (optional stat cross-check)",
         ]
       : [
           "match_detail when WC_BDL_GOAT_PRIMARY off",
@@ -390,7 +389,6 @@ export async function buildWcGoatProbeReport(opts = {}) {
           "match_player_props scrapes",
           "injuries",
           "tournament_sim (internal Poisson+Elo)",
-          "api_football live player stats backup",
         ],
     errors,
   };

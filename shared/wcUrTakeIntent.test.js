@@ -95,8 +95,19 @@ test("WC_INTENT_CATALOG — includes GENERAL catch-all", () => {
   assert.match(general.description, /catch-all|any World Cup/i);
 });
 
+test("classifyWcQuestionIntent — tournament winner uses ENTITY_PRICING", () => {
+  assert.equal(classifyWcQuestionIntent("Who wins the World Cup?"), WC_INTENT.ENTITY_PRICING);
+  assert.equal(classifyWcQuestionIntent("who wins the world cup?"), WC_INTENT.ENTITY_PRICING);
+});
+
+test("classifyWcQuestionIntent — Game 1 matchup stays MATCHUP not tournament winner", () => {
+  assert.equal(
+    classifyWcQuestionIntent("South Africa or Mexico — Who will win Game 1?"),
+    WC_INTENT.MATCHUP,
+  );
+});
+
 test("classifyWcQuestionIntent — open questions use GENERAL not group template", () => {
-  assert.equal(classifyWcQuestionIntent("Who wins the World Cup?"), WC_INTENT.GENERAL);
   assert.equal(classifyWcQuestionIntent("What's your read on the host nations?"), WC_INTENT.GENERAL);
   assert.equal(
     classifyWcQuestionIntent("How does the expanded format change knockout paths?"),
@@ -132,4 +143,11 @@ test("resolveRequiredEntities — match-scoped player prop binds both teams", ()
     WC_INTENT.PLAYER_PROP,
   );
   assert.deepEqual(entities.sort(), ["BRA", "FRA"]);
+});
+
+test("buildWcTurnScopeBlock — tournament winner pivots away from prior fixture", () => {
+  const scope = buildWcTurnScopeBlock("who wins the world cup?", WC_INTENT.ENTITY_PRICING);
+  assert.match(scope, /TOURNAMENT outright/i);
+  assert.match(scope, /NOT.*Game 1/i);
+  assert.match(scope, /winPct/i);
 });

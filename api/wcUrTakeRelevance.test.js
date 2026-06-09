@@ -21,6 +21,8 @@ import {
   textMentionsWcTeam,
 } from "../shared/wcUrTakeEntityBinding.js";
 import { buildWcSessionMemoryPrompt } from "../shared/wcUrTakeSessionMemory.js";
+import { buildWcConversationTransitionBlock } from "../shared/wcUrTakeConversation.js";
+import { buildWcTurnScopeBlock } from "../shared/wcUrTakeIntent.js";
 import {
   classifyWcVerdictForUi,
   getVerdictFollowUpChips,
@@ -305,6 +307,39 @@ test("runWcUrTakeQA — player turns reject France-as-scorer headline", () => {
     assert.equal(qa.passed, false, turn.question);
     assert.ok(qa.issueCodes.includes("wc_player_question_team_lead"), turn.question);
   }
+});
+
+test("matchup → tournament winner thread pivots intent and scope", () => {
+  const history = [
+    {
+      role: "user",
+      content: "South Africa or Mexico — Who will win Game 1?",
+    },
+    {
+      role: "assistant",
+      content: "Lean: Mexico -240 — home favorite at altitude.",
+      sport: "worldcup",
+    },
+  ];
+  const question = "who wins the world cup?";
+  const intent = classifyWcQuestionIntent(question, history);
+  assert.equal(intent, WC_INTENT.ENTITY_PRICING);
+  assert.deepEqual(resolveRequiredEntities(question, history, intent), []);
+
+  const transition = buildWcConversationTransitionBlock(question, history, intent);
+  assert.match(transition, /tournament winner outright/i);
+  assert.match(transition, /Game 1/i);
+
+  const scope = buildWcTurnScopeBlock(question, intent);
+  assert.match(scope, /TOURNAMENT outright/i);
+
+  const memory = buildWcSessionMemoryPrompt(
+    "PRIOR TAKES THIS SESSION\n1. Lean: Mexico -240 — Game 1 favorite.",
+    history,
+    "worldcup",
+    { question, wcIntent: intent, requiredEntities: [] },
+  );
+  assert.equal(memory.structuralEdgeInjected, false);
 });
 
 test("instrumentation shape — Brazil question log fields", () => {

@@ -33,7 +33,7 @@ import {
   WC_INJURIES_SCRAPE_INTERVAL_MS,
   WC_PLAYERS_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026PlayerConstants.js";
-import { WC_API_FOOTBALL_SCRAPE_INTERVAL_MS } from "../shared/wcApiFootballPolicy.js";
+import { GOAL_EDITORIAL_SCRAPE_INTERVAL_MS } from "./_goalBettingData.js";
 import { isNbaFinalsWindowEt } from "../shared/nbaFinalsHomePrompt.js";
 import {
   isNba2026FinalsMatchupGame,
@@ -179,6 +179,13 @@ export async function collectNbaScrapeTargets(nowMs = Date.now()) {
       gameStartMs: nowMs,
       priority: 4,
       meta: { kind: "outrights", fixedIntervalMs: NBA_OUTRIGHTS_SCRAPE_INTERVAL_MS },
+    });
+    out.push({
+      sport: "nba_goal_editorial",
+      gameId: "goal_editorial",
+      gameStartMs: nowMs,
+      priority: 3,
+      meta: { kind: "goal_editorial", fixedIntervalMs: GOAL_EDITORIAL_SCRAPE_INTERVAL_MS },
     });
 
     const finalsLiveSeen = new Set();
@@ -422,6 +429,13 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     meta: { kind: "golden_boot", fixedIntervalMs: WC_GOLDEN_BOOT_SCRAPE_INTERVAL_MS },
   });
   out.push({
+    sport: "wc_goal_editorial",
+    gameId: "goal_editorial",
+    gameStartMs: noonEtMs,
+    priority: WC_SCRAPE_PRIORITY.GOAL_EDITORIAL,
+    meta: { kind: "goal_editorial", fixedIntervalMs: GOAL_EDITORIAL_SCRAPE_INTERVAL_MS },
+  });
+  out.push({
     sport: "wc_injuries",
     gameId: "injuries",
     gameStartMs: noonEtMs,
@@ -435,14 +449,6 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     priority: WC_SCRAPE_PRIORITY.TOURNAMENT_SIM,
     meta: { kind: "tournament_sim", fixedIntervalMs: WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS },
   });
-  out.push({
-    sport: "wc_api_football",
-    gameId: "api_football_backup",
-    gameStartMs: noonEtMs,
-    priority: WC_SCRAPE_PRIORITY.API_FOOTBALL,
-    meta: { kind: "api_football", fixedIntervalMs: WC_API_FOOTBALL_SCRAPE_INTERVAL_MS },
-  });
-
   const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
   const matches = Array.isArray(kv?.matches) ? kv.matches : [];
   const hasRealFixtures = matches.some((m) => m?.id != null && !String(m.id).startsWith("wc-promo-"));

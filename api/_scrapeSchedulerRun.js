@@ -25,8 +25,8 @@ import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
 import { scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
-import { scrapeAndCacheWcApiFootball } from "./_wcApiFootballData.js";
 import { scrapeAndCacheNbaFinalsOutrights } from "./_nbaOutrightsData.js";
+import { scrapeAndCacheGoalEditorial } from "./_goalBettingData.js";
 
 const LAST_RUN_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_SCRAPES_PER_TICK = 12;
@@ -163,18 +163,6 @@ const SCRAPE_HANDLERS = {
       servedFromCache: Boolean(result.servedFromCache),
     };
   },
-  wc_api_football: async () => {
-    const result = await scrapeAndCacheWcApiFootball();
-    return {
-      ok: result.ok,
-      skipped: Boolean(result.skipped),
-      quota: result.quota,
-      fixtureMap: result.fixtureMap,
-      leaders: result.leaders,
-      liveStats: result.liveStats,
-      error: result.error,
-    };
-  },
   nba_finals_outrights: async () => {
     const result = await scrapeAndCacheNbaFinalsOutrights();
     return {
@@ -183,6 +171,24 @@ const SCRAPE_HANDLERS = {
       mvpCount: Object.keys(result.mvp?.outrights || {}).length,
       servedStale: Boolean(result.servedStale),
       error: result.error,
+    };
+  },
+  wc_goal_editorial: async () => {
+    const result = await scrapeAndCacheGoalEditorial("wc");
+    return {
+      ok: result.ok,
+      pagesOk: Object.keys(result.markets || {}).length,
+      servedStale: Boolean(result.servedStale),
+      errors: result.errors,
+    };
+  },
+  nba_goal_editorial: async () => {
+    const result = await scrapeAndCacheGoalEditorial("nba");
+    return {
+      ok: result.ok,
+      pagesOk: Object.keys(result.markets || {}).length,
+      servedStale: Boolean(result.servedStale),
+      errors: result.errors,
     };
   },
 };

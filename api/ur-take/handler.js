@@ -142,6 +142,7 @@ import {
   WC_INTENT,
 } from "../../shared/wcUrTakeIntent.js";
 import { isWcAdvancementMarketQuestion } from "../../shared/wcAdvancementMarket.js";
+import { isTournamentWinnerQuestion } from "../../shared/wcPhaseUtils.js";
 import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../../shared/wcCardContractVoice.js";
 import { buildNbaRelevanceLog } from "../../shared/nbaUrTakeRelevance.js";
 import { nbaRequiresLiveUrTakeBoardRefresh } from "../../shared/nbaLiveBoardRefresh.js";
@@ -168,6 +169,8 @@ import {
   readNbaFinalsMvpFromKv,
   readNbaFinalsSeriesFromKv,
 } from "../_nbaOutrightsData.js";
+import { readGoalEditorialFromKv } from "../_goalBettingData.js";
+import { buildGoalNbaFinalsEditorialPromptBlock } from "../../shared/goalEditorialPrompt.js";
 import {
   buildEntityBindingPromptBlock,
   resolveRequiredEntities,
@@ -2798,9 +2801,10 @@ export default async function handler(req, res) {
         incomingHistory,
         nbaIntentForOutrights,
       );
-      const [seriesKv, mvpKv] = await Promise.all([
+      const [seriesKv, mvpKv, nbaGoalKv] = await Promise.all([
         readNbaFinalsSeriesFromKv(),
         readNbaFinalsMvpFromKv(),
+        readGoalEditorialFromKv("nba"),
       ]);
       nbaFinalsOutrightsBlock = formatNbaOutrightsForPrompt({
         nbaIntent: nbaIntentForOutrights,
@@ -2808,6 +2812,7 @@ export default async function handler(req, res) {
         requiredEntities,
         seriesKv,
         mvpKv,
+        goalEditorialBlock: buildGoalNbaFinalsEditorialPromptBlock(nbaGoalKv),
       });
       nbaFinalsOutrightsMeta = {
         outrightsInjected: nbaOutrightsInjectedForContext(seriesKv, mvpKv),
@@ -4500,6 +4505,8 @@ Confidence guidance:
     const isWcAdvancementMarketIntent =
       wcIntent === WC_INTENT.ENTITY_PRICING &&
       isWcAdvancementMarketQuestion(String(question || ""));
+    const isWcTournamentWinnerIntent =
+      wcIntent === WC_INTENT.ENTITY_PRICING && isTournamentWinnerQuestion(routingQuestion);
     const isWcTopGoalscorersListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
     const isWcPredictionsRoundupIntent = wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP;
     const isWcPlayerMarketIntentFlag =
@@ -4524,6 +4531,8 @@ Confidence guidance:
       ? "You are answering a factual 2026 FIFA World Cup rules question."
       : isWcMatchupIntent
         ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
+        : isWcTournamentWinnerIntent
+          ? "You are answering a 2026 FIFA World Cup tournament winner (outright) question."
         : isWcAdvancementMarketIntent
           ? "You are answering a 2026 FIFA World Cup knockout-reach / advancement-market question (NOT tournament winner outright)."
         : isWcTopGoalscorersListIntent
@@ -4545,6 +4554,14 @@ Confidence guidance:
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - If CURRENT OUTRIGHT ODDS is missing or STALE, use cautious structural language — no overconfident winner picks.
 - Do not invent scores, lineups, or odds not supported by the context block.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+        : isWcTournamentWinnerIntent
+          ? `- Return JSON per OUTPUT CONTRACT: summary = tournament favorites verdict (150 words max); deep = full reasoning (no word limit).
+- Sentence one must name 2-4 tournament favorites from CURRENT OUTRIGHT ODDS — NOT a single group Game 1 unless the user asked that fixture this turn.
+- Use winPct from BDL tournament sims when citing sims — NOT group advancement % (advancePct).
+- Do NOT repeat Mexico vs South Africa or any prior matchup lean from this chat.
+- Lean must pair the correct team with its price (favorites at negative odds; longshots at +300 or higher).
+- If CURRENT OUTRIGHT ODDS is missing or STALE, use structural language — no overconfident winner picks.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
         : isWcAdvancementMarketIntent
           ? `- Return JSON per OUTPUT CONTRACT: summary = fair-price read on the specific knockout-reach market asked (150 words max); deep = full reasoning (no word limit).

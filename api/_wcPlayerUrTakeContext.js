@@ -9,7 +9,9 @@ import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
 import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
 import {
   topRegistryAssists,
+  topRegistryRedCards,
   topRegistryScorers,
+  topRegistryYellowCards,
   countRegistryPlayers,
 } from "../shared/wcPlayerRegistry.js";
 import {
@@ -27,8 +29,6 @@ import {
 } from "../shared/wcMatchPlayerProps.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { isWcLiveDominanceQuestion } from "../shared/wcLiveMatchQuestion.js";
-import { formatApiFootballLeadersPromptBlock } from "../shared/wcApiFootballParse.js";
-import { readWcApiFootballFromKv } from "./_wcApiFootballData.js";
 import { WC_SET_PIECE_TAKERS } from "../src/data/wc2026SetPieceTakers.js";
 import {
   adjustGoldenBootOdds,
@@ -38,7 +38,7 @@ import {
 /**
  * @param {number} [nowMs]
  * @param {{ wcEventId?: string | null, wcIntent?: string }} [opts]
- * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, apiFootball: object | null, wcEventId: string | null }>}
+ * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, wcEventId: string | null }>}
  */
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
   const wcEventId = String(opts.wcEventId || "").trim() || null;
@@ -47,14 +47,13 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
       isWcLiveDominanceQuestion(String(opts.question || "")));
 
-  const [players, goldenBoot, injuries, matchPlayerProps, apiFootball] = await Promise.all([
+  const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
     readWcPlayersFromKv(),
     readWcGoldenBootFromKv(nowMs),
     readWcInjuriesFromKv(),
     loadMatchProps ? readWcMatchPlayerPropsForEvent(wcEventId, nowMs) : Promise.resolve(null),
-    readWcApiFootballFromKv(nowMs),
   ]);
-  return { players, goldenBoot, injuries, matchPlayerProps, apiFootball, wcEventId };
+  return { players, goldenBoot, injuries, matchPlayerProps, wcEventId };
 }
 
 /**
@@ -83,7 +82,11 @@ function formatInjuriesBoardForPrompt(injuries) {
 function formatSquadLeadersForPrompt(players) {
   const topGoals = topRegistryScorers(players, 10).filter((p) => (Number(p.goalsTournament) || 0) > 0);
   const topAssists = topRegistryAssists(players, 8).filter((p) => (Number(p.assistsTournament) || 0) > 0);
-  if (!topGoals.length && !topAssists.length) return [];
+  const topYellow = topRegistryYellowCards(players, 8).filter(
+    (p) => (Number(p.yellowCardsTournament) || 0) > 0,
+  );
+  const topRed = topRegistryRedCards(players, 6).filter((p) => (Number(p.redCardsTournament) || 0) > 0);
+  if (!topGoals.length && !topAssists.length && !topYellow.length && !topRed.length) return [];
 
   /** @type {string[]} */
   const lines = [];
@@ -111,6 +114,22 @@ function formatSquadLeadersForPrompt(players) {
       lines.push(
         `  ${p.name} (${p.nationAbbr}) — ${assists} assist(s)${goalBit}${tag}${p.injuryStatus ? ` · ${p.injuryStatus}` : ""}`,
       );
+    }
+  }
+
+  if (topYellow.length) {
+    lines.push("SQUAD / FORM — tournament yellow card leaders (verified match intel):");
+    for (const p of topYellow) {
+      const yellow = Number(p.yellowCardsTournament) || 0;
+      lines.push(`  ${p.name} (${p.nationAbbr}) — ${yellow} yellow`);
+    }
+  }
+
+  if (topRed.length) {
+    lines.push("SQUAD / FORM — tournament red card leaders (verified match intel):");
+    for (const p of topRed) {
+      const red = Number(p.redCardsTournament) || 0;
+      lines.push(`  ${p.name} (${p.nationAbbr}) — ${red} red`);
     }
   }
 
@@ -169,7 +188,6 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     injuries,
     matchDetails = [],
     matchPlayerProps = null,
-    apiFootball = null,
     wcEventId = null,
     tournamentSimResults = null,
   } = opts;
@@ -258,11 +276,6 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     if (adjustedBlock) {
       lines.push(adjustedBlock, "");
     }
-  }
-
-  const apiFootballLeadersBlock = formatApiFootballLeadersPromptBlock(apiFootball?.leaders);
-  if (apiFootballLeadersBlock) {
-    lines.push(apiFootballLeadersBlock, "");
   }
 
   const squadLines = formatSquadLeadersForPrompt(players);

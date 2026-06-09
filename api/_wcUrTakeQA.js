@@ -18,6 +18,7 @@ import {
 } from "../shared/wcPlayerMarketResolve.js";
 import { detectWcGroupMathMismatch } from "../shared/wcGroupComposition.js";
 import { isWcGroupSlateQuestion } from "../shared/wcUrTakeIntent.js";
+import { isTournamentWinnerQuestion } from "../shared/wcPhaseUtils.js";
 import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
 import {
   scoreWcCardContractVoice,
@@ -135,6 +136,13 @@ export function runWcUrTakeQA(opts = {}) {
   if (wcIntent === WC_INTENT.ENTITY_PRICING) {
     if (detectUncitedAmericanOdds(body, String(opts.question || ""), wcIntent)) {
       issueCodes.push("wc_price_uncited_citation");
+    }
+    if (
+      isTournamentWinnerQuestion(String(opts.question || "")) &&
+      requiredEntities.length === 0 &&
+      /\b(game\s*1|game\s*one)\b/i.test(body)
+    ) {
+      issueCodes.push("wc_tournament_winner_fixture_bleed");
     }
   }
 

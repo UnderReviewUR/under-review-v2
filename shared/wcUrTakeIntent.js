@@ -3,7 +3,7 @@
  */
 
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
-import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
+import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
@@ -278,6 +278,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return playerMarketIntent;
   }
 
+  if (isTournamentWinnerQuestion(q)) {
+    return WC_INTENT.ENTITY_PRICING;
+  }
+
   if (MATCHUP_SIGNAL_RE.test(ql) && mentioned.length >= 1) {
     return WC_INTENT.MATCHUP;
   }
@@ -388,6 +392,14 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - Answer ONLY the named player market in the current question (Golden Boot / top scorer / prop).
 - Do not pivot to an unrelated group-stage pick unless the user asked for both.`;
   }
+  if (isTournamentWinnerQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User asked who wins the TOURNAMENT outright — NOT a single group match, Game 1, or prior fixture thread.
+- Lead summary with top 2-4 favorites from CURRENT OUTRIGHT ODDS and/or BDL tournament sim winPct (Spain, France, Argentina, etc.).
+- Do NOT answer with Mexico vs South Africa or repeat a prior Game 1 lean unless the user asked that specific match this turn.
+- Do NOT use group advancement % (advancePct) as the tournament-winner answer — use outright odds and winPct.
+- Lean must pair the correct team with its price (favorites at negative odds; longshots at +300 or higher).`;
+  }
   if (intent === WC_INTENT.ENTITY_PRICING && isWcAdvancementMarketQuestion(routingQuestion)) {
     return `TURN SCOPE (binding):
 - User asked about a knockout-reach / advancement market (e.g. Round of 16) — NOT tournament winner outright.
@@ -396,6 +408,8 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
   }
   return "";
 }
+
+export { isTournamentWinnerQuestion as isWcTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 
 export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same chat, this sport only):
 - UnderReview handles ANY World Cup question — intents are routing hints, not an allowlist. When unsure, answer literally (GENERAL).
