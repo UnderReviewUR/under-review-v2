@@ -735,15 +735,15 @@ export const baseCss = `
   .home-surface-v1 .ur-home-starter-cards .ask-card > div:last-child,
   .home-surface-v1 .ur-home-starter-cards .ur-home-starter-chev{color:var(--ur-cyan) !important;font-size:16px;flex-shrink:0;line-height:1;}
   .ur-home-promise{
-    font-size:15px;
+    font-size:16px;
     font-weight:600;
-    color:rgba(255,255,255,0.9);
+    color:rgba(255,255,255,0.94);
     letter-spacing:-0.02em;
-    line-height:1.4;
-    margin:6px auto 14px;
+    line-height:1.45;
+    margin:8px auto 16px;
     text-align:center;
-    padding:0 10px;
-    max-width:340px;
+    padding:0 12px;
+    max-width:360px;
   }
   .ur-home-promise--stripped{
     font-size:14px;
@@ -756,12 +756,15 @@ export const baseCss = `
     padding:0 6px;
   }
   .ur-home-ask-hint{
-    font-size:12px;
-    color:rgba(255,255,255,0.52);
+    font-size:13px;
+    color:rgba(255,255,255,0.62);
     text-align:center;
-    margin:-8px 0 14px;
-    line-height:1.4;
-    padding:0 12px;
+    margin:-6px 0 16px;
+    line-height:1.45;
+    padding:0 14px;
+    max-width:360px;
+    margin-left:auto;
+    margin-right:auto;
   }
   .ur-home-try-row{display:flex;justify-content:center;margin:0 0 18px;}
   .ur-home-try-chip{

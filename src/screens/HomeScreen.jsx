@@ -18,8 +18,10 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
 const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push back on.";
 const HOME_ASK_HINT = "You'll get an answer you can push back on.";
 
+const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
+
 const HOME_PLACEHOLDER_ROTATION = [
-  "Ask, then follow up like a group chat…",
+  HOME_ASK_PLACEHOLDER,
   "Who's the sharp side tonight?",
   "Is this line mispriced?",
   "What's the smartest angle on the slate?",
@@ -171,7 +173,7 @@ export default function HomeScreen({
             value={askInput}
             onChange={setAskInput}
             onSubmit={submitHome}
-            placeholder="One sharp line — player, game, or price you care about…"
+            placeholder={HOME_ASK_PLACEHOLDER}
             pasteHintText="Paste a slip, line, or matchup."
             {...askBarCommon}
           />
