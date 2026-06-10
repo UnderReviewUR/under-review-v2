@@ -16,7 +16,8 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
 );
 
 /** Home hero copy — chat-first promise shown above the ask bar. */
-const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push back on.";
+const HOME_ASK_LINE_PRIMARY = "Ask like you would in chat.";
+const HOME_ASK_LINE_SECONDARY = "Get a take you can push back on.";
 const HOME_ASK_HINT = "You'll get an answer you can push back on.";
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
@@ -148,7 +149,9 @@ export default function HomeScreen({
       <main className="screen ur-first-session-home">
         <div className="ur-first-session-stack">
           <h1 className="ur-first-session-headline">What do you want to know before you bet?</h1>
-          <p className="ur-home-promise ur-home-promise--stripped">{HOME_ASK_PROMISE}</p>
+          <p className="ur-home-promise ur-home-promise--stripped">
+            {HOME_ASK_LINE_PRIMARY} {HOME_ASK_LINE_SECONDARY}
+          </p>
           <AskBar
             inputRef={askInputRef}
             value={askInput}
@@ -199,8 +202,10 @@ export default function HomeScreen({
   return (
     <main className={`screen home-surface-premium home-surface-pro${hasDockedBar ? " has-msgs" : ""}`}>
       <section className="ur-home-hero" aria-label="Ask Under Review">
-        <h1 className="ur-home-hero-title">{HOME_ASK_PROMISE}</h1>
-        <p className="ur-home-hero-lead">{HOME_ASK_HINT}</p>
+        <h1 className="ur-home-hero-title">
+          <span className="ur-home-hero-line">{HOME_ASK_LINE_PRIMARY}</span>
+          <span className="ur-home-hero-line ur-home-hero-line--soft">{HOME_ASK_LINE_SECONDARY}</span>
+        </h1>
         <div className="ur-home-ask-shell">
           <AskBar
             inputRef={askInputRef}
@@ -208,6 +213,7 @@ export default function HomeScreen({
             onChange={setAskInput}
             onSubmit={submitHome}
             placeholder={askPlaceholder}
+            layout="home"
             showPasteHint={false}
             pasteHintText="Paste a slip, line, or matchup."
             {...askBarCommon}
@@ -240,10 +246,9 @@ export default function HomeScreen({
                 className="ur-home-starter-item"
                 onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}
               >
-                <span className="ur-home-starter-accent" style={{ background: q.color }} aria-hidden />
                 <span className="ur-home-starter-text">{q.text}</span>
                 <span className="ur-home-starter-chev" aria-hidden>
-                  ›
+                  →
                 </span>
               </button>
             ))}

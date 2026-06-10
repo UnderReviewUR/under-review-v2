@@ -1,4 +1,4 @@
-/** Premium World Cup feature card on home — editorial layout, not promo spam. */
+/** World Cup spotlight on home — typographic, no pasted assets. */
 export default function HomeWcFeaturedCard({
   card,
   onOpenHub,
@@ -7,43 +7,43 @@ export default function HomeWcFeaturedCard({
 }) {
   if (!card || typeof card !== "object") return null;
 
-  const tagline = card.tagline || card.subtitle || null;
-  const featureLine = card.featureLine || null;
+  const tagline = card.tagline || null;
+  const summary = card.featureLine || null;
+  const footnote = card.trustLine || null;
 
   return (
-    <article className="ur-wc-featured">
-      <div className="ur-wc-featured-glow" aria-hidden />
-      <img className="ur-wc-featured-trophy" src="/wc-trophy-home.png" alt="" width={112} height={140} loading="lazy" decoding="async" />
-      <div className="ur-wc-featured-body">
-        <div className="ur-wc-featured-top">
-          <span className="ur-wc-featured-kicker">{card.sportBadge || "WORLD CUP"}</span>
-          {onOpenHub ? (
-            <button type="button" className="ur-wc-featured-hub" onClick={onOpenHub}>
-              Open hub
-              <span aria-hidden> →</span>
-            </button>
-          ) : null}
+    <article className="ur-wc-spotlight">
+      <header className="ur-wc-spotlight-head">
+        <span className="ur-wc-spotlight-label">{card.sportBadge || "World Cup"}</span>
+        {tagline ? <span className="ur-wc-spotlight-meta">{tagline}</span> : null}
+      </header>
+
+      {onOpenHub ? (
+        <button type="button" className="ur-wc-spotlight-main" onClick={onOpenHub}>
+          <h2 className="ur-wc-spotlight-title">{card.title}</h2>
+          {summary ? <p className="ur-wc-spotlight-summary">{summary}</p> : null}
+        </button>
+      ) : (
+        <div className="ur-wc-spotlight-main ur-wc-spotlight-main--static">
+          <h2 className="ur-wc-spotlight-title">{card.title}</h2>
+          {summary ? <p className="ur-wc-spotlight-summary">{summary}</p> : null}
         </div>
-        <h2 className="ur-wc-featured-title">{card.title}</h2>
-        {tagline ? <p className="ur-wc-featured-tagline">{tagline}</p> : null}
-        {card.trustLine ? <p className="ur-wc-featured-trust">{card.trustLine}</p> : null}
-        {featureLine ? <p className="ur-wc-featured-copy">{featureLine}</p> : null}
-        <div className="ur-wc-featured-actions">
-          {onSeeMatches ? (
-            <button type="button" className="ur-wc-featured-matches" onClick={onSeeMatches}>
-              {card.matchesCta || "See today's matches"}
-            </button>
-          ) : null}
-          {onAskPrompt && card.prompt ? (
-            <button type="button" className="ur-wc-featured-ask" onClick={() => onAskPrompt(card.prompt)}>
-              <span>{card.text || "Ask about the World Cup"}</span>
-              <span className="ur-wc-featured-ask-chev" aria-hidden>
-                ›
-              </span>
-            </button>
-          ) : null}
-        </div>
+      )}
+
+      <div className="ur-wc-spotlight-actions">
+        {onSeeMatches ? (
+          <button type="button" className="ur-wc-spotlight-action" onClick={onSeeMatches}>
+            {card.matchesCta || "Today's matches"}
+          </button>
+        ) : null}
+        {onAskPrompt && card.prompt ? (
+          <button type="button" className="ur-wc-spotlight-action" onClick={() => onAskPrompt(card.prompt)}>
+            {card.text || "Ask about the World Cup"}
+          </button>
+        ) : null}
       </div>
+
+      {footnote ? <p className="ur-wc-spotlight-foot">{footnote}</p> : null}
     </article>
   );
 }

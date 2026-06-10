@@ -45,6 +45,8 @@ const AskBar = memo(function AskBar({
   dockedGradient = false,
   /** Override paste/attach subline copy (default: PASTE IMAGE…). */
   pasteHintText = null,
+  /** Home hero: single pill with inline send (no floating attach/send). */
+  layout = "default",
 }) {
   const busy = isAsking || prefetchingContext;
 
@@ -73,8 +75,16 @@ const AskBar = memo(function AskBar({
     [processImageFile]
   );
 
+  const wrapClass = [
+    "ask-wrap",
+    dockedGradient ? "ask-wrap--docked-gradient" : "",
+    layout === "home" ? "ask-wrap--home" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={`ask-wrap${dockedGradient ? " ask-wrap--docked-gradient" : ""}`}>
+    <div className={wrapClass}>
       {freeLimitChip}
       <input
         ref={fileInputRef}
@@ -157,6 +167,45 @@ const AskBar = memo(function AskBar({
             </button>
           </div>
         </>
+      ) : layout === "home" ? (
+        <div className="ask-row ask-row--home">
+          <div className={`ask-col ask-col--home${value?.trim() ? " has-text" : ""}`}>
+            {pastedImage && (
+              <div className="ask-img-preview">
+                <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
+                <button onClick={clearImage} type="button" className="ask-img-remove">
+                  ✕ Remove
+                </button>
+              </div>
+            )}
+            <div className="ask-col-home-inner">
+              <input
+                ref={inputRef}
+                className="ask-bar ask-bar--home"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={pastedImage ? "Ask about this image..." : placeholder}
+                disabled={busy}
+                {...askInputProps}
+              />
+              <button
+                className="send-btn send-btn--home-inline"
+                onClick={onSubmit}
+                disabled={busy || !String(value || "").trim()}
+                title={prefetchingContext ? "Loading context…" : "Send"}
+                type="button"
+                aria-label="Send"
+              >
+                {prefetchingContext ? (
+                  <span aria-hidden>…</span>
+                ) : (
+                  <IconSend className="send-btn--home-inline-icon" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="ask-row">
             <div className="ask-col">

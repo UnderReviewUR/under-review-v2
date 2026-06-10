@@ -11,8 +11,8 @@ test("buildWcHomePromoCard returns card during promo window", () => {
   assert.equal(card.sportHint, "worldcup");
   assert.ok(card.trustLine?.includes("Starting XIs"));
   assert.ok(card.tagline?.includes("104 matches"));
-  assert.ok(card.featureLine?.includes("Live odds"));
-  assert.equal(card.matchesCta, "See today's matches");
+  assert.ok(card.featureLine?.includes("Odds"));
+  assert.equal(card.matchesCta, "Today's matches");
 });
 
 test("orderHomeQuestionsForWcPromo blends WC, NBA Finals, second WC", () => {
