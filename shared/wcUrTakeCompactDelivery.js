@@ -563,13 +563,14 @@ export function buildWcCompactStructured(opts = {}) {
       : null;
 
   if (seed?.callType === "group_slate" && seed?.lean && seed?.call) {
+    const pathLine = String(seed.line || "").trim();
     return {
       sport: "worldcup",
       callType: "group_slate",
       groupLetter: seed.groupLetter,
       lean: String(seed.lean).trim(),
       call: String(seed.call).trim(),
-      line: String(seed.line || seed.call || "").trim(),
+      line: pathLine || String(seed.whyNow || "").trim(),
       whyNow: String(seed.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
       edge: String(seed.edge || extractWatchFor(deep, false, seed.whyNow)).trim(),
       deep,

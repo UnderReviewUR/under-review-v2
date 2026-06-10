@@ -5,6 +5,7 @@
 import { WC_INTENT, isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
+import { isWcCrossGroupMispriceQuestion } from "./wcTakeRetentionQA.js";
 
 /**
  * @param {string} text
@@ -62,16 +63,23 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
       .join(" ");
     const team = (blob.match(/\b(Paraguay|Norway|USA|Mexico|France|Brazil|Argentina|England|Germany|Spain|Portugal|Netherlands|Italy|Canada|Croatia|Morocco|Japan|Korea|Colombia|Uruguay|Ecuador|Senegal|Ghana|Cameroon|Tunisia|Algeria|Australia|Saudi Arabia|Qatar|Iran|Wales|Scotland|Serbia|Switzerland|Belgium|Denmark|Poland|Austria|Czechia|Ukraine|Turkiye|Turkey)\b/i) || [])[1];
     const group = (blob.match(/\bGroup\s+([A-L])\b/i) || [])[1];
+    const crossGroup =
+      isWcCrossGroupMispriceQuestion(q) ||
+      String(message?.structured?.callType || "").toLowerCase() === "group_slate";
     if (team && group) {
-      chips.push(`Who else is live in Group ${group}?`);
-      chips.push(`Is ${team} mispriced to advance?`);
+      chips.push(`What price is ${team} to advance?`);
+      chips.push(crossGroup ? "Which group is the runner-up value?" : `Who wins Group ${group}?`);
     } else if (team) {
       chips.push(`Can ${team} advance?`);
       chips.push("Who is mispriced instead?");
     } else if (group) {
       chips.push(`Who wins Group ${group}?`);
+    } else if (crossGroup) {
+      chips.push("Which group is most mispriced?");
     }
-    chips.push("Who lifts the trophy?");
+    if (!crossGroup) {
+      chips.push("Who is mispriced instead?");
+    }
   } else if (wcIntent === WC_INTENT.ENTITY_PRICING) {
     const team = (q.match(/\b(France|Brazil|Argentina|England|Germany|Spain|Portugal|Netherlands|Italy|USA|Mexico|Canada|Norway)\b/i) || [])[1];
     if (team) {

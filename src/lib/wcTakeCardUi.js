@@ -25,14 +25,14 @@ export function buildWcTakeStatGrid(opts = {}) {
   const ct = String(opts.callType || "single").toLowerCase();
   const play = formatWcPlaySlot(opts.lean);
 
-  if (ct === "advancement") {
+  if (ct === "advancement" || ct === "group_slate") {
     const slotLine =
       lineVal ||
       formatWcPlaySlot(opts.call) ||
       formatWcPlaySlot(opts.lean) ||
       "See breakdown";
     return {
-      mode: "advancement",
+      mode: ct,
       slots: [
         { key: "ln", label: "Line", value: slotLine, highlight: true },
         { key: "c", label: "Confidence", value: conf, highlight: false },
@@ -109,9 +109,9 @@ export function pickWcThePlayLine(opts = {}) {
   const lineSlot = String(opts.lineSlot || "").trim();
   const ct = String(opts.callType || "").toLowerCase();
 
-  if (ct === "advancement") {
+  if (ct === "advancement" || ct === "group_slate") {
     if (lineSlot) return "";
-    const play = formatWcPlaySlot(call) || formatWcPlaySlot(lean);
+    const play = formatWcPlaySlot(lean) || formatWcPlaySlot(call);
     if (play && normLine(play) !== normLine(headline)) return play;
     return "";
   }

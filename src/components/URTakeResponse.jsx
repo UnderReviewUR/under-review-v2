@@ -252,6 +252,8 @@ export default function URTakeResponse({
         ? "Player market · Early contenders"
         : wcAdvancementContextLine
         ? wcAdvancementContextLine
+        : callTypeLower === "group_slate"
+          ? "Group stage · Advancement"
         : rulesCallType
       ? "Knockout rules · Reference"
       : String(callType || "").toLowerCase() === "matchup"

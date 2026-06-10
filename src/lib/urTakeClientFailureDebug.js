@@ -125,18 +125,26 @@ export function buildUrTakeClientFailureDebug({
 
 /**
  * When true, renders the `<pre>` under UR Take failure / API-fallback bubbles (see `ChatThread`).
- * Set `VITE_UR_TAKE_CLIENT_DEBUG=1` in Vercel or `.env` so production owner sessions on under-review.app see payloads without relying on the console alone.
+ * Production (under-review.app): opt-in via `VITE_UR_TAKE_CLIENT_DEBUG=1` only — owner tier alone must not surface raw JSON to users.
  */
-export function shouldShowUrTakeClientFailureDebug(accessTier) {
+export function shouldShowUrTakeClientFailureDebug(_accessTier) {
+  if (typeof import.meta !== "undefined" && import.meta.env?.PROD) {
+    return String(import.meta.env?.VITE_UR_TAKE_CLIENT_DEBUG ?? "").trim() === "1";
+  }
   if (typeof import.meta !== "undefined" && String(import.meta.env?.VITE_UR_TAKE_CLIENT_DEBUG ?? "").trim() === "1") {
     return true;
   }
   if (typeof import.meta !== "undefined" && import.meta.env?.DEV) return true;
-  if (accessTier === "owner") return true;
   if (typeof window === "undefined") return false;
   const h = String(window.location.hostname || "").toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return true;
   if (h.includes("staging")) return true;
   if (h.endsWith(".vercel.app")) return true;
   return false;
+}
+
+/** Only attach debug payloads to chat rows when the UI would render them. */
+export function urTakeClientFailureDebugAttachment(accessTier, payload) {
+  if (!payload || !shouldShowUrTakeClientFailureDebug(accessTier)) return {};
+  return { urTakeClientFailure: payload };
 }

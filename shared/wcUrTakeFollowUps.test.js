@@ -27,12 +27,16 @@ test("mergeWcFollowUpChips — group slate avoids parlay chips", () => {
     "GROUP_SLATE",
     {
       wcIntent: WC_INTENT.STRUCTURAL,
-      structured: { call: "Paraguay in Group D offers the best group-stage value." },
+      structured: {
+        callType: "group_slate",
+        call: "Colombia in Group K — best group-stage value (to advance).",
+      },
     },
     "Best group stage bet?",
   );
   assert.ok(!merged.some((c) => /parlay/i.test(c)));
-  assert.ok(merged.some((c) => /Group D|Paraguay|group/i.test(c)));
+  assert.ok(merged.some((c) => /Colombia|Group K|advance|mispriced|runner-up/i.test(c)));
+  assert.ok(!merged.some((c) => /Who else is live/i.test(c)));
 });
 
 test("mergeWcFollowUpChips prefers context", () => {

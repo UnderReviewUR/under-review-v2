@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
-import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
+import { createPortal } from "react-dom";
+import { getWcTeamByAbbr, getWcTeamsByGroup } from "../../data/wc2026Teams.js";
+import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
 import {
   formatWcDetailAsOfEt,
   resolveWcXiStatus,
   wcXiStatusChipLabel,
 } from "../../../shared/wcXiStatus.js";
-import { WC_MATCH_INTEL_BODY, WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
+import { WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
+import { wcTeamsWithStrengthTags } from "../../../shared/wc2026Strength.js";
+import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
+
+const WC_XI_HELP =
+  "Lineups lock in as kickoff approaches. Starter props unlock once this chip shows Starting XI locked.";
 
 function StatLine({ label, home, away }) {
   if (home == null && away == null) return null;
@@ -36,7 +43,108 @@ function PropList({ title, rows }) {
   );
 }
 
-export default function WcMatchDetailDrawer({ match, onClose }) {
+function ModelOddsBar({ odds }) {
+  if (!odds) return null;
+  const total = odds.teamA.winPct + odds.draw + odds.teamB.winPct || 1;
+  const aW = (odds.teamA.winPct / total) * 100;
+  const dW = (odds.draw / total) * 100;
+  const bW = (odds.teamB.winPct / total) * 100;
+  return (
+    <div className="wc-detail-model-odds">
+      <p className="wc-detail-model-odds__label">Model win chance (Elo)</p>
+      <div className="wc-odds-labels">
+        <span>
+          {odds.teamA.abbr} {odds.teamA.winPct}%
+        </span>
+        <span>Draw {odds.draw}%</span>
+        <span>
+          {odds.teamB.abbr} {odds.teamB.winPct}%
+        </span>
+      </div>
+      <div className="wc-odds-bar">
+        <span style={{ width: `${aW}%`, background: "var(--wc-blue)" }} />
+        <span style={{ width: `${dW}%`, background: "var(--muted)" }} />
+        <span style={{ width: `${bW}%`, background: "var(--wc-gold)" }} />
+      </div>
+    </div>
+  );
+}
+
+function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
+  const groupLetter = match?.group ? String(match.group).toUpperCase() : null;
+  const groupTeams = groupLetter ? wcTeamsWithStrengthTags(getWcTeamsByGroup(groupLetter)) : [];
+  const modelOdds = teams?.length ? formatMatchOdds(match.homeTeam, match.awayTeam, teams) : null;
+  const venueLine = [match?.stadium, match?.city].filter(Boolean).join(", ");
+
+  return (
+    <section className="wc-detail-section wc-detail-pre-match">
+      <div className="wc-detail-team-row">
+        <div className="wc-detail-team-col">
+          {home?.flagUrl ? (
+            <img src={home.flagUrl} alt="" width={40} height={28} loading="lazy" className="wc-flag-sm" />
+          ) : null}
+          <span>{home?.name || match.homeTeam}</span>
+        </div>
+        <span className="wc-detail-team-vs">vs</span>
+        <div className="wc-detail-team-col">
+          {away?.flagUrl ? (
+            <img src={away.flagUrl} alt="" width={40} height={28} loading="lazy" className="wc-flag-sm" />
+          ) : null}
+          <span>{away?.name || match.awayTeam}</span>
+        </div>
+      </div>
+
+      {venueLine ? <p className="wc-detail-venue">{venueLine}</p> : null}
+
+      <ModelOddsBar odds={modelOdds} />
+
+      <BookmakerOddsPanel
+        compact
+        fetchMultiBook={false}
+        sportKey="soccer_fifa_world_cup"
+        home={home?.name}
+        away={away?.name}
+        homeAbbr={match?.homeTeam}
+        awayAbbr={match?.awayTeam}
+        homeLabel={match?.homeTeam}
+        awayLabel={match?.awayTeam}
+        showDraw
+        espnFallback={match?.odds}
+      />
+
+      {groupTeams.length ? (
+        <div className="wc-detail-group-roster">
+          <h4>Group {groupLetter}</h4>
+          <ul>
+            {groupTeams.map((t) => (
+              <li key={t.abbreviation}>
+                <span>{t.name}</span>
+                <span className="wc-detail-tier">{t.strengthTag}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="wc-detail-xi-note">
+        <strong>{wcXiStatusChipLabel(xiStatus)}</strong>
+        {xiStatus === "pending" || xiStatus === "unavailable" ? ` — ${WC_XI_HELP}` : null}
+      </p>
+
+      <p className="wc-detail-muted wc-detail-live-note">
+        Live stats, chance index, and player props fill in at kickoff.
+      </p>
+
+      {onAskUrTake ? (
+        <button type="button" className="wc-ask-btn wc-detail-ask-btn" onClick={() => onAskUrTake(match)}>
+          Ask UR Take →
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake }) {
   const [detail, setDetail] = useState(null);
   const [props, setProps] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,7 +154,18 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
   const away = getWcTeamByAbbr(match?.awayTeam);
 
   useEffect(() => {
-    if (!eventId) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!eventId) {
+      setLoading(false);
+      return;
+    }
     let cancel = false;
     setLoading(true);
     Promise.all([
@@ -59,11 +178,11 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
     ])
       .then(([d, p]) => {
         if (cancel) return;
-        setDetail(d);
+        setDetail(d?.ok ? d : null);
         setProps(p);
       })
       .catch(() => {
-        /* keep card-level intel */
+        /* card-level intel still renders */
       })
       .finally(() => {
         if (!cancel) setLoading(false);
@@ -75,7 +194,7 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
 
   if (!match) return null;
 
-  const xiStatus = resolveWcXiStatus(detail?.ok ? detail : match);
+  const xiStatus = resolveWcXiStatus(detail || match);
   const asOf = formatWcDetailAsOfEt(detail?.lastUpdated || match?.lastUpdated);
   const markets = props?.markets || props?.goldenBoot?.markets || props?.event?.markets;
   const hasStats = Boolean(detail?.teamStats);
@@ -84,12 +203,14 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
       markets?.first_goalscorer?.length ||
       markets?.player_assists_ou?.length,
   );
+  const showPreMatch = !loading && !hasStats && !hasProps;
 
-  return (
+  const sheet = (
     <div className="wc-detail-drawer-backdrop" role="presentation" onClick={onClose}>
       <div
         className="wc-detail-drawer"
         role="dialog"
+        aria-modal="true"
         aria-labelledby="wc-detail-title"
         onClick={(e) => e.stopPropagation()}
       >
@@ -110,8 +231,15 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
 
         {loading ? <p className="wc-detail-loading">{WC_MATCH_INTEL_LOADING}</p> : null}
 
-        {!loading && !hasStats && !hasProps ? (
-          <p className="wc-detail-muted">{WC_MATCH_INTEL_BODY}</p>
+        {showPreMatch ? (
+          <WcPreMatchIntel
+            match={match}
+            home={home}
+            away={away}
+            teams={teams}
+            xiStatus={xiStatus}
+            onAskUrTake={onAskUrTake}
+          />
         ) : null}
 
         {!loading && hasStats ? (
@@ -147,7 +275,16 @@ export default function WcMatchDetailDrawer({ match, onClose }) {
             <PropList title="Assists O/U" rows={markets.player_assists_ou} />
           </section>
         ) : null}
+
+        {!loading && (hasStats || hasProps) && onAskUrTake ? (
+          <button type="button" className="wc-ask-btn wc-detail-ask-btn" onClick={() => onAskUrTake(match)}>
+            Ask UR Take →
+          </button>
+        ) : null}
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return sheet;
+  return createPortal(sheet, document.body);
 }

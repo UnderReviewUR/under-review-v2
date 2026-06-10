@@ -160,9 +160,9 @@ export function getVerdictFollowUpChips(verdict) {
       ];
     case "GROUP_SLATE":
       return [
-        "Who wins that group?",
+        "Which group is the runner-up value?",
         "Who is mispriced instead?",
-        "Best matchup on today's slate?",
+        "What's the best matchup on today's slate?",
       ];
     default:
       return [

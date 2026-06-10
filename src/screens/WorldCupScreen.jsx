@@ -563,7 +563,15 @@ export default function WorldCupScreen({
       )}
 
       {detailMatch ? (
-        <WcMatchDetailDrawer match={detailMatch} onClose={() => setDetailMatch(null)} />
+        <WcMatchDetailDrawer
+          match={detailMatch}
+          teams={teams}
+          onClose={() => setDetailMatch(null)}
+          onAskUrTake={(m) => {
+            setDetailMatch(null);
+            handleAskMatch(m);
+          }}
+        />
       ) : null}
     </main>
   );

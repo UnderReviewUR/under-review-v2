@@ -187,6 +187,7 @@ import { logUrTakeApiEnvelopeDev } from "./lib/urTakeRenderSafe.js";
 import {
   buildUrTakeApiSuccessFallbackDebug,
   buildUrTakeClientFailureDebug,
+  urTakeClientFailureDebugAttachment,
 } from "./lib/urTakeClientFailureDebug.js";
 import {
   buildUrTakePreFetchLog,
@@ -1960,7 +1961,7 @@ ${themeCss}
             text: failSoftAuth.message,
             urTakeFailSoft: failSoftAuth,
             urTakeRetryPrompt: text,
-            urTakeClientFailure: dbgAuth,
+            ...urTakeClientFailureDebugAttachment(accessTierRef.current, dbgAuth),
           },
         ]);
         return;
@@ -1990,7 +1991,7 @@ ${themeCss}
             text: failSoft503.message,
             urTakeFailSoft: failSoft503,
             urTakeRetryPrompt: text,
-            urTakeClientFailure: dbgFetchNonOk,
+            ...urTakeClientFailureDebugAttachment(accessTierRef.current, dbgFetchNonOk),
           },
         ]);
         if (fuTelemetryState) {
@@ -2020,7 +2021,10 @@ ${themeCss}
         /* keep msg */
       }
       const errOut = new Error(msg);
-      errOut.urTakeClientFailure = dbgFetchNonOk;
+      Object.assign(
+        errOut,
+        urTakeClientFailureDebugAttachment(accessTierRef.current, dbgFetchNonOk),
+      );
       throw errOut;
     }
 
@@ -2041,7 +2045,10 @@ ${themeCss}
         contentType: lastResponseContentType,
       });
       const errOut = new Error(`Invalid JSON from /api/ur-take: ${raw.slice(0, 500)}`);
-      errOut.urTakeClientFailure = dbgInvalidJson;
+      Object.assign(
+        errOut,
+        urTakeClientFailureDebugAttachment(accessTierRef.current, dbgInvalidJson),
+      );
       errOut.cause = parseErr;
       throw errOut;
     }
@@ -2165,7 +2172,7 @@ ${themeCss}
           text: failSoftRate.message,
           urTakeFailSoft: failSoftRate,
           urTakeRetryPrompt: text,
-          urTakeClientFailure: dbgRate,
+          ...urTakeClientFailureDebugAttachment(accessTierRef.current, dbgRate),
         },
       ]);
       if (fuTelemetryState) {
@@ -2226,10 +2233,12 @@ ${themeCss}
       };
     } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
       const { playerMarketTier: _drop, ...rest } = structuredForBubble;
+      const preserveGroupSlate =
+        String(structuredForBubble.callType || "").toLowerCase() === "group_slate";
       structuredForBubble = {
         ...rest,
         sport: "worldcup",
-        callType: "analysis",
+        callType: preserveGroupSlate ? "group_slate" : "analysis",
       };
     } else if (
       structuredForBubble &&
@@ -2367,7 +2376,17 @@ ${themeCss}
             },
           }
         : {}),
-      ...(apiSuccessFallbackDbg ? { urTakeClientFailure: apiSuccessFallbackDbg } : {}),
+      ...(isApiSuccessFallback
+        ? {
+            urTakeFailSoft: {
+              message: normalizedDisplay.response,
+              retryable: true,
+              showUpgrade: false,
+            },
+            urTakeRetryPrompt: text,
+          }
+        : {}),
+      ...urTakeClientFailureDebugAttachment(accessTierRef.current, apiSuccessFallbackDbg),
     };
     setMsgs((prev) => {
       const idx = prev.findIndex(
@@ -2480,7 +2499,7 @@ ${themeCss}
         text: fallback,
         urTakeFailSoft: failSoft,
         urTakeRetryPrompt: text,
-        urTakeClientFailure: failureDbg,
+        ...urTakeClientFailureDebugAttachment(accessTierRef.current, failureDbg),
       },
     ]);
   } finally {

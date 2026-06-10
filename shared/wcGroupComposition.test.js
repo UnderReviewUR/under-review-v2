@@ -118,6 +118,9 @@ test("prebuilt Group D copy names all four tiers correctly", () => {
   assert.ok(pre);
   assert.doesNotMatch(pre.lean, /\+1[5-9]\d{2,}/);
   assert.doesNotMatch(pre.edge || "", /\+1[5-9]\d{2,}/);
+  assert.doesNotMatch(pre.edge || "", /VERIFIED CONTEXT/i);
+  assert.ok(String(pre.line || "").trim().length > 20);
+  assert.notEqual(String(pre.line || "").trim(), String(pre.call || "").trim());
   assert.match(pre.whyNow, /Türkiye.*Favorite/i);
   assert.match(pre.whyNow, /Paraguay.*Contender/i);
   assert.match(pre.whyNow, /Longshots/i);
