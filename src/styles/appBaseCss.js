@@ -2479,11 +2479,16 @@ export const baseCss = `
     --wc-premium-muted:#8A8478;
     --wc-gold:var(--wc-premium-accent);
     background:var(--wc-premium-bg);
-    padding:0 16px 12px;
+    padding:0 16px 20px;
+    padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 24px + env(safe-area-inset-bottom));
   }
   .app--wc-premium .hdr{
     border-bottom:1px solid rgba(196,165,116,0.14);
     background:rgba(12,12,16,0.92);
+  }
+  .app--wc-premium .logo-under{
+    color:var(--wc-premium-cream);
+    -webkit-text-fill-color:var(--wc-premium-cream);
   }
   .app--wc-premium .logo-review{
     font-family:'Playfair Display',Georgia,'Times New Roman',serif;
@@ -2513,8 +2518,8 @@ export const baseCss = `
   .wc-header-premium{
     position:relative;
     text-align:center;
-    margin:8px 0 18px;
-    padding:4px 0 0;
+    margin:4px 0 14px;
+    padding:0;
   }
   .wc-header-premium__trophy{
     position:absolute;
@@ -2562,8 +2567,8 @@ export const baseCss = `
     display:block;
     width:100%;
     text-align:left;
-    margin:0 0 16px;
-    padding:18px 16px 16px;
+    margin:0 0 14px;
+    padding:16px 14px 14px;
     border:none;
     border-radius:20px;
     background:var(--wc-premium-cream);
@@ -2681,7 +2686,67 @@ export const baseCss = `
     font-size:16px;
     font-weight:700;
   }
-  .wc-ask-shell--premium{margin:0 0 16px;}
+  .wc-ask-shell--premium{margin:0 0 14px;}
+  .wc-ask-shell--premium .ask-wrap--home{margin:0;}
+  .wc-ask-shell--premium .ask-home-hero-frame{
+    border:1px solid var(--wc-premium-accent-dim);
+    border-radius:16px;
+    background:#101014;
+  }
+  .wc-ask-shell--premium .ask-home-hero-inner{
+    min-height:108px;
+    padding:14px 14px 10px;
+  }
+  .wc-ask-shell--premium .ask-bar--home-hero{
+    color:var(--wc-premium-cream);
+    min-height:48px;
+  }
+  .wc-ask-shell--premium .ask-bar--home-hero::placeholder{color:rgba(243,240,232,0.44);}
+  .wc-ask-shell--premium .ask-home-hero-paste-hint{
+    color:rgba(138,132,120,0.92);
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+  }
+  .wc-ask-shell--premium .ask-home-hero-attach{color:rgba(243,240,232,0.42);}
+  .wc-ask-shell--premium .ask-home-hero-send{
+    background:var(--wc-premium-accent);
+    border:1px solid transparent;
+    color:var(--wc-premium-ink);
+  }
+  .wc-ask-shell--premium .ask-home-hero-send:disabled{
+    background:rgba(255,255,255,0.06);
+    border-color:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.28);
+  }
+  .wc-ask-shell--premium .ask-home-hero-send:not(:disabled):hover{
+    filter:brightness(1.06);
+  }
+  .wc-ask-starters{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin:0 0 18px;
+  }
+  .wc-ask-starter{
+    display:block;
+    width:100%;
+    text-align:left;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid rgba(196,165,116,0.18);
+    background:rgba(196,165,116,0.05);
+    color:var(--wc-premium-cream);
+    font-family:var(--body-font);
+    font-size:13px;
+    line-height:1.45;
+    cursor:pointer;
+  }
+  .wc-ask-starter:hover{
+    border-color:rgba(196,165,116,0.32);
+    background:rgba(196,165,116,0.08);
+  }
   .wc-ask-shell--premium .ask-col{
     background:rgba(255,255,255,0.04);
     border:1px solid var(--wc-premium-accent-dim);
@@ -2697,7 +2762,7 @@ export const baseCss = `
   .wc-ask-shell--premium .send-btn:hover{background:#d4b88a;}
   .wc-main-tabs--premium{
     gap:0;
-    margin-bottom:14px;
+    margin-bottom:12px;
     border-bottom:1px solid rgba(196,165,116,0.15);
     padding-bottom:0;
   }
@@ -2727,6 +2792,14 @@ export const baseCss = `
     border-color:var(--wc-premium-accent);
     color:var(--wc-premium-accent);
     background:rgba(196,165,116,0.08);
+  }
+  .wc-screen--premium .wc-sub-tabs{margin-bottom:10px;}
+  .wc-empty--live{padding:12px 0 8px;text-align:left;}
+  .wc-empty--live p{margin:0 0 6px;}
+  .wc-empty-next{
+    font-size:12px;
+    line-height:1.45;
+    color:var(--wc-premium-muted);
   }
   .wc-featured-insights{
     margin:0 0 18px;

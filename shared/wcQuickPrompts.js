@@ -27,7 +27,7 @@ export function getWcQuickPrompts(opts = {}) {
     return base;
   }
   return [
-    "🏆 Give me your full tournament predictions — winner, dark horse, breakout player, and Golden Boot",
+    "Give me your full tournament predictions — winner, dark horse, breakout player, and Golden Boot",
     "Which team is most mispriced to win the tournament?",
     "Who wins Group A?",
     "Who lifts the trophy?",

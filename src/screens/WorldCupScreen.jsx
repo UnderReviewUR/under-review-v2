@@ -77,10 +77,22 @@ export default function WorldCupScreen({
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [detailMatch, setDetailMatch] = useState(null);
+  const [narrowWc, setNarrowWc] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches,
+  );
   const matchSubTabUserPickedRef = useRef(false);
   const prevLiveCountRef = useRef(0);
   const urDockedChat = hasDockedBar && wcMsgs.length > 0;
   const wcTakeLoading = Boolean(wcMsgs.at(-1)?.loading);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setNarrowWc(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     if (!wcScreenNav) return;
@@ -233,17 +245,12 @@ export default function WorldCupScreen({
       if (liveMatches.length === 0) {
         const next = upcomingMatches[0];
         return (
-          <div className="wc-empty">
+          <div className="wc-empty wc-empty--live">
             <p>{WC_EMPTY_LIVE}</p>
             {next ? (
-              <>
-                <p className="wc-muted">
-                  Next: {next.homeTeam} vs {next.awayTeam} — {formatWcKickoffDisplay(next)}
-                </p>
-                <button type="button" className="wc-ask-btn wc-empty-cta" onClick={() => handleAskMatch(next)}>
-                  Ask about next match →
-                </button>
-              </>
+              <p className="wc-empty-next">
+                Next: {next.homeTeam} vs {next.awayTeam} · {formatWcKickoffDisplay(next)}
+              </p>
             ) : null}
           </div>
         );
@@ -417,12 +424,14 @@ export default function WorldCupScreen({
   );
 
   const featuredInsight = wcHomePromoCard && typeof wcHomePromoCard === "object" ? wcHomePromoCard : null;
-  const featuredInsightSnippet =
-    featuredInsight?.insightLine ||
-    featuredInsight?.highlights?.[0] ||
-    featuredInsight?.subtitle ||
-    featuredInsight?.text ||
-    null;
+  const starterPromptLimit = narrowWc ? 1 : 2;
+  const starterPrompts = useMemo(() => {
+    const prompts = [...wcQuickPrompts];
+    if (featuredInsight?.prompt && !prompts.includes(featuredInsight.prompt)) {
+      prompts.unshift(featuredInsight.prompt);
+    }
+    return prompts.slice(0, starterPromptLimit);
+  }, [wcQuickPrompts, featuredInsight?.prompt, starterPromptLimit]);
 
   const wcMainTabs = (
     <div className="wc-main-tabs wc-main-tabs--premium" role="tablist">
@@ -483,7 +492,9 @@ export default function WorldCupScreen({
             <span className="wc-header-premium__diamond" aria-hidden="true" />
             <p className="wc-header-premium__tagline">{WC_PREMIUM_TAGLINE}</p>
             <h1 className="wc-header-premium__title">World Cup 2026</h1>
-            <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>
+            {!featuredMatch ? (
+              <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>
+            ) : null}
           </header>
 
           {wcXiConfirmedNotice ? (
@@ -511,41 +522,26 @@ export default function WorldCupScreen({
                 value={wcInput}
                 onChange={setWcInput}
                 onSubmit={() => submitWc()}
-                placeholder="Ask anything about the World Cup"
+                layout="home"
+                placeholder="Ask about the World Cup…"
+                pasteHintText="Paste a slip, line, or matchup."
                 btnColor="var(--wc-premium-accent)"
                 {...askBarCommon}
               />
             </div>
           ) : null}
 
-          {wcMainTabs}
-
-          {!wcLoading && featuredInsightSnippet ? (
-            <section className="wc-featured-insights" aria-label="Featured insights">
-              <div className="wc-featured-insights__head">
-                <h2 className="wc-featured-insights__title">Featured Insights</h2>
-                {featuredInsight?.prompt ? (
-                  <button
-                    type="button"
-                    className="wc-featured-insights__all"
-                    onClick={() => submitWc(featuredInsight.prompt)}
-                  >
-                    Ask →
-                  </button>
-                ) : null}
-              </div>
-              <p className="wc-featured-insights__body">{featuredInsightSnippet}</p>
-              {wcQuickPrompts.length > 0 ? (
-                <div className="wc-quick-prompts wc-quick-prompts--premium">
-                  {wcQuickPrompts.slice(0, 2).map((q) => (
-                    <button key={q} type="button" className="quick-btn" onClick={() => submitWc(q)}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+          {!wcLoading && starterPrompts.length > 0 && wcMsgs.length === 0 ? (
+            <section className="wc-ask-starters" aria-label="Suggested questions">
+              {starterPrompts.map((q) => (
+                <button key={q} type="button" className="wc-ask-starter" onClick={() => submitWc(q)}>
+                  {q}
+                </button>
+              ))}
             </section>
           ) : null}
+
+          {wcMainTabs}
 
           {wcBrowseBelow}
         </>
