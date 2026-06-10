@@ -23,6 +23,7 @@ import {
   buildWcTakeStatGrid,
   pickWcThePlayLine,
   wcCardSectionText,
+  compressWcCardSections,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 import {
@@ -340,7 +341,7 @@ export default function URTakeResponse({
     const wcHeadline = String(wcHeadlineSource || "").trim();
     const lineSlotValue =
       statGrid.slots.find((s) => s.key === "ln" || s.key === "pl")?.value ?? "";
-    const wcSections = {
+    const wcSectionsRaw = {
       why:
         wcPredictionSlotRows.length > 0
           ? ""
@@ -355,6 +356,17 @@ export default function URTakeResponse({
           callType,
         }),
       ),
+    };
+    const wcSections = {
+      ...wcSectionsRaw,
+      ...compressWcCardSections({
+        headline: wcHeadline,
+        lineSlot: lineSlotValue,
+        why: wcSectionsRaw.why,
+        watchFor: wcSectionsRaw.watchFor,
+        thePlay: wcSectionsRaw.thePlay,
+        callType,
+      }),
     };
     const wcBreakdown = String(wcDeep || "").trim();
     const wcBreakdownAvailable =

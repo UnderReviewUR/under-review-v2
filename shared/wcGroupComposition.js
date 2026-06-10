@@ -417,7 +417,7 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
   const call = `${pick.name} in Group ${letter} — best group-stage value (${market})`;
   const pathLine = `${pick.name} needs a top-two finish in Group ${letter} — the path is not finishing last on points behind ${fav}.`;
   const lean = `Lean: ${pick.name} ${market}${odds ? ` at ${odds}` : ""} in Group ${letter}.`;
-  const whyNow = `Group ${letter} is four teams: ${fav} (Favorite), ${cont} (Contender), ${longList} (Longshots). ${pathLine}`;
+  const whyNow = `Group ${letter} is four teams: ${fav} (Favorite), ${cont} (Contender), ${longList} (Longshots).`;
   const edge = odds
     ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
     : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;

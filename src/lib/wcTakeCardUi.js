@@ -88,6 +88,72 @@ export function buildWcTakeStatGrid(opts = {}) {
   };
 }
 
+function normWcCardBlob(text) {
+  return String(text || "")
+    .replace(/^lean:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function wcCardTextOverlaps(a, b, minLen = 24) {
+  const x = normWcCardBlob(a);
+  const y = normWcCardBlob(b);
+  if (!x || !y) return false;
+  const shorter = x.length <= y.length ? x : y;
+  if (shorter.length < minLen) return false;
+  return x.includes(y) || y.includes(x);
+}
+
+/**
+ * Drop card rows that repeat the headline, line slot, or each other.
+ * @param {{ headline?: string, lineSlot?: string, why?: string, watchFor?: string, thePlay?: string, callType?: string }} opts
+ */
+export function compressWcCardSections(opts = {}) {
+  const ct = String(opts.callType || "").toLowerCase();
+  if (!wcCardUsesUnifiedLayout(ct)) {
+    return {
+      why: String(opts.why || "").trim(),
+      watchFor: String(opts.watchFor || "").trim(),
+      thePlay: String(opts.thePlay || "").trim(),
+    };
+  }
+
+  const headline = String(opts.headline || "").trim();
+  const lineSlot = String(opts.lineSlot || "").trim();
+  let why = String(opts.why || "").trim();
+  let watchFor = String(opts.watchFor || "").trim();
+  let thePlay = String(opts.thePlay || "").trim();
+
+  if (lineSlot && why) {
+    if (wcCardTextOverlaps(why, lineSlot, 20)) {
+      why = why.split(lineSlot).join(" ").replace(/\s+/g, " ").trim();
+    }
+    if (lineSlot && wcCardTextOverlaps(why, lineSlot, 12)) {
+      why = "";
+    }
+  }
+  if (headline && wcCardTextOverlaps(why, headline, 20)) {
+    why = "";
+  }
+  if (lineSlot && wcCardTextOverlaps(thePlay, lineSlot, 12)) {
+    thePlay = "";
+  }
+  if (headline && wcCardTextOverlaps(thePlay, headline, 12)) {
+    thePlay = "";
+  }
+  if (watchFor && wcCardTextOverlaps(watchFor, why, 20)) {
+    watchFor = "";
+  }
+
+  return { why, watchFor, thePlay };
+}
+
+function wcCardUsesUnifiedLayout(callType) {
+  const ct = String(callType || "").toLowerCase();
+  return ct === "group_slate" || ct === "advancement" || ct === "matchup";
+}
+
 /**
  * @param {string} a
  * @param {string} b

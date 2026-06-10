@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWcTakeStatGrid, pickWcThePlayLine, wcCardSectionText } from "./wcTakeCardUi.js";
+import { buildWcTakeStatGrid, pickWcThePlayLine, wcCardSectionText, compressWcCardSections } from "./wcTakeCardUi.js";
 
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
@@ -63,6 +63,25 @@ test("buildWcTakeStatGrid advancement uses structured line", () => {
     confidence: "Medium",
   });
   assert.equal(grid.slots[0].value, "Pass at -130 — sim 15% vs market 57%.");
+});
+
+test("compressWcCardSections drops why when it repeats line slot", () => {
+  const line =
+    "Colombia needs a top-two finish in Group K — the path is not finishing last on points behind Portugal.";
+  const why =
+    "Group K is four teams: Portugal (Favorite), Colombia (Contender), Uzbekistan and DR Congo (Longshots). " +
+    line;
+  const out = compressWcCardSections({
+    callType: "group_slate",
+    headline: "Colombia in Group K — best group-stage value (to advance)",
+    lineSlot: line,
+    why,
+    watchFor: "Watch the Portugal vs Colombia opener — a point or better for Colombia should tighten advance prices.",
+    thePlay: "",
+  });
+  assert.match(out.why, /Group K is four teams/);
+  assert.doesNotMatch(out.why, /top-two finish/);
+  assert.ok(out.watchFor);
 });
 
 test("wcCardSectionText drops empty placeholders", () => {

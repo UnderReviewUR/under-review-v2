@@ -37,6 +37,9 @@ export default function WcTakeCard({
   const slots = Array.isArray(predictionSlots)
     ? predictionSlots.filter((s) => s && String(s.value || "").trim())
     : [];
+  const statGridHasConfidence = statSlots.some(
+    (slot) => String(slot.label || "").toLowerCase() === "confidence",
+  );
 
   return (
     <div className={`ur-take-structured ur-take-response ur-v2-card wc-take-card${focusLayout ? " wc-take-card--focus" : ""}`}>
@@ -130,7 +133,11 @@ export default function WcTakeCard({
 
       {!focusLayout ? (
         <div className="wc-take-footer">
-          <span className="wc-take-confidence-pill">Confidence: {conf}</span>
+          {!statGridHasConfidence ? (
+            <span className="wc-take-confidence-pill">Confidence: {conf}</span>
+          ) : (
+            <span />
+          )}
           <div className="wc-take-footer-actions">
             {formattedTimestamp ? <span className="ur-v2-ts">{formattedTimestamp}</span> : null}
             <UrTakeShareButton

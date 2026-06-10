@@ -66,6 +66,7 @@ import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuest
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
 import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import { formatWcCompactDisplayText } from "../shared/wcUrTakeCompactDelivery.js";
 import {
   buildWcHomePromoCard,
   orderHomeQuestionsForWcPromo,
@@ -2239,9 +2240,14 @@ ${themeCss}
         sport: "worldcup",
       };
     } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.ENTITY_PRICING) {
+      const entityCallType = String(structuredForBubble.callType || "").toLowerCase();
+      const preserveWcSlateCallType =
+        entityCallType === "group_slate" ||
+        entityCallType === "advancement" ||
+        entityCallType === "matchup";
       structuredForBubble = {
         ...structuredForBubble,
-        callType: "analysis",
+        callType: preserveWcSlateCallType ? structuredForBubble.callType : "analysis",
         sport: "worldcup",
       };
     } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
@@ -2328,10 +2334,16 @@ ${themeCss}
     const lastUserWcEventId = lastUserWcRow?.wcEventId;
     const lastUserWcMatchTeams = lastUserWcRow?.wcMatchTeams;
 
+    const bubbleResponseText =
+      structuredForBubble &&
+      String(structuredForBubble.sport || sportForBubble || "").toLowerCase() === "worldcup"
+        ? formatWcCompactDisplayText(structuredForBubble, normalizedDisplay.response)
+        : normalizedDisplay.response;
+
     const completeBubble = {
       role: "ai",
       msgId: pendingMsgId,
-      text: normalizedDisplay.response,
+      text: bubbleResponseText,
       sport: sportForBubble || undefined,
       ...(lastUserWcEventId ? { wcEventId: String(lastUserWcEventId).trim() } : {}),
       ...(lastUserWcMatchTeams &&

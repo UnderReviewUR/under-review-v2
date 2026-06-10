@@ -1621,6 +1621,26 @@ function UrTakeChaseCalmInset() {
   );
 }
 
+function wcCardUsesUnifiedLayout(callType) {
+  const ct = String(callType || "").toLowerCase();
+  return ct === "group_slate" || ct === "advancement" || ct === "matchup";
+}
+
+/** Focus-session minimal chrome duplicates the full WC card body — use one layout for slate picks. */
+function wcStructuredCardFocusLayout(structured, focusSession, msgs, msgIndex, message) {
+  if (!focusSession || !isUrFirstAnswerRow(msgs, msgIndex, message)) return false;
+  if (wcCardUsesUnifiedLayout(structured?.callType)) return false;
+  return true;
+}
+
+function wcStructuredFallbackSummaryText(structured, summaryText) {
+  if (String(structured?.sport || "").toLowerCase() !== "worldcup") return summaryText;
+  if (!wcCardUsesUnifiedLayout(structured?.callType)) return summaryText;
+  const lean = String(structured?.lean || "").trim();
+  if (!lean) return "";
+  return lean.startsWith("Lean:") ? lean : `Lean: ${lean}`;
+}
+
 /** Inline continuation nudge after a completed UR Take (all answer shapes). */
 function UrTakeNextContinuationLine({ message = null, userQuestion = "" }) {
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
@@ -1738,6 +1758,14 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
     };
   }
   if (intent === WC_INTENT.ENTITY_PRICING) {
+    const ct = String(structured.callType || "").toLowerCase();
+    if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
+      return {
+        ...structured,
+        sport: "worldcup",
+        callType: structured.callType,
+      };
+    }
     return {
       ...structured,
       sport: "worldcup",
@@ -1910,7 +1938,6 @@ function UrTakeAiBubble({
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const hideTakeExtras = Boolean(focusSession);
-  const cardFocusLayout = Boolean(focusSession && isUrFirstAnswerRow(msgs, msgIndex, m));
   const dockFollowUps = getFollowUpSuggestions(m, userQuestion);
   const summaryText = stripEmbeddedFollowUpQuestions(
     stripLeadingUrTakeDisclaimersForDisplay(m.text),
@@ -2009,6 +2036,13 @@ function UrTakeAiBubble({
   }
 
   if (effectiveStructured) {
+    const cardFocusLayout = wcStructuredCardFocusLayout(
+      effectiveStructured,
+      focusSession,
+      msgs,
+      msgIndex,
+      m,
+    );
     const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
     const structuredGameStateLine = parsedLiveRibbon.gameState
       ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)
@@ -2046,7 +2080,9 @@ function UrTakeAiBubble({
             CARD LAYOUT FALLBACK · PLAIN TEXT
           </div>
         ) : null}
-        {renderMessage(summaryText, { styleUrTakeSectionLabels: true })}
+        {renderMessage(wcStructuredFallbackSummaryText(s, summaryText), {
+          styleUrTakeSectionLabels: true,
+        })}
       </div>
     );
     return (
