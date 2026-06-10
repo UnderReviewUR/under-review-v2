@@ -267,7 +267,12 @@ export default function AskScreen({
                       </div>
                     ) : null}
                   </>
-                ) : null}
+                ) : (
+                  <div
+                    className="ur-session-context-header ur-session-context-header--focus-hidden"
+                    aria-hidden="true"
+                  />
+                )}
                 <div className="ur-chat-scroll">
                   {!DEBUG_HIDE_CHAT_THREAD ? (
                     <ChatThread

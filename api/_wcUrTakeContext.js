@@ -75,6 +75,7 @@ import {
   selectLiveFixtureForQuestion,
   WC_LIVE_MATCH_PROMPT_RULES,
 } from "../shared/wcLiveMatchQuestion.js";
+import { WC_MATCH_BETTING_PROMPT_RULES } from "../shared/wcMatchBettingPrompt.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -90,8 +91,7 @@ const WC_INJURY_NOT_XI_RULE =
   "Injury / availability rows are not a confirmed starting XI. Do not infer starters from injury lists alone.";
 
 /** Override without deploy: set env `WC_BREAKING` (same format as TENNIS_BREAKING). */
-const WC_BREAKING =
-  "2026-05-29 | Goldman Sachs WC model: Spain 26% favorite (FRA 19%, ARG 14%, BRA 8%); top Elo + scoring talent; ESP–ARG final projected. Books broadly aligned; England ~+650 (~13% implied) vs Goldman ~5% — market heavier than quant path.";
+const WC_BREAKING = "";
 
 const WC_LINEUP_UNCONFIRMED_RULE =
   "Starting XI is NOT confirmed in the verified feed. Do not name expected starters, do not recommend starter-specific or goal-scorer props. Say uncertain or Pass / no play until lineups are confirmed.";
@@ -541,6 +541,8 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   if (ctx.staticRulesBlock) {
     lines.push(ctx.staticRulesBlock, "");
   }
+
+  lines.push(WC_MATCH_BETTING_PROMPT_RULES, "");
 
   lines.push(
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),

@@ -62,6 +62,10 @@ import {
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
 } from "../shared/wcTakeRetentionQA.js";
+import {
+  detectWcMatchupPassOnlyWithoutAlternate,
+  WC_MATCH_PASS_ONLY_QA_SUFFIX,
+} from "../shared/wcMatchBettingPrompt.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -393,6 +397,12 @@ export function runWcUrTakeQA(opts = {}) {
     if (detectMissingComparativeProof(question, body, structured)) {
       issueCodes.push("wc_missing_comparative_proof");
     }
+
+    if (
+      detectWcMatchupPassOnlyWithoutAlternate(question, structured, wcIntent)
+    ) {
+      issueCodes.push("wc_matchup_pass_only_no_alt");
+    }
   }
 
   if (
@@ -466,6 +476,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_scorer_role_mismatch",
       "wc_player_age_mismatch",
       "wc_play_line_invalid",
+      "wc_matchup_pass_only_no_alt",
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
@@ -509,6 +520,7 @@ export {
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
 };
+export { WC_MATCH_PASS_ONLY_QA_SUFFIX };
 
 export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
 

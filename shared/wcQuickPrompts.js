@@ -19,17 +19,17 @@ export function getWcQuickPrompts(opts = {}) {
   }
   if (today > 0) {
     const base = [
-      "Who wins tonight's headline match?",
-      "Best bet on today's slate?",
+      "Best bet on today's slate — not just the moneyline",
+      "Both teams to advance on today's best match?",
     ];
     if (xi) base.push("Best player prop tonight?");
     else base.push("Golden Boot — who has value?");
     return base;
   }
   return [
-    "Give me your full tournament predictions — winner, dark horse, breakout player, and Golden Boot",
+    "What's the best group-stage value bet right now?",
+    "Golden Boot pick — who scores most and why?",
     "Which team is most mispriced to win the tournament?",
-    "Who wins Group A?",
-    "Who lifts the trophy?",
+    "USA vs Paraguay — best bet if I only know the moneyline",
   ];
 }

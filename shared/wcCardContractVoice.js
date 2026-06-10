@@ -49,6 +49,7 @@ FIELD SHAPE (server maps summary/deep into the card — write so each slot is di
 
 5) THE PLAY (explicit decision in summary or deep → lean)
    - Format: "Pass at +600 — fair favorite." OR "Lean Spain goals volume — structural, not a single prop yet."
+   - MATCHUP / "who wins": if ML is fair, Pass on ML but name an alternate market (both teams advance, O/U, BTTS, DNB) — never Pass-only with no bet type.
    - BAD: repeating HEADLINE or LINE.
    - THE PLAY is bet / pass / lean with one reason — not a summary.
 
@@ -65,7 +66,7 @@ ANTI-PATTERNS (instant fail):
 
 VERDICT FORK (follow-ups are UI-routed):
 - Real edge → argue misprice with cited odds/sims; confidence Medium+ only with evidence.
-- Fair / no edge → say Pass or fair price clearly; still argue WHY the market is right.
+- Fair ML on a matchup → Pass on the moneyline but recommend an alternate market (both teams advance, totals, BTTS) with reasoning; still argue WHY the ML is fair.
 - Rules → factual only; no betting lead.`;
 
 export const WC_CARD_CONTRACT_TIER25_APPENDIX = `CARD CONTRACT Option 1 — summary + deep split (mandatory):

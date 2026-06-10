@@ -69,7 +69,8 @@ export function buildWcAppDeepLink(promptOrKey, opts = {}) {
   const { key, prompt } = resolveWcMarketingPrompt(promptOrKey);
 
   if (useShortPath) {
-    const u = new URL(`${origin}${WC_MARKETING_PATH}`);
+    const u = new URL(`${origin}/`);
+    u.searchParams.set("sport", "worldcup");
     if (key) u.searchParams.set("p", key);
     else if (prompt) u.searchParams.set("q", prompt);
     if (!auto) u.searchParams.set("ask", "0");

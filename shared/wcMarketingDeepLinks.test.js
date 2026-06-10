@@ -10,10 +10,11 @@ import {
   WC_MARKETING_URL,
 } from "./wcMarketingDeepLinks.js";
 
-test("buildWcAppDeepLink uses short p= key by default", () => {
+test("buildWcAppDeepLink uses main shell with sport=worldcup by default", () => {
   const url = buildWcAppDeepLink("groupValue");
   const u = new URL(url);
-  assert.equal(u.pathname, "/worldcup");
+  assert.equal(u.pathname, "/");
+  assert.equal(u.searchParams.get("sport"), "worldcup");
   assert.equal(u.searchParams.get("p"), "groupValue");
   assert.equal(u.searchParams.get("q"), null);
   assert.equal(u.searchParams.get("ask"), null);

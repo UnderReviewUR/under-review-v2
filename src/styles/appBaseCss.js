@@ -2902,7 +2902,8 @@ export const baseCss = `
     border-bottom:1px solid rgba(196,165,116,0.12);
   }
   /* Keep a flex sibling before .ur-chat-scroll in focus session so iOS scroll pane is never :first-child */
-  .wc-docked-context-bar--focus-hidden{
+  .wc-docked-context-bar--focus-hidden,
+  .ur-session-context-header--focus-hidden{
     height:0;
     padding:0;
     margin:0;
@@ -2910,6 +2911,7 @@ export const baseCss = `
     border:none;
     opacity:0;
     pointer-events:none;
+    flex-shrink:0;
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll.wc-chat-scroll{
     flex:1 1 0;

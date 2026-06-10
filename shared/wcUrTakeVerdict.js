@@ -136,9 +136,9 @@ export function getVerdictFollowUpChips(verdict) {
       return ["Build a parlay around this.", "What kills this edge?", "What's the other side of this?"];
     case "FAIR_PRICE":
       return [
-        "What would need to change?",
+        "What's the best bet besides the moneyline?",
+        "Both teams to advance?",
         "Who is mispriced instead?",
-        "Compare to similar contenders.",
       ];
     case "RULES_FACTUAL":
       return [
@@ -148,9 +148,9 @@ export function getVerdictFollowUpChips(verdict) {
       ];
     case "MATCHUP":
       return [
-        "What's the other side?",
-        "What breaks this read?",
-        "Give me a specific number to target.",
+        "What's the best bet besides the moneyline?",
+        "Both teams to advance?",
+        "Over or under goals?",
       ];
     case "PLAYER_MARKET_PASS":
       return [
