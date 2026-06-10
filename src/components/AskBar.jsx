@@ -168,41 +168,66 @@ const AskBar = memo(function AskBar({
           </div>
         </>
       ) : layout === "home" ? (
-        <div className="ask-row ask-row--home">
-          <div className={`ask-col ask-col--home${value?.trim() ? " has-text" : ""}`}>
-            {pastedImage && (
-              <div className="ask-img-preview">
-                <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
-                <button onClick={clearImage} type="button" className="ask-img-remove">
-                  ✕ Remove
-                </button>
-              </div>
-            )}
-            <div className="ask-col-home-inner">
-              <input
+        <div className="ask-row ask-row--home-hero">
+          {pastedImage && (
+            <div className="ask-img-preview">
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
+              <button onClick={clearImage} type="button" className="ask-img-remove">
+                ✕ Remove
+              </button>
+            </div>
+          )}
+          <div className={`ask-home-hero-frame${value?.trim() ? " has-text" : ""}`}>
+            <div className="ask-home-hero-inner">
+              <textarea
                 ref={inputRef}
-                className="ask-bar ask-bar--home"
+                className="ask-bar ask-bar--home-hero"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    onSubmit();
+                  }
+                }}
                 placeholder={pastedImage ? "Ask about this image..." : placeholder}
                 disabled={busy}
+                rows={3}
                 {...askInputProps}
               />
-              <button
-                className="send-btn send-btn--home-inline"
-                onClick={onSubmit}
-                disabled={busy || !String(value || "").trim()}
-                title={prefetchingContext ? "Loading context…" : "Send"}
-                type="button"
-                aria-label="Send"
-              >
-                {prefetchingContext ? (
-                  <span aria-hidden>…</span>
+              <div className="ask-home-hero-foot">
+                {!pastedImage && showPasteHint ? (
+                  <span className="ask-home-hero-paste-hint">
+                    {pasteHintText || "Paste a slip, line, or matchup."}
+                  </span>
                 ) : (
-                  <IconSend className="send-btn--home-inline-icon" />
+                  <span className="ask-home-hero-paste-hint ask-home-hero-paste-hint--empty" aria-hidden />
                 )}
-              </button>
+                <div className="ask-home-hero-actions">
+                  <button
+                    className={`ask-home-hero-attach${pastedImage ? " has-img" : ""}`}
+                    onClick={() => fileInputRef.current?.click()}
+                    type="button"
+                    aria-label="Attach image"
+                  >
+                    <IconPaperclip className="ask-home-hero-attach-icon" />
+                  </button>
+                  <button
+                    className="ask-home-hero-send"
+                    onClick={onSubmit}
+                    disabled={busy || !String(value || "").trim()}
+                    title={prefetchingContext ? "Loading context…" : "Send"}
+                    type="button"
+                    aria-label="Send"
+                  >
+                    {prefetchingContext ? (
+                      <span aria-hidden>…</span>
+                    ) : (
+                      <IconSend className="ask-home-hero-send-icon" />
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -4634,7 +4634,11 @@ ${themeCss}
               </button>
             )}
             <div className="wordmark" onClick={goHome}>
-              <span className="logo-review">UnderReview</span>
+              <span className="logo-under">Under </span>
+              <span className="logo-review">Review</span>
+              {screen === "home" && navHistory.length === 0 ? (
+                <span className="ur-home-variant-badge">A · COPY + CLARITY</span>
+              ) : null}
             </div>
           </div>
           <div

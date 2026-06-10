@@ -16,8 +16,10 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
 );
 
 /** Home hero copy — Option A: promise above ask, hint below. */
-const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push back on.";
+const HOME_ASK_PROMISE_PRIMARY = "Ask like you would in chat.";
+const HOME_ASK_PROMISE_SECONDARY = "Get a take you can push back on.";
 const HOME_ASK_HINT = "You'll get an answer you can push back on.";
+const HOME_ASK_PROMISE = `${HOME_ASK_PROMISE_PRIMARY} ${HOME_ASK_PROMISE_SECONDARY}`;
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
 
@@ -199,7 +201,10 @@ export default function HomeScreen({
   return (
     <main className={`screen home-surface-premium home-surface-option-a${hasDockedBar ? " has-msgs" : ""}`}>
       <section className="ur-home-hero" aria-label="Ask Under Review">
-        <h1 className="ur-home-promise">{HOME_ASK_PROMISE}</h1>
+        <h1 className="ur-home-promise">
+          <span className="ur-home-promise-line">{HOME_ASK_PROMISE_PRIMARY}</span>
+          <span className="ur-home-promise-line ur-home-promise-line--soft">{HOME_ASK_PROMISE_SECONDARY}</span>
+        </h1>
         <div className="ur-home-ask-shell">
           <AskBar
             inputRef={askInputRef}
@@ -208,7 +213,6 @@ export default function HomeScreen({
             onSubmit={submitHome}
             placeholder={askPlaceholder}
             layout="home"
-            showPasteHint={false}
             pasteHintText="Paste a slip, line, or matchup."
             {...askBarCommon}
           />
@@ -252,6 +256,7 @@ export default function HomeScreen({
         </section>
       ) : null}
 
+      {!narrowHome ? (
       <div className="ur-home-feed">
       {tryOne ? (
         <div className="ur-home-try-row">
@@ -652,6 +657,7 @@ export default function HomeScreen({
       ) : null}
 
       </div>
+      ) : null}
 
       <div className="page-spacer" />
     </main>
