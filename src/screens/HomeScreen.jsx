@@ -267,135 +267,53 @@ export default function HomeScreen({
       ) : null}
 
       {wcHomePromoCard ? (
-        <div
-          className="ur-wc-home-promo"
-          style={{
-            marginTop: 6,
-            marginBottom: 10,
-            padding: "14px 14px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(0,245,233,0.35)",
-            borderLeft: `4px solid ${wcHomePromoCard.accentColor || "#00F5E9"}`,
-            background: "linear-gradient(180deg, rgba(0,245,233,0.1), rgba(255,255,255,0.02))",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-              marginBottom: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--mono-font)",
-                fontSize: 10,
-                letterSpacing: 1.2,
-                textTransform: "uppercase",
-                color: wcHomePromoCard.accentColor || "#00F5E9",
-                fontWeight: 700,
-              }}
-            >
-              {wcHomePromoCard.sportBadge || "WORLD CUP"}
-            </span>
+        <div className="ur-wc-home-promo ur-wc-home-promo--v2">
+          <div className="ur-wc-home-promo-top">
+            <span className="ur-wc-home-promo-badge">{wcHomePromoCard.sportBadge || "WORLD CUP"}</span>
             {goWorldCup ? (
-              <button
-                type="button"
-                onClick={() => goWorldCup()}
-                style={{
-                  fontFamily: "var(--mono-font)",
-                  fontSize: 10,
-                  letterSpacing: 0.08,
-                  color: "var(--cyan-bright)",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                  textUnderlineOffset: 3,
-                  padding: 0,
-                }}
-              >
+              <button type="button" className="ur-wc-home-promo-hub" onClick={() => goWorldCup()}>
                 Open hub →
               </button>
             ) : null}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
-            {wcHomePromoCard.title}
+          <div className="ur-wc-home-promo-hero">
+            <h3 className="ur-wc-home-promo-title">{wcHomePromoCard.title}</h3>
+            <img
+              className="ur-wc-home-promo-trophy"
+              src="/wc-trophy-home.svg"
+              alt=""
+              width={72}
+              height={96}
+              loading="lazy"
+              decoding="async"
+            />
           </div>
-          {wcHomePromoCard.subtitle ? (
-            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
-              {wcHomePromoCard.subtitle}
-            </div>
-          ) : null}
           {wcHomePromoCard.trustLine ? (
-            <div
-              style={{
-                fontSize: 11,
-                color: "rgba(245,158,11,0.9)",
-                marginBottom: 10,
-                lineHeight: 1.45,
-              }}
-            >
-              {wcHomePromoCard.trustLine}
-            </div>
+            <p className="ur-wc-home-promo-trust">{wcHomePromoCard.trustLine}</p>
           ) : null}
-          {goWorldCupMatchesToday ? (
-            <button
-              type="button"
-              onClick={goWorldCupMatchesToday}
-              style={{
-                width: "100%",
-                marginBottom: 10,
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(0,245,233,0.45)",
-                background: "rgba(0,245,233,0.14)",
-                color: "#fff",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              {wcHomePromoCard.matchesCta || "See today's matches"}
-            </button>
-          ) : null}
-          <ul
-            style={{
-              margin: "0 0 10px",
-              padding: "0 0 0 18px",
-              fontSize: 12,
-              color: "var(--soft)",
-              lineHeight: 1.5,
-            }}
-          >
+          <ul className="ur-wc-home-promo-highlights">
             {(wcHomePromoCard.highlights || []).map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
+          {goWorldCupMatchesToday ? (
+            <button type="button" className="ur-wc-home-promo-matches" onClick={goWorldCupMatchesToday}>
+              {wcHomePromoCard.matchesCta || "See today's matches"}
+            </button>
+          ) : null}
           <button
             type="button"
+            className="ur-wc-home-promo-ask"
             onClick={() => {
               const p = wcHomePromoCard.prompt;
               if (askWorldCup) askWorldCup(p);
               else firePrompt(p, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id);
             }}
-            style={{
-              width: "100%",
-              textAlign: "left",
-              background: "rgba(0,245,233,0.12)",
-              border: "1px solid rgba(0,245,233,0.28)",
-              borderRadius: 10,
-              padding: "10px 12px",
-              cursor: "pointer",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
           >
-            {wcHomePromoCard.text}
+            <span>{wcHomePromoCard.text}</span>
+            <span className="ur-wc-home-promo-ask-chev" aria-hidden>
+              ›
+            </span>
           </button>
         </div>
       ) : null}

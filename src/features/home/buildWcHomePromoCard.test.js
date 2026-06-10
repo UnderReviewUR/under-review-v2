@@ -10,6 +10,7 @@ test("buildWcHomePromoCard returns card during promo window", () => {
   assert.ok(card);
   assert.equal(card.sportHint, "worldcup");
   assert.ok(card.trustLine?.includes("Starting XIs"));
+  assert.ok(card.highlights[0].includes("104 matches"));
   assert.equal(card.matchesCta, "See today's matches");
 });
 
@@ -27,9 +28,9 @@ test("orderHomeQuestionsForWcPromo blends WC, NBA Finals, second WC", () => {
   );
 });
 
-test("buildWcHomePromoCard highlights are take-style bullets", () => {
+test("buildWcHomePromoCard highlights are tournament value bullets", () => {
   const card = buildWcHomePromoCard(Date.parse("2026-06-02T16:00:00Z"));
-  assert.ok(card.highlights[0].includes("Group-stage value"));
-  assert.ok(card.highlights[1].includes("Advancement angles"));
-  assert.ok(card.highlights[2].includes("Group I"));
+  assert.ok(card.highlights[0].includes("104 matches"));
+  assert.ok(card.highlights[1].includes("Live in-game odds"));
+  assert.ok(card.highlights[2].includes("line movement"));
 });
