@@ -15,11 +15,10 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
-/** Home hero copy — Option A: promise above ask, hint below. */
-const HOME_ASK_PROMISE_PRIMARY = "Ask like you would in chat.";
-const HOME_ASK_PROMISE_SECONDARY = "Get a take you can push back on.";
-const HOME_ASK_HINT = "You'll get an answer you can push back on.";
-const HOME_ASK_PROMISE = `${HOME_ASK_PROMISE_PRIMARY} ${HOME_ASK_PROMISE_SECONDARY}`;
+/** Home hero copy — identity headline + pushback promise above ask. */
+const HOME_HEADLINE = "Argue like you know better.";
+const HOME_SUBHEAD = "Get a take sharp enough to push back on.";
+const HOME_ASK_PROMISE = `${HOME_HEADLINE} ${HOME_SUBHEAD}`;
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
 
@@ -160,7 +159,6 @@ export default function HomeScreen({
             pasteHintText="Paste a slip, line, or matchup."
             {...askBarCommon}
           />
-          <p className="ur-home-ask-hint">{HOME_ASK_HINT}</p>
           {strippedSessionBusy ? (
             <p className="ur-first-session-wait" aria-live="polite">
               Working on your answer…
@@ -202,8 +200,8 @@ export default function HomeScreen({
     <main className={`screen home-surface-premium home-surface-option-a${hasDockedBar ? " has-msgs" : ""}`}>
       <section className="ur-home-hero" aria-label="Ask Under Review">
         <h1 className="ur-home-promise">
-          <span className="ur-home-promise-line">{HOME_ASK_PROMISE_PRIMARY}</span>
-          <span className="ur-home-promise-line ur-home-promise-line--soft">{HOME_ASK_PROMISE_SECONDARY}</span>
+          <span className="ur-home-promise-line">{HOME_HEADLINE}</span>
+          <span className="ur-home-promise-line ur-home-promise-line--soft">{HOME_SUBHEAD}</span>
         </h1>
         <div className="ur-home-ask-shell">
           <AskBar
@@ -217,7 +215,6 @@ export default function HomeScreen({
             {...askBarCommon}
           />
         </div>
-        <p className="ur-home-ask-hint">{HOME_ASK_HINT}</p>
       </section>
 
       {wcHomePromoCard ? (
