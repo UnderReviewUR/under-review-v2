@@ -172,6 +172,7 @@ export default function AskScreen({
   askScreenRef,
   hasDockedBar: _hasDockedBar,
   askMsgs,
+  focusSession = false,
   askInputRef,
   askInput,
   setAskInput,
@@ -224,7 +225,7 @@ export default function AskScreen({
   return (
           <main
             ref={askScreenRef}
-            className={`screen${safeAskMsgs.length > 0 ? " has-msgs screen--ur-chat" : ""}`}
+            className={`screen${safeAskMsgs.length > 0 ? " has-msgs screen--ur-chat" : ""}${focusSession ? " screen--ur-focus" : ""}`}
           >
             {safeAskMsgs.length === 0 ? (
               <>
@@ -245,7 +246,7 @@ export default function AskScreen({
                 key={String(safeAskMsgs.at(-1)?.msgId ?? safeAskMsgs.length)}
                 threadDebug={threadDebug}
               >
-                {!DEBUG_HIDE_SESSION_HEADER ? (
+                {!DEBUG_HIDE_SESSION_HEADER && !focusSession ? (
                   <>
                     <div className="ur-session-context-header" aria-live="polite">
                       <span className="ur-session-context-kicker">UR TAKE</span>
@@ -276,6 +277,7 @@ export default function AskScreen({
                       onUrTakeFollowUpPick={onUrTakeFollowUpPick}
                       onUpgradePromptClick={onUpgradePromptClick}
                       hideFollowUpDock
+                      focusSession={focusSession}
                       golfSessionBoard={golfSessionBoard}
                       variant="urChatDocked"
                     />
@@ -288,6 +290,7 @@ export default function AskScreen({
                     onSaveTake={onSaveLastUrTake}
                     savedTakes={safeSavedTakes}
                     onOpenSavedTake={onOpenSavedTake}
+                    focusSession={focusSession}
                   />
                 ) : null}
               </UrTakeChatErrorBoundary>

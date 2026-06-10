@@ -69,6 +69,7 @@ export default function WorldCupScreen({
   onDismissWcXiNotice = null,
   onOpenWcXiNotice = null,
   wcHomePromoCard = null,
+  focusSession = false,
 }) {
   const [mainTab, setMainTab] = useState("matches");
   const [matchSubTab, setMatchSubTab] = useState("upcoming");
@@ -165,7 +166,7 @@ export default function WorldCupScreen({
     return "June 11 — July 19, 2026";
   }, [todayMatches.length, upcomingMatches]);
 
-  const wcBrowseInScroll = urDockedChat && !wcTakeLoading;
+  const wcBrowseInScroll = urDockedChat && !wcTakeLoading && !focusSession;
   const chatThreadProps = {
     msgs: wcMsgs,
     accessTier,
@@ -451,19 +452,20 @@ export default function WorldCupScreen({
   return (
     <main
       ref={wcScreenRef}
-      className={`screen wc-screen wc-screen--premium${urDockedChat ? " has-msgs screen--ur-chat wc-screen--docked-chat" : hasDockedBar ? " has-msgs" : ""}`}
+      className={`screen wc-screen wc-screen--premium${urDockedChat ? " has-msgs screen--ur-chat wc-screen--docked-chat" : hasDockedBar ? " has-msgs" : ""}${focusSession ? " screen--ur-focus" : ""}`}
     >
       {urDockedChat ? (
         <>
-          <p className="wc-docked-context-bar">World Cup · UR Take</p>
+          {!focusSession ? <p className="wc-docked-context-bar">World Cup · UR Take</p> : null}
           <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
-            <ChatThread {...chatThreadProps} variant="urChatDocked" />
+            <ChatThread {...chatThreadProps} variant="urChatDocked" focusSession={focusSession} />
             {onSaveLastUrTake ? (
               <AskUrTakeRetentionStrip
                 askMsgs={wcMsgs}
                 onSaveTake={onSaveLastUrTake}
                 savedTakes={savedTakes}
                 onOpenSavedTake={onOpenSavedTake}
+                focusSession={focusSession}
               />
             ) : null}
             {wcBrowseInScroll ? (

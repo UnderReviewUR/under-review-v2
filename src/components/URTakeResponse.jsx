@@ -89,6 +89,7 @@ export default function URTakeResponse({
   breakdownAvailable = false,
   predictionSlots = [],
   nbaRelevance = null,
+  focusLayout = false,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -359,18 +360,19 @@ export default function URTakeResponse({
     return (
       <WcTakeCard
         headline={wcHeadline}
-        statSlots={statGrid.slots}
+        statSlots={focusLayout ? [] : statGrid.slots}
         sections={wcSections}
         confidence={displayConfidence}
         contextLine={contextLine}
-        modePill={modePill}
-        cautionText={showWcCaution ? wcCautionText : null}
+        modePill={focusLayout ? null : modePill}
+        cautionText={focusLayout ? null : showWcCaution ? wcCautionText : null}
         sharePath={shareQuery}
         userQuestion={userQuestion}
         timestamp={timestamp}
         breakdownText={wcBreakdown}
         breakdownAvailable={wcBreakdownAvailable}
         predictionSlots={wcPredictionSlotRows}
+        focusLayout={focusLayout}
       />
     );
   }

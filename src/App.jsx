@@ -201,9 +201,10 @@ import {
 import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
 import BookmakerOddsPanel from "./components/BookmakerOddsPanel.jsx";
 import UrTakeOnboardingOverlay from "./components/UrTakeOnboardingOverlay.jsx";
+import { isUrFocusSession } from "./lib/urFocusSession.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
-function UrTakeFollowUpDockStrip({ msgs, onPick }) {
+function UrTakeFollowUpDockStrip({ msgs, onPick, focusSession = false }) {
   if (!Array.isArray(msgs) || msgs.length === 0 || typeof onPick !== "function") return null;
   const source = getLastAiFollowUpDockSource(msgs);
   if (!source?.followUps?.length) return null;
@@ -212,6 +213,9 @@ function UrTakeFollowUpDockStrip({ msgs, onPick }) {
       source={source}
       onPick={onPick}
       panelClassName="ur-take-follow-up-panel--dock"
+      focusSession={focusSession}
+      kicker={focusSession ? "Push back" : "Go deeper"}
+      maxChips={focusSession ? 2 : 3}
     />
   );
 }
@@ -4395,6 +4399,11 @@ ${themeCss}
     (screen === "worldcup" && wcMsgs.length > 0) ||
     (screen === "ask" && askMsgs.length > 0);
 
+  const askFocusSession = isUrFocusSession(askMsgs);
+  const wcFocusSession = isUrFocusSession(wcMsgs);
+  const activeFocusSession =
+    (screen === "ask" && askFocusSession) || (screen === "worldcup" && wcFocusSession);
+
   /** Dock + bottom nav real heights → `--ur-dock-measured-h` / `--ur-nav-measured-h` for `.ur-chat-scroll` padding (follow-up chips render after first paint; remeasure on DOM + resize). */
   useLayoutEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return undefined;
@@ -4581,7 +4590,7 @@ ${themeCss}
   />
   <style>{css}</style>
   <div
-    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}${screen === "worldcup" ? " app--wc-premium" : ""}`}
+    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}${activeFocusSession ? " ur-focus-session" : ""}${screen === "worldcup" ? " app--wc-premium" : ""}`}
     style={{
       background: THEMES[activeTheme]?.appBg || "var(--bg)",
       color:
@@ -4822,7 +4831,7 @@ ${themeCss}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
           />
           <UrTakeOnboardingOverlay
-            visible={isWcHomePromoWindow()}
+            visible={isWcHomePromoWindow() && askMsgs.length === 0 && wcMsgs.length === 0}
             worldCupLine="World Cup tab: one question, one verdict — Full breakdown only if you want more."
           />
           </>
@@ -5107,6 +5116,7 @@ ${themeCss}
               })
             }
             wcHomePromoCard={wcHomePromoCard}
+            focusSession={wcFocusSession}
           />
         )}
 
@@ -6072,6 +6082,7 @@ fees. One price, unlimited reads.`,
             askScreenRef={askScreenRef}
             hasDockedBar={hasDockedBar}
             askMsgs={askMsgs}
+            focusSession={askFocusSession}
             askInputRef={askInputRef}
             askInput={askInput}
             setAskInput={setAskInput}
@@ -6149,14 +6160,16 @@ fees. One price, unlimited reads.`,
         {screen==="worldcup"&&wcMsgs.length>0&&(
           <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(245,158,11,.28)" }}>
-              <div className="docked-bar-label" style={{color:"var(--wc-gold)"}}>World Cup · Ask another</div>
-              <UrTakeFollowUpDockStrip msgs={wcMsgs} onPick={urTakeFollowUpWc} />
+              {!wcFocusSession ? (
+                <div className="docked-bar-label" style={{color:"var(--wc-gold)"}}>World Cup · Ask another</div>
+              ) : null}
+              <UrTakeFollowUpDockStrip msgs={wcMsgs} onPick={urTakeFollowUpWc} focusSession={wcFocusSession} />
               <AskBar
                 inputRef={wcInputRef}
                 value={wcInput}
                 onChange={setWcInput}
                 onSubmit={() => submitWc()}
-                placeholder="Team & tournament angles · player props when XIs confirmed"
+                placeholder={wcFocusSession ? "Push back or ask a follow-up…" : "Team & tournament angles · player props when XIs confirmed"}
                 btnColor="var(--wc-gold)"
                 {...askBarCommon}
                 dockedGradient
@@ -6167,8 +6180,8 @@ fees. One price, unlimited reads.`,
         {screen==="ask"&&askMsgs.length>0&&(
           <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone">
-              <UrTakeFollowUpDockStrip msgs={askMsgs} onPick={urTakeFollowUpAsk} />
-              <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder="Go deeper..." {...askBarCommon} dockedGradient />
+              <UrTakeFollowUpDockStrip msgs={askMsgs} onPick={urTakeFollowUpAsk} focusSession={askFocusSession} />
+              <AskBar inputRef={askInputRef} value={askInput} onChange={setAskInput} onSubmit={submitAsk} placeholder={askFocusSession ? "Push back or ask a follow-up…" : "Go deeper…"} {...askBarCommon} dockedGradient />
             </div>
           </div>
         )}

@@ -1838,6 +1838,89 @@ export const baseCss = `
     border-top:1px solid rgba(255,255,255,0.06);
     background:transparent;
   }
+
+  /* ── Focus session: subscription trial (Q1 + one follow-up) ── */
+  .ur-focus-session .ur-take-follow-up-panel--dock{
+    border-top:none;
+    padding:6px 16px 8px;
+  }
+  .ur-focus-session .ur-take-follow-up-panel__kicker{
+    color:rgba(255,255,255,0.38);
+    font-size:9px;
+    letter-spacing:0.12em;
+    margin-bottom:8px;
+  }
+  .ur-focus-session .docked-interaction-zone{
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .chat-thread--focus .ur-imessage-user-row .bubble--imessage-user--caption{
+    max-width:100%;
+    padding:10px 0 14px;
+    text-align:left;
+  }
+  .ur-focus-user-text{
+    display:block;
+    font-size:14px;
+    line-height:1.5;
+    color:rgba(255,255,255,0.52);
+    text-align:left;
+  }
+  .wc-take-card--focus{
+    border:none;
+    background:transparent;
+    box-shadow:none;
+  }
+  .wc-take-card--focus .wc-take-headline{
+    font-family:var(--body-font);
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:-0.03em;
+    line-height:1.3;
+    padding:0;
+    margin:0 0 16px;
+    color:#fff;
+  }
+  .wc-take-card--focus .wc-take-row{
+    padding:0 0 14px;
+    margin:0 0 14px;
+    border-bottom:1px solid rgba(255,255,255,0.07);
+  }
+  .wc-take-card--focus .wc-take-row:last-of-type{
+    border-bottom:none;
+    margin-bottom:0;
+    padding-bottom:0;
+  }
+  .wc-take-card--focus .wc-take-row-label{
+    font-size:10px;
+    letter-spacing:0.14em;
+    color:rgba(255,255,255,0.42);
+    margin-bottom:6px;
+  }
+  .wc-take-card--focus .wc-take-row-body{
+    font-size:15px;
+    line-height:1.55;
+    color:rgba(255,255,255,0.88);
+  }
+  .wc-take-card--focus .ur-v2-divider{display:none;}
+  .wc-take-breakdown-toggle--focus{
+    margin:12px 0 0;
+    padding:0;
+    font-size:13px;
+    color:rgba(255,255,255,0.45);
+    background:transparent;
+    border:none;
+    text-decoration:underline;
+    text-underline-offset:4px;
+  }
+  .screen--ur-focus .ur-chat-scroll{
+    padding-top:8px;
+  }
+  .screen--ur-focus .bubble--imessage-ai .ur-v2-card{
+    border:none;
+    box-shadow:none;
+    background:transparent;
+  }
+
   .ur-thread-upgrade-nudge{
     display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 12px;
     margin-top:6px;padding:8px 6px 10px;

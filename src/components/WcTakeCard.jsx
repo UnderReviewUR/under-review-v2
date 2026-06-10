@@ -26,6 +26,7 @@ export default function WcTakeCard({
   breakdownText = "",
   breakdownAvailable = false,
   predictionSlots = [],
+  focusLayout = false,
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(false);
   const conf = String(confidence || "Medium").trim();
@@ -38,18 +39,20 @@ export default function WcTakeCard({
     : [];
 
   return (
-    <div className="ur-take-structured ur-take-response ur-v2-card wc-take-card">
-      <div className="ur-v2-sport-bar">
-        <span className="ur-v2-sport-bar-tag">{formatUrTakeSportTag("worldcup")}</span>
-        <span className="ur-v2-sport-bar-dot" aria-hidden>
-          ·
-        </span>
-        <span className="ur-v2-sport-bar-ctx">{contextLine}</span>
-        <span className="ur-v2-sport-bar-spacer" />
-        {modePill}
-      </div>
+    <div className={`ur-take-structured ur-take-response ur-v2-card wc-take-card${focusLayout ? " wc-take-card--focus" : ""}`}>
+      {!focusLayout ? (
+        <div className="ur-v2-sport-bar">
+          <span className="ur-v2-sport-bar-tag">{formatUrTakeSportTag("worldcup")}</span>
+          <span className="ur-v2-sport-bar-dot" aria-hidden>
+            ·
+          </span>
+          <span className="ur-v2-sport-bar-ctx">{contextLine}</span>
+          <span className="ur-v2-sport-bar-spacer" />
+          {modePill}
+        </div>
+      ) : null}
 
-      {cautionText ? (
+      {!focusLayout && cautionText ? (
         <div className="ur-v2-wc-caution" role="status">
           <span className="ur-v2-wc-caution-icon" aria-hidden>
             ◷
@@ -60,7 +63,7 @@ export default function WcTakeCard({
 
       {headline ? <h2 className="wc-take-headline">{headline}</h2> : null}
 
-      {statSlots.length > 0 ? (
+      {!focusLayout && statSlots.length > 0 ? (
         <>
           <div className="ur-v2-stat-grid wc-take-stat-grid">
             {statSlots.map((slot) => (
@@ -92,6 +95,7 @@ export default function WcTakeCard({
       {LABELED_ROWS.map(([key, label]) => {
         const val = String(sections?.[key] || "").trim();
         if (!val) return null;
+        if (focusLayout && slots.length > 0) return null;
         return (
           <div key={key} className="wc-take-row">
             <div className="wc-take-row-label">{label}</div>
@@ -103,7 +107,7 @@ export default function WcTakeCard({
       {showBreakdownToggle && !breakdownExpanded ? (
         <button
           type="button"
-          className="ur-v2-body-expand wc-take-breakdown-toggle"
+          className={`ur-v2-body-expand wc-take-breakdown-toggle${focusLayout ? " wc-take-breakdown-toggle--focus" : ""}`}
           onClick={() => setBreakdownExpanded(true)}
         >
           Full breakdown
@@ -124,18 +128,20 @@ export default function WcTakeCard({
         </div>
       ) : null}
 
-      <div className="wc-take-footer">
-        <span className="wc-take-confidence-pill">Confidence: {conf}</span>
-        <div className="wc-take-footer-actions">
-          {formattedTimestamp ? <span className="ur-v2-ts">{formattedTimestamp}</span> : null}
-          <UrTakeShareButton
-            headline={headline}
-            bodyChunks={[sections?.why, sections?.thePlay, sections?.watchFor].filter(Boolean)}
-            sharePath={sharePath}
-            predictionSlots={predictionSlots}
-          />
+      {!focusLayout ? (
+        <div className="wc-take-footer">
+          <span className="wc-take-confidence-pill">Confidence: {conf}</span>
+          <div className="wc-take-footer-actions">
+            {formattedTimestamp ? <span className="ur-v2-ts">{formattedTimestamp}</span> : null}
+            <UrTakeShareButton
+              headline={headline}
+              bodyChunks={[sections?.why, sections?.thePlay, sections?.watchFor].filter(Boolean)}
+              sharePath={sharePath}
+              predictionSlots={predictionSlots}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

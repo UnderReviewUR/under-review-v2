@@ -5,15 +5,16 @@ import UrTakeFollowUpPanel from "./UrTakeFollowUpPanel.jsx";
 /**
  * Follow-up suggestion chips — thread tail or docked Ask bar (via className modifier).
  */
-export default function UrTakeDockedFollowUps({ source, onPick, panelClassName = "" }) {
+export default function UrTakeDockedFollowUps({ source, onPick, panelClassName = "", focusSession = false, kicker, maxChips = 3 }) {
   const pills = Array.isArray(source?.followUps)
-    ? source.followUps.slice(0, 3).map((q) => textOrEmpty(q, 320).trim()).filter(Boolean)
+    ? source.followUps.slice(0, maxChips).map((q) => textOrEmpty(q, 320).trim()).filter(Boolean)
     : [];
   if (!pills.length) return null;
 
   return (
     <UrTakeFollowUpPanel
       className={panelClassName}
+      kicker={kicker ?? (focusSession ? "Push back" : "Go deeper")}
       labels={pills}
       onPick={(q, idx) => {
         const shownAt = source.shownAt;

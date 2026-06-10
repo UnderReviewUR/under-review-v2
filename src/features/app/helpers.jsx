@@ -9,6 +9,7 @@ import {
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
 import { FREE_QUESTION_LIMIT, readFreeTierUsedToday } from "../../lib/freeTierLimits.js";
+import { isUrFirstAnswerRow } from "../../lib/urFocusSession.js";
 import { synthesizeLeanLine } from "../../lib/urTakeLean.js";
 import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
 import { normalizeText } from "../../lib/normalizeText.js";
@@ -1904,9 +1905,12 @@ function UrTakeAiBubble({
   onUrTakeRetry = null,
   onUpgradePromptClick = null,
   onViewWcMatch = null,
+  focusSession = false,
 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  const hideTakeExtras = Boolean(focusSession);
+  const cardFocusLayout = Boolean(focusSession && isUrFirstAnswerRow(msgs, msgIndex, m));
   const dockFollowUps = getFollowUpSuggestions(m, userQuestion);
   const summaryText = stripEmbeddedFollowUpQuestions(
     stripLeadingUrTakeDisclaimersForDisplay(m.text),
@@ -1977,10 +1981,10 @@ function UrTakeAiBubble({
             userQuestion={nbaFinalsCardProps.userQuestion}
           />
         </UrTakeSectionErrorBoundary>
-        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
-        {wcConfidenceChip}
-        {trustChips}
-        {betSignalRow}
+        {!hideTakeExtras ? <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} /> : null}
+        {!hideTakeExtras ? wcConfidenceChip : null}
+        {!hideTakeExtras ? trustChips : null}
+        {!hideTakeExtras ? betSignalRow : null}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
       </>
     );
@@ -2073,6 +2077,7 @@ function UrTakeAiBubble({
               userQuestion,
               message: m,
             })}
+            focusLayout={cardFocusLayout}
           />
         </UrTakeSectionErrorBoundary>
         <WcUrTakePendingNudge
@@ -2081,10 +2086,10 @@ function UrTakeAiBubble({
           onViewWcMatch={onViewWcMatch}
           message={m}
         />
-        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
-        {wcConfidenceChip}
-        {trustChips}
-        {betSignalRow}
+        {!hideTakeExtras ? <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} /> : null}
+        {!hideTakeExtras ? wcConfidenceChip : null}
+        {!hideTakeExtras ? trustChips : null}
+        {!hideTakeExtras ? betSignalRow : null}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
       </>
     );
@@ -2248,7 +2253,7 @@ function UrTakeAiBubble({
             confidence={parsed.confidence}
             compactBubble={true}
           />
-          <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
+          {!hideTakeExtras ? <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} /> : null}
 
           {(m.deepText || showTrack) && (
             <div
@@ -2311,9 +2316,9 @@ function UrTakeAiBubble({
           )}
         </div>
       </UrTakeSectionErrorBoundary>
-      {wcConfidenceChip}
-      {trustChips}
-      {betSignalRow}
+      {!hideTakeExtras ? wcConfidenceChip : null}
+      {!hideTakeExtras ? trustChips : null}
+      {!hideTakeExtras ? betSignalRow : null}
       {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
     </>
   );
@@ -2412,6 +2417,7 @@ export function ChatThread({
   onUrTakeRetry = null,
   onViewWcMatch = null,
   hideFollowUpDock = false,
+  focusSession = false,
   /** Live golf board for structural-edge chip (leaderboard + outrights). */
   golfSessionBoard = null,
   /** When "urChatDocked", thread fills Ask screen above fixed dock (flex layout). */
@@ -2486,7 +2492,8 @@ export function ChatThread({
       : null;
 
   useEffect(() => {
-    const qualifies = computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradePromptClick);
+    const qualifies =
+      !focusSession && computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradePromptClick);
     if (!qualifies) {
       setProUpgradeNudgeVisible(false);
       return;
@@ -2513,6 +2520,7 @@ export function ChatThread({
 
   const last = msgs?.length ? msgs[msgs.length - 1] : null;
   const showFreeFollowUpCue =
+    !focusSession &&
     accessTier === "free" &&
     dailyUsed === FREE_QUESTION_LIMIT - 1 &&
     last &&
@@ -2526,7 +2534,7 @@ export function ChatThread({
   return (
     <div
       ref={chatThreadRef}
-      className={`chat-thread${docked ? " chat-thread--ur-chat-dock" : ""}`}
+      className={`chat-thread${docked ? " chat-thread--ur-chat-dock" : ""}${focusSession ? " chat-thread--focus" : ""}`}
       style={docked ? undefined : { marginBottom: 20 }}
     >
       {msgs.map((m, i) => {
@@ -2577,6 +2585,7 @@ export function ChatThread({
                 onUrTakeRetry={onUrTakeRetry}
                 onUpgradePromptClick={onUpgradePromptClick}
                 onViewWcMatch={onViewWcMatch}
+                focusSession={focusSession}
               />
               {m.urTakeFeedSnagDiag ? <UrTakeFeedSnagProductDiag diag={m.urTakeFeedSnagDiag} /> : null}
               <UrTakeClientFailureDebugPre accessTier={accessTier} payload={m.urTakeClientFailure} />
@@ -2600,7 +2609,12 @@ export function ChatThread({
                 className={`bubble user bubble--imessage-user${docked ? " bubble--imessage-user--caption" : ""}`}
                 data-role="user"
               >
-                {docked ? (
+                {docked && focusSession ? (
+                  <span className="ur-focus-user-text">
+                    {m.image && <img src={m.image} alt="" className="bubble-img" />}
+                    {renderMessage(m.text)}
+                  </span>
+                ) : docked ? (
                   <>
                     <span className="ur-user-ask-kicker">You asked</span>
                     <span className="ur-user-ask-sep" aria-hidden>

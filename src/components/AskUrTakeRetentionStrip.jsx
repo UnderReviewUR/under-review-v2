@@ -12,6 +12,7 @@ export default function AskUrTakeRetentionStrip({
   onSaveTake,
   savedTakes = [],
   onOpenSavedTake,
+  focusSession = false,
 }) {
   const safeMsgs = Array.isArray(askMsgs) ? askMsgs.filter((m) => m && typeof m === "object") : [];
   const safeSavedTakes = Array.isArray(savedTakes) ? savedTakes.filter((t) => t && typeof t === "object") : [];
@@ -64,6 +65,7 @@ export default function AskUrTakeRetentionStrip({
 
   const showRow = Boolean(lastCompleteAi && userTurns >= 1);
   if (!showRow) return null;
+  if (focusSession && userTurns < 2) return null;
 
   const slipCopy =
     safeMsgs.filter((m) => m.role === "ai" && !m.loading).length % 2 === 1
