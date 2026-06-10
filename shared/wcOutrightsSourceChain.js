@@ -10,7 +10,7 @@
 
 import { buildWcOutrightsSeedPayload } from "./wcOutrightsSeed.js";
 import { WC_OUTRIGHTS_MAX_AGE_MS } from "./wcOddsFreshness.js";
-import { sanitizeWcTournamentWinnerOutrights } from "./wc2026OutrightOdds.js";
+import { sanitizeWcTournamentWinnerOutrights, isPlausibleWcTournamentWinnerOdds } from "./wc2026OutrightOdds.js";
 import {
   americanFromImpliedProb,
   formatAmericanOdds,

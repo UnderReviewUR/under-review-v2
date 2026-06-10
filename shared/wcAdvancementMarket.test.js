@@ -7,6 +7,7 @@ import {
   getWcAdvancementMarketContextLabel,
   getWcAdvancementMarketContextSuffix,
   isWcAdvancementMarketQuestion,
+  detectGroupWinnerOutrightBleed,
   simPctForAdvancementMarket,
   WC_ADVANCEMENT_MARKET,
 } from "./wcAdvancementMarket.js";
@@ -91,4 +92,74 @@ test("formatWcAdvancementMarketContextLine uses Futures not Tonight", () => {
 test("isWcAdvancementMarketQuestion is true for R16 reach", () => {
   assert.equal(isWcAdvancementMarketQuestion("Will the USMNT reach the Round of 16?"), true);
   assert.equal(isWcAdvancementMarketQuestion("Who wins the World Cup?"), false);
+});
+
+test("classifyWcAdvancementMarket detects group winner", () => {
+  assert.equal(
+    classifyWcAdvancementMarket("Who wins Group E?"),
+    WC_ADVANCEMENT_MARKET.GROUP_WINNER,
+  );
+  assert.equal(
+    classifyWcAdvancementMarket("What's the best group-stage value bet right now?"),
+    WC_ADVANCEMENT_MARKET.GROUP_WINNER,
+  );
+  assert.equal(
+    classifyWcAdvancementMarket("Can USA advance from the group?"),
+    WC_ADVANCEMENT_MARKET.GROUP_ESCAPE,
+  );
+});
+
+test("groupWinPct tracks first place in group", () => {
+  const sim = simulateTournament(WC_2026_TEAMS, { simCount: 8000 });
+  const ecu = sim.teamStats.ECU;
+  const ger = sim.teamStats.GER;
+  assert.ok(Number.isFinite(ecu.groupWinPct));
+  assert.ok(ecu.groupWinPct > 35 && ecu.groupWinPct < 60);
+  assert.ok(ger.groupWinPct > 30 && ger.groupWinPct < 55);
+  assert.equal(
+    simPctForAdvancementMarket(ecu, WC_ADVANCEMENT_MARKET.GROUP_WINNER),
+    ecu.groupWinPct,
+  );
+});
+
+test("formatSimResultsForPrompt binds groupWinPct for group winner questions", () => {
+  const sim = simulateTournament(WC_2026_TEAMS, { simCount: 1000 });
+  const block = formatSimResultsForPrompt(sim, ["ECU"], "Who wins Group E?");
+  assert.match(block, /groupWinPct|group winner/i);
+});
+
+test("buildPriceBindingPromptBlock rejects outright odds for group winner STRUCTURAL", () => {
+  const block = buildPriceBindingPromptBlock(
+    "What's the best group-stage value bet right now?",
+    [],
+    WC_INTENT.STRUCTURAL,
+  );
+  assert.match(block, /groupWinPct/);
+  assert.match(block, /NOT tournament winner/);
+});
+
+test("detectGroupWinnerOutrightBleed rejects Ecuador +8000 group winner take", () => {
+  const sim = simulateTournament(WC_2026_TEAMS, { simCount: 3000 });
+  const badTake =
+    "Ecuador at +8000 is the group-stage value play — they win Group E over Germany. UR sims ~+4200 implied.";
+  const hit = detectGroupWinnerOutrightBleed(
+    badTake,
+    "What's the best group-stage value bet right now?",
+    sim.teamStats,
+    ["ECU"],
+  );
+  assert.ok(hit);
+  assert.equal(hit.reason, "group_winner_tournament_outright_bleed");
+});
+
+test("detectGroupWinnerOutrightBleed allows +400 group winner price", () => {
+  const sim = simulateTournament(WC_2026_TEAMS, { simCount: 3000 });
+  const okTake = "Lean Ivory Coast +400 to win Group E — thin edge over the field.";
+  const hit = detectGroupWinnerOutrightBleed(
+    okTake,
+    "Who wins Group E?",
+    sim.teamStats,
+    ["CIV"],
+  );
+  assert.equal(hit, null);
 });

@@ -63,8 +63,11 @@ test("runWcUrTakeQA — balanced Norway vs France headline passes", () => {
     responseText:
       "France (Favorite) and Norway (Contender) both can advance from Group I — France is the default 1st-place lean, while Norway's realistic path is 2nd.",
     structured: {
+      call: "France and Norway both have Group I paths — market overweights a clean favorite sweep.",
+      line: "Market FRA -110 group · UR sims ~52% FRA 1st.",
       lean: "Lean: Both France and Norway have group advancement paths.",
       whyNow: "France is Favorite for 1st; Norway Contender for 2nd.",
+      edge: "A Haaland injury or France slip lets Senegal steal second and break Norway's path.",
     },
     question: WC_RELEVANCE_REGRESSION_TURNS[2].question,
     wcIntent: WC_INTENT.MATCHUP,

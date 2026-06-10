@@ -27,8 +27,8 @@ test("deriveWcDataConfidence pre_match_estimate by default", () => {
 test("wcDataConfidenceNeedsCaution and banner copy", () => {
   assert.equal(wcDataConfidenceNeedsCaution("confirmed"), false);
   assert.equal(wcDataConfidenceNeedsCaution("pre_match_estimate"), true);
-  assert.ok(wcDataConfidenceCautionBanner("pre_match_estimate")?.includes("Lineups not yet confirmed"));
-  assert.ok(wcDataConfidenceCautionBanner("limited_intel")?.includes("Starting XIs not confirmed"));
+  assert.ok(wcDataConfidenceCautionBanner("pre_match_estimate")?.includes("Starter-specific props"));
+  assert.ok(wcDataConfidenceCautionBanner("limited_intel")?.includes("Starter-specific props"));
 });
 
 test("capWcStructuredConfidence downgrades High when intel unconfirmed", () => {

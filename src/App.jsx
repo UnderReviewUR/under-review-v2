@@ -134,6 +134,7 @@ import {
   preferredTournamentScore,
   buildContextualQuestion,
   inferUrTakeSportFromMessages,
+  pinUrChatScrollToActiveRow,
 } from "./features/app/helpers.jsx";
 import { autocorrectUrTakeQuestion } from "../shared/urTakeQuestionAutocorrect.js";
 
@@ -177,6 +178,11 @@ import UrTakeDockedFollowUps from "./components/UrTakeDockedFollowUps.jsx";
 import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
 import { readSavedTakes, pushSavedTake } from "./lib/savedTakes.js";
 import { trackFunnelEvent } from "./lib/funnelAnalytics.js";
+import {
+  applyUrViewportChromeInsets,
+  clearUrViewportChromeInsets,
+  readUrViewportChromeInsets,
+} from "./lib/urViewportChrome.js";
 import { logUrTakeApiEnvelopeDev } from "./lib/urTakeRenderSafe.js";
 import {
   buildUrTakeApiSuccessFallbackDebug,
@@ -594,24 +600,53 @@ ${themeCss}
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const vv = window.visualViewport;
+    if (typeof window === "undefined") return undefined;
+    const vv = window.visualViewport || {
+      get height() {
+        return window.innerHeight;
+      },
+      get offsetTop() {
+        return 0;
+      },
+      addEventListener(ev, fn) {
+        if (ev === "resize" || ev === "scroll") window.addEventListener("resize", fn);
+      },
+      removeEventListener(ev, fn) {
+        if (ev === "resize" || ev === "scroll") window.removeEventListener("resize", fn);
+      },
+    };
     let debounceId = 0;
-    const syncKeyboardHeight = () => {
+    const sync = () => {
+      applyUrViewportChromeInsets(readUrViewportChromeInsets(vv));
+    };
+    const syncDebounced = () => {
       if (debounceId) window.clearTimeout(debounceId);
       debounceId = window.setTimeout(() => {
         debounceId = 0;
-        const keyboardHeight = Math.max(0, window.innerHeight - vv.height);
-        document.documentElement.style.setProperty("--keyboard-height", `${keyboardHeight}px`);
+        sync();
       }, 32);
     };
-    vv.addEventListener("resize", syncKeyboardHeight);
-    window.addEventListener("orientationchange", syncKeyboardHeight);
-    syncKeyboardHeight();
+    const syncAfterKeyboard = () => {
+      sync();
+      requestAnimationFrame(() => {
+        sync();
+        requestAnimationFrame(sync);
+      });
+    };
+    sync();
+    vv.addEventListener("resize", syncDebounced);
+    vv.addEventListener("scroll", syncDebounced);
+    window.addEventListener("orientationchange", syncAfterKeyboard);
+    document.addEventListener("focusin", syncDebounced, true);
+    document.addEventListener("focusout", syncAfterKeyboard, true);
     return () => {
       if (debounceId) window.clearTimeout(debounceId);
-      vv.removeEventListener("resize", syncKeyboardHeight);
-      window.removeEventListener("orientationchange", syncKeyboardHeight);
+      vv.removeEventListener("resize", syncDebounced);
+      vv.removeEventListener("scroll", syncDebounced);
+      window.removeEventListener("orientationchange", syncAfterKeyboard);
+      document.removeEventListener("focusin", syncDebounced, true);
+      document.removeEventListener("focusout", syncAfterKeyboard, true);
+      clearUrViewportChromeInsets();
     };
   }, []);
 
@@ -3789,38 +3824,6 @@ ${themeCss}
   );
 
   useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const vv = window.visualViewport || {
-      get height() {
-        return window.innerHeight;
-      },
-      get offsetTop() {
-        return 0;
-      },
-      addEventListener(ev, fn) {
-        if (ev === "resize" || ev === "scroll") window.addEventListener("resize", fn);
-      },
-      removeEventListener(ev, fn) {
-        if (ev === "resize" || ev === "scroll") window.removeEventListener("resize", fn);
-      },
-    };
-    const setRise = () => {
-      const h = typeof vv.height === "number" ? vv.height : window.innerHeight;
-      const top = typeof vv.offsetTop === "number" ? vv.offsetTop : 0;
-      const rise = Math.max(0, window.innerHeight - h - top);
-      document.documentElement.style.setProperty("--ur-vv-rise", `${rise}px`);
-    };
-    setRise();
-    vv.addEventListener("resize", setRise);
-    vv.addEventListener("scroll", setRise);
-    return () => {
-      vv.removeEventListener("resize", setRise);
-      vv.removeEventListener("scroll", setRise);
-      document.documentElement.style.removeProperty("--ur-vv-rise");
-    };
-  }, []);
-
-  useEffect(() => {
     return () => {
       pendingScrollTimeoutIdsRef.current.forEach((id) => clearTimeout(id));
       pendingScrollTimeoutIdsRef.current = [];
@@ -3830,22 +3833,20 @@ ${themeCss}
   const scheduleChatScroll = useCallback((screenRef) => {
     const scroll = () => {
       const el = screenRef?.current;
-      if (!el) return;
-      const inner = typeof el.querySelector === "function" ? el.querySelector(".ur-chat-scroll") : null;
-      /* Prefer scrollTop on the chat pane — scrollIntoView on nested overflow panes can scroll the wrong
-       * ancestor on mobile Safari and leave the thread viewport blank (solid background). */
-      if (inner && typeof inner.scrollHeight === "number") {
-        inner.scrollTop = inner.scrollHeight;
+      if (!el || typeof el.querySelector !== "function") return;
+      const inner = el.querySelector(".ur-chat-scroll");
+      /* Prefer the inner dock pane once mounted; pin the active thread row — never scrollHeight. */
+      if (inner) {
+        inner.scrollTop = 0;
+        pinUrChatScrollToActiveRow(inner);
         return;
       }
-      const anchor =
-        typeof el.querySelector === "function" ? el.querySelector(".ur-chat-thread-anchor") : null;
-      if (anchor) {
-        anchor.scrollIntoView({ behavior: "smooth", block: "end" });
-        return;
+      /* First question on sport landing (WC hero, NBA slate): thread lives on main until dock layout swaps. */
+      if (pinUrChatScrollToActiveRow(el)) return;
+      /* No thread yet — reset landing scroller; scrollHeight would jump to matches/standings at the bottom. */
+      if (el.classList?.contains("screen")) {
+        el.scrollTop = 0;
       }
-      const target = el;
-      if (typeof target.scrollHeight === "number") target.scrollTop = target.scrollHeight;
     };
     scroll();
     requestAnimationFrame(() => {
@@ -3855,7 +3856,8 @@ ${themeCss}
     const t48 = setTimeout(scroll, 48);
     const t240 = setTimeout(scroll, 240);
     const t720 = setTimeout(scroll, 720);
-    pendingScrollTimeoutIdsRef.current.push(t48, t240, t720);
+    const t1200 = setTimeout(scroll, 1200);
+    pendingScrollTimeoutIdsRef.current.push(t48, t240, t720, t1200);
   }, []);
 
   const openPlayer = useCallback((name) => {

@@ -82,6 +82,13 @@ export const baseCss = `
     --wc-blue:#3B82F6;
   }
 
+  @media (display-mode: standalone), (display-mode: fullscreen){
+    :root{
+      --ur-vv-rise:0px;
+      --keyboard-height:0px;
+    }
+  }
+
   *{box-sizing:border-box;margin:0;padding:0;}
   .nav-btn,.bottom-nav button,.send-btn,.attach-btn,.ur-take-follow-up-chip,.ur-dock-icon-btn,.quick-btn,button.q-card,.pill-tag,button.detail-back,button.ur-v2-body-expand{
     touch-action:manipulation;
@@ -312,6 +319,7 @@ export const baseCss = `
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
+    touch-action:pan-y;
     padding-left:16px;
     padding-right:16px;
     /*
@@ -325,7 +333,6 @@ export const baseCss = `
       )
       + var(--ur-vv-rise, 0px)
       + var(--ur-chat-scroll-dock-buffer)
-      + var(--keyboard-height, 0px)
     );
     scroll-padding-bottom:calc(
       max(
@@ -334,7 +341,6 @@ export const baseCss = `
       )
       + var(--ur-vv-rise, 0px)
       + var(--ur-chat-scroll-dock-buffer)
-      + var(--keyboard-height, 0px)
     );
   }
   /* Thread must size to its content so .ur-chat-scroll gains scrollHeight; avoid flex:1 + min-height:100% swallowing overflow */
@@ -355,7 +361,7 @@ export const baseCss = `
     margin:0;
     padding:0;
     padding-bottom:max(env(safe-area-inset-bottom,0px),0px);
-    bottom:calc(var(--bottom-nav-height) + var(--ur-vv-rise,0px) + var(--keyboard-height,0px));
+    bottom:calc(var(--bottom-nav-height) + var(--ur-vv-rise,0px));
     z-index:32;
     background:#080808;
     border:none;
@@ -364,6 +370,18 @@ export const baseCss = `
     backdrop-filter:none;
     -webkit-backdrop-filter:none;
     box-sizing:border-box;
+  }
+  /* Opaque band below dock — hides scroll bleed in Safari private tab / toolbar gap */
+  .docked-bar.ur-docked-bar::after{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    top:100%;
+    height:calc(var(--bottom-nav-height) + env(safe-area-inset-bottom,0px) + 12px);
+    background:#080808;
+    pointer-events:none;
+    z-index:-1;
   }
   .docked-interaction-zone{
     width:100%;
@@ -2262,7 +2280,8 @@ export const baseCss = `
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll.wc-chat-scroll{
     flex:1 1 auto;
-    min-height:0;
+    overflow-anchor:none;
+    /* Inherit min-height:min(360px,55dvh) from .screen--ur-chat — min-height:0 collapsed the pane on iOS Safari. */
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll .wc-main-tabs--premium{
     margin-top:12px;

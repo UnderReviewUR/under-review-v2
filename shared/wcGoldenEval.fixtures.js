@@ -138,6 +138,23 @@ Pass at ${ESP_MARKET} — fair favorite, no misprice.`,
     expectMarketOutright: ESP_MARKET,
     forbidIssueCodes: ["wc_roundup_delta_missing_market_odds", "wc_card_missing_delta"],
   },
+  {
+    id: "group-winner-outright-bleed",
+    question: "What's the best group-stage value bet right now?",
+    expectedIntent: WC_INTENT.STRUCTURAL,
+    modelFixture: {
+      summary:
+        "Ecuador at +8000 is the group-stage value play — they win Group E over Germany on Poisson strength.",
+      deep: "Ecuador sits as Group E Favorite but the board treats them like a longshot at +8000. Sims show 47% groupWinPct to finish first.",
+    },
+    anthropicPayload: anthropicSummaryDeepPayload(
+      "Ecuador at +8000 is the group-stage value play — they win Group E over Germany on Poisson strength.",
+      "Ecuador sits as Group E Favorite but the board treats them like a longshot at +8000. Sims show 47% groupWinPct to finish first.",
+    ),
+    expectFail: true,
+    expectIssueCodes: ["wc_group_winner_outright_bleed"],
+    notes: "Group-winner thesis must not cite tournament outright (+8000).",
+  },
 ];
 
 /** @type {WcGoldenEvalCase[]} */

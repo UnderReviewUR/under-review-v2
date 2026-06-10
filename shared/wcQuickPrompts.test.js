@@ -9,6 +9,6 @@ test("getWcQuickPrompts — live phase", () => {
 
 test("getWcQuickPrompts — default", () => {
   const p = getWcQuickPrompts({});
-  assert.equal(p.length, 3);
+  assert.equal(p.length, 4);
   assert.match(p[0], /predictions|roundup|winner|dark horse/i);
 });

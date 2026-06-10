@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   getNbaFinalsPregamePropsScrapeDelayMs,
   isNba2026FinalsMatchupGame,
-  NBA_FINALS_FIRST_HALF_WINDOW_MS,
+  NBA_FINALS_LIVE_GAME_WINDOW_MS,
   NBA_FINALS_LIVE_PROPS_INTERVAL_MS,
   shouldScrapeNbaFinalsLiveProps,
 } from "./nbaFinalsPropsCadence.js";
@@ -25,7 +25,7 @@ test("getNbaFinalsPregamePropsScrapeDelayMs — continues through first half aft
   const now = Date.now();
   const tip = now - 30 * MS_MIN;
   assert.equal(getNbaFinalsPregamePropsScrapeDelayMs(tip, now), NBA_FINALS_LIVE_PROPS_INTERVAL_MS);
-  const tooLate = now - NBA_FINALS_FIRST_HALF_WINDOW_MS - MS_MIN;
+  const tooLate = now - NBA_FINALS_LIVE_GAME_WINDOW_MS - MS_MIN;
   assert.equal(getNbaFinalsPregamePropsScrapeDelayMs(tooLate, now), null);
 });
 
@@ -35,7 +35,7 @@ test("getNbaFinalsPregamePropsScrapeDelayMs — does not stop at T < 5m pre-tip"
   assert.equal(getNbaFinalsPregamePropsScrapeDelayMs(tip, now), 5 * MS_MIN);
 });
 
-test("shouldScrapeNbaFinalsLiveProps — Q2 live, not after halftime window", () => {
+test("shouldScrapeNbaFinalsLiveProps — live through regulation window, not after", () => {
   const now = Date.now();
   const tip = now - 20 * MS_MIN;
   const game = {
@@ -47,6 +47,11 @@ test("shouldScrapeNbaFinalsLiveProps — Q2 live, not after halftime window", ()
   assert.equal(shouldScrapeNbaFinalsLiveProps(game, tip, now), true);
   assert.equal(
     shouldScrapeNbaFinalsLiveProps({ ...game, period: 3 }, tip, now),
+    true,
+  );
+  const tooLate = now - NBA_FINALS_LIVE_GAME_WINDOW_MS - MS_MIN;
+  assert.equal(
+    shouldScrapeNbaFinalsLiveProps({ ...game, period: 4 }, tooLate, now),
     false,
   );
 });

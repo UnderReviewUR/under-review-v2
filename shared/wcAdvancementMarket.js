@@ -3,9 +3,11 @@
  */
 
 import { isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
+import { parseAmericanOddsValue } from "./formatOddsAmerican.js";
 
 export const WC_ADVANCEMENT_MARKET = {
   TOURNAMENT_WINNER: "tournament_winner",
+  GROUP_WINNER: "group_winner",
   GROUP_ESCAPE: "group_escape",
   ROUND_OF_32: "r32",
   ROUND_OF_16: "r16",
@@ -13,6 +15,16 @@ export const WC_ADVANCEMENT_MARKET = {
   SEMIFINALS: "sf",
   FINAL: "final",
 };
+
+const GROUP_WINNER_RE =
+  /\b(group\s*[- ]?winner|win(?:s)?\s+group\s+[a-l]|who\s+wins?\s+group\s+[a-l]|top\s+(?:of\s+)?group\s+[a-l]|finish(?:es)?\s+(?:first|1st)\s+(?:in\s+)?group\s+[a-l])\b/i;
+
+const GROUP_SLATE_VALUE_RE =
+  /\b(best|top|cleanest|single|sharp|value)\b.{0,48}\b(group\s*[- ]?stage|group\s*[- ]?winner)\b/i;
+
+/** Answer cites group-winner thesis (for QA when question is ambiguous). */
+export const WC_GROUP_WINNER_CLAIM_RE =
+  /\b(group\s*[- ]?stage value|group winner|win(?:s)? group [a-l]|wins? group [a-l]|top group [a-l]|group-stage value play)\b/i;
 
 const R16_RE = /\b(round of 16|round-of-16|last 16|\br16\b)\b/i;
 const R32_RE = /\b(round of 32|round-of-32|last 32|\br32\b)\b/i;
@@ -31,6 +43,34 @@ const GENERIC_ADVANCE_RE =
 
 /**
  * @param {string} question
+ */
+export function isWcGroupWinnerQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (GROUP_WINNER_RE.test(q)) return true;
+  if (
+    GROUP_SLATE_VALUE_RE.test(q) &&
+    !GROUP_ESCAPE_RE.test(q) &&
+    !GENERIC_ADVANCE_RE.test(q)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @param {number} american
+ * @returns {number | null} implied win probability 0–100
+ */
+export function americanToImpliedProbPct(american) {
+  const n = parseAmericanOddsValue(american);
+  if (n == null) return null;
+  if (n >= 100) return (100 / (n + 100)) * 100;
+  return (Math.abs(n) / (Math.abs(n) + 100)) * 100;
+}
+
+/**
+ * @param {string} question
  * @returns {WcAdvancementMarketKind}
  */
 export function classifyWcAdvancementMarket(question) {
@@ -39,6 +79,10 @@ export function classifyWcAdvancementMarket(question) {
 
   if (isTournamentWinnerQuestion(q)) {
     return WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER;
+  }
+
+  if (isWcGroupWinnerQuestion(q)) {
+    return WC_ADVANCEMENT_MARKET.GROUP_WINNER;
   }
 
   if (R16_RE.test(q) || /\breach(?:es)?\s+(?:the\s+)?round of 16\b/i.test(q)) {
@@ -93,6 +137,8 @@ export function isWcAdvancementMarketQuestion(question) {
  */
 export function wcAdvancementMarketMeta(market) {
   switch (market) {
+    case WC_ADVANCEMENT_MARKET.GROUP_WINNER:
+      return { key: "groupWinPct", label: "win the group", shortLabel: "Group winner" };
     case WC_ADVANCEMENT_MARKET.GROUP_ESCAPE:
       return { key: "advancePct", label: "advance from group", shortLabel: "Group advancement" };
     case WC_ADVANCEMENT_MARKET.ROUND_OF_32:
@@ -179,7 +225,11 @@ export function formatSimResultsForPrompt(simResults, mentionedTeams = [], quest
       const s = simResults.teamStats[abbr];
       if (!s) continue;
       shown.add(abbr);
-      if (market === WC_ADVANCEMENT_MARKET.ROUND_OF_16) {
+      if (market === WC_ADVANCEMENT_MARKET.GROUP_WINNER) {
+        lines.push(
+          `    ${s.abbreviation} (${s.name}): group winner ${s.groupWinPct ?? "—"}% · advance ${s.advancePct}% · QF ${s.qfPct}% · Win ${s.winPct}%`,
+        );
+      } else if (market === WC_ADVANCEMENT_MARKET.ROUND_OF_16) {
         lines.push(
           `    ${s.abbreviation} (${s.name}): R16 reach ${s.r16Pct}% · advance from group ${s.advancePct}% · Win ${s.winPct}%`,
         );
@@ -240,6 +290,14 @@ export function buildWcAdvancementMarketPromptBlock(question, entities = []) {
     `  Fair-price reads must compare the user's market (${meta.label}) to ${meta.key} sim probability — do not compare group-advance sims to tournament-winner odds.`,
   ];
 
+  if (market === WC_ADVANCEMENT_MARKET.GROUP_WINNER) {
+    lines.push(
+      "  GROUP WINNER: cite groupWinPct only — never qfPct, advancePct, or winPct (tournament outright) as the group-winner probability.",
+      "  Group-winner fair prices are usually pick'em to +600 — never cite CURRENT OUTRIGHT ODDS (+1500 and up) as the group-winner line.",
+      "  If no BDL group-winner price exists in VERIFIED CONTEXT, use structural language without citing +XXXX.",
+    );
+  }
+
   if (market === WC_ADVANCEMENT_MARKET.ROUND_OF_16 && (team === "USA" || /\b(usmnt|united states)\b/i.test(question))) {
     lines.push(
       "  USA Round of 16: sim r16Pct is typically well below advancePct — escaping Group D does not imply reaching R16.",
@@ -248,3 +306,61 @@ export function buildWcAdvancementMarketPromptBlock(question, entities = []) {
 
   return lines.join("\n");
 }
+
+/**
+ * Reject group-winner claims priced like tournament outrights.
+ * @param {string} text
+ * @param {string} question
+ * @param {Record<string, { groupWinPct?: number }>} [teamStats]
+ * @param {string[]} [mentionedTeams]
+ */
+export function detectGroupWinnerOutrightBleed(text, question, teamStats = null, mentionedTeams = []) {
+  const market = classifyWcAdvancementMarket(question);
+  const blob = String(text || "");
+  const isGroupWinnerContext =
+    market === WC_ADVANCEMENT_MARKET.GROUP_WINNER || WC_GROUP_WINNER_CLAIM_RE.test(blob);
+  if (!isGroupWinnerContext) return null;
+
+  const cited = [...new Set(String(text || "").match(/\+[1-9]\d{2,4}\b/g) || [])];
+  if (!cited.length) return null;
+
+  const teams = (mentionedTeams || []).map((t) => String(t).toUpperCase()).filter(Boolean);
+
+  for (const priceStr of cited) {
+    const american = parseAmericanOddsValue(priceStr);
+    if (american == null || american < 100) continue;
+
+    if (american > 1500) {
+      return { reason: "group_winner_tournament_outright_bleed", cited: priceStr, american };
+    }
+
+    const implied = americanToImpliedProbPct(american);
+    if (implied == null || !teamStats) continue;
+
+    for (const abbr of teams) {
+      const simPct = Number(teamStats[abbr]?.groupWinPct);
+      if (!Number.isFinite(simPct) || simPct <= 0) continue;
+      if (implied < simPct / 10) {
+        return {
+          reason: "group_winner_sim_price_mismatch",
+          cited: priceStr,
+          american,
+          implied,
+          simPct,
+          team: abbr,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+export const WC_GROUP_WINNER_QA_SUFFIX = `
+
+WC GROUP WINNER QA (mandatory — prior answer mixed markets):
+- User asked about GROUP WINNER (finish 1st in group) — NOT tournament outright, NOT QF reach, NOT group escape.
+- Cite groupWinPct from TOURNAMENT SIMULATION for win-the-group probability — never winPct or qfPct for that claim.
+- Do NOT cite CURRENT OUTRIGHT ODDS (+1500 and up) as the group-winner price — those are tournament-winner lines.
+- Group-winner fair prices are usually near pick'em (+100 to +400). If no group-winner line is in VERIFIED CONTEXT, omit +XXXX entirely.
+- Example fix: "Ecuador ~47% to win Group E (groupWinPct) — lean on the group-winner market near pick'em, not +8000 tournament outright."`;

@@ -13,6 +13,7 @@ describe("simulateTournament", () => {
   test("every team has valid percentage fields", () => {
     const results = simulateTournament(undefined, { simCount: 500 });
     for (const [abbr, s] of Object.entries(results.teamStats)) {
+      assert.ok(s.groupWinPct >= 0 && s.groupWinPct <= 100, `${abbr} groupWinPct out of range: ${s.groupWinPct}`);
       assert.ok(s.advancePct >= 0 && s.advancePct <= 100, `${abbr} advancePct out of range: ${s.advancePct}`);
       assert.ok(s.winPct >= 0 && s.winPct <= 100, `${abbr} winPct out of range: ${s.winPct}`);
       assert.ok(s.winPct <= s.finalPct || s.winPct === 0, `${abbr} winPct > finalPct`);

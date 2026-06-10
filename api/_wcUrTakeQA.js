@@ -37,8 +37,10 @@ import { detectWcPlayerAgeMismatches } from "../shared/wcPlayerBio.js";
 import { isWcValidPlayLine } from "../shared/wcPlayLineQA.js";
 import {
   detectWcDarkHorseWeakThesis,
+  detectWcRoundupCrossMarketBleed,
   detectWcRoundupFairPriceContradiction,
   detectWcRoundupLineMissingMarketOdds,
+  detectWcRoundupScorerLeanContradiction,
   detectWcWatchForOrphanPronoun,
   isWcRoundupLineMissingDelta,
 } from "../shared/wcRoundupCardQA.js";
@@ -46,6 +48,10 @@ import {
   runWcGroundingQA,
   WC_GROUNDING_REGEN_SUFFIX,
 } from "../shared/wcUrTakeGroundingQA.js";
+import {
+  detectGroupWinnerOutrightBleed,
+  WC_GROUP_WINNER_QA_SUFFIX,
+} from "../shared/wcAdvancementMarket.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -100,7 +106,9 @@ export function extractWcResponseBody(responseText, structured) {
  *   playerMarketKv?: { goldenBoot?: object, players?: object, injuries?: object } | null,
  *   playerMarketTier?: string | null,
  *   roundupPlayerKv?: { goldenBoot?: object, players?: object } | null,
+ *   matchDetails?: Array<Record<string, unknown>>,
  *   outrightsAvailable?: boolean,
+ *   teamStats?: Record<string, { groupWinPct?: number }>,
  * }} opts
  */
 export function runWcUrTakeQA(opts = {}) {
@@ -144,6 +152,19 @@ export function runWcUrTakeQA(opts = {}) {
     ) {
       issueCodes.push("wc_tournament_winner_fixture_bleed");
     }
+  }
+
+  const groupWinnerBleed =
+    wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP
+      ? detectGroupWinnerOutrightBleed(
+          body,
+          String(opts.question || ""),
+          opts.teamStats || null,
+          requiredEntities,
+        )
+      : null;
+  if (groupWinnerBleed) {
+    issueCodes.push("wc_group_winner_outright_bleed");
   }
 
   if (wcIntent === WC_INTENT.MATCHUP && requiredEntities.length >= 2) {
@@ -250,6 +271,14 @@ export function runWcUrTakeQA(opts = {}) {
 
     if (detectWcWatchForOrphanPronoun(String(structured?.edge || ""), slots || [])) {
       issueCodes.push("wc_roundup_watch_for_orphan_pronoun");
+    }
+
+    if (detectWcRoundupCrossMarketBleed(slots || [])) {
+      issueCodes.push("wc_roundup_cross_market_bleed");
+    }
+
+    if (detectWcRoundupScorerLeanContradiction(String(structured?.lean || ""), slots || [])) {
+      issueCodes.push("wc_roundup_scorer_lean_contradiction");
     }
 
     const leanField = String(structured?.lean || "");
@@ -367,6 +396,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_player_missing_names",
       "wc_player_odds_uncited",
       "wc_group_math_mismatch",
+      "wc_group_winner_outright_bleed",
       "wc_cross_sport_golfer_bleed",
       "wc_card_missing_watch_for",
       "wc_card_play_restates_call",
@@ -386,6 +416,8 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_roundup_line_missing_delta",
       "wc_roundup_delta_missing_market_odds",
       "wc_roundup_watch_for_orphan_pronoun",
+      "wc_roundup_cross_market_bleed",
+      "wc_roundup_scorer_lean_contradiction",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
     String(c).startsWith("wc_card_truncated_"),
@@ -410,6 +442,21 @@ WC PLAYER MARKET QA (mandatory — prior answer failed player contract):
 
 export { WC_PREDICTIONS_ROUNDUP_QA_SUFFIX };
 export { WC_GROUNDING_REGEN_SUFFIX };
+export { WC_GROUP_WINNER_QA_SUFFIX };
+
+export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
+
+WC ROUNDUP CROSS-MARKET QA (mandatory — prior answer mixed nation and scorer markets):
+- Winners and Dark horse slots are NATION theses only — never cite another country's PK taker, Golden Boot odds, or xG in those lines.
+- Argentina dark horse ≠ Mbappé penalty market. Spain winners ≠ Yamal boot odds unless Spain is the named nation.
+- Keep scorer/boot/PK angles in Top goalscorer or Breakout player slots only.`;
+
+export const WC_ROUNDUP_SCORER_LEAN_CONTRADICTION_QA_SUFFIX = `
+
+WC ROUNDUP SCORER LEAN QA (mandatory — Top goalscorer slot contradicted THE PLAY):
+- Top goalscorer slot and THE PLAY lean must name the SAME player when both are picks.
+- Never write "Vinícius is better value" in Top goalscorer while leaning Mbappé in THE PLAY — pick one and align both slots.
+- If you Pass on Golden Boot, say Pass in both the slot line and THE PLAY.`;
 
 export const WC_QA_REGENERATION_SUFFIX = `
 

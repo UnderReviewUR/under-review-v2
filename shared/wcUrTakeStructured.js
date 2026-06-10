@@ -105,7 +105,12 @@ export function normalizeWcStructuredForDelivery(
   }
 
   if (intent === WC_INTENT.STRUCTURAL) {
-    out.callType = "analysis";
+    const market = classifyWcAdvancementMarket(question);
+    if (market === WC_ADVANCEMENT_MARKET.GROUP_WINNER) {
+      out.callType = "advancement";
+    } else {
+      out.callType = "analysis";
+    }
     delete out.playerMarketTier;
     return out;
   }

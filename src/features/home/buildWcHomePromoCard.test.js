@@ -29,7 +29,7 @@ test("orderHomeQuestionsForWcPromo blends WC, NBA Finals, second WC", () => {
 
 test("buildWcHomePromoCard highlights are take-style bullets", () => {
   const card = buildWcHomePromoCard(Date.parse("2026-06-02T16:00:00Z"));
-  assert.ok(card.highlights[0].includes("Norway mispriced"));
-  assert.ok(card.highlights[1].includes("Paraguay"));
+  assert.ok(card.highlights[0].includes("Group-stage value"));
+  assert.ok(card.highlights[1].includes("Advancement angles"));
   assert.ok(card.highlights[2].includes("Group I"));
 });

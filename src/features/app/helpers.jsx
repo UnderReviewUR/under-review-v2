@@ -2382,6 +2382,27 @@ function computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradeClick) {
   return true;
 }
 
+/** Pin a chat row near the top of a scroll pane (docked UR Take). Never uses scrollHeight. */
+export function pinUrChatScrollRow(pane, rowEl, { offset = 12 } = {}) {
+  if (!pane || !rowEl || typeof pane.scrollTop !== "number") return false;
+  const rowRect = rowEl.getBoundingClientRect();
+  const paneRect = pane.getBoundingClientRect();
+  const delta = rowRect.top - paneRect.top;
+  pane.scrollTop = Math.max(0, pane.scrollTop + delta - offset);
+  return true;
+}
+
+/** Scroll pane to the latest user/assistant row in a docked or landing thread. */
+export function pinUrChatScrollToActiveRow(pane, { offset = 12 } = {}) {
+  if (!pane || typeof pane.querySelector !== "function") return false;
+  const thread =
+    pane.querySelector(".chat-thread--ur-chat-dock") || pane.querySelector(".chat-thread");
+  if (!thread) return false;
+  const rows = thread.querySelectorAll(".ur-imessage-assistant-row, .ur-imessage-user-row");
+  const row = rows.length ? rows[rows.length - 1] : thread;
+  return pinUrChatScrollRow(pane, row, { offset });
+}
+
 export function ChatThread({
   msgs,
   urTakeTrackPlay = null,
@@ -2428,27 +2449,10 @@ export function ChatThread({
     if (sig === prevDockScrollSigRef.current) return;
     prevDockScrollSigRef.current = sig;
 
-    requestAnimationFrame(() => {
-      const node = dockScrollAnchorRef.current;
-      if (!node) return;
-      const pane = node.closest(".ur-chat-scroll");
-      if (pane && typeof pane.scrollHeight === "number") {
-        if (last?.loading) {
-          pane.scrollTop = pane.scrollHeight;
-        } else if (last?.role === "ai" && !last?.loading) {
-          const nodeRect = node.getBoundingClientRect();
-          const paneRect = pane.getBoundingClientRect();
-          const delta = nodeRect.top - paneRect.top;
-          pane.scrollTop = Math.max(0, pane.scrollTop + delta - 12);
-        }
-        return;
-      }
-      if (last?.loading) {
-        node.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-      } else if (last?.role === "ai" && !last?.loading) {
-        node.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
-      }
-    });
+    const node = dockScrollAnchorRef.current;
+    const pane = node?.closest(".ur-chat-scroll");
+    if (pane && node && pinUrChatScrollRow(pane, node)) return;
+    if (pane) pinUrChatScrollToActiveRow(pane);
   }, [msgs, variant]);
 
   useEffect(() => {

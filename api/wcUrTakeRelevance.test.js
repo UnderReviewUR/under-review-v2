@@ -15,6 +15,8 @@ import {
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
 import { resolveWcPlayerMarketResponse } from "../shared/wcUrTakePlayerMarket.js";
+import { simulateTournament } from "../shared/wcTournamentSim.js";
+import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import {
   buildEntityBindingPromptBlock,
   resolveRequiredEntities,
@@ -364,4 +366,40 @@ test("instrumentation shape — Brazil question log fields", () => {
   assert.equal(logLine.wcRelevance.wcIntent, "ENTITY_PRICING");
   assert.deepEqual(logLine.wcRelevance.requiredEntities, ["BRA"]);
   assert.equal(logLine.wcRelevance.qaEntityMatch, null);
+});
+
+test("runWcUrTakeQA — Ecuador +8000 group winner take fails QA", () => {
+  const sim = simulateTournament(WC_2026_TEAMS, { simCount: 2000 });
+  const qa = runWcUrTakeQA({
+    responseText:
+      "Ecuador at +8000 is the group-stage value play — they win Group E over Germany on Poisson strength.",
+    structured: {
+      lean: "Lean: Ecuador +8000 — structural longshot thesis.",
+      whyNow: "Ecuador wins Group E at +8000 when sims show 47% groupWinPct.",
+    },
+    question: "What's the best group-stage value bet right now?",
+    wcIntent: WC_INTENT.STRUCTURAL,
+    requiredEntities: ["ECU"],
+    teamStats: sim.teamStats,
+  });
+  assert.equal(qa.passed, false);
+  assert.ok(qa.issueCodes.includes("wc_group_winner_outright_bleed"));
+  assert.equal(wcQaRequiresRegeneration(qa), true);
+});
+
+test("runWcUrTakeQA — ENTITY_PRICING group winner at +8000 fails QA", () => {
+  const sim = simulateTournament(WC_2026_TEAMS, { simCount: 2000 });
+  const qa = runWcUrTakeQA({
+    responseText: "Ecuador +8000 to win Group E is the misprice — lean Ecuador group winner.",
+    structured: {
+      lean: "Lean: Ecuador +8000 to win Group E.",
+      whyNow: "Group E favorite at tournament-outright price.",
+    },
+    question: "Is Ecuador mispriced to win Group E?",
+    wcIntent: WC_INTENT.ENTITY_PRICING,
+    requiredEntities: ["ECU"],
+    teamStats: sim.teamStats,
+  });
+  assert.equal(qa.passed, false);
+  assert.ok(qa.issueCodes.includes("wc_group_winner_outright_bleed"));
 });

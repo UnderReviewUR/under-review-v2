@@ -21,6 +21,23 @@ const ANY_AMERICAN_ODDS_RE = /\+\d{3,}/;
 
 const ORPHAN_PRONOUN_RE = /\b(him|her|them|he|she|they)\b/i;
 
+const NATION_SLOT_PLAYER_BLEED_RE =
+  /\b(pk|penalty|pen taker|penalties|golden boot|top scorer|goalscorer|expected goals?|x\s*g)\b/i;
+
+const SCORER_PLAYER_PATTERNS = [
+  { pattern: /mbapp[eé]/i, nations: ["france", "fra"], id: "mbappe" },
+  { pattern: /vin[ií]cius/i, nations: ["brazil", "bra"], id: "vinicius" },
+  { pattern: /\bkane\b/i, nations: ["england", "eng"], id: "kane" },
+  { pattern: /\bhaaland\b/i, nations: ["norway", "nor"], id: "haaland" },
+  { pattern: /\byamal\b/i, nations: ["spain", "esp"], id: "yamal" },
+  { pattern: /\blautaro\b/i, nations: ["argentina", "arg"], id: "lautaro" },
+];
+
+const NATION_NAME_RE =
+  /\b(spain|france|brazil|argentina|germany|england|portugal|mexico|usa|netherlands|italy|belgium|norway|colombia|uruguay|morocco|japan|ecuador|senegal|australia|canada|türkiye|turkey|paraguay|croatia|denmark|switzerland|austria|serbia|wales|scotland|qatar|saudi|korea|ghana|cameroon|nigeria|tunisia|algeria|iran|egypt|costa rica|panama|jamaica|south africa|rsa)\b/i;
+
+const BETTER_VALUE_RE = /\bbetter value\b/i;
+
 /**
  * @param {string} summary
  * @param {string} lean
@@ -129,6 +146,56 @@ export function isWcRoundupLineMissingDelta(line) {
   const l = String(line || "").trim();
   if (!l) return true;
   return !wcCardHasDeltaSignal(l);
+}
+
+/**
+ * Nation-slot thesis cites another country's player/scorer market (e.g. Mbappé PK in Argentina dark horse).
+ * @param {Array<{ key: string, value?: string }>} [slots]
+ */
+export function detectWcRoundupCrossMarketBleed(slots = []) {
+  for (const slot of slots) {
+    const key = String(slot?.key || "");
+    if (key !== "darkHorse" && key !== "winners") continue;
+    const value = String(slot?.value || "");
+    if (!value || !NATION_SLOT_PLAYER_BLEED_RE.test(value)) continue;
+
+    const nationMatch = value.match(NATION_NAME_RE);
+    const nation = nationMatch?.[1]?.toLowerCase() || "";
+    if (!nation) continue;
+
+    for (const { pattern, nations } of SCORER_PLAYER_PATTERNS) {
+      if (!pattern.test(value)) continue;
+      const playerOnNation = nations.some((n) => nation.includes(n) || n.includes(nation.slice(0, 3)));
+      if (!playerOnNation) {
+        return { reason: "nation_slot_scorer_market_bleed", slot: key, nation };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Top goalscorer slot names a better-value alternate than THE PLAY lean.
+ * @param {string} lean
+ * @param {Array<{ key: string, value?: string }>} [slots]
+ */
+export function detectWcRoundupScorerLeanContradiction(lean, slots = []) {
+  const play = String(lean || "").trim();
+  if (!/^lean:/i.test(play)) return null;
+  const topScorer = (slots || []).find((s) => s.key === "topScorer");
+  const slotValue = String(topScorer?.value || "");
+  if (!slotValue || !BETTER_VALUE_RE.test(slotValue)) return null;
+
+  const leanPlayer = SCORER_PLAYER_PATTERNS.find(({ pattern }) => pattern.test(play));
+  if (!leanPlayer) return null;
+
+  for (const { pattern, id } of SCORER_PLAYER_PATTERNS) {
+    if (id === leanPlayer.id) continue;
+    if (pattern.test(slotValue) && BETTER_VALUE_RE.test(slotValue)) {
+      return { reason: "top_scorer_better_value_conflicts_with_lean" };
+    }
+  }
+  return null;
 }
 
 /**

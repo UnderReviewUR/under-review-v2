@@ -7,6 +7,9 @@ import {
   wcAdvancementMarketMeta,
   WC_ADVANCEMENT_MARKET,
 } from "./wcAdvancementMarket.js";
+import { WC_INTENT } from "./wcUrTakeIntent.js";
+
+const PRICE_BINDING_INTENTS = new Set([WC_INTENT.ENTITY_PRICING, WC_INTENT.STRUCTURAL]);
 
 /** @param {string} question */
 export function extractAmericanOddsFromQuestion(question) {
@@ -30,18 +33,20 @@ export function extractAmericanOddsFromText(text) {
  * @param {import("./wcUrTakeIntent.js").WcUrTakeIntent | string} wcIntent
  */
 export function buildPriceBindingPromptBlock(question, requiredEntities = [], wcIntent = "") {
-  if (String(wcIntent) !== "ENTITY_PRICING") return "";
-
   const market = classifyWcAdvancementMarket(question);
-  if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
+
+  if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER && PRICE_BINDING_INTENTS.has(String(wcIntent))) {
     const meta = wcAdvancementMarketMeta(market);
     return `PRICE BINDING (mandatory):
   User asked about "${meta.label}" — NOT tournament winner outright.
   Do NOT cite CURRENT OUTRIGHT ODDS as the price for this market.
   Prefer BDL FUTURES SEED lines when present in VERIFIED CONTEXT for this market type.
-  Compare ${meta.key} sim probability to BDL-seeded or user-cited knockout-reach prices — label SportsLine/editorial as narrative, not verified book feed.
-  Never equate group-advance sim % (advancePct) with Round of 16 reach unless the question is explicitly about escaping the group.`;
+  Compare ${meta.key} sim probability to BDL-seeded or user-cited prices for this market only — label SportsLine/editorial as narrative, not verified book feed.
+  Never equate advancePct (escape group) with groupWinPct (finish 1st) or Round of 16 reach unless the question explicitly asks about that market.
+  ${market === WC_ADVANCEMENT_MARKET.GROUP_WINNER ? "Group-winner lines are usually pick'em to +600 — tournament outrights (+1500+) are the wrong market." : `Never equate group-advance sim % (advancePct) with Round of 16 reach unless the question is explicitly about escaping the group.`}`;
   }
+
+  if (String(wcIntent) !== WC_INTENT.ENTITY_PRICING) return "";
 
   const entities = (requiredEntities || []).map((t) => String(t).toUpperCase()).filter(Boolean);
   const citedInQuestion = extractAmericanOddsFromQuestion(question);

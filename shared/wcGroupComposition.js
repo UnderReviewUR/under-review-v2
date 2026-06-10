@@ -7,6 +7,10 @@ import { wcTeamsWithStrengthTags } from "./wc2026Strength.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import {
+  classifyWcAdvancementMarket,
+  WC_ADVANCEMENT_MARKET,
+} from "./wcAdvancementMarket.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
@@ -186,6 +190,9 @@ export function shouldUseWcGroupSlatePrebuilt(question, wcIntent) {
   const q = String(question || "");
   if (!isWcGroupSlateQuestion(q) && wcIntent !== WC_INTENT.STRUCTURAL) return false;
 
+  const market = classifyWcAdvancementMarket(q);
+  if (market === WC_ADVANCEMENT_MARKET.GROUP_WINNER) return false;
+
   const mentioned = extractMentionedWcTeams(q);
   const explicitGroup = extractGroupLetterFromQuestion(q);
 
@@ -219,15 +226,8 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     comp.contender;
   if (!pick) return null;
 
-  const staticTeam = WC_2026_TEAMS.find(
-    (t) => String(t.abbreviation).toUpperCase() === pickAbbr,
-  );
   const market = String(opts.pickMarket || "to advance").trim();
-  const odds = opts.advanceOdds
-    ? String(opts.advanceOdds).trim()
-    : staticTeam?.outrightOdds
-      ? String(staticTeam.outrightOdds).trim()
-      : "";
+  const odds = opts.advanceOdds ? String(opts.advanceOdds).trim() : "";
   const longList = comp.longshots.map((t) => t.name).join(" and ");
   const fav = comp.favorite?.name || "the favorite";
   const cont = comp.contender?.name || pick.name;

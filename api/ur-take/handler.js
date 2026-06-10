@@ -127,10 +127,13 @@ import {
   runWcUrTakeQA,
   wcQaRequiresRegeneration,
   WC_GROUP_MATH_QA_SUFFIX,
+  WC_GROUP_WINNER_QA_SUFFIX,
   WC_PLAYER_MARKET_QA_SUFFIX,
   WC_QA_REGENERATION_SUFFIX,
   WC_PREDICTIONS_ROUNDUP_QA_SUFFIX,
   WC_GROUNDING_REGEN_SUFFIX,
+  WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX,
+  WC_ROUNDUP_SCORER_LEAN_CONTRADICTION_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
@@ -141,7 +144,11 @@ import {
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
 } from "../../shared/wcUrTakeIntent.js";
-import { isWcAdvancementMarketQuestion } from "../../shared/wcAdvancementMarket.js";
+import {
+  classifyWcAdvancementMarket,
+  isWcAdvancementMarketQuestion,
+  WC_ADVANCEMENT_MARKET,
+} from "../../shared/wcAdvancementMarket.js";
 import { isTournamentWinnerQuestion } from "../../shared/wcPhaseUtils.js";
 import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../../shared/wcCardContractVoice.js";
 import { buildNbaRelevanceLog } from "../../shared/nbaUrTakeRelevance.js";
@@ -4502,9 +4509,15 @@ Confidence guidance:
         : "";
     const isWcRulesIntent = wcIntent === WC_INTENT.RULES;
     const isWcMatchupIntent = wcIntent === WC_INTENT.MATCHUP;
+    const wcAdvancementMarketKind = classifyWcAdvancementMarket(String(question || ""));
     const isWcAdvancementMarketIntent =
-      wcIntent === WC_INTENT.ENTITY_PRICING &&
-      isWcAdvancementMarketQuestion(String(question || ""));
+      (wcIntent === WC_INTENT.ENTITY_PRICING &&
+        isWcAdvancementMarketQuestion(String(question || ""))) ||
+      (wcIntent === WC_INTENT.STRUCTURAL &&
+        Boolean(wcAdvancementMarketKind) &&
+        wcAdvancementMarketKind !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER);
+    const isWcGroupWinnerIntent =
+      wcAdvancementMarketKind === WC_ADVANCEMENT_MARKET.GROUP_WINNER;
     const isWcTournamentWinnerIntent =
       wcIntent === WC_INTENT.ENTITY_PRICING && isTournamentWinnerQuestion(routingQuestion);
     const isWcTopGoalscorersListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
@@ -4564,11 +4577,12 @@ Confidence guidance:
 - If CURRENT OUTRIGHT ODDS is missing or STALE, use structural language — no overconfident winner picks.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
         : isWcAdvancementMarketIntent
-          ? `- Return JSON per OUTPUT CONTRACT: summary = fair-price read on the specific knockout-reach market asked (150 words max); deep = full reasoning (no word limit).
-- Sentence one must answer whether the cited team reaches the asked round — name the team and verdict (Pass / lean / fair).
-- **Summary sentence 2 (maps to structured \`line\`) — mandatory format:** "Pass at [American odds] — sim [X]% vs market ~[Y]%." Use BDL FUTURES SEED price for the asked market (e.g. R16 -130), NOT tournament winner outright. Example: "Pass at -130 — sim 15% vs market ~57%."
-- Follow ADVANCEMENT MARKET BINDING and SIM STAT BINDING in VERIFIED CONTEXT — cite r16Pct for Round of 16, advancePct only for group escape.
-- Do NOT cite CURRENT OUTRIGHT ODDS (tournament winner) as the price for Round of 16 or group-advance markets.
+          ? `- Return JSON per OUTPUT CONTRACT: summary = fair-price read on the specific futures market asked (150 words max); deep = full reasoning (no word limit).
+- Sentence one must answer the asked market — name the team and verdict (Pass / lean / fair).
+${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMULATION — never winPct (tournament outright) or qfPct as the group-winner probability.
+- Do NOT cite CURRENT OUTRIGHT ODDS (+1500+) as the group-winner price — use BDL win_group seed or omit +XXXX.` : `- **Summary sentence 2 (maps to structured \`line\`) — mandatory format:** "Pass at [American odds] — sim [X]% vs market ~[Y]%." Use BDL FUTURES SEED price for the asked market (e.g. R16 -130), NOT tournament winner outright. Example: "Pass at -130 — sim 15% vs market ~57%."`}
+- Follow ADVANCEMENT MARKET BINDING and SIM STAT BINDING in VERIFIED CONTEXT — cite groupWinPct for group winner, r16Pct for Round of 16, advancePct only for group escape.
+- Do NOT cite CURRENT OUTRIGHT ODDS (tournament winner) as the price for group winner, Round of 16, or group-advance markets.
 - SportsLine / editorial R16 prices (e.g. USA Reach Round of 16 -115) are narrative corroboration only — label as editorial.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
@@ -4991,6 +5005,10 @@ You are responding to a Pro subscriber. Apply the following:
                 ? WC_GROUP_MATH_QA_SUFFIX
                 : ""
             }${
+              prevQaCriticalCodes.includes("wc_group_winner_outright_bleed")
+                ? WC_GROUP_WINNER_QA_SUFFIX
+                : ""
+            }${
               prevQaCriticalCodes.includes("wc_predictions_roundup_incomplete")
                 ? WC_PREDICTIONS_ROUNDUP_QA_SUFFIX
                 : ""
@@ -4999,6 +5017,14 @@ You are responding to a Pro subscriber. Apply the following:
                 ["wc_invented_xg_claim", "wc_invented_possession_claim"].includes(c),
               )
                 ? WC_GROUNDING_REGEN_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_roundup_cross_market_bleed")
+                ? WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_roundup_scorer_lean_contradiction")
+                ? WC_ROUNDUP_SCORER_LEAN_CONTRADICTION_QA_SUFFIX
                 : ""
             }`
           : "";
@@ -5056,6 +5082,7 @@ You are responding to a Pro subscriber. Apply the following:
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
+          teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
         wcRelevanceLog.qaEntityMatch = wcPassQa.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcPassQa.qaIntentMatch;
@@ -5569,6 +5596,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
+          teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
         wcRelevanceLog.qaEntityMatch = wcQaResult.qaEntityMatch;
         wcRelevanceLog.qaIntentMatch = wcQaResult.qaIntentMatch;
@@ -5723,6 +5751,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
+          teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
         console.log(
           JSON.stringify({

@@ -102,11 +102,11 @@ test("formatMatchOddsForPrompt returns null when empty", () => {
   assert.equal(formatMatchOddsForPrompt({}), null);
 });
 
-test("formatWcOutrightsStaleChipLabel returns label for stale meta", () => {
+test("formatWcOutrightsStaleChipLabel returns user-facing markets chip", () => {
   const label = formatWcOutrightsStaleChipLabel({
     stale: true,
-    ageMinutes: 420,
+    ageMinutes: 120,
   });
-  assert.match(label, /stale/i);
-  assert.match(label, /420/);
+  assert.match(label, /Tournament markets/i);
+  assert.match(label, /120/);
 });

@@ -369,6 +369,7 @@ function simulateKnockout(r32Bracket, tracker) {
  * @property {string} abbreviation
  * @property {string} name
  * @property {number} eloRating
+ * @property {number} groupWinPct — % of sims where team finishes 1st in group
  * @property {number} advancePct — % of sims where team advances past group stage
  * @property {number} r32Pct
  * @property {number} r16Pct
@@ -399,11 +400,11 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
   }
 
   // Initialize tracker
-  /** @type {Map<string, {advance: number, r32: number, r16: number, qf: number, sf: number, final: number, champion: number}>} */
+  /** @type {Map<string, {groupWin: number, advance: number, r32: number, r16: number, qf: number, sf: number, final: number, champion: number}>} */
   const tracker = new Map();
   for (const t of teamList) {
     tracker.set(t.abbreviation, {
-      advance: 0, r32: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0,
+      groupWin: 0, advance: 0, r32: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0,
     });
   }
 
@@ -417,6 +418,11 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
       const groupCompleted = completedMatchesForGroup(groupTeams, completedMatches);
       const standings = simulateGroupStage(groupTeams, groupCompleted);
       groupResults.set(letter, standings);
+
+      if (standings.length > 0) {
+        const groupWinner = tracker.get(standings[0].team.abbreviation);
+        if (groupWinner) groupWinner.groupWin++;
+      }
 
       // Top 2 advance
       for (let i = 0; i < 2 && i < standings.length; i++) {
@@ -452,6 +458,7 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
       name: t.name,
       eloRating: t.eloRating,
       group: t.group,
+      groupWinPct: round2((s.groupWin / simCount) * 100),
       advancePct: round2((s.advance / simCount) * 100),
       r32Pct: round2((s.r32 / simCount) * 100),
       r16Pct: round2((s.r16 / simCount) * 100),

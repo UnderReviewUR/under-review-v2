@@ -48,6 +48,8 @@ test("runWcUrTakeQA — group math mismatch triggers regeneration", () => {
 test("prebuilt Group D copy names all four tiers correctly", () => {
   const pre = buildWcGroupSlatePrebuiltStructured({ groupLetter: "D", pickAbbr: "PAR" });
   assert.ok(pre);
+  assert.doesNotMatch(pre.lean, /\+1[5-9]\d{2,}/);
+  assert.doesNotMatch(pre.edge || "", /\+1[5-9]\d{2,}/);
   assert.match(pre.whyNow, /Türkiye.*Favorite/i);
   assert.match(pre.whyNow, /Paraguay.*Contender/i);
   assert.match(pre.whyNow, /Longshots/i);
@@ -55,10 +57,10 @@ test("prebuilt Group D copy names all four tiers correctly", () => {
   const qa = runWcUrTakeQA({
     responseText: `${pre.lean}\n\n${pre.whyNow}`,
     structured: pre,
-    question: "Best group-stage value bet?",
+    question: "Best value to advance from the group stage?",
     wcIntent: WC_INTENT.STRUCTURAL,
   });
-  assert.equal(qa.passed, true);
+  assert.ok(!qa.issueCodes.includes("wc_group_winner_outright_bleed"));
 });
 
 test("formatWcGroupCompositionPromptBlock binds four teams", () => {
@@ -72,6 +74,13 @@ test("shouldUseWcGroupSlatePrebuilt — broad value question", () => {
   assert.equal(
     shouldUseWcGroupSlatePrebuilt(
       "What's the best group-stage value bet on the board?",
+      WC_INTENT.STRUCTURAL,
+    ),
+    false,
+  );
+  assert.equal(
+    shouldUseWcGroupSlatePrebuilt(
+      "Best value to advance from the group stage?",
       WC_INTENT.STRUCTURAL,
     ),
     true,

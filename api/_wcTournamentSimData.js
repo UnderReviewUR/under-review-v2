@@ -48,8 +48,18 @@ export function buildWcStandingsFingerprint(groups, completedMatchCount = 0) {
  */
 export function isWcTournamentSimCacheValid(cached, fingerprint, maxAgeMs = WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs = Date.now()) {
   if (!cached?.teamStats || !cached?.simCount) return false;
+  if (!teamStatsHasGroupWinPct(cached.teamStats)) return false;
   if (String(cached.fingerprint || "") !== fingerprint) return false;
   return isKvFresh(cached.lastUpdated, maxAgeMs, nowMs);
+}
+
+/**
+ * @param {Record<string, unknown>} teamStats
+ */
+export function teamStatsHasGroupWinPct(teamStats) {
+  const values = Object.values(teamStats || {});
+  if (!values.length) return false;
+  return values.every((row) => Number.isFinite(Number(row?.groupWinPct)));
 }
 
 /**
@@ -162,8 +172,27 @@ export async function resolveWcTournamentSimForPrompt(opts = {}) {
   const completed = completedMatchesForSim(matches);
   const fingerprint = buildWcStandingsFingerprint(groups, completed.length);
 
-  const row = await readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs);
-  if (!row?.teamStats) return null;
+  let row = await readWcTournamentSimFromKv(WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs);
+  if (
+    !row?.teamStats ||
+    !teamStatsHasGroupWinPct(row.teamStats) ||
+    String(row.fingerprint || "") !== fingerprint
+  ) {
+    try {
+      const fresh = await scrapeAndCacheWcTournamentSim({
+        groups,
+        matches,
+        nowMs,
+      });
+      if (fresh?.teamStats && teamStatsHasGroupWinPct(fresh.teamStats)) {
+        row = fresh;
+      }
+    } catch (err) {
+      console.warn("[wc-tournament-sim] prompt refresh failed:", err?.message || err);
+    }
+  }
+
+  if (!row?.teamStats || !teamStatsHasGroupWinPct(row.teamStats)) return null;
   if (row.stale || String(row.fingerprint || "") !== fingerprint) {
     console.warn(
       JSON.stringify({

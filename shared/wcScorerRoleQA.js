@@ -198,34 +198,39 @@ export function extractLikelyScorerPlayerNames(text) {
  * @param {{ topScorerSlotValue?: string, playerRegistryTeams?: Record<string, unknown> }} [opts]
  */
 export function detectWcScorerRoleMismatch(text, opts = {}) {
-  const blob = [String(opts.topScorerSlotValue || ""), String(text || "")].filter(Boolean).join("\n");
-  if (!blob.trim()) return null;
+  const slotText = String(opts.topScorerSlotValue || "").trim();
+  const fullText = String(text || "").trim();
+  const focusBlob = slotText || fullText;
+  if (!focusBlob) return null;
 
   const scorerContext =
     /\b(top goalscorer|golden boot|boot winner|most goals|leading scorer|goalscorer pick|score the most goals)\b/i.test(
-      blob,
-    ) || Boolean(opts.topScorerSlotValue);
+      slotText || fullText,
+    ) || Boolean(slotText);
 
   if (!scorerContext) return null;
 
-  if (/\bassist(s)?\s+(prop|volume|market|leader|o\/u|over|under)\b/i.test(blob) && !/\btop goalscorer\b/i.test(blob)) {
+  if (
+    /\bassist(s)?\s+(prop|volume|market|leader|o\/u|over|under)\b/i.test(focusBlob) &&
+    !/\btop goalscorer\b/i.test(slotText)
+  ) {
     return null;
   }
 
   for (const profile of WC_IMPLAUSIBLE_TOP_SCORER_PROFILES) {
-    if (!profile.pattern.test(blob)) continue;
+    if (!profile.pattern.test(focusBlob)) continue;
     const assistOnly =
-      /\bassist\b/i.test(blob) &&
-      !/\b(top goalscorer|golden boot|most goals|boot winner)\b/i.test(String(opts.topScorerSlotValue || ""));
+      /\bassist\b/i.test(focusBlob) &&
+      !/\b(top goalscorer|golden boot|most goals|boot winner)\b/i.test(slotText);
     if (assistOnly) continue;
     return { player: profile.label, reason: "creator_midfielder_as_top_scorer" };
   }
 
   const registryTeams = opts.playerRegistryTeams;
   if (registryTeams && typeof registryTeams === "object") {
-    const focus = opts.topScorerSlotValue
-      ? extractLikelyScorerPlayerNames(String(opts.topScorerSlotValue))
-      : extractLikelyScorerPlayerNames(blob).slice(0, 3);
+    const focus = slotText
+      ? extractLikelyScorerPlayerNames(slotText)
+      : extractLikelyScorerPlayerNames(fullText).slice(0, 3);
 
     for (const name of focus) {
       if (WC_SCORER_MID_ALLOWLIST.test(name)) continue;

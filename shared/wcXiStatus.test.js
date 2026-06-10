@@ -17,9 +17,9 @@ test("resolveWcXiStatus falls back to lineupConfirmed and lastUpdated", () => {
 });
 
 test("wcXiStatusChipLabel maps to user-facing copy", () => {
-  assert.equal(wcXiStatusChipLabel("confirmed"), "Starting XI confirmed");
-  assert.equal(wcXiStatusChipLabel("pending"), "XI pending");
-  assert.equal(wcXiStatusChipLabel("unavailable"), "Lineup data pending");
+  assert.equal(wcXiStatusChipLabel("confirmed"), "Starting XI locked");
+  assert.equal(wcXiStatusChipLabel("pending"), "Lineups updating");
+  assert.equal(wcXiStatusChipLabel("unavailable"), "Match intel");
 });
 
 test("formatWcDetailAsOfEt returns ET string for valid ms", () => {

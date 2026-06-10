@@ -1,5 +1,5 @@
 /**
- * WC kickoff display — ET canonical + browser-local time for global audience.
+ * WC kickoff display — ET only (product standard).
  */
 
 const ET_ZONE = "America/New_York";
@@ -22,21 +22,6 @@ function formatInZone(d, timeZone, options) {
     return new Intl.DateTimeFormat("en-US", { timeZone, ...options }).format(d);
   } catch {
     return "";
-  }
-}
-
-/**
- * Short timezone label for the user's locale (browser default).
- * @param {Date} d
- */
-function localTimeZoneShortName(d) {
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZoneName: "short",
-    }).formatToParts(d);
-    return parts.find((p) => p.type === "timeZoneName")?.value || "local";
-  } catch {
-    return "local";
   }
 }
 
@@ -115,23 +100,5 @@ export function formatWcKickoffDisplay(match, opts = {}) {
     hour12: true,
   });
   const etPart = `${etDay} ${etTime} ET`.replace(/\s+/g, " ").trim();
-
-  let localPart = "";
-  try {
-    const localDay = formatInZone(d, undefined, { weekday: "short" });
-    const localTime = formatInZone(d, undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const tz = localTimeZoneShortName(d);
-    if (localDay && localTime) {
-      localPart = `${localDay} ${localTime} ${tz}`.replace(/\s+/g, " ").trim();
-    }
-  } catch {
-    localPart = "";
-  }
-
-  if (!localPart || localPart === etPart) return etPart;
-  return `${etPart} · ${localPart}`;
+  return etPart;
 }

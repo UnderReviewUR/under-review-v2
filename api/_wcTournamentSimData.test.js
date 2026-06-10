@@ -36,5 +36,21 @@ test("isWcTournamentSimCacheValid rejects fingerprint mismatch", () => {
     lastUpdated: now,
   };
   assert.equal(isWcTournamentSimCacheValid(cached, "new", 60_000, now), false);
-  assert.equal(isWcTournamentSimCacheValid(cached, "old", 60_000, now), true);
+  assert.equal(isWcTournamentSimCacheValid(cached, "old", 60_000, now), false);
+});
+
+test("isWcTournamentSimCacheValid requires groupWinPct on all teams", () => {
+  const now = Date.now();
+  const cached = {
+    teamStats: {
+      FRA: { winPct: 10, groupWinPct: 55 },
+      BRA: { winPct: 8 },
+    },
+    simCount: 1000,
+    fingerprint: "fp",
+    lastUpdated: now,
+  };
+  assert.equal(isWcTournamentSimCacheValid(cached, "fp", 60_000, now), false);
+  cached.teamStats.BRA.groupWinPct = 12;
+  assert.equal(isWcTournamentSimCacheValid(cached, "fp", 60_000, now), true);
 });

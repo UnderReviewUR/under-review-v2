@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
-import { ChatThread } from "../features/app/helpers.jsx";
+import { ChatThread, pinUrChatScrollToActiveRow } from "../features/app/helpers.jsx";
 import WcGroupTable from "../components/world-cup/WcGroupTable.jsx";
 import WcMatchCard from "../components/world-cup/WcMatchCard.jsx";
 import WcMatchDetailDrawer from "../components/world-cup/WcMatchDetailDrawer.jsx";
@@ -91,14 +91,26 @@ export default function WorldCupScreen({
   }, [wcScreenNav, onWcScreenNavConsumed]);
 
   useEffect(() => {
-    if (!highlightEventId || wcLoading) return;
+    if (!highlightEventId || wcLoading || wcTakeLoading) return;
     const id = `wc-match-${highlightEventId}`;
     const t = window.setTimeout(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => setHighlightEventId(null), 4000);
     }, 120);
     return () => window.clearTimeout(t);
-  }, [highlightEventId, wcLoading, mainTab, matchSubTab]);
+  }, [highlightEventId, wcLoading, wcTakeLoading, mainTab, matchSubTab]);
+
+  useLayoutEffect(() => {
+    if (!urDockedChat) return;
+    const pane = wcBarRef?.current;
+    if (!pane?.classList?.contains("ur-chat-scroll")) return;
+    pane.scrollTop = 0;
+    pinUrChatScrollToActiveRow(pane);
+    requestAnimationFrame(() => {
+      pane.scrollTop = 0;
+      pinUrChatScrollToActiveRow(pane);
+    });
+  }, [urDockedChat, wcMsgs.length, wcTakeLoading, wcMsgs.at(-1)?.msgId, wcBarRef]);
 
   const today = todayEt();
   const todayMatches = useMemo(
@@ -152,6 +164,8 @@ export default function WorldCupScreen({
   }, [todayMatches.length, upcomingMatches]);
 
   const urDockedChat = hasDockedBar && wcMsgs.length > 0;
+  const wcTakeLoading = Boolean(wcMsgs.at(-1)?.loading);
+  const wcBrowseInScroll = urDockedChat && !wcTakeLoading;
   const chatThreadProps = {
     msgs: wcMsgs,
     accessTier,
@@ -443,7 +457,6 @@ export default function WorldCupScreen({
         <>
           <p className="wc-docked-context-bar">World Cup · UR Take</p>
           <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
-            <div className="ur-chat-thread-anchor" aria-hidden="true" />
             <ChatThread {...chatThreadProps} variant="urChatDocked" />
             {onSaveLastUrTake ? (
               <AskUrTakeRetentionStrip
@@ -453,8 +466,12 @@ export default function WorldCupScreen({
                 onOpenSavedTake={onOpenSavedTake}
               />
             ) : null}
-            {wcMainTabs}
-            {wcBrowseBelow}
+            {wcBrowseInScroll ? (
+              <>
+                {wcMainTabs}
+                {wcBrowseBelow}
+              </>
+            ) : null}
           </div>
         </>
       ) : (

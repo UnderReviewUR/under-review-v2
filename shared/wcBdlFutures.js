@@ -12,6 +12,7 @@ import {
 /** BDL market_type → internal advancement market (null = not advancement-scoped). */
 export const BDL_FUTURES_MARKET_TYPES = {
   outright: WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER,
+  win_group: WC_ADVANCEMENT_MARKET.GROUP_WINNER,
   qualify_from_group: WC_ADVANCEMENT_MARKET.GROUP_ESCAPE,
   to_reach_round_of_16: WC_ADVANCEMENT_MARKET.ROUND_OF_16,
   to_reach_quarters: WC_ADVANCEMENT_MARKET.QUARTERFINALS,
@@ -22,6 +23,7 @@ export const BDL_FUTURES_MARKET_TYPES = {
 /** Advancement market → BDL market_type for price lookup. */
 export const WC_ADVANCEMENT_TO_BDL_MARKET = {
   [WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER]: "outright",
+  [WC_ADVANCEMENT_MARKET.GROUP_WINNER]: "win_group",
   [WC_ADVANCEMENT_MARKET.GROUP_ESCAPE]: "qualify_from_group",
   [WC_ADVANCEMENT_MARKET.ROUND_OF_16]: "to_reach_round_of_16",
   [WC_ADVANCEMENT_MARKET.ROUND_OF_32]: "to_reach_round_of_16",

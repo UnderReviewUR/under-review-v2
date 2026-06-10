@@ -163,8 +163,8 @@ test("Phase 6 — verdict chips and Next line per turn class", () => {
 test("Phase 6 — live props freshness communicated", () => {
   const fresh = buildNbaPropsFreshness(Date.now() - 8 * 60 * 1000, Date.now(), { isLive: true });
   assert.equal(fresh.isStale, false);
-  assert.equal(fresh.maxAgeMinutes, 15);
-  const stale = buildNbaPropsFreshness(Date.now() - 20 * 60 * 1000, Date.now(), { isLive: true });
+  assert.equal(fresh.maxAgeMinutes, 25);
+  const stale = buildNbaPropsFreshness(Date.now() - 26 * 60 * 1000, Date.now(), { isLive: true });
   assert.equal(stale.isStale, true);
   assert.match(String(stale.staleWarning || ""), /live game/i);
 });
@@ -175,7 +175,7 @@ test("Phase 6 — nbaRelevance log snapshot for live Q2", () => {
     nbaContext: {
       ...LIVE_CLIENT_CONTEXT,
       propsOddsStale: false,
-      propsOdds: { isLive: true, freshness: { ageMinutes: 8, maxAgeMinutes: 15, isStale: false } },
+      propsOdds: { isLive: true, freshness: { ageMinutes: 8, maxAgeMinutes: 25, isStale: false } },
       gameTotals: { "SAS @ NYK": { total: 214.5, pace: "SLOW" } },
       finalsMode: true,
       finalsSeriesState: { seriesScoreLabel: "Knicks lead series 2-1", gameNumber: 3 },
