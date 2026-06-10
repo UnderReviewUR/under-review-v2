@@ -78,6 +78,8 @@ export default function WorldCupScreen({
   const [detailMatch, setDetailMatch] = useState(null);
   const matchSubTabUserPickedRef = useRef(false);
   const prevLiveCountRef = useRef(0);
+  const urDockedChat = hasDockedBar && wcMsgs.length > 0;
+  const wcTakeLoading = Boolean(wcMsgs.at(-1)?.loading);
 
   useEffect(() => {
     if (!wcScreenNav) return;
@@ -163,8 +165,6 @@ export default function WorldCupScreen({
     return "June 11 — July 19, 2026";
   }, [todayMatches.length, upcomingMatches]);
 
-  const urDockedChat = hasDockedBar && wcMsgs.length > 0;
-  const wcTakeLoading = Boolean(wcMsgs.at(-1)?.loading);
   const wcBrowseInScroll = urDockedChat && !wcTakeLoading;
   const chatThreadProps = {
     msgs: wcMsgs,
