@@ -34,3 +34,13 @@ SESSION STRUCTURAL EDGE (established earlier in this chat — maintain unless ex
   assert.ok(!/SESSION STRUCTURAL EDGE/i.test(mem.summary));
   assert.ok(!/Mbapp/i.test(mem.summary));
 });
+
+test("buildWcSessionMemoryPrompt — group-slate ask with no history does not throw", () => {
+  const mem = buildWcSessionMemoryPrompt("", undefined, "worldcup", {
+    wcIntent: WC_INTENT.STRUCTURAL,
+    requiredEntities: [],
+    question: "What's the best group-stage value bet right now — one pick?",
+  });
+  assert.equal(typeof mem.summary, "string");
+  assert.equal(mem.structuralEdgeInjected, false);
+});

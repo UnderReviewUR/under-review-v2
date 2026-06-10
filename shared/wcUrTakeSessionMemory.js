@@ -51,12 +51,13 @@ export function extractSessionWcEntities(history) {
  */
 export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opts = {}) {
   const question = String(opts.question || "");
-  const wcIntent = opts.wcIntent || classifyWcQuestionIntent(question, history);
+  const safeHistory = Array.isArray(history) ? history : [];
+  const wcIntent = opts.wcIntent || classifyWcQuestionIntent(question, safeHistory);
   const requiredEntities = opts.requiredEntities?.length
     ? opts.requiredEntities.map((t) => String(t).toUpperCase())
-    : resolveRequiredEntities(question, history, wcIntent);
+    : resolveRequiredEntities(question, safeHistory, wcIntent);
 
-  const base = buildUrTakeSessionMemoryPrompt(priorSummary, history, sportHint, {
+  const base = buildUrTakeSessionMemoryPrompt(priorSummary, safeHistory, sportHint, {
     question,
     intent: wcIntent,
   });
@@ -71,11 +72,16 @@ export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opt
     baseSummary = filterPriorTakesForWcGroupSlate(baseSummary);
   }
 
-  const sessionEntities = extractSessionWcEntities(history);
+  const sessionEntities = extractSessionWcEntities(safeHistory);
   const tournamentWinnerPivot =
     isTournamentWinnerQuestion(question) && requiredEntities.length === 0;
   if (tournamentWinnerPivot && sessionEntities.length > 0) {
-    baseSummary = filterPriorTakesOnWcConversationPivot(base.summary, question, history, wcIntent);
+    baseSummary = filterPriorTakesOnWcConversationPivot(
+      base.summary,
+      question,
+      safeHistory,
+      wcIntent,
+    );
   }
 
   const entityChanged =
@@ -84,11 +90,11 @@ export function buildWcSessionMemoryPrompt(priorSummary, history, sportHint, opt
       !requiredEntities.every((e) => sessionEntities.includes(e))) ||
     tournamentWinnerPivot;
 
-  const pivot = wcConversationPivotMeta(question, history, wcIntent);
+  const pivot = wcConversationPivotMeta(question, safeHistory, wcIntent);
   const intentPivot =
     pivot.pivoted ||
     (isWcGroupSlateQuestion(question) &&
-      history.some((t) => {
+      safeHistory.some((t) => {
         if (t?.role !== "user") return false;
         const priorIntent = classifyWcQuestionIntent(String(t?.content || t?.text || ""), []);
         return isWcPlayerMarketIntent(priorIntent);
