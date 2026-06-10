@@ -2349,8 +2349,9 @@ function UrTakeClientFailureDebugPre({ accessTier, payload }) {
   );
 }
 
-/** Product-visible correlation for `fallback: true` feed-snag style responses (no DevTools). */
+/** Dev-only correlation for feed-snag fallbacks — never surface requestId noise to paying users. */
 function UrTakeFeedSnagProductDiag({ diag }) {
+  if (import.meta.env.PROD) return null;
   if (!diag || typeof diag !== "object") return null;
   const rid = String(diag.requestId || "").trim().slice(0, 32);
   const reason = String(diag.fallbackReason || "").trim().slice(0, 160);

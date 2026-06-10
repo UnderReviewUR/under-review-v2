@@ -27,15 +27,15 @@ export default function HomeWcFeaturedCard({
           <h2 className="ur-wc-home-promo-title">{card.title}</h2>
           {card.tagline ? <p className="ur-wc-home-promo-tagline">{card.tagline}</p> : null}
         </div>
-        <img
-          className="ur-wc-home-promo-trophy"
-          src="/wc-trophy-home.png"
-          alt=""
-          width={88}
-          height={110}
-          loading="lazy"
-          decoding="async"
-        />
+        <div className="ur-wc-home-promo-trophy-slot" aria-hidden>
+          <img
+            className="ur-wc-home-promo-trophy"
+            src="/wc-trophy-home.png"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
       </div>
 
       {card.trustLine ? <p className="ur-wc-home-promo-trust">{card.trustLine}</p> : null}

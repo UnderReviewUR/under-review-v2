@@ -184,21 +184,6 @@ export const baseCss = `
     background-clip:text;
   }
 
-  .ur-home-variant-badge{
-    display:inline-block;
-    margin-top:6px;
-    font-family:var(--mono-font);
-    font-size:9px;
-    letter-spacing:0.1em;
-    text-transform:uppercase;
-    color:rgba(255,255,255,0.38);
-    padding:4px 9px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,0.1);
-    background:rgba(255,255,255,0.04);
-    line-height:1;
-  }
-
   .header-right{
     display:flex;
     align-items:center;
@@ -838,18 +823,17 @@ export const baseCss = `
   }
   .ur-wc-home-promo-hero{
     display:flex;
-    align-items:flex-start;
+    align-items:center;
     justify-content:space-between;
-    gap:4px;
-    margin-bottom:10px;
-    min-height:88px;
+    gap:14px;
+    margin-bottom:12px;
+    min-height:108px;
     position:relative;
   }
   .ur-wc-home-promo-title-wrap{
-    flex:1;
+    flex:1 1 auto;
     min-width:0;
-    padding-top:4px;
-    max-width:58%;
+    padding:2px 0;
   }
   .ur-wc-home-promo-title{
     margin:0;
@@ -866,16 +850,27 @@ export const baseCss = `
     line-height:1.45;
     color:rgba(255,255,255,0.52);
   }
-  .ur-wc-home-promo-trophy{
-    width:88px;
-    height:auto;
-    flex-shrink:0;
-    margin:-8px -6px 0 0;
-    object-fit:contain;
+  .ur-wc-home-promo-trophy-slot{
+    flex:0 0 76px;
+    width:76px;
+    height:108px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
     pointer-events:none;
     user-select:none;
-    mix-blend-mode:lighten;
-    opacity:0.92;
+  }
+  .ur-wc-home-promo-trophy{
+    height:108px;
+    width:auto;
+    max-width:none;
+    flex-shrink:0;
+    object-fit:contain;
+    object-position:center center;
+    filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+    pointer-events:none;
+    user-select:none;
   }
   .ur-wc-home-promo-trust{
     margin:0 0 12px;
@@ -3306,7 +3301,9 @@ export const baseCss = `
     .home-surface-option-a .ur-home-promise{max-width:320px;}
     .home-surface-option-a .ur-home-promise-line{font-size:19px;}
     .home-surface-option-a .ur-home-promise-line--soft{font-size:16px;}
-    .ur-wc-home-promo-trophy{width:80px;}
+    .ur-wc-home-promo-hero{gap:12px;min-height:100px;}
+    .ur-wc-home-promo-trophy-slot{width:68px;height:100px;flex-basis:68px;}
+    .ur-wc-home-promo-trophy{height:100px;}
     .ur-home-starters-option-a{margin-bottom:28px;}
     .ur-home-feed:not(:has(.ur-home-last-lean)):not(:has(.wc-xi-confirmed-banner)){
       border-top:none;

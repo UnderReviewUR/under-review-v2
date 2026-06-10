@@ -4636,9 +4636,6 @@ ${themeCss}
             <div className="wordmark" onClick={goHome}>
               <span className="logo-under">Under </span>
               <span className="logo-review">Review</span>
-              {screen === "home" && navHistory.length === 0 ? (
-                <span className="ur-home-variant-badge">A · COPY + CLARITY</span>
-              ) : null}
             </div>
           </div>
           <div
@@ -4835,7 +4832,7 @@ ${themeCss}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
           />
           <UrTakeOnboardingOverlay
-            visible={isWcHomePromoWindow() && askMsgs.length === 0 && wcMsgs.length === 0}
+            visible={false}
             worldCupLine="World Cup tab: one question, one verdict — Full breakdown only if you want more."
           />
           </>
