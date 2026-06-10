@@ -104,6 +104,14 @@ export function classifyWcAdvancementMarket(question) {
     return WC_ADVANCEMENT_MARKET.GROUP_ESCAPE;
   }
 
+  if (/\badvancement path\b/i.test(q)) {
+    return WC_ADVANCEMENT_MARKET.GROUP_ESCAPE;
+  }
+
+  if (/\bpath\b/i.test(q) && /\b(group\s+[a-l]|advance|mispriced)\b/i.test(q)) {
+    return WC_ADVANCEMENT_MARKET.GROUP_ESCAPE;
+  }
+
   if (/\b(reach|make|get to)\b/i.test(q) && /\b(round|knockout)\b/i.test(q)) {
     return WC_ADVANCEMENT_MARKET.GROUP_ESCAPE;
   }

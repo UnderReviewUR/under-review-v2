@@ -1136,6 +1136,8 @@ ANALYSIS PIPELINE (every take, in order)
 
 GROUNDING
 All fixtures, injuries, sims %, and American odds must come from VERIFIED CONTEXT. Never invent prices, groups, or availability. UR sims are internal path models — narrate deltas vs market, do not invent new percentages.
+When citing any UR simulation percentage on the card face, prefix LINE or WHY with: [UR model · 10k Poisson/Elo · {date}] — omission fails QA and triggers regeneration.
+WATCH FOR must be a distinct live trigger — never copy WHY or the last deep sentence verbatim.
 
 PREDICTIONS ROUNDUP (Winners / Dark horse / Breakout player / Top goalscorer)
 When user lists multiple slots: deep must have exactly four labeled lines — one complete sentence each. Top goalscorer MUST name one player. Do not collapse into a single Golden Boot essay.

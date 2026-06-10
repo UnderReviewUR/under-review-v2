@@ -88,6 +88,21 @@ test("buildWcCompactStructured — advancement R16 uses callType advancement and
   assert.match(s.line, /57%/);
 });
 
+test("buildWcCompactStructured — watch for does not recycle whyNow tail", () => {
+  const why =
+    "USA advance sim is 62% — market implies 52% on escape from Group D.";
+  const deep = `${why} Türkiye tops the group in 44% of sims. Paraguay second-place path is tighter priced. Watch for USA–Paraguay opener lineups.`;
+  const s = buildWcCompactStructured({
+    question: "Which Group D advancement path is most mispriced?",
+    wcIntent: WC_INTENT.ENTITY_PRICING,
+    summary: `USA escape is the misprice in Group D. [UR model · 10k Poisson/Elo · Jun 10] sim 62% vs market 52%.`,
+    deep,
+    structuredSeed: { callType: "advancement", whyNow: why },
+  });
+  assert.notEqual(s.edge.trim(), why.trim());
+  assert.ok(!/62% — market implies 52%/.test(s.edge) || /Watch for/i.test(s.edge));
+});
+
 test("formatWcCompactDisplayText — no section headers", () => {
   const text = formatWcCompactDisplayText(
     {

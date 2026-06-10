@@ -49,6 +49,12 @@ import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js"
 import { buildGoalWcEditorialPromptBlock } from "../shared/goalEditorialPrompt.js";
 import { readGoalEditorialFromKv } from "./_goalBettingData.js";
 import { buildWcAdvancementMarketPromptBlock } from "../shared/wcAdvancementMarket.js";
+import { formatGroupMispriceContextBlock } from "../shared/wcGroupMispriceRanking.js";
+import {
+  WC_COMPARATIVE_PROOF_PROMPT,
+  WC_DEDUP_PROMPT,
+  WC_SIM_ATTRIBUTION_PROMPT,
+} from "../shared/wcTakeRetentionQA.js";
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { getGoatFuturesLiveIndex } from "./_wcBdlGoatMode.js";
@@ -673,13 +679,24 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
         "  TOURNAMENT SIMULATION is UR internal model output (Poisson + Elo) — not market consensus. Label as sims when citing %.",
         "  Follow SIM STAT BINDING and ADVANCEMENT MARKET BINDING — do not swap group-advance % for Round of 16 reach.",
         "  Do not cite CURRENT OUTRIGHT ODDS as knockout-reach prices.",
+        `  ${WC_SIM_ATTRIBUTION_PROMPT.replace(/\n/g, " ")}`,
       );
     } else {
       lines.push(
         "  TOURNAMENT SIMULATION is UR internal model output (Poisson + Elo) — not market consensus. Label as sims when citing win %.",
         "  Cite book prices from CURRENT OUTRIGHT ODDS when available — do not invent either.",
+        `  ${WC_SIM_ATTRIBUTION_PROMPT.replace(/\n/g, " ")}`,
       );
     }
+  }
+
+  if (ctx.groupMispriceBlock) {
+    lines.push("", ctx.groupMispriceBlock);
+    lines.push(`  ${WC_COMPARATIVE_PROOF_PROMPT.replace(/\n/g, " ")}`);
+  }
+
+  if (ctx.tournamentSimBlock || ctx.groupMispriceBlock) {
+    lines.push(`  ${WC_DEDUP_PROMPT.replace(/\n/g, " ")}`);
   }
 
   if (ctx.adjustedGoldenBootBlock) {
@@ -921,14 +938,21 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const advancementMarketBlock = buildWcAdvancementMarketPromptBlock(question, mentionedTeams);
 
   let bdlFuturesBlock = null;
+  /** @type {{ byMarketType?: Record<string, unknown>, lastUpdated?: number } | null} */
+  let bdlPayloadForRanking = null;
   try {
     if (isWcGoatPrimaryEnabled()) {
       const kvFutures = await readBdlLiveFuturesFromKv(nowMs);
       if (kvFutures?.byMarketType) {
+        bdlPayloadForRanking = kvFutures;
         bdlFuturesBlock = buildWcBdlFuturesPromptBlock(kvFutures, question, mentionedTeams, nowMs);
       } else {
         const liveFutures = await getGoatFuturesLiveIndex();
         if (liveFutures.ok && liveFutures.byMarketType) {
+          bdlPayloadForRanking = {
+            byMarketType: liveFutures.byMarketType,
+            lastUpdated: liveFutures.lastUpdated,
+          };
           bdlFuturesBlock = buildWcBdlFuturesPromptBlock(
             {
               byMarketType: liveFutures.byMarketType,
@@ -946,6 +970,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     if (!bdlFuturesBlock) {
       const bdlSeed = await readWcBdlGoatSeedFromKv(nowMs);
       if (bdlSeed?.byMarketType && Object.keys(bdlSeed.byMarketType).length) {
+        bdlPayloadForRanking = bdlSeed;
         bdlFuturesBlock = buildWcBdlFuturesPromptBlock(bdlSeed, question, mentionedTeams, nowMs);
       }
     }
@@ -953,11 +978,27 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     console.warn("[wc-context] BDL futures block failed:", bdlErr?.message);
   }
 
+  let groupMispriceBlock = null;
+  try {
+    if (tournamentSimResults?.teamStats) {
+      groupMispriceBlock = formatGroupMispriceContextBlock({
+        teamStats: tournamentSimResults.teamStats,
+        bdlFutures: bdlPayloadForRanking,
+        question,
+        simLastUpdated: tournamentSimResults.lastUpdated,
+        nowMs,
+      });
+    }
+  } catch (rankErr) {
+    console.warn("[wc-context] group misprice ranking failed:", rankErr?.message);
+  }
+
   const ctx = {
     source: "world_cup_2026",
     questionText: question,
     advancementMarketBlock,
     bdlFuturesBlock,
+    groupMispriceBlock,
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",

@@ -135,6 +135,9 @@ import {
   WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX,
   WC_ROUNDUP_SCORER_LEAN_CONTRADICTION_QA_SUFFIX,
   WC_ROUNDUP_UNNAMED_MARKET_ODDS_QA_SUFFIX,
+  WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
+  WC_NEEDS_COMPARATIVE_QA_SUFFIX,
+  WC_NEEDS_DEDUP_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
@@ -5039,6 +5042,23 @@ You are responding to a Pro subscriber. Apply the following:
             }${
               prevQaCriticalCodes.includes("wc_roundup_unnamed_market_odds")
                 ? WC_ROUNDUP_UNNAMED_MARKET_ODDS_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_missing_sim_attribution")
+                ? WC_NEEDS_ATTRIBUTION_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_dedup_watch_for")
+                ? WC_NEEDS_DEDUP_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_missing_comparative_proof")
+                ? WC_NEEDS_COMPARATIVE_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_player_not_in_squad") ||
+              prevQaCriticalCodes.includes("wc_player_role_mislabel")
+                ? WC_PLAYER_MARKET_QA_SUFFIX
                 : ""
             }`
           : "";

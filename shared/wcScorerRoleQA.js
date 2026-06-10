@@ -26,7 +26,15 @@ export const WC_IMPLAUSIBLE_TOP_SCORER_PROFILES = [
 ];
 
 const WC_SCORER_MONONYMS =
-  /(?:^|[^a-z])(mbapp[eé]|haaland|kane|yamal|vin[ií]cius|vinicius|lautaro|messi|ronaldo|salah|osimhen|griezmann|griezman|lewandowski|de\s+bruyne|bellingham|endrick|neymar|foden|saka|palmer|dembele|demb[eé]l[eé]|raphinha|giroud|antony|martinelli|wirtz)(?:[^a-z]|$)/i;
+  /(?:^|[^a-z])(mbapp[eé]|haaland|kane|yamal|vin[ií]cius|vinicius|lautaro|messi|ronaldo|salah|osimhen|griezmann|griezman|lewandowski|de\s+bruyne|bellingham|endrick|neymar|foden|saka|palmer|dembele|demb[eé]l[eé]|raphinha|giroud|antony|martinelli|wirtz|odegaard|ødegaard|sorloth|sørloth|pedri|rodri)(?:[^a-z]|$)/i;
+
+/** Known finisher / striker mislabeled as creator in advancement takes. */
+const WC_ADVANCEMENT_ROLE_MISLABEL_RULES = [
+  { player: /\bhaaland\b/i, badRole: /\bcreator\b/i, label: "Haaland", correctRole: "finisher" },
+  { player: /\bs(?:ø|o)rloth\b/i, badRole: /\bcreator\b/i, label: "Sørloth", correctRole: "finisher" },
+  { player: /\b(kane|mbapp[eé])\b/i, badRole: /\bcreator\b/i, label: "finisher", correctRole: "finisher" },
+  { player: /\b(pedri|rodri|rice|de\s+jong)\b/i, badRole: /\b(finisher|striker|goalscorer)\b/i, label: "creator", correctRole: "creator/midfielder" },
+];
 
 const WC_SCORER_FULL_NAME =
   /\b[A-ZÀ-ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-ÿ][a-zà-ÿ]+){1,2}\b/;
@@ -242,6 +250,42 @@ export function detectWcScorerRoleMismatch(text, opts = {}) {
           position,
         };
       }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Advancement / structural takes — flag known role mislabels and players not in squad registry.
+ * @param {string} text
+ * @param {{ playerRegistryTeams?: Record<string, unknown>, allowUnlisted?: boolean }} [opts]
+ */
+export function detectWcAdvancementPlayerGrounding(text, opts = {}) {
+  const blob = String(text || "").trim();
+  if (!blob) return null;
+
+  for (const rule of WC_ADVANCEMENT_ROLE_MISLABEL_RULES) {
+    if (rule.player.test(blob) && rule.badRole.test(blob)) {
+      return {
+        reason: "wc_player_role_mislabel",
+        player: rule.label,
+        correctRole: rule.correctRole,
+      };
+    }
+  }
+
+  const registryTeams = opts.playerRegistryTeams;
+  if (!registryTeams || typeof registryTeams !== "object" || opts.allowUnlisted) {
+    return null;
+  }
+
+  const names = extractLikelyScorerPlayerNames(blob).slice(0, 8);
+  for (const name of names) {
+    if (WC_SCORER_MID_ALLOWLIST.test(name)) continue;
+    const position = lookupRegistryPositionForPlayer(name, registryTeams);
+    if (position === null && name.length >= 4) {
+      return { reason: "wc_player_not_in_squad", player: name };
     }
   }
 

@@ -8,12 +8,13 @@ import { WC_CARD_CONTRACT_GOLDEN_CASES } from "../shared/wcCardContractGolden.fi
 import {
   scoreWcCardContractIntent,
   scoreWcCardContractLayout,
+  scoreWcCardContractCase,
 } from "../shared/wcCardContractScorer.js";
 import { scoreWcCardContractVoice } from "../shared/wcCardContractVoice.js";
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
 
-test("golden fixture has twenty cases across intents", () => {
-  assert.equal(WC_CARD_CONTRACT_GOLDEN_CASES.length, 20);
+test("golden fixture has twenty-one cases across intents", () => {
+  assert.equal(WC_CARD_CONTRACT_GOLDEN_CASES.length, 21);
   const intents = new Set(WC_CARD_CONTRACT_GOLDEN_CASES.map((c) => c.expectedIntent));
   assert.ok(intents.has("RULES"));
   assert.ok(intents.has("PLAYER_PROP"));
@@ -51,6 +52,50 @@ test("intent scorer flags France vs Brazil prop question", () => {
   const intent = scoreWcCardContractIntent(row.question, row.expectedIntent);
   assert.equal(intent.passed, true);
   assert.equal(classifyWcQuestionIntent(row.question), "PLAYER_PROP");
+});
+
+test("Group D comparative advancement intent classifies as ENTITY_PRICING", () => {
+  const row = WC_CARD_CONTRACT_GOLDEN_CASES.find((c) => c.id === "group-d-comparative-advancement");
+  assert.ok(row);
+  const intent = scoreWcCardContractIntent(row.question, row.expectedIntent);
+  assert.equal(intent.passed, true);
+  assert.equal(classifyWcQuestionIntent(row.question), "ENTITY_PRICING");
+});
+
+test("Group D retention fixture passes QA gates with compliant structured payload", () => {
+  const row = WC_CARD_CONTRACT_GOLDEN_CASES.find((c) => c.id === "group-d-comparative-advancement");
+  assert.ok(row);
+  const structured = {
+    call: "USA escape is the misprice — not Türkiye winning Group D.",
+    line: "[UR model · 10k Poisson/Elo · Jun 10] USA advance sim 62% · market ~52% · vs Paraguay second-place path tighter.",
+    whyNow:
+      "Türkiye is the Favorite but USA advance at -110 implies 52% — sims have 62% escape with host path.",
+    edge: "Watch for USA–Paraguay opener result before locking USA group-advance exposure.",
+    lean: "Lean: USA qualify from group — sim delta vs market on escape path.",
+    callType: "advancement",
+    confidence: "Medium",
+  };
+  const scored = scoreWcCardContractCase({
+    question: row.question,
+    expectedIntent: row.expectedIntent,
+    structured,
+    wcIntent: "ENTITY_PRICING",
+    outrightsAvailable: true,
+    responseText: `${structured.call}\n${structured.line}\n${structured.whyNow}`,
+  });
+  assert.equal(scored.intentOk, true);
+  assert.ok(
+    !scored.issueCodes.includes("wc_missing_sim_attribution"),
+    `attribution failed: ${scored.issueCodes.join(",")}`,
+  );
+  assert.ok(
+    !scored.issueCodes.includes("wc_dedup_watch_for"),
+    `dedup failed: ${scored.issueCodes.join(",")}`,
+  );
+  assert.ok(
+    !scored.issueCodes.includes("wc_missing_comparative_proof"),
+    `comparative failed: ${scored.issueCodes.join(",")}`,
+  );
 });
 
 test("sample golden case passes layout scorer with mock structured payload", () => {

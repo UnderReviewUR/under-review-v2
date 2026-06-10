@@ -31,6 +31,7 @@ import {
 } from "../shared/wcPredictionsRoundup.js";
 import {
   detectWcScorerRoleMismatch,
+  detectWcAdvancementPlayerGrounding,
   wcRoundupInvalidSlotKeys,
 } from "../shared/wcScorerRoleQA.js";
 import { detectWcPlayerAgeMismatches } from "../shared/wcPlayerBio.js";
@@ -53,6 +54,14 @@ import {
   detectGroupWinnerOutrightBleed,
   WC_GROUP_WINNER_QA_SUFFIX,
 } from "../shared/wcAdvancementMarket.js";
+import {
+  detectMissingComparativeProof,
+  detectMissingWcSimAttribution,
+  isWcWatchForDupedAgainstWhy,
+  WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
+  WC_NEEDS_COMPARATIVE_QA_SUFFIX,
+  WC_NEEDS_DEDUP_QA_SUFFIX,
+} from "../shared/wcTakeRetentionQA.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -362,6 +371,47 @@ export function runWcUrTakeQA(opts = {}) {
     if (!voice.passed) {
       issueCodes.push(...voice.issues);
     }
+
+    if (
+      wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
+      detectMissingWcSimAttribution(body, structured)
+    ) {
+      issueCodes.push("wc_missing_sim_attribution");
+    }
+
+    const edgeField = String(structured.edge || "").trim();
+    const whyField = String(structured.whyNow || "").trim();
+    const deepField = String(structured.deep || "").trim();
+    if (
+      edgeField &&
+      whyField &&
+      isWcWatchForDupedAgainstWhy(edgeField, whyField, deepField)
+    ) {
+      issueCodes.push("wc_dedup_watch_for");
+    }
+
+    if (detectMissingComparativeProof(question, body, structured)) {
+      issueCodes.push("wc_missing_comparative_proof");
+    }
+  }
+
+  if (
+    wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
+    wcIntent !== WC_INTENT.RULES &&
+    !isWcPlayerMarketIntent(wcIntent)
+  ) {
+    const advancementPlayerIssue = detectWcAdvancementPlayerGrounding(body, {
+      playerRegistryTeams: registryTeams,
+      allowUnlisted: !registryTeams,
+    });
+    if (advancementPlayerIssue?.reason === "wc_player_role_mislabel") {
+      issueCodes.push("wc_player_role_mislabel");
+    } else if (
+      advancementPlayerIssue?.reason === "wc_player_not_in_squad" &&
+      registryTeams
+    ) {
+      issueCodes.push("wc_player_not_in_squad");
+    }
   }
 
   const matchDetails = Array.isArray(opts.matchDetails) ? opts.matchDetails : [];
@@ -424,6 +474,11 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_roundup_cross_market_bleed",
       "wc_roundup_scorer_lean_contradiction",
       "wc_roundup_unnamed_market_odds",
+      "wc_missing_sim_attribution",
+      "wc_dedup_watch_for",
+      "wc_missing_comparative_proof",
+      "wc_player_not_in_squad",
+      "wc_player_role_mislabel",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
     String(c).startsWith("wc_card_truncated_"),
@@ -449,6 +504,11 @@ WC PLAYER MARKET QA (mandatory — prior answer failed player contract):
 export { WC_PREDICTIONS_ROUNDUP_QA_SUFFIX };
 export { WC_GROUNDING_REGEN_SUFFIX };
 export { WC_GROUP_WINNER_QA_SUFFIX };
+export {
+  WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
+  WC_NEEDS_COMPARATIVE_QA_SUFFIX,
+  WC_NEEDS_DEDUP_QA_SUFFIX,
+};
 
 export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
 

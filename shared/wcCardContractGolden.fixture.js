@@ -143,4 +143,11 @@ export const WC_CARD_CONTRACT_GOLDEN_CASES = [
     expectedIntent: "STRUCTURAL",
     cardVoice: "argue",
   },
+  {
+    id: "group-d-comparative-advancement",
+    question: "Which Group D advancement path is most mispriced?",
+    expectedIntent: "ENTITY_PRICING",
+    cardVoice: "argue",
+    notes: "Retention gate: attribution, dedup, roster grounding, within-group comparative proof.",
+  },
 ];

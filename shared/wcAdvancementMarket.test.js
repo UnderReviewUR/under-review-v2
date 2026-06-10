@@ -128,6 +128,12 @@ test("formatSimResultsForPrompt binds groupWinPct for group winner questions", (
   assert.match(block, /groupWinPct|group winner/i);
 });
 
+test("classifyWcAdvancementMarket — Group D advancement path is group escape", () => {
+  const q = "Which Group D advancement path is most mispriced?";
+  assert.equal(classifyWcAdvancementMarket(q), WC_ADVANCEMENT_MARKET.GROUP_ESCAPE);
+  assert.equal(isWcAdvancementMarketQuestion(q), true);
+});
+
 test("buildPriceBindingPromptBlock rejects outright odds for group winner STRUCTURAL", () => {
   const block = buildPriceBindingPromptBlock(
     "What's the best group-stage value bet right now?",

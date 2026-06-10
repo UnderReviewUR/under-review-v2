@@ -19,6 +19,7 @@ import {
   capWcDeepWords,
   splitWcSentences,
 } from "./wcSentenceBoundaries.js";
+import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
 
 const WC_LIST_CARD_LEAN = "Top 5 — tap to view full breakdown.";
 
@@ -77,22 +78,45 @@ function synthesizeWcLine(summarySents, deep) {
 /**
  * @param {string} deep
  * @param {boolean} pass
+ * @param {string | string[]} [avoidTexts]
  */
-function extractWatchFor(deep, pass) {
+function extractWatchFor(deep, pass, avoidTexts = []) {
   const deepText = String(deep || "");
+  const avoid = (Array.isArray(avoidTexts) ? avoidTexts : [avoidTexts])
+    .map((t) => String(t || "").trim())
+    .filter(Boolean);
+
+  const isTooSimilar = (sent) =>
+    avoid.some((a) => wcSentenceSimilarity(sent, a) >= 0.8);
+
   const watchMatch = deepText.match(/(?:watch for:?|what breaks:?)[^.!?]+[.!?]?/i);
   if (watchMatch) {
-    return watchMatch[0].trim().replace(/^watch for:?\s*/i, "Watch for ");
+    const candidate = watchMatch[0].trim().replace(/^watch for:?\s*/i, "Watch for ");
+    if (!isTooSimilar(candidate)) return candidate;
   }
 
   const sents = splitWcSentences(deepText);
-  const riskSent = [...sents].reverse().find((s) =>
-    /\b(watch for|what breaks|risk|breaks if|lineup|injury|bracket|confirmed)\b/i.test(s),
+  const riskSent = [...sents].reverse().find(
+    (s) =>
+      /\b(watch for|what breaks|risk|breaks if|lineup|injury|bracket|confirmed)\b/i.test(s) &&
+      !isTooSimilar(s),
   );
-  if (riskSent) return riskSent;
+  if (riskSent) {
+    return /^watch/i.test(riskSent)
+      ? riskSent
+      : `Watch for ${riskSent.replace(/^watch for:?\s*/i, "")}`;
+  }
+
+  for (const sent of sents) {
+    if (/\b(lineup|injury|bracket|confirmed|form|fixture)\b/i.test(sent) && !isTooSimilar(sent)) {
+      return /^watch/i.test(sent)
+        ? sent
+        : `Watch for ${sent.replace(/^watch for:?\s*/i, "")}`;
+    }
+  }
 
   if (pass) return "Fair price — recheck after lineups lock.";
-  return sents.length ? sents[sents.length - 1] : "";
+  return "Watch for lineup news and confirmed paths before locking the bet.";
 }
 
 /**
@@ -386,12 +410,19 @@ function callTypeForPlayerTier(tier) {
 }
 
 /**
+ * @param {string} sent
+ */
+function isWcDeepMetaSentence(sent) {
+  return /\b(watch for|what breaks|lean:|pass at|no play|play:)\b/i.test(String(sent || ""));
+}
+
+/**
  * @param {string} summary
  * @param {string} deep
  */
 function buildWhyNow(summary, deep, wcIntent) {
   const summarySents = splitWcSentences(summary);
-  const deepSents = splitWcSentences(deep);
+  const deepSents = splitWcSentences(deep).filter((s) => !isWcDeepMetaSentence(s));
   const delta = summarySents[1]?.trim() || "";
   const whyFromDeep =
     deepSents.length > 1
@@ -525,14 +556,15 @@ export function buildWcCompactStructured(opts = {}) {
         extractPlayDecision(summary, deep, call, { line, question, wcIntent, pass: isWcPassVerdict(summary, "") }),
     ).trim();
     const pass = isWcPassVerdict(summary, lean);
+    const whyNow = String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim();
     return {
       sport: "worldcup",
       callType: "advancement",
       lean,
       call,
       line,
-      whyNow: String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
-      edge: String(seed?.edge || extractWatchFor(deep, pass)).trim(),
+      whyNow,
+      edge: String(seed?.edge || extractWatchFor(deep, pass, whyNow)).trim(),
       deep,
       breakdownAvailable: Boolean(deep && deep.length > 40),
       confidence: String(seed?.confidence || (pass ? "Medium" : "Medium")),
@@ -570,8 +602,8 @@ export function buildWcCompactStructured(opts = {}) {
     ? WC_LIST_CARD_LEAN
     : extractPlayDecision(summary, deep, call, { line, question, wcIntent });
   const pass = isWcPassVerdict(summary, lean);
-  const edge = extractWatchFor(deep, pass);
   const whyNow = buildWhyNow(summary, deep, wcIntent);
+  const edge = extractWatchFor(deep, pass, whyNow);
 
   const base = {
     sport: "worldcup",

@@ -37,6 +37,7 @@ FIELD SHAPE (server maps summary/deep into the card — write so each slot is di
 
 2) LINE (summary sentence 2 → line field — NOT the headline)
    - Hold the numbers in a separate complete sentence: "Market +600 · UR path ~+318." or "Sims 45% win · 83% QF = most games."
+   - When citing sim %, prefix with [UR model · 10k Poisson/Elo · date] once on the card face.
    - Never repeat sentence 1 verbatim.
 
 3) WHY (deep sentences 1–2 → whyNow)
@@ -44,6 +45,7 @@ FIELD SHAPE (server maps summary/deep into the card — write so each slot is di
 
 4) WATCH FOR (deep last sentence OR dedicated risk line → edge)
    - What breaks the edge: lineups, bracket, injury, shorter run, stale odds. One complete sentence.
+   - Must NOT repeat WHY (whyNow) or restate the thesis — new live trigger only.
 
 5) THE PLAY (explicit decision in summary or deep → lean)
    - Format: "Pass at +600 — fair favorite." OR "Lean Spain goals volume — structural, not a single prop yet."
