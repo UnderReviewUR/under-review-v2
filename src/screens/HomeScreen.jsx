@@ -15,9 +15,8 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
-/** Home hero copy — chat-first promise shown above the ask bar. */
-const HOME_ASK_LINE_PRIMARY = "Ask like you would in chat.";
-const HOME_ASK_LINE_SECONDARY = "Get a take you can push back on.";
+/** Home hero copy — Option A: promise above ask, hint below. */
+const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push back on.";
 const HOME_ASK_HINT = "You'll get an answer you can push back on.";
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
@@ -149,9 +148,7 @@ export default function HomeScreen({
       <main className="screen ur-first-session-home">
         <div className="ur-first-session-stack">
           <h1 className="ur-first-session-headline">What do you want to know before you bet?</h1>
-          <p className="ur-home-promise ur-home-promise--stripped">
-            {HOME_ASK_LINE_PRIMARY} {HOME_ASK_LINE_SECONDARY}
-          </p>
+          <p className="ur-home-promise ur-home-promise--stripped">{HOME_ASK_PROMISE}</p>
           <AskBar
             inputRef={askInputRef}
             value={askInput}
@@ -200,12 +197,9 @@ export default function HomeScreen({
   const askPlaceholder = HOME_ASK_PLACEHOLDER;
 
   return (
-    <main className={`screen home-surface-premium home-surface-pro${hasDockedBar ? " has-msgs" : ""}`}>
+    <main className={`screen home-surface-premium home-surface-option-a${hasDockedBar ? " has-msgs" : ""}`}>
       <section className="ur-home-hero" aria-label="Ask Under Review">
-        <h1 className="ur-home-hero-title">
-          <span className="ur-home-hero-line">{HOME_ASK_LINE_PRIMARY}</span>
-          <span className="ur-home-hero-line ur-home-hero-line--soft">{HOME_ASK_LINE_SECONDARY}</span>
-        </h1>
+        <h1 className="ur-home-promise">{HOME_ASK_PROMISE}</h1>
         <div className="ur-home-ask-shell">
           <AskBar
             inputRef={askInputRef}
@@ -219,6 +213,7 @@ export default function HomeScreen({
             {...askBarCommon}
           />
         </div>
+        <p className="ur-home-ask-hint">{HOME_ASK_HINT}</p>
       </section>
 
       {wcHomePromoCard ? (
@@ -234,7 +229,7 @@ export default function HomeScreen({
       ) : null}
 
       {starterQs.length > 0 ? (
-        <section className="ur-home-starters ur-home-starters-pro" aria-labelledby="ur-home-starters-heading">
+        <section className="ur-home-starters ur-home-starters-option-a" aria-labelledby="ur-home-starters-heading">
           <h2 id="ur-home-starters-heading" className="ur-home-starters-heading">
             Start here
           </h2>
@@ -246,9 +241,10 @@ export default function HomeScreen({
                 className="ur-home-starter-item"
                 onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}
               >
+                <span className="ur-home-starter-accent" style={{ background: q.color }} aria-hidden />
                 <span className="ur-home-starter-text">{q.text}</span>
                 <span className="ur-home-starter-chev" aria-hidden>
-                  →
+                  ›
                 </span>
               </button>
             ))}
