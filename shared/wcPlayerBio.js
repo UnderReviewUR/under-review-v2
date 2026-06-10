@@ -199,6 +199,27 @@ export function buildWcPlayerBioPromptBlock(registry, opts = {}) {
   return lines.join("\n");
 }
 
+/** Players commonly hallucinated but not on 2026 World Cup squads. */
+export const WC_NOT_IN_2026_SQUAD_PLAYERS = [
+  { pattern: /\bbenzema\b/i, label: "Benzema" },
+  { pattern: /\bgriezmann\b/i, label: "Griezmann" },
+  { pattern: /\bgriezman\b/i, label: "Griezmann" },
+];
+
+/**
+ * @param {string} text
+ */
+export function detectWcNotInSquadPlayerMention(text) {
+  const blob = String(text || "");
+  if (!blob.trim()) return null;
+  for (const row of WC_NOT_IN_2026_SQUAD_PLAYERS) {
+    if (row.pattern.test(blob)) {
+      return { player: row.label, reason: "wc_player_not_in_squad" };
+    }
+  }
+  return null;
+}
+
 const AGE_CLAIM_RE =
   /\b(\d{1,2})[- ]year[- ]old\b|\bage\s*(\d{1,2})\b|\b(\d{1,2})\s*years?\s*old\b/gi;
 

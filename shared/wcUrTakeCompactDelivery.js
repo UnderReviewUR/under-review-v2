@@ -131,6 +131,33 @@ function extractTeamFromCall(call) {
 }
 
 /**
+ * @param {string} wcIntent
+ * @param {string} question
+ */
+function isWcNonBettingCardIntent(wcIntent, question) {
+  const intent = String(wcIntent || "");
+  const q = String(question || "").trim();
+  if (intent === WC_INTENT.RULES) return true;
+  if (intent !== WC_INTENT.GENERAL) return false;
+  return /\b(how do i|how to|what happens|what is a|what's a|explain|can both teams|include extra time|easiest thing|rules|format|tie(d)? after|penalt)/i.test(
+    q,
+  );
+}
+
+/**
+ * @param {string} summary
+ * @param {string} call
+ */
+function synthesizeNonBettingPlay(summary, call) {
+  const lead = String(call || summary || "")
+    .replace(/^lean:\s*/i, "")
+    .trim();
+  if (!lead) return "See breakdown below.";
+  if (/[.!?]$/.test(lead)) return lead;
+  return `${lead}.`;
+}
+
+/**
  * @param {string} question
  */
 function isWcCrazyPredictionQuestion(question) {
@@ -179,7 +206,13 @@ function synthesizePlayFromLineDelta(line, call, deep) {
 function extractPlayDecision(summary, deep, call, opts = {}) {
   const line = String(opts.line || "");
   const question = String(opts.question || "");
+  const wcIntent = String(opts.wcIntent || "");
   const pass = Boolean(opts.pass);
+
+  if (isWcNonBettingCardIntent(wcIntent, question)) {
+    return synthesizeNonBettingPlay(summary, call);
+  }
+
   const blob = `${summary}\n${deep}`;
   const playMatch = blob.match(
     /\b(?:PLAY:\s*)?(Pass at[^.!?]+[.!?]|Pass —[^.!?]+[.!?]|No play[^.!?]+[.!?]|Lean:[^.!?]+[.!?]|Lean [^.!?]+[.!?])/i,
@@ -598,10 +631,13 @@ export function buildWcCompactStructured(opts = {}) {
 
   const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
   const line = synthesizeWcLine(summarySents, deep);
+  const nonBetting = isWcNonBettingCardIntent(wcIntent, question);
   const lean = isListIntent
     ? WC_LIST_CARD_LEAN
-    : extractPlayDecision(summary, deep, call, { line, question, wcIntent });
-  const pass = isWcPassVerdict(summary, lean);
+    : nonBetting
+      ? synthesizeNonBettingPlay(summary, call)
+      : extractPlayDecision(summary, deep, call, { line, question, wcIntent });
+  const pass = nonBetting ? false : isWcPassVerdict(summary, lean);
   const whyNow = buildWhyNow(summary, deep, wcIntent);
   const edge = extractWatchFor(deep, pass, whyNow);
 

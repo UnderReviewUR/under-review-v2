@@ -11,6 +11,8 @@ import {
   classifyWcAdvancementMarket,
   WC_ADVANCEMENT_MARKET,
 } from "./wcAdvancementMarket.js";
+import { isWcCrossGroupMispriceQuestion } from "./wcTakeRetentionQA.js";
+import { computeGroupMispriceRankings } from "./wcGroupMispriceRanking.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
@@ -182,41 +184,38 @@ export function detectWcGroupMathMismatch(text, groupLetter) {
 }
 
 const GROUP_ROSTER_WINDOW_CHARS = 700;
+const DEFAULT_CROSS_GROUP_LETTERS = ["D", "I", "K"];
+const MAX_GROUP_BINDING_BLOCKS = 4;
 
 /**
- * Detect WC teams named inside a Group X window whose canonical group differs.
+ * Detect WC teams named in the same sentence as Group X when their canonical group differs.
  * @param {string} text
  */
 export function detectWcGroupRosterMismatch(text) {
   const blob = String(text || "");
-  const groupMentions = [...blob.matchAll(/\bgroup\s+([a-l])\b/gi)];
-  if (!groupMentions.length) return null;
-
   /** @type {Array<{ code: string, team: string, statedGroup: string, actualGroup: string | null }>} */
   const issues = [];
 
-  for (const match of groupMentions) {
-    const statedGroup = String(match[1]).toUpperCase();
+  const sentences = blob.split(/(?<=[.!?])\s+|\n+/);
+  for (const sent of sentences) {
+    const groupMatch = sent.match(/\bgroup\s+([a-l])\b/i);
+    if (!groupMatch) continue;
+
+    const statedGroup = String(groupMatch[1]).toUpperCase();
     const comp = getWcGroupComposition(statedGroup);
     if (!comp) continue;
 
-    const canonicalAbbrs = new Set(
-      comp.teams.map((t) => String(t.abbreviation).toUpperCase()),
-    );
-    const idx = match.index ?? 0;
-    const windowEnd = Math.min(blob.length, idx + GROUP_ROSTER_WINDOW_CHARS);
-    const window = blob.slice(idx, windowEnd);
-    const mentioned = extractMentionedWcTeams(window);
-
+    const mentioned = extractMentionedWcTeams(sent);
     for (const abbr of mentioned) {
-      if (canonicalAbbrs.has(abbr)) continue;
-      const actualGroup = wcGroupLetterForTeam(abbr);
-      issues.push({
-        code: "wc_group_roster_mismatch",
-        team: abbr,
-        statedGroup,
-        actualGroup,
-      });
+      const actual = wcGroupLetterForTeam(abbr);
+      if (actual && actual !== statedGroup) {
+        issues.push({
+          code: "wc_group_roster_mismatch",
+          team: abbr,
+          statedGroup,
+          actualGroup: actual,
+        });
+      }
     }
   }
 
@@ -266,13 +265,75 @@ export function resolveWcGroupLettersForPrompt(question, opts = {}) {
     /\bgroup[\s-]*stage\s+value\b/i.test(q);
 
   if (crossGroup || opts.wcIntent === WC_INTENT.STRUCTURAL) {
+    const letters = [];
     if (Array.isArray(opts.topMispriceGroups) && opts.topMispriceGroups.length) {
-      return [...new Set([...opts.topMispriceGroups, ...GROUP_LETTERS])].sort();
+      letters.push(...opts.topMispriceGroups.slice(0, 3));
+    } else {
+      letters.push(...DEFAULT_CROSS_GROUP_LETTERS);
     }
-    return GROUP_LETTERS;
+    return [...new Set(letters.map((l) => String(l).toUpperCase().slice(0, 1)))].sort().slice(
+      0,
+      MAX_GROUP_BINDING_BLOCKS,
+    );
   }
 
   return [];
+}
+
+/**
+ * Broad cross-group value / misprice questions — use deterministic prebuilt when unscoped.
+ * @param {string} question
+ * @param {string} [wcIntent]
+ */
+export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
+  const q = String(question || "").trim();
+  if (!q || extractGroupLetterFromQuestion(q)) return false;
+  if (extractMentionedWcTeams(q).length > 0) return false;
+  if (isWcCrossGroupMispriceQuestion(q)) return true;
+  return (
+    (isWcGroupSlateQuestion(q) || wcIntent === WC_INTENT.STRUCTURAL) &&
+    (/\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(q) ||
+      /\bgroup[\s-]*stage\s+value\b/i.test(q))
+  );
+}
+
+/**
+ * @param {{
+ *   teamStats?: Record<string, Record<string, unknown>>,
+ *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string }>> },
+ *   question?: string,
+ *   nowMs?: number,
+ * }} [opts]
+ */
+export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
+  const ranked = computeGroupMispriceRankings({
+    teamStats: opts.teamStats,
+    bdlFutures: opts.bdlFutures,
+    question: opts.question || "",
+    nowMs: opts.nowMs,
+    topN: 1,
+  });
+  if (!ranked.length) {
+    return buildWcGroupSlatePrebuiltStructured({
+      groupLetter: "K",
+      pickAbbr: "COL",
+      pickMarket: "to advance",
+    });
+  }
+
+  const top = ranked[0];
+  const bdlType = "qualify_from_group";
+  const priceRow = opts.bdlFutures?.byMarketType?.[bdlType]?.[top.teamAbbr];
+  const advanceOdds =
+    priceRow?.americanDisplay ||
+    (priceRow?.american != null ? String(priceRow.american) : null);
+
+  return buildWcGroupSlatePrebuiltStructured({
+    groupLetter: top.group,
+    pickAbbr: top.teamAbbr,
+    pickMarket: "to advance",
+    advanceOdds,
+  });
 }
 
 /**

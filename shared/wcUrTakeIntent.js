@@ -227,7 +227,8 @@ export const WC_STATIC_RULES_BLOCK = `WC TOURNAMENT RULES (binding — factual r
   Away goals rule does NOT apply at the 2026 World Cup.
   Betting settlement (knockout): 90-minute moneylines are regulation-only and do NOT settle advancement.
   For "to advance" or "who wins the match" in knockout: factor extra time and penalties — a draw price is not a safe push.
-  Third-place match (if scheduled): separate fixture; does not affect the main knockout bracket path to the title.`;
+  Third-place match (if scheduled): separate fixture; does not affect the main knockout bracket path to the title.
+  GROUP ROSTER: Each group has exactly four teams — use GROUP BINDING blocks and GROUPS in VERIFIED CONTEXT only; never place a nation in the wrong group.`;
 
 /**
  * @param {string} question

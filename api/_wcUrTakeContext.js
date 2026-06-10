@@ -1012,6 +1012,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     questionText: question,
     advancementMarketBlock,
     bdlFuturesBlock,
+    bdlFuturesPayload: bdlPayloadForRanking,
     groupMispriceBlock,
     groupMispriceTopGroups,
     tournament: "2026 FIFA World Cup",

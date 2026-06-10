@@ -34,7 +34,7 @@ import {
   detectWcAdvancementPlayerGrounding,
   wcRoundupInvalidSlotKeys,
 } from "../shared/wcScorerRoleQA.js";
-import { detectWcPlayerAgeMismatches } from "../shared/wcPlayerBio.js";
+import { detectWcPlayerAgeMismatches, detectWcNotInSquadPlayerMention } from "../shared/wcPlayerBio.js";
 import { isWcValidPlayLine } from "../shared/wcPlayLineQA.js";
 import {
   detectWcDarkHorseWeakThesis,
@@ -317,6 +317,14 @@ export function runWcUrTakeQA(opts = {}) {
     detectWcPlayerAgeMismatches(body)
   ) {
     issueCodes.push("wc_player_age_mismatch");
+  }
+
+  if (
+    wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
+    wcIntent !== WC_INTENT.RULES &&
+    detectWcNotInSquadPlayerMention(body)
+  ) {
+    issueCodes.push("wc_player_not_in_squad");
   }
 
   if (

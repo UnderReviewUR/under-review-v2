@@ -7,6 +7,7 @@ import {
   formatWcGroupCompositionPromptBlock,
   getWcGroupComposition,
   resolveWcGroupLettersForPrompt,
+  shouldUseWcCrossGroupValuePrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
@@ -54,13 +55,23 @@ test("runWcUrTakeQA — wrong group roster triggers regeneration", () => {
   assert.equal(wcQaRequiresRegeneration(qa), true);
 });
 
-test("resolveWcGroupLettersForPrompt — cross-group value injects all groups", () => {
+test("resolveWcGroupLettersForPrompt — cross-group value caps binding blocks", () => {
   const letters = resolveWcGroupLettersForPrompt(
     "What's the best group-stage value bet right now?",
-    { wcIntent: WC_INTENT.STRUCTURAL },
+    { wcIntent: WC_INTENT.STRUCTURAL, topMispriceGroups: ["K", "D", "I", "C"] },
   );
-  assert.equal(letters.length, 12);
+  assert.ok(letters.length <= 4);
   assert.ok(letters.includes("K"));
+});
+
+test("shouldUseWcCrossGroupValuePrebuilt — flagship value question", () => {
+  assert.equal(
+    shouldUseWcCrossGroupValuePrebuilt(
+      "What's the best group-stage value bet right now — one pick?",
+      WC_INTENT.STRUCTURAL,
+    ),
+    true,
+  );
 });
 
 test("runWcUrTakeQA — group math mismatch triggers regeneration", () => {

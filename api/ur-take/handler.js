@@ -202,8 +202,11 @@ import { buildWcPlayerMarketPrebuiltStructured } from "../../shared/wcPlayerMark
 import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcGroupBindingPromptBlocks,
+  buildWcCrossGroupValuePrebuiltStructured,
   extractGroupLetterFromQuestion,
+  getWcGroupComposition,
   resolveWcGroupLettersForPrompt,
+  shouldUseWcCrossGroupValuePrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "../../shared/wcGroupComposition.js";
 import {
@@ -2265,12 +2268,25 @@ export default async function handler(req, res) {
   );
 
   const feedSnagResponse = (sportVal, fallbackReason, logCtx = {}) => {
-    const text =
-      "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
     const reason =
       typeof fallbackReason === "string" && fallbackReason.trim()
         ? fallbackReason.trim()
         : "unknown_server_fallback";
+    const userMessages = {
+      ip_rate_limited:
+        "Too many requests from this connection — wait a minute and try again.",
+      email_rate_limited:
+        "Too many requests on this account — wait a minute and try again.",
+      limit_reached:
+        "You've used your free questions for today. Come back tomorrow or upgrade to Pro for unlimited takes.",
+      email_required:
+        "You've used your 3 free preview questions. Sign in with email to continue.",
+      auth_verify_failed:
+        "Session expired — refresh the page and try again.",
+    };
+    const text =
+      userMessages[reason] ||
+      "The feed hit a snag on that one — try rephrasing or ask about a specific player or matchup and I'll work with what's available.";
     const sportOut = sportVal || "unknown";
     const q = String(logCtx.question ?? req.body?.question ?? "");
     const rawModelText =
@@ -2464,6 +2480,20 @@ export default async function handler(req, res) {
     }
     return res.status(200).json({
       requestId,
+      response:
+        gateQuotaReserve.reason === "email_required"
+          ? "You've used your 3 free preview questions. Sign in with email to continue."
+          : "You've used your free questions for today. Come back tomorrow or upgrade to Pro for unlimited takes.",
+      take:
+        gateQuotaReserve.reason === "email_required"
+          ? "You've used your 3 free preview questions. Sign in with email to continue."
+          : "You've used your free questions for today. Come back tomorrow or upgrade to Pro for unlimited takes.",
+      confidence: "none",
+      sport:
+        typeof incomingSportHint === "string" && incomingSportHint.trim()
+          ? incomingSportHint.trim()
+          : "unknown",
+      fallback: true,
       ...gateQuotaReserve.statusBody,
     });
   }
@@ -4923,6 +4953,35 @@ You are responding to a Pro subscriber. Apply the following:
     if (
       sportHint === "worldcup" &&
       !wcPlayerMarketPassUsed &&
+      shouldUseWcCrossGroupValuePrebuilt(String(question || ""), wcIntent)
+    ) {
+      const prebuilt = buildWcCrossGroupValuePrebuiltStructured({
+        teamStats: wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: wcContext?.bdlFuturesPayload,
+        question: String(question || ""),
+      });
+      if (prebuilt) {
+        structuredResponse = prebuilt;
+        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseDeep = null;
+        responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+        wcGroupSlatePassUsed = true;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_cross_group_value_pass",
+            sport: "worldcup",
+            wcIntent,
+            groupLetter: prebuilt.groupLetter,
+            pickAbbr: prebuilt.groupLetter,
+          }),
+        );
+      }
+    }
+
+    if (
+      sportHint === "worldcup" &&
+      !wcPlayerMarketPassUsed &&
+      !wcGroupSlatePassUsed &&
       shouldUseWcGroupSlatePrebuilt(String(question || ""), wcIntent)
     ) {
       const prebuilt = buildWcGroupSlatePrebuiltStructured({
@@ -5840,6 +5899,54 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         console.log(
           JSON.stringify({
             event: "ur_take_wc_group_math_repair",
+            sport: "worldcup",
+            wcIntent,
+            groupLetter: letter,
+            passed: wcQaResult.passed,
+          }),
+        );
+      }
+    }
+
+    if (
+      sportHint === "worldcup" &&
+      wcQaResult &&
+      !wcQaResult.passed &&
+      (wcQaResult.issueCodes || []).includes("wc_group_roster_mismatch")
+    ) {
+      const letter =
+        extractGroupLetterFromQuestion(String(question || "")) ||
+        wcContext?.groupMispriceTopGroups?.[0] ||
+        "K";
+      const comp = getWcGroupComposition(letter);
+      const pickAbbr = comp?.contender?.abbreviation || "COL";
+      const prebuilt = buildWcGroupSlatePrebuiltStructured({
+        groupLetter: letter,
+        pickAbbr,
+        pickMarket: "to advance",
+      });
+      if (prebuilt) {
+        structuredResponse = prebuilt;
+        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseDeep = null;
+        wcQaResult = runWcUrTakeQA({
+          responseText,
+          structured: structuredResponse,
+          question: String(question || ""),
+          wcIntent,
+          requiredEntities: wcRequiredEntities,
+          forbiddenEntities: wcForbiddenEntities,
+          strengthTags: wcStrengthTags,
+          playerMarketKv: wcContext?.playerMarketKv,
+          roundupPlayerKv: wcContext?.roundupPlayerKv,
+          playerMarketTier: wcRelevanceLog.playerMarketTier,
+          matchDetails: wcContext?.matchDetails,
+          outrightsAvailable: Boolean(wcContext?.outrightsKv),
+          teamStats: wcContext?.tournamentSimResults?.teamStats || null,
+        });
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_group_roster_repair",
             sport: "worldcup",
             wcIntent,
             groupLetter: letter,
