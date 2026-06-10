@@ -208,9 +208,10 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
     : null;
   const hasStats = Boolean(detail?.teamStats);
   const hasProps = Boolean(
-    markets?.anytime_scorer?.length ||
-      markets?.first_goalscorer?.length ||
-      markets?.player_assists_ou?.length,
+    props?.ok !== false &&
+      (markets?.anytime_scorer?.length ||
+        markets?.first_goalscorer?.length ||
+        markets?.player_assists_ou?.length),
   );
   const showPreMatch = !loading && !hasStats && !hasProps;
 

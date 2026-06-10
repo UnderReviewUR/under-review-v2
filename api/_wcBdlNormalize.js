@@ -179,12 +179,19 @@ export function normalizeBdlPlayerPropsToMarkets(rows) {
     const name = String(player.name || player.short_name || "").trim();
     if (!name) continue;
 
+    const nationAbbr = String(
+      player.country_code || player.nationAbbr || player.team_abbr || player.team || "",
+    )
+      .trim()
+      .toUpperCase()
+      .slice(0, 3);
+
     const market = row.market || {};
     const marketType = String(market.type || "").toLowerCase();
     const vendor = String(row.vendor || "bdl").toLowerCase();
 
     if (marketType === "milestone" && market.odds != null) {
-      pushPropRow(byMarket[marketKey], name, formatAm(market.odds), vendor, row, null, null);
+      pushPropRow(byMarket[marketKey], name, formatAm(market.odds), vendor, row, null, null, nationAbbr);
     } else if (marketType === "over_under") {
       if (market.over_odds != null) {
         pushPropRow(
@@ -195,6 +202,7 @@ export function normalizeBdlPlayerPropsToMarkets(rows) {
           row,
           row.line_value,
           "over",
+          nationAbbr,
         );
       }
       if (market.under_odds != null) {
@@ -206,6 +214,7 @@ export function normalizeBdlPlayerPropsToMarkets(rows) {
           row,
           row.line_value,
           "under",
+          nationAbbr,
         );
       }
     }
@@ -217,7 +226,7 @@ export function normalizeBdlPlayerPropsToMarkets(rows) {
   return markets;
 }
 
-function pushPropRow(map, name, americanOdds, vendor, row, line, side) {
+function pushPropRow(map, name, americanOdds, vendor, row, line, side, nationAbbr = null) {
   if (!americanOdds) return;
   const key = `${name.toLowerCase()}|${line || ""}|${side || ""}`;
   const existing = map.get(key);
@@ -225,13 +234,14 @@ function pushPropRow(map, name, americanOdds, vendor, row, line, side) {
     map.set(key, {
       name,
       americanOdds,
-      nationAbbr: null,
+      nationAbbr: nationAbbr || null,
       line: line != null ? String(line) : null,
       side: side || null,
       bookOdds: { [vendor]: americanOdds },
     });
   } else {
     existing.bookOdds[vendor] = americanOdds;
+    if (nationAbbr && !existing.nationAbbr) existing.nationAbbr = nationAbbr;
   }
 }
 

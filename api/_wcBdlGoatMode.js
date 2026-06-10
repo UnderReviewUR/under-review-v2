@@ -108,9 +108,14 @@ export async function getGoatMatchesPayload() {
       source: "balldontlie_live",
     };
   }
+  const matches = fetched.matches.map((m) => ({
+    ...m,
+    bdlMatchId: m.bdlMatchId ?? m.id ?? null,
+    source: "balldontlie",
+  }));
   return {
     ok: true,
-    matches: fetched.matches,
+    matches,
     lastUpdated: Date.now(),
     source: "balldontlie_live",
     fallback: false,

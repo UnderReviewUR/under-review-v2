@@ -5,7 +5,8 @@
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
-import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
+import { readWcMatchPlayerPropsForEvent, ensureWcBdlMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
 import {
   topRegistryAssists,
@@ -51,7 +52,15 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     readWcPlayersFromKv(),
     readWcGoldenBootFromKv(nowMs),
     readWcInjuriesFromKv(),
-    loadMatchProps ? readWcMatchPlayerPropsForEvent(wcEventId, nowMs) : Promise.resolve(null),
+    loadMatchProps
+      ? (async () => {
+          if (isWcGoatPrimaryEnabled()) {
+            const live = await ensureWcBdlMatchPlayerPropsForEvent(wcEventId);
+            if (live) return live;
+          }
+          return readWcMatchPlayerPropsForEvent(wcEventId, nowMs);
+        })()
+      : Promise.resolve(null),
   ]);
   return { players, goldenBoot, injuries, matchPlayerProps, wcEventId };
 }

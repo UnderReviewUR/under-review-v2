@@ -171,6 +171,7 @@ export function normalizeBdlMatchRow(row) {
   const timeRaw = row.time || row.kickoff_time || "";
   return {
     id: row.id ?? row.match_id ?? `${homeTeam}-${awayTeam}-${dateRaw}`,
+    bdlMatchId: row.id ?? row.match_id ?? null,
     homeTeam,
     awayTeam,
     homeScore: homeScore != null ? Number(homeScore) : null,
@@ -186,6 +187,7 @@ export function normalizeBdlMatchRow(row) {
       .replace(/^GROUP\s*/i, ""),
     round: String(row.round || row.stage || row.phase || "").trim(),
     commenceTs: Date.parse(String(dateRaw)) || null,
+    source: "balldontlie",
     odds: row.odds || undefined,
   };
 }

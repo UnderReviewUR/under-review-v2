@@ -7,9 +7,24 @@ describe("wcBdlPolicy", () => {
     const prevFlag = process.env.WC_BDL_GOAT_PRIMARY;
     process.env.BALLDONTLIE_API_KEY = "test-key";
     process.env.WC_BDL_GOAT_PRIMARY = "0";
-    const { isWcGoatPrimaryEnabled, hasWcBdlApiKey } = await import("./wcBdlPolicy.js");
+    const { isWcGoatPrimaryEnabled, hasWcBdlApiKey, shouldUseWcBookScrapeForPlayerMarkets } =
+      await import("./wcBdlPolicy.js");
     assert.equal(hasWcBdlApiKey(), true);
     assert.equal(isWcGoatPrimaryEnabled(), false);
+    assert.equal(shouldUseWcBookScrapeForPlayerMarkets(), true);
+    process.env.BALLDONTLIE_API_KEY = prevKey;
+    process.env.WC_BDL_GOAT_PRIMARY = prevFlag;
+  });
+
+  it("shouldUseWcBookScrapeForPlayerMarkets is false when GOAT primary", async () => {
+    const prevKey = process.env.BALLDONTLIE_API_KEY;
+    const prevFlag = process.env.WC_BDL_GOAT_PRIMARY;
+    process.env.BALLDONTLIE_API_KEY = "test-key";
+    process.env.WC_BDL_GOAT_PRIMARY = "1";
+    const { shouldUseWcBookScrapeForPlayerMarkets, isWcBdlSource } = await import("./wcBdlPolicy.js");
+    assert.equal(shouldUseWcBookScrapeForPlayerMarkets(), false);
+    assert.equal(isWcBdlSource("balldontlie"), true);
+    assert.equal(isWcBdlSource("consensus"), false);
     process.env.BALLDONTLIE_API_KEY = prevKey;
     process.env.WC_BDL_GOAT_PRIMARY = prevFlag;
   });

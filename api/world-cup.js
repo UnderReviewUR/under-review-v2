@@ -692,6 +692,7 @@ export default async function handler(req, res) {
         await scrapeAndCacheWcMatchPlayerProps(eventId, {
           homeTeam: match?.homeTeam,
           awayTeam: match?.awayTeam,
+          bdlMatchId: match?.bdlMatchId ?? null,
         });
       }
       const payload = await getWcMatchPlayerPropsPayload(eventId);

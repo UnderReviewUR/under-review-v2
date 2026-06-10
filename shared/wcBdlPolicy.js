@@ -19,6 +19,22 @@ export function isWcGoatPrimaryEnabled() {
   return hasWcBdlApiKey();
 }
 
+/** True when KV/API payload came from BallDontLie (not ESPN scrape or book HTML). */
+export function isWcBdlSource(source) {
+  const s = String(source || "").trim().toLowerCase();
+  return (
+    s === "balldontlie" ||
+    s === "balldontlie_live" ||
+    s.startsWith("balldontlie_") ||
+    s === "bdl"
+  );
+}
+
+/** Book HTML scrapes are disabled for player markets when GOAT primary is on. */
+export function shouldUseWcBookScrapeForPlayerMarkets() {
+  return !isWcGoatPrimaryEnabled();
+}
+
 /** Explicit ESPN override on API requests (?source=espn). */
 export function wantsEspnSource(req) {
   const q = req?.query || {};
