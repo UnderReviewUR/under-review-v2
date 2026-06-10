@@ -213,7 +213,7 @@ export default function HomeScreen({
     );
   }
 
-  const askPlaceholder = HOME_PLACEHOLDER_ROTATION[placeholderIdx] ?? HOME_PLACEHOLDER_ROTATION[0];
+  const askPlaceholder = HOME_ASK_PLACEHOLDER;
 
   return (
     <main className={`screen home-surface-premium home-surface-v1${hasDockedBar ? " has-msgs" : ""}`}>
@@ -267,7 +267,7 @@ export default function HomeScreen({
       ) : null}
 
       {wcHomePromoCard ? (
-        <div className="ur-wc-home-promo ur-wc-home-promo--v2">
+        <article className="ur-wc-home-promo ur-wc-home-promo--v2">
           <div className="ur-wc-home-promo-top">
             <span className="ur-wc-home-promo-badge">{wcHomePromoCard.sportBadge || "WORLD CUP"}</span>
             {goWorldCup ? (
@@ -277,13 +277,15 @@ export default function HomeScreen({
             ) : null}
           </div>
           <div className="ur-wc-home-promo-hero">
-            <h3 className="ur-wc-home-promo-title">{wcHomePromoCard.title}</h3>
+            <div className="ur-wc-home-promo-title-wrap">
+              <h3 className="ur-wc-home-promo-title">{wcHomePromoCard.title}</h3>
+            </div>
             <img
               className="ur-wc-home-promo-trophy"
-              src="/wc-trophy-home.svg"
+              src="/wc-trophy-home.png"
               alt=""
-              width={72}
-              height={96}
+              width={88}
+              height={110}
               loading="lazy"
               decoding="async"
             />
@@ -315,7 +317,7 @@ export default function HomeScreen({
               ›
             </span>
           </button>
-        </div>
+        </article>
       ) : null}
 
       {starterQs.length > 0 ? (
