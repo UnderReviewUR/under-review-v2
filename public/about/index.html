@@ -637,7 +637,9 @@
     };
 
     function urAppUrl(promptKey) {
-      var u = new URL("/worldcup", window.location.origin);
+      /* Main index.html shell (no-cache) — /worldcup.html was sticky on iOS and blocked scroll after prompts */
+      var u = new URL("/", window.location.origin);
+      u.searchParams.set("sport", "worldcup");
       var key = String(promptKey || "").trim();
       if (key) u.searchParams.set("p", key);
       return u.toString();

@@ -82,6 +82,7 @@ export default function WorldCupScreen({
   );
   const matchSubTabUserPickedRef = useRef(false);
   const prevLiveCountRef = useRef(0);
+  const prevWcTakeLoadingRef = useRef(false);
   const urDockedChat = hasDockedBar && wcMsgs.length > 0;
   const wcTakeLoading = Boolean(wcMsgs.at(-1)?.loading);
 
@@ -116,16 +117,19 @@ export default function WorldCupScreen({
   }, [highlightEventId, wcLoading, wcTakeLoading, mainTab, matchSubTab]);
 
   useLayoutEffect(() => {
-    if (!urDockedChat) return;
+    if (!urDockedChat) {
+      prevWcTakeLoadingRef.current = false;
+      return;
+    }
     const pane = wcBarRef?.current;
     if (!pane?.classList?.contains("ur-chat-scroll")) return;
-    pane.scrollTop = 0;
-    pinUrChatScrollToActiveRow(pane);
-    requestAnimationFrame(() => {
-      pane.scrollTop = 0;
+    const wasLoading = prevWcTakeLoadingRef.current;
+    prevWcTakeLoadingRef.current = wcTakeLoading;
+    if (wasLoading && !wcTakeLoading) {
       pinUrChatScrollToActiveRow(pane);
-    });
-  }, [urDockedChat, wcMsgs.length, wcTakeLoading, wcMsgs.at(-1)?.msgId, wcBarRef]);
+      requestAnimationFrame(() => pinUrChatScrollToActiveRow(pane));
+    }
+  }, [urDockedChat, wcTakeLoading, wcMsgs.at(-1)?.msgId, wcBarRef]);
 
   const today = todayEt();
   const todayMatches = useMemo(

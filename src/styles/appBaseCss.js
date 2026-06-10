@@ -304,9 +304,10 @@ export const baseCss = `
     flex-shrink:0;
   }
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .ur-chat-scroll{
-    flex:1 1 auto;
+    flex:1 1 0;
     flex-shrink:1;
     min-height:0;
+    height:0;
     align-self:stretch;
   }
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .nba-banner,
@@ -327,12 +328,12 @@ export const baseCss = `
     flex-shrink:0;
   }
   .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll{
-    flex:1 1 auto;
-    /* Prevent flex min-height:0 chain from collapsing the thread to 0px (blank “black” Ask). */
-    min-height:min(360px,55dvh);
+    flex:1 1 0;
+    min-height:0;
     display:flex;
     flex-direction:column;
     overflow-y:auto;
+    overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
     touch-action:pan-y;
@@ -2911,9 +2912,9 @@ export const baseCss = `
     pointer-events:none;
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll.wc-chat-scroll{
-    flex:1 1 auto;
+    flex:1 1 0;
+    min-height:0;
     overflow-anchor:none;
-    /* Inherit min-height:min(360px,55dvh) from .screen--ur-chat — min-height:0 collapsed the pane on iOS Safari. */
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll .wc-main-tabs--premium{
     margin-top:12px;
