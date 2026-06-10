@@ -739,18 +739,29 @@ export const baseCss = `
     font-weight:600;
     color:rgba(255,255,255,0.9);
     letter-spacing:-0.02em;
-    line-height:1.35;
-    margin:6px 0 14px;
+    line-height:1.4;
+    margin:6px auto 14px;
     text-align:center;
     padding:0 10px;
+    max-width:340px;
   }
   .ur-home-promise--stripped{
     font-size:14px;
     font-weight:500;
     color:rgba(255,255,255,0.72);
-    margin:0 0 14px;
+    margin:0 auto 14px;
     text-align:center;
+    line-height:1.45;
+    max-width:340px;
+    padding:0 6px;
+  }
+  .ur-home-ask-hint{
+    font-size:12px;
+    color:rgba(255,255,255,0.52);
+    text-align:center;
+    margin:-8px 0 14px;
     line-height:1.4;
+    padding:0 12px;
   }
   .ur-home-try-row{display:flex;justify-content:center;margin:0 0 18px;}
   .ur-home-try-chip{
@@ -950,6 +961,12 @@ export const baseCss = `
     color:var(--muted);
     opacity:1;
   }
+  .home-surface-v1 .ask-wrap .ask-bar{padding:12px 14px;}
+  .home-surface-v1 .ask-wrap .send-btn,
+  .home-surface-v1 .ask-wrap .attach-btn{width:48px;height:48px;}
+  .ur-first-session-home .ask-wrap .ask-bar{padding:12px 14px;}
+  .ur-first-session-home .ask-wrap .send-btn,
+  .ur-first-session-home .ask-wrap .attach-btn{width:48px;height:48px;}
   .home-surface-v1 .send-btn{
     background:linear-gradient(135deg,var(--magenta),#FF5A9A);
     color:#080A0C;

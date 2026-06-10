@@ -14,7 +14,11 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
+const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push back on.";
+const HOME_ASK_HINT = "You'll get an answer you can push back on.";
+
 const HOME_PLACEHOLDER_ROTATION = [
+  "Ask, then follow up like a group chat…",
   "Who's the sharp side tonight?",
   "Is this line mispriced?",
   "What's the smartest angle on the slate?",
@@ -160,7 +164,7 @@ export default function HomeScreen({
       <main className="screen ur-first-session-home">
         <div className="ur-first-session-stack">
           <h1 className="ur-first-session-headline">What do you want to know before you bet?</h1>
-          <p className="ur-home-promise ur-home-promise--stripped">Sharp takes, backed by data.</p>
+          <p className="ur-home-promise ur-home-promise--stripped">{HOME_ASK_PROMISE}</p>
           <AskBar
             inputRef={askInputRef}
             value={askInput}
@@ -170,6 +174,7 @@ export default function HomeScreen({
             pasteHintText="Paste a slip, line, or matchup."
             {...askBarCommon}
           />
+          <p className="ur-home-ask-hint">{HOME_ASK_HINT}</p>
           {strippedSessionBusy ? (
             <p className="ur-first-session-wait" aria-live="polite">
               Working on your answer…
@@ -209,7 +214,7 @@ export default function HomeScreen({
 
   return (
     <main className={`screen home-surface-premium home-surface-v1${hasDockedBar ? " has-msgs" : ""}`}>
-      <p className="ur-home-promise">Ask one question. Get a real take.</p>
+      <p className="ur-home-promise">{HOME_ASK_PROMISE}</p>
 
       <AskBar
         inputRef={askInputRef}
@@ -220,6 +225,7 @@ export default function HomeScreen({
         pasteHintText="Paste a slip, line, or matchup."
         {...askBarCommon}
       />
+      <p className="ur-home-ask-hint">{HOME_ASK_HINT}</p>
 
       {tryOne ? (
         <div className="ur-home-try-row">
