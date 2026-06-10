@@ -14,6 +14,7 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
+/** Home hero copy — chat-first promise shown above the ask bar. */
 const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push back on.";
 const HOME_ASK_HINT = "You'll get an answer you can push back on.";
 
