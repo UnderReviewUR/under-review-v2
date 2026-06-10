@@ -562,6 +562,24 @@ export function buildWcCompactStructured(opts = {}) {
       ? opts.structuredSeed
       : null;
 
+  if (seed?.callType === "group_slate" && seed?.lean && seed?.call) {
+    return {
+      sport: "worldcup",
+      callType: "group_slate",
+      groupLetter: seed.groupLetter,
+      lean: String(seed.lean).trim(),
+      call: String(seed.call).trim(),
+      line: String(seed.line || seed.call || "").trim(),
+      whyNow: String(seed.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
+      edge: String(seed.edge || extractWatchFor(deep, false, seed.whyNow)).trim(),
+      deep,
+      breakdownAvailable: Boolean(deep && deep.length > 40),
+      confidence: String(seed.confidence || "Speculative"),
+      caveats: [],
+      timestamp: seed.timestamp || new Date().toISOString(),
+    };
+  }
+
   if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
     return buildWcPredictionsRoundupStructured({
       summary,

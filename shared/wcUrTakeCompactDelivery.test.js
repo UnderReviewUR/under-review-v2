@@ -4,6 +4,7 @@ import {
   buildWcCompactStructured,
   formatWcCompactDisplayText,
 } from "./wcUrTakeCompactDelivery.js";
+import { buildWcGroupSlatePrebuiltStructured } from "./wcGroupComposition.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
 test("buildWcCompactStructured — player market PASS keeps complete sentences", () => {
@@ -101,6 +102,19 @@ test("buildWcCompactStructured — watch for does not recycle whyNow tail", () =
   });
   assert.notEqual(s.edge.trim(), why.trim());
   assert.ok(!/62% — market implies 52%/.test(s.edge) || /Watch for/i.test(s.edge));
+});
+
+test("buildWcCompactStructured — group_slate seed preserves prebuilt lean", () => {
+  const seed = buildWcGroupSlatePrebuiltStructured({ groupLetter: "K", pickAbbr: "COL" });
+  const s = buildWcCompactStructured({
+    question: "Which group is most mispriced for advancement?",
+    wcIntent: WC_INTENT.ENTITY_PRICING,
+    summary: `${seed.lean}\n\n${seed.whyNow}`,
+    deep: "",
+    structuredSeed: seed,
+  });
+  assert.match(s.lean, /Colombia|Group K/i);
+  assert.doesNotMatch(s.lean, /Pass — no actionable line/i);
 });
 
 test("buildWcCompactStructured — educational betting primer skips Pass lean", () => {
