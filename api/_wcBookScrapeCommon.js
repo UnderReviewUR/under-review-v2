@@ -14,6 +14,7 @@ import {
   createEmptyMatchPlayerPropMarkets,
   mergeMatchPlayerPropMarketMaps,
 } from "../shared/wcMatchPlayerProps.js";
+import { filterMatchPlayerPropScrapeRows } from "../shared/wcMatchPlayerPropRowGuard.js";
 
 const GOLDEN_BOOT_LABEL =
   /\b(golden boot|top goal\s*scorer|top goalscorer|world cup top scorer|most goals|leading goalscorer)\b/i;
@@ -558,7 +559,7 @@ export function parseMatchPlayerPropRowsFromHtml(html, filter = {}) {
 
   for (const key of Object.keys(merged)) {
     const seen = new Set();
-    merged[key] = merged[key]
+    merged[key] = filterMatchPlayerPropScrapeRows(merged[key])
       .filter((r) => {
         const k = `${r.name}|${r.americanOdds}`;
         if (seen.has(k)) return false;

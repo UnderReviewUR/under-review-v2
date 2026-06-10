@@ -9,6 +9,7 @@ import {
   wcXiStatusChipLabel,
 } from "../../../shared/wcXiStatus.js";
 import { WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
+import { filterMatchPlayerPropScrapeRows } from "../../../shared/wcMatchPlayerPropRowGuard.js";
 import { wcTeamsWithStrengthTags } from "../../../shared/wc2026Strength.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 
@@ -196,7 +197,15 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
 
   const xiStatus = resolveWcXiStatus(detail || match);
   const asOf = formatWcDetailAsOfEt(detail?.lastUpdated || match?.lastUpdated);
-  const markets = props?.markets || props?.goldenBoot?.markets || props?.event?.markets;
+  const rawMarkets = props?.markets || props?.goldenBoot?.markets || props?.event?.markets;
+  const markets = rawMarkets
+    ? Object.fromEntries(
+        Object.entries(rawMarkets).map(([key, rows]) => [
+          key,
+          filterMatchPlayerPropScrapeRows(Array.isArray(rows) ? rows : []),
+        ]),
+      )
+    : null;
   const hasStats = Boolean(detail?.teamStats);
   const hasProps = Boolean(
     markets?.anytime_scorer?.length ||

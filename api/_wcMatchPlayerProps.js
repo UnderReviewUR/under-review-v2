@@ -27,6 +27,7 @@ import {
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
+import { filterMatchPlayerPropScrapeRows } from "../shared/wcMatchPlayerPropRowGuard.js";
 import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlayerPropsSeed.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { resolveBdlMatchIdForEvent, scrapeAndCacheWcBdlMatchPlayerProps } from "./_wcBdlData.js";
@@ -225,6 +226,10 @@ export async function scrapeAndCacheWcMatchPlayerProps(eventId, meta = {}) {
   let source = "consensus";
   const anytimeCount = (markets.anytime_scorer || []).length;
 
+  for (const key of WC_MATCH_PLAYER_PROP_MARKET_KEYS) {
+    markets[key] = filterMatchPlayerPropScrapeRows(markets[key]);
+  }
+
   if (anytimeCount < MIN_ANYTIME_ROWS) {
     markets = mergeMatchPropsWithSeed(markets, id);
     source = anytimeCount > 0 ? "consensus+seed" : "seed";
@@ -329,10 +334,19 @@ export async function getWcMatchPlayerPropsPayload(eventId) {
     return { ok: false, error: "not_found", eventId: String(eventId) };
   }
 
+  const markets = event.markets && typeof event.markets === "object" ? event.markets : {};
+  const filteredMarkets = Object.fromEntries(
+    Object.entries(markets).map(([key, rows]) => [
+      key,
+      filterMatchPlayerPropScrapeRows(Array.isArray(rows) ? rows : []),
+    ]),
+  );
+
   return {
     ok: true,
     eventId: String(eventId),
     ...event,
-    anytimeCount: (event.markets?.anytime_scorer || []).length,
+    markets: filteredMarkets,
+    anytimeCount: (filteredMarkets.anytime_scorer || []).length,
   };
 }

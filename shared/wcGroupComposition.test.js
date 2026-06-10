@@ -113,6 +113,15 @@ test("buildWcCrossGroupValuePrebuiltStructured — misprice question cites runne
   assert.match(pre.whyNow || "", /Group K/i);
 });
 
+test("buildWcCrossGroupValuePrebuiltStructured — returns null without ranking inputs", () => {
+  assert.equal(
+    buildWcCrossGroupValuePrebuiltStructured({
+      question: "Which group is most mispriced for advancement?",
+    }),
+    null,
+  );
+});
+
 test("prebuilt Group D copy names all four tiers correctly", () => {
   const pre = buildWcGroupSlatePrebuiltStructured({ groupLetter: "D", pickAbbr: "PAR" });
   assert.ok(pre);

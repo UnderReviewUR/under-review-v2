@@ -4996,7 +4996,7 @@ You are responding to a Pro subscriber. Apply the following:
       wcCrossGroupPrebuiltEarly
     ) {
       structuredResponse = wcCrossGroupPrebuiltEarly;
-      responseText = `${wcCrossGroupPrebuiltEarly.lean}\n\n${wcCrossGroupPrebuiltEarly.whyNow}`;
+      responseText = formatWcCompactDisplayText(wcCrossGroupPrebuiltEarly, wcCrossGroupPrebuiltEarly.lean);
       responseDeep = null;
       responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
       wcGroupSlatePassUsed = true;
@@ -5022,7 +5022,7 @@ You are responding to a Pro subscriber. Apply the following:
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
-        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
         responseDeep = null;
         responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
         wcGroupSlatePassUsed = true;
@@ -5051,7 +5051,7 @@ You are responding to a Pro subscriber. Apply the following:
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
-        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
         responseDeep = null;
         responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
         wcGroupSlatePassUsed = true;
@@ -5939,7 +5939,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
-        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
         responseDeep = null;
         wcQaResult = runWcUrTakeQA({
           responseText,
@@ -5987,7 +5987,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
-        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
         responseDeep = null;
         wcQaResult = runWcUrTakeQA({
           responseText,
@@ -6037,7 +6037,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       );
       if (prebuilt) {
         structuredResponse = prebuilt;
-        responseText = `${prebuilt.lean}\n\n${prebuilt.whyNow}`;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
         responseDeep = null;
         wcRelevanceLog.qaPlayerMatch = "pass";
         wcRelevanceLog.playerMarketTier = prebuilt.playerMarketTier;

@@ -319,11 +319,7 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
     topN: mispriceQ ? 2 : 1,
   });
   if (!ranked.length) {
-    return buildWcGroupSlatePrebuiltStructured({
-      groupLetter: "K",
-      pickAbbr: "COL",
-      pickMarket: "to advance",
-    });
+    return null;
   }
 
   const top = ranked[0];
