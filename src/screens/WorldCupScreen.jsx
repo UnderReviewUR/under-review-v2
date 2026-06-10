@@ -465,7 +465,12 @@ export default function WorldCupScreen({
     >
       {urDockedChat ? (
         <>
-          {!focusSession ? <p className="wc-docked-context-bar">World Cup · UR Take</p> : null}
+          <p
+            className={`wc-docked-context-bar${focusSession ? " wc-docked-context-bar--focus-hidden" : ""}`}
+            aria-hidden={focusSession ? true : undefined}
+          >
+            World Cup · UR Take
+          </p>
           <div className="ur-chat-scroll wc-chat-scroll" ref={wcBarRef}>
             <ChatThread {...chatThreadProps} variant="urChatDocked" focusSession={focusSession} />
             {onSaveLastUrTake ? (

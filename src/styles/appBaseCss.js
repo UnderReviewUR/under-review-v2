@@ -299,8 +299,15 @@ export const baseCss = `
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .ur-ask-retention-strip{
     flex-shrink:0;
   }
-  .app.has-docked main.screen.screen--ur-chat.has-msgs > *:first-child{
+  /* Do not flex-shrink:0 the scroll pane — when focus session hides headers it becomes :first-child and iOS clips long takes */
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > *:first-child:not(.ur-chat-scroll){
     flex-shrink:0;
+  }
+  .app.has-docked main.screen.screen--ur-chat.has-msgs > .ur-chat-scroll{
+    flex:1 1 auto;
+    flex-shrink:1;
+    min-height:0;
+    align-self:stretch;
   }
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .nba-banner,
   .app.has-docked main.screen.screen--ur-chat.has-msgs > .golf-banner,
@@ -1893,6 +1900,9 @@ export const baseCss = `
     padding:0;
     margin:0 0 16px;
     color:#fff;
+    overflow-wrap:break-word;
+    word-wrap:break-word;
+    hyphens:auto;
   }
   .wc-take-card--focus .wc-take-row{
     padding:0 0 14px;
@@ -2889,6 +2899,16 @@ export const baseCss = `
     text-transform:uppercase;
     color:var(--wc-premium-muted, #8A8478);
     border-bottom:1px solid rgba(196,165,116,0.12);
+  }
+  /* Keep a flex sibling before .ur-chat-scroll in focus session so iOS scroll pane is never :first-child */
+  .wc-docked-context-bar--focus-hidden{
+    height:0;
+    padding:0;
+    margin:0;
+    overflow:hidden;
+    border:none;
+    opacity:0;
+    pointer-events:none;
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll.wc-chat-scroll{
     flex:1 1 auto;
