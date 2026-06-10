@@ -382,14 +382,6 @@ export const THEMES = {
         font-family: 'Epilogue', sans-serif;
       }
 
-      .theme-epilogue .logo-under {
-        display: none !important;
-      }
-
-      .theme-epilogue .wordmark {
-        gap: 0;
-      }
-
       .theme-epilogue .logo-review {
         font-family: 'Epilogue', sans-serif;
         font-size: 28px;

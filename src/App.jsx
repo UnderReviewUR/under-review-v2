@@ -4634,8 +4634,7 @@ ${themeCss}
               </button>
             )}
             <div className="wordmark" onClick={goHome}>
-              <span className="logo-under">Under </span>
-              <span className="logo-review">Review</span>
+              <span className="logo-review">UnderReview</span>
             </div>
           </div>
           <div

@@ -155,25 +155,16 @@ export const baseCss = `
 
   .wordmark{
     display:flex;
-    flex-direction:column;
-    align-items:flex-start;
+    align-items:center;
     justify-content:center;
     min-width:fit-content;
     cursor:pointer;
   }
 
-  .logo-under{
-    display:inline;
-    font-family:var(--display-font);
-    font-size:26px;
-    letter-spacing:1px;
-    line-height:1;
-    color:#fff;
-    -webkit-text-fill-color:#fff;
-  }
+  .logo-under{display:none;}
 
   .logo-review{
-    display:inline;
+    display:block;
     font-family:var(--display-font);
     font-size:26px;
     letter-spacing:1px;
@@ -860,15 +851,25 @@ export const baseCss = `
     overflow:hidden;
     pointer-events:none;
     user-select:none;
+    position:relative;
+  }
+  .ur-wc-home-promo-trophy-slot::before{
+    content:"";
+    position:absolute;
+    inset:8% 0 12%;
+    background:radial-gradient(ellipse at 50% 55%,rgba(245,158,11,0.14),transparent 68%);
+    pointer-events:none;
   }
   .ur-wc-home-promo-trophy{
+    position:relative;
+    z-index:1;
     height:108px;
     width:auto;
     max-width:none;
     flex-shrink:0;
     object-fit:contain;
     object-position:center center;
-    filter:drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+    filter:drop-shadow(0 10px 22px rgba(0,0,0,0.35));
     pointer-events:none;
     user-select:none;
   }
