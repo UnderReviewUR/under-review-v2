@@ -747,12 +747,17 @@ export function resolveWcQaStructured(opts = {}) {
  */
 export function formatWcCompactDisplayText(structured, summaryFallback = "") {
   if (structured && typeof structured === "object") {
+    const ct = String(structured.callType || "").toLowerCase();
     const lean = String(structured.lean || "").replace(/^lean:\s*/i, "").trim();
+    const leanLine = lean ? (lean.startsWith("Lean:") ? lean : `Lean: ${lean}`) : "";
+    if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
+      if (leanLine) return leanLine;
+    }
     const call = String(structured.call || "").trim();
     const why = String(structured.whyNow || "").trim();
     const conf = String(structured.confidence || "").trim();
     const lines = [];
-    if (lean) lines.push(lean.startsWith("Lean:") ? lean : `Lean: ${lean}`);
+    if (leanLine) lines.push(leanLine);
     if (call && call !== "—") lines.push(`THE PLAY: ${call}`);
     if (conf) lines.push(`CONFIDENCE\n${conf}`);
     if (why) lines.push(why);

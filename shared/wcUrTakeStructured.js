@@ -80,6 +80,10 @@ export function normalizeWcStructuredForDelivery(
   }
 
   if (intent === WC_INTENT.ENTITY_PRICING) {
+    if (String(out.callType || "").toLowerCase() === "group_slate") {
+      delete out.playerMarketTier;
+      return out;
+    }
     const market = classifyWcAdvancementMarket(question);
     if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
       out.callType = "advancement";
@@ -105,6 +109,10 @@ export function normalizeWcStructuredForDelivery(
   }
 
   if (intent === WC_INTENT.STRUCTURAL) {
+    if (String(out.callType || "").toLowerCase() === "group_slate") {
+      delete out.playerMarketTier;
+      return out;
+    }
     const market = classifyWcAdvancementMarket(question);
     if (market === WC_ADVANCEMENT_MARKET.GROUP_WINNER) {
       out.callType = "advancement";

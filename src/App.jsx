@@ -2212,6 +2212,19 @@ ${themeCss}
             String(data.nbaRelevance?.focusedGamePhase || "").toLowerCase() === "live",
         })
       : null;
+
+    const snagPhrase = "The feed hit a snag on that one";
+    const isApiSuccessFallback =
+      data &&
+      typeof data === "object" &&
+      (data.fallback === true ||
+        (data.fallbackReason != null && String(data.fallbackReason).trim() !== "") ||
+        String(normalizedDisplay.response || "").includes(snagPhrase));
+
+    if (isApiSuccessFallback) {
+      structuredForBubble = null;
+    }
+
     if (structuredForBubble && resolvedWcIntent === WC_INTENT.RULES) {
       structuredForBubble = {
         ...structuredForBubble,
@@ -2253,14 +2266,6 @@ ${themeCss}
         playerMarketTier: tier || structuredForBubble.playerMarketTier,
       };
     }
-
-    const snagPhrase = "The feed hit a snag on that one";
-    const isApiSuccessFallback =
-      data &&
-      typeof data === "object" &&
-      (data.fallback === true ||
-        (data.fallbackReason != null && String(data.fallbackReason).trim() !== "") ||
-        String(normalizedDisplay.response || "").includes(snagPhrase));
 
     let apiSuccessFallbackDbg = null;
     if (isApiSuccessFallback) {

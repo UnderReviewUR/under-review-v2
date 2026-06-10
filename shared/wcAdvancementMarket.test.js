@@ -101,7 +101,7 @@ test("classifyWcAdvancementMarket detects group winner", () => {
   );
   assert.equal(
     classifyWcAdvancementMarket("What's the best group-stage value bet right now?"),
-    WC_ADVANCEMENT_MARKET.GROUP_WINNER,
+    null,
   );
   assert.equal(
     classifyWcAdvancementMarket("Can USA advance from the group?"),
@@ -134,14 +134,22 @@ test("classifyWcAdvancementMarket — Group D advancement path is group escape",
   assert.equal(isWcAdvancementMarketQuestion(q), true);
 });
 
-test("buildPriceBindingPromptBlock rejects outright odds for group winner STRUCTURAL", () => {
+test("buildPriceBindingPromptBlock — cross-group value STRUCTURAL has no group-winner binding", () => {
   const block = buildPriceBindingPromptBlock(
     "What's the best group-stage value bet right now?",
     [],
     WC_INTENT.STRUCTURAL,
   );
-  assert.match(block, /groupWinPct/);
-  assert.match(block, /NOT tournament winner/);
+  assert.equal(block, "");
+});
+
+test("buildPriceBindingPromptBlock rejects outright odds for explicit group winner", () => {
+  const block = buildPriceBindingPromptBlock(
+    "Who wins Group E?",
+    ["ECU"],
+    WC_INTENT.STRUCTURAL,
+  );
+  assert.match(block, /groupWinPct|NOT tournament winner/);
 });
 
 test("detectGroupWinnerOutrightBleed rejects Ecuador +8000 group winner take", () => {

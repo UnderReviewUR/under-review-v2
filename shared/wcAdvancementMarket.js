@@ -48,13 +48,6 @@ export function isWcGroupWinnerQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
   if (GROUP_WINNER_RE.test(q)) return true;
-  if (
-    GROUP_SLATE_VALUE_RE.test(q) &&
-    !GROUP_ESCAPE_RE.test(q) &&
-    !GENERIC_ADVANCE_RE.test(q)
-  ) {
-    return true;
-  }
   return false;
 }
 

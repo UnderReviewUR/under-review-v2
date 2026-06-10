@@ -143,3 +143,18 @@ test("formatWcCompactDisplayText — no section headers", () => {
   assert.ok(!/MATCH READ/i.test(text));
   assert.match(text, /THE PLAY/);
 });
+
+test("formatWcCompactDisplayText — group_slate is lean-only (card holds detail)", () => {
+  const text = formatWcCompactDisplayText(
+    {
+      callType: "group_slate",
+      lean: "Lean: Colombia to advance in Group K.",
+      call: "Colombia in Group K — best group-stage value (to advance)",
+      whyNow: "Group K is four teams…",
+      confidence: "Speculative",
+    },
+    "",
+  );
+  assert.equal(text, "Lean: Colombia to advance in Group K.");
+  assert.doesNotMatch(text, /THE PLAY/i);
+});

@@ -6066,12 +6066,6 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseDeep = finalized.responseDeep;
       structuredResponse = finalized.structuredResponse;
     } else if (sportHint === "worldcup" && structuredResponse && typeof structuredResponse === "object") {
-      structuredResponse = normalizeWcStructuredForDelivery(
-        structuredResponse,
-        wcIntent,
-        String(question || ""),
-        wcRequiredEntities,
-      );
       if (wcIntent === WC_INTENT.ENTITY_PRICING) {
         const sessionPrices = extractSessionAmericanOdds(incomingHistory);
         structuredResponse = stripWcStructuredSessionPrices(
@@ -6123,6 +6117,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         playerMarketTier: tier,
         structuredSeed: structuredResponse,
       });
+      if (structuredResponse && typeof structuredResponse === "object") {
+        structuredResponse = normalizeWcStructuredForDelivery(
+          structuredResponse,
+          wcIntent,
+          String(question || ""),
+          wcRequiredEntities,
+        );
+      }
       responseText = formatWcCompactDisplayText(structuredResponse, responseText);
     }
 

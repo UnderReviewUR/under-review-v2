@@ -1992,6 +1992,22 @@ function UrTakeAiBubble({
 
   const effectiveStructured = resolveEffectiveUrTakeStructuredFromSummary(m, summaryText, userQuestion);
 
+  if (m.urTakeFailSoft) {
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        <div className="bubble ai">
+          {renderMessage(summaryText)}
+          <UrTakeFailSoftActions
+            m={m}
+            onUrTakeRetry={onUrTakeRetry}
+            onUpgradePromptClick={onUpgradePromptClick}
+          />
+        </div>
+      </>
+    );
+  }
+
   if (effectiveStructured) {
     const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
     const structuredGameStateLine = parsedLiveRibbon.gameState
@@ -2091,22 +2107,6 @@ function UrTakeAiBubble({
         {!hideTakeExtras ? trustChips : null}
         {!hideTakeExtras ? betSignalRow : null}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
-      </>
-    );
-  }
-
-  if (m.urTakeFailSoft) {
-    return (
-      <>
-        {m.image && <img src={m.image} alt="" className="bubble-img" />}
-        <div className="bubble ai">
-          {renderMessage(summaryText)}
-          <UrTakeFailSoftActions
-            m={m}
-            onUrTakeRetry={onUrTakeRetry}
-            onUpgradePromptClick={onUpgradePromptClick}
-          />
-        </div>
       </>
     );
   }
