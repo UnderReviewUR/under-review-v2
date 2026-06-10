@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
+import HomeWcFeaturedCard from "../components/HomeWcFeaturedCard.jsx";
 import AskBar from "../components/AskBar.jsx";
 import HomeLastLeanCard from "../components/HomeLastLeanCard.jsx";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
@@ -19,13 +20,6 @@ const HOME_ASK_PROMISE = "Ask like you would in chat. Get a take you can push ba
 const HOME_ASK_HINT = "You'll get an answer you can push back on.";
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
-
-const HOME_PLACEHOLDER_ROTATION = [
-  HOME_ASK_PLACEHOLDER,
-  "Who's the sharp side tonight?",
-  "Is this line mispriced?",
-  "What's the smartest angle on the slate?",
-];
 
 export default function HomeScreen({
   strippedHomeSession = false,
@@ -78,7 +72,6 @@ export default function HomeScreen({
   const homeNbaGames = Array.isArray(tickerNbaGames) ? tickerNbaGames : [];
 
   const [dailyPreview, setDailyPreview] = useState(null);
-  const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const [narrowHome, setNarrowHome] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches,
   );
@@ -120,18 +113,6 @@ export default function HomeScreen({
     const t = window.setTimeout(() => askInputRef?.current?.focus({ preventScroll: true }), 0);
     return () => window.clearTimeout(t);
   }, [strippedHomeSession, askInputRef]);
-
-  useEffect(() => {
-    if (strippedHomeSession) return;
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (mq.matches) return;
-    const id = window.setInterval(
-      () => setPlaceholderIdx((i) => (i + 1) % HOME_PLACEHOLDER_ROTATION.length),
-      5000,
-    );
-    return () => window.clearInterval(id);
-  }, [strippedHomeSession]);
 
   useEffect(() => {
     if (!strippedHomeSession) return;
@@ -216,20 +197,61 @@ export default function HomeScreen({
   const askPlaceholder = HOME_ASK_PLACEHOLDER;
 
   return (
-    <main className={`screen home-surface-premium home-surface-v1${hasDockedBar ? " has-msgs" : ""}`}>
-      <p className="ur-home-promise">{HOME_ASK_PROMISE}</p>
+    <main className={`screen home-surface-premium home-surface-pro${hasDockedBar ? " has-msgs" : ""}`}>
+      <section className="ur-home-hero" aria-label="Ask Under Review">
+        <h1 className="ur-home-hero-title">{HOME_ASK_PROMISE}</h1>
+        <p className="ur-home-hero-lead">{HOME_ASK_HINT}</p>
+        <div className="ur-home-ask-shell">
+          <AskBar
+            inputRef={askInputRef}
+            value={askInput}
+            onChange={setAskInput}
+            onSubmit={submitHome}
+            placeholder={askPlaceholder}
+            showPasteHint={false}
+            pasteHintText="Paste a slip, line, or matchup."
+            {...askBarCommon}
+          />
+        </div>
+      </section>
 
-      <AskBar
-        inputRef={askInputRef}
-        value={askInput}
-        onChange={setAskInput}
-        onSubmit={submitHome}
-        placeholder={askPlaceholder}
-        pasteHintText="Paste a slip, line, or matchup."
-        {...askBarCommon}
-      />
-      <p className="ur-home-ask-hint">{HOME_ASK_HINT}</p>
+      {wcHomePromoCard ? (
+        <HomeWcFeaturedCard
+          card={wcHomePromoCard}
+          onOpenHub={goWorldCup}
+          onSeeMatches={goWorldCupMatchesToday}
+          onAskPrompt={(prompt) => {
+            if (askWorldCup) askWorldCup(prompt);
+            else firePrompt(prompt, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id);
+          }}
+        />
+      ) : null}
 
+      {starterQs.length > 0 ? (
+        <section className="ur-home-starters ur-home-starters-pro" aria-labelledby="ur-home-starters-heading">
+          <h2 id="ur-home-starters-heading" className="ur-home-starters-heading">
+            Start here
+          </h2>
+          <div className="ur-home-starter-list">
+            {starterQs.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                className="ur-home-starter-item"
+                onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}
+              >
+                <span className="ur-home-starter-accent" style={{ background: q.color }} aria-hidden />
+                <span className="ur-home-starter-text">{q.text}</span>
+                <span className="ur-home-starter-chev" aria-hidden>
+                  ›
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="ur-home-feed">
       {tryOne ? (
         <div className="ur-home-try-row">
           <button
@@ -266,81 +288,10 @@ export default function HomeScreen({
         />
       ) : null}
 
-      {wcHomePromoCard ? (
-        <article className="ur-wc-home-promo ur-wc-home-promo--v2">
-          <div className="ur-wc-home-promo-top">
-            <span className="ur-wc-home-promo-badge">{wcHomePromoCard.sportBadge || "WORLD CUP"}</span>
-            {goWorldCup ? (
-              <button type="button" className="ur-wc-home-promo-hub" onClick={() => goWorldCup()}>
-                Open hub →
-              </button>
-            ) : null}
-          </div>
-          <div className="ur-wc-home-promo-hero">
-            <div className="ur-wc-home-promo-title-wrap">
-              <h3 className="ur-wc-home-promo-title">{wcHomePromoCard.title}</h3>
-            </div>
-            <img
-              className="ur-wc-home-promo-trophy"
-              src="/wc-trophy-home.png"
-              alt=""
-              width={88}
-              height={110}
-              loading="lazy"
-              decoding="async"
-            />
-          </div>
-          {wcHomePromoCard.trustLine ? (
-            <p className="ur-wc-home-promo-trust">{wcHomePromoCard.trustLine}</p>
-          ) : null}
-          <ul className="ur-wc-home-promo-highlights">
-            {(wcHomePromoCard.highlights || []).map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          {goWorldCupMatchesToday ? (
-            <button type="button" className="ur-wc-home-promo-matches" onClick={goWorldCupMatchesToday}>
-              {wcHomePromoCard.matchesCta || "See today's matches"}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="ur-wc-home-promo-ask"
-            onClick={() => {
-              const p = wcHomePromoCard.prompt;
-              if (askWorldCup) askWorldCup(p);
-              else firePrompt(p, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id);
-            }}
-          >
-            <span>{wcHomePromoCard.text}</span>
-            <span className="ur-wc-home-promo-ask-chev" aria-hidden>
-              ›
-            </span>
-          </button>
-        </article>
-      ) : null}
-
-      {starterQs.length > 0 ? (
-        <section className="ur-home-starters" aria-labelledby="ur-home-starters-heading">
-          <h2 id="ur-home-starters-heading" className="ur-home-starters-heading">
-            Start here
-          </h2>
-          <div className="ask-cards ur-home-starter-cards">
-            {starterQs.map((q) => (
-              <div key={q.id} className="ask-card" onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}>
-                <div className="ask-card-bar" style={{ background: q.color }} />
-                <div className="ask-card-text">{q.text}</div>
-                <div className="ur-home-starter-chev" aria-hidden>
-                  ›
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <LiveEdgeAlert alerts={nbaLiveEdgeAlerts || []} />
 
+      {!narrowHome ? (
+        <>
       <TickerRail
         collapsible
         isNflSlateActive={isNflSlateActive}
@@ -695,6 +646,11 @@ export default function HomeScreen({
             )}
           </div>
         ))}
+
+        </>
+      ) : null}
+
+      </div>
 
       <div className="page-spacer" />
     </main>

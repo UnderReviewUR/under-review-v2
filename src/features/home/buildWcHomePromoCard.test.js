@@ -10,7 +10,8 @@ test("buildWcHomePromoCard returns card during promo window", () => {
   assert.ok(card);
   assert.equal(card.sportHint, "worldcup");
   assert.ok(card.trustLine?.includes("Starting XIs"));
-  assert.ok(card.highlights[0].includes("104 matches"));
+  assert.ok(card.tagline?.includes("104 matches"));
+  assert.ok(card.featureLine?.includes("Live odds"));
   assert.equal(card.matchesCta, "See today's matches");
 });
 

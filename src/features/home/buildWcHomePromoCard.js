@@ -12,7 +12,9 @@ export function buildWcHomePromoCard(nowMs = Date.now()) {
     sportBadge: "WORLD CUP",
     accentColor: "#00F5E9",
     title: "2026 FIFA World Cup",
+    tagline: "104 matches · June 11 – July 19",
     trustLine: "Markets may be adjusted after Starting XIs are announced.",
+    featureLine: "Live odds, line movement, and sharp splits on every match.",
     matchesCta: "See today's matches",
     highlights: [
       "104 matches from June 11 – July 19",
