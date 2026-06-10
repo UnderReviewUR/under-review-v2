@@ -4610,8 +4610,9 @@ ${themeCss}
               display: "flex",
               alignItems: "center",
               gap: 10,
-              flex: 1,
+              flex: "1 1 auto",
               minWidth: 0,
+              overflow: "visible",
             }}
           >
             {navHistory.length > 0 && (
@@ -4634,7 +4635,8 @@ ${themeCss}
               </button>
             )}
             <div className="wordmark" onClick={goHome}>
-              <span className="logo-review">UnderReview</span>
+              <span className="logo-under">Under</span>
+              <span className="logo-review">Review</span>
             </div>
           </div>
           <div

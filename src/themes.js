@@ -382,13 +382,22 @@ export const THEMES = {
         font-family: 'Epilogue', sans-serif;
       }
 
+      .theme-epilogue .logo-under {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        color: #fff;
+        -webkit-text-fill-color: #fff;
+      }
+
       .theme-epilogue .logo-review {
         font-family: 'Epilogue', sans-serif;
-        font-size: 28px;
-        font-weight: 900;
-        letter-spacing: -1px;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
         line-height: 1;
-        background: linear-gradient(90deg, #ffffff 0%, #ffffff 30%, #00F5E9 55%, #FF2D6B 100%);
+        background: linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;

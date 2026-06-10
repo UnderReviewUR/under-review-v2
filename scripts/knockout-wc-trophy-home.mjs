@@ -25,8 +25,8 @@ for (let i = 0; i < data.length; i += 4) {
   const lum = Math.max(r, g, b);
   const chroma = Math.max(r, g, b) - Math.min(r, g, b);
   // Near-black studio backdrop: low luminance and little color.
-  if (lum < 28 && chroma < 24) data[i + 3] = 0;
-  else if (lum < 52 && chroma < 32) data[i + 3] = Math.round(((lum - 28) / 24) * 255);
+  if (lum < 36 && chroma < 28) data[i + 3] = 0;
+  else if (lum < 64 && chroma < 36) data[i + 3] = Math.round(((lum - 36) / 28) * 255);
 }
 
 let minX = info.width;
