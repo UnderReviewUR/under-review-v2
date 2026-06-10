@@ -11,7 +11,10 @@ import {
   classifyWcAdvancementMarket,
   WC_ADVANCEMENT_MARKET,
 } from "./wcAdvancementMarket.js";
-import { isWcCrossGroupMispriceQuestion } from "./wcTakeRetentionQA.js";
+import {
+  isWcCrossGroupMispriceQuestion,
+  buildWcSimAttributionLabel,
+} from "./wcTakeRetentionQA.js";
 import { computeGroupMispriceRankings } from "./wcGroupMispriceRanking.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 
@@ -306,12 +309,14 @@ export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
  * }} [opts]
  */
 export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
+  const question = String(opts.question || "");
+  const mispriceQ = isWcCrossGroupMispriceQuestion(question);
   const ranked = computeGroupMispriceRankings({
     teamStats: opts.teamStats,
     bdlFutures: opts.bdlFutures,
-    question: opts.question || "",
+    question,
     nowMs: opts.nowMs,
-    topN: 1,
+    topN: mispriceQ ? 2 : 1,
   });
   if (!ranked.length) {
     return buildWcGroupSlatePrebuiltStructured({
@@ -328,12 +333,35 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
     priceRow?.americanDisplay ||
     (priceRow?.american != null ? String(priceRow.american) : null);
 
-  return buildWcGroupSlatePrebuiltStructured({
+  const base = buildWcGroupSlatePrebuiltStructured({
     groupLetter: top.group,
     pickAbbr: top.teamAbbr,
     pickMarket: "to advance",
     advanceOdds,
   });
+  if (!base || !mispriceQ || ranked.length < 2) return base;
+
+  const second = ranked[1];
+  const simLabel = buildWcSimAttributionLabel(opts.bdlFutures?.lastUpdated, opts.nowMs);
+  const deltaTop = `${top.delta >= 0 ? "+" : ""}${top.delta.toFixed(1)}pt`;
+  const deltaSecond = `${second.delta >= 0 ? "+" : ""}${second.delta.toFixed(1)}pt`;
+  const comp = getWcGroupComposition(top.group);
+  const longList = comp?.longshots?.map((t) => t.name).join(" and ") || "the longshots";
+  const fav = comp?.favorite?.name || "the favorite";
+  const cont = comp?.contender?.name || top.teamAbbr;
+
+  return {
+    ...base,
+    call: `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`.slice(0, 100),
+    lean: `Lean: Group ${top.group} — ${top.teamAbbr} advancement misprice (${deltaTop} sim vs market).`.slice(
+      0,
+      120,
+    ),
+    whyNow: `${simLabel} #1 Group ${top.group} (${top.teamAbbr} sim ${top.simPct.toFixed(1)}% vs market ${top.impliedPct.toFixed(1)}%, ${deltaTop}). Runner-up Group ${second.group} (${second.teamAbbr}, ${deltaSecond}). Group ${top.group}: ${fav} (Favorite), ${cont} (Contender), ${longList} (Longshots).`.slice(
+      0,
+      400,
+    ),
+  };
 }
 
 /**

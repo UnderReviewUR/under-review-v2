@@ -117,6 +117,8 @@ import {
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
+import { resolveWcTournamentSimForPrompt } from "../_wcTournamentSimData.js";
+import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import {
   isGoldenEvalMode,
   resolveGoldenEvalAnthropicResponse,
@@ -2601,6 +2603,8 @@ export default async function handler(req, res) {
   let f1Context =
     sportSwitched && sportHint !== "f1" ? null : f1ContextFromClient;
   let wcContext = null;
+  /** @type {import("../../shared/wcGroupComposition.js").ReturnType<typeof buildWcCrossGroupValuePrebuiltStructured> | null} */
+  let wcCrossGroupPrebuiltEarly = null;
   /** @type {{ wcIntent: string | null, mentionedTeams: string[], requiredEntities: string[], knockoutRulesInjected: boolean, structuralEdgeInjected: boolean, playerPropDetected: boolean, wcEventId: string | null, qaEntityMatch: string | null, qaIntentMatch: string | null, qaPlayerMatch: string | null }} */
   const wcRelevanceLog = {
     wcIntent: null,
@@ -2650,15 +2654,57 @@ export default async function handler(req, res) {
     const sessionEntities = extractSessionWcEntities(incomingHistory);
     const reqSet = new Set(wcRequiredEntities);
     wcForbiddenEntities = sessionEntities.filter((e) => !reqSet.has(e));
-    try {
-      wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
-        wcIntent,
-        requiredEntities: wcRequiredEntities,
-        injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
-        wcEventId: wcEventIdTrimmed,
-      });
-    } catch (err) {
-      console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
+    const wcCrossGroupCandidate =
+      shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
+      !isWcPlayerMarketIntent(wcIntent);
+    if (wcCrossGroupCandidate) {
+      try {
+        const nowMs = Date.now();
+        const [simResolved, bdlFutures] = await Promise.all([
+          resolveWcTournamentSimForPrompt({
+            groups: {},
+            matches: [],
+            question: String(question || ""),
+            mentionedTeams: wcRequiredEntities,
+            nowMs,
+          }),
+          readBdlLiveFuturesFromKv(nowMs).catch(() => null),
+        ]);
+        wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
+          teamStats: simResolved?.simResults?.teamStats,
+          bdlFutures,
+          question: String(question || ""),
+          nowMs,
+        });
+      } catch (crossErr) {
+        console.warn("[ur-take] cross-group prebuilt resolve failed:", crossErr?.message);
+        wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
+          question: String(question || ""),
+        });
+      }
+    }
+    if (!wcCrossGroupPrebuiltEarly) {
+      try {
+        wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
+          wcIntent,
+          requiredEntities: wcRequiredEntities,
+          injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
+          wcEventId: wcEventIdTrimmed,
+        });
+      } catch (err) {
+        console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
+      }
+    } else {
+      wcContext = {
+        source: "worldcup_cross_group_prebuilt",
+        promptBlock: "",
+        phase: "PRE_GROUP",
+        tournamentSimResults: null,
+        groups: {},
+        groupMispriceTopGroups: wcCrossGroupPrebuiltEarly?.groupLetter
+          ? [wcCrossGroupPrebuiltEarly.groupLetter]
+          : ["K"],
+      };
     }
     wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
@@ -4951,6 +4997,26 @@ You are responding to a Pro subscriber. Apply the following:
     }
 
     if (
+      sportHint === "worldcup" &&
+      !wcPlayerMarketPassUsed &&
+      wcCrossGroupPrebuiltEarly
+    ) {
+      structuredResponse = wcCrossGroupPrebuiltEarly;
+      responseText = `${wcCrossGroupPrebuiltEarly.lean}\n\n${wcCrossGroupPrebuiltEarly.whyNow}`;
+      responseDeep = null;
+      responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+      wcGroupSlatePassUsed = true;
+      console.log(
+        JSON.stringify({
+          event: "ur_take_wc_cross_group_value_pass",
+          sport: "worldcup",
+          wcIntent,
+          groupLetter: wcCrossGroupPrebuiltEarly.groupLetter,
+          pickAbbr: wcCrossGroupPrebuiltEarly.groupLetter,
+          early: true,
+        }),
+      );
+    } else if (
       sportHint === "worldcup" &&
       !wcPlayerMarketPassUsed &&
       shouldUseWcCrossGroupValuePrebuilt(String(question || ""), wcIntent)

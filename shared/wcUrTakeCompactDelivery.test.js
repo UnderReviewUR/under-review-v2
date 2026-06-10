@@ -103,6 +103,19 @@ test("buildWcCompactStructured — watch for does not recycle whyNow tail", () =
   assert.ok(!/62% — market implies 52%/.test(s.edge) || /Watch for/i.test(s.edge));
 });
 
+test("buildWcCompactStructured — educational betting primer skips Pass lean", () => {
+  const s = buildWcCompactStructured({
+    question: "how do i even bet on the world cup? like what's the easiest thing to understand",
+    wcIntent: WC_INTENT.GENERAL,
+    summary:
+      "Start with group-stage moneylines or both-teams-to-advance bets — they're the easiest entry point.",
+    deep:
+      "Mexico vs South Africa is the opener. Tournament winner is simpler if you want one long swing. Avoid player props until you know lineups.",
+  });
+  assert.doesNotMatch(s.lean, /Pass — no actionable line/i);
+  assert.match(s.lean, /group-stage moneylines|both-teams-to-advance/i);
+});
+
 test("formatWcCompactDisplayText — no section headers", () => {
   const text = formatWcCompactDisplayText(
     {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWcGroupSlatePrebuiltStructured,
+  buildWcCrossGroupValuePrebuiltStructured,
   detectWcGroupMathMismatch,
   detectWcGroupRosterMismatch,
   formatWcGroupCompositionPromptBlock,
@@ -88,6 +89,28 @@ test("runWcUrTakeQA — group math mismatch triggers regeneration", () => {
   });
   assert.ok(qa.issueCodes.includes("wc_group_math_mismatch"));
   assert.equal(wcQaRequiresRegeneration(qa), true);
+});
+
+test("buildWcCrossGroupValuePrebuiltStructured — misprice question cites runner-up", () => {
+  const pre = buildWcCrossGroupValuePrebuiltStructured({
+    question: "Which group is most mispriced for advancement — name #1 and runner-up?",
+    teamStats: {
+      COL: { advancePct: 72 },
+      PAR: { advancePct: 55 },
+    },
+    bdlFutures: {
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          COL: { american: 150 },
+          PAR: { american: -110 },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.match(pre.whyNow || "", /Runner-up/i);
+  assert.match(pre.whyNow || "", /Group K/i);
 });
 
 test("prebuilt Group D copy names all four tiers correctly", () => {
