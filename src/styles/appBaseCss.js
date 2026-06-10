@@ -2686,6 +2686,25 @@ export const baseCss = `
     font-size:16px;
     font-weight:700;
   }
+  .wc-premium-featured--skeleton{
+    pointer-events:none;
+    cursor:default;
+    box-shadow:none;
+    min-height:220px;
+  }
+  .wc-premium-featured__skel{
+    border-radius:8px;
+    background:linear-gradient(90deg,rgba(28,24,20,0.08) 0%,rgba(28,24,20,0.14) 50%,rgba(28,24,20,0.08) 100%);
+    background-size:200% 100%;
+    animation:wc-skel-shimmer 1.4s ease-in-out infinite;
+  }
+  .wc-premium-featured__skel--label{height:12px;width:72px;margin-bottom:16px;}
+  .wc-premium-featured__skel--teams{height:72px;margin-bottom:14px;}
+  .wc-premium-featured__skel--meta{height:44px;}
+  @keyframes wc-skel-shimmer{
+    0%{background-position:200% 0;}
+    100%{background-position:-200% 0;}
+  }
   .wc-ask-shell--premium{margin:0 0 14px;}
   .wc-ask-shell--premium .ask-wrap--home{margin:0;}
   .wc-ask-shell--premium .ask-home-hero-frame{

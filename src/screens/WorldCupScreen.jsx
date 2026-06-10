@@ -492,7 +492,7 @@ export default function WorldCupScreen({
             <span className="wc-header-premium__diamond" aria-hidden="true" />
             <p className="wc-header-premium__tagline">{WC_PREMIUM_TAGLINE}</p>
             <h1 className="wc-header-premium__title">World Cup 2026</h1>
-            {!featuredMatch ? (
+            {!featuredMatch && !wcLoading ? (
               <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>
             ) : null}
           </header>
@@ -505,7 +505,13 @@ export default function WorldCupScreen({
             />
           ) : null}
 
-          {!wcLoading && featuredMatch ? (
+          {wcLoading ? (
+            <div className="wc-premium-featured wc-premium-featured--skeleton" aria-hidden="true">
+              <div className="wc-premium-featured__skel wc-premium-featured__skel--label" />
+              <div className="wc-premium-featured__skel wc-premium-featured__skel--teams" />
+              <div className="wc-premium-featured__skel wc-premium-featured__skel--meta" />
+            </div>
+          ) : featuredMatch ? (
             <WcPremiumFeaturedMatch
               match={featuredMatch.match}
               kicker={featuredMatch.kicker}
@@ -531,7 +537,7 @@ export default function WorldCupScreen({
             </div>
           ) : null}
 
-          {!wcLoading && starterPrompts.length > 0 && wcMsgs.length === 0 ? (
+          {starterPrompts.length > 0 && wcMsgs.length === 0 ? (
             <section className="wc-ask-starters" aria-label="Suggested questions">
               {starterPrompts.map((q) => (
                 <button key={q} type="button" className="wc-ask-starter" onClick={() => submitWc(q)}>
