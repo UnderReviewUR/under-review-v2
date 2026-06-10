@@ -117,7 +117,7 @@ import {
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
-import { resolveWcTournamentSimForPrompt } from "../_wcTournamentSimData.js";
+import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import {
   isGoldenEvalMode,
@@ -2660,18 +2660,12 @@ export default async function handler(req, res) {
     if (wcCrossGroupCandidate) {
       try {
         const nowMs = Date.now();
-        const [simResolved, bdlFutures] = await Promise.all([
-          resolveWcTournamentSimForPrompt({
-            groups: {},
-            matches: [],
-            question: String(question || ""),
-            mentionedTeams: wcRequiredEntities,
-            nowMs,
-          }),
+        const [simRow, bdlFutures] = await Promise.all([
+          readWcTournamentSimFromKv(undefined, nowMs).catch(() => null),
           readBdlLiveFuturesFromKv(nowMs).catch(() => null),
         ]);
         wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
-          teamStats: simResolved?.simResults?.teamStats,
+          teamStats: simRow?.teamStats,
           bdlFutures,
           question: String(question || ""),
           nowMs,
@@ -4586,7 +4580,7 @@ Rules:
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
-  } else if (sportHint === "worldcup" && wcContext?.promptBlock) {
+  } else if (sportHint === "worldcup" && (wcContext?.promptBlock || wcCrossGroupPrebuiltEarly)) {
     const wcTurnScopeBlock = buildWcTurnScopeBlock(routingQuestion, wcIntent);
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
     const priceBindingBlock = buildPriceBindingPromptBlock(
