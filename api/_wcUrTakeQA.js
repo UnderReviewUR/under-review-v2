@@ -16,7 +16,7 @@ import {
   extractKnownPlayerNamesFromKv,
   responseMentionsKnownPlayer,
 } from "../shared/wcPlayerMarketResolve.js";
-import { detectWcGroupMathMismatch } from "../shared/wcGroupComposition.js";
+import { detectWcGroupMathMismatch, detectWcGroupRosterMismatch } from "../shared/wcGroupComposition.js";
 import { isWcGroupSlateQuestion } from "../shared/wcUrTakeIntent.js";
 import { isTournamentWinnerQuestion } from "../shared/wcPhaseUtils.js";
 import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
@@ -203,6 +203,13 @@ export function runWcUrTakeQA(opts = {}) {
     const groupMath = detectWcGroupMathMismatch(body, null);
     if (groupMath?.issues?.length) {
       issueCodes.push("wc_group_math_mismatch");
+    }
+  }
+
+  if (wcIntent !== WC_INTENT.RULES) {
+    const rosterMismatch = detectWcGroupRosterMismatch(body);
+    if (rosterMismatch?.issues?.length) {
+      issueCodes.push("wc_group_roster_mismatch");
     }
   }
 
@@ -461,6 +468,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_player_missing_names",
       "wc_player_odds_uncited",
       "wc_group_math_mismatch",
+      "wc_group_roster_mismatch",
       "wc_group_winner_outright_bleed",
       "wc_cross_sport_golfer_bleed",
       "wc_card_missing_watch_for",
@@ -503,6 +511,14 @@ WC GROUP MATH QA (mandatory — prior answer miscounted group tiers):
 - Group D example (binding): Türkiye = Favorite · Paraguay = Contender · Australia and USA = Longshots (two only).
 - Never say "three longshots" or list three longshot teams for a four-team group.
 - When describing a group, name all four teams with correct Favorite / Contender / Longshot tags from VERIFIED CONTEXT.`;
+
+export const WC_GROUP_ROSTER_QA_SUFFIX = `
+
+WC GROUP ROSTER QA (mandatory — prior answer listed a team in the wrong group):
+- Each group has exactly FOUR teams — use GROUP BINDING blocks and GROUPS in VERIFIED CONTEXT only.
+- Group K (binding): Portugal (Favorite), Colombia (Contender), Uzbekistan and DR Congo (Longshots) — Austria is Group J, NOT Group K.
+- Never substitute a team from another group when describing group opponents.
+- When citing Group X, name only the four teams assigned to Group X in VERIFIED CONTEXT.`;
 
 export const WC_PLAYER_MARKET_QA_SUFFIX = `
 

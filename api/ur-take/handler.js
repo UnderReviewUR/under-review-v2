@@ -127,6 +127,7 @@ import {
   runWcUrTakeQA,
   wcQaRequiresRegeneration,
   WC_GROUP_MATH_QA_SUFFIX,
+  WC_GROUP_ROSTER_QA_SUFFIX,
   WC_GROUP_WINNER_QA_SUFFIX,
   WC_PLAYER_MARKET_QA_SUFFIX,
   WC_QA_REGENERATION_SUFFIX,
@@ -200,8 +201,9 @@ import {
 import { buildWcPlayerMarketPrebuiltStructured } from "../../shared/wcPlayerMarketResolve.js";
 import {
   buildWcGroupSlatePrebuiltStructured,
+  buildWcGroupBindingPromptBlocks,
   extractGroupLetterFromQuestion,
-  formatWcGroupCompositionPromptBlock,
+  resolveWcGroupLettersForPrompt,
   shouldUseWcGroupSlatePrebuilt,
 } from "../../shared/wcGroupComposition.js";
 import {
@@ -4547,11 +4549,13 @@ Confidence guidance:
       wcPlayerMarketResolved?.promptAppendix && !wcPlayerMarketResolved.forcePass
         ? `${wcPlayerMarketResolved.promptAppendix}\n\n`
         : "";
-    const wcGroupLetterForPrompt =
-      extractGroupLetterFromQuestion(String(question || "")) ||
-      (isWcGroupSlateQuestion(routingQuestion) ? "D" : null);
-    const wcGroupCompositionBlock = wcGroupLetterForPrompt
-      ? `${formatWcGroupCompositionPromptBlock(wcGroupLetterForPrompt)}\n\n`
+    const wcGroupLettersForPrompt = resolveWcGroupLettersForPrompt(routingQuestion, {
+      wcIntent,
+      mentionedTeams: wcRequiredEntities,
+      topMispriceGroups: wcContext?.groupMispriceTopGroups || null,
+    });
+    const wcGroupCompositionBlock = wcGroupLettersForPrompt.length
+      ? `${buildWcGroupBindingPromptBlocks(wcGroupLettersForPrompt)}\n\n`
       : "";
     const wcRoleLine = isWcRulesIntent
       ? "You are answering a factual 2026 FIFA World Cup rules question."
@@ -5016,6 +5020,10 @@ You are responding to a Pro subscriber. Apply the following:
             }${
               prevQaCriticalCodes.includes("wc_group_math_mismatch")
                 ? WC_GROUP_MATH_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_group_roster_mismatch")
+                ? WC_GROUP_ROSTER_QA_SUFFIX
                 : ""
             }${
               prevQaCriticalCodes.includes("wc_group_winner_outright_bleed")

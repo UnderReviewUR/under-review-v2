@@ -120,7 +120,7 @@ const STRUCTURAL_SIGNAL_RE =
 
 /** Group-stage / slate picks — never treat as Golden Boot continuation. */
 const WC_GROUP_SLATE_RE =
-  /\b(best|top|safest|sharp|value|single)\b.*\b(group\s*stage|group\s*winner|group\s*winners|to advance|advancement|advance)\b/i;
+  /\b(best|top|safest|sharp|value|single)\b.*\b(group[\s-]*stage|group[\s-]*winner|group[\s-]*winners|to advance|advancement|advance)\b/i;
 
 /**
  * @param {string} question
@@ -129,7 +129,7 @@ export function isWcGroupSlateQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
   if (WC_GOLDEN_BOOT_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) return false;
-  return WC_GROUP_SLATE_RE.test(q) || /\bgroup\s*stage\s*bet\b/i.test(q);
+  return WC_GROUP_SLATE_RE.test(q) || /\bgroup[\s-]*stage\s*bet\b/i.test(q);
 }
 
 const CONTINUATION_SIGNAL_RE =

@@ -3,8 +3,10 @@ import test from "node:test";
 import {
   buildWcGroupSlatePrebuiltStructured,
   detectWcGroupMathMismatch,
+  detectWcGroupRosterMismatch,
   formatWcGroupCompositionPromptBlock,
   getWcGroupComposition,
+  resolveWcGroupLettersForPrompt,
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
@@ -27,6 +29,38 @@ test("detectWcGroupMathMismatch — three longshots with two named fails", () =>
     "Paraguay in Group D offers value. Contender-tier strength facing a Favorite (Türkiye) and three Longshots (Australia, USA).";
   const m = detectWcGroupMathMismatch(bad, "D");
   assert.ok(m?.issues?.some((i) => i.code === "wc_group_longshot_count"));
+});
+
+test("detectWcGroupRosterMismatch — Austria wrongly listed in Group K fails", () => {
+  const bad =
+    "Group K features Portugal (Favorite) as the clear leader, but Austria, Uzbekistan, and DR Congo are all beatable.";
+  const m = detectWcGroupRosterMismatch(bad);
+  assert.ok(m?.issues?.some((i) => i.code === "wc_group_roster_mismatch" && i.team === "AUT"));
+});
+
+test("runWcUrTakeQA — wrong group roster triggers regeneration", () => {
+  const bad =
+    "Colombia at +4000 is the best group-stage value. Group K features Portugal, Austria, Uzbekistan, and DR Congo.";
+  const qa = runWcUrTakeQA({
+    responseText: bad,
+    structured: {
+      call: "Colombia at +4000 — best group-stage value.",
+      whyNow: bad,
+    },
+    question: "What's the best group-stage value bet right now?",
+    wcIntent: WC_INTENT.STRUCTURAL,
+  });
+  assert.ok(qa.issueCodes.includes("wc_group_roster_mismatch"));
+  assert.equal(wcQaRequiresRegeneration(qa), true);
+});
+
+test("resolveWcGroupLettersForPrompt — cross-group value injects all groups", () => {
+  const letters = resolveWcGroupLettersForPrompt(
+    "What's the best group-stage value bet right now?",
+    { wcIntent: WC_INTENT.STRUCTURAL },
+  );
+  assert.equal(letters.length, 12);
+  assert.ok(letters.includes("K"));
 });
 
 test("runWcUrTakeQA — group math mismatch triggers regeneration", () => {
@@ -70,7 +104,7 @@ test("formatWcGroupCompositionPromptBlock binds four teams", () => {
   assert.match(block, /Never say "three longshots"/i);
 });
 
-test("shouldUseWcGroupSlatePrebuilt — broad value question", () => {
+test("shouldUseWcGroupSlatePrebuilt — broad cross-group value defers to model", () => {
   assert.equal(
     shouldUseWcGroupSlatePrebuilt(
       "What's the best group-stage value bet on the board?",

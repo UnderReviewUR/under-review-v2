@@ -181,6 +181,100 @@ export function detectWcGroupMathMismatch(text, groupLetter) {
   return issues.length ? { letter: comp.letter, issues } : null;
 }
 
+const GROUP_ROSTER_WINDOW_CHARS = 700;
+
+/**
+ * Detect WC teams named inside a Group X window whose canonical group differs.
+ * @param {string} text
+ */
+export function detectWcGroupRosterMismatch(text) {
+  const blob = String(text || "");
+  const groupMentions = [...blob.matchAll(/\bgroup\s+([a-l])\b/gi)];
+  if (!groupMentions.length) return null;
+
+  /** @type {Array<{ code: string, team: string, statedGroup: string, actualGroup: string | null }>} */
+  const issues = [];
+
+  for (const match of groupMentions) {
+    const statedGroup = String(match[1]).toUpperCase();
+    const comp = getWcGroupComposition(statedGroup);
+    if (!comp) continue;
+
+    const canonicalAbbrs = new Set(
+      comp.teams.map((t) => String(t.abbreviation).toUpperCase()),
+    );
+    const idx = match.index ?? 0;
+    const windowEnd = Math.min(blob.length, idx + GROUP_ROSTER_WINDOW_CHARS);
+    const window = blob.slice(idx, windowEnd);
+    const mentioned = extractMentionedWcTeams(window);
+
+    for (const abbr of mentioned) {
+      if (canonicalAbbrs.has(abbr)) continue;
+      const actualGroup = wcGroupLetterForTeam(abbr);
+      issues.push({
+        code: "wc_group_roster_mismatch",
+        team: abbr,
+        statedGroup,
+        actualGroup,
+      });
+    }
+  }
+
+  return issues.length ? { issues } : null;
+}
+
+/**
+ * @param {string[]} letters
+ */
+export function buildWcGroupBindingPromptBlocks(letters) {
+  const unique = [
+    ...new Set(
+      (letters || [])
+        .map((l) => String(l || "").trim().toUpperCase().slice(0, 1))
+        .filter((l) => GROUP_LETTERS.includes(l)),
+    ),
+  ].sort();
+
+  return unique.map((letter) => formatWcGroupCompositionPromptBlock(letter)).filter(Boolean).join("\n\n");
+}
+
+/**
+ * Which group letters need binding composition blocks in the model prompt.
+ * @param {string} question
+ * @param {{
+ *   wcIntent?: string,
+ *   mentionedTeams?: string[],
+ *   topMispriceGroups?: string[],
+ * }} [opts]
+ */
+export function resolveWcGroupLettersForPrompt(question, opts = {}) {
+  const q = String(question || "").trim();
+  const explicit = extractGroupLetterFromQuestion(q);
+  if (explicit) return [explicit];
+
+  const fromTeams = (opts.mentionedTeams || [])
+    .map((abbr) => wcGroupLetterForTeam(String(abbr)))
+    .filter(Boolean);
+
+  if (fromTeams.length) {
+    return [...new Set(fromTeams)];
+  }
+
+  const crossGroup =
+    isWcGroupSlateQuestion(q) ||
+    /\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(q) ||
+    /\bgroup[\s-]*stage\s+value\b/i.test(q);
+
+  if (crossGroup || opts.wcIntent === WC_INTENT.STRUCTURAL) {
+    if (Array.isArray(opts.topMispriceGroups) && opts.topMispriceGroups.length) {
+      return [...new Set([...opts.topMispriceGroups, ...GROUP_LETTERS])].sort();
+    }
+    return GROUP_LETTERS;
+  }
+
+  return [];
+}
+
 /**
  * Flagship group-slate pick when the board question is broad (no other group lock).
  * @param {string} question
@@ -200,8 +294,7 @@ export function shouldUseWcGroupSlatePrebuilt(question, wcIntent) {
   if (mentioned.length > 0 && !mentioned.includes("PAR")) return false;
 
   return (
-    /\b(best|top|cleanest|mispriced)\b.*\b(group[\s-]*stage|advancement|advance)\b/i.test(q) ||
-    /\bgroup[\s-]*stage\s+value\b/i.test(q) ||
+    /\bbest value to advance from the group[\s-]*stage\b/i.test(q) ||
     /\bmispriced\s+longshot\b/i.test(q) ||
     (mentioned.length === 1 && mentioned[0] === "PAR")
   );

@@ -117,7 +117,9 @@ export function isWcCrossGroupMispriceQuestion(question) {
   if (isWcGroupPathMispriceQuestion(q)) return false;
   return (
     /\b(most mispriced|mispriced).*(?:group|groups)\b/i.test(q) ||
-    /\bwhich (?:world cup )?group\b/i.test(q)
+    /\bwhich (?:world cup )?group\b/i.test(q) ||
+    /\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(q) ||
+    /\bgroup[\s-]*stage\s+value\b/i.test(q)
   );
 }
 

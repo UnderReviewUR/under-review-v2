@@ -49,7 +49,7 @@ import { buildWcUsmntMediaContextBlock } from "../shared/wcUsmntMediaContext.js"
 import { buildGoalWcEditorialPromptBlock } from "../shared/goalEditorialPrompt.js";
 import { readGoalEditorialFromKv } from "./_goalBettingData.js";
 import { buildWcAdvancementMarketPromptBlock } from "../shared/wcAdvancementMarket.js";
-import { formatGroupMispriceContextBlock } from "../shared/wcGroupMispriceRanking.js";
+import { formatGroupMispriceContextBlock, computeGroupMispriceRankings } from "../shared/wcGroupMispriceRanking.js";
 import {
   WC_COMPARATIVE_PROOF_PROMPT,
   WC_DEDUP_PROMPT,
@@ -981,6 +981,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   }
 
   let groupMispriceBlock = null;
+  /** @type {string[] | null} */
+  let groupMispriceTopGroups = null;
   try {
     if (tournamentSimResults?.teamStats) {
       groupMispriceBlock = formatGroupMispriceContextBlock({
@@ -990,6 +992,16 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         simLastUpdated: tournamentSimResults.lastUpdated,
         nowMs,
       });
+      const ranked = computeGroupMispriceRankings({
+        teamStats: tournamentSimResults.teamStats,
+        bdlFutures: bdlPayloadForRanking,
+        question,
+        nowMs,
+        topN: 3,
+      });
+      if (ranked.length) {
+        groupMispriceTopGroups = ranked.map((row) => row.group);
+      }
     }
   } catch (rankErr) {
     console.warn("[wc-context] group misprice ranking failed:", rankErr?.message);
@@ -1001,6 +1013,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     advancementMarketBlock,
     bdlFuturesBlock,
     groupMispriceBlock,
+    groupMispriceTopGroups,
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     dateRange: "June 11 — July 19, 2026",
