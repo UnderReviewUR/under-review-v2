@@ -18,6 +18,15 @@ test("classifyNbaQuestionIntent — distinguishes series vs MVP", () => {
   );
 });
 
+test("classifyNbaQuestionIntent — predictions roundup multi-slot", () => {
+  assert.equal(
+    classifyNbaQuestionIntent(
+      "Give me your NBA Finals predictions — series favorites, breakout player, and best scoring prop",
+    ),
+    NBA_INTENT.PREDICTIONS_ROUNDUP,
+  );
+});
+
 test("classifyNbaQuestionIntent — Game 3 pregame vs live false positives", () => {
   assert.equal(
     classifyNbaQuestionIntent("Who covers the spread in Game 3?"),

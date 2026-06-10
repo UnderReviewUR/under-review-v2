@@ -134,6 +134,7 @@ import {
   WC_GROUNDING_REGEN_SUFFIX,
   WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX,
   WC_ROUNDUP_SCORER_LEAN_CONTRADICTION_QA_SUFFIX,
+  WC_ROUNDUP_UNNAMED_MARKET_ODDS_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
@@ -158,6 +159,12 @@ import {
   NBA_INTENT,
   resolveRequiredNbaEntities,
 } from "../../shared/nbaUrTakeIntent.js";
+import { NBA_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/nbaPredictionsRoundup.js";
+import {
+  nbaPredictionsRoundupQaRequiresRegeneration,
+  NBA_PREDICTIONS_ROUNDUP_QA_SUFFIX,
+  runNbaPredictionsRoundupQA,
+} from "../_nbaPredictionsRoundupQA.js";
 import {
   formatNbaOutrightsForPrompt,
   nbaOutrightsInjectedForContext,
@@ -2580,6 +2587,7 @@ export default async function handler(req, res) {
   let nbaClientContextIgnored = false;
   let nbaFinalsOutrightsBlock = null;
   let nbaFinalsContextBlock = null;
+  let nbaIntentForHandler = null;
   /** @type {{ finalsMode: boolean, seriesState: object | null }} */
   let nbaFinalsModeMeta = { finalsMode: false, seriesState: null };
   /** @type {{ outrightsInjected: boolean, seriesStale: boolean, mvpStale: boolean, seriesAgeMinutes: number | null, mvpAgeMinutes: number | null } | null} */
@@ -3054,7 +3062,7 @@ export default async function handler(req, res) {
     sportHint === "nba" ? resolveNbaMatchupFromQuestion(question, nbaContext || {}) : null;
 
   if (sportHint === "nba") {
-    const nbaIntentForFinals = classifyNbaQuestionIntent(
+    nbaIntentForHandler = classifyNbaQuestionIntent(
       String(question || ""),
       incomingHistory,
     );
@@ -3062,7 +3070,7 @@ export default async function handler(req, res) {
       nbaContext,
       nbaMatchup,
       question: String(question || ""),
-      nbaIntent: nbaIntentForFinals,
+      nbaIntent: nbaIntentForHandler,
     });
     nbaFinalsModeMeta = {
       finalsMode: finalsCtxFinal.finalsMode,
@@ -3923,7 +3931,9 @@ Rule: Do not give false certainty. Keep any take contingent on confirmed status.
       nbaContextForModel?.focusedSeriesSnapshot?.serverSummaryOneLiner
         ? `FOCUSED PLAYOFF SERIES (board-verified — mirror this in series framing; do not invent wins/game number)\n${nbaContextForModel.focusedSeriesSnapshot.serverSummaryOneLiner}\n\n`
         : ""
-    }${nbaFinalsContextBlock ? `${nbaFinalsContextBlock}\n` : ""}${nbaFinalsOutrightsBlock ? `${nbaFinalsOutrightsBlock}\n\n` : ""}NBA context:
+    }${nbaFinalsContextBlock ? `${nbaFinalsContextBlock}\n` : ""}${nbaFinalsOutrightsBlock ? `${nbaFinalsOutrightsBlock}\n\n` : ""}${
+      nbaIntentForHandler === NBA_INTENT.PREDICTIONS_ROUNDUP ? `${NBA_PREDICTIONS_ROUNDUP_PROMPT}\n\n` : ""
+    }NBA context:
 ${contextJsonForModel(nbaContextForModel)}
 ${buildNbaPropsFreshnessPromptBlock(resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
 ${buildNbaKeyPropsLinesPromptBlock(nbaContextForModel, resolveNbaPropsOddsForPrompt(nbaContextForModel, nbaMatchup))}
@@ -5026,7 +5036,24 @@ You are responding to a Pro subscriber. Apply the following:
               prevQaCriticalCodes.includes("wc_roundup_scorer_lean_contradiction")
                 ? WC_ROUNDUP_SCORER_LEAN_CONTRADICTION_QA_SUFFIX
                 : ""
+            }${
+              prevQaCriticalCodes.includes("wc_roundup_unnamed_market_odds")
+                ? WC_ROUNDUP_UNNAMED_MARKET_ODDS_QA_SUFFIX
+                : ""
             }`
+          : "";
+      const nbaPredictionsRoundupRepairSuffix =
+        sportHint === "nba" &&
+        qaAttempt > 0 &&
+        prevQaCriticalCodes.some((c) =>
+          [
+            "nba_predictions_roundup_incomplete",
+            "nba_roundup_series_championship_bleed",
+            "nba_roundup_unnamed_market_odds",
+            "nba_invented_xg_claim",
+          ].includes(c),
+        )
+          ? NBA_PREDICTIONS_ROUNDUP_QA_SUFFIX
           : "";
       const nbaFinalsStructuredRepairSuffix =
         sportHint === "nba" &&
@@ -5093,7 +5120,7 @@ You are responding to a Pro subscriber. Apply the following:
       let systemForAttempt =
         qaAttempt === 0
           ? systemPromptWithProAppendix
-          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}${wcQaRepairSuffix}${nbaFinalsStructuredRepairSuffix}`;
+          : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}${wcQaRepairSuffix}${nbaPredictionsRoundupRepairSuffix}${nbaFinalsStructuredRepairSuffix}`;
       if (effectiveStructuredModeRequested) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {
@@ -5575,6 +5602,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
 
       wcQaResult = null;
+      let nbaPredictionsRoundupQaResult = null;
       if (sportHint === "worldcup") {
         wcQaResult = runWcUrTakeQA({
           responseText,
@@ -5614,6 +5642,27 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               playerPropDetected: wcRelevanceLog.playerPropDetected,
               regenerationAttempt: qaAttempt,
               headlinePreview: wcQaResult.headlinePreview,
+            }),
+          );
+        }
+      }
+
+      if (sportHint === "nba" && nbaIntentForHandler === NBA_INTENT.PREDICTIONS_ROUNDUP) {
+        const roundupBody = [responseText, responseDeep].filter(Boolean).join("\n");
+        nbaPredictionsRoundupQaResult = runNbaPredictionsRoundupQA({
+          responseText: roundupBody,
+          question: String(question || ""),
+          nbaIntent: nbaIntentForHandler,
+          structured: structuredResponse,
+        });
+        if (!nbaPredictionsRoundupQaResult.passed) {
+          console.log(
+            JSON.stringify({
+              event: "ur_take_nba_predictions_roundup_qa",
+              sport: "nba",
+              nbaIntent: nbaIntentForHandler,
+              issueCodes: nbaPredictionsRoundupQaResult.issueCodes,
+              regenerationAttempt: qaAttempt,
             }),
           );
         }
@@ -5686,6 +5735,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       if (
         (!qaRequiresRegeneration(lastQaPost.qa) &&
           !wcQaRequiresRegeneration(wcQaResult) &&
+          !nbaPredictionsRoundupQaRequiresRegeneration(nbaPredictionsRoundupQaResult) &&
           !nbaFinalsNeedsRegen) ||
         qaAttempt >= 1
       ) {
@@ -5693,6 +5743,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
       if (wcQaRequiresRegeneration(wcQaResult)) {
         prevQaCriticalCodes = [...prevQaCriticalCodes, ...(wcQaResult?.issueCodes || [])];
+      }
+      if (nbaPredictionsRoundupQaRequiresRegeneration(nbaPredictionsRoundupQaResult)) {
+        prevQaCriticalCodes = [
+          ...prevQaCriticalCodes,
+          ...(nbaPredictionsRoundupQaResult?.issueCodes || []),
+        ];
       }
       if (nbaFinalsNeedsRegen) {
         prevQaCriticalCodes = [...prevQaCriticalCodes, "nba_finals_structured_invalid"];

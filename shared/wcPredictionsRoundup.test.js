@@ -24,6 +24,14 @@ test("isWcPredictionsRoundupQuestion — multi-slot prompt", () => {
   assert.ok(isWcPredictionsRoundupQuestion(ROUNDUP_Q));
 });
 
+test("isWcPredictionsRoundupQuestion — paraphrase without emoji labels", () => {
+  const q =
+    "Give me your full tournament predictions — winner, dark horse, breakout player, and Golden Boot";
+  assert.ok(isWcPredictionsRoundupQuestion(q));
+  assert.equal(classifyWcQuestionIntent(q), WC_INTENT.PREDICTIONS_ROUNDUP);
+  assert.equal(expectedWcPredictionSlots(q).length, 4);
+});
+
 test("classifyWcQuestionIntent — roundup beats Golden Boot", () => {
   assert.equal(classifyWcQuestionIntent(ROUNDUP_Q), WC_INTENT.PREDICTIONS_ROUNDUP);
 });

@@ -30,6 +30,21 @@ export const WC_PREDICTION_SLOT_SPECS = [
   },
 ];
 
+const WC_ROUNDUP_SLOT_CUE_RES = [
+  /\bwinners?\b/i,
+  /\bdark\s*horse\b/i,
+  /\bbreakout(?:\s+player)?\b/i,
+  /\btop\s+goalscorers?\b/i,
+  /\bgolden\s+boot\b/i,
+];
+
+/**
+ * @param {string} question
+ */
+export function wcRoundupSlotCueCount(question) {
+  return WC_ROUNDUP_SLOT_CUE_RES.filter((re) => re.test(String(question || ""))).length;
+}
+
 /**
  * @param {string} question
  */
@@ -42,7 +57,17 @@ export function isWcPredictionsRoundupQuestion(question) {
   );
   if (labeledSlots.length >= 2) return true;
 
-  const hasRoundupCue = /\b(predictions?|your picks|hear your|give me your)\b/i.test(q);
+  const hasRoundupCue = /\b(predictions?|your picks|hear your|give me your|tournament predictions)\b/i.test(q);
+  const cueCount = wcRoundupSlotCueCount(q);
+  if (hasRoundupCue && cueCount >= 3) return true;
+  if (
+    hasRoundupCue &&
+    /\bwinners?\b/i.test(q) &&
+    /\bdark\s*horse\b/i.test(q) &&
+    /\b(breakout|goalscorer|golden boot)\b/i.test(q)
+  ) {
+    return true;
+  }
   return hasRoundupCue && labeledSlots.length >= 1 && /\b(winners?|dark\s*horse|breakout|goalscorer)\b/i.test(q);
 }
 
@@ -52,7 +77,12 @@ export function isWcPredictionsRoundupQuestion(question) {
  */
 export function expectedWcPredictionSlots(question) {
   const q = String(question || "").trim();
-  return WC_PREDICTION_SLOT_SPECS.filter((spec) => spec.patterns.some((p) => p.test(q)));
+  const labeled = WC_PREDICTION_SLOT_SPECS.filter((spec) => spec.patterns.some((p) => p.test(q)));
+  if (labeled.length >= 2) return labeled;
+  if (isWcPredictionsRoundupQuestion(q) && wcRoundupSlotCueCount(q) >= 3) {
+    return WC_PREDICTION_SLOT_SPECS;
+  }
+  return labeled;
 }
 
 /**
@@ -133,7 +163,7 @@ export const WC_PREDICTIONS_ROUNDUP_PROMPT = `PREDICTIONS ROUNDUP (mandatory —
 - Put labeled picks in deep using EXACTLY these lines (one complete sentence each, emoji optional):
   Winners: [nation] — thesis in one sentence.
   Dark horse: [nation] — thesis in one sentence with TWO of: bracket/path, playing style (transition/set pieces/low block), market odds (+XXX).
-  Breakout player: [player name] — thesis in one sentence.
+  Breakout player: [player name] — thesis in one sentence. If you cite +XXX, name the market (Golden Boot, scorer prop, etc.) — never "adjusted odds" alone.
   Top goalscorer: [player full name] — thesis + cited odds if in VERIFIED CONTEXT.
 - Top goalscorer MUST name one player (e.g. Mbappé, Haaland, Yamal). Never a vague category ("midfielder hybrid", "board not posted"). If Golden Boot odds are absent, write: "Top goalscorer: Pass until boards post — structurally [Name] tier."
 - Never pick primary creators (Pedri, Rodri, Rice) for Top goalscorer — wrong role. Assist props only.

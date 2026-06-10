@@ -4,8 +4,9 @@
  */
 
 import { extractNbaTeamAbbrevsFromQuestion } from "./nbaTeamFromQuestion.js";
+import { isNbaPredictionsRoundupQuestion } from "./nbaPredictionsRoundup.js";
 
-/** @typedef {"PREGAME_MATCHUP"|"LIVE_IN_GAME"|"SERIES_WINNER"|"FINALS_MVP"|"PROP_PLAYER"|"CONTINUATION"|"GENERAL"|"UNCLASSIFIED"} NbaUrTakeIntent */
+/** @typedef {"PREGAME_MATCHUP"|"LIVE_IN_GAME"|"SERIES_WINNER"|"FINALS_MVP"|"PROP_PLAYER"|"CONTINUATION"|"GENERAL"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} NbaUrTakeIntent */
 
 export const NBA_INTENT = {
   PREGAME_MATCHUP: "PREGAME_MATCHUP",
@@ -16,6 +17,7 @@ export const NBA_INTENT = {
   CONTINUATION: "CONTINUATION",
   /** Default catch-all when no specialized NBA pattern matches. */
   GENERAL: "GENERAL",
+  PREDICTIONS_ROUNDUP: "PREDICTIONS_ROUNDUP",
   UNCLASSIFIED: "UNCLASSIFIED",
 };
 
@@ -67,6 +69,7 @@ export function classifyNbaQuestionIntent(question, history = []) {
   const ql = q.toLowerCase();
   if (!q) return NBA_INTENT.UNCLASSIFIED;
 
+  if (isNbaPredictionsRoundupQuestion(q)) return NBA_INTENT.PREDICTIONS_ROUNDUP;
   if (MVP_SIGNAL_RE.test(ql)) return NBA_INTENT.FINALS_MVP;
   if (SERIES_SIGNAL_RE.test(ql) || (PRICING_SIGNAL_RE.test(ql) && /\b(series|finals)\b/i.test(ql))) {
     return NBA_INTENT.SERIES_WINNER;

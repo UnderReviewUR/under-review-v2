@@ -38,6 +38,49 @@ const NATION_NAME_RE =
 
 const BETTER_VALUE_RE = /\bbetter value\b/i;
 
+/** Cited American prices must name the market — not vague "adjusted odds". */
+const VAGUE_ADJUSTED_ODDS_RE = /\badjusted odds?\b/i;
+
+const NAMED_PLAYER_MARKET_RE =
+  /\b(golden boot|top goalscorer|goalscorer|boot winner|most goals|scorer market|breakout prop|player prop|anytime goal|goals?\b|assists?\b)\b/i;
+
+const NAMED_NATION_MARKET_RE =
+  /\b(tournament winner|world cup winner|win the cup|title|outright|win group|group winner|to advance|make the (final|semis))\b/i;
+
+const AMERICAN_ODDS_RE = /\+\d{3,}/;
+
+/**
+ * @param {string} slotKey
+ * @param {string} value
+ */
+export function detectWcRoundupSlotUnnamedMarketOdds(slotKey, value) {
+  const key = String(slotKey || "");
+  const v = String(value || "").trim();
+  if (!v) return null;
+
+  if (VAGUE_ADJUSTED_ODDS_RE.test(v) && !NAMED_PLAYER_MARKET_RE.test(v) && !NAMED_NATION_MARKET_RE.test(v)) {
+    return { reason: "adjusted_odds_without_market", slot: key };
+  }
+
+  if (key === "breakout" && AMERICAN_ODDS_RE.test(v) && !NAMED_PLAYER_MARKET_RE.test(v)) {
+    return { reason: "breakout_odds_without_market", slot: key };
+  }
+
+  return null;
+}
+
+/**
+ * Roundup slots must not cite +XXX or "adjusted odds" without naming the market type.
+ * @param {Array<{ key: string, value?: string }>} [slots]
+ */
+export function detectWcRoundupUnnamedMarketOdds(slots = []) {
+  for (const slot of slots || []) {
+    const hit = detectWcRoundupSlotUnnamedMarketOdds(slot?.key, slot?.value);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 /**
  * @param {string} summary
  * @param {string} lean

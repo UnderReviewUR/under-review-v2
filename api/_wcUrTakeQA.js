@@ -41,6 +41,7 @@ import {
   detectWcRoundupFairPriceContradiction,
   detectWcRoundupLineMissingMarketOdds,
   detectWcRoundupScorerLeanContradiction,
+  detectWcRoundupUnnamedMarketOdds,
   detectWcWatchForOrphanPronoun,
   isWcRoundupLineMissingDelta,
 } from "../shared/wcRoundupCardQA.js";
@@ -281,6 +282,10 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_roundup_scorer_lean_contradiction");
     }
 
+    if (detectWcRoundupUnnamedMarketOdds(slots || [])) {
+      issueCodes.push("wc_roundup_unnamed_market_odds");
+    }
+
     const leanField = String(structured?.lean || "");
     if (leanField && !isWcValidPlayLine(leanField)) {
       issueCodes.push("wc_play_line_invalid");
@@ -418,6 +423,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_roundup_watch_for_orphan_pronoun",
       "wc_roundup_cross_market_bleed",
       "wc_roundup_scorer_lean_contradiction",
+      "wc_roundup_unnamed_market_odds",
     ].includes(c) ||
     String(c).startsWith("wc_card_incomplete_") ||
     String(c).startsWith("wc_card_truncated_"),
@@ -457,6 +463,13 @@ WC ROUNDUP SCORER LEAN QA (mandatory — Top goalscorer slot contradicted THE PL
 - Top goalscorer slot and THE PLAY lean must name the SAME player when both are picks.
 - Never write "Vinícius is better value" in Top goalscorer while leaning Mbappé in THE PLAY — pick one and align both slots.
 - If you Pass on Golden Boot, say Pass in both the slot line and THE PLAY.`;
+
+export const WC_ROUNDUP_UNNAMED_MARKET_ODDS_QA_SUFFIX = `
+
+WC ROUNDUP MARKET ODDS QA (mandatory — prior answer cited prices without a market):
+- Never write "adjusted odds" or "+XXXX" without naming the market: Golden Boot, top goalscorer, breakout prop, tournament winner, etc.
+- Breakout player slot: use structural role/minutes thesis OR cite Golden Boot / scorer / prop with the exact market label — never "+1815 adjusted odds" alone.
+- Top goalscorer slot may cite +600 when the slot label is clear; still ban vague "adjusted odds" without Golden Boot / goalscorer wording.`;
 
 export const WC_QA_REGENERATION_SUFFIX = `
 

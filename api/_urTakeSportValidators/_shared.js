@@ -38,6 +38,37 @@ const PROB_SUPPORT =
 const VOLATILE_MARKETS =
   /\b(?:home\s+run|HR\b|touchdown|TD\b|anytime\s+goal|goal\s+scorer|first\s+basket|outright|winner\b|fastest\s+lap)\b/i;
 
+/** Non-betting uses of "lock" (lineup lock, rotation lock) — not overconfidence hype. */
+const NON_HYPE_LOCK_RE = /\b(?:lineup|rotation|roster|scorer|minutes|starter)\s+lock\b/i;
+
+/**
+ * @param {string} sentence
+ */
+export function sentenceNegatesOverconfidenceHype(sentence) {
+  const s = String(sentence || "");
+  return (
+    /\bnot\s+(?:a\s+)?guarantee\b/i.test(s) ||
+    /\bno\s+guarantee\b/i.test(s) ||
+    /\bnot\s+guaranteed\b/i.test(s) ||
+    /\bnot\s+(?:a\s+)?lock\b/i.test(s) ||
+    /\bno\s+lock\b/i.test(s) ||
+    /\bnot\s+the\s+lock\b/i.test(s) ||
+    /\bisn['']?t\s+(?:a\s+)?lock\b/i.test(s) ||
+    /\bnot\s+(?:an\s+)?automatic\b/i.test(s) ||
+    /\bnot\s+(?:a\s+)?(?:mortal\s+)?lock\b/i.test(s)
+  );
+}
+
+/**
+ * @param {string} sentence
+ */
+export function sentenceHasOverconfidenceHype(sentence) {
+  const s = String(sentence || "").trim();
+  if (!s || sentenceNegatesOverconfidenceHype(s)) return false;
+  if (NON_HYPE_LOCK_RE.test(s)) return false;
+  return CROSS_SPORT_HYPE.test(s);
+}
+
 /**
  * Cross-sport rules (layer 1–2). Critical only for misleading certainty / floor misuse.
  * @param {string} text
@@ -50,15 +81,11 @@ export function lintCrossSportOutput(text) {
 
   for (const sentence of splitSentences(raw)) {
     if (!sentence.trim()) continue;
-    if (
-      /\bnot\s+(?:a\s+)?guarantee\b/i.test(sentence) ||
-      /\bno\s+guarantee\b/i.test(sentence) ||
-      /\bnot\s+guaranteed\b/i.test(sentence)
-    ) {
+    if (sentenceNegatesOverconfidenceHype(sentence)) {
       continue;
     }
 
-    if (CROSS_SPORT_HYPE.test(sentence) && PROPISH.test(raw)) {
+    if (sentenceHasOverconfidenceHype(sentence) && PROPISH.test(raw)) {
       issues.push({
         code: "cross_sport_overconfidence",
         severity: "critical",

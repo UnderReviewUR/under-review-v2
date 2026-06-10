@@ -4,6 +4,7 @@ import { formatWcKickoffDisplay } from "./wcKickoffDisplay.js";
 import {
   detectWcRoundupCrossMarketBleed,
   detectWcRoundupScorerLeanContradiction,
+  detectWcRoundupUnnamedMarketOdds,
 } from "./wcRoundupCardQA.js";
 import { detectWcScorerRoleMismatch } from "./wcScorerRoleQA.js";
 import { parseWcPredictionSlots } from "./wcPredictionsRoundup.js";
@@ -26,6 +27,20 @@ test("detectWcRoundupCrossMarketBleed — Mbappé PK in Argentina dark horse", (
     "Dark horse: Argentina — softer Group J path, Mbappé's PK taker status adds edge.",
   );
   assert.ok(detectWcRoundupCrossMarketBleed(slots));
+});
+
+test("detectWcRoundupUnnamedMarketOdds — Yamal +1815 adjusted odds without market", () => {
+  const slots = parseWcPredictionSlots(
+    "Breakout player: Lamine Yamal (Spain, age 18) — market treats him as bench depth at +1815 adjusted odds.",
+  );
+  assert.ok(detectWcRoundupUnnamedMarketOdds(slots));
+});
+
+test("detectWcRoundupUnnamedMarketOdds — breakout with Golden Boot label passes", () => {
+  const slots = parseWcPredictionSlots(
+    "Breakout player: Lamine Yamal — Golden Boot +1815 is a lottery ticket, not the base case.",
+  );
+  assert.equal(detectWcRoundupUnnamedMarketOdds(slots), null);
 });
 
 test("detectWcRoundupScorerLeanContradiction — Vinícius better value vs Mbappé lean", () => {
@@ -70,5 +85,6 @@ Top goalscorer: Kylian Mbappé (France) — +600; Vinícius Júnior (Brazil) at 
   assert.ok(qa.issueCodes.includes("wc_roundup_cross_market_bleed"));
   assert.ok(qa.issueCodes.includes("wc_roundup_scorer_lean_contradiction"));
   assert.ok(qa.issueCodes.includes("wc_invented_xg_claim"));
+  assert.ok(qa.issueCodes.includes("wc_roundup_unnamed_market_odds"));
   assert.equal(wcQaRequiresRegeneration(qa), true);
 });
