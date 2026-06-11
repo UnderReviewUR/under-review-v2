@@ -76,6 +76,13 @@ test("shouldUseWcCrossGroupValuePrebuilt — flagship value question", () => {
   );
 });
 
+test("shouldUseWcCrossGroupValuePrebuilt — blocks runner-up follow-up chip", () => {
+  assert.equal(
+    shouldUseWcCrossGroupValuePrebuilt("Which group is the runner-up value?", WC_INTENT.STRUCTURAL),
+    false,
+  );
+});
+
 test("runWcUrTakeQA — group math mismatch triggers regeneration", () => {
   const qa = runWcUrTakeQA({
     responseText:

@@ -1,0 +1,88 @@
+/**
+ * UR Take chat history payload — shared field slice for client → API.
+ */
+
+import { stripUrTakeDeadEndCopy } from "./urTakeSportRouting.js";
+
+/**
+ * @param {string} input
+ */
+export function sanitizeChatHistoryContent(input) {
+  let s = String(input || "").trim();
+  if (!s) return "";
+  s = s.replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "");
+  return stripUrTakeDeadEndCopy(s);
+}
+
+/**
+ * Prose for model history — prefer bubble text, fall back to structured call/lean/why.
+ * @param {object | null | undefined} message
+ */
+export function chatHistoryContentFromMessage(message) {
+  const direct = sanitizeChatHistoryContent(message?.text ?? message?.content ?? "");
+  if (direct) return direct.slice(0, 3500);
+
+  const s = message?.structured;
+  if (!s || typeof s !== "object") return "";
+
+  const fallback = sanitizeChatHistoryContent(
+    [s.call, s.lean, s.whyNow].filter((x) => x != null && String(x).trim()).join(" — "),
+  );
+  return fallback.slice(0, 3500);
+}
+
+/**
+ * @param {object | null | undefined} structured
+ */
+export function sliceChatHistoryStructured(structured) {
+  if (!structured || typeof structured !== "object") return undefined;
+
+  const s = structured;
+  const row = {
+    call: s.call != null ? String(s.call).slice(0, 400) : undefined,
+    lean: s.lean != null ? String(s.lean).slice(0, 120) : undefined,
+    whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
+    edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
+    callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
+    confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
+    groupLetter: s.groupLetter != null ? String(s.groupLetter).slice(0, 2) : undefined,
+    runnerUpGroupLetter:
+      s.runnerUpGroupLetter != null ? String(s.runnerUpGroupLetter).slice(0, 2) : undefined,
+    runnerUpTeamAbbr:
+      s.runnerUpTeamAbbr != null ? String(s.runnerUpTeamAbbr).slice(0, 8) : undefined,
+    primaryMispriceGroupLetter:
+      s.primaryMispriceGroupLetter != null
+        ? String(s.primaryMispriceGroupLetter).slice(0, 2)
+        : undefined,
+  };
+
+  const pruned = Object.fromEntries(
+    Object.entries(row).filter(([, v]) => v !== undefined && String(v).trim() !== ""),
+  );
+  return Object.keys(pruned).length ? pruned : undefined;
+}
+
+/**
+ * @param {object[]} msgs
+ * @param {{ maxMessages?: number }} [opts]
+ */
+export function buildChatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
+  if (!Array.isArray(msgs)) return [];
+  const cleaned = [];
+  for (const m of msgs) {
+    if (!m || m.loading) continue;
+    const role = m.role === "ai" ? "assistant" : m.role === "user" ? "user" : null;
+    const content = chatHistoryContentFromMessage(m);
+    if (!role || !content || /^ANALYZING/i.test(content)) continue;
+
+    const row = { role, content };
+    const sport = String(m.sport || "").trim().toLowerCase();
+    if (sport) row.sport = sport;
+
+    const structured = sliceChatHistoryStructured(m.structured);
+    if (structured) row.structured = structured;
+
+    cleaned.push(row);
+  }
+  return cleaned.slice(-maxMessages);
+}

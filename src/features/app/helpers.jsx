@@ -100,45 +100,7 @@ export function inferUrTakeSportFromMessages(msgs) {
   return null;
 }
 
-export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
-  if (!Array.isArray(msgs)) return [];
-  const sanitizeForModel = (input) => {
-    let s = String(input || "").trim();
-    if (!s) return "";
-    s = s.replace(/^This is a .*? confidence take\.[^\n]*\n?/i, "");
-    return stripUrTakeDeadEndCopy(s);
-  };
-  const cleaned = [];
-  for (const m of msgs) {
-    if (!m || m.loading) continue;
-    const role = m.role === "ai" ? "assistant" : m.role === "user" ? "user" : null;
-    const content = sanitizeForModel(m.text ?? m.content ?? "");
-    if (!role || !content || /^ANALYZING/i.test(content)) continue;
-    const row = { role, content: content.slice(0, 3500) };
-    const sport = String(m.sport || "").trim().toLowerCase();
-    if (sport) row.sport = sport;
-    if (m.structured && typeof m.structured === "object") {
-      const s = m.structured;
-      row.structured = {
-        call: s.call != null ? String(s.call).slice(0, 400) : undefined,
-        whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
-        edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
-        callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
-        confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
-        runnerUpGroupLetter:
-          s.runnerUpGroupLetter != null ? String(s.runnerUpGroupLetter).slice(0, 2) : undefined,
-        runnerUpTeamAbbr:
-          s.runnerUpTeamAbbr != null ? String(s.runnerUpTeamAbbr).slice(0, 8) : undefined,
-        primaryMispriceGroupLetter:
-          s.primaryMispriceGroupLetter != null
-            ? String(s.primaryMispriceGroupLetter).slice(0, 2)
-            : undefined,
-      };
-    }
-    cleaned.push(row);
-  }
-  return cleaned.slice(-maxMessages);
-}
+export { buildChatHistoryForApi as chatHistoryForApi } from "../../../shared/urChatHistoryForApi.js";
 
 export function slugify(v) {
   return String(v || "")

@@ -13,9 +13,11 @@ import {
 } from "./wcAdvancementMarket.js";
 import {
   isWcCrossGroupMispriceQuestion,
+  isWcRunnerUpValueFollowUp,
   buildWcSimAttributionLabel,
   extractWcModelAttributionPrefix,
 } from "./wcTakeRetentionQA.js";
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { computeGroupMispriceRankings } from "./wcGroupMispriceRanking.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 
@@ -291,7 +293,10 @@ export function resolveWcGroupLettersForPrompt(question, opts = {}) {
  */
 export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
   const q = String(question || "").trim();
-  if (!q || extractGroupLetterFromQuestion(q)) return false;
+  if (!q) return false;
+  const routingQ = extractLatestUserTurnForRouting(q);
+  if (isWcRunnerUpValueFollowUp(routingQ) || isWcRunnerUpValueFollowUp(q)) return false;
+  if (extractGroupLetterFromQuestion(q)) return false;
   if (extractMentionedWcTeams(q).length > 0) return false;
   if (isWcCrossGroupMispriceQuestion(q)) return true;
   return (

@@ -223,6 +223,7 @@ import {
   isWcRunnerUpValueFollowUp,
   extractWcRunnerUpFromHistory,
 } from "../../shared/wcTakeRetentionQA.js";
+import { sliceChatHistoryStructured, chatHistoryContentFromMessage } from "../../shared/urChatHistoryForApi.js";
 import {
   buildWcSessionMemoryPrompt,
   extractSessionWcEntities,
@@ -1444,30 +1445,13 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
         : h.role === "user"
           ? "user"
           : null;
-    const content = String(h.content ?? h.text ?? "").trim();
+    const content = chatHistoryContentFromMessage(h);
     if (!role || !content || /^ANALYZING/i.test(content)) continue;
     const row = { role, content: content.slice(0, 4000) };
     const sport = String(h.sport || "").trim().toLowerCase();
     if (sport) row.sport = sport;
-    if (h.structured && typeof h.structured === "object") {
-      const s = h.structured;
-      row.structured = {
-        lean: s.lean != null ? String(s.lean).slice(0, 120) : undefined,
-        call: s.call != null ? String(s.call).slice(0, 400) : undefined,
-        whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
-        edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
-        callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
-        confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
-        runnerUpGroupLetter:
-          s.runnerUpGroupLetter != null ? String(s.runnerUpGroupLetter).slice(0, 2) : undefined,
-        runnerUpTeamAbbr:
-          s.runnerUpTeamAbbr != null ? String(s.runnerUpTeamAbbr).slice(0, 8) : undefined,
-        primaryMispriceGroupLetter:
-          s.primaryMispriceGroupLetter != null
-            ? String(s.primaryMispriceGroupLetter).slice(0, 2)
-            : undefined,
-      };
-    }
+    const structured = sliceChatHistoryStructured(h.structured);
+    if (structured) row.structured = structured;
     out.push(row);
   }
   const merged = [];
@@ -2477,6 +2461,7 @@ export default async function handler(req, res) {
 
   const normalizedUrTakeHistoryForGate = normalizeIncomingChatHistory(incomingHistory);
   const isConversationFollowUp = normalizedUrTakeHistoryForGate.length > 1;
+  const routingQuestionEarly = extractLatestUserTurnForRouting(String(question || ""));
 
   if (!question || !String(question).trim()) {
     return feedSnagResponse(
@@ -2525,7 +2510,7 @@ export default async function handler(req, res) {
   }
 
   const hasImage = !!image?.base64;
-  const routingQuestion = extractLatestUserTurnForRouting(String(question || ""));
+  const routingQuestion = routingQuestionEarly;
 
   const intent = detectIntent(routingQuestion, hasImage);
   const chaseSignals = detectChaseSignals(routingQuestion, incomingHistory);
@@ -2722,6 +2707,32 @@ export default async function handler(req, res) {
     }
     wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
+
+    if (
+      isWcRunnerUpValueFollowUp(routingQuestion) ||
+      isWcRunnerUpValueFollowUp(String(question || ""))
+    ) {
+      const runnerUpFromHistory = extractWcRunnerUpFromHistory(normalizedUrTakeHistoryForGate);
+      if (!runnerUpFromHistory.group) {
+        console.warn(
+          JSON.stringify({
+            event: "wc_runner_up_history_missing",
+            sport: "worldcup",
+            isConversationFollowUp,
+            normalizedHistoryLength: normalizedUrTakeHistoryForGate.length,
+            incomingHistoryLength: Array.isArray(incomingHistory) ? incomingHistory.length : 0,
+            routingQuestion: routingQuestion.slice(0, 160),
+            assistantTurns: normalizedUrTakeHistoryForGate
+              .filter((t) => t.role === "assistant")
+              .map((t) => ({
+                hasStructured: Boolean(t.structured),
+                runnerUpGroupLetter: t.structured?.runnerUpGroupLetter ?? null,
+                callPreview: String(t.structured?.call || t.content || "").slice(0, 120),
+              })),
+          }),
+        );
+      }
+    }
   }
   let effectiveStructuredModeRequested = structuredModeRequested;
   if (sportHint === "worldcup") {
@@ -5021,7 +5032,8 @@ You are responding to a Pro subscriber. Apply the following:
       sportHint === "worldcup" &&
       isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
-      isWcRunnerUpValueFollowUp(String(question || ""))
+      (isWcRunnerUpValueFollowUp(routingQuestion) ||
+        isWcRunnerUpValueFollowUp(String(question || "")))
     ) {
       const { group: runnerUpGroup, teamAbbr: runnerUpTeamAbbr } = extractWcRunnerUpFromHistory(
         normalizedUrTakeHistoryForGate,
