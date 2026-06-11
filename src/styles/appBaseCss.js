@@ -64,10 +64,6 @@ export const baseCss = `
     --ur-mag:var(--magenta);
     --ur-muted:rgba(148,163,184,0.62);
     --bottom-nav-height:72px;
-    /* Fallbacks when measured chrome vars are unset (see App.jsx ResizeObserver) */
-    --ur-dock-askbar-est:72px;
-    --ur-dock-followups-est:72px;
-    --ur-chat-scroll-dock-buffer:16px;
     --keyboard-height:0px;
     --nfl-predict-bg:#0a0a0a;
     --nfl-predict-surface:#141414;
@@ -339,29 +335,13 @@ export const baseCss = `
     touch-action:pan-y;
     padding-left:16px;
     padding-right:16px;
-    /*
-     * Prefer measured viewport→dock-top clearance (App.jsx); fallback sums nav + dock estimates.
-     */
-    padding-bottom:calc(
-      var(
-        --ur-chat-scroll-clearance,
-        max(
-          var(--ur-nav-measured-h, var(--bottom-nav-height)),
-          calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
-        )
-      )
-      + var(--ur-chat-scroll-dock-buffer)
-    );
-    scroll-padding-bottom:calc(
-      var(
-        --ur-chat-scroll-clearance,
-        max(
-          var(--ur-nav-measured-h, var(--bottom-nav-height)),
-          calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
-        )
-      )
-      + var(--ur-chat-scroll-dock-buffer)
-    );
+    padding-bottom:0;
+    scroll-padding-bottom:0;
+  }
+  .ur-chat-dock-scroll-spacer{
+    width:100%;
+    flex-shrink:0;
+    pointer-events:none;
   }
   /* Thread must size to its content so .ur-chat-scroll gains scrollHeight; avoid flex:1 + min-height:100% swallowing overflow */
   .app.has-docked main.screen.screen--ur-chat.has-msgs .ur-chat-scroll .chat-thread.chat-thread--ur-chat-dock{
@@ -1942,7 +1922,6 @@ export const baseCss = `
   }
   .screen--ur-focus .ur-chat-scroll{
     padding-top:8px;
-    --ur-chat-scroll-dock-buffer:32px;
   }
   .screen--ur-focus .bubble--imessage-ai .ur-v2-card{
     border:none;

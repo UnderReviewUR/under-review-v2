@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import AskBar from "../components/AskBar.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { buildGolfSessionBoardFromData } from "../lib/golfSessionBoard.js";
 import { classifyGolfEvent, EVENT_VALIDITY } from "../../shared/eventValidity.js";
@@ -541,7 +542,7 @@ export default function GolfScreen({
               <div className="ur-chat-scroll">
                 <ChatThread {...chatThreadProps} variant="urChatDocked" />
                 {golfBoardBelow}
-                <div className="page-spacer" />
+                <UrChatDockScrollSpacer />
               </div>
             ) : (
               <>

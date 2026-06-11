@@ -1,6 +1,7 @@
 import { Component, useMemo } from "react";
 import AskBar from "../components/AskBar.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread, inferUrTakeSportFromMessages } from "../features/app/helpers.jsx";
 import { logUrTakeMsgsRenderDiagnostics, logSavedTakesRenderDiagnostics, textOrEmpty } from "../lib/urTakeRenderSafe.js";
 import { getUrBuildFingerprint } from "../lib/urBuildFingerprint.js";
@@ -287,6 +288,7 @@ export default function AskScreen({
                       variant="urChatDocked"
                     />
                   ) : null}
+                  <UrChatDockScrollSpacer />
                 </div>
                 {!DEBUG_HIDE_RETENTION_STRIP ? (
                   <AskUrTakeRetentionStrip

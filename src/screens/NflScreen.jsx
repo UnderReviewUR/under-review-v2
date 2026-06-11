@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import NflPropGuideSection from "../features/nfl/NflPropGuideSection.jsx";
@@ -98,7 +99,7 @@ export default function NflScreen({
               <div className="ur-chat-scroll">
                 <ChatThread {...chatThreadProps} variant="urChatDocked" />
                 {nflBoardBelow}
-                <div className="page-spacer" />
+                <UrChatDockScrollSpacer />
               </div>
             ) : (
               <>

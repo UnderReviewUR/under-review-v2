@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import { NbaPlayerCard } from "../components/cards/NbaPlayerCard.jsx";
@@ -283,7 +284,7 @@ export default function NbaScreen({
         <div className="ur-chat-scroll">
           <ChatThread {...chatThreadProps} variant="urChatDocked" />
           {nbaBoardBelow}
-          <div className="page-spacer" />
+          <UrChatDockScrollSpacer />
         </div>
       ) : (
         <>

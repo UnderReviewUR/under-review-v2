@@ -18,6 +18,7 @@ import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import WcPremiumFeaturedMatch from "../components/world-cup/WcPremiumFeaturedMatch.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 
 export const WC_PREMIUM_TAGLINE = "BETTING INTELLIGENCE";
 
@@ -492,6 +493,7 @@ export default function WorldCupScreen({
                 {wcBrowseBelow}
               </>
             ) : null}
+            <UrChatDockScrollSpacer />
           </div>
         </>
       ) : (

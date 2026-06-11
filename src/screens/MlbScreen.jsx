@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveDominantGameState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 
@@ -145,7 +146,7 @@ export default function MlbScreen({
               <div className="ur-chat-scroll">
                 <ChatThread {...chatThreadProps} variant="urChatDocked" />
                 {mlbBoardBelow}
-                <div className="page-spacer" />
+                <UrChatDockScrollSpacer />
               </div>
             ) : (
               <>

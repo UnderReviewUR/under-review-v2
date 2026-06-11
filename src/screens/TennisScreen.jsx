@@ -1,4 +1,5 @@
 import AskBar from "../components/AskBar.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { deriveTennisBoardState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import { ATP_PLAYERS, WTA_PLAYERS } from "../features/app/constants.js";
@@ -236,7 +237,7 @@ export default function TennisScreen({
               <div className="ur-chat-scroll">
                 <ChatThread {...chatThreadProps} variant="urChatDocked" />
                 {tennisBoardBelow}
-                <div className="page-spacer" />
+                <UrChatDockScrollSpacer />
               </div>
             ) : (
               <>

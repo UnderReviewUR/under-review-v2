@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import AskBar from "../components/AskBar.jsx";
+import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { resolveF1RaceStart } from "../features/f1/raceStart.js";
 import { deriveF1EventState, getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
@@ -173,7 +174,7 @@ export default function F1Screen({
               <div className="ur-chat-scroll">
                 <ChatThread {...chatThreadProps} variant="urChatDocked" />
                 {f1BoardBelow}
-                <div className="page-spacer" />
+                <UrChatDockScrollSpacer />
               </div>
             ) : (
               <>

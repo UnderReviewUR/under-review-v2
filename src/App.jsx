@@ -512,7 +512,6 @@ export default function App() {
 
   const css = `
 ${baseCss}
-/* UR docked chat scroll inset: --ur-chat-scroll-clearance (viewport→dock top) + buffer — appBaseCss.js */
 ${themeCss}
 `;
 
@@ -4439,107 +4438,6 @@ ${themeCss}
   const wcFocusSession = isUrFocusSession(wcMsgs);
   const activeFocusSession =
     (screen === "ask" && askFocusSession) || (screen === "worldcup" && wcFocusSession);
-
-  /** Dock + bottom nav real heights → `--ur-dock-measured-h` / `--ur-nav-measured-h` for `.ur-chat-scroll` padding (follow-up chips render after first paint; remeasure on DOM + resize). */
-  useLayoutEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return undefined;
-    const root = document.documentElement;
-    if (!hasDockedBar) {
-      root.style.removeProperty("--ur-dock-measured-h");
-      root.style.removeProperty("--ur-nav-measured-h");
-      return undefined;
-    }
-    const measure = () => {
-      const dock = document.querySelector(".app .docked-bar.ur-docked-bar");
-      const nav = document.querySelector(".app nav.bottom-nav");
-      if (dock) {
-        const dockRect = dock.getBoundingClientRect();
-        const h = dockRect.height;
-        /* +28px: chip wrap / shadows / subpixel vs scroll-padding — avoids last board line sitting under the dock strip */
-        root.style.setProperty("--ur-dock-measured-h", `${Math.ceil(h) + 28}px`);
-        /* Viewport bottom → dock top: exact fixed-chrome clearance for .ur-chat-scroll padding */
-        const clearance = Math.max(0, window.innerHeight - dockRect.top);
-        root.style.setProperty("--ur-chat-scroll-clearance", `${Math.ceil(clearance)}px`);
-      } else {
-        root.style.removeProperty("--ur-dock-measured-h");
-        root.style.removeProperty("--ur-chat-scroll-clearance");
-      }
-      if (nav) {
-        const h = nav.getBoundingClientRect().height;
-        root.style.setProperty("--ur-nav-measured-h", `${Math.ceil(h)}px`);
-      } else {
-        root.style.removeProperty("--ur-nav-measured-h");
-      }
-    };
-    measure();
-    requestAnimationFrame(measure);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(measure);
-    });
-    const t0 = window.setTimeout(measure, 0);
-    const t50 = window.setTimeout(measure, 50);
-    const t200 = window.setTimeout(measure, 200);
-    const t600 = window.setTimeout(measure, 600);
-
-    let roDock;
-    let roNav;
-    let moDock;
-    const dock = document.querySelector(".app .docked-bar.ur-docked-bar");
-    const nav = document.querySelector(".app nav.bottom-nav");
-    if (typeof ResizeObserver !== "undefined") {
-      roDock = dock ? new ResizeObserver(measure) : null;
-      roNav = nav ? new ResizeObserver(measure) : null;
-      if (roDock && dock) roDock.observe(dock);
-      if (roNav && nav) roNav.observe(nav);
-    }
-    if (typeof MutationObserver !== "undefined" && dock) {
-      moDock = new MutationObserver(measure);
-      moDock.observe(dock, { subtree: true, childList: true, attributes: true, characterData: true });
-    }
-    window.addEventListener("resize", measure);
-    const vv = window.visualViewport;
-    if (vv) {
-      vv.addEventListener("resize", measure);
-      vv.addEventListener("scroll", measure);
-    }
-    return () => {
-      window.clearTimeout(t0);
-      window.clearTimeout(t50);
-      window.clearTimeout(t200);
-      window.clearTimeout(t600);
-      window.removeEventListener("resize", measure);
-      if (vv) {
-        vv.removeEventListener("resize", measure);
-        vv.removeEventListener("scroll", measure);
-      }
-      try {
-        const d = document.querySelector(".app .docked-bar.ur-docked-bar");
-        const n = document.querySelector(".app nav.bottom-nav");
-        if (roDock && d) roDock.unobserve(d);
-        if (roNav && n) roNav.unobserve(n);
-      } catch {
-        /* ignore */
-      }
-      roDock?.disconnect();
-      roNav?.disconnect();
-      moDock?.disconnect();
-      root.style.removeProperty("--ur-dock-measured-h");
-      root.style.removeProperty("--ur-nav-measured-h");
-      root.style.removeProperty("--ur-chat-scroll-clearance");
-    };
-  }, [
-    hasDockedBar,
-    activeFocusSession,
-    screen,
-    askMsgs.length,
-    tennisMsgs.length,
-    nflMsgs.length,
-    f1Msgs.length,
-    nbaMsgs.length,
-    mlbMsgs.length,
-    golfMsgs.length,
-    wcMsgs.length,
-  ]);
 
   // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (
