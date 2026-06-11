@@ -446,14 +446,28 @@ export async function getWcMatchPlayerPropsPayload(eventId) {
     }
 
     const filteredMarkets = filterMatchPlayerPropMarketsForResponse(event);
+    const anytimeCount = (filteredMarkets.anytime_scorer || []).length;
+    if (
+      !anytimeCount &&
+      !WC_MATCH_PLAYER_PROP_MARKET_KEYS.some((key) => (filteredMarkets[key] || []).length > 0)
+    ) {
+      return {
+        ok: false,
+        error: "not_found",
+        eventId: String(eventId),
+        dataSource: "balldontlie",
+        hint: "No BDL player props for this fixture yet — check BALLDONTLIE_API_KEY and match_id mapping.",
+      };
+    }
     return {
       ok: true,
       eventId: String(eventId),
       ...event,
       markets: filteredMarkets,
-      anytimeCount: (filteredMarkets.anytime_scorer || []).length,
+      anytimeCount,
       dataSource: "balldontlie",
-      source: event.source || "balldontlie",
+      source: "balldontlie",
+      booksUsed: ["balldontlie"],
     };
   }
 

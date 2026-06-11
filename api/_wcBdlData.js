@@ -89,6 +89,25 @@ export async function resolveBdlMatchIdForEvent(eventId, meta = {}) {
     if (alt?.bdlMatchId != null) return Number(alt.bdlMatchId);
   }
 
+  if (meta.homeTeam && meta.awayTeam && isWcGoatPrimaryEnabled()) {
+    try {
+      const live = await fetchAllMatchesBdl();
+      const home = String(meta.homeTeam).toUpperCase();
+      const away = String(meta.awayTeam).toUpperCase();
+      const hit = (live.matches || []).find(
+        (m) =>
+          (String(m.homeTeam).toUpperCase() === home &&
+            String(m.awayTeam).toUpperCase() === away) ||
+          (String(m.homeTeam).toUpperCase() === away &&
+            String(m.awayTeam).toUpperCase() === home),
+      );
+      const bdlId = hit?.bdlMatchId ?? hit?.id;
+      if (bdlId != null && Number.isFinite(Number(bdlId))) return Number(bdlId);
+    } catch {
+      /* fall through */
+    }
+  }
+
   return null;
 }
 
