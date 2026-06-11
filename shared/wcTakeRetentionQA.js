@@ -27,6 +27,29 @@ export function wcSentenceSimilarity(a, b) {
  * @param {number | null | undefined} lastUpdatedMs
  * @param {number} [nowMs]
  */
+const WC_MODEL_ATTRIBUTION_BRACKET_RE =
+  /^\[(UR model\s*·\s*10k Poisson\/Elo\s*·\s*[^\]]+)\]\s*/i;
+
+/**
+ * Split leading "[UR model · 10k Poisson/Elo · …]" from card WHY prose.
+ * @param {string} text
+ * @returns {{ body: string, attribution: string | null }}
+ */
+export function extractWcModelAttributionPrefix(text) {
+  const t = String(text || "").trim();
+  const m = t.match(WC_MODEL_ATTRIBUTION_BRACKET_RE);
+  if (!m) return { body: t, attribution: null };
+  return {
+    attribution: String(m[1] || "").trim(),
+    body: t.slice(m[0].length).trim(),
+  };
+}
+
+/** @param {string} text */
+export function stripWcModelAttributionPrefix(text) {
+  return extractWcModelAttributionPrefix(text).body;
+}
+
 export function buildWcSimAttributionLabel(lastUpdatedMs, nowMs = Date.now()) {
   const d = Number(lastUpdatedMs);
   const dateStr =

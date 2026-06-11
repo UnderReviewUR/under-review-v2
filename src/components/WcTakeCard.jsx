@@ -27,6 +27,7 @@ export default function WcTakeCard({
   breakdownAvailable = false,
   predictionSlots = [],
   focusLayout = false,
+  modelAttribution = null,
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(false);
   const conf = String(confidence || "Medium").trim();
@@ -139,6 +140,9 @@ export default function WcTakeCard({
             <span />
           )}
           <div className="wc-take-footer-actions">
+            {modelAttribution ? (
+              <span className="wc-take-model-attribution">{modelAttribution}</span>
+            ) : null}
             {formattedTimestamp ? <span className="ur-v2-ts">{formattedTimestamp}</span> : null}
             <UrTakeShareButton
               headline={headline}

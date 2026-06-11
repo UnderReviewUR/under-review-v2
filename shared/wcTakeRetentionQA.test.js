@@ -4,7 +4,9 @@ import {
   buildWcSimAttributionLabel,
   detectMissingComparativeProof,
   detectMissingWcSimAttribution,
+  extractWcModelAttributionPrefix,
   isWcWatchForDupedAgainstWhy,
+  stripWcModelAttributionPrefix,
   wcSentenceSimilarity,
 } from "./wcTakeRetentionQA.js";
 
@@ -71,4 +73,13 @@ test("detectMissingComparativeProof — Group D path requires team compare", () 
 test("buildWcSimAttributionLabel formats date from timestamp", () => {
   const label = buildWcSimAttributionLabel(Date.parse("2026-06-10T12:00:00.000Z"));
   assert.match(label, /\[UR model · 10k Poisson\/Elo · Jun 10\]/);
+});
+
+test("extractWcModelAttributionPrefix splits bracket label from WHY body", () => {
+  const raw =
+    "[UR model · 10k Poisson/Elo · Jun 11] #1 Group D (USA sim 52.8% vs market 88.2%, -35.4pt).";
+  const { attribution, body } = extractWcModelAttributionPrefix(raw);
+  assert.equal(attribution, "UR model · 10k Poisson/Elo · Jun 11");
+  assert.equal(body, "#1 Group D (USA sim 52.8% vs market 88.2%, -35.4pt).");
+  assert.equal(stripWcModelAttributionPrefix(raw), body);
 });

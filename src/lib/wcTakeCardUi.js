@@ -2,6 +2,8 @@
  * World Cup UR Take card — section mapping + stat grid (Card Contract Option 1).
  */
 
+import { extractWcModelAttributionPrefix } from "../../shared/wcTakeRetentionQA.js";
+
 /**
  * @param {string} lean
  */
@@ -200,4 +202,16 @@ export function wcCardSectionText(text) {
   const t = String(text || "").trim();
   if (!t || t === "—") return "";
   return t;
+}
+
+/**
+ * WHY body for display — attribution lives in card footer, not inline brackets.
+ * @param {string} rawWhy
+ * @returns {{ why: string, modelAttribution: string | null }}
+ */
+export function prepareWcCardWhyDisplay(rawWhy) {
+  const base = wcCardSectionText(rawWhy);
+  if (!base) return { why: "", modelAttribution: null };
+  const { body, attribution } = extractWcModelAttributionPrefix(base);
+  return { why: body, modelAttribution: attribution };
 }

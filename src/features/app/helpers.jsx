@@ -2130,6 +2130,9 @@ function UrTakeAiBubble({
               message: m,
             })}
             focusLayout={cardFocusLayout}
+            showWcCautionBanner={
+              msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
+            }
           />
         </UrTakeSectionErrorBoundary>
         <WcUrTakePendingNudge

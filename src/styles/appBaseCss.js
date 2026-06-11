@@ -3046,7 +3046,12 @@ export const baseCss = `
     color:var(--cyan-bright);text-transform:uppercase;font-weight:600;
   }
   .wc-take-footer-actions{
-    display:flex;align-items:center;gap:10px;margin-left:auto;
+    display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-left:auto;
+    justify-content:flex-end;
+  }
+  .wc-take-model-attribution{
+    font-family:var(--mono-font);font-size:9px;letter-spacing:0.06em;
+    color:rgba(255,255,255,0.32);text-transform:none;white-space:nowrap;
   }
   .wc-book-ml-row{
     display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:8px;padding-top:8px;

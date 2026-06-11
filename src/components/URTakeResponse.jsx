@@ -24,6 +24,7 @@ import {
   pickWcThePlayLine,
   wcCardSectionText,
   compressWcCardSections,
+  prepareWcCardWhyDisplay,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 import {
@@ -91,6 +92,8 @@ export default function URTakeResponse({
   predictionSlots = [],
   nbaRelevance = null,
   focusLayout = false,
+  /** Orange data-confidence banner — first take in thread only. */
+  showWcCautionBanner = true,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -212,6 +215,7 @@ export default function URTakeResponse({
             ? "Early Contenders"
             : null;
   const showWcCaution =
+    showWcCautionBanner &&
     !rulesCallType &&
     !isWcPlayerMarketCard &&
     wcDataConfidenceNeedsCaution(dataConfidence) &&
@@ -341,11 +345,10 @@ export default function URTakeResponse({
     const wcHeadline = String(wcHeadlineSource || "").trim();
     const lineSlotValue =
       statGrid.slots.find((s) => s.key === "ln" || s.key === "pl")?.value ?? "";
+    const wcWhyPrepared =
+      wcPredictionSlotRows.length > 0 ? { why: "", modelAttribution: null } : prepareWcCardWhyDisplay(whyNowRaw);
     const wcSectionsRaw = {
-      why:
-        wcPredictionSlotRows.length > 0
-          ? ""
-          : wcCardSectionText(whyNowRaw),
+      why: wcWhyPrepared.why,
       watchFor: wcCardSectionText(edgeRaw),
       thePlay: wcCardSectionText(
         pickWcThePlayLine({
@@ -387,6 +390,7 @@ export default function URTakeResponse({
         breakdownAvailable={wcBreakdownAvailable}
         predictionSlots={wcPredictionSlotRows}
         focusLayout={focusLayout}
+        modelAttribution={wcWhyPrepared.modelAttribution}
       />
     );
   }
