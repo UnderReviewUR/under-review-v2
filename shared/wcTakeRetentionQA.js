@@ -2,6 +2,7 @@
  * World Cup take retention QA — sim attribution, dedup, comparative proof.
  */
 
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { splitWcSentences } from "./wcSentenceBoundaries.js";
 
 /** @param {string} a @param {string} b @returns {number} 0–1 overlap score */
@@ -294,7 +295,7 @@ export function isWcWatchForDupedAgainstWhy(watchFor, whyNow, deep = "") {
  * @param {string} question
  */
 export function isWcCrossGroupMispriceQuestion(question) {
-  const q = String(question || "").trim();
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
   if (isWcGroupPathMispriceQuestion(q)) return false;
   return (

@@ -20,6 +20,7 @@ export const WC_INTENT = {
   CONTINUATION: "CONTINUATION",
   PLAYER_PROP: "PLAYER_PROP",
   GOLDEN_BOOT: "GOLDEN_BOOT",
+  GOLDEN_GLOVE: "GOLDEN_GLOVE",
   TOP_SCORER: "TOP_SCORER",
   TOP_GOALSCORERS_LIST: "TOP_GOALSCORERS_LIST",
   SCORE_PREDICTION: "SCORE_PREDICTION",
@@ -86,6 +87,11 @@ export const WC_INTENT_CATALOG = [
     description: "Golden Boot winner market and value.",
   },
   {
+    id: WC_INTENT.GOLDEN_GLOVE,
+    label: "Golden Glove",
+    description: "Golden Glove / best goalkeeper award — not group advancement.",
+  },
+  {
     id: WC_INTENT.PLAYER_PROP,
     label: "Player prop",
     description:
@@ -126,9 +132,11 @@ const WC_GROUP_SLATE_RE =
  * @param {string} question
  */
 export function isWcGroupSlateQuestion(question) {
-  const q = String(question || "").trim();
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
-  if (WC_GOLDEN_BOOT_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) return false;
+  if (WC_GOLDEN_GLOVE_RE.test(q) || WC_GOLDEN_BOOT_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) {
+    return false;
+  }
   return WC_GROUP_SLATE_RE.test(q) || /\bgroup[\s-]*stage\s*bet\b/i.test(q);
 }
 
@@ -139,6 +147,8 @@ const WC_TEAM_GOALS_RE =
   /\b(which team|what team|team will|nation will|country will|national team|teams score)\b/i;
 
 const WC_GOLDEN_BOOT_RE = /\b(golden boot|boot winner|top goalscorer|top goal scorer)\b/i;
+
+const WC_GOLDEN_GLOVE_RE = /\b(golden glove|glove winner|best goalkeeper|goalkeeper of the tournament)\b/i;
 
 const WC_TOP_SCORER_RE =
   /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
@@ -194,6 +204,7 @@ export function classifyWcPlayerMarketIntent(question) {
   if (WC_TEAM_GOALS_RE.test(ql)) return null;
 
   if (WC_PLAYER_PROP_RE.test(ql)) return WC_INTENT.PLAYER_PROP;
+  if (WC_GOLDEN_GLOVE_RE.test(ql)) return WC_INTENT.GOLDEN_GLOVE;
   if (WC_GOLDEN_BOOT_RE.test(ql)) return WC_INTENT.GOLDEN_BOOT;
   if (WC_TOP_SCORER_RE.test(ql)) return WC_INTENT.TOP_SCORER;
   if (WC_WHO_WILL_SCORE_RE.test(ql)) return WC_INTENT.TOP_SCORER;
@@ -215,6 +226,17 @@ export function isWcPlayerMarketIntent(intent) {
     i === WC_INTENT.TOP_SCORER ||
     i === WC_INTENT.TOP_GOALSCORERS_LIST
   );
+}
+
+/**
+ * Group-slate QA / prebuilt repair applies only when THIS turn is structural — not prior chat turns
+ * prepended by buildContextualQuestion.
+ * @param {string} question
+ * @param {string} [wcIntent]
+ */
+export function isWcGroupStructureQuestion(question, wcIntent) {
+  if (String(wcIntent || "") === WC_INTENT.STRUCTURAL) return true;
+  return isWcGroupSlateQuestion(question);
 }
 
 /** Static tournament rules — always available regardless of live phase. */
@@ -364,6 +386,12 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - User asked for SCORELINE predictions (e.g. top 5 scores to consider) — NOT Golden Boot, NOT top scorer, NOT a single-player prop.
 - List exactly five plausible final scores (e.g. 2-1, 1-1, 2-0) for the match or slate in scope; one short line each if space allows.
 - Do NOT repeat Mbappé, Golden Boot, or any prior player-market lean from this chat.`;
+  }
+  if (intent === WC_INTENT.GOLDEN_GLOVE) {
+    return `TURN SCOPE (binding):
+- User asked about the Golden Glove (best goalkeeper) — NOT Golden Boot, NOT group advancement, NOT a nation-level pick.
+- Name a goalkeeper with reasoning; cite odds only if listed in VERIFIED CONTEXT — do not invent prices.
+- Do NOT repeat a prior group-stage value pick from this chat.`;
   }
   if (isWcGroupSlateQuestion(routingQuestion)) {
     return `TURN SCOPE (binding):

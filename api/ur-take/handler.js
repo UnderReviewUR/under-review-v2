@@ -147,6 +147,7 @@ import {
   buildWcTurnScopeBlock,
   classifyWcQuestionIntent,
   isWcGroupSlateQuestion,
+  isWcGroupStructureQuestion,
   shouldInjectStaticRules,
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
@@ -5093,12 +5094,12 @@ You are responding to a Pro subscriber. Apply the following:
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
-      shouldUseWcCrossGroupValuePrebuilt(String(question || ""), wcIntent)
+      shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent)
     ) {
       const prebuilt = buildWcCrossGroupValuePrebuiltStructured({
         teamStats: wcContext?.tournamentSimResults?.teamStats,
         bdlFutures: wcContext?.bdlFuturesPayload,
-        question: String(question || ""),
+        question: routingQuestion,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
@@ -5124,7 +5125,7 @@ You are responding to a Pro subscriber. Apply the following:
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
-      shouldUseWcGroupSlatePrebuilt(String(question || ""), wcIntent)
+      shouldUseWcGroupSlatePrebuilt(routingQuestion, wcIntent)
     ) {
       const prebuilt = buildWcGroupSlatePrebuiltStructured({
         groupLetter: "D",
@@ -6028,10 +6029,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       !wcRunnerUpFollowUpQuestion &&
       wcQaResult &&
       !wcQaResult.passed &&
+      isWcGroupStructureQuestion(routingQuestion, wcIntent) &&
       (wcQaResult.issueCodes || []).includes("wc_group_math_mismatch")
     ) {
       const letter =
-        extractGroupLetterFromQuestion(String(question || "")) || "D";
+        extractGroupLetterFromQuestion(routingQuestion) || "D";
       const prebuilt = buildWcGroupSlatePrebuiltStructured({
         groupLetter: letter,
         pickAbbr: "PAR",
@@ -6073,10 +6075,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       !wcRunnerUpFollowUpQuestion &&
       wcQaResult &&
       !wcQaResult.passed &&
+      isWcGroupStructureQuestion(routingQuestion, wcIntent) &&
       (wcQaResult.issueCodes || []).includes("wc_group_roster_mismatch")
     ) {
       const letter =
-        extractGroupLetterFromQuestion(String(question || "")) ||
+        extractGroupLetterFromQuestion(routingQuestion) ||
         wcContext?.groupMispriceTopGroups?.[0] ||
         "K";
       const comp = getWcGroupComposition(letter);

@@ -296,13 +296,13 @@ export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
   if (!q) return false;
   const routingQ = extractLatestUserTurnForRouting(q);
   if (isWcRunnerUpValueFollowUp(routingQ) || isWcRunnerUpValueFollowUp(q)) return false;
-  if (extractGroupLetterFromQuestion(q)) return false;
-  if (extractMentionedWcTeams(q).length > 0) return false;
-  if (isWcCrossGroupMispriceQuestion(q)) return true;
+  if (extractGroupLetterFromQuestion(routingQ)) return false;
+  if (extractMentionedWcTeams(routingQ).length > 0) return false;
+  if (isWcCrossGroupMispriceQuestion(routingQ)) return true;
   return (
-    (isWcGroupSlateQuestion(q) || wcIntent === WC_INTENT.STRUCTURAL) &&
-    (/\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(q) ||
-      /\bgroup[\s-]*stage\s+value\b/i.test(q))
+    (isWcGroupSlateQuestion(routingQ) || wcIntent === WC_INTENT.STRUCTURAL) &&
+    (/\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(routingQ) ||
+      /\bgroup[\s-]*stage\s+value\b/i.test(routingQ))
   );
 }
 

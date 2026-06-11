@@ -17,7 +17,8 @@ import {
   responseMentionsKnownPlayer,
 } from "../shared/wcPlayerMarketResolve.js";
 import { detectWcGroupMathMismatch, detectWcGroupRosterMismatch } from "../shared/wcGroupComposition.js";
-import { isWcGroupSlateQuestion } from "../shared/wcUrTakeIntent.js";
+import { isWcGroupStructureQuestion } from "../shared/wcUrTakeIntent.js";
+import { extractLatestUserTurnForRouting } from "../shared/urTakeSportRouting.js";
 import { isTournamentWinnerQuestion } from "../shared/wcPhaseUtils.js";
 import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
 import {
@@ -139,6 +140,8 @@ export function runWcUrTakeQA(opts = {}) {
 
   const headline = extractWcResponseHeadline(responseText, structured);
   const body = extractWcResponseBody(responseText, structured);
+  const question = String(opts.question || "");
+  const routingQuestion = extractLatestUserTurnForRouting(question);
   /** @type {string[]} */
   const issueCodes = [];
 
@@ -146,7 +149,7 @@ export function runWcUrTakeQA(opts = {}) {
     if (BETTING_LEAD_RE.test(headline)) issueCodes.push("wc_rules_betting_lead");
     if (!RULES_CONTENT_RE.test(body)) issueCodes.push("wc_rules_missing_content");
     if (
-      detectRulesThreadBleed(body, String(opts.question || ""), [
+      detectRulesThreadBleed(body, question, [
         ...forbiddenEntities,
         ...requiredEntities,
       ])
@@ -156,11 +159,11 @@ export function runWcUrTakeQA(opts = {}) {
   }
 
   if (wcIntent === WC_INTENT.ENTITY_PRICING) {
-    if (detectUncitedAmericanOdds(body, String(opts.question || ""), wcIntent)) {
+    if (detectUncitedAmericanOdds(body, routingQuestion, wcIntent)) {
       issueCodes.push("wc_price_uncited_citation");
     }
     if (
-      isTournamentWinnerQuestion(String(opts.question || "")) &&
+      isTournamentWinnerQuestion(routingQuestion) &&
       requiredEntities.length === 0 &&
       /\b(game\s*1|game\s*one)\b/i.test(body)
     ) {
@@ -196,17 +199,14 @@ export function runWcUrTakeQA(opts = {}) {
     }
   }
 
-  if (
-    wcIntent === WC_INTENT.STRUCTURAL ||
-    isWcGroupSlateQuestion(String(opts.question || ""))
-  ) {
+  if (isWcGroupStructureQuestion(routingQuestion, wcIntent)) {
     const groupMath = detectWcGroupMathMismatch(body, null);
     if (groupMath?.issues?.length) {
       issueCodes.push("wc_group_math_mismatch");
     }
   }
 
-  if (wcIntent !== WC_INTENT.RULES) {
+  if (wcIntent !== WC_INTENT.RULES && isWcGroupStructureQuestion(routingQuestion, wcIntent)) {
     const rosterMismatch = detectWcGroupRosterMismatch(body);
     if (rosterMismatch?.issues?.length) {
       issueCodes.push("wc_group_roster_mismatch");
@@ -224,7 +224,6 @@ export function runWcUrTakeQA(opts = {}) {
     issueCodes.push("wc_cross_sport_golfer_bleed");
   }
 
-  const question = String(opts.question || "");
   let qaPlayerMatch = null;
 
   if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
@@ -341,9 +340,9 @@ export function runWcUrTakeQA(opts = {}) {
 
   if (
     wcIntent !== WC_INTENT.PREDICTIONS_ROUNDUP &&
-    (questionAsksForWcPlayerMarket(question) || isWcPlayerMarketIntent(wcIntent))
+    (questionAsksForWcPlayerMarket(routingQuestion) || isWcPlayerMarketIntent(wcIntent))
   ) {
-    if (detectTeamAnswerToPlayerQuestion(headline, body, question)) {
+    if (detectTeamAnswerToPlayerQuestion(headline, body, routingQuestion)) {
       issueCodes.push("wc_player_question_team_lead");
       qaPlayerMatch = "fail";
     } else {
@@ -409,7 +408,7 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_dedup_watch_for");
     }
 
-    if (detectMissingComparativeProof(question, body, structured)) {
+    if (detectMissingComparativeProof(routingQuestion, body, structured)) {
       issueCodes.push("wc_missing_comparative_proof");
     }
 
