@@ -228,6 +228,17 @@ export function extractWcRunnerUpGroupFromHistory(history) {
 }
 
 /**
+ * Parent take established a runner-up anchor (structured field or call/why prose).
+ * @param {object | null | undefined} message
+ */
+export function parentTakeHasWcRunnerUpAnchor(message) {
+  if (!message) return false;
+  if (extractWcRunnerUpFromStructured(message.structured).group) return true;
+  const blob = [message.content, message.text].filter(Boolean).join(" ");
+  return Boolean(parseWcRunnerUpGroupLetter(blob));
+}
+
+/**
  * @param {string} question
  * @param {object[]} history
  * @returns {string}

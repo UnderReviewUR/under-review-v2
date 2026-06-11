@@ -5,7 +5,55 @@
 import { WC_INTENT, isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
-import { isWcCrossGroupMispriceQuestion } from "./wcTakeRetentionQA.js";
+import {
+  isWcCrossGroupMispriceQuestion,
+  parentTakeHasWcRunnerUpAnchor,
+} from "./wcTakeRetentionQA.js";
+
+const RUNNER_UP_CHIP = "Which group is the runner-up value?";
+
+/**
+ * @param {object | null | undefined} message
+ * @param {string | null | undefined} [parsedGroup]
+ * @returns {string | null}
+ */
+function extractWcPrimaryGroupLetterFromMessage(message, parsedGroup) {
+  const s = message?.structured;
+  if (s?.groupLetter != null && String(s.groupLetter).trim()) {
+    return String(s.groupLetter).trim().toUpperCase();
+  }
+  if (s?.primaryMispriceGroupLetter != null && String(s.primaryMispriceGroupLetter).trim()) {
+    return String(s.primaryMispriceGroupLetter).trim().toUpperCase();
+  }
+  if (parsedGroup) return String(parsedGroup).toUpperCase();
+  const blob = [s?.call, s?.whyNow, message?.content, message?.text].filter(Boolean).join(" ");
+  const m = blob.match(/\bGroup\s+([A-L])\b/i);
+  return m?.[1] ? String(m[1]).toUpperCase() : null;
+}
+
+/**
+ * Runner-up chip only when the parent take named a runner-up; otherwise group-winner chip.
+ * @param {object | null | undefined} message
+ * @param {string | null | undefined} [parsedGroup]
+ */
+export function resolveWcRunnerUpFollowUpChipText(message, parsedGroup) {
+  if (parentTakeHasWcRunnerUpAnchor(message)) return RUNNER_UP_CHIP;
+  const letter = extractWcPrimaryGroupLetterFromMessage(message, parsedGroup) || "D";
+  return `Who wins Group ${letter}?`;
+}
+
+/**
+ * @param {string} chip
+ * @param {object | null | undefined} message
+ * @param {string | null | undefined} [parsedGroup]
+ */
+export function gateWcFollowUpChipText(chip, message, parsedGroup) {
+  const s = String(chip || "").trim();
+  if (s.toLowerCase() === RUNNER_UP_CHIP.toLowerCase()) {
+    return resolveWcRunnerUpFollowUpChipText(message, parsedGroup);
+  }
+  return s;
+}
 
 /**
  * @param {string} text
@@ -63,12 +111,10 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
       .join(" ");
     const team = (blob.match(/\b(Paraguay|Norway|USA|Mexico|France|Brazil|Argentina|England|Germany|Spain|Portugal|Netherlands|Italy|Canada|Croatia|Morocco|Japan|Korea|Colombia|Uruguay|Ecuador|Senegal|Ghana|Cameroon|Tunisia|Algeria|Australia|Saudi Arabia|Qatar|Iran|Wales|Scotland|Serbia|Switzerland|Belgium|Denmark|Poland|Austria|Czechia|Ukraine|Turkiye|Turkey)\b/i) || [])[1];
     const group = (blob.match(/\bGroup\s+([A-L])\b/i) || [])[1];
-    const crossGroup =
-      isWcCrossGroupMispriceQuestion(q) ||
-      String(message?.structured?.callType || "").toLowerCase() === "group_slate";
+    const crossGroup = isWcCrossGroupMispriceQuestion(q);
     if (team && group) {
       chips.push(`What price is ${team} to advance?`);
-      chips.push(crossGroup ? "Which group is the runner-up value?" : `Who wins Group ${group}?`);
+      chips.push(resolveWcRunnerUpFollowUpChipText(message, group));
     } else if (team) {
       chips.push(`Can ${team} advance?`);
       chips.push("Who is mispriced instead?");
@@ -109,13 +155,23 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
 export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
   const q = String(userQuestion || message?.userQuestion || "").trim();
   const wcIntent = String(message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "");
+  const blob = [
+    message?.structured?.call,
+    message?.structured?.whyNow,
+    message?.content,
+    message?.text,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const parsedGroup = (blob.match(/\bGroup\s+([A-L])\b/i) || [])[1] || null;
+
   if (verdict === "GROUP_SLATE" || wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(q)) {
     const context = getWcContextFollowUpChips(message, q);
     const slate = getVerdictFollowUpChips("GROUP_SLATE");
     const out = [];
     const seen = new Set();
     for (const t of [...context, ...slate]) {
-      const s = String(t || "").trim();
+      let s = gateWcFollowUpChipText(String(t || "").trim(), message, parsedGroup);
       if (!s || /parlay/i.test(s)) continue;
       const k = s.toLowerCase();
       if (seen.has(k)) continue;
@@ -131,7 +187,7 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
   const out = [];
   const seen = new Set();
   for (const t of [...context, ...generic]) {
-    const s = String(t || "").trim();
+    let s = gateWcFollowUpChipText(String(t || "").trim(), message, parsedGroup);
     if (!s) continue;
     const k = s.toLowerCase();
     if (seen.has(k)) continue;

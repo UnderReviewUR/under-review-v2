@@ -22,21 +22,41 @@ test("getWcContextFollowUpChips uses wcMatchTeams", () => {
   assert.ok(chips.length >= 2);
 });
 
-test("mergeWcFollowUpChips — group slate avoids parlay chips", () => {
+test("mergeWcFollowUpChips — group slate without runner-up anchor gates runner-up chip", () => {
   const merged = mergeWcFollowUpChips(
     "GROUP_SLATE",
     {
       wcIntent: WC_INTENT.STRUCTURAL,
       structured: {
         callType: "group_slate",
-        call: "Colombia in Group K — best group-stage value (to advance).",
+        call: "Paraguay in Group D — best group-stage value (to advance).",
+        groupLetter: "D",
       },
     },
     "Best group stage bet?",
   );
   assert.ok(!merged.some((c) => /parlay/i.test(c)));
-  assert.ok(merged.some((c) => /Colombia|Group K|advance|mispriced|runner-up/i.test(c)));
+  assert.ok(merged.some((c) => /Who wins Group D/i.test(c)));
+  assert.ok(!merged.some((c) => /runner-up value/i.test(c)));
   assert.ok(!merged.some((c) => /Who else is live/i.test(c)));
+});
+
+test("mergeWcFollowUpChips — cross-group with runnerUpGroupLetter keeps runner-up chip", () => {
+  const merged = mergeWcFollowUpChips(
+    "GROUP_SLATE",
+    {
+      wcIntent: WC_INTENT.STRUCTURAL,
+      structured: {
+        callType: "group_slate",
+        call: "Group D most mispriced (#1); Group K runner-up",
+        groupLetter: "D",
+        runnerUpGroupLetter: "K",
+        runnerUpTeamAbbr: "COD",
+      },
+    },
+    "Best group stage bet?",
+  );
+  assert.ok(merged.some((c) => /runner-up value/i.test(c)));
 });
 
 test("mergeWcFollowUpChips prefers context", () => {

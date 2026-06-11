@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcCrossGroupValuePrebuiltStructured,
+  buildWcRunnerUpFollowUpPrebuiltStructured,
   detectWcGroupMathMismatch,
   detectWcGroupRosterMismatch,
   formatWcGroupCompositionPromptBlock,
@@ -111,6 +112,30 @@ test("buildWcCrossGroupValuePrebuiltStructured — misprice question cites runne
   assert.ok(pre);
   assert.match(pre.whyNow || "", /Runner-up/i);
   assert.match(pre.whyNow || "", /Group K/i);
+});
+
+test("buildWcRunnerUpFollowUpPrebuiltStructured — runner-up group card", () => {
+  const pre = buildWcRunnerUpFollowUpPrebuiltStructured({
+    groupLetter: "K",
+    pickAbbr: "COL",
+    teamStats: {
+      COL: { advancePct: 72 },
+      PAR: { advancePct: 55 },
+    },
+    bdlFutures: {
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          COL: { american: 150 },
+          PAR: { american: -110 },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.match(pre.call || "", /Group K runner-up value/i);
+  assert.match(pre.whyNow || "", /cross-group #2 misprice/i);
+  assert.equal(pre.groupLetter, "K");
 });
 
 test("buildWcCrossGroupValuePrebuiltStructured — returns null without ranking inputs", () => {

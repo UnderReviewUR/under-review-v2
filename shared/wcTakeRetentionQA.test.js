@@ -12,6 +12,7 @@ import {
   isWcWatchForDupedAgainstWhy,
   stripWcModelAttributionPrefix,
   buildWcPushBackBindingBlock,
+  parentTakeHasWcRunnerUpAnchor,
   wcSentenceSimilarity,
 } from "./wcTakeRetentionQA.js";
 
@@ -114,6 +115,30 @@ test("extractWcRunnerUpFromStructured prefers explicit runnerUpGroupLetter", () 
   });
   assert.equal(row.group, "K");
   assert.equal(row.teamAbbr, "COD");
+});
+
+test("parentTakeHasWcRunnerUpAnchor — structured field or call prose", () => {
+  assert.equal(
+    parentTakeHasWcRunnerUpAnchor({
+      structured: { call: "Paraguay in Group D — best group-stage value" },
+    }),
+    false,
+  );
+  assert.equal(
+    parentTakeHasWcRunnerUpAnchor({
+      structured: {
+        call: "Group D most mispriced (#1); Group K runner-up",
+        runnerUpGroupLetter: "K",
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    parentTakeHasWcRunnerUpAnchor({
+      structured: { call: "Group D most mispriced (#1); Group K runner-up" },
+    }),
+    true,
+  );
 });
 
 test("buildWcPushBackBindingBlock binds runner-up group from structured history", () => {

@@ -350,7 +350,10 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
 
   return {
     ...base,
-    call: `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`.slice(0, 100),
+    call: `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`.slice(
+      0,
+      100,
+    ),
     lean: `Lean: Group ${top.group} — ${top.teamAbbr} advancement misprice (${deltaTop} sim vs market).`.slice(
       0,
       120,
@@ -364,6 +367,95 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
     runnerUpGroupLetter: second.group,
     runnerUpTeamAbbr: second.teamAbbr,
     primaryMispriceGroupLetter: top.group,
+  };
+}
+
+/**
+ * Deterministic runner-up follow-up — group letter resolved from prior take history.
+ * @param {{
+ *   groupLetter: string,
+ *   pickAbbr?: string | null,
+ *   teamStats?: Record<string, Record<string, unknown>>,
+ *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string }>>, lastUpdated?: number },
+ *   question?: string,
+ *   nowMs?: number,
+ * }} opts
+ */
+export function buildWcRunnerUpFollowUpPrebuiltStructured(opts = {}) {
+  const groupLetter = String(opts.groupLetter || "")
+    .trim()
+    .toUpperCase()
+    .slice(0, 1);
+  if (!getWcGroupComposition(groupLetter)) return null;
+
+  const ranked = computeGroupMispriceRankings({
+    teamStats: opts.teamStats,
+    bdlFutures: opts.bdlFutures,
+    question: String(opts.question || ""),
+    nowMs: opts.nowMs,
+    topN: 12,
+  });
+  const groupRow = ranked.find((r) => r.group === groupLetter);
+
+  let pickAbbr = opts.pickAbbr ? String(opts.pickAbbr).toUpperCase() : null;
+  if (!pickAbbr && groupRow) pickAbbr = groupRow.teamAbbr;
+  if (!pickAbbr) {
+    const compFallback = getWcGroupComposition(groupLetter);
+    pickAbbr =
+      compFallback?.contender?.abbreviation ||
+      compFallback?.longshots?.[0]?.abbreviation ||
+      null;
+  }
+  if (!pickAbbr) return null;
+
+  const bdlType = "qualify_from_group";
+  const priceRow = opts.bdlFutures?.byMarketType?.[bdlType]?.[pickAbbr];
+  const advanceOdds =
+    priceRow?.americanDisplay ||
+    (priceRow?.american != null ? String(priceRow.american) : null);
+
+  const comp = getWcGroupComposition(groupLetter);
+  const pick =
+    comp?.teams.find((t) => String(t.abbreviation).toUpperCase() === pickAbbr) ||
+    comp?.contender;
+  const pickName = pick?.name || pickAbbr;
+  const favName = comp?.favorite?.name || "the favorite";
+
+  const base = buildWcGroupSlatePrebuiltStructured({
+    groupLetter,
+    pickAbbr,
+    pickMarket: "to advance",
+    advanceOdds,
+    simPct: groupRow?.simPct,
+    impliedPct: groupRow?.impliedPct,
+    delta: groupRow?.delta,
+    bdlLastUpdated: opts.bdlFutures?.lastUpdated,
+    nowMs: opts.nowMs,
+  });
+  if (!base) return null;
+
+  const deltaStr =
+    groupRow && Number.isFinite(groupRow.delta)
+      ? `${groupRow.delta >= 0 ? "+" : ""}${groupRow.delta.toFixed(1)}pt`
+      : null;
+
+  const whyNow =
+    groupRow && Number.isFinite(groupRow.simPct) && Number.isFinite(groupRow.impliedPct)
+      ? `As the cross-group #2 misprice, the market implies ${pickName} is ${groupRow.impliedPct.toFixed(1)}% to advance in Group ${groupLetter}, but UR sims put the escape path at ${groupRow.simPct.toFixed(1)}% (${deltaStr}) — that gap is the runner-up value.`
+      : base.whyNow;
+
+  return {
+    ...base,
+    call: `Group ${groupLetter} runner-up value — ${pickName} to advance`.slice(0, 100),
+    lean: `Lean: ${pickName} to advance in Group ${groupLetter}${advanceOdds ? ` at ${advanceOdds}` : ""}.`.slice(
+      0,
+      120,
+    ),
+    whyNow: String(whyNow).slice(0, 400),
+    line: `${pickName} is the runner-up misprice in Group ${groupLetter} — top-two path, not finishing last behind ${favName}.`.slice(
+      0,
+      200,
+    ),
   };
 }
 

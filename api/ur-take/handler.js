@@ -205,6 +205,7 @@ import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcGroupBindingPromptBlocks,
   buildWcCrossGroupValuePrebuiltStructured,
+  buildWcRunnerUpFollowUpPrebuiltStructured,
   extractGroupLetterFromQuestion,
   getWcGroupComposition,
   resolveWcGroupLettersForPrompt,
@@ -219,6 +220,8 @@ import {
 import {
   buildWcPushBackBindingBlock,
   warnWcThinFollowUpWhy,
+  isWcRunnerUpValueFollowUp,
+  extractWcRunnerUpFromHistory,
 } from "../../shared/wcTakeRetentionQA.js";
 import {
   buildWcSessionMemoryPrompt,
@@ -4980,6 +4983,7 @@ You are responding to a Pro subscriber. Apply the following:
     let nbaGroundingRedirectUsed = false;
     let wcPlayerMarketPassUsed = false;
     let wcGroupSlatePassUsed = false;
+    let wcRunnerUpFollowUpPassUsed = false;
     /** World Cup relevance QA — declared outside QA loop for post-loop player-market repair. */
     let wcQaResult = null;
 
@@ -5015,8 +5019,45 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      isConversationFollowUp &&
+      !wcPlayerMarketPassUsed &&
+      isWcRunnerUpValueFollowUp(String(question || ""))
+    ) {
+      const { group: runnerUpGroup, teamAbbr: runnerUpTeamAbbr } = extractWcRunnerUpFromHistory(
+        normalizedUrTakeHistoryForGate,
+      );
+      if (runnerUpGroup) {
+        const prebuilt = buildWcRunnerUpFollowUpPrebuiltStructured({
+          groupLetter: runnerUpGroup,
+          pickAbbr: runnerUpTeamAbbr,
+          teamStats: wcContext?.tournamentSimResults?.teamStats,
+          bdlFutures: wcContext?.bdlFuturesPayload,
+          question: String(question || ""),
+        });
+        if (prebuilt) {
+          structuredResponse = prebuilt;
+          responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
+          responseDeep = null;
+          responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+          wcRunnerUpFollowUpPassUsed = true;
+          console.log(
+            JSON.stringify({
+              event: "ur_take_wc_runner_up_follow_up_pass",
+              sport: "worldcup",
+              wcIntent,
+              runnerUpGroupLetter: runnerUpGroup,
+              pickAbbr: runnerUpTeamAbbr,
+            }),
+          );
+        }
+      }
+    }
+
+    if (
+      sportHint === "worldcup" &&
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
+      !wcRunnerUpFollowUpPassUsed &&
       wcCrossGroupPrebuiltEarly
     ) {
       structuredResponse = wcCrossGroupPrebuiltEarly;
@@ -5124,7 +5165,12 @@ You are responding to a Pro subscriber. Apply the following:
     for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
-      if (!nbaGroundingRedirectUsed && !wcPlayerMarketPassUsed && !wcGroupSlatePassUsed) {
+      if (
+        !nbaGroundingRedirectUsed &&
+        !wcPlayerMarketPassUsed &&
+        !wcGroupSlatePassUsed &&
+        !wcRunnerUpFollowUpPassUsed
+      ) {
         structuredResponse = null;
       }
       const broToneRepairSuffix =
@@ -5252,7 +5298,10 @@ You are responding to a Pro subscriber. Apply the following:
         break;
       }
 
-      if ((wcPlayerMarketPassUsed || wcGroupSlatePassUsed) && structuredResponse) {
+      if (
+        (wcPlayerMarketPassUsed || wcGroupSlatePassUsed || wcRunnerUpFollowUpPassUsed) &&
+        structuredResponse
+      ) {
         responseText =
           responseText || formatStructuredResponseAsUrTakeProse(structuredResponse);
         responseDeep = null;
