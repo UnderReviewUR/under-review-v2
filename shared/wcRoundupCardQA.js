@@ -42,7 +42,7 @@ const BETTER_VALUE_RE = /\bbetter value\b/i;
 const VAGUE_ADJUSTED_ODDS_RE = /\badjusted odds?\b/i;
 
 const NAMED_PLAYER_MARKET_RE =
-  /\b(golden boot|top goalscorer|goalscorer|boot winner|most goals|scorer market|breakout prop|player prop|anytime goal|goals?\b|assists?\b)\b/i;
+  /\b(golden boot|golden glove|best goalkeeper|top goalscorer|goalscorer|boot winner|glove winner|most goals|scorer market|breakout prop|player prop|anytime goal|goals?\b|assists?\b)\b/i;
 
 const NAMED_NATION_MARKET_RE =
   /\b(tournament winner|world cup winner|win the cup|title|outright|win group|group winner|to advance|make the (final|semis))\b/i;
@@ -198,7 +198,7 @@ export function isWcRoundupLineMissingDelta(line) {
 export function detectWcRoundupCrossMarketBleed(slots = []) {
   for (const slot of slots) {
     const key = String(slot?.key || "");
-    if (key !== "darkHorse" && key !== "winners") continue;
+    if (key !== "darkHorse" && key !== "winners" && key !== "champion") continue;
     const value = String(slot?.value || "");
     if (!value || !NATION_SLOT_PLAYER_BLEED_RE.test(value)) continue;
 
@@ -225,7 +225,9 @@ export function detectWcRoundupCrossMarketBleed(slots = []) {
 export function detectWcRoundupScorerLeanContradiction(lean, slots = []) {
   const play = String(lean || "").trim();
   if (!/^lean:/i.test(play)) return null;
-  const topScorer = (slots || []).find((s) => s.key === "topScorer");
+  const topScorer =
+    (slots || []).find((s) => s.key === "goldenBoot") ||
+    (slots || []).find((s) => s.key === "topScorer");
   const slotValue = String(topScorer?.value || "");
   if (!slotValue || !BETTER_VALUE_RE.test(slotValue)) return null;
 
@@ -246,7 +248,9 @@ export function detectWcRoundupScorerLeanContradiction(lean, slots = []) {
  * @param {string} slotValue
  */
 export function extractWcRoundupSlotNation(slotValue) {
-  const m = String(slotValue || "").match(/^(?:Winners|Dark horse):\s*([A-Za-zÀ-ÿ]+)/i);
+  const m = String(slotValue || "").match(
+    /^(?:Champion|Winners|Dark horse|Flop):\s*([A-Za-zÀ-ÿ]+)/i,
+  );
   return m?.[1]?.trim() || "";
 }
 
@@ -256,7 +260,8 @@ export function extractWcRoundupSlotNation(slotValue) {
 export function extractWcRoundupSlotPlayer(slotValue) {
   const v = String(slotValue || "");
   const m =
-    v.match(/(?:Breakout player|Top goalscorer):\s*([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ.'-]+)?)/i) ||
-    v.match(/^([A-Z][\wÀ-ÿ]+(?:\s+[A-Z][\wÀ-ÿ]+)?)/);
+    v.match(
+      /(?:Golden Boot|Top goalscorer|Best player|Best goalkeeper|Golden Glove|Breakout player|Flop):\s*([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ.'-]+)?)/i,
+    ) || v.match(/^([A-Z][\wÀ-ÿ]+(?:\s+[A-Z][\wÀ-ÿ]+)?)/);
   return m?.[1]?.trim().replace(/\s+/g, " ") || "";
 }

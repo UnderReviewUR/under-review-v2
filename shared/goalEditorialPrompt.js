@@ -60,6 +60,9 @@ export function selectGoalEditorialMarkets(question, wcIntent, mentionedTeams = 
     if (/\bgolden ball\b/i.test(q) || /\bbest player\b/i.test(q)) {
       if (kv.markets.golden_ball?.rows?.length) ids.push("golden_ball");
     }
+    if (/\bgolden glove\b/i.test(q) || /\bbest goalkeeper\b/i.test(q) || wcIntent === WC_INTENT.GOLDEN_GLOVE) {
+      if (kv.markets.golden_glove?.rows?.length) ids.push("golden_glove");
+    }
   }
 
   if (shouldInjectWcUsmntMediaContext(q, teams)) {

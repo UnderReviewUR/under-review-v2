@@ -5,11 +5,14 @@
 import { getDurableJson } from "./_durableStore.js";
 import { readWcOutrightsFromKv, scrapeAndCacheWcOutrights, scrapeAndCacheWcStandingsAndFixtures } from "./_wcData.js";
 import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
+import { scrapeAndCacheWcGoldenGlove } from "./_wcGoldenGloveOdds.js";
 import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
 import {
   WC_GOLDEN_BOOT_KV_KEY,
   WC_GOLDEN_BOOT_MAX_AGE_MS,
+  WC_GOLDEN_GLOVE_KV_KEY,
+  WC_GOLDEN_GLOVE_MAX_AGE_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import {
   WC_OUTRIGHTS_SCRAPE_INTERVAL_MS,
@@ -44,7 +47,7 @@ async function withTimeout(promise, ms, label) {
  * @param {number} [nowMs]
  */
 export async function resolveWcLazyWarmPlan(nowMs = Date.now()) {
-  /** @type {Array<"golden_boot"|"tournament_sim"|"outrights"|"standings">} */
+  /** @type {Array<"golden_boot"|"golden_glove"|"tournament_sim"|"outrights"|"standings">} */
   const tasks = [];
 
   const gbKv = await getDurableJson(WC_GOLDEN_BOOT_KV_KEY);
@@ -53,6 +56,13 @@ export async function resolveWcLazyWarmPlan(nowMs = Date.now()) {
     !isKvFresh(gbKv?.lastUpdated, WC_GOLDEN_BOOT_MAX_AGE_MS, nowMs) ||
     String(gbKv?.source || "").includes("seed");
   if (gbStale) tasks.push("golden_boot");
+
+  const ggKv = await getDurableJson(WC_GOLDEN_GLOVE_KV_KEY);
+  const ggStale =
+    !ggKv?.rows?.length ||
+    !isKvFresh(ggKv?.lastUpdated, WC_GOLDEN_GLOVE_MAX_AGE_MS, nowMs) ||
+    String(ggKv?.source || "").includes("seed");
+  if (ggStale) tasks.push("golden_glove");
 
   const simKv = await getDurableJson(WC_TOURNAMENT_SIM_KV_KEY);
   const simStale =
@@ -68,7 +78,7 @@ export async function resolveWcLazyWarmPlan(nowMs = Date.now()) {
     !isKvFresh(outrightsKv?.lastUpdated, WC_OUTRIGHTS_SCRAPE_INTERVAL_MS, nowMs);
   if (outrightsStale) tasks.push("outrights");
 
-  if (gbStale || simStale || outrightsStale) {
+  if (gbStale || simStale || outrightsStale || ggStale) {
     tasks.push("standings");
   }
 
@@ -102,6 +112,8 @@ export async function maybeWarmWcUrTakeKv(nowMs = Date.now(), opts = {}) {
     try {
       if (task === "golden_boot") {
         await withTimeout(scrapeAndCacheWcGoldenBoot(), taskTimeout, "golden_boot");
+      } else if (task === "golden_glove") {
+        await withTimeout(scrapeAndCacheWcGoldenGlove(), taskTimeout, "golden_glove");
       } else if (task === "tournament_sim") {
         await withTimeout(scrapeAndCacheWcTournamentSim({ nowMs }), taskTimeout, "tournament_sim");
       } else if (task === "outrights") {

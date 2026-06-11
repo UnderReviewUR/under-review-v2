@@ -6,12 +6,15 @@ import { getDurableJson } from "./_durableStore.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
   WC_GOLDEN_BOOT_KV_KEY,
+  WC_GOLDEN_GLOVE_KV_KEY,
   WC_INJURIES_KV_KEY,
   WC_MATCH_PLAYER_PROPS_KV_KEY,
   WC_GOLDEN_BOOT_MAX_AGE_MS,
+  WC_GOLDEN_GLOVE_MAX_AGE_MS,
   WC_PLAYER_MARKETS_OVERRIDE_KV_KEY,
 } from "../shared/wc2026PlayerConstants.js";
 import { attachGoldenBootFreshness } from "../shared/wcPlayerOddsFreshness.js";
+import { attachGoldenGloveFreshness } from "../shared/wcGoldenGloveFreshness.js";
 import { wcRosterCompleteness } from "../shared/wcRosterCompleteness.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS } from "../shared/wc2026Constants.js";
@@ -40,10 +43,11 @@ function staleHours(lastUpdated, maxAgeMs, nowMs = Date.now()) {
  * @param {number} [nowMs]
  */
 export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
-  const [playersKv, goldenBootRaw, injuries, matchProps, override, tournamentSim, outrightsKv] =
+  const [playersKv, goldenBootRaw, goldenGloveRaw, injuries, matchProps, override, tournamentSim, outrightsKv] =
     await Promise.all([
       readWcPlayersFromKv(),
       getDurableJson(WC_GOLDEN_BOOT_KV_KEY),
+      getDurableJson(WC_GOLDEN_GLOVE_KV_KEY),
       getDurableJson(WC_INJURIES_KV_KEY),
       getDurableJson(WC_MATCH_PLAYER_PROPS_KV_KEY),
       getDurableJson(WC_PLAYER_MARKETS_OVERRIDE_KV_KEY),
@@ -52,6 +56,7 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
     ]);
 
   const goldenBoot = attachGoldenBootFreshness(goldenBootRaw, nowMs);
+  const goldenGlove = attachGoldenGloveFreshness(goldenGloveRaw, nowMs);
   const roster = wcRosterCompleteness(playersKv || {});
   const injuryRows = Array.isArray(injuries?.rows) ? injuries.rows : [];
   const highImpact = injuryRows.filter((r) => r.impact === "high").length;
@@ -69,6 +74,9 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       goldenBootStaleHours: staleHours(goldenBoot?.lastUpdated, WC_GOLDEN_BOOT_MAX_AGE_MS, nowMs),
       goldenBootRowCount: Array.isArray(goldenBoot?.rows) ? goldenBoot.rows.length : 0,
       goldenBootStale: Boolean(goldenBoot?.stale),
+      goldenGloveStaleHours: staleHours(goldenGlove?.lastUpdated, WC_GOLDEN_GLOVE_MAX_AGE_MS, nowMs),
+      goldenGloveRowCount: Array.isArray(goldenGlove?.rows) ? goldenGlove.rows.length : 0,
+      goldenGloveStale: Boolean(goldenGlove?.stale),
       playerRegistryCoverage: {
         playerCount: roster.playerCount,
         teamCount: roster.teamCount,
@@ -108,6 +116,14 @@ export async function buildWcPlayerMarketsStatus(nowMs = Date.now()) {
       sourcesEnabledNow: listEnabledWcGoldenBootBooks().length,
       sourcesAttempted: goldenBootRaw?.sourcesAttempted ?? null,
       sourcesOk: goldenBootRaw?.sourcesOk ?? null,
+    },
+    goldenGlove: {
+      lastUpdated: goldenGlove?.lastUpdated ?? null,
+      source: goldenGlove?.source ?? null,
+      booksUsed: goldenGlove?.booksUsed ?? [],
+      rowCount: Array.isArray(goldenGlove?.rows) ? goldenGlove.rows.length : 0,
+      stale: Boolean(goldenGlove?.stale),
+      freshness: goldenGlove?.freshness ?? null,
     },
     players: {
       lastUpdated: playersKv?.lastUpdated ?? null,

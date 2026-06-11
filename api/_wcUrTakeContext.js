@@ -65,6 +65,11 @@ import {
   buildAdjustedGoldenBootPromptBlock,
   shouldInjectAdjustedGoldenBoot,
 } from "../shared/wcAdjustedGoldenBootInject.js";
+import {
+  buildGoldenGlovePromptBlocks,
+  shouldInjectGoldenGloveBlocks,
+} from "../shared/wcAdjustedGoldenGloveInject.js";
+import { readWcGoldenGloveFromKv } from "./_wcGoldenGloveOdds.js";
 import { buildWcPlayerBioPromptBlock } from "../shared/wcPlayerBio.js";
 import { buildResolvedWcPlayerRegistry } from "../shared/wcPlayerRegistry.js";
 import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
@@ -705,6 +710,14 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("", ctx.adjustedGoldenBootBlock);
   }
 
+  if (ctx.goldenGloveOddsBlock) {
+    lines.push("", ctx.goldenGloveOddsBlock);
+  }
+
+  if (ctx.adjustedGoldenGloveBlock) {
+    lines.push("", ctx.adjustedGoldenGloveBlock);
+  }
+
   if (ctx.playerBioPromptBlock) {
     lines.push("", ctx.playerBioPromptBlock);
   }
@@ -903,10 +916,14 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   }
 
   let adjustedGoldenBootBlock = null;
+  let goldenGloveOddsBlock = null;
+  let adjustedGoldenGloveBlock = null;
   let roundupPlayerKv = null;
   let playerBioPromptBlock = null;
   const needsPlayerBio =
-    shouldInjectAdjustedGoldenBoot(wcIntent, question) || isWcPlayerMarketIntent(wcIntent);
+    shouldInjectAdjustedGoldenBoot(wcIntent, question) ||
+    shouldInjectGoldenGloveBlocks(wcIntent, question) ||
+    isWcPlayerMarketIntent(wcIntent);
   if (shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
     try {
       const [goldenBootKv, playersKv] = await Promise.all([
@@ -934,6 +951,30 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       playerBioPromptBlock = buildWcPlayerBioPromptBlock(registry);
     } catch (bioErr) {
       console.warn("[wc-context] player bio block failed:", bioErr?.message);
+    }
+  }
+
+  if (shouldInjectGoldenGloveBlocks(wcIntent, question)) {
+    try {
+      const [goldenGloveKv, playersKv] = await Promise.all([
+        readWcGoldenGloveFromKv(nowMs),
+        roundupPlayerKv?.players ? Promise.resolve(roundupPlayerKv.players) : readWcPlayersFromKv(),
+      ]);
+      const gloveBlocks = buildGoldenGlovePromptBlocks({
+        goldenGloveKv,
+        playersKv: { teams: playersKv?.teams || playersKv },
+        tournamentSimResults,
+        maxRows: 10,
+      });
+      goldenGloveOddsBlock = gloveBlocks.oddsBlock;
+      adjustedGoldenGloveBlock = gloveBlocks.adjustedBlock;
+      roundupPlayerKv = {
+        ...(roundupPlayerKv || {}),
+        goldenGlove: goldenGloveKv,
+        players: playersKv,
+      };
+    } catch (gloveErr) {
+      console.warn("[wc-context] Golden Glove block failed:", gloveErr?.message);
     }
   }
 
@@ -1040,6 +1081,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     tournamentSimBlock,
     tournamentSimResults,
     adjustedGoldenBootBlock,
+    goldenGloveOddsBlock,
+    adjustedGoldenGloveBlock,
     playerBioPromptBlock,
     roundupPlayerKv,
     wcEventId: effectiveEventId,

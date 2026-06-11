@@ -7,7 +7,9 @@ test("buildWcPlayerMarketsStatus exposes alerts block", async () => {
   assert.equal(status.ok, true);
   assert.ok(status.alerts);
   assert.ok("goldenBootStaleHours" in status.alerts);
+  assert.ok("goldenGloveStaleHours" in status.alerts);
   assert.ok("playerRegistryCoverage" in status.alerts);
+  assert.ok(status.goldenGlove);
   assert.ok("activeInjuriesCount" in status.alerts);
   assert.ok(status.scrapeFlags);
 });

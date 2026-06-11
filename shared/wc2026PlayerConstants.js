@@ -6,6 +6,8 @@ export const WC_PLAYERS_KV_KEY = "wc2026_players";
 
 export const WC_GOLDEN_BOOT_KV_KEY = "wc2026_golden_boot";
 
+export const WC_GOLDEN_GLOVE_KV_KEY = "wc2026_golden_glove";
+
 export const WC_INJURIES_KV_KEY = "wc2026_injuries";
 
 export const WC_MATCH_PLAYER_PROPS_KV_KEY = "wc2026_match_player_props";
@@ -23,6 +25,9 @@ export const WC_PLAYERS_TTL_SECONDS = 24 * 3600;
 /** 6h KV TTL — Golden Boot / top scorer outrights. */
 
 export const WC_GOLDEN_BOOT_TTL_SECONDS = 6 * 3600;
+
+/** 6h KV TTL — Golden Glove / best goalkeeper outrights. */
+export const WC_GOLDEN_GLOVE_TTL_SECONDS = 6 * 3600;
 
 
 
@@ -47,6 +52,9 @@ export const WC_PLAYER_MARKETS_OVERRIDE_TTL_SECONDS = 7 * 24 * 3600;
 /** UR Take + API freshness gate (Golden Boot). */
 
 export const WC_GOLDEN_BOOT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/** UR Take freshness gate (Golden Glove). */
+export const WC_GOLDEN_GLOVE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 
 

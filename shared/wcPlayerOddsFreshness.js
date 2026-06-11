@@ -89,3 +89,11 @@ export function goldenBootRowsFromKv(kvGoldenBoot, limit = 20) {
     limit,
   );
 }
+
+/**
+ * @param {Record<string, unknown> | null | undefined} kvGoldenGlove
+ * @param {number} [limit]
+ */
+export function goldenGloveRowsFromKv(kvGoldenGlove, limit = 20) {
+  return goldenBootRowsFromKv(kvGoldenGlove, limit);
+}

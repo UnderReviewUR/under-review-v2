@@ -30,7 +30,7 @@ export function isGoalScrapeEnabled() {
 /**
  * @param {import("../shared/goalBettingRegistry.js").GoalBettingPageConfig} page
  */
-async function scrapeGoalPage(page) {
+export async function scrapeGoalPage(page) {
   const fetched = await fetchBookPageHtmlForScrape(page.url, { bookKey: "goal" });
   if (!fetched.ok || !fetched.html) {
     return { ...page, ok: false, rows: [], error: fetched.error || "fetch_failed" };

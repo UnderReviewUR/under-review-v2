@@ -17,7 +17,8 @@ import {
   resolveWcTournamentSimForPrompt,
   scrapeAndCacheWcTournamentSim,
 } from "./_wcTournamentSimData.js";
-import { getWcGoldenBootPayload, scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
+import { getWcGoldenBootPayload, readWcGoldenBootFromKv, scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
+import { getWcGoldenGlovePayload, scrapeAndCacheWcGoldenGlove } from "./_wcGoldenGloveOdds.js";
 import { getWcInjuriesPayload, scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { getWcPlayersPayload, scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import {
@@ -609,6 +610,14 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    if (view === "golden_glove" || view === "golden-glove") {
+      if (String(req.query?.refresh || "") === "1") {
+        await scrapeAndCacheWcGoldenGlove();
+      }
+      const payload = await getWcGoldenGlovePayload();
+      return res.status(200).json(payload);
+    }
+
     if (view === "injuries") {
       if (String(req.query?.refresh || "") === "1") {
         await scrapeAndCacheWcInjuries();
@@ -701,7 +710,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, goat, players, golden_boot, injuries, sim, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, goat, players, golden_boot, golden_glove, injuries, sim, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);

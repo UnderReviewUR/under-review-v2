@@ -239,17 +239,32 @@ export function runWcUrTakeQA(opts = {}) {
     }
 
     const invalidSlots = wcRoundupInvalidSlotKeys(slots || []);
-    if (invalidSlots.includes("topScorer")) {
+    if (invalidSlots.includes("topScorer") || invalidSlots.includes("goldenBoot")) {
       issueCodes.push("wc_roundup_scorer_unnamed");
+    }
+    if (invalidSlots.includes("goldenGlove")) {
+      issueCodes.push("wc_roundup_gk_unnamed");
+    }
+    if (invalidSlots.includes("bestPlayer")) {
+      issueCodes.push("wc_roundup_best_player_unnamed");
+    }
+    if (invalidSlots.includes("flop")) {
+      issueCodes.push("wc_roundup_flop_vague");
     }
     if (invalidSlots.includes("breakout")) {
       issueCodes.push("wc_roundup_breakout_unnamed");
     }
-    if (invalidSlots.includes("winners") || invalidSlots.includes("darkHorse")) {
+    if (
+      invalidSlots.includes("winners") ||
+      invalidSlots.includes("darkHorse") ||
+      invalidSlots.includes("champion")
+    ) {
       issueCodes.push("wc_roundup_nation_unnamed");
     }
 
-    const topScorerSlot = (slots || []).find((s) => s.key === "topScorer");
+    const topScorerSlot =
+      (slots || []).find((s) => s.key === "goldenBoot") ||
+      (slots || []).find((s) => s.key === "topScorer");
     const roleMismatch = detectWcScorerRoleMismatch(body, {
       topScorerSlotValue: topScorerSlot?.value,
       playerRegistryTeams: registryTeams,
@@ -486,6 +501,9 @@ export function wcQaRequiresRegeneration(qaResult) {
       "missing_line_delta",
       "wc_predictions_roundup_incomplete",
       "wc_roundup_scorer_unnamed",
+      "wc_roundup_gk_unnamed",
+      "wc_roundup_best_player_unnamed",
+      "wc_roundup_flop_vague",
       "wc_roundup_breakout_unnamed",
       "wc_roundup_nation_unnamed",
       "wc_scorer_role_mismatch",

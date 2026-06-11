@@ -40,7 +40,10 @@ const WC_SCORER_FULL_NAME =
   /\b[A-ZÀ-ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-ÿ][a-zà-ÿ]+){1,2}\b/;
 
 const VAGUE_TOP_SCORER_RE =
-  /\b(board hasn't|board has not|not posted|no individual odds|no odds yet|midfielder-forward hybrid|structure favors a|hybrid from a team|consensus names|without naming|cannot name|can't name|unspecified|tbd player|unknown player)\b/i;
+  /\b(board hasn't|board has not|not posted|no individual odds|no odds yet|no verified market|midfielder-forward hybrid|structure favors a|hybrid from a team|consensus names|without naming|cannot name|can't name|unspecified|tbd player|unknown player|keeper\b(?!\s+[A-Z])|goalkeeper\b(?!\s+[A-Z])|nation'?s?\s+(?:keeper|goalkeeper|gk))\b/i;
+
+const WC_GK_MONONYMS =
+  /(?:^|[^a-z])(mart[ií]nez|sim[oó]n|alisson|maignan|pickford|donnarumma|courtois|neuer|oblak|lloris|szcz[eę]sny|ter stegen|de gea|ramsdale|pope|turner|steele|skorupski|livakovi[cć]|diogo costa|rui patr[ií]cio)(?:[^a-z]|$)/i;
 
 const PASS_WITH_NAMED_LEAN_RE =
   /\bpass\b/i;
@@ -113,6 +116,42 @@ export function isWcRoundupBreakoutSlotValid(value) {
 }
 
 /**
+ * Golden Glove / best goalkeeper slot must name a starter GK — not a nation alone.
+ * @param {string} value
+ */
+export function isWcRoundupGoldenGloveSlotValid(value) {
+  const v = String(value || "").trim();
+  if (!v || v.length < 3) return false;
+  if (VAGUE_TOP_SCORER_RE.test(v)) return false;
+  if (WC_GK_MONONYMS.test(v)) return true;
+  if (hasWcPlayerNameInText(v)) return true;
+  if (isWcRoundupNationSlotValid(v) && !/\b(gk|goalkeeper|keeper)\b/i.test(v)) {
+    return false;
+  }
+  return false;
+}
+
+/**
+ * @param {string} value
+ */
+export function isWcRoundupBestPlayerSlotValid(value) {
+  const v = String(value || "").trim();
+  if (!v || v.length < 3) return false;
+  if (VAGUE_TOP_SCORER_RE.test(v)) return false;
+  return hasWcPlayerNameInText(v);
+}
+
+/**
+ * @param {string} value
+ */
+export function isWcRoundupFlopSlotValid(value) {
+  const v = String(value || "").trim();
+  if (!v || v.length < 3) return false;
+  if (VAGUE_TOP_SCORER_RE.test(v)) return false;
+  return hasWcPlayerNameInText(v) || isWcRoundupNationSlotValid(v);
+}
+
+/**
  * @param {Array<{ key: string, value?: string }>} slots
  */
 export function wcRoundupInvalidSlotKeys(slots) {
@@ -121,11 +160,20 @@ export function wcRoundupInvalidSlotKeys(slots) {
   for (const slot of slots || []) {
     const key = String(slot?.key || "");
     const value = String(slot?.value || "").trim();
-    if (key === "topScorer" && !isWcRoundupTopScorerSlotValid(value)) {
-      invalid.push("topScorer");
+    if ((key === "topScorer" || key === "goldenBoot") && !isWcRoundupTopScorerSlotValid(value)) {
+      invalid.push(key);
     } else if (key === "breakout" && !isWcRoundupBreakoutSlotValid(value)) {
       invalid.push("breakout");
-    } else if ((key === "winners" || key === "darkHorse") && !isWcRoundupNationSlotValid(value)) {
+    } else if (key === "goldenGlove" && !isWcRoundupGoldenGloveSlotValid(value)) {
+      invalid.push("goldenGlove");
+    } else if (key === "bestPlayer" && !isWcRoundupBestPlayerSlotValid(value)) {
+      invalid.push("bestPlayer");
+    } else if (key === "flop" && !isWcRoundupFlopSlotValid(value)) {
+      invalid.push("flop");
+    } else if (
+      (key === "winners" || key === "darkHorse" || key === "champion") &&
+      !isWcRoundupNationSlotValid(value)
+    ) {
       invalid.push(key);
     }
   }

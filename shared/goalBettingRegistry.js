@@ -37,6 +37,13 @@ export const GOAL_BETTING_PAGES = [
     rowKind: "player",
   },
   {
+    id: "golden_glove",
+    label: "Golden Glove",
+    url: "https://www.goal.com/en-us/betting/world-cup/world-cup-golden-glove-odds/A%3Abltd16a08f79c19b7ac",
+    sport: "wc",
+    rowKind: "player",
+  },
+  {
     id: "host_usa",
     label: "USMNT host futures",
     url: "https://www.goal.com/en-us/betting/world-cup/usmnt-world-cup-odds/A%3Ablt281a0ed6486a6f85",
