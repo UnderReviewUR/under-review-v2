@@ -2511,6 +2511,9 @@ export default async function handler(req, res) {
 
   const hasImage = !!image?.base64;
   const routingQuestion = routingQuestionEarly;
+  const wcRunnerUpFollowUpQuestion =
+    isWcRunnerUpValueFollowUp(String(question || "")) ||
+    isWcRunnerUpValueFollowUp(routingQuestion);
 
   const intent = detectIntent(routingQuestion, hasImage);
   const chaseSignals = detectChaseSignals(routingQuestion, incomingHistory);
@@ -2659,6 +2662,7 @@ export default async function handler(req, res) {
     const reqSet = new Set(wcRequiredEntities);
     wcForbiddenEntities = sessionEntities.filter((e) => !reqSet.has(e));
     const wcCrossGroupCandidate =
+      !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
       !isWcPlayerMarketIntent(wcIntent);
@@ -4758,8 +4762,9 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
 
-    const wcPushBackBindingBlock =
-      isConversationFollowUp
+    const wcPushBackBindingBlock = wcRunnerUpFollowUpQuestion
+      ? "The user asked about the Group K runner-up value. Answer only Group K / DR Congo. Do not discuss Group D or USA."
+      : isConversationFollowUp
         ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
         : "";
 
@@ -5000,6 +5005,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       (isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST)
     ) {
@@ -5028,13 +5034,7 @@ You are responding to a Pro subscriber. Apply the following:
       }
     }
 
-    if (
-      sportHint === "worldcup" &&
-      isConversationFollowUp &&
-      !wcPlayerMarketPassUsed &&
-      (isWcRunnerUpValueFollowUp(routingQuestion) ||
-        isWcRunnerUpValueFollowUp(String(question || "")))
-    ) {
+    if (sportHint === "worldcup" && wcRunnerUpFollowUpQuestion && !wcPlayerMarketPassUsed) {
       const { group: runnerUpGroup, teamAbbr: runnerUpTeamAbbr } = extractWcRunnerUpFromHistory(
         normalizedUrTakeHistoryForGate,
       );
@@ -5067,6 +5067,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcRunnerUpFollowUpPassUsed &&
@@ -5089,6 +5090,7 @@ You are responding to a Pro subscriber. Apply the following:
       );
     } else if (
       sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       shouldUseWcCrossGroupValuePrebuilt(String(question || ""), wcIntent)
@@ -5118,6 +5120,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
@@ -6022,6 +6025,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (
       sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
       wcQaResult &&
       !wcQaResult.passed &&
       (wcQaResult.issueCodes || []).includes("wc_group_math_mismatch")
@@ -6066,6 +6070,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
     if (
       sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
       wcQaResult &&
       !wcQaResult.passed &&
       (wcQaResult.issueCodes || []).includes("wc_group_roster_mismatch")
