@@ -66,7 +66,7 @@ export const baseCss = `
     --bottom-nav-height:72px;
     /* Fallbacks when measured chrome vars are unset (see App.jsx ResizeObserver) */
     --ur-dock-askbar-est:72px;
-    --ur-dock-followups-est:56px;
+    --ur-dock-followups-est:72px;
     --ur-chat-scroll-dock-buffer:16px;
     --keyboard-height:0px;
     --nfl-predict-bg:#0a0a0a;
@@ -340,23 +340,26 @@ export const baseCss = `
     padding-left:16px;
     padding-right:16px;
     /*
-     * Clearance = max(fixed nav band, dock bottom offset + dock height).
-     * Do not sum nav + dock — the dock sits just above the nav offset band.
+     * Prefer measured viewport→dock-top clearance (App.jsx); fallback sums nav + dock estimates.
      */
     padding-bottom:calc(
-      max(
-        var(--ur-nav-measured-h, var(--bottom-nav-height)),
-        calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
+      var(
+        --ur-chat-scroll-clearance,
+        max(
+          var(--ur-nav-measured-h, var(--bottom-nav-height)),
+          calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
+        )
       )
-      + var(--ur-vv-rise, 0px)
       + var(--ur-chat-scroll-dock-buffer)
     );
     scroll-padding-bottom:calc(
-      max(
-        var(--ur-nav-measured-h, var(--bottom-nav-height)),
-        calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
+      var(
+        --ur-chat-scroll-clearance,
+        max(
+          var(--ur-nav-measured-h, var(--bottom-nav-height)),
+          calc(var(--bottom-nav-height) + var(--ur-dock-measured-h, calc(var(--ur-dock-followups-est) + var(--ur-dock-askbar-est))))
+        )
       )
-      + var(--ur-vv-rise, 0px)
       + var(--ur-chat-scroll-dock-buffer)
     );
   }
@@ -1939,6 +1942,7 @@ export const baseCss = `
   }
   .screen--ur-focus .ur-chat-scroll{
     padding-top:8px;
+    --ur-chat-scroll-dock-buffer:32px;
   }
   .screen--ur-focus .bubble--imessage-ai .ur-v2-card{
     border:none;

@@ -512,7 +512,7 @@ export default function App() {
 
   const css = `
 ${baseCss}
-/* UR docked chat scroll inset: max(nav, bottom-offset+dock) from --ur-dock-measured-h / --ur-nav-measured-h (App.jsx) + --ur-vv-rise + buffer — appBaseCss.js */
+/* UR docked chat scroll inset: --ur-chat-scroll-clearance (viewport→dock top) + buffer — appBaseCss.js */
 ${themeCss}
 `;
 
@@ -4453,11 +4453,16 @@ ${themeCss}
       const dock = document.querySelector(".app .docked-bar.ur-docked-bar");
       const nav = document.querySelector(".app nav.bottom-nav");
       if (dock) {
-        const h = dock.getBoundingClientRect().height;
+        const dockRect = dock.getBoundingClientRect();
+        const h = dockRect.height;
         /* +28px: chip wrap / shadows / subpixel vs scroll-padding — avoids last board line sitting under the dock strip */
         root.style.setProperty("--ur-dock-measured-h", `${Math.ceil(h) + 28}px`);
+        /* Viewport bottom → dock top: exact fixed-chrome clearance for .ur-chat-scroll padding */
+        const clearance = Math.max(0, window.innerHeight - dockRect.top);
+        root.style.setProperty("--ur-chat-scroll-clearance", `${Math.ceil(clearance)}px`);
       } else {
         root.style.removeProperty("--ur-dock-measured-h");
+        root.style.removeProperty("--ur-chat-scroll-clearance");
       }
       if (nav) {
         const h = nav.getBoundingClientRect().height;
@@ -4492,12 +4497,21 @@ ${themeCss}
       moDock.observe(dock, { subtree: true, childList: true, attributes: true, characterData: true });
     }
     window.addEventListener("resize", measure);
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", measure);
+      vv.addEventListener("scroll", measure);
+    }
     return () => {
       window.clearTimeout(t0);
       window.clearTimeout(t50);
       window.clearTimeout(t200);
       window.clearTimeout(t600);
       window.removeEventListener("resize", measure);
+      if (vv) {
+        vv.removeEventListener("resize", measure);
+        vv.removeEventListener("scroll", measure);
+      }
       try {
         const d = document.querySelector(".app .docked-bar.ur-docked-bar");
         const n = document.querySelector(".app nav.bottom-nav");
@@ -4511,9 +4525,11 @@ ${themeCss}
       moDock?.disconnect();
       root.style.removeProperty("--ur-dock-measured-h");
       root.style.removeProperty("--ur-nav-measured-h");
+      root.style.removeProperty("--ur-chat-scroll-clearance");
     };
   }, [
     hasDockedBar,
+    activeFocusSession,
     screen,
     askMsgs.length,
     tennisMsgs.length,
