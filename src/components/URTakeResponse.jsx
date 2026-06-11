@@ -94,6 +94,7 @@ export default function URTakeResponse({
   focusLayout = false,
   /** Orange data-confidence banner — first take in thread only. */
   showWcCautionBanner = true,
+  modelAttribution = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -390,7 +391,7 @@ export default function URTakeResponse({
         breakdownAvailable={wcBreakdownAvailable}
         predictionSlots={wcPredictionSlotRows}
         focusLayout={focusLayout}
-        modelAttribution={wcWhyPrepared.modelAttribution}
+        modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
       />
     );
   }

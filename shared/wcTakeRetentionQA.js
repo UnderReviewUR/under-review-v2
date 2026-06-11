@@ -95,11 +95,13 @@ export function responseCitesWcSimPercentages(body, structured) {
  */
 export function detectMissingWcSimAttribution(body, structured) {
   if (!responseCitesWcSimPercentages(body, structured)) return false;
+  if (structured?.modelAttribution && String(structured.modelAttribution).trim()) return false;
   const blob = [
     body,
     structured?.line,
     structured?.whyNow,
     structured?.call,
+    structured?.modelAttribution,
   ]
     .filter(Boolean)
     .join("\n");
@@ -107,6 +109,86 @@ export function detectMissingWcSimAttribution(body, structured) {
   if (/\bUR sims?\b/i.test(blob)) return false;
   if (/\bUR\b[^.\n]{0,48}\bsims?\b/i.test(blob)) return false;
   return true;
+}
+
+const WC_THIN_ROSTER_WHY_RE = /^group\s+[a-l]\s+is\s+four\s+teams:/i;
+
+/**
+ * WHY is roster trivia without sim delta or honest data-gap language.
+ * @param {string} whyNow
+ */
+export function isWcThinRosterOnlyWhy(whyNow) {
+  const w = String(whyNow || "").trim();
+  if (!w) return false;
+  if (/\d+\.?\d*\s*%/.test(w) && /\b(vs market|sim|delta|mispric|overpric|underpric)\b/i.test(w)) {
+    return false;
+  }
+  if (
+    /\b(cannot quantify|not in context|can't prove|no live|missing.*odds|needs fresh lines)\b/i.test(
+      w,
+    )
+  ) {
+    return false;
+  }
+  return WC_THIN_ROSTER_WHY_RE.test(w) || (/Group\s+[A-L]\s+is\s+four\s+teams/i.test(w) && !/\d+\.?\d*\s*%/.test(w));
+}
+
+/** @param {string} question */
+export function isWcRunnerUpValueFollowUp(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  return (
+    /\b(runner[- ]?up|second\s+(?:most\s+)?mispric|#2)\b/i.test(q) &&
+    /\b(group|value)\b/i.test(q)
+  );
+}
+
+/**
+ * @param {object[]} history
+ * @returns {string | null}
+ */
+export function extractWcRunnerUpGroupFromHistory(history) {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const turn = history[i];
+    const role = String(turn?.role || "").toLowerCase();
+    if (role !== "assistant" && role !== "ai") continue;
+    const text = String(turn?.content || turn?.text || "");
+    const m =
+      text.match(/runner[- ]?up\s+Group\s+([A-L])/i) ||
+      text.match(/Group\s+([A-L])\s+runner[- ]?up/i);
+    if (m?.[1]) return String(m[1]).toUpperCase();
+  }
+  return null;
+}
+
+/**
+ * @param {string} question
+ * @param {object[]} history
+ * @returns {string}
+ */
+export function buildWcPushBackBindingBlock(question, history) {
+  if (!isWcRunnerUpValueFollowUp(question)) return "";
+  const group = extractWcRunnerUpGroupFromHistory(history);
+  if (!group) return "";
+  return `PUSH-BACK BINDING (mandatory): Prior take named Group ${group} as runner-up value. Answer ONLY Group ${group} — cite sim% vs market% for the best advancement misprice in that group. Do NOT re-issue the #1 group pick or a new flagship slate card for a different group.`;
+}
+
+/**
+ * Console warning only — no regeneration loop.
+ * @param {{ whyNow?: string, question?: string, isFollowUp?: boolean }} opts
+ */
+export function warnWcThinFollowUpWhy(opts = {}) {
+  if (!opts.isFollowUp) return;
+  const whyNow = String(opts.whyNow || "").trim();
+  if (!isWcThinRosterOnlyWhy(whyNow)) return;
+  console.warn(
+    JSON.stringify({
+      event: "wc_thin_why",
+      question: String(opts.question || "").slice(0, 160),
+      whyPreview: whyNow.slice(0, 240),
+    }),
+  );
 }
 
 /**

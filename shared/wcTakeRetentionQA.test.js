@@ -5,8 +5,11 @@ import {
   detectMissingComparativeProof,
   detectMissingWcSimAttribution,
   extractWcModelAttributionPrefix,
+  extractWcRunnerUpGroupFromHistory,
+  isWcThinRosterOnlyWhy,
   isWcWatchForDupedAgainstWhy,
   stripWcModelAttributionPrefix,
+  buildWcPushBackBindingBlock,
   wcSentenceSimilarity,
 } from "./wcTakeRetentionQA.js";
 
@@ -25,6 +28,11 @@ test("detectMissingWcSimAttribution requires label when sim % cited", () => {
 
   structured.line =
     "[UR model · 10k Poisson/Elo · Jun 10] Market -130 · sim 15% vs market ~57%.";
+  assert.equal(detectMissingWcSimAttribution("sims show 15% R16 reach", structured), false);
+
+  structured.modelAttribution = "UR model · 10k Poisson/Elo · Jun 11";
+  structured.line = "Market -130 · sim 15% vs market ~57%.";
+  structured.whyNow = "USA advance 15% vs market 57%.";
   assert.equal(detectMissingWcSimAttribution("sims show 15% R16 reach", structured), false);
 
   structured.line = "Market FRA -110 group · UR sims ~52% FRA 1st.";
@@ -73,6 +81,29 @@ test("detectMissingComparativeProof — Group D path requires team compare", () 
 test("buildWcSimAttributionLabel formats date from timestamp", () => {
   const label = buildWcSimAttributionLabel(Date.parse("2026-06-10T12:00:00.000Z"));
   assert.match(label, /\[UR model · 10k Poisson\/Elo · Jun 10\]/);
+});
+
+test("isWcThinRosterOnlyWhy flags roster trivia without deltas", () => {
+  assert.equal(
+    isWcThinRosterOnlyWhy(
+      "Group D is four teams: Türkiye (Favorite), Paraguay (Contender), Australia and United States (Longshots).",
+    ),
+    true,
+  );
+  assert.equal(
+    isWcThinRosterOnlyWhy("UR sims: COD advance 41.2% vs market 68.0% (-26.8pt)."),
+    false,
+  );
+});
+
+test("buildWcPushBackBindingBlock binds runner-up group from prior assistant turn", () => {
+  const history = [
+    { role: "user", content: "best group value?" },
+    { role: "assistant", content: "Group D most mispriced (#1); Group K runner-up" },
+  ];
+  const block = buildWcPushBackBindingBlock("Which group is the runner-up value?", history);
+  assert.match(block, /Group K/);
+  assert.equal(extractWcRunnerUpGroupFromHistory(history), "K");
 });
 
 test("extractWcModelAttributionPrefix splits bracket label from WHY body", () => {

@@ -217,6 +217,10 @@ import {
   resolveWcQaStructured,
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import {
+  buildWcPushBackBindingBlock,
+  warnWcThinFollowUpWhy,
+} from "../../shared/wcTakeRetentionQA.js";
+import {
   buildWcSessionMemoryPrompt,
   extractSessionWcEntities,
 } from "../../shared/wcUrTakeSessionMemory.js";
@@ -4728,9 +4732,14 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
 
+    const wcPushBackBindingBlock =
+      isConversationFollowUp
+        ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
+        : "";
+
     userPrompt = `${wcRoleLine}
 
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
 
 Question:
 ${question}
@@ -5281,6 +5290,8 @@ You are responding to a Pro subscriber. Apply the following:
 [FOLLOW-UP + STRUCTURED — OUTPUT CHANNEL]
 Structured JSON mode overrides the follow-up "3–5 sentences / no headers" prose rules.
 Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the follow-up inside whyNow, edge, and analysis fields (keep each field tight; all required keys must be present).
+- whyNow: sim% vs market% delta OR plain statement that live odds are missing — never roster-only ("Group X is four teams…").
+- Do NOT repeat the prior card headline; answer only the new push-back question.
 `;
         }
       }
@@ -5796,6 +5807,13 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               headlinePreview: wcQaResult.headlinePreview,
             }),
           );
+        }
+        if (isConversationFollowUp) {
+          warnWcThinFollowUpWhy({
+            whyNow: structuredResponse?.whyNow || responseText,
+            question: String(question || ""),
+            isFollowUp: true,
+          });
         }
       }
 

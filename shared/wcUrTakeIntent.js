@@ -415,9 +415,13 @@ export { isTournamentWinnerQuestion as isWcTournamentWinnerQuestion } from "./wc
 export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same chat, this sport only):
 - UnderReview handles ANY World Cup question — intents are routing hints, not an allowlist. When unsure, answer literally (GENERAL).
 - Each user message is a NEW question. Re-read intent every turn — do not auto-repeat the last answer.
+- Push-back chips answer ONLY the new question. If the prior take named a runner-up group (e.g. Group K), answer that group's value — do NOT re-issue the #1 pick or a new full slate card for a different group.
 - Answer only the specific World Cup question asked. 3–5 sentences in summary unless structured JSON mode applies.
 - When the user changes the ask (single top scorer → top 5 goalscorers, Golden Boot → group pick, matchup → scorelines), deliver the NEW shape — never paste the prior one-liner.
 - REQUIRED ENTITIES from the user message are binding — do not substitute a prior thread thesis or a different team.
+- whyNow must include sim% vs market% delta OR say plainly that live advance odds are not in VERIFIED CONTEXT — never roster-only ("Group X is four teams…").
+- If you cannot prove misprice from VERIFIED CONTEXT, set confidence Speculative and state what is missing in whyNow.
+- edge / watchFor = trigger to act or pass; user must leave with bet + why the number is wrong + what to watch.
 - Use only WORLD CUP 2026 — VERIFIED CONTEXT in the user message. Never claim data is missing if it appears there.
 - Never narrate sport routing, context switches, or prior takes unless the user asks about them directly.
 - For rules questions: factual answer only — no betting recommendation as the lead.

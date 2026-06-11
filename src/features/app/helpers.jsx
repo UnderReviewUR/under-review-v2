@@ -1728,6 +1728,10 @@ function coerceStructuredForUrTakeCard(raw) {
           }))
           .filter((s) => s.label && s.value)
       : [],
+    modelAttribution:
+      raw.modelAttribution != null && String(raw.modelAttribution).trim()
+        ? String(raw.modelAttribution).trim()
+        : null,
   };
 }
 
@@ -2130,6 +2134,7 @@ function UrTakeAiBubble({
               message: m,
             })}
             focusLayout={cardFocusLayout}
+            modelAttribution={s.modelAttribution}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

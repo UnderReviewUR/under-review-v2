@@ -14,6 +14,7 @@ import {
 import {
   isWcCrossGroupMispriceQuestion,
   buildWcSimAttributionLabel,
+  extractWcModelAttributionPrefix,
 } from "./wcTakeRetentionQA.js";
 import { computeGroupMispriceRankings } from "./wcGroupMispriceRanking.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
@@ -334,17 +335,18 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
     pickAbbr: top.teamAbbr,
     pickMarket: "to advance",
     advanceOdds,
+    simPct: top.simPct,
+    impliedPct: top.impliedPct,
+    delta: top.delta,
+    bdlLastUpdated: opts.bdlFutures?.lastUpdated,
+    nowMs: opts.nowMs,
   });
   if (!base || !mispriceQ || ranked.length < 2) return base;
 
   const second = ranked[1];
-  const simLabel = buildWcSimAttributionLabel(opts.bdlFutures?.lastUpdated, opts.nowMs);
   const deltaTop = `${top.delta >= 0 ? "+" : ""}${top.delta.toFixed(1)}pt`;
   const deltaSecond = `${second.delta >= 0 ? "+" : ""}${second.delta.toFixed(1)}pt`;
-  const comp = getWcGroupComposition(top.group);
-  const longList = comp?.longshots?.map((t) => t.name).join(" and ") || "the longshots";
-  const fav = comp?.favorite?.name || "the favorite";
-  const cont = comp?.contender?.name || top.teamAbbr;
+  const modelAttribution = wcModelAttributionFooter(opts.bdlFutures?.lastUpdated, opts.nowMs);
 
   return {
     ...base,
@@ -353,10 +355,12 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
       0,
       120,
     ),
-    whyNow: `${simLabel} #1 Group ${top.group} (${top.teamAbbr} sim ${top.simPct.toFixed(1)}% vs market ${top.impliedPct.toFixed(1)}%, ${deltaTop}). Runner-up Group ${second.group} (${second.teamAbbr}, ${deltaSecond}). Group ${top.group}: ${fav} (Favorite), ${cont} (Contender), ${longList} (Longshots).`.slice(
-      0,
-      400,
-    ),
+    whyNow:
+      `UR sims: #1 Group ${top.group} — ${top.teamAbbr} ${top.simPct.toFixed(1)}% vs market ${top.impliedPct.toFixed(1)}% (${deltaTop}). Runner-up Group ${second.group}: ${second.teamAbbr} ${second.simPct.toFixed(1)}% vs market ${second.impliedPct.toFixed(1)}% (${deltaSecond}).`.slice(
+        0,
+        400,
+      ),
+    modelAttribution,
   };
 }
 
@@ -385,12 +389,46 @@ export function shouldUseWcGroupSlatePrebuilt(question, wcIntent) {
   );
 }
 
+/** @param {number | null | undefined} lastUpdatedMs @param {number} [nowMs] */
+function wcModelAttributionFooter(lastUpdatedMs, nowMs = Date.now()) {
+  const raw = buildWcSimAttributionLabel(lastUpdatedMs, nowMs);
+  return extractWcModelAttributionPrefix(raw).attribution;
+}
+
+/**
+ * @param {{
+ *   letter: string,
+ *   pickName: string,
+ *   favName: string,
+ *   odds?: string,
+ *   simPct?: number,
+ *   impliedPct?: number,
+ *   delta?: number,
+ * }} row
+ */
+function buildWcGroupSlateWhyNow(row) {
+  const { letter, pickName, favName, odds, simPct, impliedPct, delta } = row;
+  if (Number.isFinite(simPct) && Number.isFinite(impliedPct) && Number.isFinite(delta)) {
+    const sign = delta >= 0 ? "+" : "";
+    return `UR sims: ${pickName} advance ${simPct.toFixed(1)}% vs market ${impliedPct.toFixed(1)}% (${sign}${delta.toFixed(1)}pt) — market overstates the favorite path in Group ${letter}.`;
+  }
+  if (odds) {
+    return `Market has ${pickName} to advance at ${odds}; sim-vs-market gap needs fresh lines — structural value still runs through top-two, not finishing last behind ${favName}.`;
+  }
+  return `Live advance odds for ${pickName} are not in context — cannot quantify the misprice; path is top-two in Group ${letter} without finishing last on points behind ${favName}.`;
+}
+
 /**
  * @param {{
  *   groupLetter?: string,
  *   pickAbbr?: string,
  *   pickMarket?: string,
  *   advanceOdds?: string | null,
+ *   simPct?: number,
+ *   impliedPct?: number,
+ *   delta?: number,
+ *   bdlLastUpdated?: number,
+ *   nowMs?: number,
  * }} [opts]
  */
 export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
@@ -406,14 +444,21 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
 
   const market = String(opts.pickMarket || "to advance").trim();
   const odds = opts.advanceOdds ? String(opts.advanceOdds).trim() : "";
-  const longList = comp.longshots.map((t) => t.name).join(" and ");
   const fav = comp.favorite?.name || "the favorite";
-  const cont = comp.contender?.name || pick.name;
 
   const call = `${pick.name} in Group ${letter} — best group-stage value (${market})`;
   const pathLine = `${pick.name} needs a top-two finish in Group ${letter} — the path is not finishing last on points behind ${fav}.`;
   const lean = `Lean: ${pick.name} ${market}${odds ? ` at ${odds}` : ""} in Group ${letter}.`;
-  const whyNow = `Group ${letter} is four teams: ${fav} (Favorite), ${cont} (Contender), ${longList} (Longshots).`;
+  const whyNow = buildWcGroupSlateWhyNow({
+    letter,
+    pickName: pick.name,
+    favName: fav,
+    odds,
+    simPct: opts.simPct,
+    impliedPct: opts.impliedPct,
+    delta: opts.delta,
+  }).slice(0, 400);
+  const modelAttribution = wcModelAttributionFooter(opts.bdlLastUpdated, opts.nowMs);
   const edge = odds
     ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
     : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;
@@ -425,9 +470,10 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     lean: lean.slice(0, 120),
     call: call.slice(0, 100),
     line: pathLine.slice(0, 200),
-    whyNow: whyNow.slice(0, 400),
+    whyNow,
     edge: edge.slice(0, 200),
-    confidence: odds ? "Medium" : "Speculative",
+    modelAttribution,
+    confidence: Number.isFinite(opts.delta) ? (Math.abs(Number(opts.delta)) >= 15 ? "Medium" : "Speculative") : odds ? "Medium" : "Speculative",
     caveats: [],
     timestamp: new Date().toISOString(),
   };
