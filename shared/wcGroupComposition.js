@@ -356,11 +356,14 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
       120,
     ),
     whyNow:
-      `UR sims: #1 Group ${top.group} — ${top.teamAbbr} ${top.simPct.toFixed(1)}% vs market ${top.impliedPct.toFixed(1)}% (${deltaTop}). Runner-up Group ${second.group}: ${second.teamAbbr} ${second.simPct.toFixed(1)}% vs market ${second.impliedPct.toFixed(1)}% (${deltaSecond}).`.slice(
+      `The market prices ${top.teamAbbr} to advance at ${top.impliedPct.toFixed(1)}% implied, but UR sims put the escape path at ${top.simPct.toFixed(1)}% (${deltaTop}). Runner-up gap: Group ${second.group} — ${second.teamAbbr} is ${second.impliedPct.toFixed(1)}% market vs ${second.simPct.toFixed(1)}% sim (${deltaSecond}).`.slice(
         0,
         400,
       ),
     modelAttribution,
+    runnerUpGroupLetter: second.group,
+    runnerUpTeamAbbr: second.teamAbbr,
+    primaryMispriceGroupLetter: top.group,
   };
 }
 
@@ -410,7 +413,7 @@ function buildWcGroupSlateWhyNow(row) {
   const { letter, pickName, favName, odds, simPct, impliedPct, delta } = row;
   if (Number.isFinite(simPct) && Number.isFinite(impliedPct) && Number.isFinite(delta)) {
     const sign = delta >= 0 ? "+" : "";
-    return `UR sims: ${pickName} advance ${simPct.toFixed(1)}% vs market ${impliedPct.toFixed(1)}% (${sign}${delta.toFixed(1)}pt) — market overstates the favorite path in Group ${letter}.`;
+    return `The market implies ${pickName} is ${impliedPct.toFixed(1)}% to advance, but UR sims put it at ${simPct.toFixed(1)}% (${sign}${delta.toFixed(1)}pt) — the favorite (${favName}) path looks priced too aggressively in Group ${letter}.`;
   }
   if (odds) {
     return `Market has ${pickName} to advance at ${odds}; sim-vs-market gap needs fresh lines — structural value still runs through top-two, not finishing last behind ${favName}.`;

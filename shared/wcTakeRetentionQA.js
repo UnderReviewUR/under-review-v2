@@ -143,23 +143,88 @@ export function isWcRunnerUpValueFollowUp(question) {
   );
 }
 
+const WC_RUNNER_UP_GROUP_PATTERNS = [
+  /;\s*Group\s+([A-L])\s+runner[- ]?up\b/i,
+  /\brunner[- ]?up\s+Group\s+([A-L])\b/i,
+  /\bGroup\s+([A-L])\s+runner[- ]?up\b/i,
+  /\bRunner-up\s+Group\s+([A-L])\b/i,
+  /#\s*2\s+Group\s+([A-L])\b/i,
+  /\bsecond[\s-]+Group\s+([A-L])\b/i,
+];
+
 /**
- * @param {object[]} history
+ * @param {string} blob
  * @returns {string | null}
  */
-export function extractWcRunnerUpGroupFromHistory(history) {
-  if (!Array.isArray(history)) return null;
+export function parseWcRunnerUpGroupLetter(blob) {
+  const text = String(blob || "").trim();
+  if (!text) return null;
+  for (const re of WC_RUNNER_UP_GROUP_PATTERNS) {
+    const m = text.match(re);
+    if (m?.[1]) return String(m[1]).toUpperCase();
+  }
+  return null;
+}
+
+/**
+ * @param {string} blob
+ * @returns {string | null}
+ */
+export function parseWcRunnerUpTeamAbbr(blob) {
+  const text = String(blob || "");
+  const m =
+    text.match(/Runner-up\s+Group\s+[A-L]\s*[:—-]\s*([A-Z]{3})\b/i) ||
+    text.match(/Runner-up\s+Group\s+[A-L][^(]*\(\s*([A-Z]{3})\s*[,)]/i);
+  return m?.[1] ? String(m[1]).toUpperCase() : null;
+}
+
+/**
+ * @param {object | null | undefined} structured
+ * @returns {{ group: string | null, teamAbbr: string | null }}
+ */
+export function extractWcRunnerUpFromStructured(structured) {
+  if (!structured || typeof structured !== "object") {
+    return { group: null, teamAbbr: null };
+  }
+  const group =
+    structured.runnerUpGroupLetter != null && String(structured.runnerUpGroupLetter).trim()
+      ? String(structured.runnerUpGroupLetter).trim().toUpperCase()
+      : parseWcRunnerUpGroupLetter(
+          [structured.call, structured.lean, structured.whyNow].filter(Boolean).join(" "),
+        );
+  const teamAbbr =
+    structured.runnerUpTeamAbbr != null && String(structured.runnerUpTeamAbbr).trim()
+      ? String(structured.runnerUpTeamAbbr).trim().toUpperCase()
+      : parseWcRunnerUpTeamAbbr(String(structured.whyNow || ""));
+  return { group, teamAbbr };
+}
+
+/**
+ * @param {object[]} history
+ * @returns {{ group: string | null, teamAbbr: string | null }}
+ */
+export function extractWcRunnerUpFromHistory(history) {
+  if (!Array.isArray(history)) return { group: null, teamAbbr: null };
   for (let i = history.length - 1; i >= 0; i--) {
     const turn = history[i];
     const role = String(turn?.role || "").toLowerCase();
     if (role !== "assistant" && role !== "ai") continue;
+
+    const fromStructured = extractWcRunnerUpFromStructured(turn.structured);
+    if (fromStructured.group) return fromStructured;
+
     const text = String(turn?.content || turn?.text || "");
-    const m =
-      text.match(/runner[- ]?up\s+Group\s+([A-L])/i) ||
-      text.match(/Group\s+([A-L])\s+runner[- ]?up/i);
-    if (m?.[1]) return String(m[1]).toUpperCase();
+    const group = parseWcRunnerUpGroupLetter(text);
+    if (group) {
+      return { group, teamAbbr: parseWcRunnerUpTeamAbbr(text) };
+    }
   }
-  return null;
+  return { group: null, teamAbbr: null };
+}
+
+/** @param {object[]} history @returns {string | null} */
+export function extractWcRunnerUpGroupFromHistory(history) {
+  return extractWcRunnerUpFromHistory(history).group;
 }
 
 /**
@@ -169,9 +234,10 @@ export function extractWcRunnerUpGroupFromHistory(history) {
  */
 export function buildWcPushBackBindingBlock(question, history) {
   if (!isWcRunnerUpValueFollowUp(question)) return "";
-  const group = extractWcRunnerUpGroupFromHistory(history);
+  const { group, teamAbbr } = extractWcRunnerUpFromHistory(history);
   if (!group) return "";
-  return `PUSH-BACK BINDING (mandatory): Prior take named Group ${group} as runner-up value. Answer ONLY Group ${group} — cite sim% vs market% for the best advancement misprice in that group. Do NOT re-issue the #1 group pick or a new flagship slate card for a different group.`;
+  const teamClause = teamAbbr ? ` (best misprice: ${teamAbbr})` : "";
+  return `PUSH-BACK BINDING (mandatory): Prior take named Group ${group} as runner-up value${teamClause}. Answer ONLY Group ${group}${teamAbbr ? ` / ${teamAbbr}` : ""} — explain in plain English why the advance line is wrong (sim% vs market%), not a roster list. Do NOT re-issue the #1 group pick or a new flagship slate card for a different group.`;
 }
 
 /**

@@ -6,6 +6,8 @@ import {
   detectMissingWcSimAttribution,
   extractWcModelAttributionPrefix,
   extractWcRunnerUpGroupFromHistory,
+  extractWcRunnerUpFromStructured,
+  parseWcRunnerUpGroupLetter,
   isWcThinRosterOnlyWhy,
   isWcWatchForDupedAgainstWhy,
   stripWcModelAttributionPrefix,
@@ -96,13 +98,40 @@ test("isWcThinRosterOnlyWhy flags roster trivia without deltas", () => {
   );
 });
 
-test("buildWcPushBackBindingBlock binds runner-up group from prior assistant turn", () => {
+test("parseWcRunnerUpGroupLetter handles call headline variants", () => {
+  assert.equal(
+    parseWcRunnerUpGroupLetter("Group D most mispriced (#1); Group K runner-up"),
+    "K",
+  );
+  assert.equal(parseWcRunnerUpGroupLetter("Runner-up Group K: COD 41% vs market 68%"), "K");
+});
+
+test("extractWcRunnerUpFromStructured prefers explicit runnerUpGroupLetter", () => {
+  const row = extractWcRunnerUpFromStructured({
+    call: "Paraguay in Group D — best group-stage value",
+    runnerUpGroupLetter: "K",
+    runnerUpTeamAbbr: "COD",
+  });
+  assert.equal(row.group, "K");
+  assert.equal(row.teamAbbr, "COD");
+});
+
+test("buildWcPushBackBindingBlock binds runner-up group from structured history", () => {
   const history = [
     { role: "user", content: "best group value?" },
-    { role: "assistant", content: "Group D most mispriced (#1); Group K runner-up" },
+    {
+      role: "assistant",
+      content: "Group D most mispriced (#1); Group K runner-up",
+      structured: {
+        call: "Group D most mispriced (#1); Group K runner-up",
+        runnerUpGroupLetter: "K",
+        runnerUpTeamAbbr: "COD",
+      },
+    },
   ];
   const block = buildWcPushBackBindingBlock("Which group is the runner-up value?", history);
   assert.match(block, /Group K/);
+  assert.match(block, /COD/);
   assert.equal(extractWcRunnerUpGroupFromHistory(history), "K");
 });
 

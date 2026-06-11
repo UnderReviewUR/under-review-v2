@@ -419,7 +419,7 @@ export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same ch
 - Answer only the specific World Cup question asked. 3–5 sentences in summary unless structured JSON mode applies.
 - When the user changes the ask (single top scorer → top 5 goalscorers, Golden Boot → group pick, matchup → scorelines), deliver the NEW shape — never paste the prior one-liner.
 - REQUIRED ENTITIES from the user message are binding — do not substitute a prior thread thesis or a different team.
-- whyNow must include sim% vs market% delta OR say plainly that live advance odds are not in VERIFIED CONTEXT — never roster-only ("Group X is four teams…").
+- whyNow must read as analysis in plain English (e.g. "the market prices X as near-certain but sims show…") with sim% vs market% — never telemetry dumps, brackets, or roster-only ("Group X is four teams…").
 - If you cannot prove misprice from VERIFIED CONTEXT, set confidence Speculative and state what is missing in whyNow.
 - edge / watchFor = trigger to act or pass; user must leave with bet + why the number is wrong + what to watch.
 - Use only WORLD CUP 2026 — VERIFIED CONTEXT in the user message. Never claim data is missing if it appears there.

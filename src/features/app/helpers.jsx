@@ -125,6 +125,14 @@ export function chatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
         edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
         callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
         confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
+        runnerUpGroupLetter:
+          s.runnerUpGroupLetter != null ? String(s.runnerUpGroupLetter).slice(0, 2) : undefined,
+        runnerUpTeamAbbr:
+          s.runnerUpTeamAbbr != null ? String(s.runnerUpTeamAbbr).slice(0, 8) : undefined,
+        primaryMispriceGroupLetter:
+          s.primaryMispriceGroupLetter != null
+            ? String(s.primaryMispriceGroupLetter).slice(0, 2)
+            : undefined,
       };
     }
     cleaned.push(row);

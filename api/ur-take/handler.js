@@ -1455,6 +1455,14 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
         edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
         callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
         confidence: s.confidence != null ? String(s.confidence).slice(0, 32) : undefined,
+        runnerUpGroupLetter:
+          s.runnerUpGroupLetter != null ? String(s.runnerUpGroupLetter).slice(0, 2) : undefined,
+        runnerUpTeamAbbr:
+          s.runnerUpTeamAbbr != null ? String(s.runnerUpTeamAbbr).slice(0, 8) : undefined,
+        primaryMispriceGroupLetter:
+          s.primaryMispriceGroupLetter != null
+            ? String(s.primaryMispriceGroupLetter).slice(0, 2)
+            : undefined,
       };
     }
     out.push(row);
@@ -1465,9 +1473,13 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
     const last = merged[merged.length - 1];
     if (last && last.role === m.role) {
       last.content += `\n\n${m.content}`;
+      if (m.structured && typeof m.structured === "object") {
+        last.structured = m.structured;
+      }
+      if (m.sport) last.sport = m.sport;
       continue;
     }
-    merged.push({ role: m.role, content: m.content });
+    merged.push({ ...m });
   }
   return merged.slice(-maxMessages);
 }
