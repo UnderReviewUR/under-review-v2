@@ -2899,6 +2899,9 @@ export const baseCss = `
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll.wc-chat-scroll{
     flex:1 1 0;
     min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
     overflow-anchor:none;
   }
   .app.has-docked main.screen.wc-screen--docked-chat .ur-chat-scroll .wc-main-tabs--premium{

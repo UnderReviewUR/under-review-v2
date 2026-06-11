@@ -1,5 +1,11 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { measureUrChatDockFooterStackPx } from "../lib/urChatDockFooterStackPx.js";
+
+/** iPhone / iPad — mobile Safari needs toolbar settle time before dock measurement. */
+export function isIosMobileUserAgent() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/i.test(navigator.userAgent);
+}
 
 /**
  * Physical tail inside `.ur-chat-scroll` — height equals measured fixed footer stack.
@@ -7,9 +13,17 @@ import { measureUrChatDockFooterStackPx } from "../lib/urChatDockFooterStackPx.j
  */
 export default function UrChatDockScrollSpacer({ enabled = true }) {
   const ref = useRef(null);
+  const iosMobile = isIosMobileUserAgent();
+  const [mountReady, setMountReady] = useState(!iosMobile);
+
+  useEffect(() => {
+    if (!enabled || !iosMobile) return undefined;
+    const t = window.setTimeout(() => setMountReady(true), 300);
+    return () => window.clearTimeout(t);
+  }, [enabled, iosMobile]);
 
   useLayoutEffect(() => {
-    if (!enabled || typeof window === "undefined") return undefined;
+    if (!enabled || !mountReady || typeof window === "undefined") return undefined;
     const el = ref.current;
     if (!el) return undefined;
 
@@ -63,9 +77,9 @@ export default function UrChatDockScrollSpacer({ enabled = true }) {
       roNav?.disconnect();
       moDock?.disconnect();
     };
-  }, [enabled]);
+  }, [enabled, mountReady]);
 
-  if (!enabled) return null;
+  if (!enabled || !mountReady) return null;
 
   return (
     <div

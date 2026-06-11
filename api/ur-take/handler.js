@@ -2655,6 +2655,7 @@ export default async function handler(req, res) {
     const reqSet = new Set(wcRequiredEntities);
     wcForbiddenEntities = sessionEntities.filter((e) => !reqSet.has(e));
     const wcCrossGroupCandidate =
+      !isConversationFollowUp &&
       shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
       !isWcPlayerMarketIntent(wcIntent);
     if (wcCrossGroupCandidate) {
@@ -4963,6 +4964,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !isConversationFollowUp &&
       (isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST)
     ) {
       const wcPlayerResolved = resolveWcPlayerMarketResponse(
@@ -4992,6 +4994,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       wcCrossGroupPrebuiltEarly
     ) {
@@ -5012,6 +5015,7 @@ You are responding to a Pro subscriber. Apply the following:
       );
     } else if (
       sportHint === "worldcup" &&
+      !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       shouldUseWcCrossGroupValuePrebuilt(String(question || ""), wcIntent)
     ) {
@@ -5040,6 +5044,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
       shouldUseWcGroupSlatePrebuilt(String(question || ""), wcIntent)
