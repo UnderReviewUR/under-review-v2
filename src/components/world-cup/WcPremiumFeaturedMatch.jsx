@@ -96,11 +96,12 @@ export default function WcPremiumFeaturedMatch({ match, kicker, teams, onOpen, x
         ) : null}
       </div>
 
-      {xiTrustLine ? <p className="wc-premium-featured__trust">{xiTrustLine}</p> : null}
-
-      <span className="wc-premium-featured__cta" aria-hidden>
-        →
-      </span>
+      <div className="wc-premium-featured__foot">
+        {xiTrustLine ? <p className="wc-premium-featured__trust">{xiTrustLine}</p> : <span />}
+        <span className="wc-premium-featured__chev" aria-hidden>
+          ›
+        </span>
+      </div>
     </button>
   );
 }

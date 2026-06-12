@@ -45,10 +45,11 @@ const AskBar = memo(function AskBar({
   dockedGradient = false,
   /** Override paste/attach subline copy (default: PASTE IMAGE…). */
   pasteHintText = null,
-  /** Home hero: single pill with inline send (no floating attach/send). */
+  /** `home` = multiline hero; `wc-inline` = single-row form (mobile keyboard send). */
   layout = "default",
 }) {
   const busy = isAsking || prefetchingContext;
+  const canSubmit = !busy && String(value || "").trim().length > 0;
 
   const askInputProps = {
     inputMode: "text",
@@ -59,11 +60,23 @@ const AskBar = memo(function AskBar({
     enterKeyHint: "send",
   };
 
+  const handleFormSubmit = useCallback(
+    (e) => {
+      e.preventDefault();
+      if (!canSubmit) return;
+      onSubmit();
+    },
+    [canSubmit, onSubmit],
+  );
+
   const handleKeyDown = useCallback(
     (e) => {
-      if (e.key === "Enter") onSubmit();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (canSubmit) onSubmit();
+      }
     },
-    [onSubmit]
+    [canSubmit, onSubmit],
   );
 
   const handleFile = useCallback(
@@ -79,6 +92,7 @@ const AskBar = memo(function AskBar({
     "ask-wrap",
     dockedGradient ? "ask-wrap--docked-gradient" : "",
     layout === "home" ? "ask-wrap--home" : "",
+    layout === "wc-inline" ? "ask-wrap--wc-inline" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -122,50 +136,101 @@ const AskBar = memo(function AskBar({
           {!pastedImage && showPasteHint && (
             <div className="ur-docked-paste-hint">{pasteHintText || "PASTE IMAGE OR TAP ATTACH"}</div>
           )}
-          <div className="ask-row ask-row--docked-triple">
-            <button
-              className={`attach-btn ur-dock-icon-btn ur-dock-attach${pastedImage ? " has-img" : ""}`}
-              onClick={() => fileInputRef.current?.click()}
-              type="button"
-              aria-label="Attach image"
-            >
-              <IconPaperclip className="ur-dock-icon-svg" />
-            </button>
-            <div className="ur-dock-input-mid">
-              <div className="ask-bar-gradient-frame">
-                <div className="ask-bar-docked-inner">
-                  <div className="ask-bar-docked-input-slot">
-                    <input
-                      ref={inputRef}
-                      className="ask-bar ask-bar--docked-fill"
-                      value={value}
-                      onChange={(e) => onChange(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder={pastedImage ? "Ask about this image..." : placeholder}
-                      disabled={busy}
-                      {...askInputProps}
-                    />
+          <form className="ask-form ask-form--docked" onSubmit={handleFormSubmit}>
+            <div className="ask-row ask-row--docked-triple">
+              <button
+                className={`attach-btn ur-dock-icon-btn ur-dock-attach${pastedImage ? " has-img" : ""}`}
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                aria-label="Attach image"
+              >
+                <IconPaperclip className="ur-dock-icon-svg" />
+              </button>
+              <div className="ur-dock-input-mid">
+                <div className="ask-bar-gradient-frame">
+                  <div className="ask-bar-docked-inner">
+                    <div className="ask-bar-docked-input-slot">
+                      <input
+                        ref={inputRef}
+                        className="ask-bar ask-bar--docked-fill"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={pastedImage ? "Ask about this image..." : placeholder}
+                        disabled={busy}
+                        {...askInputProps}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
+              <button
+                className="send-btn ur-dock-icon-btn ur-dock-send"
+                disabled={!canSubmit}
+                title={prefetchingContext ? "Loading context…" : "Send"}
+                type="submit"
+                aria-label="Send"
+              >
+                {prefetchingContext ? (
+                  <span className="ur-dock-send-busy" aria-hidden>
+                    …
+                  </span>
+                ) : (
+                  <IconSend className="ur-dock-icon-svg ur-dock-icon-svg--on-magenta" />
+                )}
+              </button>
             </div>
-            <button
-              className="send-btn ur-dock-icon-btn ur-dock-send"
-              onClick={onSubmit}
-              disabled={busy}
-              title={prefetchingContext ? "Loading context…" : "Send"}
-              type="button"
-              aria-label="Send"
-            >
-              {prefetchingContext ? (
-                <span className="ur-dock-send-busy" aria-hidden>
-                  …
-                </span>
-              ) : (
-                <IconSend className="ur-dock-icon-svg ur-dock-icon-svg--on-magenta" />
-              )}
-            </button>
-          </div>
+          </form>
+        </>
+      ) : layout === "wc-inline" ? (
+        <>
+          {pastedImage && (
+            <div className="ask-img-preview">
+              <img src={pastedImage.previewUrl} className="ask-img-thumb" alt="" />
+              <button onClick={clearImage} type="button" className="ask-img-remove">
+                ✕ Remove
+              </button>
+            </div>
+          )}
+          {!pastedImage && showPasteHint ? (
+            <div className="ask-wc-inline-hint">{pasteHintText || "Paste a slip, line, or matchup."}</div>
+          ) : null}
+          <form className="ask-form ask-form--wc-inline" onSubmit={handleFormSubmit}>
+            <div className="ask-row ask-row--wc-inline">
+              <button
+                className={`ask-wc-inline-attach${pastedImage ? " has-img" : ""}`}
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+                aria-label="Attach image"
+              >
+                <IconPaperclip className="ask-wc-inline-icon" />
+              </button>
+              <input
+                ref={inputRef}
+                className="ask-bar ask-bar--wc-inline"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={pastedImage ? "Ask about this image..." : placeholder}
+                disabled={busy}
+                {...askInputProps}
+              />
+              <button
+                className="ask-wc-inline-send"
+                disabled={!canSubmit}
+                title={prefetchingContext ? "Loading context…" : "Send"}
+                type="submit"
+                aria-label="Send"
+                style={btnColor ? { background: btnColor } : undefined}
+              >
+                {prefetchingContext ? (
+                  <span aria-hidden>…</span>
+                ) : (
+                  <IconSend className="ask-wc-inline-icon ask-wc-inline-icon--send" />
+                )}
+              </button>
+            </div>
+          </form>
         </>
       ) : layout === "home" ? (
         <div className="ask-row ask-row--home-hero">

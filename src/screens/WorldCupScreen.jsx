@@ -539,7 +539,7 @@ export default function WorldCupScreen({
                 value={wcInput}
                 onChange={setWcInput}
                 onSubmit={() => submitWc()}
-                layout="home"
+                layout="wc-inline"
                 placeholder="Ask about the World Cup…"
                 pasteHintText="Paste a slip, line, or matchup."
                 btnColor="var(--wc-premium-accent)"
