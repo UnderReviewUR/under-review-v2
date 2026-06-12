@@ -9,6 +9,7 @@ import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
+import { buildWcXiConfirmedHomeStarter } from "../features/home/buildWcHomePromoCard.js";
 import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
 
 const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
@@ -37,6 +38,7 @@ export default function HomeScreen({
   goNba: _goNba,
   goMlb: _goMlb,
   goGolf: _goGolf,
+  goWorldCup: _goWorldCup,
   dynamicHomeQuestions,
   dailyFeaturedAngleCard,
   pgaChampionshipOddsCard,
@@ -62,6 +64,7 @@ export default function HomeScreen({
   mlbGames,
   mlbData,
   f1Data,
+  wcMatches,
   homeCards,
   openMatchup,
   golfScoreColor,
@@ -91,10 +94,21 @@ export default function HomeScreen({
     return dq.length > 1 ? dq[0] : null;
   }, [dynamicHomeQuestions]);
 
+  const wcXiStarter = useMemo(
+    () => buildWcXiConfirmedHomeStarter(wcXiConfirmedNotice),
+    [wcXiConfirmedNotice],
+  );
+
   const starterQs = useMemo(() => {
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
     const maxStarters = narrowHome ? 2 : 3;
     const offset = dq.length > 1 ? 1 : 0;
+
+    if (wcXiStarter) {
+      const rest = dq.slice(offset, offset + maxStarters);
+      return [wcXiStarter, ...rest.filter((q) => q.id !== wcXiStarter.id)].slice(0, maxStarters);
+    }
+
     if (isWcHomePromoWindow()) {
       return dq.slice(offset, offset + maxStarters);
     }
@@ -105,7 +119,7 @@ export default function HomeScreen({
     }
     if (dq.length <= 1) return narrowHome ? dq.slice(0, 2) : dq.slice(0, 3);
     return picks;
-  }, [dynamicHomeQuestions, narrowHome]);
+  }, [dynamicHomeQuestions, narrowHome, wcXiStarter]);
 
   useLayoutEffect(() => {
     if (!strippedHomeSession) return;
@@ -240,7 +254,13 @@ export default function HomeScreen({
                 key={q.id}
                 type="button"
                 className="ur-home-starter-item"
-                onClick={() => firePrompt(q.prompt, q.sportHint || null, q.id)}
+                onClick={() => {
+                  if (q.id === "q-wc-xi-confirmed" && askWorldCup) {
+                    askWorldCup(q.prompt);
+                    return;
+                  }
+                  firePrompt(q.prompt, q.sportHint || null, q.id);
+                }}
               >
                 <span className="ur-home-starter-accent" style={{ background: q.color }} aria-hidden />
                 <span className="ur-home-starter-text">{q.text}</span>
@@ -304,7 +324,9 @@ export default function HomeScreen({
         goMlb={_goMlb}
         goF1={_goF1}
         goTennis={_goTennis}
+        goWorldCup={_goWorldCup}
         tickerNbaGames={homeNbaGames}
+        wcMatches={wcMatches}
         getSeriesLabel={getSeriesLabel}
         tennisTickerMatches={tennisTickerMatches}
         golfData={golfData}

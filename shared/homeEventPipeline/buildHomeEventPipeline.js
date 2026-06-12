@@ -49,6 +49,7 @@ function orderedRawFromNormalized(normalizedList, getRaw) {
  * @param {object[]} [input.tennisMatches] normalized tennis match objects from client
  * @param {object} [input.f1Data]
  * @param {object} [input.golfData]
+ * @param {Array} [input.wcMatches]
  * @param {boolean} [input.isNflSlateActive]
  * @param {() => string|null} [input.golfSnapshotKeyFn] Live Snapshot golf key (client validity)
  * @param {object} [input.mlbData] passthrough for snapshot planner
@@ -101,6 +102,7 @@ export function buildHomeEventPipeline(input) {
     mlbData: input.mlbData,
     f1Data: input.f1Data,
     tennisMatchesForTicker: base.tennisMatchesForHome,
+    wcMatches: input.wcMatches || [],
     validNbaGames: base.nbaGamesForHome,
     validMlbGames: base.mlbGamesForHome,
     golfSnapshotKey: typeof input.golfSnapshotKeyFn === "function" ? input.golfSnapshotKeyFn : () => null,

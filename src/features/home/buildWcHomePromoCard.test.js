@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWcHomePromoCard,
+  buildWcXiConfirmedHomeStarter,
   orderHomeQuestionsForWcPromo,
 } from "./buildWcHomePromoCard.js";
 
@@ -34,4 +35,17 @@ test("buildWcHomePromoCard highlights are tournament value bullets", () => {
   assert.ok(card.highlights[0].includes("104 matches"));
   assert.ok(card.highlights[1].includes("Live in-game odds"));
   assert.ok(card.highlights[2].includes("line movement"));
+});
+
+test("buildWcXiConfirmedHomeStarter for XI notice", () => {
+  const starter = buildWcXiConfirmedHomeStarter({
+    eventId: "wc-1",
+    homeTeam: "USA",
+    awayTeam: "PAR",
+  });
+  assert.ok(starter);
+  assert.equal(starter.sportHint, "worldcup");
+  assert.match(starter.text, /PAR vs USA|USA vs PAR/);
+  assert.match(starter.prompt, /player prop/i);
+  assert.equal(buildWcXiConfirmedHomeStarter(null), null);
 });

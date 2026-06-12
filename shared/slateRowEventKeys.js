@@ -6,6 +6,7 @@ import {
   golfSnapshotKey,
   nflSnapshotBoardKey,
   parseAwayHomeFromLabel,
+  wcEventKey,
 } from "./homeEventDedup.js";
 import { getDisplayableF1NextRace } from "./eventValidity.js";
 import { normalizeNbaSideToken, normalizeTeamAbbr } from "./nbaTeamAbbrev.js";
@@ -112,6 +113,17 @@ export function inferSlateRowEventKeys(row, bundle) {
 
   if (sport === "nfl") {
     keys.push(nflSnapshotBoardKey());
+  }
+
+  if (sport === "worldcup" && Array.isArray(bundle?.worldcup?.matches)) {
+    const label = String(row.game || row.match || row.event || "").toLowerCase();
+    const hit = bundle.worldcup.matches.find((m) => {
+      const home = String(m?.homeTeam || "").toLowerCase();
+      const away = String(m?.awayTeam || "").toLowerCase();
+      return home && away && label.includes(home) && label.includes(away);
+    });
+    const k = hit ? wcEventKey(hit) : null;
+    if (k) keys.push(k);
   }
 
   return keys;

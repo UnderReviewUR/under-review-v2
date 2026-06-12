@@ -4,6 +4,9 @@ import { normalizeText } from "../features/app/helpers.jsx";
 import { formatTennisScore } from "../features/tennis/tennisFormatters.js";
 import { isGolfEventFinished } from "../lib/golfEventStatus.js";
 import { formatNbaTipoffLocal } from "../lib/nbaTime.js";
+import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
+import { isWcLiveStatus } from "../../shared/liveSnapshotFilters.js";
+import { resolveWcXiStatus } from "../../shared/wcXiStatus.js";
 import { golfKeyForLiveSnapshot } from "../lib/liveSnapshotEventKeys.js";
 import { planLiveSnapshot } from "../../shared/liveSnapshotPlan.js";
 
@@ -25,7 +28,9 @@ export default function TickerRail({
   goMlb,
   goF1,
   goTennis,
+  goWorldCup,
   tickerNbaGames,
+  wcMatches,
   getSeriesLabel,
   tennisTickerMatches,
   golfData,
@@ -43,6 +48,7 @@ export default function TickerRail({
     mlbData,
     f1Data,
     tennisMatchesForTicker: tennisTickerMatches || [],
+    wcMatches: wcMatches || [],
     golfSnapshotKey: () => golfKeyForLiveSnapshot(golfData),
   });
 
@@ -246,6 +252,94 @@ export default function TickerRail({
     </div>
   );
 
+  const renderWcTile = (m, i) => {
+    const home = m.homeTeam || "HOME";
+    const away = m.awayTeam || "AWAY";
+    const isLive = isWcLiveStatus(m.status);
+    const groupLine = m.group ? `Group ${m.group}` : "";
+    const kickoff = formatWcKickoffDisplay(m);
+    const hasScore = m.homeScore != null && m.awayScore != null;
+    const xiStatus = resolveWcXiStatus(m);
+    const xiLine =
+      xiStatus === "confirmed" ? "XI locked" : xiStatus === "pending" ? "Lineups updating" : "";
+    const openWcMatch = () => {
+      const eventId = m?.id != null ? String(m.id).trim() : "";
+      const matchSubTab = isLive ? "live" : "today";
+      if (eventId && typeof goWorldCup === "function") {
+        goWorldCup({ mainTab: "matches", matchSubTab, highlightEventId: eventId });
+      } else if (typeof goWorldCup === "function") {
+        goWorldCup();
+      }
+    };
+    return (
+      <div
+        key={`wc-${m.id ?? i}`}
+        onClick={openWcMatch}
+        style={{
+          flexShrink: 0,
+          background: isLive ? "rgba(0,245,233,.1)" : "var(--surface)",
+          border: `1px solid ${
+            xiStatus === "confirmed"
+              ? "rgba(0,245,233,.55)"
+              : isLive
+                ? "rgba(0,245,233,.45)"
+                : "rgba(0,245,233,.22)"
+          }`,
+          borderRadius: 10,
+          padding: "8px 11px",
+          cursor: "pointer",
+          minWidth: 118,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 7,
+            letterSpacing: 1.5,
+            color: isLive ? "#00F5E9" : "rgba(0,245,233,.85)",
+            marginBottom: 3,
+            textTransform: "uppercase",
+          }}
+        >
+          ⚽ {isLive ? "● LIVE" : kickoff || "WORLD CUP"}
+        </div>
+        <div style={{ fontSize: 12, lineHeight: 1.2, ...SNAP_PRI }}>{away}</div>
+        <div style={{ fontSize: 11, color: "var(--muted)" }}>vs {home}</div>
+        {hasScore ? (
+          <div style={SNAP_SCORE}>
+            {m.awayScore}-{m.homeScore}
+          </div>
+        ) : null}
+        {xiLine ? (
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 8,
+              color: xiStatus === "confirmed" ? "#00F5E9" : "rgba(0,245,233,.65)",
+              marginTop: 3,
+              letterSpacing: 0.5,
+              fontWeight: xiStatus === "confirmed" ? 700 : 500,
+            }}
+          >
+            {xiLine}
+          </div>
+        ) : groupLine ? (
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 8,
+              color: "rgba(0,245,233,.75)",
+              marginTop: 3,
+              letterSpacing: 0.5,
+            }}
+          >
+            {groupLine}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderTennisTile = (m, i) => {
     const awayFull = String(m.raw?.away || (m.title || "").split(" vs ")[0] || "").trim() || "Away";
     const homeFull = String(m.raw?.home || (m.title || "").split(" vs ")[1] || "").trim() || "Home";
@@ -412,6 +506,9 @@ export default function TickerRail({
           break;
         case "f1":
           inner = renderF1Tile(item.f1Race);
+          break;
+        case "worldcup":
+          inner = renderWcTile(item.wcMatch, 0);
           break;
         case "tennis":
           inner = renderTennisTile(item.tennisMatch, 0);

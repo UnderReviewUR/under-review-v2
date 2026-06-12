@@ -4,6 +4,7 @@ import { resolveMatchWinProbabilityBar } from "../../../shared/wcMatchMoneylineP
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
+import { resolveWcXiStatus, wcXiStatusChipLabel } from "../../../shared/wcXiStatus.js";
 import WcLiveScore from "./WcLiveScore.jsx";
 import {
   formatWcMatchGroupLetter,
@@ -93,6 +94,8 @@ export default function WcMatchCard({
   const kickoff = formatWcKickoffDisplay(match);
   const groupLetter = formatWcMatchGroupLetter(match?.group);
   const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
+  const xiStatus = resolveWcXiStatus(match);
+  const xiChip = !live && !finished ? wcXiStatusChipLabel(xiStatus) : "";
   const bookOdds = match?.odds;
   const homeTeam = getWcTeamByAbbr(match?.homeTeam);
   const awayTeam = getWcTeamByAbbr(match?.awayTeam);
@@ -145,6 +148,7 @@ export default function WcMatchCard({
       )}
       <div className="wc-match-meta">
         {kickoff ? <span>{kickoff}</span> : null}
+        {xiChip ? <span className="wc-match-xi-chip">{xiChip}</span> : null}
         {groupLetter ? <span>Group {groupLetter}</span> : null}
         {venueLine ? (
           <span>

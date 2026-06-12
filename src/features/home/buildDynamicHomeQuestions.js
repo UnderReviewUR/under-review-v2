@@ -19,6 +19,7 @@ import {
   isNbaFinalsWindowEt,
 } from "../../../shared/nbaFinalsHomePrompt.js";
 import { NBA_2026_FINALS_TEAMS } from "../../../shared/nbaFinalsUtils.js";
+import { isHomePromptSportVisible, isNflUrTakeGated } from "../../../shared/siteSportVisibility.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -187,6 +188,7 @@ export function buildDynamicHomeQuestions({
 
   const nflTop = isNflPriorityMonthsEt(etNow);
   const wcPromo = isWcHomePromoWindow(promoNowMs);
+  const nflUrTakeGated = isNflUrTakeGated({ nflSeasonMode });
 
   const teamNeeds =
     nflDraftMeta?.teamNeeds && typeof nflDraftMeta.teamNeeds === "object"
@@ -313,7 +315,7 @@ export function buildDynamicHomeQuestions({
   const tennisShowcase = isTennisShowcaseWindow(context, activeTournamentMatches);
   const tennisBoardOk = tennisShowcase || Boolean(prefLive || prefUpcoming);
 
-  if (tennisBoardOk && prefLive) {
+  if (isHomePromptSportVisible("tennis") && tennisBoardOk && prefLive) {
     const label = `${prefLive.raw?.home || ""} vs ${prefLive.raw?.away || ""}`;
     const tennisLivePrompt = rotate(
       [
@@ -337,7 +339,7 @@ export function buildDynamicHomeQuestions({
     });
   }
 
-  if (tennisBoardOk && prefUpcoming) {
+  if (isHomePromptSportVisible("tennis") && tennisBoardOk && prefUpcoming) {
     const label = `${prefUpcoming.raw?.home || ""} vs ${prefUpcoming.raw?.away || ""}`;
     const tennisUpcomingPrompt = rotate(
       [
@@ -359,7 +361,7 @@ export function buildDynamicHomeQuestions({
       sortRank: ranks.tennisUp,
       ...tennisUpcomingPrompt,
     });
-  } else if (tennisShowcase && context?.currentTournament?.name) {
+  } else if (isHomePromptSportVisible("tennis") && tennisShowcase && context?.currentTournament?.name) {
     push({
       id: "q2b",
       color: "#0891B2",
@@ -368,7 +370,7 @@ export function buildDynamicHomeQuestions({
       text: `Tournament value — ${context.currentTournament.name}?`,
       prompt: `Around ${context.currentTournament.name}, where is the best futures or outright value on the board right now?`,
     });
-  } else if (tennisShowcase && !prefLive && !prefUpcoming) {
+  } else if (isHomePromptSportVisible("tennis") && tennisShowcase && !prefLive && !prefUpcoming) {
     push({
       id: "q2c",
       color: "#0891B2",
@@ -534,7 +536,12 @@ export function buildDynamicHomeQuestions({
     }
   }
 
-  if (isMlbSeasonMonthEt(etNow) && Array.isArray(mlbGames) && mlbGames.length > 0) {
+  if (
+    isHomePromptSportVisible("mlb") &&
+    isMlbSeasonMonthEt(etNow) &&
+    Array.isArray(mlbGames) &&
+    mlbGames.length > 0
+  ) {
     const mlbPrompt = rotate(
       [
         {
@@ -591,7 +598,7 @@ export function buildDynamicHomeQuestions({
   const nflRankB = ranks.nflB;
   const nflRankC = ranks.nflC;
 
-  if (isDraftMode) {
+  if (!nflUrTakeGated && isDraftMode) {
     const band = resolveNflDraftPromoBand(promoNowMs, nflDraftMeta);
     const featuredTeam = dallasPriority
       ? "Dallas Cowboys"
@@ -681,7 +688,7 @@ export function buildDynamicHomeQuestions({
         prompt: `Which teams are most likely to trade up into the Top 5? Anchor to current need pressure and capital context for: ${topNeedTeams.join("; ") || "Raiders, Jets, Cardinals, Titans, Giants"}. ${roundHint}`,
       });
     }
-  } else if (nflSeasonMode && !golfActive) {
+  } else if (!nflUrTakeGated && nflSeasonMode && !golfActive) {
     const nflSeasonPrompt = rotate(
       [
         {
@@ -704,7 +711,7 @@ export function buildDynamicHomeQuestions({
       sortRank: ranks.nflSolo,
       ...nflSeasonPrompt,
     });
-  } else if (!golfActive) {
+  } else if (!nflUrTakeGated && !golfActive) {
     const nflFuturePrompt = rotate(
       [
         {

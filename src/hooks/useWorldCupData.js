@@ -11,8 +11,26 @@ import {
 } from "../../shared/wcClientResilience.js";
 import { resolveWcMatchEtDate, wcTodayEtYmd } from "../../shared/wcKickoffDisplay.js";
 
+const WC_POLL_INTERVAL_MS = 60 * 1000;
+const WC_POLL_TIGHT_INTERVAL_MS = 30 * 1000;
+const WC_NEAR_KICKOFF_MS = 90 * 60 * 1000;
+
 function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+function wcPollIntervalMs(matchRows, nowMs = Date.now()) {
+  const rows = Array.isArray(matchRows) ? matchRows : [];
+  const todayEt = wcTodayEtYmd(nowMs);
+  for (const m of rows) {
+    if (isLiveStatus(m.status)) return WC_POLL_TIGHT_INTERVAL_MS;
+    if (resolveWcMatchEtDate(m) !== todayEt) continue;
+    const ts = Number(m.commenceTs);
+    if (Number.isFinite(ts) && ts > nowMs && ts - nowMs <= WC_NEAR_KICKOFF_MS) {
+      return WC_POLL_TIGHT_INTERVAL_MS;
+    }
+  }
+  return WC_POLL_INTERVAL_MS;
 }
 
 function isScheduled(status) {
@@ -171,6 +189,7 @@ export function useWorldCupData() {
   useEffect(() => {
     let isCurrent = true;
     let pollId = null;
+    const matchRowsRef = { current: [] };
 
     loadAll();
 
@@ -184,23 +203,31 @@ export function useWorldCupData() {
         const liveData = liveRes.ok ? await liveRes.json().catch(() => null) : null;
         const matchesData = matchesRes.ok ? await matchesRes.json().catch(() => null) : null;
         const resolvedMatches = resolveClientWcMatches(matchesData, Date.now());
+        const liveRows = Array.isArray(liveData?.live) ? liveData.live : [];
         if (liveData?.live) setLiveMatches(liveData.live);
         if (resolvedMatches.length) {
           setMatches(resolvedMatches);
-          ingestXiPoll([...resolvedMatches, ...(liveData?.live || [])]);
-        } else if (liveData?.live) {
-          ingestXiPoll(liveData.live);
+          ingestXiPoll([...resolvedMatches, ...liveRows]);
+        } else if (liveRows.length) {
+          ingestXiPoll(liveRows);
         }
+        matchRowsRef.current = [...resolvedMatches, ...liveRows];
       } catch {
         /* silent poll — board keeps last good state */
       }
     }
 
-    pollId = window.setInterval(pollWc, 60000);
+    async function pollLoop() {
+      await pollWc();
+      if (!isCurrent) return;
+      pollId = window.setTimeout(pollLoop, wcPollIntervalMs(matchRowsRef.current));
+    }
+
+    pollLoop();
 
     return () => {
       isCurrent = false;
-      if (pollId) window.clearInterval(pollId);
+      if (pollId) window.clearTimeout(pollId);
     };
   }, [loadAll, ingestXiPoll]);
 

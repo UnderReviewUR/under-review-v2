@@ -88,6 +88,18 @@ export function nflSnapshotBoardKey() {
   return "nfl:weekly-props-board";
 }
 
+/** World Cup match row from `/api/world-cup` or promo fixtures. */
+export function wcEventKey(match) {
+  if (!match || typeof match !== "object") return null;
+  const id = match.id;
+  if (id != null && String(id).trim()) return `worldcup:${String(id).trim()}`;
+  const home = String(match.homeTeam || "").trim();
+  const away = String(match.awayTeam || "").trim();
+  const d = String(match.date || "").trim().slice(0, 10);
+  if (home && away) return `worldcup:${home}|${away}|${d || "nodate"}`;
+  return null;
+}
+
 /** Parse "AWAY @ HOME" / "AWAY vs HOME" style labels for bundle matching (server + tests). */
 export function parseAwayHomeFromLabel(label) {
   const s = String(label || "").trim();

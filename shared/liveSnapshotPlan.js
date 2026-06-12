@@ -11,6 +11,7 @@ import {
 } from "./eventValidity.js";
 import {
   filterAndOrderNbaMlbGames,
+  filterAndOrderWcMatchesForSnapshot,
   filterTennisMatchesForSnapshot,
   MAX_LIVE_SNAPSHOT_TILES,
 } from "./liveSnapshotFilters.js";
@@ -20,8 +21,12 @@ import {
   nbaEventKey,
   nflSnapshotBoardKey,
   tennisEventKeyFromNormalized,
+  wcEventKey,
 } from "./homeEventDedup.js";
 import { isF1RaceWeekendWindow } from "./slateModulePriority.js";
+import { isHomeTickerSportVisible } from "./siteSportVisibility.js";
+import { isWcHomePromoWindow } from "./wc2026Constants.js";
+import { isWcPreKickoffPromoOnly } from "./wc2026PromoFixtures.js";
 
 /**
  * @param {object} input
@@ -32,6 +37,7 @@ import { isF1RaceWeekendWindow } from "./slateModulePriority.js";
  * @param {object} [input.mlbData]
  * @param {object} [input.f1Data]
  * @param {Array} [input.tennisMatchesForTicker]
+ * @param {Array} [input.wcMatches]
  * @param {() => string|null} [input.golfSnapshotKey]
  * @param {Array} [input.validNbaGames] pre-filtered displayable NBA
  * @param {Array} [input.validMlbGames] pre-filtered displayable MLB
@@ -60,6 +66,10 @@ export function planLiveSnapshot(input) {
     input.tennisMatchesForTicker || [],
     nowMs,
   );
+  const wcOrdered =
+    isWcHomePromoWindow(nowMs) && isHomeTickerSportVisible("worldcup")
+      ? filterAndOrderWcMatchesForSnapshot(input.wcMatches || [], nowMs)
+      : [];
 
   const nextF1Race = getDisplayableF1NextRace(input.f1Data, nowMs);
   const f1InWindow =
@@ -81,28 +91,42 @@ export function planLiveSnapshot(input) {
     return { items: slice, keys: slice.map((i) => i.key) };
   }
 
+  const wcCap = isWcPreKickoffPromoOnly(nowMs) ? 2 : wcOrdered.length;
+  for (const m of wcOrdered.slice(0, wcCap)) {
+    const k = wcEventKey(m);
+    if (tryAdd("worldcup", k, { wcMatch: m })) return finalize();
+  }
+
   for (const g of nbaOrdered) {
     if (tryAdd("nba", nbaEventKey(g), { nbaGame: g })) return finalize();
   }
-  for (const g of mlbOrdered) {
-    if (tryAdd("mlb", mlbEventKey(g), { mlbGame: g })) return finalize();
+  if (isHomeTickerSportVisible("mlb")) {
+    for (const g of mlbOrdered) {
+      if (tryAdd("mlb", mlbEventKey(g), { mlbGame: g })) return finalize();
+    }
   }
 
-  if (nflOn) {
+  if (nflOn && isHomeTickerSportVisible("nfl")) {
     if (tryAdd("nfl", nflSnapshotBoardKey())) return finalize();
   }
 
-  if (f1InWindow && nextF1Race) {
+  if (f1InWindow && nextF1Race && isHomeTickerSportVisible("f1")) {
     const k = f1EventKey(nextF1Race);
     if (tryAdd("f1", k, { f1Race: nextF1Race })) return finalize();
   }
 
-  for (const m of tennisFiltered) {
-    const k = tennisEventKeyFromNormalized(m);
-    if (tryAdd("tennis", k, { tennisMatch: m })) break;
+  if (isHomeTickerSportVisible("tennis")) {
+    for (const m of tennisFiltered) {
+      const k = tennisEventKeyFromNormalized(m);
+      if (tryAdd("tennis", k, { tennisMatch: m })) break;
+    }
   }
 
-  if (items.length < MAX_LIVE_SNAPSHOT_TILES && typeof input.golfSnapshotKey === "function") {
+  if (
+    items.length < MAX_LIVE_SNAPSHOT_TILES &&
+    typeof input.golfSnapshotKey === "function" &&
+    isHomeTickerSportVisible("golf")
+  ) {
     const gk = input.golfSnapshotKey();
     if (gk) tryAdd("golf", gk, {});
   }

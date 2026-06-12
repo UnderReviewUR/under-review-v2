@@ -2327,6 +2327,20 @@ export const baseCss = `
     box-sizing:border-box;
   }
   .bottom-nav::-webkit-scrollbar{display:none;}
+  .bottom-nav--five{
+    justify-content:space-around;
+    overflow-x:hidden;
+    padding-left:8px;
+    padding-right:8px;
+  }
+  .bottom-nav--five .nav-btn{
+    flex:1 1 0;
+    min-width:0;
+    max-width:88px;
+    padding-left:6px;
+    padding-right:6px;
+    font-size:12px;
+  }
   .nav-btn{
     position:relative;
     flex:0 0 auto;

@@ -5,6 +5,9 @@
 
 import { canonicalMlbStartUtcMs, canonicalNbaStartUtcMs } from "./eventStartTime.js";
 import { LIVE_SNAPSHOT_UPCOMING_WINDOW_MS } from "./homeSlateHorizon.js";
+import { parseWcKickoffEtMs, resolveWcMatchEtDate, wcTodayEtYmd } from "./wcKickoffDisplay.js";
+import { isWcPreKickoffPromoOnly } from "./wc2026PromoFixtures.js";
+import { resolveWcXiStatus } from "./wcXiStatus.js";
 
 /** Tennis lookahead (unchanged): short window for odds-backed commence times. */
 export const LIVE_SNAPSHOT_PRE_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -69,4 +72,59 @@ export function isTennisIncludedInLiveSnapshot(match, nowMs = Date.now()) {
 
 export function filterTennisMatchesForSnapshot(matches, nowMs = Date.now()) {
   return (matches || []).filter((m) => isTennisIncludedInLiveSnapshot(m, nowMs));
+}
+
+export function isWcLiveStatus(status) {
+  return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+function isWcScheduledStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
+}
+
+export function getWcMatchStartMs(match) {
+  if (!match || typeof match !== "object") return NaN;
+  let ms = Number(match.commenceTs);
+  if (Number.isFinite(ms) && ms > 0) return ms;
+  const parsed = parseWcKickoffEtMs(match.date, match.time);
+  return parsed ?? NaN;
+}
+
+/** WC: live matches, today's ET slate, pregame within snapshot window; pre-kickoff promo shows next openers. */
+export function isWcIncludedInLiveSnapshot(match, nowMs = Date.now()) {
+  if (!match || typeof match !== "object") return false;
+  if (isWcLiveStatus(match.status)) return true;
+  if (!isWcScheduledStatus(match.status)) return false;
+
+  if (isWcPreKickoffPromoOnly(nowMs)) {
+    const startMs = getWcMatchStartMs(match);
+    return Number.isFinite(startMs) && startMs > nowMs;
+  }
+
+  const etToday = resolveWcMatchEtDate(match) === wcTodayEtYmd(nowMs);
+  const startMs = getWcMatchStartMs(match);
+  if (!Number.isFinite(startMs)) return etToday;
+  const delta = startMs - nowMs;
+  return etToday || (delta >= 0 && delta <= LIVE_SNAPSHOT_UPCOMING_WINDOW_MS);
+}
+
+function wcXiSnapshotSortRank(match) {
+  const status = resolveWcXiStatus(match);
+  if (status === "confirmed") return 0;
+  if (status === "pending") return 1;
+  return 2;
+}
+
+function sortWcSnapshotMatches(a, b) {
+  const rank = wcXiSnapshotSortRank(a) - wcXiSnapshotSortRank(b);
+  if (rank !== 0) return rank;
+  return getWcMatchStartMs(a) - getWcMatchStartMs(b);
+}
+
+export function filterAndOrderWcMatchesForSnapshot(matches, nowMs = Date.now()) {
+  const eligible = (matches || []).filter((m) => isWcIncludedInLiveSnapshot(m, nowMs));
+  const live = eligible.filter((m) => isWcLiveStatus(m.status)).sort(sortWcSnapshotMatches);
+  const pre = eligible.filter((m) => !isWcLiveStatus(m.status)).sort(sortWcSnapshotMatches);
+  return [...live, ...pre];
 }

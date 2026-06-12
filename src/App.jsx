@@ -102,6 +102,10 @@ import {
 import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
 import { trimToCompleteSentence } from "./lib/textUtils.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
+import {
+  isHomeCardSportVisible,
+  isNflUrTakeGated,
+} from "../shared/siteSportVisibility.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
 import {
   inferSportFromChatHistory,
@@ -169,6 +173,7 @@ import { isDerbyActive } from "./data/derby2026.js";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import TennisScreen from "./screens/TennisScreen.jsx";
 import NflScreen from "./screens/NflScreen.jsx";
+import NflComingSoonScreen from "./screens/NflComingSoonScreen.jsx";
 import NflPredictScreen from "./screens/NflPredictScreen.jsx";
 import F1Screen from "./screens/F1Screen.jsx";
 import NbaScreen from "./screens/NbaScreen.jsx";
@@ -611,6 +616,10 @@ ${themeCss}
   const pendingScrollTimeoutIdsRef = useRef([]);
 
   const nflSeasonMode = useMemo(() => isNflInSeason(), []);
+  const nflUrTakeGated = useMemo(
+    () => isNflUrTakeGated({ nflSeasonMode }),
+    [nflSeasonMode],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -2636,6 +2645,7 @@ ${themeCss}
         nbaSeasonContext: nbaData?.seasonContext,
         mlbGames: mlbGamesRaw,
         tennisMatches: validTennisMatchesHome,
+        wcMatches,
         f1Data,
         golfData,
         isNflSlateActive,
@@ -2647,6 +2657,7 @@ ${themeCss}
       nbaData?.seasonContext,
       mlbGamesRaw,
       validTennisMatchesHome,
+      wcMatches,
       f1Data,
       golfData,
       isNflSlateActive,
@@ -3384,11 +3395,11 @@ ${themeCss}
   const homeCards = useMemo(() => {
     const modules = {
       nba_cards: [],
-      mlb_cards: homeMlbCards,
+      mlb_cards: isHomeCardSportVisible("mlb") ? homeMlbCards : [],
       tracker_and_nfl_major: homeTrackerCards,
-      tennis_spotlight: homeAtpSpotlightCards,
-      f1_cards: homeF1Cards,
-      golf_cards: homeGolfCards,
+      tennis_spotlight: isHomeCardSportVisible("tennis") ? homeAtpSpotlightCards : [],
+      f1_cards: isHomeCardSportVisible("f1") ? homeF1Cards : [],
+      golf_cards: isHomeCardSportVisible("golf") ? homeGolfCards : [],
     };
     return HOME_SURFACE_STACK_ORDER.flatMap((k) => modules[k] || []).filter(Boolean);
   }, [
@@ -4794,6 +4805,7 @@ ${themeCss}
             mlbGames={homePipeline?.mlbGamesForHome}
             mlbData={mlbData}
             f1Data={f1Data}
+            wcMatches={wcMatches}
             homeCards={homeCards}
             openMatchup={openMatchup}
             golfScoreColor={golfScoreColor}
@@ -4801,7 +4813,7 @@ ${themeCss}
             onTodaySlateDisplayedKeys={setSlateDisplayedEventKeys}
             slateFallbackSports={[
               ...((f1Data?.usingFallback || f1Data?.schedule?.usingFallback) ? ["f1"] : []),
-              "nfl",
+              ...(nflUrTakeGated ? [] : ["nfl"]),
             ]}
             nbaLiveEdgeAlerts={liveEdgeAlerts}
           />
@@ -4853,6 +4865,7 @@ ${themeCss}
         {/* ══ NFL ══ */}
         {screen==="nfl"&&(
           <>
+            {(!nflUrTakeGated || nflUrView === "predict") ? (
             <div
               className="nfl-ur-subtabs"
               style={{
@@ -4906,8 +4919,19 @@ ${themeCss}
                 2026 Predictor
               </button>
             </div>
+            ) : null}
             {nflUrView === "take" ? (
-              <NflScreen
+              nflUrTakeGated ? (
+                <NflComingSoonScreen
+                  onOpenPredictor={() => {
+                    setNflUrView("predict");
+                    syncNflSubViewQuery("predict");
+                  }}
+                  onOpenWorldCup={goWorldCup}
+                  onGoHome={goHome}
+                />
+              ) : (
+                <NflScreen
                 nflScreenRef={nflScreenRef}
                 hasDockedBar={hasDockedBar}
                 nflSeasonMode={nflSeasonMode}
@@ -4926,7 +4950,8 @@ ${themeCss}
                 accessTier={accessTier}
                 onUrTakeFollowUpPick={urTakeFollowUpNfl}
                 onUpgradePromptClick={openUpgradeModal}
-              />
+                />
+              )
             ) : (
               <NflPredictScreen
                 isPro={isUnlimited}
@@ -6529,7 +6554,7 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
         )}
 
         {/* ══ NAV ══ */}
-        <nav className="bottom-nav" aria-label="Primary">
+        <nav className="bottom-nav bottom-nav--five" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
           <button
             className={`nav-btn nav-btn--wc-spotlight${tab === "worldcup" ? " wc-active" : ""}`}
@@ -6537,24 +6562,9 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
           >
             <span className="wc-nav-shimmer">World Cup</span>
           </button>
-          <button className={`nav-btn${tab==="tennis"?" tennis-active":""}`} onClick={goTennis}><span>Tennis</span></button>
-          <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
-          <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1}><span>F1</span></button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
-          <button className={`nav-btn${tab==="mlb"?" mlb-active":""}`} onClick={goMlb}><span>MLB</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
-          <button
-            className={`nav-btn nav-btn--ur-take${tab === "ask" && screen === "ask" ? " active" : ""}`}
-            onClick={goUrTakeTab}
-          >
-            <span>UR Take</span>
-          </button>
-          <button
-            className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
-            onClick={goPro}
-          >
-            <span>Pro</span>
-          </button>
+          <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
         </nav>
 
       </div>

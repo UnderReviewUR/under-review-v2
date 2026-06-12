@@ -12,6 +12,7 @@ import {
   golfSnapshotKey,
 } from "../../../shared/homeEventDedup.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
+import { isHomeCardSportVisible } from "../../../shared/siteSportVisibility.js";
 
 function formatScore(value) {
   const n = Number(value || 0);
@@ -111,7 +112,7 @@ export function buildHomeTrackerCards({
     }
   }
 
-  if (mlbUpcoming[0]) {
+  if (isHomeCardSportVisible("mlb") && mlbUpcoming[0]) {
     const g = mlbUpcoming[0];
     const mk = mlbEventKey(g);
     if (mk && excluded.has(mk)) {
@@ -199,7 +200,7 @@ export function buildHomeTrackerCards({
 
   const cards = [];
 
-  if (shouldShowDraftPredictor) {
+  if (shouldShowDraftPredictor && isHomeCardSportVisible("nflDraft")) {
     const orderCount = Number(nflDraftMeta?.fullOrderCount || 257);
     const band = resolveNflDraftPromoBand(promoNowMs, nflDraftMeta);
     const roundLine =

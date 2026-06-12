@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isTodaySlateSportVisible } from "../../shared/siteSportVisibility.js";
 
 const SPORT_COLOR = {
   nba: "#FF6B00",
@@ -135,6 +136,8 @@ export default function TodaySlatePanel({
         : SLATE_ROW_KEYS;
     return order.filter((rowKey) => {
       const item = data[rowKey];
+      const sport = String(item?.sport || "nba").toLowerCase();
+      if (!isTodaySlateSportVisible(sport)) return false;
       const ek = Array.isArray(item?._eventKeys) ? item._eventKeys : [];
       if (ek.length === 0) return true;
       return !ek.some((k) => excludeSet.has(k));

@@ -63,3 +63,22 @@ export function orderHomeQuestionsForWcPromo(list, nowMs = Date.now()) {
 export function ensureWorldCupInHomeQuestions(list, nowMs = Date.now()) {
   return orderHomeQuestionsForWcPromo(list, nowMs);
 }
+
+/**
+ * START HERE chip when poll detects confirmed Starting XIs.
+ * @param {{ eventId?: string, homeTeam?: string, awayTeam?: string } | null | undefined} notice
+ */
+export function buildWcXiConfirmedHomeStarter(notice) {
+  if (!notice?.eventId) return null;
+  const away = String(notice.awayTeam || "").trim() || "Away";
+  const home = String(notice.homeTeam || "").trim() || "Home";
+  const matchup = `${away} vs ${home}`;
+  return {
+    id: "q-wc-xi-confirmed",
+    color: "#00F5E9",
+    sportHint: "worldcup",
+    sortRank: 0,
+    text: `Best prop now that XIs are out (${matchup})?`,
+    prompt: `Starting XIs are confirmed for ${matchup}. What's the best player prop or alternate market now that lineups are locked — not the moneyline unless that's the only edge?`,
+  };
+}
