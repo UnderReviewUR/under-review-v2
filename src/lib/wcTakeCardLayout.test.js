@@ -5,6 +5,7 @@ import {
   wcCallTypeUsesCompactCard,
   wcTakeCardIsCollapsed,
   wcTakeCardUsesFocusLayout,
+  isWcDockCompactEligible,
 } from "./wcTakeCardLayout.js";
 
 const groupSlate = {
@@ -33,6 +34,31 @@ test("resolveWcTakeCardDisplayMode — docked latest WC card is compact", () => 
     "compact",
   );
   assert.equal(wcTakeCardUsesFocusLayout("compact"), true);
+});
+
+test("resolveWcTakeCardDisplayMode — docked WC uses compact even when structured sport is generic", () => {
+  const msgs = [
+    { role: "user", text: "Best group value?" },
+    { role: "ai", text: "Lean: USA", loading: false },
+  ];
+  assert.equal(
+    resolveWcTakeCardDisplayMode(
+      { sport: "generic", callType: "single" },
+      {
+        docked: true,
+        sportHint: "worldcup",
+        msgs,
+        msgIndex: 1,
+        message: msgs[1],
+      },
+    ),
+    "compact",
+  );
+});
+
+test("isWcDockCompactEligible — rejects rules cards", () => {
+  assert.equal(isWcDockCompactEligible({ sport: "worldcup", callType: "rules" }), false);
+  assert.equal(isWcDockCompactEligible({ sport: "generic" }, "worldcup"), true);
 });
 
 test("resolveWcTakeCardDisplayMode — older AI turns collapse in dock", () => {

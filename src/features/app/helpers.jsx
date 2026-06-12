@@ -14,6 +14,7 @@ import {
   resolveWcTakeCardDisplayMode,
   wcTakeCardIsCollapsed,
   wcTakeCardUsesFocusLayout,
+  isWcDockCompactEligible,
 } from "../../lib/wcTakeCardLayout.js";
 import { synthesizeLeanLine } from "../../lib/urTakeLean.js";
 import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
@@ -2016,15 +2017,24 @@ function UrTakeAiBubble({
   }
 
   if (effectiveStructured) {
-    const cardDisplayMode = resolveWcTakeCardDisplayMode(effectiveStructured, {
+    const layoutStructured = coerceWcStructuredForIntent(
+      effectiveStructured,
+      userQuestion,
+      m,
+    );
+    const cardDisplayMode = resolveWcTakeCardDisplayMode(layoutStructured, {
       docked,
       focusSession,
       msgs,
       msgIndex,
       message: m,
+      sportHint: m.sport,
     });
-    const cardFocusLayout = wcTakeCardUsesFocusLayout(cardDisplayMode);
     const cardCollapsed = wcTakeCardIsCollapsed(cardDisplayMode);
+    const cardFocusLayout =
+      !cardCollapsed &&
+      (wcTakeCardUsesFocusLayout(cardDisplayMode) ||
+        (docked && isWcDockCompactEligible(layoutStructured, m.sport)));
     const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
     const structuredGameStateLine = parsedLiveRibbon.gameState
       ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)

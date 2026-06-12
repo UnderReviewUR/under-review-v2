@@ -322,6 +322,13 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     wcIntent === WC_INTENT.PLAYER_PROP ||
     wcIntent === WC_INTENT.GOLDEN_BOOT ||
     wcIntent === WC_INTENT.TOP_SCORER;
+  const isWcBubble =
+    wcIntent === WC_INTENT.STRUCTURAL ||
+    wcIntent === WC_INTENT.ENTITY_PRICING ||
+    wcIntent === WC_INTENT.MATCHUP ||
+    wcIntent === WC_INTENT.RULES ||
+    isWcPlayerMarket ||
+    String(raw.sport || "").toLowerCase() === "worldcup";
   const extendedLean = isRules || isMatchup || isAnalysis || isNbaExtended;
   const clip = (v, max) => {
     if (v == null) return "";
@@ -363,7 +370,7 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     s.whyNow = clip(s.whyNow, 8000);
     s.edge = clip(s.edge, 8000);
     s.confidence = clip(s.confidence, 120) || "Medium";
-    s.sport = clip(s.sport, 80).toLowerCase() || "generic";
+    s.sport = clip(s.sport, 80).toLowerCase() || (isWcBubble ? "worldcup" : "generic");
     if (isMatchup) s.callType = "matchup";
     else if (isAnalysis) s.callType = "analysis";
     else s.callType = clip(s.callType, 48).toLowerCase() || "single";
@@ -2252,12 +2259,12 @@ ${themeCss}
       };
     } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
       const { playerMarketTier: _drop, ...rest } = structuredForBubble;
-      const preserveGroupSlate =
-        String(structuredForBubble.callType || "").toLowerCase() === "group_slate";
+      const ct = String(structuredForBubble.callType || "").toLowerCase();
+      const slateLike = ct === "group_slate" || ct === "advancement";
       structuredForBubble = {
         ...rest,
         sport: "worldcup",
-        callType: preserveGroupSlate ? "group_slate" : "analysis",
+        callType: slateLike ? ct : ct === "matchup" ? "matchup" : "group_slate",
       };
     } else if (
       structuredForBubble &&

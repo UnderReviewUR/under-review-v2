@@ -1885,11 +1885,26 @@ export const baseCss = `
     background:transparent !important;
     padding:8px 0 12px !important;
   }
-  .wc-take-play-block{
+  .wc-take-card--focus .wc-take-play-block{
     display:flex;
     flex-direction:column;
-    gap:10px;
-    margin:0 0 20px;
+    gap:8px;
+    margin:0 0 14px;
+  }
+  .chat-thread--ur-chat-dock .wc-take-card--focus .wc-take-headline{
+    font-size:19px;
+    line-height:1.32;
+  }
+  .chat-thread--ur-chat-dock .wc-take-card--focus .wc-take-context-line{
+    font-size:16px;
+    line-height:1.5;
+    color:#fff;
+    margin:0 0 12px;
+    letter-spacing:0.01em;
+  }
+  .chat-thread--ur-chat-dock .wc-take-card--focus .wc-take-breakdown-toggle--focus{
+    margin-top:8px;
+    font-size:14px;
   }
   .wc-take-context-line{
     font-size:15px;

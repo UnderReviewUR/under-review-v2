@@ -188,6 +188,8 @@ export function prepareWcCardFaceDisplay(opts = {}) {
       maxSentences: 2,
     });
   }
+  const focusWhyCompressed =
+    focusLayout && Boolean(whyFace) && pickWcFocusWhyLine(fullWhy, lineSlot) === whyFace;
 
   const watchFace = focusLayout
     ? ""
@@ -206,15 +208,18 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   if (pathLine && !breakdown.includes(pathLine.slice(0, 40))) {
     breakdown = wcAppendUniqueBlock(pathLine, breakdown);
   }
-  if (focusLayout && fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
-    breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+  if (focusLayout) {
+    if (fullWatch) breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+    if (fullDeep) breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
+    if (fullWhy && !focusWhyCompressed) breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+    if (fullPlay) breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
   }
-  if (fullWatch && !breakdown.includes(fullWatch.slice(0, 40))) {
+  if (!focusLayout && fullWatch && !breakdown.includes(fullWatch.slice(0, 40))) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
   }
-  if (focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40))) {
+  if (!focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40))) {
     breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   }
 

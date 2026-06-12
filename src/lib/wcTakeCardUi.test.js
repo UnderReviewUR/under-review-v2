@@ -161,4 +161,5 @@ test("prepareWcCardFaceDisplay focus mode hides watch for on card face", () => {
   assert.equal(face.sections.watchFor, "");
   assert.match(face.sections.why, /88\.2%/);
   assert.match(face.breakdownText, /drift wider than -750/);
+  assert.doesNotMatch(face.breakdownText, /^The market prices USA/s);
 });
