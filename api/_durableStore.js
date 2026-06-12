@@ -2,14 +2,23 @@ import { getEnv } from "./_env.js";
 
 const memStore = new Map();
 
-const KV_URL =
-  getEnv("KV_REST_API_URL") ||
-  getEnv("VERCEL_KV_REST_API_URL") ||
-  "";
-const KV_TOKEN =
-  getEnv("KV_REST_API_TOKEN") ||
-  getEnv("VERCEL_KV_REST_API_TOKEN") ||
-  "";
+function resolveKvRestCredentials() {
+  const url =
+    getEnv("KV_REST_API_URL") ||
+    getEnv("VERCEL_KV_REST_API_URL") ||
+    getEnv("UPSTASH_REDIS_REST_URL") ||
+    getEnv("STORAGE_REST_API_URL") ||
+    "";
+  const token =
+    getEnv("KV_REST_API_TOKEN") ||
+    getEnv("VERCEL_KV_REST_API_TOKEN") ||
+    getEnv("UPSTASH_REDIS_REST_TOKEN") ||
+    getEnv("STORAGE_REST_API_TOKEN") ||
+    "";
+  return { url, token };
+}
+
+const { url: KV_URL, token: KV_TOKEN } = resolveKvRestCredentials();
 
 function hasKvConfig() {
   return Boolean(KV_URL && KV_TOKEN);
