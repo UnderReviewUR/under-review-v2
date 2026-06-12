@@ -1908,6 +1908,8 @@ export const baseCss = `
     font-size:15px;
     line-height:1.55;
     color:rgba(255,255,255,0.88);
+    overflow-wrap:break-word;
+    word-break:break-word;
   }
   .wc-take-card--focus .ur-v2-divider{display:none;}
   .wc-take-breakdown-toggle--focus{
@@ -3013,6 +3015,7 @@ export const baseCss = `
   .wc-take-headline{
     font-family:var(--display-font);font-size:15px;font-weight:600;line-height:1.35;
     letter-spacing:0.02em;margin:0 0 12px;padding:0 16px;color:var(--text);
+    overflow-wrap:break-word;word-break:break-word;
   }
   .wc-take-stat-grid{margin-bottom:4px;}
   .wc-take-row{
@@ -3025,6 +3028,7 @@ export const baseCss = `
   }
   .wc-take-row-body{
     margin:0;font-size:13px;line-height:1.55;color:var(--soft);
+    overflow-wrap:break-word;word-break:break-word;
   }
   .wc-take-breakdown-toggle{margin:4px 16px 0;}
   .wc-take-breakdown-panel{

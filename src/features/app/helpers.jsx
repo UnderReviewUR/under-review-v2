@@ -36,7 +36,7 @@ import {
 import { resolveStructuralEdgeChipForMessage } from "../../lib/urTakeStructuralEdgeChip.js";
 import UrTakeDockedFollowUps from "../../components/UrTakeDockedFollowUps.jsx";
 import UrTakeShareButton from "../../components/UrTakeShareButton.jsx";
-import { formatUrTakeSportTag } from "../../lib/urTakeSportTag.js";
+import { formatUrTakeSportTag, resolveUrTakeDisplaySport } from "../../lib/urTakeSportTag.js";
 import {
   wcDataConfidenceChipLabel,
   wcDataConfidenceNeedsCaution,
@@ -479,7 +479,7 @@ function UrTakePlainTextVisual({
         <div className="ur-card-accent-bar" />
         <div className="ur-card-body">
           <div className="ur-card-meta-row">
-            <span className="ur-card-sport-tag">{sportTag}</span>
+            {sportTag ? <span className="ur-card-sport-tag">{sportTag}</span> : null}
             {metaRight}
           </div>
 
@@ -1173,7 +1173,7 @@ export function stripEmbeddedFollowUpQuestions(text, followUps) {
   return t.replace(/\n{3,}/g, "\n\n").trimEnd();
 }
 
-export function renderUrTakeAiMessage(raw) {
+export function renderUrTakeAiMessage(raw, opts = {}) {
   const text = String(raw || "");
   const parsed = parseUrTakeResponse(text);
 
@@ -1182,11 +1182,18 @@ export function renderUrTakeAiMessage(raw) {
   }
 
   const { gameState, headline: headlineDisplay, bodyChunks, closing: closingDisplay, confidence } = parsed;
+  const displaySport = resolveUrTakeDisplaySport({
+    sport: opts.sport,
+    structured: opts.structured,
+    message: opts.message,
+    question: opts.question,
+  });
 
   return (
     <div style={{ padding: "0 4px" }}>
       <UrTakePlainTextVisual
-        sport="generic"
+        sport={displaySport}
+        callType={opts.callType}
         gameStateLine={gameState ? stripUrTakeInlineMarkdown(gameState) : ""}
         headlineDisplay={headlineDisplay}
         bodyChunks={bodyChunks}
@@ -2068,7 +2075,12 @@ function UrTakeAiBubble({
           fallback={structuredFallback}
         >
           <URTakeResponse
-            sport={s.sport}
+            sport={resolveUrTakeDisplaySport({
+              sport: s.sport || m.sport,
+              structured: effectiveStructured,
+              message: m,
+              question: userQuestion,
+            })}
             question={userQuestion}
             lean={s.lean}
             call={s.call}
@@ -2147,7 +2159,16 @@ function UrTakeAiBubble({
           >
             ← Back
           </button>
-          <div>{renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText))}</div>
+          <div>
+            {renderUrTakeAiMessage(stripLeadingUrTakeDisclaimersForDisplay(m.deepText), {
+              sport: m.sport,
+              structured: m.structured,
+              message: m,
+              question: userQuestion,
+              callType:
+                typeof m.structured?.callType === "string" ? m.structured.callType : undefined,
+            })}
+          </div>
         </div>
         <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
         {wcConfidenceChip}
@@ -2258,7 +2279,12 @@ function UrTakeAiBubble({
       >
         <div className="ur-take-ai-panel ur-take-ai-panel--visual">
           <UrTakePlainTextVisual
-            sport={m.sport || "generic"}
+            sport={resolveUrTakeDisplaySport({
+              sport: m.sport,
+              structured: m.structured,
+              message: m,
+              question: userQuestion,
+            })}
             callType={typeof m.structured?.callType === "string" ? m.structured.callType : undefined}
             gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
             headlineDisplay={parsed.headline}

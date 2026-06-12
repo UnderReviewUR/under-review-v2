@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
+import { formatUrTakeSportTag, resolveUrTakeDisplaySport } from "../lib/urTakeSportTag.js";
 import { scrubStructuredFaceText } from "../lib/urTakeFaceTextScrub.js";
 import { buildEstimatedEdgeCardModel } from "../lib/urTakeEstimatedEdgeUi.js";
 import {
@@ -101,7 +101,12 @@ export default function URTakeResponse({
   const [bodyExpanded, setBodyExpanded] = useState(false);
 
   const formattedTimestamp = formatUrTakeTimestampEt(timestamp);
-  const sportTag = formatUrTakeSportTag(sport, callType);
+  const displaySport = resolveUrTakeDisplaySport({
+    sport,
+    question: userQuestion,
+    structured: { sport },
+  });
+  const sportTag = formatUrTakeSportTag(displaySport, callType);
   const liveRibbon = String(liveScore || "").trim() || String(gameStateLine || "").trim() || "";
   const showLiveRibbon = liveRibbon.length > 0;
 
@@ -137,7 +142,7 @@ export default function URTakeResponse({
       : null;
   const eeModel = buildEstimatedEdgeCardModel(ee);
 
-  const sportLowerEarly = String(sport || "").toLowerCase();
+  const sportLowerEarly = String(displaySport || sport || "").toLowerCase();
   const liveLeanCap = sportLowerEarly === "nba" && String(liveScore || gameStateLine || "").trim() ? 220 : null;
 
   let leanMerged = synthesizeLeanLine({ lean, call: callScrub, whyNow });
@@ -400,10 +405,14 @@ export default function URTakeResponse({
     <div className="ur-take-structured ur-take-response ur-v2-card ur-take-response-v2">
       {!isWcDirectCard ? (
         <div className="ur-v2-sport-bar">
-          <span className="ur-v2-sport-bar-tag">{sportTag}</span>
-          <span className="ur-v2-sport-bar-dot" aria-hidden>
-            ·
-          </span>
+          {sportTag ? (
+            <>
+              <span className="ur-v2-sport-bar-tag">{sportTag}</span>
+              <span className="ur-v2-sport-bar-dot" aria-hidden>
+                ·
+              </span>
+            </>
+          ) : null}
           <span className="ur-v2-sport-bar-ctx">{contextLine}</span>
           <span className="ur-v2-sport-bar-spacer" />
           {modePill}

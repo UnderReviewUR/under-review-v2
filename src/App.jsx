@@ -64,6 +64,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { questionMentionsWorldCup } from "../shared/wcUrTakeKeywords.js";
 import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { formatWcCompactDisplayText } from "../shared/wcUrTakeCompactDelivery.js";
@@ -2339,11 +2340,20 @@ ${themeCss}
         ? formatWcCompactDisplayText(structuredForBubble, normalizedDisplay.response)
         : normalizedDisplay.response;
 
+    const bubbleSport =
+      String(structuredForBubble?.sport || "").trim().toLowerCase() ||
+      (sportForBubble ? String(sportForBubble).trim().toLowerCase() : "") ||
+      (resolvedWcIntent &&
+      resolvedWcIntent !== WC_INTENT.UNCLASSIFIED &&
+      resolvedWcIntent !== WC_INTENT.CONTINUATION
+        ? "worldcup"
+        : "");
+
     const completeBubble = {
       role: "ai",
       msgId: pendingMsgId,
       text: bubbleResponseText,
-      sport: sportForBubble || undefined,
+      sport: bubbleSport || undefined,
       ...(lastUserWcEventId ? { wcEventId: String(lastUserWcEventId).trim() } : {}),
       ...(lastUserWcMatchTeams &&
       typeof lastUserWcMatchTeams === "object" &&
@@ -3966,7 +3976,13 @@ ${themeCss}
     setAskInput("");
     setTab("ask");
     setScreen("ask");
-    askUrTake({ text: t, setMsgs: setAskMsgs });
+    const homeSportHint =
+      isWcHomePromoWindow() && questionMentionsWorldCup(t) ? "worldcup" : undefined;
+    askUrTake({
+      text: t,
+      setMsgs: setAskMsgs,
+      ...(homeSportHint ? { sportHint: homeSportHint } : {}),
+    });
     requestAnimationFrame(() => {
       scheduleChatScroll(askScreenRef);
       const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
