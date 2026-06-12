@@ -11,12 +11,15 @@ import {
   normalizeBdlRosterRow,
 } from "./_wcBdlFifa.js";
 import {
+  buildBdlPlayerIdLookup,
   linkBdlMatchesToEspn,
   normalizeBdlFifaMatchRow,
   normalizeBdlMatchDetailBundle,
   normalizeBdlPlayerPropsToMarkets,
   pickBdlMatchOddsForMatch,
 } from "./_wcBdlNormalize.js";
+import { readWcPlayersFromKv } from "./_wcPlayersData.js";
+import { auditBdlPlayerPropsIngest } from "../shared/wcBdlIngestAudit.js";
 import { normalizeBdlGroupStandings } from "./_wcBdlGoatMode.js";
 import { buildBdlFuturesIndex } from "../shared/wcBdlFutures.js";
 import { hasWcBdlApiKey, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
@@ -33,6 +36,7 @@ import {
   WC_MATCH_DETAIL_PRE_TTL_SECONDS,
 } from "../shared/wc2026Constants.js";
 import { WC_MATCH_PLAYER_PROPS_KV_KEY, WC_MATCH_PLAYER_PROPS_TTL_SECONDS, WC_PLAYERS_KV_KEY, WC_PLAYERS_TTL_SECONDS } from "../shared/wc2026PlayerConstants.js";
+import { WC_MATCH_PLAYER_PROP_MARKET_KEYS } from "../shared/wcMatchPlayerProps.js";
 import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
 import { fetchEspnAllMatches } from "./_wcEspn.js";
 
@@ -390,6 +394,73 @@ export async function scrapeAndCacheWcBdlMatchBundle(eventId, meta = {}) {
 }
 
 /**
+ * Resolve BDL player_id → name for prop rows (API returns ids only, not embedded players).
+ * @param {Array<Record<string, unknown>>} rows
+ * @param {{ homeTeam?: string, awayTeam?: string }} [meta]
+ */
+export async function resolveBdlPlayerLookupForPropRows(rows, meta = {}) {
+  /** @type {Record<string, { name: string, nationAbbr?: string | null }>} */
+  const lookup = {};
+
+  const ref = await getDurableJson(WC_BDL_REFERENCE_KV_KEY);
+  Object.assign(lookup, buildBdlPlayerIdLookup(ref?.players || []));
+
+  try {
+    const playersKv = await readWcPlayersFromKv();
+    Object.assign(lookup, buildBdlPlayerIdLookup(playersKv?.bdlPlayers || []));
+  } catch {
+    /* non-fatal */
+  }
+
+  const needed = [
+    ...new Set(
+      (rows || [])
+        .map((r) => r.player_id)
+        .filter((id) => id != null)
+        .map(String),
+    ),
+  ];
+  const missing = needed.filter((id) => !lookup[id]);
+  if (!missing.length) return lookup;
+
+  const home = String(meta.homeTeam || "").trim().toUpperCase();
+  const away = String(meta.awayTeam || "").trim().toUpperCase();
+  if (!home && !away) return lookup;
+
+  const teamsRes = await bdlFifaFetch("/teams", { "seasons[]": 2026 });
+  const teams = Array.isArray(teamsRes.data?.data) ? teamsRes.data.data : [];
+  const wanted = new Set([home, away].filter(Boolean));
+  const teamIds = teams
+    .filter((t) => {
+      const abbr = String(t.abbreviation || t.fifa_code || t.code || t.name || "")
+        .trim()
+        .toUpperCase();
+      return wanted.has(abbr);
+    })
+    .map((t) => t.id)
+    .filter((id) => id != null);
+
+  for (const teamId of teamIds) {
+    const rosters = await bdlFifaFetchPaginated(
+      "/rosters",
+      { "seasons[]": 2026, "team_ids[]": teamId },
+      { maxPages: 3, delayMs: 0 },
+    );
+    for (const row of rosters.rows || []) {
+      const p = row.player && typeof row.player === "object" ? row.player : row;
+      const normalized = normalizeBdlPlayerRow(p);
+      if (!normalized) continue;
+      lookup[String(normalized.id)] = {
+        name: normalized.name,
+        nationAbbr: normalized.countryCode || null,
+      };
+    }
+  }
+
+  return lookup;
+}
+
+/**
  * @param {number} bdlMatchId
  * @param {string} eventId
  * @param {{ homeTeam?: string, awayTeam?: string, scrapeMode?: string }} [meta]
@@ -401,10 +472,39 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
   }
 
   const rows = Array.isArray(res.data?.data) ? res.data.data : [];
-  const markets = normalizeBdlPlayerPropsToMarkets(rows);
+  const playerLookup = await resolveBdlPlayerLookupForPropRows(rows, meta);
+  const markets = normalizeBdlPlayerPropsToMarkets(rows, playerLookup);
+  const ingestAudit = auditBdlPlayerPropsIngest(rows, markets, playerLookup);
+  if (!ingestAudit.healthy || ingestAudit.warnings.length) {
+    console.warn(
+      JSON.stringify({
+        event: "wc_bdl_player_props_ingest_audit",
+        eventId: String(eventId),
+        bdlMatchId,
+        homeTeam: meta.homeTeam || null,
+        awayTeam: meta.awayTeam || null,
+        ...ingestAudit,
+      }),
+    );
+  }
   const anytimeCount = (markets.anytime_scorer || []).length;
-  if (anytimeCount < 2) {
-    return { ok: false, eventId, error: "insufficient_bdl_props", anytimeCount };
+  const shotsCount = (markets.player_shots_ou || []).length;
+  const sotCount = (markets.player_sot_ou || []).length;
+  const totalRows = WC_MATCH_PLAYER_PROP_MARKET_KEYS.reduce(
+    (n, key) => n + (markets[key]?.length || 0),
+    0,
+  );
+  const sufficient =
+    anytimeCount >= 2 || shotsCount >= 1 || sotCount >= 1 || totalRows >= 3;
+  if (!sufficient) {
+    return {
+      ok: false,
+      eventId,
+      error: "insufficient_bdl_props",
+      anytimeCount,
+      shotsCount,
+      totalRows,
+    };
   }
 
   const nowMs = Date.now();
@@ -429,7 +529,13 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
     { ttlSeconds: WC_MATCH_PLAYER_PROPS_TTL_SECONDS },
   );
 
-  return { ok: true, eventId, source: "balldontlie", anytimeCount };
+  return {
+    ok: true,
+    eventId,
+    source: "balldontlie",
+    anytimeCount,
+    ingestAudit,
+  };
 }
 
 /** Live BDL futures → outrights KV refresh. */

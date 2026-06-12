@@ -18,7 +18,13 @@ import {
 } from "./_wcBdlFifa.js";
 import { readWcGroupsFromKv, readWcMatchesFromKv, readWcOutrightsFromKv } from "./_wcData.js";
 import { getDurableJson } from "./_durableStore.js";
-import { WC_BDL_REFERENCE_KV_KEY, fetchBdlMatchBundle } from "./_wcBdlData.js";
+import {
+  WC_BDL_REFERENCE_KV_KEY,
+  fetchBdlMatchBundle,
+  resolveBdlPlayerLookupForPropRows,
+} from "./_wcBdlData.js";
+import { normalizeBdlPlayerPropsToMarkets } from "./_wcBdlNormalize.js";
+import { auditBdlPlayerPropsIngest } from "../shared/wcBdlIngestAudit.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import {
   buildBdlFuturesIndex,
@@ -288,6 +294,48 @@ export async function buildWcGoatProbeReport(opts = {}) {
 
   const bdlReference = await getDurableJson(WC_BDL_REFERENCE_KV_KEY);
   /** @type {Record<string, unknown> | null} */
+  let playerPropsHealth = null;
+  const samplePropMatch =
+    (matchesLive.matches || []).find(
+      (m) => String(m.homeTeam) === "KOR" && String(m.awayTeam) === "CZE",
+    ) || (matchesLive.matches || [])[0];
+  if (keyPresent && samplePropMatch) {
+    try {
+      if (delayMs > 0) await sleepMs(delayMs);
+      const bdlMatchId = Number(samplePropMatch.bdlMatchId ?? samplePropMatch.id);
+      const propsRes = await bdlFifaFetch("/odds/player_props", { match_id: bdlMatchId });
+      requestCount += 1;
+      const rows = Array.isArray(propsRes.data?.data) ? propsRes.data.data : [];
+      const lookup = await resolveBdlPlayerLookupForPropRows(rows, {
+        homeTeam: samplePropMatch.homeTeam,
+        awayTeam: samplePropMatch.awayTeam,
+      });
+      const markets = normalizeBdlPlayerPropsToMarkets(rows, lookup);
+      const audit = auditBdlPlayerPropsIngest(rows, markets, lookup);
+      playerPropsHealth = {
+        matchup: `${samplePropMatch.homeTeam} vs ${samplePropMatch.awayTeam}`,
+        bdlMatchId,
+        eventId: samplePropMatch.id,
+        fetchOk: propsRes.ok,
+        fetchError: propsRes.error || null,
+        ...audit,
+        marketCounts: {
+          anytime_scorer: (markets.anytime_scorer || []).length,
+          player_goal_or_assist: (markets.player_goal_or_assist || []).length,
+          player_shots_ou: (markets.player_shots_ou || []).length,
+          player_sot_ou: (markets.player_sot_ou || []).length,
+          player_assists_ou: (markets.player_assists_ou || []).length,
+        },
+      };
+      if (!audit.healthy) {
+        errors.push(`player_props_ingest:${audit.warnings.join("|") || "unhealthy"}`);
+      }
+    } catch (err) {
+      errors.push(`player_props_health: ${err?.message || "failed"}`);
+    }
+  }
+
+  /** @type {Record<string, unknown> | null} */
   let sampleGoatMatchDepth = null;
   const sampleMatch =
     (espnMatchesKv?.matches || []).find((m) => m?.bdlMatchId != null) ||
@@ -347,6 +395,7 @@ export async function buildWcGoatProbeReport(opts = {}) {
       bdlReference: bdlReference?.counts || null,
     },
     sampleGoatMatchDepth,
+    playerPropsHealth,
     liveGoat: live,
     priceDelta: {
       team: sampleTeam,

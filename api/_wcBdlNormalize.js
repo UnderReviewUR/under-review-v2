@@ -1,5 +1,9 @@
 /**
  * BallDontLie FIFA → Under Review internal shapes.
+ *
+ * Player props contract (GOAT): rows are player_id-only — join via /players or /rosters.
+ * @see https://fifa.balldontlie.io/#player-props
+ * @see https://www.balldontlie.io/openapi/fifa.yml
  */
 
 import { normalizeEspnAbbr } from "./_wcEspn.js";
@@ -7,16 +11,26 @@ import { groupLetterForAbbr } from "./_wcEspn.js";
 import { createEmptyMatchPlayerPropMarkets } from "../shared/wcMatchPlayerProps.js";
 import { buildBdlGoatMatchIntel } from "../shared/wcBdlMatchIntel.js";
 
-const BDL_PROP_TO_MARKET = {
+/** BDL prop_type → internal match-player market key (see BDL docs for full enum). */
+export const BDL_PROP_TO_MARKET = {
   anytime_goal: "anytime_scorer",
   first_goal: "first_goalscorer",
   last_goal: "last_goalscorer",
+  goal_or_assist: "player_goal_or_assist",
   assists: "player_assists_ou",
   shots: "player_shots_ou",
   shots_on_target: "player_sot_ou",
   card: "player_card",
   red_card: "player_red_card",
 };
+
+/** Documented on BDL but not yet mapped to UR Take card markets. */
+export const BDL_PROP_TYPES_NOT_YET_MAPPED = [
+  "saves",
+  "shot_each_half",
+  "shot_on_target_each_half",
+  "tackles",
+];
 
 const VENDOR_PRIORITY = ["draftkings", "fanduel", "betmgm", "caesars"];
 
@@ -161,9 +175,44 @@ function formatAm(n) {
 }
 
 /**
- * @param {Array<Record<string, unknown>>} rows — FIFAPlayerProp[]
+ * Build player_id → display name map from BDL reference / roster rows.
+ * @param {Array<Record<string, unknown>>} players
  */
-export function normalizeBdlPlayerPropsToMarkets(rows) {
+export function buildBdlPlayerIdLookup(players = []) {
+  /** @type {Record<string, { name: string, nationAbbr?: string | null }>} */
+  const lookup = {};
+  for (const raw of players) {
+    const id = raw?.id ?? raw?.bdlPlayerId ?? raw?.player?.id;
+    const name = String(
+      raw?.name ||
+        raw?.shortName ||
+        raw?.short_name ||
+        raw?.player?.name ||
+        raw?.player?.short_name ||
+        "",
+    ).trim();
+    if (id == null || !name) continue;
+    const nationAbbr =
+      String(
+        raw?.countryCode ||
+          raw?.country_code ||
+          raw?.player?.country_code ||
+          raw?.nationAbbr ||
+          "",
+      )
+        .trim()
+        .toUpperCase()
+        .slice(0, 3) || null;
+    lookup[String(id)] = { name, nationAbbr };
+  }
+  return lookup;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} rows — FIFAPlayerProp[]
+ * @param {Record<string, { name: string, nationAbbr?: string | null }>} [playerLookup]
+ */
+export function normalizeBdlPlayerPropsToMarkets(rows, playerLookup = {}) {
   const markets = createEmptyMatchPlayerPropMarkets();
   /** @type {Record<string, Map<string, Record<string, unknown>>>} */
   const byMarket = {};
@@ -176,22 +225,38 @@ export function normalizeBdlPlayerPropsToMarkets(rows) {
     if (!marketKey || !byMarket[marketKey]) continue;
 
     const player = row.player && typeof row.player === "object" ? row.player : {};
-    const name = String(player.name || player.short_name || "").trim();
-    if (!name) continue;
-
-    const nationAbbr = String(
+    let name = String(player.name || player.short_name || "").trim();
+    let nationAbbr = String(
       player.country_code || player.nationAbbr || player.team_abbr || player.team || "",
     )
       .trim()
       .toUpperCase()
       .slice(0, 3);
 
+    if (!name && row.player_id != null) {
+      const hit = playerLookup[String(row.player_id)];
+      if (hit?.name) {
+        name = hit.name;
+        if (hit.nationAbbr) nationAbbr = hit.nationAbbr;
+      }
+    }
+    if (!name) continue;
+
     const market = row.market || {};
     const marketType = String(market.type || "").toLowerCase();
     const vendor = String(row.vendor || "bdl").toLowerCase();
 
     if (marketType === "milestone" && market.odds != null) {
-      pushPropRow(byMarket[marketKey], name, formatAm(market.odds), vendor, row, null, null, nationAbbr);
+      pushPropRow(
+        byMarket[marketKey],
+        name,
+        formatAm(market.odds),
+        vendor,
+        row,
+        row.line_value != null ? String(row.line_value) : null,
+        "over",
+        nationAbbr || null,
+      );
     } else if (marketType === "over_under") {
       if (market.over_odds != null) {
         pushPropRow(

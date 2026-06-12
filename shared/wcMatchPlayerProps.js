@@ -10,13 +10,14 @@ import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 
 export { WC_MATCH_PLAYER_PROPS_MAX_AGE_MS };
 
-/** @typedef {"anytime_scorer" | "first_goalscorer" | "last_goalscorer" | "player_assists_ou" | "player_shots_ou" | "player_sot_ou" | "player_card" | "player_red_card"} WcMatchPlayerPropMarket */
+/** @typedef {"anytime_scorer" | "first_goalscorer" | "last_goalscorer" | "player_goal_or_assist" | "player_assists_ou" | "player_shots_ou" | "player_sot_ou" | "player_card" | "player_red_card"} WcMatchPlayerPropMarket */
 
 /** Scorer + extended player prop markets (Phase 1 book scrape). */
 export const WC_MATCH_PLAYER_PROP_MARKET_KEYS = [
   "anytime_scorer",
   "first_goalscorer",
   "last_goalscorer",
+  "player_goal_or_assist",
   "player_assists_ou",
   "player_shots_ou",
   "player_sot_ou",
@@ -29,6 +30,7 @@ export const WC_MATCH_PLAYER_PROP_PROMPT_LABELS = {
   anytime_scorer: "ANYTIME GOALSCORER",
   first_goalscorer: "FIRST GOALSCORER",
   last_goalscorer: "LAST GOALSCORER",
+  player_goal_or_assist: "GOAL OR ASSIST",
   player_assists_ou: "PLAYER ASSISTS (O/U)",
   player_shots_ou: "PLAYER SHOTS (O/U)",
   player_sot_ou: "PLAYER SHOTS ON TARGET (O/U)",
@@ -99,8 +101,7 @@ export function attachMatchPlayerPropsFreshness(eventPayload, nowMs = Date.now()
   const markets = eventPayload.markets && typeof eventPayload.markets === "object"
     ? eventPayload.markets
     : {};
-  const anytime = Array.isArray(markets.anytime_scorer) ? markets.anytime_scorer : [];
-  const hasRows = anytime.length > 0;
+  const hasRows = hasMatchPlayerPropRows(eventPayload);
 
   if (!hasRows) {
     return {
@@ -167,7 +168,7 @@ export function formatMatchPlayerPropRowForPrompt(market, row) {
 export function isMatchPlayerPropsFresh(eventPayload, nowMs = Date.now()) {
   const attached = attachMatchPlayerPropsFreshness(eventPayload, nowMs);
   if (!attached || attached.stale) return false;
-  return matchPlayerPropRowsFromEvent(attached, "anytime_scorer", 3).length >= 3;
+  return hasMatchPlayerPropRows(attached);
 }
 
 /**
