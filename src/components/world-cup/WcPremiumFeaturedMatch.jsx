@@ -10,22 +10,53 @@ function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
 }
 
+function featuredLiveMinute(match) {
+  const status = String(match?.status || "").toLowerCase();
+  if (status === "ht") return "HT";
+  if (match?.minute != null && String(match.minute).trim() !== "") {
+    return `${match.minute}'`;
+  }
+  return "LIVE";
+}
+
+function featuredHasScore(match) {
+  return (
+    match &&
+    (Number.isFinite(Number(match.homeScore)) || Number.isFinite(Number(match.awayScore)))
+  );
+}
+
 /**
  * Cream hero match card — WC premium landing.
  */
-export default function WcPremiumFeaturedMatch({ match, kicker, teams, onOpen, xiTrustLine = null }) {
+export default function WcPremiumFeaturedMatch({
+  match,
+  kicker,
+  teams,
+  onOpen,
+  xiTrustLine = null,
+  extraLiveCount = 0,
+}) {
   if (!match) return null;
 
   const home = resolveWcFeaturedTeam(match.homeTeam, teams);
   const away = resolveWcFeaturedTeam(match.awayTeam, teams);
   const live = isLiveStatus(match.status);
+  const showScore = live && featuredHasScore(match);
+  const homeScore = Number.isFinite(Number(match.homeScore)) ? Number(match.homeScore) : 0;
+  const awayScore = Number.isFinite(Number(match.awayScore)) ? Number(match.awayScore) : 0;
   const dateLine = formatWcFeaturedDateLine(match);
   const timeLine = live ? "IN PROGRESS" : formatWcFeaturedTimeLine(match);
   const venueLine = formatWcFeaturedVenueLine(match);
 
   return (
     <button type="button" className="wc-premium-featured" onClick={onOpen}>
-      <div className="wc-premium-featured__label">{formatWcFeaturedGroupLabel(match, kicker)}</div>
+      <div className="wc-premium-featured__label">{formatWcFeaturedGroupLabel(match, kicker, teams)}</div>
+      {extraLiveCount > 0 ? (
+        <p className="wc-premium-featured__more-live">
+          +{extraLiveCount} more live — see Live tab
+        </p>
+      ) : null}
 
       <div className="wc-premium-featured__teams">
         <div className="wc-premium-featured__team">
@@ -44,7 +75,14 @@ export default function WcPremiumFeaturedMatch({ match, kicker, teams, onOpen, x
         </div>
 
         <span className="wc-premium-featured__vs" aria-hidden>
-          {live ? (
+          {showScore ? (
+            <span className="wc-premium-featured__score-block">
+              <span className="wc-premium-featured__score-num">
+                {homeScore} – {awayScore}
+              </span>
+              <span className="wc-premium-featured__live">{featuredLiveMinute(match)}</span>
+            </span>
+          ) : live ? (
             <span className="wc-premium-featured__live">LIVE</span>
           ) : (
             "VS"

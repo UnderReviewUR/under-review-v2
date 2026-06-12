@@ -1,27 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  formatWcMatchFieldText,
   formatWcMatchGroupLetter,
-  formatWcMatchVenueLine,
+  resolveWcMatchGroupLetter,
 } from "./wcMatchFieldDisplay.js";
 
-test("formatWcMatchGroupLetter — BDL group object with letter", () => {
-  assert.equal(formatWcMatchGroupLetter({ letter: "f" }), "F");
+test("formatWcMatchGroupLetter — bracket-wrapped letter", () => {
+  assert.equal(formatWcMatchGroupLetter("[A]"), "A");
+  assert.equal(formatWcMatchGroupLetter('["A"]'), "A");
+  assert.equal(formatWcMatchGroupLetter("Group A"), "A");
 });
 
-test("formatWcMatchGroupLetter — rejects object stringification", () => {
+test("formatWcMatchGroupLetter — rejects stray bracket", () => {
+  assert.equal(formatWcMatchGroupLetter("["), "");
   assert.equal(formatWcMatchGroupLetter("[object Object]"), "");
-  assert.equal(formatWcMatchGroupLetter({ id: 9 }), "");
 });
 
-test("formatWcMatchVenueLine — stadium object", () => {
-  assert.equal(
-    formatWcMatchVenueLine({ name: "Gillette Stadium", city: "Foxborough" }),
-    "Gillette Stadium, Foxborough",
+test("resolveWcMatchGroupLetter — falls back to team roster", () => {
+  const letter = resolveWcMatchGroupLetter(
+    { group: "[", homeTeam: "KOR", awayTeam: "CZE" },
+    [
+      { abbreviation: "KOR", group: "A" },
+      { abbreviation: "CZE", group: "F" },
+    ],
   );
-});
-
-test("formatWcMatchFieldText — plain string", () => {
-  assert.equal(formatWcMatchFieldText("Seattle"), "Seattle");
+  assert.equal(letter, "A");
 });

@@ -158,19 +158,37 @@ export default function WorldCupScreen({
     [matches],
   );
 
+  const sortedLiveMatches = useMemo(
+    () =>
+      [...(liveMatches || [])].sort(
+        (a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0),
+      ),
+    [liveMatches],
+  );
+
   const featuredMatch = useMemo(() => {
-    if (liveMatches.length > 0) {
-      return { match: liveMatches[0], kind: "live", kicker: "Live now" };
+    if (sortedLiveMatches.length > 0) {
+      return {
+        match: sortedLiveMatches[0],
+        kind: "live",
+        kicker: "Live now",
+        extraLiveCount: sortedLiveMatches.length - 1,
+      };
     }
     const nextUp = upcomingMatches[0];
     if (nextUp) {
-      return { match: nextUp, kind: "next", kicker: "Next match" };
+      return { match: nextUp, kind: "next", kicker: "Next match", extraLiveCount: 0 };
     }
     if (todayMatches.length > 0) {
-      return { match: todayMatches[0], kind: "today", kicker: "Today's slate" };
+      return {
+        match: todayMatches[0],
+        kind: "today",
+        kicker: "Today's slate",
+        extraLiveCount: 0,
+      };
     }
     return null;
-  }, [liveMatches, upcomingMatches, todayMatches]);
+  }, [sortedLiveMatches, upcomingMatches, todayMatches]);
 
   const headerSubtitle = useMemo(() => {
     if (todayMatches.length > 0) {
@@ -527,6 +545,7 @@ export default function WorldCupScreen({
               match={featuredMatch.match}
               kicker={featuredMatch.kicker}
               teams={teams}
+              extraLiveCount={featuredMatch.extraLiveCount || 0}
               onOpen={() => openMatchDrawer(featuredMatch.match)}
               xiTrustLine="Starting XIs only when confirmed — see status on every match."
             />

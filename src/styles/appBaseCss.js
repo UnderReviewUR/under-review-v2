@@ -2686,8 +2686,16 @@ export const baseCss = `
     letter-spacing:0.16em;
     text-transform:uppercase;
     color:var(--wc-premium-accent);
-    margin-bottom:16px;
+    margin-bottom:8px;
     font-weight:600;
+  }
+  .wc-premium-featured__more-live{
+    margin:-4px 0 12px;
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--wc-premium-muted);
   }
   .wc-premium-featured__teams{
     display:grid;
@@ -2739,6 +2747,22 @@ export const baseCss = `
     font-size:10px;
     letter-spacing:0.14em;
     color:#B45309;
+  }
+  .wc-premium-featured__score-block{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    padding-top:18px;
+  }
+  .wc-premium-featured__score-num{
+    font-family:var(--mono-font);
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:0.04em;
+    color:var(--wc-premium-ink);
+    font-variant-numeric:tabular-nums;
+    line-height:1;
   }
   .wc-premium-featured__rule{
     height:1px;

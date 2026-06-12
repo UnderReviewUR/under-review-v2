@@ -1,6 +1,6 @@
 import { findStadiumByCity } from "../data/wc2026Stadiums.js";
 import {
-  formatWcMatchGroupLetter,
+  resolveWcMatchGroupLetter,
   formatWcMatchFieldText,
   formatWcMatchVenueLine,
 } from "../../shared/wcMatchFieldDisplay.js";
@@ -115,11 +115,12 @@ export function resolveWcFeaturedTeam(abbr, teams) {
 }
 
 /**
- * @param {{ group?: string } | null | undefined} match
+ * @param {{ group?: string, homeTeam?: string, awayTeam?: string } | null | undefined} match
  * @param {string} [kicker]
+ * @param {Array<{ abbreviation?: string, group?: string }>} [teams]
  */
-export function formatWcFeaturedGroupLabel(match, kicker = "") {
-  const g = formatWcMatchGroupLetter(match?.group);
+export function formatWcFeaturedGroupLabel(match, kicker = "", teams = []) {
+  const g = resolveWcMatchGroupLetter(match, teams);
   const base = g ? `GROUP ${g}` : "";
   const k = String(kicker || "").trim();
   if (base && /live/i.test(k)) return `${base} · LIVE`;

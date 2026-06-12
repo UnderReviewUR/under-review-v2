@@ -3,6 +3,7 @@
  */
 
 import { getEnv } from "./_env.js";
+import { formatWcMatchGroupLetter } from "../shared/wcMatchFieldDisplay.js";
 
 export const BDL_FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 
@@ -181,10 +182,7 @@ export function normalizeBdlMatchRow(row) {
     time: String(timeRaw || String(dateRaw).slice(11, 16) || ""),
     stadium: String(row.stadium || row.venue || row.venue_name || "").trim(),
     city: String(row.city || row.venue_city || "").trim(),
-    group: String(row.group || row.group_name || row.group_letter || "")
-      .trim()
-      .toUpperCase()
-      .replace(/^GROUP\s*/i, ""),
+    group: formatWcMatchGroupLetter(row.group || row.group_name || row.group_letter || ""),
     round: String(row.round || row.stage || row.phase || "").trim(),
     commenceTs: Date.parse(String(dateRaw)) || null,
     source: "balldontlie",
