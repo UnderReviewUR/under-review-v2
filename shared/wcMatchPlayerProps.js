@@ -66,23 +66,29 @@ function matchPlayerPropOddsRank(odds) {
   return n;
 }
 
-/**
- * Normalize O/U scrape rows so milestone "yes" and over/under lines dedupe together.
- * @param {string} marketKey
- * @param {string | null | undefined} line
- * @param {string | null | undefined} side
- */
-function matchPlayerPropOuDedupeLine(marketKey, line) {
-  const raw = line != null ? String(line).trim() : "";
-  if (raw) return raw;
-  if (String(marketKey || "") === "player_assists_ou") return "0.5";
-  return "";
+function matchPlayerPropOuLineRank(line) {
+  const n = Number.parseFloat(String(line ?? "").trim());
+  return Number.isFinite(n) ? n : 99;
 }
 
-function matchPlayerPropOuDedupeSide(side) {
+function isMatchPlayerPropOverSide(side) {
   const raw = String(side || "").trim().toLowerCase();
-  if (!raw || raw === "yes") return "over";
-  return raw;
+  return !raw || raw === "yes" || raw === "over";
+}
+
+/**
+ * Drawer display keeps the primary O/U line (lowest threshold) per player.
+ * @param {Record<string, unknown>} candidate
+ * @param {Record<string, unknown>} incumbent
+ */
+function shouldPreferMatchPlayerPropOuRow(candidate, incumbent) {
+  const candidateLine = matchPlayerPropOuLineRank(candidate?.line);
+  const incumbentLine = matchPlayerPropOuLineRank(incumbent?.line);
+  if (candidateLine !== incumbentLine) return candidateLine < incumbentLine;
+  return (
+    matchPlayerPropOddsRank(String(candidate.americanOdds || "")) <
+    matchPlayerPropOddsRank(String(incumbent.americanOdds || ""))
+  );
 }
 
 /**
@@ -103,13 +109,19 @@ export function collapseMatchPlayerPropRowsForDisplay(rows, marketKey = "") {
     const name = normalizeWcPlayerName(String(row?.name || ""));
     const odds = String(row?.americanOdds || "").trim();
     if (!name || !odds) continue;
+    if (isOuMarket && !isMatchPlayerPropOverSide(row?.side)) continue;
 
-    const dedupeKey = isOuMarket
-      ? `${name.toLowerCase()}|${matchPlayerPropOuDedupeLine(marketKey, row?.line)}|${matchPlayerPropOuDedupeSide(row?.side)}`
-      : name.toLowerCase();
+    const dedupeKey = name.toLowerCase();
     const existing = byKey.get(dedupeKey);
     if (!existing) {
       byKey.set(dedupeKey, { ...row, name });
+      continue;
+    }
+
+    if (isOuMarket) {
+      if (shouldPreferMatchPlayerPropOuRow(row, existing)) {
+        byKey.set(dedupeKey, { ...row, name });
+      }
       continue;
     }
 

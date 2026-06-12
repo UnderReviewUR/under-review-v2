@@ -76,3 +76,24 @@ test("collapseMatchPlayerPropRowsForDisplay — assists O/U merges milestone + l
     ],
   );
 });
+
+test("collapseMatchPlayerPropRowsForDisplay — assists O/U keeps primary line per player", () => {
+  const rows = [
+    { name: "Liam Millar", americanOdds: "+475", line: "1", side: "over" },
+    { name: "Liam Millar", americanOdds: "+5000", line: "2", side: "over" },
+    { name: "Jonathan Osorio", americanOdds: "+500", line: "1", side: "over" },
+    { name: "Jonathan Osorio", americanOdds: "+5000", line: "2", side: "over" },
+    { name: "Tani Oluwaseyi", americanOdds: "+450", line: "1", side: "over" },
+    { name: "Tani Oluwaseyi", americanOdds: "+4500", line: "2", side: "over" },
+  ];
+  const out = collapseMatchPlayerPropRowsForDisplay(rows, "player_assists_ou");
+  assert.equal(out.length, 3);
+  assert.deepEqual(
+    out.map((row) => [row.name, row.americanOdds, row.line]),
+    [
+      ["Liam Millar", "+475", "1"],
+      ["Jonathan Osorio", "+500", "1"],
+      ["Tani Oluwaseyi", "+450", "1"],
+    ],
+  );
+});
