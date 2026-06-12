@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatWcKickoffDisplay, parseWcKickoffEtMs } from "./wcKickoffDisplay.js";
+import {
+  formatWcKickoffDisplay,
+  parseWcKickoffEtMs,
+  wcMatchEtDateYmd,
+} from "./wcKickoffDisplay.js";
 
 test("parseWcKickoffEtMs — Mexico opener Jun 11 15:00 ET", () => {
   const ms = parseWcKickoffEtMs("2026-06-11", "15:00 ET");
@@ -26,4 +30,9 @@ test("formatWcKickoffDisplay — date/time fallback", () => {
   const text = formatWcKickoffDisplay({ date: "2026-06-11", time: "15:00 ET" });
   assert.ok(text.length > 0);
   assert.match(text, /ET/);
+});
+
+test("wcMatchEtDateYmd — evening ET kickoff stays on slate day not UTC date", () => {
+  const usaNinePmEt = Date.parse("2026-06-13T01:00:00.000Z");
+  assert.equal(wcMatchEtDateYmd(usaNinePmEt), "2026-06-12");
 });

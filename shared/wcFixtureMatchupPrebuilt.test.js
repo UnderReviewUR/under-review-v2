@@ -1,0 +1,121 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  buildWcFixtureMatchupPrebuiltStructured,
+  getWcFixtureMlSeed,
+  isWcPromoFixturePair,
+  resolveWcFixturePairFromQuestion,
+  shouldUseWcFixtureMatchupPrebuilt,
+} from "./wcFixtureMatchupPrebuilt.js";
+import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
+import { prepareWcCardFaceDisplay } from "../src/lib/wcTakeCardUi.js";
+
+test("resolveWcFixturePairFromQuestion finds USA vs PAR", () => {
+  const pair = resolveWcFixturePairFromQuestion("Who wins USA vs PAR (Group D)?");
+  assert.equal(pair?.home, "USA");
+  assert.equal(pair?.away, "PAR");
+  assert.equal(pair?.group, "D");
+});
+
+test("shouldUseWcFixtureMatchupPrebuilt for matchup intent", () => {
+  const q = "Who wins USA vs PAR (Group D)?";
+  assert.ok(shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.MATCHUP));
+  assert.ok(!shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.STRUCTURAL));
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question: "Who wins USA vs PAR (Group D)?",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+    },
+  });
+  assert.equal(structured?.call, "Lean Under 2.5 goals");
+  assert.match(structured?.whyNow || "", /sits deep/i);
+  assert.match(structured?.whyNow || "", /rarely blows teams out/i);
+  assert.doesNotMatch(structured?.whyNow || "", /advances in \d/i);
+  assert.match(structured?.deep || "", /WINS IF:/i);
+  assert.match(structured?.deep || "", /DIES IF:/i);
+  assert.match(structured?.deep || "", /MATCH ODDS:/i);
+  assert.doesNotMatch(structured?.edge || "", /lineup/i);
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured marketing prompt leans both advance", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question:
+      "USA vs Paraguay — best bet for Americans who only know the moneyline (group context, not just ML)",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+    },
+  });
+  assert.match(structured?.lean || "", /both teams to advance/i);
+});
+
+test("prepareWcCardFaceDisplay shows prebuilt winner + alt play", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question: "Who wins USA vs PAR (Group D)?",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+    },
+  });
+  const face = prepareWcCardFaceDisplay({
+    callType: "matchup",
+    call: structured.call,
+    lean: structured.lean,
+    why: structured.whyNow,
+    watchFor: structured.edge,
+    thePlay: structured.lean,
+    breakdown: structured.deep,
+    breakdownAvailable: true,
+    focusLayout: true,
+    lineSlot: structured.line,
+    question: "Who wins USA vs PAR (Group D)?",
+  });
+  assert.equal(face.headline, "Lean Under 2.5 goals");
+  assert.match(face.sections.thePlay, /Alt:.*United States \+110 to win/i);
+  assert.match(face.sections.why, /sits deep/i);
+});
+
+test("runWcUrTakeQA passes prebuilt USA vs PAR", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question: "Who wins USA vs PAR (Group D)?",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+    },
+  });
+  const qa = runWcUrTakeQA({
+    responseText: structured.lean,
+    structured,
+    question: "Who wins USA vs PAR (Group D)?",
+    wcIntent: WC_INTENT.MATCHUP,
+    requiredEntities: ["USA", "PAR"],
+    teamStats: { USA: { advancePct: 51.8 }, PAR: { advancePct: 75.95 } },
+  });
+  assert.ok(!qa.issueCodes.includes("wc_matchup_missing_winner_line"));
+});
+
+test("isWcPromoFixturePair recognizes opener slate", () => {
+  assert.ok(isWcPromoFixturePair("USA", "PAR"));
+  assert.ok(!isWcPromoFixturePair("USA", "MEX"));
+});

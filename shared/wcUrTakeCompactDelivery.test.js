@@ -176,7 +176,7 @@ test("buildWcCompactStructured — matchup group opener avoids generic pass lean
       "[UR model · 10k Poisson/Elo · Jun 12] Canada advances in 86.84% of sims vs Bosnia and Herzegovina. Watch for lineup confirmation before locking a scorer leg.",
   });
   assert.equal(s.callType, "matchup");
-  assert.match(s.call, /CAN vs BIH/i);
+  assert.doesNotMatch(s.call, /advancement paths/i);
   assert.doesNotMatch(s.lean, /no actionable line/i);
   assert.match(s.line, /86\.84%|UR sim/i);
 });

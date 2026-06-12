@@ -9,6 +9,7 @@ import {
   WC_SCOREBOARD_START_YMD,
 } from "../shared/wc2026Constants.js";
 import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
+import { wcMatchEtDateYmd } from "../shared/wcKickoffDisplay.js";
 
 export const ESPN_WC_STANDINGS_URL =
   "https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings";
@@ -172,6 +173,7 @@ export function normalizeEspnScoreboardEvent(event, nowMs = Date.now()) {
 
   const dateRaw = String(comp.date || event.date || "");
   const commenceTs = Date.parse(dateRaw) || null;
+  const etDate = wcMatchEtDateYmd(commenceTs) || dateRaw.slice(0, 10);
   const time =
     commenceTs != null
       ? new Date(commenceTs).toLocaleTimeString("en-US", {
@@ -192,7 +194,7 @@ export function normalizeEspnScoreboardEvent(event, nowMs = Date.now()) {
     homeScore: Number.isFinite(homeScore) ? homeScore : null,
     awayScore: Number.isFinite(awayScore) ? awayScore : null,
     status: normalizeEspnMatchStatus(statusType),
-    date: dateRaw.slice(0, 10),
+    date: etDate,
     time,
     stadium: String(comp.venue?.fullName || "").trim(),
     city: String(comp.venue?.address?.city || "").trim(),

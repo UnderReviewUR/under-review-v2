@@ -1380,7 +1380,18 @@ const UR_TAKE_LOADING_PHASES = [
   { delay: 2500, text: "Pulling tonight's board..." },
   { delay: 5000, text: "Checking the line movement..." },
   { delay: 7500, text: "Building the take..." },
-  { delay: 9500, text: "Almost there..." },
+  { delay: 12000, text: "Running the model..." },
+  { delay: 22000, text: "Almost there..." },
+];
+
+/** World Cup — longer backend path (sims + structured JSON); avoid early "Almost there". */
+const UR_TAKE_LOADING_PHASES_WC = [
+  { delay: 0, text: "Pulling match odds..." },
+  { delay: 3000, text: "Running tournament sims..." },
+  { delay: 8000, text: "Building the match lean..." },
+  { delay: 16000, text: "Still working — full sim stack on match day..." },
+  { delay: 28000, text: "Almost there..." },
+  { delay: 42000, text: "Finishing up..." },
 ];
 
 export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
@@ -1388,11 +1399,17 @@ export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
   const accent = SPORT_ACCENT[sportKey] || "#FFFFFF";
   const imessage = variant === "urChatDocked";
 
-  const [phaseText, setPhaseText] = useState(UR_TAKE_LOADING_PHASES[0].text);
+  const phases =
+    sportKey === "worldcup" ? UR_TAKE_LOADING_PHASES_WC : UR_TAKE_LOADING_PHASES;
+
+  const [phaseText, setPhaseText] = useState(phases[0].text);
   const [progressPhase, setProgressPhase] = useState("");
 
   useEffect(() => {
-    const timers = UR_TAKE_LOADING_PHASES.slice(1).map(({ delay, text }) =>
+    const phaseList =
+      sportKey === "worldcup" ? UR_TAKE_LOADING_PHASES_WC : UR_TAKE_LOADING_PHASES;
+    setPhaseText(phaseList[0].text);
+    const timers = phaseList.slice(1).map(({ delay, text }) =>
       window.setTimeout(() => setPhaseText(text), delay),
     );
     let raf2;
@@ -1404,7 +1421,7 @@ export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
       window.cancelAnimationFrame(raf1);
       if (raf2 != null) window.cancelAnimationFrame(raf2);
     };
-  }, []);
+  }, [sportKey]);
 
   useEffect(() => {
     if (typeof onLayoutTick === "function") onLayoutTick();

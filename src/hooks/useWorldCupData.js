@@ -9,6 +9,7 @@ import {
   resolveClientWcOutrightsMeta,
   stripWcTeamInternalMeta,
 } from "../../shared/wcClientResilience.js";
+import { resolveWcMatchEtDate, wcTodayEtYmd } from "../../shared/wcKickoffDisplay.js";
 
 function isLiveStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -114,8 +115,16 @@ export function useWorldCupData() {
       if (upcomingData?.upcoming?.length) {
         setUpcomingMatches(upcomingData.upcoming);
       } else {
+        const todayEt = wcTodayEtYmd(nowMs);
         setUpcomingMatches(
-          resolvedMatches.filter((m) => isScheduled(m.status)).slice(0, 12),
+          resolvedMatches
+            .filter((m) => {
+              if (!isScheduled(m.status)) return false;
+              const etDate = resolveWcMatchEtDate(m);
+              return etDate && etDate > todayEt;
+            })
+            .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0))
+            .slice(0, 12),
         );
       }
 

@@ -6,7 +6,7 @@ import { WC_KICKOFF_ET } from "./wc2026Constants.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 
 /** Jun 11, 2026 group-stage openers (ET kickoff placeholders). */
-const GROUP_STAGE_OPENERS = [
+export const GROUP_STAGE_OPENERS = [
   { id: "wc-promo-mex-rsa", homeTeam: "MEX", awayTeam: "RSA", group: "A", date: "2026-06-11", time: "15:00 ET", stadium: "Estadio Azteca", city: "Mexico City" },
   { id: "wc-promo-can-qat", homeTeam: "CAN", awayTeam: "QAT", group: "B", date: "2026-06-11", time: "18:00 ET", stadium: "BC Place", city: "Vancouver" },
   { id: "wc-promo-usa-par", homeTeam: "USA", awayTeam: "PAR", group: "D", date: "2026-06-11", time: "21:00 ET", stadium: "SoFi Stadium", city: "Los Angeles" },

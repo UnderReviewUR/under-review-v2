@@ -2,21 +2,28 @@
  * Flagship smoke — local handler + optional production.
  * Usage:
  *   node scripts/smoke-all-flagship.mjs --local
- *   node scripts/smoke-all-flagship.mjs --prod
- *   node scripts/smoke-all-flagship.mjs --local --prod
+ *   node scripts/smoke-all-flagship.mjs --prod --allow-prod
+ *   node scripts/smoke-all-flagship.mjs --local --prod --allow-prod
  */
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  enforceProdApiGuard,
+  resolveScriptApiBase,
+} from "./_prodApiGuard.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config({ path: path.join(root, ".env") });
 
 const runLocal = process.argv.includes("--local");
 const runProd = process.argv.includes("--prod");
-const prodBase =
-  process.argv.find((a) => a.startsWith("--base="))?.slice(7) ||
-  "https://under-review.app";
+const prodBase = runProd
+  ? enforceProdApiGuard(
+      resolveScriptApiBase({ defaultBase: "https://under-review.app" }),
+      { scriptName: "smoke-all-flagship" },
+    )
+  : "";
 
 /** @type {Array<{ id: string, sport: string, question: string, assert: (j: Record<string, unknown>) => string | null }>} */
 const CASES = [

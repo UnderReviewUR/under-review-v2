@@ -34,6 +34,46 @@ export function chatHistoryContentFromMessage(message) {
 /**
  * @param {object | null | undefined} structured
  */
+/** Strip verbose card sections — keep lean line for Anthropic history. */
+function stripAssistantCardBoilerplate(prose) {
+  let s = String(prose || "").trim();
+  if (!s) return "";
+  s = s.replace(/\bTHE PLAY\b[\s\S]*?(?=\n\n|\bCONFIDENCE\b|$)/gi, "").trim();
+  s = s.replace(
+    /\b(WHY MISPRICED|MARKET MISTAKE|WATCH FOR|DEEP BREAKDOWN|BREAKDOWN)\b[\s\S]*?(?=\n\n[A-Z][A-Z ]{2,}\n|$)/gi,
+    "",
+  ).trim();
+  return s;
+}
+
+/**
+ * Slim turn text for Anthropic `messages` — full bubble prose can exceed 3k chars/turn
+ * and multiply input tokens on follow-ups; gate/QA still use full normalizeIncoming rows.
+ * @param {{ role?: string, content?: string, structured?: object }} row
+ */
+export function compactHistoryContentForAnthropic(row) {
+  const role = row?.role;
+  if (role === "user") {
+    return String(row.content || "").trim().slice(0, 1000);
+  }
+  if (role === "assistant") {
+    const s = row?.structured;
+    if (s && typeof s === "object") {
+      const parts = [
+        s.lean != null ? String(s.lean).slice(0, 160) : "",
+        s.call != null ? String(s.call).slice(0, 280) : "",
+        s.whyNow != null ? String(s.whyNow).slice(0, 240) : "",
+      ].filter((x) => String(x).trim());
+      if (parts.length) return parts.join(" · ").slice(0, 520);
+    }
+    const prose = stripAssistantCardBoilerplate(row.content);
+    const leanMatch = prose.match(/\bLean:\s*[^\n]+/i);
+    if (leanMatch) return leanMatch[0].slice(0, 520);
+    return prose.slice(0, 480);
+  }
+  return String(row.content || "").trim().slice(0, 1000);
+}
+
 export function sliceChatHistoryStructured(structured) {
   if (!structured || typeof structured !== "object") return undefined;
 

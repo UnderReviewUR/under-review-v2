@@ -1,6 +1,9 @@
 /**
  * Live 50-question UnderReview audit — mixed personas, WC + NBA + other sports.
- * Usage: node scripts/audit-50-questions.mjs [--base https://under-review.app]
+ * Usage:
+ *   node scripts/audit-50-questions.mjs
+ *   node scripts/audit-50-questions.mjs --base http://127.0.0.1:3001
+ *   node scripts/audit-50-questions.mjs --base https://under-review.app --allow-prod
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -8,14 +11,17 @@ import { fileURLToPath } from "node:url";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { detectWcGroupRosterMismatch } from "../shared/wcGroupComposition.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
+import {
+  DEFAULT_LOCAL_API_BASE,
+  enforceProdApiGuard,
+  resolveScriptApiBase,
+} from "./_prodApiGuard.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const baseArgEq = process.argv.find((a) => a.startsWith("--base="))?.slice(7);
-const baseIdx = process.argv.indexOf("--base");
-const base =
-  baseArgEq ||
-  (baseIdx >= 0 ? process.argv[baseIdx + 1] : null) ||
-  "https://under-review.app";
+const base = enforceProdApiGuard(
+  resolveScriptApiBase({ defaultBase: DEFAULT_LOCAL_API_BASE }),
+  { scriptName: "audit-50-questions" },
+);
 
 const TEAMS_BY_GROUP = Object.fromEntries(
   "ABCDEFGHIJKL".split("").map((g) => [

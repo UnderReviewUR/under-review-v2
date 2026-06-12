@@ -370,6 +370,7 @@ export default function URTakeResponse({
       focusLayout,
       lineSlot: lineSlotValue,
       callType,
+      question: userQuestion,
     });
     const wcSections = {
       ...wcFace.sections,

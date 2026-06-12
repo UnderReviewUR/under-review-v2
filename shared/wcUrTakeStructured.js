@@ -66,8 +66,8 @@ export function normalizeWcStructuredForDelivery(
   if (intent === WC_INTENT.MATCHUP) {
     out.callType = "matchup";
     const call = String(out.call || "").trim();
-    if (call === "—" || !call) {
-      out.call = "Group advancement paths";
+    if ((call === "—" || !call) && out.lean) {
+      out.call = "";
     }
     for (const abbr of requiredEntities) {
       if (!textMentionsWcTeam(`${out.lean} ${out.whyNow} ${out.call}`, abbr)) {

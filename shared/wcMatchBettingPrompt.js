@@ -13,11 +13,21 @@ export const WC_MATCH_BETTING_PROMPT_RULES = `MATCH BETTING — CASUAL BETTOR MO
 - Group-stage openers: both teams can advance (top two) — often the best angle when ML is fair on the favorite.
 - BAD THE PLAY: "Pass at -240 — this is a fair line, not a mispricing." (no market named)
 - GOOD THE PLAY: "Pass on MEX -240 — lean Both Teams to Advance in Group A (Mexico and South Africa both qualify in sims)." OR "Lean Under 2.5 — South Africa sits back; Mexico controls but may not blow them out."
-- Only pure Pass (no alternate) when lineups are unconfirmed AND no team-level market has support in VERIFIED CONTEXT — then say what to wait for.`;
+- Only pure Pass (no alternate) when lineups are unconfirmed AND no team-level market has support in VERIFIED CONTEXT — then say what to wait for.
+- Never label the shorter ML favorite as a "Longshot" when both sides are plus money (e.g. USA +110 vs PAR +285 — USA is the favorite, Paraguay is the underdog).`;
 
 /** QA regen hint when matchup take is pass-only on the moneyline. */
 export const WC_MATCH_PASS_ONLY_QA_SUFFIX =
   "MATCH BETTING: User asked a matchup question. Do not end with Pass-only on the moneyline. Name an alternate market (both teams advance, O/U, BTTS, DNB, group winner) in THE PLAY with reasoning from VERIFIED CONTEXT.";
+
+/** QA regen hint when matchup card face never states a match winner with ML. */
+export const WC_MATCH_MISSING_WINNER_QA_SUFFIX = `MATCH BETTING WINNER LINE (mandatory — prior answer hid the moneyline winner):
+- User asked who wins a match. Sentence one / CALL must be "[Team] [ML price] to win" (e.g. United States +110 to win) using FIXTURE MATCH ODDS from VERIFIED CONTEXT.
+- Do NOT use "advancement paths" as the headline for a who-wins question when ML odds are available.
+- THE PLAY holds the alternate market only (both teams advance, O/U, BTTS) — never replace the winner line.
+- Label the book favorite correctly: +110 vs +285 means the +110 side is the ML favorite, not the longshot.`;
+
+export { detectWcMatchupMissingWinnerLine } from "./wcMatchupWinnerLine.js";
 
 const ALT_MARKET_RE =
   /\b(advance|to advance|both teams|btts|both teams to score|over\s+\d|under\s+\d|total goals|draw no bet|asian handicap|handicap|double chance|group winner|clean sheet|team total)\b/i;

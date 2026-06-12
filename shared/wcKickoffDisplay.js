@@ -4,6 +4,36 @@
 
 const ET_ZONE = "America/New_York";
 
+/** Today in ET as YYYY-MM-DD (matches en-CA toLocaleDateString). */
+export function wcTodayEtYmd(nowMs = Date.now()) {
+  return new Date(nowMs).toLocaleDateString("en-CA", { timeZone: ET_ZONE });
+}
+
+/**
+ * Calendar date in ET for a kickoff timestamp.
+ * @param {number | string | null | undefined} commenceTs
+ * @returns {string}
+ */
+export function wcMatchEtDateYmd(commenceTs) {
+  const ts = Number(commenceTs);
+  if (!Number.isFinite(ts) || ts <= 0) return "";
+  return new Date(ts).toLocaleDateString("en-CA", { timeZone: ET_ZONE });
+}
+
+/**
+ * Best ET slate date for filtering Today tab.
+ * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
+ * @returns {string}
+ */
+export function resolveWcMatchEtDate(match) {
+  if (!match) return "";
+  const fromTs = wcMatchEtDateYmd(match.commenceTs);
+  if (fromTs) return fromTs;
+  const parsed = parseWcKickoffEtMs(match.date, match.time);
+  if (parsed != null) return wcMatchEtDateYmd(parsed);
+  return String(match.date || "").trim().slice(0, 10);
+}
+
 /**
  * @param {number} ts
  * @returns {Date}

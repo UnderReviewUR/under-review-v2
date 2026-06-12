@@ -4,7 +4,15 @@
 
 import { capWcDeepWords, splitWcSentences } from "../../shared/wcSentenceBoundaries.js";
 import { dedupeWcBreakdownParagraphs } from "../../shared/wcBreakdownParse.js";
-import { WC_2026_TEAMS } from "../data/wc2026Teams.js";
+import {
+  extractWcMatchupWinnerLine,
+  extractWcMatchupPlayHeadline,
+  isWcMatchupPathsBoilerplate,
+  parseWcMatchupTeamsFromBlob,
+  parseWcMatchupTeamsFromQuestion,
+  resolveWcMatchupCardHeadline,
+  wcMatchupTeamDisplayName,
+} from "../../shared/wcMatchupWinnerLine.js";
 import {
   extractWcModelAttributionPrefix,
   wcCardFaceBlobHasNumericWhy,
@@ -130,18 +138,15 @@ function pickWcAdvancementPlayHeadline(lean) {
   return play.replace(/^lean:\s*/i, "").replace(/\s*\([^)]*sim vs market[^)]*\)\s*\.?$/i, "").trim();
 }
 
-function wcTeamNameFromAbbr(abbr) {
-  const key = String(abbr || "").trim().toUpperCase();
-  const hit = WC_2026_TEAMS.find((t) => String(t.abbreviation).toUpperCase() === key);
-  return hit?.name || key;
-}
-
 /**
- * Matchup card face — answer "who wins" with posted ML when present in verified copy.
- * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string }} opts
+ * Matchup card face — winner ML when cited, else the actionable play (never advancement paths).
+ * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string, breakdown?: string, question?: string }} opts
  */
 export function pickWcMatchupWinnerHeadline(opts = {}) {
-  const blob = [opts.call, opts.why, opts.line, opts.thePlay, opts.lean]
+  const callPlay = extractWcMatchupPlayHeadline(String(opts.call || "").trim());
+  if (callPlay) return callPlay;
+
+  const blob = [opts.call, opts.why, opts.line, opts.thePlay, opts.lean, opts.breakdown]
     .map((s) => String(s || "").trim())
     .filter(Boolean)
     .join("\n");
@@ -150,25 +155,19 @@ export function pickWcMatchupWinnerHeadline(opts = {}) {
   const vs =
     String(opts.call || "").match(/^([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i) ||
     blob.match(/\b([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i);
-  const teams = vs ? [vs[1].toUpperCase(), vs[2].toUpperCase()] : [];
+  const teams = vs
+    ? { home: vs[1].toUpperCase(), away: vs[2].toUpperCase() }
+    : parseWcMatchupTeamsFromBlob(blob, opts.question);
 
-  for (const abbr of teams) {
-    const ml = blob.match(new RegExp(`\\b${abbr}\\s+([+-]\\d{2,4})\\b`));
-    if (ml) {
-      return `${wcTeamNameFromAbbr(abbr)} ${ml[1]} to win`;
-    }
-  }
+  const headline = resolveWcMatchupCardHeadline(blob, teams, opts.lean, opts.call);
+  if (headline) return headline;
 
-  const mlAt = blob.match(/\b(?:ML|moneyline)\s+at\s+([A-Z]{2,4})\s+([+-]\d{2,4})\b/i);
-  if (mlAt) {
-    return `${wcTeamNameFromAbbr(mlAt[1])} ${mlAt[2]} to win`;
-  }
-
+  const abbrs = teams.home && teams.away ? [teams.home, teams.away] : [];
   const favored = blob.match(
     /\b([A-Z]{2,4})\b[^.\n]{0,40}\b(?:favored|favorite lean|slight edge|lean)\b/i,
   );
-  if (favored && teams.includes(favored[1].toUpperCase())) {
-    return `${wcTeamNameFromAbbr(favored[1])} favored`;
+  if (favored && abbrs.includes(favored[1].toUpperCase())) {
+    return `${wcMatchupTeamDisplayName(favored[1])} favored`;
   }
 
   return "";
@@ -178,17 +177,48 @@ export function pickWcMatchupWinnerHeadline(opts = {}) {
  * Alternate market when ML is fair — shown below matchup winner headline.
  * @param {string} lean
  * @param {string} headline
+ * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string, breakdown?: string, question?: string }} [opts]
  */
-export function pickWcMatchupAltPlay(lean, headline) {
+export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
+  const headlineStr = String(headline || "").trim();
+  const play = extractWcMatchupPlayHeadline(lean);
+
+  if (/\bto win\b/i.test(headlineStr)) {
+    if (!play) return "";
+    if (normLine(play) === normLine(headlineStr)) return "";
+    return play.startsWith("Alt:") ? play : `Alt: ${play}`;
+  }
+
+  if (play && normLine(play) === normLine(headlineStr)) {
+    const blob = [opts.call, opts.why, opts.line, opts.thePlay, opts.lean, opts.breakdown]
+      .map((s) => String(s || "").trim())
+      .filter(Boolean)
+      .join("\n");
+    const fromQuestion = parseWcMatchupTeamsFromQuestion(String(opts.question || ""));
+    const vs =
+      String(opts.call || "").match(/^([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i) ||
+      blob.match(/\b([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i);
+    const teams =
+      fromQuestion.home && fromQuestion.away
+        ? { home: fromQuestion.home, away: fromQuestion.away }
+        : vs
+          ? { home: vs[1].toUpperCase(), away: vs[2].toUpperCase() }
+          : parseWcMatchupTeamsFromBlob(blob, opts.question);
+    const winner = extractWcMatchupWinnerLine(blob, teams);
+    if (winner && normLine(winner) !== normLine(headlineStr)) {
+      return winner.startsWith("Alt:") ? winner : `Alt: ${winner}`;
+    }
+  }
+
   const raw = String(lean || "").replace(/^lean:\s*/i, "").trim();
-  const play =
+  const fallback =
     /\b(under|over)\s+\d/i.test(raw) ? raw.split(/[.!?](?=\s|$)/)[0].trim() : formatWcPlaySlot(lean);
-  if (!play) return "";
-  if (normLine(play) === normLine(headline)) return "";
-  if (!/\b(under|over|btts|advance|both teams|draw no bet|handicap|alt)\b/i.test(play)) {
+  if (!fallback) return "";
+  if (normLine(fallback) === normLine(headlineStr)) return "";
+  if (!/\b(under|over|btts|advance|both teams|draw no bet|handicap|alt)\b/i.test(fallback)) {
     return "";
   }
-  return play.startsWith("Alt:") ? play : `Alt: ${play}`;
+  return fallback.startsWith("Alt:") ? fallback : `Alt: ${fallback}`;
 }
 
 export function pickWcCardHeadline(opts = {}) {
@@ -212,14 +242,22 @@ export function pickWcCardHeadline(opts = {}) {
   }
 
   if (ct === "matchup") {
-    const winnerHeadline = pickWcMatchupWinnerHeadline(opts);
+    const winnerHeadline = pickWcMatchupWinnerHeadline({
+      call: opts.call,
+      why: opts.why,
+      line: opts.line,
+      thePlay: opts.thePlay,
+      lean: opts.lean,
+      breakdown: opts.breakdown,
+      question: opts.question,
+    });
     if (winnerHeadline) {
       return capWcCardFaceField(winnerHeadline, {
         maxWords: WC_FACE_HEADLINE_WORDS,
         maxSentences: 1,
       });
     }
-    if (call && call !== "—") {
+    if (call && call !== "—" && !isWcMatchupPathsBoilerplate(call)) {
       return capWcCardFaceField(call, {
         maxWords: WC_FACE_HEADLINE_WORDS,
         maxSentences: 1,
@@ -317,12 +355,20 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     why: fullWhy,
     line: lineSlot,
     thePlay: fullPlay,
+    breakdown: fullDeep,
+    question: opts.question,
     callType: opts.callType,
   });
 
   let whyFace = "";
   if (focusLayout) {
     whyFace = pickWcFocusWhyLine(fullWhy, lineSlot);
+    if (!whyFace && fullWhy) {
+      whyFace = capWcCardFaceField(fullWhy, {
+        maxWords: WC_FACE_FOCUS_WHY_WORDS,
+        maxSentences: 1,
+      });
+    }
   } else {
     whyFace = capWcCardFaceField(fullWhy, {
       maxWords: WC_FACE_WHY_WORDS,
@@ -341,7 +387,15 @@ export function prepareWcCardFaceDisplay(opts = {}) {
 
   let thePlayFace = "";
   if (focusLayout && ct === "matchup") {
-    thePlayFace = pickWcMatchupAltPlay(opts.lean, headline);
+    thePlayFace = pickWcMatchupAltPlay(opts.lean, headline, {
+      call: opts.call,
+      why: fullWhy,
+      line: lineSlot,
+      thePlay: fullPlay,
+      lean: opts.lean,
+      breakdown: fullDeep,
+      question: opts.question,
+    });
   } else if (!focusLayout) {
     thePlayFace = fullPlay;
     if (normLine(thePlayFace) === normLine(headline)) thePlayFace = "";

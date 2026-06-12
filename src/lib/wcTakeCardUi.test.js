@@ -14,6 +14,9 @@ import {
   wcTakeCardHasVisibleContent,
 } from "./wcTakeCardUi.js";
 
+const USA_PAR_DEEP =
+  "USA +110 vs Paraguay +285 on the ML. Pass on USA +110 — lean both teams to advance in Group D.";
+
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
     "Bruno Fernandes recording 7 assists in a single World Cup tournament is structurally implausible — Portugal's group strength and likely knockout run don't support that volume.";
@@ -163,12 +166,15 @@ test("pickWcMatchupWinnerHeadline surfaces ML winner from verified copy", () => 
 test("prepareWcCardFaceDisplay matchup focus shows alt play under winner headline", () => {
   const face = prepareWcCardFaceDisplay({
     callType: "matchup",
-    call: "CAN vs BIH — Group B opener",
-    lean: "Lean Under 2.5 goals — cleaner angle than the ML.",
-    why: "ML at CAN -120 (implied 55%) while UR sims give 86.46% to advance from Group B.",
+    call: "United States +110 to win",
+    lean: "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.",
+    why: "USA +110 vs Paraguay +285 on the moneyline.",
+    breakdown: "USA +110 vs Paraguay +285 on the ML.",
+    breakdownAvailable: true,
     focusLayout: true,
+    question: "Who wins USA vs PAR (Group D)?",
   });
-  assert.equal(face.headline, "Canada -120 to win");
+  assert.equal(face.headline, "United States +110 to win");
   assert.match(face.sections.thePlay, /Alt:.*Under 2\.5/i);
 });
 
@@ -180,9 +186,9 @@ test("pickWcCardHeadline matchup pass uses call not boilerplate lean", () => {
   const headline = pickWcCardHeadline({
     callType: "matchup",
     lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
-    call: "CAN vs BIH — Group B advancement paths",
+    call: "Canada -120 to win",
   });
-  assert.match(headline, /CAN vs BIH/i);
+  assert.match(headline, /Canada -120 to win/i);
   assert.doesNotMatch(headline, /no actionable line/i);
 });
 

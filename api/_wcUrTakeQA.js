@@ -66,7 +66,9 @@ import {
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
 } from "../shared/wcTakeRetentionQA.js";
 import {
+  detectWcMatchupMissingWinnerLine,
   detectWcMatchupPassOnlyWithoutAlternate,
+  WC_MATCH_MISSING_WINNER_QA_SUFFIX,
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
 } from "../shared/wcMatchBettingPrompt.js";
 
@@ -438,6 +440,10 @@ export function runWcUrTakeQA(opts = {}) {
     ) {
       issueCodes.push("wc_matchup_pass_only_no_alt");
     }
+
+    if (detectWcMatchupMissingWinnerLine(question, structured, wcIntent)) {
+      issueCodes.push("wc_matchup_missing_winner_line");
+    }
   }
 
   if (
@@ -516,6 +522,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_player_age_mismatch",
       "wc_play_line_invalid",
       "wc_matchup_pass_only_no_alt",
+      "wc_matchup_missing_winner_line",
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
@@ -569,7 +576,7 @@ export {
   WC_NEEDS_DEDUP_QA_SUFFIX,
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
 };
-export { WC_MATCH_PASS_ONLY_QA_SUFFIX };
+export { WC_MATCH_PASS_ONLY_QA_SUFFIX, WC_MATCH_MISSING_WINNER_QA_SUFFIX };
 
 export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
 

@@ -14,6 +14,7 @@ import {
   formatWcMatchFieldText,
   formatWcMatchGroupLetter,
 } from "../shared/wcMatchFieldDisplay.js";
+import { wcMatchEtDateYmd } from "../shared/wcKickoffDisplay.js";
 
 /** BDL prop_type → internal match-player market key (see BDL docs for full enum). */
 export const BDL_PROP_TO_MARKET = {
@@ -71,6 +72,7 @@ export function normalizeBdlFifaMatchRow(row, nowMs = Date.now()) {
   const bdlMatchId = row.id != null ? Number(row.id) : null;
   const dateRaw = String(row.datetime || row.date || row.match_date || row.start_time || "");
   const commenceTs = Date.parse(dateRaw) || null;
+  const etDate = wcMatchEtDateYmd(commenceTs) || dateRaw.slice(0, 10);
   const status = normalizeBdlFifaStatus(row.status || row.match_status || row.state);
   const isScored = status === "FT" || status === "live" || status === "HT";
   const homeScore = row.home_score ?? row.homeScore;
@@ -92,7 +94,7 @@ export function normalizeBdlFifaMatchRow(row, nowMs = Date.now()) {
     homeScore: isScored && homeScore != null ? Number(homeScore) : null,
     awayScore: isScored && awayScore != null ? Number(awayScore) : null,
     status,
-    date: dateRaw.slice(0, 10),
+    date: etDate,
     time:
       commenceTs != null
         ? new Date(commenceTs).toLocaleTimeString("en-US", {

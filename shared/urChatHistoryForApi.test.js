@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildChatHistoryForApi,
   chatHistoryContentFromMessage,
+  compactHistoryContentForAnthropic,
   sliceChatHistoryStructured,
 } from "./urChatHistoryForApi.js";
 import { extractWcRunnerUpFromHistory } from "./wcTakeRetentionQA.js";
@@ -61,4 +62,41 @@ test("sliceChatHistoryStructured preserves WC binding fields", () => {
   });
   assert.equal(row?.runnerUpGroupLetter, "K");
   assert.equal(row?.groupLetter, "D");
+});
+
+test("compactHistoryContentForAnthropic — structured assistant turn stays under 520 chars", () => {
+  const longWhy = "x".repeat(2000);
+  const compact = compactHistoryContentForAnthropic({
+    role: "assistant",
+    content: "Lean: USA to advance in Group D at -750.\n\nTHE PLAY\n".padEnd(3500, " "),
+    structured: {
+      lean: "Lean: USA to advance in Group D at -750.",
+      call: "Group D most mispriced (#1); Group K runner-up",
+      whyNow: longWhy,
+    },
+  });
+  assert.ok(compact.length <= 520);
+  assert.match(compact, /Group D most mispriced/i);
+  assert.match(compact, /Lean: USA/i);
+});
+
+test("compactHistoryContentForAnthropic — prose-only assistant extracts Lean line", () => {
+  const compact = compactHistoryContentForAnthropic({
+    role: "assistant",
+    content:
+      "Lean: Colombia at +4000 is the sharpest group-stage value.\n\nTHE PLAY\nColombia tournament winner at +4000.\n\nWHY MISPRICED\n".padEnd(
+        2800,
+        " ",
+      ),
+  });
+  assert.ok(compact.length <= 520);
+  assert.match(compact, /Lean: Colombia/i);
+});
+
+test("compactHistoryContentForAnthropic — user turn capped at 1000", () => {
+  const compact = compactHistoryContentForAnthropic({
+    role: "user",
+    content: "q".repeat(2000),
+  });
+  assert.equal(compact.length, 1000);
 });

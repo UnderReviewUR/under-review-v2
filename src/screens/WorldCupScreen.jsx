@@ -14,7 +14,11 @@ import {
 } from "../../shared/wcProductVoice.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
-import { formatWcKickoffDisplay } from "../../shared/wcKickoffDisplay.js";
+import {
+  formatWcKickoffDisplay,
+  resolveWcMatchEtDate,
+  wcTodayEtYmd,
+} from "../../shared/wcKickoffDisplay.js";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import WcPremiumFeaturedMatch from "../components/world-cup/WcPremiumFeaturedMatch.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
@@ -22,10 +26,6 @@ import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
-
-function todayEt() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
 
 function isFinished(status) {
   return String(status || "").toLowerCase() === "ft";
@@ -130,9 +130,9 @@ export default function WorldCupScreen({
     }
   }, [urDockedChat, wcTakeLoading, wcMsgs.at(-1)?.msgId, wcBarRef]);
 
-  const today = todayEt();
+  const today = wcTodayEtYmd();
   const todayMatches = useMemo(
-    () => (matches || []).filter((m) => m.date === today),
+    () => (matches || []).filter((m) => resolveWcMatchEtDate(m) === today),
     [matches, today],
   );
 

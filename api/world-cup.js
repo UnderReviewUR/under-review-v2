@@ -1,4 +1,5 @@
 import { applyApiNoStoreHeaders, applyCors } from "./_cors.js";
+import { resolveWcMatchEtDate, wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import {
   buildStaticGroupsFallback,
@@ -481,10 +482,15 @@ export default async function handler(req, res) {
         await getMatchesPayload({ preferGoat, preferEspn }),
         Date.now(),
       );
-      const now = Date.now();
+      const todayEt = wcTodayEtYmd();
       const upcomingRaw = (payload.matches || [])
-        .filter((m) => isScheduled(m.status) && (m.commenceTs == null || m.commenceTs >= now - 86400000))
-        .slice(0, 8);
+        .filter((m) => {
+          if (!isScheduled(m.status)) return false;
+          const etDate = resolveWcMatchEtDate(m);
+          return etDate && etDate > todayEt;
+        })
+        .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0))
+        .slice(0, 12);
       const upcoming = await enrichMatchesWithDetailMeta(upcomingRaw);
       return res.status(200).json(
         sanitizeWcPublicPayload(

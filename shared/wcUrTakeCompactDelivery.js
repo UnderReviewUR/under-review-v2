@@ -31,6 +31,13 @@ import {
   splitWcSentences,
 } from "./wcSentenceBoundaries.js";
 import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
+import {
+  extractWcMatchupPlayHeadline,
+  isWcMatchWinnerQuestion,
+  isWcMatchupPathsBoilerplate,
+  parseWcMatchupTeamsFromQuestion,
+  resolveWcMatchupCardHeadline,
+} from "./wcMatchupWinnerLine.js";
 
 const WC_LIST_CARD_LEAN = "Top 5 — tap to view full breakdown.";
 
@@ -113,17 +120,29 @@ function extractWatchFor(deep, pass, avoidTexts = []) {
       !isTooSimilar(s),
   );
   if (riskSent) {
-    return /^watch/i.test(riskSent)
-      ? riskSent
-      : `Watch for ${riskSent.replace(/^watch for:?\s*/i, "")}`;
+    const trimmed = riskSent.trim();
+    if (/^lineups?\s+(are\s+)?not\s+confirmed/i.test(trimmed)) {
+      return "";
+    }
+    return /^watch/i.test(trimmed)
+      ? trimmed
+      : `Watch for ${trimmed.replace(/^watch for:?\s*/i, "")}`;
   }
 
   for (const sent of sents) {
     if (/\b(lineup|injury|bracket|confirmed|form|fixture)\b/i.test(sent) && !isTooSimilar(sent)) {
-      return /^watch/i.test(sent)
-        ? sent
-        : `Watch for ${sent.replace(/^watch for:?\s*/i, "")}`;
+      const trimmed = sent.trim();
+      if (/^lineups?\s+(are\s+)?not\s+confirmed/i.test(trimmed)) {
+        return "";
+      }
+      return /^watch/i.test(trimmed)
+        ? trimmed
+        : `Watch for ${trimmed.replace(/^watch for:?\s*/i, "")}`;
     }
+  }
+
+  if (/\blineups?\s+(are\s+)?not\s+confirmed\b/i.test(deepText)) {
+    return "";
   }
 
   if (pass) return "Fair price — recheck after lineups lock.";
@@ -132,19 +151,6 @@ function extractWatchFor(deep, pass, avoidTexts = []) {
 
 const WC_MATCHUP_PASS_LEAN_RE =
   /^pass\s*[—-]\s*no actionable line yet/i;
-
-/**
- * @param {string} question
- */
-function parseWcMatchupTeamsFromQuestion(question) {
-  const q = String(question || "").trim();
-  const vs =
-    q.match(/\b([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i) ||
-    q.match(/who wins\s+([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})/i);
-  if (!vs) return { home: "", away: "", group: "" };
-  const group = q.match(/\(Group\s+([A-L])\)/i)?.[1] || q.match(/\bGroup\s+([A-L])\b/i)?.[1] || "";
-  return { home: vs[1].toUpperCase(), away: vs[2].toUpperCase(), group: group.toUpperCase() };
-}
 
 /**
  * @param {string[]} summarySents
@@ -211,17 +217,64 @@ function synthesizeWcMatchupPlay(summary, deep, question, teams, pass) {
  * @param {string[]} summarySents
  * @param {string} question
  * @param {{ home?: string, away?: string, group?: string }} teams
+ * @param {string} deep
  */
-function synthesizeWcMatchupCall(summarySents, question, teams) {
-  if (teams.home && teams.away) {
+function synthesizeWcMatchupCall(summarySents, question, teams, blob = "") {
+  const text = String(blob || "").trim();
+  const leanBlob = text.split("\n").find((l) => /^lean:/i.test(l) || /\bpass on ml\b/i.test(l)) || "";
+  const headline = resolveWcMatchupCardHeadline(text, teams, leanBlob, "");
+  if (headline) return headline;
+
+  const first = (summarySents[0] || "").replace(/^lean:\s*/i, "").trim();
+  if (first && /\bto win\b/i.test(first)) return first;
+
+  if (teams.home && teams.away && !isWcMatchWinnerQuestion(question)) {
     const group = teams.group || question.match(/Group\s+([A-L])/i)?.[1] || "";
     return group
       ? `${teams.home} vs ${teams.away} — Group ${group} advancement paths`
       : `${teams.home} vs ${teams.away} — group-stage paths`;
   }
-  const first = (summarySents[0] || "").replace(/^lean:\s*/i, "").trim();
+
   if (first && !WC_MATCHUP_PASS_LEAN_RE.test(first)) return first;
-  return "Group-stage matchup — advancement paths";
+  return "";
+}
+
+/**
+ * @param {string} summary
+ * @param {string} deep
+ * @param {object | null} seed
+ */
+function wcMatchupSynthesisBlob(summary, deep, seed) {
+  const analysis =
+    seed?.analysis && typeof seed.analysis === "object"
+      ? Object.values(seed.analysis)
+          .map((v) => String(v || "").trim())
+          .filter(Boolean)
+          .join("\n")
+      : "";
+  return [summary, deep, seed?.whyNow, seed?.edge, seed?.lean, seed?.deep, analysis]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * @param {string[]} summarySents
+ * @param {string} question
+ * @param {{ home?: string, away?: string, group?: string }} teams
+ * @param {string} blob
+ * @param {string} [seedCall]
+ */
+function resolveWcMatchupCall(summarySents, question, teams, blob, seedCall = "", seedLean = "") {
+  const headline = resolveWcMatchupCardHeadline(blob, teams, seedLean || blob, seedCall);
+  if (headline) return headline;
+
+  const synthesized = synthesizeWcMatchupCall(summarySents, question, teams, blob);
+  const seed = String(seedCall || "").trim();
+  if (seed && /\bto win\b/i.test(seed)) return seed;
+  if (synthesized) return synthesized;
+  if (seed && !isWcMatchupPathsBoilerplate(seed)) return seed;
+  return synthesized || "";
 }
 
 /**
@@ -229,17 +282,23 @@ function synthesizeWcMatchupCall(summarySents, question, teams) {
  */
 function buildWcMatchupCompactStructured(opts = {}) {
   const summary = String(opts.summary || "").trim();
-  const deep = capWcDeepWords(String(opts.deep || "").trim(), 220);
   const question = String(opts.question || "").trim();
   const seed =
     opts.structuredSeed && typeof opts.structuredSeed === "object"
       ? opts.structuredSeed
       : null;
+  const blob = wcMatchupSynthesisBlob(summary, String(opts.deep || "").trim(), seed);
+  const deep = capWcDeepWords(blob, 220);
   const summarySents = splitWcSentences(summary);
   const teams = parseWcMatchupTeamsFromQuestion(question);
 
-  const call = String(
-    seed?.call || synthesizeWcMatchupCall(summarySents, question, teams),
+  const call = resolveWcMatchupCall(
+    summarySents,
+    question,
+    teams,
+    blob,
+    seed?.call,
+    seed?.lean,
   ).trim();
   const line = String(seed?.line || synthesizeWcMatchupLine(summarySents, deep, teams)).trim();
   let lean = String(seed?.lean || "").trim();
