@@ -19,6 +19,12 @@ import {
   resolveWcMatchEtDate,
   wcTodayEtYmd,
 } from "../../shared/wcKickoffDisplay.js";
+import {
+  isWcFinishedMatchStatus,
+  isWcLiveMatchStatus,
+  pickWcFeaturedMatch,
+  sortWcTodayMatches,
+} from "../../shared/wcFeaturedMatch.js";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import WcPremiumFeaturedMatch from "../components/world-cup/WcPremiumFeaturedMatch.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
@@ -28,11 +34,11 @@ const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
 
 function isFinished(status) {
-  return String(status || "").toLowerCase() === "ft";
+  return isWcFinishedMatchStatus(status);
 }
 
 function isLiveStatus(status) {
-  return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+  return isWcLiveMatchStatus(status);
 }
 
 export default function WorldCupScreen({
@@ -132,7 +138,7 @@ export default function WorldCupScreen({
 
   const today = wcTodayEtYmd();
   const todayMatches = useMemo(
-    () => (matches || []).filter((m) => resolveWcMatchEtDate(m) === today),
+    () => sortWcTodayMatches(matches, today),
     [matches, today],
   );
 
@@ -156,48 +162,25 @@ export default function WorldCupScreen({
     [matches],
   );
 
-  const sortedLiveMatches = useMemo(
+  const featuredMatch = useMemo(
     () =>
-      [...(liveMatches || [])].sort(
-        (a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0),
-      ),
-    [liveMatches],
+      pickWcFeaturedMatch({
+        matches,
+        liveMatches,
+      }),
+    [matches, liveMatches],
   );
-
-  const featuredMatch = useMemo(() => {
-    if (sortedLiveMatches.length > 0) {
-      return {
-        match: sortedLiveMatches[0],
-        kind: "live",
-        kicker: "Live now",
-        extraLiveCount: sortedLiveMatches.length - 1,
-      };
-    }
-    const nextUp = upcomingMatches[0];
-    if (nextUp) {
-      return { match: nextUp, kind: "next", kicker: "Next match", extraLiveCount: 0 };
-    }
-    if (todayMatches.length > 0) {
-      return {
-        match: todayMatches[0],
-        kind: "today",
-        kicker: "Today's slate",
-        extraLiveCount: 0,
-      };
-    }
-    return null;
-  }, [sortedLiveMatches, upcomingMatches, todayMatches]);
 
   const headerSubtitle = useMemo(() => {
     if (todayMatches.length > 0) {
       return `${todayMatches.length} match${todayMatches.length === 1 ? "" : "es"} today`;
     }
-    const next = upcomingMatches[0];
+    const next = featuredMatch?.match;
     if (next) {
       return `Next: ${next.homeTeam} vs ${next.awayTeam} — ${formatWcKickoffDisplay(next)}`;
     }
     return "June 11 — July 19, 2026";
-  }, [todayMatches.length, upcomingMatches]);
+  }, [todayMatches.length, featuredMatch]);
 
   const wcBrowseInScroll = urDockedChat && !wcTakeLoading && !focusSession;
   const chatThreadProps = {
