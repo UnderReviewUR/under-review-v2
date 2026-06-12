@@ -2,7 +2,7 @@
  * Lazy KV warm on World Cup UR Take — refresh stale Golden Boot, sims, outrights before context build.
  */
 
-import { getDurableJson } from "./_durableStore.js";
+import { getDurableJson, getKvStoreHealth } from "./_durableStore.js";
 import { readWcOutrightsFromKv, scrapeAndCacheWcOutrights, scrapeAndCacheWcStandingsAndFixtures } from "./_wcData.js";
 import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
 import { scrapeAndCacheWcGoldenGlove } from "./_wcGoldenGloveOdds.js";
@@ -49,6 +49,11 @@ async function withTimeout(promise, ms, label) {
 export async function resolveWcLazyWarmPlan(nowMs = Date.now()) {
   /** @type {Array<"golden_boot"|"golden_glove"|"tournament_sim"|"outrights"|"standings">} */
   const tasks = [];
+
+  const kvHealth = getKvStoreHealth();
+  if (kvHealth.circuitOpen) {
+    return tasks;
+  }
 
   const gbKv = await getDurableJson(WC_GOLDEN_BOOT_KV_KEY);
   const gbStale =

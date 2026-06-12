@@ -44,15 +44,44 @@ function setMemEntry(key, value, ttlSeconds) {
 
 const KV_TIMEOUT_MS = 8000;
 
-/** After quota/rate-limit errors, skip KV for this window (per warm instance). */
+/** After transient quota/rate-limit errors, skip KV briefly (per warm instance). */
 const KV_CIRCUIT_COOLDOWN_MS = 60 * 1000;
+/** Monthly cap hit — stop hammering Upstash until the window resets. */
+const KV_MONTHLY_QUOTA_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+/** Dedupe hot-path reads within one warm lambda (WC context does 20+ gets/request). */
+const KV_READ_CACHE_TTL_MS = 45 * 1000;
 const KV_WARN_DEBOUNCE_MS = 30 * 1000;
 
 let kvCircuitOpenUntil = 0;
 let kvLastWarnAt = 0;
+let kvMonthlyQuotaExhausted = false;
+
+/** @type {Map<string, { value: unknown, expiresAt: number }>} */
+const kvReadCache = new Map();
 
 function kvCircuitOpen() {
   return Date.now() < kvCircuitOpenUntil;
+}
+
+/**
+ * @param {string} bodySnippet
+ */
+function isKvMonthlyQuotaBody(bodySnippet) {
+  return /max requests limit exceeded/i.test(String(bodySnippet || ""));
+}
+
+function readCacheGet(key) {
+  const row = kvReadCache.get(key);
+  if (!row) return { hit: false, value: null };
+  if (Date.now() > row.expiresAt) {
+    kvReadCache.delete(key);
+    return { hit: false, value: null };
+  }
+  return { hit: true, value: row.value };
+}
+
+function readCacheSet(key, value) {
+  kvReadCache.set(key, { value, expiresAt: Date.now() + KV_READ_CACHE_TTL_MS });
 }
 
 /**
@@ -69,12 +98,16 @@ function isKvQuotaOrRateLimitStatus(status) {
  */
 function tripKvCircuit(op, status, bodySnippet = "") {
   if (!isKvQuotaOrRateLimitStatus(status)) return;
-  kvCircuitOpenUntil = Date.now() + KV_CIRCUIT_COOLDOWN_MS;
+  const monthly = isKvMonthlyQuotaBody(bodySnippet);
+  if (monthly) kvMonthlyQuotaExhausted = true;
+  const cooldownMs = monthly ? KV_MONTHLY_QUOTA_COOLDOWN_MS : KV_CIRCUIT_COOLDOWN_MS;
+  kvCircuitOpenUntil = Math.max(kvCircuitOpenUntil, Date.now() + cooldownMs);
   const now = Date.now();
   if (now - kvLastWarnAt < KV_WARN_DEBOUNCE_MS) return;
   kvLastWarnAt = now;
   const detail = bodySnippet ? `${op} HTTP ${status}: ${bodySnippet}` : `${op} HTTP ${status}`;
-  console.warn("[durableStore] KV quota/rate limit — circuit open, memory fallback:", detail);
+  const label = monthly ? "KV monthly quota exhausted" : "KV quota/rate limit";
+  console.warn(`[durableStore] ${label} — circuit open, memory/cache fallback:`, detail);
 }
 
 /**
@@ -89,11 +122,12 @@ function warnKvFallback(op, err) {
   console.warn(`[durableStore] KV ${op} failed, using memory fallback:`, msg);
 }
 
-/** @returns {{ ok: boolean, circuitOpen: boolean }} */
+/** @returns {{ ok: boolean, circuitOpen: boolean, monthlyQuotaExhausted: boolean }} */
 export function getKvStoreHealth() {
   return {
     ok: hasKvConfig() && !kvCircuitOpen(),
     circuitOpen: kvCircuitOpen(),
+    monthlyQuotaExhausted: kvMonthlyQuotaExhausted,
   };
 }
 
@@ -233,15 +267,22 @@ async function kvDel(key) {
 }
 
 export async function getDurableJson(key) {
+  const cacheHit = readCacheGet(key);
+  if (cacheHit.hit) return cacheHit.value;
+
   if (hasKvConfig() && !kvCircuitOpen()) {
     try {
-      return await kvGet(key);
+      const value = await kvGet(key);
+      readCacheSet(key, value);
+      return value;
     } catch (err) {
       if (!kvCircuitOpen()) warnKvFallback("get", err);
     }
   }
 
-  return getMemEntry(key);
+  const mem = getMemEntry(key);
+  if (mem !== null) readCacheSet(key, mem);
+  return mem;
 }
 
 export async function setDurableJson(key, value, options = {}) {
@@ -250,6 +291,7 @@ export async function setDurableJson(key, value, options = {}) {
   if (hasKvConfig() && !kvCircuitOpen()) {
     try {
       await kvSet(key, value, ttlSeconds);
+      readCacheSet(key, value);
       return;
     } catch (err) {
       if (!kvCircuitOpen()) warnKvFallback("set", err);
@@ -257,6 +299,7 @@ export async function setDurableJson(key, value, options = {}) {
   }
 
   setMemEntry(key, value, ttlSeconds);
+  readCacheSet(key, value);
 }
 
 /**
