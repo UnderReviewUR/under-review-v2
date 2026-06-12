@@ -811,11 +811,9 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
 
-  try {
-    await maybeWarmWcUrTakeKv(nowMs);
-  } catch (warmErr) {
+  void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
     console.warn("[wc-context] lazy warm failed:", warmErr?.message);
-  }
+  });
 
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
     loadWorldCupGroupsPayload().catch((err) => {

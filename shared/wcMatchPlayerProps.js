@@ -54,6 +54,69 @@ export function createEmptyMatchPlayerPropMarkets() {
  * @param {Record<string, Array<Record<string, unknown>>>} a
  * @param {Record<string, Array<Record<string, unknown>>>} b
  */
+/**
+ * Parse American odds to a sortable number (lower = shorter / primary market line).
+ * @param {string} odds
+ */
+function matchPlayerPropOddsRank(odds) {
+  const raw = String(odds || "").trim().replace(/^\+/, "");
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return 999999;
+  if (String(odds).startsWith("-")) return n;
+  return n;
+}
+
+/**
+ * One display row per player — drop duplicate scrape rows that repeat the same name
+ * with wild alternate prices (+850 / +13000 / +70000).
+ * @param {Array<{ name?: string, americanOdds?: string, line?: string, side?: string }>} rows
+ * @param {string} [marketKey]
+ */
+export function collapseMatchPlayerPropRowsForDisplay(rows, marketKey = "") {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) return [];
+
+  const isOuMarket = String(marketKey || "").includes("_ou") || String(marketKey || "").includes("assists");
+  /** @type {Map<string, Record<string, unknown>>} */
+  const byKey = new Map();
+
+  for (const row of list) {
+    const name = normalizeWcPlayerName(String(row?.name || ""));
+    const odds = String(row?.americanOdds || "").trim();
+    if (!name || !odds) continue;
+
+    const dedupeKey = isOuMarket
+      ? `${name.toLowerCase()}|${row?.line || ""}|${row?.side || ""}`
+      : name.toLowerCase();
+    const existing = byKey.get(dedupeKey);
+    if (!existing) {
+      byKey.set(dedupeKey, { ...row, name });
+      continue;
+    }
+
+    const existingRank = matchPlayerPropOddsRank(String(existing.americanOdds || ""));
+    const nextRank = matchPlayerPropOddsRank(odds);
+    if (nextRank < existingRank) {
+      byKey.set(dedupeKey, { ...row, name });
+    }
+  }
+
+  return [...byKey.values()];
+}
+
+/**
+ * @param {Record<string, Array<Record<string, unknown>>>} markets
+ */
+export function collapseMatchPlayerPropMarketsForDisplay(markets) {
+  if (!markets || typeof markets !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(markets).map(([key, rows]) => [
+      key,
+      collapseMatchPlayerPropRowsForDisplay(Array.isArray(rows) ? rows : [], key),
+    ]),
+  );
+}
+
 export function mergeMatchPlayerPropMarketMaps(a, b) {
   const out = createEmptyMatchPlayerPropMarkets();
   for (const key of WC_MATCH_PLAYER_PROP_MARKET_KEYS) {

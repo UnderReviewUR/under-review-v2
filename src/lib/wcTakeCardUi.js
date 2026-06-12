@@ -54,6 +54,16 @@ export function pickWcFocusWhyLine(why, lineSlot = "") {
   }
 
   const t = String(why || "").trim();
+  const simAdvance = t.match(
+    /([A-Za-z][A-Za-z\s.'-]{1,28}|[A-Z]{2,4})\s+advances?\s+in\s+(\d+\.?\d*)%\s+of\s+sims/i,
+  );
+  if (simAdvance) {
+    const label = String(simAdvance[1] || "").trim();
+    if (label && !/^ur model/i.test(label)) {
+      return `UR sim: ${label} ${simAdvance[2]}% to advance.`;
+    }
+  }
+
   const pctPair = t.match(
     /market[^.]{0,80}?(\d+\.?\d*)\s*%[^.]{0,80}?(?:UR sims?|sims? put)[^.]{0,40}?(\d+\.?\d*)\s*%(?:\s*\(([+-]?\d+\.?\d*)pt\))?/i,
   );
@@ -119,6 +129,17 @@ function pickWcAdvancementPlayHeadline(lean) {
 
 export function pickWcCardHeadline(opts = {}) {
   const ct = String(opts.callType || "").toLowerCase();
+  const call = String(opts.call || "").trim();
+  const leanRaw = String(opts.lean || "").trim();
+  const leanIsPassBoilerplate = /^pass\s*[—-]\s*no actionable line yet/i.test(leanRaw);
+
+  if (ct === "matchup" && leanIsPassBoilerplate && call && call !== "—") {
+    return capWcCardFaceField(call, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+
   if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
     const advancementHeadline = pickWcAdvancementPlayHeadline(opts.lean);
     if (advancementHeadline) {
@@ -128,8 +149,14 @@ export function pickWcCardHeadline(opts = {}) {
       });
     }
     const leanPlay = formatWcPlaySlot(opts.lean);
-    if (leanPlay) {
+    if (leanPlay && !leanIsPassBoilerplate) {
       return capWcCardFaceField(leanPlay.replace(/^lean:\s*/i, ""), {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    if (ct === "matchup" && call && call !== "—") {
+      return capWcCardFaceField(call, {
         maxWords: WC_FACE_HEADLINE_WORDS,
         maxSentences: 1,
       });
@@ -145,7 +172,6 @@ export function pickWcCardHeadline(opts = {}) {
       maxSentences: 1,
     });
   }
-  const call = String(opts.call || "").trim();
   if (/^(pass|lean:)/i.test(call)) {
     return capWcCardFaceField(call, { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 });
   }

@@ -20,6 +20,7 @@ import {
 } from "../shared/wc2026PlayerConstants.js";
 import {
   attachMatchPlayerPropsFreshness,
+  collapseMatchPlayerPropRowsForDisplay,
   createEmptyMatchPlayerPropMarkets,
   hasMatchPlayerPropRows,
   matchPlayerPropsForEvent,
@@ -91,7 +92,10 @@ function filterMatchPlayerPropMarketsForResponse(eventPayload) {
   return Object.fromEntries(
     Object.entries(markets).map(([key, rows]) => [
       key,
-      filterMatchPlayerPropScrapeRows(Array.isArray(rows) ? rows : []),
+      collapseMatchPlayerPropRowsForDisplay(
+        filterMatchPlayerPropScrapeRows(Array.isArray(rows) ? rows : []),
+        key,
+      ),
     ]),
   );
 }

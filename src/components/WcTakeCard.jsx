@@ -178,6 +178,10 @@ export default function WcTakeCard({
         <p className="wc-take-context-line">{sections.why}</p>
       ) : null}
 
+      {effectiveFocusLayout && modelAttribution ? (
+        <p className="wc-take-model-attribution wc-take-model-attribution--focus">{modelAttribution}</p>
+      ) : null}
+
       {!effectiveFocusLayout && statSlots.length > 0 ? (
         <>
           <div className="ur-v2-stat-grid wc-take-stat-grid">

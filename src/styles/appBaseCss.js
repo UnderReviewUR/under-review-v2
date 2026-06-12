@@ -1883,7 +1883,7 @@ export const baseCss = `
   .wc-take-card--focus.ur-v2-card{
     border-left:none !important;
     background:transparent !important;
-    padding:8px 0 12px !important;
+    padding:10px 14px 14px 22px !important;
   }
   .wc-take-card--focus .wc-take-play-block{
     display:flex;
@@ -1905,6 +1905,13 @@ export const baseCss = `
   .chat-thread--ur-chat-dock .wc-take-card--focus .wc-take-breakdown-toggle--focus{
     margin-top:8px;
     font-size:14px;
+  }
+  .wc-take-model-attribution--focus{
+    margin:0 0 10px;
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.08em;
+    color:rgba(255,255,255,0.42);
   }
   .wc-take-context-line{
     font-size:15px;
@@ -2049,7 +2056,7 @@ export const baseCss = `
     background:transparent;
   }
   .screen--ur-focus .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card{
-    padding-left:14px;
+    padding-left:22px;
   }
 
   .ur-thread-upgrade-nudge{
@@ -3558,7 +3565,7 @@ export const baseCss = `
     box-sizing:border-box;
     border-left:none;
     background:rgba(255,255,255,0.03);
-    padding:10px 12px 14px 18px;
+    padding:10px 14px 14px 22px;
     overflow:visible;
   }
   .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card::before,
@@ -3568,7 +3575,7 @@ export const baseCss = `
     left:0;
     top:0;
     bottom:0;
-    width:3px;
+    width:2px;
     background:var(--cyan-bright);
     pointer-events:none;
   }

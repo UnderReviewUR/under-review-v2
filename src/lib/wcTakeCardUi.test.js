@@ -149,6 +149,24 @@ test("pickWcFocusWhyLine compresses sim vs market to one line", () => {
   assert.match(line, /-36\.3pt/);
 });
 
+test("pickWcCardHeadline matchup pass uses call not boilerplate lean", () => {
+  const headline = pickWcCardHeadline({
+    callType: "matchup",
+    lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+    call: "CAN vs BIH — Group B advancement paths",
+  });
+  assert.match(headline, /CAN vs BIH/i);
+  assert.doesNotMatch(headline, /no actionable line/i);
+});
+
+test("pickWcFocusWhyLine compresses sim advance sentence", () => {
+  const line = pickWcFocusWhyLine(
+    "Canada advances in 86.84% of sims vs Bosnia and Herzegovina in Group B.",
+    "",
+  );
+  assert.match(line, /UR sim: Canada 86\.84%/);
+});
+
 test("prepareWcCardFaceDisplay focus mode hides watch for on card face", () => {
   const face = prepareWcCardFaceDisplay({
     lean: "Lean: USA to advance in Group D at -750",

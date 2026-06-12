@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  collapseMatchPlayerPropRowsForDisplay,
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
   isMatchPlayerPropsFresh,
@@ -41,4 +42,19 @@ test("hasMatchPlayerPropRows true when extended markets present", () => {
     formatMatchPlayerPropRowForPrompt("player_assists_ou", assists[0]),
     /Over 0\.5: \+140/,
   );
+});
+
+test("collapseMatchPlayerPropRowsForDisplay — one row per player with shortest odds", () => {
+  const rows = [
+    { name: "Stephen Eustaquio", americanOdds: "+850", nationAbbr: "CAN" },
+    { name: "Stephen Eustaquio", americanOdds: "+13000", nationAbbr: "CAN" },
+    { name: "Stephen Eustaquio", americanOdds: "+70000", nationAbbr: "CAN" },
+    { name: "Richie Laryea", americanOdds: "+950", nationAbbr: "CAN" },
+    { name: "Richie Laryea", americanOdds: "+18000", nationAbbr: "CAN" },
+  ];
+  const out = collapseMatchPlayerPropRowsForDisplay(rows, "anytime_scorer");
+  assert.equal(out.length, 2);
+  assert.equal(out[0].name, "Stephen Eustaquio");
+  assert.equal(out[0].americanOdds, "+850");
+  assert.equal(out[1].americanOdds, "+950");
 });

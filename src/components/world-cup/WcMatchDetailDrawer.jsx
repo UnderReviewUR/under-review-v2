@@ -10,6 +10,7 @@ import {
 } from "../../../shared/wcXiStatus.js";
 import { WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
 import { filterMatchPlayerPropScrapeRows } from "../../../shared/wcMatchPlayerPropRowGuard.js";
+import { collapseMatchPlayerPropRowsForDisplay } from "../../../shared/wcMatchPlayerProps.js";
 import { wcTeamsWithStrengthTags } from "../../../shared/wc2026Strength.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import {
@@ -31,14 +32,15 @@ function StatLine({ label, home, away }) {
   );
 }
 
-function PropList({ title, rows }) {
-  if (!rows?.length) return null;
+function PropList({ title, rows, marketKey = "" }) {
+  const displayRows = collapseMatchPlayerPropRowsForDisplay(rows, marketKey);
+  if (!displayRows.length) return null;
   return (
     <div className="wc-detail-props-block">
       <h4>{title}</h4>
       <ul className="wc-detail-props-list">
-        {rows.slice(0, 8).map((row) => (
-          <li key={`${row.name}-${row.americanOdds}`}>
+        {displayRows.slice(0, 8).map((row) => (
+          <li key={`${row.name}-${marketKey}`}>
             <span>{row.name}</span>
             <span>{row.americanOdds}</span>
           </li>
@@ -46,6 +48,20 @@ function PropList({ title, rows }) {
       </ul>
     </div>
   );
+}
+
+function wcDetailHasVisibleTeamStats(detail) {
+  const ts = detail?.teamStats;
+  if (!ts || typeof ts !== "object") return false;
+  const fields = ["possessionPct", "shots", "shotsOnTarget"];
+  for (const side of ["home", "away"]) {
+    const bucket = ts[side];
+    if (!bucket || typeof bucket !== "object") continue;
+    for (const field of fields) {
+      if (bucket[field] != null && bucket[field] !== "") return true;
+    }
+  }
+  return false;
 }
 
 function ModelOddsBar({ odds }) {
@@ -174,12 +190,12 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
     let cancel = false;
     setLoading(true);
     Promise.all([
-      fetch(`/api/world-cup?view=detail&eventId=${encodeURIComponent(eventId)}`, {
-        cache: "no-store",
-      }).then((r) => (r.ok ? r.json() : null)),
-      fetch(`/api/world-cup?view=match_player_props&eventId=${encodeURIComponent(eventId)}`, {
-        cache: "no-store",
-      }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/api/world-cup?view=detail&eventId=${encodeURIComponent(eventId)}`).then((r) =>
+        r.ok ? r.json() : null,
+      ),
+      fetch(`/api/world-cup?view=match_player_props&eventId=${encodeURIComponent(eventId)}`).then(
+        (r) => (r.ok ? r.json() : null),
+      ),
     ])
       .then(([d, p]) => {
         if (cancel) return;
@@ -210,14 +226,12 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
         ]),
       )
     : null;
-  const hasStats = Boolean(detail?.teamStats);
-  const hasProps = Boolean(
-    props?.ok !== false &&
-      (markets?.anytime_scorer?.length ||
-        markets?.first_goalscorer?.length ||
-        markets?.player_assists_ou?.length),
-  );
-  const showPreMatch = !loading && !hasStats && !hasProps;
+  const hasStats = wcDetailHasVisibleTeamStats(detail);
+  const hasAnytime = Boolean(markets?.anytime_scorer?.length);
+  const hasFirst = Boolean(markets?.first_goalscorer?.length);
+  const hasAssists = Boolean(markets?.player_assists_ou?.length);
+  const hasProps = Boolean(props?.ok !== false && (hasAnytime || hasFirst || hasAssists));
+  const showPreMatchIntel = !hasStats;
 
   const sheet = (
     <div className="wc-detail-drawer-backdrop" role="presentation" onClick={onClose}>
@@ -245,14 +259,14 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
 
         {loading ? <p className="wc-detail-loading">{WC_MATCH_INTEL_LOADING}</p> : null}
 
-        {showPreMatch ? (
+        {showPreMatchIntel ? (
           <WcPreMatchIntel
             match={match}
             home={home}
             away={away}
             teams={teams}
             xiStatus={xiStatus}
-            onAskUrTake={onAskUrTake}
+            onAskUrTake={!loading && !hasProps ? onAskUrTake : null}
           />
         ) : null}
 
@@ -283,10 +297,10 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
 
         {!loading && hasProps ? (
           <section className="wc-detail-section">
-            <h4>Player markets</h4>
-            <PropList title="Anytime scorer" rows={markets.anytime_scorer} />
-            <PropList title="First goalscorer" rows={markets.first_goalscorer} />
-            <PropList title="Assists O/U" rows={markets.player_assists_ou} />
+            {hasAnytime || hasFirst || hasAssists ? <h4>Player markets</h4> : null}
+            <PropList title="Anytime scorer" rows={markets.anytime_scorer} marketKey="anytime_scorer" />
+            <PropList title="First goalscorer" rows={markets.first_goalscorer} marketKey="first_goalscorer" />
+            <PropList title="Assists O/U" rows={markets.player_assists_ou} marketKey="player_assists_ou" />
           </section>
         ) : null}
 

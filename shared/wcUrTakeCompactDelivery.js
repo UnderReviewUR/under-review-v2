@@ -127,6 +127,148 @@ function extractWatchFor(deep, pass, avoidTexts = []) {
   return "Watch for lineup news and confirmed paths before locking the bet.";
 }
 
+const WC_MATCHUP_PASS_LEAN_RE =
+  /^pass\s*[—-]\s*no actionable line yet/i;
+
+/**
+ * @param {string} question
+ */
+function parseWcMatchupTeamsFromQuestion(question) {
+  const q = String(question || "").trim();
+  const vs =
+    q.match(/\b([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i) ||
+    q.match(/who wins\s+([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})/i);
+  if (!vs) return { home: "", away: "", group: "" };
+  const group = q.match(/\(Group\s+([A-L])\)/i)?.[1] || q.match(/\bGroup\s+([A-L])\b/i)?.[1] || "";
+  return { home: vs[1].toUpperCase(), away: vs[2].toUpperCase(), group: group.toUpperCase() };
+}
+
+/**
+ * @param {string[]} summarySents
+ * @param {string} deep
+ * @param {{ home?: string, away?: string, group?: string }} teams
+ */
+function synthesizeWcMatchupLine(summarySents, deep, teams = {}) {
+  const blob = `${(summarySents || []).join("\n")}\n${deep}`;
+  const simBits = [];
+  for (const m of blob.matchAll(
+    /([A-Za-z][A-Za-z\s.'-]{1,28}|[A-Z]{2,4})\s+advances?\s+in\s+(\d+\.?\d*)%\s+of\s+sims/gi,
+  )) {
+    const label = String(m[1] || "").trim();
+    if (!label || /ur model/i.test(label)) continue;
+    simBits.push(`${label} ${m[2]}%`);
+    if (simBits.length >= 2) break;
+  }
+  if (simBits.length) {
+    return `UR sim: ${simBits.join(" · ")} advance.`;
+  }
+
+  const winPct = blob.match(/(\d+\.?\d*)%\s+(?:win|advance)/i);
+  if (winPct) {
+    const who = teams.home && teams.away ? `${teams.home} vs ${teams.away}` : "Match";
+    return `UR sim: ${who} — ${winPct[1]}% path.`;
+  }
+
+  return synthesizeWcLine(summarySents, deep);
+}
+
+/**
+ * @param {string} summary
+ * @param {string} deep
+ * @param {string} question
+ * @param {{ home?: string, away?: string, group?: string }} teams
+ * @param {boolean} pass
+ */
+function synthesizeWcMatchupPlay(summary, deep, question, teams, pass) {
+  const blob = `${summary}\n${deep}\n${question}`;
+  const group = teams.group || question.match(/Group\s+([A-L])/i)?.[1] || "";
+  const groupClause = group ? ` in Group ${group}` : "";
+
+  if (/\b(both teams to advance|both advance|both teams advance)\b/i.test(blob)) {
+    return `Pass on ML — lean both teams to advance${groupClause}.`;
+  }
+
+  const ou = blob.match(/\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\b/i);
+  if (ou) {
+    return `Lean ${ou[2]} ${ou[3]} goals — cleaner angle than the ML.`;
+  }
+
+  if (pass && teams.home && teams.away) {
+    return `Pass on ML — lean both ${teams.home} and ${teams.away} to advance${groupClause}.`;
+  }
+
+  if (pass) {
+    return "Pass on ML — lean both teams to advance in group stage.";
+  }
+
+  return "";
+}
+
+/**
+ * @param {string[]} summarySents
+ * @param {string} question
+ * @param {{ home?: string, away?: string, group?: string }} teams
+ */
+function synthesizeWcMatchupCall(summarySents, question, teams) {
+  if (teams.home && teams.away) {
+    const group = teams.group || question.match(/Group\s+([A-L])/i)?.[1] || "";
+    return group
+      ? `${teams.home} vs ${teams.away} — Group ${group} advancement paths`
+      : `${teams.home} vs ${teams.away} — group-stage paths`;
+  }
+  const first = (summarySents[0] || "").replace(/^lean:\s*/i, "").trim();
+  if (first && !WC_MATCHUP_PASS_LEAN_RE.test(first)) return first;
+  return "Group-stage matchup — advancement paths";
+}
+
+/**
+ * @param {object} opts
+ */
+function buildWcMatchupCompactStructured(opts = {}) {
+  const summary = String(opts.summary || "").trim();
+  const deep = capWcDeepWords(String(opts.deep || "").trim(), 220);
+  const question = String(opts.question || "").trim();
+  const seed =
+    opts.structuredSeed && typeof opts.structuredSeed === "object"
+      ? opts.structuredSeed
+      : null;
+  const summarySents = splitWcSentences(summary);
+  const teams = parseWcMatchupTeamsFromQuestion(question);
+
+  const call = String(
+    seed?.call || synthesizeWcMatchupCall(summarySents, question, teams),
+  ).trim();
+  const line = String(seed?.line || synthesizeWcMatchupLine(summarySents, deep, teams)).trim();
+  let lean = String(seed?.lean || "").trim();
+  if (!lean || WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
+    const pass = isWcPassVerdict(summary, lean);
+    lean =
+      synthesizeWcMatchupPlay(summary, deep, question, teams, pass) ||
+      extractPlayDecision(summary, deep, call, { line, question, wcIntent: WC_INTENT.MATCHUP, pass });
+  }
+  if (WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
+    lean = synthesizeWcMatchupPlay(summary, deep, question, teams, true);
+  }
+
+  const pass = isWcPassVerdict(summary, lean);
+  const whyNow = String(seed?.whyNow || buildWhyNow(summary, deep, WC_INTENT.MATCHUP)).trim();
+
+  return {
+    sport: "worldcup",
+    callType: "matchup",
+    lean,
+    call,
+    line,
+    whyNow,
+    edge: String(seed?.edge || extractWatchFor(deep, pass, whyNow)).trim(),
+    deep,
+    breakdownAvailable: Boolean(deep && deep.length > 40),
+    confidence: String(seed?.confidence || "Medium"),
+    caveats: [],
+    timestamp: seed?.timestamp || new Date().toISOString(),
+  };
+}
+
 /**
  * @param {string} call
  */
@@ -593,6 +735,15 @@ export function buildWcCompactStructured(opts = {}) {
 
   if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
     return buildWcPredictionsRoundupStructured({
+      summary,
+      deep,
+      question,
+      structuredSeed: seed,
+    });
+  }
+
+  if (wcIntent === WC_INTENT.MATCHUP) {
+    return buildWcMatchupCompactStructured({
       summary,
       deep,
       question,
