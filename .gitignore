@@ -21,3 +21,6 @@ Thumbs.db
 *.local
 
 .vercel
+
+# Personal — never commit
+va-claim/
