@@ -28,6 +28,46 @@ export const WC_MATCH_MISSING_WINNER_QA_SUFFIX = `MATCH BETTING WINNER LINE (man
 - Label the book favorite correctly: +110 vs +285 means the +110 side is the ML favorite, not the longshot.`;
 
 export { detectWcMatchupMissingWinnerLine } from "./wcMatchupWinnerLine.js";
+import { extractWcMatchupPlayHeadline } from "./wcMatchupWinnerLine.js";
+
+/** QA regen when user asked for a non-ML market but the card repeated the moneyline headline. */
+export const WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX = `MATCH ALT FOLLOW-UP (mandatory — user asked besides the moneyline):
+- Do NOT repeat "[Team] [ML] to win" as the headline or CALL — they already got the ML.
+- HEADLINE / CALL must name the alternate market only: Under/Over 2.5 goals, both teams to advance, BTTS, etc.
+- Put the ML winner line in breakdown / alt only — never as sentence one again.`;
+
+/**
+ * @param {string} question
+ */
+export function isWcMatchupAltMarketFollowUp(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (
+    /\bbest bet\b[^.]{0,48}\bbesides\b[^.]{0,48}(?:the\s+)?(?:moneyline|ml)\b/i.test(q) ||
+    /\bbesides\s+(?:the\s+)?(?:moneyline|ml)\b/i.test(q) ||
+    /\bother\s+(?:than|side\s+(?:of|from))\s+(?:the\s+)?(?:moneyline|ml)\b/i.test(q)
+  ) {
+    return true;
+  }
+  if (/\bboth teams to advance\b/i.test(q)) return true;
+  if (/\bover or under goals\b/i.test(q)) return true;
+  if (/\b(?:over|under)\s+\d+\.?\d*\s*goals?\??\s*$/i.test(q)) return true;
+  return false;
+}
+
+/**
+ * @param {string} question
+ * @param {object | null | undefined} structured
+ */
+export function detectWcMatchupAltFollowUpMlHeadline(question, structured) {
+  if (!isWcMatchupAltMarketFollowUp(question)) return false;
+  if (!structured || typeof structured !== "object") return false;
+  const call = String(structured.call || "").trim();
+  if (/\bto win\b/i.test(call)) return true;
+  const lean = String(structured.lean || "").trim();
+  if (/\bto win\b/i.test(lean) && !extractWcMatchupPlayHeadline(lean)) return true;
+  return false;
+}
 
 const ALT_MARKET_RE =
   /\b(advance|to advance|both teams|btts|both teams to score|over\s+\d|under\s+\d|total goals|draw no bet|asian handicap|handicap|double chance|group winner|clean sheet|team total)\b/i;

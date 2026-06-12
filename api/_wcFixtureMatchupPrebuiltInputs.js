@@ -9,6 +9,7 @@ import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.j
 import {
   buildWcFixtureMatchupPrebuiltStructured,
   getWcFixtureMlSeed,
+  resolveWcFixturePairFromHistory,
   resolveWcFixturePairFromQuestion,
 } from "../shared/wcFixtureMatchupPrebuilt.js";
 
@@ -51,16 +52,20 @@ function findKvFixture(matches, home, away) {
  *   question: string,
  *   mentionedTeams?: string[],
  *   wcEventId?: string | null,
+ *   history?: Array<unknown>,
  *   nowMs?: number,
  * }} opts
  */
 export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   const question = String(opts.question || "");
   const nowMs = Number(opts.nowMs) || Date.now();
-  const pair = resolveWcFixturePairFromQuestion(question, {
+  let pair = resolveWcFixturePairFromQuestion(question, {
     mentionedTeams: opts.mentionedTeams,
     wcEventId: opts.wcEventId,
   });
+  if (!pair?.home || !pair?.away) {
+    pair = resolveWcFixturePairFromHistory(opts.history);
+  }
   if (!pair?.home || !pair?.away) return null;
 
   const [matchesKv, simRow] = await Promise.all([
@@ -100,6 +105,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
  *   question: string,
  *   mentionedTeams?: string[],
  *   wcEventId?: string | null,
+ *   history?: Array<unknown>,
  *   nowMs?: number,
  * }} opts
  */

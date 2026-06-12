@@ -68,6 +68,43 @@ export function parseWcMatchupFromQuestion(text) {
 }
 
 /**
+ * @param {string} text
+ * @param {string} home
+ * @param {string} away
+ */
+function isWhoWinsMatchupQuestion(text, home, away) {
+  const t = String(text || "").trim();
+  if (!/\bwho wins\b/i.test(t)) return false;
+  const homeRe = new RegExp(`\\b${String(home || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  const awayRe = new RegExp(`\\b${String(away || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  return homeRe.test(t) && awayRe.test(t);
+}
+
+/**
+ * @param {string} chip
+ * @param {string} question
+ */
+function followUpChipDuplicatesQuestion(chip, question) {
+  const c = String(chip || "").trim().toLowerCase();
+  const q = String(question || "").trim().toLowerCase();
+  if (!c || !q) return false;
+  if (c === q) return true;
+  if (/\bwho wins\b/i.test(c) && /\bwho wins\b/i.test(q)) {
+    const pc = parseWcMatchupFromQuestion(chip);
+    const pq = parseWcMatchupFromQuestion(question);
+    if (
+      pc?.home &&
+      pq?.home &&
+      pc.home.toLowerCase() === pq.home.toLowerCase() &&
+      pc.away.toLowerCase() === pq.away.toLowerCase()
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * @param {object | null | undefined} message
  * @param {string} [userQuestion]
  * @returns {string[]}
@@ -79,11 +116,22 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
   const home = teams?.home ? String(teams.home).trim() : "";
   const away = teams?.away ? String(teams.away).trim() : "";
   const wcIntent = String(message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "");
+  const callType = String(message?.structured?.callType || "").toLowerCase();
+  const isMatchupTake = callType === "matchup" || wcIntent === WC_INTENT.MATCHUP;
+  const alreadyAskedWhoWins = home && away ? isWhoWinsMatchupQuestion(q, home, away) : false;
 
   if (home && away) {
-    chips.push(`Who wins ${home} vs ${away}?`);
-    chips.push(`What's mispriced on ${home} vs ${away}?`);
-    if (message?.wcEventId) {
+    if (isMatchupTake && alreadyAskedWhoWins) {
+      chips.push("What's the best bet besides the moneyline?");
+      chips.push("Both teams to advance?");
+      chips.push("Over or under goals?");
+    } else if (!alreadyAskedWhoWins) {
+      chips.push(`Who wins ${home} vs ${away}?`);
+    }
+    if (!chips.some((c) => /mispriced/i.test(c))) {
+      chips.push(`What's mispriced on ${home} vs ${away}?`);
+    }
+    if (message?.wcEventId && !chips.some((c) => /player prop/i.test(c))) {
       chips.push(`Best player prop for ${home} vs ${away}?`);
     }
   } else {
@@ -139,6 +187,7 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
     .map((t) => String(t).trim())
     .filter((t) => {
       if (!t || t.length > 80) return false;
+      if (followUpChipDuplicatesQuestion(t, q)) return false;
       const k = t.toLowerCase();
       if (seen.has(k)) return false;
       seen.add(k);
@@ -173,6 +222,7 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
     for (const t of [...context, ...slate]) {
       let s = gateWcFollowUpChipText(String(t || "").trim(), message, parsedGroup);
       if (!s || /parlay/i.test(s)) continue;
+      if (followUpChipDuplicatesQuestion(s, q)) continue;
       const k = s.toLowerCase();
       if (seen.has(k)) continue;
       seen.add(k);
@@ -189,6 +239,7 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
   for (const t of [...context, ...generic]) {
     let s = gateWcFollowUpChipText(String(t || "").trim(), message, parsedGroup);
     if (!s) continue;
+    if (followUpChipDuplicatesQuestion(s, q)) continue;
     const k = s.toLowerCase();
     if (seen.has(k)) continue;
     seen.add(k);

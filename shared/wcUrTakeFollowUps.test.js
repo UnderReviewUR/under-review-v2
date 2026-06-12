@@ -68,3 +68,16 @@ test("mergeWcFollowUpChips prefers context", () => {
   assert.ok(merged[0].includes("USA") || merged.some((c) => /mispriced/i.test(c)));
   assert.equal(merged.length, 3);
 });
+
+test("getWcContextFollowUpChips skips who-wins after matchup who-wins question", () => {
+  const chips = getWcContextFollowUpChips(
+    {
+      wcMatchTeams: { home: "USA", away: "PAR" },
+      wcIntent: WC_INTENT.MATCHUP,
+      structured: { callType: "matchup", fixtureHome: "USA", fixtureAway: "PAR" },
+    },
+    "Who wins USA vs PAR (Group D)?",
+  );
+  assert.ok(!chips.some((c) => /^Who wins USA vs PAR/i.test(c)));
+  assert.ok(chips.some((c) => /besides the moneyline/i.test(c)));
+});

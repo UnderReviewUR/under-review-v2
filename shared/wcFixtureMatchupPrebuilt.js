@@ -27,6 +27,8 @@ import {
   shouldUseWcCrossGroupValuePrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+import { isWcMatchupAltMarketFollowUp } from "./wcMatchBettingPrompt.js";
 
 /** @type {Record<string, { home: { moneyline: string }, draw: { moneyline: string }, away: { moneyline: string }, provider?: string }>} */
 const FIXTURE_ML_SEED = {
@@ -163,6 +165,72 @@ export function resolveWcFixturePairFromQuestion(question, opts = {}) {
 }
 
 /**
+ * @param {Array<{ content?: string, text?: string, question?: string, userQuestion?: string, structured?: object, wcMatchTeams?: { home?: string, away?: string }, wcEventId?: string }>} [history]
+ * @returns {{ home: string, away: string, group: string, eventId: string | null } | null}
+ */
+export function resolveWcFixturePairFromHistory(history = []) {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const turn = history[i];
+    const text = String(
+      turn?.content || turn?.text || turn?.userQuestion || turn?.question || "",
+    ).trim();
+    if (text) {
+      const pair = resolveWcFixturePairFromQuestion(text, {});
+      if (pair?.home && pair?.away) return pair;
+    }
+    const s = turn?.structured;
+    if (s?.fixtureHome && s?.fixtureAway) {
+      return {
+        home: String(s.fixtureHome).toUpperCase(),
+        away: String(s.fixtureAway).toUpperCase(),
+        group: String(s.groupLetter || "").toUpperCase(),
+        eventId: turn?.wcEventId ? String(turn.wcEventId) : null,
+      };
+    }
+    if (turn?.wcMatchTeams?.home && turn?.wcMatchTeams?.away) {
+      const pair = resolveWcFixturePairFromQuestion(
+        `${turn.wcMatchTeams.home} vs ${turn.wcMatchTeams.away}`,
+        {},
+      );
+      if (pair?.home && pair?.away) return pair;
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} question
+ * @param {string} [wcIntent]
+ * @param {{
+ *   isConversationFollowUp?: boolean,
+ *   wcRunnerUpFollowUpQuestion?: boolean,
+ *   mentionedTeams?: string[],
+ *   wcEventId?: string | null,
+ *   hasKvFixture?: boolean,
+ *   history?: Array<unknown>,
+ * }} [opts]
+ */
+export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent, opts = {}) {
+  if (!opts.isConversationFollowUp) return false;
+  if (opts.wcRunnerUpFollowUpQuestion) return false;
+  if (isWcPlayerMarketIntent(wcIntent)) return false;
+  if (shouldUseWcCrossGroupValuePrebuilt(question, wcIntent)) return false;
+  if (shouldUseWcGroupSlatePrebuilt(question, wcIntent)) return false;
+  if (!isWcMatchupAltMarketFollowUp(question)) return false;
+
+  const pair =
+    resolveWcFixturePairFromQuestion(question, {
+      mentionedTeams: opts.mentionedTeams,
+      wcEventId: opts.wcEventId,
+    }) || resolveWcFixturePairFromHistory(opts.history);
+
+  if (!pair?.home || !pair?.away) return false;
+  if (opts.wcEventId || opts.hasKvFixture) return true;
+  return isWcPromoFixturePair(pair.home, pair.away);
+}
+
+/**
  * @param {string} question
  * @param {string} [wcIntent]
  * @param {{
@@ -243,6 +311,32 @@ function pickWcFixturePrebuiltLean(row) {
 }
 
 /**
+ * @param {{
+ *   question: string,
+ *   group?: string,
+ * }} row
+ */
+function pickWcFixtureAltFollowUpLean(row) {
+  const q = String(row.question || "");
+  const groupClause = row.group ? ` in Group ${row.group}` : "";
+
+  if (/\bboth teams to advance\b/i.test(q)) {
+    return `Both teams to advance${groupClause}.`;
+  }
+
+  const ou = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
+  if (ou) {
+    return `Lean ${ou[1]} ${ou[2]} goals.`;
+  }
+
+  if (/\bover or under\b/i.test(q)) {
+    return "Lean Under 2.5 goals.";
+  }
+
+  return "Lean Under 2.5 goals — cleaner angle than the ML.";
+}
+
+/**
  * @param {number | null | undefined} lastUpdatedMs
  * @param {number} [nowMs]
  */
@@ -268,6 +362,8 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const away = String(opts.away || "").trim().toUpperCase();
   const group = String(opts.group || opts.match?.group || "").trim().toUpperCase();
   const question = String(opts.question || "").trim();
+  const routingQ = extractLatestUserTurnForRouting(question);
+  const altFollowUp = isWcMatchupAltMarketFollowUp(routingQ);
   if (!home || !away) return null;
 
   const homeName = wcMatchupTeamDisplayName(home);
@@ -290,16 +386,20 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const favName = wcMatchupTeamDisplayName(fav.abbr);
   const mlCall = `${favName} ${fav.odds} to win`;
 
-  const lean = pickWcFixturePrebuiltLean({
-    question,
-    home,
-    away,
-    group,
-    homeStats,
-    awayStats,
-  });
+  const lean = altFollowUp
+    ? `Pass on ML — ${pickWcFixtureAltFollowUpLean({ question: routingQ, group }).replace(/^lean:\s*/i, "")}`
+    : pickWcFixturePrebuiltLean({
+        question: routingQ,
+        home,
+        away,
+        group,
+        homeStats,
+        awayStats,
+      });
   const playHeadline = extractWcMatchupPlayHeadline(lean) || "";
-  const call = (playHeadline || mlCall).slice(0, 100);
+  const call = altFollowUp
+    ? (playHeadline || lean.replace(/^lean:\s*/i, "").trim() || "Lean Under 2.5 goals").slice(0, 100)
+    : (playHeadline || mlCall).slice(0, 100);
 
   const market = devigWcMatchMoneylineProbs({
     home: matchOdds?.home,
@@ -329,8 +429,9 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     market,
   }).slice(0, 400);
 
-  const line =
-    playHeadline && /under 2\.5/i.test(playHeadline)
+  const line = altFollowUp
+    ? `${home} vs ${away} — ${mlCall}`.slice(0, 200)
+    : playHeadline && /under 2\.5/i.test(playHeadline)
       ? ""
       : winBar?.teamA?.winPct != null
         ? `Market win chance: ${homeName} ${winBar.teamA.winPct}% · Draw ${winBar.draw}% · ${awayName} ${winBar.teamB.winPct}%.`

@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import {
   detectWcMatchupPassOnlyWithoutAlternate,
+  detectWcMatchupAltFollowUpMlHeadline,
+  isWcMatchupAltMarketFollowUp,
   WC_MATCH_BETTING_PROMPT_RULES,
 } from "./wcMatchBettingPrompt.js";
 
@@ -38,5 +40,26 @@ test("detectWcMatchupPassOnlyWithoutAlternate passes when alternate named", () =
       "MATCHUP",
     ),
     false,
+  );
+});
+
+test("isWcMatchupAltMarketFollowUp detects besides-ML chip", () => {
+  assert.ok(isWcMatchupAltMarketFollowUp("What's the best bet besides the moneyline?"));
+  assert.ok(isWcMatchupAltMarketFollowUp("Both teams to advance?"));
+  assert.ok(!isWcMatchupAltMarketFollowUp("Who wins USA vs PAR?"));
+});
+
+test("detectWcMatchupAltFollowUpMlHeadline flags repeated ML on alt follow-up", () => {
+  assert.ok(
+    detectWcMatchupAltFollowUpMlHeadline(
+      "What's the best bet besides the moneyline?",
+      { call: "United States +110 to win", lean: "Pass on ML" },
+    ),
+  );
+  assert.ok(
+    !detectWcMatchupAltFollowUpMlHeadline(
+      "What's the best bet besides the moneyline?",
+      { call: "Lean Under 2.5 goals", lean: "Lean Under 2.5 goals" },
+    ),
   );
 });

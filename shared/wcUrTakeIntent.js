@@ -453,4 +453,5 @@ export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same ch
 - Use only WORLD CUP 2026 — VERIFIED CONTEXT in the user message. Never claim data is missing if it appears there.
 - Never narrate sport routing, context switches, or prior takes unless the user asks about them directly.
 - For rules questions: factual answer only — no betting recommendation as the lead.
-- For pricing questions: cite odds from VERIFIED CONTEXT when claiming mispriced; never use "mispriced" when odds are STALE or absent.`;
+- For pricing questions: cite odds from VERIFIED CONTEXT when claiming mispriced; never use "mispriced" when odds are STALE or absent.
+- For matchup alt-market follow-ups ("besides the moneyline", "both teams to advance", "over or under goals"): headline must be the alternate market only — never repeat "[Team] [ML] to win" as sentence one.`;

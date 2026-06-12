@@ -68,8 +68,11 @@ import {
 import {
   detectWcMatchupMissingWinnerLine,
   detectWcMatchupPassOnlyWithoutAlternate,
+  detectWcMatchupAltFollowUpMlHeadline,
+  isWcMatchupAltMarketFollowUp,
   WC_MATCH_MISSING_WINNER_QA_SUFFIX,
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
+  WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
 } from "../shared/wcMatchBettingPrompt.js";
 
 const BETTING_LEAD_RE =
@@ -442,7 +445,13 @@ export function runWcUrTakeQA(opts = {}) {
     }
 
     if (detectWcMatchupMissingWinnerLine(question, structured, wcIntent)) {
-      issueCodes.push("wc_matchup_missing_winner_line");
+      if (!isWcMatchupAltMarketFollowUp(routingQuestion)) {
+        issueCodes.push("wc_matchup_missing_winner_line");
+      }
+    }
+
+    if (detectWcMatchupAltFollowUpMlHeadline(routingQuestion, structured)) {
+      issueCodes.push("wc_matchup_alt_followup_ml_headline");
     }
   }
 
@@ -523,6 +532,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_play_line_invalid",
       "wc_matchup_pass_only_no_alt",
       "wc_matchup_missing_winner_line",
+      "wc_matchup_alt_followup_ml_headline",
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
@@ -576,7 +586,7 @@ export {
   WC_NEEDS_DEDUP_QA_SUFFIX,
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
 };
-export { WC_MATCH_PASS_ONLY_QA_SUFFIX, WC_MATCH_MISSING_WINNER_QA_SUFFIX };
+export { WC_MATCH_PASS_ONLY_QA_SUFFIX, WC_MATCH_MISSING_WINNER_QA_SUFFIX, WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX };
 
 export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
 

@@ -126,6 +126,7 @@ import {
 } from "../_wcFixtureMatchupPrebuiltInputs.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
+  shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
 } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
@@ -153,6 +154,7 @@ import {
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_MISSING_WINNER_QA_SUFFIX,
+  WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
@@ -2648,6 +2650,8 @@ export default async function handler(req, res) {
   let wcCrossGroupPrebuiltEarly = null;
   /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcFixtureMatchupPrebuiltStructured> | null} */
   let wcFixtureMatchupPrebuiltEarly = null;
+  /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcFixtureMatchupPrebuiltStructured> | null} */
+  let wcFixtureAltFollowUpPrebuiltEarly = null;
   /** @type {Record<string, { advancePct?: number }> | null} */
   let wcFixturePrebuiltTeamStats = null;
   /** @type {{ wcIntent: string | null, mentionedTeams: string[], requiredEntities: string[], knockoutRulesInjected: boolean, structuralEdgeInjected: boolean, playerPropDetected: boolean, wcEventId: string | null, qaEntityMatch: string | null, qaIntentMatch: string | null, qaPlayerMatch: string | null }} */
@@ -2731,18 +2735,30 @@ export default async function handler(req, res) {
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         wcEventId: wcEventIdTrimmed,
       });
-    if (wcFixturePrebuiltCandidate) {
+    const wcFixtureAltFollowUpCandidate =
+      !wcCrossGroupPrebuiltEarly &&
+      !wcRunnerUpFollowUpQuestion &&
+      isConversationFollowUp &&
+      shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
+        isConversationFollowUp,
+        wcRunnerUpFollowUpQuestion,
+        mentionedTeams: wcRelevanceLog.mentionedTeams,
+        wcEventId: wcEventIdTrimmed,
+        history: normalizedUrTakeHistoryForGate,
+      });
+    if (wcFixturePrebuiltCandidate || wcFixtureAltFollowUpCandidate) {
       try {
         const nowMs = Date.now();
         const inputs = await resolveWcFixtureMatchupPrebuiltInputs({
           question: String(question || ""),
           mentionedTeams: wcRelevanceLog.mentionedTeams,
           wcEventId: wcEventIdTrimmed,
+          history: normalizedUrTakeHistoryForGate,
           nowMs,
         });
         if (inputs) {
           wcFixturePrebuiltTeamStats = inputs.teamStats || null;
-          wcFixtureMatchupPrebuiltEarly = buildWcFixtureMatchupPrebuiltStructured({
+          const built = buildWcFixtureMatchupPrebuiltStructured({
             home: inputs.home,
             away: inputs.away,
             group: inputs.group,
@@ -2752,24 +2768,39 @@ export default async function handler(req, res) {
             simLastUpdated: inputs.simLastUpdated,
             nowMs: inputs.nowMs,
           });
-          if (wcFixtureMatchupPrebuiltEarly) {
-            console.log(
-              JSON.stringify({
-                event: "ur_take_wc_fixture_matchup_prebuilt_early",
-                sport: "worldcup",
-                wcIntent,
-                home: inputs.home,
-                away: inputs.away,
-                hasKvFixture: inputs.hasKvFixture,
-              }),
-            );
+          if (built) {
+            if (wcFixtureAltFollowUpCandidate) {
+              wcFixtureAltFollowUpPrebuiltEarly = built;
+              console.log(
+                JSON.stringify({
+                  event: "ur_take_wc_fixture_matchup_alt_followup_prebuilt_early",
+                  sport: "worldcup",
+                  wcIntent,
+                  home: inputs.home,
+                  away: inputs.away,
+                  hasKvFixture: inputs.hasKvFixture,
+                }),
+              );
+            } else {
+              wcFixtureMatchupPrebuiltEarly = built;
+              console.log(
+                JSON.stringify({
+                  event: "ur_take_wc_fixture_matchup_prebuilt_early",
+                  sport: "worldcup",
+                  wcIntent,
+                  home: inputs.home,
+                  away: inputs.away,
+                  hasKvFixture: inputs.hasKvFixture,
+                }),
+              );
+            }
           }
         }
       } catch (fixtureErr) {
         console.warn("[ur-take] fixture matchup prebuilt resolve failed:", fixtureErr?.message);
       }
     }
-    if (!wcCrossGroupPrebuiltEarly && !wcFixtureMatchupPrebuiltEarly) {
+    if (!wcCrossGroupPrebuiltEarly && !wcFixtureMatchupPrebuiltEarly && !wcFixtureAltFollowUpPrebuiltEarly) {
       try {
         wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
           wcIntent,
@@ -2780,7 +2811,7 @@ export default async function handler(req, res) {
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
       }
-    } else if (wcFixtureMatchupPrebuiltEarly) {
+    } else if (wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly) {
       wcContext = {
         source: "worldcup_fixture_matchup_prebuilt",
         promptBlock: "",
@@ -5263,25 +5294,37 @@ You are responding to a Pro subscriber. Apply the following:
     if (
       sportHint === "worldcup" &&
       !wcRunnerUpFollowUpQuestion &&
-      !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
       !wcRunnerUpFollowUpPassUsed &&
       (wcFixtureMatchupPrebuiltEarly ||
-        shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
-          isConversationFollowUp,
-          wcRunnerUpFollowUpQuestion,
-          mentionedTeams: wcRelevanceLog.mentionedTeams,
-          wcEventId: wcRelevanceLog.wcEventId,
-          hasKvFixture: Boolean(wcContext?.matchDetails?.length),
-        }))
+        wcFixtureAltFollowUpPrebuiltEarly ||
+        (!isConversationFollowUp &&
+          shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcRelevanceLog.wcEventId,
+            hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+          })) ||
+        (isConversationFollowUp &&
+          shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcRelevanceLog.wcEventId,
+            hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+            history: normalizedUrTakeHistoryForGate,
+          })))
     ) {
       const prebuilt =
         wcFixtureMatchupPrebuiltEarly ||
+        wcFixtureAltFollowUpPrebuiltEarly ||
         (await buildWcFixtureMatchupPrebuiltFromInputs({
           question: String(question || ""),
           mentionedTeams: wcRelevanceLog.mentionedTeams,
           wcEventId: wcRelevanceLog.wcEventId,
+          history: normalizedUrTakeHistoryForGate,
         }).catch(() => null));
       if (prebuilt) {
         structuredResponse = prebuilt;
@@ -5296,7 +5339,8 @@ You are responding to a Pro subscriber. Apply the following:
             wcIntent,
             home: prebuilt.fixtureHome,
             away: prebuilt.fixtureAway,
-            early: Boolean(wcFixtureMatchupPrebuiltEarly),
+            early: Boolean(wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly),
+            altFollowUp: Boolean(wcFixtureAltFollowUpPrebuiltEarly),
           }),
         );
       }
@@ -5434,6 +5478,10 @@ You are responding to a Pro subscriber. Apply the following:
             }${
               prevQaCriticalCodes.includes("wc_matchup_missing_winner_line")
                 ? WC_MATCH_MISSING_WINNER_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_matchup_alt_followup_ml_headline")
+                ? WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX
                 : ""
             }${
               prevQaCriticalCodes.includes("wc_player_not_in_squad") ||
