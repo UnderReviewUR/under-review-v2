@@ -122,6 +122,24 @@ const WC_SOCCER_FOOTBALL_RE =
   /\b(football|soccer)\b/i;
 const WC_NFL_EXCLUDE_RE = /\b(nfl|touchdown|quarterback|super bowl)\b/i;
 
+/** FanDuel/DK-style soccer prop phrasing without "world cup" or nation names (e.g. "Jimenez 2+ shots?", "Son 2.5 shots?"). */
+const WC_SOCCER_PROP_LINE_RE =
+  /\b(\d+\+\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|\d+\.5\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|(?:over|under)\s*\d+\.5\s*shots?(?:\s+on\s+target)?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|to\s+score\s+or\s+assist|score\s+or\s+assist|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?|shots?\s+on\s+target|sot\s*(?:prop|o\/u|over|under)|anytime\s+(?:goal\s*)?scorer|first\s+goal\s*scorer)\b/i;
+
+const WC_OTHER_SPORT_EXCLUDE_RE =
+  /\b(nba|nfl|mlb|nhl|basketball|baseball|hockey|touchdown|quarterback|strikeout|pitcher|pra|rebounds|lakers|celtics|spurs|warriors|yankees|dodgers)\b/i;
+
+/**
+ * Soccer match/player prop slip language — routes home-page UR Take to WC during the tournament.
+ * @param {string} question
+ */
+export function questionImpliesWcSoccerPlayerProp(question) {
+  const q = normalizeText(question);
+  if (!q) return false;
+  if (WC_OTHER_SPORT_EXCLUDE_RE.test(q)) return false;
+  return WC_SOCCER_PROP_LINE_RE.test(q);
+}
+
 /**
  * True when question text clearly references World Cup 2026 (teams, groups, tournament).
  * @param {string} question
@@ -138,6 +156,8 @@ export function questionMentionsWorldCup(question) {
   }
 
   if (WC_SOCCER_FOOTBALL_RE.test(q) && !WC_NFL_EXCLUDE_RE.test(q)) return true;
+
+  if (questionImpliesWcSoccerPlayerProp(question)) return true;
 
   for (const phrase of WC_TEAM_PHRASES) {
     if (!containsPhrase(q, phrase)) continue;

@@ -3,7 +3,11 @@
  */
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
-import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import {
+  isWcPlayerMarketIntent,
+  isWcPlayerPropPassStructured,
+  repairWcPlayerPropPassCard,
+} from "./wcUrTakePlayerMarket.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
 import { wcCardHasDeltaSignal, wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
@@ -677,20 +681,24 @@ export function buildWcCompactStructured(opts = {}) {
   if (isWcPlayerMarketIntent(wcIntent) && !isListIntent) {
     const odds = (summary.match(/\+\d{3,}/) || [])[0] || "";
     let playerCall = call;
-    if (pass && !/^pass/i.test(playerCall)) {
+    if (pass && !/^pass/i.test(playerCall) && playerCall.split(/\s+/).length <= 14) {
       playerCall = odds ? `Pass at ${odds} — ${playerCall}` : `Pass — ${playerCall}`;
     } else if (odds && !playerCall.includes(odds) && line && line.includes(odds)) {
       // delta sentence holds odds; headline stays thesis-only
     } else if (odds && !playerCall.includes(odds) && !line) {
       playerCall = `${playerCall.replace(/\.$/, "")}. Market ${odds}.`;
     }
-    return {
+    const playerBase = {
       ...base,
       callType: callTypeForPlayerTier(tier),
       playerMarketTier: tier,
       call: playerCall,
       confidence: pass ? "Speculative" : "Medium",
     };
+    if (wcIntent === WC_INTENT.PLAYER_PROP && isWcPlayerPropPassStructured(playerBase, question)) {
+      return repairWcPlayerPropPassCard(playerBase, question);
+    }
+    return playerBase;
   }
 
   let callType =

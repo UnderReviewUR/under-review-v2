@@ -155,6 +155,66 @@ Pass at ${ESP_MARKET} — fair favorite, no misprice.`,
     expectIssueCodes: ["wc_group_winner_outright_bleed"],
     notes: "Group-winner thesis must not cite tournament outright (+8000).",
   },
+  {
+    id: "player-prop-jimenez-shots-home",
+    question: "Jimenez 2+ shots?",
+    expectedIntent: WC_INTENT.PLAYER_PROP,
+    expectFail: true,
+    expectIssueCodes: ["wc_player_missing_names"],
+    notes: "Routing lock — Jimenez not in player KV yet; QA should flag until seed expands.",
+    modelFixture: {
+      summary:
+        "Jimenez volume is priced for a neutral script — the board is not paying for a Mexico lead. Market +140 · implies ~42% · UR read ~48% on 2+ shots.",
+      deep: `Mexico's opener skews cautious — Jimenez needs early touches, not a chase script.
+This wins if Mexico presses the first 25 minutes; dies if they sit in a low block.
+Watch for confirmed XI — rotation caps his shot volume.
+Lean: Jimenez 2+ shots +140 — path fits opener aggression.`,
+    },
+    anthropicPayload: anthropicSummaryDeepPayload(
+      "Jimenez volume is priced for a neutral script — the board is not paying for a Mexico lead. Market +140 · implies ~42% · UR read ~48% on 2+ shots.",
+      `Mexico's opener skews cautious — Jimenez needs early touches, not a chase script.
+This wins if Mexico presses the first 25 minutes; dies if they sit in a low block.
+Watch for confirmed XI — rotation caps his shot volume.
+Lean: Jimenez 2+ shots +140 — path fits opener aggression.`,
+    ),
+    forbidIssueCodes: ["intent_mismatch", "wc_play_line_invalid"],
+  },
+  {
+    id: "player-prop-jimenez-sgp-combo",
+    question: "Jimenez 2+ shots and Mexico team to score first goal — correlated or cleaner leg?",
+    expectedIntent: WC_INTENT.PLAYER_PROP,
+    modelFixture: {
+      summary:
+        "These legs share one script — Mexico must attack first for both to cash. Correlation is high, not independent.",
+      deep: `Player shot volume and first-goal need the same early Mexico lead script.
+This wins if Mexico scores first with sustained pressure; dies if they trail and park the bus.
+Cleaner leg: Mexico team O1.5 or ML if you want one hinge instead of stacking props.
+Pass on the full SGP at long odds — same-stat fragility.`,
+    },
+    anthropicPayload: anthropicSummaryDeepPayload(
+      "These legs share one script — Mexico must attack first for both to cash. Correlation is high, not independent.",
+      `Player shot volume and first-goal need the same early Mexico lead script.
+This wins if Mexico scores first with sustained pressure; dies if they trail and park the bus.
+Cleaner leg: Mexico team O1.5 or ML if you want one hinge instead of stacking props.
+Pass on the full SGP at long odds — same-stat fragility.`,
+    ),
+    forbidIssueCodes: ["intent_mismatch"],
+  },
+  {
+    id: "rules-knockout-extra-time",
+    question: "What are the knockout rules for extra time?",
+    expectedIntent: WC_INTENT.RULES,
+    modelFixture: {
+      summary:
+        "Knockout ties go to 30 minutes of extra time in two 15-minute periods, then penalties if still level.",
+      deep: "90-minute moneylines settle regulation only; advancement markets include ET and pens when tied.",
+    },
+    anthropicPayload: anthropicSummaryDeepPayload(
+      "Knockout ties go to 30 minutes of extra time in two 15-minute periods, then penalties if still level.",
+      "90-minute moneylines settle regulation only; advancement markets include ET and pens when tied.",
+    ),
+    forbidIssueCodes: ["intent_mismatch", "wc_play_line_invalid"],
+  },
 ];
 
 /** @type {WcGoldenEvalCase[]} */

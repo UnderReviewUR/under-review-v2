@@ -9,11 +9,15 @@ import {
   buildWcPlayerMarketEmptyStructured,
 } from "./wcPlayerMarketResolve.js";
 import {
+  buildWcPlayerPropPassHeadline,
   detectTeamAnswerToPlayerQuestion,
+  detectWcPlayerPropMarketLabel,
   questionAsksForWcPlayerMarket,
+  repairWcPlayerPropPassCard,
   resolveWcPlayerMarketResponse,
   shouldForceWcPlayerMarketPass,
 } from "./wcUrTakePlayerMarket.js";
+import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
 import { mockWcContextWithPlayerMarkets } from "../api/wcPlayerMarkets.fixture.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
 
@@ -110,4 +114,57 @@ test("shouldForceWcPlayerMarketPass — false when KV populated", () => {
     }),
     false,
   );
+});
+
+test("detectWcPlayerPropMarketLabel — shots vs SOT", () => {
+  assert.equal(detectWcPlayerPropMarketLabel("Son 2.5 shots?"), "shots");
+  assert.equal(detectWcPlayerPropMarketLabel("Son 1.5 shots on target?"), "shots on target");
+  assert.equal(detectWcPlayerPropMarketLabel("Jimenez to score or assist?"), "goal or assist");
+});
+
+test("repairWcPlayerPropPassCard — short headline and shots wording", () => {
+  const repaired = repairWcPlayerPropPassCard(
+    {
+      call:
+        "No verified shots-on-target line for Son Heung-min exists in the current market feed — Pass until a line posts.",
+      lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      whyNow:
+        "Son is South Korea's primary threat for KOR vs CZE, but no match shots-on-target prop is listed.",
+      edge: "Wait for lineups and a posted shots line.",
+    },
+    "Son 2.5 shots?",
+  );
+  assert.equal(repaired.call, "No posted Son shots line — Pass.");
+  assert.match(repaired.whyNow, /shots/i);
+  assert.doesNotMatch(repaired.whyNow, /shots-on-target/i);
+});
+
+test("repairWcPlayerPropPassCard — SGP combo keeps correlation on pass", () => {
+  const repaired = repairWcPlayerPropPassCard(
+    {
+      call: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      lean: "Pass — no actionable line yet.",
+      whyNow: "",
+      edge: "Wait for lineups.",
+    },
+    "Jimenez 2+ shots and Mexico team to score first goal",
+  );
+  assert.match(repaired.call, /share one script/i);
+  assert.match(repaired.lean, /script/i);
+});
+
+test("normalizeWcStructuredForDelivery — player prop pass repair", () => {
+  const out = normalizeWcStructuredForDelivery(
+    {
+      call:
+        "No verified shots-on-target line for Son Heung-min exists in the current market feed — Pass until books post.",
+      lean: "Pass — no verified line.",
+      whyNow: "Fixture is KOR vs CZE on June 12.",
+      edge: "Watch for confirmed XI.",
+      playerMarketTier: "thin",
+    },
+    WC_INTENT.PLAYER_PROP,
+    "Son 2.5 shots?",
+  );
+  assert.equal(out.call, "No posted Son shots line — Pass.");
 });

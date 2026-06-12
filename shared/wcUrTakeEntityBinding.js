@@ -6,6 +6,7 @@ import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { classifyWcQuestionIntent, resolveContinuationEntities, WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import { resolveWcPlayerNationFromQuestion } from "./wcPlayerPropFixture.js";
 
 /** @param {string} abbr */
 export function wcTeamDisplayNames(abbr) {
@@ -30,6 +31,8 @@ export function resolveRequiredEntities(question, history = [], wcIntent) {
     if (/\bvs\.?\b|\bversus\b/i.test(String(question || "")) && entities.length >= 2) {
       return [...new Set(entities.map((t) => String(t).toUpperCase()))];
     }
+    const nation = resolveWcPlayerNationFromQuestion(question);
+    if (nation) return [String(nation).toUpperCase()];
     return [];
   }
 

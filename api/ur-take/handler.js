@@ -250,6 +250,13 @@ import {
 } from "../../shared/wcUrTakeStructured.js";
 import { stripRulesThreadBleed, WC_RULES_TURN_APPENDIX } from "../../shared/wcUrTakeRules.js";
 import { questionReferencesDerby } from "../../shared/derbyIntent.js";
+import { hasMatchPlayerPropRows } from "../../shared/wcMatchPlayerProps.js";
+import {
+  buildWcScriptPriceUserAppendix,
+  buildWcTeamMarketOpenerPromptBlock,
+  detectWcSgpComboIntent,
+  shouldRunNbaFirstSessionGuarantee,
+} from "../../shared/wcUrTakePhilosophy.js";
 import {
   buildUrTakeSportTurnScopeRules,
   extractLatestUserTurnForRouting,
@@ -2568,12 +2575,14 @@ export default async function handler(req, res) {
   let firstSessionGuaranteeFeature = null;
   let preloadedNbaBoard = null;
   if (
-    firstSessionNoHistory &&
-    !hasImage &&
-    (sportHint === "generic" || sportHint === "image_review") &&
-    uiSportHintForRouting !== "worldcup" &&
-    !questionMentionsWorldCup(question) &&
-    !incomingWcEventId
+    shouldRunNbaFirstSessionGuarantee({
+      firstSessionNoHistory,
+      hasImage,
+      sportHint,
+      uiSportHint: uiSportHintForRouting,
+      question,
+      wcEventId: incomingWcEventId,
+    })
   ) {
     try {
       const fresh = await buildNbaUrTakeBoard(routingQuestion);
@@ -4769,6 +4778,19 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
         ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
         : "";
 
+    const wcHasMatchPlayerProps = hasMatchPlayerPropRows(wcContext?.playerMarketKv?.matchPlayerProps);
+    const wcScriptPriceBlock = buildWcScriptPriceUserAppendix({
+      question: routingQuestion,
+      wcIntent,
+      phase: wcContext?.phase,
+      isParlay: detectParlayIntent(routingQuestion) || detectWcSgpComboIntent(routingQuestion),
+      hasMatchPlayerProps: wcHasMatchPlayerProps,
+    });
+    const wcTeamOpenerBlock = buildWcTeamMarketOpenerPromptBlock({
+      question: routingQuestion,
+      wcIntent,
+    });
+
     userPrompt = `${wcRoleLine}
 
 ${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
@@ -4780,7 +4802,7 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 
 Rules:
-${wcIntentRules}${isWcRulesIntent ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}${isWcPredictionsRoundupIntent ? `\n\n${WC_PREDICTIONS_ROUNDUP_PROMPT}` : ""}`;
+${wcIntentRules}${isWcRulesIntent ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}${isWcPredictionsRoundupIntent ? `\n\n${WC_PREDICTIONS_ROUNDUP_PROMPT}` : ""}${wcScriptPriceBlock ? `\n\n${wcScriptPriceBlock}` : ""}${wcTeamOpenerBlock ? `\n\n${wcTeamOpenerBlock}` : ""}`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.

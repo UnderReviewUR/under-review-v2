@@ -120,10 +120,7 @@ export function resolveWcPlayerMarketTier(opts = {}) {
   const gbCount = goldenBootRowCount(goldenBoot);
   const gbFresh = Boolean(goldenBoot && !goldenBoot.stale && gbCount >= 5);
   const lineupConfirmed = wcContextHasVerifiedScorerGrounding(wcContext);
-  const matchPropsFresh =
-    wcEventId &&
-    isMatchPlayerPropsFresh(matchPlayerProps) &&
-    matchPlayerPropRowsFromEvent(matchPlayerProps, "anytime_scorer", 3).length >= 3;
+  const matchPropsFresh = wcEventId && isMatchPlayerPropsFresh(matchPlayerProps);
   const topScorers = topRegistryScorers(players, 8);
   const hasGoalLeaders = topScorers.some((p) => (Number(p.goalsTournament) || 0) > 0);
   const { playerCount } = countRegistryPlayers(players || {});

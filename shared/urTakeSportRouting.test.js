@@ -64,6 +64,20 @@ test("LeBron prop on golf UI hint resolves to NBA", () => {
   assert.equal(h, "nba");
 });
 
+test("Jimenez 2+ shots from home UR Take resolves to worldcup not nba", () => {
+  assert.equal(inferSportFromQuestionText("Jimenez 2+ shots?"), "worldcup");
+  assert.equal(inferSportFromQuestionText("Son 2.5 shots?"), "worldcup");
+  const h = resolveSportHint({
+    incomingSportHint: "nba",
+    question: "Jimenez 2+ shots?",
+    matchupContext: null,
+    hasImage: false,
+    golfContext: null,
+    chatHistory: [],
+  });
+  assert.equal(h, "worldcup");
+});
+
 test("group-stage value bet on World Cup tab resolves to worldcup", () => {
   const q =
     "What's the best group-stage value bet right now — one pick, direct answer?";

@@ -145,6 +145,21 @@ test("resolveRequiredEntities — match-scoped player prop binds both teams", ()
   assert.deepEqual(entities.sort(), ["BRA", "FRA"]);
 });
 
+test("classifyWcQuestionIntent — Jimenez shots home prop", () => {
+  assert.equal(classifyWcQuestionIntent("Jimenez 2+ shots?"), WC_INTENT.PLAYER_PROP);
+});
+
+test("classifyWcQuestionIntent — Son O/U shots line", () => {
+  assert.equal(classifyWcQuestionIntent("Son 2.5 shots?"), WC_INTENT.PLAYER_PROP);
+});
+
+test("classifyWcQuestionIntent — Jimenez SGP combo", () => {
+  assert.equal(
+    classifyWcQuestionIntent("Jimenez 2+ shots and Mexico team to score first goal"),
+    WC_INTENT.PLAYER_PROP,
+  );
+});
+
 test("buildWcTurnScopeBlock — tournament winner pivots away from prior fixture", () => {
   const scope = buildWcTurnScopeBlock("who wins the world cup?", WC_INTENT.ENTITY_PRICING);
   assert.match(scope, /TOURNAMENT outright/i);

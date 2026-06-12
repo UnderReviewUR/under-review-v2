@@ -15,6 +15,12 @@ import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 export { detectParlayIntent };
 import { buildUrTakeNoDeadEndPrompt } from "../shared/urTakeSportRouting.js";
 import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../shared/wcCardContractVoice.js";
+import {
+  WC_SCRIPT_PRICE_CORE_PROMPT,
+  buildWcParlayResponseRule,
+  detectWcSgpComboIntent,
+} from "../shared/wcUrTakePhilosophy.js";
+import { isWcRulesQuestion } from "../shared/wcUrTakeIntent.js";
 
 export function buildCoreFrameworkPrompt() {
   return `THE UNDERREVIEW RESPONSE FRAMEWORK — SYSTEM PROMPT INSTRUCTIONS
@@ -1378,11 +1384,18 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
   const s = String(sportHint || "").toLowerCase();
   let composed = memorySection + core + surface + uncertaintySurface;
   if (s === "worldcup") {
+    const wcRulesTurn = isWcRulesQuestion(question);
     composed =
       buildWorldCupFootballCorePrompt() +
       "\n\n" +
       composed +
       `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`;
+    if (!wcRulesTurn) {
+      composed += `\n\n${WC_SCRIPT_PRICE_CORE_PROMPT}`;
+      if (detectParlayIntent(question) || detectWcSgpComboIntent(question)) {
+        composed += `\n\n${buildWcParlayResponseRule()}`;
+      }
+    }
   }
   if (s === "mlb" && detectParlayIntent(question)) {
     composed += `\n\n${buildMlbParlayResponseRule()}`;

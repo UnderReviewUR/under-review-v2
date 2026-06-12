@@ -81,6 +81,10 @@ import {
   WC_LIVE_MATCH_PROMPT_RULES,
 } from "../shared/wcLiveMatchQuestion.js";
 import { WC_MATCH_BETTING_PROMPT_RULES } from "../shared/wcMatchBettingPrompt.js";
+import {
+  resolveWcEventIdForPlayerNation,
+  resolveWcPlayerNationFromQuestion,
+} from "../shared/wcPlayerPropFixture.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -836,13 +840,21 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const results = matches.filter((m) => isFinished(m?.status));
   const upcoming = matches.filter((m) => isScheduled(m?.status));
 
-  const mentionedTeams =
+  let mentionedTeams =
     Array.isArray(opts.requiredEntities) && opts.requiredEntities.length
       ? opts.requiredEntities.map((t) => String(t).toUpperCase())
       : extractMentionedWcTeams(question);
+  if (isWcPlayerMarketIntent(wcIntent) && !mentionedTeams.length) {
+    const playerNation = resolveWcPlayerNationFromQuestion(question);
+    if (playerNation) mentionedTeams = [String(playerNation).toUpperCase()];
+  }
   const phase = getWorldCupPhase(matches);
 
   let effectiveEventId = String(opts.wcEventId || "").trim() || null;
+  if (!effectiveEventId && isWcPlayerMarketIntent(wcIntent) && mentionedTeams.length === 1) {
+    effectiveEventId =
+      resolveWcEventIdForPlayerNation(matches, mentionedTeams[0]) || effectiveEventId;
+  }
   if (!effectiveEventId && isWcLiveDominanceQuestion(question)) {
     const livePinned = selectLiveFixtureForQuestion(matches, question, null);
     if (livePinned?.id) effectiveEventId = String(livePinned.id);

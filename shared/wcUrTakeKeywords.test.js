@@ -10,3 +10,14 @@ test("questionMentionsWorldCup — hyphenated group-stage", () => {
     true,
   );
 });
+
+test("questionMentionsWorldCup — soccer prop line without nation name (home page)", () => {
+  assert.equal(questionMentionsWorldCup("Jimenez 2+ shots?"), true);
+  assert.equal(questionMentionsWorldCup("Son 2.5 shots?"), true);
+  assert.equal(questionMentionsWorldCup("Raul Jimenez to score or assist"), true);
+  assert.equal(questionMentionsWorldCup("Mexico team to score the first goal"), true);
+});
+
+test("questionMentionsWorldCup — does not steal obvious NBA questions", () => {
+  assert.equal(questionMentionsWorldCup("Wembanyama rebounds over 11.5"), false);
+});

@@ -3,6 +3,7 @@ import { detectParlayIntent } from "../../../shared/detectParlayIntent.js";
 import { detectNbaPlayerPropIntent } from "../../../shared/detectNbaPlayerPropIntent.js";
 import { NBA_FINALS_STRUCTURED_JSON_CONTRACT } from "../../../shared/nbaFinalsStructured.js";
 import { WC_CARD_CONTRACT_TIER25_APPENDIX } from "../../../shared/wcCardContractVoice.js";
+import { WC_SCRIPT_PRICE_PLAYER_TIER25_APPENDIX } from "../../../shared/wcUrTakePhilosophy.js";
 import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
 import { normalizeText } from "./normalize.js";
 
@@ -221,10 +222,13 @@ summary (max 40 words, plain text):
 
 deep (max 100 words, plain text):
 - WHY: 1-2 sentences of evidence from VERIFIED CONTEXT.
+- SCOREBOARD SCRIPT: one wins-if / dies-if line tied to the posted price.
 - End with WATCH FOR: one sentence on what breaks the edge (lineups, path, share).
 - Do not repeat the summary. No MATCH READ / MARKET / STAT EDGE blocks.
 
-${WC_CARD_CONTRACT_TIER25_APPENDIX}`;
+${WC_CARD_CONTRACT_TIER25_APPENDIX}
+
+${WC_SCRIPT_PRICE_PLAYER_TIER25_APPENDIX}`;
 
   const worldCupTier25Spec = `TIER 2.5 — WORLD CUP 2026 (summary + deep)
 

@@ -3,7 +3,10 @@
  */
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
-import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import {
+  isWcPlayerMarketIntent,
+  repairWcPlayerPropPassCard,
+} from "./wcUrTakePlayerMarket.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 import { stripRulesThreadBleed } from "./wcUrTakeRules.js";
 import {
@@ -75,6 +78,9 @@ export function normalizeWcStructuredForDelivery(
             : tier === "squad"
               ? "player_market_squad"
               : "player_market_thin";
+    }
+    if (intent === WC_INTENT.PLAYER_PROP) {
+      return repairWcPlayerPropPassCard(out, question);
     }
     return out;
   }

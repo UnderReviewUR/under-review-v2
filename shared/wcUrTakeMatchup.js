@@ -65,9 +65,13 @@ export function buildWcMatchupIntentRules(opts = {}) {
   if (groupStage) {
     lines.push(
       "- Group stage: frame \"who advances\" as qualification paths (1st and 2nd place both advance) — not a knockout H2H winner pick.",
+      "- Group opener / host Game 1: scripts skew cautious (rotation, crowd opener) — do not price a must-win knockout script.",
       "- Default lean: the group Favorite is heavily favored to finish 1st; a Contender's realistic path is usually 2nd place, not finishing ahead of the Favorite.",
       '- Do not claim a Contender finishes "ahead of", "above", or "over" the group Favorite unless citing specific verified odds or form.',
       "- Present balanced probabilities for both teams' paths when odds are unavailable.",
+      "- Match ML / spread / total: state what each line implies vs your scoreboard script (ML = win; -1.5 = multi-goal; U2.5 = tight favorite win).",
+      "- Group opener: modal script is cautious — Pass on ML when fair and name cleaner leg (U2.5, DNB, both advance) in THE PLAY.",
+      "- Wins-if / dies-if: one plain-English hinge each — tied to the market you cite from FIXTURE MATCH ODDS.",
     );
   } else {
     lines.push(

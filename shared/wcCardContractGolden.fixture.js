@@ -85,6 +85,20 @@ export const WC_CARD_CONTRACT_GOLDEN_CASES = [
     wcEventId: "760416",
   },
   {
+    id: "player-prop-jimenez-sgp-combo",
+    question: "Jimenez 2+ shots and Mexico team to score first goal — correlated or cleaner leg?",
+    expectedIntent: "PLAYER_PROP",
+    cardVoice: "argue",
+    notes: "Script+price: must surface correlation / cleaner-leg language in deep or WATCH FOR.",
+  },
+  {
+    id: "player-prop-jimenez-shots-home",
+    question: "Jimenez 2+ shots?",
+    expectedIntent: "PLAYER_PROP",
+    cardVoice: "argue",
+    notes: "Home routing: soccer prop without nation name — must classify PLAYER_PROP not NBA.",
+  },
+  {
     id: "player-prop-assist",
     question: "Should I take Mbappé over 0.5 assists in France vs Brazil?",
     expectedIntent: "PLAYER_PROP",

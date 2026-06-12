@@ -14,6 +14,8 @@ test("buildWcMatchupIntentRules — group stage paths language", () => {
   assert.match(block, /1st and 2nd place both advance/i);
   assert.match(block, /Do not carry strong opinions/i);
   assert.match(block, /Contender finishes "ahead of"/i);
+  assert.match(block, /Wins-if \/ dies-if/i);
+  assert.match(block, /U2\.5 = tight favorite win/i);
 });
 
 test("getWcTeamStrengthTags — Norway and France in Group I", () => {

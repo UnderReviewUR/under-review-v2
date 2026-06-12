@@ -194,7 +194,8 @@ export function buildWcPlayerBioPromptBlock(registry, opts = {}) {
     lines.push(`  ${r.name} (${r.nationAbbr}) — age ${r.ageYears}${pos}${club}${pk}`);
   }
   lines.push(
-    "  RULE: Every named squad player has a verified DOB in the registry — never guess age or club. Yamal is 18 at kickoff.",
+    "  RULE: Every named squad player has a verified DOB in the registry — never guess age. Yamal is 18 at kickoff.",
+    "  RULE: Club names in this block are FIFA roster reference only — do NOT cite club or domestic league form in betting answers; use national team + World Cup fixture stats only.",
   );
   return lines.join("\n");
 }

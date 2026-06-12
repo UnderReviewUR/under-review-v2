@@ -154,7 +154,7 @@ const WC_TOP_SCORER_RE =
   /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
 
 const WC_PLAYER_PROP_RE =
-  /\b(which player|what player|player will|player to|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer|assist\s*prop|record an assist|to record an assist|player assists?|assists?\s*(prop|market|o\/u|over)|shots?\s*on\s*target|sot\s*prop|player shots?|total shots?\s*(prop|o\/u)|to be carded|receive a card|booking\s*prop|yellow card|red card|card\s*prop)\b/i;
+  /\b(which player|what player|player will|player to|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer|to score or assist|score or assist|assist\s*prop|record an assist|to record an assist|player assists?|assists?\s*(prop|market|o\/u|over)|\d+\+\s*shots?|\d+\.5\s*shots?(?:\s+on\s+target)?|(?:over|under)\s*\d+\.5\s*shots?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|shots?\s*on\s*target|sot\s*prop|player shots?|total shots?\s*(prop|o\/u)|to be carded|receive a card|booking\s*prop|yellow card|red card|card\s*prop|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?)\b/i;
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 
