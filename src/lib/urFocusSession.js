@@ -22,3 +22,15 @@ export function isUrFirstAnswerRow(msgs, msgIndex, message) {
   if (!message || message.role !== "ai" || message.loading) return false;
   return urUserTurnNumberAtAiIndex(msgs, msgIndex) === 1;
 }
+
+/** Last completed AI reply in thread (not loading). */
+export function isUrLatestCompleteAiRow(msgs, msgIndex, message) {
+  if (!message || message.role !== "ai" || message.loading) return false;
+  if (!Array.isArray(msgs) || msgIndex < 0 || msgIndex >= msgs.length) return false;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const row = msgs[i];
+    if (!row || row.role !== "ai" || row.loading) continue;
+    return i === msgIndex;
+  }
+  return false;
+}

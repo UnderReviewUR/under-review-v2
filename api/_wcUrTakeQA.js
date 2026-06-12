@@ -58,10 +58,12 @@ import {
 import {
   detectMissingComparativeProof,
   detectMissingWcSimAttribution,
+  detectMissingWcCardFaceNumericWhy,
   isWcWatchForDupedAgainstWhy,
   WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
+  WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
 } from "../shared/wcTakeRetentionQA.js";
 import {
   detectWcMatchupPassOnlyWithoutAlternate,
@@ -427,6 +429,10 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_missing_comparative_proof");
     }
 
+    if (detectMissingWcCardFaceNumericWhy(structured, routingQuestion, { wcIntent })) {
+      issueCodes.push("wc_card_face_missing_numeric_why");
+    }
+
     if (
       detectWcMatchupPassOnlyWithoutAlternate(question, structured, wcIntent)
     ) {
@@ -521,6 +527,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_missing_sim_attribution",
       "wc_dedup_watch_for",
       "wc_missing_comparative_proof",
+      "wc_card_face_missing_numeric_why",
       "wc_player_not_in_squad",
       "wc_player_role_mislabel",
     ].includes(c) ||
@@ -560,6 +567,7 @@ export {
   WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
+  WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
 };
 export { WC_MATCH_PASS_ONLY_QA_SUFFIX };
 

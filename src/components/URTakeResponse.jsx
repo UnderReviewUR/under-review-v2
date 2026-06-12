@@ -25,6 +25,7 @@ import {
   wcCardSectionText,
   compressWcCardSections,
   prepareWcCardWhyDisplay,
+  prepareWcCardFaceDisplay,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 import {
@@ -92,6 +93,7 @@ export default function URTakeResponse({
   predictionSlots = [],
   nbaRelevance = null,
   focusLayout = false,
+  cardCollapsed = false,
   /** Orange data-confidence banner — first take in thread only. */
   showWcCautionBanner = true,
   modelAttribution = null,
@@ -233,6 +235,7 @@ export default function URTakeResponse({
         lean: leanDisplay,
         confidence: displayConfidence,
         callType,
+        compactFace: focusLayout,
       })
     : buildSharpBriefStatGrid({
         estimatedEdge: ee,
@@ -342,47 +345,45 @@ export default function URTakeResponse({
         : "";
 
   if (isWcDirectCard) {
-    const wcHeadlineSource =
-      callScrub && callScrub !== "—"
-        ? callScrub
-        : leanDisplay && leanDisplay !== "—"
-          ? leanDisplay
-          : headline;
-    const wcHeadline = String(wcHeadlineSource || "").trim();
     const lineSlotValue =
       statGrid.slots.find((s) => s.key === "ln" || s.key === "pl")?.value ?? "";
     const wcWhyPrepared =
       wcPredictionSlotRows.length > 0 ? { why: "", modelAttribution: null } : prepareWcCardWhyDisplay(whyNowRaw);
-    const wcSectionsRaw = {
+    const thePlayRaw = wcCardSectionText(
+      pickWcThePlayLine({
+        lean: leanDisplay,
+        call: callScrub,
+        headline: callScrub,
+        lineSlot: lineSlotValue,
+        callType,
+      }),
+    );
+    const wcFace = prepareWcCardFaceDisplay({
+      lean: leanDisplay,
+      call: callScrub,
       why: wcWhyPrepared.why,
       watchFor: wcCardSectionText(edgeRaw),
-      thePlay: wcCardSectionText(
-        pickWcThePlayLine({
-          lean: leanDisplay,
-          call: callScrub,
-          headline: wcHeadline,
-          lineSlot: lineSlotValue,
-          callType,
-        }),
-      ),
-    };
+      thePlay: thePlayRaw,
+      breakdown: String(wcDeep || "").trim(),
+      breakdownAvailable: Boolean(breakdownAvailable),
+      focusLayout,
+      lineSlot: lineSlotValue,
+      callType,
+    });
     const wcSections = {
-      ...wcSectionsRaw,
+      ...wcFace.sections,
       ...compressWcCardSections({
-        headline: wcHeadline,
+        headline: wcFace.headline,
         lineSlot: lineSlotValue,
-        why: wcSectionsRaw.why,
-        watchFor: wcSectionsRaw.watchFor,
-        thePlay: wcSectionsRaw.thePlay,
+        why: wcFace.sections.why,
+        watchFor: wcFace.sections.watchFor,
+        thePlay: wcFace.sections.thePlay,
         callType,
       }),
     };
-    const wcBreakdown = String(wcDeep || "").trim();
-    const wcBreakdownAvailable =
-      Boolean(breakdownAvailable) || (wcBreakdown.length > 80 && wcBreakdown !== wcSections.why);
     return (
       <WcTakeCard
-        headline={wcHeadline}
+        headline={wcFace.headline}
         statSlots={focusLayout ? [] : statGrid.slots}
         sections={wcSections}
         confidence={displayConfidence}
@@ -392,10 +393,11 @@ export default function URTakeResponse({
         sharePath={shareQuery}
         userQuestion={userQuestion}
         timestamp={timestamp}
-        breakdownText={wcBreakdown}
-        breakdownAvailable={wcBreakdownAvailable}
+        breakdownText={wcFace.breakdownText}
+        breakdownAvailable={wcFace.breakdownAvailable}
         predictionSlots={wcPredictionSlotRows}
         focusLayout={focusLayout}
+        collapsed={cardCollapsed}
         modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
       />
     );

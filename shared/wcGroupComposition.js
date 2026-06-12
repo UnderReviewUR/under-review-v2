@@ -14,6 +14,7 @@ import {
 import {
   isWcCrossGroupMispriceQuestion,
   isWcRunnerUpValueFollowUp,
+  extractWcRunnerUpFromHistory,
   buildWcSimAttributionLabel,
   extractWcModelAttributionPrefix,
 } from "./wcTakeRetentionQA.js";
@@ -451,16 +452,22 @@ export function buildWcRunnerUpFollowUpPrebuiltStructured(opts = {}) {
 
   return {
     ...base,
-    call: `Group ${groupLetter} runner-up value — ${pickName} to advance`.slice(0, 100),
-    lean: `Lean: ${pickName} to advance in Group ${groupLetter}${advanceOdds ? ` at ${advanceOdds}` : ""}.`.slice(
+    callType: "group_slate",
+    runnerUpGroupLetter: groupLetter,
+    runnerUpTeamAbbr: pickAbbr,
+    call: `Group ${groupLetter} — runner-up value (${pickAbbr} advance misprice)`.slice(0, 100),
+    lean: `Lean: ${pickName} to advance in Group ${groupLetter}${advanceOdds ? ` at ${advanceOdds}` : ""} — #2 board gap.`.slice(
       0,
       120,
     ),
     whyNow: String(whyNow).slice(0, 400),
-    line: `${pickName} is the runner-up misprice in Group ${groupLetter} — top-two path, not finishing last behind ${favName}.`.slice(
-      0,
-      200,
-    ),
+    line:
+      groupRow && Number.isFinite(groupRow.impliedPct) && Number.isFinite(groupRow.simPct)
+        ? `Market ~${groupRow.impliedPct.toFixed(1)}% · UR sim ${groupRow.simPct.toFixed(1)}% · delta ${deltaStr || "n/a"}.`.slice(
+            0,
+            200,
+          )
+        : base.line,
   };
 }
 
@@ -506,6 +513,92 @@ function wcModelAttributionFooter(lastUpdatedMs, nowMs = Date.now()) {
  *   delta?: number,
  * }} row
  */
+/**
+ * Numeric delta for card-face LINE slot (not path prose).
+ * @param {{ odds?: string, simPct?: number, impliedPct?: number, delta?: number }} row
+ */
+export function formatWcGroupSlateNumericLine(row = {}) {
+  const { odds, simPct, impliedPct, delta } = row;
+  if (Number.isFinite(simPct) && Number.isFinite(impliedPct)) {
+    const sign = Number.isFinite(delta)
+      ? `${delta >= 0 ? "+" : ""}${Number(delta).toFixed(1)}pt`
+      : "n/a";
+    return `Market ~${impliedPct.toFixed(1)}% · UR sim ${simPct.toFixed(1)}% · delta ${sign}.`;
+  }
+  if (odds) {
+    return `Advance line ${odds} · sim gap pending fresh board.`;
+  }
+  return "";
+}
+
+/** @param {string} line */
+export function isWcGroupAdvancementPathProse(line) {
+  return /\bneeds a top-two finish\b|\bpath is not finishing\b|\bnot finishing last on points\b/i.test(
+    String(line || ""),
+  );
+}
+
+/**
+ * Move path prose off the LINE slot; keep numeric delta on the card face.
+ * @param {object | null | undefined} structured
+ */
+export function repairWcGroupSlateStructuredLine(structured) {
+  if (!structured || typeof structured !== "object") return structured;
+  const ct = String(structured.callType || "").toLowerCase();
+  if (ct !== "group_slate" && ct !== "advancement") return structured;
+
+  const line = String(structured.line || "").trim();
+  if (!line || !isWcGroupAdvancementPathProse(line)) return structured;
+
+  const why = String(structured.whyNow || "").trim();
+  const impliedMatch = why.match(/(?:market|implies)[^.]*?(\d+\.?\d*)\s*%/i);
+  const simMatch = why.match(/(?:UR sims?|sims? put)[^.]*?(\d+\.?\d*)\s*%/i);
+  const deltaMatch = why.match(/\(([+-]?\d+\.?\d*)pt\)/i);
+
+  let numericLine = "";
+  if (impliedMatch && simMatch) {
+    numericLine = formatWcGroupSlateNumericLine({
+      impliedPct: parseFloat(impliedMatch[1]),
+      simPct: parseFloat(simMatch[1]),
+      delta: deltaMatch ? parseFloat(deltaMatch[1]) : undefined,
+    });
+  }
+
+  const deepParts = [
+    line,
+    String(structured.deep || "").trim(),
+    String(structured.edge || "").trim(),
+  ].filter(Boolean);
+  const deep = deepParts.join("\n\n").slice(0, 500);
+
+  return {
+    ...structured,
+    line: numericLine || "",
+    deep,
+    breakdownAvailable: Boolean(deep.trim()),
+  };
+}
+
+/**
+ * Force deterministic runner-up follow-up card even after LLM delivery.
+ * @param {string} question
+ * @param {object[]} history
+ * @param {object} [opts]
+ */
+export function resolveWcRunnerUpFollowUpDelivery(question, history, opts = {}) {
+  if (!isWcRunnerUpValueFollowUp(String(question || ""))) return null;
+  const { group, teamAbbr } = extractWcRunnerUpFromHistory(Array.isArray(history) ? history : []);
+  if (!group) return null;
+  return buildWcRunnerUpFollowUpPrebuiltStructured({
+    groupLetter: group,
+    pickAbbr: teamAbbr,
+    teamStats: opts.teamStats,
+    bdlFutures: opts.bdlFutures,
+    question: String(question || ""),
+    nowMs: opts.nowMs,
+  });
+}
+
 function buildWcGroupSlateWhyNow(row) {
   const { letter, pickName, favName, odds, simPct, impliedPct, delta } = row;
   if (Number.isFinite(simPct) && Number.isFinite(impliedPct) && Number.isFinite(delta)) {
@@ -548,6 +641,12 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
 
   const call = `${pick.name} in Group ${letter} — best group-stage value (${market})`;
   const pathLine = `${pick.name} needs a top-two finish in Group ${letter} — the path is not finishing last on points behind ${fav}.`;
+  const numericLine = formatWcGroupSlateNumericLine({
+    odds,
+    simPct: opts.simPct,
+    impliedPct: opts.impliedPct,
+    delta: opts.delta,
+  });
   const lean = `Lean: ${pick.name} ${market}${odds ? ` at ${odds}` : ""} in Group ${letter}.`;
   const whyNow = buildWcGroupSlateWhyNow({
     letter,
@@ -562,6 +661,7 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
   const edge = odds
     ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
     : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;
+  const deep = [pathLine, edge].filter(Boolean).join("\n\n").slice(0, 500);
 
   return {
     sport: "worldcup",
@@ -569,7 +669,9 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     groupLetter: letter,
     lean: lean.slice(0, 120),
     call: call.slice(0, 100),
-    line: pathLine.slice(0, 200),
+    line: (numericLine || pathLine).slice(0, 200),
+    deep,
+    breakdownAvailable: Boolean(deep.trim()),
     whyNow,
     edge: edge.slice(0, 200),
     modelAttribution,

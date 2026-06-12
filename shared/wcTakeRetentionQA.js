@@ -138,6 +138,7 @@ export function isWcThinRosterOnlyWhy(whyNow) {
 export function isWcRunnerUpValueFollowUp(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (/\bwhich\s+group\b/i.test(q) && /\brunner[- ]?up\b/i.test(q)) return true;
   return (
     /\b(runner[- ]?up|second\s+(?:most\s+)?mispric|#2)\b/i.test(q) &&
     /\b(group|value)\b/i.test(q)
@@ -145,12 +146,14 @@ export function isWcRunnerUpValueFollowUp(question) {
 }
 
 const WC_RUNNER_UP_GROUP_PATTERNS = [
+  /Runner-up\s+gap:\s*Group\s+([A-L])\b/i,
   /;\s*Group\s+([A-L])\s+runner[- ]?up\b/i,
   /\brunner[- ]?up\s+Group\s+([A-L])\b/i,
   /\bGroup\s+([A-L])\s+runner[- ]?up\b/i,
   /\bRunner-up\s+Group\s+([A-L])\b/i,
   /#\s*2\s+Group\s+([A-L])\b/i,
   /\bsecond[\s-]+Group\s+([A-L])\b/i,
+  /\bwhich\s+group\b[\s\S]{0,32}\bGroup\s+([A-L])\b/i,
 ];
 
 /**
@@ -175,7 +178,9 @@ export function parseWcRunnerUpTeamAbbr(blob) {
   const text = String(blob || "");
   const m =
     text.match(/Runner-up\s+Group\s+[A-L]\s*[:—-]\s*([A-Z]{3})\b/i) ||
-    text.match(/Runner-up\s+Group\s+[A-L][^(]*\(\s*([A-Z]{3})\s*[,)]/i);
+    text.match(/Runner-up\s+Group\s+[A-L][^(]*\(\s*([A-Z]{3})\s*[,)]/i) ||
+    text.match(/Runner-up\s+gap:\s*Group\s+[A-L]\s*[-—]\s*([A-Z]{3})\b/i) ||
+    text.match(/Group\s+[A-L]\s*[-—]\s*([A-Z]{3})\s+is\s+\d+\.?\d*\s*%\s+market/i);
   return m?.[1] ? String(m[1]).toUpperCase() : null;
 }
 
@@ -191,12 +196,16 @@ export function extractWcRunnerUpFromStructured(structured) {
     structured.runnerUpGroupLetter != null && String(structured.runnerUpGroupLetter).trim()
       ? String(structured.runnerUpGroupLetter).trim().toUpperCase()
       : parseWcRunnerUpGroupLetter(
-          [structured.call, structured.lean, structured.whyNow].filter(Boolean).join(" "),
+          [structured.call, structured.lean, structured.whyNow, structured.line]
+            .filter(Boolean)
+            .join(" "),
         );
   const teamAbbr =
     structured.runnerUpTeamAbbr != null && String(structured.runnerUpTeamAbbr).trim()
       ? String(structured.runnerUpTeamAbbr).trim().toUpperCase()
-      : parseWcRunnerUpTeamAbbr(String(structured.whyNow || ""));
+      : parseWcRunnerUpTeamAbbr(
+          [structured.whyNow, structured.call, structured.line].filter(Boolean).join(" "),
+        );
   return { group, teamAbbr };
 }
 
@@ -364,6 +373,139 @@ export const WC_SIM_ATTRIBUTION_PROMPT = `SIM ATTRIBUTION (mandatory when citing
 - Example LINE: "[UR model · 10k Poisson/Elo · Jun 10] Market -130 · sim 15% advance vs market ~57%."
 - Failure to label sim outputs fails QA and triggers regeneration.`;
 
+/** Card-face WHY must cite a number — odds, implied %, or sim. */
+export const WC_CARD_FACE_NUMERIC_RE =
+  /(?:\bat\s+|[·\-–—]\s*)[+-]\d{2,}\b|\b\d+\.?\d*\s*%|\bsim(?:s)?\s+\d|\b\d+\.?\d*\s*(?:advance|win|qf|sf|reach|group)\b|\bmarket[^.\n]{0,48}\d+\.?\d*\s*%|\bvs market[^.\n]{0,24}\d+\.?\d*\s*%/i;
+
+/**
+ * @param {string} text
+ */
+export function wcCardFaceBlobHasNumericWhy(text) {
+  return WC_CARD_FACE_NUMERIC_RE.test(String(text || ""));
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function isWcNonBettingCardCallType(structured) {
+  const ct = String(structured?.callType || "").toLowerCase();
+  return ct === "rules" || ct === "predictions_roundup" || ct === "goalscorers_list";
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function wcCardFaceNumericWhyFields(structured) {
+  const whyNow = String(structured?.whyNow || "").trim();
+  const line = String(structured?.line || "").trim();
+  return { whyNow, line, faceBlob: [whyNow, line].filter(Boolean).join(" ") };
+}
+
+/**
+ * @param {string} american
+ * @returns {number | null}
+ */
+function wcAmericanImpliedPct(american) {
+  const n = parseInt(String(american || "").replace(/[^\d+-]/g, ""), 10);
+  if (!Number.isFinite(n) || n === 0) return null;
+  if (n > 0) return Math.round((100 / (n + 100)) * 1000) / 10;
+  return Math.round((Math.abs(n) / (Math.abs(n) + 100)) * 1000) / 10;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {string} [question]
+ * @param {{ wcIntent?: string }} [opts]
+ */
+export function detectMissingWcCardFaceNumericWhy(structured, question = "", opts = {}) {
+  if (!structured || typeof structured !== "object") return false;
+  if (isWcNonBettingCardCallType(structured)) return false;
+
+  const wcIntent = String(opts.wcIntent || "").toLowerCase();
+  if (wcIntent === "rules") return false;
+
+  const q = String(question || "").trim();
+  if (
+    /\b(how do|what is a|what are the|rules|explain|extra time|penalty shootout)\b/i.test(q) &&
+    !/\b(bet|odds|lean|pass|value|mispric|play)\b/i.test(q)
+  ) {
+    return false;
+  }
+
+  const { faceBlob } = wcCardFaceNumericWhyFields(structured);
+  return !wcCardFaceBlobHasNumericWhy(faceBlob);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {string} [question]
+ */
+export function synthesizeWcCardFaceNumericWhy(structured, question = "") {
+  void question;
+  const line = String(structured?.line || "").trim();
+  if (line && wcCardFaceBlobHasNumericWhy(line)) return line;
+
+  const blob = [
+    structured?.line,
+    structured?.lean,
+    structured?.call,
+    structured?.deep,
+    structured?.whyNow,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const leg = blob.match(/over\s+(\d+(?:\.\d+)?)\s+(?:at\s+|[·\-–—]\s*)([+-]\d+)/i);
+  if (leg) {
+    const implied = wcAmericanImpliedPct(leg[2]);
+    const pct = implied != null ? ` (~${implied}% implied)` : "";
+    return `Over ${leg[1]} at ${leg[2]}${pct} — nearest posted line to your ask.`;
+  }
+
+  const odds = blob.match(/\b(-1[0-9]{2}|\+[1-9]\d{2,4})\b/)?.[0];
+  const simPct =
+    blob.match(/(?:sim(?:s)?|UR)[^.\n]{0,40}(\d+\.?\d*)\s*%/i)?.[1] ||
+    blob.match(/(\d+\.?\d*)\s*%\s+(?:advance|win|qf|reach|group)/i)?.[1];
+  const marketPct = blob.match(/(?:market|implies)[^.\n]{0,32}~?(\d+\.?\d*)\s*%/i)?.[1];
+
+  if (odds && simPct) {
+    return `Listed ${odds} · sims ${simPct}%${marketPct ? ` vs market ~${marketPct}%` : ""}.`;
+  }
+  if (odds) {
+    return `Listed at ${odds} — price check vs script in breakdown.`;
+  }
+  if (simPct) {
+    return `Sims: ${simPct}% path — see breakdown for market compare.`;
+  }
+
+  const leanOdds = String(structured?.lean || "").match(/\b([+-]\d{2,})\b/)?.[1];
+  if (leanOdds) {
+    return `Market ${leanOdds} — one-line price vs path in breakdown.`;
+  }
+
+  return "";
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {string} [question]
+ * @param {{ wcIntent?: string }} [opts]
+ */
+export function ensureWcCardFaceNumericWhy(structured, question = "", opts = {}) {
+  if (!structured || typeof structured !== "object") return structured;
+  if (!detectMissingWcCardFaceNumericWhy(structured, question, opts)) return structured;
+
+  const synthesized = synthesizeWcCardFaceNumericWhy(structured, question);
+  if (!synthesized) return structured;
+
+  const out = { ...structured };
+  const whyNow = String(out.whyNow || "").trim();
+  if (!whyNow || !wcCardFaceBlobHasNumericWhy(whyNow)) {
+    out.whyNow = synthesized;
+  }
+  return out;
+}
+
 export const WC_COMPARATIVE_PROOF_PROMPT = `COMPARATIVE PROOF (mandatory for ranking / misprice claims):
 - "Most mispriced group" → cite GROUP_MISPRICE_RANKING from VERIFIED CONTEXT: name #1 and #2 groups with delta.
 - "Group X advancement path" → compare at least two paths or teams in that group (win group vs escape vs R16) with numbers.
@@ -391,3 +533,11 @@ export const WC_NEEDS_COMPARATIVE_QA_SUFFIX = `
 WC COMPARATIVE PROOF QA (mandatory — prior answer claimed misprice without comparison):
 - Ranking claims require a second group or alternate path with numbers from GROUP_MISPRICE_RANKING or VERIFIED CONTEXT.
 - Name the runner-up explicitly (e.g. "Group I is second — Group D delta is wider").`;
+
+export const WC_NEEDS_NUMERIC_WHY_QA_SUFFIX = `
+
+WC CARD FACE NUMERIC WHY QA (mandatory — prior answer lacked a why clause with a number):
+- Card face WHY (whyNow) or LINE must include one number: American odds (+600 / -135), implied %, or sim %.
+- BAD: roster trivia or thesis with no price/sim anchor.
+- GOOD: "Over 3 at -135 (~57% implied) — nearest posted line to your ask." OR "Market -130 · sim 15% vs market ~57%."
+- Never ship lean-only card face — one numeric why line is mandatory on every betting take.`;

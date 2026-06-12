@@ -2,7 +2,173 @@
  * World Cup UR Take card — section mapping + stat grid (Card Contract Option 1).
  */
 
-import { extractWcModelAttributionPrefix } from "../../shared/wcTakeRetentionQA.js";
+import { capWcDeepWords, splitWcSentences } from "../../shared/wcSentenceBoundaries.js";
+import {
+  extractWcModelAttributionPrefix,
+  wcCardFaceBlobHasNumericWhy,
+} from "../../shared/wcTakeRetentionQA.js";
+
+const WC_FACE_HEADLINE_WORDS = 16;
+const WC_FACE_WHY_WORDS = 36;
+const WC_FACE_FOCUS_WHY_WORDS = 18;
+const WC_FACE_WATCH_WORDS = 22;
+const WC_FACE_FOCUS_WATCH_WORDS = 34;
+const WC_FACE_BREAKDOWN_WORDS = 220;
+
+/**
+ * @param {string} text
+ * @param {{ maxWords?: number, maxSentences?: number }} [opts]
+ */
+export function capWcCardFaceField(text, opts = {}) {
+  const maxWords = opts.maxWords ?? 32;
+  const maxSentences = opts.maxSentences ?? 2;
+  const t = String(text || "").trim();
+  if (!t) return "";
+
+  let sents = splitWcSentences(t);
+  if (maxSentences > 0) sents = sents.slice(0, maxSentences);
+  let out = sents.join(" ").trim() || t;
+  const words = out.split(/\s+/).filter(Boolean);
+  if (words.length > maxWords) {
+    out = `${words.slice(0, maxWords).join(" ")}…`;
+  }
+  return out;
+}
+
+/**
+ * Card-face LINE slot — numeric delta only (not path prose).
+ * @param {string} line
+ */
+export function wcLineSlotIsNumericDelta(line) {
+  const t = String(line || "").trim();
+  if (!t) return false;
+  if (!wcCardFaceBlobHasNumericWhy(t)) return false;
+  if (
+    /\bneeds a top-two finish\b|\bpath is not finishing\b|\bfour teams:\b|\bnot finishing last on points\b/i.test(
+      t,
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Actionable headline — lean / THE PLAY, not thesis essay.
+ * @param {{ lean?: string, call?: string, thePlay?: string, callType?: string }} opts
+ */
+export function pickWcCardHeadline(opts = {}) {
+  const ct = String(opts.callType || "").toLowerCase();
+  if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
+    const leanPlay = formatWcPlaySlot(opts.lean);
+    if (leanPlay) {
+      return capWcCardFaceField(leanPlay.replace(/^lean:\s*/i, ""), {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+  }
+  const play =
+    wcCardSectionText(opts.thePlay) ||
+    formatWcPlaySlot(opts.lean) ||
+    wcCardSectionText(opts.lean);
+  if (play && play.length >= 6) {
+    return capWcCardFaceField(play.replace(/^lean:\s*/i, ""), {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+  const call = String(opts.call || "").trim();
+  if (/^(pass|lean:)/i.test(call)) {
+    return capWcCardFaceField(call, { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 });
+  }
+  return capWcCardFaceField(call, { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 });
+}
+
+function wcAppendUniqueBlock(base, extra) {
+  const b = String(base || "").trim();
+  const e = String(extra || "").trim();
+  if (!e) return b;
+  if (b && b.includes(e.slice(0, Math.min(48, e.length)))) return b;
+  return b ? `${b}\n\n${e}` : e;
+}
+
+/**
+ * Compress card face; overflow lives in breakdown.
+ * @param {object} opts
+ */
+export function prepareWcCardFaceDisplay(opts = {}) {
+  const focusLayout = Boolean(opts.focusLayout);
+  const fullWhy = String(opts.why || "").trim();
+  const fullWatch = String(opts.watchFor || "").trim();
+  const fullPlay = String(opts.thePlay || "").trim();
+  const fullDeep = String(opts.breakdown || "").trim();
+  const lineSlot = String(opts.lineSlot || "").trim();
+
+  const headline = pickWcCardHeadline({
+    lean: opts.lean,
+    call: opts.call,
+    thePlay: fullPlay,
+    callType: opts.callType,
+  });
+
+  let whyFace = "";
+  if (focusLayout) {
+    if (fullWhy && wcCardFaceBlobHasNumericWhy(fullWhy)) {
+      whyFace = capWcCardFaceField(fullWhy, {
+        maxWords: WC_FACE_FOCUS_WHY_WORDS,
+        maxSentences: 1,
+      });
+    } else if (lineSlot && wcLineSlotIsNumericDelta(lineSlot)) {
+      whyFace = capWcCardFaceField(lineSlot, {
+        maxWords: WC_FACE_FOCUS_WHY_WORDS,
+        maxSentences: 1,
+      });
+    }
+  } else {
+    whyFace = capWcCardFaceField(fullWhy, {
+      maxWords: WC_FACE_WHY_WORDS,
+      maxSentences: 2,
+    });
+  }
+
+  const watchFace = capWcCardFaceField(fullWatch, {
+    maxWords: focusLayout ? WC_FACE_FOCUS_WATCH_WORDS : WC_FACE_WATCH_WORDS,
+    maxSentences: focusLayout ? 2 : 1,
+  });
+
+  let thePlayFace = fullPlay;
+  if (normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
+
+  let breakdown = capWcDeepWords(fullDeep, WC_FACE_BREAKDOWN_WORDS);
+  const ladderBreakdown = /\bover\s+\d+\s*·/i.test(breakdown);
+  const pathLine =
+    lineSlot && !wcLineSlotIsNumericDelta(lineSlot) ? lineSlot : "";
+  if (pathLine && !breakdown.includes(pathLine.slice(0, 40))) {
+    breakdown = wcAppendUniqueBlock(pathLine, breakdown);
+  }
+  if (focusLayout && fullWhy && !ladderBreakdown) breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+  else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
+    breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+  }
+  if (fullWatch && fullWatch !== watchFace && !breakdown.includes(fullWatch.slice(0, 40))) {
+    breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+  }
+
+  const breakdownAvailable =
+    Boolean(opts.breakdownAvailable) || breakdown.length > (whyFace.length + 24);
+
+  return {
+    headline,
+    sections: {
+      why: whyFace,
+      watchFor: watchFace,
+      thePlay: thePlayFace,
+    },
+    breakdownText: breakdown,
+    breakdownAvailable,
+  };
+}
 
 /**
  * @param {string} lean
@@ -18,7 +184,7 @@ function formatWcPlaySlot(lean) {
 
 /**
  * WC card stat grid — never duplicate the headline in a truncated UR read cell.
- * @param {{ call?: string, line?: string, lean?: string, confidence?: string, callType?: string }} opts
+ * @param {{ call?: string, line?: string, lean?: string, confidence?: string, callType?: string, compactFace?: boolean }} opts
  */
 export function buildWcTakeStatGrid(opts = {}) {
   const conf = String(opts.confidence || "Medium").trim();
@@ -26,13 +192,36 @@ export function buildWcTakeStatGrid(opts = {}) {
   const call = String(opts.call || "").trim();
   const ct = String(opts.callType || "single").toLowerCase();
   const play = formatWcPlaySlot(opts.lean);
+  const compactFace = Boolean(opts.compactFace);
+
+  if (compactFace) {
+    if (lineVal && wcLineSlotIsNumericDelta(lineVal)) {
+      return {
+        mode: ct,
+        slots: [
+          { key: "ln", label: "Line", value: lineVal, highlight: true },
+          { key: "c", label: "Confidence", value: conf, highlight: false },
+        ],
+      };
+    }
+    return {
+      mode: "confidence_only",
+      slots: [{ key: "c", label: "Confidence", value: conf, highlight: false }],
+    };
+  }
 
   if (ct === "advancement" || ct === "group_slate") {
+    const numericLine = wcLineSlotIsNumericDelta(lineVal) ? lineVal : "";
     const slotLine =
-      lineVal ||
-      formatWcPlaySlot(opts.call) ||
-      formatWcPlaySlot(opts.lean) ||
-      "See breakdown";
+      numericLine ||
+      (wcLineSlotIsNumericDelta(formatWcPlaySlot(opts.lean)) ? formatWcPlaySlot(opts.lean) : "") ||
+      "";
+    if (!slotLine) {
+      return {
+        mode: ct,
+        slots: [{ key: "c", label: "Confidence", value: conf, highlight: true }],
+      };
+    }
     return {
       mode: ct,
       slots: [
@@ -54,7 +243,13 @@ export function buildWcTakeStatGrid(opts = {}) {
   }
 
   if (ct.startsWith("player_market") || ct === "player_prop") {
-    const slotLine = lineVal || play || "See breakdown";
+    const slotLine = lineVal || play || "";
+    if (!slotLine || normLine(slotLine) === normLine(call)) {
+      return {
+        mode: ct,
+        slots: [{ key: "c", label: "Confidence", value: conf, highlight: true }],
+      };
+    }
     return {
       mode: ct,
       slots: [
@@ -214,4 +409,32 @@ export function prepareWcCardWhyDisplay(rawWhy) {
   if (!base) return { why: "", modelAttribution: null };
   const { body, attribution } = extractWcModelAttributionPrefix(base);
   return { why: body, modelAttribution: attribution };
+}
+
+/**
+ * Card-face lines — one sentence or ladder row per block.
+ * @param {string} text
+ * @returns {string[]}
+ */
+function isWcCardOrphanLadderLine(line) {
+  const l = String(line || "").trim();
+  if (!l) return true;
+  if (/^(?:is\s+)?(?:juice|still heavy|where the value lives|speculative)\b/i.test(l)) {
+    return true;
+  }
+  return /^is\s+[a-z]/i.test(l) && !/^over\s/i.test(l);
+}
+
+export function formatWcCardSectionLines(text) {
+  const t = wcCardSectionText(text);
+  if (!t) return [];
+  if (t.includes("\n")) {
+    return t
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line && !isWcCardOrphanLadderLine(line));
+  }
+  return splitWcSentences(t)
+    .map((line) => line.trim())
+    .filter((line) => line && !isWcCardOrphanLadderLine(line));
 }

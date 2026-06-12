@@ -177,6 +177,7 @@ export function buildWcScriptPriceUserAppendix(opts = {}) {
   if (hasMatchPlayerProps) {
     lines.push(
       "- MATCH PLAYER PROPS in VERIFIED CONTEXT are authoritative for player legs — cite listed American prices only.",
+      "- Milestone ladders (over 1 / over 2 / over 3): WHY = one line per posted leg with worth-it verdict; THE PLAY answers the user's line in plain English.",
     );
   }
   if (

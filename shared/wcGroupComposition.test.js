@@ -4,6 +4,9 @@ import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcCrossGroupValuePrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
+  formatWcGroupSlateNumericLine,
+  isWcGroupAdvancementPathProse,
+  repairWcGroupSlateStructuredLine,
   detectWcGroupMathMismatch,
   detectWcGroupRosterMismatch,
   formatWcGroupCompositionPromptBlock,
@@ -118,7 +121,7 @@ test("buildWcCrossGroupValuePrebuiltStructured — misprice question cites runne
   });
   assert.ok(pre);
   assert.match(pre.whyNow || "", /Runner-up/i);
-  assert.match(pre.whyNow || "", /Group K/i);
+  assert.match(pre.whyNow || "", /Runner-up gap: Group [A-L]/i);
 });
 
 test("buildWcRunnerUpFollowUpPrebuiltStructured — runner-up group card", () => {
@@ -140,9 +143,12 @@ test("buildWcRunnerUpFollowUpPrebuiltStructured — runner-up group card", () =>
     },
   });
   assert.ok(pre);
-  assert.match(pre.call || "", /Group K runner-up value/i);
-  assert.match(pre.whyNow || "", /cross-group #2 misprice/i);
+  assert.match(pre.call || "", /Group K.*runner-up value/i);
+  assert.match(pre.lean || "", /Lean:.*advance/i);
+  assert.doesNotMatch(pre.lean || "", /fade/i);
+  assert.match(pre.whyNow || "", /cross-group #2 misprice|market/i);
   assert.equal(pre.groupLetter, "K");
+  assert.equal(pre.runnerUpGroupLetter, "K");
 });
 
 test("buildWcCrossGroupValuePrebuiltStructured — returns null without ranking inputs", () => {
@@ -162,9 +168,9 @@ test("prebuilt Group D copy names all four tiers correctly", () => {
   assert.doesNotMatch(pre.edge || "", /VERIFIED CONTEXT/i);
   assert.ok(String(pre.line || "").trim().length > 20);
   assert.notEqual(String(pre.line || "").trim(), String(pre.call || "").trim());
-  assert.match(pre.whyNow, /Türkiye.*Favorite/i);
-  assert.match(pre.whyNow, /Paraguay.*Contender/i);
-  assert.match(pre.whyNow, /Longshots/i);
+  assert.match(pre.deep || "", /top-two finish/i);
+  assert.match(pre.whyNow, /Türkiye/i);
+  assert.match(pre.whyNow, /Paraguay/i);
   assert.ok(!/three\s+long\s*shot/i.test(pre.whyNow));
   const qa = runWcUrTakeQA({
     responseText: `${pre.lean}\n\n${pre.whyNow}`,
@@ -201,4 +207,35 @@ test("shouldUseWcGroupSlatePrebuilt — broad cross-group value defers to model"
     shouldUseWcGroupSlatePrebuilt("Who wins Group A?", WC_INTENT.STRUCTURAL),
     false,
   );
+});
+
+test("buildWcGroupSlatePrebuiltStructured — numeric line on face, path in deep", () => {
+  const pre = buildWcGroupSlatePrebuiltStructured({
+    groupLetter: "D",
+    pickAbbr: "PAR",
+    advanceOdds: "+180",
+    simPct: 58.3,
+    impliedPct: 42.1,
+    delta: 16.2,
+  });
+  assert.ok(pre);
+  assert.match(pre.line, /Market ~42\.1%/);
+  assert.match(pre.deep, /top-two finish/i);
+  assert.doesNotMatch(pre.line, /top-two finish/i);
+});
+
+test("repairWcGroupSlateStructuredLine — moves path prose off LINE slot", () => {
+  const path =
+    "Paraguay needs a top-two finish in Group D — the path is not finishing last on points behind Türkiye.";
+  const repaired = repairWcGroupSlateStructuredLine({
+    callType: "group_slate",
+    line: path,
+    whyNow:
+      "The market implies Paraguay is 42.1% to advance, but UR sims put it at 58.3% (+16.2pt) — gap.",
+    edge: "Watch opener.",
+  });
+  assert.match(repaired.line, /Market ~42\.1%/);
+  assert.match(repaired.deep, /top-two finish/);
+  assert.equal(isWcGroupAdvancementPathProse(repaired.line), false);
+  assert.match(formatWcGroupSlateNumericLine({ impliedPct: 42.1, simPct: 58.3, delta: 16.2 }), /delta \+16\.2pt/);
 });

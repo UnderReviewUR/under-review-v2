@@ -7,6 +7,37 @@ import {
 import { buildWcGroupSlatePrebuiltStructured } from "./wcGroupComposition.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
+test("buildWcCompactStructured — whyNow stays short when deep is long", () => {
+  const deep =
+    "Son is Korea's primary threat in a must-perform opener. He operates wide left and creates as much as he finishes. South Korea do not funnel volume through one striker. Three goals needs a deep run the sims do not support. Sims show a low probability of advancing past a group with Mexico. WATCH FOR: penalty duties and confirmed XI.";
+  const s = buildWcCompactStructured({
+    question: "Son over 2.5 goals?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    summary: "Pass on Son over 2.5 goals — steep ask for a wide forward.",
+    deep,
+  });
+  assert.ok(s.whyNow.split(/\s+/).length <= 45);
+  assert.ok(s.deep.split(/\s+/).length <= 230);
+  assert.ok(s.deep.length > s.whyNow.length);
+});
+
+test("buildWcCompactStructured — player prop ladder yields line-by-line why and lean", () => {
+  const s = buildWcCompactStructured({
+    question: "Son over 2.5 shots?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    playerMarketTier: "market_only",
+    summary:
+      "Son over 3 total shots is the real edge — the market prices him as a volume shooter and the -135 consensus is playable.",
+    deep:
+      "Son's shot lines tell the story: over 1 at -2500, over 2 at -400, over 3 at -135. The market is practically giving away over 3 as a near-certainty. Over 2.5 isn't a posted line — the closest playable threshold is over 3 at -135, which implies roughly 57% and clears breakeven comfortably. WATCH FOR: if Korea go a goal down early and Son drops deeper, shot volume could shift to assists.",
+  });
+  assert.match(s.deep, /Over 1 · -2500/);
+  assert.match(s.deep, /Over 3 · -135/);
+  assert.match(s.deep, /Over 2\.5 isn't posted/i);
+  assert.match(s.lean, /over 3 at -135/i);
+  assert.doesNotMatch(s.lean, /no actionable line/i);
+});
+
 test("buildWcCompactStructured — player market PASS keeps complete sentences", () => {
   const s = buildWcCompactStructured({
     wcIntent: WC_INTENT.GOLDEN_BOOT,

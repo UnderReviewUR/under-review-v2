@@ -52,3 +52,19 @@ test("normalizeWcStructuredForDelivery — preserves group_slate prebuilt", () =
   assert.equal(out.callType, "group_slate");
   assert.match(out.lean, /Colombia/i);
 });
+
+test("normalizeWcStructuredForDelivery repairs missing numeric why", () => {
+  const out = normalizeWcStructuredForDelivery(
+    {
+      callType: "player_prop",
+      lean: "Lean over 3 at -135",
+      call: "Son shots ladder",
+      whyNow: "Son is the focal point when Korea pushes wide.",
+      deep: "Over 3 · -135 · worth paying ✓",
+      edge: "Watch Korea's shape when they chase.",
+    },
+    WC_INTENT.PLAYER_PROP,
+    "Son over 2.5 shots",
+  );
+  assert.match(String(out.whyNow), /Over 3 at -135/);
+});

@@ -4,9 +4,13 @@
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import {
+  formatWcPlayerPropLadderWhy,
+  finalizeWcPlayerPropStructured,
   isWcPlayerMarketIntent,
-  isWcPlayerPropPassStructured,
-  repairWcPlayerPropPassCard,
+  isWcShotsPropQuestion,
+  isWcMisroutedShotsHeadline,
+  repairWcShotsPropStructured,
+  synthesizePlayerPropPlayFromCitedOdds,
 } from "./wcUrTakePlayerMarket.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
@@ -261,6 +265,11 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
     return "Pass — thesis only until verified outright odds post.";
   }
 
+  const fromPlayerOdds = synthesizePlayerPropPlayFromCitedOdds(summary, deep, question);
+  if (fromPlayerOdds && isWcValidPlayLine(fromPlayerOdds) && !wcCardPlayRestatesCall(fromPlayerOdds, call)) {
+    return fromPlayerOdds;
+  }
+
   return "Pass — no actionable line yet; see Watch For before locking a bet.";
 }
 
@@ -461,15 +470,12 @@ function buildWhyNow(summary, deep, wcIntent) {
   const summarySents = splitWcSentences(summary);
   const deepSents = splitWcSentences(deep).filter((s) => !isWcDeepMetaSentence(s));
   const delta = summarySents[1]?.trim() || "";
-  const whyFromDeep =
-    deepSents.length > 1
-      ? deepSents.slice(0, -1).join(" ").trim()
-      : deepSents[0]?.trim() || "";
-  const whyLead = summarySents.slice(2).join(" ").trim();
-  const merged = [whyFromDeep, whyLead].filter(Boolean).join(" ").trim();
+  const whyFromDeep = deepSents.slice(0, 2).join(" ").trim();
+  const whyLead = summarySents.slice(2, 4).join(" ").trim();
+  const merged = capWcDeepWords([whyFromDeep, whyLead].filter(Boolean).join(" ").trim(), 42);
   if (merged) return merged;
-  if (wcIntent === WC_INTENT.SCORE_PREDICTION && delta) return delta;
-  return deep.trim();
+  if (wcIntent === WC_INTENT.SCORE_PREDICTION && delta) return capWcDeepWords(delta, 42);
+  return capWcDeepWords(deepSents[0] || deep.trim(), 42);
 }
 
 /**
@@ -557,7 +563,7 @@ function buildWcPredictionsRoundupStructured(opts = {}) {
 export function buildWcCompactStructured(opts = {}) {
   const summary = String(opts.summary || "").trim();
   const deepRaw = String(opts.deep || "").trim();
-  const deep = capWcDeepWords(deepRaw, 600);
+  const deep = capWcDeepWords(deepRaw, 220);
   const wcIntent = String(opts.wcIntent || "");
   const question = String(opts.question || "");
   const tier = String(opts.playerMarketTier || "market_only");
@@ -635,21 +641,27 @@ export function buildWcCompactStructured(opts = {}) {
     const call = String(seed.call || "").trim();
     const line = String(seed.line || summarySents[1] || "").trim();
     const lean = isListIntent ? WC_LIST_CARD_LEAN : String(seed.lean || "").trim();
-    return {
-      sport: "worldcup",
-      callType: String(seed.callType || (isListIntent ? "goalscorers_list" : callTypeForPlayerTier(tier))),
-      playerMarketTier: String(seed.playerMarketTier || tier),
-      lean,
-      call,
-      line,
-      whyNow: String(seed.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
-      edge: String(seed.edge || extractWatchFor(deep, false)).trim(),
-      deep,
-      breakdownAvailable: Boolean(deep && deep.length > 40),
-      confidence: String(seed.confidence || "Speculative"),
-      caveats: [],
-      timestamp: seed.timestamp || new Date().toISOString(),
-    };
+    return finalizeWcPlayerPropStructured(
+      {
+        sport: "worldcup",
+        callType: String(seed.callType || (isListIntent ? "goalscorers_list" : callTypeForPlayerTier(tier))),
+        playerMarketTier: String(seed.playerMarketTier || tier),
+        lean,
+        call,
+        line,
+        whyNow: formatWcPlayerPropLadderWhy(
+          String(seed.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
+          question,
+        ),
+        edge: String(seed.edge || extractWatchFor(deep, false)).trim(),
+        deep,
+        breakdownAvailable: Boolean(deep && deep.length > 40),
+        confidence: String(seed.confidence || "Speculative"),
+        caveats: [],
+        timestamp: seed.timestamp || new Date().toISOString(),
+      },
+      question,
+    );
   }
 
   const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
@@ -661,8 +673,11 @@ export function buildWcCompactStructured(opts = {}) {
       ? synthesizeNonBettingPlay(summary, call)
       : extractPlayDecision(summary, deep, call, { line, question, wcIntent });
   const pass = nonBetting ? false : isWcPassVerdict(summary, lean);
-  const whyNow = buildWhyNow(summary, deep, wcIntent);
-  const edge = extractWatchFor(deep, pass, whyNow);
+  let whyNow = buildWhyNow(summary, deep, wcIntent);
+  if (wcIntent === WC_INTENT.PLAYER_PROP) {
+    whyNow = formatWcPlayerPropLadderWhy(whyNow, question);
+  }
+  const edge = capWcDeepWords(extractWatchFor(deep, pass, whyNow), 22);
 
   const base = {
     sport: "worldcup",
@@ -679,7 +694,8 @@ export function buildWcCompactStructured(opts = {}) {
   };
 
   if (isWcPlayerMarketIntent(wcIntent) && !isListIntent) {
-    const odds = (summary.match(/\+\d{3,}/) || [])[0] || "";
+    const odds =
+      !isWcShotsPropQuestion(question) ? (summary.match(/\+\d{3,}/) || [])[0] || "" : "";
     let playerCall = call;
     if (pass && !/^pass/i.test(playerCall) && playerCall.split(/\s+/).length <= 14) {
       playerCall = odds ? `Pass at ${odds} — ${playerCall}` : `Pass — ${playerCall}`;
@@ -688,17 +704,16 @@ export function buildWcCompactStructured(opts = {}) {
     } else if (odds && !playerCall.includes(odds) && !line) {
       playerCall = `${playerCall.replace(/\.$/, "")}. Market ${odds}.`;
     }
-    const playerBase = {
-      ...base,
-      callType: callTypeForPlayerTier(tier),
-      playerMarketTier: tier,
-      call: playerCall,
-      confidence: pass ? "Speculative" : "Medium",
-    };
-    if (wcIntent === WC_INTENT.PLAYER_PROP && isWcPlayerPropPassStructured(playerBase, question)) {
-      return repairWcPlayerPropPassCard(playerBase, question);
-    }
-    return playerBase;
+    return finalizeWcPlayerPropStructured(
+      {
+        ...base,
+        callType: callTypeForPlayerTier(tier),
+        playerMarketTier: tier,
+        call: playerCall,
+        confidence: pass ? "Speculative" : "Medium",
+      },
+      question,
+    );
   }
 
   let callType =
@@ -718,11 +733,15 @@ export function buildWcCompactStructured(opts = {}) {
     callType = "player_prop";
   }
 
-  return {
+  const built = {
     ...base,
     callType,
     confidence: /\b(high|strong)\b/i.test(summary) ? "Medium" : base.confidence,
   };
+  if (wcIntent === WC_INTENT.PLAYER_PROP) {
+    return finalizeWcPlayerPropStructured(built, question);
+  }
+  return built;
 }
 
 /**

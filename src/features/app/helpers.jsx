@@ -10,6 +10,11 @@ import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
 import { FREE_QUESTION_LIMIT, readFreeTierUsedToday } from "../../lib/freeTierLimits.js";
 import { isUrFirstAnswerRow } from "../../lib/urFocusSession.js";
+import {
+  resolveWcTakeCardDisplayMode,
+  wcTakeCardIsCollapsed,
+  wcTakeCardUsesFocusLayout,
+} from "../../lib/wcTakeCardLayout.js";
 import { synthesizeLeanLine } from "../../lib/urTakeLean.js";
 import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
 import { normalizeText } from "../../lib/normalizeText.js";
@@ -1603,13 +1608,6 @@ function wcCardUsesUnifiedLayout(callType) {
   return ct === "group_slate" || ct === "advancement" || ct === "matchup";
 }
 
-/** Focus-session minimal chrome duplicates the full WC card body — use one layout for slate picks. */
-function wcStructuredCardFocusLayout(structured, focusSession, msgs, msgIndex, message) {
-  if (!focusSession || !isUrFirstAnswerRow(msgs, msgIndex, message)) return false;
-  if (wcCardUsesUnifiedLayout(structured?.callType)) return false;
-  return true;
-}
-
 function wcStructuredFallbackSummaryText(structured, summaryText) {
   if (String(structured?.sport || "").toLowerCase() !== "worldcup") return summaryText;
   if (!wcCardUsesUnifiedLayout(structured?.callType)) return summaryText;
@@ -1915,6 +1913,7 @@ function UrTakeAiBubble({
   onUpgradePromptClick = null,
   onViewWcMatch = null,
   focusSession = false,
+  docked = false,
 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
@@ -2017,13 +2016,15 @@ function UrTakeAiBubble({
   }
 
   if (effectiveStructured) {
-    const cardFocusLayout = wcStructuredCardFocusLayout(
-      effectiveStructured,
+    const cardDisplayMode = resolveWcTakeCardDisplayMode(effectiveStructured, {
+      docked,
       focusSession,
       msgs,
       msgIndex,
-      m,
-    );
+      message: m,
+    });
+    const cardFocusLayout = wcTakeCardUsesFocusLayout(cardDisplayMode);
+    const cardCollapsed = wcTakeCardIsCollapsed(cardDisplayMode);
     const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
     const structuredGameStateLine = parsedLiveRibbon.gameState
       ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)
@@ -2116,6 +2117,7 @@ function UrTakeAiBubble({
               message: m,
             })}
             focusLayout={cardFocusLayout}
+            cardCollapsed={cardCollapsed}
             modelAttribution={s.modelAttribution}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
@@ -2253,6 +2255,14 @@ function UrTakeAiBubble({
     textHead: summaryText.slice(0, 200),
   });
 
+  const visualSport = resolveUrTakeDisplaySport({
+    sport: m.sport,
+    structured: m.structured,
+    message: m,
+    question: userQuestion,
+  });
+  const wcPlainVisual = visualSport === "worldcup";
+
   return (
     <>
       {m.image && <img src={m.image} alt="" className="bubble-img" />}
@@ -2279,17 +2289,12 @@ function UrTakeAiBubble({
       >
         <div className="ur-take-ai-panel ur-take-ai-panel--visual">
           <UrTakePlainTextVisual
-            sport={resolveUrTakeDisplaySport({
-              sport: m.sport,
-              structured: m.structured,
-              message: m,
-              question: userQuestion,
-            })}
+            sport={visualSport}
             callType={typeof m.structured?.callType === "string" ? m.structured.callType : undefined}
             gameStateLine={parsed.gameState ? stripUrTakeInlineMarkdown(parsed.gameState) : ""}
-            headlineDisplay={parsed.headline}
-            bodyChunks={parsed.bodyChunks}
-            closingDisplay={parsed.closing}
+            headlineDisplay={wcPlainVisual && parsed.closing ? parsed.closing : parsed.headline}
+            bodyChunks={wcPlainVisual ? (parsed.bodyChunks || []).slice(0, 2) : parsed.bodyChunks}
+            closingDisplay={wcPlainVisual ? "" : parsed.closing}
             confidence={parsed.confidence}
             compactBubble={true}
           />
@@ -2627,6 +2632,7 @@ export function ChatThread({
                 onUpgradePromptClick={onUpgradePromptClick}
                 onViewWcMatch={onViewWcMatch}
                 focusSession={focusSession}
+                docked={docked}
               />
               {m.urTakeFeedSnagDiag ? <UrTakeFeedSnagProductDiag diag={m.urTakeFeedSnagDiag} /> : null}
               <UrTakeClientFailureDebugPre accessTier={accessTier} payload={m.urTakeClientFailure} />

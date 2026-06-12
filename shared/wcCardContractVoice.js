@@ -70,10 +70,14 @@ VERDICT FORK (follow-ups are UI-routed):
 - Rules → factual only; no betting lead.`;
 
 export const WC_CARD_CONTRACT_TIER25_APPENDIX = `CARD CONTRACT Option 1 — summary + deep split (mandatory):
-- summary sentence 1 = arguing HEADLINE (complete sentence, ≤18 words).
-- summary sentence 2 = LINE / DELTA (complete sentence with market vs UR numbers).
-- deep = WHY (support sentences) then WATCH FOR (risk sentence). End deep with the risk line.
-- Include an explicit PLAY decision ("Pass at…", "Lean…", "No play —") distinct from sentence 1.
+- CARD FACE = scannable in 5 seconds: THE PLAY verdict first, ≤1 short WHY line, ≤1 WATCH FOR line. Total card face ≤70 words.
+- summary sentence 1 = THE PLAY ("Pass at…", "Lean over 3 at -135", etc.) — not a thesis paragraph.
+- summary sentence 2 = one LINE / DELTA sentence only when odds or sims exist.
+- whyNow = ≤2 short sentences of evidence (never the full essay).
+- edge = one WATCH FOR sentence only.
+- deep = full breakdown (extra evidence, script, ladder detail) — user taps "Full breakdown"; keep deep ≤220 words.
+- Card face WHY or LINE must include one number (odds, implied %, or sim %) — never lean-only.
+- Never put sim paragraphs, role essays, or multi-leg scripts on the card face.
 - Every card-face sentence must end with . ! or ? — never trail off mid-thought.`;
 
 /** @param {string} a @param {string} b */

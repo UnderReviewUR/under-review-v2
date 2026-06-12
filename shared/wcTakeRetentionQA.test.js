@@ -4,7 +4,10 @@ import {
   buildWcSimAttributionLabel,
   detectMissingComparativeProof,
   detectMissingWcSimAttribution,
+  detectMissingWcCardFaceNumericWhy,
+  ensureWcCardFaceNumericWhy,
   extractWcModelAttributionPrefix,
+  extractWcRunnerUpFromHistory,
   extractWcRunnerUpGroupFromHistory,
   extractWcRunnerUpFromStructured,
   parseWcRunnerUpGroupLetter,
@@ -13,7 +16,11 @@ import {
   stripWcModelAttributionPrefix,
   buildWcPushBackBindingBlock,
   parentTakeHasWcRunnerUpAnchor,
+  synthesizeWcCardFaceNumericWhy,
+  wcCardFaceBlobHasNumericWhy,
   wcSentenceSimilarity,
+  isWcRunnerUpValueFollowUp,
+  parseWcRunnerUpTeamAbbr,
 } from "./wcTakeRetentionQA.js";
 
 test("wcSentenceSimilarity flags near-duplicate sentences", () => {
@@ -105,6 +112,41 @@ test("parseWcRunnerUpGroupLetter handles call headline variants", () => {
     "K",
   );
   assert.equal(parseWcRunnerUpGroupLetter("Runner-up Group K: COD 41% vs market 68%"), "K");
+  assert.equal(
+    parseWcRunnerUpGroupLetter(
+      "Runner-up gap: Group K — COD is 50.0% market vs 23.3% sim (-26.7pt).",
+    ),
+    "K",
+  );
+});
+
+test("parseWcRunnerUpTeamAbbr parses runner-up gap prose", () => {
+  assert.equal(
+    parseWcRunnerUpTeamAbbr(
+      "Runner-up gap: Group K — COD is 50.0% market vs 23.3% sim (-26.7pt).",
+    ),
+    "COD",
+  );
+});
+
+test("isWcRunnerUpValueFollowUp — which group is the runner-up value", () => {
+  assert.equal(isWcRunnerUpValueFollowUp("Which group is the runner-up value?"), true);
+});
+
+test("extractWcRunnerUpFromHistory — runner-up gap in prior whyNow", () => {
+  const history = [
+    {
+      role: "assistant",
+      structured: {
+        call: "Group D — USA advancement misprice",
+        whyNow:
+          "The market prices USA to advance at 88.2% implied, but UR sims put the escape path at 51.9% (-36.4pt). Runner-up gap: Group K — COD is 50.0% market vs 23.3% sim (-26.7pt).",
+      },
+    },
+  ];
+  const row = extractWcRunnerUpFromHistory(history);
+  assert.equal(row.group, "K");
+  assert.equal(row.teamAbbr, "COD");
 });
 
 test("extractWcRunnerUpFromStructured prefers explicit runnerUpGroupLetter", () => {
@@ -167,4 +209,58 @@ test("extractWcModelAttributionPrefix splits bracket label from WHY body", () =>
   assert.equal(attribution, "UR model · 10k Poisson/Elo · Jun 11");
   assert.equal(body, "#1 Group D (USA sim 52.8% vs market 88.2%, -35.4pt).");
   assert.equal(stripWcModelAttributionPrefix(raw), body);
+});
+
+test("detectMissingWcCardFaceNumericWhy — requires number in why or line", () => {
+  const thin = {
+    callType: "player_prop",
+    lean: "Lean over 3 at -135",
+    whyNow: "Son is the focal point when Korea pushes wide.",
+    line: "",
+  };
+  assert.equal(
+    detectMissingWcCardFaceNumericWhy(thin, "Son over 2.5 shots"),
+    true,
+  );
+
+  const good = {
+    ...thin,
+    whyNow: "Over 3 at -135 (~57% implied) — nearest posted line to your ask.",
+  };
+  assert.equal(detectMissingWcCardFaceNumericWhy(good, "Son over 2.5 shots"), false);
+
+  const lineOnly = {
+    ...thin,
+    whyNow: "Son is the focal point when Korea pushes wide.",
+    line: "Pass at -130 — sim 15% vs market ~57%.",
+  };
+  assert.equal(detectMissingWcCardFaceNumericWhy(lineOnly, "USA advance"), false);
+});
+
+test("ensureWcCardFaceNumericWhy synthesizes from ladder in deep", () => {
+  const repaired = ensureWcCardFaceNumericWhy(
+    {
+      callType: "player_prop",
+      lean: "Lean over 3 at -135",
+      whyNow: "Son is the focal point when Korea pushes wide.",
+      deep: "Over 1 · -450 · juice\nOver 2 · -220 · still heavy\nOver 3 · -135 · worth paying ✓",
+    },
+    "Son over 2.5 shots",
+  );
+  assert.match(String(repaired.whyNow), /Over 3 at -135/);
+  assert.match(String(repaired.whyNow), /implied/);
+});
+
+test("synthesizeWcCardFaceNumericWhy prefers structured line slot", () => {
+  const line = synthesizeWcCardFaceNumericWhy({
+    line: "Market -130 · sim 15% vs market ~57%.",
+    lean: "Pass on USA advance at current juice.",
+  });
+  assert.match(line, /-130/);
+  assert.match(line, /15%/);
+});
+
+test("wcCardFaceBlobHasNumericWhy accepts odds and percentages", () => {
+  assert.equal(wcCardFaceBlobHasNumericWhy("Over 3 at -135"), true);
+  assert.equal(wcCardFaceBlobHasNumericWhy("Books treat him as the focal winger."), false);
 });

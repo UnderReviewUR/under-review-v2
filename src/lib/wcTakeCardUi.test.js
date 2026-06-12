@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWcTakeStatGrid, pickWcThePlayLine, wcCardSectionText, compressWcCardSections } from "./wcTakeCardUi.js";
+import { buildWcTakeStatGrid, pickWcThePlayLine, wcCardSectionText, compressWcCardSections, prepareWcCardFaceDisplay, wcLineSlotIsNumericDelta } from "./wcTakeCardUi.js";
 
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
@@ -87,4 +87,37 @@ test("compressWcCardSections drops why when it repeats line slot", () => {
 test("wcCardSectionText drops empty placeholders", () => {
   assert.equal(wcCardSectionText("—"), "");
   assert.equal(wcCardSectionText("Watch the left channel"), "Watch the left channel");
+});
+
+test("prepareWcCardFaceDisplay keeps one numeric why on focus layout", () => {
+  const face = prepareWcCardFaceDisplay({
+    lean: "Lean over 3 at -135",
+    call: "Lean over 3 at -135",
+    why: "Over 3 at -135 (~57% implied) — nearest posted line to your ask.",
+    watchFor: "Watch Korea's shape when they chase — volume spikes late.",
+    breakdown: "Over 1 · -450 · juice\nOver 3 · -135 · worth paying ✓",
+    focusLayout: true,
+  });
+  assert.match(face.sections.why, /-135/);
+  assert.ok(face.sections.watchFor);
+});
+
+test("wcLineSlotIsNumericDelta rejects path prose", () => {
+  assert.equal(
+    wcLineSlotIsNumericDelta(
+      "Paraguay needs a top-two finish in Group D — the path is not finishing last on points behind Türkiye.",
+    ),
+    false,
+  );
+  assert.equal(wcLineSlotIsNumericDelta("Market ~42.1% · UR sim 58.3% · delta +16.2pt."), true);
+});
+
+test("buildWcTakeStatGrid group_slate hides path prose from line slot", () => {
+  const grid = buildWcTakeStatGrid({
+    callType: "group_slate",
+    line: "Paraguay needs a top-two finish in Group D — the path is not finishing last on points behind Türkiye.",
+    confidence: "Medium",
+  });
+  assert.equal(grid.slots.length, 1);
+  assert.equal(grid.slots[0].label, "Confidence");
 });

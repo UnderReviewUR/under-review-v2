@@ -6,6 +6,7 @@ import { WC_INTENT } from "./wcUrTakeIntent.js";
 import {
   isWcPlayerMarketIntent,
   repairWcPlayerPropPassCard,
+  finalizeWcPlayerPropStructured,
 } from "./wcUrTakePlayerMarket.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 import { stripRulesThreadBleed } from "./wcUrTakeRules.js";
@@ -13,9 +14,21 @@ import {
   classifyWcAdvancementMarket,
   WC_ADVANCEMENT_MARKET,
 } from "./wcAdvancementMarket.js";
+import { ensureWcCardFaceNumericWhy } from "./wcTakeRetentionQA.js";
+import { repairWcGroupSlateStructuredLine } from "./wcGroupComposition.js";
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value)\b/i;
+
+/**
+ * @param {object} out
+ * @param {string} intent
+ * @param {string} question
+ */
+function finishWcStructuredForDelivery(out, intent, question) {
+  const repaired = repairWcGroupSlateStructuredLine(out);
+  return ensureWcCardFaceNumericWhy(repaired, question, { wcIntent: intent });
+}
 
 /**
  * @param {object | null | undefined} structured
@@ -47,7 +60,7 @@ export function normalizeWcStructuredForDelivery(
     out.whyNow = bodyOnly;
     out.edge = "Factual tournament rules — not a betting pick.";
     out.confidence = "High";
-    return out;
+    return finishWcStructuredForDelivery(out, intent, question);
   }
 
   if (intent === WC_INTENT.MATCHUP) {
@@ -64,7 +77,7 @@ export function normalizeWcStructuredForDelivery(
     if (FAIR_PRICE_RE.test(`${out.lean} ${out.whyNow}`)) {
       out.edge = out.edge || "Structural paths — no single knockout winner pick in group stage.";
     }
-    return out;
+    return finishWcStructuredForDelivery(out, intent, question);
   }
 
   if (isWcPlayerMarketIntent(intent)) {
@@ -80,15 +93,15 @@ export function normalizeWcStructuredForDelivery(
               : "player_market_thin";
     }
     if (intent === WC_INTENT.PLAYER_PROP) {
-      return repairWcPlayerPropPassCard(out, question);
+      return finishWcStructuredForDelivery(finalizeWcPlayerPropStructured(out, question), intent, question);
     }
-    return out;
+    return finishWcStructuredForDelivery(out, intent, question);
   }
 
   if (intent === WC_INTENT.ENTITY_PRICING) {
     if (String(out.callType || "").toLowerCase() === "group_slate") {
       delete out.playerMarketTier;
-      return out;
+      return finishWcStructuredForDelivery(out, intent, question);
     }
     const market = classifyWcAdvancementMarket(question);
     if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
@@ -111,13 +124,13 @@ export function normalizeWcStructuredForDelivery(
         out.line = `${verdict} at ${odds} — sim ${simPct}%${marketPct ? ` vs market ~${marketPct}%` : ""}.`;
       }
     }
-    return out;
+    return finishWcStructuredForDelivery(out, intent, question);
   }
 
   if (intent === WC_INTENT.STRUCTURAL) {
     if (String(out.callType || "").toLowerCase() === "group_slate") {
       delete out.playerMarketTier;
-      return out;
+      return finishWcStructuredForDelivery(out, intent, question);
     }
     const market = classifyWcAdvancementMarket(question);
     if (market === WC_ADVANCEMENT_MARKET.GROUP_WINNER) {
@@ -126,16 +139,16 @@ export function normalizeWcStructuredForDelivery(
       out.callType = "analysis";
     }
     delete out.playerMarketTier;
-    return out;
+    return finishWcStructuredForDelivery(out, intent, question);
   }
 
   if (intent === WC_INTENT.PREDICTIONS_ROUNDUP) {
     out.callType = "predictions_roundup";
     delete out.playerMarketTier;
-    return out;
+    return finishWcStructuredForDelivery(out, intent, question);
   }
 
-  return out;
+  return finishWcStructuredForDelivery(out, intent, question);
 }
 
 /**

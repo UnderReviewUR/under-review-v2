@@ -141,6 +141,7 @@ import {
   WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
+  WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
@@ -207,6 +208,7 @@ import {
   buildWcGroupBindingPromptBlocks,
   buildWcCrossGroupValuePrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
+  resolveWcRunnerUpFollowUpDelivery,
   extractGroupLetterFromQuestion,
   getWcGroupComposition,
   resolveWcGroupLettersForPrompt,
@@ -5293,6 +5295,10 @@ You are responding to a Pro subscriber. Apply the following:
                 ? WC_NEEDS_COMPARATIVE_QA_SUFFIX
                 : ""
             }${
+              prevQaCriticalCodes.includes("wc_card_face_missing_numeric_why")
+                ? WC_NEEDS_NUMERIC_WHY_QA_SUFFIX
+                : ""
+            }${
               prevQaCriticalCodes.includes("wc_player_not_in_squad") ||
               prevQaCriticalCodes.includes("wc_player_role_mislabel")
                 ? WC_PLAYER_MARKET_QA_SUFFIX
@@ -6250,6 +6256,27 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           String(question || ""),
           wcRequiredEntities,
         );
+      }
+      if (wcRunnerUpFollowUpQuestion) {
+        const forcedRunnerUp = resolveWcRunnerUpFollowUpDelivery(
+          String(question || ""),
+          normalizedUrTakeHistoryForGate,
+          {
+            teamStats: wcContext?.tournamentSimResults?.teamStats,
+            bdlFutures: wcContext?.bdlFuturesPayload,
+            nowMs: Date.now(),
+          },
+        );
+        if (forcedRunnerUp) {
+          structuredResponse = normalizeWcStructuredForDelivery(
+            forcedRunnerUp,
+            wcIntent,
+            String(question || ""),
+            wcRequiredEntities,
+          );
+          responseText = formatWcCompactDisplayText(structuredResponse, structuredResponse.lean);
+          responseDeep = null;
+        }
       }
       responseText = formatWcCompactDisplayText(structuredResponse, responseText);
     }

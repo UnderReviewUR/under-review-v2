@@ -17,6 +17,8 @@ import {
   buildWcSgpComboPassHeadline,
   detectWcSgpComboIntent,
 } from "./wcUrTakePhilosophy.js";
+import { splitWcSentences, capWcDeepWords } from "./wcSentenceBoundaries.js";
+import { ensureWcCardFaceNumericWhy } from "./wcTakeRetentionQA.js";
 
 const SCORING_PRED_RE =
   /\b(will score|scores the most|score the most|top scorer|most goals|golden boot|leading scorer)\b/i;
@@ -30,6 +32,346 @@ const NO_VERIFIED_LINE_RE =
 /** Body cites real American prices — do not force a pass headline repair. */
 const CITED_BOOK_ODDS_RE =
   /\b(?:at|@)\s*[+-]\d{2,}\b|over\s+\d+(?:\.\d+)?\s+at\s+[+-]\d+/i;
+
+const LADDER_LEG_RE = /over\s+(\d+(?:\.\d+)?)\s+(?:at\s+|[·\-–—]\s*)([+-]\d+)/gi;
+
+/**
+ * @param {RegExpMatchArray[]} legs
+ */
+function dedupeWcPlayerPropLegs(legs) {
+  const seen = new Set();
+  const out = [];
+  for (const m of legs) {
+    const key = `${m[1]}|${m[2]}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(m);
+  }
+  out.sort((a, b) => parseFloat(a[1]) - parseFloat(b[1]));
+  return out;
+}
+
+/**
+ * @param {string} blob
+ */
+function extractWcPlayerPropLegs(blob) {
+  return dedupeWcPlayerPropLegs([...String(blob || "").matchAll(LADDER_LEG_RE)]);
+}
+
+/**
+ * One-line verdict for a posted milestone price.
+ * @param {string} odds
+ */
+function wcPlayerPropLegVerdict(odds) {
+  const n = parseInt(String(odds || "").replace(/[^\d+-]/g, ""), 10);
+  if (!Number.isFinite(n) || n === 0) return "Posted";
+  if (n <= -400) return "Juice — not worth paying";
+  if (n <= -200) return "Near-lock juice";
+  if (n <= -130) return "Worth paying at listed price";
+  return "Playable — check size";
+}
+
+function wcPlayerPropLegIsPlayable(verdict) {
+  return /worth paying|playable/i.test(String(verdict || ""));
+}
+
+function wcAmericanImpliedPct(american) {
+  const n = parseInt(String(american || "").replace(/[^\d+-]/g, ""), 10);
+  if (!Number.isFinite(n) || n === 0) return null;
+  if (n > 0) return Math.round((100 / (n + 100)) * 1000) / 10;
+  return Math.round((Math.abs(n) / (Math.abs(n) + 100)) * 1000) / 10;
+}
+
+/**
+ * Pick the milestone leg that answers the user's threshold ask.
+ * @param {RegExpMatchArray[]} legs
+ * @param {string} [question]
+ */
+function pickWcPlayerPropTargetLeg(legs, question = "") {
+  if (!legs.length) return null;
+  const asked = String(question || "").match(/(\d+\.?\d*)\s*shots?/i)?.[1];
+  if (!asked) return legs[legs.length - 1];
+
+  const askedNum = parseFloat(asked);
+  const scored = legs.map((m) => ({
+    m,
+    th: parseFloat(m[1]),
+    diff: Math.abs(parseFloat(m[1]) - askedNum),
+    verdict: wcPlayerPropLegVerdict(m[2]),
+  }));
+  const playable = scored.filter((s) => wcPlayerPropLegIsPlayable(s.verdict));
+  const pool = playable.length ? playable : scored;
+  return pool.reduce((best, s) => {
+    if (s.diff < best.diff) return s;
+    if (s.diff === best.diff && s.th > best.th) return s;
+    return best;
+  }, pool[0]).m;
+}
+
+const LADDER_ORPHAN_LINE_RE =
+  /^(?:is\s+)?(?:juice|still heavy|where the value lives|speculative)\b/i;
+
+/**
+ * @param {string} line
+ */
+function isWcLadderOrphanLine(line) {
+  const l = String(line || "").trim();
+  if (!l) return true;
+  if (LADDER_ORPHAN_LINE_RE.test(l)) return true;
+  if (/^is\s+[a-z]/i.test(l) && !/^over\s/i.test(l)) return true;
+  return false;
+}
+
+/**
+ * @param {string} text
+ */
+function wcPlayerPropLadderAlreadyFormatted(text) {
+  const lines = String(text || "")
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const ladderLines = lines.filter((l) => /^over\s+\d/i.test(l));
+  if (ladderLines.length < 2) return false;
+  return ladderLines.every((l) => /\bat\s+[+-]\d+/i.test(l));
+}
+
+/**
+ * Reformat milestone ladder copy as one line per posted leg.
+ * @param {string} text
+ * @param {string} [question]
+ */
+export function formatWcPlayerPropLadderWhy(text, question = "") {
+  const t = String(text || "").trim();
+  if (!t) return t;
+  if (wcPlayerPropLadderAlreadyFormatted(t)) return t;
+
+  const uniqueLegs = extractWcPlayerPropLegs(t);
+  if (uniqueLegs.length < 2) return t;
+
+  const target = pickWcPlayerPropTargetLeg(uniqueLegs, question);
+  const targetTh = target?.[1];
+  const ladderLines = uniqueLegs.map((m) => {
+    const threshold = m[1];
+    const odds = m[2];
+    const verdict = wcPlayerPropLegVerdict(odds);
+    const tag = targetTh && threshold === targetTh ? " (nearest playable to your ask)" : "";
+    return `Over ${threshold} at ${odds} — ${verdict}${tag}.`;
+  });
+
+  const contextParts = [];
+  for (const chunk of t.split(/\n+/)) {
+    const trimmed = chunk.trim();
+    if (!trimmed || isWcLadderOrphanLine(trimmed)) continue;
+    if (LADDER_LEG_RE.test(trimmed)) continue;
+    const sents = splitWcSentences(trimmed).filter((s) => !LADDER_LEG_RE.test(s));
+    if (sents.length) contextParts.push(sents.join(" "));
+  }
+  const context = contextParts.join(" ").replace(/\s{2,}/g, " ").trim();
+
+  return [context, ...ladderLines].filter(Boolean).join("\n");
+}
+
+/**
+ * THE PLAY when books post milestone legs but model omitted an explicit lean.
+ * @param {string} summary
+ * @param {string} deep
+ * @param {string} question
+ */
+export function synthesizePlayerPropPlayFromCitedOdds(summary, deep, question = "") {
+  const blob = `${summary}\n${deep}`.trim();
+  if (!CITED_BOOK_ODDS_RE.test(blob)) return "";
+
+  const legs = extractWcPlayerPropLegs(blob);
+  if (!legs.length) return "";
+
+  const target = pickWcPlayerPropTargetLeg(legs, question);
+  if (!target) return "";
+
+  const threshold = target[1];
+  const odds = target[2];
+  const verdict = wcPlayerPropLegVerdict(odds);
+  const hasEdge = /\b(edge|worth paying|playable|breakeven|near-certainty|giving away|comfortably)\b/i.test(
+    blob,
+  );
+  const hardPass = /\b(no actionable line|not worth paying|pass until)\b/i.test(blob);
+
+  if (hardPass && !hasEdge) {
+    return `Pass at ${odds} on over ${threshold} — juice, not worth paying.`;
+  }
+  if (!wcPlayerPropLegIsPlayable(verdict) && !hasEdge) {
+    return `Pass at ${odds} on over ${threshold} — ${verdict.toLowerCase()}.`;
+  }
+  if (hasEdge || wcPlayerPropLegIsPlayable(verdict)) {
+    return `Lean: over ${threshold} at ${odds} — worth paying at the nearest posted line.`;
+  }
+  return `Lean: over ${threshold} at ${odds}.`;
+}
+
+const MISROUTED_SHOTS_CALL_RE =
+  /\b(structural longshot|longshot thesis|outright|tournament winner|golden boot|wins the tournament|win the tournament)\b/i;
+
+/**
+ * @param {string} question
+ */
+export function isWcShotsPropQuestion(question) {
+  return detectWcPlayerPropMarketLabel(question) === "shots";
+}
+
+/**
+ * Outright / bare +price headline on a shots ask — wrong market routing.
+ * @param {string} text
+ * @param {string} [question]
+ */
+export function isWcMisroutedShotsHeadline(text, question = "") {
+  if (!isWcShotsPropQuestion(question)) return false;
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (MISROUTED_SHOTS_CALL_RE.test(t)) return true;
+  if (/\+\d{2,}/.test(t) && !/\bover\s+\d/i.test(t) && !/\bat\s+[+-]\d/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * @param {string} odds
+ */
+function wcPlayerPropLegShortVerdict(odds) {
+  const v = wcPlayerPropLegVerdict(odds);
+  if (/not worth paying/i.test(v)) return "juice, skip";
+  if (/Near-lock/i.test(v)) return "heavy juice";
+  if (/worth paying/i.test(v)) return "worth paying";
+  return "playable";
+}
+
+/**
+ * @param {string} blob
+ */
+function extractWcShotsPropContextLine(blob) {
+  const ladderInSent = /\bover\s+\d+(?:\.\d+)?\s+at\s+[+-]\d+/i;
+  for (const sent of splitWcSentences(String(blob || ""))) {
+    if (ladderInSent.test(sent)) continue;
+    if (/^watch for/i.test(sent)) continue;
+    if (isWcMisroutedShotsHeadline(sent)) continue;
+    if (/\b(lean:|pass at|the play:)\b/i.test(sent)) continue;
+    if (sent.length > 24) return capWcDeepWords(sent, 28);
+  }
+  return "";
+}
+
+/**
+ * Scannable breakdown — one line per posted milestone leg.
+ * @param {string} text
+ * @param {string} [question]
+ */
+export function formatWcPlayerPropLadderBreakdown(text, question = "") {
+  const blob = String(text || "").trim();
+  const uniqueLegs = extractWcPlayerPropLegs(blob);
+  if (!uniqueLegs.length) return blob;
+
+  const target = pickWcPlayerPropTargetLeg(uniqueLegs, question);
+  const targetTh = target?.[1];
+  const asked = String(question || "").match(/(\d+\.?\d*)\s*shots?/i)?.[1];
+
+  const parts = [];
+  if (asked) {
+    const exact = uniqueLegs.find((m) => parseFloat(m[1]) === parseFloat(asked));
+    if (!exact && target) {
+      parts.push(
+        `Over ${asked} isn't posted — nearest line is Over ${target[1]} at ${target[2]}.`,
+      );
+    }
+  }
+
+  for (const m of uniqueLegs) {
+    const th = m[1];
+    const odds = m[2];
+    const tag = targetTh && th === targetTh ? " ✓" : "";
+    parts.push(`Over ${th} · ${odds} · ${wcPlayerPropLegShortVerdict(odds)}${tag}`);
+  }
+
+  const ctx = extractWcShotsPropContextLine(blob);
+  if (ctx) parts.push("", ctx);
+  return parts.join("\n");
+}
+
+/**
+ * Force shots ladder headline + line breakdown; block outright/+190 misroutes.
+ * @param {object} structured
+ * @param {string} question
+ */
+export function repairWcShotsPropStructured(structured, question = "") {
+  if (!structured || typeof structured !== "object") return structured;
+  if (!isWcShotsPropQuestion(question)) return structured;
+
+  const blob = `${structured.call || ""}\n${structured.lean || ""}\n${structured.whyNow || ""}\n${structured.edge || ""}\n${structured.deep || ""}`;
+  const uniqueLegs = extractWcPlayerPropLegs(blob);
+  const misrouted =
+    isWcMisroutedShotsHeadline(structured.call, question) ||
+    isWcMisroutedShotsHeadline(structured.lean, question);
+
+  if (!uniqueLegs.length && !misrouted) return structured;
+
+  const out = { ...structured, callType: structured.callType || "player_prop" };
+  const play = uniqueLegs.length
+    ? synthesizePlayerPropPlayFromCitedOdds(blob, blob, question)
+    : "";
+
+  if (play && (misrouted || uniqueLegs.length)) {
+    out.lean = play;
+    out.call = play.replace(/^lean:\s*/i, "").trim();
+    const target = pickWcPlayerPropTargetLeg(uniqueLegs, question);
+    if (target) {
+      const asked = String(question || "").match(/(\d+\.?\d*)\s*shots?/i)?.[1];
+      out.line =
+        asked && parseFloat(target[1]) !== parseFloat(asked)
+          ? `Over ${target[1]} at ${target[2]} · nearest to ${asked} ask`
+          : `Over ${target[1]} at ${target[2]}`;
+    }
+  } else if (misrouted) {
+    const player = extractWcPlayerPropNameHint(question);
+    out.call = `Pass — no verified ${player} shots ladder posted yet.`;
+    out.lean = out.call;
+  }
+
+  if (uniqueLegs.length) {
+    out.deep = formatWcPlayerPropLadderBreakdown(blob, question);
+    out.breakdownAvailable = true;
+    const targetLeg = pickWcPlayerPropTargetLeg(uniqueLegs, question);
+    if (targetLeg) {
+      const th = targetLeg[1];
+      const odds = targetLeg[2];
+      const implied = wcAmericanImpliedPct(odds);
+      const pct = implied != null ? ` (~${implied}% implied)` : "";
+      const asked = String(question || "").match(/(\d+\.?\d*)\s*shots?/i)?.[1];
+      const verdict = wcPlayerPropLegShortVerdict(odds);
+      out.whyNow =
+        asked && parseFloat(th) !== parseFloat(asked)
+          ? `Over ${th} at ${odds}${pct} — nearest posted line to your ${asked} ask.`
+          : `Over ${th} at ${odds}${pct} — ${verdict}.`;
+      if (!out.line) {
+        out.line = `Over ${th} at ${odds}`;
+      }
+    } else {
+      const ctx = extractWcShotsPropContextLine(blob);
+      if (ctx) out.whyNow = ctx;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Shots ladder repair, then pass-card repair when still applicable.
+ * @param {object} structured
+ * @param {string} question
+ */
+export function finalizeWcPlayerPropStructured(structured, question = "") {
+  if (!structured || typeof structured !== "object") return structured;
+  let out = repairWcShotsPropStructured(structured, question);
+  if (isWcPlayerPropPassStructured(out, question)) {
+    out = repairWcPlayerPropPassCard(out, question);
+  }
+  return ensureWcCardFaceNumericWhy(out, question, { wcIntent: WC_INTENT.PLAYER_PROP });
+}
 
 /** @typedef {typeof WC_INTENT.PLAYER_PROP | typeof WC_INTENT.GOLDEN_BOOT | typeof WC_INTENT.TOP_SCORER} WcPlayerMarketIntent */
 
@@ -115,7 +457,11 @@ export function formatWcPlayerMarketPromptRules(wcIntent) {
   When only GOLDEN BOOT / TOP SCORER ODDS exist, cite American prices from that block for scoring asks.
   If the asked market is missing from MATCH PLAYER PROPS, say Pass / no verified line — do not invent prices.
   SHOTS vs SOT: if the user asks "shots" or "2.5 shots", discuss total shots only — do not substitute shots-on-target/SOT unless they asked SOT explicitly.
-  PASS CARD FACE: HEADLINE ≤18 words — e.g. "No posted Son shots line — Pass." Put feed/context detail in WHY, not the headline.
+  SHOTS HEADLINE RULE: never open with outright/+190/structural longshot language on a shots ask — headline must name the ladder leg (e.g. "Lean: over 3 at -135").
+  MILESTONE LADDER (shots/assists O/U): when books post over 1 / over 2 / over 3 etc., WHY must be one short line per leg — "Over 1 at -2500 — juice." / "Over 3 at -135 — worth paying." — not one dense paragraph.
+  If user asks over X.X and only milestone thresholds post, name the nearest posted line and answer "worth paying for?" directly in THE PLAY.
+  THE PLAY must be explicit: "Worth it at -135 on over 3", "Pass — over 1/2 are juice", or "Lean over 3 at -135" — never "Pass — no actionable line" when MATCH PLAYER PROPS list prices.
+  PASS CARD FACE: HEADLINE ≤18 words — thesis only; put ladder detail in WHY, not the headline.
   If tier is Early Contenders or lineups are not confirmed, say so once — still list named players with available odds or form.
   NATIONAL TEAM ONLY: never cite club teams or domestic leagues (Premier League, Spurs, etc.) — use Korea/South Korea national team, tournament stats, and fixture context from VERIFIED CONTEXT.`;
 }

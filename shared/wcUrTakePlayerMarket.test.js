@@ -12,12 +12,20 @@ import {
   buildWcPlayerPropPassHeadline,
   detectTeamAnswerToPlayerQuestion,
   detectWcPlayerPropMarketLabel,
+  finalizeWcPlayerPropStructured,
+  formatWcPlayerPropLadderBreakdown,
+  formatWcPlayerPropLadderWhy,
+  isWcMisroutedShotsHeadline,
   isWcPlayerPropPassStructured,
+  isWcShotsPropQuestion,
   questionAsksForWcPlayerMarket,
   repairWcPlayerPropPassCard,
+  repairWcShotsPropStructured,
   resolveWcPlayerMarketResponse,
   shouldForceWcPlayerMarketPass,
+  synthesizePlayerPropPlayFromCitedOdds,
 } from "./wcUrTakePlayerMarket.js";
+import { buildWcCompactStructured } from "./wcUrTakeCompactDelivery.js";
 import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
 import { mockWcContextWithPlayerMarkets } from "../api/wcPlayerMarkets.fixture.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
@@ -166,6 +174,84 @@ test("repairWcPlayerPropPassCard — SGP combo keeps correlation on pass", () =>
   );
   assert.match(repaired.call, /share one script/i);
   assert.match(repaired.lean, /script/i);
+});
+
+test("formatWcPlayerPropLadderBreakdown — dedupes repeated legs", () => {
+  const out = formatWcPlayerPropLadderBreakdown(
+    "over 3 at -135. over 3 at -135. over 3 at -135.",
+    "Son over 2.5 shots?",
+  );
+  assert.equal((out.match(/Over 3 · -135/g) || []).length, 1);
+});
+
+test("isWcMisroutedShotsHeadline — blocks outright +190 on shots ask", () => {
+  assert.equal(isWcShotsPropQuestion("Son over 2.5 shots?"), true);
+  assert.equal(isWcMisroutedShotsHeadline("Son +190 — structural longshot thesis.", "Son over 2.5 shots?"), true);
+  assert.equal(isWcMisroutedShotsHeadline("Lean: over 3 at -135 — worth paying.", "Son over 2.5 shots?"), false);
+});
+
+test("repairWcShotsPropStructured — forces ladder headline and line breakdown", () => {
+  const repaired = repairWcShotsPropStructured(
+    {
+      call: "Son +190 — structural longshot thesis.",
+      lean: "Lean: Son +190 — structural longshot thesis.",
+      whyNow: "Son's shot lines: over 1 at -2500, over 2 at -400, over 3 at -135, over 4 at +190.",
+      edge: "Watch for confirmed lineup.",
+      deep: "Son's shot lines: over 1 at -2500, over 2 at -400, over 3 at -135, over 4 at +190. Lean over 3 at -135.",
+    },
+    "Son over 2.5 shots?",
+  );
+  assert.match(repaired.call, /over 3 at -135/i);
+  assert.doesNotMatch(repaired.call, /structural longshot/i);
+  assert.match(repaired.deep, /Over 1 · -2500/);
+  assert.match(repaired.deep, /Over 3 · -135/);
+  assert.match(repaired.deep, /Over 2\.5 isn't posted/i);
+  assert.match(repaired.line, /nearest to 2\.5 ask/i);
+  assert.match(repaired.whyNow, /Over 3 at -135/);
+  assert.match(repaired.whyNow, /implied/);
+});
+
+test("finalizeWcPlayerPropStructured — buildWcCompactStructured misroute repair", () => {
+  const s = buildWcCompactStructured({
+    question: "Son over 2.5 shots?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    summary: "Son +190 — structural longshot thesis.",
+    deep:
+      "Over 1 at -2500, over 2 at -400, over 3 at -135, over 4 at +190. Korea need a result vs Czechia. WATCH FOR: confirmed XI.",
+  });
+  assert.match(s.call, /over 3 at -135/i);
+  assert.doesNotMatch(s.call, /\+190.*thesis/i);
+});
+
+test("formatWcPlayerPropLadderWhy — does not orphan leg verdict fragments", () => {
+  const why =
+    "Son is Korea's primary threat.\nOver 1 at -2500 is juice.\nOver 2 at -400 is still heavy.\nOver 3 at -135 is where the value lives.";
+  const out = formatWcPlayerPropLadderWhy(why, "Son over 2.5 shots?");
+  assert.doesNotMatch(out, /^is juice/m);
+  assert.doesNotMatch(out, /\nis juice/i);
+  assert.match(out, /Over 1 at -2500/);
+  assert.match(out, /Over 3 at -135/);
+});
+
+test("formatWcPlayerPropLadderWhy — splits milestone legs line by line", () => {
+  const why =
+    "Son's shot lines tell the story: over 1 at -2500, over 2 at -400, over 3 at -135. Over 2.5 isn't posted.";
+  const out = formatWcPlayerPropLadderWhy(why, "Son over 2.5 shots?");
+  assert.match(out, /Over 1 at -2500/);
+  assert.match(out, /Over 2 at -400/);
+  assert.match(out, /Over 3 at -135/);
+  assert.match(out, /nearest playable to your ask/i);
+  assert.ok(out.includes("\n"));
+});
+
+test("synthesizePlayerPropPlayFromCitedOdds — lean over 3 when edge language present", () => {
+  const play = synthesizePlayerPropPlayFromCitedOdds(
+    "Son over 3 total shots is the real edge.",
+    "over 1 at -2500, over 2 at -400, over 3 at -135 clears breakeven comfortably.",
+    "Son over 2.5 shots?",
+  );
+  assert.match(play, /Lean: over 3 at -135/i);
+  assert.match(play, /worth paying/i);
 });
 
 test("normalizeWcStructuredForDelivery — player prop pass repair", () => {

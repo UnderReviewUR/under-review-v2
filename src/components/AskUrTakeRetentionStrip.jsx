@@ -63,9 +63,8 @@ export default function AskUrTakeRetentionStrip({
     });
   }, [safeSavedTakes.length]);
 
-  const showRow = Boolean(lastCompleteAi && userTurns >= 1);
+  const showRow = Boolean(lastCompleteAi && userTurns >= 2);
   if (!showRow) return null;
-  if (focusSession && userTurns < 2) return null;
 
   const slipCopy =
     safeMsgs.filter((m) => m.role === "ai" && !m.loading).length % 2 === 1
