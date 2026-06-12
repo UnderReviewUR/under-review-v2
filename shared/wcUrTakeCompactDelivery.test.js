@@ -148,6 +148,24 @@ test("buildWcCompactStructured — group_slate seed preserves prebuilt lean", ()
   assert.doesNotMatch(s.lean, /Pass — no actionable line/i);
 });
 
+test("buildWcCompactStructured — golden boot marketing prompt names a pick", () => {
+  const s = buildWcCompactStructured({
+    question: "Golden Boot pick for World Cup 2026 — who scores most and why?",
+    wcIntent: WC_INTENT.GOLDEN_BOOT,
+    playerMarketTier: "market_only",
+    summary:
+      "Mbappé leads the adjusted model by a wide margin — six expected games and confirmed penalty taker for France.",
+    deep:
+      "France projects a 34.86% semifinal rate in UR sims. Market +600 on Mbappé; Vinícius Júnior sits at +1000. Pass at +600 — fair favorite. Watch for France's Group I opener — if Mbappé starts and scores in Game 1, the +600 number moves fast.",
+  });
+  assert.equal(s.callType, "player_market_odds");
+  assert.match(s.call, /Mbappé/i);
+  assert.doesNotMatch(s.lean, /no actionable line/i);
+  assert.match(s.lean, /Mbappé/i);
+  assert.match(s.lean, /Golden Boot/i);
+  assert.match(s.line, /\+600|Market/i);
+});
+
 test("buildWcCompactStructured — matchup group opener avoids generic pass lean", () => {
   const s = buildWcCompactStructured({
     question: "Who wins CAN vs BIH (Group B)?",

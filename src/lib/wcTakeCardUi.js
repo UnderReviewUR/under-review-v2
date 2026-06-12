@@ -132,8 +132,15 @@ export function pickWcCardHeadline(opts = {}) {
   const call = String(opts.call || "").trim();
   const leanRaw = String(opts.lean || "").trim();
   const leanIsPassBoilerplate = /^pass\s*[—-]\s*no actionable line yet/i.test(leanRaw);
+  const playerMarketCt =
+    ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
 
-  if (ct === "matchup" && leanIsPassBoilerplate && call && call !== "—") {
+  if (
+    (ct === "matchup" || playerMarketCt) &&
+    leanIsPassBoilerplate &&
+    call &&
+    call !== "—"
+  ) {
     return capWcCardFaceField(call, {
       maxWords: WC_FACE_HEADLINE_WORDS,
       maxSentences: 1,
@@ -235,7 +242,13 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     breakdown = wcAppendUniqueBlock(pathLine, breakdown);
   }
   if (focusLayout) {
-    if (fullWatch) breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+    const watchAlreadyInBreakdown =
+      fullWatch &&
+      breakdown &&
+      breakdown.toLowerCase().includes(fullWatch.slice(0, Math.min(48, fullWatch.length)).toLowerCase());
+    if (fullWatch && !watchAlreadyInBreakdown) {
+      breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+    }
     if (fullDeep) breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
     if (fullWhy && !focusWhyCompressed) breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
     if (fullPlay) breakdown = wcAppendUniqueBlock(breakdown, fullPlay);

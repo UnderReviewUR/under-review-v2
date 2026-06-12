@@ -31,7 +31,13 @@ const NO_VERIFIED_LINE_RE =
 
 /** Body cites real American prices — do not force a pass headline repair. */
 const CITED_BOOK_ODDS_RE =
-  /\b(?:at|@)\s*[+-]\d{2,}\b|over\s+\d+(?:\.\d+)?\s+at\s+[+-]\d+/i;
+  /\b(?:at|@)\s*[+-]\d{2,}\b|over\s+\d+(?:\.\d+)?\s+at\s+[+-]\d+|\bmarket\s+\+\d{3,}\b/i;
+
+const GOLDEN_BOOT_PLAYER_RE =
+  /\b(Mbappé|Mbappe|Haaland|Kane|Vinícius|Vinicius|Salah|Messi|Rodrygo|Lewandowski|Griezmann|Osimhen|Saka|Musiala|Pedri|Endrick|Ronaldo|Martínez|Martinez|Yamal|Jiménez|Jimenez|Son|Fernandes)\b/i;
+
+const GENERIC_PASS_LEAN_RE =
+  /^pass\s*[—-]\s*no actionable line yet/i;
 
 const LADDER_LEG_RE = /over\s+(\d+(?:\.\d+)?)\s+(?:at\s+|[·\-–—]\s*)([+-]\d+)/gi;
 
@@ -177,6 +183,140 @@ export function formatWcPlayerPropLadderWhy(text, question = "") {
  * @param {string} deep
  * @param {string} question
  */
+/**
+ * @param {string} question
+ */
+export function isWcGoldenBootPickQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  return (
+    /\b(golden boot|top scorer|scores most|leading scorer|score the most)\b/i.test(q) &&
+    /\b(pick|who|best|value|most|why)\b/i.test(q)
+  );
+}
+
+/**
+ * @param {string} blob
+ */
+export function extractGoldenBootPlayerFromBlob(blob) {
+  const text = String(blob || "");
+  const leads = text.match(
+    /([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,28})\s+leads(?:\s+the)?(?:\s+adjusted)?/i,
+  );
+  if (leads?.[1] && !/ur model|market|france|brazil/i.test(leads[1])) {
+    return leads[1].trim();
+  }
+  const primary = text.match(/\bprimary scorer[^.]{0,40}?\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]{2,24})\b/i);
+  if (primary?.[1]) return primary[1].trim();
+  const named = text.match(GOLDEN_BOOT_PLAYER_RE);
+  return named?.[1] || "";
+}
+
+/**
+ * @param {string} blob
+ */
+export function extractGoldenBootOddsFromBlob(blob) {
+  const text = String(blob || "");
+  return (
+    text.match(/\bMarket\s+(\+\d{3,})/i)?.[1] ||
+    text.match(/\bPass at\s+(\+\d{3,})/i)?.[1] ||
+    text.match(/\bLean[^.]+\s+(\+\d{3,})/i)?.[1] ||
+    text.match(/\bUR\s*(?:path|~)\s*(\+\d{3,})/i)?.[1] ||
+    text.match(/\b(\+\d{3,})\b/)?.[1] ||
+    ""
+  );
+}
+
+/**
+ * Golden Boot / top scorer — never fall back to generic "no actionable line" when model names a player.
+ * @param {string} summary
+ * @param {string} deep
+ * @param {string} [question]
+ */
+export function synthesizeGoldenBootPlayFromBlob(summary, deep, question = "") {
+  const blob = `${summary}\n${deep}`.trim();
+  const player = extractGoldenBootPlayerFromBlob(blob);
+  const odds = extractGoldenBootOddsFromBlob(blob);
+  const isPickAsk = isWcGoldenBootPickQuestion(question);
+  const fairPass = /\b(pass at|fair favorite|fair price|fairly priced|no edge|no mispric)\b/i.test(
+    blob,
+  );
+  const hasEdge = /\b(mispriced|adjusted model|underprice|UR path|structural edge|wide margin|leads the adjusted|leads the)\b/i.test(
+    blob,
+  );
+
+  if (!player && !odds) return "";
+
+  const boot = "Golden Boot";
+  if (isPickAsk && player) {
+    const oddsBit = odds ? ` ${odds}` : "";
+    if (hasEdge || !fairPass) {
+      return `Lean: ${player} ${boot}${oddsBit} — top UR scorer path.`;
+    }
+    if (odds) {
+      return `Lean: ${player} ${boot} ${odds} — model pick; price is fair, not a misprice.`;
+    }
+    return `Lean: ${player} — ${boot} pick on UR games-played and role.`;
+  }
+  if (fairPass && odds && player) {
+    return `Pass at ${odds} on ${player} ${boot} — fair favorite price.`;
+  }
+  if (player && odds) {
+    if (hasEdge) {
+      return `Lean: ${player} ${boot} ${odds} — adjusted tournament path edge.`;
+    }
+    return `Pass at ${odds} on ${player} ${boot} — price matches the path.`;
+  }
+  if (player) {
+    return `Lean: ${player} — ${boot} thesis from UR model.`;
+  }
+  return "";
+}
+
+/**
+ * @param {string[]} summarySents
+ * @param {string} blob
+ */
+export function synthesizeGoldenBootCallFromBlob(summarySents, blob) {
+  const first = (summarySents[0] || "").replace(/^lean:\s*/i, "").trim();
+  if (first && !GENERIC_PASS_LEAN_RE.test(first) && first.length >= 12) {
+    return first;
+  }
+  const player = extractGoldenBootPlayerFromBlob(blob);
+  if (player) {
+    return `${player} — Golden Boot pick on UR path and scoring volume.`;
+  }
+  return "Golden Boot — top scorer path from UR model.";
+}
+
+/**
+ * @param {string[]} summarySents
+ * @param {string} deep
+ */
+export function synthesizeGoldenBootLineFromBlob(summarySents, deep) {
+  const fromSummary = summarySents[1]?.trim();
+  if (fromSummary && /\b(\+\d{3,}|market|UR|sim)\b/i.test(fromSummary)) {
+    return fromSummary;
+  }
+  const blob = `${summarySents.join("\n")}\n${deep}`;
+  const market = extractGoldenBootOddsFromBlob(blob);
+  const ur = blob.match(/\bUR\s*(?:path|~)\s*(\+\d{3,})/i)?.[1];
+  if (market && ur && market !== ur) {
+    return `Market ${market} · UR ~${ur} on the Boot leg.`;
+  }
+  if (market) return `Market ${market} on the Golden Boot board.`;
+  const pct = blob.match(/(\d+\.?\d*)%\s+semifinal/i)?.[1];
+  if (pct) return `France path: ${pct}% semifinal rate in UR sims.`;
+  return synthesizeWcLineFromBlob(summarySents, deep);
+}
+
+function synthesizeWcLineFromBlob(summarySents, deep) {
+  const fromSummary = summarySents[1]?.trim();
+  if (fromSummary) return fromSummary;
+  const simSent = splitWcSentences(deep).find((s) => /\bsims?\b/i.test(s));
+  return simSent || "";
+}
+
 export function synthesizePlayerPropPlayFromCitedOdds(summary, deep, question = "") {
   const blob = `${summary}\n${deep}`.trim();
   if (!CITED_BOOK_ODDS_RE.test(blob)) return "";

@@ -24,6 +24,8 @@ import {
   resolveWcPlayerMarketResponse,
   shouldForceWcPlayerMarketPass,
   synthesizePlayerPropPlayFromCitedOdds,
+  synthesizeGoldenBootPlayFromBlob,
+  extractGoldenBootPlayerFromBlob,
 } from "./wcUrTakePlayerMarket.js";
 import { buildWcCompactStructured } from "./wcUrTakeCompactDelivery.js";
 import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
@@ -242,6 +244,24 @@ test("formatWcPlayerPropLadderWhy — splits milestone legs line by line", () =>
   assert.match(out, /Over 3 at -135/);
   assert.match(out, /nearest playable to your ask/i);
   assert.ok(out.includes("\n"));
+});
+
+test("synthesizeGoldenBootPlayFromBlob — marketing pick names Mbappé not generic pass", () => {
+  const play = synthesizeGoldenBootPlayFromBlob(
+    "Mbappé leads the adjusted model by a wide margin — six expected games for France.",
+    "Market +600 on Mbappé. Pass at +600 — fair favorite. Vinícius at +1000.",
+    "Golden Boot pick for World Cup 2026 — who scores most and why?",
+  );
+  assert.match(play, /Mbappé/i);
+  assert.match(play, /Golden Boot/i);
+  assert.doesNotMatch(play, /no actionable line/i);
+});
+
+test("extractGoldenBootPlayerFromBlob — finds leader from prose", () => {
+  assert.equal(
+    extractGoldenBootPlayerFromBlob("Mbappé leads the adjusted model by a wide margin."),
+    "Mbappé",
+  );
 });
 
 test("synthesizePlayerPropPlayFromCitedOdds — lean over 3 when edge language present", () => {

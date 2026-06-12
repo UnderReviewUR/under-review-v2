@@ -11,6 +11,9 @@ import {
   isWcMisroutedShotsHeadline,
   repairWcShotsPropStructured,
   synthesizePlayerPropPlayFromCitedOdds,
+  synthesizeGoldenBootPlayFromBlob,
+  synthesizeGoldenBootCallFromBlob,
+  synthesizeGoldenBootLineFromBlob,
 } from "./wcUrTakePlayerMarket.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
@@ -270,6 +273,68 @@ function buildWcMatchupCompactStructured(opts = {}) {
 }
 
 /**
+ * @param {object} opts
+ */
+function buildWcGoldenBootCompactStructured(opts = {}) {
+  const summary = String(opts.summary || "").trim();
+  const deep = capWcDeepWords(String(opts.deep || "").trim(), 220);
+  const question = String(opts.question || "").trim();
+  const tier = String(opts.playerMarketTier || "market_only");
+  const seed =
+    opts.structuredSeed && typeof opts.structuredSeed === "object"
+      ? opts.structuredSeed
+      : null;
+  const summarySents = splitWcSentences(summary);
+  const blob = `${summary}\n${deep}`.trim();
+
+  const call = String(
+    seed?.call || synthesizeGoldenBootCallFromBlob(summarySents, blob),
+  ).trim();
+  const line = String(seed?.line || synthesizeGoldenBootLineFromBlob(summarySents, deep)).trim();
+  const goldenBootPlay = synthesizeGoldenBootPlayFromBlob(summary, deep, question);
+  let lean = String(seed?.lean || "").trim();
+  if (!lean || /^pass\s*[—-]\s*no actionable line yet/i.test(lean)) {
+    lean =
+      goldenBootPlay ||
+      extractPlayDecision(summary, deep, call, {
+        line,
+        question,
+        wcIntent: WC_INTENT.GOLDEN_BOOT,
+        pass: isWcPassVerdict(summary, goldenBootPlay || ""),
+      });
+  }
+  if (/^pass\s*[—-]\s*no actionable line yet/i.test(lean) && goldenBootPlay) {
+    lean = goldenBootPlay;
+  }
+
+  const pass = isWcPassVerdict(summary, lean);
+  const whyNow = String(seed?.whyNow || buildWhyNow(summary, deep, WC_INTENT.GOLDEN_BOOT)).trim();
+  const edge = capWcDeepWords(
+    String(seed?.edge || extractWatchFor(deep, pass, whyNow)),
+    22,
+  );
+
+  return finalizeWcPlayerPropStructured(
+    {
+      sport: "worldcup",
+      callType: String(seed?.callType || callTypeForPlayerTier(tier)),
+      playerMarketTier: String(seed?.playerMarketTier || tier),
+      lean,
+      call,
+      line,
+      whyNow,
+      edge,
+      deep,
+      breakdownAvailable: Boolean(deep && deep.length > 40),
+      confidence: String(seed?.confidence || (pass ? "Speculative" : "Medium")),
+      caveats: [],
+      timestamp: seed?.timestamp || new Date().toISOString(),
+    },
+    question,
+  );
+}
+
+/**
  * @param {string} call
  */
 function extractTeamFromCall(call) {
@@ -410,6 +475,13 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
   const fromPlayerOdds = synthesizePlayerPropPlayFromCitedOdds(summary, deep, question);
   if (fromPlayerOdds && isWcValidPlayLine(fromPlayerOdds) && !wcCardPlayRestatesCall(fromPlayerOdds, call)) {
     return fromPlayerOdds;
+  }
+
+  if (wcIntent === WC_INTENT.GOLDEN_BOOT || wcIntent === WC_INTENT.TOP_SCORER) {
+    const gbPlay = synthesizeGoldenBootPlayFromBlob(summary, deep, question);
+    if (gbPlay && isWcValidPlayLine(gbPlay) && !wcCardPlayRestatesCall(gbPlay, call)) {
+      return gbPlay;
+    }
   }
 
   return "Pass — no actionable line yet; see Watch For before locking a bet.";
@@ -748,6 +820,16 @@ export function buildWcCompactStructured(opts = {}) {
       deep,
       question,
       structuredSeed: seed,
+    });
+  }
+
+  if (wcIntent === WC_INTENT.GOLDEN_BOOT || wcIntent === WC_INTENT.TOP_SCORER) {
+    return buildWcGoldenBootCompactStructured({
+      summary,
+      deep,
+      question,
+      structuredSeed: seed,
+      playerMarketTier: tier,
     });
   }
 
