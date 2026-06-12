@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { getWcTeamByAbbr, getWcTeamsByGroup } from "../../data/wc2026Teams.js";
-import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
+import { resolveMatchWinProbabilityBar } from "../../../shared/wcMatchMoneylineProbs.js";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
 import {
   formatWcDetailAsOfEt,
@@ -78,7 +78,9 @@ function ModelOddsBar({ odds }) {
   const bW = (odds.teamB.winPct / total) * 100;
   return (
     <div className="wc-detail-model-odds">
-      <p className="wc-detail-model-odds__label">Model win chance (Elo)</p>
+      <p className="wc-detail-model-odds__label">
+        {odds.sourceLabel || "Model win chance (Elo)"}
+      </p>
       <div className="wc-odds-labels">
         <span>
           {odds.teamA.abbr} {odds.teamA.winPct}%
@@ -100,7 +102,15 @@ function ModelOddsBar({ odds }) {
 function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
   const groupLetter = formatWcMatchGroupLetter(match?.group) || null;
   const groupTeams = groupLetter ? wcTeamsWithStrengthTags(getWcTeamsByGroup(groupLetter)) : [];
-  const modelOdds = teams?.length ? formatMatchOdds(match.homeTeam, match.awayTeam, teams) : null;
+  const modelOdds = teams?.length
+    ? resolveMatchWinProbabilityBar({
+        homeAbbr: match.homeTeam,
+        awayAbbr: match.awayTeam,
+        teams,
+        matchOdds: match?.odds,
+        oddsStale: match?.oddsStale === true,
+      })
+    : null;
   const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
 
   return (

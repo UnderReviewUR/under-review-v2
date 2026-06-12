@@ -15,6 +15,7 @@ import {
   linkBdlMatchesToEspn,
   normalizeBdlFifaMatchRow,
   normalizeBdlMatchDetailBundle,
+  attachBdlMoneylinesToMatches,
   normalizeBdlPlayerPropsToMarkets,
   pickBdlMatchOddsForMatch,
 } from "./_wcBdlNormalize.js";
@@ -161,11 +162,7 @@ export async function scrapeAndCacheWcBdlStandingsAndFixtures() {
     delayMs: 0,
   });
   if (oddsPaginated.ok) {
-    for (const m of bdlMatches) {
-      if (m.bdlMatchId == null) continue;
-      const odds = pickBdlMatchOddsForMatch(oddsPaginated.rows, m.bdlMatchId);
-      if (odds) m.odds = odds;
-    }
+    bdlMatches = attachBdlMoneylinesToMatches(bdlMatches, oddsPaginated.rows, nowMs);
   } else {
     errors.push(`odds: ${oddsPaginated.error || "failed"}`);
   }

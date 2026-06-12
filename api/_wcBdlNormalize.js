@@ -176,6 +176,22 @@ function formatAm(n) {
 }
 
 /**
+ * Attach BDL 1X2 moneylines to slate rows (DraftKings → FanDuel → BetMGM → Caesars).
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {Array<Record<string, unknown>>} oddsRows
+ * @param {number} [nowMs]
+ */
+export function attachBdlMoneylinesToMatches(matches, oddsRows, nowMs = Date.now()) {
+  return (matches || []).map((m) => {
+    const bdlMatchId = m?.bdlMatchId ?? m?.id;
+    if (bdlMatchId == null) return m;
+    const odds = pickBdlMatchOddsForMatch(oddsRows, bdlMatchId);
+    if (!odds) return m;
+    return { ...m, odds, oddsUpdatedAt: nowMs };
+  });
+}
+
+/**
  * Build player_id → display name map from BDL reference / roster rows.
  * @param {Array<Record<string, unknown>>} players
  */

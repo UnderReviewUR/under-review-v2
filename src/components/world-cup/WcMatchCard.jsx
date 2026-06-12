@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
-import { formatMatchOdds } from "../../data/wc2026WinProbability.js";
+import { resolveMatchWinProbabilityBar } from "../../../shared/wcMatchMoneylineProbs.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
@@ -64,6 +64,9 @@ function OddsBar({ odds }) {
   const bW = (odds.teamB.winPct / total) * 100;
   return (
     <div className="wc-odds-wrap">
+      {odds.sourceLabel ? (
+        <p className="wc-detail-model-odds__label wc-odds-source-label">{odds.sourceLabel}</p>
+      ) : null}
       <div className="wc-odds-labels">
         <span>
           {odds.teamA.abbr} {odds.teamA.winPct}%
@@ -94,7 +97,16 @@ export default function WcMatchCard({
   const [weather, setWeather] = useState(null);
   const home = getWcTeamByAbbr(match?.homeTeam) || teams?.find((t) => t.abbreviation === match?.homeTeam);
   const away = getWcTeamByAbbr(match?.awayTeam) || teams?.find((t) => t.abbreviation === match?.awayTeam);
-  const odds = showOdds && teams?.length ? formatMatchOdds(match.homeTeam, match.awayTeam, teams) : null;
+  const odds =
+    showOdds && teams?.length
+      ? resolveMatchWinProbabilityBar({
+          homeAbbr: match.homeTeam,
+          awayAbbr: match.awayTeam,
+          teams,
+          matchOdds: match?.odds,
+          oddsStale: match?.oddsStale === true,
+        })
+      : null;
   const live = isLive(match?.status);
   const finished = String(match?.status || "").toLowerCase() === "ft";
 

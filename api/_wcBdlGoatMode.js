@@ -12,10 +12,12 @@ import {
 } from "../shared/wcBdlPolicy.js";
 import {
   bdlFifaFetch,
+  bdlFifaFetchPaginated,
   fetchAllMatchesBdl,
   BDL_GOAT_RATE_LIMIT_MS,
   sleepMs,
 } from "./_wcBdlFifa.js";
+import { attachBdlMoneylinesToMatches } from "./_wcBdlNormalize.js";
 import { readWcGroupsFromKv, readWcMatchesFromKv, readWcOutrightsFromKv } from "./_wcData.js";
 import { getDurableJson } from "./_durableStore.js";
 import {
@@ -114,19 +116,31 @@ export async function getGoatMatchesPayload() {
       source: "balldontlie_live",
     };
   }
-  const matches = fetched.matches.map((m) => ({
+  const nowMs = Date.now();
+  let matches = fetched.matches.map((m) => ({
     ...m,
     bdlMatchId: m.bdlMatchId ?? m.id ?? null,
     source: "balldontlie",
   }));
+
+  const oddsPaginated = await bdlFifaFetchPaginated(
+    "/odds",
+    { "seasons[]": 2026, per_page: 100 },
+    { maxPages: 15, delayMs: 0 },
+  );
+  if (oddsPaginated.ok) {
+    matches = attachBdlMoneylinesToMatches(matches, oddsPaginated.rows, nowMs);
+  }
+
   return {
     ok: true,
     matches,
-    lastUpdated: Date.now(),
+    lastUpdated: nowMs,
     source: "balldontlie_live",
     fallback: false,
     stale: false,
     pages: fetched.pages,
+    matchOddsAttached: oddsPaginated.ok,
   };
 }
 
