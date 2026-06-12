@@ -40,6 +40,10 @@ import {
 } from "../shared/wcOpenFootballSchedule.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcBdlStandingsAndFixtures } from "./_wcBdlData.js";
+import {
+  loadFinalizedWcMatchDetailIds as loadFinalizedWcMatchDetailIdsFromCache,
+  markWcMatchFinalizedInCache,
+} from "./_wcFinalizedMatchIds.js";
 
 /** Max parallel KV reads when enriching match lists for /api/world-cup. */
 export const WC_MATCH_DETAIL_ENRICH_CONCURRENCY = 12;
@@ -286,6 +290,11 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
       if (bdl.ok) {
         if (bdl.finalized) {
           try {
+            await markWcMatchFinalizedInCache(id);
+          } catch {
+            /* non-fatal */
+          }
+          try {
             const { refreshWcTournamentSimAfterFt } = await import("./_wcTournamentSimData.js");
             await refreshWcTournamentSimAfterFt();
           } catch {
@@ -463,6 +472,11 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
   );
 
   if (detailResult.finalized) {
+    try {
+      await markWcMatchFinalizedInCache(id);
+    } catch {
+      /* non-fatal */
+    }
     try {
       const { refreshWcTournamentSimAfterFt } = await import("./_wcTournamentSimData.js");
       await refreshWcTournamentSimAfterFt();
@@ -880,16 +894,7 @@ export async function scrapeAndCacheWcMatchDetail(eventId, meta = {}) {
  * @param {Array<Record<string, unknown>>} matches
  */
 export async function loadFinalizedWcMatchDetailIds(matches) {
-  const ft = (matches || []).filter((m) => isWcMatchFtStatus(m?.status));
-  /** @type {Set<string>} */
-  const ids = new Set();
-  await Promise.all(
-    ft.map(async (m) => {
-      const row = await readWcMatchDetailFromKv(m.id);
-      if (row?.finalized) ids.add(String(m.id));
-    }),
-  );
-  return ids;
+  return loadFinalizedWcMatchDetailIdsFromCache(matches, readWcMatchDetailFromKv);
 }
 
 /**

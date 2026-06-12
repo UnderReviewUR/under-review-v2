@@ -2,14 +2,18 @@
  * Execute due scrapes for unified scheduler (KV last-run + ramp cadence).
  */
 
-import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
+import {
+  loadScrapeLastRunBundle,
+  persistScrapeLastRunBundle,
+  readLastRunFromBundle,
+  writeLastRunToBundle,
+} from "./_scrapeLastRunStore.js";
 import { scrapeAndCacheNbaProps } from "./_nbaProps.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";
 import { scrapeAndCacheF1Odds } from "./_f1Odds.js";
 import { resolveGameSpreadForSlateGame } from "./_gameOddsPipeline.js";
 import {
-  buildScrapeLastRunKvKey,
   getNextScrapeDelayMs,
   getWcRampScrapeDelayMs,
   shouldRunScrapeForGame,
@@ -28,7 +32,6 @@ import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
 import { scrapeAndCacheNbaFinalsOutrights } from "./_nbaOutrightsData.js";
 import { scrapeAndCacheGoalEditorial } from "./_goalBettingData.js";
 
-const LAST_RUN_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_SCRAPES_PER_TICK = 12;
 
 /** @type {Record<string, (target: import("./_scrapeSchedule.js").ScrapeTarget) => Promise<Record<string, unknown>>>} */
@@ -194,38 +197,19 @@ const SCRAPE_HANDLERS = {
 };
 
 /**
- * @param {string} sport
- * @param {string} gameId
- */
-async function readLastRunMs(sport, gameId) {
-  const key = buildScrapeLastRunKvKey(sport, gameId);
-  const row = await getDurableJson(key);
-  const ms = Number(row?.lastRunMs);
-  return Number.isFinite(ms) ? ms : null;
-}
-
-/**
- * @param {string} sport
- * @param {string} gameId
- * @param {number} lastRunMs
- */
-async function writeLastRunMs(sport, gameId, lastRunMs) {
-  const key = buildScrapeLastRunKvKey(sport, gameId);
-  await setDurableJson(key, { lastRunMs }, LAST_RUN_TTL_SECONDS);
-}
-
-/**
  * @param {import("./_scrapeSchedule.js").ScrapeTarget[]} targets
  * @param {number} [nowMs]
  */
 export async function runDueScrapes(targets, nowMs = Date.now()) {
   const results = [];
   let executed = 0;
+  const lastRunBundle = await loadScrapeLastRunBundle();
 
   const sortedTargets = sortScrapeTargetsByPriority(targets);
 
-  for (const target of sortedTargets) {
-    if (executed >= MAX_SCRAPES_PER_TICK) break;
+  try {
+    for (const target of sortedTargets) {
+      if (executed >= MAX_SCRAPES_PER_TICK) break;
 
     const { sport, gameId, gameStartMs } = target;
     const fixedIntervalMs = Number(target.meta?.fixedIntervalMs);
@@ -276,7 +260,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
       continue;
     }
 
-    const lastRunMs = await readLastRunMs(sport, gameId);
+    const lastRunMs = readLastRunFromBundle(lastRunBundle, sport, gameId);
     const wcRampCadence =
       !useFixedInterval &&
       isWcMatchBundle &&
@@ -331,7 +315,7 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
 
     try {
       const payload = await handler(target);
-      await writeLastRunMs(sport, gameId, nowMs);
+      writeLastRunToBundle(lastRunBundle, sport, gameId, nowMs);
       executed += 1;
       console.log(
         JSON.stringify({
@@ -364,6 +348,9 @@ export async function runDueScrapes(targets, nowMs = Date.now()) {
         error: err?.message || "scrape_failed",
       });
     }
+    }
+  } finally {
+    await persistScrapeLastRunBundle(lastRunBundle);
   }
 
   return {

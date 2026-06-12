@@ -2,6 +2,7 @@ import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
 import { addCalendarDaysEt } from "./_espnEtDates.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { shouldRunNbaBoardWarmupCron } from "../shared/nbaBoardWarmupPolicy.js";
 import { persistLastKnownHomeNbaGames, recoverLastKnownHomeNbaGames } from "./_homeLastKnownGames.js";
 import { normalizeTeamAbbr } from "../shared/nbaTeamAbbrev.js";
 import {
@@ -3574,6 +3575,14 @@ export default async function handler(req, res) {
 
     if (view === "board") {
       const isWarmupRequest = String(req.query?.warmup || "") === "1";
+      if (isWarmupRequest && !shouldRunNbaBoardWarmupCron()) {
+        emitNbaBoardWarmupLog({ skipped: true, reason: "wc_tournament_window" });
+        return res.status(200).json({
+          ok: true,
+          skipped: true,
+          reason: "wc_tournament_window",
+        });
+      }
       if (isWarmupRequest && !verifyNbaBoardWarmupAuth(req)) {
         res.setHeader("Content-Type", "application/json");
         return res.status(401).json({ error: "Unauthorized" });

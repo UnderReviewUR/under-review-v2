@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { verifyNbaBoardWarmupAuth } from "./nba.js";
+import { shouldRunNbaBoardWarmupCron } from "../shared/nbaBoardWarmupPolicy.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +50,10 @@ test("verifyNbaBoardWarmupAuth accepts matching Bearer token", () => {
   } finally {
     delete process.env.CRON_SECRET;
   }
+});
+
+test("shouldRunNbaBoardWarmupCron is false during WC tournament", () => {
+  assert.equal(shouldRunNbaBoardWarmupCron(Date.parse("2026-06-15T12:00:00.000Z")), false);
 });
 
 test("vercel.json defines NBA board warmup cron", () => {
