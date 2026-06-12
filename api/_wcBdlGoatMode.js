@@ -35,56 +35,9 @@ import {
 } from "../shared/wcBdlFutures.js";
 import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
 import { WC_GROUPS_TTL_SECONDS, WC_MATCHES_TTL_SECONDS } from "../shared/wc2026Constants.js";
+import { normalizeBdlGroupStandings } from "../shared/wcBdlGroupStandings.js";
 
-/** @param {unknown} data */
-export function normalizeBdlGroupStandings(data) {
-  const groups = {};
-  const rawGroups =
-    data?.groups ||
-    data?.group_standings ||
-    data?.data ||
-    (Array.isArray(data) ? data : null);
-  if (!rawGroups) return groups;
-
-  const mapTeams = (teams) =>
-    (teams || []).map((t) => ({
-      team: String(t.team || t.name || t.abbreviation || t.abbr || "").trim(),
-      played: Number(t.played ?? t.mp ?? t.games_played ?? 0),
-      won: Number(t.won ?? t.w ?? t.win ?? 0),
-      drawn: Number(t.drawn ?? t.d ?? t.draw ?? 0),
-      lost: Number(t.lost ?? t.l ?? t.loss ?? 0),
-      gf: Number(t.gf ?? t.goals_for ?? t.for ?? 0),
-      ga: Number(t.ga ?? t.goals_against ?? t.against ?? 0),
-      gd: Number(t.gd ?? t.goal_difference ?? 0),
-      points: Number(t.points ?? t.pts ?? 0),
-    }));
-
-  if (Array.isArray(rawGroups)) {
-    for (const g of rawGroups) {
-      const letter = String(g.group || g.name || g.letter || "")
-        .trim()
-        .toUpperCase()
-        .replace(/^GROUP\s*/i, "");
-      const teams = Array.isArray(g.standings)
-        ? g.standings
-        : Array.isArray(g.teams)
-          ? g.teams
-          : [];
-      if (!letter || !teams.length) continue;
-      groups[letter] = mapTeams(teams);
-    }
-    return groups;
-  }
-
-  if (typeof rawGroups === "object") {
-    for (const [key, teams] of Object.entries(rawGroups)) {
-      const letter = String(key).trim().toUpperCase().replace(/^GROUP\s*/i, "");
-      if (!Array.isArray(teams)) continue;
-      groups[letter] = mapTeams(teams);
-    }
-  }
-  return groups;
-}
+export { normalizeBdlGroupStandings };
 
 export { hasWcBdlApiKey, isWcGoatPrimaryEnabled, wantsEspnSource, wantsGoatSource };
 

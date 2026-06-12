@@ -3,6 +3,11 @@ import { applyCors } from "./_cors.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { getEnv } from "./_env.js";
 import { extractGrandPrixRaceStartFromSessions } from "../shared/f1RaceStart.js";
+import {
+  buildScheduleFromEspnCalendar,
+  F1_2026_VALID_RACES,
+  patchScheduleWithEspnCurrentEvent,
+} from "../shared/f1EspnSchedule.js";
 import { attachF1SmarketsOddsToContext } from "./_f1Odds.js";
 import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
 
@@ -62,6 +67,8 @@ const CIRCUIT_COORDS_BY_FULL_NAME = {
   "Jeddah Corniche Circuit": { lat: 21.6319, lon: 39.1044 },
   "Circuit Gilles Villeneuve": { lat: 45.5, lon: -73.5228 },
   "Circuit de Monaco": { lat: 43.7347, lon: 7.4206 },
+  "Circuit de Catalunya": { lat: 41.57, lon: 2.2611 },
+  "Circuit de Barcelona-Catalunya": { lat: 41.57, lon: 2.2611 },
 };
 
 const CIRCUIT_COORDS_BY_MEETING_NAME = {
@@ -182,39 +189,6 @@ async function fetchQualifyingGridForSession(sessionKey, driverByNumber) {
   return { qualifyingGrid, qualifyingNote: null };
 }
 
-async function enrichScheduleWithEspn(schedule) {
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(ESPN_F1_SCOREBOARD, {
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(t);
-    if (!res.ok) return schedule;
-    const data = await res.json();
-    const event = data?.events?.[0];
-    if (!event) return schedule;
-
-    const circuitName = event?.circuit?.fullName || null;
-    const city = event?.circuit?.address?.city || null;
-    const raceSession = Array.isArray(event?.competitions)
-      ? event.competitions.find((c) => c?.type?.abbreviation === "Race")
-      : null;
-    const raceStart = raceSession?.startDate || null;
-
-    const nextRace = schedule?.races?.find((r) => r?.is_next);
-    if (nextRace && circuitName) {
-      nextRace.circuitFullName = circuitName;
-      nextRace.circuitCity = city;
-      nextRace.espnRaceStart = raceStart;
-    }
-    return schedule;
-  } catch {
-    return schedule;
-  }
-}
-
 async function fetchRaceWeather(lat, lon) {
   if (lat == null || lon == null) return null;
   try {
@@ -290,30 +264,26 @@ async function safeFetch(path, options = {}) {
   }
 }
 
-const VALID_2026_RACES = new Set([
-  "Australian Grand Prix",
-  "Chinese Grand Prix",
-  "Japanese Grand Prix",
-  "Miami Grand Prix",
-  "Canadian Grand Prix",
-  "Monaco Grand Prix",
-  "Spanish Grand Prix",
-  "Austrian Grand Prix",
-  "British Grand Prix",
-  "Belgian Grand Prix",
-  "Hungarian Grand Prix",
-  "Dutch Grand Prix",
-  "Italian Grand Prix",
-  "Spanish Grand Prix (Madrid)",
-  "Azerbaijan Grand Prix",
-  "Singapore Grand Prix",
-  "United States Grand Prix",
-  "Mexico City Grand Prix",
-  "Sao Paulo Grand Prix",
-  "Las Vegas Grand Prix",
-  "Qatar Grand Prix",
-  "Abu Dhabi Grand Prix",
-]);
+async function fetchEspnF1Scoreboard() {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(ESPN_F1_SCOREBOARD, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) return { ok: false, calendar: [], currentEvent: null };
+    const data = await res.json();
+    return {
+      ok: true,
+      calendar: data?.leagues?.[0]?.calendar || [],
+      currentEvent: data?.events?.[0] || null,
+    };
+  } catch {
+    return { ok: false, calendar: [], currentEvent: null };
+  }
+}
 
 function buildSchedule(meetings) {
   const now = new Date();
@@ -357,7 +327,7 @@ function buildSchedule(meetings) {
         winner: m.winner || null,
       };
     })
-    .filter((m) => VALID_2026_RACES.has(m.meeting_name))
+    .filter((m) => F1_2026_VALID_RACES.has(m.meeting_name))
     .sort((a, b) => new Date(a.race_date || a.date_start).getTime() - new Date(b.race_date || b.date_start).getTime());
 
   if (normalized.length === 0) {
@@ -454,39 +424,66 @@ function buildStandings(drivers) {
 }
 
 async function getScheduleData() {
-  const cached = getCached(f1CacheKey("f1_schedule_v5"));
+  const cached = getCached(f1CacheKey("f1_schedule_v6"));
   if (cached) return cached;
 
   const result = await safeFetch("/meetings?year=2026", { timeoutMs: 5000 });
-  let data = buildSchedule(result.ok ? result.data : null);
+  const openf1Meetings =
+    result.ok && Array.isArray(result.data) && result.data.length > 0 ? result.data : null;
 
-  const rows = [
-    ...(Array.isArray(data?.upcoming) ? data.upcoming : []),
-    ...(Array.isArray(data?.current) ? data.current : []),
-  ];
-  const meetingKeySet = new Set(rows.map((r) => r?.meeting_key).filter((k) => k != null));
-  if (data?.next_meeting_key != null) meetingKeySet.add(data.next_meeting_key);
-  const meetingKeys = [...meetingKeySet];
+  let data;
+  let espn = null;
 
-  const startByMeeting = new Map();
-  await Promise.all(
-    meetingKeys.map(async (mk) => {
-      const sessionsRes = await safeFetch(`/sessions?meeting_key=${mk}`, { timeoutMs: 5000 });
-      const raceStart = extractRaceSessionStart(
-        sessionsRes.ok && Array.isArray(sessionsRes.data) ? sessionsRes.data : [],
+  if (openf1Meetings) {
+    data = buildSchedule(openf1Meetings);
+
+    const rows = [
+      ...(Array.isArray(data?.upcoming) ? data.upcoming : []),
+      ...(Array.isArray(data?.current) ? data.current : []),
+    ];
+    const meetingKeySet = new Set(rows.map((r) => r?.meeting_key).filter((k) => k != null));
+    if (data?.next_meeting_key != null) meetingKeySet.add(data.next_meeting_key);
+    const meetingKeys = [...meetingKeySet];
+
+    const startByMeeting = new Map();
+    await Promise.all(
+      meetingKeys.map(async (mk) => {
+        const sessionsRes = await safeFetch(`/sessions?meeting_key=${mk}`, { timeoutMs: 5000 });
+        const raceStart = extractRaceSessionStart(
+          sessionsRes.ok && Array.isArray(sessionsRes.data) ? sessionsRes.data : [],
+        );
+        if (!raceStart) {
+          console.warn(`[f1] No OpenF1 session with session_name "Race" for meeting_key=${mk}`);
+        } else {
+          startByMeeting.set(mk, raceStart);
+        }
+      }),
+    );
+
+    data = applyRaceStartsMapToSchedule(data, startByMeeting);
+    espn = await fetchEspnF1Scoreboard();
+    data = patchScheduleWithEspnCurrentEvent(data, espn.currentEvent);
+  } else {
+    espn = await fetchEspnF1Scoreboard();
+    if (espn.ok && espn.calendar.length) {
+      data = buildScheduleFromEspnCalendar({
+        calendar: espn.calendar,
+        currentEvent: espn.currentEvent,
+        validRaces: F1_2026_VALID_RACES,
+      });
+      console.log(
+        JSON.stringify({
+          event: "f1_schedule_espn_fallback",
+          races: data.races?.length ?? 0,
+          next: data.races?.find((r) => r.is_next)?.meeting_name ?? null,
+        }),
       );
-      if (!raceStart) {
-        console.warn(`[f1] No OpenF1 session with session_name "Race" for meeting_key=${mk}`);
-      } else {
-        startByMeeting.set(mk, raceStart);
-      }
-    }),
-  );
+    } else {
+      data = buildSchedule(null);
+    }
+  }
 
-  data = applyRaceStartsMapToSchedule(data, startByMeeting);
-  data = await enrichScheduleWithEspn(data);
-
-  setCached(f1CacheKey("f1_schedule_v5"), data, CACHE_TTL.schedule);
+  setCached(f1CacheKey("f1_schedule_v6"), data, CACHE_TTL.schedule);
   return data;
 }
 
