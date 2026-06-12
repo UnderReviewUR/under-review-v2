@@ -8,9 +8,9 @@ import {
   wcCardFaceBlobHasNumericWhy,
 } from "../../shared/wcTakeRetentionQA.js";
 
-const WC_FACE_HEADLINE_WORDS = 16;
+const WC_FACE_HEADLINE_WORDS = 14;
 const WC_FACE_WHY_WORDS = 36;
-const WC_FACE_FOCUS_WHY_WORDS = 18;
+const WC_FACE_FOCUS_WHY_WORDS = 16;
 const WC_FACE_WATCH_WORDS = 22;
 const WC_FACE_FOCUS_WATCH_WORDS = 34;
 const WC_FACE_BREAKDOWN_WORDS = 220;
@@ -31,8 +31,44 @@ export function capWcCardFaceField(text, opts = {}) {
   const words = out.split(/\s+/).filter(Boolean);
   if (words.length > maxWords) {
     out = `${words.slice(0, maxWords).join(" ")}…`;
+    if (/\(\d*\.?$/.test(out) || /\(\s*$/.test(out)) {
+      out = out.replace(/\s*\([^)]*$/, "").trim();
+      if (out && !out.endsWith("…")) out = `${out}…`;
+    }
   }
   return out;
+}
+
+/**
+ * One scannable numeric why for compact dock cards.
+ * @param {string} why
+ * @param {string} [lineSlot]
+ */
+export function pickWcFocusWhyLine(why, lineSlot = "") {
+  const line = String(lineSlot || "").trim();
+  if (line && wcLineSlotIsNumericDelta(line)) {
+    return capWcCardFaceField(line, {
+      maxWords: WC_FACE_FOCUS_WHY_WORDS,
+      maxSentences: 1,
+    });
+  }
+
+  const t = String(why || "").trim();
+  const pctPair = t.match(
+    /market[^.]{0,80}?(\d+\.?\d*)\s*%[^.]{0,80}?(?:UR sims?|sims? put)[^.]{0,40}?(\d+\.?\d*)\s*%(?:\s*\(([+-]?\d+\.?\d*)pt\))?/i,
+  );
+  if (pctPair) {
+    const delta = pctPair[3] ? ` (${pctPair[3]}pt)` : "";
+    return `Market ${pctPair[1]}% · UR sim ${pctPair[2]}%${delta}.`;
+  }
+
+  if (t && wcCardFaceBlobHasNumericWhy(t)) {
+    return capWcCardFaceField(t, {
+      maxWords: WC_FACE_FOCUS_WHY_WORDS,
+      maxSentences: 1,
+    });
+  }
+  return "";
 }
 
 /**
@@ -57,9 +93,40 @@ export function wcLineSlotIsNumericDelta(line) {
  * Actionable headline — lean / THE PLAY, not thesis essay.
  * @param {{ lean?: string, call?: string, thePlay?: string, callType?: string }} opts
  */
+/**
+ * Short actionable play line — never thesis / delta parentheticals on the face.
+ * @param {string} lean
+ */
+function pickWcAdvancementPlayHeadline(lean) {
+  const play = formatWcPlaySlot(lean);
+  if (!play) return "";
+
+  const misprice = play.match(
+    /Group\s+([A-L])\s*[—-]\s*([A-Z]{2,4})\s+advancement\s+misprice/i,
+  );
+  if (misprice) {
+    return `${misprice[2]} to advance in Group ${misprice[1]}`;
+  }
+
+  const std = play.match(/^(.+?)\s+to advance in Group\s+([A-L])(?:\s+at\s+([+-]?\d+))?/i);
+  if (std) {
+    const odds = std[3] ? ` at ${std[3]}` : "";
+    return `${std[1].trim()} to advance in Group ${std[2]}${odds}`;
+  }
+
+  return play.replace(/^lean:\s*/i, "").replace(/\s*\([^)]*sim vs market[^)]*\)\s*\.?$/i, "").trim();
+}
+
 export function pickWcCardHeadline(opts = {}) {
   const ct = String(opts.callType || "").toLowerCase();
   if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
+    const advancementHeadline = pickWcAdvancementPlayHeadline(opts.lean);
+    if (advancementHeadline) {
+      return capWcCardFaceField(advancementHeadline, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
     const leanPlay = formatWcPlaySlot(opts.lean);
     if (leanPlay) {
       return capWcCardFaceField(leanPlay.replace(/^lean:\s*/i, ""), {
@@ -114,17 +181,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
 
   let whyFace = "";
   if (focusLayout) {
-    if (fullWhy && wcCardFaceBlobHasNumericWhy(fullWhy)) {
-      whyFace = capWcCardFaceField(fullWhy, {
-        maxWords: WC_FACE_FOCUS_WHY_WORDS,
-        maxSentences: 1,
-      });
-    } else if (lineSlot && wcLineSlotIsNumericDelta(lineSlot)) {
-      whyFace = capWcCardFaceField(lineSlot, {
-        maxWords: WC_FACE_FOCUS_WHY_WORDS,
-        maxSentences: 1,
-      });
-    }
+    whyFace = pickWcFocusWhyLine(fullWhy, lineSlot);
   } else {
     whyFace = capWcCardFaceField(fullWhy, {
       maxWords: WC_FACE_WHY_WORDS,
@@ -132,13 +189,15 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     });
   }
 
-  const watchFace = capWcCardFaceField(fullWatch, {
-    maxWords: focusLayout ? WC_FACE_FOCUS_WATCH_WORDS : WC_FACE_WATCH_WORDS,
-    maxSentences: focusLayout ? 2 : 1,
-  });
+  const watchFace = focusLayout
+    ? ""
+    : capWcCardFaceField(fullWatch, {
+        maxWords: WC_FACE_WATCH_WORDS,
+        maxSentences: 1,
+      });
 
-  let thePlayFace = fullPlay;
-  if (normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
+  let thePlayFace = focusLayout ? "" : fullPlay;
+  if (!focusLayout && normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
 
   let breakdown = capWcDeepWords(fullDeep, WC_FACE_BREAKDOWN_WORDS);
   const ladderBreakdown = /\bover\s+\d+\s*·/i.test(breakdown);
@@ -147,12 +206,16 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   if (pathLine && !breakdown.includes(pathLine.slice(0, 40))) {
     breakdown = wcAppendUniqueBlock(pathLine, breakdown);
   }
-  if (focusLayout && fullWhy && !ladderBreakdown) breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
-  else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
+  if (focusLayout && fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
+    breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+  } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
   }
-  if (fullWatch && fullWatch !== watchFace && !breakdown.includes(fullWatch.slice(0, 40))) {
+  if (fullWatch && !breakdown.includes(fullWatch.slice(0, 40))) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+  }
+  if (focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40))) {
+    breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   }
 
   const breakdownAvailable =

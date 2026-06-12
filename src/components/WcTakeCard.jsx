@@ -207,18 +207,18 @@ export default function WcTakeCard({
         </>
       ) : null}
 
-      {LABELED_ROWS.map(([key, label]) => {
-        const val = String(sections?.[key] || "").trim();
-        if (!val) return null;
-        if (effectiveFocusLayout && (key === "why" || key === "thePlay")) return null;
-        if (effectiveFocusLayout && slots.length > 0) return null;
-        return (
-          <div key={key} className="wc-take-row">
-            <div className="wc-take-row-label">{label}</div>
-            <WcSectionBody text={val} stacked={!effectiveFocusLayout && key === "why"} />
-          </div>
-        );
-      })}
+      {!effectiveFocusLayout
+        ? LABELED_ROWS.map(([key, label]) => {
+            const val = String(sections?.[key] || "").trim();
+            if (!val) return null;
+            return (
+              <div key={key} className="wc-take-row">
+                <div className="wc-take-row-label">{label}</div>
+                <WcSectionBody text={val} stacked={key === "why"} />
+              </div>
+            );
+          })
+        : null}
 
       {showBreakdownToggle && !breakdownExpanded ? (
         <button

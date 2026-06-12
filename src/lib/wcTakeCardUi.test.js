@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWcTakeStatGrid, pickWcThePlayLine, wcCardSectionText, compressWcCardSections, prepareWcCardFaceDisplay, wcLineSlotIsNumericDelta } from "./wcTakeCardUi.js";
+import {
+  buildWcTakeStatGrid,
+  pickWcThePlayLine,
+  pickWcCardHeadline,
+  pickWcFocusWhyLine,
+  wcCardSectionText,
+  compressWcCardSections,
+  prepareWcCardFaceDisplay,
+  wcLineSlotIsNumericDelta,
+} from "./wcTakeCardUi.js";
 
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
@@ -99,7 +108,8 @@ test("prepareWcCardFaceDisplay keeps one numeric why on focus layout", () => {
     focusLayout: true,
   });
   assert.match(face.sections.why, /-135/);
-  assert.ok(face.sections.watchFor);
+  assert.equal(face.sections.watchFor, "");
+  assert.match(face.breakdownText, /Korea/);
 });
 
 test("wcLineSlotIsNumericDelta rejects path prose", () => {
@@ -120,4 +130,35 @@ test("buildWcTakeStatGrid group_slate hides path prose from line slot", () => {
   });
   assert.equal(grid.slots.length, 1);
   assert.equal(grid.slots[0].label, "Confidence");
+});
+
+test("pickWcCardHeadline shortens misprice lean to actionable play", () => {
+  const headline = pickWcCardHeadline({
+    callType: "group_slate",
+    lean: "Lean: Group D — USA advancement misprice (-36.0pt sim vs market).",
+  });
+  assert.equal(headline, "USA to advance in Group D");
+});
+
+test("pickWcFocusWhyLine compresses sim vs market to one line", () => {
+  const line = pickWcFocusWhyLine(
+    "The market prices USA to advance at 88.2% implied, but UR sims put the escape path at 51.9% (-36.3pt).",
+  );
+  assert.match(line, /Market 88\.2%/);
+  assert.match(line, /UR sim 51\.9%/);
+  assert.match(line, /-36\.3pt/);
+});
+
+test("prepareWcCardFaceDisplay focus mode hides watch for on card face", () => {
+  const face = prepareWcCardFaceDisplay({
+    lean: "Lean: USA to advance in Group D at -750",
+    call: "Group D — USA advancement misprice",
+    why: "The market prices USA to advance at 88.2% implied, but UR sims put the escape path at 51.9% (-36.3pt).",
+    watchFor: "If United States advance odds drift wider than -750, pass.",
+    focusLayout: true,
+    callType: "group_slate",
+  });
+  assert.equal(face.sections.watchFor, "");
+  assert.match(face.sections.why, /88\.2%/);
+  assert.match(face.breakdownText, /drift wider than -750/);
 });

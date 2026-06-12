@@ -1892,13 +1892,14 @@ export const baseCss = `
     margin:0 0 20px;
   }
   .wc-take-context-line{
-    font-size:14px;
-    line-height:1.45;
-    color:rgba(255,255,255,0.62);
-    margin:-8px 0 16px;
+    font-size:15px;
+    line-height:1.5;
+    color:rgba(255,255,255,0.9);
+    margin:-6px 0 14px;
     max-width:100%;
     overflow-wrap:anywhere;
     word-wrap:break-word;
+    font-variant-numeric:tabular-nums;
   }
   .wc-take-verdict-pill{
     align-self:flex-start;
@@ -1967,25 +1968,32 @@ export const baseCss = `
   .wc-take-row-body--stacked .wc-take-row-line:last-child{margin-bottom:0;}
   .wc-take-card--focus .ur-v2-divider{display:none;}
   .wc-take-breakdown-toggle--focus{
-    margin:16px 0 0;
+    margin:12px 0 0;
     padding:0;
     font-size:13px;
-    color:rgba(255,255,255,0.45);
+    font-weight:500;
+    color:#00F5E9;
     background:transparent;
     border:none;
     text-decoration:underline;
     text-underline-offset:4px;
   }
   .wc-take-card--focus .wc-take-breakdown-panel{
-    margin:16px 0 0;
+    margin:14px 0 0;
     padding:14px 0 0;
-    border-top:1px solid rgba(255,255,255,0.08);
+    border-top:1px solid rgba(255,255,255,0.12);
   }
   .wc-take-card--focus .wc-take-breakdown-label{
     font-size:10px;
     letter-spacing:0.14em;
-    color:rgba(255,255,255,0.38);
+    color:rgba(255,255,255,0.72);
     margin-bottom:10px;
+  }
+  .wc-take-card--focus .wc-take-breakdown-body{
+    font-size:14px;
+    line-height:1.55;
+    color:rgba(255,255,255,0.88);
+    white-space:pre-wrap;
   }
   .wc-ladder-grid{display:flex;flex-direction:column;gap:6px;}
   .wc-ladder-note{

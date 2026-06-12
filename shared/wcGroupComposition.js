@@ -360,7 +360,7 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
       0,
       100,
     ),
-    lean: `Lean: Group ${top.group} — ${top.teamAbbr} advancement misprice (${deltaTop} sim vs market).`.slice(
+    lean: `Lean: ${top.teamAbbr} to advance in Group ${top.group}${advanceOdds ? ` at ${advanceOdds}` : ""}.`.slice(
       0,
       120,
     ),
