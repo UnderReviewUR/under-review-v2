@@ -18,6 +18,12 @@ import {
   formatWcMatchVenueLine,
 } from "../../../shared/wcMatchFieldDisplay.js";
 
+const STRENGTH_CLASS = {
+  Favorite: "wc-strength--favorite",
+  Contender: "wc-strength--contender",
+  Longshot: "wc-strength--longshot",
+};
+
 const WC_XI_HELP =
   "Lineups lock in as kickoff approaches. Starter props unlock once this chip shows Starting XI locked.";
 
@@ -137,12 +143,16 @@ function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
         <div className="wc-detail-group-roster">
           <h4>Group {groupLetter}</h4>
           <ul>
-            {groupTeams.map((t) => (
-              <li key={t.abbreviation}>
-                <span>{t.name}</span>
-                <span className="wc-detail-tier">{t.strengthTag}</span>
-              </li>
-            ))}
+            {groupTeams.map((t) => {
+              const tag = t.strengthTag || "Longshot";
+              const tagClass = STRENGTH_CLASS[tag] || "wc-strength--longshot";
+              return (
+                <li key={t.abbreviation}>
+                  <span>{t.name}</span>
+                  <span className={`wc-strength-tag ${tagClass}`}>{tag}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}

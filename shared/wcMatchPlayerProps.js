@@ -67,6 +67,25 @@ function matchPlayerPropOddsRank(odds) {
 }
 
 /**
+ * Normalize O/U scrape rows so milestone "yes" and over/under lines dedupe together.
+ * @param {string} marketKey
+ * @param {string | null | undefined} line
+ * @param {string | null | undefined} side
+ */
+function matchPlayerPropOuDedupeLine(marketKey, line) {
+  const raw = line != null ? String(line).trim() : "";
+  if (raw) return raw;
+  if (String(marketKey || "") === "player_assists_ou") return "0.5";
+  return "";
+}
+
+function matchPlayerPropOuDedupeSide(side) {
+  const raw = String(side || "").trim().toLowerCase();
+  if (!raw || raw === "yes") return "over";
+  return raw;
+}
+
+/**
  * One display row per player — drop duplicate scrape rows that repeat the same name
  * with wild alternate prices (+850 / +13000 / +70000).
  * @param {Array<{ name?: string, americanOdds?: string, line?: string, side?: string }>} rows
@@ -86,7 +105,7 @@ export function collapseMatchPlayerPropRowsForDisplay(rows, marketKey = "") {
     if (!name || !odds) continue;
 
     const dedupeKey = isOuMarket
-      ? `${name.toLowerCase()}|${row?.line || ""}|${row?.side || ""}`
+      ? `${name.toLowerCase()}|${matchPlayerPropOuDedupeLine(marketKey, row?.line)}|${matchPlayerPropOuDedupeSide(row?.side)}`
       : name.toLowerCase();
     const existing = byKey.get(dedupeKey);
     if (!existing) {

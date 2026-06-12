@@ -58,3 +58,21 @@ test("collapseMatchPlayerPropRowsForDisplay — one row per player with shortest
   assert.equal(out[0].americanOdds, "+850");
   assert.equal(out[1].americanOdds, "+950");
 });
+
+test("collapseMatchPlayerPropRowsForDisplay — assists O/U merges milestone + line rows", () => {
+  const rows = [
+    { name: "Liam Millar", americanOdds: "+475", line: "0.5", side: "over" },
+    { name: "Liam Millar", americanOdds: "+5000" },
+    { name: "Jonathan Osorio", americanOdds: "+500", line: "0.5", side: "over" },
+    { name: "Jonathan Osorio", americanOdds: "+5000", side: "yes" },
+  ];
+  const out = collapseMatchPlayerPropRowsForDisplay(rows, "player_assists_ou");
+  assert.equal(out.length, 2);
+  assert.deepEqual(
+    out.map((row) => [row.name, row.americanOdds]),
+    [
+      ["Liam Millar", "+475"],
+      ["Jonathan Osorio", "+500"],
+    ],
+  );
+});
