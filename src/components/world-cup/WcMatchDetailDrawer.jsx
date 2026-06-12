@@ -12,6 +12,10 @@ import { WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
 import { filterMatchPlayerPropScrapeRows } from "../../../shared/wcMatchPlayerPropRowGuard.js";
 import { wcTeamsWithStrengthTags } from "../../../shared/wc2026Strength.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
+import {
+  formatWcMatchGroupLetter,
+  formatWcMatchVenueLine,
+} from "../../../shared/wcMatchFieldDisplay.js";
 
 const WC_XI_HELP =
   "Lineups lock in as kickoff approaches. Starter props unlock once this chip shows Starting XI locked.";
@@ -72,10 +76,10 @@ function ModelOddsBar({ odds }) {
 }
 
 function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
-  const groupLetter = match?.group ? String(match.group).toUpperCase() : null;
+  const groupLetter = formatWcMatchGroupLetter(match?.group) || null;
   const groupTeams = groupLetter ? wcTeamsWithStrengthTags(getWcTeamsByGroup(groupLetter)) : [];
   const modelOdds = teams?.length ? formatMatchOdds(match.homeTeam, match.awayTeam, teams) : null;
-  const venueLine = [match?.stadium, match?.city].filter(Boolean).join(", ");
+  const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
 
   return (
     <section className="wc-detail-section wc-detail-pre-match">

@@ -1,4 +1,9 @@
 import { findStadiumByCity } from "../data/wc2026Stadiums.js";
+import {
+  formatWcMatchGroupLetter,
+  formatWcMatchFieldText,
+  formatWcMatchVenueLine,
+} from "../../shared/wcMatchFieldDisplay.js";
 import { getWcTeamByAbbr } from "../data/wc2026Teams.js";
 import { parseWcKickoffEtMs } from "../../shared/wcKickoffDisplay.js";
 
@@ -83,14 +88,17 @@ export function formatWcFeaturedTimeLine(match) {
  * @returns {string}
  */
 export function formatWcFeaturedVenueLine(match) {
+  const cityText = formatWcMatchFieldText(match?.city);
+  const stadiumText = formatWcMatchFieldText(match?.stadium);
   const stadium =
-    findStadiumByCity(match?.city) ||
-    findStadiumByCity(match?.stadium) ||
-    (match?.stadium ? { name: match.stadium, city: match.city } : null);
+    findStadiumByCity(cityText) ||
+    findStadiumByCity(stadiumText) ||
+    (stadiumText ? { name: stadiumText, city: cityText } : null);
   if (!stadium) {
-    return [match?.stadium, match?.city].filter(Boolean).join(", ").toUpperCase();
+    const fallback = formatWcMatchVenueLine(match?.stadium, match?.city);
+    return fallback ? fallback.toUpperCase() : "";
   }
-  const city = String(stadium.city || match?.city || "").trim();
+  const city = String(stadium.city || cityText || "").trim();
   const name = String(stadium.name || "").trim();
   if (name && city) return `${name}, ${city}`.toUpperCase();
   return (name || city).toUpperCase();
@@ -111,7 +119,7 @@ export function resolveWcFeaturedTeam(abbr, teams) {
  * @param {string} [kicker]
  */
 export function formatWcFeaturedGroupLabel(match, kicker = "") {
-  const g = String(match?.group || "").trim().toUpperCase();
+  const g = formatWcMatchGroupLetter(match?.group);
   const base = g ? `GROUP ${g}` : "";
   const k = String(kicker || "").trim();
   if (base && /live/i.test(k)) return `${base} · LIVE`;

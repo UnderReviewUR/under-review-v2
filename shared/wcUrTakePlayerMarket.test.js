@@ -12,6 +12,7 @@ import {
   buildWcPlayerPropPassHeadline,
   detectTeamAnswerToPlayerQuestion,
   detectWcPlayerPropMarketLabel,
+  isWcPlayerPropPassStructured,
   questionAsksForWcPlayerMarket,
   repairWcPlayerPropPassCard,
   resolveWcPlayerMarketResponse,
@@ -120,6 +121,20 @@ test("detectWcPlayerPropMarketLabel — shots vs SOT", () => {
   assert.equal(detectWcPlayerPropMarketLabel("Son 2.5 shots?"), "shots");
   assert.equal(detectWcPlayerPropMarketLabel("Son 1.5 shots on target?"), "shots on target");
   assert.equal(detectWcPlayerPropMarketLabel("Jimenez to score or assist?"), "goal or assist");
+});
+
+test("isWcPlayerPropPassStructured — skips pass when body cites American odds", () => {
+  assert.equal(
+    isWcPlayerPropPassStructured(
+      {
+        call: "No posted Son shots line — Pass.",
+        lean: "Pass — no actionable line yet.",
+        whyNow: "Son's shots board is steep: over 1 at -2500, over 2 at -400, over 3 at -135.",
+      },
+      "Son 2.5 shots?",
+    ),
+    false,
+  );
 });
 
 test("repairWcPlayerPropPassCard — short headline and shots wording", () => {

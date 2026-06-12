@@ -27,6 +27,10 @@ const PASS_SIGNAL_RE =
 const NO_VERIFIED_LINE_RE =
   /\b(no verified line|no posted line|no actionable line|not in the (?:market |current )?feed|line (?:is )?not (?:posted|listed|available)|pass until)\b/i;
 
+/** Body cites real American prices — do not force a pass headline repair. */
+const CITED_BOOK_ODDS_RE =
+  /\b(?:at|@)\s*[+-]\d{2,}\b|over\s+\d+(?:\.\d+)?\s+at\s+[+-]\d+/i;
+
 /** @typedef {typeof WC_INTENT.PLAYER_PROP | typeof WC_INTENT.GOLDEN_BOOT | typeof WC_INTENT.TOP_SCORER} WcPlayerMarketIntent */
 
 /**
@@ -162,7 +166,8 @@ export function buildWcPlayerPropPassHeadline(question) {
  */
 export function isWcPlayerPropPassStructured(structured, question = "") {
   if (!structured || typeof structured !== "object") return false;
-  const blob = `${structured.call || ""} ${structured.lean || ""} ${structured.line || ""} ${structured.whyNow || ""}`;
+  const blob = `${structured.call || ""} ${structured.lean || ""} ${structured.line || ""} ${structured.whyNow || ""} ${structured.edge || ""}`;
+  if (CITED_BOOK_ODDS_RE.test(blob)) return false;
   if (/\bpass\b/i.test(blob) && NO_VERIFIED_LINE_RE.test(blob)) return true;
   if (NO_VERIFIED_LINE_RE.test(blob) && /\bpass\b/i.test(blob)) return true;
   const q = String(question || "").trim();

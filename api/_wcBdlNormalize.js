@@ -10,6 +10,10 @@ import { normalizeEspnAbbr } from "./_wcEspn.js";
 import { groupLetterForAbbr } from "./_wcEspn.js";
 import { createEmptyMatchPlayerPropMarkets } from "../shared/wcMatchPlayerProps.js";
 import { buildBdlGoatMatchIntel } from "../shared/wcBdlMatchIntel.js";
+import {
+  formatWcMatchFieldText,
+  formatWcMatchGroupLetter,
+} from "../shared/wcMatchFieldDisplay.js";
 
 /** BDL prop_type → internal match-player market key (see BDL docs for full enum). */
 export const BDL_PROP_TO_MARKET = {
@@ -72,14 +76,11 @@ export function normalizeBdlFifaMatchRow(row, nowMs = Date.now()) {
   const homeScore = row.home_score ?? row.homeScore;
   const awayScore = row.away_score ?? row.awayScore;
 
-  const groupObj = row.group;
   const groupLetter =
-    (typeof groupObj === "object" && groupObj?.name
-      ? String(groupObj.name).replace(/^Group\s*/i, "")
-      : String(row.group || row.group_name || groupLetterForAbbr(homeTeam) || "")
-    )
-      .trim()
-      .toUpperCase();
+    formatWcMatchGroupLetter(row.group) ||
+    formatWcMatchGroupLetter(row.group_name) ||
+    groupLetterForAbbr(homeTeam) ||
+    "";
 
   const stadium = row.stadium && typeof row.stadium === "object" ? row.stadium : null;
 
@@ -101,8 +102,8 @@ export function normalizeBdlFifaMatchRow(row, nowMs = Date.now()) {
             timeZone: "America/New_York",
           }) + " ET"
         : "",
-    stadium: String(stadium?.name || row.stadium || row.venue || "").trim(),
-    city: String(stadium?.city || row.city || "").trim(),
+    stadium: formatWcMatchFieldText(stadium?.name || row.stadium || row.venue),
+    city: formatWcMatchFieldText(stadium?.city || row.city),
     group: groupLetter,
     round: String(row.round_name || row.stage?.name || row.round || "").trim(),
     commenceTs,

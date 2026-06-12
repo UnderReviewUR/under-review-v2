@@ -11,6 +11,10 @@ import {
   wcXiStatusChipLabel,
 } from "../../../shared/wcXiStatus.js";
 import WcLiveScore from "./WcLiveScore.jsx";
+import {
+  formatWcMatchGroupLetter,
+  formatWcMatchVenueLine,
+} from "../../../shared/wcMatchFieldDisplay.js";
 
 const WC_XI_HELP =
   "Lineups lock in as kickoff approaches. Starter props unlock once this chip shows Starting XI locked.";
@@ -116,6 +120,8 @@ export default function WcMatchCard({
   }, [fetchWeather, match?.city, match?.stadium]);
 
   const kickoff = formatWcKickoffDisplay(match);
+  const groupLetter = formatWcMatchGroupLetter(match?.group);
+  const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
   const bookOdds = match?.odds;
   const homeTeam = getWcTeamByAbbr(match?.homeTeam);
   const awayTeam = getWcTeamByAbbr(match?.awayTeam);
@@ -157,14 +163,14 @@ export default function WcMatchCard({
       )}
       <div className="wc-match-meta">
         {kickoff ? <span>{kickoff}</span> : null}
-        {match?.group ? <span>Group {match.group}</span> : null}
-        {(match?.stadium || match?.city) && (
+        {groupLetter ? <span>Group {groupLetter}</span> : null}
+        {venueLine ? (
           <span>
             {weather?.icon ? `${weather.icon} ` : ""}
-            {match.stadium || match.city}
+            {venueLine}
             {weather?.tempF != null ? ` · ${weather.tempF}°F` : ""}
           </span>
-        )}
+        ) : null}
       </div>
       {!live && showOdds ? <OddsBar odds={odds} /> : null}
       {!live && showOdds ? (
