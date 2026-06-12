@@ -2341,6 +2341,28 @@ export const baseCss = `
     padding-right:6px;
     font-size:12px;
   }
+  /* WC tab: gold shimmer label only — no bordered spotlight box (clashes with 5-tab layout). */
+  .bottom-nav--five .nav-btn.nav-btn--wc-spotlight,
+  .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active,
+  .app--wc-premium .bottom-nav--five .nav-btn.nav-btn--wc-spotlight,
+  .app--wc-premium .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active{
+    border:none;
+    background:none;
+    box-shadow:none;
+    margin:0;
+    padding:8px 4px 10px;
+  }
+  .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active,
+  .app--wc-premium .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active{
+    color:#FBBF24;
+  }
+  .bottom-nav--five .nav-btn.nav-btn--wc-spotlight .wc-nav-shimmer{
+    white-space:normal;
+    text-align:center;
+    line-height:1.05;
+    font-size:11px;
+    letter-spacing:0.6px;
+  }
   .nav-btn{
     position:relative;
     flex:0 0 auto;
