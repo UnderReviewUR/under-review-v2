@@ -19,8 +19,15 @@ import {
   extractWcModelAttributionPrefix,
 } from "./wcTakeRetentionQA.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
-import { computeGroupMispriceRankings } from "./wcGroupMispriceRanking.js";
+import {
+  computeGroupMispriceRankings,
+  computeGroupPathComparisons,
+} from "./wcGroupMispriceRanking.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
+import {
+  formatWcBdlAdvancePriceAttribution,
+  WC_ADVANCEMENT_TO_BDL_MARKET,
+} from "./wcBdlFutures.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 
@@ -315,9 +322,37 @@ export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
  *   nowMs?: number,
  * }} [opts]
  */
+/**
+ * Second-place / escape path where sim sits near a coin flip but books disagree most.
+ * @param {string} groupLetter
+ * @param {Record<string, Record<string, unknown>> | undefined} teamStats
+ * @param {{ byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string }>> } | undefined} bdlFutures
+ * @param {number} [nowMs]
+ */
+export function pickWcCoinFlipSecondPlacePath(groupLetter, teamStats, bdlFutures, nowMs) {
+  const rows = computeGroupPathComparisons({
+    groupLetter,
+    teamStats,
+    bdlFutures,
+    nowMs,
+  });
+  const escapeRows = rows.filter(
+    (r) =>
+      r.path === "advance from group" &&
+      Number.isFinite(r.simPct) &&
+      r.simPct >= 38 &&
+      r.simPct <= 62 &&
+      Number.isFinite(r.delta),
+  );
+  escapeRows.sort((a, b) => Math.abs(Number(b.delta)) - Math.abs(Number(a.delta)));
+  return escapeRows[0] || null;
+}
+
 export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
   const question = String(opts.question || "");
   const mispriceQ = isWcCrossGroupMispriceQuestion(question);
+  const market = classifyWcAdvancementMarket(question) || WC_ADVANCEMENT_MARKET.GROUP_ESCAPE;
+  const bdlType = WC_ADVANCEMENT_TO_BDL_MARKET[market] || "qualify_from_group";
   const ranked = computeGroupMispriceRankings({
     teamStats: opts.teamStats,
     bdlFutures: opts.bdlFutures,
@@ -330,7 +365,6 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
   }
 
   const top = ranked[0];
-  const bdlType = "qualify_from_group";
   const priceRow = opts.bdlFutures?.byMarketType?.[bdlType]?.[top.teamAbbr];
   const advanceOdds =
     priceRow?.americanDisplay ||
@@ -339,11 +373,13 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
   const base = buildWcGroupSlatePrebuiltStructured({
     groupLetter: top.group,
     pickAbbr: top.teamAbbr,
-    pickMarket: "to advance",
+    pickMarket: market === WC_ADVANCEMENT_MARKET.GROUP_WINNER ? "to win Group" : "to advance",
     advanceOdds,
     simPct: top.simPct,
     impliedPct: top.impliedPct,
     delta: top.delta,
+    bdlFutures: opts.bdlFutures,
+    bdlMarketType: bdlType,
     bdlLastUpdated: opts.bdlFutures?.lastUpdated,
     nowMs: opts.nowMs,
   });
@@ -353,6 +389,36 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
   const deltaTop = `${top.delta >= 0 ? "+" : ""}${top.delta.toFixed(1)}pt`;
   const deltaSecond = `${second.delta >= 0 ? "+" : ""}${second.delta.toFixed(1)}pt`;
   const modelAttribution = wcModelAttributionFooter(opts.bdlFutures?.lastUpdated, opts.nowMs);
+  const coinFlip = pickWcCoinFlipSecondPlacePath(
+    second.group,
+    opts.teamStats,
+    opts.bdlFutures,
+    opts.nowMs,
+  );
+  const coinFlipLine =
+    coinFlip && Number.isFinite(coinFlip.impliedPct) && Number.isFinite(coinFlip.simPct)
+      ? `Coin-flip path: Group ${second.group} — ${coinFlip.teamAbbr} to advance is ${coinFlip.simPct.toFixed(1)}% in UR sims vs ${coinFlip.impliedPct.toFixed(1)}% market (${coinFlip.delta >= 0 ? "+" : ""}${coinFlip.delta.toFixed(1)}pt) — books still wrong on the second-place escape.`
+      : `Coin-flip watch: Group ${second.group} — ${second.teamAbbr} advance path (${second.impliedPct.toFixed(1)}% market vs ${second.simPct.toFixed(1)}% sim, ${deltaSecond}).`;
+  const whyNow =
+    `The market prices ${top.teamAbbr} to advance at ${top.impliedPct.toFixed(1)}% implied, but UR sims put the escape path at ${top.simPct.toFixed(1)}% (${deltaTop}). Runner-up gap: Group ${second.group} — ${second.teamAbbr} is ${second.impliedPct.toFixed(1)}% market vs ${second.simPct.toFixed(1)}% sim (${deltaSecond}). ${coinFlipLine}`.slice(
+      0,
+      520,
+    );
+  const deep = buildWcGroupSlateDeepBreakdown({
+    letter: top.group,
+    pickAbbr: top.teamAbbr,
+    whyNow,
+    numericLine: base.line,
+    pathLine: String(base.deep || "").includes("top-two")
+      ? String(base.deep || "")
+          .split("\n\n")
+          .find((p) => /top-two finish/i.test(p)) || ""
+      : "",
+    edge: base.edge,
+    bdlFutures: opts.bdlFutures,
+    bdlMarketType: bdlType,
+    extraBlocks: [coinFlipLine],
+  });
 
   return {
     ...base,
@@ -364,15 +430,15 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
       0,
       120,
     ),
-    whyNow:
-      `The market prices ${top.teamAbbr} to advance at ${top.impliedPct.toFixed(1)}% implied, but UR sims put the escape path at ${top.simPct.toFixed(1)}% (${deltaTop}). Runner-up gap: Group ${second.group} — ${second.teamAbbr} is ${second.impliedPct.toFixed(1)}% market vs ${second.simPct.toFixed(1)}% sim (${deltaSecond}).`.slice(
-        0,
-        400,
-      ),
+    whyNow,
+    deep,
+    breakdownAvailable: Boolean(deep.trim()),
     modelAttribution,
     runnerUpGroupLetter: second.group,
     runnerUpTeamAbbr: second.teamAbbr,
     primaryMispriceGroupLetter: top.group,
+    coinFlipGroupLetter: coinFlip ? second.group : null,
+    coinFlipTeamAbbr: coinFlip?.teamAbbr || second.teamAbbr,
   };
 }
 
@@ -435,6 +501,7 @@ export function buildWcRunnerUpFollowUpPrebuiltStructured(opts = {}) {
     simPct: groupRow?.simPct,
     impliedPct: groupRow?.impliedPct,
     delta: groupRow?.delta,
+    bdlFutures: opts.bdlFutures,
     bdlLastUpdated: opts.bdlFutures?.lastUpdated,
     nowMs: opts.nowMs,
   });
@@ -612,6 +679,52 @@ function buildWcGroupSlateWhyNow(row) {
 }
 
 /**
+ * @param {string} letter
+ */
+function formatWcGroupCompositionLine(letter) {
+  const comp = getWcGroupComposition(letter);
+  if (!comp) return "";
+  const fav = comp.favorite?.name || "favorite";
+  const con = comp.contender?.name || "contender";
+  const longs = comp.longshots.map((t) => t.name).join(" and ");
+  return `Group ${letter} is four teams: ${fav} (Favorite), ${con} (Contender), ${longs} (Longshots).`;
+}
+
+/**
+ * Premium card breakdown — sim vs market, BDL GOAT line, roster context, path, watch-for.
+ * @param {{
+ *   letter: string,
+ *   pickAbbr: string,
+ *   whyNow?: string,
+ *   numericLine?: string,
+ *   pathLine?: string,
+ *   edge?: string,
+ *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string, vendor?: string }>>, lastUpdated?: number, source?: string },
+ *   bdlMarketType?: string,
+ *   extraBlocks?: string[],
+ * }} opts
+ */
+export function buildWcGroupSlateDeepBreakdown(opts = {}) {
+  const letter = String(opts.letter || "").toUpperCase();
+  const pickAbbr = String(opts.pickAbbr || "").toUpperCase();
+  const bdlLine = formatWcBdlAdvancePriceAttribution(
+    pickAbbr,
+    opts.bdlFutures,
+    opts.bdlMarketType || "qualify_from_group",
+  );
+  const parts = [
+    String(opts.whyNow || "").trim(),
+    String(opts.numericLine || "").trim(),
+    bdlLine,
+    formatWcGroupCompositionLine(letter),
+    String(opts.pathLine || "").trim(),
+    ...(Array.isArray(opts.extraBlocks) ? opts.extraBlocks.map((b) => String(b || "").trim()) : []),
+    String(opts.edge || "").trim(),
+  ].filter(Boolean);
+  return parts.join("\n\n").slice(0, 1100);
+}
+
+/**
  * @param {{
  *   groupLetter?: string,
  *   pickAbbr?: string,
@@ -620,6 +733,8 @@ function buildWcGroupSlateWhyNow(row) {
  *   simPct?: number,
  *   impliedPct?: number,
  *   delta?: number,
+ *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string, vendor?: string }>>, lastUpdated?: number, source?: string },
+ *   bdlMarketType?: string,
  *   bdlLastUpdated?: number,
  *   nowMs?: number,
  * }} [opts]
@@ -661,7 +776,16 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
   const edge = odds
     ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
     : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;
-  const deep = [pathLine, edge].filter(Boolean).join("\n\n").slice(0, 500);
+  const deep = buildWcGroupSlateDeepBreakdown({
+    letter,
+    pickAbbr,
+    whyNow,
+    numericLine,
+    pathLine,
+    edge,
+    bdlFutures: opts.bdlFutures,
+    bdlMarketType: opts.bdlMarketType || "qualify_from_group",
+  });
 
   return {
     sport: "worldcup",

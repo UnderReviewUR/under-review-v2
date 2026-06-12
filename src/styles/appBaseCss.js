@@ -1880,6 +1880,15 @@ export const baseCss = `
     background:transparent;
     box-shadow:none;
   }
+  .wc-take-empty-fallback{
+    padding:12px 4px 8px;
+  }
+  .wc-take-empty-fallback-body{
+    margin:0;
+    font-size:16px;
+    line-height:1.45;
+    color:rgba(255,255,255,0.92);
+  }
   .wc-take-card--focus.ur-v2-card{
     border-left:none !important;
     background:transparent !important;

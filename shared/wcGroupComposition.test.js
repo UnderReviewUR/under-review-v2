@@ -15,6 +15,7 @@ import {
   shouldUseWcCrossGroupValuePrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
+import { WC_LANDING_PROMPTS } from "./wcMarketingDeepLinks.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
@@ -124,6 +125,38 @@ test("buildWcCrossGroupValuePrebuiltStructured — misprice question cites runne
   assert.match(pre.whyNow || "", /Runner-up gap: Group [A-L]/i);
 });
 
+test("buildWcCrossGroupValuePrebuiltStructured — misprice + coin flip ships premium deep", () => {
+  const q =
+    "Which 2026 World Cup group stage group is most mispriced on advancement or group-winner markets – and which second-place path is still a coin flip the books have wrong?";
+  const pre = buildWcCrossGroupValuePrebuiltStructured({
+    question: q,
+    teamStats: {
+      USA: { advancePct: 51.9, groupWinPct: 12 },
+      PAR: { advancePct: 48.5, groupWinPct: 18 },
+      COL: { advancePct: 72, groupWinPct: 45 },
+    },
+    bdlFutures: {
+      source: "balldontlie_live",
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          USA: { american: -750, americanDisplay: "-750", vendor: "draftkings" },
+          PAR: { american: 110, americanDisplay: "+110", vendor: "draftkings" },
+          COL: { american: 150, americanDisplay: "+150", vendor: "draftkings" },
+        },
+        win_group: {
+          COL: { american: 200, americanDisplay: "+200", vendor: "draftkings" },
+          PAR: { american: 900, americanDisplay: "+900", vendor: "draftkings" },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.match(pre.whyNow || "", /Coin-flip|coin-flip/i);
+  assert.match(pre.deep || "", /BallDontLie GOAT/i);
+  assert.equal(pre.breakdownAvailable, true);
+});
+
 test("buildWcRunnerUpFollowUpPrebuiltStructured — runner-up group card", () => {
   const pre = buildWcRunnerUpFollowUpPrebuiltStructured({
     groupLetter: "K",
@@ -217,11 +250,50 @@ test("buildWcGroupSlatePrebuiltStructured — numeric line on face, path in deep
     simPct: 58.3,
     impliedPct: 42.1,
     delta: 16.2,
+    bdlFutures: {
+      source: "balldontlie_live",
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          PAR: { american: 180, americanDisplay: "+180", vendor: "draftkings" },
+        },
+      },
+    },
   });
   assert.ok(pre);
   assert.match(pre.line, /Market ~42\.1%/);
   assert.match(pre.deep, /top-two finish/i);
+  assert.match(pre.deep, /BallDontLie GOAT/i);
+  assert.match(pre.deep, /DraftKings/i);
+  assert.match(pre.deep, /58\.3%/);
+  assert.match(pre.deep, /Group D is four teams/i);
   assert.doesNotMatch(pre.line, /top-two finish/i);
+});
+
+test("buildWcCrossGroupValuePrebuiltStructured — groupValue prompt ships BDL-backed premium deep", () => {
+  const pre = buildWcCrossGroupValuePrebuiltStructured({
+    question: WC_LANDING_PROMPTS.groupValue,
+    teamStats: {
+      USA: { advancePct: 51.9 },
+      PAR: { advancePct: 58.3 },
+    },
+    bdlFutures: {
+      source: "balldontlie_live",
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          USA: { american: -750, americanDisplay: "-750", vendor: "draftkings" },
+          PAR: { american: 180, americanDisplay: "+180", vendor: "draftkings" },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.match(pre.lean || "", /-750/);
+  assert.match(pre.whyNow || "", /51\.9%|market/i);
+  assert.match(pre.deep || "", /BallDontLie GOAT/i);
+  assert.match(pre.deep || "", /Group D is four teams/i);
+  assert.match(pre.deep || "", /top-two finish/i);
 });
 
 test("repairWcGroupSlateStructuredLine — moves path prose off LINE slot", () => {

@@ -26,6 +26,7 @@ import {
   compressWcCardSections,
   prepareWcCardWhyDisplay,
   prepareWcCardFaceDisplay,
+  wcTakeCardHasVisibleContent,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 import {
@@ -399,6 +400,24 @@ export default function URTakeResponse({
         focusLayout={focusLayout}
         collapsed={cardCollapsed}
         modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
+        breakdownDefaultExpanded={
+          focusLayout &&
+          (callType === "group_slate" || callType === "advancement") &&
+          wcFace.breakdownAvailable
+        }
+        fallbackSummary={
+          wcTakeCardHasVisibleContent({
+            headline: wcFace.headline,
+            sections: wcSections,
+            breakdownText: wcFace.breakdownText,
+            breakdownAvailable: wcFace.breakdownAvailable,
+            modelAttribution: modelAttribution || wcWhyPrepared.modelAttribution,
+          })
+            ? ""
+            : [leanDisplay, whyNowDisplay, wcFace.breakdownText, callScrub, userQuestion]
+                .map((x) => String(x || "").trim())
+                .find((x) => x && x !== "—") || "Analysis unavailable — try again."
+        }
       />
     );
   }

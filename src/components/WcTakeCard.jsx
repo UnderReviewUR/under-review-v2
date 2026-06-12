@@ -2,7 +2,7 @@ import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
-import { formatWcCardSectionLines } from "../lib/wcTakeCardUi.js";
+import { formatWcCardSectionLines, wcTakeCardHasVisibleContent } from "../lib/wcTakeCardUi.js";
 
 function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
@@ -114,8 +114,10 @@ export default function WcTakeCard({
   focusLayout = false,
   collapsed = false,
   modelAttribution = null,
+  breakdownDefaultExpanded = false,
+  fallbackSummary = "",
 }) {
-  const [breakdownExpanded, setBreakdownExpanded] = useState(false);
+  const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
   const [expandedFromCollapse, setExpandedFromCollapse] = useState(false);
   const showCollapsed = Boolean(collapsed && !expandedFromCollapse);
   const effectiveFocusLayout = focusLayout || (collapsed && expandedFromCollapse);
@@ -130,6 +132,16 @@ export default function WcTakeCard({
   const statGridHasConfidence = statSlots.some(
     (slot) => String(slot.label || "").toLowerCase() === "confidence",
   );
+  const cardHasContent = wcTakeCardHasVisibleContent({
+    headline,
+    sections,
+    breakdownText: deep,
+    breakdownAvailable: showBreakdownToggle,
+    modelAttribution,
+    statSlots,
+    predictionSlots: slots,
+  });
+  const fallbackBody = String(fallbackSummary || "").trim();
 
   if (showCollapsed) {
     const collapsedWhy = String(sections?.why || "").trim();
@@ -151,6 +163,13 @@ export default function WcTakeCard({
 
   return (
     <div className={`ur-take-structured ur-take-response ur-v2-card wc-take-card${effectiveFocusLayout ? " wc-take-card--focus" : ""}`}>
+      {!cardHasContent && fallbackBody ? (
+        <div className="wc-take-empty-fallback">
+          <p className="wc-take-empty-fallback-body">{fallbackBody}</p>
+        </div>
+      ) : null}
+      {cardHasContent ? (
+        <>
       {!effectiveFocusLayout ? (
         <div className="ur-v2-sport-bar">
           <span className="ur-v2-sport-bar-tag">{formatUrTakeSportTag("worldcup")}</span>
@@ -268,6 +287,8 @@ export default function WcTakeCard({
             />
           </div>
         </div>
+      ) : null}
+        </>
       ) : null}
     </div>
   );

@@ -222,3 +222,34 @@ test("formatWcCompactDisplayText — group_slate is lean-only (card holds detail
   assert.equal(text, "Lean: Colombia to advance in Group K.");
   assert.doesNotMatch(text, /THE PLAY/i);
 });
+
+test("buildWcCompactStructured — group_slate prebuilt keeps seed deep when responseDeep null", () => {
+  const seed = buildWcGroupSlatePrebuiltStructured({
+    groupLetter: "D",
+    pickAbbr: "USA",
+    advanceOdds: "-750",
+    simPct: 51.9,
+    impliedPct: 88.2,
+    delta: -36.3,
+    bdlFutures: {
+      source: "balldontlie_live",
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          USA: { american: -750, americanDisplay: "-750", vendor: "draftkings" },
+        },
+      },
+    },
+  });
+  assert.ok(seed?.deep && seed.deep.length > 120);
+  const compact = buildWcCompactStructured({
+    question: "Best group-stage value?",
+    wcIntent: WC_INTENT.STRUCTURAL,
+    summary: seed.lean,
+    deep: null,
+    structuredSeed: seed,
+  });
+  assert.ok(compact.deep.length > 120);
+  assert.equal(compact.breakdownAvailable, true);
+  assert.match(compact.deep, /BallDontLie GOAT/i);
+});

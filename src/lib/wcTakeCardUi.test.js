@@ -9,6 +9,7 @@ import {
   compressWcCardSections,
   prepareWcCardFaceDisplay,
   wcLineSlotIsNumericDelta,
+  wcTakeCardHasVisibleContent,
 } from "./wcTakeCardUi.js";
 
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
@@ -179,5 +180,27 @@ test("prepareWcCardFaceDisplay focus mode hides watch for on card face", () => {
   assert.equal(face.sections.watchFor, "");
   assert.match(face.sections.why, /88\.2%/);
   assert.match(face.breakdownText, /drift wider than -750/);
-  assert.doesNotMatch(face.breakdownText, /^The market prices USA/s);
+  assert.match(face.breakdownText, /88\.2%/);
+  assert.match(face.breakdownText, /51\.9%/);
+});
+
+test("wcTakeCardHasVisibleContent — empty structured face is not visible", () => {
+  assert.equal(
+    wcTakeCardHasVisibleContent({
+      headline: "",
+      sections: { why: "", watchFor: "", thePlay: "" },
+      breakdownText: "",
+      breakdownAvailable: false,
+    }),
+    false,
+  );
+  assert.equal(
+    wcTakeCardHasVisibleContent({
+      headline: "USA to advance in Group D at -750",
+      sections: { why: "", watchFor: "", thePlay: "" },
+      breakdownText: "",
+      breakdownAvailable: false,
+    }),
+    true,
+  );
 });

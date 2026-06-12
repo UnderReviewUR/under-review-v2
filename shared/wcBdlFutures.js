@@ -203,6 +203,53 @@ export function buildWcBdlFuturesPromptBlock(seedPayload, question, entities = [
 }
 
 /**
+ * @param {string} vendor
+ */
+function formatBdlVendorLabel(vendor) {
+  const v = String(vendor || "").trim().toLowerCase();
+  if (v === "draftkings") return "DraftKings";
+  if (v === "fanduel") return "FanDuel";
+  if (!v) return "book";
+  return v.charAt(0).toUpperCase() + v.slice(1);
+}
+
+/**
+ * Card-facing BDL GOAT price attribution for group-advance / knockout futures.
+ * @param {string} teamAbbr
+ * @param {{ byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string, vendor?: string }>>, lastUpdated?: number, source?: string }} [bdlFutures]
+ * @param {string} [marketType]
+ */
+export function formatWcBdlAdvancePriceAttribution(
+  teamAbbr,
+  bdlFutures,
+  marketType = "qualify_from_group",
+) {
+  const abbr = String(teamAbbr || "").trim().toUpperCase();
+  if (!abbr || !bdlFutures?.byMarketType) return "";
+  const row = bdlFutures.byMarketType[marketType]?.[abbr];
+  if (!row) return "";
+
+  const display =
+    row.americanDisplay ||
+    (row.american != null ? formatOddsAmerican(row.american) : "");
+  if (!display) return "";
+
+  const vendor = formatBdlVendorLabel(row.vendor);
+  const sourceLabel =
+    bdlFutures.source === "balldontlie_live"
+      ? "BallDontLie GOAT live"
+      : "BallDontLie GOAT";
+  let asOf = "";
+  if (Number.isFinite(bdlFutures.lastUpdated) && bdlFutures.lastUpdated > 0) {
+    asOf = ` · as of ${new Date(bdlFutures.lastUpdated).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })}`;
+  }
+  return `Book line: ${display} (${vendor} via ${sourceLabel}${asOf}).`;
+}
+
+/**
  * @param {{ byMarketType?: Record<string, Record<string, unknown>>, lastUpdated?: number }} payload
  */
 export function summarizeBdlFuturesSeed(payload) {

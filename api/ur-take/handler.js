@@ -119,6 +119,7 @@ import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
+import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
 import {
   isGoldenEvalMode,
   resolveGoldenEvalAnthropicResponse,
@@ -2681,12 +2682,9 @@ export default async function handler(req, res) {
     if (wcCrossGroupCandidate) {
       try {
         const nowMs = Date.now();
-        const [simRow, bdlFutures] = await Promise.all([
-          readWcTournamentSimFromKv(undefined, nowMs).catch(() => null),
-          readBdlLiveFuturesFromKv(nowMs).catch(() => null),
-        ]);
+        const { teamStats, bdlFutures } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
         wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
-          teamStats: simRow?.teamStats,
+          teamStats,
           bdlFutures,
           question: String(question || ""),
           nowMs,
@@ -5120,10 +5118,15 @@ You are responding to a Pro subscriber. Apply the following:
       !wcPlayerMarketPassUsed &&
       shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent)
     ) {
-      const prebuilt = buildWcCrossGroupValuePrebuiltStructured({
+      const prebuiltInputs = await resolveWcCrossGroupPrebuiltInputs(Date.now()).catch(() => ({
         teamStats: wcContext?.tournamentSimResults?.teamStats,
         bdlFutures: wcContext?.bdlFuturesPayload,
+      }));
+      const prebuilt = buildWcCrossGroupValuePrebuiltStructured({
+        teamStats: prebuiltInputs.teamStats || wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: prebuiltInputs.bdlFutures || wcContext?.bdlFuturesPayload,
         question: routingQuestion,
+        nowMs: prebuiltInputs.nowMs,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;

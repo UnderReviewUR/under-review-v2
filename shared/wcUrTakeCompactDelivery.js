@@ -787,6 +787,8 @@ export function buildWcCompactStructured(opts = {}) {
       : null;
 
   if (seed?.callType === "group_slate" && seed?.lean && seed?.call) {
+    const seedDeep = String(seed.deep || "").trim();
+    const mergedDeep = capWcDeepWords(deep || seedDeep, 900);
     const pathLine = String(seed.line || "").trim();
     return {
       sport: "worldcup",
@@ -794,14 +796,21 @@ export function buildWcCompactStructured(opts = {}) {
       groupLetter: seed.groupLetter,
       lean: String(seed.lean).trim(),
       call: String(seed.call).trim(),
-      line: pathLine || String(seed.whyNow || "").trim(),
-      whyNow: String(seed.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
-      edge: String(seed.edge || extractWatchFor(deep, false, seed.whyNow)).trim(),
-      deep,
-      breakdownAvailable: Boolean(deep && deep.length > 40),
+      line: pathLine,
+      whyNow: String(seed.whyNow || buildWhyNow(summary, mergedDeep, wcIntent)).trim(),
+      edge: String(seed.edge || extractWatchFor(mergedDeep, false, seed.whyNow)).trim(),
+      deep: mergedDeep,
+      breakdownAvailable:
+        Boolean(seed.breakdownAvailable) || Boolean(mergedDeep && mergedDeep.length > 40),
       confidence: String(seed.confidence || "Speculative"),
       caveats: [],
       timestamp: seed.timestamp || new Date().toISOString(),
+      modelAttribution: seed.modelAttribution || null,
+      runnerUpGroupLetter: seed.runnerUpGroupLetter || null,
+      runnerUpTeamAbbr: seed.runnerUpTeamAbbr || null,
+      primaryMispriceGroupLetter: seed.primaryMispriceGroupLetter || null,
+      coinFlipGroupLetter: seed.coinFlipGroupLetter || null,
+      coinFlipTeamAbbr: seed.coinFlipTeamAbbr || null,
     };
   }
 
@@ -852,6 +861,8 @@ export function buildWcCompactStructured(opts = {}) {
     ).trim();
     const pass = isWcPassVerdict(summary, lean);
     const whyNow = String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim();
+    const seedDeep = String(seed?.deep || "").trim();
+    const mergedDeep = capWcDeepWords(deep || seedDeep, 900);
     return {
       sport: "worldcup",
       callType: "advancement",
@@ -859,9 +870,10 @@ export function buildWcCompactStructured(opts = {}) {
       call,
       line,
       whyNow,
-      edge: String(seed?.edge || extractWatchFor(deep, pass, whyNow)).trim(),
-      deep,
-      breakdownAvailable: Boolean(deep && deep.length > 40),
+      edge: String(seed?.edge || extractWatchFor(mergedDeep, pass, whyNow)).trim(),
+      deep: mergedDeep,
+      breakdownAvailable:
+        Boolean(seed?.breakdownAvailable) || Boolean(mergedDeep && mergedDeep.length > 40),
       confidence: String(seed?.confidence || (pass ? "Medium" : "Medium")),
       caveats: [],
       timestamp: seed?.timestamp || new Date().toISOString(),

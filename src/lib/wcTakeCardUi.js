@@ -14,6 +14,7 @@ const WC_FACE_FOCUS_WHY_WORDS = 16;
 const WC_FACE_WATCH_WORDS = 22;
 const WC_FACE_FOCUS_WATCH_WORDS = 34;
 const WC_FACE_BREAKDOWN_WORDS = 220;
+const WC_FACE_PREMIUM_BREAKDOWN_WORDS = 340;
 
 /**
  * @param {string} text
@@ -182,7 +183,30 @@ export function pickWcCardHeadline(opts = {}) {
   if (/^(pass|lean:)/i.test(call)) {
     return capWcCardFaceField(call, { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 });
   }
-  return capWcCardFaceField(call, { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 });
+  const callHeadline = capWcCardFaceField(call, {
+    maxWords: WC_FACE_HEADLINE_WORDS,
+    maxSentences: 1,
+  });
+  if (callHeadline && callHeadline !== "—") return callHeadline;
+  return capWcCardFaceField(play, { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 });
+}
+
+/**
+ * True when the WC card face would render blank without a fallback.
+ * @param {{ headline?: string, sections?: { why?: string, watchFor?: string, thePlay?: string }, breakdownText?: string, breakdownAvailable?: boolean, modelAttribution?: string | null, statSlots?: object[], predictionSlots?: object[] }} opts
+ */
+export function wcTakeCardHasVisibleContent(opts = {}) {
+  const headline = String(opts.headline || "").trim();
+  if (headline && headline !== "—" && headline !== "—.") return true;
+  const sections = opts.sections || {};
+  if (String(sections.why || "").trim()) return true;
+  if (String(sections.watchFor || "").trim()) return true;
+  if (String(sections.thePlay || "").trim()) return true;
+  if (String(opts.modelAttribution || "").trim()) return true;
+  if (Array.isArray(opts.statSlots) && opts.statSlots.length > 0) return true;
+  if (Array.isArray(opts.predictionSlots) && opts.predictionSlots.length > 0) return true;
+  const deep = String(opts.breakdownText || "").trim();
+  return Boolean(opts.breakdownAvailable && deep.length > 24);
 }
 
 function wcAppendUniqueBlock(base, extra) {
@@ -199,6 +223,8 @@ function wcAppendUniqueBlock(base, extra) {
  */
 export function prepareWcCardFaceDisplay(opts = {}) {
   const focusLayout = Boolean(opts.focusLayout);
+  const ct = String(opts.callType || "").toLowerCase();
+  const premiumBreakdownCall = ct === "group_slate" || ct === "advancement";
   const fullWhy = String(opts.why || "").trim();
   const fullWatch = String(opts.watchFor || "").trim();
   const fullPlay = String(opts.thePlay || "").trim();
@@ -234,7 +260,11 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   let thePlayFace = focusLayout ? "" : fullPlay;
   if (!focusLayout && normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
 
-  let breakdown = capWcDeepWords(fullDeep, WC_FACE_BREAKDOWN_WORDS);
+  const breakdownWordCap =
+    focusLayout && premiumBreakdownCall
+      ? WC_FACE_PREMIUM_BREAKDOWN_WORDS
+      : WC_FACE_BREAKDOWN_WORDS;
+  let breakdown = capWcDeepWords(fullDeep, breakdownWordCap);
   const ladderBreakdown = /\bover\s+\d+\s*·/i.test(breakdown);
   const pathLine =
     lineSlot && !wcLineSlotIsNumericDelta(lineSlot) ? lineSlot : "";
@@ -250,7 +280,9 @@ export function prepareWcCardFaceDisplay(opts = {}) {
       breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
     }
     if (fullDeep) breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
-    if (fullWhy && !focusWhyCompressed) breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+    if (fullWhy && (!focusWhyCompressed || premiumBreakdownCall)) {
+      breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+    }
     if (fullPlay) breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWhy);

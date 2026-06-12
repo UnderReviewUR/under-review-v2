@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildBdlFuturesIndex,
   buildWcBdlFuturesPromptBlock,
+  formatWcBdlAdvancePriceAttribution,
   getBdlFuturesPrice,
   normalizeBdlFuturesRow,
   pickBestVendorOffer,
@@ -79,4 +80,18 @@ test("buildWcBdlFuturesPromptBlock binds R16 not outright", () => {
 
 test("buildWcBdlFuturesPromptBlock returns null without seed", () => {
   assert.equal(buildWcBdlFuturesPromptBlock(null, "Will USA win?", ["USA"]), null);
+});
+
+test("formatWcBdlAdvancePriceAttribution cites BDL GOAT vendor line", () => {
+  const line = formatWcBdlAdvancePriceAttribution("USA", {
+    source: "balldontlie_live",
+    lastUpdated: Date.UTC(2026, 5, 10),
+    byMarketType: {
+      qualify_from_group: {
+        USA: { american: -750, americanDisplay: "-750", vendor: "draftkings" },
+      },
+    },
+  });
+  assert.match(line, /Book line: -750/);
+  assert.match(line, /DraftKings via BallDontLie GOAT live/);
 });
