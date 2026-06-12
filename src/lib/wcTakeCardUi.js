@@ -3,6 +3,8 @@
  */
 
 import { capWcDeepWords, splitWcSentences } from "../../shared/wcSentenceBoundaries.js";
+import { dedupeWcBreakdownParagraphs } from "../../shared/wcBreakdownParse.js";
+import { WC_2026_TEAMS } from "../data/wc2026Teams.js";
 import {
   extractWcModelAttributionPrefix,
   wcCardFaceBlobHasNumericWhy,
@@ -128,6 +130,67 @@ function pickWcAdvancementPlayHeadline(lean) {
   return play.replace(/^lean:\s*/i, "").replace(/\s*\([^)]*sim vs market[^)]*\)\s*\.?$/i, "").trim();
 }
 
+function wcTeamNameFromAbbr(abbr) {
+  const key = String(abbr || "").trim().toUpperCase();
+  const hit = WC_2026_TEAMS.find((t) => String(t.abbreviation).toUpperCase() === key);
+  return hit?.name || key;
+}
+
+/**
+ * Matchup card face — answer "who wins" with posted ML when present in verified copy.
+ * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string }} opts
+ */
+export function pickWcMatchupWinnerHeadline(opts = {}) {
+  const blob = [opts.call, opts.why, opts.line, opts.thePlay, opts.lean]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .join("\n");
+  if (!blob) return "";
+
+  const vs =
+    String(opts.call || "").match(/^([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i) ||
+    blob.match(/\b([A-Z]{2,4})\s+vs\.?\s+([A-Z]{2,4})\b/i);
+  const teams = vs ? [vs[1].toUpperCase(), vs[2].toUpperCase()] : [];
+
+  for (const abbr of teams) {
+    const ml = blob.match(new RegExp(`\\b${abbr}\\s+([+-]\\d{2,4})\\b`));
+    if (ml) {
+      return `${wcTeamNameFromAbbr(abbr)} ${ml[1]} to win`;
+    }
+  }
+
+  const mlAt = blob.match(/\b(?:ML|moneyline)\s+at\s+([A-Z]{2,4})\s+([+-]\d{2,4})\b/i);
+  if (mlAt) {
+    return `${wcTeamNameFromAbbr(mlAt[1])} ${mlAt[2]} to win`;
+  }
+
+  const favored = blob.match(
+    /\b([A-Z]{2,4})\b[^.\n]{0,40}\b(?:favored|favorite lean|slight edge|lean)\b/i,
+  );
+  if (favored && teams.includes(favored[1].toUpperCase())) {
+    return `${wcTeamNameFromAbbr(favored[1])} favored`;
+  }
+
+  return "";
+}
+
+/**
+ * Alternate market when ML is fair — shown below matchup winner headline.
+ * @param {string} lean
+ * @param {string} headline
+ */
+export function pickWcMatchupAltPlay(lean, headline) {
+  const raw = String(lean || "").replace(/^lean:\s*/i, "").trim();
+  const play =
+    /\b(under|over)\s+\d/i.test(raw) ? raw.split(/[.!?](?=\s|$)/)[0].trim() : formatWcPlaySlot(lean);
+  if (!play) return "";
+  if (normLine(play) === normLine(headline)) return "";
+  if (!/\b(under|over|btts|advance|both teams|draw no bet|handicap|alt)\b/i.test(play)) {
+    return "";
+  }
+  return play.startsWith("Alt:") ? play : `Alt: ${play}`;
+}
+
 export function pickWcCardHeadline(opts = {}) {
   const ct = String(opts.callType || "").toLowerCase();
   const call = String(opts.call || "").trim();
@@ -148,10 +211,16 @@ export function pickWcCardHeadline(opts = {}) {
     });
   }
 
-  if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
-    const advancementHeadline = pickWcAdvancementPlayHeadline(opts.lean);
-    if (advancementHeadline) {
-      return capWcCardFaceField(advancementHeadline, {
+  if (ct === "matchup") {
+    const winnerHeadline = pickWcMatchupWinnerHeadline(opts);
+    if (winnerHeadline) {
+      return capWcCardFaceField(winnerHeadline, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    if (call && call !== "—") {
+      return capWcCardFaceField(call, {
         maxWords: WC_FACE_HEADLINE_WORDS,
         maxSentences: 1,
       });
@@ -163,8 +232,19 @@ export function pickWcCardHeadline(opts = {}) {
         maxSentences: 1,
       });
     }
-    if (ct === "matchup" && call && call !== "—") {
-      return capWcCardFaceField(call, {
+  }
+
+  if (ct === "group_slate" || ct === "advancement") {
+    const advancementHeadline = pickWcAdvancementPlayHeadline(opts.lean);
+    if (advancementHeadline) {
+      return capWcCardFaceField(advancementHeadline, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    const leanPlay = formatWcPlaySlot(opts.lean);
+    if (leanPlay && !leanIsPassBoilerplate) {
+      return capWcCardFaceField(leanPlay.replace(/^lean:\s*/i, ""), {
         maxWords: WC_FACE_HEADLINE_WORDS,
         maxSentences: 1,
       });
@@ -234,6 +314,8 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const headline = pickWcCardHeadline({
     lean: opts.lean,
     call: opts.call,
+    why: fullWhy,
+    line: lineSlot,
     thePlay: fullPlay,
     callType: opts.callType,
   });
@@ -257,8 +339,13 @@ export function prepareWcCardFaceDisplay(opts = {}) {
         maxSentences: 1,
       });
 
-  let thePlayFace = focusLayout ? "" : fullPlay;
-  if (!focusLayout && normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
+  let thePlayFace = "";
+  if (focusLayout && ct === "matchup") {
+    thePlayFace = pickWcMatchupAltPlay(opts.lean, headline);
+  } else if (!focusLayout) {
+    thePlayFace = fullPlay;
+    if (normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
+  }
 
   const breakdownWordCap =
     focusLayout && premiumBreakdownCall
@@ -293,6 +380,8 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   if (!focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40))) {
     breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   }
+
+  breakdown = dedupeWcBreakdownParagraphs(breakdown);
 
   const breakdownAvailable =
     Boolean(opts.breakdownAvailable) || breakdown.length > (whyFace.length + 24);

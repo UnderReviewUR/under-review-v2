@@ -9,7 +9,7 @@ import { wcXiUserChipLabel } from "./wcProductVoice.js";
 export const WC_XI_STATUS_LABEL = {
   confirmed: "Starting XI locked",
   pending: "Lineups updating",
-  unavailable: "Match intel",
+  unavailable: "Pre-kickoff",
 };
 
 export const WC_XI_STATUS_ICON = {

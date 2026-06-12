@@ -1,56 +1,14 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
 import { resolveMatchWinProbabilityBar } from "../../../shared/wcMatchMoneylineProbs.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
-import {
-  WC_XI_STATUS_ICON,
-  formatWcDetailAsOfEt,
-  resolveWcXiStatus,
-  wcXiStatusChipLabel,
-} from "../../../shared/wcXiStatus.js";
 import WcLiveScore from "./WcLiveScore.jsx";
 import {
   formatWcMatchGroupLetter,
   formatWcMatchVenueLine,
 } from "../../../shared/wcMatchFieldDisplay.js";
-
-const WC_XI_HELP =
-  "Lineups lock in as kickoff approaches. Starter props unlock once this chip shows Starting XI locked.";
-
-function WcMatchXiTrust({ match }) {
-  const xiStatus = resolveWcXiStatus(match);
-  const asOf = formatWcDetailAsOfEt(match?.lastUpdated);
-  const popoverId = useId();
-  const [helpOpen, setHelpOpen] = useState(false);
-  return (
-    <div className="wc-xi-trust">
-      <span className={`wc-xi-chip wc-xi-chip--${xiStatus}`}>
-        <span className="wc-xi-chip-icon" aria-hidden>
-          {WC_XI_STATUS_ICON[xiStatus]}
-        </span>
-        {wcXiStatusChipLabel(xiStatus)}
-        <button
-          type="button"
-          className="wc-xi-help-btn"
-          aria-label="Why is lineup status pending?"
-          aria-expanded={helpOpen}
-          aria-controls={popoverId}
-          onClick={() => setHelpOpen((o) => !o)}
-        >
-          ?
-        </button>
-      </span>
-      {helpOpen ? (
-        <p id={popoverId} className="wc-xi-help-popover" role="tooltip">
-          {WC_XI_HELP}
-        </p>
-      ) : null}
-      {asOf ? <span className="wc-xi-asof">as of {asOf}</span> : null}
-    </div>
-  );
-}
 
 function isLive(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -97,8 +55,11 @@ export default function WcMatchCard({
   const [weather, setWeather] = useState(null);
   const home = getWcTeamByAbbr(match?.homeTeam) || teams?.find((t) => t.abbreviation === match?.homeTeam);
   const away = getWcTeamByAbbr(match?.awayTeam) || teams?.find((t) => t.abbreviation === match?.awayTeam);
+  const live = isLive(match?.status);
+  const finished = String(match?.status || "").toLowerCase() === "ft";
+  const showPreMatchOdds = showOdds && !live && !finished;
   const odds =
-    showOdds && teams?.length
+    showPreMatchOdds && teams?.length
       ? resolveMatchWinProbabilityBar({
           homeAbbr: match.homeTeam,
           awayAbbr: match.awayTeam,
@@ -107,8 +68,6 @@ export default function WcMatchCard({
           oddsStale: match?.oddsStale === true,
         })
       : null;
-  const live = isLive(match?.status);
-  const finished = String(match?.status || "").toLowerCase() === "ft";
 
   useEffect(() => {
     if (!fetchWeather) return;
@@ -145,11 +104,22 @@ export default function WcMatchCard({
       id={cardId}
       className={`wc-match-card${highlight ? " wc-match-card--highlight" : ""}`}
     >
-      <WcMatchXiTrust match={match} />
       {live ? (
         <WcLiveScore match={match} />
       ) : (
-        <div className="wc-match-teams">
+        <div
+          className={`wc-match-teams${onViewDetails ? " wc-match-teams--clickable" : ""}`}
+          onClick={onViewDetails ? () => onViewDetails(match) : undefined}
+          onKeyDown={
+            onViewDetails
+              ? (e) => {
+                  if (e.key === "Enter") onViewDetails(match);
+                }
+              : undefined
+          }
+          role={onViewDetails ? "button" : undefined}
+          tabIndex={onViewDetails ? 0 : undefined}
+        >
           <div className="wc-match-team">
             {home?.flagUrl ? (
               <img src={home.flagUrl} alt="" width={32} height={22} loading="lazy" className="wc-flag-sm" />
@@ -184,8 +154,8 @@ export default function WcMatchCard({
           </span>
         ) : null}
       </div>
-      {!live && showOdds ? <OddsBar odds={odds} /> : null}
-      {!live && showOdds ? (
+      {showPreMatchOdds ? <OddsBar odds={odds} /> : null}
+      {showPreMatchOdds ? (
         <BookmakerOddsPanel
           compact
           fetchMultiBook={false}
@@ -201,11 +171,6 @@ export default function WcMatchCard({
         />
       ) : null}
       <div className="wc-match-actions">
-        {onViewDetails ? (
-          <button type="button" className="wc-detail-btn" onClick={() => onViewDetails(match)}>
-            Match intel
-          </button>
-        ) : null}
         {onAskUrTake ? (
           <button type="button" className="wc-ask-btn" onClick={() => onAskUrTake(match)}>
             Ask UR Take →

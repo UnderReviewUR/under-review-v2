@@ -19,7 +19,7 @@ test("resolveWcXiStatus falls back to lineupConfirmed and lastUpdated", () => {
 test("wcXiStatusChipLabel maps to user-facing copy", () => {
   assert.equal(wcXiStatusChipLabel("confirmed"), "Starting XI locked");
   assert.equal(wcXiStatusChipLabel("pending"), "Lineups updating");
-  assert.equal(wcXiStatusChipLabel("unavailable"), "Match intel");
+  assert.equal(wcXiStatusChipLabel("unavailable"), "Pre-kickoff");
 });
 
 test("formatWcDetailAsOfEt returns ET string for valid ms", () => {

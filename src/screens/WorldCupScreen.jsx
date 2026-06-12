@@ -20,8 +20,6 @@ import WcPremiumFeaturedMatch from "../components/world-cup/WcPremiumFeaturedMat
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 
-export const WC_PREMIUM_TAGLINE = "BETTING INTELLIGENCE";
-
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 const CONFEDS = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
 
@@ -519,7 +517,6 @@ export default function WorldCupScreen({
           <header className="wc-header wc-header-premium">
             <span className="wc-header-premium__trophy" aria-hidden="true" />
             <span className="wc-header-premium__diamond" aria-hidden="true" />
-            <p className="wc-header-premium__tagline">{WC_PREMIUM_TAGLINE}</p>
             <h1 className="wc-header-premium__title">World Cup 2026</h1>
             {!featuredMatch && !wcLoading ? (
               <p className="wc-subtitle wc-header-premium__subtitle">{headerSubtitle}</p>

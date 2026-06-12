@@ -3,7 +3,8 @@
  */
 
 export const WC_MATCH_BETTING_PROMPT_RULES = `MATCH BETTING — CASUAL BETTOR MODE (mandatory for "who wins", vs, matchup, opener questions):
-- Many users only know the moneyline. Sentence one (HEADLINE) must state who wins the match and why — name the favorite lean on the ML before any alternate market.
+- HEADLINE / LEAN line one must answer the question: "[Team] [ML price] to win" (e.g. Canada -120 to win) before any alternate market.
+- Many users only know the moneyline. Sentence one must state who wins the match and why — name the favorite lean on the ML before any alternate market.
 - When the ML is fairly priced, you still must give them something actionable — never end with only "Pass at -240" and no bet type.
 - If match ML has no edge (favorite -200 or shorter, or sims align with implied % within ~5 pts):
   1. HEADLINE: who wins and why (one sentence).

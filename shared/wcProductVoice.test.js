@@ -8,7 +8,7 @@ import {
 import { sanitizeWcPublicPayload, ensureWcPublicOutrights } from "./wcPublicPayload.js";
 
 test("wcXiUserChipLabel never admits missing feeds", () => {
-  assert.equal(wcXiUserChipLabel("unavailable"), "Match intel");
+  assert.equal(wcXiUserChipLabel("unavailable"), "Pre-kickoff");
   assert.ok(!wcXiUserChipLabel("pending").toLowerCase().includes("pending data"));
 });
 

@@ -9,13 +9,13 @@
 export const WC_XI_USER_LABEL = {
   confirmed: "Starting XI locked",
   pending: "Lineups updating",
-  unavailable: "Match intel",
+  unavailable: "Pre-kickoff",
 };
 
 export const WC_DATA_CONFIDENCE_USER_CHIP = {
-  confirmed: "Full match intel",
-  pre_match_estimate: "Match intel",
-  limited_intel: "Match intel",
+  confirmed: "Lineups locked",
+  pre_match_estimate: "Pre-kickoff",
+  limited_intel: "Limited data",
 };
 
 /**

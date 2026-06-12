@@ -1932,6 +1932,13 @@ export const baseCss = `
     word-wrap:break-word;
     font-variant-numeric:tabular-nums;
   }
+  .wc-take-alt-play-line{
+    font-size:13px;
+    line-height:1.45;
+    color:var(--wc-gold);
+    margin:-4px 0 12px;
+    font-weight:600;
+  }
   .wc-take-verdict-pill{
     align-self:flex-start;
     font-family:var(--mono-font);
@@ -3247,6 +3254,10 @@ export const baseCss = `
   .wc-take-breakdown-body{
     font-size:13px;line-height:1.6;color:var(--soft);white-space:pre-wrap;
   }
+  .wc-take-breakdown-preamble{margin:0 0 12px;}
+  .wc-take-breakdown-section{margin:0 0 12px;}
+  .wc-take-breakdown-section .wc-take-row-label{margin-bottom:4px;}
+  .wc-take-breakdown-section .wc-take-row-body{font-size:13px;line-height:1.5;}
   .wc-take-footer{
     display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 12px;
     margin-top:14px;padding:12px 16px 10px;border-top:1px solid var(--border-2);
@@ -3308,6 +3319,8 @@ export const baseCss = `
   .book-odds-panel:has(.book-odds-draw-col){--book-odds-cols:3;}
   .book-odds-panel:not(:has(.book-odds-draw-col)){--book-odds-cols:2;}
   .wc-match-teams{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .wc-match-teams--clickable{cursor:pointer;border-radius:10px;padding:4px 2px;margin:-4px -2px 4px;}
+  .wc-match-teams--clickable:hover{background:rgba(255,255,255,0.04);}
   .wc-match-team{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex:1;}
   .wc-match-vs{font-family:var(--mono-font);font-size:11px;color:var(--muted);flex:0 0 auto;}
   .wc-match-score{font-size:16px;font-weight:700;color:var(--text);}

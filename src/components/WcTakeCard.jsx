@@ -2,6 +2,7 @@ import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
+import { parseWcBreakdownSections } from "../../shared/wcBreakdownParse.js";
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent } from "../lib/wcTakeCardUi.js";
 
 function WcPlayHeadline({ text, focusLayout }) {
@@ -41,6 +42,20 @@ function WcBreakdownBody({ text }) {
   const lines = splitWcLadderBreakdownLines(text);
   const isLadder = lines.some((l) => /^Over \d+ ·/i.test(l));
   if (!isLadder) {
+    const { preamble, sections } = parseWcBreakdownSections(text);
+    if (sections.length) {
+      return (
+        <div className="wc-take-breakdown-body">
+          {preamble ? <p className="wc-take-breakdown-preamble">{preamble}</p> : null}
+          {sections.map((section) => (
+            <div key={section.key} className="wc-take-breakdown-section">
+              <div className="wc-take-row-label">{section.label}</div>
+              <p className="wc-take-row-body">{section.body}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
     return <div className="wc-take-breakdown-body">{text}</div>;
   }
   return (
@@ -195,6 +210,10 @@ export default function WcTakeCard({
 
       {effectiveFocusLayout && sections?.why ? (
         <p className="wc-take-context-line">{sections.why}</p>
+      ) : null}
+
+      {effectiveFocusLayout && sections?.thePlay ? (
+        <p className="wc-take-alt-play-line">{sections.thePlay}</p>
       ) : null}
 
       {effectiveFocusLayout && modelAttribution ? (

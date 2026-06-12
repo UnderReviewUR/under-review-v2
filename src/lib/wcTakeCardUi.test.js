@@ -5,6 +5,8 @@ import {
   pickWcThePlayLine,
   pickWcCardHeadline,
   pickWcFocusWhyLine,
+  pickWcMatchupAltPlay,
+  pickWcMatchupWinnerHeadline,
   wcCardSectionText,
   compressWcCardSections,
   prepareWcCardFaceDisplay,
@@ -148,6 +150,30 @@ test("pickWcFocusWhyLine compresses sim vs market to one line", () => {
   assert.match(line, /Market 88\.2%/);
   assert.match(line, /UR sim 51\.9%/);
   assert.match(line, /-36\.3pt/);
+});
+
+test("pickWcMatchupWinnerHeadline surfaces ML winner from verified copy", () => {
+  const headline = pickWcMatchupWinnerHeadline({
+    call: "CAN vs BIH — Group B opener",
+    why: "ML at CAN -120 (implied 55%) while UR sims give 86.46% to advance from Group B.",
+  });
+  assert.equal(headline, "Canada -120 to win");
+});
+
+test("prepareWcCardFaceDisplay matchup focus shows alt play under winner headline", () => {
+  const face = prepareWcCardFaceDisplay({
+    callType: "matchup",
+    call: "CAN vs BIH — Group B opener",
+    lean: "Lean Under 2.5 goals — cleaner angle than the ML.",
+    why: "ML at CAN -120 (implied 55%) while UR sims give 86.46% to advance from Group B.",
+    focusLayout: true,
+  });
+  assert.equal(face.headline, "Canada -120 to win");
+  assert.match(face.sections.thePlay, /Alt:.*Under 2\.5/i);
+});
+
+test("pickWcMatchupAltPlay skips duplicate of headline", () => {
+  assert.equal(pickWcMatchupAltPlay("Lean Canada -120 to win", "Canada -120 to win"), "");
 });
 
 test("pickWcCardHeadline matchup pass uses call not boilerplate lean", () => {
