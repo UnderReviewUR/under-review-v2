@@ -55,6 +55,8 @@ function pickBdlVendorLabel(bdlFutures, marketType, teamAbbr) {
  *   simCount?: number,
  *   simLastUpdated?: number | null,
  *   eloMatchesApplied?: number,
+ *   strengthMatchesApplied?: number,
+ *   xgMatchesApplied?: number,
  *   bdlFutures?: { byMarketType?: Record<string, Record<string, { vendor?: string }>>, lastUpdated?: number, source?: string },
  *   bdlMarketType?: string,
  *   teamAbbr?: string,
@@ -65,6 +67,8 @@ export function buildWcMispriceAuditFootnote(opts = {}) {
   const simCount = Number(opts.simCount) || 10000;
   const simMs = Number(opts.simLastUpdated);
   const eloApplied = Number(opts.eloMatchesApplied) || 0;
+  const strengthApplied = Number(opts.strengthMatchesApplied) || 0;
+  const xgApplied = Number(opts.xgMatchesApplied) || 0;
   const bdl = opts.bdlFutures;
   const bdlMs = Number(bdl?.lastUpdated);
   const marketType = String(opts.bdlMarketType || "qualify_from_group");
@@ -78,6 +82,11 @@ export function buildWcMispriceAuditFootnote(opts = {}) {
   const parts = [`${simCount.toLocaleString("en-US")} Elo/Poisson sims`];
   if (eloApplied > 0) {
     parts.push(`Elo refreshed from ${eloApplied} FT result${eloApplied === 1 ? "" : "s"}`);
+  }
+  if (xgApplied > 0) {
+    parts.push(`xG/form from ${xgApplied} BDL match${xgApplied === 1 ? "" : "es"}`);
+  } else if (strengthApplied > 0) {
+    parts.push(`form from ${strengthApplied} FT sample${strengthApplied === 1 ? "" : "s"}`);
   }
   if (Number.isFinite(simMs) && simMs > 0) {
     parts.push(`updated ${formatAuditStamp(simMs)}`);

@@ -20,6 +20,7 @@ import {
   resolveBracketSlot,
   winnerFromCompletedMatch,
 } from "./wc2026KnockoutBracket.js";
+import { applyStrengthMultipliers } from "./wcSimTeamStrength.js";
 
 // ── Poisson helpers ──
 
@@ -69,12 +70,22 @@ function effectiveElo(team) {
  * @param {boolean} allowDraw
  * @returns {{ goalsA: number, goalsB: number, winner: object, loser: object, draw: boolean, extraTime: boolean, penalties: boolean }}
  */
-function simulateMatch(teamA, teamB, allowDraw = true) {
+/**
+ * @param {Record<string, { attackMult?: number, defenseMult?: number }> | null | undefined} teamStrength
+ */
+function simulateMatch(teamA, teamB, allowDraw = true, teamStrength = null) {
   const eloA = effectiveElo(teamA);
   const eloB = effectiveElo(teamB);
 
-  const lambdaA = eloToExpectedGoals(eloA, eloB);
-  const lambdaB = eloToExpectedGoals(eloB, eloA);
+  let lambdaA = eloToExpectedGoals(eloA, eloB);
+  let lambdaB = eloToExpectedGoals(eloB, eloA);
+
+  if (teamStrength && typeof teamStrength === "object") {
+    const abbrA = String(teamA?.abbreviation || "").toUpperCase();
+    const abbrB = String(teamB?.abbreviation || "").toUpperCase();
+    lambdaA = applyStrengthMultipliers(lambdaA, teamStrength[abbrA], teamStrength[abbrB]);
+    lambdaB = applyStrengthMultipliers(lambdaB, teamStrength[abbrB], teamStrength[abbrA]);
+  }
 
   let goalsA = poissonSample(lambdaA);
   let goalsB = poissonSample(lambdaB);
@@ -207,7 +218,7 @@ function sortGroupStandings(stats) {
  * @param {Array<Record<string, unknown>>} [completedMatches]
  * @returns {Array<{ team: object, points: number, gd: number, gf: number }>} sorted standings
  */
-function simulateGroupStage(groupTeams, completedMatches = []) {
+function simulateGroupStage(groupTeams, completedMatches = [], teamStrength = null) {
   const stats = new Map();
   for (const t of groupTeams) {
     stats.set(t.abbreviation, { team: t, points: 0, gd: 0, gf: 0 });
@@ -230,7 +241,7 @@ function simulateGroupStage(groupTeams, completedMatches = []) {
       goalsA = homeIsA ? Number(played.homeScore) : Number(played.awayScore);
       goalsB = homeIsA ? Number(played.awayScore) : Number(played.homeScore);
     } else {
-      const result = simulateMatch(teamA, teamB, true);
+      const result = simulateMatch(teamA, teamB, true, teamStrength);
       goalsA = result.goalsA;
       goalsB = result.goalsB;
     }
@@ -289,7 +300,13 @@ function selectBestThirdPlace(thirdPlaceTeams) {
  * @param {Array<Record<string, unknown>>} completedKnockout
  * @param {Map<string, object>} tracker
  */
-function simulateKnockoutFromTemplate(groupResults, rankedThirdPlace, completedKnockout, tracker) {
+function simulateKnockoutFromTemplate(
+  groupResults,
+  rankedThirdPlace,
+  completedKnockout,
+  tracker,
+  teamStrength = null,
+) {
   const r32Template = WC2026_KNOCKOUT_BRACKET.find((r) => r.round === "r32")?.matches || [];
   const thirdByMatchNum = assignThirdPlaceToR32Slots(r32Template, rankedThirdPlace.slice(0, 8));
   /** @type {Map<number, object>} */
@@ -332,7 +349,7 @@ function simulateKnockoutFromTemplate(groupResults, rankedThirdPlace, completedK
       }
 
       if (!winner) {
-        const result = simulateMatch(teamA, teamB, false);
+        const result = simulateMatch(teamA, teamB, false, teamStrength);
         winner = result.winner;
         loser = result.loser;
       }
@@ -370,8 +387,8 @@ function simulateKnockoutFromTemplate(groupResults, rankedThirdPlace, completedK
 /**
  * Run full Monte Carlo tournament simulation.
  * @param {Array<object>} [teams] — defaults to WC_2026_TEAMS
- * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>>, applyLiveElo?: boolean }} [opts]
- * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number, eloMatchesApplied: number, knockoutResultsApplied: number }}
+ * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>>, applyLiveElo?: boolean, teamStrength?: Record<string, { attackMult?: number, defenseMult?: number }> }} [opts]
+ * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number, eloMatchesApplied: number, knockoutResultsApplied: number, strengthMatchesApplied: number, xgMatchesApplied: number }}
  */
 export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
   const simCount = opts.simCount || 10000;
@@ -382,7 +399,10 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
   const applyLiveElo = opts.applyLiveElo !== false;
 
   let teamList = teams || WC_2026_TEAMS;
+  const teamStrength = opts.teamStrength && typeof opts.teamStrength === "object" ? opts.teamStrength : null;
   let eloMatchesApplied = 0;
+  let strengthMatchesApplied = Number(opts.strengthMatchesApplied) || 0;
+  let xgMatchesApplied = Number(opts.xgMatchesApplied) || 0;
   if (applyLiveElo && completedMatches.length > 0) {
     const eloOut = applyPostMatchEloToTeams(teamList, completedMatches);
     teamList = eloOut.teams;
@@ -414,7 +434,7 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
 
     for (const [letter, groupTeams] of groupMap) {
       const groupCompletedForGroup = completedMatchesForGroup(groupTeams, groupCompleted);
-      const standings = simulateGroupStage(groupTeams, groupCompletedForGroup);
+      const standings = simulateGroupStage(groupTeams, groupCompletedForGroup, teamStrength);
       groupResults.set(letter, standings);
 
       if (standings.length > 0) {
@@ -446,7 +466,13 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     }
 
     // 3. Knockout — openfootball bracket + FT lock
-    simulateKnockoutFromTemplate(groupResults, rankedThirdPlace, knockoutCompleted, tracker);
+    simulateKnockoutFromTemplate(
+      groupResults,
+      rankedThirdPlace,
+      knockoutCompleted,
+      tracker,
+      teamStrength,
+    );
   }
 
   // Compile results
@@ -482,6 +508,8 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     completedMatchCount: completedMatches.length,
     eloMatchesApplied,
     knockoutResultsApplied: knockoutCompleted.length,
+    strengthMatchesApplied,
+    xgMatchesApplied,
   };
 }
 

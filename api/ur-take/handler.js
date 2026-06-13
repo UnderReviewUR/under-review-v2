@@ -2776,7 +2776,8 @@ export default async function handler(req, res) {
     if (wcUpsetScanCandidate) {
       try {
         const nowMs = Date.now();
-        const { teamStats, bdlFutures, simLastUpdated, eloMatchesApplied } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
+        const { teamStats, bdlFutures, simLastUpdated, eloMatchesApplied, strengthMatchesApplied, xgMatchesApplied } =
+          await resolveWcCrossGroupPrebuiltInputs(nowMs);
         wcGroupUpsetScanPrebuiltEarly = buildWcGroupUpsetScanPrebuiltStructured({
           teamStats,
           bdlFutures,
@@ -2784,6 +2785,8 @@ export default async function handler(req, res) {
           nowMs,
           simLastUpdated,
           eloMatchesApplied,
+          strengthMatchesApplied,
+          xgMatchesApplied,
         });
       } catch (upsetErr) {
         console.warn("[ur-take] upset scan prebuilt resolve failed:", upsetErr?.message);
@@ -2802,7 +2805,8 @@ export default async function handler(req, res) {
     if (wcCrossGroupCandidate) {
       try {
         const nowMs = Date.now();
-        const { teamStats, bdlFutures, simLastUpdated, eloMatchesApplied } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
+        const { teamStats, bdlFutures, simLastUpdated, eloMatchesApplied, strengthMatchesApplied, xgMatchesApplied } =
+          await resolveWcCrossGroupPrebuiltInputs(nowMs);
         wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
           teamStats,
           bdlFutures,
@@ -2810,6 +2814,8 @@ export default async function handler(req, res) {
           nowMs,
           simLastUpdated,
           eloMatchesApplied,
+          strengthMatchesApplied,
+          xgMatchesApplied,
         });
         if (!wcCrossGroupPrebuiltEarly) {
           wcCrossGroupPrebuiltEarly = buildWcGroupSlatePrebuiltStructured({
@@ -5465,6 +5471,10 @@ You are responding to a Pro subscriber. Apply the following:
         simLastUpdated: prebuiltInputs.simLastUpdated ?? wcContext?.tournamentSimResults?.lastUpdated,
         eloMatchesApplied:
           prebuiltInputs.eloMatchesApplied ?? wcContext?.tournamentSimResults?.eloMatchesApplied ?? 0,
+        strengthMatchesApplied:
+          prebuiltInputs.strengthMatchesApplied ?? wcContext?.tournamentSimResults?.strengthMatchesApplied ?? 0,
+        xgMatchesApplied:
+          prebuiltInputs.xgMatchesApplied ?? wcContext?.tournamentSimResults?.xgMatchesApplied ?? 0,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
@@ -5501,6 +5511,10 @@ You are responding to a Pro subscriber. Apply the following:
         simLastUpdated: prebuiltInputs.simLastUpdated ?? wcContext?.tournamentSimResults?.lastUpdated,
         eloMatchesApplied:
           prebuiltInputs.eloMatchesApplied ?? wcContext?.tournamentSimResults?.eloMatchesApplied ?? 0,
+        strengthMatchesApplied:
+          prebuiltInputs.strengthMatchesApplied ?? wcContext?.tournamentSimResults?.strengthMatchesApplied ?? 0,
+        xgMatchesApplied:
+          prebuiltInputs.xgMatchesApplied ?? wcContext?.tournamentSimResults?.xgMatchesApplied ?? 0,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;

@@ -8,6 +8,8 @@ test("buildWcMispriceAuditFootnote — sim + BDL stamps", () => {
     simCount: 10000,
     simLastUpdated: Date.parse("2026-06-13T12:00:00.000Z"),
     eloMatchesApplied: 3,
+    strengthMatchesApplied: 4,
+    xgMatchesApplied: 2,
     bdlFutures: {
       lastUpdated: Date.parse("2026-06-13T15:30:00.000Z"),
       source: "balldontlie_live",
@@ -24,6 +26,7 @@ test("buildWcMispriceAuditFootnote — sim + BDL stamps", () => {
   assert.match(footnote, /^Sources:/);
   assert.match(footnote, /10,000 Elo\/Poisson sims/);
   assert.match(footnote, /Elo refreshed from 3 FT results/);
+  assert.match(footnote, /xG\/form from 2 BDL matches/);
   assert.match(footnote, /DraftKings via BDL/);
   assert.doesNotMatch(footnote, /VERIFIED CONTEXT/i);
 });

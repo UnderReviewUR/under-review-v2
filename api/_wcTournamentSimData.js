@@ -16,6 +16,7 @@ import {
   formatSimResultsForPrompt,
   simulateTournament,
 } from "../shared/wcTournamentSim.js";
+import { resolveWcSimStrengthFromKv } from "./_wcSimStrengthInputs.js";
 
 const DEFAULT_SIM_COUNT = 10000;
 
@@ -93,7 +94,8 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
   }
 
   const completed = completedMatchesForSim(matches);
-  const fingerprint = buildWcStandingsFingerprint(groups, completed.length);
+  const strengthInputs = await resolveWcSimStrengthFromKv(completed);
+  const fingerprint = `${buildWcStandingsFingerprint(groups, completed.length)}|${strengthInputs.strengthFingerprint}`;
 
   const cached = await getDurableJson(WC_TOURNAMENT_SIM_KV_KEY);
   if (isWcTournamentSimCacheValid(cached, fingerprint, WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs)) {
@@ -103,6 +105,9 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
   const simResults = simulateTournament(WC_2026_TEAMS, {
     simCount,
     completedMatches: completed,
+    teamStrength: strengthInputs.teamStrength,
+    strengthMatchesApplied: strengthInputs.strengthMatchesApplied,
+    xgMatchesApplied: strengthInputs.xgMatchesApplied,
   });
 
   const payload = {
@@ -114,6 +119,8 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
     completedMatchCount: simResults.completedMatchCount,
     eloMatchesApplied: simResults.eloMatchesApplied,
     knockoutResultsApplied: simResults.knockoutResultsApplied,
+    strengthMatchesApplied: simResults.strengthMatchesApplied,
+    xgMatchesApplied: simResults.xgMatchesApplied,
     fingerprint,
     lastUpdated: nowMs,
     source: "monte_carlo_poisson_elo_live",
@@ -129,6 +136,9 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
       simCount,
       liveResultsApplied: simResults.liveResultsApplied,
       completedMatchCount: simResults.completedMatchCount,
+      eloMatchesApplied: simResults.eloMatchesApplied,
+      strengthMatchesApplied: simResults.strengthMatchesApplied,
+      xgMatchesApplied: simResults.xgMatchesApplied,
       fingerprint,
     }),
   );
@@ -218,6 +228,8 @@ export async function resolveWcTournamentSimForPrompt(opts = {}) {
     completedMatchCount: Number(row.completedMatchCount) || 0,
     eloMatchesApplied: Number(row.eloMatchesApplied) || 0,
     knockoutResultsApplied: Number(row.knockoutResultsApplied) || 0,
+    strengthMatchesApplied: Number(row.strengthMatchesApplied) || 0,
+    xgMatchesApplied: Number(row.xgMatchesApplied) || 0,
   };
 
   return {

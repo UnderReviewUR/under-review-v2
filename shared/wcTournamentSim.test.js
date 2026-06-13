@@ -129,4 +129,18 @@ describe("simulateTournament with live results", () => {
     });
     assert.equal(results.knockoutResultsApplied, 1);
   });
+
+  test("team strength multipliers shift advance probabilities", () => {
+    const baseline = simulateTournament(undefined, { simCount: 2500 });
+    const boosted = simulateTournament(undefined, {
+      simCount: 2500,
+      teamStrength: {
+        MEX: { attackMult: 1.12, defenseMult: 0.92 },
+      },
+      strengthMatchesApplied: 2,
+      xgMatchesApplied: 2,
+    });
+    assert.ok(boosted.strengthMatchesApplied === 2);
+    assert.ok(boosted.teamStats.MEX.advancePct >= baseline.teamStats.MEX.advancePct);
+  });
 });
