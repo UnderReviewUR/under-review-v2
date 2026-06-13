@@ -255,6 +255,7 @@ import {
   buildUrTakeSessionMemoryPrompt,
   UR_TAKE_CONVERSATION_FOLLOW_UP_APPENDIX,
 } from "../../shared/urTakeConversation.js";
+import { resolveUrTakeConversationFollowUp, countUrTakeClientRecapUserLines } from "../../shared/urTakeFollowUpDetection.js";
 import {
   buildWcMatchupIntentRules,
   getWcTeamStrengthTags,
@@ -2497,7 +2498,27 @@ export default async function handler(req, res) {
       : "balanced";
 
   const normalizedUrTakeHistoryForGate = normalizeIncomingChatHistory(incomingHistory);
-  const isConversationFollowUp = normalizedUrTakeHistoryForGate.length > 1;
+  const conversationFollowUpMeta = resolveUrTakeConversationFollowUp(
+    String(question || ""),
+    normalizedUrTakeHistoryForGate,
+  );
+  const isConversationFollowUp = conversationFollowUpMeta.isFollowUp;
+  if (
+    isConversationFollowUp &&
+    conversationFollowUpMeta.reason !== "history_length" &&
+    normalizedUrTakeHistoryForGate.length <= 1
+  ) {
+    console.warn(
+      JSON.stringify({
+        event: "ur_take_follow_up_thin_history",
+        reason: conversationFollowUpMeta.reason,
+        normalizedHistoryLength: normalizedUrTakeHistoryForGate.length,
+        incomingHistoryLength: Array.isArray(incomingHistory) ? incomingHistory.length : 0,
+        recapUserLines: countUrTakeClientRecapUserLines(String(question || "")),
+        questionHead: String(question || "").slice(0, 160),
+      }),
+    );
+  }
   const routingQuestionEarly = extractLatestUserTurnForRouting(String(question || ""));
 
   if (!question || !String(question).trim()) {
@@ -4980,10 +5001,8 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
 
     const wcPushBackBindingBlock = wcRunnerUpFollowUpQuestion
-      ? "The user asked about the Group K runner-up value. Answer only Group K / DR Congo. Do not discuss Group D or USA."
-      : isConversationFollowUp
-        ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
-        : "";
+      ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
+      : "";
 
     const wcHasMatchPlayerProps = hasMatchPlayerPropRows(wcContext?.playerMarketKv?.matchPlayerProps);
     const wcScriptPriceBlock = buildWcScriptPriceUserAppendix({

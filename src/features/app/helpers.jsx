@@ -5,6 +5,7 @@ import {
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
 } from "../../../shared/urTakeSportRouting.js";
+import { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "../../../shared/urTakeFollowUpDetection.js";
 
 import { useTakeAuthHeaders } from "../../hooks/useTakeAuthHeaders.js";
 
@@ -151,7 +152,7 @@ export function buildContextualQuestion(text, opts = {}) {
 
   if (!snippets.length) return cleaned;
 
-  return `${snippets.join("\n")}\n\nFollow-up:\n${cleaned}`;
+  return `${snippets.join("\n")}${UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER}${cleaned}`;
 }
 
 /**

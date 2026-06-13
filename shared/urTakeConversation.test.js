@@ -113,3 +113,41 @@ test("buildUrTakeSessionMemoryPrompt — NBA session memory on prop pivot", () =
   assert.ok(!/NYK \+180/.test(mem.summary));
   assert.match(mem.conversationTransitionBlock, /CONVERSATION PIVOT/i);
 });
+
+test("classifyNbaQuestionIntent — contextual follow-up uses latest turn only", () => {
+  const history = [
+    { role: "user", content: "Who wins the Finals series?" },
+    { role: "assistant", content: "Lean: Knicks +180" },
+  ];
+  const contextual =
+    "User: Who wins the Finals series?\n\nFollow-up:\nBrunson over 28.5 points tonight?";
+  assert.equal(classifyNbaQuestionIntent(contextual, history), NBA_INTENT.PROP_PLAYER);
+  assert.equal(
+    classifyNbaQuestionIntent("Brunson over 28.5 points tonight?", history),
+    NBA_INTENT.PROP_PLAYER,
+  );
+});
+
+test("urTakeConversationPivotMeta — contextual NBA series to prop pivot", () => {
+  const history = [
+    { role: "user", content: "Who wins the Finals series?" },
+    { role: "assistant", content: "Lean: Knicks +180", structured: { call: "NYK +180" } },
+  ];
+  const contextual =
+    "User: Who wins the Finals series?\n\nFollow-up:\nBrunson over 28.5 points tonight?";
+  const pivot = urTakeConversationPivotMeta("nba", contextual, history);
+  assert.equal(pivot.pivoted, true);
+  assert.equal(pivot.priorIntent, NBA_INTENT.SERIES_WINNER);
+  assert.equal(pivot.currentIntent, NBA_INTENT.PROP_PLAYER);
+});
+
+test("classifyGenericUrTakeIntent — contextual follow-up ignores prepended pricing turn", () => {
+  const history = [
+    { role: "user", content: "Is Rahm value at +1200?" },
+    { role: "assistant", content: "Lean: Rahm +1200" },
+  ];
+  const contextual =
+    "User: Is Rahm value at +1200?\n\nFollow-up:\nWho are the leaders after round 2?";
+  assert.equal(classifyGenericUrTakeIntent(contextual, history), GENERIC_INTENT.GENERAL);
+  assert.notEqual(classifyGenericUrTakeIntent(contextual, history), GENERIC_INTENT.PRICING);
+});

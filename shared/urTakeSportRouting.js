@@ -3,6 +3,9 @@
  */
 
 import { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
+import { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
+
+export { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
 
 export { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
 
@@ -319,7 +322,7 @@ export function extractLatestUserTurnForRouting(question) {
   const q = String(question || "").trim();
   if (!q) return "";
 
-  const followUpMarker = "\n\nFollow-up:\n";
+  const followUpMarker = UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER;
   const followIdx = q.lastIndexOf(followUpMarker);
   if (followIdx >= 0) {
     return q.slice(followIdx + followUpMarker.length).trim();

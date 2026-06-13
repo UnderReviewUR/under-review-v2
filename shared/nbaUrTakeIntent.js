@@ -5,6 +5,7 @@
 
 import { extractNbaTeamAbbrevsFromQuestion } from "./nbaTeamFromQuestion.js";
 import { isNbaPredictionsRoundupQuestion } from "./nbaPredictionsRoundup.js";
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 
 /** @typedef {"PREGAME_MATCHUP"|"LIVE_IN_GAME"|"SERIES_WINNER"|"FINALS_MVP"|"PROP_PLAYER"|"CONTINUATION"|"GENERAL"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} NbaUrTakeIntent */
 
@@ -65,7 +66,7 @@ function isLiveInGameQuestion(ql) {
  * @returns {NbaUrTakeIntent}
  */
 export function classifyNbaQuestionIntent(question, history = []) {
-  const q = String(question || "").trim();
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
   const ql = q.toLowerCase();
   if (!q) return NBA_INTENT.UNCLASSIFIED;
 
@@ -110,13 +111,14 @@ export function classifyNbaQuestionIntent(question, history = []) {
  * @returns {string[]}
  */
 export function resolveRequiredNbaEntities(question, history = [], intent = null) {
-  const resolvedIntent = intent || classifyNbaQuestionIntent(question, history);
-  const mentioned = extractNbaTeamAbbrevsFromQuestion(question);
+  const routingQ = extractLatestUserTurnForRouting(String(question || "").trim());
+  const resolvedIntent = intent || classifyNbaQuestionIntent(routingQ, history);
+  const mentioned = extractNbaTeamAbbrevsFromQuestion(routingQ);
   if (mentioned.length > 0) return mentioned;
 
   if (resolvedIntent === NBA_INTENT.FINALS_MVP) {
-    if (/\bwembanyama\b/i.test(question)) return ["SAS"];
-    if (/\bbrunson\b/i.test(question)) return ["NYK"];
+    if (/\bwembanyama\b/i.test(routingQ)) return ["SAS"];
+    if (/\bbrunson\b/i.test(routingQ)) return ["NYK"];
   }
 
   return [];

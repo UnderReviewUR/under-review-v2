@@ -3,6 +3,8 @@
  * Intents are routing hints; unmatched questions fall through to GENERAL.
  */
 
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+
 /** @typedef {"GENERAL"|"CONTINUATION"|"RULES"|"MATCHUP"|"PRICING"|"PROP_PLAYER"|"LIVE"|"STRUCTURAL"|"UNCLASSIFIED"} GenericUrTakeIntent */
 
 export const GENERIC_INTENT = {
@@ -44,7 +46,7 @@ const STRUCTURAL_SIGNAL_RE =
  * @returns {GenericUrTakeIntent}
  */
 export function classifyGenericUrTakeIntent(question, history = []) {
-  const q = String(question || "").trim();
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
   const ql = q.toLowerCase();
   if (!q) return GENERIC_INTENT.UNCLASSIFIED;
 

@@ -202,6 +202,44 @@ test("buildWcPushBackBindingBlock binds runner-up group from structured history"
   assert.equal(extractWcRunnerUpGroupFromHistory(history), "K");
 });
 
+test("buildWcPushBackBindingBlock — Group H and Group B runner-up letters", () => {
+  for (const [letter, abbr] of [
+    ["H", "SUI"],
+    ["B", "CAN"],
+    ["A", "MEX"],
+    ["L", "ENG"],
+  ]) {
+    const history = [
+      {
+        role: "assistant",
+        structured: {
+          call: `Group D most mispriced (#1); Group ${letter} runner-up`,
+          runnerUpGroupLetter: letter,
+          runnerUpTeamAbbr: abbr,
+        },
+      },
+    ];
+    const block = buildWcPushBackBindingBlock("Which group is the runner-up value?", history);
+    assert.match(block, new RegExp(`Group ${letter}`));
+    assert.match(block, new RegExp(abbr));
+    assert.equal(extractWcRunnerUpFromHistory(history).group, letter);
+    assert.equal(extractWcRunnerUpFromHistory(history).teamAbbr, abbr);
+  }
+});
+
+test("buildWcPushBackBindingBlock — prose-only runner-up gap for Group B", () => {
+  const history = [
+    {
+      role: "assistant",
+      content:
+        "Group D leads the board. Runner-up gap: Group B — CAN is 44.0% market vs 58.2% sim (+14.2pt).",
+    },
+  ];
+  const block = buildWcPushBackBindingBlock("Which group is the runner-up value?", history);
+  assert.match(block, /Group B/);
+  assert.match(block, /CAN/);
+});
+
 test("extractWcModelAttributionPrefix splits bracket label from WHY body", () => {
   const raw =
     "[UR model · 10k Poisson/Elo · Jun 11] #1 Group D (USA sim 52.8% vs market 88.2%, -35.4pt).";
