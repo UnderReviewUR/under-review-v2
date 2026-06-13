@@ -5,6 +5,8 @@ import {
   formatWcCompactDisplayText,
 } from "./wcUrTakeCompactDelivery.js";
 import { buildWcGroupSlatePrebuiltStructured } from "./wcGroupComposition.js";
+import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
+import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
 test("buildWcCompactStructured — whyNow stays short when deep is long", () => {
@@ -135,6 +137,27 @@ test("buildWcCompactStructured — watch for does not recycle whyNow tail", () =
   assert.ok(!/62% — market implies 52%/.test(s.edge) || /Watch for/i.test(s.edge));
 });
 
+test("buildWcCompactStructured — tomorrow_slate seed preserves prebuilt lean", () => {
+  const nowMs = Date.parse("2026-06-12T01:14:00Z");
+  const seed = buildWcTomorrowSlatePrebuiltStructured({
+    question: "Best World Cup bets for tomorrow?",
+    nowMs,
+  });
+  assert.ok(seed);
+  const s = buildWcCompactStructured({
+    question: "Best World Cup bets for tomorrow?",
+    wcIntent: WC_INTENT.STRUCTURAL,
+    summary: `${seed.lean}\n\n${seed.whyNow}`,
+    deep: "",
+    structuredSeed: seed,
+  });
+  assert.equal(s.callType, "tomorrow_slate");
+  assert.match(s.lean, /tomorrow's ET slate/i);
+  assert.doesNotMatch(s.lean, /Pass — no actionable line/i);
+  const norm = normalizeWcStructuredForDelivery(s, WC_INTENT.STRUCTURAL, "Best World Cup bets for tomorrow?");
+  assert.equal(norm.callType, "tomorrow_slate");
+  assert.doesNotMatch(norm.lean, /Pass — no actionable line/i);
+});
 test("buildWcCompactStructured — group_slate seed preserves prebuilt lean", () => {
   const seed = buildWcGroupSlatePrebuiltStructured({ groupLetter: "K", pickAbbr: "COL" });
   const s = buildWcCompactStructured({

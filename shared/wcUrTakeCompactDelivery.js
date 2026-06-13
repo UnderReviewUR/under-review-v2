@@ -873,6 +873,32 @@ export function buildWcCompactStructured(opts = {}) {
     };
   }
 
+  if (seed?.callType === "tomorrow_slate" && seed?.lean && seed?.call) {
+    const seedDeep = String(seed.deep || "").trim();
+    const mergedDeep = capWcDeepWords(deep || seedDeep, 900);
+    return {
+      sport: "worldcup",
+      callType: "tomorrow_slate",
+      lean: String(seed.lean).trim(),
+      call: String(seed.call).trim(),
+      line: String(seed.line || "").trim(),
+      whyNow: String(seed.whyNow || buildWhyNow(summary, mergedDeep, wcIntent)).trim(),
+      edge: String(seed.edge || extractWatchFor(mergedDeep, false, seed.whyNow)).trim(),
+      deep: mergedDeep,
+      breakdownAvailable:
+        Boolean(seed.breakdownAvailable) || Boolean(mergedDeep && mergedDeep.length > 40),
+      confidence: String(seed.confidence || "Medium"),
+      caveats: [],
+      timestamp: seed.timestamp || new Date().toISOString(),
+      tomorrowEtDate: seed.tomorrowEtDate,
+      tomorrowFixtureCount: seed.tomorrowFixtureCount,
+      tomorrowFixtures: seed.tomorrowFixtures,
+      tomorrowSlateAngles: seed.tomorrowSlateAngles,
+      fixtureHome: seed.fixtureHome,
+      fixtureAway: seed.fixtureAway,
+    };
+  }
+
   if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
     return buildWcPredictionsRoundupStructured({
       summary,
@@ -1081,7 +1107,7 @@ export function formatWcCompactDisplayText(structured, summaryFallback = "") {
     const ct = String(structured.callType || "").toLowerCase();
     const lean = String(structured.lean || "").replace(/^lean:\s*/i, "").trim();
     const leanLine = lean ? (lean.startsWith("Lean:") ? lean : `Lean: ${lean}`) : "";
-    if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
+    if (ct === "group_slate" || ct === "advancement" || ct === "matchup" || ct === "tomorrow_slate") {
       if (leanLine) return leanLine;
     }
     const call = String(structured.call || "").trim();

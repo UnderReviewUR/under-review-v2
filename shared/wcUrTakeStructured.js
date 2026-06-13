@@ -103,6 +103,10 @@ export function normalizeWcStructuredForDelivery(
       delete out.playerMarketTier;
       return finishWcStructuredForDelivery(out, intent, question);
     }
+    if (String(out.callType || "").toLowerCase() === "tomorrow_slate") {
+      delete out.playerMarketTier;
+      return finishWcStructuredForDelivery(out, intent, question);
+    }
     const market = classifyWcAdvancementMarket(question);
     if (market && market !== WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER) {
       out.callType = "advancement";
@@ -129,6 +133,10 @@ export function normalizeWcStructuredForDelivery(
 
   if (intent === WC_INTENT.STRUCTURAL) {
     if (String(out.callType || "").toLowerCase() === "group_slate") {
+      delete out.playerMarketTier;
+      return finishWcStructuredForDelivery(out, intent, question);
+    }
+    if (String(out.callType || "").toLowerCase() === "tomorrow_slate") {
       delete out.playerMarketTier;
       return finishWcStructuredForDelivery(out, intent, question);
     }

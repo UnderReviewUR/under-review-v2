@@ -281,7 +281,7 @@ export function pickWcCardHeadline(opts = {}) {
     }
   }
 
-  if (ct === "group_slate" || ct === "advancement") {
+  if (ct === "group_slate" || ct === "tomorrow_slate" || ct === "advancement") {
     const advancementHeadline = pickWcAdvancementPlayHeadline(opts.lean);
     if (advancementHeadline) {
       return capWcCardFaceField(advancementHeadline, {
