@@ -38,6 +38,13 @@ import {
   UPGRADE_LIMIT_HIT_BODY,
   UPGRADE_LIMIT_HIT_HEADLINE,
   UPGRADE_MODAL_DAILY_TAGLINE,
+  PRO_SUBSCRIPTION_BODY,
+  PRO_VALUE_GRID_ROWS,
+  PRO_CTA_BULLETS,
+  PRO_PROOF_LINES,
+  PRO_PAGE_FEATURE_ROWS,
+  PRO_UNLOCK_BUTTON_LABEL,
+  PRO_RESTORE_RECEIPT_HINT,
 } from "./lib/proUpgradeCopy.js";
 import { getOrCreateUrSessionId } from "./lib/urSessionId.js";
 import {
@@ -3713,7 +3720,7 @@ ${themeCss}
       <div className="ur-free-limit-chip" role="status">
         <div className="ur-free-limit-chip-main">
           <span>
-            {remaining} free {qWord} remaining today — unlock unlimited with Pro{" "}
+            {remaining} free {qWord} remaining today. Unlock unlimited with Pro{" "}
             <button type="button" className="ur-free-limit-chip-unlock" onClick={openUpgradeModal}>
               Unlock
             </button>
@@ -5535,10 +5542,7 @@ ${themeCss}
             whiteSpace: "pre-line",
           }}
         >
-          {`UR Take reads rotations,
-injuries, pace, and live game scripts —
-then gives you a direct call.
-Not picks. A real-time betting edge.`}
+          {PRO_SUBSCRIPTION_BODY}
         </div>
       </div>
       <div
@@ -5558,31 +5562,7 @@ Not picks. A real-time betting edge.`}
 
     {/* Value bar */}
     <div style={proMarketing.valueGrid}>
-      {[
-        [
-          "KNOW BEFORE THE LINE MOVES",
-          `Rotation gaps, injury context,
-pace math — before the market
-adjusts.`,
-        ],
-        [
-          "THE PLAY. EVERY TIME.",
-          `Every response closes with a
-direct call. No hedging.
-No 'on the other hand.'`,
-        ],
-        [
-          "IT REMEMBERS. YOU BUILD.",
-          `UR Take carries the thread
-across sessions. Your angles
-compound.`,
-        ],
-        [
-          "ASK EVERYTHING. PAY NOTHING EXTRA.",
-          `No weekly ceiling. No per-query
-fees. One price, unlimited reads.`,
-        ],
-      ].map(([title, descriptor])=>(
+      {PRO_VALUE_GRID_ROWS.map(([title, descriptor])=>(
         <div key={title} style={proMarketing.valueCell}>
           <div style={{
             fontFamily: "var(--mono-font)",
@@ -5785,11 +5765,12 @@ fees. One price, unlimited reads.`,
           textAlign: "center",
         }}
       >
-        ✓ Lines move — you move first
-        <br />
-        ✓ Real-time edges, not yesterday&apos;s picks
-        <br />
-        ✓ Built to beat the market
+        {PRO_CTA_BULLETS.map((line) => (
+          <span key={line}>
+            ✓ {line}
+            <br />
+          </span>
+        ))}
       </div>
       <div style={{display:"flex",alignItems:"baseline",justifyContent:"center",gap:0,marginBottom:4}}>
         <span style={{fontSize:32,fontWeight:800,color:"var(--cyan-bright)",lineHeight:1}}>$</span>
@@ -5815,34 +5796,55 @@ fees. One price, unlimited reads.`,
     </div>
 
     <div style={{display:"flex",flexDirection:"column",gap:1,margin:"0 20px"}}>
-      {[
-        {color:"var(--cyan-bright)",name:"Betting Style Personalization",desc:"Tell UR Take how you approach your bets. Bold and committed, or full picture to decide. Toggle anytime."},
-        {color:"#FFE600",name:"Tennis — Elo + Surface Edges",desc:"ATP/WTA rally profiles, serve baselines, draw-path value across every surface."},
-        {color:"#1DB954",name:"MLB — Pitcher K Props",desc:"Park-adjusted, platoon-split, barrel rate. Know before the line moves."},
-        {color:"#FF6B00",name:"NBA — PRA Calibration",desc:"Pace-adjusted floors and ceilings. Live injury replacement plays in real time."},
-        {color:"#4A90D9",name:"NFL — QB, RB, WR & TE Database",desc:"TD rates, prop floors and ceilings for every QB, RB, WR, and TE. Scheme and matchup angles. Full live props arriving with the 2026 season."},
-        {color:"#E10600",name:"F1 — Race-Day Angles",desc:"Full 2026 driver grid. Race-day edges the market hasn't priced yet."},
-        {color:"#FFFFFF",name:"Golf — Course Fit & Matchup H2Hs",desc:"PGA SG profiles, make-cut plays, and outright value the market underprices weekly."},
-      ].map((f,i,arr)=>(
-        <div key={f.name} style={proMarketing.featureRow(i, arr.length)}>
-          <div style={{width:8,height:8,borderRadius:"50%",background:f.color === "#FFFFFF" && isProLightTheme(activeTheme) ? "#475569" : f.color,flexShrink:0}}/>
+      {PRO_PAGE_FEATURE_ROWS.map((row, i, arr) => {
+        if (row.kind === "section") {
+          return (
+            <div
+              key={row.label}
+              style={{
+                fontFamily: "var(--mono-font)",
+                fontSize: 9,
+                letterSpacing: 2,
+                color: proMarketing.whatsInc ?? "#3A4050",
+                textTransform: "uppercase",
+                padding: i === 0 ? "4px 0 8px" : "14px 0 8px",
+              }}
+            >
+              {row.label}
+            </div>
+          );
+        }
+        const featureRows = arr.filter((r) => r.kind === "feature");
+        const featureIndex = featureRows.indexOf(row);
+        return (
+        <div key={row.name} style={proMarketing.featureRow(featureIndex, featureRows.length)}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:row.color === "#FFFFFF" && isProLightTheme(activeTheme) ? "#475569" : row.color,flexShrink:0}}/>
           <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700,color:proMarketing.featureTitle ?? "var(--text)",marginBottom:1}}>{f.name}</div>
-            <div style={{fontSize:11,color:proMarketing.featureDesc ?? "#4A5568",lineHeight:1.5}}>{f.desc}</div>
+            <div style={{fontSize:13,fontWeight:700,color:proMarketing.featureTitle ?? "var(--text)",marginBottom:1}}>{row.name}</div>
+            <div style={{fontSize:11,color:proMarketing.featureDesc ?? "#4A5568",lineHeight:1.5}}>{row.desc}</div>
           </div>
           <div style={{fontSize:14,color:proMarketing.featureChev ?? "#2A3040"}}>›</div>
         </div>
-      ))}
+        );
+      })}
     </div>
 
     {/* Proof points */}
     <div style={proMarketing.quoteBox}>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6,whiteSpace:"pre-line"}}>{`125+ injuries tracked —
- market reacts slower than this.`}</div>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,marginBottom:6,whiteSpace:"pre-line"}}>{`280 player profiles across 6 sports —
- updated every 30 minutes.`}</div>
-      <div style={{fontSize:13,color:proMarketing.quoteText ?? "#8A95A3",lineHeight:1.75,whiteSpace:"pre-line"}}>{`Live game scripts adjust in real time —
- you know before the line moves.`}</div>
+      {PRO_PROOF_LINES.map((line, i) => (
+        <div
+          key={i}
+          style={{
+            fontSize: 13,
+            color: proMarketing.quoteText ?? "#8A95A3",
+            lineHeight: 1.75,
+            marginBottom: i < PRO_PROOF_LINES.length - 1 ? 6 : 0,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {line}
+        </div>
+      ))}
     </div>
 {isUnlimited && (() => {
       const dm = getDisplayModeChrome(activeTheme);
@@ -6223,14 +6225,14 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
                   Restore access →
                 </button>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.45 }}>
-                  New phone or browser? Enter the email from your Stripe receipt — we&apos;ll email you a secure login link.
+                  {PRO_RESTORE_RECEIPT_HINT}
                 </div>
               </div>
               <button
                 onClick={() => { setShowUpgradeModal(false); goPro(); }}
                 style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:"var(--cyan-bright)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:"pointer",marginBottom:10}}
               >
-                Unlock Pro — $9.99/mo
+                {PRO_UNLOCK_BUTTON_LABEL}
               </button>
               <button
                 onClick={() => setShowUpgradeModal(false)}
@@ -6361,7 +6363,7 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
                   marginBottom: 10,
                 }}
               >
-                Unlock Pro — $9.99/mo
+                {PRO_UNLOCK_BUTTON_LABEL}
               </button>
               <button
                 type="button"
