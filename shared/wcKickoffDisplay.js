@@ -261,7 +261,7 @@ export function formatWcKickoffDisplay(match, opts = {}) {
   const localTz =
     viewerTz && viewerTz !== ET_ZONE
       ? viewerTz
-      : shouldShowCentralKickoffHint(kickoffMs)
+      : opts.alwaysShowCentral || shouldShowCentralKickoffHint(kickoffMs)
         ? CT_ZONE
         : "";
   if (!localTz) return etPart;

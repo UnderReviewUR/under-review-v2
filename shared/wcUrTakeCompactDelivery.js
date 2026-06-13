@@ -876,6 +876,8 @@ export function buildWcCompactStructured(opts = {}) {
   if (seed?.callType === "tomorrow_slate" && seed?.lean && seed?.call) {
     const seedDeep = String(seed.deep || "").trim();
     const mergedDeep = capWcDeepWords(deep || seedDeep, 900);
+    const hasBreakdown =
+      Boolean(seed.breakdownAvailable) || Boolean(mergedDeep && mergedDeep.length > 40);
     return {
       sport: "worldcup",
       callType: "tomorrow_slate",
@@ -883,10 +885,9 @@ export function buildWcCompactStructured(opts = {}) {
       call: String(seed.call).trim(),
       line: String(seed.line || "").trim(),
       whyNow: String(seed.whyNow || buildWhyNow(summary, mergedDeep, wcIntent)).trim(),
-      edge: String(seed.edge || extractWatchFor(mergedDeep, false, seed.whyNow)).trim(),
+      edge: hasBreakdown ? "" : String(seed.edge || extractWatchFor(mergedDeep, false, seed.whyNow)).trim(),
       deep: mergedDeep,
-      breakdownAvailable:
-        Boolean(seed.breakdownAvailable) || Boolean(mergedDeep && mergedDeep.length > 40),
+      breakdownAvailable: hasBreakdown,
       confidence: String(seed.confidence || "Medium"),
       caveats: [],
       timestamp: seed.timestamp || new Date().toISOString(),

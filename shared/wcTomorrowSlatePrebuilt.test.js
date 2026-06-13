@@ -158,7 +158,7 @@ test("predict each game today — slate prediction mode with book + sim per matc
   assert.match(String(card.lean || ""), /3 match predictions on today's slate/i);
   assert.match(String(card.call || ""), /3 match predictions/i);
   assert.match(String(card.whyNow || ""), /3 matches/i);
-  assert.match(String(card.whyNow || ""), /After-midnight ET/i);
+  assert.match(String(card.whyNow || ""), /Kickoffs show ET and Central/i);
   assert.doesNotMatch(String(card.whyNow || ""), /1\) England/i);
   assert.match(String(card.deep || ""), /Match: England vs Ghana/i);
   assert.match(String(card.deep || ""), /Kickoff:/i);
@@ -193,7 +193,6 @@ test("today slate lists kickoff ET for every Jun 13 fixture", () => {
   assert.match(String(card.lean || ""), /4 match predictions on today's slate/i);
   assert.match(String(card.deep || ""), /Kickoff:.*ET/);
   assert.match(String(card.whyNow || ""), /4 matches/i);
-  assert.doesNotMatch(String(card.whyNow || ""), /3:00 PM ET/i);
 });
 
 test("after-midnight ET game on Jun 14 rolls into Jun 13 today slate", () => {
@@ -223,4 +222,22 @@ test("after-midnight ET game on Jun 14 rolls into Jun 13 today slate", () => {
   });
   assert.equal(card?.tomorrowFixtureCount, 4);
   assert.match(String(card.deep || ""), /11:00 PM/i);
+});
+
+test("prod Jun 13 board — USA final, three remaining predictions", () => {
+  const nowMs = Date.parse("2026-06-13T16:51:00Z");
+  const matches = [
+    { homeTeam: "USA", awayTeam: "PAR", group: "D", date: "2026-06-13", time: "01:00", status: "FT", commenceTs: 1781312400000 },
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "19:00", status: "NS", commenceTs: 1781377200000 },
+    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "22:00", status: "NS", commenceTs: 1781388000000 },
+    { homeTeam: "HAI", awayTeam: "SCO", group: "C", date: "2026-06-14", time: "01:00", status: "NS", commenceTs: 1781398800000 },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "predict the results of each world cup match today",
+    matches,
+    nowMs,
+  });
+  assert.equal(card?.tomorrowFixtureCount, 3);
+  assert.match(String(card.whyNow || ""), /1 final · 3 remaining/i);
+  assert.match(String(card.deep || ""), /3:00 PM ET · Sat 2:00 PM/i);
 });

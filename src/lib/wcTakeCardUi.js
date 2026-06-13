@@ -375,8 +375,24 @@ function wcAppendUniqueBlock(base, extra) {
   const b = String(base || "").trim();
   const e = String(extra || "").trim();
   if (!e) return b;
+  if (b && wcBreakdownContainsWatchText(b, e)) return b;
   if (b && b.includes(e.slice(0, Math.min(48, e.length)))) return b;
   return b ? `${b}\n\n${e}` : e;
+}
+
+function wcNormalizeWatchText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/^watch for:?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function wcBreakdownContainsWatchText(breakdown, watchText) {
+  const w = wcNormalizeWatchText(watchText);
+  if (!w) return true;
+  const b = wcNormalizeWatchText(breakdown);
+  return b.includes(w.slice(0, Math.min(80, w.length)));
 }
 
 /**
@@ -461,7 +477,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     const watchAlreadyInBreakdown =
       fullWatch &&
       breakdown &&
-      breakdown.toLowerCase().includes(fullWatch.slice(0, Math.min(48, fullWatch.length)).toLowerCase());
+      wcBreakdownContainsWatchText(breakdown, fullWatch);
     if (fullWatch && !watchAlreadyInBreakdown && !selfContainedSlateBreakdown) {
       breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
     }
@@ -475,7 +491,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown && !selfContainedSlateBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
   }
-  if (!focusLayout && fullWatch && !breakdown.includes(fullWatch.slice(0, 40)) && !selfContainedSlateBreakdown) {
+  if (!focusLayout && fullWatch && !wcBreakdownContainsWatchText(breakdown, fullWatch) && !selfContainedSlateBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
   }
   if (!focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40)) && !selfContainedSlateBreakdown) {

@@ -126,6 +126,7 @@ function slateDayCopy(slateDay) {
  */
 function buildWcSlateWhyNowIntro(angles, opts = {}) {
   const count = Number(opts.count) || (Array.isArray(angles) ? angles.length : 0);
+  const finishedCount = Number(opts.finishedCount) || 0;
   const slateYmd = String(opts.slateYmd || "").trim();
   const dayCopy = String(opts.dayCopy || slateDayCopy(opts.slateDay === "today" ? "today" : "tomorrow"));
   const predictionMode = Boolean(opts.predictionMode);
@@ -139,13 +140,14 @@ function buildWcSlateWhyNowIntro(angles, opts = {}) {
       : `${timeBit}${a.label}: ${a.lean}`.slice(0, 220);
   }
 
-  const intro = `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} slate (${slateYmd}) — ${count} matches.`;
+  const finishedBit =
+    finishedCount > 0
+      ? `${finishedCount} final · ${count} remaining`
+      : `${count} ${count === 1 ? "match" : "matches"}`;
+  const intro = `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} slate (${slateYmd}) — ${finishedBit}.`;
   return predictionMode
-    ? `${intro} Kickoffs in ET; late games show Central too. After-midnight ET stays on tonight's slate.`.slice(
-        0,
-        220,
-      )
-    : `${intro} After-midnight ET games stay on tonight's slate in Central.`.slice(0, 220);
+    ? `${intro} Kickoffs show ET and Central.`.slice(0, 220)
+    : `${intro} Full board in the breakdown.`.slice(0, 220);
 }
 
 /**
@@ -260,7 +262,7 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
   const away = String(fx?.awayTeam || "").toUpperCase();
   const group = String(fx?.group || "").toUpperCase();
   const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
-  const kickoff = formatWcKickoffDisplay(fx);
+  const kickoff = formatWcKickoffDisplay(fx, { alwaysShowCentral: true });
   const match = attachSeedOdds(fx);
 
   const seedOdds = getWcFixtureMlSeed(home, away);
@@ -412,7 +414,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
     const away = String(fx.awayTeam || "").toUpperCase();
     const group = String(fx.group || "").toUpperCase();
     const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
-    const kickoff = formatWcKickoffDisplay(fx);
+    const kickoff = formatWcKickoffDisplay(fx, { alwaysShowCentral: true });
     const match = attachSeedOdds(fx);
 
     const card = buildWcFixtureMatchupPrebuiltStructured({
@@ -492,6 +494,10 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const { slateYmd, matches: slateMatches } = resolveWcSlateMatches(matches, nowMs, slateDay);
   if (!slateMatches.length) return null;
 
+  const finishedTodayCount = (matches || []).filter(
+    (m) => isWcFinishedMatchStatus(m?.status) && wcMatchOnEtBroadcastSlateDay(m, slateYmd),
+  ).length;
+
   const angles = buildWcTomorrowSlateMatchAngles(slateMatches, opts);
   const featuredFx = pickWcTomorrowFeaturedFixture(slateMatches);
   const featuredHome = String(featuredFx?.homeTeam || "").toUpperCase();
@@ -526,6 +532,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
     slateYmd,
     predictionMode,
     count,
+    finishedCount: finishedTodayCount,
     dayCopy,
   });
 
