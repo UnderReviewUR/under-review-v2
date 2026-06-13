@@ -3,6 +3,7 @@ import { detectIntent, resolveSportHint } from "./intentRouting.js";
 import { sendUrTakeJson } from "./responseDelivery.js";
 import { releaseUrTakeGateQuotaIfNeeded } from "./gateQuotaLifecycle.js";
 import { tryUrTakeEarlyPaths } from "./earlyPaths.js";
+import { tryDeliverWcPrebuiltFastPath } from "./wcPrebuiltFastPath.js";
 import { resolveMlbDecisionMode } from "./mlb/decisionMode.js";
 import { contextJsonForModel } from "./prompt/contextJson.js";
 import { extractAnthropicText } from "./prompt/anthropicText.js";
@@ -2718,11 +2719,24 @@ export default async function handler(req, res) {
           question: String(question || ""),
           nowMs,
         });
+        if (!wcCrossGroupPrebuiltEarly) {
+          wcCrossGroupPrebuiltEarly = buildWcGroupSlatePrebuiltStructured({
+            groupLetter: "D",
+            pickAbbr: "PAR",
+            pickMarket: "to advance",
+          });
+        }
       } catch (crossErr) {
         console.warn("[ur-take] cross-group prebuilt resolve failed:", crossErr?.message);
-        wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
-          question: String(question || ""),
-        });
+        wcCrossGroupPrebuiltEarly =
+          buildWcCrossGroupValuePrebuiltStructured({
+            question: String(question || ""),
+          }) ||
+          buildWcGroupSlatePrebuiltStructured({
+            groupLetter: "D",
+            pickAbbr: "PAR",
+            pickMarket: "to advance",
+          });
       }
     }
     const wcFixturePrebuiltCandidate =
@@ -2860,6 +2874,38 @@ export default async function handler(req, res) {
         );
       }
     }
+  }
+  if (sportHint === "worldcup") {
+    const wcPrebuiltFast = await tryDeliverWcPrebuiltFastPath({
+      sportHint,
+      res,
+      requestId,
+      requestStart,
+      question,
+      routingQuestion,
+      wcIntent,
+      wcRequiredEntities,
+      wcForbiddenEntities,
+      wcStrengthTags,
+      wcRelevanceLog,
+      wcContext,
+      wcCrossGroupPrebuiltEarly,
+      wcFixtureMatchupPrebuiltEarly,
+      wcFixtureAltFollowUpPrebuiltEarly,
+      wcRunnerUpFollowUpQuestion,
+      isConversationFollowUp,
+      normalizedUrTakeHistoryForGate,
+      intent,
+      gateQuotaEmail,
+      gateQuotaSessionId,
+      setGateQuotaDelivered: (v) => {
+        gateQuotaDelivered = v;
+      },
+      extractTakeFromResponse,
+      userEmail,
+      appendTakeForUser,
+    });
+    if (wcPrebuiltFast.handled) return;
   }
   let effectiveStructuredModeRequested = structuredModeRequested;
   if (sportHint === "worldcup") {

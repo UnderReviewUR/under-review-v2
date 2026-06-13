@@ -7,6 +7,7 @@ import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcP
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
+import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -137,7 +138,7 @@ export function isWcGroupSlateQuestion(question) {
   if (WC_GOLDEN_GLOVE_RE.test(q) || WC_GOLDEN_BOOT_RE.test(q) || WC_PLAYER_PROP_RE.test(q)) {
     return false;
   }
-  return WC_GROUP_SLATE_RE.test(q) || /\bgroup[\s-]*stage\s*bet\b/i.test(q);
+  return WC_GROUP_SLATE_RE.test(q) || /\bgroup[\s-]*stage\s*bet\b/i.test(q) || isWcTomorrowOrSlateBetQuestion(q);
 }
 
 const CONTINUATION_SIGNAL_RE =

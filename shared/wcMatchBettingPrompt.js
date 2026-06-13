@@ -11,6 +11,7 @@ export const WC_MATCH_BETTING_PROMPT_RULES = `MATCH BETTING — CASUAL BETTOR MO
   2. THE PLAY: name ONE alternate market with a lean — e.g. both teams to advance (group stage), Over/Under 2.5 goals, BTTS, Draw No Bet, Asian handicap, or group winner. Include a price or structural reason from VERIFIED CONTEXT.
   3. Say "Pass on the ML" only if you also name the alternate play in THE PLAY.
 - Group-stage openers: both teams can advance (top two) — often the best angle when ML is fair on the favorite.
+- When the fixture does NOT include the group Favorite (Elo tier), "both teams to advance" is a structural bet that requires that Favorite to miss — say so explicitly (e.g. USA vs PAR needs Türkiye out of the top two).
 - BAD THE PLAY: "Pass at -240 — this is a fair line, not a mispricing." (no market named)
 - GOOD THE PLAY: "Pass on MEX -240 — lean Both Teams to Advance in Group A (Mexico and South Africa both qualify in sims)." OR "Lean Under 2.5 — South Africa sits back; Mexico controls but may not blow them out."
 - Only pure Pass (no alternate) when lineups are unconfirmed AND no team-level market has support in VERIFIED CONTEXT — then say what to wait for.

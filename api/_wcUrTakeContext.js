@@ -57,7 +57,6 @@ import {
 } from "../shared/wcTakeRetentionQA.js";
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
-import { getGoatFuturesLiveIndex } from "./_wcBdlGoatMode.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
@@ -770,32 +769,26 @@ export function formatWcRulesOnlyPromptBlock(ctx) {
  * @returns {Promise<object|null>}
  */
 async function loadWorldCupGroupsPayload() {
-  const preferGoat = isWcGoatPrimaryEnabled();
-  if (!preferGoat) {
-    const cached = await getDurableJson("wc2026_groups");
-    if (cached?.groups && Object.keys(cached.groups).length && isKvFresh(cached.lastUpdated, WC_GROUPS_TTL_MS)) {
-      return cached;
-    }
+  const cached = await getDurableJson("wc2026_groups");
+  if (cached?.groups && Object.keys(cached.groups).length) {
+    return cached;
   }
-  return getGroupsPayload({ preferGoat });
+  return getGroupsPayload({ preferGoat: isWcGoatPrimaryEnabled() });
 }
 
 async function loadWorldCupMatchesPayload() {
-  const preferGoat = isWcGoatPrimaryEnabled();
-  if (!preferGoat) {
-    const cached = await getDurableJson("wc2026_matches");
-    if (cached?.matches?.length && isKvFresh(cached.lastUpdated, WC_MATCHES_TTL_MS)) {
-      return cached;
-    }
+  const cached = await getDurableJson("wc2026_matches");
+  if (cached?.matches?.length) {
+    return cached;
   }
-  return getMatchesPayload({ preferGoat });
+  return getMatchesPayload({ preferGoat: isWcGoatPrimaryEnabled() });
 }
 
 /**
  * @param {string} [question]
  * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null }} [opts]
  */
-const WC_CONTEXT_TIMEOUT_MS = 25000;
+const WC_CONTEXT_TIMEOUT_MS = 8000;
 
 export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   const contextPromise = _buildWorldCupUrTakeContextInner(question, opts);
@@ -916,6 +909,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       mentionedTeams,
       question,
       nowMs,
+      kvOnly: true,
     });
     if (simResolved?.promptBlock) {
       tournamentSimBlock = simResolved.promptBlock;
@@ -999,25 +993,6 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       if (kvFutures?.byMarketType) {
         bdlPayloadForRanking = kvFutures;
         bdlFuturesBlock = buildWcBdlFuturesPromptBlock(kvFutures, question, mentionedTeams, nowMs);
-      } else {
-        const liveFutures = await getGoatFuturesLiveIndex();
-        if (liveFutures.ok && liveFutures.byMarketType) {
-          bdlPayloadForRanking = {
-            byMarketType: liveFutures.byMarketType,
-            lastUpdated: liveFutures.lastUpdated,
-          };
-          bdlFuturesBlock = buildWcBdlFuturesPromptBlock(
-            {
-              byMarketType: liveFutures.byMarketType,
-              lastUpdated: liveFutures.lastUpdated,
-              seededAt: liveFutures.lastUpdated,
-              source: "balldontlie_live",
-            },
-            question,
-            mentionedTeams,
-            nowMs,
-          );
-        }
       }
     }
     if (!bdlFuturesBlock) {

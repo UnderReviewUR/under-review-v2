@@ -6559,8 +6559,12 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
           <button
             className={`nav-btn nav-btn--wc-spotlight${tab === "worldcup" ? " wc-active" : ""}`}
             onClick={goWorldCup}
+            aria-label="World Cup"
           >
-            <span className="wc-nav-shimmer">World Cup</span>
+            <span className="nav-btn__stack">
+              <span className="nav-btn__stack-line">World</span>
+              <span className="nav-btn__stack-line">Cup</span>
+            </span>
           </button>
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>

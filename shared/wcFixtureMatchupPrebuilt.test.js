@@ -48,7 +48,7 @@ test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () =>
   assert.doesNotMatch(structured?.edge || "", /lineup/i);
 });
 
-test("buildWcFixtureMatchupPrebuiltStructured marketing prompt leans both advance", () => {
+test("buildWcFixtureMatchupPrebuiltStructured marketing prompt leans both advance when sim supports", () => {
   const structured = buildWcFixtureMatchupPrebuiltStructured({
     home: "USA",
     away: "PAR",
@@ -59,9 +59,29 @@ test("buildWcFixtureMatchupPrebuiltStructured marketing prompt leans both advanc
     teamStats: {
       USA: { advancePct: 51.8 },
       PAR: { advancePct: 75.95 },
+      TUR: { advancePct: 42 },
     },
   });
   assert.match(structured?.lean || "", /both teams to advance/i);
+  assert.match(structured?.whyNow || "", /Türkiye|Turkey/i);
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured marketing prompt avoids both advance when Türkiye likely advances", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question:
+      "USA vs Paraguay — best bet for Americans who only know the moneyline (group context, not just ML)",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+      TUR: { advancePct: 62 },
+    },
+  });
+  assert.match(structured?.lean || "", /under 2\.5/i);
+  assert.doesNotMatch(structured?.lean || "", /both teams to advance/i);
 });
 
 test("prepareWcCardFaceDisplay shows prebuilt winner + alt play", () => {
@@ -179,4 +199,34 @@ test("buildWcFixtureMatchupPrebuiltStructured alt follow-up uses play headline n
   });
   assert.equal(face.headline, "Lean Under 2.5 goals");
   assert.match(face.sections.thePlay, /Alt:.*United States \+110 to win/i);
+});
+
+test("prepareWcCardFaceDisplay both-advance follow-up uses advance headline not ML", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question: "Both teams to advance?",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+      TUR: { advancePct: 42 },
+    },
+  });
+  const face = prepareWcCardFaceDisplay({
+    callType: "matchup",
+    call: structured.call,
+    lean: structured.lean,
+    why: structured.whyNow,
+    watchFor: structured.edge,
+    thePlay: structured.lean,
+    breakdown: structured.deep,
+    breakdownAvailable: true,
+    focusLayout: true,
+    lineSlot: structured.line,
+    question: "Both teams to advance?",
+  });
+  assert.match(face.headline, /both teams to advance/i);
+  assert.doesNotMatch(face.headline, /to win/i);
 });

@@ -307,11 +307,30 @@ export function isWcCrossGroupMispriceQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
   if (isWcGroupPathMispriceQuestion(q)) return false;
+  if (isWcTomorrowOrSlateBetQuestion(q)) return true;
   return (
     /\b(most mispriced|mispriced).*(?:group|groups)\b/i.test(q) ||
     /\bwhich (?:world cup )?group\b/i.test(q) ||
     /\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(q) ||
     /\bgroup[\s-]*stage\s+value\b/i.test(q)
+  );
+}
+
+/**
+ * Broad slate picks ("sneaky bets tomorrow") — route to fast cross-group prebuilt, not full LLM.
+ * @param {string} question
+ */
+export function isWcTomorrowOrSlateBetQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (/\b(golden boot|golden glove|player prop|anytime scorer)\b/i.test(q)) return false;
+  return (
+    /\b(sneaky|good bets?|best bets?|value bets?)\b[\s\S]{0,56}\b(tomorrow|matches tomorrow|world cup matches|today'?s?(?: matches| slate| games)?)\b/i.test(
+      q,
+    ) ||
+    /\b(tomorrow|today'?s?)\b[\s\S]{0,56}\b(good bets?|best bets?|world cup bets?|matches to bet)\b/i.test(
+      q,
+    )
   );
 }
 

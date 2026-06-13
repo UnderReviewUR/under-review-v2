@@ -13,6 +13,7 @@ import {
   resolveWcMatchupCardHeadline,
   wcMatchupTeamDisplayName,
 } from "../../shared/wcMatchupWinnerLine.js";
+import { isWcMatchupAltMarketFollowUp } from "../../shared/wcMatchBettingPrompt.js";
 import {
   extractWcModelAttributionPrefix,
   wcCardFaceBlobHasNumericWhy,
@@ -143,8 +144,16 @@ function pickWcAdvancementPlayHeadline(lean) {
  * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string, breakdown?: string, question?: string }} opts
  */
 export function pickWcMatchupWinnerHeadline(opts = {}) {
-  const callPlay = extractWcMatchupPlayHeadline(String(opts.call || "").trim());
-  if (callPlay) return callPlay;
+  const question = String(opts.question || "").trim();
+  const callRaw = String(opts.call || "").trim();
+  const callPlay = extractWcMatchupPlayHeadline(callRaw);
+  if (callPlay && !/\bto win\b/i.test(callPlay)) return callPlay;
+  if (isWcMatchupAltMarketFollowUp(question) && callRaw && !/\bto win\b/i.test(callRaw)) {
+    return callRaw.replace(/^lean:\s*/i, "").trim();
+  }
+
+  const callPlayWin = extractWcMatchupPlayHeadline(callRaw);
+  if (callPlayWin) return callPlayWin;
 
   const blob = [opts.call, opts.why, opts.line, opts.thePlay, opts.lean, opts.breakdown]
     .map((s) => String(s || "").trim())

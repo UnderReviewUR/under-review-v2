@@ -5,6 +5,8 @@
 import { WC_INTENT, isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
+import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
+import { wcGroupLetterForTeam } from "./wcGroupComposition.js";
 import {
   isWcCrossGroupMispriceQuestion,
   parentTakeHasWcRunnerUpAnchor,
@@ -123,7 +125,22 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
   if (home && away) {
     if (isMatchupTake && alreadyAskedWhoWins) {
       chips.push("What's the best bet besides the moneyline?");
-      chips.push("Both teams to advance?");
+      const groupLetter =
+        extractWcPrimaryGroupLetterFromMessage(message) ||
+        wcGroupLetterForTeam(home) ||
+        wcGroupLetterForTeam(away) ||
+        "";
+      const bothAdvanceOk = assessWcBothTeamsAdvanceFixture({
+        home,
+        away,
+        group: groupLetter,
+        teamStats: message?.teamStats || message?.structured?.teamStats,
+      }).ok;
+      if (bothAdvanceOk) {
+        chips.push("Both teams to advance?");
+      } else if (groupLetter) {
+        chips.push(`Who wins Group ${groupLetter}?`);
+      }
       chips.push("Over or under goals?");
     } else if (!alreadyAskedWhoWins) {
       chips.push(`Who wins ${home} vs ${away}?`);

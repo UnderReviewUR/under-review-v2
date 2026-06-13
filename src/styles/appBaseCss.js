@@ -2339,9 +2339,24 @@ export const baseCss = `
     max-width:88px;
     padding-left:6px;
     padding-right:6px;
-    font-size:12px;
+    font-size:13px;
   }
-  /* WC tab: gold shimmer label only — no bordered spotlight box (clashes with 5-tab layout). */
+  .bottom-nav--five .nav-btn .nav-btn__stack{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    line-height:1;
+  }
+  .bottom-nav--five .nav-btn .nav-btn__stack-line{
+    display:block;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:1px;
+    line-height:1;
+  }
+  /* WC tab: gold label — solid type (shimmer reads thin on mobile); don't flex-shrink. */
   .bottom-nav--five .nav-btn.nav-btn--wc-spotlight,
   .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active,
   .app--wc-premium .bottom-nav--five .nav-btn.nav-btn--wc-spotlight,
@@ -2351,17 +2366,13 @@ export const baseCss = `
     box-shadow:none;
     margin:0;
     padding:8px 4px 10px;
+    flex-shrink:0;
+    min-width:52px;
+    max-width:none;
   }
   .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active,
   .app--wc-premium .bottom-nav--five .nav-btn.nav-btn--wc-spotlight.wc-active{
     color:#FBBF24;
-  }
-  .bottom-nav--five .nav-btn.nav-btn--wc-spotlight .wc-nav-shimmer{
-    white-space:normal;
-    text-align:center;
-    line-height:1.05;
-    font-size:11px;
-    letter-spacing:0.6px;
   }
   .nav-btn{
     position:relative;

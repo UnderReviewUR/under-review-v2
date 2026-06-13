@@ -3,7 +3,7 @@
  * Live KV first, then seed / compute fallbacks — never return empty when seeds exist.
  */
 
-import { readWcTournamentSimFromKv, resolveWcTournamentSimForPrompt } from "./_wcTournamentSimData.js";
+import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 
@@ -25,11 +25,7 @@ export async function resolveWcCrossGroupPrebuiltInputs(nowMs = Date.now()) {
     }
   }
 
-  let teamStats = simRow?.teamStats || null;
-  if (!teamStats) {
-    const simResolved = await resolveWcTournamentSimForPrompt({ nowMs }).catch(() => null);
-    teamStats = simResolved?.simResults?.teamStats || null;
-  }
+  const teamStats = simRow?.teamStats || null;
 
   return { teamStats, bdlFutures, nowMs };
 }

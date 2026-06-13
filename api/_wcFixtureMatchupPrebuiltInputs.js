@@ -3,7 +3,7 @@
  */
 
 import { readWcMatchesFromKv } from "./_wcData.js";
-import { readWcTournamentSimFromKv, resolveWcTournamentSimForPrompt } from "./_wcTournamentSimData.js";
+import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { selectFixturesForQuestion } from "./_wcUrTakeContext.js";
 import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.js";
 import {
@@ -84,11 +84,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   const match = attachSeedOddsIfMissing(kvHit, pair.home, pair.away);
   if (!match?.odds) return null;
 
-  let teamStats = simRow?.teamStats || null;
-  if (!teamStats) {
-    const simResolved = await resolveWcTournamentSimForPrompt({ nowMs }).catch(() => null);
-    teamStats = simResolved?.simResults?.teamStats || null;
-  }
+  const teamStats = simRow?.teamStats || null;
 
   return {
     ...pair,

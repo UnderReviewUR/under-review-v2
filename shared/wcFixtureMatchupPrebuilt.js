@@ -29,6 +29,10 @@ import {
 } from "./wcGroupComposition.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcMatchupAltMarketFollowUp } from "./wcMatchBettingPrompt.js";
+import {
+  assessWcBothTeamsAdvanceFixture,
+  buildWcBothTeamsAdvanceCaveat,
+} from "./wcBothTeamsAdvance.js";
 
 /** @type {Record<string, { home: { moneyline: string }, draw: { moneyline: string }, away: { moneyline: string }, provider?: string }>} */
 const FIXTURE_ML_SEED = {
@@ -281,15 +285,32 @@ export function shouldUseWcFixtureMatchupPrebuilt(question, wcIntent, opts = {})
  *   awayStats?: { advancePct?: number },
  * }} row
  */
+function wcBothAdvanceLean(groupClause, teamStats, home, away, group) {
+  const assessment = assessWcBothTeamsAdvanceFixture({
+    home,
+    away,
+    group,
+    teamStats,
+  });
+  if (!assessment.ok) return "";
+  return `Pass on ML — lean both teams to advance${groupClause}.`;
+}
+
 function pickWcFixturePrebuiltLean(row) {
-  const { question, home, away, group, homeStats, awayStats } = row;
+  const { question, home, away, group, homeStats, awayStats, teamStats: fullTeamStats } = row;
   const q = String(question || "");
   const groupClause = group ? ` in Group ${group}` : "";
+  const teamStats = fullTeamStats || {
+    [home]: homeStats,
+    [away]: awayStats,
+  };
 
   if (
     /\b(best bet|group context|moneyline.*group|both teams to advance|both advance)\b/i.test(q)
   ) {
-    return `Pass on ML — lean both teams to advance${groupClause}.`;
+    const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group);
+    if (bothLean) return bothLean;
+    return "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.";
   }
 
   const ou = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
@@ -304,7 +325,8 @@ function pickWcFixturePrebuiltLean(row) {
   const homeAdv = Number(homeStats?.advancePct);
   const awayAdv = Number(awayStats?.advancePct);
   if (Number.isFinite(homeAdv) && Number.isFinite(awayAdv) && homeAdv > 45 && awayAdv > 45) {
-    return `Pass on ML — lean both teams to advance${groupClause}.`;
+    const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group);
+    if (bothLean) return bothLean;
   }
 
   return "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.";
@@ -314,6 +336,9 @@ function pickWcFixturePrebuiltLean(row) {
  * @param {{
  *   question: string,
  *   group?: string,
+ *   home?: string,
+ *   away?: string,
+ *   teamStats?: Record<string, { advancePct?: number }>,
  * }} row
  */
 function pickWcFixtureAltFollowUpLean(row) {
@@ -321,6 +346,13 @@ function pickWcFixtureAltFollowUpLean(row) {
   const groupClause = row.group ? ` in Group ${row.group}` : "";
 
   if (/\bboth teams to advance\b/i.test(q)) {
+    const assessment = assessWcBothTeamsAdvanceFixture({
+      home: row.home,
+      away: row.away,
+      group: row.group,
+      teamStats: row.teamStats,
+    });
+    if (!assessment.ok) return "Lean Under 2.5 goals.";
     return `Both teams to advance${groupClause}.`;
   }
 
@@ -387,7 +419,13 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const mlCall = `${favName} ${fav.odds} to win`;
 
   const lean = altFollowUp
-    ? `Pass on ML — ${pickWcFixtureAltFollowUpLean({ question: routingQ, group }).replace(/^lean:\s*/i, "")}`
+    ? `Pass on ML — ${pickWcFixtureAltFollowUpLean({
+        question: routingQ,
+        group,
+        home,
+        away,
+        teamStats: opts.teamStats,
+      }).replace(/^lean:\s*/i, "")}`
     : pickWcFixturePrebuiltLean({
         question: routingQ,
         home,
@@ -395,6 +433,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
         group,
         homeStats,
         awayStats,
+        teamStats: opts.teamStats,
       });
   const playHeadline = extractWcMatchupPlayHeadline(lean) || "";
   const call = altFollowUp
@@ -416,6 +455,13 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     oddsStale,
   });
 
+  const bothAdvanceAssessment = assessWcBothTeamsAdvanceFixture({
+    home,
+    away,
+    group,
+    teamStats: opts.teamStats,
+  });
+
   const whyNow = buildWcFixturePrebuiltWhyNow({
     homeName,
     awayName,
@@ -427,6 +473,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     drawMl,
     winBar,
     market,
+    bothAdvanceAssessment,
   }).slice(0, 400);
 
   const line = altFollowUp
@@ -499,6 +546,13 @@ function buildWcFixturePrebuiltWhyNow(row) {
     return `Tight${groupClause} opener — ${row.awayName} sits deep and ${row.homeName} rarely blows teams out in Game 1.`;
   }
   if (/both teams to advance/i.test(row.lean || "")) {
+    const caveat = buildWcBothTeamsAdvanceCaveat(
+      row.bothAdvanceAssessment,
+      row.homeName,
+      row.awayName,
+      row.group,
+    );
+    if (caveat) return caveat.slice(0, 400);
     return `Group-stage math beats a 90-minute sweat — both ${row.homeName} and ${row.awayName} have live advance paths${groupClause ? ` from Group ${row.group}` : ""}.`;
   }
   if (row.homeMl && row.awayMl) {

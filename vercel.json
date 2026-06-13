@@ -62,7 +62,7 @@
   ],
   "functions": {
     "api/ur-take.js": {
-      "maxDuration": 60
+      "maxDuration": 120
     },
     "api/tennis.js": {
       "maxDuration": 45

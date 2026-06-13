@@ -228,6 +228,9 @@ export function extractWcMatchupPlayHeadline(leanOrBlob) {
  * @param {string} [call]
  */
 export function resolveWcMatchupCardHeadline(blob, teams = {}, lean = "", call = "") {
+  const callPlay = extractWcMatchupPlayHeadline(String(call || "").trim());
+  if (callPlay && !/\bto win\b/i.test(callPlay)) return callPlay;
+
   const parsed =
     teams.home && teams.away ? teams : parseWcMatchupTeamsFromBlob(`${blob}\n${call}`);
   const winner = extractWcMatchupWinnerLine(blob, parsed);
