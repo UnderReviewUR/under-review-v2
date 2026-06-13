@@ -16,6 +16,8 @@ import {
   isWcRunnerUpValueFollowUp,
   isWcTomorrowOrSlateBetQuestion,
   extractWcRunnerUpFromHistory,
+  extractWcFadeAdvanceTargetFromPrior,
+  findPriorAssistantStructuredTake,
 } from "./wcTakeRetentionQA.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import {
@@ -545,6 +547,160 @@ export function buildWcRunnerUpFollowUpPrebuiltStructured(opts = {}) {
             200,
           )
         : base.line,
+  };
+}
+
+/**
+ * @param {string} question
+ * @param {string} groupLetter
+ */
+function buildWcGroupValuePushBackOpener(question, groupLetter) {
+  const letter = String(groupLetter || "")
+    .trim()
+    .toUpperCase()
+    .slice(0, 1);
+  const comp = getWcGroupComposition(letter);
+  const mentioned = extractMentionedWcTeams(String(question || ""));
+  const names = [];
+  for (const abbr of mentioned) {
+    const t = comp?.teams.find((x) => String(x.abbreviation).toUpperCase() === abbr);
+    if (t && (t.strengthTag === "Favorite" || t.strengthTag === "Contender")) {
+      names.push(t.name);
+    }
+  }
+  if (names.length >= 2) {
+    return `Fair push — ${names[0]} and ${names[1]} are the live paths out of Group ${letter}.`;
+  }
+  if (names.length === 1) {
+    return `You know what, great point here — ${names[0]} is the live path in Group ${letter}.`;
+  }
+  if (comp?.favorite && comp?.contender) {
+    return `Fair push — ${comp.favorite.name} and ${comp.contender.name} are the live paths out of Group ${letter}.`;
+  }
+  return `Fair push — the favorites in Group ${letter} are the live paths here.`;
+}
+
+/**
+ * Deterministic push-back reaffirmation — same fade/pass play, human opener, refreshed numbers.
+ * @param {{
+ *   question?: string,
+ *   history?: object[],
+ *   priorStructured?: Record<string, unknown> | null,
+ *   teamStats?: Record<string, Record<string, unknown>>,
+ *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string }>>, lastUpdated?: number },
+ *   nowMs?: number,
+ * }} opts
+ */
+export function buildWcGroupValuePushBackPrebuiltStructured(opts = {}) {
+  const question = String(opts.question || "");
+  const prior =
+    opts.priorStructured || findPriorAssistantStructuredTake(opts.history || []);
+  const target = extractWcFadeAdvanceTargetFromPrior(prior);
+  if (!target?.groupLetter) return null;
+
+  const letter = target.groupLetter;
+  const pickAbbr =
+    target.pickAbbr ||
+    getWcGroupComposition(letter)?.longshots?.[0]?.abbreviation ||
+    null;
+  if (!pickAbbr) return null;
+
+  const comp = getWcGroupComposition(letter);
+  const pick =
+    comp?.teams.find((t) => String(t.abbreviation).toUpperCase() === pickAbbr.toUpperCase()) ||
+    null;
+  const pickName = pick?.name || target.pickName || pickAbbr;
+
+  const ranked = computeGroupMispriceRankings({
+    teamStats: opts.teamStats,
+    bdlFutures: opts.bdlFutures,
+    question,
+    nowMs: opts.nowMs,
+    topN: 16,
+  });
+  const row = ranked.find(
+    (r) => r.group === letter && r.teamAbbr === String(pickAbbr).toUpperCase(),
+  );
+  const pathRows = computeGroupPathComparisons({
+    groupLetter: letter,
+    teamStats: opts.teamStats,
+    bdlFutures: opts.bdlFutures,
+    nowMs: opts.nowMs,
+  });
+  const pathRow = pathRows.find(
+    (r) =>
+      r.teamAbbr === String(pickAbbr).toUpperCase() && r.path === "advance from group",
+  );
+
+  const simPct = pathRow?.simPct ?? row?.simPct;
+  const impliedPct = pathRow?.impliedPct ?? row?.impliedPct;
+  const delta = pathRow?.delta ?? row?.delta;
+
+  const bdlType = "qualify_from_group";
+  const priceRow = opts.bdlFutures?.byMarketType?.[bdlType]?.[String(pickAbbr).toUpperCase()];
+  const advanceOdds =
+    priceRow?.americanDisplay ||
+    (priceRow?.american != null ? String(priceRow.american) : null) ||
+    String(prior?.lean || "").match(/\bat\s+([+-]?\d+)\b/i)?.[1] ||
+    null;
+
+  const opener = buildWcGroupValuePushBackOpener(question, letter);
+  const deltaStr =
+    Number.isFinite(delta) ? `${delta >= 0 ? "+" : ""}${Number(delta).toFixed(1)}pt` : null;
+  const favName = comp?.favorite?.name || "the favorite";
+  const contName = comp?.contender?.name || "the contender";
+
+  const whyBody =
+    Number.isFinite(simPct) && Number.isFinite(impliedPct)
+      ? `That is why the play stays pass on ${pickName}${advanceOdds ? ` at ${advanceOdds}` : ""} — UR sim ${simPct.toFixed(1)}% vs market ${impliedPct.toFixed(1)}%${deltaStr ? ` (${deltaStr})` : ""}. ${favName} and ${contName} splitting points is the path; the longshot advance line is the misprice.`
+      : `That is why the play stays pass on ${pickName} — the favorites you named are priced correctly; the longshot advance line is the misprice to fade.`;
+
+  const lean = buildWcAdvancementMispriceLean({
+    pickName,
+    pickAbbr,
+    groupLetter: letter,
+    odds: advanceOdds,
+    simPct,
+    impliedPct,
+    delta,
+  });
+  const call = buildWcAdvancementMispriceCall({
+    pickName,
+    groupLetter: letter,
+    odds: advanceOdds,
+    delta,
+  });
+  const whyNow = `${opener} ${whyBody}`.slice(0, 520);
+
+  const base = buildWcGroupSlatePrebuiltStructured({
+    groupLetter: letter,
+    pickAbbr,
+    advanceOdds,
+    simPct,
+    impliedPct,
+    delta,
+    bdlFutures: opts.bdlFutures,
+    bdlLastUpdated: opts.bdlFutures?.lastUpdated,
+    nowMs: opts.nowMs,
+  });
+  if (!base) return null;
+
+  const numericLine = formatWcGroupSlateNumericLine({
+    odds: advanceOdds,
+    simPct,
+    impliedPct,
+    delta,
+  });
+
+  return {
+    ...base,
+    lean,
+    call,
+    whyNow,
+    line: numericLine || base.line,
+    edge: String(prior?.edge || base.edge || "").slice(0, 200),
+    deep: String(prior?.deep || base.deep || "").slice(0, 1100),
+    reaffirmedFromPushBack: true,
   };
 }
 

@@ -4,6 +4,7 @@ import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcCrossGroupValuePrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
+  buildWcGroupValuePushBackPrebuiltStructured,
   formatWcGroupSlateNumericLine,
   isWcGroupAdvancementPathProse,
   repairWcGroupSlateStructuredLine,
@@ -342,4 +343,46 @@ test("repairWcGroupSlateStructuredLine — moves path prose off LINE slot", () =
   assert.match(repaired.deep, /top-two finish/);
   assert.equal(isWcGroupAdvancementPathProse(repaired.line), false);
   assert.match(formatWcGroupSlateNumericLine({ impliedPct: 42.1, simPct: 58.3, delta: 16.2 }), /delta \+16\.2pt/);
+});
+
+test("buildWcGroupValuePushBackPrebuiltStructured — reaffirms fade with human opener", () => {
+  const history = [
+    {
+      role: "assistant",
+      structured: {
+        callType: "group_slate",
+        groupLetter: "K",
+        lean: "Lean: Pass on DR Congo to advance in Group K at +100 — market overprices the escape path.",
+        call: "Fade DR Congo Group K advance at +100 — widest board misprice",
+        whyNow: "UR sims put COD advance at 23.7% vs market 50.0% (-26.3pt).",
+        line: "Market ~50.0% · UR sim 23.7% · delta -26.3pt.",
+      },
+    },
+  ];
+  const pre = buildWcGroupValuePushBackPrebuiltStructured({
+    question: "Portugal and Colombia are way more likely to advance from Group K",
+    history,
+    teamStats: {
+      COD: { advancePct: 23.7 },
+      COL: { advancePct: 42 },
+      POR: { advancePct: 98 },
+    },
+    bdlFutures: {
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          COD: { american: 100, americanDisplay: "+100" },
+          COL: { american: 150 },
+          POR: { american: -800 },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.equal(pre.reaffirmedFromPushBack, true);
+  assert.match(pre.whyNow || "", /Fair push|great point here/i);
+  assert.match(pre.whyNow || "", /Portugal and Colombia/i);
+  assert.match(pre.lean || "", /Pass on DR Congo/i);
+  assert.doesNotMatch(pre.lean || "", /Lean: DR Congo to advance/i);
+  assert.match(pre.whyNow || "", /play stays pass/i);
 });

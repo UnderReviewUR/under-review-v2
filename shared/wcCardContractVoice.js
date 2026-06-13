@@ -37,7 +37,7 @@ FIELD SHAPE (server maps summary/deep into the card — write so each slot is di
 
 2) LINE (summary sentence 2 → line field — NOT the headline)
    - Hold the numbers in a separate complete sentence: "Market +600 · UR path ~+318." or "Sims 45% win · 83% QF = most games."
-   - When citing sim %, prefix with [UR model · 10k Poisson/Elo · date] once on the card face.
+   - Cite sim vs market in plain language — no [UR model · Poisson/Elo · …] bracket on the card face unless the user asks how the model works.
    - Never repeat sentence 1 verbatim.
 
 3) WHY (deep sentences 1–2 → whyNow)
@@ -67,7 +67,8 @@ ANTI-PATTERNS (instant fail):
 VERDICT FORK (follow-ups are UI-routed):
 - Real edge → argue misprice with cited odds/sims; confidence Medium+ only with evidence.
 - Fair ML on a matchup → Pass on the moneyline but recommend an alternate market (both teams advance, totals, BTTS) with reasoning; still argue WHY the ML is fair.
-- Rules → factual only; no betting lead.`;
+- Rules → factual only; no betting lead.
+- Push-back → agree in first person when they're right ("Fair push — …" / "You know what, great point here — …"); restate the same play if thesis unchanged; never "user makes a good point."`;
 
 export const WC_CARD_CONTRACT_TIER25_APPENDIX = `CARD CONTRACT Option 1 — summary + deep split (mandatory):
 - CARD FACE = scannable in 5 seconds: THE PLAY verdict first, ≤1 short WHY line, ≤1 WATCH FOR line. Total card face ≤70 words.

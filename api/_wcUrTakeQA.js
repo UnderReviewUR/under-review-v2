@@ -59,11 +59,15 @@ import {
   detectMissingComparativeProof,
   detectMissingWcSimAttribution,
   detectMissingWcCardFaceNumericWhy,
+  detectWcAdvancementLeanDirectionMismatch,
+  detectWcRoboticPushbackConcession,
   isWcWatchForDupedAgainstWhy,
   WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
+  WC_NEEDS_LEAN_DIRECTION_QA_SUFFIX,
+  WC_PUSHBACK_VOICE_QA_SUFFIX,
 } from "../shared/wcTakeRetentionQA.js";
 import {
   detectWcMatchupMissingWinnerLine,
@@ -438,6 +442,14 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_card_face_missing_numeric_why");
     }
 
+    if (detectWcAdvancementLeanDirectionMismatch(structured)) {
+      issueCodes.push("wc_advancement_lean_direction_mismatch");
+    }
+
+    if (detectWcRoboticPushbackConcession(body)) {
+      issueCodes.push("wc_pushback_robotic_concession");
+    }
+
     if (
       detectWcMatchupPassOnlyWithoutAlternate(question, structured, wcIntent)
     ) {
@@ -545,6 +557,8 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_dedup_watch_for",
       "wc_missing_comparative_proof",
       "wc_card_face_missing_numeric_why",
+      "wc_advancement_lean_direction_mismatch",
+      "wc_pushback_robotic_concession",
       "wc_player_not_in_squad",
       "wc_player_role_mislabel",
     ].includes(c) ||
@@ -585,6 +599,8 @@ export {
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
+  WC_NEEDS_LEAN_DIRECTION_QA_SUFFIX,
+  WC_PUSHBACK_VOICE_QA_SUFFIX,
 };
 export { WC_MATCH_PASS_ONLY_QA_SUFFIX, WC_MATCH_MISSING_WINNER_QA_SUFFIX, WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX };
 

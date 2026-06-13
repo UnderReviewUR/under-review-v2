@@ -2,6 +2,7 @@
  * World Cup take retention QA — sim attribution, dedup, comparative proof.
  */
 
+import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { splitWcSentences } from "./wcSentenceBoundaries.js";
 
@@ -260,6 +261,232 @@ export function buildWcPushBackBindingBlock(question, history) {
   const teamClause = teamAbbr ? ` (best misprice: ${teamAbbr})` : "";
   return `PUSH-BACK BINDING (mandatory): Prior take named Group ${group} as runner-up value${teamClause}. Answer ONLY Group ${group}${teamAbbr ? ` / ${teamAbbr}` : ""} — explain in plain English why the advance line is wrong (sim% vs market%), not a roster list. Do NOT re-issue the #1 group pick or a new flagship slate card for a different group.`;
 }
+
+/**
+ * @param {object[]} history
+ * @returns {Record<string, unknown> | null}
+ */
+export function findPriorAssistantStructuredTake(history) {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const turn = history[i];
+    const role = String(turn?.role || "").toLowerCase();
+    if (role !== "assistant" && role !== "ai") continue;
+    if (turn?.structured && typeof turn.structured === "object") return turn.structured;
+  }
+  return null;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @returns {number | null}
+ */
+export function extractWcStructuredAdvanceDelta(structured) {
+  if (!structured || typeof structured !== "object") return null;
+  const blob = [structured.line, structured.whyNow, structured.deep, structured.lean]
+    .filter(Boolean)
+    .join(" ");
+  const deltaPt = blob.match(/\(([+-]?\d+\.?\d*)pt\)/i);
+  if (deltaPt) return parseFloat(deltaPt[1]);
+
+  const simFirst = blob.match(
+    /(?:UR sims? put|UR sim)[^.]*?(\d+\.?\d*)\s*%[^.]*?(?:market|implies)[^.]*?(\d+\.?\d*)\s*%/i,
+  );
+  if (simFirst) return parseFloat(simFirst[1]) - parseFloat(simFirst[2]);
+
+  const marketFirst = blob.match(
+    /(?:market|implies)[^.]*?(\d+\.?\d*)\s*%[^.]*?(?:UR sims? put|UR sim|sims? put)[^.]*?(\d+\.?\d*)\s*%/i,
+  );
+  if (marketFirst) return parseFloat(marketFirst[2]) - parseFloat(marketFirst[1]);
+
+  return null;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function structuredTakeRecommendsFadeAdvance(structured) {
+  if (!structured || typeof structured !== "object") return false;
+  const blob = [structured.lean, structured.call, structured.whyNow]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/\b(pass on|fade )\b/.test(blob)) return true;
+  if (/\boverpric(?:e|ed|ing)\b/.test(blob) && /\b(advance|qualify|escape)\b/.test(blob)) {
+    return true;
+  }
+  const delta = extractWcStructuredAdvanceDelta(structured);
+  return delta != null && Number.isFinite(delta) && delta < -5;
+}
+
+/**
+ * Fade/pass target from a prior structured group-value take.
+ * @param {Record<string, unknown> | null | undefined} prior
+ * @returns {{ groupLetter: string, pickAbbr: string | null, pickName: string } | null}
+ */
+export function extractWcFadeAdvanceTargetFromPrior(prior) {
+  if (!prior || typeof prior !== "object") return null;
+  if (!structuredTakeRecommendsFadeAdvance(prior)) return null;
+
+  const lean = String(prior.lean || "");
+  const call = String(prior.call || "");
+
+  const passLean = lean.match(/\b(?:Pass on|Fade)\s+(.+?)\s+to advance(?:\s+in Group\s+([A-L]))?/i);
+  if (passLean) {
+    const namePart = passLean[1].trim();
+    let groupLetter =
+      passLean[2]?.toUpperCase() ||
+      String(prior.groupLetter || prior.primaryMispriceGroupLetter || "").toUpperCase() ||
+      null;
+    const team =
+      WC_2026_TEAMS.find(
+        (t) =>
+          t.name.toLowerCase() === namePart.toLowerCase() ||
+          String(t.abbreviation).toUpperCase() === namePart.toUpperCase(),
+      ) || null;
+    if (team) {
+      groupLetter = groupLetter || String(team.group).toUpperCase();
+      return {
+        groupLetter: String(groupLetter).toUpperCase(),
+        pickAbbr: team.abbreviation,
+        pickName: team.name,
+      };
+    }
+    if (groupLetter) {
+      return { groupLetter, pickAbbr: null, pickName: namePart };
+    }
+  }
+
+  const fadeCall = call.match(/\bFade\s+(.+?)\s+Group\s+([A-L])\b/i);
+  if (fadeCall) {
+    const namePart = fadeCall[1].trim();
+    const groupLetter = fadeCall[2].toUpperCase();
+    const team =
+      WC_2026_TEAMS.find(
+        (t) =>
+          t.name.toLowerCase() === namePart.toLowerCase() ||
+          String(t.abbreviation).toUpperCase() === namePart.toUpperCase(),
+      ) || null;
+    return {
+      groupLetter,
+      pickAbbr: team?.abbreviation || null,
+      pickName: team?.name || namePart,
+    };
+  }
+
+  const letter = String(
+    prior.groupLetter || prior.primaryMispriceGroupLetter || "",
+  ).toUpperCase();
+  if (letter) {
+    const blob = [lean, call, prior.whyNow].filter(Boolean).join(" ");
+    const longshot = WC_2026_TEAMS.find(
+      (t) =>
+        String(t.group).toUpperCase() === letter &&
+        (blob.includes(t.name) || blob.includes(t.abbreviation)),
+    );
+    if (longshot) {
+      return {
+        groupLetter: letter,
+        pickAbbr: longshot.abbreviation,
+        pickName: longshot.name,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Deterministic reaffirmation when user pushback agrees with a fade/pass thesis.
+ * @param {string} question
+ * @param {object[]} history
+ * @param {{ isConversationFollowUp?: boolean, priorStructured?: Record<string, unknown> | null }} [opts]
+ */
+export function shouldUseWcGroupValuePushBackPrebuilt(question, history, opts = {}) {
+  if (!opts.isConversationFollowUp) return false;
+  const q = String(question || "").trim();
+  if (isWcRunnerUpValueFollowUp(q)) return false;
+  if (!isWcGroupValuePushBackChallenge(q)) return false;
+  const prior = opts.priorStructured || findPriorAssistantStructuredTake(history);
+  return Boolean(extractWcFadeAdvanceTargetFromPrior(prior));
+}
+
+/**
+ * User challenges group favorites / paths after a fade-advance take.
+ * @param {string} question
+ */
+export function isWcGroupValuePushBackChallenge(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  return (
+    /\b(more likely|way more|clearly|obvious|near-?lock|favorite|favored|contender)\b/i.test(q) &&
+    /\b(advance|qualify|top two|escape|group [a-l])\b/i.test(q)
+  );
+}
+
+/**
+ * @param {string} question
+ * @param {object[]} history
+ */
+export function buildWcGroupValuePushBackBindingBlock(question, history) {
+  if (!isWcGroupValuePushBackChallenge(question)) return "";
+  const prior = findPriorAssistantStructuredTake(history);
+  if (!structuredTakeRecommendsFadeAdvance(prior)) return "";
+
+  const callBlob = String(prior?.call || prior?.lean || "");
+  const pick =
+    callBlob.match(/\b(?:Pass on|Fade)\s+(.+?)\s+to advance\b/i)?.[1]?.trim() ||
+    callBlob.match(/\b(?:Pass on|Fade)\s+([A-Z]{2,4})\b/i)?.[1]?.trim() ||
+    "the longshot";
+
+  return `PUSH-BACK BINDING (mandatory): Prior take was PASS/FADE on ${pick} to advance — market overpriced vs UR sim. The user naming Portugal/Colombia (or other favorites) AGREES with that read — do NOT flip to backing ${pick} to advance. Open in first person ("Fair push — you're right that Portugal and Colombia are the live paths here") then restate the SAME fade/pass play with sim% vs market%. Never write "user makes a good point" or third-person praise. Do not hedge with "or flip it".`;
+}
+
+/**
+ * Lean says "to advance" while sim delta is materially below market (wrong side).
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function detectWcAdvancementLeanDirectionMismatch(structured) {
+  if (!structured || typeof structured !== "object") return false;
+  const ct = String(structured.callType || "").toLowerCase();
+  if (!["group_slate", "advancement", "analysis"].includes(ct)) return false;
+
+  const blob = [structured.lean, structured.call].filter(Boolean).join(" ").toLowerCase();
+  if (/\b(pass on|fade )\b/.test(blob)) return false;
+  if (!/\bto advance\b/.test(blob)) return false;
+
+  const delta = extractWcStructuredAdvanceDelta(structured);
+  if (delta == null || !Number.isFinite(delta)) return false;
+  return delta < -5;
+}
+
+/**
+ * @param {string} text
+ */
+export function detectWcRoboticPushbackConcession(text) {
+  return /\b(user makes a good point|you're right to push back|the user is correct|valid pushback|user correctly notes|user makes a valid)\b/i.test(
+    String(text || ""),
+  );
+}
+
+export const WC_PUSHBACK_VOICE_PROMPT = `WC PUSH-BACK VOICE (mandatory on follow-ups):
+- Never write "user makes a good point" or describe the user in third person.
+- If their pushback matches your thesis (they name the favorites you already priced in), agree naturally: "Fair push — Portugal and Colombia are the live paths here." Then restate the SAME play; do not flip to backing the longshot you faded.
+- If you truly change the call, lead with "Changed my read —" and cite new numbers — not performative deference.
+- One confident play per thread unless numbers changed — do not make reversing the call a habit.`;
+
+export const WC_NEEDS_LEAN_DIRECTION_QA_SUFFIX = `
+
+WC LEAN DIRECTION QA (mandatory — prior answer backed the wrong side):
+- When UR sim advance % is BELOW market implied % (negative delta), the play is PASS or FADE advance — never "Lean: [team] to advance".
+- Example: sim 24% vs market 50% (-26pt) → "Pass on DR Congo to advance at +100" — NOT "DR Congo to advance at +100".`;
+
+export const WC_PUSHBACK_VOICE_QA_SUFFIX = `
+
+WC PUSH-BACK VOICE QA (mandatory — prior answer sounded robotic or flipped wrongly):
+- Do not say "user makes a good point" or "you're right to push back."
+- Use first-person agreement ("Fair push — …" / "You know what, great point here — …") then restate the same fade/pass if favorites were already in your thesis.
+- Do not flip from fade/pass on a longshot to backing that longshot because the user mentioned favorites.`;
 
 /**
  * Console warning only — no regeneration loop.

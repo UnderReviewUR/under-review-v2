@@ -155,6 +155,8 @@ import {
   WC_NEEDS_COMPARATIVE_QA_SUFFIX,
   WC_NEEDS_DEDUP_QA_SUFFIX,
   WC_NEEDS_NUMERIC_WHY_QA_SUFFIX,
+  WC_NEEDS_LEAN_DIRECTION_QA_SUFFIX,
+  WC_PUSHBACK_VOICE_QA_SUFFIX,
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_MISSING_WINNER_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
@@ -224,6 +226,7 @@ import {
   buildWcGroupBindingPromptBlocks,
   buildWcCrossGroupValuePrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
+  buildWcGroupValuePushBackPrebuiltStructured,
   resolveWcRunnerUpFollowUpDelivery,
   extractGroupLetterFromQuestion,
   getWcGroupComposition,
@@ -238,9 +241,12 @@ import {
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import {
   buildWcPushBackBindingBlock,
+  buildWcGroupValuePushBackBindingBlock,
   warnWcThinFollowUpWhy,
   isWcRunnerUpValueFollowUp,
   extractWcRunnerUpFromHistory,
+  shouldUseWcGroupValuePushBackPrebuilt,
+  WC_PUSHBACK_VOICE_PROMPT,
 } from "../../shared/wcTakeRetentionQA.js";
 import {
   sliceChatHistoryStructured,
@@ -5000,9 +5006,19 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 - Do not invent scores, lineups, or odds not supported by the context block.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`;
 
-    const wcPushBackBindingBlock = wcRunnerUpFollowUpQuestion
-      ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
-      : "";
+    const wcPushBackBindingBlock = [
+      wcRunnerUpFollowUpQuestion
+        ? buildWcPushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate)
+        : "",
+      buildWcGroupValuePushBackBindingBlock(routingQuestion, normalizedUrTakeHistoryForGate),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const wcPushBackVoiceBlock =
+      isConversationFollowUp && (wcPushBackBindingBlock || wcIntent === WC_INTENT.CONTINUATION)
+        ? WC_PUSHBACK_VOICE_PROMPT
+        : "";
 
     const wcHasMatchPlayerProps = hasMatchPlayerPropRows(wcContext?.playerMarketKv?.matchPlayerProps);
     const wcScriptPriceBlock = buildWcScriptPriceUserAppendix({
@@ -5019,7 +5035,7 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 
     userPrompt = `${wcRoleLine}
 
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
 
 Question:
 ${question}
@@ -5250,6 +5266,7 @@ You are responding to a Pro subscriber. Apply the following:
     let wcGroupSlatePassUsed = false;
     let wcFixtureMatchupPassUsed = false;
     let wcRunnerUpFollowUpPassUsed = false;
+    let wcGroupValuePushBackPassUsed = false;
     /** World Cup relevance QA — declared outside QA loop for post-loop player-market repair. */
     let wcQaResult = null;
 
@@ -5312,6 +5329,39 @@ You are responding to a Pro subscriber. Apply the following:
             }),
           );
         }
+      }
+    }
+
+    if (
+      sportHint === "worldcup" &&
+      isConversationFollowUp &&
+      !wcPlayerMarketPassUsed &&
+      !wcRunnerUpFollowUpPassUsed &&
+      shouldUseWcGroupValuePushBackPrebuilt(routingQuestion, normalizedUrTakeHistoryForGate, {
+        isConversationFollowUp: true,
+      })
+    ) {
+      const prebuilt = buildWcGroupValuePushBackPrebuiltStructured({
+        question: String(question || ""),
+        history: normalizedUrTakeHistoryForGate,
+        teamStats: wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: wcContext?.bdlFuturesPayload,
+      });
+      if (prebuilt) {
+        structuredResponse = prebuilt;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
+        responseDeep = null;
+        responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+        wcGroupValuePushBackPassUsed = true;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_group_value_pushback_pass",
+            sport: "worldcup",
+            wcIntent,
+            groupLetter: prebuilt.groupLetter,
+            reaffirmed: true,
+          }),
+        );
       }
     }
 
@@ -5495,7 +5545,8 @@ You are responding to a Pro subscriber. Apply the following:
         !wcPlayerMarketPassUsed &&
         !wcGroupSlatePassUsed &&
         !wcFixtureMatchupPassUsed &&
-        !wcRunnerUpFollowUpPassUsed
+        !wcRunnerUpFollowUpPassUsed &&
+        !wcGroupValuePushBackPassUsed
       ) {
         structuredResponse = null;
       }
@@ -5585,6 +5636,14 @@ You are responding to a Pro subscriber. Apply the following:
                 ? WC_NEEDS_NUMERIC_WHY_QA_SUFFIX
                 : ""
             }${
+              prevQaCriticalCodes.includes("wc_advancement_lean_direction_mismatch")
+                ? WC_NEEDS_LEAN_DIRECTION_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_pushback_robotic_concession")
+                ? WC_PUSHBACK_VOICE_QA_SUFFIX
+                : ""
+            }${
               prevQaCriticalCodes.includes("wc_matchup_pass_only_no_alt")
                 ? WC_MATCH_PASS_ONLY_QA_SUFFIX
                 : ""
@@ -5644,7 +5703,8 @@ You are responding to a Pro subscriber. Apply the following:
         (wcPlayerMarketPassUsed ||
           wcGroupSlatePassUsed ||
           wcFixtureMatchupPassUsed ||
-          wcRunnerUpFollowUpPassUsed) &&
+          wcRunnerUpFollowUpPassUsed ||
+          wcGroupValuePushBackPassUsed) &&
         structuredResponse
       ) {
         responseText =

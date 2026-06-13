@@ -5,6 +5,7 @@ import { runWcUrTakeQA } from "../_wcUrTakeQA.js";
 import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
+  buildWcGroupValuePushBackPrebuiltStructured,
   shouldUseWcCrossGroupValuePrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "../../shared/wcGroupComposition.js";
@@ -14,7 +15,11 @@ import {
   resolveWcQaStructured,
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructured.js";
-import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
+import {
+  extractWcRunnerUpFromHistory,
+  isWcTomorrowOrSlateBetQuestion,
+  shouldUseWcGroupValuePushBackPrebuilt,
+} from "../../shared/wcTakeRetentionQA.js";
 
 /**
  * Deliver World Cup prebuilt takes without building prompts or calling Anthropic.
@@ -56,7 +61,23 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
   let structuredResponse = null;
   let passKind = null;
 
-  if (wcRunnerUpFollowUpQuestion) {
+  if (
+    isConversationFollowUp &&
+    shouldUseWcGroupValuePushBackPrebuilt(routingQuestion, normalizedUrTakeHistoryForGate, {
+      isConversationFollowUp: true,
+    })
+  ) {
+    const prebuilt = buildWcGroupValuePushBackPrebuiltStructured({
+      question: String(question || ""),
+      history: normalizedUrTakeHistoryForGate,
+      teamStats: wcContext?.tournamentSimResults?.teamStats,
+      bdlFutures: wcContext?.bdlFuturesPayload,
+    });
+    if (prebuilt) {
+      structuredResponse = prebuilt;
+      passKind = "group_value_pushback";
+    }
+  } else if (wcRunnerUpFollowUpQuestion) {
     const { group: runnerUpGroup, teamAbbr: runnerUpTeamAbbr } = extractWcRunnerUpFromHistory(
       normalizedUrTakeHistoryForGate,
     );

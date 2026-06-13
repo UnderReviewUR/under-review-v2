@@ -15,6 +15,15 @@ import {
   isWcWatchForDupedAgainstWhy,
   stripWcModelAttributionPrefix,
   buildWcPushBackBindingBlock,
+  buildWcGroupValuePushBackBindingBlock,
+  detectWcAdvancementLeanDirectionMismatch,
+  detectWcRoboticPushbackConcession,
+  extractWcStructuredAdvanceDelta,
+  findPriorAssistantStructuredTake,
+  structuredTakeRecommendsFadeAdvance,
+  isWcGroupValuePushBackChallenge,
+  shouldUseWcGroupValuePushBackPrebuilt,
+  extractWcFadeAdvanceTargetFromPrior,
   parentTakeHasWcRunnerUpAnchor,
   synthesizeWcCardFaceNumericWhy,
   wcCardFaceBlobHasNumericWhy,
@@ -301,4 +310,124 @@ test("synthesizeWcCardFaceNumericWhy prefers structured line slot", () => {
 test("wcCardFaceBlobHasNumericWhy accepts odds and percentages", () => {
   assert.equal(wcCardFaceBlobHasNumericWhy("Over 3 at -135"), true);
   assert.equal(wcCardFaceBlobHasNumericWhy("Books treat him as the focal winger."), false);
+});
+
+test("detectWcAdvancementLeanDirectionMismatch — negative delta cannot lean to advance", () => {
+  const bad = {
+    callType: "group_slate",
+    lean: "Lean: DR Congo to advance at +100",
+    call: "DR Congo to advance at +100",
+    whyNow: "UR sims put COD advance at 24% vs market 50% (-26pt).",
+  };
+  assert.equal(detectWcAdvancementLeanDirectionMismatch(bad), true);
+
+  const good = {
+    callType: "group_slate",
+    lean: "Pass on DR Congo to advance at +100",
+    call: "Pass on DR Congo to advance at +100",
+    whyNow: "UR sims put COD advance at 24% vs market 50% (-26pt).",
+  };
+  assert.equal(detectWcAdvancementLeanDirectionMismatch(good), false);
+});
+
+test("detectWcRoboticPushbackConcession flags third-person praise", () => {
+  assert.equal(detectWcRoboticPushbackConcession("User makes a good point about Portugal."), true);
+  assert.equal(
+    detectWcRoboticPushbackConcession("Fair push — Portugal and Colombia are the live paths here."),
+    false,
+  );
+});
+
+test("buildWcGroupValuePushBackBindingBlock — favorites agree with fade thesis", () => {
+  const history = [
+    {
+      role: "assistant",
+      structured: {
+        lean: "Pass on DR Congo to advance at +100",
+        call: "Pass on DR Congo to advance at +100",
+        whyNow: "UR sims put COD advance at 24% vs market 50% (-26pt).",
+      },
+    },
+  ];
+  const block = buildWcGroupValuePushBackBindingBlock(
+    "Portugal and Colombia are way more likely to advance from Group K",
+    history,
+  );
+  assert.match(block, /PASS\/FADE on DR Congo/i);
+  assert.match(block, /do NOT flip/i);
+  assert.match(block, /Fair push/i);
+  assert.match(block, /Never write "user makes a good point"/i);
+});
+
+test("structuredTakeRecommendsFadeAdvance reads pass/fade and negative delta", () => {
+  assert.equal(
+    structuredTakeRecommendsFadeAdvance({
+      lean: "Pass on DR Congo to advance at +100",
+      whyNow: "24% sim vs 50% market.",
+    }),
+    true,
+  );
+  assert.equal(
+    structuredTakeRecommendsFadeAdvance({
+      lean: "Lean: Portugal to advance",
+      whyNow: "UR sims put POR advance at 62% vs market 48% (+14pt).",
+    }),
+    false,
+  );
+});
+
+test("isWcGroupValuePushBackChallenge detects favorite-path pushback", () => {
+  assert.equal(
+    isWcGroupValuePushBackChallenge("Portugal and Colombia are way more likely to advance"),
+    true,
+  );
+  assert.equal(isWcGroupValuePushBackChallenge("What time is the USA match?"), false);
+});
+
+test("findPriorAssistantStructuredTake walks history backward", () => {
+  const history = [
+    { role: "user", content: "best value?" },
+    { role: "assistant", structured: { call: "Pass on COD" } },
+    { role: "user", content: "what about Portugal?" },
+  ];
+  assert.equal(findPriorAssistantStructuredTake(history)?.call, "Pass on COD");
+});
+
+test("extractWcFadeAdvanceTargetFromPrior — parses pass-on lean", () => {
+  const target = extractWcFadeAdvanceTargetFromPrior({
+    lean: "Lean: Pass on DR Congo to advance in Group K at +100",
+    whyNow: "UR sim 24% vs market 50%.",
+  });
+  assert.equal(target?.groupLetter, "K");
+  assert.equal(target?.pickAbbr, "COD");
+  assert.equal(target?.pickName, "DR Congo");
+});
+
+test("shouldUseWcGroupValuePushBackPrebuilt — aligned favorite pushback", () => {
+  const history = [
+    {
+      role: "assistant",
+      structured: {
+        lean: "Pass on DR Congo to advance at +100",
+        whyNow: "UR sim 24% vs market 50% (-26pt).",
+        groupLetter: "K",
+      },
+    },
+  ];
+  assert.equal(
+    shouldUseWcGroupValuePushBackPrebuilt(
+      "Portugal and Colombia are way more likely to advance",
+      history,
+      { isConversationFollowUp: true },
+    ),
+    true,
+  );
+  assert.equal(
+    shouldUseWcGroupValuePushBackPrebuilt(
+      "Portugal and Colombia are way more likely to advance",
+      history,
+      { isConversationFollowUp: false },
+    ),
+    false,
+  );
 });
