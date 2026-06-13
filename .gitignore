@@ -20,6 +20,9 @@ Thumbs.db
 .vite/
 *.local
 
+# Local WC misprice drift snapshots (optional to commit)
+scripts/wc-misprice-snapshots.jsonl
+
 .vercel
 
 # Personal — never commit

@@ -29,6 +29,8 @@
     "warm:f1-odds": "node scripts/warm-f1-odds-cache.mjs --direct",
     "warm:wc": "node scripts/warm-wc.mjs",
     "warm:wc:direct": "node scripts/warm-wc.mjs --direct",
+    "snapshot:wc-misprice": "node scripts/wc-misprice-drift-snapshot.mjs --direct",
+    "snapshot:wc-misprice:prod": "node scripts/wc-misprice-drift-snapshot.mjs",
     "seed:bdl-wc-goat": "node scripts/seed-bdl-wc-goat-trial.mjs --direct",
     "seed:bdl-wc-goat:http": "node scripts/seed-bdl-wc-goat-trial.mjs",
     "probe:wc-gb-sources": "node scripts/probe-wc-gb-books.mjs",
