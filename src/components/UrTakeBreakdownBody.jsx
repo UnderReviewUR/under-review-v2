@@ -35,7 +35,10 @@ export default function UrTakeBreakdownBody({ text }) {
             </p>
           ))}
           {sections.map((section) => (
-            <div key={section.key} className="wc-take-breakdown-section">
+            <div
+              key={`${section.key}-${section.body.slice(0, 32)}`}
+              className={`wc-take-breakdown-section${section.key === "match" ? " wc-take-breakdown-section--match" : ""}`}
+            >
               <div className="wc-take-row-label">{section.label}</div>
               <p className="wc-take-row-body">{section.body}</p>
             </div>

@@ -366,6 +366,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const focusLayout = Boolean(opts.focusLayout);
   const ct = String(opts.callType || "").toLowerCase();
   const premiumBreakdownCall = ct === "group_slate" || ct === "advancement";
+  const selfContainedSlateBreakdown = ct === "tomorrow_slate";
   const fullWhy = String(opts.why || "").trim();
   const fullWatch = String(opts.watchFor || "").trim();
   const fullPlay = String(opts.thePlay || "").trim();
@@ -440,21 +441,21 @@ export function prepareWcCardFaceDisplay(opts = {}) {
       fullWatch &&
       breakdown &&
       breakdown.toLowerCase().includes(fullWatch.slice(0, Math.min(48, fullWatch.length)).toLowerCase());
-    if (fullWatch && !watchAlreadyInBreakdown) {
+    if (fullWatch && !watchAlreadyInBreakdown && !selfContainedSlateBreakdown) {
       breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
     }
     if (fullDeep) breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
-    if (fullWhy && (!focusWhyCompressed || premiumBreakdownCall)) {
+    if (fullWhy && (!focusWhyCompressed || premiumBreakdownCall) && !selfContainedSlateBreakdown) {
       breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
     }
-    if (fullPlay) breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
-  } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown) {
+    if (fullPlay && !selfContainedSlateBreakdown) breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
+  } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown && !selfContainedSlateBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
   }
-  if (!focusLayout && fullWatch && !breakdown.includes(fullWatch.slice(0, 40))) {
+  if (!focusLayout && fullWatch && !breakdown.includes(fullWatch.slice(0, 40)) && !selfContainedSlateBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
   }
-  if (!focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40))) {
+  if (!focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40)) && !selfContainedSlateBreakdown) {
     breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   }
 

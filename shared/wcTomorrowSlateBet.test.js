@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isWcCrossGroupMispriceQuestion,
   isWcTomorrowOrSlateBetQuestion,
+  extractWcSlateDayFromQuestion,
 } from "./wcTakeRetentionQA.js";
 import { isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
 import { shouldUseWcCrossGroupValuePrebuilt } from "./wcGroupComposition.js";
@@ -25,4 +26,10 @@ test("isWcTomorrowOrSlateBetQuestion matches best world cup bets for tomorrow", 
 test("isWcTomorrowOrSlateBetQuestion skips player prop questions", () => {
   const q = "Best player prop on tomorrow's World Cup matches?";
   assert.ok(!isWcTomorrowOrSlateBetQuestion(q));
+});
+
+test("extractWcSlateDayFromQuestion prefers today for today's slate prompts", () => {
+  assert.equal(extractWcSlateDayFromQuestion("Best bet on today's slate"), "today");
+  assert.equal(extractWcSlateDayFromQuestion("Best World Cup bets for tomorrow?"), "tomorrow");
+  assert.equal(extractWcSlateDayFromQuestion("What are sneaky good bets for World Cup matches tomorrow?"), "tomorrow");
 });

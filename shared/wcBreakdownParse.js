@@ -3,15 +3,20 @@
  */
 
 const LABELED_SECTION_MARKERS = [
+  { key: "match", label: "Match", pattern: /\bMatch:\s*/gi },
+  { key: "lean", label: "Lean", pattern: /\bLean:\s*/gi },
   { key: "scoreboard", label: "Scoreboard", pattern: /\bSCOREBOARD SCRIPT:\s*/gi },
   { key: "simVsMarket", label: "Sim vs market", pattern: /\bSim vs market:\s*/gi },
   { key: "runnerUp", label: "Runner-up gap", pattern: /\bRunner-up gap:\s*/gi },
   { key: "bookLine", label: "Book line", pattern: /\bBook line:\s*/gi },
+  { key: "matchOdds", label: "Match odds", pattern: /\b(?:MATCH ODDS|Match odds):\s*/gi },
+  { key: "urWinBar", label: "UR win bar", pattern: /\bUR model win bar:\s*/gi },
+  { key: "groupPaths", label: "Group paths", pattern: /\bGroup paths:\s*/gi },
   { key: "groupContext", label: "Group context", pattern: /\bGroup [A-L] is four teams:\s*/gi },
   { key: "path", label: "Path", pattern: /\bPath:\s*/gi },
   { key: "coinFlip", label: "Coin-flip path", pattern: /\bCoin-flip path:\s*/gi },
-  { key: "winsIf", label: "Wins if", pattern: /\b(?:Wins-if|This wins if):\s*/gi },
-  { key: "diesIf", label: "Dies if", pattern: /\b(?:Dies-if|This dies if):\s*/gi },
+  { key: "winsIf", label: "Wins if", pattern: /\b(?:Wins-if|WINS IF|This wins if):\s*/gi },
+  { key: "diesIf", label: "Dies if", pattern: /\b(?:Dies-if|DIES IF|This dies if):\s*/gi },
   { key: "watchFor", label: "Watch for", pattern: /\b(?:WATCH FOR|Live trigger|Watch For|Watch for):\s*/gi },
   { key: "sharpAngle", label: "Sharp angle", pattern: /\b(?:SHARP ANGLE|Sharp angle):\s*/gi },
   { key: "context", label: "Context", pattern: /\bContext:\s*/gi },
@@ -112,7 +117,7 @@ export function splitWcBreakdownPreambleBlocks(preamble) {
     }
     const sub = part
       .split(
-        /(?=\bSim vs market:|\bRunner-up gap:|\bBook line:|\bGroup [A-L] is four teams:|\bPath:|\bCoin-flip path:|\b(?:Wins-if|Dies-if|This wins if|This dies if):|\bWATCH FOR:|\bSCOREBOARD SCRIPT:)/i,
+        /(?=\bMatch:|\bLean:|\bSim vs market:|\bRunner-up gap:|\bBook line:|\b(?:MATCH ODDS|Match odds):|\bUR model win bar:|\bGroup paths:|\bGroup [A-L] is four teams:|\bPath:|\bCoin-flip path:|\b(?:Wins-if|WINS IF|Dies-if|DIES IF|This wins if|This dies if):|\bWATCH FOR:|\bSCOREBOARD SCRIPT:)/i,
       )
       .map((s) => s.trim())
       .filter(Boolean);

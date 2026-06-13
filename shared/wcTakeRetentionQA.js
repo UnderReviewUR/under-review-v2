@@ -317,6 +317,30 @@ export function isWcCrossGroupMispriceQuestion(question) {
 }
 
 /**
+ * @typedef {"today" | "tomorrow"} WcSlateDay
+ */
+
+/**
+ * Which ET slate day the user asked for — defaults to today when unspecified.
+ * @param {string} question
+ * @returns {WcSlateDay}
+ */
+export function extractWcSlateDayFromQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return "today";
+  const hasToday = /\btoday'?s?\b/i.test(q);
+  const hasTomorrow = /\btomorrow'?s?\b/i.test(q);
+  if (hasToday && !hasTomorrow) return "today";
+  if (hasTomorrow && !hasToday) return "tomorrow";
+  if (hasToday && hasTomorrow) {
+    const todayIdx = q.search(/\btoday'?s?\b/i);
+    const tomorrowIdx = q.search(/\btomorrow'?s?\b/i);
+    return todayIdx >= tomorrowIdx ? "today" : "tomorrow";
+  }
+  return "today";
+}
+
+/**
  * Broad slate picks ("sneaky bets tomorrow") — route to fast cross-group prebuilt, not full LLM.
  * @param {string} question
  */

@@ -97,3 +97,20 @@ test("multi-match KV slate builds one angle per fixture", () => {
   assert.equal(card?.tomorrowFixtureCount, 3);
   assert.match(String(card?.lean || ""), /3 angles on tomorrow's ET slate/i);
 });
+
+test("today's slate question resolves Jun 13 fixtures not tomorrow", () => {
+  const nowMs = Date.parse("2026-06-13T14:41:00Z");
+  const matches = buildStaticPromoMatchesFallback(nowMs);
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "Best bet on today's slate",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.equal(card.slateDay, "today");
+  assert.equal(card.slateEtDate, "2026-06-13");
+  assert.match(String(card.lean || ""), /today's ET slate/i);
+  assert.doesNotMatch(String(card.lean || ""), /tomorrow/i);
+  assert.match(String(card.deep || ""), /Match:/);
+  assert.doesNotMatch(String(card.deep || ""), /\bHaiti vs Scotland\b/i);
+});

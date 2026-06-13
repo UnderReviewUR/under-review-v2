@@ -58,3 +58,23 @@ Watch for: Confirmed starting lineup 90 minutes before tip.`;
   assert.equal(sections.find((s) => s.key === "sharpAngle")?.label, "Sharp angle");
   assert.equal(sections.find((s) => s.key === "thePlay")?.label, "The play");
 });
+
+test("parseWcBreakdownSections extracts fixture slate match blocks", () => {
+  const text = `Today's World Cup slate (ET, 2026-06-13) — 2 matches
+
+Match: England vs Ghana (Group L)
+Lean: lean Under 2.5 goals
+MATCH ODDS: England -165 · Draw +290 · Ghana +420
+UR model win bar: England 52% · Draw 24% · Ghana 24%.
+WINS IF: Ghana packs the box and England controls without a multi-goal burst.
+DIES IF: An early England goal forces Ghana to chase.
+
+Match: France vs Senegal (Group I)
+Lean: lean France -130
+MATCH ODDS: France -130 · Draw +270 · Senegal +350`;
+  const { sections } = parseWcBreakdownSections(text);
+  assert.ok(sections.filter((s) => s.key === "match").length >= 2);
+  assert.equal(sections.find((s) => s.key === "matchOdds")?.label, "Match odds");
+  assert.equal(sections.find((s) => s.key === "winsIf")?.label, "Wins if");
+  assert.equal(sections.find((s) => s.key === "diesIf")?.label, "Dies if");
+});

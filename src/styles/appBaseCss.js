@@ -3387,6 +3387,10 @@ export const baseCss = `
   }
   .wc-take-breakdown-preamble{margin:0 0 12px;}
   .wc-take-breakdown-section{margin:0 0 12px;}
+  .wc-take-breakdown-section--match{
+    margin-top:16px;padding-top:14px;border-top:1px solid var(--border-2);
+  }
+  .wc-take-breakdown-section--match:first-of-type{margin-top:0;padding-top:0;border-top:0;}
   .wc-take-breakdown-section .wc-take-row-label{margin-bottom:4px;}
   .wc-take-breakdown-section .wc-take-row-body{font-size:13px;line-height:1.5;}
   .wc-take-footer{
