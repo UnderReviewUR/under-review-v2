@@ -73,6 +73,28 @@ export function resolveWcMatchEtDate(match) {
 }
 
 /**
+ * @param {{ date?: string, time?: string, commenceTs?: number | string } | null | undefined} match
+ */
+export function hasExplicitWcSlateDate(match) {
+  const fromDate = String(match?.date || "").trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) return true;
+  return parseWcKickoffEtMs(match?.date, match?.time) != null;
+}
+
+/**
+ * Include a fixture on an ET slate day when kickoff ET or FIFA matchday date matches.
+ * @param {{ date?: string, time?: string, commenceTs?: number | string } | null | undefined} match
+ * @param {string} ymd
+ */
+export function wcMatchDatesIncludeYmd(match, ymd) {
+  const target = String(ymd || "").trim();
+  if (!target || !match) return false;
+  if (resolveWcMatchEtDate(match) === target) return true;
+  if (hasExplicitWcSlateDate(match) && resolveWcMatchSlateEtDate(match) === target) return true;
+  return false;
+}
+
+/**
  * @param {number} ts
  * @returns {Date}
  */

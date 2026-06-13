@@ -1,4 +1,4 @@
-import { parseWcBreakdownSections, splitWcBreakdownPreambleBlocks } from "../../shared/wcBreakdownParse.js";
+import { parseWcBreakdownSections, groupWcBreakdownSectionsIntoBlocks, splitWcBreakdownPreambleBlocks } from "../../shared/wcBreakdownParse.js";
 import { sanitizeUrTakeUserFacingProse } from "../../shared/wcUserFacingCopy.js";
 
 function splitPropLadderBreakdownLines(text) {
@@ -27,6 +27,7 @@ export default function UrTakeBreakdownBody({ text }) {
     const { preamble, sections } = parseWcBreakdownSections(clean);
     if (sections.length || preamble) {
       const preambleBlocks = splitWcBreakdownPreambleBlocks(preamble);
+      const sectionBlocks = groupWcBreakdownSectionsIntoBlocks(sections);
       return (
         <div className="wc-take-breakdown-body wc-take-breakdown-body--stacked">
           {preambleBlocks.map((block) => (
@@ -34,15 +35,25 @@ export default function UrTakeBreakdownBody({ text }) {
               {block}
             </p>
           ))}
-          {sections.map((section) => (
-            <div
-              key={`${section.key}-${section.body.slice(0, 32)}`}
-              className={`wc-take-breakdown-section${section.key === "match" ? " wc-take-breakdown-section--match" : ""}`}
-            >
-              <div className="wc-take-row-label">{section.label}</div>
-              <p className="wc-take-row-body">{section.body}</p>
-            </div>
-          ))}
+          {sectionBlocks.map((group) => {
+            const isMatchBlock = group[0]?.key === "match";
+            return (
+              <div
+                key={`${group[0]?.key}-${group[0]?.body.slice(0, 32)}`}
+                className={isMatchBlock ? "wc-take-slate-match-block" : "wc-take-breakdown-section-group"}
+              >
+                {group.map((section) => (
+                  <div
+                    key={`${section.key}-${section.body.slice(0, 32)}`}
+                    className={`wc-take-breakdown-section${section.key === "match" ? " wc-take-breakdown-section--match" : ""}${section.key === "kickoff" ? " wc-take-breakdown-section--kickoff" : ""}`}
+                  >
+                    <div className="wc-take-row-label">{section.label}</div>
+                    <p className="wc-take-row-body">{section.body}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       );
     }

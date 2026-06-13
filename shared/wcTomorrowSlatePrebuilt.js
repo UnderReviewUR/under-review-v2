@@ -15,7 +15,7 @@ import {
 } from "./wcMatchMoneylineProbs.js";
 import { buildStaticPromoMatchesFallback, GROUP_STAGE_OPENERS } from "./wc2026PromoFixtures.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
-import { parseWcKickoffEtMs, resolveWcMatchEtDate, resolveWcMatchSlateEtDate, wcMatchEtDateYmd, wcTodayEtYmd } from "./wcKickoffDisplay.js";
+import { parseWcKickoffEtMs, formatWcKickoffDisplay, hasExplicitWcSlateDate, resolveWcMatchSlateEtDate, wcMatchDatesIncludeYmd, wcTodayEtYmd } from "./wcKickoffDisplay.js";
 import { isWcFinishedMatchStatus, isWcLiveMatchStatus, isWcScheduledMatchStatus } from "./wcFeaturedMatch.js";
 import {
   extractWcSlateDayFromQuestion,
@@ -33,9 +33,7 @@ function isTodaySlateEligibleStatus(status) {
 }
 
 function hasExplicitSlateDate(match) {
-  const fromDate = String(match?.date || "").trim().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) return true;
-  return parseWcKickoffEtMs(match?.date, match?.time) != null;
+  return hasExplicitWcSlateDate(match);
 }
 
 /**
@@ -51,7 +49,7 @@ export function filterWcMatchesForEtDate(matches, etYmd, opts = {}) {
   if (slateDay === "today") {
     return (matches || []).filter((m) => {
       if (!isTodaySlateEligibleStatus(m?.status)) return false;
-      return resolveWcMatchEtDate(m) === ymd;
+      return wcMatchDatesIncludeYmd(m, ymd);
     });
   }
 
@@ -121,19 +119,46 @@ function slateDayCopy(slateDay) {
 }
 
 /**
+ * @param {Array<Record<string, unknown>>} angles
+ * @param {{ slateDay?: "today" | "tomorrow", slateYmd?: string, predictionMode?: boolean, count?: number, dayCopy?: string }} opts
+ */
+function buildWcSlateWhyNowIntro(angles, opts = {}) {
+  const count = Number(opts.count) || (Array.isArray(angles) ? angles.length : 0);
+  const slateYmd = String(opts.slateYmd || "").trim();
+  const dayCopy = String(opts.dayCopy || slateDayCopy(opts.slateDay === "today" ? "today" : "tomorrow"));
+  const predictionMode = Boolean(opts.predictionMode);
+
+  if (count <= 1) {
+    const a = angles?.[0];
+    const timeBit = a?.kickoff ? `${a.kickoff} — ` : "";
+    if (!a) return "";
+    return predictionMode
+      ? `${timeBit}${a.label}: ${a.predictionPick || a.lean}`.slice(0, 220)
+      : `${timeBit}${a.label}: ${a.lean}`.slice(0, 220);
+  }
+
+  const intro = `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} slate (${slateYmd}) — ${count} matches.`;
+  return predictionMode
+    ? `${intro} Full breakdown: kickoff (ET), book ML, UR sim, and pick per game.`.slice(0, 220)
+    : `${intro} Full breakdown has every angle on the slate.`.slice(0, 220);
+}
+
+/**
  * @param {Record<string, unknown>} angle
  */
 export function formatWcSlateMatchDeepBlock(angle) {
   const label = String(angle?.label || "").trim();
   const group = String(angle?.group || "").trim().toUpperCase();
   const lean = String(angle?.lean || "").trim();
+  const kickoff = String(angle?.kickoff || "").trim();
   const body = String(angle?.deep || angle?.whyNow || "").trim();
   const header = group ? `${label} (Group ${group})` : label;
   /** @type {string[]} */
   const blocks = [`Match: ${header}`];
-  if (angle?.predictionPick) blocks.push(`Pick: ${angle.predictionPick}`);
+  if (kickoff) blocks.push(`Kickoff: ${kickoff}`);
   if (angle?.bookLine) blocks.push(`Book: ${angle.bookLine}`);
   if (angle?.simLine) blocks.push(`UR sim: ${angle.simLine}`);
+  if (angle?.predictionPick) blocks.push(`Pick: ${angle.predictionPick}`);
   if (lean && !angle?.predictionPick) blocks.push(`Lean: ${lean}`);
   if (body && !angle?.simLine) blocks.push(body);
   else if (body && angle?.simLine && !body.includes(angle.simLine)) blocks.push(body);
@@ -150,7 +175,7 @@ export function buildWcSlateDeepBreakdown(angles, opts = {}) {
   const count = Array.isArray(angles) ? angles.length : 0;
   const dayLabel = slateDayCopy(slateDay);
   const intro = slateYmd
-    ? `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} World Cup slate (ET, ${slateYmd}) — ${count} ${count === 1 ? "match" : "matches"}`
+    ? `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} World Cup slate (${slateYmd}) — ${count} ${count === 1 ? "match" : "matches"}`
     : `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} World Cup slate — ${count} ${count === 1 ? "match" : "matches"}`;
   return [intro, ...(angles || []).map((a) => formatWcSlateMatchDeepBlock(a))]
     .filter(Boolean)
@@ -197,7 +222,7 @@ function stripLeanPrefix(lean) {
   return String(lean || "")
     .replace(/^Lean:\s*/i, "")
     .replace(/^Pass on ML —\s*/i, "")
-    .replace(/^Tomorrow \(\d{4}-\d{2}-\d{2} ET\):\s*/i, "")
+    .replace(/^Tomorrow \(\d{4}-\d{2}-\d{2}\):\s*/i, "")
     .trim();
 }
 
@@ -230,6 +255,7 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
   const away = String(fx?.awayTeam || "").toUpperCase();
   const group = String(fx?.group || "").toUpperCase();
   const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
+  const kickoff = formatWcKickoffDisplay(fx);
   const match = attachSeedOdds(fx);
 
   const seedOdds = getWcFixtureMlSeed(home, away);
@@ -245,6 +271,7 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
       away,
       group,
       label,
+      kickoff,
       lean: `Lines pending on ${label}.`,
       call: `${label} — lines pending`,
       line: "",
@@ -339,6 +366,7 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
     away,
     group,
     label,
+    kickoff,
     lean,
     call: `${pickName} to win`.slice(0, 100),
     line: `${pickOdds} ML · UR sim ${pickSim ?? "n/a"}%`.slice(0, 200),
@@ -379,6 +407,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
     const away = String(fx.awayTeam || "").toUpperCase();
     const group = String(fx.group || "").toUpperCase();
     const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
+    const kickoff = formatWcKickoffDisplay(fx);
     const match = attachSeedOdds(fx);
 
     const card = buildWcFixtureMatchupPrebuiltStructured({
@@ -398,6 +427,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
         away,
         group,
         label,
+        kickoff,
         lean: stripLeanPrefix(card.lean),
         call: card.call,
         line: card.line,
@@ -411,6 +441,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
         away,
         group,
         label,
+        kickoff,
         lean: `Watch lines on ${label} when posted.`,
         call: `${label} — lines pending`,
         line: "",
@@ -466,43 +497,32 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   if (!featuredAngle) return null;
 
   const count = angles.length;
-  const slateLabels = angles.map((a) => a.label).join(" · ");
   const featuredLabel = featuredAngle.label;
 
   const lean = predictionMode
     ? (count > 1
-        ? `${count} match predictions on ${dayCopy} ET slate (${slateYmd}) — book + sim per game.`.slice(
+        ? `${count} match predictions on ${dayCopy} slate (${slateYmd}) — book + sim per game.`.slice(
             0,
             120,
           )
         : `${featuredLabel}: ${featuredAngle.predictionPick || featuredAngle.lean}`.slice(0, 120))
     : count > 1
-      ? `${count} angles on ${dayCopy} ET slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
+      ? `${count} angles on ${dayCopy} slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
           0,
           120,
         )
-      : `${slateDay === "today" ? "Today" : "Tomorrow"} (${slateYmd} ET): ${featuredAngle.lean}`.slice(
+      : `${slateDay === "today" ? "Today" : "Tomorrow"} (${slateYmd}): ${featuredAngle.lean}`.slice(
           0,
           120,
         );
 
-  const whyNow = predictionMode
-    ? [
-        `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} ET slate (${slateYmd}) — ${count} ${count === 1 ? "match" : "matches"}. Picks blend posted ML with UR sim win bar.`,
-        ...angles.map(
-          (a, i) =>
-            `${i + 1}) ${a.label}: ${a.predictionPick || a.lean}${a.line ? ` (${a.line})` : ""}`,
-        ),
-      ]
-        .join(" ")
-        .slice(0, 520)
-    : [
-        `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} ET slate (${slateYmd}, ${count} ${count === 1 ? "match" : "matches"}): ${slateLabels}.`,
-        ...angles.map((a, i) => `${i + 1}) ${a.label}: ${a.lean}`),
-        "Match-level only — teams not on this slate are out of scope.",
-      ]
-        .join(" ")
-        .slice(0, 520);
+  const whyNow = buildWcSlateWhyNowIntro(angles, {
+    slateDay,
+    slateYmd,
+    predictionMode,
+    count,
+    dayCopy,
+  });
 
   const deep = buildWcSlateDeepBreakdown(angles, { slateDay, slateYmd });
 
@@ -543,7 +563,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
       home: m.homeTeam,
       away: m.awayTeam,
       group: m.group,
-      time: m.time || null,
+      time: formatWcKickoffDisplay(m) || m.time || null,
     })),
     tomorrowSlateAngles: angles.map((a) => ({
       home: a.home,

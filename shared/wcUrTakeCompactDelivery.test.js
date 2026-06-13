@@ -152,7 +152,7 @@ test("buildWcCompactStructured — tomorrow_slate seed preserves prebuilt lean",
     structuredSeed: seed,
   });
   assert.equal(s.callType, "tomorrow_slate");
-  assert.match(s.lean, /tomorrow's ET slate/i);
+  assert.match(s.lean, /tomorrow's slate/i);
   assert.doesNotMatch(s.lean, /Pass — no actionable line/i);
   const norm = normalizeWcStructuredForDelivery(s, WC_INTENT.STRUCTURAL, "Best World Cup bets for tomorrow?");
   assert.equal(norm.callType, "tomorrow_slate");

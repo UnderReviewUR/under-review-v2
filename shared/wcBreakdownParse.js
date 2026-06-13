@@ -4,6 +4,7 @@
 
 const LABELED_SECTION_MARKERS = [
   { key: "match", label: "Match", pattern: /\bMatch:\s*/gi },
+  { key: "kickoff", label: "Kickoff", pattern: /\bKickoff:\s*/gi },
   { key: "lean", label: "Lean", pattern: /\bLean:\s*/gi },
   { key: "scoreboard", label: "Scoreboard", pattern: /\bSCOREBOARD SCRIPT:\s*/gi },
   { key: "simVsMarket", label: "Sim vs market", pattern: /\bSim vs market:\s*/gi },
@@ -26,6 +27,32 @@ const LABELED_SECTION_MARKERS = [
   { key: "thePlay", label: "The play", pattern: /\bThe Play:\s*/gi },
   { key: "oneThing", label: "One thing", pattern: /\bOne Thing:\s*/gi },
 ];
+
+/** Labeled blocks that must never merge — each marker starts a fresh section. */
+const UNIQUE_BREAKDOWN_SECTION_KEYS = new Set([
+  "match",
+  "kickoff",
+  "lean",
+  "book",
+  "pick",
+  "urSim",
+  "bookLine",
+  "matchOdds",
+  "watchFor",
+  "thePlay",
+  "scoreboard",
+  "simVsMarket",
+  "runnerUp",
+  "urWinBar",
+  "groupPaths",
+  "path",
+  "coinFlip",
+  "winsIf",
+  "diesIf",
+  "sharpAngle",
+  "context",
+  "oneThing",
+]);
 
 /**
  * Drop duplicate paragraphs (e.g. Watch for repeated in breakdown assembly).
@@ -90,7 +117,7 @@ export function parseWcBreakdownSections(text) {
     const body = raw.slice(start, end).trim();
     if (!body) continue;
     const prev = sections[sections.length - 1];
-    if (prev && prev.key === hit.key) {
+    if (prev && prev.key === hit.key && !UNIQUE_BREAKDOWN_SECTION_KEYS.has(hit.key)) {
       prev.body = `${prev.body} ${body}`.trim();
       continue;
     }
@@ -98,6 +125,34 @@ export function parseWcBreakdownSections(text) {
   }
 
   return { preamble, sections };
+}
+
+/**
+ * Group parsed sections into per-match blocks (Match → Kickoff/Book/Pick/… until next Match).
+ * @param {Array<{ key: string, label: string, body: string }>} sections
+ * @returns {Array<Array<{ key: string, label: string, body: string }>>}
+ */
+export function groupWcBreakdownSectionsIntoBlocks(sections) {
+  /** @type {Array<Array<{ key: string, label: string, body: string }>>} */
+  const blocks = [];
+  /** @type {Array<{ key: string, label: string, body: string }> | null} */
+  let current = null;
+
+  for (const section of sections || []) {
+    if (section.key === "match") {
+      if (current?.length) blocks.push(current);
+      current = [section];
+      continue;
+    }
+    if (current) {
+      current.push(section);
+      continue;
+    }
+    blocks.push([section]);
+  }
+
+  if (current?.length) blocks.push(current);
+  return blocks;
 }
 
 /**
@@ -120,7 +175,7 @@ export function splitWcBreakdownPreambleBlocks(preamble) {
     }
     const sub = part
       .split(
-        /(?=\bMatch:|\bLean:|\bSim vs market:|\bRunner-up gap:|\bBook line:|\b(?:MATCH ODDS|Match odds):|\bUR model win bar:|\bGroup paths:|\bGroup [A-L] is four teams:|\bPath:|\bCoin-flip path:|\b(?:Wins-if|WINS IF|Dies-if|DIES IF|This wins if|This dies if):|\bWATCH FOR:|\bSCOREBOARD SCRIPT:)/i,
+        /(?=\bMatch:|\bKickoff:|\bBook:|\bPick:|\bUR sim:|\bLean:|\bSim vs market:|\bRunner-up gap:|\bBook line:|\b(?:MATCH ODDS|Match odds):|\bUR model win bar:|\bGroup paths:|\bGroup [A-L] is four teams:|\bPath:|\bCoin-flip path:|\b(?:Wins-if|WINS IF|Dies-if|DIES IF|This wins if|This dies if):|\bWATCH FOR:|\bSCOREBOARD SCRIPT:)/i,
       )
       .map((s) => s.trim())
       .filter(Boolean);

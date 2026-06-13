@@ -32,7 +32,7 @@ test("buildWcTomorrowSlatePrebuiltStructured covers every tomorrow fixture", () 
   assert.equal(card.tomorrowFixtureCount, 2);
   assert.equal(card.tomorrowSlateAngles?.length, 2);
   assert.match(String(card.whyNow || ""), /2 matches/);
-  assert.match(String(card.lean || ""), /2 angles on tomorrow's ET slate/i);
+  assert.match(String(card.lean || ""), /2 angles on tomorrow's slate/i);
   assert.doesNotMatch(String(card.deep || ""), /\bArgentina\b/i);
   assert.doesNotMatch(String(card.lean || ""), /outright/i);
 });
@@ -97,7 +97,7 @@ test("multi-match KV slate builds one angle per fixture", () => {
     nowMs,
   });
   assert.equal(card?.tomorrowFixtureCount, 3);
-  assert.match(String(card?.lean || ""), /3 angles on tomorrow's ET slate/i);
+  assert.match(String(card?.lean || ""), /3 angles on tomorrow's slate/i);
 });
 
 test("today's slate question resolves Jun 13 fixtures not tomorrow", () => {
@@ -118,7 +118,7 @@ test("today's slate question resolves Jun 13 fixtures not tomorrow", () => {
   assert.equal(card.slateDay, "today");
   assert.equal(card.slateEtDate, "2026-06-13");
   assert.equal(card.tomorrowFixtureCount, 5);
-  assert.match(String(card.lean || ""), /5 angles on today's ET slate/i);
+  assert.match(String(card.lean || ""), /5 angles on today's slate/i);
   assert.doesNotMatch(String(card.lean || ""), /tomorrow/i);
   assert.match(String(card.deep || ""), /Match:/);
   assert.doesNotMatch(String(card.deep || ""), /\bHaiti vs Scotland\b/i);
@@ -155,17 +155,43 @@ test("predict each game today — slate prediction mode with book + sim per matc
   assert.ok(card);
   assert.equal(card.slatePredictionMode, true);
   assert.equal(card.tomorrowFixtureCount, 3);
-  assert.match(String(card.lean || ""), /3 match predictions on today's ET slate/i);
+  assert.match(String(card.lean || ""), /3 match predictions on today's slate/i);
   assert.match(String(card.call || ""), /3 match predictions/i);
-  assert.match(String(card.whyNow || ""), /1\) England vs Ghana/i);
+  assert.match(String(card.whyNow || ""), /3 matches/i);
+  assert.match(String(card.whyNow || ""), /Full breakdown/i);
+  assert.doesNotMatch(String(card.whyNow || ""), /1\) England/i);
   assert.match(String(card.deep || ""), /Match: England vs Ghana/i);
+  assert.match(String(card.deep || ""), /Kickoff:/i);
   assert.match(String(card.deep || ""), /Book:/i);
   assert.match(String(card.deep || ""), /UR sim:/i);
   assert.match(String(card.deep || ""), /Pick:/i);
   assert.doesNotMatch(String(card.lean || ""), /no actionable line yet/i);
+  assert.match(String(card.deep || ""), /Book:[\s\S]*UR sim:[\s\S]*Pick:/);
 
   const angle = buildWcSlateMatchOutcomeAngle(matches[0], { nowMs });
   assert.match(angle.predictionPick || "", /England to win/i);
   assert.match(angle.bookLine || "", /-165/);
   assert.ok(angle.simLine);
+  assert.match(angle.kickoff || "", /ET/);
+});
+
+test("today slate lists kickoff ET for every Jun 13 fixture", () => {
+  const nowMs = Date.parse("2026-06-13T15:28:00Z");
+  const matches = [
+    { homeTeam: "USA", awayTeam: "PAR", group: "D", date: "2026-06-13", time: "15:00 ET", status: "NS" },
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "18:00 ET", status: "NS" },
+    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "21:00 ET", status: "NS" },
+    { homeTeam: "HAI", awayTeam: "SCO", group: "C", date: "2026-06-13", time: "22:00 ET", status: "NS" },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "predict the results of each world cup match today",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.equal(card.tomorrowFixtureCount, 4);
+  assert.match(String(card.lean || ""), /4 match predictions on today's slate/i);
+  assert.match(String(card.deep || ""), /Kickoff:.*ET/);
+  assert.match(String(card.whyNow || ""), /4 matches/i);
+  assert.doesNotMatch(String(card.whyNow || ""), /3:00 PM ET/i);
 });

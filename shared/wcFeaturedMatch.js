@@ -5,6 +5,7 @@
 import {
   parseWcKickoffEtMs,
   resolveWcMatchEtDate,
+  wcMatchDatesIncludeYmd,
   wcTodayEtYmd,
 } from "./wcKickoffDisplay.js";
 
@@ -89,6 +90,6 @@ export function pickWcFeaturedMatch(opts = {}) {
  */
 export function sortWcTodayMatches(matches, todayEt) {
   return (matches || [])
-    .filter((m) => resolveWcMatchEtDate(m) === todayEt)
+    .filter((m) => wcMatchDatesIncludeYmd(m, todayEt))
     .sort(sortByKickoff);
 }

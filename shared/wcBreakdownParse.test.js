@@ -1,80 +1,42 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dedupeWcBreakdownParagraphs, parseWcBreakdownSections } from "./wcBreakdownParse.js";
+import {
+  groupWcBreakdownSectionsIntoBlocks,
+  parseWcBreakdownSections,
+} from "./wcBreakdownParse.js";
 
-test("dedupeWcBreakdownParagraphs removes repeated watch-for block", () => {
-  const watch =
-    "Watch for confirmed Canada starting XI before locking a scorer leg — lineup status still pending.";
-  const out = dedupeWcBreakdownParagraphs(`Intro.\n\n${watch}\n\n${watch}`);
-  assert.equal(out.split("Watch for").length - 1, 1);
-});
+test("parseWcBreakdownSections keeps each slate match as its own block", () => {
+  const deep = `Today's World Cup slate (2026-06-13) — 2 matches
 
-test("parseWcBreakdownSections extracts wins-if dies-if watch-for", () => {
-  const text = `Canada controls the ball but Bosnia sits deep.
-Wins-if: Canada wins 1-0 or 2-0 with the game staying tight.
-Dies-if: Bosnia scores first and Canada chases.
-WATCH FOR: Confirmed Canada starting XI before locking props.`;
-  const { preamble, sections } = parseWcBreakdownSections(text);
-  assert.match(preamble, /Canada controls/i);
-  assert.equal(sections.length, 3);
-  assert.equal(sections[0].label, "Wins if");
-  assert.match(sections[0].body, /1-0 or 2-0/);
-  assert.equal(sections[1].label, "Dies if");
-  assert.equal(sections[2].label, "Watch for");
-});
+Match: Qatar vs Switzerland (Group B)
 
-test("parseWcBreakdownSections extracts labeled group-slate deep blocks", () => {
-  const text = `Sim vs market: The market implies DR Congo is 50.0% to advance, but UR sims put it at 23.6% (-26.4pt).
+Kickoff: Fri 6:00 PM ET
 
-Runner-up gap: Group J — ALG is 75.6% market vs 50.1% sim (-25.5pt).
+Book: Qatar +1300 · Draw +600 · Switzerland -475
 
-Book line: +100 · DraftKings · Jun 13.
+UR sim: Qatar 7% · Draw 14% · Switzerland 79%
 
-Group K is four teams: Portugal (Favorite), Colombia (Contender), Uzbekistan and DR Congo (Longshots).
+Pick: Switzerland to win (-475 ML · UR sim 79% win)
 
-Path: DR Congo needs a top-two finish in Group K — the path is not finishing last on points behind Portugal.
+Match: Brazil vs Morocco (Group C)
 
-Wins-if: DR Congo finishes top two in Group K with points on the board before Portugal locks the table.
+Kickoff: Fri 9:00 PM ET
 
-Dies-if: DR Congo drops points to a longshot in the opener or trails Portugal by three+ after two games.
+Book: Brazil -150 · Draw +275 · Morocco +450
 
-WATCH FOR: If DR Congo advance odds drift wider than +100, pass.`;
-  const { preamble, sections } = parseWcBreakdownSections(text);
-  assert.equal(preamble, "");
-  assert.ok(sections.length >= 7);
-  assert.equal(sections.find((s) => s.key === "simVsMarket")?.label, "Sim vs market");
-  assert.equal(sections.find((s) => s.key === "runnerUp")?.label, "Runner-up gap");
-  assert.equal(sections.find((s) => s.key === "winsIf")?.label, "Wins if");
-  assert.equal(sections.find((s) => s.key === "watchFor")?.label, "Watch for");
-});
+UR sim: Brazil 57% · Draw 26% · Morocco 17%
 
-test("parseWcBreakdownSections extracts NBA scannable labels", () => {
-  const text = `Sharp angle: Mitchell Under 28.5 is the clearest edge.
-Context: Cleveland pushes pace when Garland sits.
-The Play: Under 28.5 points at -115.
-Watch for: Confirmed starting lineup 90 minutes before tip.`;
-  const { sections } = parseWcBreakdownSections(text);
-  assert.ok(sections.length >= 4);
-  assert.equal(sections.find((s) => s.key === "sharpAngle")?.label, "Sharp angle");
-  assert.equal(sections.find((s) => s.key === "thePlay")?.label, "The play");
-});
+Pick: Brazil to win (-150 ML · UR sim 57% win)`;
 
-test("parseWcBreakdownSections extracts fixture slate match blocks", () => {
-  const text = `Today's World Cup slate (ET, 2026-06-13) — 2 matches
+  const { sections } = parseWcBreakdownSections(deep);
+  const matchSections = sections.filter((s) => s.key === "match");
+  assert.equal(matchSections.length, 2);
+  assert.match(matchSections[0].body, /Qatar vs Switzerland/);
+  assert.match(matchSections[1].body, /Brazil vs Morocco/);
+  assert.doesNotMatch(matchSections[0].body, /Brazil vs Morocco/);
 
-Match: England vs Ghana (Group L)
-Lean: lean Under 2.5 goals
-MATCH ODDS: England -165 · Draw +290 · Ghana +420
-UR model win bar: England 52% · Draw 24% · Ghana 24%.
-WINS IF: Ghana packs the box and England controls without a multi-goal burst.
-DIES IF: An early England goal forces Ghana to chase.
-
-Match: France vs Senegal (Group I)
-Lean: lean France -130
-MATCH ODDS: France -130 · Draw +270 · Senegal +350`;
-  const { sections } = parseWcBreakdownSections(text);
-  assert.ok(sections.filter((s) => s.key === "match").length >= 2);
-  assert.equal(sections.find((s) => s.key === "matchOdds")?.label, "Match odds");
-  assert.equal(sections.find((s) => s.key === "winsIf")?.label, "Wins if");
-  assert.equal(sections.find((s) => s.key === "diesIf")?.label, "Dies if");
+  const blocks = groupWcBreakdownSectionsIntoBlocks(sections);
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0].length, 5);
+  assert.equal(blocks[1][0].key, "match");
 });
