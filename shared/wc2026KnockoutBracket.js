@@ -4,6 +4,7 @@
  */
 
 import { wcRoundKey } from "./wcPhaseUtils.js";
+import { assignThirdPlaceToR32SlotsAnnexC } from "./wc2026AnnexC.js";
 
 /** @typedef {{ num: number, team1: string, team2: string }} WcKnockoutTemplateMatch */
 /** @typedef {{ round: "r32"|"r16"|"qf"|"sf"|"third"|"final", matches: WcKnockoutTemplateMatch[] }} WcKnockoutTemplateRound */
@@ -91,36 +92,12 @@ export function parseBracketSlot(slot) {
 }
 
 /**
- * Assign each R32 third-place slot to a concrete team from the 8 best thirds.
- * Greedy: walk R32 matches in num order; pick highest-ranked eligible third not yet used.
- * @param {WcKnockoutTemplateMatch[]} r32Matches
+ * Assign each R32 third-place slot via FIFA Annex C (495-combination lookup).
+ * @param {import("./wc2026KnockoutBracket.js").WcKnockoutTemplateMatch[]} r32Matches
  * @param {Array<{ team: object, group: string }>} bestThirdRanked
  */
 export function assignThirdPlaceToR32Slots(r32Matches, bestThirdRanked) {
-  /** @type {Map<number, object>} */
-  const byMatchNum = new Map();
-  const used = new Set();
-
-  for (const m of r32Matches) {
-    const thirdSlot = [m.team1, m.team2].find((slot) => String(slot).startsWith("3"));
-    if (!thirdSlot) continue;
-    const parsed = parseBracketSlot(thirdSlot);
-    if (parsed.kind !== "third") continue;
-
-    const pick =
-      bestThirdRanked.find(
-        (row) =>
-          parsed.eligibleGroups.includes(String(row.group || "").toUpperCase()) &&
-          !used.has(row.team.abbreviation),
-      ) ||
-      bestThirdRanked.find((row) => !used.has(row.team.abbreviation));
-    if (pick) {
-      used.add(pick.team.abbreviation);
-      byMatchNum.set(m.num, pick.team);
-    }
-  }
-
-  return byMatchNum;
+  return assignThirdPlaceToR32SlotsAnnexC(r32Matches, bestThirdRanked);
 }
 
 /**
