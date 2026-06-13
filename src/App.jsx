@@ -6554,7 +6554,7 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
         )}
 
         {/* ══ NAV ══ */}
-        <nav className="bottom-nav bottom-nav--five" aria-label="Primary">
+        <nav className="bottom-nav bottom-nav--six" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
           <button
             className={`nav-btn nav-btn--wc-spotlight${tab === "worldcup" ? " wc-active" : ""}`}
@@ -6569,6 +6569,13 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
           <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
+          <button
+            className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
+            onClick={goPro}
+            aria-label="Pro"
+          >
+            <span>Pro</span>
+          </button>
         </nav>
 
       </div>

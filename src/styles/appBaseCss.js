@@ -2333,6 +2333,21 @@ export const baseCss = `
     padding-left:8px;
     padding-right:8px;
   }
+  .bottom-nav--six{
+    justify-content:space-around;
+    overflow-x:hidden;
+    padding-left:4px;
+    padding-right:4px;
+    gap:0;
+  }
+  .bottom-nav--six .nav-btn{
+    flex:1 1 0;
+    min-width:0;
+    max-width:72px;
+    padding-left:4px;
+    padding-right:4px;
+    font-size:12px;
+  }
   .bottom-nav--five .nav-btn{
     flex:1 1 0;
     min-width:0;
