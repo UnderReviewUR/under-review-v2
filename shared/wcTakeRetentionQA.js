@@ -535,6 +535,8 @@ export const WC_COMPARATIVE_PROOF_PROMPT = `COMPARATIVE PROOF (mandatory for ran
 - "Group X advancement path" → compare at least two paths or teams in that group (win group vs escape vs R16) with numbers.
 - Never claim a superlative without naming the runner-up or alternate path.`;
 
+export { WC_USER_FACING_COPY_PROMPT } from "./wcUserFacingCopy.js";
+
 export const WC_DEDUP_PROMPT = `BREAKDOWN DEDUP (mandatory):
 - WHY (whyNow) and WATCH FOR (edge) must be distinct sentences — never copy WHY into WATCH FOR.
 - FULL BREAKDOWN (deep) must add roster paths, bracket context, or market lines not repeated in WHY.

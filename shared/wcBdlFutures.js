@@ -235,18 +235,14 @@ export function formatWcBdlAdvancePriceAttribution(
   if (!display) return "";
 
   const vendor = formatBdlVendorLabel(row.vendor);
-  const sourceLabel =
-    bdlFutures.source === "balldontlie_live"
-      ? "BallDontLie GOAT live"
-      : "BallDontLie GOAT";
   let asOf = "";
   if (Number.isFinite(bdlFutures.lastUpdated) && bdlFutures.lastUpdated > 0) {
-    asOf = ` · as of ${new Date(bdlFutures.lastUpdated).toLocaleDateString("en-US", {
+    asOf = ` · ${new Date(bdlFutures.lastUpdated).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
     })}`;
   }
-  return `Book line: ${display} (${vendor} via ${sourceLabel}${asOf}).`;
+  return `Book line: ${display} · ${vendor}${asOf}.`;
 }
 
 /**

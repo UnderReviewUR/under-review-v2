@@ -2,8 +2,8 @@ import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
-import { parseWcBreakdownSections } from "../../shared/wcBreakdownParse.js";
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent } from "../lib/wcTakeCardUi.js";
+import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
@@ -21,69 +21,6 @@ function WcPlayHeadline({ text, focusLayout }) {
     );
   }
   return <h2 className="wc-take-headline">{raw}</h2>;
-}
-
-function splitWcLadderBreakdownLines(text) {
-  const t = String(text || "").trim();
-  if (!t) return [];
-  if (t.includes("\n")) {
-    return t
-      .split(/\n+/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-  }
-  return t
-    .split(/(?=Over \d+(?:\.\d+)? ·)/i)
-    .map((l) => l.trim())
-    .filter(Boolean);
-}
-
-function WcBreakdownBody({ text }) {
-  const lines = splitWcLadderBreakdownLines(text);
-  const isLadder = lines.some((l) => /^Over \d+ ·/i.test(l));
-  if (!isLadder) {
-    const { preamble, sections } = parseWcBreakdownSections(text);
-    if (sections.length) {
-      return (
-        <div className="wc-take-breakdown-body">
-          {preamble ? <p className="wc-take-breakdown-preamble">{preamble}</p> : null}
-          {sections.map((section) => (
-            <div key={section.key} className="wc-take-breakdown-section">
-              <div className="wc-take-row-label">{section.label}</div>
-              <p className="wc-take-row-body">{section.body}</p>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return <div className="wc-take-breakdown-body">{text}</div>;
-  }
-  return (
-    <div className="wc-ladder-grid">
-      {lines.map((line, i) => {
-        if (/isn't posted/i.test(line)) {
-          return (
-            <p key={`${i}-note`} className="wc-ladder-note">
-              {line}
-            </p>
-          );
-        }
-        if (/^Over \d+ ·/i.test(line)) {
-          const hi = line.includes("✓");
-          return (
-            <div key={`${i}-row`} className={`wc-ladder-row${hi ? " wc-ladder-row--hi" : ""}`}>
-              {line}
-            </div>
-          );
-        }
-        return (
-          <p key={`${i}-ctx`} className="wc-ladder-context">
-            {line}
-          </p>
-        );
-      })}
-    </div>
-  );
 }
 
 function WcSectionBody({ text, stacked = false }) {
@@ -275,7 +212,7 @@ export default function WcTakeCard({
       {showBreakdownToggle && breakdownExpanded ? (
         <div className="wc-take-breakdown-panel">
           <div className="wc-take-breakdown-label">Full breakdown</div>
-          <WcBreakdownBody text={deep} />
+          <UrTakeBreakdownBody text={deep} />
           <button
             type="button"
             className="ur-v2-body-expand wc-take-breakdown-toggle"

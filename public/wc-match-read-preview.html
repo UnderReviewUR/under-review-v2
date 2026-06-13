@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WC Match Read — Visual Preview (implementable)</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #121212;
+      --border: #262626;
+      --text: #f5f5f5;
+      --soft: #d4d4d4;
+      --muted: #737373;
+      --wc-blue: #2563eb;
+      --wc-gold: #d97706;
+      --wc-premium-accent: #00e5ff;
+      --mono-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --display-font: Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .page { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-family: var(--display-font); font-size: 22px; margin: 0 0 8px; color: var(--wc-premium-accent); }
+    .intro { font-size: 13px; color: var(--soft); margin: 0 0 20px; }
+    .intro code { font-size: 12px; color: #fde68a; }
+    .panel { margin-bottom: 28px; }
+    .panel-title {
+      font-family: var(--mono-font);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+    .wc-match-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .wc-match-teams { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .wc-match-team { font-size: 13px; font-weight: 600; flex: 1; }
+    .wc-match-vs { font-family: var(--mono-font); font-size: 11px; color: var(--muted); }
+    .wc-match-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 10px; color: var(--muted); font-family: var(--mono-font); margin-bottom: 8px; }
+    .wc-match-read {
+      margin: 10px 0 8px; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid rgba(0,229,255,0.22); background: rgba(0,229,255,0.04);
+    }
+    .wc-match-read--live { border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.06); }
+    .wc-match-read--compact { padding: 8px 10px; margin: 8px 0 6px; }
+    .wc-match-read__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .wc-match-read__badge {
+      font-family: var(--mono-font); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--wc-premium-accent);
+    }
+    .wc-match-read--live .wc-match-read__badge { color: #f87171; }
+    .wc-match-read__headline { margin: 0 0 6px; font-size: 13px; font-weight: 600; line-height: 1.35; }
+    .wc-match-read__subline { margin: 0 0 8px; font-size: 11px; color: var(--muted); }
+    .wc-odds-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--soft); margin-bottom: 4px; }
+    .wc-odds-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+    .wc-odds-bar span { display: block; height: 100%; }
+    .wc-match-read__edge-chip {
+      display: inline-flex; margin: 6px 0 8px; padding: 5px 10px; border-radius: 999px;
+      border: 1px solid rgba(250,204,21,0.35); background: rgba(250,204,21,0.08);
+    }
+    .wc-match-read__edge-label { font-size: 11px; font-weight: 600; color: #fde68a; }
+    .wc-match-read__momentum-row {
+      display: grid; grid-template-columns: 36px 1fr 44px; gap: 8px; align-items: center; margin-bottom: 6px;
+    }
+    .wc-match-read__momentum-abbr { font-family: var(--mono-font); font-size: 10px; color: var(--soft); }
+    .wc-match-read__momentum-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+    .wc-match-read__momentum-fill { display: block; height: 100%; border-radius: 999px; }
+    .wc-match-read__momentum-fill--home { background: var(--wc-blue); }
+    .wc-match-read__momentum-fill--away { background: var(--wc-gold); }
+    .wc-match-read__momentum-val { font-family: var(--mono-font); font-size: 10px; color: var(--muted); text-align: right; }
+    .wc-match-read__players { list-style: none; margin: 8px 0 0; padding: 0; }
+    .wc-match-read__players li { display: flex; justify-content: space-between; font-size: 11px; color: var(--soft); padding: 3px 0; }
+    .wc-match-read__deeper-btn {
+      margin-top: 8px; padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(0,229,255,0.35);
+      background: transparent; color: var(--wc-premium-accent); font-size: 12px; font-weight: 600; width: 100%;
+    }
+    .wc-edge-strip {
+      margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+    .wc-edge-strip__head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+    .wc-edge-strip__title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--soft); }
+    .wc-edge-strip__hint { font-size: 10px; color: var(--muted); font-family: var(--mono-font); }
+    .wc-edge-strip__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .wc-edge-strip__chip {
+      padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(250,204,21,0.3);
+      background: rgba(250,204,21,0.07); color: #fde68a; font-size: 11px; font-weight: 600;
+    }
+    .note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .note strong { color: var(--soft); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>WC Match Read preview</h1>
+    <p class="intro">
+      Static preview of TNNS-inspired surfaces wired to real UR engines —
+      <code>wcMatchReadModel.js</code>, Elo 1X2, ESPN chance index, sim vs BDL group advance.
+      Pricing unchanged; chat becomes <strong>Go deeper →</strong>.
+    </p>
+
+    <div class="panel">
+      <p class="panel-title">1 · Group edges strip (when sim + BDL KV loaded)</p>
+      <section class="wc-edge-strip">
+        <div class="wc-edge-strip__head">
+          <span class="wc-edge-strip__title">Group edges</span>
+          <span class="wc-edge-strip__hint">UR sim vs BDL advance lines</span>
+        </div>
+        <div class="wc-edge-strip__chips">
+          <span class="wc-edge-strip__chip">Group D · USA advance +4.2pt</span>
+          <span class="wc-edge-strip__chip">Group I · FRA advance +3.1pt</span>
+          <span class="wc-edge-strip__chip">Group J · ARG advance −2.8pt</span>
+        </div>
+      </section>
+      <p class="note"><strong>Real data path:</strong> <code>GET /api/world-cup?view=match_read_context</code> → <code>computeGroupMispriceRankings</code>. Chips hidden until KV ready.</p>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">2 · Pre-match card (output from buildWcMatchReadDisplay — USA vs PAR)</p>
+      <div class="wc-match-card">
+        <div class="wc-match-teams">
+          <div class="wc-match-team">United States</div>
+          <div class="wc-match-vs">vs</div>
+          <div class="wc-match-team" style="text-align:right">Paraguay</div>
+        </div>
+        <div class="wc-match-meta">
+          <span>Wed Jun 11 · 9:00 PM ET</span>
+          <span>Group D</span>
+          <span>SoFi Stadium</span>
+        </div>
+        <section class="wc-match-read wc-match-read--compact wc-match-read--pre">
+          <div class="wc-match-read__head">
+            <span class="wc-match-read__badge">MATCH READ</span>
+          </div>
+          <p class="wc-match-read__headline">Elo leans PAR (43%)</p>
+          <div class="wc-odds-labels">
+            <span>USA 30%</span><span>Draw 27%</span><span>PAR 43%</span>
+          </div>
+          <div class="wc-odds-bar">
+            <span style="width:30%;background:var(--wc-blue)"></span>
+            <span style="width:27%;background:var(--muted)"></span>
+            <span style="width:43%;background:var(--wc-gold)"></span>
+          </div>
+          <div class="wc-match-read__edge-chip">
+            <span class="wc-match-read__edge-label">Group D: USA advance +4.2pt vs market</span>
+          </div>
+          <button type="button" class="wc-match-read__deeper-btn">Go deeper →</button>
+        </section>
+      </div>
+      <p class="note">With ESPN 1X2 on file, headline switches to <strong>Elo: TEAM underpriced vs market (+Npt)</strong>. Group chip appears when <code>match_read_context</code> has sim + BDL futures.</p>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">3 · Live card (FRA vs ENG — chance index from match detail)</p>
+      <div class="wc-match-card">
+        <div class="wc-match-teams">
+          <div class="wc-match-team">France</div>
+          <div class="wc-match-vs"><strong>0 – 0</strong></div>
+          <div class="wc-match-team" style="text-align:right">England</div>
+        </div>
+        <div class="wc-match-meta"><span>LIVE · 32'</span><span>Group I</span></div>
+        <section class="wc-match-read wc-match-read--compact wc-match-read--live">
+          <div class="wc-match-read__head">
+            <span class="wc-match-read__badge">LIVE MATCH READ</span>
+          </div>
+          <p class="wc-match-read__headline">FRA creating more right now</p>
+          <p class="wc-match-read__subline">Live chance index (ESPN-derived in-match estimate — not Opta xG)</p>
+          <div class="wc-match-read__momentum-row">
+            <span class="wc-match-read__momentum-abbr">FRA</span>
+            <div class="wc-match-read__momentum-track"><span class="wc-match-read__momentum-fill wc-match-read__momentum-fill--home" style="width:81%"></span></div>
+            <span class="wc-match-read__momentum-val">0.77</span>
+          </div>
+          <div class="wc-match-read__momentum-row">
+            <span class="wc-match-read__momentum-abbr">ENG</span>
+            <div class="wc-match-read__momentum-track"><span class="wc-match-read__momentum-fill wc-match-read__momentum-fill--away" style="width:19%"></span></div>
+            <span class="wc-match-read__momentum-val">0.18</span>
+          </div>
+          <ul class="wc-match-read__players">
+            <li><span>Kylian Mbappé</span><span>0.31 · 2 SOT</span></li>
+          </ul>
+          <button type="button" class="wc-match-read__deeper-btn">Go deeper →</button>
+        </section>
+      </div>
+      <p class="note"><strong>Real data path:</strong> <code>buildLiveMatchChanceQualityFromDetail</code> on live match detail / enriched list row — same numbers UR Take already gets in prompts.</p>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">TNNS practice → UR (no pricing change)</p>
+      <ul class="note" style="padding-left:18px;margin:0">
+        <li>Instant numeric read before typing (Match Read card)</li>
+        <li>Live momentum bars from chance index, not chat</li>
+        <li>Group misprice chips from sim vs BDL — deterministic</li>
+        <li>UR Take = conversational depth layer via <strong>Go deeper →</strong></li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

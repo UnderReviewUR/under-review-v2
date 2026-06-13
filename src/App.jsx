@@ -809,6 +809,7 @@ ${themeCss}
     upcomingMatches: wcUpcomingMatches,
     teams: wcTeams,
     outrightsMeta: wcOutrightsMeta,
+    matchReadContext,
     retryWcLoad,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,
@@ -5087,6 +5088,7 @@ ${themeCss}
             upcomingMatches={wcUpcomingMatches}
             teams={wcTeams}
             outrightsMeta={wcOutrightsMeta}
+            matchReadContext={matchReadContext}
             retryWcLoad={retryWcLoad}
             wcMsgs={wcMsgs}
             wcBarRef={wcBarRef}

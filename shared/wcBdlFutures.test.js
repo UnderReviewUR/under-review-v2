@@ -93,5 +93,6 @@ test("formatWcBdlAdvancePriceAttribution cites BDL GOAT vendor line", () => {
     },
   });
   assert.match(line, /Book line: -750/);
-  assert.match(line, /DraftKings via BallDontLie GOAT live/);
+  assert.match(line, /DraftKings/);
+  assert.doesNotMatch(line, /GOAT|BallDontLie/i);
 });

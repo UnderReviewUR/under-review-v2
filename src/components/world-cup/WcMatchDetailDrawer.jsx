@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { getWcTeamByAbbr, getWcTeamsByGroup } from "../../data/wc2026Teams.js";
-import { resolveMatchWinProbabilityBar } from "../../../shared/wcMatchMoneylineProbs.js";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
 import {
   formatWcDetailAsOfEt,
@@ -9,10 +8,12 @@ import {
   wcXiStatusChipLabel,
 } from "../../../shared/wcXiStatus.js";
 import { WC_MATCH_INTEL_LOADING } from "../../../shared/wcProductVoice.js";
+import { buildWcMatchReadDisplay } from "../../../shared/wcMatchReadModel.js";
 import { filterMatchPlayerPropScrapeRows } from "../../../shared/wcMatchPlayerPropRowGuard.js";
 import { collapseMatchPlayerPropRowsForDisplay } from "../../../shared/wcMatchPlayerProps.js";
 import { wcTeamsWithStrengthTags } from "../../../shared/wc2026Strength.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
+import WcMatchReadCard from "./WcMatchReadCard.jsx";
 import {
   formatWcMatchGroupLetter,
   formatWcMatchVenueLine,
@@ -70,47 +71,9 @@ function wcDetailHasVisibleTeamStats(detail) {
   return false;
 }
 
-function ModelOddsBar({ odds }) {
-  if (!odds) return null;
-  const total = odds.teamA.winPct + odds.draw + odds.teamB.winPct || 1;
-  const aW = (odds.teamA.winPct / total) * 100;
-  const dW = (odds.draw / total) * 100;
-  const bW = (odds.teamB.winPct / total) * 100;
-  return (
-    <div className="wc-detail-model-odds">
-      <p className="wc-detail-model-odds__label">
-        {odds.sourceLabel || "Model win chance (Elo)"}
-      </p>
-      <div className="wc-odds-labels">
-        <span>
-          {odds.teamA.abbr} {odds.teamA.winPct}%
-        </span>
-        <span>Draw {odds.draw}%</span>
-        <span>
-          {odds.teamB.abbr} {odds.teamB.winPct}%
-        </span>
-      </div>
-      <div className="wc-odds-bar">
-        <span style={{ width: `${aW}%`, background: "var(--wc-blue)" }} />
-        <span style={{ width: `${dW}%`, background: "var(--muted)" }} />
-        <span style={{ width: `${bW}%`, background: "var(--wc-gold)" }} />
-      </div>
-    </div>
-  );
-}
-
-function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
+function WcPreMatchIntel({ match, home, away, teams, xiStatus, mispriceContext, onAskUrTake }) {
   const groupLetter = formatWcMatchGroupLetter(match?.group) || null;
   const groupTeams = groupLetter ? wcTeamsWithStrengthTags(getWcTeamsByGroup(groupLetter)) : [];
-  const modelOdds = teams?.length
-    ? resolveMatchWinProbabilityBar({
-        homeAbbr: match.homeTeam,
-        awayAbbr: match.awayTeam,
-        teams,
-        matchOdds: match?.odds,
-        oddsStale: match?.oddsStale === true,
-      })
-    : null;
   const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
 
   return (
@@ -133,7 +96,13 @@ function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
 
       {venueLine ? <p className="wc-detail-venue">{venueLine}</p> : null}
 
-      <ModelOddsBar odds={modelOdds} />
+      <WcMatchReadCard
+        match={match}
+        teams={teams}
+        mispriceContext={mispriceContext}
+        onGoDeeper={onAskUrTake}
+        showGoDeeper={Boolean(onAskUrTake)}
+      />
 
       <BookmakerOddsPanel
         compact
@@ -175,17 +144,11 @@ function WcPreMatchIntel({ match, home, away, teams, xiStatus, onAskUrTake }) {
       <p className="wc-detail-muted wc-detail-live-note">
         Live stats, chance index, and player props fill in at kickoff.
       </p>
-
-      {onAskUrTake ? (
-        <button type="button" className="wc-ask-btn wc-detail-ask-btn" onClick={() => onAskUrTake(match)}>
-          Ask UR Take →
-        </button>
-      ) : null}
     </section>
   );
 }
 
-export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake }) {
+export default function WcMatchDetailDrawer({ match, teams, mispriceContext = null, onClose, onAskUrTake }) {
   const [detail, setDetail] = useState(null);
   const [props, setProps] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -286,12 +249,22 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
             away={away}
             teams={teams}
             xiStatus={xiStatus}
+            mispriceContext={mispriceContext}
             onAskUrTake={!loading && !hasProps ? onAskUrTake : null}
           />
         ) : null}
 
         {!loading && hasStats ? (
-          <section className="wc-detail-section">
+          <>
+            <WcMatchReadCard
+              match={match}
+              teams={teams}
+              detail={detail}
+              mispriceContext={mispriceContext}
+              onGoDeeper={onAskUrTake}
+              showGoDeeper={Boolean(onAskUrTake)}
+            />
+            <section className="wc-detail-section">
             <h4>Match stats</h4>
             <StatLine
               label="Possession %"
@@ -309,6 +282,7 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
               away={detail.teamStats.away?.shotsOnTarget}
             />
           </section>
+          </>
         ) : null}
 
         {!loading && detail?.injuryCount > 0 ? (
@@ -325,8 +299,20 @@ export default function WcMatchDetailDrawer({ match, teams, onClose, onAskUrTake
         ) : null}
 
         {!loading && (hasStats || hasProps) && onAskUrTake ? (
-          <button type="button" className="wc-ask-btn wc-detail-ask-btn" onClick={() => onAskUrTake(match)}>
-            Ask UR Take →
+          <button
+            type="button"
+            className="wc-ask-btn wc-detail-ask-btn wc-match-read__deeper-btn wc-match-read__deeper-btn--full"
+            onClick={() => {
+              const read = buildWcMatchReadDisplay({
+                match,
+                teams,
+                detail,
+                mispriceContext,
+              });
+              onAskUrTake(match, read?.askPrompt);
+            }}
+          >
+            Go deeper →
           </button>
         ) : null}
       </div>

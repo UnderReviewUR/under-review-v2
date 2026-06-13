@@ -19,6 +19,8 @@ import {
   wcDataConfidenceNeedsCaution,
 } from "../../shared/wcDataConfidence.js";
 import WcTakeCard from "./WcTakeCard.jsx";
+import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
+import { sanitizeUrTakeUserFacingProse } from "../../shared/wcUserFacingCopy.js";
 import {
   buildWcTakeStatGrid,
   pickWcThePlayLine,
@@ -102,6 +104,7 @@ export default function URTakeResponse({
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [deepBreakdownExpanded, setDeepBreakdownExpanded] = useState(false);
 
   const formattedTimestamp = formatUrTakeTimestampEt(timestamp);
   const displaySport = resolveUrTakeDisplaySport({
@@ -126,8 +129,12 @@ export default function URTakeResponse({
         ? rulesBodyRaw.slice(rulesHeadline.length).trim()
         : "";
 
-  const whyNowRaw = rulesCallType ? rulesBody || "—" : scrubStructuredFaceText(whyNow) || "—";
-  const edgeRaw = rulesCallType ? "" : scrubStructuredFaceText(edge) || "—";
+  const whyNowRaw = sanitizeUrTakeUserFacingProse(
+    rulesCallType ? rulesBody || "—" : scrubStructuredFaceText(whyNow) || "—",
+  );
+  const edgeRaw = sanitizeUrTakeUserFacingProse(
+    rulesCallType ? "" : scrubStructuredFaceText(edge) || "—",
+  );
 
   const safeParlayLegs = Array.isArray(parlayLegs)
     ? parlayLegs
@@ -173,6 +180,8 @@ export default function URTakeResponse({
     !isWcPredictionsRoundup &&
     (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
   const isWcDirectCard = sportLower === "worldcup" && !rulesCallType;
+  const deepRaw = sanitizeUrTakeUserFacingProse(String(wcDeep || "").trim());
+  const showDeepBreakdown = !isWcDirectCard && Boolean(breakdownAvailable && deepRaw);
   const wcPredictionSlotRows = Array.isArray(predictionSlots)
     ? predictionSlots.filter((s) => s && String(s.value || "").trim())
     : [];
@@ -316,6 +325,12 @@ export default function URTakeResponse({
     Boolean(ee && eeModel) ||
     (Array.isArray(caveats) && caveats.some((c) => String(c ?? "").trim())) ||
     safeParlayLegs.length >= 2;
+
+  useLayoutEffect(() => {
+    if (showDeepBreakdown && focusLayout) {
+      setDeepBreakdownExpanded(true);
+    }
+  }, [showDeepBreakdown, focusLayout, deepRaw]);
 
   useLayoutEffect(() => {
     if (isWcDirectCard) {
@@ -523,14 +538,36 @@ export default function URTakeResponse({
         <div ref={primaryBodyRef} className="ur-v2-body-primary" aria-hidden />
       ) : null}
 
-      {showBodyExpand ? (
+      {showBodyExpand && !showDeepBreakdown ? (
         <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(true)}>
+          Full breakdown
+        </button>
+      ) : showDeepBreakdown && !deepBreakdownExpanded ? (
+        <button
+          type="button"
+          className={`ur-v2-body-expand${focusLayout ? " wc-take-breakdown-toggle--focus" : ""}`}
+          onClick={() => setDeepBreakdownExpanded(true)}
+        >
           Full breakdown
         </button>
       ) : bodyExpanded && (primaryOverflow || hasSecondaryBody) ? (
         <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(false)}>
           Show less
         </button>
+      ) : null}
+
+      {showDeepBreakdown && deepBreakdownExpanded ? (
+        <div className="wc-take-breakdown-panel">
+          <div className="wc-take-breakdown-label">Full breakdown</div>
+          <UrTakeBreakdownBody text={deepRaw} />
+          <button
+            type="button"
+            className={`ur-v2-body-expand wc-take-breakdown-toggle${focusLayout ? " wc-take-breakdown-toggle--focus" : ""}`}
+            onClick={() => setDeepBreakdownExpanded(false)}
+          >
+            Show less
+          </button>
+        </div>
       ) : null}
 
       <div

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { getWcTeamByAbbr } from "../../data/wc2026Teams.js";
-import { resolveMatchWinProbabilityBar } from "../../../shared/wcMatchMoneylineProbs.js";
 import { findStadiumByCity } from "../../data/wc2026Stadiums.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import { formatWcKickoffDisplay } from "../../../shared/wcKickoffDisplay.js";
 import { resolveWcXiStatus, wcXiStatusChipLabel } from "../../../shared/wcXiStatus.js";
 import WcLiveScore from "./WcLiveScore.jsx";
+import WcMatchReadCard from "./WcMatchReadCard.jsx";
 import {
   formatWcMatchGroupLetter,
   formatWcMatchVenueLine,
@@ -15,38 +15,10 @@ function isLive(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
 }
 
-function OddsBar({ odds }) {
-  if (!odds) return null;
-  const total = odds.teamA.winPct + odds.draw + odds.teamB.winPct || 1;
-  const aW = (odds.teamA.winPct / total) * 100;
-  const dW = (odds.draw / total) * 100;
-  const bW = (odds.teamB.winPct / total) * 100;
-  return (
-    <div className="wc-odds-wrap">
-      {odds.sourceLabel ? (
-        <p className="wc-detail-model-odds__label wc-odds-source-label">{odds.sourceLabel}</p>
-      ) : null}
-      <div className="wc-odds-labels">
-        <span>
-          {odds.teamA.abbr} {odds.teamA.winPct}%
-        </span>
-        <span>Draw {odds.draw}%</span>
-        <span>
-          {odds.teamB.abbr} {odds.teamB.winPct}%
-        </span>
-      </div>
-      <div className="wc-odds-bar">
-        <span style={{ width: `${aW}%`, background: "var(--wc-blue)" }} />
-        <span style={{ width: `${dW}%`, background: "var(--muted)" }} />
-        <span style={{ width: `${bW}%`, background: "var(--wc-gold)" }} />
-      </div>
-    </div>
-  );
-}
-
 export default function WcMatchCard({
   match,
   teams,
+  mispriceContext = null,
   onAskUrTake,
   onViewDetails,
   showOdds = true,
@@ -58,17 +30,7 @@ export default function WcMatchCard({
   const away = getWcTeamByAbbr(match?.awayTeam) || teams?.find((t) => t.abbreviation === match?.awayTeam);
   const live = isLive(match?.status);
   const finished = String(match?.status || "").toLowerCase() === "ft";
-  const showPreMatchOdds = showOdds && !live && !finished;
-  const odds =
-    showPreMatchOdds && teams?.length
-      ? resolveMatchWinProbabilityBar({
-          homeAbbr: match.homeTeam,
-          awayAbbr: match.awayTeam,
-          teams,
-          matchOdds: match?.odds,
-          oddsStale: match?.oddsStale === true,
-        })
-      : null;
+  const showIntel = showOdds && teams?.length;
 
   useEffect(() => {
     if (!fetchWeather) return;
@@ -158,8 +120,17 @@ export default function WcMatchCard({
           </span>
         ) : null}
       </div>
-      {showPreMatchOdds ? <OddsBar odds={odds} /> : null}
-      {showPreMatchOdds ? (
+      {showIntel ? (
+        <WcMatchReadCard
+          compact
+          match={match}
+          teams={teams}
+          mispriceContext={mispriceContext}
+          onGoDeeper={onAskUrTake}
+          showGoDeeper={Boolean(onAskUrTake)}
+        />
+      ) : null}
+      {showIntel && !live && !finished ? (
         <BookmakerOddsPanel
           compact
           fetchMultiBook={false}
@@ -174,13 +145,6 @@ export default function WcMatchCard({
           espnFallback={bookOdds}
         />
       ) : null}
-      <div className="wc-match-actions">
-        {onAskUrTake ? (
-          <button type="button" className="wc-ask-btn" onClick={() => onAskUrTake(match)}>
-            Ask UR Take →
-          </button>
-        ) : null}
-      </div>
     </div>
   );
 }

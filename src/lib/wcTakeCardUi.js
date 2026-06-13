@@ -3,7 +3,9 @@
  */
 
 import { capWcDeepWords, splitWcSentences } from "../../shared/wcSentenceBoundaries.js";
+import { getWcTeamByAbbr } from "../data/wc2026Teams.js";
 import { dedupeWcBreakdownParagraphs } from "../../shared/wcBreakdownParse.js";
+import { sanitizeWcUserFacingProse } from "../../shared/wcUserFacingCopy.js";
 import {
   extractWcMatchupWinnerLine,
   extractWcMatchupPlayHeadline,
@@ -116,6 +118,18 @@ export function wcLineSlotIsNumericDelta(line) {
  * @param {{ lean?: string, call?: string, thePlay?: string, callType?: string }} opts
  */
 /**
+ * @param {string} token
+ */
+function wcDisplayTeamToken(token) {
+  const t = String(token || "").trim();
+  if (/^[A-Z]{2,4}$/.test(t)) {
+    const team = getWcTeamByAbbr(t);
+    if (team?.name) return team.name;
+  }
+  return t;
+}
+
+/**
  * Short actionable play line — never thesis / delta parentheticals on the face.
  * @param {string} lean
  */
@@ -127,13 +141,13 @@ function pickWcAdvancementPlayHeadline(lean) {
     /Group\s+([A-L])\s*[—-]\s*([A-Z]{2,4})\s+advancement\s+misprice/i,
   );
   if (misprice) {
-    return `${misprice[2]} to advance in Group ${misprice[1]}`;
+    return `${wcDisplayTeamToken(misprice[2])} to advance in Group ${misprice[1]}`;
   }
 
   const std = play.match(/^(.+?)\s+to advance in Group\s+([A-L])(?:\s+at\s+([+-]?\d+))?/i);
   if (std) {
     const odds = std[3] ? ` at ${std[3]}` : "";
-    return `${std[1].trim()} to advance in Group ${std[2]}${odds}`;
+    return `${wcDisplayTeamToken(std[1].trim())} to advance in Group ${std[2]}${odds}`;
   }
 
   return play.replace(/^lean:\s*/i, "").replace(/\s*\([^)]*sim vs market[^)]*\)\s*\.?$/i, "").trim();
@@ -444,7 +458,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
   }
 
-  breakdown = dedupeWcBreakdownParagraphs(breakdown);
+  breakdown = dedupeWcBreakdownParagraphs(sanitizeWcUserFacingProse(breakdown));
 
   const breakdownAvailable =
     Boolean(opts.breakdownAvailable) || breakdown.length > (whyFace.length + 24);
@@ -696,10 +710,10 @@ export function wcCardSectionText(text) {
  * @returns {{ why: string, modelAttribution: string | null }}
  */
 export function prepareWcCardWhyDisplay(rawWhy) {
-  const base = wcCardSectionText(rawWhy);
+  const base = wcCardSectionText(sanitizeWcUserFacingProse(rawWhy));
   if (!base) return { why: "", modelAttribution: null };
   const { body, attribution } = extractWcModelAttributionPrefix(base);
-  return { why: body, modelAttribution: attribution };
+  return { why: sanitizeWcUserFacingProse(body), modelAttribution: attribution };
 }
 
 /**

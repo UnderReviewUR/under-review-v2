@@ -27,6 +27,7 @@ import {
 } from "../../shared/wcFeaturedMatch.js";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import WcPremiumFeaturedMatch from "../components/world-cup/WcPremiumFeaturedMatch.jsx";
+import WcTournamentEdgeStrip from "../components/world-cup/WcTournamentEdgeStrip.jsx";
 import AskUrTakeRetentionStrip from "../components/AskUrTakeRetentionStrip.jsx";
 import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 
@@ -51,6 +52,7 @@ export default function WorldCupScreen({
   upcomingMatches,
   teams = WC_2026_TEAMS,
   outrightsMeta = null,
+  matchReadContext = null,
   retryWcLoad = null,
   wcMsgs,
   wcBarRef,
@@ -196,9 +198,11 @@ export default function WorldCupScreen({
 
   const marketsChipLabel = outrightsMeta?.marketsChip || null;
 
-  const handleAskMatch = (match) => {
+  const handleAskMatch = (match, promptOverride) => {
     const groupBit = match.group ? ` (Group ${match.group})` : "";
-    const prompt = `Who wins ${match.homeTeam} vs ${match.awayTeam}${groupBit}?`;
+    const prompt =
+      promptOverride ||
+      `Who wins ${match.homeTeam} vs ${match.awayTeam}${groupBit}?`;
     submitWc(prompt, { eventId: match?.id });
   };
 
@@ -234,6 +238,7 @@ export default function WorldCupScreen({
             key={m.id || `${m.homeTeam}-${m.awayTeam}-${m.date}`}
             match={m}
             teams={teams}
+            mispriceContext={matchReadContext}
             onAskUrTake={handleAskMatch}
             onViewDetails={(match) => openMatchDrawer(match)}
             fetchWeather={fetchWeather}
@@ -310,6 +315,10 @@ export default function WorldCupScreen({
 
       {!wcLoading && mainTab === "matches" ? (
         <>
+          <WcTournamentEdgeStrip
+            mispriceContext={matchReadContext}
+            onAskEdge={(prompt) => submitWc(prompt)}
+          />
           <div className="wc-sub-tabs">
             {[
               ["live", "Live"],
@@ -567,10 +576,11 @@ export default function WorldCupScreen({
         <WcMatchDetailDrawer
           match={detailMatch}
           teams={teams}
+          mispriceContext={matchReadContext}
           onClose={() => setDetailMatch(null)}
-          onAskUrTake={(m) => {
+          onAskUrTake={(m, promptOverride) => {
             setDetailMatch(null);
-            handleAskMatch(m);
+            handleAskMatch(m, promptOverride);
           }}
         />
       ) : null}

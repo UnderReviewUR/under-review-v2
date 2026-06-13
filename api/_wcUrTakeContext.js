@@ -54,6 +54,7 @@ import {
   WC_COMPARATIVE_PROOF_PROMPT,
   WC_DEDUP_PROMPT,
   WC_SIM_ATTRIBUTION_PROMPT,
+  WC_USER_FACING_COPY_PROMPT,
 } from "../shared/wcTakeRetentionQA.js";
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
@@ -708,6 +709,8 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   if (ctx.tournamentSimBlock || ctx.groupMispriceBlock) {
     lines.push(`  ${WC_DEDUP_PROMPT.replace(/\n/g, " ")}`);
   }
+
+  lines.push(`  ${WC_USER_FACING_COPY_PROMPT.replace(/\n/g, " ")}`);
 
   if (ctx.adjustedGoldenBootBlock) {
     lines.push("", ctx.adjustedGoldenBootBlock);

@@ -85,6 +85,7 @@ export function useWorldCupData() {
   const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [outrightsKv, setOutrightsKv] = useState(null);
   const [outrightsMeta, setOutrightsMeta] = useState(null);
+  const [matchReadContext, setMatchReadContext] = useState(null);
   const [xiConfirmedNotice, setXiConfirmedNotice] = useState(null);
   const xiStatusMapRef = useRef(new Map());
   const loadGenerationRef = useRef(0);
@@ -156,11 +157,12 @@ export function useWorldCupData() {
     const generation = ++loadGenerationRef.current;
     setWcLoading(true);
     try {
-      const [groupsRes, matchesRes, outrightsRes, upcomingRes] = await Promise.all([
+      const [groupsRes, matchesRes, outrightsRes, upcomingRes, matchReadRes] = await Promise.all([
         fetch("/api/world-cup?view=groups", { cache: "no-store" }),
         fetch("/api/world-cup?view=matches", { cache: "no-store" }),
         fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
         fetch("/api/world-cup?view=upcoming", { cache: "no-store" }),
+        fetch("/api/world-cup?view=match_read_context", { cache: "no-store" }),
       ]);
       fetch("/api/world-cup?view=context", { cache: "no-store" }).catch(() => {});
 
@@ -168,10 +170,18 @@ export function useWorldCupData() {
       const matchesData = matchesRes.ok ? await matchesRes.json().catch(() => null) : null;
       const outrightsData = outrightsRes.ok ? await outrightsRes.json().catch(() => null) : null;
       const upcomingData = upcomingRes.ok ? await upcomingRes.json().catch(() => null) : null;
+      const matchReadData = matchReadRes.ok ? await matchReadRes.json().catch(() => null) : null;
 
       if (generation !== loadGenerationRef.current) return;
 
       applyPayloads(groupsData, matchesData, outrightsData, upcomingData);
+      if (matchReadData?.ok) {
+        setMatchReadContext({
+          teamStats: matchReadData.teamStats || null,
+          bdlFutures: matchReadData.bdlFutures || null,
+          ready: Boolean(matchReadData.ready),
+        });
+      }
     } catch (e) {
       if (generation === loadGenerationRef.current) {
         console.warn("[useWorldCupData] fetch failed:", e?.message);
@@ -239,6 +249,7 @@ export function useWorldCupData() {
     upcomingMatches,
     teams,
     outrightsMeta,
+    matchReadContext,
     retryWcLoad,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,

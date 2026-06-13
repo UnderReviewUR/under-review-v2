@@ -153,7 +153,11 @@ test("buildWcCrossGroupValuePrebuiltStructured — misprice + coin flip ships pr
   });
   assert.ok(pre);
   assert.match(pre.whyNow || "", /Coin-flip|coin-flip/i);
-  assert.match(pre.deep || "", /BallDontLie GOAT/i);
+  assert.match(pre.deep || "", /DraftKings/i);
+  assert.doesNotMatch(pre.deep || "", /BallDontLie GOAT/i);
+  assert.match(pre.deep || "", /Sim vs market:/i);
+  assert.match(pre.deep || "", /Wins-if:/i);
+  assert.match(pre.deep || "", /WATCH FOR:/i);
   assert.equal(pre.breakdownAvailable, true);
 });
 
@@ -263,7 +267,8 @@ test("buildWcGroupSlatePrebuiltStructured — numeric line on face, path in deep
   assert.ok(pre);
   assert.match(pre.line, /Market ~42\.1%/);
   assert.match(pre.deep, /top-two finish/i);
-  assert.match(pre.deep, /BallDontLie GOAT/i);
+  assert.match(pre.deep, /DraftKings/i);
+  assert.doesNotMatch(pre.deep, /BallDontLie GOAT/i);
   assert.match(pre.deep, /DraftKings/i);
   assert.match(pre.deep, /58\.3%/);
   assert.match(pre.deep, /Group D is four teams/i);
@@ -291,7 +296,8 @@ test("buildWcCrossGroupValuePrebuiltStructured — groupValue prompt ships BDL-b
   assert.ok(pre);
   assert.match(pre.lean || "", /-750/);
   assert.match(pre.whyNow || "", /51\.9%|market/i);
-  assert.match(pre.deep || "", /BallDontLie GOAT/i);
+  assert.match(pre.deep || "", /DraftKings/i);
+  assert.doesNotMatch(pre.deep || "", /BallDontLie GOAT/i);
   assert.match(pre.deep || "", /Group D is four teams/i);
   assert.match(pre.deep || "", /top-two finish/i);
 });

@@ -274,5 +274,6 @@ test("buildWcCompactStructured — group_slate prebuilt keeps seed deep when res
   });
   assert.ok(compact.deep.length > 120);
   assert.equal(compact.breakdownAvailable, true);
-  assert.match(compact.deep, /BallDontLie GOAT/i);
+  assert.match(compact.deep, /DraftKings/i);
+  assert.doesNotMatch(compact.deep, /BallDontLie GOAT/i);
 });

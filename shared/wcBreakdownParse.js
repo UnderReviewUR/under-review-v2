@@ -4,9 +4,19 @@
 
 const LABELED_SECTION_MARKERS = [
   { key: "scoreboard", label: "Scoreboard", pattern: /\bSCOREBOARD SCRIPT:\s*/gi },
-  { key: "winsIf", label: "Wins if", pattern: /\bWins-if:\s*/gi },
-  { key: "diesIf", label: "Dies if", pattern: /\bDies-if:\s*/gi },
-  { key: "watchFor", label: "Watch for", pattern: /\bWATCH FOR:\s*/gi },
+  { key: "simVsMarket", label: "Sim vs market", pattern: /\bSim vs market:\s*/gi },
+  { key: "runnerUp", label: "Runner-up gap", pattern: /\bRunner-up gap:\s*/gi },
+  { key: "bookLine", label: "Book line", pattern: /\bBook line:\s*/gi },
+  { key: "groupContext", label: "Group context", pattern: /\bGroup [A-L] is four teams:\s*/gi },
+  { key: "path", label: "Path", pattern: /\bPath:\s*/gi },
+  { key: "coinFlip", label: "Coin-flip path", pattern: /\bCoin-flip path:\s*/gi },
+  { key: "winsIf", label: "Wins if", pattern: /\b(?:Wins-if|This wins if):\s*/gi },
+  { key: "diesIf", label: "Dies if", pattern: /\b(?:Dies-if|This dies if):\s*/gi },
+  { key: "watchFor", label: "Watch for", pattern: /\b(?:WATCH FOR|Live trigger|Watch For|Watch for):\s*/gi },
+  { key: "sharpAngle", label: "Sharp angle", pattern: /\b(?:SHARP ANGLE|Sharp angle):\s*/gi },
+  { key: "context", label: "Context", pattern: /\bContext:\s*/gi },
+  { key: "thePlay", label: "The play", pattern: /\bThe Play:\s*/gi },
+  { key: "oneThing", label: "One thing", pattern: /\bOne Thing:\s*/gi },
 ];
 
 /**
@@ -80,4 +90,33 @@ export function parseWcBreakdownSections(text) {
   }
 
   return { preamble, sections };
+}
+
+/**
+ * Split dense preamble paragraphs into scannable blocks when no labeled markers exist.
+ * @param {string} preamble
+ * @returns {string[]}
+ */
+export function splitWcBreakdownPreambleBlocks(preamble) {
+  const raw = String(preamble || "").trim();
+  if (!raw) return [];
+
+  let parts = raw.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+  /** @type {string[]} */
+  const out = [];
+
+  for (const part of parts) {
+    if (part.length < 200 && !part.includes("Runner-up gap:")) {
+      out.push(part);
+      continue;
+    }
+    const sub = part
+      .split(
+        /(?=\bSim vs market:|\bRunner-up gap:|\bBook line:|\bGroup [A-L] is four teams:|\bPath:|\bCoin-flip path:|\b(?:Wins-if|Dies-if|This wins if|This dies if):|\bWATCH FOR:|\bSCOREBOARD SCRIPT:)/i,
+      )
+      .map((s) => s.trim())
+      .filter(Boolean);
+    out.push(...(sub.length ? sub : [part]));
+  }
+  return out;
 }

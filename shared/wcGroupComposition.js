@@ -406,20 +406,25 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
       0,
       520,
     );
+  const topComp = getWcGroupComposition(top.group);
+  const topPick =
+    topComp?.teams.find((t) => String(t.abbreviation).toUpperCase() === top.teamAbbr) ||
+    topComp?.contender;
+  const topPickName = topPick?.name || top.teamAbbr;
+  const topFavName = topComp?.favorite?.name || "the favorite";
+  const pathLine = `${topPickName} needs a top-two finish in Group ${top.group} — the path is not finishing last on points behind ${topFavName}.`;
+  const { winsIf, diesIf } = buildWcGroupSlateScenarioLines(topPickName, topFavName, top.group);
   const deep = buildWcGroupSlateDeepBreakdown({
     letter: top.group,
     pickAbbr: top.teamAbbr,
     whyNow,
     numericLine: base.line,
-    pathLine: String(base.deep || "").includes("top-two")
-      ? String(base.deep || "")
-          .split("\n\n")
-          .find((p) => /top-two finish/i.test(p)) || ""
-      : "",
+    pathLine,
     edge: base.edge,
+    winsIf,
+    diesIf,
     bdlFutures: opts.bdlFutures,
     bdlMarketType: bdlType,
-    extraBlocks: [coinFlipLine],
   });
 
   return {
@@ -634,7 +639,7 @@ export function repairWcGroupSlateStructuredLine(structured) {
   }
 
   const deepParts = [
-    line,
+    line ? `Path: ${line.replace(/^Path:\s*/i, "")}` : "",
     String(structured.deep || "").trim(),
     String(structured.edge || "").trim(),
   ].filter(Boolean);
@@ -693,7 +698,66 @@ function formatWcGroupCompositionLine(letter) {
 }
 
 /**
- * Premium card breakdown — sim vs market, BDL GOAT line, roster context, path, watch-for.
+ * Split card-face whyNow into deep breakdown blocks (sim lead, runner-up, coin-flip tail).
+ * @param {string} [whyNow]
+ */
+export function splitWcGroupSlateWhyNowForDeep(whyNow) {
+  let t = String(whyNow || "").trim();
+  let runnerUpLine = "";
+  let coinFlipFromWhy = "";
+
+  const ruIdx = t.search(/\bRunner-up gap:\s*/i);
+  if (ruIdx >= 0) {
+    runnerUpLine = t.slice(ruIdx).trim();
+    t = t.slice(0, ruIdx).trim().replace(/\.\s*$/, "");
+  }
+
+  const pullCoinFlip = (source) => {
+    const idx = source.search(/\bCoin-flip(?: path)?:\s*/i);
+    if (idx < 0) return { head: source, tail: "" };
+    return {
+      head: source.slice(0, idx).trim().replace(/\.\s*$/, ""),
+      tail: source.slice(idx).trim(),
+    };
+  };
+
+  if (runnerUpLine) {
+    const split = pullCoinFlip(runnerUpLine);
+    runnerUpLine = split.head;
+    coinFlipFromWhy = split.tail;
+  }
+  if (!coinFlipFromWhy) {
+    const split = pullCoinFlip(t);
+    t = split.head;
+    coinFlipFromWhy = split.tail;
+  }
+
+  if (coinFlipFromWhy && !/^Coin-flip path:/i.test(coinFlipFromWhy)) {
+    coinFlipFromWhy = coinFlipFromWhy.replace(/^Coin-flip(?: path)?:\s*/i, "Coin-flip path: ");
+  }
+
+  return { simLead: t, runnerUpLine, coinFlipFromWhy };
+}
+
+/**
+ * Scenario lines for group-advancement prebuilt cards.
+ * @param {string} pickName
+ * @param {string} favName
+ * @param {string} letter
+ */
+export function buildWcGroupSlateScenarioLines(pickName, favName, letter) {
+  const pick = String(pickName || "").trim();
+  const fav = String(favName || "the favorite").trim();
+  const g = String(letter || "").trim().toUpperCase();
+  if (!pick || !g) return { winsIf: "", diesIf: "" };
+  return {
+    winsIf: `${pick} finishes top two in Group ${g} with points on the board before ${fav} locks the table.`,
+    diesIf: `${pick} drops points to a longshot in the opener or trails ${fav} by three+ after two games.`,
+  };
+}
+
+/**
+ * Premium card breakdown — labeled sections for scannable Full breakdown panel.
  * @param {{
  *   letter: string,
  *   pickAbbr: string,
@@ -701,6 +765,8 @@ function formatWcGroupCompositionLine(letter) {
  *   numericLine?: string,
  *   pathLine?: string,
  *   edge?: string,
+ *   winsIf?: string,
+ *   diesIf?: string,
  *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string, vendor?: string }>>, lastUpdated?: number, source?: string },
  *   bdlMarketType?: string,
  *   extraBlocks?: string[],
@@ -709,21 +775,55 @@ function formatWcGroupCompositionLine(letter) {
 export function buildWcGroupSlateDeepBreakdown(opts = {}) {
   const letter = String(opts.letter || "").toUpperCase();
   const pickAbbr = String(opts.pickAbbr || "").toUpperCase();
+  const { simLead, runnerUpLine, coinFlipFromWhy } = splitWcGroupSlateWhyNowForDeep(opts.whyNow);
+  const numericLine = String(opts.numericLine || "").trim();
+
+  /** @type {string[]} */
+  const blocks = [];
+
+  const simBody = [simLead, numericLine].filter(Boolean).join(" ");
+  if (simBody) blocks.push(`Sim vs market: ${simBody}`);
+  if (runnerUpLine) {
+    blocks.push(/^Runner-up gap:/i.test(runnerUpLine) ? runnerUpLine : `Runner-up gap: ${runnerUpLine}`);
+  }
+
   const bdlLine = formatWcBdlAdvancePriceAttribution(
     pickAbbr,
     opts.bdlFutures,
     opts.bdlMarketType || "qualify_from_group",
   );
-  const parts = [
-    String(opts.whyNow || "").trim(),
-    String(opts.numericLine || "").trim(),
-    bdlLine,
-    formatWcGroupCompositionLine(letter),
-    String(opts.pathLine || "").trim(),
-    ...(Array.isArray(opts.extraBlocks) ? opts.extraBlocks.map((b) => String(b || "").trim()) : []),
-    String(opts.edge || "").trim(),
-  ].filter(Boolean);
-  return parts.join("\n\n").slice(0, 1100);
+  if (bdlLine) blocks.push(bdlLine);
+
+  const groupLine = formatWcGroupCompositionLine(letter);
+  if (groupLine) blocks.push(groupLine);
+
+  const pathLine = String(opts.pathLine || "").trim();
+  if (pathLine) {
+    blocks.push(/^Path:/i.test(pathLine) ? pathLine : `Path: ${pathLine}`);
+  }
+
+  for (const raw of Array.isArray(opts.extraBlocks) ? opts.extraBlocks : []) {
+    const b = String(raw || "").trim();
+    if (!b) continue;
+    if (/^Coin-flip/i.test(b)) {
+      blocks.push(/^Coin-flip path:/i.test(b) ? b : `Coin-flip path: ${b.replace(/^Coin-flip(?: path)?:\s*/i, "")}`);
+    } else {
+      blocks.push(b);
+    }
+  }
+  if (coinFlipFromWhy && !blocks.some((b) => /Coin-flip path:/i.test(b))) {
+    blocks.push(coinFlipFromWhy);
+  }
+
+  const winsIf = String(opts.winsIf || "").trim();
+  const diesIf = String(opts.diesIf || "").trim();
+  if (winsIf) blocks.push(`Wins-if: ${winsIf}`);
+  if (diesIf) blocks.push(`Dies-if: ${diesIf}`);
+
+  const edge = String(opts.edge || "").trim();
+  if (edge) blocks.push(/^WATCH FOR:/i.test(edge) ? edge : `WATCH FOR: ${edge}`);
+
+  return blocks.join("\n\n").slice(0, 1100);
 }
 
 /**
@@ -778,6 +878,7 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
   const edge = odds
     ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
     : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;
+  const { winsIf, diesIf } = buildWcGroupSlateScenarioLines(pick.name, fav, letter);
   const deep = buildWcGroupSlateDeepBreakdown({
     letter,
     pickAbbr,
@@ -785,6 +886,8 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     numericLine,
     pathLine,
     edge,
+    winsIf,
+    diesIf,
     bdlFutures: opts.bdlFutures,
     bdlMarketType: opts.bdlMarketType || "qualify_from_group",
   });

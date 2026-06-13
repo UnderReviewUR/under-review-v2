@@ -71,6 +71,7 @@ import {
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { WC_BDL_REFERENCE_KV_KEY, scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
 import { normalizeBdlGroupStandings } from "../shared/wcBdlGroupStandings.js";
+import { resolveWcCrossGroupPrebuiltInputs } from "./_wcCrossGroupPrebuiltInputs.js";
 
 const GROUPS_TTL = WC_GROUPS_TTL_SECONDS;
 const MATCHES_TTL = WC_MATCHES_TTL_SECONDS;
@@ -577,6 +578,27 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     }
 
+    if (view === "match_read_context" || view === "match-read-context") {
+      const { teamStats, bdlFutures } = await resolveWcCrossGroupPrebuiltInputs();
+      const lastUpdated = Math.max(
+        Number(bdlFutures?.lastUpdated) || 0,
+        Number(teamStats ? Date.now() : 0),
+      );
+      return res.status(200).json({
+        ok: true,
+        teamStats: teamStats || null,
+        bdlFutures: bdlFutures?.byMarketType
+          ? {
+              byMarketType: bdlFutures.byMarketType,
+              lastUpdated: bdlFutures.lastUpdated ?? null,
+              source: bdlFutures.source ?? null,
+            }
+          : null,
+        lastUpdated: lastUpdated || null,
+        ready: Boolean(teamStats && bdlFutures?.byMarketType),
+      });
+    }
+
     if (view === "sim" || view === "tournament_sim" || view === "tournament-sim") {
       if (String(req.query?.refresh || "") === "1") {
         await scrapeAndCacheWcTournamentSim();
@@ -661,7 +683,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({
       error:
-        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, goat, players, golden_boot, golden_glove, injuries, sim, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
+        "Invalid view — use groups, matches, outrights, upcoming, live, detail, context, match_read_context, goat, players, golden_boot, golden_glove, injuries, sim, bdl_seed, bdl_reference, match_player_props, or player_markets_status.",
     });
   } catch (err) {
     console.error("[world-cup]", err);
