@@ -870,6 +870,7 @@ export function buildWcCompactStructured(opts = {}) {
       primaryMispriceGroupLetter: seed.primaryMispriceGroupLetter || null,
       coinFlipGroupLetter: seed.coinFlipGroupLetter || null,
       coinFlipTeamAbbr: seed.coinFlipTeamAbbr || null,
+      auditFootnote: seed.auditFootnote || null,
     };
   }
 
@@ -897,6 +898,7 @@ export function buildWcCompactStructured(opts = {}) {
       tomorrowSlateAngles: seed.tomorrowSlateAngles,
       fixtureHome: seed.fixtureHome,
       fixtureAway: seed.fixtureAway,
+      auditFootnote: seed.auditFootnote || null,
     };
   }
 

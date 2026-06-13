@@ -120,6 +120,8 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
         teamStats: wcContext?.tournamentSimResults?.teamStats,
         bdlFutures: wcContext?.bdlFuturesPayload,
         question: String(question || ""),
+        nowMs: Date.now(),
+        simLastUpdated: wcContext?.tournamentSimResults?.lastUpdated ?? null,
       });
     passKind = "upset_scan";
   } else if (

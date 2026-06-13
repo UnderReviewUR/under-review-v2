@@ -277,3 +277,25 @@ test("buildWcCompactStructured — group_slate prebuilt keeps seed deep when res
   assert.match(compact.deep, /DraftKings/i);
   assert.doesNotMatch(compact.deep, /BallDontLie GOAT/i);
 });
+
+test("buildWcCompactStructured — group_slate seed preserves auditFootnote", () => {
+  const footnote = "Sources: 10,000 Elo/Poisson sims · updated Jun 13, 12:00 PM EDT · Advance lines DraftKings via BDL · Jun 13, 11:30 AM EDT.";
+  const compact = buildWcCompactStructured({
+    question: "any potential upsets that people are overlooking?",
+    wcIntent: WC_INTENT.STRUCTURAL,
+    summary: "Lean: Pass on DR Congo to advance in Group K at +100.",
+    deep: null,
+    structuredSeed: {
+      sport: "worldcup",
+      callType: "group_slate",
+      groupLetter: "K",
+      lean: "Lean: Pass on DR Congo to advance in Group K at +100.",
+      call: "Overlooked group-stage misprices",
+      whyNow: "DR Congo leads the board.",
+      deep: "Angle: Group K — DR Congo to advance",
+      breakdownAvailable: true,
+      auditFootnote: footnote,
+    },
+  });
+  assert.equal(compact.auditFootnote, footnote);
+});
