@@ -31,6 +31,7 @@ export async function resolveWcCrossGroupPrebuiltInputs(nowMs = Date.now()) {
     teamStats,
     bdlFutures,
     simLastUpdated: simRow?.lastUpdated ?? null,
+    eloMatchesApplied: Number(simRow?.eloMatchesApplied) || 0,
     nowMs,
   };
 }

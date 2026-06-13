@@ -112,9 +112,11 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
     simCount: simResults.simCount,
     liveResultsApplied: simResults.liveResultsApplied,
     completedMatchCount: simResults.completedMatchCount,
+    eloMatchesApplied: simResults.eloMatchesApplied,
+    knockoutResultsApplied: simResults.knockoutResultsApplied,
     fingerprint,
     lastUpdated: nowMs,
-    source: "monte_carlo_poisson_elo",
+    source: "monte_carlo_poisson_elo_live",
   };
 
   await setDurableJson(WC_TOURNAMENT_SIM_KV_KEY, payload, {
@@ -214,6 +216,8 @@ export async function resolveWcTournamentSimForPrompt(opts = {}) {
     simCount: row.simCount || DEFAULT_SIM_COUNT,
     liveResultsApplied: Boolean(row.liveResultsApplied),
     completedMatchCount: Number(row.completedMatchCount) || 0,
+    eloMatchesApplied: Number(row.eloMatchesApplied) || 0,
+    knockoutResultsApplied: Number(row.knockoutResultsApplied) || 0,
   };
 
   return {

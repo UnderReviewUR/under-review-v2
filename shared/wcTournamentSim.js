@@ -10,6 +10,16 @@
  */
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import { applyPostMatchEloToTeams } from "./wcEloUpdates.js";
+import {
+  WC2026_KNOCKOUT_BRACKET,
+  assignThirdPlaceToR32Slots,
+  findCompletedKnockoutMatch,
+  isKnockoutCompletedMatch,
+  knockoutCompletedMatches,
+  resolveBracketSlot,
+  winnerFromCompletedMatch,
+} from "./wc2026KnockoutBracket.js";
 
 // ── Poisson helpers ──
 
@@ -270,96 +280,74 @@ function selectBestThirdPlace(thirdPlaceTeams) {
     .map((r) => r.team);
 }
 
-// ── Knockout bracket ──
+// ── Knockout bracket (openfootball template) ──
 
 /**
- * R32 matchups per FIFA 2026 bracket structure.
- * Group winners (1st) and runners-up (2nd) from each group + 8 best 3rd.
- * Simplified bracket: 1A vs 3C/D/E, 2A vs 2B, etc. (FIFA exact bracket TBD;
- * using a balanced seeding: group winners vs 3rd/runners from different groups).
- *
+ * Walk full knockout tree; lock verified FT scores when present.
  * @param {Map<string, Array<{team, points, gd, gf}>>} groupResults
- * @param {Array<object>} bestThird
- * @returns {Array<[object, object]>} 16 R32 matchups
+ * @param {Array<{ team: object, group: string, points: number, gd: number, gf: number }>} rankedThirdPlace
+ * @param {Array<Record<string, unknown>>} completedKnockout
+ * @param {Map<string, object>} tracker
  */
-function buildR32Bracket(groupResults, bestThird) {
-  const winners = [];
-  const runnersUp = [];
-  for (const letter of "ABCDEFGHIJKL") {
-    const standings = groupResults.get(letter);
-    if (!standings || standings.length < 2) continue;
-    winners.push(standings[0].team);
-    runnersUp.push(standings[1].team);
-  }
+function simulateKnockoutFromTemplate(groupResults, rankedThirdPlace, completedKnockout, tracker) {
+  const r32Template = WC2026_KNOCKOUT_BRACKET.find((r) => r.round === "r32")?.matches || [];
+  const thirdByMatchNum = assignThirdPlaceToR32Slots(r32Template, rankedThirdPlace.slice(0, 8));
+  /** @type {Map<number, object>} */
+  const winners = new Map();
+  /** @type {Map<number, object>} */
+  const losers = new Map();
 
-  // Balanced seeding: winners from top half vs runners/3rd from bottom half and vice versa
-  // Simplified: pair winner[i] vs runner[11-i], then 3rd place fills remaining 8 slots
-  const bracket = [];
+  for (const round of WC2026_KNOCKOUT_BRACKET) {
+    if (round.round === "third") continue;
 
-  // 8 matches: group winners vs runners-up from cross groups
-  for (let i = 0; i < 6; i++) {
-    bracket.push([winners[i], runnersUp[11 - i]]);
-  }
-  for (let i = 6; i < 12; i++) {
-    bracket.push([winners[i], runnersUp[11 - i]]);
-  }
+    for (const m of round.matches) {
+      const ctx = {
+        groupResults,
+        thirdByMatchNum,
+        winners,
+        losers,
+        currentMatchNum: m.num,
+      };
+      const teamA = resolveBracketSlot(m.team1, ctx);
+      const teamB = resolveBracketSlot(m.team2, ctx);
+      if (!teamA || !teamB) continue;
 
-  // 8 matches: remaining runners vs best 3rd (already have 12 pairs above — need 16 total)
-  // Actually: 12 winners + 12 runners = 24, + 8 thirds = 32 → 16 R32 matches.
-  // We have 12 winner-vs-runner pairs above. Need 4 more matches using the 8 best-3rd.
-  // Pair them: 3rd[0] vs 3rd[7], 3rd[1] vs 3rd[6], etc.
-  for (let i = 0; i < 4; i++) {
-    bracket.push([bestThird[i], bestThird[7 - i]]);
-  }
-
-  return bracket;
-}
-
-/**
- * Simulate knockout rounds from R32 to Final.
- * @param {Array<[object, object]>} r32Bracket
- * @param {Map<string, object>} tracker — accumulates round-reach per team
- * @returns {object} tournament winner
- */
-function simulateKnockout(r32Bracket, tracker) {
-  let currentRound = r32Bracket;
-  const roundNames = ["r32", "r16", "qf", "sf", "final"];
-  let roundIdx = 0;
-
-  while (currentRound.length > 0) {
-    const roundName = roundNames[roundIdx] || `round_${roundIdx}`;
-    const nextRound = [];
-
-    for (const [teamA, teamB] of currentRound) {
-      // Track that both teams reached this round
+      const roundKey = round.round === "final" ? "final" : round.round;
       const tA = tracker.get(teamA.abbreviation);
       const tB = tracker.get(teamB.abbreviation);
-      if (tA) tA[roundName] = (tA[roundName] || 0) + 1;
-      if (tB) tB[roundName] = (tB[roundName] || 0) + 1;
+      if (tA) tA[roundKey] = (tA[roundKey] || 0) + 1;
+      if (tB) tB[roundKey] = (tB[roundKey] || 0) + 1;
 
-      const result = simulateMatch(teamA, teamB, false); // no draws in knockout
-      nextRound.push(result.winner);
-    }
+      const played = findCompletedKnockoutMatch(completedKnockout, teamA, teamB, m.num);
+      /** @type {object | null} */
+      let winner = null;
+      /** @type {object | null} */
+      let loser = null;
 
-    if (nextRound.length === 1) {
-      // Final winner
-      const champ = nextRound[0];
-      const tc = tracker.get(champ.abbreviation);
-      if (tc) tc.champion = (tc.champion || 0) + 1;
-      return champ;
-    }
+      if (played) {
+        winner = winnerFromCompletedMatch(played, teamA, teamB);
+        if (winner) {
+          loser = winner.abbreviation === teamA.abbreviation ? teamB : teamA;
+        }
+      }
 
-    // Pair winners for next round
-    currentRound = [];
-    for (let i = 0; i < nextRound.length; i += 2) {
-      if (i + 1 < nextRound.length) {
-        currentRound.push([nextRound[i], nextRound[i + 1]]);
+      if (!winner) {
+        const result = simulateMatch(teamA, teamB, false);
+        winner = result.winner;
+        loser = result.loser;
+      }
+
+      if (winner) winners.set(m.num, winner);
+      if (loser) losers.set(m.num, loser);
+
+      if (round.round === "final" && winner) {
+        const tc = tracker.get(winner.abbreviation);
+        if (tc) tc.champion = (tc.champion || 0) + 1;
       }
     }
-    roundIdx++;
   }
 
-  return null;
+  return winners.get(104) ?? null;
 }
 
 // ── Main simulation ──
@@ -382,14 +370,24 @@ function simulateKnockout(r32Bracket, tracker) {
 /**
  * Run full Monte Carlo tournament simulation.
  * @param {Array<object>} [teams] — defaults to WC_2026_TEAMS
- * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>> }} [opts]
- * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number }}
+ * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>>, applyLiveElo?: boolean }} [opts]
+ * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number, eloMatchesApplied: number, knockoutResultsApplied: number }}
  */
 export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
   const simCount = opts.simCount || 10000;
-  const teamList = teams || WC_2026_TEAMS;
   const completedMatches = completedWcMatchesFromList(opts.completedMatches || []);
+  const knockoutCompleted = knockoutCompletedMatches(completedMatches);
+  const groupCompleted = completedMatches.filter((m) => !isKnockoutCompletedMatch(m));
   const liveResultsApplied = completedMatches.length > 0;
+  const applyLiveElo = opts.applyLiveElo !== false;
+
+  let teamList = teams || WC_2026_TEAMS;
+  let eloMatchesApplied = 0;
+  if (applyLiveElo && completedMatches.length > 0) {
+    const eloOut = applyPostMatchEloToTeams(teamList, completedMatches);
+    teamList = eloOut.teams;
+    eloMatchesApplied = eloOut.matchesApplied;
+  }
 
   // Group teams by group letter
   /** @type {Map<string, Array<object>>} */
@@ -415,8 +413,8 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     const allThirdPlace = [];
 
     for (const [letter, groupTeams] of groupMap) {
-      const groupCompleted = completedMatchesForGroup(groupTeams, completedMatches);
-      const standings = simulateGroupStage(groupTeams, groupCompleted);
+      const groupCompletedForGroup = completedMatchesForGroup(groupTeams, groupCompleted);
+      const standings = simulateGroupStage(groupTeams, groupCompletedForGroup);
       groupResults.set(letter, standings);
 
       if (standings.length > 0) {
@@ -436,16 +434,19 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
       }
     }
 
-    // 2. Select 8 best 3rd-place teams
-    const bestThird = selectBestThirdPlace(allThirdPlace);
+    // 2. Select 8 best 3rd-place teams (ranked for bracket assignment)
+    const rankedThirdPlace = selectBestThirdPlace(allThirdPlace).map((team) => {
+      const row = allThirdPlace.find((r) => r.team.abbreviation === team.abbreviation);
+      return row || { team, group: "", points: 0, gd: 0, gf: 0 };
+    });
+    const bestThird = rankedThirdPlace.map((r) => r.team);
     for (const t of bestThird) {
       const tc = tracker.get(t.abbreviation);
       if (tc) tc.advance++;
     }
 
-    // 3. Build R32 bracket and simulate knockout
-    const r32Bracket = buildR32Bracket(groupResults, bestThird);
-    simulateKnockout(r32Bracket, tracker);
+    // 3. Knockout — openfootball bracket + FT lock
+    simulateKnockoutFromTemplate(groupResults, rankedThirdPlace, knockoutCompleted, tracker);
   }
 
   // Compile results
@@ -479,6 +480,8 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     topContenders,
     liveResultsApplied,
     completedMatchCount: completedMatches.length,
+    eloMatchesApplied,
+    knockoutResultsApplied: knockoutCompleted.length,
   };
 }
 

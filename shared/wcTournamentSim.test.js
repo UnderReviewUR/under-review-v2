@@ -93,4 +93,40 @@ describe("simulateTournament with live results", () => {
     assert.equal(Object.keys(results.teamStats).length, 48);
     assert.ok(results.teamStats.MEX.advancePct > 0);
   });
+
+  test("applies post-match Elo from FT results", () => {
+    const results = simulateTournament(undefined, {
+      simCount: 200,
+      completedMatches: [
+        {
+          homeTeam: "MEX",
+          awayTeam: "RSA",
+          homeScore: 2,
+          awayScore: 0,
+          status: "FT",
+          date: "2026-06-11",
+        },
+      ],
+    });
+    assert.equal(results.eloMatchesApplied, 1);
+    assert.ok(results.teamStats.MEX.eloRating > 1858);
+  });
+
+  test("locks completed knockout FT and counts knockoutResultsApplied", () => {
+    const results = simulateTournament(undefined, {
+      simCount: 400,
+      completedMatches: [
+        {
+          homeTeam: "FRA",
+          awayTeam: "GER",
+          homeScore: 2,
+          awayScore: 1,
+          status: "FT",
+          round: "Round of 16",
+          openFootballNum: 89,
+        },
+      ],
+    });
+    assert.equal(results.knockoutResultsApplied, 1);
+  });
 });

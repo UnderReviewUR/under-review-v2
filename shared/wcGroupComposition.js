@@ -479,6 +479,7 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
     },
     {
       simLastUpdated: opts.simLastUpdated,
+      eloMatchesApplied: opts.eloMatchesApplied,
       bdlFutures: opts.bdlFutures,
       bdlMarketType: bdlType,
       teamAbbr: top.teamAbbr,
@@ -649,6 +650,7 @@ export function buildWcGroupUpsetScanPrebuiltStructured(opts = {}) {
     },
     {
       simLastUpdated: opts.simLastUpdated,
+      eloMatchesApplied: opts.eloMatchesApplied,
       bdlFutures: opts.bdlFutures,
       bdlMarketType: bdlType,
       teamAbbr: lead.teamAbbr,
@@ -1353,6 +1355,7 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     Number.isFinite(opts.simPct) && Number.isFinite(opts.impliedPct)
       ? {
           simLastUpdated: opts.simLastUpdated,
+          eloMatchesApplied: opts.eloMatchesApplied,
           bdlFutures: opts.bdlFutures,
           bdlMarketType: opts.bdlMarketType || "qualify_from_group",
           teamAbbr: pickAbbr,

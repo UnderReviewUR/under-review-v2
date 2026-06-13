@@ -54,6 +54,7 @@ function pickBdlVendorLabel(bdlFutures, marketType, teamAbbr) {
  * @param {{
  *   simCount?: number,
  *   simLastUpdated?: number | null,
+ *   eloMatchesApplied?: number,
  *   bdlFutures?: { byMarketType?: Record<string, Record<string, { vendor?: string }>>, lastUpdated?: number, source?: string },
  *   bdlMarketType?: string,
  *   teamAbbr?: string,
@@ -63,6 +64,7 @@ function pickBdlVendorLabel(bdlFutures, marketType, teamAbbr) {
 export function buildWcMispriceAuditFootnote(opts = {}) {
   const simCount = Number(opts.simCount) || 10000;
   const simMs = Number(opts.simLastUpdated);
+  const eloApplied = Number(opts.eloMatchesApplied) || 0;
   const bdl = opts.bdlFutures;
   const bdlMs = Number(bdl?.lastUpdated);
   const marketType = String(opts.bdlMarketType || "qualify_from_group");
@@ -74,6 +76,9 @@ export function buildWcMispriceAuditFootnote(opts = {}) {
 
   /** @type {string[]} */
   const parts = [`${simCount.toLocaleString("en-US")} Elo/Poisson sims`];
+  if (eloApplied > 0) {
+    parts.push(`Elo refreshed from ${eloApplied} FT result${eloApplied === 1 ? "" : "s"}`);
+  }
   if (Number.isFinite(simMs) && simMs > 0) {
     parts.push(`updated ${formatAuditStamp(simMs)}`);
   }
